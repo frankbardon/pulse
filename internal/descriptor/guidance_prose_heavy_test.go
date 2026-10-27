@@ -20,6 +20,8 @@ import (
 // bounds them. The Response / PredictResult half lives in the root
 // package (it must execute).
 func TestManifestGuidanceBudget(t *testing.T) {
+	t.Parallel()
+
 	raw := marshalManifest(t, BuildManifest())
 	got := manifestGuidanceBytes(t, raw)
 	longest := 0
@@ -43,6 +45,8 @@ func TestManifestGuidanceBudget(t *testing.T) {
 // injected prose is reported, an inflated taxonomy breaks the fixed cap
 // and a prose-carrying entry intents list breaks the per-entry cap.
 func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
+	t.Parallel()
+
 	plain := BuiltinPurposes()["AGG_AVERAGE"].Plain
 	var short, label string
 	for _, term := range Glossary() {

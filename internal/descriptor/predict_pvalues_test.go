@@ -42,6 +42,8 @@ func pvOverlay(kind types.OverlayKind, scope types.OverlayScope, m *types.Multip
 // TestPredict_PValues counts the inferential p-values a request emits
 // and how many no correction reaches.
 func TestPredict_PValues(t *testing.T) {
+	t.Parallel()
+
 	holm := mult(mHolm, "", 0)
 	none := mult(mNone, "", 0)
 	pv := func(total, uncorrected int, basis string) *descriptor.PValueCount {
@@ -114,6 +116,8 @@ func TestPredict_PValues(t *testing.T) {
 // TestPredict_PValuesFollowInstance: a hidden capability:multiplicity
 // omits the count; a hidden test type or overlay kind is not counted.
 func TestPredict_PValuesFollowInstance(t *testing.T) {
+	t.Parallel()
+
 	req := func() *types.Request {
 		return &types.Request{
 			Crosstab: pvCrosstab("g", "h"),
@@ -143,6 +147,8 @@ func TestPredict_PValuesFollowInstance(t *testing.T) {
 // TestPredict_PValuesOmittedOnRefusal: a refused multiplicity block
 // reports no count (the request does not run).
 func TestPredict_PValuesOmittedOnRefusal(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: []*types.Test{pvTest(mult("sidak", "", 0))}}
 	env := predictFromBytes(pvalueCohort(t), req, nil)
 	if len(env.Errors) == 0 {
@@ -154,6 +160,8 @@ func TestPredict_PValuesOmittedOnRefusal(t *testing.T) {
 }
 
 func TestMultiplicityTriggerThreshold(t *testing.T) {
+	t.Parallel()
+
 	if descriptor.MultiplicityTriggerThreshold != 10 {
 		t.Errorf("threshold = %d, want 10", descriptor.MultiplicityTriggerThreshold)
 	}
@@ -164,6 +172,8 @@ func TestMultiplicityTriggerThreshold(t *testing.T) {
 // for a partial control list — times the buckets on a grouped request;
 // inference off counts none. No multiplicity block reaches it.
 func TestPredict_PValuesMatrixInference(t *testing.T) {
+	t.Parallel()
+
 	cohort := buildTestPulseFile(t, &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x1", Type: encoding.FieldTypeF64, Description: "First measured score"},
 		{Name: "x2", Type: encoding.FieldTypeF64, Description: "Second measured score"},

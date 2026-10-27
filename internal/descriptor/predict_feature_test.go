@@ -10,6 +10,8 @@ import (
 )
 
 func TestPredict_FeatureLogValid(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "income", Type: encoding.FieldTypeF64, Description: "Annual income in USD"},
@@ -37,6 +39,8 @@ func TestPredict_FeatureLogValid(t *testing.T) {
 }
 
 func TestPredict_FeatureUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric measurement value"},
@@ -56,6 +60,8 @@ func TestPredict_FeatureUnknownField(t *testing.T) {
 }
 
 func TestPredict_FeatureUnknownType(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric measurement value"},
@@ -74,6 +80,8 @@ func TestPredict_FeatureUnknownType(t *testing.T) {
 }
 
 func TestPredict_FeatureOneHotRequiresCategorical(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score field"},
@@ -92,6 +100,8 @@ func TestPredict_FeatureOneHotRequiresCategorical(t *testing.T) {
 }
 
 func TestPredict_FeatureOneHotProjectsCategoryColumns(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{
@@ -124,6 +134,8 @@ func TestPredict_FeatureOneHotProjectsCategoryColumns(t *testing.T) {
 }
 
 func TestPredict_FeaturePolyValid(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric predictor"},
@@ -156,6 +168,8 @@ func TestPredict_FeaturePolyValid(t *testing.T) {
 }
 
 func TestPredict_FeaturePolyDegreeOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric predictor"},
@@ -188,6 +202,8 @@ func TestPredict_FeaturePolyDegreeOutOfRange(t *testing.T) {
 }
 
 func TestPredict_FeaturePolyRejectsCategoricalField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{
@@ -211,6 +227,8 @@ func TestPredict_FeaturePolyRejectsCategoricalField(t *testing.T) {
 }
 
 func TestPredict_FeatureBucketizeMissingParams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric measurement value"},
@@ -229,6 +247,8 @@ func TestPredict_FeatureBucketizeMissingParams(t *testing.T) {
 }
 
 func TestPredict_FeatureSplitBadRatios(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Numeric measurement value"},
@@ -250,6 +270,8 @@ func TestPredict_FeatureSplitBadRatios(t *testing.T) {
 }
 
 func TestPredict_FeatureTargetEncodeRejectsCategoricalTarget(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{

@@ -22,6 +22,8 @@ import (
 // The mode must be a KNOWN n_source. If it were not, the unknown-mode
 // refusal would mask every assertion below with a params error.
 func TestValidateCompose_PanelDistinctWithinIsAKnownMode(t *testing.T) {
+	t.Parallel()
+
 	clean := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_CATEGORY}
 	env := ValidateCompose(panelPartitionComposed(clean, clean, map[string]any{
 		"n_source": types.PanelNSourceRowMarginDistinctWithin,
@@ -55,6 +57,8 @@ func TestValidateCompose_PanelDistinctWithinIsAKnownMode(t *testing.T) {
 // The inherited refusal on the predict arm. Same axis, same code, same
 // Details the runtime twin emits.
 func TestValidateCompose_PanelDistinctWithinFanOutBeyondPrefixRefused(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	env := ValidateCompose(panelPartitionComposed(fanOut, fanOut, map[string]any{
 		"n_source":       types.PanelNSourceRowMarginDistinctWithin,
@@ -84,6 +88,8 @@ func TestValidateCompose_PanelDistinctWithinFanOutBeyondPrefixRefused(t *testing
 // nothing, so the same fan-out axis is correct there and must not be
 // gated on this arm either.
 func TestValidateCompose_PanelDistinctWithinOmittedDepthNotGated(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	env := ValidateCompose(panelPartitionComposed(fanOut, fanOut, map[string]any{
 		"n_source": types.PanelNSourceRowMarginDistinctWithin,
@@ -98,6 +104,8 @@ func TestValidateCompose_PanelDistinctWithinOmittedDepthNotGated(t *testing.T) {
 // within-prefix modes — a caller told the depth applies to
 // row_margin_value_within "only" would not discover the distinct leg.
 func TestValidateCompose_PanelDepthDiagnosticNamesBothWithinModes(t *testing.T) {
+	t.Parallel()
+
 	clean := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_CATEGORY}
 	env := ValidateCompose(panelPartitionComposed(clean, clean, map[string]any{
 		"n_source":       types.PanelNSourceCellNUnweighted,

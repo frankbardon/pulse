@@ -7,6 +7,8 @@ import (
 )
 
 func TestManifest_CommandAnnotationsPopulated(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.Commands) == 0 {
 		t.Fatalf("manifest has no commands")
@@ -23,6 +25,8 @@ func TestManifest_CommandAnnotationsPopulated(t *testing.T) {
 }
 
 func TestManifest_OperationsPopulated(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	want := map[string]bool{
 		"filter_to_file": false,
@@ -46,6 +50,8 @@ func TestManifest_OperationsPopulated(t *testing.T) {
 }
 
 func TestManifest_AnnotationSemantics(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	byName := func(name string) descriptor.CommandAnnotations {
 		for _, cmd := range m.Commands {

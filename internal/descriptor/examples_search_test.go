@@ -63,6 +63,8 @@ func legacySearch(q string) []string {
 // TestExamplesSearch_Relevance: multi-word queries, aliases and intent
 // Sounds reach the examples an analyst means.
 func TestExamplesSearch_Relevance(t *testing.T) {
+	t.Parallel()
+
 	snap := hidingSnapshot()
 	cases := []struct {
 		query string
@@ -106,6 +108,8 @@ func TestExamplesSearch_Relevance(t *testing.T) {
 // examples declaring the intent; an unknown or hidden intent is the
 // recommend error code.
 func TestExamplesSearch_IntentFilter(t *testing.T) {
+	t.Parallel()
+
 	snap := hidingSnapshot()
 	hits, err := snap.ExamplesSearch(examples.Query{Intent: IntentRelationship})
 	if err != nil || len(hits) == 0 {
@@ -162,6 +166,8 @@ func TestExamplesSearch_IntentFilter(t *testing.T) {
 // TestExamplesSearch_HiddenAliasAbsent: a hidden operator's aliases
 // never expand a query and its examples are absent.
 func TestExamplesSearch_HiddenAliasAbsent(t *testing.T) {
+	t.Parallel()
+
 	full, _ := hidingSnapshot().ExamplesSearch(examples.Query{Query: "aov"})
 	if len(full) == 0 {
 		t.Fatal("aov finds nothing on the full instance")

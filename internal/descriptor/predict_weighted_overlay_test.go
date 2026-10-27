@@ -18,6 +18,8 @@ import (
 // Unweighted, or opted out with `weight: null`, it is still
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestPredict_PairwiseWeightedTwoMeansZ_WeightedAverageCell(t *testing.T) {
+	t.Parallel()
+
 	file := buildJoinPulseBytes(t, []encoding.Field{
 		{Name: "cat", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 1, CsvColumnIdx: 1},

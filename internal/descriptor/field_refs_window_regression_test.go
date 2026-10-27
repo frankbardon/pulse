@@ -24,6 +24,8 @@ func lagWindow(label string) *types.Window {
 // regression name slot reads a window label (explicit or default) in the
 // record-row shape, with no refusal.
 func TestWindowPredictor_WalkAcceptsWindowLabelsOverRecords(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows: []*types.Window{
 			lagWindow("lag_n"),
@@ -45,6 +47,8 @@ func TestWindowPredictor_WalkAcceptsWindowLabelsOverRecords(t *testing.T) {
 // window label to the regressions moves nothing for the windows
 // themselves — a window reading a LATER window's label is still refused.
 func TestWindowPredictor_WindowsSeeOnlyEarlierColumns(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows: []*types.Window{
 			{Type: types.WIN_LAG, Field: "later", Label: "first", OrderBy: []types.OrderKey{{Field: "m"}}},
@@ -61,6 +65,8 @@ func TestWindowPredictor_WindowsSeeOnlyEarlierColumns(t *testing.T) {
 // reason: grouped_shape}; a truly unknown name keeps its message — and an
 // extension feature's open column set does not admit the window label.
 func TestWindowPredictor_GroupedShapeRefused(t *testing.T) {
+	t.Parallel()
+
 	reg := func() []*types.RegressionSpec {
 		return []*types.RegressionSpec{{Type: types.REG_OLS, Target: "n", Predictors: []string{"lag_n", "q_unknown"},
 			Covariance: &types.RegressionCovariance{Cluster: "lag_n"}}}
@@ -108,6 +114,8 @@ func TestWindowPredictor_GroupedShapeRefused(t *testing.T) {
 // TestWindowPredictor_WeightRefused: a slot weight never reads a window
 // label — refused in every shape with a message naming the window.
 func TestWindowPredictor_WeightRefused(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows: []*types.Window{lagWindow("lag_n")},
 		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "n", Predictors: []string{"m"},
@@ -124,6 +132,8 @@ func TestWindowPredictor_WeightRefused(t *testing.T) {
 // the computed-column model's and the one derivation they share
 // (windowparams.Label) name every window alike.
 func TestWindowPredictor_LabelHelpersAgree(t *testing.T) {
+	t.Parallel()
+
 	for _, w := range []*types.Window{
 		{Type: types.WIN_LAG, Field: "x", Label: "lag"},
 		{Type: types.WIN_LAG, Field: "x"},

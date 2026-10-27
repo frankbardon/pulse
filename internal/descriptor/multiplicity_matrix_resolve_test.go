@@ -25,6 +25,8 @@ func mspec(typ types.MatrixType, params string, m *types.Multiplicity) types.Mat
 }
 
 func TestResolveMultiplicity_Matrices(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		method types.MultiplicityMethod
 		family types.MultiplicityFamily
@@ -123,6 +125,8 @@ func TestResolveMultiplicity_Matrices(t *testing.T) {
 // TestResolveMultiplicity_MatrixRefusals: every refusal a matrix spec's
 // block can draw, plus the matrix family refused off a matrix spec.
 func TestResolveMultiplicity_MatrixRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		req    *types.Request
@@ -173,6 +177,8 @@ func TestResolveMultiplicity_MatrixRefusals(t *testing.T) {
 // TestResolveMultiplicity_MatrixJoinsRequestConflict: a `request`-family
 // matrix spec must agree with the request's tests on one method.
 func TestResolveMultiplicity_MatrixJoinsRequestConflict(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Tests:    []*types.Test{ttest(mult(mHolm, "", 0))},
 		Matrices: []types.MatrixSpec{mspec(types.MAT_CORRELATION, "", mult(mBH, fRequest, 0))},
@@ -191,6 +197,8 @@ func TestResolveMultiplicity_MatrixJoinsRequestConflict(t *testing.T) {
 // TestResolveComposeMultiplicity_MatrixSlot: a Compose slot's matrix
 // spec resolves inside the slot's plan, `compose` refused on it.
 func TestResolveComposeMultiplicity_MatrixSlot(t *testing.T) {
+	t.Parallel()
+
 	composed := &types.ComposedRequest{Requests: []*types.Request{
 		{Matrices: []types.MatrixSpec{mspec(types.MAT_CORRELATION, "", mult(mHolm, "", 0))}},
 	}}
@@ -222,6 +230,8 @@ func TestResolveComposeMultiplicity_MatrixSlot(t *testing.T) {
 // emits 10 uncorrected p-values and draws PULSE_ADVISORY_MANY_TESTS;
 // a block on the spec corrects them and silences it.
 func TestPredict_MatrixManyTestsAdvisory(t *testing.T) {
+	t.Parallel()
+
 	fields := []encoding.Field{}
 	members := []string{"a", "b", "c", "d", "e"}
 	for _, m := range members {
@@ -252,6 +262,8 @@ func TestPredict_MatrixManyTestsAdvisory(t *testing.T) {
 // significant_adjusted); a request-level block or an instance default
 // never reaches it, and a method none keeps it out.
 func TestResolveMultiplicity_SEMOwnBlockOnly(t *testing.T) {
+	t.Parallel()
+
 	own, err := ResolveMultiplicity(&types.Request{Matrices: []types.MatrixSpec{mspec(types.MAT_SEM, "", mult(mHolm, "", 0))}}, nil, nil)
 	if err != nil {
 		t.Fatal(err)

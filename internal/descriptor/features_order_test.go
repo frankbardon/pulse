@@ -6,6 +6,8 @@ import (
 )
 
 func TestSortFeatureNames_KindThenCategoryThenTable(t *testing.T) {
+	t.Parallel()
+
 	in := []string{
 		"mcp_extra:cohort_resources",
 		"OVERLAY_SHARE_OF_ROW",
@@ -45,6 +47,8 @@ func TestSortFeatureNames_KindThenCategoryThenTable(t *testing.T) {
 }
 
 func TestSortFeatureNames_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	once := SortFeatureNames(FeatureNames())
 	if twice := SortFeatureNames(once); !reflect.DeepEqual(once, twice) {
 		t.Fatal("SortFeatureNames is not idempotent over the feature table")
@@ -55,6 +59,8 @@ func TestSortFeatureNames_Idempotent(t *testing.T) {
 }
 
 func TestFeatureCategoryOf(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"AGG_SUM":            "AGG",
 		"OVERLAY_T_CELL":     "OVERLAY",

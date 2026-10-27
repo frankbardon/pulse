@@ -53,6 +53,8 @@ var (
 // key's matches by right - dictionary + 1 (a composite key by its
 // smallest column bound); a key with no dictionary is left x right.
 func TestJoinRowsBound(t *testing.T) {
+	t.Parallel()
+
 	schema := joinedFanOutSchema(t)
 	cases := []struct {
 		name string
@@ -86,6 +88,8 @@ func TestJoinRowsBound(t *testing.T) {
 // finding; a provably unique right side and a limit at the bound
 // estimate report none.
 func TestRequestLimitFindings_JoinFanOutPossible(t *testing.T) {
+	t.Parallel()
+
 	schema := joinedFanOutSchema(t)
 	// The buffered arm: per-row terms scale with the joined rows.
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "r_v", Label: "m"}}}
@@ -149,6 +153,8 @@ func TestRequestLimitFindings_JoinFanOutPossible(t *testing.T) {
 // join_rows_bound and right_key_multiplicity — and never when no key
 // repeats or the limit is Unlimited.
 func TestJoinFanOutRefusal(t *testing.T) {
+	t.Parallel()
+
 	schema := joinedFanOutSchema(t)
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "r_v", Label: "m"}}}
 	in := joinIn(1000, 10, onCat)

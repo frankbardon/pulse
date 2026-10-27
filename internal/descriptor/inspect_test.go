@@ -8,6 +8,8 @@ import (
 )
 
 func TestInspect_HeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	// Build a file with header + schema but NO records.
 	// If inspect tries to read records, it would fail.
 	schema := &encoding.Schema{
@@ -32,6 +34,8 @@ func TestInspect_HeaderOnly(t *testing.T) {
 }
 
 func TestInspect_CategoricalField(t *testing.T) {
+	t.Parallel()
+
 	dict := makeDictionary(t, "red", "green", "blue")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -66,6 +70,8 @@ func TestInspect_CategoricalField(t *testing.T) {
 }
 
 func TestInspect_DictionaryTruncation(t *testing.T) {
+	t.Parallel()
+
 	// Create a dictionary with 150 entries.
 	values := make([]string, 150)
 	for i := range values {
@@ -106,6 +112,8 @@ func TestInspect_DictionaryTruncation(t *testing.T) {
 }
 
 func TestInspect_FieldDescriptions(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -126,6 +134,8 @@ func TestInspect_FieldDescriptions(t *testing.T) {
 }
 
 func TestInspect_SynthesizedDescription(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: ""},

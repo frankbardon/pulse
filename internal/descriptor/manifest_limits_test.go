@@ -10,6 +10,8 @@ import (
 // TestManifestLimits_NilSnapshotReportsDefaults: the block is always
 // present and a nil (unstamped) instance lists the built-in defaults.
 func TestManifestLimits_NilSnapshotReportsDefaults(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	names := limits.Names()
 	if len(m.Limits) != len(names) {
@@ -31,6 +33,8 @@ func TestManifestLimits_NilSnapshotReportsDefaults(t *testing.T) {
 // effective values; limits_digest moves with them and
 // feature_set_digest does not.
 func TestManifestLimits_TunedValues(t *testing.T) {
+	t.Parallel()
+
 	base := BuildManifest()
 	tuned := limits.Defaults()
 	tuned.MaxGroups = 1_000

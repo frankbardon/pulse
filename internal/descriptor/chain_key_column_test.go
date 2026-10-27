@@ -15,6 +15,8 @@ import (
 // (TestChainOutputSchema_KeyColumnFollowsGroupKeyField) for a
 // key-renaming grouper shape.
 func TestChainPredict_KeyColumnFollowsGroupKeyField(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Groups: []*types.Group{
 			{Type: types.GROUP_CATEGORY, Field: "region"},

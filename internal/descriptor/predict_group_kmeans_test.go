@@ -47,6 +47,8 @@ func kmPredictReq(params string) *types.Request {
 // k graded against MaxGroups; a shape refusal reaches predict with the
 // runtime's code.
 func TestPredict_GroupKMeans(t *testing.T) {
+	t.Parallel()
+
 	const n = 50
 	file := kmPredictFile(t, n)
 	env := Predict(bytes.NewReader(file), kmPredictReq(`{"k":4}`), nil)

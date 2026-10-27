@@ -25,6 +25,8 @@ const kindBetween = `"between": {"type": "GROUP_CATEGORY", "field": "region"}`
 // the request runs as written. An explicit metric and a kind-free
 // vector report none. The caller's request is never written to.
 func TestPredict_MetricDefaultsApplied(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		kind    types.VectorKind
@@ -90,6 +92,8 @@ func TestPredict_MetricDefaultsApplied(t *testing.T) {
 // error under strict (the request is invalid); a fitting or defaulted
 // metric raises neither. The expression static pass reports it too.
 func TestPredict_MetricUnsuited(t *testing.T) {
+	t.Parallel()
+
 	formula := &types.Request{
 		Vectors:    []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "q_3"}, Kind: types.VectorKindScale}},
 		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "sim", Expression: "cosine(v, v)"}},

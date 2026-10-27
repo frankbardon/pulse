@@ -18,6 +18,8 @@ import (
 // validateOverlayLevelWithinRuntime, through the same overlayhost
 // refusals.
 func TestValidateOverlay_Correspondence(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	ok := types.OverlaySpec{Name: "ca", Kind: types.OverlayKindCorrespondence, Scope: types.OverlayScopeMatrix}
 	with := func(edit func(*types.OverlaySpec)) types.OverlaySpec {
@@ -88,6 +90,8 @@ func TestValidateOverlay_Correspondence(t *testing.T) {
 // a SERIES part — and refuses an undeclared part, a path of the wrong
 // shape and a non-scalar summary key.
 func TestOverlayOutputResolver_Parts(t *testing.T) {
+	t.Parallel()
+
 	ca := overlayOutputResolver(types.OverlayKindCorrespondence)
 	sr := overlayOutputResolver(types.OverlayKindStdResidual)
 	for _, c := range []struct {

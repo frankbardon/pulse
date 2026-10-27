@@ -16,6 +16,8 @@ import (
 // a duplicated Form. The "purpose" subtest is the Purpose half: every
 // Purpose.Glossary ID resolves and jargon in Plain is linked.
 func TestGlossaryTermsResolve(t *testing.T) {
+	t.Parallel()
+
 	t.Run("purpose", testPurposeGlossaryLinks)
 	for _, p := range glossaryProblems(Glossary()) {
 		t.Error(p)
@@ -113,6 +115,8 @@ const (
 
 // TestGlossary_Size: the glossary stays within its loose size bounds.
 func TestGlossary_Size(t *testing.T) {
+	t.Parallel()
+
 	if n := len(Glossary()); n < glossaryMinTerms || n > glossaryMaxTerms {
 		t.Errorf("glossary has %d terms, want %d..%d", n, glossaryMinTerms, glossaryMaxTerms)
 	}
@@ -124,6 +128,8 @@ func TestGlossary_Size(t *testing.T) {
 // written ahead of the operators that will cite them carry the unit that
 // ships those operators as owner.
 func TestGlossary_OrphanReport(t *testing.T) {
+	t.Parallel()
+
 	orphans := glossaryOrphans(BuiltinPurposes())
 	t.Logf("glossary orphans (%d): %s", len(orphans), strings.Join(orphans, ", "))
 	assertExempted(t, "glossary-orphan", orphans, glossaryOrphanExemptions, roadmapUnitStatus())
@@ -147,6 +153,8 @@ func glossaryOrphans(purposes map[string]descriptor.Purpose) []string {
 }
 
 func TestGlossary_Orphans(t *testing.T) {
+	t.Parallel()
+
 	ids := GlossaryIDs()
 	if len(ids) < 2 {
 		t.Fatal("glossary too small for the orphan fixture")
@@ -163,6 +171,8 @@ func TestGlossary_Orphans(t *testing.T) {
 // TestGlossary_RequiredTerms: every term the guided-analysis design
 // names is present.
 func TestGlossary_RequiredTerms(t *testing.T) {
+	t.Parallel()
+
 	required := []string{
 		"p-value", "alpha", "effect-size", "confidence-interval", "degrees-of-freedom",
 		"variance", "standard-deviation", "covariance", "correlation", "z-score",
@@ -195,6 +205,8 @@ var effectSizeKeys = []string{
 // a term whose ID is the key in kebab case, and the term claims the key
 // spelling as a Form so prose citing the raw key links to it.
 func TestGlossary_EffectSizeKeysHaveTerms(t *testing.T) {
+	t.Parallel()
+
 	forms := JargonForms()
 	for _, key := range effectSizeKeys {
 		id := strings.ReplaceAll(key, "_", "-")
@@ -213,6 +225,8 @@ func TestGlossary_EffectSizeKeysHaveTerms(t *testing.T) {
 // terms' prose carries no numeric threshold other than a scale's own
 // endpoints.
 func TestGlossary_NoBands(t *testing.T) {
+	t.Parallel()
+
 	scaleEnds := strings.NewReplacer("-1", "", "0%", "", "100%", "", "50%", "", "0", "", "1", "")
 	byID := map[string]descriptor.Term{}
 	for _, term := range Glossary() {
@@ -232,6 +246,8 @@ func TestGlossary_NoBands(t *testing.T) {
 // sorted and complete, IsGlossaryTerm rejects unknown IDs, and
 // JargonForms covers exactly the jargon terms' forms.
 func TestGlossary_Accessors(t *testing.T) {
+	t.Parallel()
+
 	g := Glossary()
 	g[0].ID = "mutated"
 	g[0].SeeAlso[0] = "mutated"
@@ -283,6 +299,8 @@ func TestGlossary_Accessors(t *testing.T) {
 // method controls are jargon terms with forms, and multiple-comparisons
 // links both.
 func TestGlossary_MultiplicityTerms(t *testing.T) {
+	t.Parallel()
+
 	terms := map[string]descriptor.Term{}
 	for _, term := range Glossary() {
 		terms[term.ID] = term

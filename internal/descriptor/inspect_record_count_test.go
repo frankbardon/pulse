@@ -78,6 +78,8 @@ func inspectRecordCount(t *testing.T, data []byte) (*descriptor.InspectResult, *
 // all-bit-packed schema (u4 / packed_bool report ByteSize() == 0 but
 // occupy one whole byte each on-wire).
 func TestInspect_RecordCountSingleFileExact(t *testing.T) {
+	t.Parallel()
+
 	fixedWidth := func(t *testing.T) *encoding.Schema {
 		t.Helper()
 		return &encoding.Schema{Fields: []encoding.Field{
@@ -147,6 +149,8 @@ func TestInspect_RecordCountSingleFileExact(t *testing.T) {
 // genuinely empty cohort both report 0, so the assertion has to pin a
 // non-zero cohort and an empty one built from the SAME schema.
 func TestInspect_RecordCountZeroIsDistinguishable(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32, Description: "Unique record identifier value"},
 	}}
@@ -170,6 +174,8 @@ func TestInspect_RecordCountZeroIsDistinguishable(t *testing.T) {
 // ENCODING_INVALID warning naming the trailing bytes, rather than the
 // division happening silently.
 func TestInspect_RecordCountTruncatedPayloadWarns(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32, Description: "Unique record identifier value"},
 		{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -207,6 +213,8 @@ func TestInspect_RecordCountTruncatedPayloadWarns(t *testing.T) {
 // and must report that one shard's own count — not the archive
 // aggregate, which the archive path still reports for the whole file.
 func TestInspect_RecordCountAnchorShardPayload(t *testing.T) {
+	t.Parallel()
+
 	schema := twoShardInspectSchema(t)
 	shards := []struct {
 		Name    string
@@ -242,6 +250,8 @@ func TestInspect_RecordCountAnchorShardPayload(t *testing.T) {
 // back, so the stream must be left exactly where reading the header +
 // schema finished and no record byte may be consumed.
 func TestInspect_LeavesStreamAtPayloadStart(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32, Description: "Unique record identifier value"},
 	}}

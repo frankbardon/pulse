@@ -45,6 +45,8 @@ func codeInEntries(entries []*descriptor.EnvelopeEntry, code errors.Code) []*des
 // codes sorted and deduped; a warning by default, an error under
 // Strict; never for an integer field or a fully present code list.
 func TestPredict_CodeInMissingCodes(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, codeInPredictSchema(t))
 	req := &types.Request{Attributes: []*types.Attribute{
 		codeInAttr("brand", `{"codes":["zeta","acme","delta","zeta"]}`),
@@ -88,6 +90,8 @@ func TestPredict_CodeInMissingCodes(t *testing.T) {
 // table's PULSE_FIELD_TYPE_UNSUPPORTED) — the root-package parity test
 // holds the messages equal to the runtime's.
 func TestPredict_CodeInRefusals(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, codeInPredictSchema(t))
 	cases := []struct {
 		name string
@@ -135,6 +139,8 @@ func TestPredict_CodeInRefusals(t *testing.T) {
 // slot routes like a never-registered name — no code-in refusal and no
 // absent-code warning names the hidden operator.
 func TestPredict_CodeInHidden(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, codeInPredictSchema(t))
 	req := &types.Request{Attributes: []*types.Attribute{
 		codeInAttr("brand", `{"codes":["zeta"]}`),

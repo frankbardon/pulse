@@ -48,6 +48,8 @@ func registeredFieldTypeNames(t *testing.T) []string {
 // the same smart defaults a narrow one does, and Field.Nullable never
 // changes the inferred operator.
 func TestDefaults_WideSetsMatchNarrow(t *testing.T) {
+	t.Parallel()
+
 	narrow, ok := defaultRules[encoding.FieldTypeSetU64]
 	if !ok {
 		t.Fatal("defaultRules has no set_u64 row to compare against")
@@ -112,6 +114,8 @@ func TestDefaults_WideSetsMatchNarrow(t *testing.T) {
 // expectation is walked off encoding's own FieldType registry rather
 // than written down here.
 func TestCapabilities_AllCohortFieldTypesMatchesRegistry(t *testing.T) {
+	t.Parallel()
+
 	registered := registeredFieldTypeNames(t)
 	for _, name := range registered {
 		if !slices.Contains(allCohortFieldTypes, name) {
@@ -133,6 +137,8 @@ func TestCapabilities_AllCohortFieldTypesMatchesRegistry(t *testing.T) {
 // the declaration half of E2: the operators read every rung at runtime,
 // so a manifest that stops at set_u64 tells a caller the opposite.
 func TestCapabilities_SetOperatorsDeclareEveryRung(t *testing.T) {
+	t.Parallel()
+
 	allRungs := []string{"set_u8", "set_u16", "set_u32", "set_u64", "set_u128", "set_u256"}
 	groups := map[string][]descriptor.Operator{
 		"aggregator": aggregatorCapabilities(),
@@ -179,6 +185,8 @@ var numericEchoOperators = []string{
 }
 
 func TestCapabilities_NumericEchoOperatorsDeclareNoSetType(t *testing.T) {
+	t.Parallel()
+
 	var ops []descriptor.Operator
 	ops = append(ops, aggregatorCapabilities()...)
 	ops = append(ops, filtererCapabilities()...)
@@ -209,6 +217,8 @@ func TestCapabilities_NumericEchoOperatorsDeclareNoSetType(t *testing.T) {
 // rungs, so an LLM bootstrapping from pulse_manifest sees a coherent
 // 20-type world.
 func TestManifest_CohortTypesCarryWideSets(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	byName := map[string]descriptor.CohortFieldType{}
 	for _, ct := range m.CohortTypes {
@@ -248,6 +258,8 @@ func TestManifest_CohortTypesCarryWideSets(t *testing.T) {
 // set_u256 dictionary renders through the HasDictionary() gate and
 // truncates at DefaultDictionaryLimit unless FullDict is set.
 func TestInspect_WideSetDictionaryTruncates(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "tags", Type: encoding.FieldTypeSetU256, Dictionary: wideSetDictionary(t, 206),
 			Description: "Multi-select survey response tags"},
@@ -294,6 +306,8 @@ func TestInspect_WideSetDictionaryTruncates(t *testing.T) {
 // set exactly like a narrow one, refusing numeric percentiles and
 // histograms with SERVICE_VALIDATION rather than returning gibberish.
 func TestFacet_WideSetRejectsNumericStats(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "tags", Type: encoding.FieldTypeSetU256, Dictionary: wideSetDictionary(t, 206),
 			Description: "Multi-select survey response tags"},
@@ -384,6 +398,8 @@ func widestSetRung(t *testing.T) uint32 {
 // it runs every operator that declares an EmitsType and checks the
 // values produced.
 func TestCapabilities_SetPopcountEmitsTypeHoldsWidestRung(t *testing.T) {
+	t.Parallel()
+
 	var op *descriptor.Operator
 	for _, o := range attributeCapabilities() {
 		if o.Name == string(types.ATTR_SET_POPCOUNT) {

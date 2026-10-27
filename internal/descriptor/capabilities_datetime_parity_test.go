@@ -27,6 +27,8 @@ import (
 // NumericValue declines to answer for (every set_* rung, which returns
 // ok=false by design).
 func TestCapabilities_AnalyticsListsMatchNumericPredicate(t *testing.T) {
+	t.Parallel()
+
 	names := registeredFieldTypeNames(t)
 	if len(names) == 0 {
 		t.Fatal("no registered field types")
@@ -63,6 +65,8 @@ func TestCapabilities_AnalyticsListsMatchNumericPredicate(t *testing.T) {
 // families run their own narrower gate (predict_window.isNumericType)
 // and closing that gap is a separate decision, not a doc fix.
 func TestCapabilities_DateAndDateTimeDeclaredTogether(t *testing.T) {
+	t.Parallel()
+
 	analytics := map[string]bool{
 		string(types.AGG_SUM): true, string(types.AGG_AVERAGE): true,
 		string(types.AGG_MIN): true, string(types.AGG_MAX): true,
@@ -99,6 +103,8 @@ func TestCapabilities_DateAndDateTimeDeclaredTogether(t *testing.T) {
 // pairing (fieldaccept.HasDecimalArm). The manifest was the only
 // surface claiming otherwise.
 func TestCapabilities_VarianceStddevDeclareDecimal(t *testing.T) {
+	t.Parallel()
+
 	decimal := encoding.FieldTypeDecimal128.String()
 	want := map[string]bool{
 		string(types.AGG_VARIANCE): true,
@@ -132,6 +138,8 @@ func TestCapabilities_VarianceStddevDeclareDecimal(t *testing.T) {
 // that treats the manifest as the command catalogue could not discover
 // the only operation that changes a column's set rung in place.
 func TestManifest_CommandsIncludeWiden(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for _, c := range m.Commands {
 		if c.Name != "widen" {

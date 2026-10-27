@@ -44,6 +44,8 @@ func span(page, id string) (string, bool) {
 // TestProse_InjectedIntoPreserveSpans: each named section of a prose
 // file lands verbatim between its page's preserve markers.
 func TestProse_InjectedIntoPreserveSpans(t *testing.T) {
+	// serial: swaps the package-level docgen.proseFS test hook
+
 	withProse(t, map[string]string{
 		"index.md":          "<!-- section intro -->\nLanding words.\n",
 		"compare_groups.md": "<!-- section question -->\n\nAre two groups apart?\n\n<!-- section pitfalls -->\n- One pitfall.\n- Another.\n",
@@ -70,6 +72,8 @@ func TestProse_InjectedIntoPreserveSpans(t *testing.T) {
 // prose file (or without a section) renders its generated fallback and
 // no preserve span; the page still carries all six parts.
 func TestProse_MissingFileFallsBack(t *testing.T) {
+	// serial: swaps the package-level docgen.proseFS test hook
+
 	withProse(t, map[string]string{
 		"describe.md": "<!-- section question -->\nOnly the question.\n",
 	})
@@ -104,6 +108,8 @@ func TestProse_MissingFileFallsBack(t *testing.T) {
 // TestProse_ScrubbedForInstance: prose naming an operator the instance
 // hides loses that sentence, the rest of the span stays.
 func TestProse_ScrubbedForInstance(t *testing.T) {
+	// serial: swaps the package-level docgen.proseFS test hook
+
 	withProse(t, map[string]string{
 		"describe.md": "<!-- section question -->\nKeep this line. Read AGG_MEDIAN beside the mean.\n",
 	})
@@ -128,6 +134,8 @@ func TestProse_ScrubbedForInstance(t *testing.T) {
 // trimmed; text before the first marker and duplicate sections are
 // problems.
 func TestParseProse(t *testing.T) {
+	t.Parallel()
+
 	pf := parseProse("<!-- section a -->\n\nA.\n\n<!-- section b -->\nB1\n\nB2\n")
 	if pf.sections["a"] != "A.\n" || pf.sections["b"] != "B1\n\nB2\n" || len(pf.bad) != 0 {
 		t.Errorf("parsed %#v", pf)
@@ -145,6 +153,8 @@ func TestParseProse(t *testing.T) {
 // page reads, parses without a problem, and the landing page and every
 // analytic intent's guide are fully written.
 func TestProse_EmbeddedFilesWellFormed(t *testing.T) {
+	t.Parallel()
+
 	analytic := map[string]bool{}
 	for _, in := range descx.Intents() {
 		if in.Analytic {
@@ -211,6 +221,8 @@ func TestProse_EmbeddedFilesWellFormed(t *testing.T) {
 // intent first, with question, interpretation and a committed golden —
 // so no guide falls back to the bare pulse recommend pointer.
 func TestGuides_EveryAnalyticIntentHasAStory(t *testing.T) {
+	t.Parallel()
+
 	g := newGen(nil, Options{})
 	seen := 0
 	for _, in := range descx.Intents() {

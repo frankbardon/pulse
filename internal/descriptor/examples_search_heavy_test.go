@@ -15,6 +15,8 @@ import (
 // pre-tier result — same set, same order — whenever the legacy matcher
 // found anything; the synonym tier is a fallback only.
 func TestExamplesSearch_OneWordPinnedToLegacy(t *testing.T) {
+	t.Parallel()
+
 	vocab := map[string]struct{}{}
 	for _, ex := range examples.All() {
 		for _, s := range append([]string{ex.Name, ex.Description}, ex.Operators...) {

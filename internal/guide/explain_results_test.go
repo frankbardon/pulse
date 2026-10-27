@@ -49,6 +49,8 @@ func hasSentence(res *descriptor.ExplainResult, sub string) bool {
 
 // Each result root takes only its own request as companion.
 func TestExplainResults_Validates(t *testing.T) {
+	t.Parallel()
+
 	cr, ch, fr := &types.ComposedResponse{}, &types.ChainResponse{}, &types.FacetResult{}
 	for name, req := range map[string]descriptor.ExplainRequest{
 		"two results":                   {Response: &types.Response{}, ComposedResponse: cr},
@@ -111,6 +113,8 @@ func composedFixture() (*types.ComposedResponse, *types.ComposedRequest) {
 // overlay layer, which names its correction; the many-tests caveat
 // counts across slots.
 func TestExplainComposedResponse_PerSlotAndLayers(t *testing.T) {
+	t.Parallel()
+
 	resp, req := composedFixture()
 	res := readResult(t, nil, descriptor.ExplainRequest{ComposedResponse: resp, Composed: req, Detail: descriptor.ExplainFull}, descriptor.ExplainRootComposedResponse)
 	want := []string{"responses[0].tests[0]", "responses[1].tests[0]", "responses[1].aggregations[0]", "overlays[0]"}
@@ -202,6 +206,8 @@ func chainFixture(echo bool) (*types.ChainResponse, *types.ChainRequest) {
 // A chain is read stage by stage with the request it echoes, so its
 // aggregations are named with no request supplied.
 func TestExplainChainResponse_UsesEchoedRequest(t *testing.T) {
+	t.Parallel()
+
 	echoed, req := chainFixture(true)
 	res := readResult(t, nil, descriptor.ExplainRequest{ChainResponse: echoed, Detail: descriptor.ExplainFull}, descriptor.ExplainRootChainResponse)
 	want := []string{"stages[0].aggregations[0]", "stages[1].aggregations[0]", "overlays[0]"}
@@ -282,6 +288,8 @@ func facetFixture() (*types.FacetResult, *types.FacetRequest) {
 // A facet is read one block per field — the field, then its overlays —
 // and the many-tests caveat counts across facet fields.
 func TestExplainFacetResult_PerField(t *testing.T) {
+	t.Parallel()
+
 	fr, req := facetFixture()
 	res := readResult(t, nil, descriptor.ExplainRequest{FacetResult: fr, Facet: req, Detail: descriptor.ExplainFull}, descriptor.ExplainRootFacetResult)
 	want := []string{"fields.region", "overlays[1]", "fields.score", "overlays[0]"}
@@ -344,6 +352,8 @@ func TestExplainFacetResult_PerField(t *testing.T) {
 
 // A hidden operator is never named in a slot of a larger result.
 func TestExplainResults_ProfileHidesOperators(t *testing.T) {
+	t.Parallel()
+
 	resp, req := composedFixture()
 	res := readResult(t, profiled("TEST_T", "AGG_SUM"), descriptor.ExplainRequest{ComposedResponse: resp, Composed: req, Detail: descriptor.ExplainFull},
 		descriptor.ExplainRootComposedResponse)
@@ -358,6 +368,8 @@ func TestExplainResults_ProfileHidesOperators(t *testing.T) {
 // Every sentence of the three roots, terse and full, with and without
 // the companion, passes the prose lint.
 func TestExplainResults_ProseLint(t *testing.T) {
+	t.Parallel()
+
 	cr, creq := composedFixture()
 	ch, chreq := chainFixture(false)
 	fr, freq := facetFixture()

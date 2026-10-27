@@ -60,6 +60,8 @@ func slabError(env *descriptor.Envelope) *descriptor.EnvelopeEntry {
 }
 
 func TestValidateCompose_PanelWithinFanOutBeyondPrefixRefused(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	env := ValidateCompose(panelPartitionComposed(fanOut, fanOut, map[string]any{
 		"n_source":       types.PanelNSourceRowMarginValueWithin,
@@ -88,6 +90,8 @@ func TestValidateCompose_PanelWithinFanOutBeyondPrefixRefused(t *testing.T) {
 // axis is correct there. Gating it would refuse a request exactly as
 // sound as the legacy default it reproduces.
 func TestValidateCompose_PanelWithinOmittedDepthNotGated(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	env := ValidateCompose(panelPartitionComposed(fanOut, fanOut, map[string]any{
 		"n_source": types.PanelNSourceRowMarginValueWithin,
@@ -104,6 +108,8 @@ func TestValidateCompose_PanelWithinOmittedDepthNotGated(t *testing.T) {
 // than cells, so each slab still partitions its own keys. Same rule
 // the axis-pairing arm applies.
 func TestValidateCompose_PanelWithinFanOutInsidePrefixAccepted(t *testing.T) {
+	t.Parallel()
+
 	inside := []types.GroupType{types.GROUP_SET_PER_ELEMENT, types.GROUP_CATEGORY}
 	env := ValidateCompose(panelPartitionComposed(inside, inside, map[string]any{
 		"n_source":       types.PanelNSourceRowMarginValueWithin,
@@ -119,6 +125,8 @@ func TestValidateCompose_PanelWithinFanOutInsidePrefixAccepted(t *testing.T) {
 // panel 0 is the reference, not Compose slot 0, so the panel index
 // alone cannot be resolved against the caller's own request.
 func TestValidateCompose_PanelWithinOffendingTargetSlotRefuses(t *testing.T) {
+	t.Parallel()
+
 	env := ValidateCompose(panelPartitionComposed(
 		[]types.GroupType{types.GROUP_CATEGORY, types.GROUP_CATEGORY},
 		[]types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT},
@@ -144,6 +152,8 @@ func TestValidateCompose_PanelWithinOffendingTargetSlotRefuses(t *testing.T) {
 // configuration typo with a statistical-validity diagnostic names the
 // wrong fix.
 func TestValidateCompose_PanelWithinInertDepthKeepsItsOwnCode(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	env := ValidateCompose(panelPartitionComposed(fanOut, fanOut, map[string]any{
 		"n_source":       types.PanelNSourceCellNUnweighted,
@@ -163,6 +173,8 @@ func TestValidateCompose_PanelWithinInertDepthKeepsItsOwnCode(t *testing.T) {
 // FansOut=true is gated exactly like GROUP_SET_PER_ELEMENT; an
 // unregistered name passes, because it cannot execute.
 func TestValidateComposeWithOptions_PanelWithinExtensionGrouperGated(t *testing.T) {
+	t.Parallel()
+
 	const custom types.GroupType = "GROUP_PANEL_FANOUT_X"
 	axis := []types.GroupType{types.GROUP_CATEGORY, custom}
 	params := map[string]any{

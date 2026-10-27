@@ -44,6 +44,8 @@ func recommendGoldenPulse(t *testing.T) *pulse.Pulse {
 // bound to the fixture cohort, as the --json envelope carries it.
 // Regenerate with go test ./descriptor/ -run 'Test.*Golden' -update.
 func TestRecommendGolden(t *testing.T) {
+	t.Parallel()
+
 	p := recommendGoldenPulse(t)
 	analytic := 0
 	for _, in := range pulse.Intents() {

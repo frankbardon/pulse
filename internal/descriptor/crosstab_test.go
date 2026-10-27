@@ -29,6 +29,8 @@ func crosstabPredictSchema(t *testing.T) *encoding.Schema {
 // TestPredict_Crosstab_MatrixForcesBuffered verifies the buffered gate:
 // shape=matrix → non-streamable.
 func TestPredict_Crosstab_MatrixForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -53,6 +55,8 @@ func TestPredict_Crosstab_MatrixForcesBuffered(t *testing.T) {
 // TestPredict_Crosstab_LongNoMarginsStreamable verifies the lone
 // streamable case: shape=long, no margins, normalize=none.
 func TestPredict_Crosstab_LongNoMarginsStreamable(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -96,6 +100,8 @@ func crosstabSetPredictSchema(t *testing.T) *encoding.Schema {
 // gate raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED for every normalize
 // direction paired with a map-valued cell aggregator (AGG_SET_FREQUENCY).
 func TestPredict_Crosstab_MapValuedNormalizeRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 	for _, mode := range []types.CrosstabNormalize{
@@ -126,6 +132,8 @@ func TestPredict_Crosstab_MapValuedNormalizeRejected(t *testing.T) {
 // TestPredict_Crosstab_MapValuedNormalizeNoneAccepted ensures map-valued
 // cells are accepted when normalize is none (or omitted).
 func TestPredict_Crosstab_MapValuedNormalizeNoneAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 	req := &types.Request{
@@ -145,6 +153,8 @@ func TestPredict_Crosstab_MapValuedNormalizeNoneAccepted(t *testing.T) {
 // capability advertises the map-valued cell aggregator list and that
 // AGG_SET_FREQUENCY appears in it.
 func TestManifest_CrosstabMapValuedCellAggregators(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.Crosstab.MapValuedCellAggregators) == 0 {
 		t.Fatal("manifest.crosstab.map_valued_cell_aggregators is empty")
@@ -165,6 +175,8 @@ func TestManifest_CrosstabMapValuedCellAggregators(t *testing.T) {
 // TestPredict_Crosstab_NormalizeForcesBuffered verifies normalize != none
 // forces buffered.
 func TestPredict_Crosstab_NormalizeForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -186,6 +198,8 @@ func TestPredict_Crosstab_NormalizeForcesBuffered(t *testing.T) {
 
 // TestPredict_Crosstab_EmptyAxisRejected verifies structural validators.
 func TestPredict_Crosstab_EmptyAxisRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -204,6 +218,8 @@ func TestPredict_Crosstab_EmptyAxisRejected(t *testing.T) {
 // TestPredict_Crosstab_NestedAxisBuffered verifies multi-grouper axis
 // forces buffered (even shape=long).
 func TestPredict_Crosstab_NestedAxisBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -228,6 +244,8 @@ func TestPredict_Crosstab_NestedAxisBuffered(t *testing.T) {
 // TestManifest_CrosstabCapabilityPopulated verifies the manifest carries
 // a populated Crosstab block.
 func TestManifest_CrosstabCapabilityPopulated(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if m.Crosstab.Name != "crosstab" {
 		t.Errorf("manifest.crosstab.name = %q, want crosstab", m.Crosstab.Name)
@@ -254,6 +272,8 @@ func TestManifest_CrosstabCapabilityPopulated(t *testing.T) {
 // TestPredict_Crosstab_NormalizeLevelGate exercises the three rejection
 // branches added by the NormalizeLevel slot.
 func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -321,6 +341,8 @@ func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
 // TestPredict_Crosstab_NormalizeWithinGate exercises the three
 // rejection branches added by the NormalizeWithin slot.
 func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -402,6 +424,8 @@ func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
 // capability block surfaces the new NormalizeWithin feature flag and
 // its rejection rules.
 func TestManifest_CrosstabCapabilityNormalizeWithin(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if !m.Crosstab.SupportsNormalizeWithin {
 		t.Error("manifest.Crosstab.SupportsNormalizeWithin should be true")
@@ -425,6 +449,8 @@ func TestManifest_CrosstabCapabilityNormalizeWithin(t *testing.T) {
 // capability block surfaces the new NormalizeLevel feature flag and
 // its rejection rules.
 func TestManifest_CrosstabCapabilityNormalizeLevel(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if !m.Crosstab.SupportsNormalizeLevel {
 		t.Error("manifest.Crosstab.SupportsNormalizeLevel should be true")

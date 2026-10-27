@@ -19,6 +19,8 @@ import (
 // (internal/seriespartition.Depth on both sides). Runtime twin:
 // processing.TestOverlaySeries_PartitionInvalidRefused.
 func TestValidateOverlay_SeriesKindsMultiGrouperPartitioned(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 	window := json.RawMessage(`{"window": 2}`)

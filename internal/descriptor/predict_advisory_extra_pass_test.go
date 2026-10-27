@@ -16,6 +16,8 @@ import (
 // plain formula, another two-pass attribute and a hidden ATTR_FORMULA
 // never fire.
 func TestPredict_AdvisoryExtraPass(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_EXTRA_PASS)
 	formula := func(expr, label string) *types.Attribute {
 		return &types.Attribute{Type: types.ATTR_FORMULA, Expression: expr, Label: label}
@@ -76,6 +78,8 @@ func TestPredict_AdvisoryExtraPass(t *testing.T) {
 // code drops it; a grouped total formula still fires and predicts
 // buffered with the two-pass reason.
 func TestPredict_AdvisoryExtraPassNeverEscalated(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_EXTRA_PASS)
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "share"}},
@@ -108,6 +112,8 @@ func TestPredict_AdvisoryExtraPassNeverEscalated(t *testing.T) {
 // TestComposePredict_ExtraPassAttributed: a Compose slot's total formula
 // raises the advisory attributed to that slot.
 func TestComposePredict_ExtraPassAttributed(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{Requests: []*types.Request{
 		{Cohort: &types.Cohort{Filename: "a.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}}},
 		{Cohort: &types.Cohort{Filename: "a.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "s"}},

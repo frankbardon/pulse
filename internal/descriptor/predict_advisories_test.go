@@ -45,6 +45,8 @@ func oneSampleTests(n int) []*types.Test {
 // suggesting Welch's ANOVA; two groups, a packed_bool, no split and a
 // many-group test never fire.
 func TestPredict_AdvisoryTwoGroup(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS)
 	cases := []struct {
 		name  string
@@ -89,6 +91,8 @@ func TestPredict_AdvisoryTwoGroup(t *testing.T) {
 // F, both hidden suggests nothing and names neither; a hidden TEST_T is
 // a never-registered test and fires nothing.
 func TestPredict_AdvisoryTwoGroupNeverProposesHidden(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "g"}}}
 	for _, c := range []struct {
 		name    string
@@ -135,6 +139,8 @@ func TestPredict_AdvisoryTwoGroupNeverProposesHidden(t *testing.T) {
 // default included) or one p-value fewer silences it; the message says
 // "at least" / "an estimated" off an inexact basis.
 func TestPredict_AdvisoryManyTests(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_MANY_TESTS)
 	n := descriptor.MultiplicityTriggerThreshold
 	withMult := func(m *types.Multiplicity) *types.Request {
@@ -187,6 +193,8 @@ func TestPredict_AdvisoryManyTests(t *testing.T) {
 // TestPredict_AdvisoryManyTestsFollowsInstance: a hidden
 // capability:multiplicity never proposes a multiplicity block.
 func TestPredict_AdvisoryManyTestsFollowsInstance(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: oneSampleTests(descriptor.MultiplicityTriggerThreshold)}
 	if len(predictAdvisories(t, req, nil)) != 1 {
 		t.Fatal("vacuous: the unscoped instance fires no advisory")
@@ -199,6 +207,8 @@ func TestPredict_AdvisoryManyTestsFollowsInstance(t *testing.T) {
 // TestPredict_AdvisoriesSuppressed: an instance suppressing one code
 // drops exactly that code.
 func TestPredict_AdvisoriesSuppressed(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: append(oneSampleTests(descriptor.MultiplicityTriggerThreshold),
 		&types.Test{Type: types.TEST_T, Field: "x", SplitBy: "g"})}
 	codes := func(inst *InstanceSnapshot) []string {
@@ -220,6 +230,8 @@ func TestPredict_AdvisoriesSuppressed(t *testing.T) {
 // TestPredict_StrictNeverEscalatesAdvisories: strict predict keeps
 // every advisory in its slot — no error, no warning, still valid.
 func TestPredict_StrictNeverEscalatesAdvisories(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: append(oneSampleTests(descriptor.MultiplicityTriggerThreshold),
 		&types.Test{Type: types.TEST_T, Field: "x", SplitBy: "g"})}
 	env := predictFromBytes(advisoryCohort(t), req, &PredictOptions{Strict: true})
@@ -235,6 +247,8 @@ func TestPredict_StrictNeverEscalatesAdvisories(t *testing.T) {
 // TestPredict_AdvisoryFreeOutputOmitsTheKey: a request no rule fires on
 // carries no "advisories" key, so its predict JSON is unchanged.
 func TestPredict_AdvisoryFreeOutputOmitsTheKey(t *testing.T) {
+	t.Parallel()
+
 	env := predictFromBytes(advisoryCohort(t), &types.Request{Tests: []*types.Test{{Type: types.TEST_T, Field: "x", SplitBy: "d"}}}, nil)
 	b, err := json.Marshal(env)
 	if err != nil {
@@ -248,6 +262,8 @@ func TestPredict_AdvisoryFreeOutputOmitsTheKey(t *testing.T) {
 // TestAdvisoryMessagesPassProseLint: every advisory message reads as
 // guidance prose (LintGuidanceText) on each basis it can take.
 func TestAdvisoryMessagesPassProseLint(t *testing.T) {
+	t.Parallel()
+
 	reqs := []*types.Request{
 		{Tests: append(oneSampleTests(descriptor.MultiplicityTriggerThreshold), &types.Test{Type: types.TEST_T, Field: "x", SplitBy: "g"})},
 		{Crosstab: pvCrosstab("x", "h"), Tests: oneSampleTests(10), Overlays: []types.OverlaySpec{pvOverlay(types.OverlayKindPairwisePropZ, types.OverlayScopeRow, nil)}},
@@ -271,6 +287,8 @@ func TestAdvisoryMessagesPassProseLint(t *testing.T) {
 // catalog agree — every advisory code is a registered PULSE_ADVISORY_*
 // code and every registered PULSE_ADVISORY_* code is an advisory.
 func TestAdvisoryCodesRegistered(t *testing.T) {
+	t.Parallel()
+
 	all := map[string]bool{}
 	for _, c := range errors.AllCodes() {
 		all[string(c)] = true
@@ -292,6 +310,8 @@ func TestAdvisoryCodesRegistered(t *testing.T) {
 // TestValidateSuppressAdvisories: registered codes pass; anything else
 // is PULSE_SUPPRESS_ADVISORY_UNKNOWN naming the code and the valid set.
 func TestValidateSuppressAdvisories(t *testing.T) {
+	t.Parallel()
+
 	if err := ValidateSuppressAdvisories(nil); err != nil {
 		t.Errorf("nil: %v", err)
 	}

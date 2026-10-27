@@ -38,6 +38,8 @@ func embeddedMarkdownNames(t *testing.T) []string {
 // hardcoded literal so the test does not need to change when skills are added
 // or removed.
 func TestSkillsList_ReturnsAll(t *testing.T) {
+	t.Parallel()
+
 	want := embeddedMarkdownNames(t)
 	items := List()
 	if len(items) != len(want) {
@@ -46,6 +48,8 @@ func TestSkillsList_ReturnsAll(t *testing.T) {
 }
 
 func TestSkillsGet_ValidName(t *testing.T) {
+	t.Parallel()
+
 	content, ok := Get("session-bootstrap")
 	if !ok {
 		t.Fatal("Get(\"session-bootstrap\") returned false")
@@ -59,6 +63,8 @@ func TestSkillsGet_ValidName(t *testing.T) {
 }
 
 func TestSkillsGet_InvalidName(t *testing.T) {
+	t.Parallel()
+
 	_, ok := Get("nonexistent")
 	if ok {
 		t.Fatal("Get(\"nonexistent\") should return false")
@@ -66,6 +72,8 @@ func TestSkillsGet_InvalidName(t *testing.T) {
 }
 
 func TestSkillsFrontmatter_Valid(t *testing.T) {
+	t.Parallel()
+
 	for _, m := range List() {
 		content, ok := Get(m.Name)
 		if !ok {
@@ -80,6 +88,8 @@ func TestSkillsFrontmatter_Valid(t *testing.T) {
 }
 
 func TestSkillsFrontmatter_RequiredFields(t *testing.T) {
+	t.Parallel()
+
 	required := []string{"name", "description", "type", "applies_to"}
 	for _, m := range List() {
 		content, ok := Get(m.Name)
@@ -97,6 +107,8 @@ func TestSkillsFrontmatter_RequiredFields(t *testing.T) {
 }
 
 func TestSkillsManifestConsistent(t *testing.T) {
+	t.Parallel()
+
 	validLeaves := map[string]bool{
 		"process":       true,
 		"process-chain": true,
@@ -143,6 +155,8 @@ func TestSkillsManifestConsistent(t *testing.T) {
 // member. No hardcoded count — the expected slice is derived from the embed
 // walk so adding or removing a skill does not require updating the test.
 func TestSkillsNames(t *testing.T) {
+	t.Parallel()
+
 	want := embeddedMarkdownNames(t)
 	slices.Sort(want)
 	got := Names()
@@ -164,6 +178,8 @@ func TestSkillsNames(t *testing.T) {
 // filesystem-scan replacement for the count-based assertions: it guarantees
 // the loader contract holds for every file actually shipped.
 func TestSkillsEveryEmbeddedFileParses(t *testing.T) {
+	t.Parallel()
+
 	for _, stem := range embeddedMarkdownNames(t) {
 		raw, ok := Get(stem)
 		if !ok {
@@ -182,6 +198,8 @@ func TestSkillsEveryEmbeddedFileParses(t *testing.T) {
 }
 
 func TestParseFrontmatter_Empty(t *testing.T) {
+	t.Parallel()
+
 	fm := ParseFrontmatter("no frontmatter here")
 	if len(fm) != 0 {
 		t.Errorf("expected empty frontmatter, got %v", fm)
@@ -189,6 +207,8 @@ func TestParseFrontmatter_Empty(t *testing.T) {
 }
 
 func TestParseFrontmatter_Valid(t *testing.T) {
+	t.Parallel()
+
 	md := "---\nname: test\ndescription: a test\ntype: guide\napplies_to: process\n---\n\n# Content"
 	fm := ParseFrontmatter(md)
 	if fm["name"] != "test" {
@@ -200,6 +220,8 @@ func TestParseFrontmatter_Valid(t *testing.T) {
 }
 
 func TestParseFrontmatter_NoClosingDelimiter(t *testing.T) {
+	t.Parallel()
+
 	md := "---\nname: test\nno closing delimiter"
 	fm := ParseFrontmatter(md)
 	if len(fm) != 0 {
@@ -208,6 +230,8 @@ func TestParseFrontmatter_NoClosingDelimiter(t *testing.T) {
 }
 
 func TestParseFrontmatter_LineWithoutColon(t *testing.T) {
+	t.Parallel()
+
 	md := "---\nname: test\njust a line\ntype: guide\n---\n"
 	fm := ParseFrontmatter(md)
 	if fm["name"] != "test" {
@@ -223,6 +247,8 @@ func TestParseFrontmatter_LineWithoutColon(t *testing.T) {
 }
 
 func TestSkillsList_AllFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
 	for _, m := range List() {
 		if m.Name == "" {
 			t.Error("skill has empty name")
@@ -240,6 +266,8 @@ func TestSkillsList_AllFieldsPopulated(t *testing.T) {
 }
 
 func TestSkillsGet_AllSkills(t *testing.T) {
+	t.Parallel()
+
 	for _, m := range List() {
 		content, ok := Get(m.Name)
 		if !ok {
@@ -256,6 +284,8 @@ func TestSkillsGet_AllSkills(t *testing.T) {
 // Metadata.Requires in both list forms, keeping a kind-prefixed feature
 // spelling whole (the frontmatter splits on the FIRST colon only).
 func TestParseMetadata_Requires(t *testing.T) {
+	t.Parallel()
+
 	for _, raw := range []string{
 		"---\nname: x\nkind: design\nrequires: [capability:crosstab, TEST_WELCH]\n---\nbody\n",
 		"---\nname: x\nkind: design\nrequires: capability:crosstab, TEST_WELCH\n---\nbody\n",

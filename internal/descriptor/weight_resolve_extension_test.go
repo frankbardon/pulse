@@ -17,6 +17,8 @@ import (
 // non-aware attribute or test is refused under any weight; a hidden
 // one is never-registered (skipped).
 func TestResolveWeights_ExtensionClasses(t *testing.T) {
+	t.Parallel()
+
 	snap := &ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_AWARE_SUM", WeightAware: true}, {Name: "AGG_ACME_PLAIN_SUM"}},
 		Attributes:  []descriptor.OperatorMeta{{Name: "ATTR_ACME_AWARE_ROW", WeightAware: true}, {Name: "ATTR_ACME_PLAIN_ROW"}},

@@ -19,6 +19,8 @@ import (
 // some visible operator's not-for list names one, on the default
 // instance.
 func TestRender_ProfiledHidesOperators(t *testing.T) {
+	t.Parallel()
+
 	full := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
 	fullCatalog := ""
 	for p, body := range full {
@@ -72,6 +74,8 @@ func TestRender_ProfiledHidesOperators(t *testing.T) {
 // instance shape (with and without skills), points at a file of the
 // tree and, with a fragment, at an anchor that file declares.
 func TestRender_LinksResolve(t *testing.T) {
+	t.Parallel()
+
 	for key, inst := range instances(t) {
 		for _, opts := range []docgen.Options{{}, {OmitSkills: true}} {
 			files := tree(docgen.Render(inst, opts))

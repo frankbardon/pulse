@@ -145,6 +145,8 @@ func namesParam(msg, param string) bool {
 // The runtime half of parity is processing's
 // TestExactlyOneOfRefusedAtRuntime.
 func TestManifestExactlyOneOfComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	for key, ps := range allManifestParams(m) {

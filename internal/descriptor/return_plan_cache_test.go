@@ -23,6 +23,8 @@ func exactSpellings(p *returnplan.Plan) []string {
 // — before and after a cache hit, and a mutation of one never reaches
 // the other — while the selection itself is shared (cache hit).
 func TestResolveReturn_CacheNeverSharesExact(t *testing.T) {
+	t.Parallel()
+
 	inst := (*InstanceSnapshot)(nil).WithDefaultReturn(&types.Return{
 		Preset: types.ReturnPresetStandard, Precision: 3,
 	})
@@ -85,6 +87,8 @@ func TestResolveReturn_CacheNeverSharesExact(t *testing.T) {
 // share a cached plan — a request block replaces the default and
 // resolves its own selection and precision.
 func TestResolveReturn_CacheKeyedByBlock(t *testing.T) {
+	t.Parallel()
+
 	inst := (*InstanceSnapshot)(nil).WithDefaultReturn(&types.Return{Preset: types.ReturnPresetStandard})
 	def, err := ResolveReturn(&types.Request{}, inst)
 	if err != nil {

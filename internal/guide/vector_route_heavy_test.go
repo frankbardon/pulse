@@ -18,6 +18,8 @@ import (
 // drafts without the natives — the vector fields cost the scalar
 // recommendations nothing.
 func TestRecommendBound_NativeVectorsOnlyInVectorSlots(t *testing.T) {
+	t.Parallel()
+
 	b := vectorBound(t, vectorFixture(t))
 	drafted := 0
 	for _, in := range descx.Intents() {

@@ -10,6 +10,8 @@ import (
 )
 
 func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name             string
 		req              *types.Request
@@ -84,6 +86,8 @@ func TestValidateOverlay_FormulaInvalidIdent(t *testing.T) {
 }
 
 func TestValidateOverlay_FormulaParseError(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Crosstab: crosstabHostSpec(),
 		Overlays: []types.OverlaySpec{
@@ -118,6 +122,8 @@ func TestValidateOverlay_FormulaParseError(t *testing.T) {
 }
 
 func TestValidateOverlay_FormulaExprFunctionAllowed(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Crosstab: crosstabHostSpec(),
 		Overlays: []types.OverlaySpec{
@@ -160,6 +166,8 @@ func TestValidateOverlay_FormulaExprFunctionAllowed(t *testing.T) {
 }
 
 func TestValidateOverlay_FormulaSlotLabelRequired(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Crosstab: crosstabHostSpec(),
 		Overlays: []types.OverlaySpec{
@@ -203,6 +211,8 @@ func TestValidateOverlay_FormulaSlotLabelRequired(t *testing.T) {
 // Covers each host shape (matrix / series / scalar) with the canonical
 // expression for that shape per research note § 2.
 func TestValidateOverlay_FormulaHappyPath(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		req     *types.Request
@@ -277,6 +287,8 @@ func formulaSpecScopeFor(req *types.Request) types.OverlayScope {
 // guards against silent drift between the runtime env builders and
 // the predict-time allowed set.
 func TestFormulaNamespace_PerShape(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		shape   types.OverlayShape
 		wantSet map[string]bool
@@ -332,6 +344,8 @@ func TestFormulaNamespace_PerShape(t *testing.T) {
 // the reserved built-ins: scalar maths passes predict, every vector
 // family name fires the unknown-function arm.
 func TestValidateOverlay_FormulaBuiltinSubset(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		formula   string
@@ -388,6 +402,8 @@ func TestValidateOverlay_FormulaBuiltinSubset(t *testing.T) {
 // LookupTable (without one the runtime compile has no lookup and the
 // gate refuses it).
 func TestValidateOverlay_FormulaSetHelpersAndLookup(t *testing.T) {
+	t.Parallel()
+
 	withTable := &PredictOptions{Extensions: &ExtensionsSnapshot{
 		LookupTables: []descriptor.LookupTableMeta{{Name: "rates", HasRowsData: true}},
 	}}
@@ -434,6 +450,8 @@ func TestValidateOverlay_FormulaSetHelpersAndLookup(t *testing.T) {
 // baseline without its param, a bad baseline_position, a Ref arm and a
 // non-group scope.
 func TestValidateOverlay_FormulaSeriesHost(t *testing.T) {
+	t.Parallel()
+
 	req := func(spec types.OverlaySpec) *types.Request {
 		return &types.Request{
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value"}},

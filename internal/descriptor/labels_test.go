@@ -44,6 +44,8 @@ func envHasCode(env *descriptor.Envelope, code errors.Code) bool {
 }
 
 func TestValidateLabels_OKReplace(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "country_names", Mode: types.LabelModeReplace}},
@@ -58,6 +60,8 @@ func TestValidateLabels_OKReplace(t *testing.T) {
 }
 
 func TestValidateLabels_OKAugment(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	aug := ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "country_names", Mode: types.LabelModeAugment}},
@@ -75,6 +79,8 @@ func TestValidateLabels_OKAugment(t *testing.T) {
 }
 
 func TestValidateLabels_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "missing", Table: "country_names"}},
@@ -89,6 +95,8 @@ func TestValidateLabels_UnknownField(t *testing.T) {
 }
 
 func TestValidateLabels_NonCategoricalField(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "amount", Table: "country_names"}},
@@ -103,6 +111,8 @@ func TestValidateLabels_NonCategoricalField(t *testing.T) {
 }
 
 func TestValidateLabels_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "missing_table"}},
@@ -117,6 +127,8 @@ func TestValidateLabels_UnknownTable(t *testing.T) {
 }
 
 func TestValidateLabels_NilSnapshotRejects(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "country_names"}},
@@ -131,6 +143,8 @@ func TestValidateLabels_NilSnapshotRejects(t *testing.T) {
 }
 
 func TestValidateLabels_DuplicateField(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{
@@ -148,6 +162,8 @@ func TestValidateLabels_DuplicateField(t *testing.T) {
 }
 
 func TestValidateLabels_AugmentCollidesWithSchema(t *testing.T) {
+	t.Parallel()
+
 	schema := labelTestSchema(t)
 	// inject a synthetic field "country_label" that would collide.
 	schema.Fields = append(schema.Fields,
@@ -167,6 +183,8 @@ func TestValidateLabels_AugmentCollidesWithSchema(t *testing.T) {
 }
 
 func TestValidateLabels_AugmentCollidesWithExtraField(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "country_names", Mode: types.LabelModeAugment}},
@@ -181,6 +199,8 @@ func TestValidateLabels_AugmentCollidesWithExtraField(t *testing.T) {
 }
 
 func TestValidateLabels_InvalidMode(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "country_names", Mode: "highlight"}},
@@ -195,6 +215,8 @@ func TestValidateLabels_InvalidMode(t *testing.T) {
 }
 
 func TestValidateLabels_NilOrEmpty(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	if names := ValidateLabels(env, nil, labelTestSchema(t), snapshotWith("country_names"), nil, nil); len(names) > 0 {
 		t.Fatalf("expected empty augment set for nil bindings; got %v", names)

@@ -66,6 +66,8 @@ func wantCoded(t *testing.T, err error, code errors.Code, want map[string]any) {
 }
 
 func TestValidateMultiplicitySpec(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		m    *types.Multiplicity
@@ -104,6 +106,8 @@ func TestValidateMultiplicitySpec(t *testing.T) {
 // none per field, the surface default families, and the fall-back of
 // an inherited family a surface does not offer.
 func TestResolveMultiplicity_Precedence(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		method types.MultiplicityMethod
 		family types.MultiplicityFamily
@@ -211,6 +215,8 @@ func TestResolveMultiplicity_Precedence(t *testing.T) {
 // TestResolveMultiplicity_NilWhenAbsent: nothing named ⇒ no plan, the
 // fast path that keeps absent configuration byte-identical.
 func TestResolveMultiplicity_NilWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: []*types.Test{ttest(nil)}, Overlays: []types.OverlaySpec{ov(matrixKind, nil)}}
 	if plan, err := ResolveMultiplicity(req, nil, nil); err != nil || plan != nil {
 		t.Fatalf("plan = %+v, err = %v; want nil, nil", plan, err)
@@ -231,6 +237,8 @@ func TestResolveMultiplicity_NilWhenAbsent(t *testing.T) {
 // TestResolveMultiplicity_Refusals covers every PULSE_MULTIPLICITY_INVALID
 // case of a standalone Request.
 func TestResolveMultiplicity_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		req    *types.Request
@@ -264,6 +272,8 @@ func TestResolveMultiplicity_Refusals(t *testing.T) {
 }
 
 func TestResolveMultiplicity_Conflict(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tests disagree", func(t *testing.T) {
 		req := &types.Request{Tests: []*types.Test{ttest(mult(mHolm, "", 0)), ttest(mult(mBH, "", 0))}}
 		_, err := ResolveMultiplicity(req, nil, nil)
@@ -310,6 +320,8 @@ func TestResolveMultiplicity_Conflict(t *testing.T) {
 // refused as Tukey — exactly as for a name no registry knows; a hidden
 // MATRIX kind is not judged by the MATRIX rule.
 func TestResolveMultiplicity_HiddenRoutesAsNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	inst := scopedExcept("TEST_TUKEY_HSD", string(matrixKind))
 	req := &types.Request{
 		PostTests: []*types.Test{tukey(mult(mHolm, "", 0))},
@@ -332,6 +344,8 @@ func TestResolveMultiplicity_HiddenRoutesAsNeverRegistered(t *testing.T) {
 }
 
 func TestResolveComposeMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	slot := func(m *types.Multiplicity, tests ...*types.Test) *types.Request {
 		return &types.Request{Multiplicity: m, Tests: tests}
 	}
@@ -430,6 +444,8 @@ func TestResolveComposeMultiplicity(t *testing.T) {
 }
 
 func TestResolveFacetMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	facet := func(m *types.Multiplicity) *types.FacetRequest {
 		return &types.FacetRequest{Overlays: []types.OverlaySpec{ov(types.OverlayKindIndexVsPop, m)}}
 	}
@@ -454,6 +470,8 @@ func TestResolveFacetMultiplicity(t *testing.T) {
 // nested, on every request root — is an unknown field; enabled, none
 // is.
 func TestSlotRefusal_MultiplicityAtEveryNestingLevel(t *testing.T) {
+	t.Parallel()
+
 	m := mult(mHolm, "", 0)
 	base := []string{featProcess, featCompose, featCrosstab, featFacet, string(matrixKind), string(types.OverlayKindPropZPanel), string(types.OverlayKindIndexVsPop)}
 	hidden := scopedOnly(base...)
@@ -498,6 +516,8 @@ func TestSlotRefusal_MultiplicityAtEveryNestingLevel(t *testing.T) {
 // multiplicity hidden, and carries them (with the closed method /
 // family enums) when it is enabled.
 func TestPayloadSchema_MultiplicityHidden(t *testing.T) {
+	t.Parallel()
+
 	base := []string{featProcess, featCompose, featCrosstab, featFacet, string(matrixKind)}
 	for _, c := range []struct {
 		name string

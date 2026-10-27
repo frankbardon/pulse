@@ -9,6 +9,8 @@ import (
 )
 
 func TestValidateOverlay_YoYIncompatibleFrequency(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -33,6 +35,8 @@ func TestValidateOverlay_YoYIncompatibleFrequency(t *testing.T) {
 }
 
 func TestValidateOverlay_YoYNonDateGrouper(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 

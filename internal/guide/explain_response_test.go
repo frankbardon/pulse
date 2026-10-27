@@ -35,6 +35,8 @@ func readResponse(t *testing.T, inst *descx.InstanceSnapshot, resp *types.Respon
 }
 
 func TestExplainResponse_Validates(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.Response{}
 	for name, req := range map[string]descriptor.ExplainRequest{
 		"response and composed": {Response: resp, Composed: &types.ComposedRequest{}},
@@ -55,6 +57,8 @@ func TestExplainResponse_Validates(t *testing.T) {
 // A non-significant result reads "no evidence of", never "no
 // difference"; a significant one "evidence of".
 func TestExplainResponse_NoEvidenceNeverNoDifference(t *testing.T) {
+	t.Parallel()
+
 	res := readResponse(t, nil, &types.Response{Tests: []*types.TestResult{tTest(0.21, 0.05, 0.1)}}, nil, descriptor.ExplainFull)
 	f := res.Findings[0]
 	if f.Verdict != descriptor.VerdictNoEvidenceOfDifference || f.Operator != "TEST_T" || f.Subject != "score by arm" {
@@ -78,6 +82,8 @@ func TestExplainResponse_NoEvidenceNeverNoDifference(t *testing.T) {
 
 // Alpha comes from the result, never an assumed 0.05.
 func TestExplainResponse_AlphaFromResult(t *testing.T) {
+	t.Parallel()
+
 	at05 := readResponse(t, nil, &types.Response{Tests: []*types.TestResult{tTest(0.03, 0.05, 0.1)}}, nil, descriptor.ExplainFull)
 	at01 := readResponse(t, nil, &types.Response{Tests: []*types.TestResult{tTest(0.03, 0.01, 0.1)}}, nil, descriptor.ExplainFull)
 	if at05.Findings[0].Verdict != descriptor.VerdictEvidenceOfDifference || at01.Findings[0].Verdict != descriptor.VerdictNoEvidenceOfDifference {
@@ -94,6 +100,8 @@ func TestExplainResponse_AlphaFromResult(t *testing.T) {
 // An adjusted verdict reads significant_adjusted, which can differ
 // from the raw one, and names the correction.
 func TestExplainResponse_AdjustedVerdict(t *testing.T) {
+	t.Parallel()
+
 	adj := tTest(0.03, 0.05, 0.1)
 	adj.PAdjusted, adj.SignificantAdjusted = fptr(0.09), bptr(false)
 	adj.Multiplicity = &types.AppliedMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyRequest, Alpha: 0.05, M: 3}
@@ -122,6 +130,8 @@ func manyTestsCaveat(res *descriptor.ExplainResult) bool {
 // Two or more uncorrected p-values carry the many-tests caveat, in
 // terse output too; corrected ones and a single test do not.
 func TestExplainResponse_ManyTestsCaveat(t *testing.T) {
+	t.Parallel()
+
 	two := &types.Response{Tests: []*types.TestResult{tTest(0.2, 0.05, 0.1), tTest(0.01, 0.05, 0.1)}}
 	if res := readResponse(t, nil, two, nil, descriptor.ExplainTerse); !manyTestsCaveat(res) {
 		t.Errorf("two uncorrected tests: caveats = %v", res.Caveats)
@@ -167,6 +177,8 @@ func cellLayer(m *types.AppliedMultiplicity) types.OverlayLayer {
 }
 
 func TestExplainResponse_Overlays(t *testing.T) {
+	t.Parallel()
+
 	res := readResponse(t, nil, &types.Response{Overlays: []types.OverlayLayer{cellLayer(nil)}}, nil, descriptor.ExplainFull)
 	f := res.Findings[0]
 	if f.Verdict != descriptor.VerdictEvidenceOfDifference || *f.Numbers["tests"] != 2 || *f.Numbers["below_alpha"] != 1 {
@@ -197,6 +209,8 @@ func TestExplainResponse_Overlays(t *testing.T) {
 // Every band names its convention; an unbanded effect size gets its
 // number only.
 func TestExplainResponse_BandsNameConvention(t *testing.T) {
+	t.Parallel()
+
 	chisq := &types.TestResult{Type: types.TEST_CHISQ, Statistic: 9, PValue: 0.01, Alpha: 0.05, RejectNull: true,
 		Details: map[string]any{"effect_size": map[string]any{"cramers_v": 0.21}}}
 	resp := &types.Response{
@@ -248,6 +262,8 @@ func corrMatrix() types.MatrixResult {
 }
 
 func TestExplainResponse_RegressionsAndMatrices(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"hours", "age"}}}}
 	res := readResponse(t, nil, &types.Response{Regressions: []*types.RegressionResult{olsResult()}, Matrices: []types.MatrixResult{corrMatrix()},
 		Components: &types.ResponseComponents{Matrices: []types.MatrixComponents{{Name: "corr", N: 40, NListwiseDropped: 3}}}}, req, descriptor.ExplainFull)
@@ -278,6 +294,8 @@ func TestExplainResponse_RegressionsAndMatrices(t *testing.T) {
 // An undefined p-value is not_computable with a null figure — in Go
 // (NaN) and after a JSON round trip (null decodes to 0).
 func TestExplainResponse_NotComputable(t *testing.T) {
+	t.Parallel()
+
 	nan := tTest(math.NaN(), 0.05, 0.1)
 	nan.Statistic = math.NaN()
 	res := readResponse(t, nil, &types.Response{Tests: []*types.TestResult{nan}}, nil, descriptor.ExplainFull)
@@ -309,6 +327,8 @@ func TestExplainResponse_NotComputable(t *testing.T) {
 // without it, by count only, with the partial note — never a guessed
 // operator.
 func TestExplainResponse_AggregationsWithAndWithoutRequest(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.Response{
 		Data:     []map[string]any{{"region": "n", "total": 10.0}, {"region": "s", "total": 12.0}},
 		Metadata: &types.ResponseMetadata{TotalRows: 100, FilteredRows: 90},
@@ -369,6 +389,8 @@ func TestExplainResponse_AggregationsWithAndWithoutRequest(t *testing.T) {
 // Absent Components, a return-shaped response and nil test positions
 // are read without error, each saying what it could not read.
 func TestExplainResponse_ToleratesStrippedParts(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.Response{
 		Data:     []map[string]any{{"x": 1.0}},
 		Tests:    []*types.TestResult{nil, tTest(0.5, 0.05, 0.1)},
@@ -391,6 +413,8 @@ func TestExplainResponse_ToleratesStrippedParts(t *testing.T) {
 
 // A hidden operator is never named, in findings or prose.
 func TestExplainResponse_ProfileHidesOperators(t *testing.T) {
+	t.Parallel()
+
 	inst := profiled("TEST_T", "AGG_MEDIAN")
 	resp := &types.Response{Tests: []*types.TestResult{tTest(0.01, 0.05, 0.6)},
 		Components: &types.ResponseComponents{Aggregations: []types.AggregationComponents{{Label: "mid", N: 3}}}}
@@ -416,6 +440,8 @@ func TestExplainResponse_ProfileHidesOperators(t *testing.T) {
 
 // Every response-mode sentence, terse and full, passes the prose lint.
 func TestExplainResponse_ProseLint(t *testing.T) {
+	t.Parallel()
+
 	m := &types.AppliedMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyRequest, Alpha: 0.05, M: 2}
 	adj := tTest(0.03, 0.05, 0.3)
 	adj.Multiplicity, adj.PAdjusted, adj.SignificantAdjusted = m, fptr(0.06), bptr(false)
@@ -453,6 +479,8 @@ func TestExplainResponse_ProseLint(t *testing.T) {
 // Every built-in test family and inferential overlay kind is classed,
 // and every class entry names a real one.
 func TestExplainResponse_ClassTablesComplete(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range types.AllTestTypes() {
 		if _, ok := testClass[string(tt)]; !ok {
 			t.Errorf("testClass misses %s", tt)
@@ -481,6 +509,8 @@ func TestExplainResponse_ClassTablesComplete(t *testing.T) {
 // A grouped request's flat tests[] (one per test x group, test-major)
 // pairs each result with its request slot and names the group.
 func TestExplainResponse_GroupedTests(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 		Tests: []*types.Test{
@@ -516,6 +546,8 @@ func TestExplainResponse_GroupedTests(t *testing.T) {
 // cell's adjusted significance at the same coordinate — a NaN p (no
 // adjusted cell, here the first) does not shift the cells after it.
 func TestExplainResponse_PartPValues(t *testing.T) {
+	t.Parallel()
+
 	layer := func(adjusted bool) types.OverlayLayer {
 		l := types.OverlayLayer{Name: "sr", Kind: types.OverlayKindStdResidual, Payload: types.OverlayPayload{
 			Shape: types.OverlayShapeMatrix,
@@ -553,6 +585,8 @@ func TestExplainResponse_PartPValues(t *testing.T) {
 // pairing flags by position among the present adjusted cells would hand
 // its neighbour's flag to the wrong cell and drop the last one.
 func TestExplainResponse_CellSignificanceByCoordinate(t *testing.T) {
+	t.Parallel()
+
 	m := &types.AppliedMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyLayer, Alpha: 0.05, M: 3}
 	cases := []struct {
 		name         string

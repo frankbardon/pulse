@@ -72,6 +72,8 @@ func inspectVector(t *testing.T, data []byte, opts *descriptor.InspectOptions) *
 // synthesized description naming it a vector; a scalar field carries no
 // vector block.
 func TestInspect_VectorFieldMetadata(t *testing.T) {
+	t.Parallel()
+
 	data, _ := vectorInspectFixture(t, 5)
 	res := inspectVector(t, data, nil)
 	if res.RecordCount != 5 {
@@ -125,6 +127,8 @@ func TestInspect_VectorFieldMetadata(t *testing.T) {
 // TestInspect_VectorFieldReadsNoRecord: the vector block is schema
 // metadata — garbling every record byte changes nothing.
 func TestInspect_VectorFieldReadsNoRecord(t *testing.T) {
+	t.Parallel()
+
 	data, schema := vectorInspectFixture(t, 7)
 	clean := mustMarshal(t, inspectFromBytes(data, nil))
 	payload := 7 * schema.RecordByteSize()

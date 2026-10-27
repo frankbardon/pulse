@@ -38,6 +38,8 @@ func zoneFieldSchema(t *testing.T) *encoding.Schema {
 // request `time_zone_field` → request `time_zone` through the echo: a
 // field source echoes source "field", tz_field and a null tz.
 func TestResolveZones_FieldPrecedence(t *testing.T) {
+	t.Parallel()
+
 	berlin := "Europe/Berlin"
 	cases := []struct {
 		name                 string
@@ -76,6 +78,8 @@ func TestResolveZones_FieldPrecedence(t *testing.T) {
 // TestResolveZones_FieldRefusals pins every per-row-zone refusal's code
 // and details.
 func TestResolveZones_FieldRefusals(t *testing.T) {
+	t.Parallel()
+
 	grp := func(g types.Group) *types.Request { return &types.Request{Groups: []*types.Group{&g}} }
 	cases := []struct {
 		name string
@@ -120,6 +124,8 @@ func TestResolveZones_FieldRefusals(t *testing.T) {
 // field); a zone field absent from a known schema is left to the
 // field-reference pass, which refuses it.
 func TestResolveZones_FieldNilSchemaAndMissing(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "d", TimeZoneField: "badzone"}}}
 	zs, err := ResolveZones(req, nil, "", nil, nil)
 	if err != nil || len(zs) != 1 || zs[0].TZField != "badzone" || zs[0].Source != descriptor.ZoneSourceField {
@@ -145,6 +151,8 @@ func TestResolveZones_FieldNilSchemaAndMissing(t *testing.T) {
 // slot's tz_field and the request's time_zone_field — must name a
 // cohort field (a derived column carries no zone dictionary).
 func TestFieldRefRefusals_ZoneFields(t *testing.T) {
+	t.Parallel()
+
 	agg := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}}
 	for name, tc := range map[string]struct {
 		req  *types.Request
@@ -186,6 +194,8 @@ func TestFieldRefRefusals_ZoneFields(t *testing.T) {
 // its own tz / tz_field, a date slot and the input are untouched, and a
 // request whose only field source is the slot's own returns itself.
 func TestZonedRequest_ZoneField(t *testing.T) {
+	t.Parallel()
+
 	schema := zoneFieldSchema(t)
 	req := &types.Request{
 		TimeZone:      "Asia/Tokyo",
@@ -256,6 +266,8 @@ func TestZonedRequest_ZoneField(t *testing.T) {
 // TestPredictTimeZones_FieldEcho pins the predict JSON of a field
 // source: tz null, tz_field named, source "field".
 func TestPredictTimeZones_FieldEcho(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, zoneFieldSchema(t))
 	req := &types.Request{
 		TimeZoneField: "zone",

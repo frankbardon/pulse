@@ -41,6 +41,8 @@ func optimizeBatch(edit func(*types.OptimizeSpec)) *types.ComposedRequest {
 // with the block's code, located details.optimize, and judges nothing
 // past it; a valid block passes and is summarised.
 func TestOptimize_PredictRefusals(t *testing.T) {
+	t.Parallel()
+
 	two := 2
 	zero := 0
 	cases := []struct {
@@ -111,6 +113,8 @@ func TestOptimize_PredictRefusals(t *testing.T) {
 // key whose valid_keys never name it; the enabled instance refuses
 // nothing and an optimize-free batch is never refused.
 func TestOptimize_HiddenSlotRefusal(t *testing.T) {
+	t.Parallel()
+
 	req := optimizeBatch(nil)
 	req.Fits, req.Params = nil, nil
 	ce := asCoded(t, SlotRefusal(req, scopedOnly(featCompose)))
@@ -137,6 +141,8 @@ func TestOptimize_HiddenSlotRefusal(t *testing.T) {
 // instance carry them, the bound a number-or-params union and the
 // enums closed.
 func TestOptimize_HiddenSchema(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		inst *InstanceSnapshot
@@ -147,6 +153,8 @@ func TestOptimize_HiddenSchema(t *testing.T) {
 		{"hidden", scopedOnly(featCompose), false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			b, err := PayloadSchemaForInstance(c.inst)
 			if err != nil {
 				t.Fatal(err)
@@ -188,6 +196,8 @@ func TestOptimize_HiddenSchema(t *testing.T) {
 // capability:compose_optimize, and the shared expression codes it can
 // raise list it among their owners.
 func TestErrorOwners_OptimizeCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []errors.Code{errors.PULSE_OPTIMIZE_SPEC_INVALID, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, errors.PULSE_OPTIMIZE_EXPRESSION_INVALID} {
 		if !reflect.DeepEqual(errorOwners[c], []string{featComposeOpt}) {
 			t.Errorf("%s owners %v", c, errorOwners[c])

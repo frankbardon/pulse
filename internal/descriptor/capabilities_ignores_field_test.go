@@ -32,6 +32,8 @@ import (
 // The runtime half — that the Field slot really is ignored — is
 // processing.TestAggregators_IgnoredFieldSlotIsReallyIgnored.
 func TestCapabilities_IgnoresFieldDeclarationsAreCoherent(t *testing.T) {
+	t.Parallel()
+
 	all := [][]descriptor.Operator{
 		aggregatorCapabilities(),
 		attributeCapabilities(),

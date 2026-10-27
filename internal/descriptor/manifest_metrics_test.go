@@ -38,6 +38,8 @@ func strs[T ~string](in []T) []string {
 // fits, direction, forms, fitted flag, domain rules and the consumers
 // this build registers — no more, no fewer.
 func TestManifestMetricsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	names, set := manifestMetrics(t, m)
 	if !slices.Equal(names, metric.Names()) {
@@ -107,6 +109,8 @@ func TestManifestMetricsComplete(t *testing.T) {
 // hides a consumer drops it from every metric's consumers; hiding
 // capability:matrices drops the block.
 func TestManifestMetrics_InstanceHidesConsumers(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifestForInstance(scopedExcept("MAT_DISTANCE"))
 	_, set := manifestMetrics(t, m)
 	for name, e := range set {
@@ -138,6 +142,8 @@ func TestManifestMetrics_InstanceHidesConsumers(t *testing.T) {
 // lists every types.AllVectorKinds kind in order with the registry's
 // per-form default (metric.Default; "" where the kind has none).
 func TestManifestVectorKindsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	kinds := types.AllVectorKinds()
 	if len(m.Matrix.VectorKinds) != len(kinds) {

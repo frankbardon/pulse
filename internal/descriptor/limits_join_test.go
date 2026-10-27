@@ -13,6 +13,8 @@ import (
 // breach certain, and yields nothing without a single join, a counter,
 // a readable count or a bound.
 func TestJoinBuildLimitFinding(t *testing.T) {
+	t.Parallel()
+
 	l := limits.Defaults()
 	l.MaxJoinBuildRows = 999
 	join := &types.JoinSpec{Right: "right.pulse"}

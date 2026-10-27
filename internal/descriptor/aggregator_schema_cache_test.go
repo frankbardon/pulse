@@ -22,6 +22,8 @@ func hasKey(schema descriptor.ComponentSchema, name string) bool {
 // capability:weighting is enabled, absent when it is hidden.
 // aggregatorComponentSchemaIndex picks the variant off the instance.
 func TestAggregatorSchemaIndex_BuiltOncePerWeightingVariant(t *testing.T) {
+	t.Parallel()
+
 	for _, weighted := range []bool{false, true} {
 		a, b := builtinAggregatorSchemaIndex(weighted), builtinAggregatorSchemaIndex(weighted)
 		if reflect.ValueOf(a).UnsafePointer() != reflect.ValueOf(b).UnsafePointer() {
@@ -65,6 +67,8 @@ func TestAggregatorSchemaIndex_BuiltOncePerWeightingVariant(t *testing.T) {
 // extension-carrying index (a copy with the extension's schema) all
 // leave the cached map untouched.
 func TestAggregatorSchemaIndex_SharedMapIsolated(t *testing.T) {
+	t.Parallel()
+
 	sum := string(types.AGG_SUM)
 	snapshot := func() descriptor.ComponentSchema {
 		cs := builtinAggregatorSchemaIndex(true)[sum]

@@ -30,6 +30,8 @@ func returnCode(err error) errors.Code {
 // nonexistent one — and bad syntax / preset / precision with
 // PULSE_RETURN_INVALID.
 func TestResolveReturn_Paths(t *testing.T) {
+	t.Parallel()
+
 	hideMatrices := scopedOnly(featProcess)
 	for _, c := range []struct {
 		name string
@@ -95,6 +97,8 @@ func TestResolveReturn_Paths(t *testing.T) {
 // wins; include-only is an empty-base allowlist; exclude / precision
 // alone shape the full response; warnings are kept unless excluded.
 func TestResolveReturn_Resolution(t *testing.T) {
+	t.Parallel()
+
 	resolve := func(ret types.Return) *descriptor.ReturnPlan {
 		t.Helper()
 		plan, err := ResolveReturn(&types.Request{Return: &ret}, nil)
@@ -156,6 +160,8 @@ func TestResolveReturn_Resolution(t *testing.T) {
 // preset, implicit versus explicit top-level warnings — share a digest;
 // a different selection does not.
 func TestResolveReturn_DigestStable(t *testing.T) {
+	t.Parallel()
+
 	digest := func(ret types.Return) string {
 		t.Helper()
 		plan, err := ResolveReturn(&types.Request{Return: &ret}, nil)
@@ -197,6 +203,8 @@ func returnColumnsSchema(t *testing.T) *encoding.Schema {
 // TestReturnColumnRefusal: a known data column is judged against the
 // columns the request produces; globs, joins and crosstabs are open.
 func TestReturnColumnRefusal(t *testing.T) {
+	t.Parallel()
+
 	schema := returnColumnsSchema(t)
 	grouped := func(paths ...string) *types.Request {
 		return &types.Request{
@@ -254,6 +262,8 @@ func TestReturnColumnRefusal(t *testing.T) {
 // TestPredict_ReturnPlan: predict reports the resolved plan; a refused
 // block invalidates the request and reports no plan; no block, no key.
 func TestPredict_ReturnPlan(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, returnColumnsSchema(t))
 	req := &types.Request{
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
@@ -335,6 +345,8 @@ func schemaWalk(defs map[string]any, node map[string]any, segs []string) string 
 // the published BuildPayloadSchema() Response definition, so a field
 // rename cannot rot a preset silently.
 func TestReturnPathsMatchSchema(t *testing.T) {
+	t.Parallel()
+
 	var schema map[string]any
 	if err := json.Unmarshal(BuildPayloadSchema(), &schema); err != nil {
 		t.Fatal(err)
@@ -409,6 +421,8 @@ func noOverlayKinds() *InstanceSnapshot {
 // without error, and the expansion resolves to the same plan
 // ResolveReturn builds for the preset.
 func TestReturnPresetsFor_Instance(t *testing.T) {
+	t.Parallel()
+
 	full := ReturnPresetsFor(nil)
 	if len(full) != 3 || full[0].Name != "full" || full[1].Name != "standard" || full[2].Name != "minimal" {
 		t.Fatalf("presets = %+v", full)

@@ -45,6 +45,8 @@ func slotOwningCapabilities(t *testing.T) []string {
 // a capability that owns none — so a new slot capability without a
 // declared token set fails here.
 func TestSlotTokens_EveryRequestSlotCapability(t *testing.T) {
+	t.Parallel()
+
 	owners := slotOwningCapabilities(t)
 	for _, c := range owners {
 		if _, ok := SlotTokensOf(c); !ok {
@@ -65,6 +67,8 @@ func TestSlotTokens_EveryRequestSlotCapability(t *testing.T) {
 // or MCP tool name, unique across entries; a non-empty entry declares
 // its topic; every homonym key is a declared token.
 func TestSlotTokens_Shape(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]string{}
 	for _, c := range SlotTokenCapabilities() {
 		set := slotTokens[c]
@@ -103,6 +107,8 @@ func TestSlotTokens_Shape(t *testing.T) {
 // tokens to the scrub set; an enabled one (and an unscoped instance)
 // adds none.
 func TestHiddenProseNames_SlotTokens(t *testing.T) {
+	t.Parallel()
+
 	hidden := hiddenProseNames(scopedExcept(FeatureMultiplicity))
 	for _, tok := range []string{"multiplicity", "p_adjusted", "significant_adjusted"} {
 		if _, ok := hidden[tok]; !ok {
@@ -124,6 +130,8 @@ func TestHiddenProseNames_SlotTokens(t *testing.T) {
 // sentences naming its tokens; a sentence about pulse_lookup's
 // same-spelled duplicate-key mode stays, even beside a dropped one.
 func TestProseScrub_SlotTokens(t *testing.T) {
+	t.Parallel()
+
 	s := NewProseScrub(scopedExcept(FeatureMultiplicity))
 	in := "Runs a test. Set multiplicity on the request to adjust. Read payload.p_adjusted beside the raw p. The end."
 	if got, want := s.Text(in), "Runs a test. The end."; got != want {
@@ -142,6 +150,8 @@ func TestProseScrub_SlotTokens(t *testing.T) {
 // its own (ProseScrub.Text), so a hidden token in one paragraph never
 // takes the sentence a paragraph break glued to it.
 func TestScrubManifest_LineAware(t *testing.T) {
+	t.Parallel()
+
 	m := &descriptor.Manifest{MCPTools: []descriptor.MCPTool{{
 		Name:        "pulse_x",
 		Description: "Keeps this. Lists `matrices` here.\n\nKept after the break. Also kept.",
@@ -162,6 +172,8 @@ func TestScrubManifest_LineAware(t *testing.T) {
 // same-spelled `vectors` argument, which declares native vec_f32 /
 // vec_f64 FIELDS (a format feature no profile gates).
 func TestProseScrub_ImportVectorsHomonym(t *testing.T) {
+	t.Parallel()
+
 	s := NewProseScrub(scopedExcept(featMatrices))
 	in := "Imports a file. `vectors` folds sibling columns into one vec_f64 field. A bad one fails PULSE_IMPORT_VECTOR_INVALID; a name no vectors entry declares too. Name reusable vectors on the request. The end."
 	want := "Imports a file. `vectors` folds sibling columns into one vec_f64 field. A bad one fails PULSE_IMPORT_VECTOR_INVALID; a name no vectors entry declares too. The end."

@@ -25,6 +25,8 @@ func siblingHostReq() *types.Request {
 // OVERLAY_DELTA_VS_SIBLING overlay riding on a SERIES host passes the
 // predict gate without surfacing any overlay-specific errors.
 func TestValidateOverlay_DeltaVsSibling_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -56,6 +58,8 @@ func TestValidateOverlay_DeltaVsSibling_HappyPath(t *testing.T) {
 // TestValidateOverlay_DeltaVsSibling_ScopeUnsupported asserts every
 // non-GROUP scope is rejected.
 func TestValidateOverlay_DeltaVsSibling_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -88,6 +92,8 @@ func TestValidateOverlay_DeltaVsSibling_ScopeUnsupported(t *testing.T) {
 // TestValidateOverlay_DeltaVsSibling_RefRejected asserts non-Sibling
 // Ref pointers surface PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_DeltaVsSibling_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -126,6 +132,8 @@ func TestValidateOverlay_DeltaVsSibling_RefRejected(t *testing.T) {
 // the missing-Field rejection: a Sibling pointer with empty Field
 // surfaces PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_DeltaVsSibling_MissingSiblingFieldRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -148,6 +156,8 @@ func TestValidateOverlay_DeltaVsSibling_MissingSiblingFieldRejected(t *testing.T
 // TestValidateOverlay_DeltaVsSibling_MissingSiblingValueRejected pins
 // the missing-Value rejection.
 func TestValidateOverlay_DeltaVsSibling_MissingSiblingValueRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -170,6 +180,8 @@ func TestValidateOverlay_DeltaVsSibling_MissingSiblingValueRejected(t *testing.T
 // TestValidateOverlay_DeltaVsSibling_NoSeriesHostRejected pins the
 // SERIES-host requirement.
 func TestValidateOverlay_DeltaVsSibling_NoSeriesHostRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -221,6 +233,8 @@ func TestValidateOverlay_DeltaVsSibling_NoSeriesHostRejected(t *testing.T) {
 // TestValidateOverlay_DeltaVsSibling_LevelWithinRejected pins the
 // Level / Within rejection.
 func TestValidateOverlay_DeltaVsSibling_LevelWithinRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -260,6 +274,8 @@ func TestValidateOverlay_DeltaVsSibling_LevelWithinRejected(t *testing.T) {
 // the DELTA_VS_SIBLING happy-path test — both kinds share the
 // structural contract.
 func TestValidateOverlay_IndexVsSibling_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -291,6 +307,8 @@ func TestValidateOverlay_IndexVsSibling_HappyPath(t *testing.T) {
 // TestValidateOverlay_IndexVsSibling_ScopeUnsupported pins the scope
 // rejection. Mirrors DELTA_VS_SIBLING.
 func TestValidateOverlay_IndexVsSibling_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -323,6 +341,8 @@ func TestValidateOverlay_IndexVsSibling_ScopeUnsupported(t *testing.T) {
 // TestValidateOverlay_IndexVsSibling_MissingSiblingRejected pins both
 // missing-Field and missing-Value paths.
 func TestValidateOverlay_IndexVsSibling_MissingSiblingRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -368,6 +388,8 @@ func TestValidateOverlay_IndexVsSibling_MissingSiblingRejected(t *testing.T) {
 // TestValidateOverlay_IndexVsSibling_LevelWithinRejected pins the
 // Level / Within rejection. Mirrors DELTA_VS_SIBLING.
 func TestValidateOverlay_IndexVsSibling_LevelWithinRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 

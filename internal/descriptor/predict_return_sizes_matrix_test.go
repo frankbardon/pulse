@@ -53,6 +53,8 @@ type auxShape struct {
 // matrix_factor.go, matrix_collinearity.go, matrix_distance.go,
 // matrix_sem.go).
 func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
+	t.Parallel()
+
 	x3 := []string{"x1", "x2", "x3"}
 	x4 := []string{"x1", "x2", "x3", "x4"}
 	between := `"between": {"type": "GROUP_CATEGORY", "field": "region"}`
@@ -141,6 +143,8 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 // columns) and per level its two p x p covariances and two p x 1 means,
 // in the runtime's key order (vectors.SEMGroupAuxiliaryKeys).
 func TestMatrixAuxiliaryNodes_SEMGrouped(t *testing.T) {
+	t.Parallel()
+
 	spec := auxSpec(types.MAT_SEM, []string{"x1", "x2", "x3"}, `{"group": "region"}`)
 	result := &descriptor.PredictResult{}
 	plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, nil, -1, 0, -1)
@@ -180,6 +184,8 @@ func TestMatrixAuxiliaryNodes_SEMGrouped(t *testing.T) {
 // grouped record fields (group, label), and leaves it unsized when the
 // levels are the data's.
 func TestSEM_PredictGroupLevels(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "wave", Type: encoding.FieldTypeCategoricalU8, Dictionary: makeDictionary(t, "w1", "w2", "w3")},
 		{Name: "flag", Type: encoding.FieldTypePackedBool},
@@ -253,6 +259,8 @@ func TestSEM_PredictGroupLevels(t *testing.T) {
 // preset standard) shapes them away, and an include of one key keeps
 // exactly that key.
 func TestPredict_ReturnSizes_MatrixAuxiliary(t *testing.T) {
+	t.Parallel()
+
 	data := auxSizesCohort(t, 50)
 	fields := []string{"x1", "x2", "x3"}
 	run := func(params string, ret *types.Return) descriptor.ResponseSectionSize {
@@ -330,6 +338,8 @@ func TestPredict_ReturnSizes_MatrixAuxiliary(t *testing.T) {
 // block that resolves to none, or an inherited one on a spec without
 // inference, adds nothing.
 func TestPredict_ReturnSizes_MatrixMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	data := auxSizesCohort(t, 50)
 	fields := []string{"x1", "x2", "x3"}
 	run := func(params string, own, req *types.Multiplicity) int64 {
@@ -367,6 +377,8 @@ func TestPredict_ReturnSizes_MatrixMultiplicity(t *testing.T) {
 // their five record fields — as columns plus one record per row, and
 // the echo carries the encoding.
 func TestPredict_ReturnSizes_MatrixRecords(t *testing.T) {
+	t.Parallel()
+
 	data := auxSizesCohort(t, 50)
 	x3 := []string{"x1", "x2", "x3"}
 	run := func(enc types.MatrixEncoding) (descriptor.ResponseSectionSize, descriptor.MatrixPredict) {
@@ -401,6 +413,8 @@ func TestPredict_ReturnSizes_MatrixRecords(t *testing.T) {
 // shape; a non-member sizes none. Grouped, the := rows are counted
 // once, not per level.
 func TestMatrixAuxiliaryNodes_SEMMultiplicityTwins(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		params string
 		rows   int64
@@ -439,6 +453,8 @@ func TestMatrixAuxiliaryNodes_SEMMultiplicityTwins(t *testing.T) {
 // two-level wave: 22 rows per level, the 44 the runtime emits
 // (pulse_test TestSEM_OrdinalGroupsPValuesMatchPredict, packed_bool).
 func TestMatrixAuxiliaryNodes_SEMOrdinalGrouped(t *testing.T) {
+	t.Parallel()
+
 	fields := []encoding.Field{{Name: "wave", Type: encoding.FieldTypeCategoricalU8, Dictionary: makeDictionary(t, "1", "2")}}
 	items := []string{"b1", "b2", "b3", "b4"}
 	for _, b := range items {

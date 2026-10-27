@@ -10,6 +10,8 @@ import (
 )
 
 func TestFoldAlias(t *testing.T) {
+	t.Parallel()
+
 	for in, want := range map[string]string{
 		"ANOVA":             "anova",
 		"  Chi   Square ":   "chi square",
@@ -30,6 +32,8 @@ func TestFoldAlias(t *testing.T) {
 // alias once folded. The backfill must also be non-trivial — the
 // textbook names the guidance promises are declared.
 func TestPurposeKnownAsUnique(t *testing.T) {
+	t.Parallel()
+
 	for name, p := range builtinPurposes {
 		for _, v := range knownAsViolations(name, p.KnownAs) {
 			t.Error(v)
@@ -56,6 +60,8 @@ func TestPurposeKnownAsUnique(t *testing.T) {
 
 // TestPurposeKnownAsUnique_Falsifiers proves each alias rule bites.
 func TestPurposeKnownAsUnique_Falsifiers(t *testing.T) {
+	t.Parallel()
+
 	sound := intentRegistry[0].Sounds[0]
 	for _, tc := range []struct {
 		name    string
@@ -100,6 +106,8 @@ func TestPurposeKnownAsUnique_Falsifiers(t *testing.T) {
 // extension aliases, and an operator the feature profile hides drops
 // its aliases.
 func TestInstanceKnownAs(t *testing.T) {
+	t.Parallel()
+
 	full := hidingSnapshot().KnownAs()
 	if full["anova"] != "TEST_ANOVA_F" {
 		t.Fatalf("full instance lacks anova: %v", full["anova"])

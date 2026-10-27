@@ -696,6 +696,12 @@ func renderContractSection(operator string, ext *ExtensionsSnapshot, v contractV
 	if !ok {
 		return ""
 	}
+	return renderContractFacts(f, v)
+}
+
+// renderContractFacts renders f's `## Contract` section under v; "" for
+// facts that carry no line.
+func renderContractFacts(f contractFacts, v contractVisibility) string {
 	var lines []string
 	for _, g := range f.types {
 		lines = append(lines, renderContractTypes(g))

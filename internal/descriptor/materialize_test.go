@@ -16,6 +16,8 @@ import (
 // output of a multi-output one), then attributes, then windows, in
 // declaration order, with generated descriptions.
 func TestMaterializeColumns_PipelineOrderAndDescriptions(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "spend", Type: encoding.FieldTypeF64},
 		{Name: "week", Type: encoding.FieldTypeU16},
@@ -60,6 +62,8 @@ func TestMaterializeColumns_PipelineOrderAndDescriptions(t *testing.T) {
 // TestDerivedDescription_CappedOnRuneBoundary: a description past the
 // cohort ceiling is cut, valid UTF-8, keeping the provenance suffix.
 func TestDerivedDescription_CappedOnRuneBoundary(t *testing.T) {
+	t.Parallel()
+
 	long := "FEAT_XY of " + strings.Repeat("é", 800)
 	got := derivedDescription(long, "src.pulse")
 	if len(got) > materializeDescriptionMax || !utf8.ValidString(got) || !strings.HasSuffix(got, "… — derived from src.pulse") {
@@ -73,6 +77,8 @@ func TestDerivedDescription_CappedOnRuneBoundary(t *testing.T) {
 // TestMaterializeSlotRefusal_AcceptedSlots: the accepted slots pass;
 // every other slot is refused by name.
 func TestMaterializeSlotRefusal_AcceptedSlots(t *testing.T) {
+	t.Parallel()
+
 	ok := &types.Request{
 		Cohort: &types.Cohort{Filename: "c.pulse"}, Label: "l", TimeZone: "UTC",
 		Features:   []*types.Feature{{Type: types.FEAT_LOG, Field: "v"}},
@@ -104,6 +110,8 @@ func TestMaterializeSlotRefusal_AcceptedSlots(t *testing.T) {
 // WIN_EWMA (IgnoresFrame, cumulative) gets none under any frame, a
 // running sum and a moving average keep theirs, bounded or not.
 func TestMaterializeColumns_FrameClauseOnlyWhereRead(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "spend", Type: encoding.FieldTypeF64},
 		{Name: "week", Type: encoding.FieldTypeU16},
@@ -144,6 +152,8 @@ func TestMaterializeColumns_FrameClauseOnlyWhereRead(t *testing.T) {
 // regression attribute names its slot-level penalty. Every other
 // description is unchanged.
 func TestMaterializeColumns_ExpressionQuotedVerbatim(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "tv_ad70", Type: encoding.FieldTypeF64},
 		{Name: "radio_ad50", Type: encoding.FieldTypeF64},

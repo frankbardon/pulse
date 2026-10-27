@@ -12,6 +12,8 @@ import (
 )
 
 func TestManifestFormatVersion(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if m.FormatVersion != "1.0" {
 		t.Errorf("FormatVersion = %q, want %q", m.FormatVersion, "1.0")
@@ -19,6 +21,8 @@ func TestManifestFormatVersion(t *testing.T) {
 }
 
 func TestManifestJSON_Valid(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	data, err := json.Marshal(m)
 	if err != nil {
@@ -30,6 +34,8 @@ func TestManifestJSON_Valid(t *testing.T) {
 }
 
 func TestManifestDeterministicAcrossRuns(t *testing.T) {
+	t.Parallel()
+
 	first, err := json.Marshal(BuildManifest())
 	if err != nil {
 		t.Fatalf("first marshal: %v", err)
@@ -46,6 +52,8 @@ func TestManifestDeterministicAcrossRuns(t *testing.T) {
 }
 
 func TestManifestIncludesCommands(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.Commands) == 0 {
 		t.Fatal("Commands is empty")
@@ -65,6 +73,8 @@ func TestManifestIncludesCommands(t *testing.T) {
 }
 
 func TestManifestIncludesComponents(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	if len(m.Components.Aggregators) == 0 {
@@ -105,6 +115,8 @@ func TestManifestIncludesComponents(t *testing.T) {
 // the registry is the single source of truth, and a literal here would have to
 // be bumped by hand every time an operator lands.
 func TestManifestWindowsCount(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if want := len(types.AllWindowTypes()); len(m.Components.Windows) != want {
 		t.Errorf("Windows count = %d, want %d", len(m.Components.Windows), want)
@@ -112,6 +124,8 @@ func TestManifestWindowsCount(t *testing.T) {
 }
 
 func TestManifestIncludesCohortTypes(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.CohortTypes) == 0 {
 		t.Fatal("CohortTypes is empty")
@@ -153,6 +167,8 @@ func TestManifestIncludesCohortTypes(t *testing.T) {
 }
 
 func TestManifestIncludesSkills(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	// Skills array must be present (even if empty placeholder).
 	if m.Skills == nil {
@@ -163,6 +179,8 @@ func TestManifestIncludesSkills(t *testing.T) {
 // TestManifest_SkillsNotEmpty verifies the manifest populates Skills from
 // the embedded skill pack. The earlier hardcoded empty slice was a bug.
 func TestManifest_SkillsNotEmpty(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.Skills) == 0 {
 		t.Fatal("Skills slice is empty; manifest must mirror skills.List() output")
@@ -188,6 +206,8 @@ func TestManifest_SkillsNotEmpty(t *testing.T) {
 // is surfaced in the manifest payload. Non-skippable: missing fields
 // silently break LLM-side example discovery.
 func TestManifestExamplesPopulated(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if m.ExamplesCount == 0 {
 		t.Error("ExamplesCount is 0; embedded example library not surfaced")
@@ -212,6 +232,8 @@ func TestManifestExamplesPopulated(t *testing.T) {
 }
 
 func TestManifestComponentSchemasComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	// Per-Operator surface: every aggregator capability entry carries
@@ -408,6 +430,8 @@ func TestManifestComponentSchemasComplete(t *testing.T) {
 // TestManifest_PulseVersionFromBuildinfo: the manifest reports the build
 // version from internal/buildinfo, the single version source.
 func TestManifest_PulseVersionFromBuildinfo(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v9.8.7-manifest")()
 	m := BuildManifest()
 	if m.PulseVersion != "v9.8.7-manifest" {
@@ -425,6 +449,8 @@ func TestManifest_PulseVersionFromBuildinfo(t *testing.T) {
 // TestManifest_CommandsIncludeVersion: the `pulse version` leaf reaches the
 // manifest command catalogue.
 func TestManifest_CommandsIncludeVersion(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range BuildManifest().Commands {
 		if c.Name == "version" {
 			if c.Description == "" || !c.Annotations.Deterministic {
@@ -440,6 +466,8 @@ func TestManifest_CommandsIncludeVersion(t *testing.T) {
 // reaches the manifest command catalogue, bound Ungated so no feature
 // profile hides it (the scripts describe the binary, not an instance).
 func TestManifest_CommandsIncludeCompletion(t *testing.T) {
+	t.Parallel()
+
 	found := false
 	for _, c := range BuildManifest().Commands {
 		if c.Name == "completion" {

@@ -30,6 +30,8 @@ var wantCountSemantic = []types.AggregationType{
 }
 
 func TestCountSemanticAggregations_Classified(t *testing.T) {
+	t.Parallel()
+
 	measure := map[types.AggregationType]bool{}
 	for _, a := range measureAggregations {
 		measure[a] = true
@@ -53,6 +55,8 @@ func TestCountSemanticAggregations_Classified(t *testing.T) {
 // request's count columns / count crosstab figures as Exact paths; a
 // measure, a normalized crosstab and a precision-free block carry none.
 func TestResolveReturn_ExactPaths(t *testing.T) {
+	t.Parallel()
+
 	g := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
 	cases := []struct {
 		name string
@@ -111,6 +115,8 @@ func TestResolveReturn_ExactPaths(t *testing.T) {
 // paths like a built-in count; an undeclared one and a nil instance
 // contribute none.
 func TestResolveReturn_ExactPaths_ExtensionCountSemantic(t *testing.T) {
+	t.Parallel()
+
 	inst := UnscopedInstanceSnapshot(&ExtensionsSnapshot{Aggregators: []descriptor.OperatorMeta{
 		{Name: "AGG_X_CNT", CountSemantic: true}, {Name: "AGG_X_MEAS"},
 	}})

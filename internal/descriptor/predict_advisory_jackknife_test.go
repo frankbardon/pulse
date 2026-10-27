@@ -42,6 +42,8 @@ func jackknifeAdvisories(t *testing.T, records int, regs []*types.RegressionSpec
 // fewer, a delete-a-group jackknife, a bootstrap, an unresampled fit and
 // a hidden type never fire.
 func TestPredict_AdvisoryJackknifeCost(t *testing.T) {
+	t.Parallel()
+
 	at := regresample.LeaveOneOutCostRows
 	reg := func(typ types.RegressionType, mut func(*types.RegressionSpec)) *types.RegressionSpec {
 		r := &types.RegressionSpec{Type: typ, Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}
@@ -100,6 +102,8 @@ func TestPredict_AdvisoryJackknifeCost(t *testing.T) {
 // the advisory out of errors and warnings (valid stays true), and
 // Options.SuppressAdvisories drops it.
 func TestPredict_AdvisoryJackknifeCostNeverEscalated(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_JACKKNIFE_COST)
 	req := &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}}}
 	env := predictFromBytes(jackknifeCohort(t, regresample.LeaveOneOutCostRows), req, &PredictOptions{Strict: true})
@@ -121,6 +125,8 @@ func TestPredict_AdvisoryJackknifeCostNeverEscalated(t *testing.T) {
 // the runtime's ValidateRegression too), and an unknown jackknife_by is
 // the field-reference refusal.
 func TestPredict_JackknifeKnobRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		mut  func(*types.RegressionSpec)
@@ -162,6 +168,8 @@ func TestPredict_JackknifeKnobRefusals(t *testing.T) {
 // unwired, RecordCounter). One record fewer, or no counter at all,
 // fires nothing.
 func TestComposePredict_AdvisoryJackknifeCostMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	at := regresample.LeaveOneOutCostRows
 	reg := func() *types.RegressionSpec {
 		return &types.RegressionSpec{Name: "m", Type: types.REG_GLM, Family: "poisson", Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}

@@ -76,6 +76,8 @@ func round2(v float64) float64 { return math.Round(v*100) / 100 }
 // derived convention (eta squared from Cohen's f, odds ratio from
 // Cohen's d) is recomputed from its stated inputs.
 func TestConventionRegistryMatchesFixture(t *testing.T) {
+	t.Parallel()
+
 	fx := loadConventionFixture(t)
 
 	seen := map[string]bool{}
@@ -193,6 +195,8 @@ func conventionKey(citation string, bands []descriptor.Band, abs bool) string {
 // rank-biserial r carry no bands. Interpretations without Bands are
 // unaffected, and extension guidance is never consulted.
 func TestBuiltinBandsCiteRegisteredConvention(t *testing.T) {
+	t.Parallel()
+
 	byKey := map[string][]string{}
 	for _, id := range conventionIDs() {
 		k := conventionKey(conventionCitation(id), conventionBands(id), builtinConventions[id].Abs)
@@ -251,6 +255,8 @@ func mustJSON(v any) string {
 }
 
 func TestBandOf(t *testing.T) {
+	t.Parallel()
+
 	d := bandedBy(ConventionCohenD, descriptor.Interpretation{Field: "details.effect_size.cohens_d"})
 	or := bandedBy(ConventionCohenOR, descriptor.Interpretation{Field: "statistic"})
 	eta := bandedBy(ConventionCohenEta2, descriptor.Interpretation{Field: "details.effect_size.eta_squared"})

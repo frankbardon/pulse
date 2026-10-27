@@ -18,6 +18,8 @@ import (
 // is already reached through internal/descriptor -> internal/synth and
 // executes nothing on its own.
 func TestGuideNoExecutionImports(t *testing.T) {
+	t.Parallel()
+
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)

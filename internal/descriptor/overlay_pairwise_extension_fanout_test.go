@@ -36,6 +36,8 @@ func pwExtSnapshot(present, fansOut bool) *ExtensionsSnapshot {
 // TestExtensionsSnapshot_GrouperFanOut pins the bridge accessor itself,
 // including the nil receiver every no-extensions host hits.
 func TestExtensionsSnapshot_GrouperFanOut(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		snap      *ExtensionsSnapshot
@@ -81,6 +83,8 @@ func pwExtRequest() *types.Request {
 // dim refuses with the same code and the same details a built-in
 // fan-out grouper would.
 func TestValidateOverlays_ExtensionFanOutRefused(t *testing.T) {
+	t.Parallel()
+
 	env := descriptor.NewEnvelope(nil)
 	ValidateOverlays(env, pwExtRequest(), nil, &PredictOptions{Extensions: pwExtSnapshot(true, true)})
 
@@ -105,6 +109,8 @@ func TestValidateOverlays_ExtensionFanOutRefused(t *testing.T) {
 // decision table on the identical request, so the ONLY variable is
 // what the snapshot says about the grouper.
 func TestValidateOverlays_ExtensionFanOutResolution(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		opts       *PredictOptions
@@ -144,6 +150,8 @@ func TestValidateOverlays_ExtensionFanOutResolution(t *testing.T) {
 // prefix, multiplies slabs rather than cells. Gating it would refuse
 // the very shape n_within_distinct exists for.
 func TestValidateOverlays_ExtensionFanOutInPrefixRuns(t *testing.T) {
+	t.Parallel()
+
 	req := pwPartRequest(
 		[]*types.Group{
 			pwPartGroup(types.GroupType(pwExtGrouper), "panel"),

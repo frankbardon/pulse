@@ -13,6 +13,8 @@ import (
 // streamability is inherited from the request against the canonical
 // schema (unchanged from single-file behavior).
 func TestShardArchivePredict(t *testing.T) {
+	t.Parallel()
+
 	schema := twoShardInspectSchema(t)
 	shards := []struct {
 		Name    string
@@ -70,6 +72,8 @@ func TestShardArchivePredict(t *testing.T) {
 // TestShardArchivePredict_BufferedRequestBuffered confirms streamability
 // inheritance: AGG_PERCENTILE buffers regardless of the cohort shape.
 func TestShardArchivePredict_BufferedRequestBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := twoShardInspectSchema(t)
 	data := buildShardArchiveBytes(t, schema, []struct {
 		Name    string
@@ -95,6 +99,8 @@ func TestShardArchivePredict_BufferedRequestBuffered(t *testing.T) {
 // TestShardArchivePredict_SingleFileUnchanged confirms the single-file
 // path keeps Shards empty (non-nil) and RecordCount = 0.
 func TestShardArchivePredict_SingleFileUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Test score for the participant"},

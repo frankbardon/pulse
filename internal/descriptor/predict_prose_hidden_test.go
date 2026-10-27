@@ -14,6 +14,8 @@ import (
 // named operators hidden.
 
 func TestZoneCapableAdvice_NamesOnlyOffered(t *testing.T) {
+	t.Parallel()
+
 	var capable []string
 	for n, z := range zoneCapabilities {
 		if z == ZoneCapable {
@@ -38,6 +40,8 @@ func TestZoneCapableAdvice_NamesOnlyOffered(t *testing.T) {
 }
 
 func TestPairwiseAdvice_NamesOnlyOffered(t *testing.T) {
+	t.Parallel()
+
 	opts := func(hidden ...string) *PredictOptions { return &PredictOptions{Instance: scopedExcept(hidden...)} }
 	prop, probit := string(types.OverlayKindPairwisePropZ), string(types.OverlayKindPairwiseProbitT)
 	weighted := string(types.OverlayKindPairwiseWeightedTwoMeansZ)
@@ -62,6 +66,8 @@ func TestPairwiseAdvice_NamesOnlyOffered(t *testing.T) {
 }
 
 func TestTrainTestSplitName_NamesOnlyOffered(t *testing.T) {
+	t.Parallel()
+
 	if got := trainTestSplitName(nil); got != "FEAT_TRAIN_TEST_SPLIT" {
 		t.Errorf("unscoped = %q", got)
 	}
@@ -71,6 +77,8 @@ func TestTrainTestSplitName_NamesOnlyOffered(t *testing.T) {
 }
 
 func TestReasonFromCode_HintNamingHiddenFallsBack(t *testing.T) {
+	t.Parallel()
+
 	c := errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
 	meta, _ := errors.MetadataFor(c)
 	hint := meta.Fixups[0].Hint

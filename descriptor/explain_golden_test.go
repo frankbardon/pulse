@@ -345,6 +345,8 @@ func runExplain(t *testing.T, p *pulse.Pulse, req descriptor.ExplainRequest) *de
 // carries it. Regenerate with go test ./descriptor/ -run 'Test.*Golden'
 // -update.
 func TestExplainGolden(t *testing.T) {
+	t.Parallel()
+
 	p := recommendGoldenPulse(t)
 	for _, c := range explainCases(t) {
 		t.Run(c.name, func(t *testing.T) {
@@ -358,6 +360,8 @@ func TestExplainGolden(t *testing.T) {
 // through the CLI / MCP decode, are reported undefined (null numbers,
 // not_computable) — never as a real 0.
 func TestExplainGolden_NullFigureStaysUndefined(t *testing.T) {
+	t.Parallel()
+
 	p := recommendGoldenPulse(t)
 	res := runExplain(t, p, wireRoundTrip(t, explainFixture("test")))
 	f := res.Findings[2]
@@ -410,6 +414,8 @@ func lintExplain(t *testing.T, where string, res *descriptor.ExplainResult) int 
 // non-compliant template fails here before any golden moves — and as
 // stored on disk. Every case must have its golden.
 func TestExplainProseLint(t *testing.T) {
+	t.Parallel()
+
 	p := recommendGoldenPulse(t)
 	cases := explainCases(t)
 	want := map[string]bool{}
@@ -450,6 +456,8 @@ func TestExplainProseLint(t *testing.T) {
 // TestExplainProseLint_Falsifier: the lint the gate runs bites on the
 // overstatements an Explain template could make.
 func TestExplainProseLint_Falsifier(t *testing.T) {
+	t.Parallel()
+
 	for _, bad := range []string{
 		"Test 1 (TEST_T) shows no difference between the groups.",
 		"The p-value is the probability that the null hypothesis is true.",

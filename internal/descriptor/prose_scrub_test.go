@@ -16,6 +16,8 @@ func proseScrubFor(hidden ...string) ProseScrub {
 // zero value) changes nothing, so profile-free MCP prose is
 // byte-identical.
 func TestProseScrub_UnscopedIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	for _, s := range []ProseScrub{{}, NewProseScrub(nil)} {
 		if s.Active() {
 			t.Fatal("unscoped scrub is active")
@@ -37,6 +39,8 @@ func TestProseScrub_UnscopedIsIdentity(t *testing.T) {
 // capability owns are removed, layout survives, a list item reduced to
 // its marker disappears.
 func TestProseScrub_TextDropsHiddenSentences(t *testing.T) {
+	t.Parallel()
+
 	s := proseScrubFor("AGG_SUM", "capability:compose")
 	for _, tc := range []struct{ in, want string }{
 		{"Count rows with AGG_COUNT. Sum with AGG_SUM. Done.", "Count rows with AGG_COUNT. Done."},
@@ -57,6 +61,8 @@ func TestProseScrub_TextDropsHiddenSentences(t *testing.T) {
 // at any depth is scrubbed; a property NAMED description (object value)
 // is walked, not replaced; untouched schemas keep their bytes.
 func TestProseScrub_SchemaDescriptions(t *testing.T) {
+	t.Parallel()
+
 	s := proseScrubFor("AGG_SUM")
 	raw := json.RawMessage(`{"type":"object","description":"Top. AGG_SUM top.","properties":{"description":{"type":"string","description":"Nested AGG_SUM. Kept."},"n":{"type":"integer","maximum":1.50}}}`)
 	got, err := s.SchemaDescriptions(raw)

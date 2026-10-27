@@ -77,6 +77,8 @@ func sizeOf(res *descriptor.PredictResult, section string) (descriptor.ResponseS
 // section's full size matches the same request under `return:
 // standard` — the selection never moves the unshaped figure.
 func TestPredict_Sizes_NoReturnBlock(t *testing.T) {
+	t.Parallel()
+
 	data := sizesCohort(t, 50)
 	bare := predictSizes(t, data, sizesRequest(nil))
 	if bare.Return != nil {
@@ -114,6 +116,8 @@ func TestPredict_Sizes_NoReturnBlock(t *testing.T) {
 // positive full size and a shaped size no larger, under every preset and
 // custom blocks; the full preset shapes nothing.
 func TestPredict_ReturnSizes_ShapedNeverAboveFull(t *testing.T) {
+	t.Parallel()
+
 	data := sizesCohort(t, 50)
 	blocks := []*types.Return{
 		{Preset: types.ReturnPresetFull},
@@ -154,6 +158,8 @@ func TestPredict_ReturnSizes_ShapedNeverAboveFull(t *testing.T) {
 // TestPredict_ReturnSizes_ExcludedReportZero: an excluded section, and
 // one a preset omits, reports shaped 0 beside its full size.
 func TestPredict_ReturnSizes_ExcludedReportZero(t *testing.T) {
+	t.Parallel()
+
 	data := sizesCohort(t, 50)
 	rp := predictSizes(t, data, sizesRequest(&types.Return{Exclude: []string{"data", "metadata", "matrices"}}))
 	for _, s := range rp.Sizes {
@@ -176,6 +182,8 @@ func TestPredict_ReturnSizes_ExcludedReportZero(t *testing.T) {
 // TestPredict_ReturnSizes_Basis: the row count's basis, the record-count
 // clamp, and omission when the keys depend on the data.
 func TestPredict_ReturnSizes_Basis(t *testing.T) {
+	t.Parallel()
+
 	ret := &types.Return{Preset: types.ReturnPresetStandard}
 
 	// Dictionary-grouped: an upper bound, clamped to the record count.
@@ -245,6 +253,8 @@ func TestPredict_ReturnSizes_Basis(t *testing.T) {
 // shape is windows-only (the record-row arm); a request with no window
 // emits no data row at all (TestPredict_ReturnSizes_NoDataRows).
 func TestPredict_ReturnSizes_ArchiveRecordCount(t *testing.T) {
+	t.Parallel()
+
 	data := buildShardArchiveBytes(t, twoShardInspectSchema(t), []struct {
 		Name    string
 		NRecord int
@@ -270,6 +280,8 @@ func len64(s string) int64 { return int64(len(s)) }
 // TestPredict_ReturnUnresolvedIncludes: Open includes predict cannot
 // resolve are listed; a data column it can match is not; none, absent.
 func TestPredict_ReturnUnresolvedIncludes(t *testing.T) {
+	t.Parallel()
+
 	data := sizesCohort(t, 10)
 	rp := predictSizes(t, data, sizesRequest(&types.Return{
 		Include: []string{"tests[*].details.effect_size", "data[*].AGG_SUM_revenue", "matrices[*].auxiliary.n"},
@@ -301,6 +313,8 @@ func TestPredict_ReturnUnresolvedIncludes(t *testing.T) {
 // key count (one composite row per observed combination), clamped by
 // the record count, unknown when any grouper is data-dependent.
 func TestReturnSizes_DataRowsMultiGrouper(t *testing.T) {
+	t.Parallel()
+
 	d := func(vs ...string) *encoding.Dictionary { return makeDictionary(t, vs...) }
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: d("N", "S", "E", "W")},
@@ -340,6 +354,8 @@ func TestReturnSizes_DataRowsMultiGrouper(t *testing.T) {
 // predicts one row per record (~19 MB on the A/B showcase). A
 // windows-only request still emits the filtered records themselves.
 func TestPredict_ReturnSizes_NoDataRows(t *testing.T) {
+	t.Parallel()
+
 	const records = 40000
 	data := sizesCohort(t, records)
 	cases := []struct {
@@ -385,6 +401,8 @@ func TestPredict_ReturnSizes_NoDataRows(t *testing.T) {
 // (to within that aggregator's one bucket of state), not 40,000
 // materialised records.
 func TestEstimateMemory_TestsOnlyFollowsStreamingArm(t *testing.T) {
+	t.Parallel()
+
 	schema := sizesSchema(t)
 	tests := func() []*types.Test {
 		return []*types.Test{{Type: types.TEST_T, Field: "revenue", SplitBy: "tier"}}

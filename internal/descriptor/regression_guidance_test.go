@@ -14,6 +14,8 @@ import (
 // and its intents ride the manifest. The type list comes from the
 // registry, never a hardcoded count.
 func TestRegressionPurposes_CoverEveryType(t *testing.T) {
+	t.Parallel()
+
 	regs := types.AllRegressionTypes()
 	if len(regs) == 0 {
 		t.Fatal("no regression types registered")
@@ -53,6 +55,8 @@ func TestRegressionPurposes_CoverEveryType(t *testing.T) {
 // on REG_GLM, no p_values on REG_BAYES_LINEAR, pseudo_r2 on REG_GLM
 // only) and no applicable output is left unread.
 func TestRegressionInterpretations_MatchApplicability(t *testing.T) {
+	t.Parallel()
+
 	tags := jsonTags(reflect.TypeOf(types.RegressionResult{}))
 	for name, ins := range regressionInterpretations {
 		var want []string
@@ -93,6 +97,8 @@ func TestRegressionInterpretations_MatchApplicability(t *testing.T) {
 // every coefficient reading is signed and says association, not
 // causation, holding the other predictors fixed.
 func TestRegressionInterpretations_Readings(t *testing.T) {
+	t.Parallel()
+
 	byField := func(name string) map[string]map[string]string {
 		out := map[string]map[string]string{}
 		for _, in := range regressionInterpretations[name] {

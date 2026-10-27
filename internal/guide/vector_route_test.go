@@ -107,6 +107,8 @@ func hasVectorSlot(t *testing.T, op string, in descriptor.Intent) bool {
 // operator with a vector slot drafts the cohort's natives in schema
 // order (the first fitting native first).
 func TestRecommendBound_PrefersNativeVector(t *testing.T) {
+	t.Parallel()
+
 	b := vectorBound(t, vectorFixture(t))
 	checked := 0
 	for _, in := range descx.Intents() {
@@ -150,6 +152,8 @@ func TestRecommendBound_PrefersNativeVector(t *testing.T) {
 // kind's default (no metric need), and over a kind-less native still
 // asks for it.
 func TestRecommendBound_NativeKindSuitability(t *testing.T) {
+	t.Parallel()
+
 	b := vectorBound(t, vectorFixture(t))
 	got := map[string][]string{} // operator -> natives drafted
 	needs := map[string][]string{}
@@ -204,6 +208,8 @@ func TestRecommendBound_NativeKindSuitability(t *testing.T) {
 // every draft to that native in a vector slot; for an intent with no
 // vector slot it is refused as kind "vector" (SERVICE_VALIDATION).
 func TestRecommendBound_VectorHint(t *testing.T) {
+	t.Parallel()
+
 	b := vectorBound(t, vectorFixture(t))
 	accepted, refused := 0, 0
 	for _, in := range descx.Intents() {
@@ -245,6 +251,8 @@ func TestRecommendBound_VectorHint(t *testing.T) {
 // hinted native pins it alone, and a native shorter than the slot's
 // least member count does not fit.
 func TestBind_NativeVectorSlots(t *testing.T) {
+	t.Parallel()
+
 	s := vectorFixture(t)
 	anyField := func(*encoding.Field) bool { return true }
 	scalar := []bslot{{key: "numerator_field", accept: anyField}, {key: "fields", list: true, min: 1, accept: anyField}}
@@ -309,6 +317,8 @@ func TestBind_NativeVectorSlots(t *testing.T) {
 // holds two values, or a packed_bool ("0" / "1"). The 4-level region
 // never.
 func TestRecommendBound_HotellingSplitTwoLevels(t *testing.T) {
+	t.Parallel()
+
 	b := vectorBound(t, vectorFixture(t))
 	res, err := RecommendBound(nil, descriptor.RecommendRequest{Intent: descx.IntentCompareGroups, Limit: 1000}, b)
 	if err != nil {

@@ -29,6 +29,8 @@ func yoyHostReq() *types.Request {
 // OVERLAY_YOY overlay riding on a SERIES GROUP_DATE host passes the
 // predict gate without surfacing any overlay-specific errors.
 func TestValidateOverlay_YoYHappyPathAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -65,6 +67,8 @@ func TestValidateOverlay_YoYHappyPathAccepted(t *testing.T) {
 // Groups[0].Params fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING. The
 // story brief named this test explicitly.
 func TestValidateOverlay_YoYFrequencyRequired(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -94,6 +98,8 @@ func TestValidateOverlay_YoYFrequencyRequired(t *testing.T) {
 // GROUP_DATE grouper carries a frequency Param the gate accepts the
 // spec.
 func TestValidateOverlay_YoYFrequencyFromGroupParams(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -127,6 +133,8 @@ func TestValidateOverlay_YoYFrequencyFromGroupParams(t *testing.T) {
 // frequency value outside the supported set fires
 // PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY.
 func TestValidateOverlay_YoYIncompatibleFrequencyRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -158,6 +166,8 @@ func TestValidateOverlay_YoYIncompatibleFrequencyRejected(t *testing.T) {
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE with Details naming the
 // actual grouper type.
 func TestValidateOverlay_YoYNonDateGrouperRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -184,6 +194,8 @@ func TestValidateOverlay_YoYNonDateGrouperRejected(t *testing.T) {
 // TestValidateOverlay_YoYScopeUnsupported asserts every non-GROUP scope
 // fires PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestValidateOverlay_YoYScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -217,6 +229,8 @@ func TestValidateOverlay_YoYScopeUnsupported(t *testing.T) {
 // TestValidateOverlay_YoYRefRejected asserts non-YoY Ref pointers
 // surface PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_YoYRefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -267,6 +281,8 @@ func TestValidateOverlay_YoYRefRejected(t *testing.T) {
 // TestValidateOverlay_YoYMissingRefRejected asserts an empty Ref
 // surfaces PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_YoYMissingRefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -289,6 +305,8 @@ func TestValidateOverlay_YoYMissingRefRejected(t *testing.T) {
 // groupers OR an active Crosstab fires
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (no SERIES host).
 func TestValidateOverlay_YoYNoSeriesHostRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -335,6 +353,8 @@ func TestValidateOverlay_YoYNoSeriesHostRejected(t *testing.T) {
 // Within values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE — the kind is in
 // the windowed implicit-margin family.
 func TestValidateOverlay_YoYLevelWithinRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -378,6 +398,8 @@ func TestValidateOverlay_YoYLevelWithinRejected(t *testing.T) {
 // reading the runtime fold shares). The frequency fallback reads the
 // date grouper's Params, not Groups[0]'s.
 func TestValidateOverlay_YoYMultiGrouper(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 	date := func(params string) *types.Group {

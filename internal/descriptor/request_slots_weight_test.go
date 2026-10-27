@@ -95,6 +95,8 @@ func assertNestedWeightRefusal(t *testing.T, err error, path string, sample any,
 // explicitly null — are PULSE_REQUEST_UNKNOWN_FIELD, located; with it
 // enabled none is.
 func TestSlotRefusal_WeightAtEveryNestingLevel(t *testing.T) {
+	t.Parallel()
+
 	hidden, open := weightGateInst(false), weightGateInst(true)
 
 	root := &types.Request{Weight: &types.WeightSpec{Field: "w"}}
@@ -145,6 +147,8 @@ func TestSlotRefusal_WeightAtEveryNestingLevel(t *testing.T) {
 // TestSlotRefusal_FacetOverlayWeight: a FacetRequest's overlays carry
 // the per-slot weight too.
 func TestSlotRefusal_FacetOverlayWeight(t *testing.T) {
+	t.Parallel()
+
 	fr := &types.FacetRequest{Overlays: []types.OverlaySpec{{Kind: types.OverlayKindIndexVsPop, Weight: types.SlotWeightField("w")}}}
 	if err := SlotRefusal(fr, weightGateInst(true)); err != nil {
 		t.Fatalf("weighting enabled: %v", err)
@@ -155,6 +159,8 @@ func TestSlotRefusal_FacetOverlayWeight(t *testing.T) {
 // TestSlotRefusal_RootSlotsBeforeNestedWeight: a hidden root slot is
 // reported before a nested weight, and an unset weight passes.
 func TestSlotRefusal_RootSlotsBeforeNestedWeight(t *testing.T) {
+	t.Parallel()
+
 	inst := scopedOnly(featProcess, "AGG_SUM") // crosstab hidden too
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Weight: types.SlotWeightField("w")}},
@@ -173,6 +179,8 @@ func TestSlotRefusal_RootSlotsBeforeNestedWeight(t *testing.T) {
 // no `weight` property anywhere (and so no SlotWeight / WeightSpec def)
 // when capability:weighting is hidden; enabling it brings them back.
 func TestPayloadSchema_WeightingHidden(t *testing.T) {
+	t.Parallel()
+
 	schema := func(inst *InstanceSnapshot) string {
 		raw, err := PayloadSchemaForInstance(inst)
 		if err != nil {
@@ -200,6 +208,8 @@ func TestPayloadSchema_WeightingHidden(t *testing.T) {
 // grouper, test, regression, overlay) and no weighted floor key;
 // enabled, all are there.
 func TestManifest_WeightingHidden(t *testing.T) {
+	// serial: weighting.OverrideClassForTest rewrites the process-wide operator weight-class table
+
 	const ext = "AGG_ACME_WSUM"
 	inst := func(with bool) *InstanceSnapshot {
 		names := []string{featProcess, "AGG_SUM", "AGG_WEIGHTED_MEAN", ext, "TEST_MANN_WHITNEY_U", "REG_BAYES_LINEAR", "ATTR_ZSCORE", "GROUP_QUANTILE",
@@ -251,6 +261,8 @@ func TestManifest_WeightingHidden(t *testing.T) {
 // report is not offered when capability:weighting is hidden; a slot
 // nothing weights names only the remedy the instance offers.
 func TestPredict_WeightingHiddenReportsNoWeights(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	req := &types.Request{Aggregations: []*types.Aggregation{
 		{Type: types.AGG_WEIGHTED_MEAN, Field: "score", Label: "m", Params: json.RawMessage(`{"weight_field":"w"}`)},
@@ -296,6 +308,8 @@ func TestPredict_WeightingHiddenReportsNoWeights(t *testing.T) {
 // any depth requires capability:weighting (so a profile hiding it
 // prunes the example); weight_field alone does not.
 func TestExampleDetector_Weighting(t *testing.T) {
+	t.Parallel()
+
 	detects := func(body string) bool {
 		return slices.Contains(detectedExampleCapabilities(ontologyExample{}, decodeExampleBody(json.RawMessage(body))), featWeighting)
 	}

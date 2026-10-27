@@ -13,6 +13,8 @@ import (
 // surfaced "regression target field X is not numeric (got T)"
 // SERVICE_VALIDATION.
 func TestPredict_REG_OLS_AcceptsBitPackedTargets(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
@@ -42,6 +44,8 @@ func TestPredict_REG_OLS_AcceptsBitPackedTargets(t *testing.T) {
 // TestPredict_REG_OLS_AcceptsBitPackedPredictors mirrors the target test
 // for the predictor slot.
 func TestPredict_REG_OLS_AcceptsBitPackedPredictors(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64, Description: "Continuous response"},
@@ -71,6 +75,8 @@ func TestPredict_REG_OLS_AcceptsBitPackedPredictors(t *testing.T) {
 // bit-packed integer encodings as valid target / predictor types — the
 // textbook pairing for binomial GLM is a packed_bool target.
 func TestPredict_REG_GLM_AcceptsBitPackedTarget(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
@@ -99,6 +105,8 @@ func TestPredict_REG_GLM_AcceptsBitPackedTarget(t *testing.T) {
 // TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget mirrors the GLM
 // test for the Bayesian engine.
 func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "Continuous predictor"},
@@ -127,6 +135,8 @@ func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
 // analytics-layer numeric set: existing integer/float/decimal types plus
 // the bit-packed integer encodings (u4, packed_bool) and date.
 func TestIsNumericForAnalytics(t *testing.T) {
+	t.Parallel()
+
 	includes := []encoding.FieldType{
 		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
@@ -153,6 +163,8 @@ func TestIsNumericForAnalytics(t *testing.T) {
 // strict scalar family (int / float / decimal). Bit-packed integer
 // encodings and date are deliberately excluded.
 func TestIsNumeric(t *testing.T) {
+	t.Parallel()
+
 	includes := []encoding.FieldType{
 		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,

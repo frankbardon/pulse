@@ -17,6 +17,8 @@ import (
 // extension name under a nil snapshot stay refused with
 // PULSE_CHAIN_NOT_MERGEABLE.
 func TestValidateChainWithOptions_MergeableOperators(t *testing.T) {
+	t.Parallel()
+
 	snap := &ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{
 			{Name: "AGG_ACME_SUM", Streamable: true, Mergeable: true},

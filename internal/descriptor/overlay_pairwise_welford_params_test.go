@@ -117,6 +117,8 @@ func pwWelfordValidate(kind types.OverlayKind, params string) *descriptor.Envelo
 // behaviour break, and scoping it to the three new modes would leave
 // the rule incoherent.
 func TestValidateOverlays_WelfordKindRefusesEveryNSource(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range pwWelfordKinds(t) {
 		for _, mode := range pwAllNSources {
 			t.Run(string(kind)+"/"+mode, func(t *testing.T) {
@@ -156,6 +158,8 @@ func TestValidateOverlays_WelfordKindRefusesEveryNSource(t *testing.T) {
 // refused as not-accepted, not as unknown — "unknown n_source" would
 // tell the caller a known one would work, and none would.
 func TestValidateOverlays_WelfordKindRefusesUnknownNSource(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range pwWelfordKinds(t) {
 		env := pwWelfordValidate(kind, `{"n_source":"not_a_mode"}`)
 		got := pwPartFindError(env, string(errors.PULSE_OVERLAY_PARAM_MISSING))
@@ -177,6 +181,8 @@ func TestValidateOverlays_WelfordKindRefusesUnknownNSource(t *testing.T) {
 // reason n_source is — both moments come from the triple — so it
 // refuses under the same code and the same key shape.
 func TestValidateOverlays_WelfordKindRefusesPSource(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range pwWelfordKinds(t) {
 		for _, mode := range []string{types.PairwisePSourceCellValuePct, types.PairwisePSourceCellValue} {
 			t.Run(string(kind)+"/"+mode, func(t *testing.T) {
@@ -204,6 +210,8 @@ func TestValidateOverlays_WelfordKindRefusesPSource(t *testing.T) {
 // setting both gets both refusals in one pass, not the first one and a
 // second round trip.
 func TestValidateOverlays_WelfordKindReportsBothSelectors(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range pwWelfordKinds(t) {
 		env := pwWelfordValidate(kind, `{"n_source":"row_margin_n","p_source":"cell_value"}`)
 		var params []string
@@ -234,6 +242,8 @@ func TestValidateOverlays_WelfordKindReportsBothSelectors(t *testing.T) {
 // also a plain int whose zero value is meaningful, so "was it set?" is
 // not observable after decode.
 func TestValidateOverlays_WelfordKindAcceptsAbsentSelectors(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range pwWelfordKinds(t) {
 		for _, params := range []string{
 			"",
@@ -258,6 +268,8 @@ func TestValidateOverlays_WelfordKindAcceptsAbsentSelectors(t *testing.T) {
 // blast radius. The refusal must not leak onto the two kinds that
 // genuinely read the selectors.
 func TestValidateOverlays_ProportionKindsStillAcceptSelectors(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range pwProportionKinds(t) {
 		for _, mode := range pwAllNSources {
 			env := pwWelfordValidate(kind, `{"n_source":"`+mode+`"}`)

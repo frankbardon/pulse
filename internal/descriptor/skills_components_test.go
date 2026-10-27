@@ -8,6 +8,8 @@ import (
 )
 
 func TestSkillsCoverAllOperatorComponents(t *testing.T) {
+	t.Parallel()
+
 	check := func(t *testing.T, opName, stem string, keys []string) {
 		t.Helper()
 		// The RENDERED skill: the generated `## Contract` names every

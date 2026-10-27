@@ -14,6 +14,8 @@ import (
 // limits.MatrixRowWorkBytes, 10x the bare row — U35 E7-S2 calibration)
 // on top of its merge-block state; a streamable spec adds none.
 func TestMatrixMemory_CountsRowBuffer(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64, ByteOffset: 0},
 		{Name: "b", Type: encoding.FieldTypeF64, ByteOffset: 8},

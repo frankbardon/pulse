@@ -36,6 +36,8 @@ func codeOf(t *testing.T, err error) *errors.CodedError {
 // TestResolveWeights_Precedence walks slot → request → options → none
 // and the slot `null` opt-out, per slot, in reporting order.
 func TestResolveWeights_Precedence(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
 	req := &types.Request{
 		Weight: &types.WeightSpec{Field: "w"},
@@ -86,6 +88,8 @@ func TestResolveWeights_Precedence(t *testing.T) {
 // attributes, overlays, groupers, crosstab axes, windows — under its
 // JSON path.
 func TestResolveWeights_SlotFamilies(t *testing.T) {
+	t.Parallel()
+
 	null := types.NullSlotWeight()
 	req := &types.Request{
 		Weight:      &types.WeightSpec{Field: "w"},
@@ -129,6 +133,8 @@ func TestResolveWeights_SlotFamilies(t *testing.T) {
 // slot, instance) resolves to nil, so predict omits `weights` and an
 // unweighted request's output is unchanged.
 func TestResolveWeights_NothingNamedIsNil(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}}}
 	got, err := ResolveWeights(req, weightSchema(), nil, nil)
 	if err != nil || got != nil {
@@ -139,6 +145,8 @@ func TestResolveWeights_NothingNamedIsNil(t *testing.T) {
 // TestResolveWeights_Refusals: shape and type refusals carry
 // PROCESSING_CONFIG with {slot, field, type|kind} details.
 func TestResolveWeights_Refusals(t *testing.T) {
+	t.Parallel()
+
 	agg := func(w types.SlotWeight) []*types.Aggregation {
 		return []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Weight: w}}
 	}
@@ -188,6 +196,8 @@ func TestResolveWeights_Refusals(t *testing.T) {
 // refused only where it would be applied — a request it reaches only on
 // non-weight-aware slots, or only through opted-out slots, runs.
 func TestResolveWeights_DefaultJudgedWhereItApplies(t *testing.T) {
+	t.Parallel()
+
 	missing := &types.WeightSpec{Field: "nope"}
 	minOnly := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MIN, Field: "x"}}}
 	if _, err := ResolveWeights(minOnly, weightSchema(), missing, nil); err != nil {
@@ -222,6 +232,8 @@ func TestResolveWeights_DefaultJudgedWhereItApplies(t *testing.T) {
 // schema lacks — or a derived column (an attribute label) — is the
 // field-reference refusal; the inherited default is not judged there.
 func TestFieldRefs_WeightFields(t *testing.T) {
+	t.Parallel()
+
 	schema := weightSchema()
 	cases := []struct {
 		name string
@@ -261,6 +273,8 @@ func TestFieldRefs_WeightFields(t *testing.T) {
 // PredictResult.Weights, reports a refusal as an error under the
 // runtime's code, and omits `weights` for an unweighted request.
 func TestPredictWeights_Surface(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, weightSchema())
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}}}
 
@@ -290,6 +304,8 @@ func TestPredictWeights_Surface(t *testing.T) {
 // skipped on an operator the table does not govern. `weight: null`
 // opts every class out.
 func TestResolveWeights_Classes(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	one := func(a *types.Aggregation, reqW *types.WeightSpec) *types.Request {
 		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{a}}
@@ -334,6 +350,8 @@ func TestResolveWeights_Classes(t *testing.T) {
 // agrees with or conflicts against an explicit slot weight, and a slot
 // nothing resolves a weight for is refused.
 func TestResolveWeights_WeightedMeanSugar(t *testing.T) {
+	t.Parallel()
+
 	wm := func(params string, w types.SlotWeight) *types.Request {
 		a := &types.Aggregation{Type: types.AGG_WEIGHTED_MEAN, Field: "x", Weight: w}
 		if params != "" {
@@ -377,6 +395,8 @@ func TestResolveWeights_WeightedMeanSugar(t *testing.T) {
 // path has no weighted form; `weight: null` opts the slot out, and a
 // not-weightable operator under the default is skipped as on any type.
 func TestResolveWeights_DecimalRefused(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	ratio := func(num, den string) *types.Aggregation {
 		return &types.Aggregation{Type: types.AGG_RATIO, Field: "x",
@@ -476,6 +496,8 @@ func inferentialSlotRequests(w types.SlotWeight) map[string]*types.Request {
 // has no weighted form yet. The slot's `weight: null` opts it out on
 // all three.
 func TestResolveWeights_InferentialRefused(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	sources := map[string]func(map[string]*types.Request) (map[string]*types.Request, *types.WeightSpec){
 		"default": func(m map[string]*types.Request) (map[string]*types.Request, *types.WeightSpec) { return m, def },
@@ -558,6 +580,8 @@ func init() {
 // pointing at a weighted twin names it (details.alternative) unless the
 // instance hides the twin.
 func TestResolveWeights_PermanentReasonsNonEmpty(t *testing.T) {
+	t.Parallel()
+
 	for key, reason := range permanentRefusalKeys {
 		if reason == "" {
 			t.Errorf("%s: empty permanent reason", key)
@@ -582,6 +606,8 @@ func TestResolveWeights_PermanentReasonsNonEmpty(t *testing.T) {
 // weight in force, whatever the regression's own class; `weight: null`
 // opts out.
 func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
+	t.Parallel()
+
 	if weighting.ClassOf(string(types.REG_OLS)) != weighting.ClassAware {
 		t.Fatal("REG_OLS is no longer weight-aware: pick another subject")
 	}
@@ -617,6 +643,8 @@ func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
 // class advertises from every source; REG_BAYES_LINEAR under a
 // probability weight is PULSE_WEIGHT_UNSUPPORTED naming the kind.
 func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
+	t.Parallel()
+
 	want := map[types.RegressionType][]types.WeightKind{
 		types.REG_OLS:          {types.WeightKindFrequency, types.WeightKindProbability},
 		types.REG_BAYES_LINEAR: {types.WeightKindFrequency},
@@ -662,6 +690,8 @@ func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 // compute weighted under both kinds since U12 E5-S2 — applied from the
 // slot, request and instance default alike.
 func TestResolveWeights_AwareScoresAndQuantileApplied(t *testing.T) {
+	t.Parallel()
+
 	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
 	for _, op := range []string{string(types.ATTR_ZSCORE), string(types.ATTR_TSCORE), string(types.GROUP_QUANTILE)} {
 		if !reflect.DeepEqual(weighting.KindsOf(op), both) {
@@ -731,6 +761,8 @@ func TestResolveWeights_AwareScoresAndQuantileApplied(t *testing.T) {
 // kind, supported_kinds}; `weight: null` opts it out. Subject: the
 // rank test TEST_MANN_WHITNEY_U (frequency-only since E2-S1).
 func TestResolveWeights_FrequencyOnly(t *testing.T) {
+	t.Parallel()
+
 	if weighting.ClassOf(string(types.TEST_MANN_WHITNEY_U)) != weighting.ClassFrequencyOnly {
 		t.Fatal("TEST_MANN_WHITNEY_U is no longer frequency-only: pick another subject")
 	}
@@ -784,6 +816,8 @@ func TestResolveWeights_FrequencyOnly(t *testing.T) {
 // rescale, no weighted meaning) is skipped under the instance default
 // and PROCESSING_CONFIG under an explicit slot or request weight.
 func TestResolveWeights_NormalizedNotWeightable(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	attr := func(w types.SlotWeight) []*types.Attribute {
 		return []*types.Attribute{{Type: types.ATTR_NORMALIZED, Field: "x", Weight: w}}
@@ -819,6 +853,8 @@ func splitKey(key string) (slot, op string) {
 // attributes and the other groupers are untouched — the request runs
 // and each reports skipped (filterers and features carry no slot).
 func TestResolveWeights_WindowsAndUnaffected(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	win := func(reqW *types.WeightSpec) *types.Request {
 		return &types.Request{Weight: reqW, Windows: []*types.Window{{Type: types.WIN_LAG, Field: "x"}}}
@@ -872,6 +908,8 @@ func TestResolveWeights_WindowsAndUnaffected(t *testing.T) {
 // such a host on purpose). Descriptive kinds and the exemption are
 // skipped.
 func TestResolveWeights_InferentialOverlays(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	cell := func(w types.SlotWeight) *types.CrosstabSpec {
 		return &types.CrosstabSpec{
@@ -946,6 +984,8 @@ func TestResolveWeights_InferentialOverlays(t *testing.T) {
 // host opted out with `weight: null`, and a slot the overlay does not
 // read leave it alone.
 func TestComposeOverlayWeightRefusal(t *testing.T) {
+	t.Parallel()
+
 	def := &types.WeightSpec{Field: "w"}
 	slot := func(reqW *types.WeightSpec, w types.SlotWeight) *types.Request {
 		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Weight: w}}}
@@ -1014,6 +1054,8 @@ func overlayRefusalDetails(k types.OverlayKind, base map[string]any) map[string]
 // Fisher under frequency only, the two permanent refusals with reasons,
 // and every listed kind is a real kind; OverlayWeightKinds reads it.
 func TestOverlayWeightClasses_Table(t *testing.T) {
+	t.Parallel()
+
 	known := map[types.OverlayKind]bool{}
 	for _, k := range types.AllOverlayKinds() {
 		known[k] = true
@@ -1049,6 +1091,8 @@ func TestOverlayWeightClasses_Table(t *testing.T) {
 // on Compose (the host's inherited weight kind) — OVERLAY_FISHER_EXACT_CELL,
 // the one frequency-only overlay (weighting-inferential E3-S2).
 func TestOverlayWeight_FrequencyOnly(t *testing.T) {
+	t.Parallel()
+
 	k := types.OverlayKindFisherExactCell
 	freq := &types.WeightSpec{Field: "wi", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "w"}
@@ -1091,6 +1135,8 @@ func TestOverlayWeight_FrequencyOnly(t *testing.T) {
 // is TestResolveWeights_FrequencyOnly's), while the same operator on
 // post_tests stays refused permanently.
 func TestResolveWeights_AwareTestsApplied(t *testing.T) {
+	t.Parallel()
+
 	var aware []types.TestType
 	for _, tt := range types.AllTestTypes() {
 		if weighting.IsAware(string(tt)) {

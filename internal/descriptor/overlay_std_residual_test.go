@@ -12,6 +12,8 @@ import (
 // with Level / Within pinned to 0 (the runtime twin is
 // processing.validateOverlayLevelWithinRuntime) — one row per rule.
 func TestValidateOverlay_StdResidual(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	ok := types.OverlaySpec{Name: "sr", Kind: types.OverlayKindStdResidual, Scope: types.OverlayScopeCell}
 	with := func(edit func(*types.OverlaySpec)) types.OverlaySpec {

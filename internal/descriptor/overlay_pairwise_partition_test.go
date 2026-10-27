@@ -62,6 +62,8 @@ func pwPartFindError(env *descriptor.Envelope, code string) *descriptor.Envelope
 // TestValidateOverlays_DistinctSlabNotPartitioned_Row is the ROW-scope
 // refusal: a GROUP_SET_PER_ELEMENT level that the slab sums ACROSS.
 func TestValidateOverlays_DistinctSlabNotPartitioned_Row(t *testing.T) {
+	t.Parallel()
+
 	req := pwPartRequest(
 		[]*types.Group{
 			pwPartGroup(types.GROUP_CATEGORY, "segment"),
@@ -98,6 +100,8 @@ func TestValidateOverlays_DistinctSlabNotPartitioned_Row(t *testing.T) {
 // TestValidateOverlays_DistinctSlabNotPartitioned_Column is the same
 // refusal on the COLUMN axis — the gate is symmetric, not row-only.
 func TestValidateOverlays_DistinctSlabNotPartitioned_Column(t *testing.T) {
+	t.Parallel()
+
 	req := pwPartRequest(
 		[]*types.Group{pwPartGroup(types.GROUP_CATEGORY, "wave")},
 		[]*types.Group{
@@ -127,6 +131,8 @@ func TestValidateOverlays_DistinctSlabNotPartitioned_Column(t *testing.T) {
 // must NOT refuse. Each one is a request that is correct today; a false
 // refusal here breaks a working caller.
 func TestValidateOverlays_DistinctSlabAccepts(t *testing.T) {
+	t.Parallel()
+
 	flat := func(f string) *types.Group { return pwPartGroup(types.GROUP_CATEGORY, f) }
 	fan := func(f string) *types.Group { return pwPartGroup(types.GROUP_SET_PER_ELEMENT, f) }
 
@@ -218,6 +224,8 @@ func TestValidateOverlays_DistinctSlabAccepts(t *testing.T) {
 // its own PULSE_OVERLAY_PARAM_MISSING rather than being masked by the
 // partition gate, which reads the very fields those guards validate.
 func TestValidateOverlays_DistinctSlabGateRunsAfterParamGuards(t *testing.T) {
+	t.Parallel()
+
 	req := pwPartRequest(
 		[]*types.Group{
 			pwPartGroup(types.GROUP_CATEGORY, "segment"),

@@ -12,6 +12,8 @@ import (
 // sha256hex over the sorted, newline-joined enabled names followed by
 // the effective behaviour switches in a fixed order.
 func TestFeatureSetDigest_Format(t *testing.T) {
+	t.Parallel()
+
 	b := FeatureBehaviour{DisableProjection: true}
 	payload := strings.Join([]string{
 		"AGG_SUM",
@@ -31,6 +33,8 @@ func TestFeatureSetDigest_Format(t *testing.T) {
 // TestFeatureSetDigest_Sensitivity: order never matters; every enabled
 // name and every behaviour switch does.
 func TestFeatureSetDigest_Sensitivity(t *testing.T) {
+	t.Parallel()
+
 	base := FeatureSetDigest([]string{"a", "b"}, FeatureBehaviour{})
 	if FeatureSetDigest([]string{"b", "a"}, FeatureBehaviour{}) != base {
 		t.Error("digest depends on input order")
@@ -50,6 +54,8 @@ func TestFeatureSetDigest_Sensitivity(t *testing.T) {
 // TestInstanceSnapshot_Scoped covers Enabled / Hidden / names / digest
 // on a scoped snapshot and the extension pass-through.
 func TestInstanceSnapshot_Scoped(t *testing.T) {
+	t.Parallel()
+
 	ext := &ExtensionsSnapshot{}
 	s := NewInstanceSnapshot(ext, FeatureSet{
 		Enabled:   []string{"capability:process", "AGG_SUM"},
@@ -96,6 +102,8 @@ func TestInstanceSnapshot_Scoped(t *testing.T) {
 // TestInstanceSnapshot_Unscoped: a nil or unscoped snapshot enables
 // everything, hides nothing and has no digest.
 func TestInstanceSnapshot_Unscoped(t *testing.T) {
+	t.Parallel()
+
 	var nilSnap *InstanceSnapshot
 	if UnscopedInstanceSnapshot(nil) != nil {
 		t.Error("UnscopedInstanceSnapshot(nil) should be nil")

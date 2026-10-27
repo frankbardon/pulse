@@ -51,6 +51,8 @@ func bannedImportsIn(name string, src any) ([]string, error) {
 // TestGuideNoExecutionImports_Falsifier: the checker the gate runs
 // flags a direct engine or service import (subpackages included).
 func TestGuideNoExecutionImports_Falsifier(t *testing.T) {
+	t.Parallel()
+
 	for _, imp := range []string{"internal/service", "internal/processing", "internal/processing/regression"} {
 		src := "package guide\nimport _ \"" + modulePath + "/" + imp + "\"\n"
 		bad, err := bannedImportsIn("x.go", src)

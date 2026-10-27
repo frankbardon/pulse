@@ -6,6 +6,8 @@ import (
 )
 
 func TestLevels_OrderAndFresh(t *testing.T) {
+	t.Parallel()
+
 	got := Levels()
 	if !slices.Equal(got, []Level{LevelBasic, LevelIntermediate, LevelAdvanced}) {
 		t.Fatalf("Levels() = %v", got)
@@ -17,6 +19,8 @@ func TestLevels_OrderAndFresh(t *testing.T) {
 }
 
 func TestExplainDetails_OrderAndFresh(t *testing.T) {
+	t.Parallel()
+
 	got := ExplainDetails()
 	if !slices.Equal(got, []ExplainDetail{ExplainTerse, ExplainFull}) {
 		t.Fatalf("ExplainDetails() = %v", got)
@@ -30,6 +34,8 @@ func TestExplainDetails_OrderAndFresh(t *testing.T) {
 // TestExplainRequestRoots_RequestModeOnly: the request-mode roots in
 // ExplainRequest field order — never a response-mode spelling.
 func TestExplainRequestRoots_RequestModeOnly(t *testing.T) {
+	t.Parallel()
+
 	got := ExplainRequestRoots()
 	want := []ExplainRoot{ExplainRootRequest, ExplainRootComposed, ExplainRootChain, ExplainRootFacet, ExplainRootSample}
 	if !slices.Equal(got, want) {

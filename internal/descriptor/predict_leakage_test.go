@@ -31,6 +31,8 @@ func makeLeakageSchema(t *testing.T) *encoding.Schema {
 }
 
 func TestPredict_TargetEncode_WithoutSplit_EmitsLeakageWarning(t *testing.T) {
+	t.Parallel()
+
 	schema := makeLeakageSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -50,6 +52,8 @@ func TestPredict_TargetEncode_WithoutSplit_EmitsLeakageWarning(t *testing.T) {
 }
 
 func TestPredict_TargetEncode_WithoutSplit_StrictUpgradesToError(t *testing.T) {
+	t.Parallel()
+
 	schema := makeLeakageSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -73,6 +77,8 @@ func TestPredict_TargetEncode_WithoutSplit_StrictUpgradesToError(t *testing.T) {
 // the validation/test records' outcomes and the record's own. The warning
 // must therefore fire with or without a split ahead of the encoder.
 func TestPredict_TargetEncode_AfterSplit_StillWarns(t *testing.T) {
+	t.Parallel()
+
 	schema := makeLeakageSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -100,6 +106,8 @@ func TestPredict_TargetEncode_AfterSplit_StillWarns(t *testing.T) {
 }
 
 func TestPredict_TargetEncode_BeforeSplit_StillWarns(t *testing.T) {
+	t.Parallel()
+
 	schema := makeLeakageSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -137,6 +145,8 @@ func hasCode(entries []*descriptor.EnvelopeEntry, code errors.Code) bool {
 // carrying details.folds; neither keeps the full one. One entry per
 // unprotected encoder, in request order.
 func TestPredict_TargetEncode_FitOnLeakageRule(t *testing.T) {
+	t.Parallel()
+
 	schema := makeLeakageSchema(t)
 	data := buildTestPulseFile(t, schema)
 	split := &types.Feature{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.7,0.3]}`)}
@@ -196,6 +206,8 @@ func TestPredict_TargetEncode_FitOnLeakageRule(t *testing.T) {
 // the PULSE_FORMULA_COMPILE_ERROR unknown-name refusal, an earlier
 // feature's column compiles.
 func TestFieldRefRefusals_TargetEncodeFitOn(t *testing.T) {
+	t.Parallel()
+
 	schema := makeLeakageSchema(t)
 	split := &types.Feature{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.7,0.3]}`)}
 	te := &types.Feature{Type: types.FEAT_TARGET_ENCODE, Field: "region", Label: "te", Params: json.RawMessage(`{"target":"price","fit_on":"split == 0"}`)}

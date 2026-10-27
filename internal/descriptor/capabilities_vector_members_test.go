@@ -17,6 +17,8 @@ import (
 // declare. A `date` member is refused PULSE_VECTOR_MEMBER_TYPE, so a
 // declaration listing it overstates what the operator takes.
 func TestCapabilities_VectorInputAcceptsMemberRule(t *testing.T) {
+	t.Parallel()
+
 	var want []string
 	for _, ft := range knownScalarTypes {
 		if vectors.MemberTypeAllowed(ft, types.VectorCoerceBinary) {
@@ -65,6 +67,8 @@ func TestCapabilities_VectorInputAcceptsMemberRule(t *testing.T) {
 // the columns are the fit's terms, not a request slot, and the refusal
 // keeps the model package's own message.
 func TestCapabilities_RegPredictAcceptsScoringRule(t *testing.T) {
+	t.Parallel()
+
 	var want []string
 	for _, ft := range knownScalarTypes {
 		if ft.IsNumericForAnalytics() {

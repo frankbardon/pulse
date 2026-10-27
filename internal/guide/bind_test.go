@@ -85,6 +85,8 @@ func boundAll(t *testing.T, inst *descx.InstanceSnapshot, intent string, fields 
 // predict's advisories; a draft with needs names a placeholder per need
 // and is Bound false.
 func TestRecommendBound_EveryDraftPassesPredict(t *testing.T) {
+	t.Parallel()
+
 	data := cohortBytes(t, boundFixture(t))
 	boundCount := 0
 	for _, in := range descx.Intents() {
@@ -150,6 +152,8 @@ var unmappedOnFixture = map[[2]string]string{
 // every operator that serves an intent: each draftable server yields a
 // draft over the fixture unless unmappedOnFixture says why not.
 func TestRecommendBound_ServingOperatorsMapped(t *testing.T) {
+	t.Parallel()
+
 	cat := catalog(descx.BuildManifestForInstance(nil))
 	g := (*descx.InstanceSnapshot)(nil).Ontology()
 	got := map[[2]string]bool{}
@@ -186,6 +190,8 @@ func TestRecommendBound_ServingOperatorsMapped(t *testing.T) {
 // emitted with their fields bound, Bound false, needs naming the param,
 // and rank after every fully bound draft.
 func TestRecommendBound_NeedsOperators(t *testing.T) {
+	t.Parallel()
+
 	want := []struct {
 		intent, op string
 		needs      []string
@@ -232,6 +238,8 @@ func TestRecommendBound_NeedsOperators(t *testing.T) {
 // TestRecommendBound_NeedsRankBelowBound: without hints, no draft with
 // needs ranks ahead of a fully bound one, on any intent.
 func TestRecommendBound_NeedsRankBelowBound(t *testing.T) {
+	t.Parallel()
+
 	sawBoth := false
 	for _, in := range descx.Intents() {
 		recs := boundAll(t, nil, in.ID).Recommendations
@@ -259,6 +267,8 @@ func TestRecommendBound_NeedsRankBelowBound(t *testing.T) {
 // fully bound before needs, then level, then advisories, then category,
 // then name.
 func TestRank_KeyOrder(t *testing.T) {
+	t.Parallel()
+
 	rec := func(op, cat string, lvl descriptor.Level, adv int, needs bool) descriptor.Recommendation {
 		r := descriptor.Recommendation{Operator: op, Category: cat, Level: lvl}
 		for range adv {
@@ -296,6 +306,8 @@ func TestRank_KeyOrder(t *testing.T) {
 // region raises the two-group advisory and ranks after the TEST_T over
 // the 2-level arm, which raises none.
 func TestRecommendBound_AdvisoriesRankAndAttach(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS)
 	var order []string
 	for _, r := range boundAll(t, nil, descx.IntentCompareGroups).Recommendations {
@@ -322,6 +334,8 @@ func TestRecommendBound_AdvisoriesRankAndAttach(t *testing.T) {
 // fit and every draft uses one; the draft using the most hints ranks
 // first.
 func TestRecommendBound_HintsPinRoles(t *testing.T) {
+	t.Parallel()
+
 	res := boundAll(t, nil, descx.IntentCompareGroups, "hours", "region")
 	if len(res.Recommendations) == 0 {
 		t.Fatal("no drafts for hinted fields")
@@ -361,6 +375,8 @@ func TestRecommendBound_HintsPinRoles(t *testing.T) {
 // TestRecommendBound_BadHintIsCoded: a hint the cohort lacks, or whose
 // kind no role of the intent takes, is SERVICE_VALIDATION naming it.
 func TestRecommendBound_BadHintIsCoded(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ intent, hint, kind string }{
 		{descx.IntentCompareGroups, "nope", ""},
 		{descx.IntentCompareGroups, "taken_on", "date"},
@@ -401,6 +417,8 @@ func wideSchema(t testing.TB) *encoding.Schema {
 // draftable operator, the default limit cuts the list and
 // candidates_considered counts the survivors before the cut.
 func TestRecommendBound_WideSchemaCapped(t *testing.T) {
+	t.Parallel()
+
 	s := wideSchema(t)
 	for _, intent := range []string{descx.IntentDescribe, descx.IntentCompareGroups, descx.IntentRelationship} {
 		calls := 0
@@ -444,6 +462,8 @@ func TestRecommendBound_WideSchemaCapped(t *testing.T) {
 }
 
 func TestRecommendBound_ProfileHidesOperators(t *testing.T) {
+	t.Parallel()
+
 	hidden := []string{"TEST_TUKEY_HSD", "TEST_WELCH", "AGG_MEDIAN", "REG_GLM", "TEST_ANOVA_WELCH"}
 	inst := profiled(hidden...)
 	for _, in := range descx.Intents() {
@@ -478,6 +498,8 @@ func TestRecommendBound_ProfileHidesOperators(t *testing.T) {
 // TestRecommend_NeedsWhyLint: the bound why template and every need's
 // why pass the guidance lint.
 func TestRecommend_NeedsWhyLint(t *testing.T) {
+	t.Parallel()
+
 	lint := func(where, s string) {
 		for _, h := range descx.LintGuidanceText(s) {
 			t.Errorf("%s: lint %s on %q", where, h.Rule, h.Span)
@@ -508,6 +530,8 @@ func TestRecommend_NeedsWhyLint(t *testing.T) {
 // as an inline fields list of the schema's numeric fields — never a
 // scalar field — and the draft decodes to a vector-input aggregation.
 func TestRecommendBound_VectorAggregatorDraftsFields(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range []string{"AGG_VEC_MEAN", "AGG_VEC_SUM"} {
 		found := false
 		for _, r := range boundAll(t, nil, descx.IntentDescribe).Recommendations {
@@ -567,6 +591,8 @@ func decodeDraft(t *testing.T, r descriptor.Recommendation) *types.Request {
 // numerator there; ATTR_REG_FITTED / RESIDUAL / LEVERAGE draft their
 // declared top-level target and predictors and no field.
 func TestRecommendBound_RatioAndRegressionAttributes(t *testing.T) {
+	t.Parallel()
+
 	b := bound(t, nil, boundFixture(t), nil)
 	for _, r := range draftsOf(t, b, descx.IntentDescribe, "AGG_RATIO") {
 		a := decodeDraft(t, r).Aggregations[0]
@@ -603,6 +629,8 @@ func TestRecommendBound_RatioAndRegressionAttributes(t *testing.T) {
 // the draft needs nothing; with neither it asks for weight_field
 // (TestRecommendBound_NeedsOperators).
 func TestRecommendBound_WeightedMeanWeight(t *testing.T) {
+	t.Parallel()
+
 	b := bound(t, nil, boundFixture(t), nil)
 	b.Weight = "hours"
 	for _, r := range draftsOf(t, b, descx.IntentDescribe, "AGG_WEIGHTED_MEAN") {
@@ -632,6 +660,8 @@ func TestRecommendBound_WeightedMeanWeight(t *testing.T) {
 // two-level category — and the two-level split_by slot — while
 // TEST_ANOVA_RM's subject stays categorical-only.
 func TestBind_PackedBoolIsATwoLevelCategory(t *testing.T) {
+	t.Parallel()
+
 	passed := &encoding.Field{Name: "passed", Type: encoding.FieldTypePackedBool}
 	region := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "n", "s", "e", "w")}
 	arm := &encoding.Field{Name: "arm", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "control", "treatment")}
@@ -693,6 +723,8 @@ func TestBind_PackedBoolIsATwoLevelCategory(t *testing.T) {
 // exists (a preference, not a refusal), except TEST_TUKEY_HSD, whose
 // runtime refuses fewer than three groups (PULSE_TEST_SPLIT_GROUPS_LT_2).
 func TestBind_ManyGroupTestsPreferThreeLevels(t *testing.T) {
+	t.Parallel()
+
 	passed := &encoding.Field{Name: "passed", Type: encoding.FieldTypePackedBool}
 	region := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "n", "s", "e", "w")}
 	arm := &encoding.Field{Name: "arm", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(t, "control", "treatment")}
@@ -756,6 +788,8 @@ func TestBind_ManyGroupTestsPreferThreeLevels(t *testing.T) {
 // an id-named field ahead of a categorical state or a bare row id the
 // "any" field filter would also take — and the plan as the state.
 func TestRecommendBound_PreviousStateSubjectPrefersAnID(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "plan", Type: encoding.FieldTypeCategoricalU8, Description: "Plan the customer held at the snapshot", Dictionary: dict(t, "basic", "plus", "pro")},
 		{Name: "id", Type: encoding.FieldTypeU32, Description: "Snapshot row identifier"},

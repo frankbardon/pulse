@@ -18,6 +18,8 @@ import (
 // attribute-step columns; every refusal reaches predict with the
 // runtime's code and message.
 func TestPredict_VectorAttributeInputs(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "items", Fields: []string{"q_1", "q_2", "q_3"}}}
 	maha := func(mod func(*types.Attribute)) *types.Attribute {
 		a := &types.Attribute{Type: types.ATTR_MAHALANOBIS}
@@ -142,6 +144,8 @@ func TestPredict_VectorAttributeInputs(t *testing.T) {
 // runtime's default label, so a later slot can read it, and a label
 // that shadows a field is refused.
 func TestAttributeDefaultLabel_VectorAttributes(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		attr *types.Attribute
 		want string

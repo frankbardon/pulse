@@ -88,6 +88,8 @@ func twoShardInspectSchema(t *testing.T) *encoding.Schema {
 // archive exposes Shards in central-directory order with per-shard
 // RecordCount and a cumulative aggregate matching the sum.
 func TestShardArchiveInspect(t *testing.T) {
+	t.Parallel()
+
 	schema := twoShardInspectSchema(t)
 	shards := []struct {
 		Name    string
@@ -144,6 +146,8 @@ func TestShardArchiveInspect(t *testing.T) {
 // path's surface contract: Shards is an empty (non-nil) slice so the
 // JSON envelope emits "[]" not "null", and RecordCount stays zero.
 func TestShardArchiveInspect_SingleFileEmptyShards(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Single-file score column"},
@@ -172,6 +176,8 @@ func TestShardArchiveInspect_SingleFileEmptyShards(t *testing.T) {
 // shard payloads might shape differently — the canonical entry is the
 // single source of truth for the cohort's schema view.
 func TestShardArchiveInspect_CanonicalSchemaWins(t *testing.T) {
+	t.Parallel()
+
 	schema := twoShardInspectSchema(t)
 	data := buildShardArchiveBytes(t, schema, []struct {
 		Name    string

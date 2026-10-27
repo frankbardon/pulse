@@ -154,6 +154,8 @@ var pendingProseTypes = map[reflect.Type]string{}
 // guidance type that carries prose: each has a proseSource, or is
 // listed pending (and a pending type with a source is stale).
 func TestGuidanceProseSourcesComplete(t *testing.T) {
+	t.Parallel()
+
 	guidanceTypes := []reflect.Type{
 		reflect.TypeOf(descriptor.Purpose{}),
 		reflect.TypeOf(descriptor.Interpretation{}),
@@ -205,6 +207,8 @@ func TestGuidanceProseSourcesComplete(t *testing.T) {
 // prose, including every Interpretation prose field so the E4 registry
 // is covered the moment it is plugged in.
 func TestCollectProse(t *testing.T) {
+	t.Parallel()
+
 	lo := 0.2
 	cases := []struct {
 		name string

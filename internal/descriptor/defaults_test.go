@@ -18,6 +18,8 @@ import (
 // grouper slot — so both columns of the smart-defaults table are
 // exercised under one test.
 func TestDefaults_Applied(t *testing.T) {
+	t.Parallel()
+
 	type expectation struct {
 		ft       encoding.FieldType
 		expAgg   types.AggregationType
@@ -103,6 +105,8 @@ func TestDefaults_Applied(t *testing.T) {
 // TestDefaults_DoNotOverride verifies that explicit operator Types
 // survive the resolver unchanged and produce no DefaultsApplied entries.
 func TestDefaults_DoNotOverride(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForType("revenue", encoding.FieldTypeF64)
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
@@ -131,6 +135,8 @@ func TestDefaults_DoNotOverride(t *testing.T) {
 // default — and vice versa. The resolver must not invent aggregator or
 // grouper slots that the caller did not author.
 func TestDefaults_NeverCrossCategory(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForType("revenue", encoding.FieldTypeF64)
 
 	// Grouper-only request: aggregator slot stays absent.
@@ -169,6 +175,8 @@ func TestDefaults_NeverCrossCategory(t *testing.T) {
 // slots with missing TestType are NOT touched by the resolver. Hypothesis
 // tests are intent-bearing and have no defensible default.
 func TestDefaults_TestsNotDefaulted(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForType("revenue", encoding.FieldTypeF64)
 	req := &types.Request{
 		Tests: []*types.Test{
@@ -196,6 +204,8 @@ func TestDefaults_TestsNotDefaulted(t *testing.T) {
 // GROUP_H3_CELL resolution, GROUP_DATE component) so the inferred slot
 // is runnable without additional caller action.
 func TestDefaults_GroupParamsFilled(t *testing.T) {
+	t.Parallel()
+
 	// GROUP_RANGE picks up Interval = 10.
 	rng := &types.Request{Groups: []*types.Group{{Field: "x"}}}
 	ResolveDefaults(rng, schemaForType("x", encoding.FieldTypeF64), nil)
@@ -223,6 +233,8 @@ func TestDefaults_GroupParamsFilled(t *testing.T) {
 // TestDefaults_ExplicitParamsPreserved verifies that explicit grouper
 // configuration is never overwritten by the parameter-default pass.
 func TestDefaults_ExplicitParamsPreserved(t *testing.T) {
+	t.Parallel()
+
 	// GROUP_RANGE with explicit Interval.
 	rng := &types.Request{
 		Groups: []*types.Group{{Field: "x", Interval: 42}},
@@ -238,6 +250,8 @@ func TestDefaults_ExplicitParamsPreserved(t *testing.T) {
 // surfaces DefaultsApplied entries when defaults fire and an empty (not
 // nil) array when nothing applies.
 func TestPredict_DefaultsAppliedReported(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "revenue", Type: encoding.FieldTypeF64, Description: "Revenue for the row in USD."},
@@ -303,6 +317,8 @@ func TestPredict_DefaultsAppliedReported(t *testing.T) {
 // downstream validator will surface SERVICE_VALIDATION for the unknown
 // field — defaults must not paper over the error).
 func TestDefaults_UnknownFieldLeftAlone(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForType("revenue", encoding.FieldTypeF64)
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Field: "no_such_field"}},
@@ -321,6 +337,8 @@ func TestDefaults_UnknownFieldLeftAlone(t *testing.T) {
 // envelope.Request, leaving PredictResult.Request untouched as the raw
 // input. With the flag off the envelope field stays absent.
 func TestPredict_EchoRequest_Normalized(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "revenue", Type: encoding.FieldTypeF64, Description: "Revenue in USD."},
@@ -374,6 +392,8 @@ func TestPredict_EchoRequest_Normalized(t *testing.T) {
 // TestDefaults_NilInputs verifies that ResolveDefaults is safe against
 // nil requests and nil schemas (returns nil, no panic).
 func TestDefaults_NilInputs(t *testing.T) {
+	t.Parallel()
+
 	if got := ResolveDefaults(nil, nil, nil); got != nil {
 		t.Errorf("ResolveDefaults(nil, nil, nil) = %v; want nil", got)
 	}
@@ -419,6 +439,8 @@ func hasGroupApplied(entries []descriptor.DefaultApplied) bool {
 // the slot keeps its empty Type and no DefaultApplied entry is
 // reported — while a target the instance offers still defaults.
 func TestDefaults_HiddenTargetGetsNoDefault(t *testing.T) {
+	t.Parallel()
+
 	inst := NewInstanceSnapshot(nil, FeatureSet{
 		Enabled: []string{"capability:process", "GROUP_CATEGORY", "AGG_MODE_COUNT"},
 		Hidden:  []string{"AGG_SUM", "GROUP_RANGE"},
@@ -461,6 +483,8 @@ func TestDefaults_HiddenTargetGetsNoDefault(t *testing.T) {
 // the field's type — a categorical defaults to AGG_MODE_COUNT /
 // GROUP_CATEGORY, never a numeric reader of its dictionary index.
 func TestDefaults_NeverInferARefusedOperator(t *testing.T) {
+	t.Parallel()
+
 	judged := 0
 	for ft, rule := range defaultRules {
 		if rule.Agg != "" {

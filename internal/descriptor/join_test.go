@@ -18,6 +18,8 @@ func buildJoinPulseBytes(t *testing.T, fields []encoding.Field) []byte {
 }
 
 func TestValidateJoin_Valid(t *testing.T) {
+	t.Parallel()
+
 	left := buildJoinPulseBytes(t, []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
 		{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 4, CsvColumnIdx: 1},
@@ -45,6 +47,8 @@ func TestValidateJoin_Valid(t *testing.T) {
 }
 
 func TestValidateJoin_TypeMismatch(t *testing.T) {
+	t.Parallel()
+
 	left := buildJoinPulseBytes(t, []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
 	})
@@ -62,6 +66,8 @@ func TestValidateJoin_TypeMismatch(t *testing.T) {
 }
 
 func TestValidateJoin_KindReserved(t *testing.T) {
+	t.Parallel()
+
 	left := buildJoinPulseBytes(t, []encoding.Field{{Name: "id", Type: encoding.FieldTypeU32}})
 	right := buildJoinPulseBytes(t, []encoding.Field{{Name: "id", Type: encoding.FieldTypeU32}})
 	env := ValidateJoinFromBytes(left, right, &types.Request{
@@ -86,6 +92,8 @@ func TestValidateJoin_KindReserved(t *testing.T) {
 }
 
 func TestValidateJoin_FieldCollision(t *testing.T) {
+	t.Parallel()
+
 	left := buildJoinPulseBytes(t, []encoding.Field{{Name: "id", Type: encoding.FieldTypeU32}})
 	right := buildJoinPulseBytes(t, []encoding.Field{{Name: "id", Type: encoding.FieldTypeU32}})
 	// no As, both sides have "id"

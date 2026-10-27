@@ -281,6 +281,8 @@ func skillParamsProblems(body string, declared []descriptor.Param) []string {
 // and spec slots allowed beside them), `(required)` iff Required, the
 // default as declared.
 func TestSkillParamsMatchManifest(t *testing.T) {
+	t.Parallel()
+
 	declared := declaredOpParams()
 	walked, ops := 0, 0
 	for _, stem := range skills.Names() {
@@ -310,6 +312,8 @@ func TestSkillParamsMatchManifest(t *testing.T) {
 // declare no params of their own, so their skills are held to the host
 // regression's slot params of the same names — and every name resolves.
 func TestSkillParamsRegressionModifiers(t *testing.T) {
+	t.Parallel()
+
 	declared := declaredOpParams()
 	for mod, names := range regressionModifierParams {
 		got := map[string]bool{}
@@ -329,6 +333,8 @@ func TestSkillParamsRegressionModifiers(t *testing.T) {
 
 // TestSkillParamsParser pins the table parser and the default matcher.
 func TestSkillParamsParser(t *testing.T) {
+	t.Parallel()
+
 	section := "\n| Name | Type | Default | Description |\n|---|---|---|---|\n" +
 		"| `kernel` | enum | (required) | `geometric` \\| `weibull_cdf` |\n" +
 		"| `decay` | float | — | geometric only |\n" +

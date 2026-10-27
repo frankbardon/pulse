@@ -14,6 +14,8 @@ import (
 // TestSlimManifest_RemovesDescriptions verifies that SlimManifest blanks
 // every prose Description field while preserving structural metadata.
 func TestSlimManifest_RemovesDescriptions(t *testing.T) {
+	t.Parallel()
+
 	full := BuildManifest()
 	slim := SlimManifest(full)
 
@@ -61,6 +63,8 @@ func TestSlimManifest_RemovesDescriptions(t *testing.T) {
 // TestSlimManifest_PreservesStructure verifies that names, types, and
 // counts are unchanged in slim mode.
 func TestSlimManifest_PreservesStructure(t *testing.T) {
+	t.Parallel()
+
 	full := BuildManifest()
 	slim := SlimManifest(full)
 
@@ -88,6 +92,8 @@ func TestSlimManifest_PreservesStructure(t *testing.T) {
 // TestSlimManifest_DoesNotMutateInput verifies that the input manifest is
 // not modified.
 func TestSlimManifest_DoesNotMutateInput(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	before, _ := json.Marshal(m)
 	_ = SlimManifest(m)
@@ -100,6 +106,8 @@ func TestSlimManifest_DoesNotMutateInput(t *testing.T) {
 // TestSlimManifest_SmallerThanFull sanity-checks that the slim payload is
 // noticeably smaller than the full one.
 func TestSlimManifest_SmallerThanFull(t *testing.T) {
+	t.Parallel()
+
 	full, _ := json.Marshal(BuildManifest())
 	slim, _ := json.Marshal(SlimManifest(BuildManifest()))
 	if len(slim) >= len(full) {
@@ -156,6 +164,8 @@ func proseOnWire(t *testing.T, m *descriptor.Manifest) []string {
 // component_schema keys, components_schemas, operations, the
 // capability blocks — unscoped and for every analytic intent's scope.
 func TestSlimManifest_NoProseOnWire(t *testing.T) {
+	t.Parallel()
+
 	inst := hidingSnapshot()
 	check := func(label string, m *descriptor.Manifest) {
 		if got := proseOnWire(t, SlimManifest(m)); len(got) > 0 {
@@ -264,6 +274,8 @@ func proseFields(v reflect.Value, path string, depth int) (found []string, seen 
 // populated) keeps no Description / StreamableHint / EmitsTypeNote after
 // SlimManifest, and the filled input is left untouched.
 func TestSlimManifest_BlanksEveryDescriptionField(t *testing.T) {
+	t.Parallel()
+
 	var m descriptor.Manifest
 	fillStrings(reflect.ValueOf(&m).Elem(), 0)
 	before, seenIn := proseFields(reflect.ValueOf(m), "Manifest", 0)

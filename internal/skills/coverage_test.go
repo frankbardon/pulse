@@ -41,6 +41,8 @@ func kebabName(s string) string {
 }
 
 func TestSkillsCoverAllComponents(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 
 	for _, v := range types.AllAggregationTypes() {
@@ -78,6 +80,8 @@ func TestSkillsCoverAllComponents(t *testing.T) {
 // TestSkillsCoverAllFieldTypes verifies every FieldType has a matching
 // type-<kebab>.md atomic skill file.
 func TestSkillsCoverAllFieldTypes(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 
 	for _, ft := range allFieldTypes() {
@@ -92,6 +96,8 @@ func TestSkillsCoverAllFieldTypes(t *testing.T) {
 // kind registered in synth.AllDistributions() has a matching
 // op-synth-<kebab>.md atomic skill file.
 func TestSkillsCoverAllSynthDistributions(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 	for _, d := range synth.AllDistributions() {
 		stem := "op-synth-" + kebabName(d)
@@ -105,6 +111,8 @@ func TestSkillsCoverAllSynthDistributions(t *testing.T) {
 // types.AllRegressionTypes() has a matching op-reg-<kebab>.md atomic
 // skill file.
 func TestSkillsCoverAllRegressions(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 	for _, r := range types.AllRegressionTypes() {
 		stem := "op-reg-" + kebabName(strings.TrimPrefix(string(r), "REG_"))
@@ -118,6 +126,8 @@ func TestSkillsCoverAllRegressions(t *testing.T) {
 // types.AllMatrixTypes() has a matching op-mat-<kebab>.md atomic skill
 // file.
 func TestSkillsCoverAllMatrixOps(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 	for _, m := range types.AllMatrixTypes() {
 		stem := "op-mat-" + kebabName(strings.TrimPrefix(string(m), "MAT_"))
@@ -131,6 +141,8 @@ func TestSkillsCoverAllMatrixOps(t *testing.T) {
 // types.AllWindowTypes() has a matching op-win-<kebab>.md atomic skill
 // file.
 func TestSkillsCoverAllWindowTypes(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 	for _, w := range types.AllWindowTypes() {
 		stem := "op-win-" + kebabName(strings.TrimPrefix(string(w), "WIN_"))
@@ -145,6 +157,8 @@ func TestSkillsCoverAllWindowTypes(t *testing.T) {
 // skill file. Mirrors the gate pattern used by the other operator
 // coverage gates.
 func TestSkillsCoverAllOverlayKinds(t *testing.T) {
+	t.Parallel()
+
 	embedded := embeddedSkillSet(t)
 	for _, k := range types.AllOverlayKinds() {
 		stem := "op-overlay-" + kebabName(strings.TrimPrefix(string(k), "OVERLAY_"))
@@ -161,6 +175,8 @@ func TestSkillsCoverAllOverlayKinds(t *testing.T) {
 // family; there is no chain leaf), Facet -> facet. A kind moved to another
 // slot, or a loose skill list, fails here.
 func TestOverlaySkillsAppliesToMatchesHosts(t *testing.T) {
+	t.Parallel()
+
 	leaf := map[overlayhost.Host]string{
 		overlayhost.Request: "process",
 		overlayhost.Compose: "compose",

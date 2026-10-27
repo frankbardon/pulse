@@ -26,6 +26,8 @@ func buildTestPulseFile(t *testing.T, schema *encoding.Schema) []byte {
 }
 
 func TestPredictReadsHeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	// Build a file with header + schema but NO records.
 	// If predict tries to read records, it would fail or panic.
 	schema := &encoding.Schema{
@@ -48,6 +50,8 @@ func TestPredictReadsHeaderOnly(t *testing.T) {
 }
 
 func TestPredict_ValidRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -83,6 +87,8 @@ func TestPredict_ValidRequest(t *testing.T) {
 }
 
 func TestPredict_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -122,6 +128,8 @@ func TestPredict_InvalidRequest(t *testing.T) {
 // accepted-types table's one PULSE_FIELD_TYPE_UNSUPPORTED error — the
 // runtime's refusal — never the retired advisory warning.
 func TestPredict_NumericAggOnCategoricalRefused(t *testing.T) {
+	t.Parallel()
+
 	dict := makeDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -148,6 +156,8 @@ func TestPredict_NumericAggOnCategoricalRefused(t *testing.T) {
 }
 
 func TestPredict_DescriptionQualityWarning(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: ""},
@@ -172,6 +182,8 @@ func TestPredict_DescriptionQualityWarning(t *testing.T) {
 }
 
 func TestPredict_StrictMode_WarningsAreErrors(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: ""},
@@ -204,6 +216,8 @@ func TestPredict_StrictMode_WarningsAreErrors(t *testing.T) {
 }
 
 func TestPredict_CountOnCategorical_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	dict := makeDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -229,6 +243,8 @@ func TestPredict_CountOnCategorical_NoWarning(t *testing.T) {
 }
 
 func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
+	t.Parallel()
+
 	// Verify that all aggregation types listed in types are handled
 	// by checking they don't cause panics in predict.
 	schema := &encoding.Schema{

@@ -14,6 +14,8 @@ import (
 // edges hold. The host-completeness and handler-map halves need the
 // engine and live in internal/processing (TestProfileDependenciesComplete).
 func TestFeatureDependenciesResolve(t *testing.T) {
+	t.Parallel()
+
 	names := map[string]bool{}
 	for _, f := range descx.Features() {
 		names[f.Name] = true

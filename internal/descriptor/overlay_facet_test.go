@@ -57,6 +57,8 @@ func errorMessagesContaining(env *descriptor.Envelope, code string) []string {
 // no-overlay byte-identity path — an empty Overlays slot produces no
 // validator errors at all.
 func TestValidateFacetOverlays_NoOverlaysShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.FacetRequest{Fields: []string{"category"}}
@@ -70,6 +72,8 @@ func TestValidateFacetOverlays_NoOverlaysShortCircuits(t *testing.T) {
 // FacetRequest carrying one spec per FACET-host kind passes the
 // validator with no errors.
 func TestValidateFacetOverlays_HappyPathAllFourKinds(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	categoryField := json.RawMessage(`{"field":"category"}`)
@@ -92,6 +96,8 @@ func TestValidateFacetOverlays_HappyPathAllFourKinds(t *testing.T) {
 // TestValidateFacetOverlays_UnknownKind asserts that a kind not in
 // types.AllOverlayKinds() fires PULSE_OVERLAY_KIND_UNKNOWN.
 func TestValidateFacetOverlays_UnknownKind(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.FacetRequest{
@@ -111,6 +117,8 @@ func TestValidateFacetOverlays_UnknownKind(t *testing.T) {
 // FACET kind with a wrong ref-family pointer; the validator must reject
 // every combination with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateFacetOverlays_FacetHostKinds_RejectInvalidRef(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	kinds := []types.OverlayKind{
 		types.OverlayKindIndexVsPop,
@@ -159,6 +167,8 @@ func TestValidateFacetOverlays_FacetHostKinds_RejectInvalidRef(t *testing.T) {
 // TestValidateFacetOverlays_ScopeMustBeGroup asserts every non-GROUP
 // scope is rejected for every FACET kind.
 func TestValidateFacetOverlays_ScopeMustBeGroup(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	scopes := []types.OverlayScope{
 		types.OverlayScopeCell,
@@ -201,6 +211,8 @@ func TestValidateFacetOverlays_ScopeMustBeGroup(t *testing.T) {
 // FACET kind — the population-comparison family is a single-value
 // lookup, not an axis-prefix denominator.
 func TestValidateFacetOverlays_LevelWithinMustBeZero(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	kinds := []types.OverlayKind{
 		types.OverlayKindIndexVsPop,
@@ -245,6 +257,8 @@ func TestValidateFacetOverlays_LevelWithinMustBeZero(t *testing.T) {
 // discrete-arm-only contract — a numeric host field fires
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateFacetOverlays_CHISQ_VS_POP_RejectsNumericHost(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	scoreField := json.RawMessage(`{"field":"score"}`)
@@ -273,6 +287,8 @@ func TestValidateFacetOverlays_CHISQ_VS_POP_RejectsNumericHost(t *testing.T) {
 // numeric-arm-only contract — a categorical host field fires
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateFacetOverlays_KS_VS_POP_RejectsCategoricalHost(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	categoryField := json.RawMessage(`{"field":"category"}`)
@@ -301,6 +317,8 @@ func TestValidateFacetOverlays_KS_VS_POP_RejectsCategoricalHost(t *testing.T) {
 // when the FacetRequest declares multiple Fields, an OverlaySpec without
 // Params["field"] fires PULSE_OVERLAY_PARAM_MISSING.
 func TestValidateFacetOverlays_MultiFieldRequiresParamsField(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.FacetRequest{
@@ -324,6 +342,8 @@ func TestValidateFacetOverlays_MultiFieldRequiresParamsField(t *testing.T) {
 // the FacetRequest declares exactly one Field, an OverlaySpec without
 // Params["field"] resolves to that single field with no error.
 func TestValidateFacetOverlays_SingleFieldDefaultsToHost(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.FacetRequest{
@@ -347,6 +367,8 @@ func TestValidateFacetOverlays_SingleFieldDefaultsToHost(t *testing.T) {
 // Params["field"] that does not reference any FacetRequest.Fields entry
 // fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateFacetOverlays_UnknownFieldRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	wrongField := json.RawMessage(`{"field":"nope"}`)
@@ -373,6 +395,8 @@ func TestValidateFacetOverlays_UnknownFieldRejected(t *testing.T) {
 // with a "not a FACET-host kind" message so the caller redirects to
 // Request.Overlays.
 func TestValidateFacetOverlays_NonFacetKindOnFacetHost(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.FacetRequest{
@@ -401,6 +425,8 @@ func TestValidateFacetOverlays_NonFacetKindOnFacetHost(t *testing.T) {
 // shape: PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE with a message naming
 // the FacetRequest.Overlays redirection.
 func TestValidateOverlays_FacetKindOnRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.Request{
@@ -439,6 +465,8 @@ func TestValidateOverlays_FacetKindOnRequest(t *testing.T) {
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. The runtime resolver cannot
 // open an unnamed cohort.
 func TestValidateFacetOverlays_PopulationCohortRequired(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	env := descriptor.NewEnvelope(nil)
 	req := &types.FacetRequest{

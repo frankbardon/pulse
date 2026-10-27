@@ -39,6 +39,8 @@ func exampleNames(ex []examples.ExampleSummary) []string {
 }
 
 func TestDiscovery_NothingHiddenPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	for name, inst := range map[string]*InstanceSnapshot{
 		"nil":      nil,
 		"unscoped": UnscopedInstanceSnapshot(&ExtensionsSnapshot{}),
@@ -59,6 +61,8 @@ func TestDiscovery_NothingHiddenPassesThrough(t *testing.T) {
 }
 
 func TestDiscovery_ComputedOncePerInstance(t *testing.T) {
+	t.Parallel()
+
 	inst := hidingSnapshot("REG_GLM")
 	first, second := inst.Discovery(), inst.Discovery()
 	if first != second {
@@ -70,6 +74,8 @@ func TestDiscovery_ComputedOncePerInstance(t *testing.T) {
 }
 
 func TestDiscovery_PrunesAtomicSkills(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		hide    []string
 		gone    []string
@@ -122,6 +128,8 @@ func skillMeta(t *testing.T, name string) skills.Metadata {
 // metadata — topical included — names no hidden token: the description
 // is prose-scrubbed and hidden covers / applies_to entries are dropped.
 func TestDiscovery_RendersSkillMetadata(t *testing.T) {
+	t.Parallel()
+
 	inst := hidingSnapshot("REG_GLM", "FEAT_POLY")
 	hidden := map[string]struct{}{"REG_GLM": {}, "FEAT_POLY": {}}
 	for _, md := range inst.Discovery().Skills() {
@@ -157,6 +165,8 @@ func regressionNames() []string {
 }
 
 func TestDiscovery_PrunesExamples(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		hide []string
 		gone string
@@ -191,6 +201,8 @@ func TestDiscovery_PrunesExamples(t *testing.T) {
 }
 
 func TestDiscovery_ExampleStatsDropEmptiedCategories(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot(featFacet).Discovery()
 	_, cats, _ := d.ExampleStats()
 	for _, ex := range d.ExamplesSearch("", nil, "facet") {

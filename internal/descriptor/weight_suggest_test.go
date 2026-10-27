@@ -13,6 +13,8 @@ import (
 // TestSuggestWeight_Rule: a suggestion only for a weight-capable column
 // the schema carries, never with capability:weighting hidden.
 func TestSuggestWeight_Rule(t *testing.T) {
+	t.Parallel()
+
 	want := descriptor.SuggestedWeight{Field: "w", Source: "spss_sidecar", Kind: "probability"}
 	if got := SuggestWeight(weightSchema(), "w", nil); got == nil || *got != want {
 		t.Fatalf("SuggestWeight(w) = %+v, want %+v", got, want)
@@ -31,6 +33,8 @@ func TestSuggestWeight_Rule(t *testing.T) {
 // the schema plus the sidecar fact the caller hands in; plain Inspect
 // (no fact) never suggests.
 func TestInspect_SuggestedWeightFromMetadata(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, weightSchema())
 	meta := InspectMetadata{WeightVariable: "w"}
 	clean := InspectWith(bytes.NewReader(data), nil, meta)
@@ -50,6 +54,8 @@ func TestInspect_SuggestedWeightFromMetadata(t *testing.T) {
 // suggestion as data under Strict with no warning when no weight
 // resolves, and not beside a resolved one or with weighting hidden.
 func TestPredict_SuggestedWeightIsDataNotWarning(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, weightSchema())
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}}}
 

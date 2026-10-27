@@ -13,6 +13,8 @@ import (
 // prior-period measure iff its declared ComponentSchema carries both
 // `mean` and `variance` — the keys the leg is read from.
 func TestPriorWelfordMeasure_MatchesComponentSchemas(t *testing.T) {
+	t.Parallel()
+
 	schemas := aggregatorComponentSchemaIndex(nil)
 	admitted := 0
 	for _, at := range types.AllAggregationTypes() {

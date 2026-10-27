@@ -12,6 +12,8 @@ import (
 // "nil-out -> empty slice" coercions.
 
 func TestExtensionsManifestFromSnapshot_NilYieldsEmpty(t *testing.T) {
+	t.Parallel()
+
 	got := extensionsManifestFromSnapshot(nil)
 	// Every slice must be a populated (non-nil) zero-length slice.
 	if got.Aggregators == nil || got.Attributes == nil || got.Filterers == nil ||
@@ -28,6 +30,8 @@ func TestExtensionsManifestFromSnapshot_NilYieldsEmpty(t *testing.T) {
 }
 
 func TestExtensionsManifestFromSnapshot_PopulatedSortsByName(t *testing.T) {
+	t.Parallel()
+
 	snap := &ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{
 			{Name: "AGG_ACME_Z"},
@@ -81,12 +85,16 @@ func TestExtensionsManifestFromSnapshot_PopulatedSortsByName(t *testing.T) {
 // nil opts, opts with no extensions, opts with matching test name.
 
 func TestIsExtensionTestType_NilOpts(t *testing.T) {
+	t.Parallel()
+
 	if isExtensionTestType(nil, "TEST_ACME_FOO") {
 		t.Error("isExtensionTestType(nil, ...) must be false")
 	}
 }
 
 func TestIsExtensionTestType_NoExtensions(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{}
 	if isExtensionTestType(opts, "TEST_ACME_FOO") {
 		t.Error("isExtensionTestType with no Extensions must be false")
@@ -94,6 +102,8 @@ func TestIsExtensionTestType_NoExtensions(t *testing.T) {
 }
 
 func TestIsExtensionTestType_Match(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{
 		Extensions: &ExtensionsSnapshot{
 			Tests: []descriptor.OperatorMeta{{Name: "TEST_ACME_FOO"}},
@@ -111,12 +121,16 @@ func TestIsExtensionTestType_Match(t *testing.T) {
 // 75% before; pushes to 100%.
 
 func TestIsExtensionWindowType_NilOpts(t *testing.T) {
+	t.Parallel()
+
 	if isExtensionWindowType(nil, "WIN_ACME_FOO") {
 		t.Error("isExtensionWindowType(nil, ...) must be false")
 	}
 }
 
 func TestIsExtensionWindowType_Match(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{
 		Extensions: &ExtensionsSnapshot{
 			Windows: []descriptor.OperatorMeta{{Name: "WIN_ACME_FOO"}},
@@ -131,12 +145,16 @@ func TestIsExtensionWindowType_Match(t *testing.T) {
 }
 
 func TestIsExtensionFeatureType_NilOpts(t *testing.T) {
+	t.Parallel()
+
 	if isExtensionFeatureType(nil, "FEAT_ACME_FOO") {
 		t.Error("isExtensionFeatureType(nil, ...) must be false")
 	}
 }
 
 func TestIsExtensionFeatureType_Match(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{
 		Extensions: &ExtensionsSnapshot{
 			Features: []descriptor.OperatorMeta{{Name: "FEAT_ACME_FOO"}},
@@ -154,6 +172,8 @@ func TestIsExtensionFeatureType_Match(t *testing.T) {
 // Sweep all 7 categories plus the "unknown" + "nil snapshot" paths.
 
 func TestExtensionStreamable_AllCategories(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{
 		Extensions: &ExtensionsSnapshot{
 			Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_A", Streamable: true}},
@@ -190,6 +210,8 @@ func TestExtensionStreamable_AllCategories(t *testing.T) {
 }
 
 func TestExtensionStreamable_UnknownCategory(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{
 		Extensions: &ExtensionsSnapshot{
 			Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_A", Streamable: true}},
@@ -201,12 +223,16 @@ func TestExtensionStreamable_UnknownCategory(t *testing.T) {
 }
 
 func TestExtensionStreamable_NilSnapshot(t *testing.T) {
+	t.Parallel()
+
 	if _, found := extensionStreamable(nil, "aggregator", "AGG_ACME_A"); found {
 		t.Error("extensionStreamable with nil opts must return found=false")
 	}
 }
 
 func TestExtensionStreamable_NameMissingInCategory(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{
 		Extensions: &ExtensionsSnapshot{
 			Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_A", Streamable: true}},
@@ -221,6 +247,8 @@ func TestExtensionStreamable_NameMissingInCategory(t *testing.T) {
 // caller-supplied builtin value.
 
 func TestStreamableWithOverlay_FallsThroughToBuiltin(t *testing.T) {
+	t.Parallel()
+
 	opts := &PredictOptions{Extensions: &ExtensionsSnapshot{}}
 	if !streamableWithOverlay(opts, "aggregator", string(types.AGG_COUNT), true) {
 		t.Error("overlay miss must return builtin=true")
@@ -231,6 +259,8 @@ func TestStreamableWithOverlay_FallsThroughToBuiltin(t *testing.T) {
 }
 
 func TestStreamableWithOverlay_OverlayHitWins(t *testing.T) {
+	t.Parallel()
+
 	// Overlay declares streamable=false; caller's builtin=true must
 	// be overridden.
 	opts := &PredictOptions{
@@ -253,6 +283,8 @@ func TestStreamableWithOverlay_OverlayHitWins(t *testing.T) {
 }
 
 func TestExtensionsManifestFromSnapshot_PartialPopulationCoercesEmpty(t *testing.T) {
+	t.Parallel()
+
 	// Only Aggregators populated; every other slice must surface as
 	// empty (non-nil) — exercises the per-category nil-coercion fan in
 	// extensionsManifestFromSnapshot.
@@ -293,6 +325,8 @@ func TestExtensionsManifestFromSnapshot_PartialPopulationCoercesEmpty(t *testing
 // snapshotHasName direct coverage — empty + populated.
 
 func TestSnapshotHasName_EmptyAndHit(t *testing.T) {
+	t.Parallel()
+
 	if snapshotHasName(nil, "X") {
 		t.Error("nil metas must report no match")
 	}

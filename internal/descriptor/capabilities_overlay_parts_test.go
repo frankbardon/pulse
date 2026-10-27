@@ -13,6 +13,8 @@ import (
 // name; a kind without an entry declares none and its JSON carries no
 // "parts" key.
 func TestOverlayCapabilities_PartsFromTable(t *testing.T) {
+	t.Parallel()
+
 	seen := map[types.OverlayKind]bool{}
 	for _, c := range OverlayCapabilities() {
 		seen[c.Kind] = true
@@ -48,6 +50,8 @@ func TestOverlayCapabilities_PartsFromTable(t *testing.T) {
 // TestOverlayCapabilities_MarkovConditionalParts: the templated and
 // conditional Markov parts carry their condition.
 func TestOverlayCapabilities_MarkovConditionalParts(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]struct {
 		shape types.OverlayShape
 		when  string

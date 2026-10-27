@@ -9,6 +9,8 @@ import (
 )
 
 func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -250,6 +252,8 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 // branch against a future regression that quietly switches the key to
 // an opaque hash or drops the axis suffix.
 func TestPredict_OverlaysApplied_SynthesizesDefaultName(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -302,6 +306,8 @@ func costKeys(m map[string]float64) []string {
 }
 
 func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -399,6 +405,8 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 }
 
 func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -524,6 +532,8 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 }
 
 func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -729,6 +739,8 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 }
 
 func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
+	t.Parallel()
+
 	// Per-kind spec table — every registered OverlayKind must carry a
 	// well-formed entry. The spec's Scope + Ref pair is chosen to
 	// match the kind's capability row (overlayCapabilityFor) so the
@@ -1205,6 +1217,8 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 }
 
 func TestPredict_OverlaysApplied_ShapeAndRefPopulated_RequestHost(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1256,6 +1270,8 @@ func TestPredict_OverlaysApplied_ShapeAndRefPopulated_RequestHost(t *testing.T) 
 }
 
 func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	// Per-kind spec table mirrors
 	// TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage's table —

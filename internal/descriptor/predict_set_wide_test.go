@@ -26,6 +26,8 @@ func wideSetPredictSchema(t *testing.T) *encoding.Schema {
 // rung-sensitive answer would mean predict had grown field-type
 // knowledge it has no business having.
 func TestPredict_Streamable_WideSetsMatchNarrow(t *testing.T) {
+	t.Parallel()
+
 	narrowSchema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "tags", Type: encoding.FieldTypeSetU8, Nullable: true,
 			Dictionary: wideSetDictionary(t, 6), Description: "Multi-select survey response tags"},
@@ -102,6 +104,8 @@ func TestPredict_Streamable_WideSetsMatchNarrow(t *testing.T) {
 // the ones this story widened, so a stale AcceptsTypes would surface
 // here as a validation error against a request the runtime executes.
 func TestPredict_WideSetRequestValidates(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, wideSetPredictSchema(t))
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SET_FREQUENCY, Field: "tags", Label: "tag_freq"}},

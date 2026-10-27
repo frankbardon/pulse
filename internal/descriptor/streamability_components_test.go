@@ -8,6 +8,8 @@ import (
 )
 
 func TestStreamability_ComponentsMergeabilityKnown(t *testing.T) {
+	t.Parallel()
+
 	validMerge := map[descriptor.ComponentsMergeability]bool{
 		descriptor.Mergeable: true,
 		descriptor.Partial:   true,
@@ -77,6 +79,8 @@ func TestStreamability_ComponentsMergeabilityKnown(t *testing.T) {
 // constants) without updating the other, the alias fiction breaks and
 // every manifest-consuming downstream sees a mismatched enum.
 func TestComponentsMergeability_DescriptorAliasMatchesTypes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		desc string
 		got  descriptor.ComponentsMergeability

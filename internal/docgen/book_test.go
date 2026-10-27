@@ -11,6 +11,8 @@ const testBook = "# Summary\n\n[Introduction](README.md)\n\n# Getting Started\n\
 const testFragment = "# Summary\n\n- [Analysis Guide](index.md)\n  - [Operator catalog](catalog.md)\n    - [Aggregators](catalog/aggregator.md)\n  - [Glossary](glossary.md)\n"
 
 func TestSpliceSummary_ReplacesSpanAndPrefixesPaths(t *testing.T) {
+	t.Parallel()
+
 	got, err := SpliceSummary([]byte(testBook), []byte(testFragment), "guide/")
 	if err != nil {
 		t.Fatal(err)
@@ -35,6 +37,8 @@ func TestSpliceSummary_ReplacesSpanAndPrefixesPaths(t *testing.T) {
 }
 
 func TestSpliceSummary_RenderedFragmentSplices(t *testing.T) {
+	t.Parallel()
+
 	var frag []byte
 	for _, f := range Render(nil, Options{}) {
 		if f.Path == "SUMMARY.md" {
@@ -51,6 +55,8 @@ func TestSpliceSummary_RenderedFragmentSplices(t *testing.T) {
 }
 
 func TestSpliceSummary_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]struct{ book, frag string }{
 		"no markers":      {"# Summary\n", testFragment},
 		"no end":          {BookSpanBegin + "\n", testFragment},

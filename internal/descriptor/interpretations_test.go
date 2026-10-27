@@ -87,6 +87,8 @@ func expectedInterpretationFields(cat, name string) []string {
 // interpretationExemptions lists "<operator>:<field>"; the gaps are
 // logged, grouped by category.
 func TestInterpretationCoversOutputs(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range interpretationRegistryViolations(builtinInterpretations) {
 		t.Error(v)
 	}
@@ -167,6 +169,8 @@ func validInterpretationFixture() []descriptor.Interpretation {
 // bad fixture: each broken Interpretation reports exactly the rule it
 // breaks, and the valid fixture reports nothing.
 func TestValidateInterpretations_Rules(t *testing.T) {
+	t.Parallel()
+
 	ptr := func(v float64) *float64 { return &v }
 	if v := ValidateInterpretations("TEST_ANOVA_F", validInterpretationFixture(), BuiltinOutputResolver("TEST_ANOVA_F")); len(v) != 0 {
 		t.Fatalf("valid fixture reported violations: %v", v)
@@ -235,6 +239,8 @@ func TestValidateInterpretations_Rules(t *testing.T) {
 // resolves a representative good path, and map-valued paths are
 // Deferred to the runtime probe.
 func TestValidateInterpretations_AcceptsEveryAnchor(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		op, field string
 		want      FieldCheck
@@ -276,6 +282,8 @@ func TestValidateInterpretations_AcceptsEveryAnchor(t *testing.T) {
 // extension path) still checks path syntax and content but never
 // judges existence.
 func TestValidateInterpretations_StructureOnly(t *testing.T) {
+	t.Parallel()
+
 	ins := []descriptor.Interpretation{
 		{Field: "statistics", Means: "m"},
 		{Field: "details.effect_size.hedges_g", Means: "m"},
@@ -298,6 +306,8 @@ func TestValidateInterpretations_StructureOnly(t *testing.T) {
 // applicability table names real RegressionResult JSON keys and covers
 // every registered regression, two-way.
 func TestRegressionOutputs_AreResultTags(t *testing.T) {
+	t.Parallel()
+
 	tags := jsonTags(reflect.TypeOf(types.RegressionResult{}))
 	for reg, keys := range regressionOutputs {
 		for _, k := range keys {
@@ -325,6 +335,8 @@ func TestRegressionOutputs_AreResultTags(t *testing.T) {
 // inferential kinds only and is omitted (omitempty) on every other kind.
 // Its bytes count toward TestManifestGuidanceBudget.
 func TestOverlayCapabilities_InferentialFlag(t *testing.T) {
+	t.Parallel()
+
 	want := map[types.OverlayKind]bool{}
 	for _, k := range inferentialOverlayKinds {
 		want[k] = true
@@ -366,6 +378,8 @@ func TestOverlayCapabilities_InferentialFlag(t *testing.T) {
 // sizes on Cohen's labelled bands; TEST_PEARSON_R reads r on absolute
 // Cohen bands with sign meanings, the shared p-value and its interval.
 func TestInterpretationExemplars(t *testing.T) {
+	t.Parallel()
+
 	byField := func(name string) map[string]descriptor.Interpretation {
 		ins, ok := InterpretationsOf(name)
 		if !ok {
@@ -408,6 +422,8 @@ func TestInterpretationExemplars(t *testing.T) {
 // significant is not "no difference", and warns about multiple
 // comparisons.
 func TestSharedPValueRules(t *testing.T) {
+	t.Parallel()
+
 	in, ok := SharedInterpretation(SharedPValue)
 	if !ok {
 		t.Fatal("no shared p-value rule set")
@@ -432,6 +448,8 @@ func TestSharedPValueRules(t *testing.T) {
 // TestDeclaredInterpretationFields pins the seam the runtime probes walk:
 // every declared pair, sorted, with map-valued paths marked Deferred.
 func TestDeclaredInterpretationFields(t *testing.T) {
+	t.Parallel()
+
 	got := DeclaredInterpretationFields()
 	n := 0
 	for _, ins := range builtinInterpretations {
@@ -460,6 +478,8 @@ func TestDeclaredInterpretationFields(t *testing.T) {
 // registered test families and, together, exactly the effect-size keys
 // the glossary covers (effectSizeKeys).
 func TestEffectSizeKeysByTest(t *testing.T) {
+	t.Parallel()
+
 	union := map[string]bool{}
 	for fam, keys := range EffectSizeKeysByTest() {
 		if cat, ok := surfaceCategory(fam); !ok || cat != "test" {

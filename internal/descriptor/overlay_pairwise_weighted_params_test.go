@@ -43,6 +43,8 @@ func pwWeightedValidate(kind types.OverlayKind, params string, cellType *types.A
 // processing.applyPairwiseWeightedTwoMeansZ (parity:
 // processing.TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity).
 func TestValidateOverlays_WeightedTwoMeansZParams(t *testing.T) {
+	t.Parallel()
+
 	kind := types.OverlayKindPairwiseWeightedTwoMeansZ
 	cases := []struct {
 		name   string
@@ -84,6 +86,8 @@ func TestValidateOverlays_WeightedTwoMeansZParams(t *testing.T) {
 // n and is PROCESSING_CONFIG naming param n_basis, with
 // weighting.NBasisRefusal's reason; "kish" on the same host is clean.
 func TestValidateOverlays_WeightedTwoMeansZNBasisOnProbabilityHost(t *testing.T) {
+	t.Parallel()
+
 	kind := types.OverlayKindPairwiseWeightedTwoMeansZ
 	for name, cell := range map[string]*types.Aggregation{
 		"sugar":       {Type: types.AGG_WEIGHTED_MEAN, Field: "score", Params: json.RawMessage(`{"weight_field":"w"}`)},
@@ -115,6 +119,8 @@ func TestValidateOverlays_WeightedTwoMeansZNBasisOnProbabilityHost(t *testing.T)
 // runtime code). An empty Type (smart default, resolved later) and an
 // extension type defer to runtime, which gates on the emitted keys.
 func TestValidateOverlays_WeightedTwoMeansZCellHost(t *testing.T) {
+	t.Parallel()
+
 	kind := types.OverlayKindPairwiseWeightedTwoMeansZ
 	ty := func(s types.AggregationType) *types.AggregationType { return &s }
 	cases := []struct {
@@ -149,6 +155,8 @@ func TestValidateOverlays_WeightedTwoMeansZCellHost(t *testing.T) {
 // naming param n_basis. Predict-only: the runtime stays tolerant (pinned
 // by processing.TestPairwiseOverlay_NBasisInertAtRuntimeOnOtherKinds).
 func TestValidateOverlays_NBasisRefusedOnOtherPairwiseKinds(t *testing.T) {
+	t.Parallel()
+
 	var kinds []types.OverlayKind
 	for _, k := range types.AllOverlayKinds() {
 		if types.IsPairwiseOverlayKind(k) && !types.PairwiseKindUsesWeightedMoments(k) {
@@ -189,6 +197,8 @@ func TestValidateOverlays_NBasisRefusedOnOtherPairwiseKinds(t *testing.T) {
 // classification as its Welford twin, so compose neither rejects it as
 // unknown nor routes it differently.
 func TestCompose_WeightedTwoMeansZTreatedLikeWelfordTwin(t *testing.T) {
+	t.Parallel()
+
 	w, twin := types.OverlayKindPairwiseWeightedTwoMeansZ, types.OverlayKindPairwiseTwoMeansZ
 	if !composeOverlayKindKnown(w) {
 		t.Fatalf("compose does not know %s", w)

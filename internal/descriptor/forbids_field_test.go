@@ -17,6 +17,8 @@ import (
 // and never null), and no non-window operator declares it. The manifest
 // therefore names none of them as compatible with any field type.
 func TestCapabilities_ForbidsFieldMatchesWindowRule(t *testing.T) {
+	t.Parallel()
+
 	forbidding := 0
 	for kind, ops := range capabilityOperatorTables() {
 		for _, op := range ops {

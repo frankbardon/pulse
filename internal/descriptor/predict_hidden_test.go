@@ -75,6 +75,8 @@ func predictOutcome(t *testing.T, data []byte, req *types.Request, opts *Predict
 // TestPredict_HiddenOperatorIsNeverRegistered: one case per
 // type-keyed predict rule the harness probes do not reach.
 func TestPredict_HiddenOperatorIsNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	cases := []struct {
 		name, hidden, never string
@@ -227,6 +229,8 @@ func TestPredict_HiddenOperatorIsNeverRegistered(t *testing.T) {
 // target the instance hides — on the defaulting path and under
 // DisableDefaults (which still reports what WOULD apply).
 func TestPredict_HiddenDefaultsNotApplied(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	req := func() *types.Request {
 		return &types.Request{Aggregations: []*types.Aggregation{{Field: "score", Label: "s"}}}
@@ -250,6 +254,8 @@ func TestPredict_HiddenDefaultsNotApplied(t *testing.T) {
 // TestPredict_SuggestionsNeverProposeHidden: a suggestion never
 // proposes an operator the instance hides.
 func TestPredict_SuggestionsNeverProposeHidden(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	req := &types.Request{
 		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "day"}},
@@ -286,6 +292,8 @@ func TestPredict_SuggestionsNeverProposeHidden(t *testing.T) {
 // FILTER_EXPRESSION rule judges a hidden FILTER_EXPRESSION as a
 // never-registered filterer.
 func TestValidateFacet_HiddenFilterIsNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	hiddenNameParity(t, "FILTER_EXPRESSION", "FILTER_NEVER_REGISTERED", func(name string, opts *PredictOptions) string {
 		req := &types.FacetRequest{
@@ -301,6 +309,8 @@ func TestValidateFacet_HiddenFilterIsNeverRegistered(t *testing.T) {
 // merge gate refuses a hidden aggregator as a never-registered one, and
 // a hidden chain overlay kind is not in the chain catalog.
 func TestValidateChain_HiddenIsNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	stage0 := func() *types.Request {
 		return &types.Request{
@@ -337,6 +347,8 @@ func TestValidateChain_HiddenIsNeverRegistered(t *testing.T) {
 // parity cannot pin this rule: its message names GROUP_DATE as the
 // requirement too.)
 func TestPredict_HiddenOverlayHostGrouper(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	req := &types.Request{
 		Groups:       []*types.Group{{Type: types.GROUP_DATE, Field: "day", Params: json.RawMessage(`{"component":"month"}`)}},
@@ -367,6 +379,8 @@ func TestPredict_HiddenOverlayHostGrouper(t *testing.T) {
 // slots, params and output labels a type reads off the type's route,
 // so a hidden operator is walked as a never-registered name.
 func TestScopedFieldRefRefusals_HiddenIsNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	schema := hiddenPredictSchema(t)
 	refusals := func(req *types.Request, opts *PredictOptions) string {
 		var all []string
@@ -425,6 +439,8 @@ func TestScopedFieldRefRefusals_HiddenIsNeverRegistered(t *testing.T) {
 // the decimal rule judges only the instance's built-ins, exactly as the
 // runtime's decimal dispatch falls through to the registry miss.
 func TestPredict_HiddenDecimalAggregation(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	decimalCode := func(opts *PredictOptions, name string) bool {
 		req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AggregationType(name), Field: "amt", Label: "x"}}}
@@ -457,6 +473,8 @@ func TestPredict_HiddenDecimalAggregation(t *testing.T) {
 // slot whose only default the instance hides is judged exactly as with
 // defaults disabled — what the runtime executes.
 func TestValidateChain_HiddenDefaultNotInferred(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	req := &types.ChainRequest{Stages: []*types.ChainStage{{Name: "a", Request: &types.Request{
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
@@ -481,6 +499,8 @@ func TestValidateChain_HiddenDefaultNotInferred(t *testing.T) {
 // both emit one float64 per row and merge exactly — and still refuses
 // AGG_MODE on an instance that hides it, never naming AGG_MODE_COUNT.
 func TestValidateChain_AdmitsModeAggregators(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	chain := func(agg types.AggregationType) *types.ChainRequest {
 		return &types.ChainRequest{Cohort: &types.Cohort{Filename: "c.pulse"}, Stages: []*types.ChainStage{{Name: "a", Request: &types.Request{

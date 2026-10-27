@@ -16,6 +16,8 @@ import (
 // prove the check bites: a body naming an operator outside any edge
 // source, and a declaration its detector contradicts, are reported.
 func TestExamples_EdgeCoverage(t *testing.T) {
+	t.Parallel()
+
 	src := builtinOntologySources()
 	for _, p := range exampleEdgeCoverageProblems(BaseOntology(), src.examples, nil) {
 		t.Error(p)
@@ -45,6 +47,8 @@ func TestExamples_EdgeCoverage(t *testing.T) {
 // `_meta.capabilities` value is a known non-operator feature; the fixture
 // arm proves an unknown name and an operator are both reported.
 func TestExamples_CapabilitiesFromFeatures(t *testing.T) {
+	t.Parallel()
+
 	for _, p := range exampleCapabilityProblems(examples.Capabilities()) {
 		t.Error(p)
 	}
@@ -61,6 +65,8 @@ func TestExamples_CapabilitiesFromFeatures(t *testing.T) {
 // capability, an overlay kind and a description mention produce their
 // edges on fixtures; the shipped library carries one of each.
 func TestOntology_ExampleCapabilityEdges(t *testing.T) {
+	t.Parallel()
+
 	fx := ontologySources{
 		features: Features(),
 		examples: []ontologyExample{
@@ -118,6 +124,8 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 // no `_meta.operators` declares its capabilities explicitly, so its only
 // non-intent edges are never left to a body-token scan.
 func TestExamples_EmptyOperatorExamplesDeclareCapabilities(t *testing.T) {
+	t.Parallel()
+
 	caps := examples.Capabilities()
 	for _, s := range examples.Search("", nil, "") {
 		if len(s.Operators) == 0 && len(caps[s.Name]) == 0 {

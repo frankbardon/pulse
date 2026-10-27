@@ -13,6 +13,8 @@ import (
 // `responses` whole — under an include allowlist, a preset and an
 // exclude alike — while the overlays follow the block.
 func TestResolveComposeReturn(t *testing.T) {
+	t.Parallel()
+
 	responses := []returnplan.Segment{returnplan.Key("responses")}
 	summary := []returnplan.Segment{returnplan.Key("overlays"), returnplan.Elem(), returnplan.Key("summary")}
 	payload := []returnplan.Segment{returnplan.Key("overlays"), returnplan.Elem(), returnplan.Key("payload")}

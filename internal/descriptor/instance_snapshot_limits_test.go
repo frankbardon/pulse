@@ -10,6 +10,8 @@ import (
 // built-in defaults; WithLimits installs a copy and leaves the receiver
 // untouched.
 func TestInstanceSnapshot_Limits(t *testing.T) {
+	t.Parallel()
+
 	var nilSnap *InstanceSnapshot
 	if nilSnap.Limits() != limits.Defaults() {
 		t.Fatal("nil snapshot does not report the defaults")

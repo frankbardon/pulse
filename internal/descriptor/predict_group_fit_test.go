@@ -13,6 +13,8 @@ import (
 // (within on the outermost position too: a no-op), and leaves a
 // GROUP_QUANTILE the instance hides to the unknown-type rule.
 func TestPredict_GroupFitParams(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	q := func(fit string) *types.Group {
 		return &types.Group{Type: types.GROUP_QUANTILE, Field: "score", Params: json.RawMessage(`{"fit":"` + fit + `"}`)}

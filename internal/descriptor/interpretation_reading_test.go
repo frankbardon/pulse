@@ -13,6 +13,8 @@ import (
 // every category that has no primary value (filterers, groupers, tests,
 // regressions, overlays).
 func TestValueOutputPath(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		op, field string
 		want      FieldCheck
@@ -83,6 +85,8 @@ func TestValueOutputPath(t *testing.T) {
 // its shape. AGG_MODE_COUNT is single-column at run time (no Rich
 // payload) and AGG_SET_UNION / _INTERSECTION emit one label list.
 func TestMultiColumnOutputs(t *testing.T) {
+	t.Parallel()
+
 	want := []string{"AGG_SET_FREQUENCY", "AGG_WELFORD", "FEAT_DATE_FEATURES", "FEAT_ONE_HOT", "FEAT_POLY"}
 	var got []string
 	for n, why := range multiColumnOutputs {
@@ -161,6 +165,8 @@ func readingListProblems(surfaces []PurposeSurface, needs, self []string) []stri
 // AGG_MAPE / AGG_RMSE / AGG_MAE model-error figures, and U49's relative
 // WIN_SHARE / WIN_LIFT columns, and U59's ATTR_SEM_SCORE latent scores).
 func TestDescriptiveReadingLists(t *testing.T) {
+	t.Parallel()
+
 	for _, p := range readingListProblems(PurposeSurfaces(), needsReadingOperators, selfReadingOperators) {
 		t.Error(p)
 	}
@@ -183,6 +189,8 @@ func TestDescriptiveReadingLists(t *testing.T) {
 // in both, an unregistered or duplicate entry, a needs-reading filterer
 // and a newly registered operator each fail.
 func TestDescriptiveReadingLists_Falsifiers(t *testing.T) {
+	t.Parallel()
+
 	without := func(list []string, drop string) []string {
 		return slices.DeleteFunc(slices.Clone(list), func(n string) bool { return n == drop })
 	}

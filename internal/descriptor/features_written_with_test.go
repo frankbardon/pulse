@@ -3,6 +3,8 @@ package descriptor
 import "testing"
 
 func TestProfileWrittenWith(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"1.0.0":                     "1.0.0",
 		"v1.2.3":                    "1.2.3",

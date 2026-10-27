@@ -23,6 +23,8 @@ import (
 // key. A non-slot param, or a key nested under an object (bounds'
 // nonnegative, covariance's type), cannot sneak into the list.
 func TestRegressionCapabilities_ParamsAreSlotKeys(t *testing.T) {
+	t.Parallel()
+
 	spec := map[string]bool{}
 	rt := reflect.TypeOf(types.RegressionSpec{})
 	for i := 0; i < rt.NumField(); i++ {
@@ -61,6 +63,8 @@ func TestRegressionCapabilities_ParamsAreSlotKeys(t *testing.T) {
 // params key, every declared knob listed as a slot key — so a slot key
 // written under params is refused PULSE_REQUEST_UNKNOWN_FIELD.
 func TestRegressionParamsAllowlist_FromManifest(t *testing.T) {
+	t.Parallel()
+
 	allow := ParamsAllowlist(nil)
 	for _, c := range regressionCapabilities() {
 		d, ok := allow[paramread.Key{Category: paramread.Regression, Op: c.Name}]
@@ -151,6 +155,8 @@ var regressionKeysAcceptedUnread = map[types.RegressionType][]string{
 // (REG_BAYES_LINEAR's multiplicity, resample, selection; REG_GLM's
 // unpenalized / bounds) must not be declared.
 func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
+	t.Parallel()
+
 	rt := reflect.TypeOf(types.RegressionSpec{})
 	for i := 0; i < rt.NumField(); i++ {
 		key, _, _ := strings.Cut(rt.Field(i).Tag.Get("json"), ",")
@@ -239,6 +245,8 @@ func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
 // and extension REG_* alike — exactly as the payload schema drops the
 // key; enabled, it is listed.
 func TestManifest_RegressionSlotParamsFollowHiddenSlots(t *testing.T) {
+	t.Parallel()
+
 	const ext = "REG_ACME_FIT"
 	gated := []string{"weight", "save", "multiplicity"}
 	inst := func(with bool) *InstanceSnapshot {

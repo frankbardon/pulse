@@ -52,6 +52,8 @@ func holmIn(family types.MultiplicityFamily) *types.Multiplicity {
 // predict gives the same request, its p-value count (tests and
 // regression predictors) and the correction families its p-values join.
 func TestComposePredict_SlotDetail(t *testing.T) {
+	t.Parallel()
+
 	ols := &types.RegressionSpec{Type: types.REG_OLS, Name: "fit", Target: "y", Predictors: []string{"z", "w"},
 		Multiplicity: &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm},
 		Covariance:   &types.RegressionCovariance{Type: types.CovarianceHC1}}
@@ -126,6 +128,8 @@ func TestComposePredict_SlotDetail(t *testing.T) {
 // two or more distinct non-compose families, and the slots emit at
 // least MultiplicityTriggerThreshold p-values in total.
 func TestComposePredict_AdvisoryFamiliesSplit(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT)
 	req := holmIn(types.MultiplicityFamilyRequest)
 	cmp := holmIn(types.MultiplicityFamilyCompose)

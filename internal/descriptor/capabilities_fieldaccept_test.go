@@ -20,6 +20,8 @@ var modeWiderDeclarations = map[string]bool{"FILTER_TRUE": true, "FILTER_FALSE":
 // "narrower" allowance: a type the runtime reads correctly is declared,
 // and one it would read wrongly is refused by the row.)
 func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
+	t.Parallel()
+
 	declared := map[string][]string{}
 	for _, c := range windowCapabilities() {
 		declared[c.Name] = c.AcceptsTypes

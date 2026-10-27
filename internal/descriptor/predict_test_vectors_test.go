@@ -17,6 +17,8 @@ import (
 // every refusal of the vector leaf reaches predict as an error with the
 // leaf's code, and the runtime's FieldRefRefusal returns the same one.
 func TestPredict_VectorTestInputs(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "items", Fields: []string{"q_1", "q_2", "q_3"}}}
 	hot := func(mod func(*types.Test)) *types.Test {
 		s := &types.Test{Type: types.TEST_HOTELLING_T2}
@@ -145,6 +147,8 @@ func TestPredict_VectorTestInputs(t *testing.T) {
 // categorical field, like every split test — the accepted-types table's
 // refusal, the runtime constructor's code.
 func TestPredict_HotellingSplitByNumericRefused(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}},
 		Tests:        []*types.Test{{Type: types.TEST_HOTELLING_T2, Fields: []string{"q_1", "q_3"}, SplitBy: "q_2"}},

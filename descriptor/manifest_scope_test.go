@@ -17,6 +17,8 @@ func jsonKeyOf(f reflect.StructField) string {
 // shadow fields are exactly ScopedManifestElidedKeys, each a real
 // top-level Manifest key, so a key is dropped iff it is declared elided.
 func TestScopedManifestWire_ShadowsElidedKeys(t *testing.T) {
+	t.Parallel()
+
 	keys := map[string]bool{}
 	mt := reflect.TypeFor[Manifest]()
 	for i := range mt.NumField() {
@@ -51,6 +53,8 @@ func TestScopedManifestWire_ShadowsElidedKeys(t *testing.T) {
 // encodes as the default struct encoding (every key, empty or not);
 // with Scope every elided key is absent and every other key stays.
 func TestManifestMarshal_ScopeSwitchesWireForm(t *testing.T) {
+	t.Parallel()
+
 	m := Manifest{FormatVersion: "1.0", Intents: []string{"describe"}}
 	plain, err := json.Marshal(plainManifest(m))
 	if err != nil {

@@ -23,6 +23,8 @@ func componentKeyNames(s descriptor.ComponentSchema) []string {
 // keys (types.MatrixComponents wire order), then its own keys — Mergeable, and the top-level
 // components_schemas.matrices mirrors the per-operator entry.
 func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	want := map[types.MatrixType][]string{
 		types.MAT_COVARIANCE:  {"n", "n_null", "n_listwise_dropped", "min_pair_n", "max_pair_n", "sum_weights", "n_eff", "n_weight_invalid", "ddof"},
@@ -79,6 +81,8 @@ func TestManifestMatrixComponentSchemasComplete(t *testing.T) {
 // declared (an instance that cannot weight never emits them), on
 // either surface.
 func TestManifestMatrixComponentSchemas_WeightingHidden(t *testing.T) {
+	t.Parallel()
+
 	var enabled []string
 	for _, n := range FeatureNames() {
 		if n != featWeighting {

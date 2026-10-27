@@ -12,6 +12,8 @@ import (
 // manifest command and operation exactly once, names nothing else, and
 // every binding sets exactly one target that resolves.
 func TestCommandBindings_Complete(t *testing.T) {
+	t.Parallel()
+
 	listed := map[string]bool{}
 	for _, c := range append(commands(), operations()...) {
 		if listed[c.Name] {
@@ -68,6 +70,8 @@ func manifestJSON(t *testing.T, m *descriptor.Manifest) string {
 // describes exactly what BuildManifest does, digest included, and the
 // nil instance is BuildManifest itself.
 func TestBuildManifestForInstance_FullScopedEqualsBuildManifest(t *testing.T) {
+	t.Parallel()
+
 	want := manifestJSON(t, BuildManifest())
 	full := NewInstanceSnapshot(nil, FeatureSet{Enabled: ReachedFeatureNames(buildinfo.Version())})
 	if got := manifestJSON(t, BuildManifestForInstance(full)); got != want {
@@ -85,6 +89,8 @@ func TestBuildManifestForInstance_FullScopedEqualsBuildManifest(t *testing.T) {
 // scoped manifest (filter + prose scrub) must not write through to the
 // shared capability tables a later full build reads.
 func TestBuildManifestForInstance_ScopingLeavesTablesIntact(t *testing.T) {
+	t.Parallel()
+
 	before := manifestJSON(t, BuildManifest())
 	enabled := []string{"capability:process", "capability:crosstab", "AGG_COUNT", "GROUP_CATEGORY"}
 	var hidden []string
@@ -112,6 +118,8 @@ func TestBuildManifestForInstance_ScopingLeavesTablesIntact(t *testing.T) {
 // export block lists only enabled formats, and import entries stop
 // claiming export when capability:export is hidden.
 func TestBuildManifestForInstance_IOFormatsFiltered(t *testing.T) {
+	t.Parallel()
+
 	enabled := []string{"capability:process", "capability:import", "io_format:csv", "io_format:spss"}
 	m := BuildManifestForInstance(NewInstanceSnapshot(nil, FeatureSet{Enabled: enabled, Hidden: []string{"capability:export", "io_format:tsv"}}))
 	if m.Export != nil {
@@ -145,6 +153,8 @@ func TestBuildManifestForInstance_IOFormatsFiltered(t *testing.T) {
 // TestBuildManifestForInstance_SynthHidden: synth distributions vanish
 // (as an empty list, not null) with capability:synth.
 func TestBuildManifestForInstance_SynthHidden(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifestForInstance(NewInstanceSnapshot(nil, FeatureSet{Enabled: []string{"capability:process"}, Hidden: []string{"capability:synth"}}))
 	if m.SynthDistributions == nil || len(m.SynthDistributions) != 0 {
 		t.Errorf("synth_distributions = %v, want empty", m.SynthDistributions)
@@ -155,6 +165,8 @@ func TestBuildManifestForInstance_SynthHidden(t *testing.T) {
 }
 
 func TestRedactProse(t *testing.T) {
+	t.Parallel()
+
 	hidden := map[string]struct{}{"AGG_MODE": {}, "pulse_compose": {}, "OVERLAY_INDEX_VS_REF": {}}
 	cases := []struct{ in, want string }{
 		{"No mention here. Still none.", "No mention here. Still none."},
@@ -173,6 +185,8 @@ func TestRedactProse(t *testing.T) {
 }
 
 func TestScrubManifest_ListsAndKeys(t *testing.T) {
+	t.Parallel()
+
 	hidden := map[string]struct{}{"AGG_MODE": {}}
 	in := &descriptor.Manifest{
 		ProcessChain: &descriptor.ProcessChainCapability{
