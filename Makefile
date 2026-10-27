@@ -34,7 +34,7 @@ dist:
 	LDFLAGS="$(LDFLAGS)" GO="$(GO)" ./scripts/release-dist.sh "$(VERSION)" "$(DIST_DIR)"
 
 test:
-	$(GO) test ./...
+	$(GO) test $(TESTFLAGS) ./...
 
 # smoke builds, vets and tests internal/embeddersmoke: a separate Go
 # module (own go.mod, replace => ../..) that embeds Pulse through the
