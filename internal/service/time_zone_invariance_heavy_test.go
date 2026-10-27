@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"maps"
 	"path/filepath"
@@ -12,21 +11,25 @@ import (
 
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/internal/testutil/invariance"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
-// TestTimeZone_ParallelDecodeLocalDay: the parallel buffered decode arm
-// (DecodeWorkers over a >threshold single-file cohort, mmap'd off a
-// real on-disk file — MemMapFs cannot reach it, so the fixture lives in
-// t.TempDir() behind an OsFs-backed fs.Config) buckets GROUP_DATE day,
-// labels GROUP_DATE_RANGES and keeps FILTER_DATE_RANGES rows by the
-// Europe/Berlin LOCAL day, equal to a time.In reference at every worker
-// count, and every worker count answers byte-identically. The gate is
-// asserted per request — open for the range operators so that arm
-// cannot silently degrade to serial, closed for the non-mergeable
-// GROUP_DATE.
-func TestTimeZone_ParallelDecodeLocalDay(t *testing.T) {
+// TestTimeZoneInvariance_Heavy is the zone family on the shared
+// worker-invariance harness: the parallel buffered decode arm
+// (DecodeWorkers 2/3/7/8 over a >threshold single-file cohort, mmap'd
+// off a real on-disk file — MemMapFs cannot reach it, so the fixture
+// lives in t.TempDir() behind an OsFs-backed fs.Config) buckets
+// GROUP_DATE day, labels GROUP_DATE_RANGES and keeps FILTER_DATE_RANGES
+// rows by the Europe/Berlin LOCAL day: the serial reference equals a
+// time.In reference (on a fixture whose UTC answer differs), and every
+// worker count answers the same whole response. Each cell names its arm
+// — parallel decode for the range operators, so that arm cannot
+// silently degrade to serial; buffered (serial) for the non-mergeable
+// GROUP_DATE, whatever DecodeWorkers says.
+func TestTimeZoneInvariance_Heavy(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -84,11 +87,10 @@ func TestTimeZone_ParallelDecodeLocalDay(t *testing.T) {
 			return got
 		}
 	}
-	// parallel: the gate must be OPEN (the arm really fans out). The
-	// parallel arms are mergeable-only: GROUP_DATE_RANGES and the
-	// filter fan out, while GROUP_DATE is not mergeable
-	// (types.GroupType.Mergeable), so its row asserts the gate CLOSED —
-	// it runs serial whatever DecodeWorkers says, still by local day.
+	// parallel: the arm really fans out. The parallel arms are
+	// mergeable-only: GROUP_DATE_RANGES and the filter fan out, while
+	// GROUP_DATE is not mergeable (types.GroupType.Mergeable), so its
+	// cells run serial whatever DecodeWorkers says, still by local day.
 	cases := []struct {
 		name     string
 		parallel bool
@@ -122,40 +124,27 @@ func TestTimeZone_ParallelDecodeLocalDay(t *testing.T) {
 		}},
 	}
 
-	ctx := context.Background()
-	probe := New(cfg)
-	cohort, err := probe.Open(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	big := svcInvCohort{cfg, path}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ok, why := probe.canParallelDecode(tc.mk(), cohort.Schema(), cohort, 4, zoneParallelRows)
-			if ok != tc.parallel {
-				t.Fatalf("parallel decode gate open=%v (%s), want %v", ok, why, tc.parallel)
-			}
-			var serial []byte
-			for _, workers := range []int{1, 2, 4, 7, 0} {
-				svc := New(cfg)
-				svc.SetDecodeWorkers(workers)
-				resp, err := svc.Process(ctx, tc.mk())
-				if err != nil {
-					t.Fatalf("workers=%d: %v", workers, err)
-				}
+		arm := observe.ArmBuffered
+		if tc.parallel {
+			arm = observe.ArmParallelDecode
+		}
+		decode := invariance.DecodeGroup("decode", invariance.BigFile)
+		for i := range decode.Cells {
+			decode.Cells[i].Arm = arm
+		}
+		invariance.Run(t, invariance.Family[*types.Response]{
+			Name:   tc.name,
+			Groups: []invariance.Group{decode},
+			Run: func(t *testing.T, k invariance.Knobs) invariance.Result[*types.Response] {
+				return svcInvProcess(t, big, k, tc.mk(), nil)
+			},
+			Check: func(t *testing.T, _ invariance.Knobs, resp *types.Response) {
 				if got := tc.extract(t, resp); !maps.Equal(got, tc.want) {
-					t.Fatalf("workers=%d: got %v\n want (time.In reference) %v", workers, got, tc.want)
+					t.Fatalf("got %v\n want (time.In reference) %v", got, tc.want)
 				}
-				// Every worker count answers byte-identically.
-				b, err := json.Marshal(resp)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if workers == 1 {
-					serial = b
-				} else if string(b) != string(serial) {
-					t.Fatalf("workers=%d response differs from serial:\n got %s\nwant %s", workers, b, serial)
-				}
-			}
+			},
 		})
 	}
 }

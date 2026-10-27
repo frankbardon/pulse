@@ -262,12 +262,12 @@ func writeVaggBitsCohort(t testing.TB, fsys afero.Fs, path string, from, to int)
 	}
 }
 
-// vaggBits runs the request and returns every array element's bits,
-// row by row, weighted and unweighted slots alike, then every
-// covariance entry's bits (the BlockCoMoments arm of the blocked
-// merge; per group on a grouped request).
-func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint64 {
-	t.Helper()
+// vaggBitsRequest is the vector family's aggregation shape
+// (vector_invariance_test.go): every vector aggregate weighted and
+// unweighted (AGG_VEC_SD's Chan-combined moments included) and the
+// covariance matrices (the BlockCoMoments arm of the blocked merge), per
+// group when grouped.
+func vaggBitsRequest(cohort string, grouped bool) *types.Request {
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: cohort},
 		Aggregations: []*types.Aggregation{
@@ -286,33 +286,7 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 		req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "qty"}}
 		req.Sort = []types.OrderKey{{Field: "qty"}}
 	}
-	resp, err := p.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Process: %v", err)
-	}
-	var out []uint64
-	for _, row := range resp.Data {
-		for _, label := range []string{"m", "s", "wm", "sd", "wsd"} {
-			v, ok := vaggArray(row[label])
-			if !ok {
-				t.Fatalf("%s = %T", label, row[label])
-			}
-			for _, x := range v {
-				out = append(out, math.Float64bits(x))
-			}
-		}
-	}
-	if len(resp.Matrices) == 0 {
-		t.Fatal("no matrix results")
-	}
-	for _, m := range resp.Matrices {
-		for _, r := range m.Primary.Values {
-			for _, x := range r {
-				out = append(out, math.Float64bits(x))
-			}
-		}
-	}
-	return out
+	return req
 }
 
 // TestVecAgg_RefusalParity: Process and predict refuse the same

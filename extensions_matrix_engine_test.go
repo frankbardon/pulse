@@ -14,7 +14,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -231,57 +230,6 @@ func TestExtensionMatrix_BuiltinParity(t *testing.T) {
 					t.Fatalf("buffered tier vectors = %v, want rows", got.Matrices[0].Vectors)
 				}
 			})
-		}
-	}
-}
-
-// TestExtensionMatrix_StreamingEqualsBuffered: the co-moment tier
-// streams; forcing the same request onto the buffered path (a buffered
-// aggregator) and the buffered tier give the same bits, and every
-// DecodeWorkers count matches serial.
-func TestExtensionMatrix_StreamingEqualsBuffered(t *testing.T) {
-	t.Parallel()
-
-	fsys := extMatrixCohort(t)
-	ctx := context.Background()
-	base := extMatrixPulse(t, fsys, Options{DecodeWorkers: 1}, extCovReg(true, true, nil))
-	for _, grouped := range []bool{false, true} {
-		req := func() *types.Request {
-			return extMatrixRequest("MAT_ACME_COV", `{"missing":"pairwise"}`, grouped, true)
-		}
-		want, err := base.Process(ctx, req())
-		if err != nil {
-			t.Fatal(err)
-		}
-		forced := req()
-		forced.Aggregations = append(forced.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "b", Label: "med"})
-		got, err := base.Process(ctx, forced)
-		if err != nil {
-			t.Fatal(err)
-		}
-		sameMatrixBits(t, "buffered path", got.Matrices, want.Matrices)
-		buffered := extMatrixPulse(t, fsys, Options{DecodeWorkers: 4}, extCovReg(false, true, nil))
-		got, err = buffered.Process(ctx, req())
-		if err != nil {
-			t.Fatal(err)
-		}
-		sameMatrixBits(t, "buffered tier", got.Matrices, want.Matrices)
-		// The co-moment tier is admitted to the parallel reducers (the
-		// blocked merge carries it); the buffered tier keeps the
-		// request serial.
-		if !processing.CanMergeRequestWithExtensions(req(), nil, base.svc.Extensions()) {
-			t.Fatal("co-moment extension matrix refused by the merge gate")
-		}
-		if processing.CanMergeRequestWithExtensions(req(), nil, buffered.svc.Extensions()) {
-			t.Fatal("buffered-tier extension matrix admitted by the merge gate")
-		}
-		for _, workers := range []int{2, 3, 8} {
-			par := extMatrixPulse(t, fsys, Options{DecodeWorkers: workers}, extCovReg(true, true, nil))
-			got, err := par.Process(ctx, req())
-			if err != nil {
-				t.Fatal(err)
-			}
-			sameMatrixBits(t, "DecodeWorkers="+strconv.Itoa(workers), got.Matrices, want.Matrices)
 		}
 	}
 }

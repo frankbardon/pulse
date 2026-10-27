@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"math"
 	"os"
@@ -216,41 +215,6 @@ func TestMatrixSEM_OrdinalFrequencyWeightIsExpansion(t *testing.T) {
 			g := wres.Auxiliary["estimates"].Values[i][c]
 			if math.IsNaN(v) != math.IsNaN(g) || (!math.IsNaN(v) && semRel(g, v) > 1e-7) {
 				t.Errorf("estimates[%s][%d] weighted %.12g, expanded %.12g", plain.Auxiliary["estimates"].RowKeys[i], c, g, v)
-			}
-		}
-	}
-}
-
-// TestMatrixSEM_OrdinalWorkersBitIdentical: the buffered slot runs
-// serially in record order, so DecodeWorkers never moves a bit.
-func TestMatrixSEM_OrdinalWorkersBitIdentical(t *testing.T) {
-	t.Parallel()
-
-	cfg, cols := semCohort(t, semTestdata+"brand_data.csv", nil, nil)
-	spec := ordinalSpec(t, cols, "brand_ms", map[string]any{"estimator": "wlsmv", "ordered": []string{"q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"}})
-	req := &types.Request{Cohort: &types.Cohort{Filename: "sem.pulse"}, Matrices: []types.MatrixSpec{spec}}
-	run := func(workers int) types.MatrixResult {
-		svc := New(cfg)
-		svc.SetDecodeWorkers(workers)
-		resp, err := svc.Process(context.Background(), req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return resp.Matrices[0]
-	}
-	base := run(1)
-	for _, w := range []int{2, 7} {
-		got := run(w)
-		for k, v := range base.Scalars {
-			if math.Float64bits(v) != math.Float64bits(got.Scalars[k]) {
-				t.Errorf("workers %d: %s %v != %v", w, k, got.Scalars[k], v)
-			}
-		}
-		for i, row := range base.Auxiliary["estimates"].Values {
-			for c, v := range row {
-				if math.Float64bits(v) != math.Float64bits(got.Auxiliary["estimates"].Values[i][c]) {
-					t.Errorf("workers %d: estimates[%d][%d] moved", w, i, c)
-				}
 			}
 		}
 	}

@@ -31,6 +31,19 @@ const semTestdata = "../sem/testdata/"
 // frequency weight).
 func semCohort(t *testing.T, csvPath string, weights func(r int) float64, repeat func(r int) int) (*fs.Config, []string) {
 	t.Helper()
+	schema, rows, cols := semRows(t, csvPath, weights, repeat)
+	data := writeNullablePulse(t, schema, rows, func(int, int) bool { return false })
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "sem.pulse", data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return cfg, cols
+}
+
+// semRows is semCohort's schema and records (and the numeric columns),
+// unwritten.
+func semRows(t *testing.T, csvPath string, weights func(r int) float64, repeat func(r int) int) (*encoding.Schema, [][]uint64, []string) {
+	t.Helper()
 	f, err := os.Open(csvPath)
 	if err != nil {
 		t.Fatal(err)
@@ -76,12 +89,7 @@ func semCohort(t *testing.T, csvPath string, weights func(r int) float64, repeat
 			rows = append(rows, row)
 		}
 	}
-	data := writeNullablePulse(t, &encoding.Schema{Fields: fields}, rows, func(int, int) bool { return false })
-	cfg := fs.NewMemMap()
-	if err := afero.WriteFile(cfg.Fs(), "sem.pulse", data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return cfg, cols
+	return &encoding.Schema{Fields: fields}, rows, cols
 }
 
 type semopyFixture struct {

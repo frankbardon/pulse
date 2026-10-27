@@ -52,10 +52,10 @@ import (
 // vehicle state with referenceCoMomentWords.
 //
 // What the harness cannot express stays dedicated:
-// TestMatrixOnly_EqualsBesideAggregation (request-shape invariance),
-// TestMatrixOnly_RunComponents (exact counters), the rank-method serial
-// fallback (TestMatrixRankCorrelation_SerialUnderParallelKnobs) and the
-// ordinal SEM (TestMatrixSEM_OrdinalWorkersBitIdentical).
+// TestMatrixOnly_EqualsBesideAggregation (request-shape invariance) and
+// TestMatrixOnly_RunComponents (exact counters). The serial fallback —
+// the rank methods and the ordinal SEM, which never fan out — is
+// matrix_serial_invariance_test.go.
 
 // Extra layouts of the matrix family.
 const (

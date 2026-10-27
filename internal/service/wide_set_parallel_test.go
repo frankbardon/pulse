@@ -2,30 +2,18 @@ package service
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"math"
-	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
-// Service-level parity for a WIDE set column under the two concurrency
-// knobs. E1-S3 could only reach the encoding layer — internal/service/
-// parallel_decode.go decodes into processing.Record, and both packages
-// sat outside its scope — so the decode-worker and shard-worker arms
-// were never exercised end to end against a set_u128 / set_u256 cohort.
-//
-// BOTH ARMS MUST ACTUALLY FAN OUT. The eligibility gates are silent
-// bails by design: a cohort under parallelDecodeRecordThreshold, or one
-// on an fs without RealPather (which fs.NewMemMap is), drops to the
-// serial path and a parity assertion then compares serial against
-// serial and proves nothing. Each arm below asserts its own gate opened
-// before it compares anything.
+// The wide-set cohort and request of the wide-set worker-invariance
+// family (wide_set_invariance_test.go): a set_u128 / set_u256 column
+// end to end through the decode-worker and shard-worker arms.
 
 const wideSetParityDictSize = 206
 
@@ -137,95 +125,5 @@ func assertWideSetRowNonDegenerate(t *testing.T, row map[string]any) {
 	}
 	if !sawHigh {
 		t.Fatal("union resolved no member at or above bit 64 — the fold truncated to the low word")
-	}
-}
-
-// TestWideSet_ShardWorkersParity pins Options.ShardWorkers on a wide-set
-// SHARD ARCHIVE. The shard path has no record-count threshold and no
-// mmap requirement — its gate is "archive-backed, mergeable, and
-// ShardWorkers != 1" — so a small in-memory fixture is enough, but the
-// gate is asserted here too rather than assumed.
-func TestWideSet_ShardWorkersParity(t *testing.T) {
-	t.Parallel()
-
-	cfg := fs.NewMemMap()
-	svc := New(cfg)
-
-	const shardCount = 3
-	const rowsPerShard = 400
-
-	schema, _ := wideSetParityCohort(t, 0)
-	shardPaths := make([]string, 0, shardCount)
-	for s := 0; s < shardCount; s++ {
-		// Each shard gets a distinct row window so the per-shard
-		// partials differ and a merge that drops a shard is visible.
-		var payload bytes.Buffer
-		for r := 0; r < rowsPerShard; r++ {
-			row := s*rowsPerShard + r
-			if err := encoding.WriteSetMask(&payload, encoding.FieldTypeSetU256, wideSetParityMask(row)); err != nil {
-				t.Fatalf("write tags: %v", err)
-			}
-			w := float64((row*37)%509) + 0.125
-			if err := encoding.WriteFieldValue(&payload, encoding.FieldTypeF64, math.Float64bits(w)); err != nil {
-				t.Fatalf("write weight: %v", err)
-			}
-		}
-		p := fmt.Sprintf("shard_%d.pulse", s)
-		writeWideSetCohort(t, cfg.Fs(), p, schema, payload.Bytes())
-		shardPaths = append(shardPaths, p)
-	}
-
-	const archive = "wide_set_archive.pulse"
-	if _, err := svc.CreateShardArchive(context.Background(), archive, shardPaths); err != nil {
-		t.Fatalf("CreateShardArchive: %v", err)
-	}
-
-	// Gate check: the archive must really fan out at >1 worker.
-	probe := New(cfg)
-	probe.SetShardWorkers(4)
-	cohort, err := probe.Open(context.Background(), archive)
-	if err != nil {
-		t.Fatalf("Open archive: %v", err)
-	}
-	if got := len(cohort.Shards()); got != shardCount {
-		t.Fatalf("archive holds %d shards, want %d", got, shardCount)
-	}
-	if _, ok := probe.shouldFanOut(wideSetParityRequest(archive), cohort); !ok {
-		t.Fatal("shouldFanOut refused the wide-set archive — the parity check below would compare serial against serial")
-	}
-
-	// Serial baseline: ShardWorkers == 1 forces the serial shardIter.
-	serialSvc := New(cfg)
-	serialSvc.SetShardWorkers(1)
-	serialResp, err := serialSvc.Process(context.Background(), wideSetParityRequest(archive))
-	if err != nil {
-		t.Fatalf("serial Process: %v", err)
-	}
-	if len(serialResp.Data) == 0 {
-		t.Fatal("serial: expected an aggregation row")
-	}
-	wantRow := serialResp.Data[0]
-	assertWideSetRowNonDegenerate(t, wantRow)
-
-	for _, workers := range []int{2, 3, 8} {
-		workers := workers
-		t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
-			parSvc := New(cfg)
-			parSvc.SetShardWorkers(workers)
-			resp, err := parSvc.Process(context.Background(), wideSetParityRequest(archive))
-			if err != nil {
-				t.Fatalf("parallel Process: %v", err)
-			}
-			if len(resp.Data) == 0 {
-				t.Fatal("parallel: expected an aggregation row")
-			}
-			gotRow := resp.Data[0]
-			for _, key := range []string{"n", "union", "freq", "card_sum", "card_avg", "distinct"} {
-				if !reflect.DeepEqual(gotRow[key], wantRow[key]) {
-					t.Errorf("shardWorkers=%d: %q differs\n  parallel: %v\n  serial:   %v",
-						workers, key, gotRow[key], wantRow[key])
-				}
-			}
-		})
 	}
 }

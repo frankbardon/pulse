@@ -15,7 +15,7 @@ import (
 // RecordReader expands its own segment. On a deduped (0x02) cohort a
 // split by the logical stride, or a count by it, would land segment
 // boundaries mid-row and every worker after the first would decode
-// garbage (or silently drop rows). Like TestWideSet_DecodeWorkersParity
+// garbage (or silently drop rows). Like TestWideSetInvariance_Heavy
 // the fixture sits above parallelDecodeRecordThreshold on the real OS
 // filesystem, and the gate is asserted open before anything is
 // compared, because the eligibility predicate bails silently.
