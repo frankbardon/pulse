@@ -238,7 +238,10 @@ The test jobs pipe `-json` through `citest filter`. It prints `go
 test`'s usual non-verbose log, plus the full output of each failed or
 unfinished test. It also appends the 10 slowest tests to the job
 summary. The report never fails a job; `pipefail` keeps `go test`'s
-exit status. Each Go job restores the `setup-go` module and build
+exit status. Before its test step, `test (1.26)` compiles every
+fast-tier test binary on its own (`go test -run '^$' ./...`) and writes
+the compile time to the job summary, so compile and run cost read
+apart. Each Go job restores the `setup-go` module and build
 cache. `lint` and `build` hash different files into their cache keys,
 so they never seed the cache the test jobs use.
 
