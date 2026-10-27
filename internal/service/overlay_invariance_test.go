@@ -32,8 +32,9 @@ import (
 //
 // over a shard archive (a 1-row and an empty shard) under ShardWorkers
 // 1/2/3/8 and DecodeWorkers 7 ≡ its single-file twin, and (heavy,
-// overlay_invariance_heavy_test.go) DecodeWorkers 2/3/7/8 over a file
-// above the parallel-decode threshold ≡ serial.
+// overlay_invariance_heavy_test.go) DecodeWorkers 2/3/7/8 (3 and 8 for
+// the serial tests shape) over a file above the parallel-decode
+// threshold ≡ serial.
 
 // overlayInvShardRows split the twin's 2,000 rows.
 var overlayInvShardRows = []int{1, 900, 0, 1099}
@@ -119,21 +120,19 @@ func overlayInvShapes() []overlayInvShape {
 	}
 }
 
-// overlayInvGroups: the tests shape runs every cell on the serial
-// buffered arm.
+// overlayInvGroups are a shape's groups — the archive group in the fast
+// tier, the decode group in the heavy one; the tests shape runs every
+// cell on the serial buffered arm.
 func overlayInvGroups(s overlayInvShape, heavy bool) []invariance.Group {
-	if s.tests {
-		gs := []invariance.Group{svcInvSerialArchiveGroup(observe.ArmBuffered)}
-		if heavy {
-			gs = append(gs, svcInvSerialDecodeGroup("decode", invariance.BigFile, observe.ArmBuffered))
-		}
-		return gs
+	switch {
+	case heavy && s.tests:
+		return []invariance.Group{svcInvSerialDecodeGroup("decode", invariance.BigFile, observe.ArmBuffered)}
+	case heavy:
+		return []invariance.Group{invariance.DecodeGroup("decode", invariance.BigFile)}
+	case s.tests:
+		return []invariance.Group{svcInvSerialArchiveGroup(observe.ArmBuffered)}
 	}
-	gs := []invariance.Group{invariance.ArchiveGroup()}
-	if heavy {
-		gs = append(gs, invariance.DecodeGroup("decode", invariance.BigFile))
-	}
-	return gs
+	return []invariance.Group{invariance.ArchiveGroup()}
 }
 
 // overlayInvFamily is shape s, under a Holm block, over groups.

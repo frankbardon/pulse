@@ -10,10 +10,10 @@ import (
 
 // TestPreviousStateInvariance_Heavy is the heavy-tier half of the
 // previous-state family (previous_state_invariance_test.go): every
-// matrix request under DecodeWorkers 2/3/7/8 over the
-// filler-interleaved file ≡ serial (a crosstab on its parallel segment
-// decode, the rest serial), the reference equal to the panel's
-// single-file answer, plus the archive group.
+// matrix request over the filler-interleaved file ≡ serial — a crosstab
+// under DecodeWorkers 2/3/7/8 on its parallel segment decode, the rest
+// serial under 3 and 8 — the reference equal to the panel's single-file
+// answer (the archive group is the fast tier's).
 func TestPreviousStateInvariance_Heavy(t *testing.T) {
 	t.Parallel()
 

@@ -10,9 +10,9 @@ import (
 
 // TestExtensionRegressionInvariance_Heavy is the heavy-tier half of the
 // custom-regression family (extensions_regression_invariance_test.go):
-// every shape under DecodeWorkers 2/3/7/8 over a 104,096-record cohort
+// every shape under DecodeWorkers 3 and 8 over a 104,096-record cohort
 // (above the parallel-decode threshold) ≡ serial, every cell on the
-// serial arm, plus the archive group.
+// serial arm (the archive group is the fast tier's).
 func TestExtensionRegressionInvariance_Heavy(t *testing.T) {
 	t.Parallel()
 

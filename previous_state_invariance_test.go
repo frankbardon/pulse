@@ -93,8 +93,10 @@ func prevInvNames() []string {
 	return out
 }
 
-// prevInvGroups are request name's groups: every cell on the serial
-// buffered arm, except a crosstab's parallel segment decode.
+// prevInvGroups are request name's groups — the archive group in the
+// fast tier, the decode group in the heavy one: every cell on the
+// serial buffered arm (DecodeWorkers 3 and 8 pin that), except a
+// crosstab's parallel segment decode (2/3/7/8).
 func prevInvGroups(name string, heavy bool) []invariance.Group {
 	serial := func(g invariance.Group, arm observe.Arm) invariance.Group {
 		for i := range g.Cells {
@@ -102,15 +104,13 @@ func prevInvGroups(name string, heavy bool) []invariance.Group {
 		}
 		return g
 	}
-	gs := []invariance.Group{serial(invariance.ArchiveGroup(), observe.ArmBuffered)}
-	if heavy {
-		arm := observe.ArmBuffered
-		if strings.Contains(name, "crosstab") {
-			arm = observe.ArmParallelDecode
-		}
-		gs = append(gs, serial(invariance.DecodeGroup("decode", invariance.BigFile), arm))
+	if !heavy {
+		return []invariance.Group{serial(invariance.ArchiveGroup(), observe.ArmBuffered)}
 	}
-	return gs
+	if strings.Contains(name, "crosstab") {
+		return []invariance.Group{serial(invariance.DecodeGroup("decode", invariance.BigFile), observe.ArmParallelDecode)}
+	}
+	return []invariance.Group{invSerialDecodeGroup("decode", invariance.BigFile, observe.ArmBuffered)}
 }
 
 // prevInvFamily is request name over groups; panel (heavy only) is the

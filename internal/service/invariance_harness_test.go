@@ -117,12 +117,13 @@ func svcInvSerialArchiveGroup(arm observe.Arm) invariance.Group {
 	return g
 }
 
-// svcInvSerialDecodeGroup is invariance.DecodeGroup for a request the
-// merge gate refuses: every DecodeWorkers cell runs on arm.
+// svcInvSerialDecodeGroup is the decode group for a request the merge
+// gate refuses: it never reaches the fan-out, so two DecodeWorkers
+// counts (an odd one and a wide one) pin that, each cell on arm.
 func svcInvSerialDecodeGroup(name string, layout invariance.Layout, arm observe.Arm) invariance.Group {
-	g := invariance.DecodeGroup(name, layout)
-	for i := range g.Cells {
-		g.Cells[i].Arm = arm
+	g := invariance.Group{Name: name, Ref: invariance.Cell{Knobs: invariance.Knobs{Layout: layout, DecodeWorkers: 1, ShardWorkers: 1}}}
+	for _, dw := range []int{3, 8} {
+		g.Cells = append(g.Cells, invariance.Cell{Knobs: invariance.Knobs{Layout: layout, DecodeWorkers: dw, ShardWorkers: 1}, Arm: arm})
 	}
 	return g
 }

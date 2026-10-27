@@ -22,8 +22,9 @@ import (
 //     one request (a rank method is not mergeable) over a shard archive
 //     (a 1-row and an empty shard) under ShardWorkers 1/2/3/8 and
 //     DecodeWorkers 7 ≡ its single-file twin; heavy
-//     (matrix_serial_invariance_heavy_test.go): DecodeWorkers 2/3/7/8
-//     over a file above the parallel-decode threshold ≡ serial;
+//     (matrix_serial_invariance_heavy_test.go): DecodeWorkers 8 over a
+//     file above the parallel-decode threshold, and its archive under
+//     ShardWorkers 8, ≡ serial;
 //   - sem_ordinal: the buffered WLSMV MAT_SEM over the brand ratings
 //     (rows in record order) over an archive of the same rows ≡ the twin
 //     under the same knobs.

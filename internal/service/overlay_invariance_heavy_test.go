@@ -9,11 +9,11 @@ import (
 )
 
 // TestOverlayInvariance_Heavy is the heavy-tier half of the overlay /
-// post-hook family (overlay_invariance_test.go): both shapes under
-// DecodeWorkers 2/3/7/8 over a 104,096-record file ≡ serial — the
-// test-free SERIES host on the parallel-decode arm under an identity
-// block, the tests falling back to the serial arm and corrected — plus
-// the archive group.
+// post-hook family (overlay_invariance_test.go): both shapes over a
+// 104,096-record file ≡ serial — the test-free SERIES host under
+// DecodeWorkers 2/3/7/8 on the parallel-decode arm under an identity
+// block, the tests under DecodeWorkers 3 and 8 falling back to the
+// serial arm and corrected (the archive group is the fast tier's).
 func TestOverlayInvariance_Heavy(t *testing.T) {
 	t.Parallel()
 

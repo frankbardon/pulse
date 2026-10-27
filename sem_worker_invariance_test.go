@@ -15,19 +15,21 @@ import (
 // sem_worker_invariance_test.go is the MAT_SEM family on the shared
 // worker-invariance harness: a fit answers the same whole response
 // (LayoutFree), bitwise, over a shard archive (230-row shards) under
-// ShardWorkers 1/2/3/8 and DecodeWorkers 7 as over its single-file twin:
+// ShardWorkers 1/2/3/8 and DecodeWorkers 7 (a serial shape: the widest
+// knobs only) as over its single-file twin:
 //
 //   - multi-group fits (the per-level co-moments merge through the fixed
 //     tree, so a grouped fit takes the shard reducer) on every supported
 //     group field type, and the := rows over a grouped invariance fit
 //     (they read the merged fit only) — and (heavy,
-//     sem_worker_invariance_heavy_test.go) under DecodeWorkers 2/3/7/8
-//     over the brand rows repeated past the parallel-decode threshold;
+//     sem_worker_invariance_heavy_test.go; the categorical_u8 fit and
+//     the := rows) under DecodeWorkers 2/3/7/8 over the brand rows
+//     repeated past the parallel-decode threshold;
 //   - (heavy) seeded and data-derived-seed bootstraps, ungrouped and
 //     within each wave, ML and WLSMV: the slot buffers its rows in
 //     record order and the request runs serially, so every cell names
-//     the serial arm; a rerun on the reference knobs is one more cell
-//     (run to run).
+//     the serial arm — the archive under ShardWorkers 8 × DecodeWorkers
+//     7, and a rerun on the reference knobs (run to run).
 //
 // What the knobs do not move stays in the operator tests: another seed
 // moves the SEs (TestSEM_BootstrapDeterministic), the derived seed's
@@ -46,10 +48,14 @@ type semInvShape struct {
 	req       func(t *testing.T) *types.Request
 }
 
+// semInvBoot is a bootstrap's params over params: twelve replicates
+// (sem.BootstrapMinSuccesses is 10) — the bits under test are the
+// seed's and the row order's, whatever the count — seeded (with a
+// ci_level) or on the data-derived seed.
 func semInvBoot(seeded bool, params map[string]any) map[string]any {
 	out := map[string]any{"resample": "bootstrap", "bootstrap_iters": 12}
 	if seeded {
-		out["bootstrap_iters"], out["rng_seed"], out["ci_level"] = 25, 7, 0.9
+		out["rng_seed"], out["ci_level"] = 7, 0.9
 	}
 	for k, v := range params {
 		out[k] = v
@@ -73,7 +79,7 @@ func semInvShapes() []semInvShape {
 	ord := func(name string, params map[string]any) semInvShape {
 		return semInvShape{name, "brand", cat, false, func(t *testing.T) *types.Request {
 			p := semInvBoot(true, params)
-			p["bootstrap_iters"], p["ci_level"] = 12, nil
+			p["ci_level"] = nil
 			return ordinalGroupRequest(t, "brand_ord", brandOrdered, p)
 		}}
 	}
@@ -99,14 +105,23 @@ var semInvSmoke = map[string]bool{"multigroup_categorical_u8": true, "defined": 
 // parallel-decode threshold.
 const semInvRepeat = 101
 
-// newSEMInvFixture writes s's twin and archive (hermetic); heavy adds
-// the decode-threshold file on disk for a mergeable shape.
-func newSEMInvFixture(t *testing.T, s semInvShape, heavy bool) map[invariance.Layout]invCohort {
+// semInvFixtures caches the cohorts per (csv, group field type), so
+// the shapes over the same rows share them.
+type semInvFixtures map[string]map[invariance.Layout]invCohort
+
+// of is s's cohorts: its twin and archive (hermetic), and — heavy, for a
+// smoke shape — the decode-threshold file on disk.
+func (f semInvFixtures) of(t *testing.T, s semInvShape, heavy bool) map[invariance.Layout]invCohort {
 	t.Helper()
-	_, twin := brandGroupCohort{csv: s.csv, wave: s.wave}.build(t, pulse.Options{})
-	_, archive := brandGroupCohort{csv: s.csv, wave: s.wave, shards: 230}.build(t, pulse.Options{})
-	out := map[invariance.Layout]invCohort{invariance.File: {twin, "brand.pulse"}, invariance.Archive: {archive, "brand.pulse"}}
-	if heavy && s.mergeable {
+	key := s.csv + "/" + s.wave.String()
+	out, ok := f[key]
+	if !ok {
+		_, twin := brandGroupCohort{csv: s.csv, wave: s.wave}.build(t, pulse.Options{})
+		_, archive := brandGroupCohort{csv: s.csv, wave: s.wave, shards: 230}.build(t, pulse.Options{})
+		out = map[invariance.Layout]invCohort{invariance.File: {twin, "brand.pulse"}, invariance.Archive: {archive, "brand.pulse"}}
+		f[key] = out
+	}
+	if _, built := out[invariance.BigFile]; heavy && semInvSmoke[s.name] && !built {
 		disk := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
 		brandGroupCohort{csv: s.csv, wave: s.wave, fsys: disk, repeat: func(int) int { return semInvRepeat }}.build(t, pulse.Options{})
 		out[invariance.BigFile] = invCohort{disk, "brand.pulse"}
@@ -114,27 +129,24 @@ func newSEMInvFixture(t *testing.T, s semInvShape, heavy bool) map[invariance.La
 	return out
 }
 
-// semInvGroups are s's groups: the archive group (a serial shape names
-// the buffered arm on every cell and reruns the reference knobs), and
-// in the heavy tier the decode group for a mergeable shape.
+// semInvGroups are s's groups. A merging shape: the archive group (fast
+// tier for the smoke shapes, heavy for the other group field types),
+// and in the heavy tier the decode group for the smoke shapes. A serial
+// (bootstrap) shape: the spot archive group (invSerialSpotArchiveGroup),
+// every cell on the buffered arm.
 func semInvGroups(s semInvShape, heavy bool) []invariance.Group {
-	archive := invariance.ArchiveGroup()
-	if !s.mergeable {
-		for i := range archive.Cells {
-			archive.Cells[i].Arm = observe.ArmBuffered
-		}
-		archive.Cells = append(archive.Cells, invariance.Cell{Knobs: archive.Ref.Knobs, Arm: observe.ArmBuffered})
+	switch {
+	case !s.mergeable:
+		return []invariance.Group{invSerialSpotArchiveGroup(observe.ArmBuffered)}
+	case heavy && semInvSmoke[s.name]:
+		return []invariance.Group{invariance.DecodeGroup("decode", invariance.BigFile)}
 	}
-	gs := []invariance.Group{archive}
-	if heavy && s.mergeable {
-		gs = append(gs, invariance.DecodeGroup("decode", invariance.BigFile))
-	}
-	return gs
+	return []invariance.Group{invariance.ArchiveGroup()}
 }
 
-// semInvFamily is shape s over groups.
-func semInvFamily(t *testing.T, s semInvShape, heavy bool) invariance.Family[*types.Response] {
-	cohorts := newSEMInvFixture(t, s, heavy)
+// semInvFamily is shape s over its groups.
+func semInvFamily(t *testing.T, fixtures semInvFixtures, s semInvShape, heavy bool) invariance.Family[*types.Response] {
+	cohorts := fixtures.of(t, s, heavy)
 	return invariance.Family[*types.Response]{
 		Name:   s.name,
 		Groups: semInvGroups(s, heavy),
@@ -167,9 +179,10 @@ func semInvFamily(t *testing.T, s semInvShape, heavy bool) invariance.Family[*ty
 func TestSEMInvariance_Archive(t *testing.T) {
 	t.Parallel()
 
+	fixtures := semInvFixtures{}
 	for _, s := range semInvShapes() {
 		if semInvSmoke[s.name] {
-			invariance.Run(t, semInvFamily(t, s, false))
+			invariance.Run(t, semInvFamily(t, fixtures, s, false))
 		}
 	}
 }

@@ -29,7 +29,7 @@ import (
 //
 // over a shard archive (a 1-row and an empty shard) under ShardWorkers
 // 1/2/3/8 and DecodeWorkers 7 ≡ its single-file twin, and (heavy,
-// extensions_regression_invariance_heavy_test.go) DecodeWorkers 2/3/7/8
+// extensions_regression_invariance_heavy_test.go) DecodeWorkers 3 and 8
 // over a cohort past the parallel-decode threshold ≡ serial.
 
 // regInvBounds splits the twin's 120 rows into 1, 40, 0 and 79.
@@ -93,8 +93,9 @@ func regInvShapes() []regInvShape {
 	}
 }
 
-// regInvGroups are a shape's groups, every cell on the serial arm; the
-// resample shape reruns the reference knobs.
+// regInvGroups are a shape's groups, every cell on the serial arm: the
+// archive group in the fast tier (the resample shape reruns the
+// reference knobs), the serial decode group in the heavy one.
 func regInvGroups(s regInvShape, heavy bool) []invariance.Group {
 	serial := func(g invariance.Group) invariance.Group {
 		for i := range g.Cells {
@@ -102,15 +103,14 @@ func regInvGroups(s regInvShape, heavy bool) []invariance.Group {
 		}
 		return g
 	}
+	if heavy {
+		return []invariance.Group{invSerialDecodeGroup("decode", invariance.BigFile, observe.ArmBuffered)}
+	}
 	archive := invariance.ArchiveGroup()
 	if s.resample {
 		archive.Cells = append(archive.Cells, invariance.Cell{Knobs: archive.Ref.Knobs})
 	}
-	gs := []invariance.Group{serial(archive)}
-	if heavy {
-		gs = append(gs, serial(invariance.DecodeGroup("decode", invariance.BigFile)))
-	}
-	return gs
+	return []invariance.Group{serial(archive)}
 }
 
 // regInvFamily is shape s over groups.

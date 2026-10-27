@@ -97,9 +97,6 @@
 3 ./optimize TestOptimize_NoFMAContraction
 
 # shard 4: . 49s, ./internal/sem 48s
-4 . TestBitExact_CountsAndDistinctSums
-4 . TestBitExact_FormulaTotalOutsideFirstCut
-4 . TestBitExact_GroupRounded
 4 . TestExtensionRegressionInvariance_Heavy
 4 . TestGroupKMeans_DecodeWorkersAgree
 4 . TestPanicRecovery_PoolRepanics
@@ -119,7 +116,6 @@
 4 ./internal/sem TestSEM_BootstrapOrdinalMatchesLavaanSampling
 
 # shard 5: . 49s, ./internal/tools/sites 45s
-5 . TestBitExact_FormulaTotal
 5 . TestExportReference_DefaultDeterministic
 5 . TestLimitsDefaultsNeverTripGoldens
 5 . TestMultiGrouperInvariance_Heavy
@@ -143,7 +139,7 @@
 5 ./internal/tools/sites TestTypeCheck_OncePerRepo
 
 # shard 6: . 49s, ./internal/descriptor 24s, ./internal/regmmm 22s
-6 . TestBitExact_Crosstab
+6 . TestBitExact_Heavy
 6 . TestCoreModuleNoObservabilityDeps
 6 . TestExamples_RunEndToEnd
 6 . TestExtensionMatrixInvariance_Heavy
