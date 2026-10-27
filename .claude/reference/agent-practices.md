@@ -43,7 +43,7 @@ Each rule's reason comes from a failure this repo already shipped.
 This set covers everything CI runs:
 
 1. `GOTOOLCHAIN=go1.26.1 make lint` (`fmt-check` + vet + staticcheck). `fmt-check` fails on any file `gofmt -l .` lists, and the CI `lint` job runs the same target, so an unformatted file fails CI; `make fmt` fixes it. *Why: with a newer local toolchain, staticcheck breaks on export data.*
-2. `go test -count=1 ./...`
+2. `go test -tags heavy -count=1 ./...`
 3. `make smoke`. The embedder module is nested, so `./...` never reaches it.
 4. `GOTOOLCHAIN=go1.26.1 make contrib` (the nested contrib modules; tidy, vet, staticcheck, test).
 

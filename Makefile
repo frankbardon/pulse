@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test test-heavy smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -33,8 +33,15 @@ clean:
 dist:
 	LDFLAGS="$(LDFLAGS)" GO="$(GO)" ./scripts/release-dist.sh "$(VERSION)" "$(DIST_DIR)"
 
+# Two test tiers. `make test` is the fast tier: every untagged _test.go
+# file. Tests that take >= 1 s live in *_heavy_test.go files that start
+# with `//go:build heavy`; `make test-heavy` adds them (it runs both
+# tiers). Helpers both tiers use stay in untagged files.
 test:
 	$(GO) test $(TESTFLAGS) ./...
+
+test-heavy:
+	$(GO) test -tags heavy $(TESTFLAGS) ./...
 
 # smoke builds, vets and tests internal/embeddersmoke: a separate Go
 # module (own go.mod, replace => ../..) that embeds Pulse through the
@@ -86,11 +93,19 @@ fmt:
 fmt-check:
 	@out=$$($(GOFMT) -l .); if [ -n "$$out" ]; then echo "gofmt needed (run make fmt):"; echo "$$out"; exit 1; fi
 
+# vet and staticcheck check both test tiers: the fast tier alone (a fast
+# file must not lean on a heavy-only helper) and with -tags heavy.
+# staticcheck -merge combines the two runs, so a helper only heavy tests
+# use is not reported unused (U1000) by the fast-tier run.
 vet:
 	$(GO) vet ./...
+	$(GO) vet -tags heavy ./...
 
 lint: fmt-check vet
-	$(GO) run honnef.co/go/tools/cmd/staticcheck@latest ./...
+	@set -e; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+		$(GO) run $(STATICCHECK) -f binary ./... > "$$tmp/fast.bin"; \
+		$(GO) run $(STATICCHECK) -f binary -tags heavy ./... > "$$tmp/heavy.bin"; \
+		$(GO) run $(STATICCHECK) -merge "$$tmp/fast.bin" "$$tmp/heavy.bin"
 
 # bench runs the in-tree benchmark suite. Manual target — not wired into
 # `make test`. Covers the service-layer crosstab + scan benches, the

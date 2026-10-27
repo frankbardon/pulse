@@ -18,8 +18,11 @@ trying to figure out which CI gate to run locally before pushing.
 ## Running tests
 
 ```bash
-# Full suite
+# Fast tier
 go test ./...
+
+# Full suite: both tiers (see Running CI Gates Locally → Test tiers)
+go test -tags heavy ./...
 
 # Single package
 go test ./internal/processing/...

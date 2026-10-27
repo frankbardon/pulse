@@ -19,11 +19,12 @@ var cliOnlyImports = []string{
 	"github.com/urfave/cli",
 }
 
-// TestRootTestGraphExcludesCLI walks `go list -deps -test .` for the root
-// package (its in-package and external _test.go files and everything
-// they reach transitively) and fails if any CLI-only package is in it.
+// TestRootTestGraphExcludesCLI walks `go list -tags heavy -deps -test .`
+// for the root package (its in-package and external _test.go files of
+// both test tiers and everything they reach transitively) and fails if
+// any CLI-only package is in it.
 func TestRootTestGraphExcludesCLI(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps", "-test", ".").CombinedOutput()
+	out, err := exec.Command("go", "list", "-tags", "heavy", "-deps", "-test", ".").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list -deps -test .: %v\n%s", err, out)
 	}

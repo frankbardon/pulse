@@ -33,8 +33,9 @@ jobs:
 
       # The 30m per-package timeout is a stopgap while the root and
       # internal/service packages run near go test's 10m default.
+      # test-heavy runs both test tiers (fast + `//go:build heavy`).
       - name: Test
-        run: make test TESTFLAGS=-timeout=30m
+        run: make test-heavy TESTFLAGS=-timeout=30m
 
       - name: Embedder smoke module
         run: make smoke
