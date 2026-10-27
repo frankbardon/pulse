@@ -191,6 +191,8 @@ func renameXt(s string, c crosstabCellCase) string {
 // margins, auxiliary margin figures, Components and Metadata equal the
 // built-in twin's in every execution mode.
 func TestExtensions_DeclaredMarginCellFusesCrosstab(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	for _, mode := range parityModes(large) {
 		if mode.decorate != nil {
@@ -256,6 +258,8 @@ func TestExtensions_DeclaredMarginCellFusesCrosstab(t *testing.T) {
 // engine drives it through the buffered Aggregate, and the result
 // still equals the built-in's (which itself fused).
 func TestExtensions_UndeclaredMarginCellStaysBuffered(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "parity.pulse", paritySchema(t), 0, paritySmallRows)
@@ -300,6 +304,8 @@ func TestExtensions_UndeclaredMarginCellStaysBuffered(t *testing.T) {
 // independent in role), and a non-Mergeable one declines fusion rather
 // than being dropped.
 func TestExtensions_ExtensionAuxMarginAggregationFuses(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	ext := crosstabCellExtensions(probe)
 	ext.Aggregators = append(ext.Aggregators, paritySumRegistration(probe, aggXtNoMerge, false))
@@ -355,6 +361,8 @@ func marginMismatch(t *testing.T, reg pulse.AggregatorRegistration, reason strin
 // TestExtensions_ProbeAggregator_MarginReducibilityMismatch covers the
 // probe triggers for a declared MarginReducibility.
 func TestExtensions_ProbeAggregator_MarginReducibilityMismatch(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	t.Run("unknown_class", func(t *testing.T) {
 		reg := paritySumRegistration(probe, aggXtSum, true)
@@ -399,6 +407,8 @@ func TestExtensions_ProbeAggregator_MarginReducibilityMismatch(t *testing.T) {
 // projection: the declared class reaches the manifest's extensions
 // block; an undeclared registration omits it.
 func TestExtensions_ManifestProjectsMarginReducibility(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: crosstabCellExtensions(&parityProbe{})})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -426,6 +436,8 @@ func TestExtensions_ManifestProjectsMarginReducibility(t *testing.T) {
 // extension cell's DECLARED class through the snapshot, so a declared
 // summable cell is not flagged while an undeclared one still is.
 func TestExtensions_PredictCrosstabNormalizeReadsDeclaredMargin(t *testing.T) {
+	t.Parallel()
+
 	var buf []byte
 	w := &byteSink{b: &buf}
 	if err := encoding.WriteHeader(w); err != nil {

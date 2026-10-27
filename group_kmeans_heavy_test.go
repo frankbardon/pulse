@@ -13,6 +13,8 @@ import (
 // TestGroupKMeans_DecodeWorkersAgree: above the parallel-decode
 // threshold, DecodeWorkers = 4 answers exactly as DecodeWorkers = 1.
 func TestGroupKMeans_DecodeWorkersAgree(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeParityCohort(t, afero.NewOsFs(), filepath.Join(dir, "large.pulse"), paritySchema(t), 0, parityLargeRows)
 	one, err := pulse.New(pulse.Options{DataDir: dir, DecodeWorkers: 1})

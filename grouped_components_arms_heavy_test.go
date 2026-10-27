@@ -15,6 +15,8 @@ import (
 // over a single file above the parallel-decode threshold, extension
 // slot included.
 func TestGroupedComponents_DecodeWorkersAgree(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeParityCohort(t, afero.NewOsFs(), filepath.Join(dir, "large.pulse"), paritySchema(t), 0, parityLargeRows)
 	probe := &parityProbe{}

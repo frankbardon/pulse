@@ -16,6 +16,8 @@ import (
 // the two copies together. A present value runs on every surface,
 // counting the rows equal to it.
 func TestAggFrequency_PredictMessageMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()

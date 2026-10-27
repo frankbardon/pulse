@@ -34,6 +34,8 @@ func wcCompose(kind types.OverlayKind, layout string, field any, refDisable, tgt
 }
 
 func TestComposeOverlay_WelfordComponentsDisabledRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	on, off := boolp(false), boolp(true)
 	for _, kind := range []types.OverlayKind{types.OverlayKindTVsRef, types.OverlayKindZVsRef} {

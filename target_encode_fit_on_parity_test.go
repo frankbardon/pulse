@@ -24,6 +24,8 @@ const (
 // without fit_on keeps the reworded warning — the same message and
 // details on both sides — and strict refuses it on both.
 func TestTargetEncodeFitOn_LeakageParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	strict, err := pulse.New(pulse.Options{FS: fs, Strict: true})
@@ -80,6 +82,8 @@ func TestTargetEncodeFitOn_LeakageParity(t *testing.T) {
 // self reference, an unknown name and a non-bool result are the same
 // PULSE_FORMULA_COMPILE_ERROR (code, message, details) on both sides.
 func TestTargetEncodeFitOn_CompileParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	cases := map[string]string{
@@ -110,6 +114,8 @@ func TestTargetEncodeFitOn_CompileParity(t *testing.T) {
 // are PROCESSING_CONFIG with the same message on both sides, predict
 // reporting each once.
 func TestTargetEncodeFitOn_ParamRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for name, params := range map[string]string{
@@ -141,6 +147,8 @@ func TestTargetEncodeFitOn_ParamRefusalParity(t *testing.T) {
 // fit_on calling to_day (the inherited zone rides the feature slot) and
 // neither side refuses the slot for it.
 func TestTargetEncodeFitOn_ZonedRequestRuns(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	body := `{"time_zone":"America/New_York","features":[{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"x","fit_on":"to_day(t_datetime) > 0"}}` + teCount
 	if _, err := p.Process(context.Background(), categoricalRequest(t, body, cohort)); err != nil {

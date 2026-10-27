@@ -21,6 +21,8 @@ import (
 // Non-vacuous: the unprofiled export names a hidden token of some
 // shipped profile, and of every all-but profile's capability.
 func TestProfileExportTreeSweep(t *testing.T) {
+	t.Parallel()
+
 	full, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)

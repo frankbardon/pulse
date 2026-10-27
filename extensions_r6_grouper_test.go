@@ -85,6 +85,8 @@ func r6GrouperEmit(extend.Grouper) (map[string]any, error) {
 // Grouper interface, hiding MultiKeyStreamingGrouper, so the request
 // silently fell back to the buffered Group path.
 func TestExtensions_FanOutGrouperWithComponentsStaysMultiKey(t *testing.T) {
+	t.Parallel()
+
 	calls := &r6GrouperCalls{}
 	reg := pulse.GrouperRegistration{
 		Name: "GROUP_ACME_R6_FAN",
@@ -127,6 +129,8 @@ func TestExtensions_FanOutGrouperWithComponentsStaysMultiKey(t *testing.T) {
 // Streamable=false one runs buffered (Group), and the emitter's keys
 // plus the universal floor reach Components.Groupers either way.
 func TestExtensions_GrouperComponentsEmitOnGroupedPaths(t *testing.T) {
+	t.Parallel()
+
 	for _, streamable := range []bool{true, false} {
 		calls := &r6GrouperCalls{}
 		reg := pulse.GrouperRegistration{

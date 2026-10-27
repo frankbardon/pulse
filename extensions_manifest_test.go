@@ -14,6 +14,8 @@ import (
 // surfaces every category in Manifest.Extensions, with Names parsed
 // into Namespaces and Params copied through.
 func TestExtensions_Manifest_EmissionPopulatesAllCategories(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:        "AGG_ACME_BRAND_SCORE",
@@ -93,6 +95,8 @@ func TestExtensions_Manifest_EmissionPopulatesAllCategories(t *testing.T) {
 // Extensions block is present but empty (every slice is []) when no
 // extensions are registered. Stable JSON shape across hosts.
 func TestExtensions_Manifest_EmptyWhenNoExtensions(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -114,6 +118,8 @@ func TestExtensions_Manifest_EmptyWhenNoExtensions(t *testing.T) {
 // Extensions sub-slices are sorted by Name regardless of registration
 // order. The manifest must byte-match across runs.
 func TestExtensions_Manifest_DeterministicSort(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{
 			{Name: "AGG_ACME_ZULU", Factory: stubAggregatorFactory},

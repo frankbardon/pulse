@@ -19,6 +19,8 @@ func newLimitsInstance(t *testing.T, l Limits) (*Pulse, error) {
 // default, and the service and the instance snapshot carry the same
 // effective values the accessor reports.
 func TestLimits_DefaultsResolve(t *testing.T) {
+	t.Parallel()
+
 	p, err := newLimitsInstance(t, Limits{})
 	if err != nil {
 		t.Fatal(err)
@@ -59,6 +61,8 @@ func TestLimits_DefaultsResolve(t *testing.T) {
 // TestLimits_OptionsInstalled: non-zero Options values (incl. Unlimited)
 // reach the accessor, the service and the snapshot.
 func TestLimits_OptionsInstalled(t *testing.T) {
+	t.Parallel()
+
 	in := Limits{
 		RequestTimeout:     5 * time.Second,
 		MaxGroups:          Unlimited,
@@ -88,6 +92,8 @@ func TestLimits_OptionsInstalled(t *testing.T) {
 // TestLimits_AccessorIsCopy: mutating the returned value never changes
 // the instance.
 func TestLimits_AccessorIsCopy(t *testing.T) {
+	t.Parallel()
+
 	p, err := newLimitsInstance(t, Limits{})
 	if err != nil {
 		t.Fatal(err)
@@ -102,6 +108,8 @@ func TestLimits_AccessorIsCopy(t *testing.T) {
 // TestLimits_InvalidRefused: -2 on every field fails New with
 // PULSE_LIMIT_INVALID naming the field.
 func TestLimits_InvalidRefused(t *testing.T) {
+	t.Parallel()
+
 	v := reflect.ValueOf(Limits{})
 	snake := map[string]string{
 		"RequestTimeout":     "request_timeout",

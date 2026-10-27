@@ -113,6 +113,8 @@ func formulaCompileBody(body string) string {
 // case's predict verdict equals the runtime's — code, message and every
 // details key — and a valid expression is clean on both.
 func TestFormulaCompile_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, data := formulaCompilePulse(t)
 	for _, c := range formulaCompileCases {
 		t.Run(c.name, func(t *testing.T) {
@@ -159,6 +161,8 @@ func assertFormulaCompileParity(t *testing.T, p *pulse.Pulse, data []byte, mk fu
 // TestFormulaCompile_EveryPredictRoot: the compile runs on the Compose
 // slot and chain stage roots too, and on a facet's filterers.
 func TestFormulaCompile_EveryPredictRoot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := formulaCompilePulse(t)
 	want := string(perr.PULSE_FORMULA_COMPILE_ERROR)
@@ -245,6 +249,8 @@ var calendarFormulaCompileCases = []struct {
 // helpers' verdicts agree at predict and at the run — code, message and
 // details — under a request time zone too.
 func TestFormulaCompile_CalendarPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, data := calfPulse(t, pulse.Options{})
 	for _, c := range calendarFormulaCompileCases {
 		for _, zone := range []string{"", "America/New_York"} {
@@ -354,6 +360,8 @@ func decimalFormulaRequest(t *testing.T, body string) *types.Request {
 // the runtime runs and refuses an ill-typed decimal expression under the
 // runtime's code, message and details.
 func TestFormulaCompile_DecimalPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, data := decimalFormulaPulse(t)
 	for _, c := range decimalFormulaCompileCases {
 		t.Run(c.name, func(t *testing.T) {
@@ -369,6 +377,8 @@ func TestFormulaCompile_DecimalPredictMatchesRuntime(t *testing.T) {
 // the float() escape reproduces float64's misses (the oracle counts
 // them, so the exact path is proven to differ).
 func TestDecimalFormula_ExactInFilterAndFormula(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := decimalFormulaPulse(t)
 	floatMisses := 0

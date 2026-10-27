@@ -173,6 +173,8 @@ func fbWire(t *testing.T, resp *Response) string {
 // the bound request streamable on both shapes and the fit_on twin
 // buffered when grouped.
 func TestFitBound_MatchesTwoPassFit(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitBoundFS(t)
 	ctx := context.Background()
 	plain, err := New(Options{FS: fsys})
@@ -281,6 +283,8 @@ func TestFitBound_MatchesTwoPassFit(t *testing.T) {
 // resolved there like every other arm, and a bound fit's warning raised
 // ONCE, not once per shard.
 func TestFitBound_ShardReducer(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitBoundFS(t)
 	ctx := context.Background()
 	serial, err := New(Options{FS: fsys, ShardWorkers: 1})
@@ -340,6 +344,8 @@ func TestFitBound_ShardReducer(t *testing.T) {
 // reducer, captures its state exactly once (the reducer's per-shard
 // builds never offer), so the batch equals its serial run byte for byte.
 func TestFitBound_ComposeFitOnShards(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitBoundFS(t)
 	ctx := context.Background()
 	run := func(workers int) []byte {
@@ -380,6 +386,8 @@ func exactBattery() *Request {
 // Process rows; predict agrees. The same stage folding its own fit
 // (fit_on) is PULSE_CHAIN_NOT_MERGEABLE on predict and runtime alike.
 func TestFitBound_ChainStage(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitBoundFS(t)
 	ctx := context.Background()
 	raw, err := afero.ReadFile(fsys, fbAttrPop)
@@ -447,6 +455,8 @@ func TestFitBound_ChainStage(t *testing.T) {
 // warnings equal the fit_on twin's, which declines fusion and runs
 // buffered.
 func TestFitBound_CrosstabFuses(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitBoundFS(t)
 	ctx := context.Background()
 	p, err := New(Options{FS: fsys})

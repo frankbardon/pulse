@@ -17,6 +17,8 @@ import (
 // equals the unshaped run's, serial and parallel, while the slots'
 // wire still drops components.
 func TestReturnComputeVeto_ComposeOverlayKeepsSlotComponents(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	p := newReturnInstance(t, fs, pulse.Options{})
 	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}

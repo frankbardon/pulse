@@ -14,6 +14,8 @@ import (
 // alpha outside (0, 1) is refused PULSE_TEST_INVALID_ALPHA by the runtime
 // and by predict alike; an in-range alpha runs and emits both bounds.
 func TestFisherExact_InvalidAlphaMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	mk := func(alpha float64) *types.Request {

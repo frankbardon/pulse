@@ -57,6 +57,8 @@ func ratioLabelRef(keepRegion func(int) bool, num func(r int) float64) float64 {
 // denominator equals Σnum/Σden exactly, ungrouped and per group row;
 // predict accepts the same request without error.
 func TestAggRatio_DerivedLabelNumerator(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := ratioLabelPulse(t)
 	ctx := context.Background()
 	regions := []string{"north", "south", "east", "west"}
@@ -119,6 +121,8 @@ func TestAggRatio_DerivedLabelNumerator(t *testing.T) {
 // (ATTR_NORMALIZED) as numerator equals the ratio of the two sums the
 // same response reports, bit for bit.
 func TestAggRatio_TwoPassAttributeNumerator(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ratioLabelPulse(t)
 	req := &types.Request{Cohort: &types.Cohort{Filename: "rl.pulse"},
 		Filterers:  []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "score != nil"}},
@@ -145,6 +149,8 @@ func TestAggRatio_TwoPassAttributeNumerator(t *testing.T) {
 // NaN in Go and null on the wire (scalar and components.ratio), never
 // an error.
 func TestAggRatio_DerivedLabelZeroDenominator(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ratioLabelPulse(t)
 	cases := map[string]*types.Request{
 		"derived_zero_den": {Cohort: &types.Cohort{Filename: "rl.pulse"},
@@ -206,6 +212,8 @@ func TestAggRatio_DerivedLabelZeroDenominator(t *testing.T) {
 // SERVICE_VALIDATION with the same message and details from predict and
 // runtime.
 func TestAggRatio_UnknownLabelRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := ratioLabelPulse(t)
 	attrs := []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty * 3 + 1", Label: "contrib"}}
 	cases := map[string]struct{ num, den, msg string }{

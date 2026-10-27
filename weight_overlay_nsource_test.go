@@ -32,6 +32,8 @@ var allPairwiseNSources = []string{"",
 // one-arm rule). The Compose panel's spellings are judged the same way
 // against ValidateComposeWithOptions.
 func TestWeight_OverlayNSourceRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	weights := map[string]types.WeightSpec{

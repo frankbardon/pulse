@@ -179,6 +179,8 @@ func elemProcess(cohort string, vector, expand bool, kind types.OverlayKind, fie
 
 // TestProcessOverlay_ScoresElementColumn: the request host.
 func TestProcessOverlay_ScoresElementColumn(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := vaggElementCohort(t)
 	for _, cohort := range []string{"e.pulse", "v.pulse"} {
@@ -233,6 +235,8 @@ var elemAvailable = []string{"s", "m", "m[b1]", "m[b2]"}
 // PULSE_OVERLAY_FIELD_UNKNOWN on predict and Process alike, Details
 // identical.
 func TestProcessOverlay_ElementColumnRefusedParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := vaggElementCohort(t)
 	for _, c := range []struct {
@@ -288,6 +292,8 @@ func elemCompose(vector, expand bool, kind types.OverlayKind, params map[string]
 // TestComposeOverlay_ScoresElementColumn: the Compose host, predict
 // first; the unknown-element refusal is identical on both sides.
 func TestComposeOverlay_ScoresElementColumn(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := elemComposeFixture(t)
 	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsRef, types.OverlayKindDeltaVsRef} {
@@ -380,6 +386,8 @@ func elemChain(vector, expand bool, kind types.OverlayKind, field string) *pulse
 // TestChainOverlay_ScoresElementColumn: the whole-chain host (one
 // stage compared with itself).
 func TestChainOverlay_ScoresElementColumn(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := elemComposeFixture(t)
 	for _, kind := range []types.OverlayKind{types.OverlayKindDeltaVsStage, types.OverlayKindIndexVsStage} {

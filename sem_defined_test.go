@@ -59,6 +59,8 @@ func semRow(t *testing.T, res types.MatrixResult, key string) (int, []float64) {
 // covariance-only description to lavaan's conventions: the ci columns
 // appear and the fit indices are lavaan's.
 func TestSEM_DefinedProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, c := range []struct {
 		ref    string
@@ -127,6 +129,8 @@ func TestSEM_DefinedProcessMatchesLavaan(t *testing.T) {
 // (a shared path times the wave change in a latent mean) matching
 // lavaan with the rest of the fit.
 func TestSEM_DefinedMultiGroupProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	ref := loadMG(t, "brand_mg_defined")
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	res := semGroupRun(t, p, semGroupRequest(t, "brand_mgdef", map[string]any{"group_equal": ref.Options.GroupEqual}))
@@ -178,6 +182,8 @@ func loadMG(t *testing.T, name string) mgLavaan {
 // block. An inherited request block never reaches the spec. Predict
 // counts the same family.
 func TestSEM_DefinedMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, grouped := range []bool{false, true} {
@@ -262,6 +268,8 @@ func TestSEM_DefinedMultiplicity(t *testing.T) {
 // are config refusals — SERVICE_VALIDATION with their reason — that
 // predict reports identically.
 func TestSEM_DefinedRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	base := "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ bq*quality + bv*value + bs*service\n"
@@ -301,6 +309,8 @@ func TestSEM_DefinedRefusals(t *testing.T) {
 // division by zero) nulls its row — and the row reading it — with
 // PULSE_MATRIX_DEFINED_NONFINITE, the fit and the other rows standing.
 func TestSEM_DefinedNonFinite(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	model := "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ bq*quality + bv*value + bs*service\n" +
 		"r := bq/(bv - bv)\nq := r + 1\nok := bq*bv"
@@ -334,6 +344,8 @@ func TestSEM_DefinedNonFinite(t *testing.T) {
 // TestSEM_DefinedWorkerInvariant: the := rows are bit-identical under
 // every decode worker count (they read the merged fit only).
 func TestSEM_DefinedWorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	var first []byte
 	for _, w := range []int{1, 3, 8} {
 		p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: w})

@@ -41,6 +41,8 @@ import (
 // internal/sem TestFit_ShapeMatchesSemopy pins the default fits from
 // the rows' own S.
 func TestSEMShape_OneRequestMatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	p := shapeCohort(t)
 	models := map[int]string{}
 	for _, n := range []int{63, 89} {

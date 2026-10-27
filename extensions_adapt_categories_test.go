@@ -50,6 +50,8 @@ func (a adaptAttrTwoPass) Finalize() error                     { *a.finalized = 
 // succeed on the adapted value iff the embedder value implements the
 // extend sibling, and every forwarded method reaches the embedder.
 func TestAdaptAttribute_ForwardsExactlyTheImplementedTier(t *testing.T) {
+	t.Parallel()
+
 	recs := twoRecords()
 	pre, fin := 0, false
 	cases := []struct {
@@ -115,6 +117,8 @@ func TestAdaptAttribute_ForwardsExactlyTheImplementedTier(t *testing.T) {
 // TestAdaptAttributeFactory_PropagatesErrorAndNil keeps the factory
 // adapter transparent for the two non-instance outcomes.
 func TestAdaptAttributeFactory_PropagatesErrorAndNil(t *testing.T) {
+	t.Parallel()
+
 	boom := stderrors.New("boom")
 	f := adaptAttributeFactory(AttributeRegistration{
 		Factory: func(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) { return nil, boom },
@@ -151,6 +155,8 @@ func (adaptPostTest) Run(rows []map[string]any) (*types.TestResult, error) {
 // engine's RowTest reaches the embedder with the engine's own record
 // and that Finalize's result passes through untouched.
 func TestAdaptRowTestFactory_ForwardsUpdateRowAndFinalize(t *testing.T) {
+	t.Parallel()
+
 	var seen []extend.Record
 	f := adaptRowTestFactory(TestRegistration{
 		RowFactory: func(*types.Test, *encoding.Schema) (extend.RowTest, error) {
@@ -181,6 +187,8 @@ func TestAdaptRowTestFactory_ForwardsUpdateRowAndFinalize(t *testing.T) {
 // TestAdaptTestFactories_PropagateErrorAndNil covers both tiers'
 // non-instance outcomes, plus the tier-2 instance handed over as-is.
 func TestAdaptTestFactories_PropagateErrorAndNil(t *testing.T) {
+	t.Parallel()
+
 	boom := stderrors.New("boom")
 	row := adaptRowTestFactory(TestRegistration{
 		RowFactory: func(*types.Test, *encoding.Schema) (extend.RowTest, error) { return nil, boom },
@@ -235,6 +243,8 @@ func (adaptWindow) Compute(rows []map[string]any, partitions [][]int, label stri
 // window factory reaches the embedder (spec passed through) and
 // propagates its error and nil outcomes.
 func TestAdaptWindowFactory_ForwardsComputeErrorAndNil(t *testing.T) {
+	t.Parallel()
+
 	var gotSpec *types.Window
 	f := adaptWindowFactory(WindowRegistration{
 		Factory: func(w *types.Window, _ extend.WindowOptions) (extend.WindowComputer, error) {
@@ -307,6 +317,8 @@ func (a adaptFeatStreaming) EmitRow(rec extend.Record, _ string) (map[string]ext
 // embedder over the engine's own records and converts the outputs, and
 // that PrePass / Finalize / EmitRow are forwarded.
 func TestAdaptFeature_ForwardsStreamingIffImplemented(t *testing.T) {
+	t.Parallel()
+
 	recs := twoRecords()
 	view := []feature.Record{recs[0], recs[1]}
 
@@ -351,6 +363,8 @@ func TestAdaptFeature_ForwardsStreamingIffImplemented(t *testing.T) {
 // error, never an index panic in the engine's write loop, while a
 // null-marked row with no value is accepted.
 func TestAdaptFeature_EmitRowRejectsMalformedOutput(t *testing.T) {
+	t.Parallel()
+
 	recs := twoRecords()
 	for _, c := range []struct {
 		name string
@@ -404,6 +418,8 @@ func (minimalFeatureRecord) SetNull(string)      {}
 // feature.Record degrades to a read-only view that reports its numeric and categorical reads and "no value" for
 // everything else.
 func TestFeatureRecord_EngineRecordPassesThroughAndMinimalDegrades(t *testing.T) {
+	t.Parallel()
+
 	recs := twoRecords()
 	if featureRecord(recs[0]).(extRecord).Record != recs[0] {
 		t.Error("engine record did not reach the embedder as its extRecord view")
@@ -435,6 +451,8 @@ func TestFeatureRecord_EngineRecordPassesThroughAndMinimalDegrades(t *testing.T)
 // TestAdaptFeatureFactory_PropagatesErrorAndNil keeps the factory
 // adapter transparent for the two non-instance outcomes.
 func TestAdaptFeatureFactory_PropagatesErrorAndNil(t *testing.T) {
+	t.Parallel()
+
 	boom := stderrors.New("boom")
 	f := adaptFeatureFactory(FeatureRegistration{
 		Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) { return nil, boom },

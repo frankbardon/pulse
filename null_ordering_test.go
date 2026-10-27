@@ -84,6 +84,8 @@ var (
 // comparison, null term included, so every Desc key put its nulls FIRST
 // while the contract says nulls last regardless of direction.
 func TestNullOrdering_LastInBothDirections(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := nullOrderCohort(t)
 	ctx := context.Background()
 	for _, field := range []string{"n", "amt", "d", "ts", "flag", "cat"} {
@@ -130,6 +132,8 @@ func TestNullOrdering_LastInBothDirections(t *testing.T) {
 // as an opaque struct, every row compared equal, and the sort silently
 // kept the grouper's key order.
 func TestNullOrdering_GroupedSortByDecimalAggregate(t *testing.T) {
+	t.Parallel()
+
 	p, _ := nullOrderCohort(t)
 	ctx := context.Background()
 	// SUM(amt) per id bucket: 1→10.50 2→-3.25 3→2.50 4→100.00; id 5's

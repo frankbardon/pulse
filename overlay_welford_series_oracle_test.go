@@ -29,6 +29,8 @@ import (
 // slot built with components disabled is refused
 // (TestComposeOverlay_WelfordComponentsDisabledRefused).
 func TestReferenceOracle_ComposeWelfordSeriesVsRef(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile(filepath.Join("internal", "processing", "testdata", "reference", "overlay_mean_vs_ref.json"))
 	if err != nil {
 		t.Fatal(err)

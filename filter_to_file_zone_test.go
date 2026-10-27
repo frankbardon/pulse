@@ -169,6 +169,8 @@ func ftzCount(t *testing.T, m ftzMode, filterers []*types.Filterer, tz string) i
 // Each zoned case keeps a different row count than its UTC twin, so a
 // path that dropped the zone would fail.
 func TestFilterToFile_DateRangesMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	params := ftzRanges(t)
 	dr := func(field, tz, tzField string) *types.Filterer {
@@ -243,6 +245,8 @@ func ftzUTC(filterers []*types.Filterer) []*types.Filterer {
 // the same output. A `date` field applies no inherited zone, so its
 // output is shared across zones.
 func TestFilterToFile_ResolvedZoneKeysDedup(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	ftzWrite(t, fsys, "c.pulse", calfRows)
@@ -318,6 +322,8 @@ func TestFilterToFile_ResolvedZoneKeysDedup(t *testing.T) {
 // is written. An extension filterer is not zone-capable, so its `tz` /
 // `tz_field` is refused as on any other such operator, built-in or not.
 func TestFilterToFile_ZoneRefusalsMatchProcess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	ftzWrite(t, fsys, "c.pulse", calfRows)

@@ -30,6 +30,8 @@ func caCrosstab(cohort string, cols *types.Group, cell types.AggregationType, w 
 }
 
 func TestCorrespondence_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	byRange := &types.Group{Type: types.GROUP_RANGE, Field: "x", Interval: 20}
@@ -64,6 +66,8 @@ func TestCorrespondence_RefusalsMatchPredict(t *testing.T) {
 }
 
 func TestCorrespondence_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	// The parts the manifest declares are exactly the parts a run emits

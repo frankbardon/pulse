@@ -23,6 +23,8 @@ import (
 // pulse.Process. Asserts no errors come back. Catches both example
 // bitrot (schema drift) and operator regressions.
 func TestExamples_RunEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 
@@ -88,6 +90,8 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // drift between the example wire shape and the regression engine
 // surface.
 func TestRegressionExamplesEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -170,6 +174,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 // the bootstrap slot keeps the estimates, echoes 200 replicates and
 // replaces the SEs and intervals.
 func TestExamples_SEMContributionRecipe(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	builder, err := pulse.New(pulse.Options{FS: osfs})

@@ -340,6 +340,8 @@ func extInvDiff(got, want *types.Response, drop ...string) string {
 // followed the worker partition could not pass
 // TestExtensionMatrix_WorkerInvariant.
 func TestExtensionMatrix_WorkerInvariantGateBites(t *testing.T) {
+	t.Parallel()
+
 	const blocks = 25
 	for _, mode := range []linalg.CoMomentMode{linalg.Listwise, linalg.Pairwise} {
 		parts := make([]*linalg.CoMoment, blocks)

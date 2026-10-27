@@ -181,6 +181,8 @@ func loadSEMBoot(t *testing.T, name string) semBootLavaan {
 // and nothing else, an explicit 0.95 is the default's bits, and a
 // semopy-convention fit (no interval) refuses it, predict ≡ runtime.
 func TestSEM_CILevelWald(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	base := semGroupRun(t, p, semGroupRequest(t, "brand_def", map[string]any{"group": nil, "meanstructure": true}))
@@ -253,6 +255,8 @@ func TestSEM_CILevelWald(t *testing.T) {
 // buffered downgrade (request and spec level, the spec's own verdict),
 // and the runtime result is what that request computes.
 func TestSEM_BootstrapPredictBuffered(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, params := range []map[string]any{
 		{"group": nil, "resample": "bootstrap", "bootstrap_iters": 12},
@@ -284,6 +288,8 @@ func TestSEM_BootstrapPredictBuffered(t *testing.T) {
 // with the bootstrap's reason, predict ≡ runtime; the same weight
 // without resample still fits.
 func TestSEM_BootstrapWeightRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8, weight: func(r int) int { return 1 + r%2 }}.build(t, pulse.Options{})
 	w := types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
@@ -317,6 +323,8 @@ func TestSEM_BootstrapWeightRefused(t *testing.T) {
 // — beside a slot that fits, and PULSE_SLOT_FAILED warns; under Strict
 // the run fails with the slot's own code.
 func TestSEM_BootstrapTooFewFailsSlot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	req := semGroupRequest(t, "brand_mgmis", map[string]any{"group": nil, "resample": "bootstrap", "bootstrap_iters": 200, "max_iter": 1})
@@ -356,6 +364,8 @@ func TestSEM_BootstrapTooFewFailsSlot(t *testing.T) {
 // outside (0, 1) and a params.fit binding are config refusals that
 // predict reports identically.
 func TestSEM_BootstrapRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for name, c := range map[string]struct {
@@ -391,6 +401,8 @@ func TestSEM_BootstrapRefusals(t *testing.T) {
 // corrects the BOOTSTRAP p-values (every free and := row), the raw p
 // never moving.
 func TestSEM_BootstrapMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	req := semGroupRequest(t, "brand_def", map[string]any{"group": nil, "resample": "bootstrap", "bootstrap_iters": 40, "rng_seed": 5})
 	base := semGroupRun(t, p, req)

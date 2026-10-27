@@ -96,6 +96,8 @@ func ratio(a, b float64) float64 { return a / b }
 // the cumulative lift — D9 reads 978/2149, 3600/18000 and their quotient
 // — through Process, ProcessStream (buffered) and predict.
 func TestWinShare_DecileGainsTable(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := gainsCohort(t)
 	ctx := context.Background()
 	resp, err := p.Process(ctx, gainsReq(gainsWindows))
@@ -156,6 +158,8 @@ func TestWinShare_DecileGainsTable(t *testing.T) {
 // TestWinShare_ZeroTotalIsNullOnTheWire: a partition whose total is 0
 // reads null — the key kept, never 0 — on the JSON wire.
 func TestWinShare_ZeroTotalIsNullOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	p, _ := gainsCohort(t)
 	// The share of a column that is 0 on every row, and a lift over it.
 	req := gainsReq(`[
@@ -196,6 +200,8 @@ func TestWinShare_ZeroTotalIsNullOnTheWire(t *testing.T) {
 // (predict "window[0] (TYPE): rule", runtime "TYPE: rule"). A
 // non-cumulative slot without order_by runs on every surface.
 func TestWinShare_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := gainsCohort(t)
 	ctx := context.Background()
 	records := func(windows string) *types.Request {
@@ -310,6 +316,8 @@ func TestWinShare_PredictMatchesRuntime(t *testing.T) {
 // vector, PULSE_VECTOR_FIELD_NOT_SCALAR — with the same code on predict
 // and at runtime, and an accepted type runs on both.
 func TestWinLift_BaseTypePredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, ft := range acceptanceFieldTypes() {

@@ -214,8 +214,12 @@ func streamabilityRows() []streamabilityRow {
 // predict == CanStreamRequestWithExtensions matrix over every
 // extension category with a streaming tier.
 func TestExtensions_StreamabilityFollowsDeclaration(t *testing.T) {
+	t.Parallel()
+
 	for _, row := range streamabilityRows() {
 		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+
 			probe, grp, calls := &parityProbe{}, &r6GrouperCalls{}, &e2eCalls{}
 			p, cohort := openE2E(t, streamabilityExtensions(probe, grp, calls))
 			req := *row.req
@@ -268,6 +272,8 @@ func TestExtensions_StreamabilityFollowsDeclaration(t *testing.T) {
 // extension grouper carries no "buckets" payload, so the streaming arm
 // must count its own (record, bucket) assignments.
 func TestExtensions_StreamingGrouperMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	probe, grp, calls := &parityProbe{}, &r6GrouperCalls{}, &e2eCalls{}
 	p, cohort := openE2E(t, streamabilityExtensions(probe, grp, calls))
 	run := func(g types.GroupType) string {
@@ -292,6 +298,8 @@ func TestExtensions_StreamingGrouperMatchesBuffered(t *testing.T) {
 // buffered at runtime, and predict now says so (it previously reported
 // Streamable=true for this shape).
 func TestStreamability_TwoPassCombinationPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, pulse.Extensions{})
 	req := &types.Request{
 		Cohort:       cohort,
@@ -321,6 +329,8 @@ func TestStreamability_TwoPassCombinationPredictMatchesRuntime(t *testing.T) {
 // refusal, never a crash. The matching pair is the streamability matrix
 // above (feature_declared_streamable / feature_declared_buffered).
 func TestExtensions_FeatureStreamableMismatchRefused(t *testing.T) {
+	t.Parallel()
+
 	calls := &e2eCalls{}
 	streaming := func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
 		return e2eFeatStreaming{e2eFeat{calls}}, nil

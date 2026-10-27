@@ -107,6 +107,8 @@ func wpWindow(wt types.WindowType) *types.Window {
 }
 
 func TestWindowRecordRows_ProjectionTransparent(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	engine := func(disable bool, shardWorkers int) *pulse.Pulse {

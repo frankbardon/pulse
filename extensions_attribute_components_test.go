@@ -74,6 +74,8 @@ func highRegistration(name types.AttributeType, counted bool) pulse.AttributeReg
 }
 
 func TestExtensions_AttributeComponentSchemaParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, path := brandScoreCohort(t, pulse.Extensions{Attributes: []pulse.AttributeRegistration{
 		highRegistration(attrHighCounted, true),
@@ -164,6 +166,8 @@ func TestExtensions_AttributeComponentSchemaParity(t *testing.T) {
 // an emitter without keys, keys without an emitter, and an emitter
 // whose keys stray from the schema are each refused.
 func TestExtensions_AttributeComponentSchemaRefusals(t *testing.T) {
+	t.Parallel()
+
 	emit := func(extend.AttributeComputer) (map[string]any, error) {
 		return map[string]any{"n_high": 0}, nil
 	}

@@ -28,6 +28,8 @@ import (
 // side, so they have no scope rows.
 
 func TestFacetOverlay_SpecRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	kinds := []types.OverlayKind{types.OverlayKindChiSqVsPop, types.OverlayKindIndexVsPop, types.OverlayKindKSVsPop, types.OverlayKindZScoreVsPop}
@@ -82,6 +84,8 @@ func TestFacetOverlay_SpecRefusalsMatchPredict(t *testing.T) {
 }
 
 func TestComposeOverlay_SlotRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	var kinds []types.OverlayKind
@@ -129,6 +133,8 @@ func TestComposeOverlay_SlotRefusalsMatchPredict(t *testing.T) {
 }
 
 func TestChainOverlay_StageRefRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	zero, one, nine := 0, 1, 9
@@ -188,6 +194,8 @@ func TestChainOverlay_StageRefRefusalsMatchPredict(t *testing.T) {
 // Process's PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS predict-chain never
 // raised, and both sides accepted the former.
 func TestChainStage_CrosstabRefusedBothSides(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 	xtab := func() *types.CrosstabSpec {
@@ -236,6 +244,8 @@ func TestChainStage_CrosstabRefusedBothSides(t *testing.T) {
 // same message and details; absent and `null` (the explicit "run
 // unweighted" opt-out, which is what a facet does) still run (#259).
 func TestFacetOverlay_WeightRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, kind := range []types.OverlayKind{types.OverlayKindChiSqVsPop, types.OverlayKindIndexVsPop, types.OverlayKindKSVsPop, types.OverlayKindZScoreVsPop} {

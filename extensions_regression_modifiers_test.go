@@ -121,6 +121,8 @@ func assertModifierParity(t *testing.T, b, e *types.RegressionResult) {
 // bootstrap on the streaming and the buffered clone equal REG_OLS's own
 // resample — the same rows, the same delete groups, the same draws.
 func TestExtensions_RegressionResampleMatchesBuiltin(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := modifierInstance(t)
 	freq := types.SlotWeightOf(types.WeightSpec{Field: "qty", Kind: types.WeightKindFrequency})
 	cases := []struct {
@@ -160,6 +162,8 @@ func TestExtensions_RegressionResampleMatchesBuiltin(t *testing.T) {
 // and stepwise selection (aic and bic, alone and under a jackknife) on a
 // SupportsSelection model keep REG_OLS's predictors and report its fit.
 func TestExtensions_RegressionSelectionMatchesBuiltin(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := modifierInstance(t)
 	strict := false // some selection kept a strict, non-empty subset
 	defer func() {
@@ -195,6 +199,8 @@ func TestExtensions_RegressionSelectionMatchesBuiltin(t *testing.T) {
 // refused under both modifiers at runtime (its predict-side refusal is a
 // pre-existing gap: runtimeOnly).
 func TestExtensions_RegressionModifierRefusalsParity(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := modifierInstance(t)
 	freq := types.SlotWeightOf(types.WeightSpec{Field: "qty", Kind: types.WeightKindFrequency})
 	for _, tc := range []struct {
@@ -282,6 +288,7 @@ func (s slowModel) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 // refused at pulse.New (missing_deviance), and the request deadline
 // (Options.Limits.RequestTimeout) bounds a slow model's replicate loop.
 func TestExtensions_RegressionModifierContract(t *testing.T) {
+	// serial: wall-clock bound; CPU contention from parallel tests would make it flaky
 	t.Run("replicate_coefficients", func(t *testing.T) {
 		first := 0
 		reg := pulse.RegressionRegistration{Name: "REG_PARITY_RENAMED", Description: "renames on replicates", PValues: true,

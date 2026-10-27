@@ -17,6 +17,8 @@ import (
 // declaration order, and each call hands out a deep copy — mutating
 // every nested slice of one result leaves the next call untouched.
 func TestGlossaryIntentsFacade(t *testing.T) {
+	t.Parallel()
+
 	g := Glossary()
 	if len(g) == 0 || !reflect.DeepEqual(g, descx.Glossary()) {
 		t.Fatal("Glossary() does not mirror the registry")
@@ -68,6 +70,8 @@ func snapshot(t *testing.T, v any) string {
 // render carries, and a registry heading is missing exactly when its
 // intent / glossary-term node was pruned from the instance graph.
 func TestGuidanceSkills_NeverPrunedByFeatureProfile(t *testing.T) {
+	t.Parallel()
+
 	kinds := map[string]descriptor.OntologyNodeKind{
 		skills.VirtualIntents:  descriptor.OntologyNodeIntent,
 		skills.VirtualGlossary: descriptor.OntologyNodeGlossaryTerm,

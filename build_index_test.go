@@ -16,6 +16,8 @@ import (
 // so the thin delegation (including the touchManaged call) is TDD'd
 // at this layer too.
 func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "cohort.pulse", []string{"id", "region"}, [][]string{
 		{"1", "north"},
@@ -50,6 +52,8 @@ func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
 // single composite-key index with the columns carried in the order
 // supplied, matching the CLI's comma-split contract.
 func TestBuildIndex_CompositeKey(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "cohort.pulse", []string{"id", "region"}, [][]string{
 		{"1", "north"},
@@ -75,6 +79,8 @@ func TestBuildIndex_CompositeKey(t *testing.T) {
 // a shard archive one sidecar per shard (no single Index), with the
 // counts and the per-shard paths on the result.
 func TestBuildIndex_ShardArchiveWritesPerShardSidecars(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "shard1.pulse", []string{"id"}, [][]string{{"1"}, {"2"}})
 	createTestPulseFile(t, memFs, "shard2.pulse", []string{"id"}, [][]string{{"3"}, {"4"}})

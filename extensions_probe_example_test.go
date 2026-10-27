@@ -67,6 +67,8 @@ func scaleExample(v any) []pulse.ParamMeta {
 // TestExtensions_ProbeParamsRefusalNamesThem) registers once the
 // declaration carries Example 2, and runs a conforming request.
 func TestExtensions_ProbeParamsUseExample(t *testing.T) {
+	t.Parallel()
+
 	two := 2.0
 	ctx := context.Background()
 	for _, tc := range strictCases() {
@@ -103,6 +105,8 @@ func enumMode(s *types.Aggregation, sc *encoding.Schema) (extend.Aggregator, err
 // param's Example is documentation only (not handed to the probe) and
 // every Example is projected into the manifest.
 func TestExtensions_ProbeParamsEnumExample(t *testing.T) {
+	t.Parallel()
+
 	reg := func(example any) pulse.Extensions {
 		return pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{{Name: "AGG_ACME_ENUM", Description: "enum mode",
 			Factory: enumMode, Streamable: true, Accepts: []encoding.FieldType{encoding.FieldTypeF64},
@@ -135,6 +139,8 @@ func TestExtensions_ProbeParamsEnumExample(t *testing.T) {
 // PULSE_EXTENSION_PARAM_INVALID, reason example_type_mismatch, in every
 // category; a conforming Example of each type registers.
 func TestExtensions_ParamExampleTypeChecked(t *testing.T) {
+	t.Parallel()
+
 	bad := []struct {
 		name, jsonType string
 		example        any

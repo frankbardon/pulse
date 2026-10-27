@@ -176,6 +176,8 @@ func psRender(t *testing.T, resp *types.Response, nSpecs, depth int) []map[strin
 // streamable groupers must ride the streaming arm; each _TOTAL row is
 // scored against its partition's total (or mean and SD).
 func TestMultiGrouper_SeriesOverlaysPartitioned(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	cases := []psCase{
 		{name: "region×score", groups: func() []*types.Group { return []*types.Group{mgRegion(), psScoreBy2()} }, depth: 1,
@@ -262,6 +264,8 @@ func TestMultiGrouper_SeriesOverlaysPartitioned(t *testing.T) {
 // row, the pre-U46 figure — while the default shares sum to 1 within
 // each region.
 func TestMultiGrouper_TotalKindsPartitionNoneIsGrandTotal(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	share := psTotalSpecs()[1:2]
 	run := func(specs []types.OverlaySpec) *types.Response {
@@ -305,6 +309,8 @@ func TestMultiGrouper_TotalKindsPartitionNoneIsGrandTotal(t *testing.T) {
 // unknown partition_by is refused PULSE_OVERLAY_PARTITION_INVALID by
 // predict and by the engine with the same Details.
 func TestMultiGrouper_SeriesOverlayPartitionRefused(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for name, pb := range map[string][]string{"not a prefix": {"sex"}, "unknown": {"warehouse"}} {
 		t.Run(name, func(t *testing.T) {
@@ -356,6 +362,8 @@ func yoySpec(t *testing.T, frequency string, params map[string]any) types.Overla
 // keys in another order equals the implicit default. Every entry keeps
 // its full composite key. Runs on every mode that returns layers.
 func TestMultiGrouper_YoYPerPartition(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	dayAnnual := func() *types.Group {
 		g := mgDay()
@@ -467,6 +475,8 @@ func TestMultiGrouper_YoYPerPartition(t *testing.T) {
 // internal/descriptor and internal/processing, which share the one
 // reading.)
 func TestMultiGrouper_YoYRefused(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	cases := []struct {
 		name   string

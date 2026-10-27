@@ -61,6 +61,8 @@ func assertPrevStateComponents(t *testing.T, arm string, c *types.ResponseCompon
 // ungrouped, grouped and crosstab buffered arms and a Compose slot,
 // cohort-wide (one entry, never per bucket).
 func TestPreviousState_ComponentsEveryArm(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateFixture(t, pulse.Options{})
 	ctx := context.Background()
 	for _, grouped := range []bool{false, true} {
@@ -91,6 +93,8 @@ func TestPreviousState_ComponentsEveryArm(t *testing.T) {
 // a ProcessStreamResult chunk before the last carries the entry's floor
 // but no operator keys; the terminal chunk carries the buffered entry.
 func TestPreviousState_ComponentsStreamTerminalOnly(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateFixture(t, pulse.Options{})
 	res, err := p.ProcessStreamResult(context.Background(), prevStateComponentsRequest(true))
 	if err != nil {
@@ -117,6 +121,8 @@ func TestPreviousState_ComponentsStreamTerminalOnly(t *testing.T) {
 // TestPreviousState_ComponentsOptOut: the engine opt-out and the
 // request opt-out each leave the entry absent.
 func TestPreviousState_ComponentsOptOut(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := prevStateFixture(t, pulse.Options{DisableComponents: true})
 	resp, err := p.Process(ctx, prevStateComponentsRequest(false))

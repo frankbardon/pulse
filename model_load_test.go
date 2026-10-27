@@ -103,6 +103,8 @@ func assertSameRefusal(t *testing.T, what string, rerr error, pe descxEnvelopeEr
 // lacks or holds as a categorical — is refused by predict exactly as
 // Process refuses it.
 func TestModelLoad_PredictRuntimeParity_Process(t *testing.T) {
+	t.Parallel()
+
 	fsys := loadFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -159,6 +161,8 @@ func TestModelLoad_PredictRuntimeParity_Process(t *testing.T) {
 // PredictChain and PredictFacet refuse a bad load exactly as the
 // runtime refuses it, located at the slot / fit / stage.
 func TestModelLoad_PredictRuntimeParity_Batches(t *testing.T) {
+	t.Parallel()
+
 	fsys := loadFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -252,6 +256,8 @@ func TestModelLoad_PredictRuntimeParity_Batches(t *testing.T) {
 // FacetRequest) as PULSE_REQUEST_UNKNOWN_FIELD, runtime and predict
 // alike; the unprofiled control loads.
 func TestHiddenModels_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := loadFacadeFS(t)
 	control, err := New(Options{FS: fsys})
 	if err != nil {

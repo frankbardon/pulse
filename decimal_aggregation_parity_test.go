@@ -21,6 +21,8 @@ import (
 // rule: it always carries a weight, refused PULSE_WEIGHT_UNSUPPORTED
 // over a decimal128 value field before any dispatch.)
 func TestDecimalAggregation_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	shapes := map[string]string{

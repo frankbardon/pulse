@@ -148,6 +148,8 @@ func joinedCrosstab(left, right string) *types.Request {
 // and the runtime refuses it with the error predict reports — on the
 // joined Process and the joined crosstab alike. At 1,000 both run.
 func TestLimits_JoinBuildRows_PredictCertainAndProcessRefuses(t *testing.T) {
+	t.Parallel()
+
 	fs, left, right := joinLimitCohorts(t)
 	ctx := context.Background()
 	want := []descriptor.LimitFinding{{Limit: "max_join_build_rows", Configured: 999, Estimated: 1000, Grade: descriptor.LimitGradeCertain}}
@@ -208,6 +210,8 @@ func TestLimits_JoinBuildRows_PredictCertainAndProcessRefuses(t *testing.T) {
 // — while the joined run decodes it (the control that keeps the
 // assertion from being vacuous).
 func TestLimits_JoinBuildRows_PredictReadsRightHeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	inner, left, right := joinLimitCohorts(t)
 	fs := newReadCountingFs(inner)
 	ctx := context.Background()

@@ -50,6 +50,8 @@ func kmAnswer(t *testing.T, p *pulse.Pulse, cohort string) string {
 }
 
 func TestGroupKMeans_InvariantAcrossArmsAndShardOrder(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	s := paritySchema(t)
 	writeParityCohort(t, fsys, "twin.pulse", s, 0, paritySmallRows)

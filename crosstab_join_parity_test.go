@@ -20,6 +20,8 @@ import (
 // refused it with PROCESSING_INTERNAL and the buffered engine ignored
 // the join and bucketed every row under a null r_cat column.
 func TestCrosstabJoin_PredictAndRuntimeAgree(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	crosstab := func(col string, joins []*types.JoinSpec) *types.Request {

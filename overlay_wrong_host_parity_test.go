@@ -85,6 +85,8 @@ func whWrongKinds(t *testing.T, host overlayhost.Host) []types.OverlayKind {
 // Request.Overlays, over a grouped SERIES host, a crosstab MATRIX host
 // and an ungrouped one.
 func TestOverlayWrongHost_ProcessParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := nsFixture(t, pulse.Options{})
 	shapes := []struct {
@@ -156,6 +158,8 @@ func TestOverlayWrongHost_ProcessParity(t *testing.T) {
 // TestOverlayWrongHost_ComposeParity: every kind Compose does not run on
 // ComposedRequest.Overlays (it once answered an empty stub layer).
 func TestOverlayWrongHost_ComposeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	build := func(kind types.OverlayKind) *pulse.ComposedRequest {
@@ -191,6 +195,8 @@ func TestOverlayWrongHost_ComposeParity(t *testing.T) {
 // ChainRequest.Overlays (once PULSE_OVERLAY_KIND_UNKNOWN on both sides,
 // with Details that differed by a runtime-only `host`).
 func TestOverlayWrongHost_ChainParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	zero := 0
@@ -225,6 +231,8 @@ func TestOverlayWrongHost_ChainParity(t *testing.T) {
 // the runtime answered a population or PULSE_OVERLAY_KIND_UNKNOWN
 // error).
 func TestOverlayWrongHost_FacetParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	build := func(kind types.OverlayKind) *pulse.FacetRequest {

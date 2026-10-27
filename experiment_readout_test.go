@@ -72,6 +72,8 @@ func holm(ps []float64) []float64 {
 // check raw. Predict-compose says every slot streams with no AGG_COUNT
 // and sizes the same family; the run takes the streaming arm.
 func TestExperimentReadout_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	var mu sync.Mutex
 	arms := map[observe.OperationKind]observe.Arm{}
@@ -222,6 +224,8 @@ func checkReadoutFigures(t *testing.T, tests []*types.TestResult, reg *types.Reg
 // to the forced-buffered run of the same request (a buffered-only
 // AGG_MEDIAN beside it).
 func TestExperimentReadout_OneRequestStreams(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	var mu sync.Mutex
 	var last observe.Arm

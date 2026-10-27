@@ -48,6 +48,8 @@ const semScoreCFA = "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ 
 // lacks and a group field the schema lacks are refused by the runtime
 // before any record is read, and predict returns the same entry.
 func TestSEMScore_ConfigRefusalsPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, c := range []struct {
 		name   string
@@ -81,6 +83,8 @@ func TestSEMScore_ConfigRefusalsPredictMatchesRuntime(t *testing.T) {
 // the operator never read, and the owned model syntax as MAT_SEM
 // refuses it — predict says the same. The covariance-only score runs.
 func TestSEMScore_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, means := range []bool{true, false} {
 		features := []string{"capability:process", "ATTR_SEM_SCORE", "AGG_AVERAGE"}

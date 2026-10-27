@@ -13,6 +13,8 @@ import (
 // pulse.New with PULSE_EXTENSION_NAME_RESERVED; a near-miss name and a
 // name the reservation predates (abs) still register.
 func TestExtensions_ExprFunctionReservedBuiltins(t *testing.T) {
+	t.Parallel()
+
 	fn := func(x float64) float64 { return x }
 	for _, name := range exprenv.Names() {
 		t.Run(name, func(t *testing.T) {

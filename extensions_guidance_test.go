@@ -67,6 +67,8 @@ func purposeInvalid(t *testing.T, err error) *perrors.CodedError {
 // accepted, rides the snapshot, and projects ONLY its sorted intent IDs
 // onto the manifest entry; an absent Purpose projects no intents.
 func TestExtensions_PurposeValidAcceptedAndProjected(t *testing.T) {
+	t.Parallel()
+
 	ext := guidanceExt(validExtPurpose())
 	ext.Aggregators = append(ext.Aggregators, AggregatorRegistration{
 		Name: "AGG_ACME_PLAIN", Description: "Stub.", Factory: featureSetStubAggFactory,
@@ -94,6 +96,8 @@ func TestExtensions_PurposeValidAcceptedAndProjected(t *testing.T) {
 // otherwise valid Purpose, fails pulse.New with
 // PULSE_EXTENSION_PURPOSE_INVALID naming the registration and the rule.
 func TestExtensions_PurposeInvalidRules(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		rule   descx.PurposeRule
 		mutate func(*descriptor.Purpose)
@@ -145,6 +149,8 @@ func TestExtensions_PurposeInvalidRules(t *testing.T) {
 // naming another registered extension (any category) resolves, as does
 // a "<kind>:<name>" feature spelling.
 func TestExtensions_PurposeNotForResolvesAcrossExtensions(t *testing.T) {
+	t.Parallel()
+
 	pp := validExtPurpose()
 	pp.NotFor = []descriptor.Alternative{
 		{When: "you want a significance test of the score", Use: "TEST_ACME_BRAND_GAP"},
@@ -161,6 +167,8 @@ func TestExtensions_PurposeNotForResolvesAcrossExtensions(t *testing.T) {
 // naming another registered extension resolves, and the instance
 // ontology carries the follow_up edge.
 func TestExtensions_PurposeFollowUpsResolveAndProject(t *testing.T) {
+	t.Parallel()
+
 	pp := validExtPurpose()
 	pp.FollowUps = []descriptor.Alternative{{When: "the score moved and you want to test the gap", Use: "TEST_ACME_BRAND_GAP"}}
 	ext := guidanceExt(pp)
@@ -178,6 +186,8 @@ func TestExtensions_PurposeFollowUpsResolveAndProject(t *testing.T) {
 // TestExtensions_InterpretationStructureOnly: a test registration's
 // Interpretation is checked for structure, not output-key existence.
 func TestExtensions_InterpretationStructureOnly(t *testing.T) {
+	t.Parallel()
+
 	reg := func(ins []descriptor.Interpretation) Extensions {
 		return Extensions{Tests: []TestRegistration{{
 			Name: "TEST_ACME_GAP", Description: "Stub.", Tier: TestTierPost,
@@ -206,6 +216,8 @@ func TestExtensions_InterpretationStructureOnly(t *testing.T) {
 // registrations the error names the first in validation order
 // (category order, then slice index) — deterministic.
 func TestExtensions_PurposeFirstInvalidWins(t *testing.T) {
+	t.Parallel()
+
 	broken := validExtPurpose()
 	broken.Intents = nil
 	ext := Extensions{
@@ -228,6 +240,8 @@ func TestExtensions_PurposeFirstInvalidWins(t *testing.T) {
 // profile hides takes its Purpose with it — the snapshot and manifest
 // carry only the visible one's.
 func TestExtensions_HiddenExtensionDropsGuidance(t *testing.T) {
+	t.Parallel()
+
 	ext := guidanceExt(validExtPurpose())
 	ext.Aggregators = append(ext.Aggregators, AggregatorRegistration{
 		Name: "AGG_ACME_KEPT", Description: "Stub.", Factory: featureSetStubAggFactory, Purpose: validExtPurpose(),
@@ -253,6 +267,8 @@ func TestExtensions_HiddenExtensionDropsGuidance(t *testing.T) {
 // TestExtensions_PurposeProseNeverInManifest: only an extension
 // Purpose's intent IDs reach the manifest — none of its prose.
 func TestExtensions_PurposeProseNeverInManifest(t *testing.T) {
+	t.Parallel()
+
 	pp := validExtPurpose()
 	pp.Assumptions = []string{"Respondents answered every brand item."}
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: guidanceExt(pp)})
@@ -285,6 +301,8 @@ func TestExtensions_PurposeProseNeverInManifest(t *testing.T) {
 // join the instance alias index, drop out when a feature profile hides
 // the operator, and a second extension may not reuse one.
 func TestExtensions_KnownAsInInstanceView(t *testing.T) {
+	t.Parallel()
+
 	brand := validExtPurpose()
 	brand.KnownAs = []string{"Brand Health Index", "BHI"}
 	kept := validExtPurpose()

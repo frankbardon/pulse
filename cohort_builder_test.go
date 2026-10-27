@@ -83,6 +83,8 @@ func readFile(t *testing.T, fsys afero.Fs, path string) []byte {
 // bogus layout values (recomputed, never trusted) — and read back to
 // identical rows; Process runs over the result.
 func TestCohortBuilder_ByteIdenticalToRawWrite(t *testing.T) {
+	t.Parallel()
+
 	p, fsys, cols, oracleSchema, oracle := readerFixtureEngine(t)
 
 	schema := encoding.Schema{Fields: append([]encoding.Field(nil), oracleSchema.Fields...)}
@@ -259,6 +261,8 @@ func importParity(t *testing.T, p *Pulse, path string, s encoding.Schema) []byte
 // pre-seeded dictionary first, then first-seen growth, nulls, the
 // bitmap, a wide set and a rescaled decimal included.
 func TestCohortBuilder_ByteIdenticalToImport(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := memBuilderEngine(t)
 	imported := importParity(t, p, "imported.pulse", paritySchema())
 
@@ -291,6 +295,8 @@ func TestCohortBuilder_ByteIdenticalToImport(t *testing.T) {
 // leaves no trace — not in the records, not in a dictionary — so the
 // build interleaving bad rows equals the build of the good rows alone.
 func TestCohortBuilder_RejectedRows(t *testing.T) {
+	t.Parallel()
+
 	full := encoding.NewDictionary()
 	for i := 0; i < 256; i++ {
 		_, _ = full.Add(fmt.Sprintf("c%03d", i))
@@ -372,6 +378,8 @@ func TestCohortBuilder_RejectedRows(t *testing.T) {
 // TestCohortBuilder_AbortLeavesNothing: Abort drops the spool and never
 // creates the target; it is idempotent.
 func TestCohortBuilder_AbortLeavesNothing(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := memBuilderEngine(t)
 	b, err := p.NewCohortBuilder(context.Background(), "out.pulse", paritySchema(), CohortBuilderOptions{})
 	if err != nil {
@@ -421,6 +429,8 @@ func (f tempFailFs) OpenFile(name string, flag int, perm os.FileMode) (afero.Fil
 // step leaves no target, no spool and no temp file — and an existing
 // cohort being overwritten stays byte-identical.
 func TestCohortBuilder_FailedCloseLeavesNothing(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		wrap func(afero.Fs) afero.Fs
@@ -429,6 +439,8 @@ func TestCohortBuilder_FailedCloseLeavesNothing(t *testing.T) {
 		{"temp create", func(m afero.Fs) afero.Fs { return tempFailFs{m} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			mem := afero.NewMemMapFs()
 			p, err := New(Options{FS: tc.wrap(mem)})
 			if err != nil {
@@ -477,6 +489,8 @@ func TestCohortBuilder_FailedCloseLeavesNothing(t *testing.T) {
 // directory, an anchor onto a missing archive, a .zst target and an empty one are refused with
 // SERVICE_VALIDATION; nothing is left behind.
 func TestCohortBuilder_TargetRefusals(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := memBuilderEngine(t)
 	if err := afero.WriteFile(fsys, "taken.pulse", []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -518,6 +532,8 @@ func TestCohortBuilder_TargetRefusals(t *testing.T) {
 // anything is created; description checks share import's code; quality
 // findings warn, and error under Strict.
 func TestCohortBuilder_SchemaRefusals(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := memBuilderEngine(t)
 	f := func(name string, ft encoding.FieldType) encoding.Field {
 		return encoding.Field{Name: name, Type: ft, Description: "A well described field."}
@@ -583,6 +599,8 @@ func TestCohortBuilder_SchemaRefusals(t *testing.T) {
 // carries a point-lookup index reports the sidecar as invalidated, and
 // the index refuses the new bytes as stale.
 func TestCohortBuilder_OverwriteInvalidatesIndex(t *testing.T) {
+	t.Parallel()
+
 	p, _ := memBuilderEngine(t)
 	ctx := context.Background()
 	rows := parityRows(t)
@@ -616,6 +634,8 @@ func TestCohortBuilder_OverwriteInvalidatesIndex(t *testing.T) {
 // data-dir root builds in place (spool and temp beside it, inside the
 // data dir), leaving only the cohort.
 func TestCohortBuilder_DataDirRoot(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	p, err := New(Options{DataDir: dir})
 	if err != nil {
@@ -642,6 +662,8 @@ func TestCohortBuilder_DataDirRoot(t *testing.T) {
 // TestCohortBuilder_EmptyBuild: a build with no rows is a valid empty
 // cohort, as an import of an empty source is.
 func TestCohortBuilder_EmptyBuild(t *testing.T) {
+	t.Parallel()
+
 	p, _ := memBuilderEngine(t)
 	res := buildCohort(t, p, "empty.pulse", paritySchema(), CohortBuilderOptions{}, nil)
 	if res.Records != 0 {
@@ -688,6 +710,8 @@ func ageSidecar(t *testing.T, fsys afero.Fs, cohort string, at time.Time) {
 // imports directory leaves a look-alike sidecar beside it untouched,
 // and a fresh build into the imports directory creates none.
 func TestCohortBuilder_OverwriteTouchesManagedImport(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	past := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
 	p, fsys := memBuilderEngine(t)

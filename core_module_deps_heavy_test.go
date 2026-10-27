@@ -15,6 +15,8 @@ import (
 // otel hashes from the go.mod graph of grpc (via arrow-go) without any
 // otel package ever being built.
 func TestCoreModuleNoObservabilityDeps(t *testing.T) {
+	t.Parallel()
+
 	mods := goModRequires(t, "go.mod")
 	if len(mods) == 0 {
 		t.Fatal("parsed no require lines from go.mod — parser broken?")

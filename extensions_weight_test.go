@@ -188,6 +188,8 @@ func weightExtPulse(t *testing.T, fs afero.Fs, log *specLog, def *types.WeightSp
 // weight source; the orchestrator stamps the weighted floor keys and
 // the invalid-row warning; predict reports `applied`.
 func TestExtensionWeight_AwareAggregatorReadsWeight(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	const sumW, sumWX = 1 + 2 + 3 + 0.5, 2*1 + 4*2 + 8*3 + 10*0.5
@@ -276,6 +278,8 @@ func TestExtensionWeight_AwareAggregatorReadsWeight(t *testing.T) {
 // instance default is skipped (unweighted figure, no floor keys,
 // predict `skipped_not_weight_aware`, factory sees `null`).
 func TestExtensionWeight_NonAwareAggregator(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	one := func(a *types.Aggregation, reqW *types.WeightSpec) *types.Request {
@@ -334,6 +338,8 @@ func TestExtensionWeight_NonAwareAggregator(t *testing.T) {
 // extension attribute or test is refused under ANY weight in force —
 // the instance default included — and `weight: null` opts it out.
 func TestExtensionWeight_NonAwareAttributeAndTestRefused(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	p := weightExtPulse(t, fs, &specLog{}, &types.WeightSpec{Field: extWeightField})
@@ -379,6 +385,8 @@ func TestExtensionWeight_NonAwareAttributeAndTestRefused(t *testing.T) {
 // reaches it — it owes a value per row — but Weight() reports false
 // there); a WeightAware row test sees only the valid-weight rows.
 func TestExtensionWeight_AwareAttributeAndTest(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	req := func() *types.Request {
@@ -446,6 +454,8 @@ func TestExtensionWeight_AwareAttributeAndTest(t *testing.T) {
 // extension entries carry weight_aware for exactly the registrations
 // that declare it.
 func TestExtensionWeight_ManifestProjectsWeightAware(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: weightExtensions(&specLog{})})
 	if err != nil {
 		t.Fatal(err)
@@ -484,6 +494,8 @@ func TestExtensionWeight_ManifestProjectsWeightAware(t *testing.T) {
 // its spec — and either construction failing surfaces the existing
 // probe codes; a non-aware factory is never handed a weight.
 func TestExtensionWeight_ProbeConstructsWithAndWithoutWeight(t *testing.T) {
+	t.Parallel()
+
 	refuseWeighted := func(spec *types.Aggregation, _ *encoding.Schema) (extend.Aggregator, error) {
 		if spec.Weight.Spec() != nil {
 			return nil, errTestWeighted
@@ -578,6 +590,8 @@ func (e errorString) Error() string { return string(e) }
 // the fused arm (a mergeable, summable registration) and on the
 // buffered arm (a buffered-only one).
 func TestExtensionWeight_CrosstabCellMatchesBuiltin(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	const fused = "AGG_ACME_WEIGHT_SUMF"

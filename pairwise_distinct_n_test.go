@@ -191,6 +191,8 @@ func pwDistinctColumnIndex(t *testing.T, mx *types.MatrixPayload, wave string) i
 // BOTH modes on the real cohort: n_within reports the inflated record
 // count, n_within_distinct the respondent count.
 func TestPairwiseNWithinDistinct_MemmapSlabLegs(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 
@@ -260,6 +262,8 @@ func TestPairwiseNWithinDistinct_MemmapSlabLegs(t *testing.T) {
 // INDEPENDENT pooled two-proportion z written here, so the assertion
 // does not borrow the implementation it is testing.
 func TestPairwiseNWithinDistinct_MemmapPValues(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 
@@ -336,6 +340,8 @@ func pwPooledPropZ(p1 float64, n1 int, p2 float64, n2 int) float64 {
 // Its "distinct_count" component counts distinct answer VALUES, and a
 // key-presence gate would happily report it as a respondent base.
 func TestPairwiseNWithinDistinct_MemmapRefusesFrequencyCell(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 

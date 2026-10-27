@@ -61,6 +61,8 @@ func vecFacadeRegression() *Request {
 // PredictCompose reports is exactly the error Compose and
 // ComposeParallel return — code, message and details.
 func TestComposeVectorFits_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: vecFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -160,6 +162,8 @@ func TestComposeVectorFits_PredictRuntimeParity(t *testing.T) {
 // the regression entry exactly as the regression-only shape and the
 // vector entry under its `vector` key.
 func TestComposeVectorFits_PredictListsAndWire(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: vecFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -240,6 +244,8 @@ func TestComposeVectorFits_PredictListsAndWire(t *testing.T) {
 // reads every row unweighted: the bound state, its basis included, is
 // all it reads. Serial decode and DecodeWorkers 4 agree.
 func TestComposeVectorFits_EveryMatrixEmitsFromFit(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	north := []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"north"}}}
 	fitReq := extMatrixRequest(types.MAT_COVARIANCE, "", false, true)

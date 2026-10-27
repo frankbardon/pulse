@@ -22,6 +22,8 @@ import (
 // from its UTC days, so a zone field that fails to reach an arm (or
 // decodes as null because the projection dropped it) fails here.
 func TestTimeZoneField_PerRowEqualsSingleZoneSlotsEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := perRowRows(0)
 	cohort, archive := importPerRow(t, fs, "perrow", rows)
@@ -87,6 +89,8 @@ func TestTimeZoneField_PerRowEqualsSingleZoneSlotsEveryMode(t *testing.T) {
 // on a single file, a shard archive (parallel and serial) and the fused
 // crosstab.
 func TestTimeZoneField_NullZoneCellIsNullLocalValue(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := perRowRows(7)
 	cohort, archive := importPerRow(t, fs, "nullzone", rows)

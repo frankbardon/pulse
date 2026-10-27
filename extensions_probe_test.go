@@ -27,6 +27,8 @@ func nonOnlineAggregatorFactory(*types.Aggregation, *encoding.Schema) (extend.Ag
 }
 
 func TestExtensions_ProbeAggregator_StreamableMismatch(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:       "AGG_ACME_BAD",
@@ -45,6 +47,8 @@ func TestExtensions_ProbeAggregator_StreamableMismatch(t *testing.T) {
 }
 
 func TestExtensions_ProbeAggregator_NonStreamableAccepted(t *testing.T) {
+	t.Parallel()
+
 	// Streamable=false with a buffered-only factory MUST register cleanly.
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
@@ -58,6 +62,8 @@ func TestExtensions_ProbeAggregator_NonStreamableAccepted(t *testing.T) {
 }
 
 func TestExtensions_ProbeAggregator_FactoryPanicCaught(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_PANICKY",
@@ -71,6 +77,8 @@ func TestExtensions_ProbeAggregator_FactoryPanicCaught(t *testing.T) {
 }
 
 func TestExtensions_ProbeAggregator_FactoryReturnsError(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_ERRORS",
@@ -84,6 +92,8 @@ func TestExtensions_ProbeAggregator_FactoryReturnsError(t *testing.T) {
 }
 
 func TestExtensions_ProbeAggregator_FactoryReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_NIL",
@@ -125,6 +135,8 @@ func computeOnlyFactory(*types.Attribute, *encoding.Schema) (extend.AttributeCom
 }
 
 func TestExtensions_ProbeAttribute_RowLocalMismatch(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_BAD",
@@ -137,6 +149,8 @@ func TestExtensions_ProbeAttribute_RowLocalMismatch(t *testing.T) {
 }
 
 func TestExtensions_ProbeAttribute_TwoPassMismatch(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_BAD",
@@ -149,6 +163,8 @@ func TestExtensions_ProbeAttribute_TwoPassMismatch(t *testing.T) {
 }
 
 func TestExtensions_ProbeAttribute_BufferedAcceptsAnyComputer(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_OK",
@@ -175,6 +191,8 @@ func (groupOnlyGrouper) Group(extend.Rows, string) (map[string][]int, error) {
 // otherwise route the request onto a streaming path the value cannot
 // drive.
 func TestExtensions_ProbeGrouper_StreamableMismatch(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Groupers: []pulse.GrouperRegistration{{
 			Name:       "GROUP_ACME_BAD",
@@ -189,6 +207,8 @@ func TestExtensions_ProbeGrouper_StreamableMismatch(t *testing.T) {
 // TestExtensions_ProbeGrouper_NonStreamableAccepted is the control: the
 // same buffered-only grouper declared Streamable=false registers.
 func TestExtensions_ProbeGrouper_NonStreamableAccepted(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Groupers: []pulse.GrouperRegistration{{
 			Name:    "GROUP_ACME_GOOD",

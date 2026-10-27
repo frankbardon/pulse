@@ -16,6 +16,8 @@ import (
 // takes every parallel arm; the buffered tier is predicted neither
 // streamable nor mergeable and runs serially under every knob.
 func TestExtensionMatrix_WorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	// Parallel decode needs mmap: the cohorts live on a real (temporary)
 	// directory.

@@ -10,6 +10,8 @@ import (
 )
 
 func TestProcessStreamResult_Completes(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse", []string{"age", "name"}, [][]string{
 		{"10", "a"},
@@ -53,6 +55,8 @@ func TestProcessStreamResult_Completes(t *testing.T) {
 }
 
 func TestProcessStreamResult_Cancellation(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse", []string{"age"}, [][]string{
 		{"1"}, {"2"}, {"3"}, {"4"}, {"5"},

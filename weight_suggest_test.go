@@ -93,6 +93,8 @@ func countRequest(weight *types.WeightSpec) *Request {
 var wantSuggestion = descriptor.SuggestedWeight{Field: "WT", Source: "spss_sidecar", Kind: "probability"}
 
 func TestSuggestedWeight_InspectReportsSidecarWeight(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, weightedSavSpec(), Options{})
 
@@ -121,6 +123,8 @@ func TestSuggestedWeight_InspectReportsSidecarWeight(t *testing.T) {
 // cohort fingerprint moved) and a malformed one: no suggestion, no
 // warning, no error — and no key on the wire.
 func TestSuggestedWeight_AbsentOrStaleIsSilent(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]func(t *testing.T, afs afero.Fs){
 		"no sidecar": func(t *testing.T, afs afero.Fs) {
 			if err := afs.Remove(spss.SidecarPath(suggestCohort)); err != nil {
@@ -192,6 +196,8 @@ func TestSuggestedWeight_AbsentOrStaleIsSilent(t *testing.T) {
 // it once a weight resolves. (Never-a-warning under strict is pinned on
 // the envelope in internal/descriptor: TestPredict_SuggestedWeightIsDataNotWarning.)
 func TestSuggestedWeight_PredictEchoesWhenNoWeightResolves(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, weightedSavSpec(), Options{})
 	ctx := context.Background()
@@ -231,6 +237,8 @@ func TestSuggestedWeight_PredictEchoesWhenNoWeightResolves(t *testing.T) {
 // with a suggested weight sums raw values, and only an explicit weight
 // weights them.
 func TestSuggestedWeight_NeverAutoApplied(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, weightedSavSpec(), Options{})
 	ctx := context.Background()
@@ -260,6 +268,8 @@ func TestSuggestedWeight_NeverAutoApplied(t *testing.T) {
 
 // capability:weighting hidden: no suggestion on inspect or predict.
 func TestSuggestedWeight_HiddenWithWeighting(t *testing.T) {
+	t.Parallel()
+
 	for _, with := range []bool{true, false} {
 		afs := afero.NewMemMapFs()
 		p := importSav(t, afs, weightedSavSpec(), Options{

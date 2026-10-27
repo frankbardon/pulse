@@ -104,6 +104,8 @@ const thinkTime = 25 * time.Millisecond
 // ends twice), or the context.AfterFunc in newObservedRowIter (cancel
 // never ends).
 func TestObservabilityStreamingEndOnce(t *testing.T) {
+	t.Parallel()
+
 	setup := func(t *testing.T) (*Pulse, *streamRecorder) {
 		rec := newStreamRecorder()
 		p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
@@ -252,6 +254,8 @@ func TestObservabilityStreamingEndOnce(t *testing.T) {
 // transparent — Returned and the precision-aware row encoder behave as
 // on the unobserved, shaped iterator.
 func TestObservedRowIterForwardsShaping(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	req := func() *Request {
 		r := obsRequest()

@@ -114,6 +114,8 @@ func envCodes(env *descriptor.Envelope) []string {
 // each refused by predict-compose with the runtime's code, message and
 // slot location — they all used to predict valid.
 func TestComposePredict_SlotBodyMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	axes := `"rows":[{"type":"GROUP_CATEGORY","field":"g"}],"columns":[{"type":"GROUP_CATEGORY","field":"subj"}]`
 	for _, c := range []struct {
@@ -153,6 +155,8 @@ func TestComposePredict_SlotBodyMatchesRuntime(t *testing.T) {
 // feature profile hides predicts inside a Compose slot exactly as a
 // never-registered one, as the runtime refuses it.
 func TestComposePredict_HiddenSlotOperator(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	fp, err := pulse.ParseFeatureProfile([]byte(`{"profile":"slot-hidden","written_with":"1.0.0","features":["capability:process","capability:compose","AGG_COUNT","AGG_SUM","GROUP_CATEGORY"]}`))
 	if err != nil {
@@ -171,6 +175,8 @@ func TestComposePredict_HiddenSlotOperator(t *testing.T) {
 // sweep — is refused by predict with the runtime's SERVICE_VALIDATION
 // and message.
 func TestComposePredict_EmptyBatch(t *testing.T) {
+	t.Parallel()
+
 	p, _, _ := acceptanceCohort(t)
 	for _, body := range []string{`{}`, `{"requests":[]}`} {
 		b := body
@@ -191,6 +197,8 @@ func TestComposePredict_EmptyBatch(t *testing.T) {
 // errors, details.request stripped). The next request-body rule added to
 // Process predict without reaching Compose slots fails here.
 func TestComposePredict_SlotVerdictMatchesProcessPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	axes := `"rows":[{"type":"GROUP_CATEGORY","field":"g"}],"columns":[{"type":"GROUP_CATEGORY","field":"subj"}]`
 	bodies := []string{

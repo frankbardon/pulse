@@ -53,6 +53,8 @@ var zoneMathSkipDirs = map[string]bool{
 // FixedZone / Local (the `time` import alias resolved per file), and an
 // import of "time/tzdata".
 func TestNoZoneMathOutsideTemporal(t *testing.T) {
+	t.Parallel()
+
 	fset := token.NewFileSet()
 	scanned := 0
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
@@ -163,6 +165,8 @@ func checkZoneMath(fset *token.FileSet, filename string, src []byte) []string {
 // TestNoZoneMathOutsideTemporal_Falsification proves the checker bites on
 // each banned construct and stays quiet on the look-alikes it must allow.
 func TestNoZoneMathOutsideTemporal_Falsification(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		file    string

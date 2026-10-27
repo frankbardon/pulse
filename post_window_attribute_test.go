@@ -24,6 +24,8 @@ func facadeLagX() *types.Window {
 // Both are null where the lag is, agree on every other row, and equal
 // the fit's own coefficients applied to the row's lag.
 func TestWindowPredictor_PostWindowScoresWindowTermModel(t *testing.T) {
+	t.Parallel()
+
 	p, _ := scoringParityPulse(t)
 	ctx := context.Background()
 	fit := &Request{

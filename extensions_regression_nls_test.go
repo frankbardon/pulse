@@ -97,6 +97,8 @@ func fitNLS(t *testing.T, p *pulse.Pulse, spec *types.RegressionSpec) *types.Reg
 // its iterations and τ output, leaves the standard errors null, and is
 // bit-identical across DecodeWorkers.
 func TestExtensions_RegressionNLSRecoversTruth(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	p := nlsInstance(t, fsys, nil)
 	writeNLSCohort(t, p)
@@ -156,6 +158,8 @@ func nlsScoreSlot(fit *types.RegressionResult, models ...types.ModelRef) *types.
 // carrying its tau output, and a fresh instance reloads it and scores
 // bit-identically, predict accepting the load.
 func TestExtensions_RegressionNLSScorerSavesReloads(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	p := nlsInstance(t, fsys, nil)
@@ -219,6 +223,8 @@ func TestExtensions_RegressionNLSScorerSavesReloads(t *testing.T) {
 // replicate standard error and a p-value where the plain fit has none,
 // the estimates stay the full fit's, and the run is reproducible.
 func TestExtensions_RegressionNLSBootstrap(t *testing.T) {
+	t.Parallel()
+
 	p := nlsInstance(t, afero.NewMemMapFs(), nil)
 	writeNLSCohort(t, p)
 	spec := func() *types.RegressionSpec {
@@ -251,6 +257,8 @@ func TestExtensions_RegressionNLSBootstrap(t *testing.T) {
 // leaves it out hides it from the manifest and refuses it at Process
 // and Predict exactly as a never-registered model.
 func TestExtensions_RegressionNLSSelfDescribed(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	p := nlsInstance(t, fsys, nil)

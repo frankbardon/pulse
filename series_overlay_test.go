@@ -35,6 +35,8 @@ func deltaVsPriorSpec() types.OverlaySpec {
 // fiscal quarter, in axis order — exactly the shape a point-lookup caller
 // holds — decorated with a period-over-period delta.
 func TestApplySeriesOverlays_StoredCellSeries(t *testing.T) {
+	t.Parallel()
+
 	p := newSeriesOverlayTestPulse(t)
 
 	req := &SeriesOverlayRequest{
@@ -90,6 +92,8 @@ func TestApplySeriesOverlays_StoredCellSeries(t *testing.T) {
 // so the next present period differences against the last period that
 // actually had data.
 func TestApplySeriesOverlays_AbsentPeriodIsNotZero(t *testing.T) {
+	t.Parallel()
+
 	p := newSeriesOverlayTestPulse(t)
 
 	req := &SeriesOverlayRequest{
@@ -123,6 +127,8 @@ func TestApplySeriesOverlays_AbsentPeriodIsNotZero(t *testing.T) {
 // TestApplySeriesOverlays_NoOverlaysIsNotAnError mirrors
 // processing.ApplyOverlaysSeries' unconditional-call contract.
 func TestApplySeriesOverlays_NoOverlaysIsNotAnError(t *testing.T) {
+	t.Parallel()
+
 	p := newSeriesOverlayTestPulse(t)
 
 	res, err := p.ApplySeriesOverlays(context.Background(), &SeriesOverlayRequest{
@@ -141,6 +147,8 @@ func TestApplySeriesOverlays_NoOverlaysIsNotAnError(t *testing.T) {
 // one meaningful overlay footprint (the full rule, every kind and fault, is
 // TestSeriesOverlay_SpecRefusalsMatchPredict's ApplySeriesOverlays arm).
 func TestApplySeriesOverlays_NonGroupScopeRefused(t *testing.T) {
+	t.Parallel()
+
 	p := newSeriesOverlayTestPulse(t)
 
 	spec := deltaVsPriorSpec()
@@ -160,6 +168,8 @@ func TestApplySeriesOverlays_NonGroupScopeRefused(t *testing.T) {
 // materialised series, so a caller can ask for either reading of the same
 // stored cells.
 func TestApplySeriesOverlays_IndexTwinReachableToo(t *testing.T) {
+	t.Parallel()
+
 	p := newSeriesOverlayTestPulse(t)
 
 	spec := deltaVsPriorSpec()

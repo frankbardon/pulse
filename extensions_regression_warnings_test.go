@@ -94,6 +94,8 @@ func warnedSpec(t types.RegressionType, name string) *types.RegressionSpec {
 // details.regression / details.index; the unwarned slot beside it has
 // none and its figures equal a run without the warned slot.
 func TestExtensions_RegressionWarningsReachResultAndResponse(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openWarnE2E(t, false)
 	alone := processE2E(t, p, regressionRequest(cohort, warnedSpec(regBufferedName, "quiet")))
 	for _, typ := range []types.RegressionType{regWarnBuffered, regWarnStream} {
@@ -140,6 +142,8 @@ func TestExtensions_RegressionWarningsReachResultAndResponse(t *testing.T) {
 // emits no warning leaves no warnings key on its result and adds
 // nothing to Response.Warnings.
 func TestExtensions_RegressionWarningsAbsentByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openWarnE2E(t, false)
 	resp := processE2E(t, p, regressionRequest(cohort, warnedSpec(regBufferedName, "quiet")))
 	raw, err := json.Marshal(resp)
@@ -156,6 +160,8 @@ func TestExtensions_RegressionWarningsAbsentByteIdentical(t *testing.T) {
 // Strict refusal, details {slot_kind, index, label} beside the
 // warning's own — on both arms; an unwarned request still runs.
 func TestExtensions_RegressionWarningsStrictFailsTheSlot(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openWarnE2E(t, true)
 	for _, typ := range []types.RegressionType{regWarnBuffered, regWarnStream} {
 		t.Run(string(typ), func(t *testing.T) {
@@ -177,6 +183,8 @@ func TestExtensions_RegressionWarningsStrictFailsTheSlot(t *testing.T) {
 // details.fit, and its fit result keeps them; under Strict the batch
 // fails with the warning's code.
 func TestExtensions_RegressionWarningsComposeFit(t *testing.T) {
+	t.Parallel()
+
 	batch := func(cohort *types.Cohort) *types.ComposedRequest {
 		return &types.ComposedRequest{
 			Fits: []types.FitSpec{
@@ -209,6 +217,8 @@ func TestExtensions_RegressionWarningsComposeFit(t *testing.T) {
 // message or an unregistered code is the output mismatch, at the
 // registration probe.
 func TestExtensions_RegressionWarningsRefused(t *testing.T) {
+	t.Parallel()
+
 	with := func(ws ...*types.ResponseWarning) extend.RegressionOutput {
 		out := okOutput()
 		out.Warnings = ws

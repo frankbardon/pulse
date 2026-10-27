@@ -21,6 +21,8 @@ import (
 var wantExampleFeatureProfiles = []string{"minimal", "read-only-analyst", "survey-crosstab"}
 
 func TestExampleFeatureProfiles_Names(t *testing.T) {
+	t.Parallel()
+
 	got := ExampleFeatureProfiles()
 	if !slices.Equal(got, wantExampleFeatureProfiles) {
 		t.Fatalf("ExampleFeatureProfiles() = %v, want %v", got, wantExampleFeatureProfiles)
@@ -44,8 +46,12 @@ func TestExampleFeatureProfiles_Names(t *testing.T) {
 // example decodes strictly, passes pulse.New validation and enables
 // exactly its list.
 func TestExampleFeatureProfiles_ValidateInNew(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range ExampleFeatureProfiles() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			fp, err := ExampleFeatureProfile(name)
 			if err != nil {
 				t.Fatalf("ExampleFeatureProfile(%q): %v", name, err)
@@ -70,8 +76,12 @@ func TestExampleFeatureProfiles_ValidateInNew(t *testing.T) {
 // byte-identical to a canonical re-encode, written_with a release that
 // reaches every listed feature, built-in names only, canonical order.
 func TestExampleFeatureProfiles_Shape(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range ExampleFeatureProfiles() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			raw, err := os.ReadFile(filepath.Join("examples", "profiles", name+".json"))
 			if err != nil {
 				t.Fatal(err)
@@ -117,6 +127,8 @@ func TestExampleFeatureProfiles_Shape(t *testing.T) {
 
 // TestExampleFeatureProfiles_Content pins what each example promises.
 func TestExampleFeatureProfiles_Content(t *testing.T) {
+	t.Parallel()
+
 	load := func(name string) map[string]bool {
 		t.Helper()
 		fp, err := ExampleFeatureProfile(name)
@@ -178,6 +190,8 @@ func TestExampleFeatureProfiles_Content(t *testing.T) {
 }
 
 func TestExampleFeatureProfile_FreshCopy(t *testing.T) {
+	t.Parallel()
+
 	a, err := ExampleFeatureProfile("minimal")
 	if err != nil {
 		t.Fatal(err)
@@ -193,6 +207,8 @@ func TestExampleFeatureProfile_FreshCopy(t *testing.T) {
 }
 
 func TestExampleFeatureProfile_UnknownName(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"nope", "", "minimal.json", "../minimal", "MINIMAL"} {
 		fp, err := ExampleFeatureProfile(name)
 		if fp != nil || err == nil {

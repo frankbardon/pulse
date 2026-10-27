@@ -15,6 +15,8 @@ import (
 // other file, and a second export — in place, or into a fresh fs — is
 // byte-identical.
 func TestExportReference_DefaultDeterministic(t *testing.T) {
+	t.Parallel()
+
 	p := exportPulse(t)
 	fsys := afero.NewMemMapFs()
 	if err := p.ExportReference(fsys, "out/ref", ExportReferenceOptions{}); err != nil {

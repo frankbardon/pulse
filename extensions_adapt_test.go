@@ -53,6 +53,8 @@ func (adaptMergeableRich) Rich() (any, error) { return []string{"r"}, nil }
 // registration) supplies it. An interface-embedding wrapper fails the
 // Online/Rich rows whenever emit is set.
 func TestAdaptAggregator_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
+	t.Parallel()
+
 	emit := func(extend.Aggregator) (map[string]any, error) { return map[string]any{"k": 1}, nil }
 	var sink extend.OnlineAggregator
 	merge := adaptMergeable{got: &sink}
@@ -123,6 +125,8 @@ func (adaptSelfEmitting) Components() (map[string]any, error) { return map[strin
 // registration supplies no ComponentsFunc, and that an explicit
 // ComponentsFunc wins over it.
 func TestAdaptAggregator_TypeLevelComponentsKept(t *testing.T) {
+	t.Parallel()
+
 	got := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, nil, nil)
 	meta, ok := got.(processing.MetaAggregator)
 	if !ok {
@@ -144,6 +148,8 @@ func TestAdaptAggregator_TypeLevelComponentsKept(t *testing.T) {
 // TestAdaptAggregator_RowsViewIsZeroCopy asserts the buffered call sees
 // the engine's own record pointers through the Rows view.
 func TestAdaptAggregator_RowsViewIsZeroCopy(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
 	recs := []*processing.Record{
 		processing.NewRecord(schema, map[string]float64{"x": 1}),
@@ -167,6 +173,8 @@ func TestAdaptAggregator_RowsViewIsZeroCopy(t *testing.T) {
 // TestAdaptAggregatorFactory_PropagatesErrorAndNil keeps the factory
 // adapter transparent for the two non-instance outcomes.
 func TestAdaptAggregatorFactory_PropagatesErrorAndNil(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.New("boom")
 	f := adaptAggregatorFactory(AggregatorRegistration{
 		Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) { return nil, boom },
@@ -193,6 +201,8 @@ func (foreignOnline) Finalize() (float64, error)                 { return 0, nil
 // with a partner that is not an adapted extension value is a coded
 // PROCESSING_INTERNAL error, never a panic or a silent no-op.
 func TestAdaptAggregator_MergeRefusesForeignPartner(t *testing.T) {
+	t.Parallel()
+
 	var sink extend.OnlineAggregator
 	got := adaptAggregator("AGG_T_X", adaptMergeable{got: &sink}, nil, nil).(processing.MergeableAggregator)
 	err := got.MergeOnline(foreignOnline{})

@@ -68,6 +68,8 @@ func fillSteps(t *testing.T, v any) any {
 // column, then the pulse_process step's model over the written cohort,
 // reading that column.
 func TestRecommend_MaterializeStepsRun(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
@@ -181,6 +183,8 @@ func derivedLabel(req types.Request) string {
 // feature column, then REG_OLS on the derived cohort reads it as a
 // predictor.
 func TestRecommend_FeatureMaterializeStepsRun(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {

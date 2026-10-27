@@ -66,6 +66,8 @@ func orderabilityCohort(t *testing.T, fs afero.Fs, path string) {
 // and details (before, predict refused and the runtime answered
 // arbitrary row numbers).
 func TestWindowOrderBy_OrderabilityPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	csv := "id,ts,flag\n1,2024-01-01T00:00:00Z,true\n2,1969-12-31T23:59:59Z,false\n3,1950-06-01T12:00:00Z,true\n4,1970-01-01T00:00:00Z,false\n"
 	if err := afero.WriteFile(fs, "o.csv", []byte(csv), 0o644); err != nil {

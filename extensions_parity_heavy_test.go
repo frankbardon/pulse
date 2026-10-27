@@ -13,6 +13,8 @@ import (
 // TestExtensions_BuiltinParity runs every suite's {builtin, extension}
 // pair through the cohort × mode matrix and requires identical output.
 func TestExtensions_BuiltinParity(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	for _, suite := range paritySuites() {
 		for _, mode := range parityModes(large) {

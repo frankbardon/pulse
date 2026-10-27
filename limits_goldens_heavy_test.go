@@ -24,6 +24,8 @@ import (
 // limit at runtime. Lowering a default is breaking; this gate is what
 // catches it.
 func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: fs})

@@ -47,6 +47,8 @@ var groupsZeroAllow = map[string]struct {
 }
 
 func TestGroupedPathsReadEveryGrouper(t *testing.T) {
+	t.Parallel()
+
 	_, self, _, _ := runtime.Caller(0)
 	root := filepath.Dir(self)
 	got := map[string]int{}

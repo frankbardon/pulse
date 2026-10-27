@@ -69,6 +69,8 @@ func u64RowsRequest(cohort string) *types.Request {
 }
 
 func TestArchiveLookup_U64ProcessRowsExact(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeU64RenderCohort(t, fsys, "single.pulse", u64RowIDs)

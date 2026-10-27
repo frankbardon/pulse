@@ -43,6 +43,8 @@ func requireProfileInvalid(t *testing.T, err error, wantReason string) *errors.C
 // TestFeatureProfile_InvalidFile covers every structural fault reachable
 // through Options.FeatureProfileFile.
 func TestFeatureProfile_InvalidFile(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		body   *string // nil: file absent
@@ -82,6 +84,8 @@ func TestFeatureProfile_InvalidFile(t *testing.T) {
 // TestFeatureProfile_InvalidValue covers the structural faults reachable
 // through the Go-value form and the both-set conflict.
 func TestFeatureProfile_InvalidValue(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		opts   Options
@@ -106,6 +110,8 @@ func TestFeatureProfile_InvalidValue(t *testing.T) {
 // TestFeatureProfile_DuplicatesListsEveryName asserts the first failing
 // class reports every instance, sorted, not just the first repeat.
 func TestFeatureProfile_DuplicatesListsEveryName(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{
 		FS:             memFsWith(t, nil),
 		FeatureProfile: &FeatureProfile{Features: []string{"B", "A", "B", "A", "C"}},
@@ -119,6 +125,8 @@ func TestFeatureProfile_DuplicatesListsEveryName(t *testing.T) {
 // TestFeatureProfile_ValidFileStored asserts a well-formed file is read
 // through the instance Fs (it exists only in the MemMap) and stored.
 func TestFeatureProfile_ValidFileStored(t *testing.T) {
+	t.Parallel()
+
 	body := `{"profile": "self-serve", "written_with": "not-a-version", "features": ["AGG_SUM", "capability:process"],
 		"behaviour": {"disable_cohort_scan": true}}`
 	p, err := New(Options{
@@ -142,6 +150,8 @@ func TestFeatureProfile_ValidFileStored(t *testing.T) {
 // TestFeatureProfile_EmptyFeaturesValid: an empty array is allowed in
 // both forms.
 func TestFeatureProfile_EmptyFeaturesValid(t *testing.T) {
+	t.Parallel()
+
 	if _, err := New(Options{FS: memFsWith(t, map[string]string{"p.json": `{"features": []}`}), FeatureProfileFile: "p.json"}); err != nil {
 		t.Errorf("file with empty features: %v", err)
 	}
@@ -153,6 +163,8 @@ func TestFeatureProfile_EmptyFeaturesValid(t *testing.T) {
 // TestFeatureProfile_ValueIsCopied asserts the instance keeps its own
 // copy: mutating the caller's profile after New changes nothing.
 func TestFeatureProfile_ValueIsCopied(t *testing.T) {
+	t.Parallel()
+
 	in := &FeatureProfile{Features: []string{"AGG_SUM", "capability:process"}, Behaviour: &FeatureProfileBehaviour{}}
 	p, err := New(Options{FS: memFsWith(t, nil), FeatureProfile: in})
 	if err != nil {
@@ -168,6 +180,8 @@ func TestFeatureProfile_ValueIsCopied(t *testing.T) {
 // TestFeatureProfile_BehaviourOR asserts a profile switch turns the
 // engine switch on and Options cannot force it back off.
 func TestFeatureProfile_BehaviourOR(t *testing.T) {
+	t.Parallel()
+
 	on := &FeatureProfileBehaviour{DisableDefaults: true, DisableComponents: true, DisableProjection: true}
 	cases := []struct {
 		name          string
@@ -208,6 +222,8 @@ func TestFeatureProfile_BehaviourOR(t *testing.T) {
 // TestFeatureProfile_NoProfileUnchanged asserts the zero Options store
 // no profile and leave every switch at its default.
 func TestFeatureProfile_NoProfileUnchanged(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -223,6 +239,7 @@ func TestFeatureProfile_NoProfileUnchanged(t *testing.T) {
 // TestFeatureProfile_NotReadFromEnv asserts pulse.New never consults the
 // environment for a profile: a bad profile named there is ignored.
 func TestFeatureProfile_NotReadFromEnv(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	mfs := memFsWith(t, map[string]string{"bad.json": `{`})
 	t.Setenv("PULSE_FEATURE_PROFILE", "bad.json")
 	t.Setenv("PULSE_FEATURE_PROFILE_FILE", "bad.json")
@@ -238,6 +255,8 @@ func TestFeatureProfile_NotReadFromEnv(t *testing.T) {
 // TestFeatureProfile_ValidatedAfterExtensions asserts profile
 // validation runs after extension validation: a bad extension wins.
 func TestFeatureProfile_ValidatedAfterExtensions(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{
 		FS:                 memFsWith(t, nil),
 		FeatureProfileFile: "absent.json",
@@ -261,6 +280,8 @@ func profileBody(s string) *string { return &s }
 // with the same reason — they are one decode, so an OS-path entry point
 // (pulse mcp --feature-profile) cannot accept what the file arm refuses.
 func TestParseFeatureProfile_SharesFileArmRefusals(t *testing.T) {
+	t.Parallel()
+
 	bodies := []string{
 		`{"features": [`,
 		`["AGG_SUM"]`,
@@ -300,6 +321,8 @@ func TestParseFeatureProfile_SharesFileArmRefusals(t *testing.T) {
 // profile is the same value the file arm stores, and that New still runs
 // the shape class over it (ParseFeatureProfile only decodes).
 func TestParseFeatureProfile_ValidRoundTripsThroughNew(t *testing.T) {
+	t.Parallel()
+
 	body := `{"profile": "self-serve", "features": ["AGG_SUM", "capability:process"], "behaviour": {"disable_cohort_scan": true}}`
 	fp, err := ParseFeatureProfile([]byte(body))
 	if err != nil {

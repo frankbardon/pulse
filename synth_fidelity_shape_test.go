@@ -70,6 +70,8 @@ func fidelityFieldEntry(t *testing.T, report *synth.FidelityReport, name string)
 // proving the existing marginal check has teeth against this exact
 // failure mode, so no dedicated shape-match metric is needed.
 func TestSynth_FidelityReportCatchesShapeCollapseViaKS(t *testing.T) {
+	t.Parallel()
+
 	const (
 		mean1, std1 = -10.0, 1.5
 		mean2, std2 = 10.0, 1.5

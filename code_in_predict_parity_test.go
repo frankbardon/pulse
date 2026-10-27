@@ -65,6 +65,8 @@ var codeInParityCases = []struct {
 // details — the descriptor re-derives the rules (it may not import
 // internal/processing), and this pins the two copies together.
 func TestCodeIn_PredictRefusalsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, c := range codeInParityCases {
@@ -118,6 +120,8 @@ func TestCodeIn_PredictRefusalsMatchRuntime(t *testing.T) {
 // only on a categorical field — the runtime runs that slot regardless
 // (the absent code matches no row).
 func TestCodeIn_PredictAcceptsWhatRuntimeRuns(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, c := range []struct {

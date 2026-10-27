@@ -162,6 +162,8 @@ func xnvExtensions() pulse.Extensions {
 // vectors included, single file and shard archive, streaming,
 // buffered and grouped.
 func TestExtensions_NativeVectorElementsReadLikeTwin(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	memberList := func(twin bool) string {
 		names := make([]string, len(vparLabels))

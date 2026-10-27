@@ -474,6 +474,8 @@ var acceptancePrecedingOutcomes = map[errors.Code]bool{
 // (the field-reference walk's vectorScalarRefusals), and every vector
 // slot accepts it.
 func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	seenCodes := map[errors.Code]bool{}
@@ -586,6 +588,8 @@ func TestFieldTypeAcceptance_PredictMatchesRuntime(t *testing.T) {
 // and float scalars plus packed_bool. decimal128 is refused on both
 // sides (fit-scoring E2-S1 decision: no decimal implementation).
 func TestModelError_PredictionFieldTypeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	wantOK := map[encoding.FieldType]bool{

@@ -23,6 +23,8 @@ import (
 // details.request / details.fit). The Compose count is the cohort's
 // header count (Service.CohortCounts), never a record read.
 func TestPredictCompose_JackknifeCostAdvisoryMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	var b strings.Builder
 	b.WriteString("x,y\n")

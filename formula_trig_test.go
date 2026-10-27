@@ -60,6 +60,8 @@ func trigCohort(t *testing.T, path string, names []string, rows int, vals func(r
 // accepts both, and the figures are the textbook ones: over 52 weekly
 // rows sin(2π·week/52) sums to 0 and squares-plus-cos-squares to 52.
 func TestFormulaTrig_FourierAndFilterRun(t *testing.T) {
+	t.Parallel()
+
 	p, data := trigCohort(t, "w.pulse", []string{"week", "x"}, 52, func(r int) []float64 {
 		return []float64{float64(r), float64(r) * 0.25}
 	})
@@ -125,6 +127,8 @@ func TestFormulaTrig_FourierAndFilterRun(t *testing.T) {
 // field named pi / e therefore keeps working exactly as before, and the
 // constant is reachable only where no such field exists.
 func TestFormulaTrig_FieldPrecedence(t *testing.T) {
+	t.Parallel()
+
 	p, data := trigCohort(t, "f.pulse", []string{"sin", "pi", "e", "x"}, 8, func(r int) []float64 {
 		return []float64{10 + float64(r), 3, 2, float64(r)}
 	})
@@ -170,6 +174,8 @@ func TestFormulaTrig_FieldPrecedence(t *testing.T) {
 // are PULSE_FORMULA_COMPILE_ERROR on both with the same message and
 // details.
 func TestFormulaTrig_CompileParity(t *testing.T) {
+	t.Parallel()
+
 	p, data := formulaCompilePulse(t)
 	for _, c := range []struct {
 		name string
@@ -197,6 +203,8 @@ func TestFormulaTrig_CompileParity(t *testing.T) {
 // reservation cannot pass by shrinking exprenv.Names()); the inverse
 // trig names Pulse does not define stay free.
 func TestExtensions_ExprFunctionReservedTrigNames(t *testing.T) {
+	t.Parallel()
+
 	fn := func(x float64) float64 { return x }
 	for _, name := range []string{"sin", "cos", "tan", "atan2", "pi", "e"} {
 		t.Run(name, func(t *testing.T) {

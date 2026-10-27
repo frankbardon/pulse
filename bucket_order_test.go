@@ -117,6 +117,8 @@ func streamRows(t *testing.T, p *Pulse, req *Request) []map[string]any {
 // emits its Data rows in bucket order — buffered over one file, buffered
 // over a shard archive, and streamed over both.
 func TestBucketOrder_GroupedRowsEveryArm(t *testing.T) {
+	t.Parallel()
+
 	p := bucketOrderEngine(t, Options{})
 	ctx := context.Background()
 	for _, tc := range []struct {
@@ -149,6 +151,8 @@ func TestBucketOrder_GroupedRowsEveryArm(t *testing.T) {
 // orders each position by its own grouper — the range position by low
 // edge, the category position alphabetically, the decile position by id.
 func TestBucketOrder_MultiGrouperComposite(t *testing.T) {
+	t.Parallel()
+
 	p := bucketOrderEngine(t, Options{})
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 
@@ -207,6 +211,8 @@ func TestBucketOrder_MultiGrouperComposite(t *testing.T) {
 
 // TestBucketOrder_ExplicitSortWins: Request.Sort still reorders rows.
 func TestBucketOrder_ExplicitSortWins(t *testing.T) {
+	t.Parallel()
+
 	p := bucketOrderEngine(t, Options{})
 	req := bucketOrderGroupReq("flat.pulse", decileGroup())
 	req.Sort = []types.OrderKey{{Field: "sum", Desc: true}}
@@ -254,6 +260,8 @@ func axisStrings(keys []types.AxisKey, pos int) []string {
 // fused arm (range is fusable; predict says so), over a file and an
 // archive; an explicit axis Include still leads.
 func TestBucketOrder_CrosstabAxesBothArms(t *testing.T) {
+	t.Parallel()
+
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 	for _, disable := range []bool{false, true} {
 		p := bucketOrderEngine(t, Options{DisableCrosstabFusion: disable})

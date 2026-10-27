@@ -30,6 +30,8 @@ import (
 // The supplied channel is asserted NOT to carry them, so the test fails
 // if the report is merely echoing its input.
 func TestSynth_FidelityReportRecordsGenerationTimeWarnings(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := New(Options{FS: fs})
 	if err != nil {
@@ -129,6 +131,8 @@ func TestSynth_FidelityReportRecordsGenerationTimeWarnings(t *testing.T) {
 // unit half: supplied order first, generated lines appended, exact
 // duplicates dropped wherever they sit.
 func TestMergeFidelityWarnings_PreservesOrderAndCollapsesTheOverlap(t *testing.T) {
+	t.Parallel()
+
 	supplied := []string{"capture: thin pair a x b", "conflict: score"}
 	generated := []string{"conflict: score", "rule 1 never fired", "rule 1 never fired"}
 

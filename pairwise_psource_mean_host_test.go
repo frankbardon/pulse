@@ -22,6 +22,8 @@ import (
 // an explicit p_source keeps working, and a count cell keeps the
 // cell_value_pct default byte-identical.
 func TestPairwisePSource_MeanHostRefused(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	xt := func(cells, extra string) string {
 		return `"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"h"}],"columns":[{"type":"GROUP_CATEGORY","field":"wave"}],` + cells + extra + `}`

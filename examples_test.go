@@ -191,6 +191,8 @@ func overlayLayerHasFigure(l *types.OverlayLayer) bool {
 }
 
 func TestRegressionExamplesCount(t *testing.T) {
+	t.Parallel()
+
 	matches, err := filepath.Glob(filepath.Join("internal", "examples", "regression", "*.json"))
 	if err != nil {
 		t.Fatalf("glob: %v", err)
@@ -280,6 +282,8 @@ func buildShardedTransactionsFixture(p *pulse.Pulse, fs afero.Fs, dataDir string
 // summary, every slot answered, and the loaded population scoring
 // panel b exactly as the in-batch fit did.
 func TestExamples_VectorFitPopulationRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	builder, err := pulse.New(pulse.Options{FS: osfs})
@@ -375,6 +379,8 @@ func TestExamples_VectorFitPopulationRoundTrip(t *testing.T) {
 // SD, so −0.24 and +0.525 in marker units; quality 0) — each within two
 // SEs of its truth, value and service distinguishable from zero.
 func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	builder, err := pulse.New(pulse.Options{FS: osfs})
@@ -471,6 +477,8 @@ func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
 // and the drivers slot's OLS of recommend on the three scores finds
 // each a positive driver distinguishable from zero.
 func TestExamples_SEMFitScoresFeedRegression(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	builder, err := pulse.New(pulse.Options{FS: osfs})
@@ -560,6 +568,8 @@ func TestExamples_SEMFitScoresFeedRegression(t *testing.T) {
 // operator regressions — and asserts nothing about any one domain's
 // figures.
 func TestExamples_ComposeRunClean(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	builder, err := pulse.New(pulse.Options{FS: osfs})

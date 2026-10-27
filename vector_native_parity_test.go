@@ -414,6 +414,8 @@ func vparWire(t *testing.T, resp *types.Response, native bool) string {
 // archive, vec_f64 and vec_f32 — the native response equals the twin's.
 // A mode the operator refuses must be refused identically on both.
 func TestNativeVectorParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, ft := range []encoding.FieldType{encoding.FieldTypeVecF64, encoding.FieldTypeVecF32} {
 		for _, sharded := range []bool{false, true} {
@@ -472,6 +474,8 @@ func TestNativeVectorParity(t *testing.T) {
 // vector-consuming operator (every MAT_*, the vector tests, attributes,
 // groupers and aggregations) is exercised by a parity case.
 func TestNativeVectorParity_CoversEveryVectorOperator(t *testing.T) {
+	t.Parallel()
+
 	covered := map[string]bool{}
 	for _, c := range vparCases() {
 		for _, op := range c.ops {

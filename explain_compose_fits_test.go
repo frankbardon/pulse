@@ -53,6 +53,8 @@ func labelled(r *Request, label string) *Request {
 }
 
 func TestExplain_ComposeFitsMatchPredictCompose(t *testing.T) {
+	t.Parallel()
+
 	regFS := fitsFacadeFS(t)
 	writeCoefModel(t, regFS, facadeModel, 2)
 	regP, err := New(Options{FS: regFS})

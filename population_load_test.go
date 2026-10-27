@@ -67,6 +67,8 @@ func populationScoring(pops ...types.PopulationRef) *Request {
 // the other kind — is refused by predict exactly as Process refuses it;
 // a valid load predicts clean and runs.
 func TestPopulationLoad_PredictRuntimeParity_Process(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -140,6 +142,8 @@ func TestPopulationLoad_PredictRuntimeParity_Process(t *testing.T) {
 // PredictChain refuse a bad population load exactly as the runtime
 // does, located at the slot / fit / stage, before any fit saves.
 func TestPopulationLoad_PredictRuntimeParity_Batches(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -225,6 +229,8 @@ func TestPopulationLoad_PredictRuntimeParity_Batches(t *testing.T) {
 // PULSE_REQUEST_UNKNOWN_FIELD, runtime and predict alike; the
 // unprofiled control loads.
 func TestHiddenPopulations_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	control, err := New(Options{FS: fsys})
 	if err != nil {

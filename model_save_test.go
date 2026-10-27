@@ -24,6 +24,8 @@ import (
 // request) and a bad fit save path (Compose) are refused by predict
 // with the runtime's code, message and details.
 func TestModelSave_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -93,6 +95,8 @@ type descxEnvelopeError struct {
 // PULSE_REQUEST_UNKNOWN_FIELD at that object, runtime and predict alike,
 // and writes nothing; the unprofiled control saves.
 func TestHiddenModelSave_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	control, err := New(Options{FS: fsys})
 	if err != nil {
@@ -163,6 +167,8 @@ func TestHiddenModelSave_RefusedAsUnknownField(t *testing.T) {
 // shapes the top-level overlays only; the batch `warnings` (a fit save's
 // overwrite) are always emitted.
 func TestModelSave_WarningsOutsideComposeReturn(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -220,6 +226,8 @@ func TestModelSave_WarningsOutsideComposeReturn(t *testing.T) {
 // refuses them — the batch ones before any fit runs, so nothing is
 // written.
 func TestModelSave_BatchPathParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {

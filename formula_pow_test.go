@@ -68,6 +68,8 @@ func powCohort(t *testing.T) (*pulse.Pulse, []byte) {
 // total() argument and a filter over the operator agree with pow()'s
 // to the bit; predict accepts every request.
 func TestFormulaPow_OperatorEqualsPowBuiltin(t *testing.T) {
+	t.Parallel()
+
 	p, data := powCohort(t)
 	ctx := context.Background()
 	req := func() *types.Request {
@@ -127,6 +129,8 @@ func TestFormulaPow_OperatorEqualsPowBuiltin(t *testing.T) {
 // TestFormulaPow_PredictMatchesRuntime: every refusal the operator can
 // raise is the same code and message at predict and at run time.
 func TestFormulaPow_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, data := powCohort(t)
 	for _, c := range []struct {
 		name string
@@ -181,6 +185,8 @@ func TestFormulaPow_PredictMatchesRuntime(t *testing.T) {
 // TestFormulaPow_HoldoutUsesOperator: a holdout predicate over `**`
 // holds out exactly the rows its pow() spelling does.
 func TestFormulaPow_HoldoutUsesOperator(t *testing.T) {
+	t.Parallel()
+
 	p, data := powCohort(t)
 	run := func(holdout string) *types.RegressionHoldout {
 		t.Helper()

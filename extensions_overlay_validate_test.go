@@ -5,6 +5,8 @@ import (
 )
 
 func TestExtensions_OverlayKinds_NamingPolicy(t *testing.T) {
+	t.Parallel()
+
 	// The regex must reject mixed-case overlay names regardless of
 	// whether the OVERLAY_ category prefix is added to the regex
 	// alternation. A future widening that allows OVERLAY_ but accepts

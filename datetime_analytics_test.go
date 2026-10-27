@@ -29,6 +29,8 @@ import (
 // therefore raw epoch seconds, and a stray `/ 86400` anywhere on the
 // aggregation path would rescale every one of them by 86,400.
 func TestDateTime_AnalyticsAggregatorsReadTheNumericChannel(t *testing.T) {
+	t.Parallel()
+
 	// 2024-01-01T00:00:00Z and three ten-second steps, tiled so
 	// inference sees a full sample window. Tiling keeps the multiset
 	// {0,10,20,30}s uniform, so the population moments are exact.
@@ -141,6 +143,8 @@ func TestDateTime_AnalyticsAggregatorsReadTheNumericChannel(t *testing.T) {
 // anything on the aggregation path special-cased the temporal type (a
 // day truncation, a rescale, a null).
 func TestDateTime_MatchesIntegerColumnAcrossAnalyticsAggregators(t *testing.T) {
+	t.Parallel()
+
 	stamps := []string{
 		"2024-01-01T00:00:00Z",
 		"2024-01-01T00:00:10Z",

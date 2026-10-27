@@ -21,6 +21,8 @@ import (
 // rule). Before, the validator refused it and the runtime filtered on
 // an all-null column and kept nothing.
 func TestFieldRefs_FacetFiltererRefusedLikeValidator(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -71,6 +73,8 @@ func TestFieldRefs_FacetFiltererRefusedLikeValidator(t *testing.T) {
 // failed later with an operator-specific PROCESSING_CONFIG (or kept no
 // rows). FILTER_EXPRESSION without a Field still runs on both sides.
 func TestFieldRefs_EmptyFilterFieldRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -191,6 +195,8 @@ func paramFieldRequests(cohort string) map[string]struct {
 // (both crosstab arms), ProcessStream, predict and, located, Compose
 // return the same code, message and details.
 func TestFieldRefs_ParamFieldsRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	opts := &descx.PredictOptions{SchemaLoader: schemaLoaderFor(fs)}
@@ -230,6 +236,8 @@ func TestFieldRefs_ParamFieldsRefusedLikePredict(t *testing.T) {
 // pipeline produces — an attribute label as a weight, an aggregation
 // label as a post-test column — is not unknown; both sides run it.
 func TestFieldRefs_ParamFieldsDerivedNamesAccepted(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -264,6 +272,8 @@ func TestFieldRefs_ParamFieldsDerivedNamesAccepted(t *testing.T) {
 // ExtensionsSnapshot, so predict and the runtime judge them with the
 // same refusal; a declared name that exists runs on both sides.
 func TestFieldRefs_ExtensionFieldInputsJudged(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	reg := parityMeanRegistration(&parityProbe{}, "AGG_ACME_BYMEAN")
@@ -318,6 +328,8 @@ func TestFieldRefs_ExtensionFieldInputsJudged(t *testing.T) {
 // predict accepts it as the runtime does. The cohort's dictionary is
 // in encounter order c, a, b; the row numbers follow a, b, c.
 func TestWindowOrderBy_CategoricalOrdersByLabel(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "o.csv", []byte("cat,n\nc,1\na,2\nb,3\nc,4\na,5\n"), 0o644); err != nil {
 		t.Fatal(err)

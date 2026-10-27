@@ -115,6 +115,8 @@ func extSectionExtensions() Extensions {
 }
 
 func TestExtensionSkills_GeneratedSections(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: extSectionExtensions()})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -155,6 +157,8 @@ func TestExtensionSkills_GeneratedSections(t *testing.T) {
 // TestExtensionSkills_GeneratedSectionsProfiled: on a profiled instance
 // a hidden not-for target is absent from the rendered section.
 func TestExtensionSkills_GeneratedSectionsProfiled(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: extSectionExtensions(),
 		FeatureProfile: &FeatureProfile{Features: []string{"capability:process", "TEST_ACME_GAP", "TEST_T", "AGG_ACME_PLAIN", "AGG_ACME_KEPT"}}})
 	if err != nil {
@@ -176,6 +180,8 @@ func TestExtensionSkills_GeneratedSectionsProfiled(t *testing.T) {
 // measures the hand-written body — marker lines do not count, so a body
 // at exactly the budget without them still loads.
 func TestExtensionSkills_MarkersOutsideBudget(t *testing.T) {
+	t.Parallel()
+
 	stripped := strings.ReplaceAll(strings.ReplaceAll(extSectionSkill, "<!-- generated: use-when -->\n\n", ""), "<!-- generated: reading-the-output -->\n\n", "")
 	body := len(stripped) - strings.Index(stripped, "\nGap between")
 	budget, _ := skills.BodyBudget("op-test-acme-gap", "operator") // the op-test-* tier
@@ -243,6 +249,8 @@ func extContractExtensions(skill string) Extensions {
 // the Weight line is absent. A skill without the marker is unchanged
 // (TestExtensionSkills_GeneratedSections, op-agg-acme-kept).
 func TestExtensionSkills_ContractSection(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: extContractExtensions(extContractSkill)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -278,6 +286,8 @@ func TestExtensionSkills_ContractSection(t *testing.T) {
 // line does not count toward the hard embedder budget — a body at
 // exactly the budget without it still loads with it.
 func TestExtensionSkills_ContractMarkerOutsideBudget(t *testing.T) {
+	t.Parallel()
+
 	stripped := strings.Replace(extContractSkill, "<!-- generated: contract -->\n\n", "", 1)
 	body := len(stripped) - strings.Index(stripped, "\nContract stub aggregate.")
 	budget, _ := skills.BodyBudget("op-agg-acme-contract", "operator") // the op-* tier

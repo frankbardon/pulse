@@ -266,6 +266,8 @@ func newVecFP(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 }
 
 func TestVectorFields_EveryDecodePathAgrees(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	exts := pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{
 		{Name: "AGG_VECT_FP_ONLINE", Description: "Vector fingerprint, streaming.", Factory: newVecFP, Streamable: true, Mergeable: true},

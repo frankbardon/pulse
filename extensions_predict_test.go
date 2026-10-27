@@ -38,6 +38,8 @@ func buildCohortFile(t *testing.T, fs afero.Fs, path string) {
 // does NOT flag a feature operator registered via the snapshot as
 // "unknown feature type".
 func TestExtensions_Predict_AcceptsCustomFeatureType(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	buildCohortFile(t, fs, "cohort.pulse")
 	p, err := pulse.New(pulse.Options{
@@ -75,6 +77,8 @@ func TestExtensions_Predict_AcceptsCustomFeatureType(t *testing.T) {
 // type not registered in the snapshot still trips the unknown-type
 // check.
 func TestExtensions_Predict_FlagsUnknownCustomFeature(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	buildCohortFile(t, fs, "cohort.pulse")
 	p, err := pulse.New(pulse.Options{
@@ -109,6 +113,8 @@ func TestExtensions_Predict_FlagsUnknownCustomFeature(t *testing.T) {
 // result.Streamable: a streamable-registered op alone with no other
 // non-streamable operators must keep Streamable=true.
 func TestExtensions_Predict_StreamableFlagFromSnapshot(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	buildCohortFile(t, fs, "cohort.pulse")
 	p, err := pulse.New(pulse.Options{
@@ -143,6 +149,8 @@ func TestExtensions_Predict_StreamableFlagFromSnapshot(t *testing.T) {
 // asserts the streamability override propagates the other direction
 // too: a non-streamable custom aggregator forces the buffered path.
 func TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	buildCohortFile(t, fs, "cohort.pulse")
 	p, err := pulse.New(pulse.Options{
@@ -184,6 +192,8 @@ func TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming(t *testing.T
 // lives in internal/descriptor/predict_test.go (TestPredictNoExecutionImports);
 // this assertion just exercises the snapshot path from outside.
 func TestExtensions_Predict_DescriptorImportContractHolds(t *testing.T) {
+	t.Parallel()
+
 	snap := &descx.ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_X", Streamable: true}},
 	}

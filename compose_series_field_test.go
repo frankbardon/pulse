@@ -112,6 +112,8 @@ func csPredict(t *testing.T, p *pulse.Pulse, req *types.ComposedRequest) *descri
 // first aa_sum. The two figures differ, so neither equality is two
 // copies of one default. Predict-compose admits every run.
 func TestComposeSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
+	t.Parallel()
+
 	if got := len(seriesfield.ComposeKinds()); got != 5 {
 		t.Fatalf("seriesfield.ComposeKinds() = %d kinds, want 5", got)
 	}
@@ -148,6 +150,8 @@ func TestComposeSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
 // fold reads never reaches ComposedResponse.Responses — every slot's
 // Data still carries both aggregations.
 func TestComposeSeriesOverlay_SlotsUntouched(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := csCompose(f, csOverlay(types.OverlayKindIndexVsRef, "aa_sum"), csRegion, csZ, csA)
 	resp, err := f.p.Compose(context.Background(), req)
@@ -170,6 +174,8 @@ func TestComposeSeriesOverlay_SlotsUntouched(t *testing.T) {
 // target — is ONE PULSE_OVERLAY_FIELD_UNKNOWN from predict-compose and
 // from the runtime, Details {index, kind, field, available, slot} equal.
 func TestComposeSeriesOverlay_FieldUnknownParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	cases := []struct {
 		name, field, slot string
@@ -219,6 +225,8 @@ func TestComposeSeriesOverlay_FieldUnknownParity(t *testing.T) {
 // align. The runtime key-set gate refuses them, and predict-compose now
 // refuses them under the same code; equal group columns pass both.
 func TestComposeSeriesOverlay_KeyFieldsDivergentParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsRef, types.OverlayKindDeltaVsRef} {
 		t.Run(string(kind), func(t *testing.T) {
@@ -254,6 +262,8 @@ func TestComposeSeriesOverlay_KeyFieldsDivergentParity(t *testing.T) {
 // predict-compose resolves the same default from the slot's schema
 // (header only) and admits it.
 func TestComposeSeriesOverlay_DefaultedLabel(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	untyped := func() *types.Aggregation { return &types.Aggregation{Field: "y"} }
 	typed := func() *types.Aggregation { return &types.Aggregation{Type: types.AGG_SUM, Field: "y"} }

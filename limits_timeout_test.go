@@ -54,6 +54,8 @@ func awaitStalledTerminator(t *testing.T, res StreamResult[Row]) StreamTerminato
 // consumer stalled) ends the stream StreamErrored with the coded
 // PULSE_LIMIT_EXCEEDED error — not StreamCancelled.
 func TestProcessStreamResult_RequestTimeoutIsStreamErrored(t *testing.T) {
+	t.Parallel()
+
 	const d = 300 * time.Millisecond
 	p, req := timeoutStreamPulse(t, Limits{RequestTimeout: d})
 	res, err := p.ProcessStreamResult(context.Background(), req)
@@ -79,6 +81,8 @@ func TestProcessStreamResult_RequestTimeoutIsStreamErrored(t *testing.T) {
 // deadline firing mid-stream under a 1h RequestTimeout stays
 // StreamCancelled with context.DeadlineExceeded.
 func TestProcessStreamResult_CallerDeadlineStaysCancelled(t *testing.T) {
+	t.Parallel()
+
 	p, req := timeoutStreamPulse(t, Limits{RequestTimeout: time.Hour})
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
@@ -99,6 +103,8 @@ func TestProcessStreamResult_CallerDeadlineStaysCancelled(t *testing.T) {
 // facade. (The in-run trip on every entry is internal/service's
 // TestRequestTimeout_TripsOnEveryEntry.)
 func TestProcessStreamResult_CallerCancelPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	p, req := timeoutStreamPulse(t, Limits{RequestTimeout: time.Hour})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

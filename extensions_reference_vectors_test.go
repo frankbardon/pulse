@@ -77,6 +77,8 @@ func refRequest(got, want string) *types.Request {
 // (the categorical region) alike — and matches the field-spelled oracle.
 // A positional pairing would weight score instead of qty.
 func TestReferenceVectors_AlignByLabel(t *testing.T) {
+	t.Parallel()
+
 	p, data := openReferenceCohort(t, refRegionTables())
 	regionWeight := `(region == "north" ? 1 : region == "south" ? 2 : region == "east" ? 3 : 4)`
 	cases := []struct{ name, got, want string }{
@@ -114,6 +116,8 @@ func TestReferenceVectors_AlignByLabel(t *testing.T) {
 // reason — literal names before any row, a computed key on the row that
 // misses.
 func TestReferenceVectors_RefusalParity(t *testing.T) {
+	t.Parallel()
+
 	p, data := openReferenceCohort(t, refRegionTables())
 	cases := []struct {
 		name, expr   string
@@ -159,6 +163,8 @@ func TestReferenceVectors_RefusalParity(t *testing.T) {
 // TestReferenceVectors_Validation: each malformed table is refused at
 // pulse.New with PULSE_EXTENSION_PARAM_INVALID and its reason.
 func TestReferenceVectors_Validation(t *testing.T) {
+	t.Parallel()
+
 	ok := func() types.ReferenceVectorTable {
 		return types.ReferenceVectorTable{Labels: []string{"a", "b"}, Profiles: map[string][]float64{"k": {1, 2}}}
 	}
@@ -200,6 +206,8 @@ func TestReferenceVectors_Validation(t *testing.T) {
 // and the two reference-comparison attribute names are reserved against
 // extensions.
 func TestReferenceVectors_ReservedNames(t *testing.T) {
+	t.Parallel()
+
 	_, err := pulse.New(newTestOptions(pulse.Extensions{
 		ExprFunctions: []pulse.ExprFunction{{Name: "ref", Fn: func(x float64) float64 { return x }}},
 	}))
@@ -216,6 +224,8 @@ func TestReferenceVectors_ReservedNames(t *testing.T) {
 // labels and sorted keys (never the values); the instance keeps its own
 // copy, so mutating the registered maps after pulse.New changes nothing.
 func TestReferenceVectors_ManifestAndCopy(t *testing.T) {
+	t.Parallel()
+
 	tables := refRegionTables()
 	p, _ := openReferenceCohort(t, tables)
 	m := p.Manifest(context.Background())

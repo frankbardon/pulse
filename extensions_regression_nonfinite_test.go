@@ -21,6 +21,8 @@ import (
 // reports the same n_obs as REG_OLS over the same slot — the NaN row
 // dropped like a null — and its coefficients are finite.
 func TestExtensions_RegressionNonFiniteInputDropsListwise(t *testing.T) {
+	t.Parallel()
+
 	rows := windowParityRows()
 	rows[10][2] = math.NaN()   // east, week 11: tv is NaN
 	rows[20][2] = math.Inf(1)  // east, week 21: tv is +Inf
@@ -70,6 +72,8 @@ func (s countingScorer) Score(row extend.ScoreRow) (float64, bool) {
 // column is NaN or ±Inf scores null without reaching the extension's
 // scorer; a finite row still reaches it.
 func TestExtensions_RegressionScorerNonFiniteIsNull(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	s := regadapt.NewRegressionRowScorer(countingScorer{calls: &calls}, []string{"x"})
 	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {

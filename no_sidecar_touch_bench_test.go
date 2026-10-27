@@ -161,6 +161,8 @@ func runSidecarPresenceBench(b *testing.B, withIndex bool) {
 // change this count and fail the assertion — a real regression gate,
 // just measured in syscalls rather than nanoseconds.
 func TestNoRegression_ProcessAccessCountUnaffectedByIndexPresence(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	baseFs := afero.NewMemMapFs()
 	const path = "regression_sidecar.pulse"

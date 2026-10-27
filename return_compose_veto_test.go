@@ -23,6 +23,7 @@ import (
 // cell component maps, and the Compose layer plus every kept slot path
 // are byte-identical to the unshaped, untimed run.
 func TestReturnComposeParallelTimeoutKeepsComponentsVeto(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
 	_, fs, cohort := acceptanceCohort(t)
 	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
 	standard := &types.Return{Preset: types.ReturnPresetStandard}
@@ -84,6 +85,7 @@ func TestReturnComposeParallelTimeoutKeepsComponentsVeto(t *testing.T) {
 // family the same exclusion skips the slot's tests outright (its
 // counter contribution is 0). Serial and parallel Compose.
 func TestReturnComposeFamilyTestVeto(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
 	_, fs, cohort := acceptanceCohort(t)
 	p := newReturnInstance(t, fs, pulse.Options{})
 	excluded := &types.Return{Exclude: []string{"tests", "post_tests"}}
@@ -191,6 +193,7 @@ func TestReturnComposeFamilyTestVeto(t *testing.T) {
 // byte-identical to the unshaped run — the skip changes no number.
 // Serial and parallel.
 func TestReturnComposeVetoWeightAware(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
 	_, fs, cohort := acceptanceCohort(t)
 	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
 	freq := types.WeightSpec{Field: "y", Kind: types.WeightKindFrequency}

@@ -23,6 +23,8 @@ import (
 // overwrite. A FEAT_POLY Label equal to its Field is a PREFIX (outputs
 // <label>_2...), not a shadow, and stays accepted.
 func TestLabelShadow_RefusedOnEverySide(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "s.csv", []byte("cat,n,m\na,10,\nb,20,5\na,30,\nb,40,7\n"), 0o644); err != nil {
 		t.Fatal(err)

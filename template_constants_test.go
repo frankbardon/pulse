@@ -30,6 +30,8 @@ var rootTemplateVarTypes = map[TemplateVarType]template.VarType{
 }
 
 func TestTemplateConstants_EqualInternal(t *testing.T) {
+	t.Parallel()
+
 	for root, internal := range rootTemplateTargets {
 		if root != internal {
 			t.Errorf("root target %q != internal %q", root, internal)
@@ -49,6 +51,8 @@ func TestTemplateConstants_EqualInternal(t *testing.T) {
 }
 
 func TestTemplateConstants_RootSetComplete(t *testing.T) {
+	t.Parallel()
+
 	targets := template.AllTargets()
 	if len(targets) != len(rootTemplateTargets) {
 		t.Errorf("internal has %d targets, root spells %d", len(targets), len(rootTemplateTargets))

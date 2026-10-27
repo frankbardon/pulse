@@ -26,6 +26,8 @@ func groupByCat(cohort string) *types.Request {
 // three buckets, trips at runtime with PULSE_LIMIT_EXCEEDED and no
 // result. At the limit there is no finding and the run succeeds.
 func TestLimits_MaxGroups_PredictPossibleAndProcessTrips(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	p := limitsPulse(t, fs, pulse.Limits{MaxGroups: 2})

@@ -20,6 +20,7 @@ import (
 // run (slot 1 reaches every entry; slot 2 only the 15 north/east ones),
 // against 360 + 180 evaluations per row — a deterministic work gate.
 func TestGroupedCohort_FilterPrecomputeParity(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch
 	ctx := context.Background()
 	fs1, fs2 := groupedTwinFS(t)
 	cohort := &types.Cohort{Filename: "cohort.pulse"}

@@ -295,6 +295,8 @@ func wantRow(cols []readerColumn, r int) CohortRow {
 // TestCohortReader_ExactEveryType: RecordAt returns the exact stored
 // value, with the canonical Go type, for all 20 field types and nulls.
 func TestCohortReader_ExactEveryType(t *testing.T) {
+	t.Parallel()
+
 	p, _, cols, _, _ := readerFixtureEngine(t)
 	r := openReader(t, p, "all.pulse")
 	if r.Len() != int64(len(cols[0].want)) {
@@ -327,6 +329,8 @@ func TestCohortReader_ExactEveryType(t *testing.T) {
 // TestCohortReader_RowsAreCallerOwned: mutating a returned row (and its
 // set slice) never reaches a later read.
 func TestCohortReader_RowsAreCallerOwned(t *testing.T) {
+	t.Parallel()
+
 	p, _, cols, _, _ := readerFixtureEngine(t)
 	r := openReader(t, p, "all.pulse")
 	a, err := r.RecordAt(1)
@@ -348,6 +352,8 @@ func TestCohortReader_RowsAreCallerOwned(t *testing.T) {
 // categorical, a narrow and a wide set, nullable members included) and
 // on the facade's 360-row grouped twin (indexed + constant groups).
 func TestCohortReader_GroupedMatchesUngroupedTwin(t *testing.T) {
+	t.Parallel()
+
 	t.Run("all-types", func(t *testing.T) {
 		p, fsys, cols, _, data := readerFixtureEngine(t)
 		var out bytes.Buffer
@@ -426,6 +432,8 @@ func compareReaders(t *testing.T, flat, grouped *CohortReader) {
 // TestCohortReader_Errors: an out-of-range index and a read after Close
 // are coded errors, never panics.
 func TestCohortReader_Errors(t *testing.T) {
+	t.Parallel()
+
 	p, _, _, _, _ := readerFixtureEngine(t)
 	c, err := p.Open(context.Background(), "all.pulse")
 	if err != nil {
@@ -454,6 +462,8 @@ func TestCohortReader_Errors(t *testing.T) {
 // TestCohortReader_TruncatedTailIgnored: a trailing partial record is
 // not addressable (Len floors, as CountRecords does).
 func TestCohortReader_TruncatedTailIgnored(t *testing.T) {
+	t.Parallel()
+
 	p, fsys, cols, _, data := readerFixtureEngine(t)
 	if err := afero.WriteFile(fsys, "trunc.pulse", append(append([]byte{}, data...), 0x01, 0x02), 0o644); err != nil {
 		t.Fatal(err)
@@ -468,6 +478,8 @@ func TestCohortReader_TruncatedTailIgnored(t *testing.T) {
 // an in-memory FS (mutex-serialised ReaderAt) and an on-disk DataDir
 // (positional pread); run under -race.
 func TestCohortReader_ConcurrentRecordAt(t *testing.T) {
+	t.Parallel()
+
 	cols := readerColumns(t)
 	data, _ := writeReaderFixture(t, cols)
 
@@ -518,6 +530,8 @@ func TestCohortReader_ConcurrentRecordAt(t *testing.T) {
 // TestCohortRow_DistinctFromRecord: CohortRow is its own slice type, not
 // Sample's name-keyed Record.
 func TestCohortRow_DistinctFromRecord(t *testing.T) {
+	t.Parallel()
+
 	if reflect.TypeOf(CohortRow{}).Kind() != reflect.Slice || reflect.TypeOf(Record{}).Kind() != reflect.Map {
 		t.Fatal("CohortRow must be a slice and Record a map")
 	}
@@ -534,6 +548,8 @@ func TestCohortRow_DistinctFromRecord(t *testing.T) {
 // boundary concurrently on an in-memory FS and an on-disk DataDir (run
 // under -race).
 func TestCohortReader_ArchiveAllTypes(t *testing.T) {
+	t.Parallel()
+
 	cols := readerColumns(t)
 	data, _ := writeReaderFixture(t, cols)
 	n := len(cols[0].want)

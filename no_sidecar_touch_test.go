@@ -100,6 +100,8 @@ func (a *accessRecordingFs) Reset() {
 // guards against the test passing vacuously because the wrapper never
 // fired.
 func TestNoSidecarTouch_ProcessSampleFacetNeverAccessTheIndex(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	baseFs := afero.NewMemMapFs()
 
@@ -209,6 +211,8 @@ func TestNoSidecarTouch_ProcessSampleFacetNeverAccessTheIndex(t *testing.T) {
 // access-recording harness is impractical; here it is kept as a
 // second, independent line of evidence rather than a replacement.
 func TestNoSidecarTouch_ResultsUnchangedWhenIndexRemoved(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	memFs := afero.NewMemMapFs()
 

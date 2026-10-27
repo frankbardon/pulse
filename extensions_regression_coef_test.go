@@ -76,6 +76,8 @@ func coefSlot(exprs map[string]string, models ...types.ModelRef) *Request {
 }
 
 func TestExtensions_RegressionCoefModelNamed(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	p := centredInstance(t, fsys, centredSERegistration())
 	ctx := context.Background()

@@ -24,6 +24,8 @@ import (
 // flag must equal Format.CanWrite, and every advertised extension must
 // resolve back through io.FormatFromPath.
 func TestManifestImportCapability_MatchesFormatRegistry(t *testing.T) {
+	t.Parallel()
+
 	m := descx.BuildManifest()
 
 	declared := make(map[string]descriptor.ImportFormatCapability, len(m.Import.Formats))

@@ -119,6 +119,8 @@ func assertCarried(t *testing.T, p *Pulse, afs afero.Fs, target string, wantVars
 }
 
 func TestMaterialize_CarriesSPSSSidecar(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, labelledSavSpec(), Options{})
 	res, err := p.Materialize(context.Background(), &Request{
@@ -135,6 +137,8 @@ func TestMaterialize_CarriesSPSSSidecar(t *testing.T) {
 }
 
 func TestRake_CarriesSPSSSidecar(t *testing.T) {
+	t.Parallel()
+
 	q1 := []RakeMargin{{Field: "Q1", Targets: map[string]float64{"1": 0.4, "2": 0.6}}}
 	t.Run("new weight column", func(t *testing.T) {
 		afs := afero.NewMemMapFs()
@@ -171,6 +175,8 @@ func TestRake_CarriesSPSSSidecar(t *testing.T) {
 // TestMaterialize_StaleSidecarIsNotCarried: a stale source sidecar is
 // reported (its own code) and the derived cohort is written without one.
 func TestMaterialize_StaleSidecarIsNotCarried(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, labelledSavSpec(), Options{})
 	if err := afs.Chtimes(suggestCohort, time.Now(), time.Now().Add(time.Hour)); err != nil {
@@ -198,6 +204,8 @@ func TestMaterialize_StaleSidecarIsNotCarried(t *testing.T) {
 // drop the whole sidecar); a .sav export carries the labels and the
 // re-imported column holds the previous codes.
 func TestMaterialize_CarriesPreviousStateValueLabels(t *testing.T) {
+	t.Parallel()
+
 	// SPSS DATE counts seconds from 1582-10-14; epoch day d is
 	// 12219379200 + 86400·d.
 	day := func(d float64) spsstest.Value { return spsstest.Num(12219379200 + 86400*d) }
@@ -313,6 +321,8 @@ func TestMaterialize_CarriesPreviousStateValueLabels(t *testing.T) {
 // (and a declared label nothing used stays unobserved), while the
 // state variable keeps its own flags.
 func TestMaterialize_PreviousStateObservedRecomputed(t *testing.T) {
+	t.Parallel()
+
 	day := func(d float64) spsstest.Value { return spsstest.Num(12219379200 + 86400*d) }
 	spec := labelledSavSpec()
 	spec.Vars = append(spec.Vars, spsstest.Var{Name: "DAY", Label: "Interview day",

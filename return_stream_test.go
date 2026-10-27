@@ -70,6 +70,8 @@ func numberDoc(t *testing.T, b []byte) any {
 // reported only once the stream is exhausted and equals the buffered
 // one.
 func TestReturn_StreamMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for name, ret := range streamReturnCases() {
@@ -193,6 +195,8 @@ func streamJSON(t *testing.T, p *pulse.Pulse, req *types.Request) []byte {
 // chunk's components equal the buffered shaped response's, and only the
 // terminal chunk carries the `returned` marker.
 func TestReturn_StreamResultChunks(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	for name, ret := range streamReturnCases() {
 		if name == "data excluded" {
@@ -267,6 +271,8 @@ func checkStreamChunks(t *testing.T, p *pulse.Pulse, mk func() *types.Request) {
 // carries no marker, and ProcessStream hands back the unshaped iterator
 // (no MarshalRow); a non-identity block does change the stream.
 func TestReturnFullIsIdentity_Stream(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	baseline := streamJSON(t, p, streamReturnReq(cohort, nil))
 	if bytes.Contains(baseline, []byte(`"returned"`)) || !bytes.Contains(baseline, []byte(`"components"`)) {
@@ -297,6 +303,8 @@ func TestReturnFullIsIdentity_Stream(t *testing.T) {
 // TestReturn_RequestHashCoversReturn: `return` changes the output, so
 // it participates in Request.Hash (and so in a stream's RequestHash).
 func TestReturn_RequestHashCoversReturn(t *testing.T) {
+	t.Parallel()
+
 	a := streamReturnReq("c.pulse", nil)
 	b := streamReturnReq("c.pulse", &types.Return{Preset: types.ReturnPresetMinimal})
 	if a.Hash() == b.Hash() {

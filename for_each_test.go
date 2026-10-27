@@ -68,6 +68,8 @@ func codeOf(t *testing.T, err error) *errors.CodedError {
 // list — every column of the hand-expanded twin, bit for bit, in
 // declared order — and the request it ran carries the expanded items.
 func TestForEach_ProcessMatchesHandExpanded(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 	req := forEachReq(t)
@@ -111,6 +113,8 @@ func TestForEach_ProcessMatchesHandExpanded(t *testing.T) {
 // TestForEach_MaterializeEveryExpandedColumn: every expanded item
 // becomes a derived column, in declared order.
 func TestForEach_MaterializeEveryExpandedColumn(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	res, err := p.Materialize(context.Background(), forEachReq(t), "out.pulse", pulse.MaterializeOptions{})
 	if err != nil {
@@ -125,6 +129,8 @@ func TestForEach_MaterializeEveryExpandedColumn(t *testing.T) {
 // reports each fan-out; Request stays as written. A malformed for_each
 // is refused with the same code by predict and the runtime.
 func TestForEach_PredictParity(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 	req := forEachReq(t)
@@ -163,6 +169,8 @@ func TestForEach_PredictParity(t *testing.T) {
 // TestForEach_ComposeAndChain: a Compose slot and a chain stage expand
 // like a Process request, and predict judges the expanded slot.
 func TestForEach_ComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 	out, err := p.Compose(ctx, &pulse.ComposedRequest{Requests: []*types.Request{forEachReq(t)}})
@@ -248,6 +256,8 @@ func TestForEach_ComposeAndChain(t *testing.T) {
 // items, refused by predict (a Certain finding) and the runtime with
 // the identical figures — for a fanned-out and a plain request alike.
 func TestForEach_MaxDerivedColumns(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fsys, Limits: pulse.Limits{MaxDerivedColumns: 3}})
 	if err != nil {
@@ -304,6 +314,8 @@ func copyCohort(t *testing.T, fsys afero.Fs) {
 // refuses a set `for_each` as an unknown key at the item, at runtime and
 // in predict; the payload schema drops the key.
 func TestForEach_HiddenCapability(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	copyCohort(t, fsys)
 	p, err := pulse.New(pulse.Options{FS: fsys, FeatureProfile: &pulse.FeatureProfile{
@@ -340,6 +352,8 @@ func TestForEach_HiddenCapability(t *testing.T) {
 // without the key, so a for_each-free request's wire form and canonical
 // hash are unchanged.
 func TestForEach_AbsentIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	req := handExpanded()
 	raw, err := json.Marshal(req)
 	if err != nil {
@@ -364,6 +378,8 @@ func TestForEach_AbsentIsByteIdentical(t *testing.T) {
 // hand-expanded twin. A template variable sharing an axis name is
 // refused at load (PULSE_TEMPLATE_AXIS_COLLISION).
 func TestForEach_StoredTemplate(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	copyCohort(t, fsys)
 	dir := t.TempDir()
@@ -439,6 +455,8 @@ func TestForEach_StoredTemplate(t *testing.T) {
 // cohort and inside a Compose slot; a for_each that does not expand is a
 // caveat naming the code.
 func TestForEach_Explain(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 	check := func(t *testing.T, res *descriptor.ExplainResult, prefix string) {
@@ -515,6 +533,8 @@ func TestForEach_Explain(t *testing.T) {
 // and a window draft it produces composes with one — fanned out over
 // decay it predicts valid, reports the fan-out and runs every column.
 func TestForEach_Recommend(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 	res, err := p.Recommend(ctx, descriptor.RecommendRequest{Intent: "change_over_time", Cohort: &types.Cohort{Filename: "s.pulse"}, Limit: 1000})

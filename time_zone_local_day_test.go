@@ -168,6 +168,8 @@ func berlinDayGroup(slotTZ string) *types.Group {
 // range on the filter-only arms (chain, facet). The UTC answer differs
 // on this fixture, so a zone that fails to reach an arm fails here.
 func TestTimeZone_LocalDayEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	instants := dstInstants()
 	cohort, archive := importDST(t, fs, instants)
@@ -366,6 +368,8 @@ func TestTimeZone_LocalDayEveryMode(t *testing.T) {
 // 2026-03-28T23:30Z lands in the 2026-03-29 bucket, whose
 // period_start / period_end are that local day.
 func TestTimeZone_LocalDayLabelsAndPeriods(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	instants := []int64{
 		time.Date(2026, 3, 28, 22, 30, 0, 0, time.UTC).Unix(),  // Berlin 23:30 Mar 28 (CET)
@@ -404,6 +408,8 @@ func TestTimeZone_LocalDayLabelsAndPeriods(t *testing.T) {
 // hash do not move, so the request echo and the Compose echo show the
 // request as written.
 func TestTimeZone_ZoneWriteLeavesCallerRequestPristine(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	cohort, _ := importDST(t, fs, dstInstants())
 	ctx := context.Background()

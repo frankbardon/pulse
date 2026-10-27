@@ -31,6 +31,8 @@ var versionLiteralAllowlist = map[string]string{
 // non-test .go file under the scan roots is checked, comments included, since
 // a doc-comment example is copied verbatim by embedders.
 func TestNoHardcodedVersionLiterals(t *testing.T) {
+	t.Parallel()
+
 	scanned := 0
 	for _, root := range versionLiteralScanRoots {
 		for _, f := range findGoFiles(t, root) {

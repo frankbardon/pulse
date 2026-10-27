@@ -59,6 +59,8 @@ func lastSegment(path string) string {
 // (Compose slot, Compose overlay, chain stage, facet overlay) adds its
 // locator.
 func TestParamsRefusal_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -164,6 +166,8 @@ func paramsProbeFactory(seen *[]json.RawMessage) extend.AggregatorFactory {
 // naming the slot and its keys — never for a declared operator, a
 // built-in, or an undeclared operator called without params.
 func TestParamsRefusal_ExtensionOperators(t *testing.T) {
+	t.Parallel()
+
 	var seen []json.RawMessage
 	ext := pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{
 		{Name: "AGG_ACME_DECLARED", Description: "Declares its params.", Factory: paramsProbeFactory(&seen), Streamable: true,

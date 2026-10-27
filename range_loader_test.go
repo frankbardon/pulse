@@ -12,6 +12,8 @@ import (
 )
 
 func TestLoadRangeTables_FlatArray(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "quarters.json"),
 		[]byte(`[{"label":"Q1","start":"2024-01-01","end":"2024-03-31"},{"label":"Q2","start":"2024-04-01","end":"2024-06-30"}]`), 0644); err != nil {
@@ -31,6 +33,8 @@ func TestLoadRangeTables_FlatArray(t *testing.T) {
 }
 
 func TestLoadRangeTables_Wrapped(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "phases.json"),
 		[]byte(`{"description":"launch phases","ranges":[{"label":"pre","end":"2024-01-01"},{"label":"post","start":"2024-01-02"}]}`), 0644); err != nil {
@@ -47,6 +51,7 @@ func TestLoadRangeTables_Wrapped(t *testing.T) {
 }
 
 func TestLoadRangeTables_EnvVar(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "x.json"),
 		[]byte(`[{"label":"all"}]`), 0644); err != nil {
@@ -63,6 +68,8 @@ func TestLoadRangeTables_EnvVar(t *testing.T) {
 }
 
 func TestLoadRangeTables_CollisionWithProgrammatic(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "quarters.json"),
 		[]byte(`[{"label":"Q1","start":"2024-01-01","end":"2024-03-31"}]`), 0644); err != nil {
@@ -78,6 +85,8 @@ func TestLoadRangeTables_CollisionWithProgrammatic(t *testing.T) {
 }
 
 func TestLoadRangeTables_NoDirNoOp(t *testing.T) {
+	t.Parallel()
+
 	opts := Options{}
 	if err := loadRangeTablesFromDir(&opts); err != nil {
 		t.Fatalf("no-op should not error: %v", err)
@@ -88,6 +97,8 @@ func TestLoadRangeTables_NoDirNoOp(t *testing.T) {
 }
 
 func TestLoadRangeTables_NonexistentDir(t *testing.T) {
+	t.Parallel()
+
 	opts := Options{RangeTablesDir: "/path/that/should/not/exist/__pulse_range__"}
 	if err := loadRangeTablesFromDir(&opts); err != nil {
 		t.Fatalf("nonexistent dir should be tolerated: %v", err)
@@ -99,6 +110,8 @@ func TestLoadRangeTables_NonexistentDir(t *testing.T) {
 // pulse.New from dying on a file Pulse produced, blaming a malformed
 // range table. Mirrors TestLoadLabelTables_SkipsPulseSidecars.
 func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		filename string
@@ -162,6 +175,8 @@ func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
 // malformed range table still hard-fails with its path named, even with
 // a sidecar sitting in the same directory.
 func TestLoadRangeTables_MalformedStillHardFails(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		body string

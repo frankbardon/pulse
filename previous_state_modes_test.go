@@ -214,6 +214,8 @@ func prevModeBaseline(t *testing.T) (map[string]string, *pulse.Pulse, afero.Fs) 
 // state would read across the wrong records), and predict reports it
 // non-streamable.
 func TestPreviousState_ShardArchiveMatchesSingleFile(t *testing.T) {
+	t.Parallel()
+
 	want, base, fs := prevModeBaseline(t)
 	var shards []string
 	for i, rows := range prevModeShards() {
@@ -266,6 +268,8 @@ const prevModeDecodeFiller = 102_400
 // false with the buffered-attribute reason) and runs buffered;
 // ProcessStream yields exactly the buffered rows and Components.
 func TestPreviousState_EveryBufferedArmAgrees(t *testing.T) {
+	t.Parallel()
+
 	want, _, fs := prevModeBaseline(t)
 	ctx := context.Background()
 	for _, c := range []struct {
@@ -342,6 +346,8 @@ func TestPreviousState_EveryBufferedArmAgrees(t *testing.T) {
 // included — and the attribute-free slot is untouched by its
 // neighbours.
 func TestPreviousState_ComposeMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	want, p, _ := prevModeBaseline(t)
 	plain := func() *types.Request {
 		return &types.Request{
@@ -377,6 +383,8 @@ func TestPreviousState_ComposeMatchesProcess(t *testing.T) {
 // sets: the 06:10Z record's previous state is the 05:30Z one's, never
 // the reverse a wall-clock order would give.
 func TestPreviousState_OrderIsZoneIndependent(t *testing.T) {
+	t.Parallel()
+
 	at := func(s string) int64 {
 		ts, err := time.Parse(time.RFC3339, s)
 		if err != nil {

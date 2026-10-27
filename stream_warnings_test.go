@@ -17,6 +17,8 @@ import (
 // iterators alike) and ProcessStreamResult's completed terminator —
 // equal to what a buffered Process returns on Response.Warnings.
 func TestProcessStream_SurfacesRuntimeWarnings(t *testing.T) {
+	t.Parallel()
+
 	plain, fs, cohort := acceptanceCohort(t)
 	observed, err := pulse.New(pulse.Options{FS: fs, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {

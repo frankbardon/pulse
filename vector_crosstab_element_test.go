@@ -152,6 +152,8 @@ func vxSame(a, b []float64) bool {
 // cell components are the selected element's; predict accepts it and
 // reports the fused arm exactly as the twin does.
 func TestVecAggCrosstab_ElementCell(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 90)
@@ -275,6 +277,8 @@ func TestVecAggCrosstab_ElementCell(t *testing.T) {
 // raised by Process and predict alike, with the same code and reason;
 // without element the array-valued refusal stands.
 func TestVecAggCrosstab_ElementRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
@@ -344,6 +348,8 @@ func TestVecAggCrosstab_ElementRefusalParity(t *testing.T) {
 // edges inside merge blocks, a 1-row and an empty shard) under every
 // ShardWorkers × DecodeWorkers count — weighted and unweighted.
 func TestVecAggCrosstab_ElementBitExactAcrossWorkers(t *testing.T) {
+	t.Parallel()
+
 	const rows = 2*4096 + 1234
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()

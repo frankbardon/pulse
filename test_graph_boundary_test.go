@@ -24,6 +24,8 @@ var cliOnlyImports = []string{
 // both test tiers and everything they reach transitively) and fails if
 // any CLI-only package is in it.
 func TestRootTestGraphExcludesCLI(t *testing.T) {
+	t.Parallel()
+
 	out, err := exec.Command("go", "list", "-tags", "heavy", "-deps", "-test", ".").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list -deps -test .: %v\n%s", err, out)

@@ -68,6 +68,8 @@ func sidecarHintCohort(t *testing.T, path string) (*Pulse, afero.Fs) {
 // A cohort with no sidecars reports none. The hint must not invent an
 // empty section for the overwhelmingly common case.
 func TestInvalidatedSidecars_NoneWhenNoSidecarsExist(t *testing.T) {
+	t.Parallel()
+
 	p, _ := sidecarHintCohort(t, "c.pulse")
 
 	got, err := p.InvalidatedSidecars(context.Background(), "c.pulse")
@@ -83,6 +85,8 @@ func TestInvalidatedSidecars_NoneWhenNoSidecarsExist(t *testing.T) {
 // the key tuple recovered — the filename is a hash of that tuple, so the
 // rebuild command cannot be reconstructed from the name alone.
 func TestInvalidatedSidecars_NamesThePointLookupIndexAndItsRebuild(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := sidecarHintCohort(t, "c.pulse")
 	ctx := context.Background()
 
@@ -126,6 +130,8 @@ func TestInvalidatedSidecars_NamesThePointLookupIndexAndItsRebuild(t *testing.T)
 // order is significant end to end, and a reversed tuple builds a
 // different index.
 func TestInvalidatedSidecars_CompositeKeyOrderSurvivesIntoTheRebuild(t *testing.T) {
+	t.Parallel()
+
 	p, _ := sidecarHintCohort(t, "c.pulse")
 	ctx := context.Background()
 
@@ -147,6 +153,8 @@ func TestInvalidatedSidecars_CompositeKeyOrderSurvivesIntoTheRebuild(t *testing.
 // The SPSS metadata sidecar is invalidated too: its fingerprint is
 // size+mtime over the .pulse cohort, and a widen moves both.
 func TestInvalidatedSidecars_NamesTheSPSSMetadataSidecar(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := sidecarHintCohort(t, "c.pulse")
 
 	if err := afero.WriteFile(memFs, spss.SidecarPath("c.pulse"), []byte(`{"kind":"x"}`), 0o644); err != nil {
@@ -170,6 +178,8 @@ func TestInvalidatedSidecars_NamesTheSPSSMetadataSidecar(t *testing.T) {
 // Both kinds surface together, index first, so the output order is
 // stable across runs.
 func TestInvalidatedSidecars_ReportsBothKindsDeterministically(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := sidecarHintCohort(t, "c.pulse")
 	ctx := context.Background()
 
@@ -198,6 +208,8 @@ func TestInvalidatedSidecars_ReportsBothKindsDeterministically(t *testing.T) {
 // files are not deleted by a widen, only invalidated, so discovery runs
 // on the post-widen cohort exactly as it would on the pre-widen one.
 func TestInvalidatedSidecars_SurvivesTheWidenThatInvalidatedThem(t *testing.T) {
+	t.Parallel()
+
 	p, _ := sidecarHintCohort(t, "c.pulse")
 	ctx := context.Background()
 
@@ -228,6 +240,8 @@ func TestInvalidatedSidecars_SurvivesTheWidenThatInvalidatedThem(t *testing.T) {
 // an unindexed archive reports nothing (it no longer answers through a
 // swallowed refusal).
 func TestInvalidatedSidecars_NamesEveryShardSidecarOfAnArchiveIndex(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, memFs := sidecarHintCohort(t, "s1.pulse")
 	raw, err := afero.ReadFile(memFs, "s1.pulse")

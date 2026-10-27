@@ -388,11 +388,15 @@ func loadMGLavaan(t *testing.T, name string) mgLavaan {
 // groups) match lavaan's group = "wave" fits through the engine;
 // group_reference picks the primary.
 func TestSEM_MultiGroupProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ ref, csv, model string }{
 		{"brand_mg_configural", "brand", "brand_ms"},
 		{"brand_mg_misfit", "brand_uneq", "brand_mgmis"},
 	} {
 		t.Run(c.ref, func(t *testing.T) {
+			t.Parallel()
+
 			ref := loadMGLavaan(t, c.ref)
 			p, _ := brandGroupCohort{csv: c.csv, wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 			checkMGAgainstLavaan(t, semGroupRun(t, p, semGroupRequest(t, c.model, nil)), ref, 0)
@@ -450,6 +454,8 @@ func sortedStrings(s []string) []string {
 // under any shard-worker count — on every supported group field type,
 // whose fits agree with each other (only the level labels differ).
 func TestSEM_MultiGroupWorkerAndShardInvariant(t *testing.T) {
+	t.Parallel()
+
 	var base []float64
 	for _, wave := range []encoding.FieldType{encoding.FieldTypeCategoricalU8, encoding.FieldTypePackedBool, encoding.FieldTypeU8} {
 		t.Run(wave.String(), func(t *testing.T) {
@@ -493,6 +499,8 @@ func TestSEM_MultiGroupWorkerAndShardInvariant(t *testing.T) {
 // TestSEM_MultiGroupFrequencyWeight: a frequency weight applies within
 // each group — n_g = Σw — so the fit matches the expanded rows'.
 func TestSEM_MultiGroupFrequencyWeight(t *testing.T) {
+	t.Parallel()
+
 	w := func(r int) int { return 1 + r%3 }
 	pw, _ := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8, weight: w}.build(t, pulse.Options{})
 	pe, _ := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8, repeat: w}.build(t, pulse.Options{})
@@ -534,6 +542,8 @@ func TestSEM_MultiGroupFrequencyWeight(t *testing.T) {
 // two levels with rows, a level thinner than the model, a reference
 // level without rows) fail the slot alone.
 func TestSEM_MultiGroupRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cat, catFS := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, c := range []struct {
@@ -613,6 +623,8 @@ func TestSEM_MultiGroupRefusals(t *testing.T) {
 		{"reference without rows", brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeU8}, map[string]any{"group_reference": "7"}, errors.PULSE_MATRIX_INSUFFICIENT_N, "reference_absent"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, _ := c.cohort.build(t, pulse.Options{})
 			res := semGroupRun(t, p, semGroupRequest(t, "brand_mgmis", c.params))
 			if res.Error == nil || res.Error.Code != string(c.code) || res.Error.Details["reason"] != c.reason {

@@ -652,6 +652,8 @@ func assertParity(t *testing.T, builtin, ext parityOutcome) {
 // was. The cross-mode output parity lives in aggregatorParitySuite's
 // decimal128 row.
 func TestExtensions_DecimalTarget(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "parity.pulse", paritySchema(t), 0, paritySmallRows)
@@ -750,6 +752,8 @@ func TestExtensions_DecimalTarget(t *testing.T) {
 // replace-operator suggestion. A built-in without a decimal
 // implementation is refused with one error, as the runtime refuses it.
 func TestExtensions_DecimalTargetPredict(t *testing.T) {
+	t.Parallel()
+
 	var buf []byte
 	w := &byteSink{b: &buf}
 	if err := encoding.WriteHeader(w); err != nil {

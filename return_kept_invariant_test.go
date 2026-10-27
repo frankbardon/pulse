@@ -23,6 +23,7 @@ import (
 // pooling an excluded overlay or test. Every vetoed part is
 // computed (its work counter moves) yet absent on the wire.
 func TestReturnKeptNumberInvariant(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
 	_, fs, cohort := acceptanceCohort(t)
 	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
 	freq := types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}

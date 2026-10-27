@@ -126,6 +126,8 @@ func nullDatePartRef(part string, t time.Time) float64 {
 // non-null rows' reference (a legacy 0 drags MIN to 0 and COUNTs the
 // row), and the aggregation's n_null counts every null row.
 func TestDatePart_NullInputIsNullEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := nullDateRows()
 	cohort, archive := importNullDates(t, fs, rows)
@@ -250,6 +252,8 @@ func TestDatePart_NullInputIsNullEveryMode(t *testing.T) {
 // COUNT and MIN equal the non-null rows' reference and its n_null
 // counts every null row.
 func TestDateFeatures_NullInputIsNullEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := nullDateRows()
 	cohort, archive := importNullDates(t, fs, rows)

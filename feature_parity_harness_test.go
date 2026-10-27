@@ -662,6 +662,8 @@ func runHiddenParityWith(t *testing.T, fsys afero.Fs, cfg parityHostConfig, fixt
 // registry operator category and every public entry point, a hidden
 // built-in is indistinguishable from a never-registered name.
 func TestHiddenOperatorParity(t *testing.T) {
+	t.Parallel()
+
 	fixtures := append([]string(nil), featureSetFixtures...)
 	sort.Strings(fixtures)
 	runHiddenParity(t, fixtures, parityCategories, parityEntryPoints)

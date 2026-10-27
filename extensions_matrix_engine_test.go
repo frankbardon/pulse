@@ -185,6 +185,8 @@ func sameMatrixFloor(t *testing.T, label string, got, want *types.ResponseCompon
 // missing / max_drop_share and strips them from the params the operator
 // sees.
 func TestExtensionMatrix_BuiltinParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	var seen atomic.Value
@@ -238,6 +240,8 @@ func TestExtensionMatrix_BuiltinParity(t *testing.T) {
 // aggregator) and the buffered tier give the same bits, and every
 // DecodeWorkers count matches serial.
 func TestExtensionMatrix_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	base := extMatrixPulse(t, fsys, Options{DecodeWorkers: 1}, extCovReg(true, true, nil))
@@ -287,6 +291,8 @@ func TestExtensionMatrix_StreamingEqualsBuffered(t *testing.T) {
 // request off the stream), resolves the members like the runtime, and
 // refuses what the runtime refuses with the same code.
 func TestExtensionMatrix_PredictParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	for _, streamable := range []bool{true, false} {
@@ -346,6 +352,8 @@ func TestExtensionMatrix_PredictParity(t *testing.T) {
 // TestExtensionMatrix_WeightStamped: a WeightAware operator sees the
 // resolved weight's kind; with no weight in force it sees "".
 func TestExtensionMatrix_WeightStamped(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	var kind atomic.Value
 	reg := extCovReg(true, true, nil)
@@ -378,6 +386,8 @@ func TestExtensionMatrix_WeightStamped(t *testing.T) {
 // co-moment it is handed (against the contract) reaches neither the
 // components floor nor another bucket: Finalize gets a per-call clone.
 func TestExtensionMatrix_CoMomentIsolated(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	reg := extCovReg(true, false, nil)
@@ -412,6 +422,8 @@ func TestExtensionMatrix_CoMomentIsolated(t *testing.T) {
 // ComponentSchema bind on every run, not only at the probe: a key the
 // operator fills only on real data is refused there.
 func TestExtensionMatrix_RuntimeOutputCheck(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	reg := extCovReg(true, false, nil)
 	reg.Factory = func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
@@ -435,6 +447,8 @@ func TestExtensionMatrix_RuntimeOutputCheck(t *testing.T) {
 // joins, a crosstab, a chain stage after 0 — refuse an extension
 // operator exactly as a built-in.
 func TestExtensionMatrix_RefusalsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	p := extMatrixPulse(t, fsys, Options{}, extCovReg(true, false, nil))
@@ -481,6 +495,8 @@ func TestExtensionMatrix_RefusalsUnchanged(t *testing.T) {
 // ComponentsSchemas; the payload schema's MatrixType enum and the
 // ontology carry it; the MCP binder enum reads the same snapshot slice.
 func TestExtensionMatrix_SelfDescription(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	reg := extCovReg(true, true, nil)
 	reg.Purpose = validExtPurpose()
@@ -546,6 +562,8 @@ func TestExtensionMatrix_SelfDescription(t *testing.T) {
 // out hides it everywhere (an unknown matrix type at run time, absent
 // from the manifest); listing it needs capability:matrices.
 func TestExtensionMatrix_FeatureProfile(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	hidden := extMatrixPulse(t, fsys, Options{FeatureProfile: &FeatureProfile{
@@ -604,6 +622,8 @@ func pvalueReg(key, pvalues string) MatrixOpRegistration {
 // its p-values, so it needs no params.inference); without the
 // declaration a spec-level block is refused.
 func TestExtensionMatrix_Multiplicity(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	block := &types.Multiplicity{Method: types.MultiplicityMethodBonferroni}
@@ -659,6 +679,8 @@ func TestExtensionMatrix_Multiplicity(t *testing.T) {
 // finalizer (every part off) for the operator's own component keys, as
 // the built-in finalizerComponents do.
 func TestExtensionMatrix_ComponentsOnly(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	var wanted atomic.Value
 	reg := extCovReg(true, false, nil)
@@ -692,6 +714,8 @@ func TestExtensionMatrix_ComponentsOnly(t *testing.T) {
 // the multiplicity twins are reserved; PValues must name a declared
 // auxiliary key.
 func TestExtensionMatrix_RegistrationRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name   string
 		mut    func(*MatrixOpRegistration)
@@ -719,6 +743,8 @@ func TestExtensionMatrix_RegistrationRefusals(t *testing.T) {
 		}, "reserved_output_key", ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			reg := pvalueReg("p", "p")
 			c.mut(&reg)
 			_, err := New(Options{FS: memFsWith(t, nil), Extensions: Extensions{MatrixOps: []MatrixOpRegistration{reg}}})

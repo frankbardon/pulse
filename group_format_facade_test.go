@@ -77,6 +77,8 @@ func groupedTwinFS(t *testing.T) (v1, v2 afero.Fs) {
 // The ShardArchive probe builds an archive from two copies of the cohort
 // (E5-S3: archives carry grouped shards) and must answer identically.
 func TestGroupedCohort_FacadeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs1, fs2 := groupedTwinFS(t)
 

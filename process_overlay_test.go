@@ -51,6 +51,8 @@ func crosstabOverlayRequest() *Request {
 }
 
 func TestProcess_OverlayPopulatesResponse(t *testing.T) {
+	t.Parallel()
+
 	memFs, _ := crosstabOverlayPulseFile(t)
 	p, err := New(Options{FS: memFs})
 	if err != nil {
@@ -118,6 +120,8 @@ func TestProcess_OverlayPopulatesResponse(t *testing.T) {
 // copy that loses the Overlays slot, or accidental population of the
 // slot when the request had none) surfaces here.
 func TestProcess_NoOverlaysPreservesBaseline(t *testing.T) {
+	t.Parallel()
+
 	memFs, _ := crosstabOverlayPulseFile(t)
 	p, err := New(Options{FS: memFs})
 	if err != nil {
@@ -169,6 +173,8 @@ func TestProcess_NoOverlaysPreservesBaseline(t *testing.T) {
 // Smart defaults already mutated req in place inside Process, so what
 // the test asserts here is precisely what the wire emits.
 func TestProcess_OverlayEchoedRequest(t *testing.T) {
+	t.Parallel()
+
 	memFs, _ := crosstabOverlayPulseFile(t)
 	p, err := New(Options{FS: memFs, EchoRequest: true})
 	if err != nil {
@@ -240,6 +246,8 @@ func TestProcess_OverlayEchoedRequest(t *testing.T) {
 }
 
 func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
+	t.Parallel()
+
 	memFs, _ := crosstabOverlayPulseFile(t)
 
 	// Embedder function: classic percent-change between two values.
@@ -409,6 +417,8 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 // scalar maths — and refuses a vector built-in alongside the runtime
 // (PULSE_OVERLAY_FORMULA_INVALID_IDENT on both).
 func TestOverlayFormula_PredictRuntimeCalleeParity(t *testing.T) {
+	t.Parallel()
+
 	memFs, _ := crosstabOverlayPulseFile(t)
 	withTable, err := New(Options{FS: memFs, Extensions: Extensions{
 		LookupTables: map[string]LookupTable{"rates": {Rows: map[string]float64{"x": 2}}},

@@ -89,6 +89,8 @@ func scoredVecLayers(t *testing.T, v any) string {
 // (default first, or by field) is refused PROCESSING_CONFIG
 // array_valued with the Details it always carried, on both sides.
 func TestComposeOverlay_ArrayValuedOnlyWhenScored(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := scoredVecFixture(t)
 
@@ -190,6 +192,8 @@ func scoredVecChain(layout string, expand bool, field any) *pulse.ChainRequest {
 
 // TestChainOverlay_ArrayValuedOnlyWhenScored: the whole-chain twin.
 func TestChainOverlay_ArrayValuedOnlyWhenScored(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := scoredVecFixture(t)
 
@@ -310,6 +314,8 @@ func predictCodedError(t *testing.T, p *pulse.Pulse, data []byte, req *pulse.Req
 // default as aggregations[0] — is refused PROCESSING_CONFIG
 // array_valued, identically on predict (first) and the runtime.
 func TestProcessOverlay_ArrayValuedOnlyWhenScored(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)

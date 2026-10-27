@@ -145,6 +145,8 @@ func vaggRequest(cohort string) *types.Request {
 // per-element n, the labels and the floor equal the oracle, and predict
 // accepts the request.
 func TestVecAgg_EveryModeUnderProjection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	all := []int{0, 1, 2}
 	pair := []int{3, 1}
@@ -323,6 +325,8 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 // aggregates (AGG_VEC_SD's Chan-combined moments included) and
 // covariance matrices.
 func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
+	t.Parallel()
+
 	const rows = 5*4096 + 1234
 	fsys := afero.NewMemMapFs()
 	writeVaggBitsCohort(t, fsys, "single.pulse", 0, rows)
@@ -374,6 +378,8 @@ func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
 // (crosstab cell / margin, Sort, overlays, a chain feed stage) and the
 // slot shape rules.
 func TestVecAgg_RefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)

@@ -43,6 +43,8 @@ func newFixturePulse(t *testing.T, name string, opts Options) *Pulse {
 // the file arm and validates at pulse.New, and its enabled set is
 // exactly its list.
 func TestFeatureSet_FixturesLoad(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range featureSetFixtures {
 		t.Run(name, func(t *testing.T) {
 			p := newFixturePulse(t, name, Options{})
@@ -78,6 +80,8 @@ func TestFeatureSet_FixturesLoad(t *testing.T) {
 // set is every built-in feature (all reached at the running build) plus
 // every registered extension operator, and nothing is hidden.
 func TestFeatureSet_DefaultIsFullRegistry(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: Extensions{Aggregators: []AggregatorRegistration{
 		{Name: "AGG_ACME_SCORE", Description: "Stub.", Factory: featureSetStubAggFactory},
 	}}})
@@ -105,6 +109,8 @@ func TestFeatureSet_DefaultIsFullRegistry(t *testing.T) {
 // configuration; differs between the default and each fixture, between
 // fixtures, and between instances differing only in a behaviour switch.
 func TestFeatureSetDigest_DistinguishesInstances(t *testing.T) {
+	t.Parallel()
+
 	newP := func(opts Options) *Pulse {
 		t.Helper()
 		opts.FS = memFsWith(t, nil)
@@ -157,6 +163,8 @@ func TestFeatureSetDigest_DistinguishesInstances(t *testing.T) {
 // while a DependsOn naming it (from another hidden extension) still
 // validates because DependsOn is checked against ALL registrations.
 func TestFeatureSet_HiddenExtensionDropped(t *testing.T) {
+	t.Parallel()
+
 	ext := Extensions{Aggregators: []AggregatorRegistration{
 		{Name: "AGG_ACME_BASE", Description: "Stub.", Factory: featureSetStubAggFactory},
 		{Name: "AGG_ACME_DERIVED", Description: "Stub.", Factory: featureSetStubAggFactory, DependsOn: []string{"AGG_ACME_BASE"}},
@@ -196,6 +204,8 @@ func TestFeatureSet_HiddenExtensionDropped(t *testing.T) {
 // TestFeatureProfileAccessor: a copy with a profile, (nil, false)
 // without one.
 func TestFeatureProfileAccessor(t *testing.T) {
+	t.Parallel()
+
 	bare, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatalf("New: %v", err)

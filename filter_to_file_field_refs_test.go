@@ -21,6 +21,8 @@ import (
 // caller saw PROCESSING_RUNTIME "compiling filter expression: nope in
 // [...]" instead. Known fields still filter.
 func TestFilterToFile_FilterersRefusedLikeProcess(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	ctx := context.Background()
 	p := zonePulse(t, fs, "")

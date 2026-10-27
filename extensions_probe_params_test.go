@@ -167,6 +167,8 @@ func onlyCategory(ext pulse.Extensions, category string) pulse.Extensions {
 // pulse.New (the probe hands it the declaration's placeholder) and runs
 // a conforming request.
 func TestExtensions_ProbeParamsSatisfyRequired(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, tc := range strictCases() {
 		t.Run(tc.category, func(t *testing.T) {
@@ -184,6 +186,8 @@ func TestExtensions_ProbeParamsSatisfyRequired(t *testing.T) {
 // object it was handed — in every category the probe constructs
 // (filterers and windows are never constructed by the probe).
 func TestExtensions_ProbeParamsRefusalNamesThem(t *testing.T) {
+	t.Parallel()
+
 	two := 2.0
 	want := map[string]any{"scale": float64(1)}
 	for _, category := range []string{"aggregator", "attribute", "grouper", "feature", "test", "matrix", "regression"} {

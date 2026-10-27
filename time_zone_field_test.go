@@ -59,6 +59,8 @@ func zoneFieldCohort(t *testing.T) (afero.Fs, string) {
 // refusal is raised identically — code, message and details — by
 // predict and the runtime.
 func TestTimeZoneField_RefusalsPredictMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneFieldCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -115,6 +117,8 @@ func TestTimeZoneField_RefusalsPredictMatchRuntime(t *testing.T) {
 // TestTimeZoneField_AcceptedPredictEchoes: a valid zone field is
 // accepted by both sides, and predict echoes it as source "field".
 func TestTimeZoneField_AcceptedPredictEchoes(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneFieldCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -149,6 +153,8 @@ func TestTimeZoneField_AcceptedPredictEchoes(t *testing.T) {
 // a join, the synthesised schema of a chain stage — and a name absent
 // there is refused identically by the validators and the runtime.
 func TestTimeZoneField_JoinAndChainSchemas(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneFieldCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -227,6 +233,8 @@ func TestTimeZoneField_JoinAndChainSchemas(t *testing.T) {
 // TestTimeZoneField_StrictDecodeAcceptsKeys: the strict request decoder
 // accepts the new keys on every zone-carrying object.
 func TestTimeZoneField_StrictDecodeAcceptsKeys(t *testing.T) {
+	t.Parallel()
+
 	raw := []byte(`{"time_zone_field":"zone","groups":[{"type":"GROUP_DATE","field":"ts","tz_field":"zone"}],` +
 		`"filterers":[{"type":"FILTER_DATE_RANGES","field":"ts","tz_field":"zone"}],` +
 		`"attributes":[{"type":"ATTR_DATE_PART","field":"ts","tz_field":"zone"}],` +

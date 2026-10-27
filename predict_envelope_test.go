@@ -189,6 +189,8 @@ func splitAnchorForTest(path string) (archive, entry string, ok bool) {
 // Strict + EchoRequest instances, for a valid request (which warns on
 // the undescribed field) and an invalid one (unknown field).
 func TestPredictEnvelope_MatchesPredictBytes(t *testing.T) {
+	t.Parallel()
+
 	spy, _, _ := envelopeFixture(t, 50)
 	ctx := context.Background()
 	reqs := map[string]func(cohort string) *types.Request{
@@ -258,6 +260,8 @@ func TestPredictEnvelope_MatchesPredictBytes(t *testing.T) {
 // large the payload. Falsified by reading the whole file and handing
 // the bytes to descriptor predict, as `pulse api predict` used to.
 func TestPredictEnvelope_ReadsHeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	const rows = 4000 // ~ 560 KB of payload per cohort
 	spy, archiveOverhead, singleHead := envelopeFixture(t, rows)
 	p, err := New(Options{FS: spy, Strict: true, EchoRequest: true})
@@ -308,6 +312,8 @@ func TestPredictEnvelope_ReadsHeaderOnly(t *testing.T) {
 // returned errors (READ failures), never an envelope; a cancelled ctx
 // likewise.
 func TestPredictEnvelope_ReadFailuresAreErrors(t *testing.T) {
+	t.Parallel()
+
 	spy, _, _ := envelopeFixture(t, 5)
 	p, err := New(Options{FS: spy})
 	if err != nil {
@@ -336,6 +342,8 @@ func TestPredictEnvelope_ReadFailuresAreErrors(t *testing.T) {
 // suggested weight) Predict reports — the path read keeps Predict's
 // sidecar facts, which the byte-level PredictBytes never has.
 func TestPredictEnvelope_CarriesSidecarFacts(t *testing.T) {
+	t.Parallel()
+
 	p := importSav(t, afero.NewMemMapFs(), measuredSavSpec(), Options{})
 	ctx := context.Background()
 	want, err := p.Predict(ctx, measuredRequest(nil))

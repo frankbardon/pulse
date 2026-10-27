@@ -143,6 +143,8 @@ func writeScoreNulls(t *testing.T, fs afero.Fs, rows []scoreNullRow) (single, ar
 //
 // The aggregations' n_null counts every null row.
 func TestScoringAttributes_NullInputIsNullEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := scoreNullRows()
 	cohort, archive := writeScoreNulls(t, fs, rows)
@@ -278,6 +280,8 @@ func TestScoringAttributes_NullInputIsNullEveryMode(t *testing.T) {
 // top-box convention), unchanged by U50. COUNT of the flag is every row,
 // SUM is the hits, n_null is 0, in every execution mode.
 func TestMembershipIndicators_NullReadsZeroEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := scoreNullRows()
 	cohort, archive := writeScoreNulls(t, fs, rows)
@@ -351,6 +355,8 @@ func TestMembershipIndicators_NullReadsZeroEveryMode(t *testing.T) {
 // legacy 0 / 50 is counted), beside a COUNT of a non-null column so the
 // expected figures are never empty; every score row is in n_null.
 func TestScoringAttributes_UndefinedSpreadIsNullEveryMode(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	constFS, spreadFS := afero.NewMemMapFs(), afero.NewMemMapFs()
 	constRows := scoreNullRows()

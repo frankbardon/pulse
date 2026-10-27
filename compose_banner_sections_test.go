@@ -51,6 +51,8 @@ func labelWarnings(resp *types.Response) []string {
 // that way, on Compose and ComposeParallel — and the stitched banner
 // carries the display labels. A binding no slot groups by still warns.
 func TestComposeBanner_LabelsScopedToGroupingSlots(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{Extensions: pulse.Extensions{LabelTables: bannerLabelTables()}})
 	for name, run := range composeRuns(p) {
 		c := bannerComposed(nil)
@@ -121,6 +123,8 @@ func looseLettersOverlay() types.OverlaySpec {
 // are stitched from them (`section: true`), still never crossing groups
 // and never lettering the Total block.
 func TestComposeBanner_SectionOverlaysReplace(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{})
 	for _, mult := range []*types.Multiplicity{nil, {Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyCompose}} {
 		for name, run := range composeRuns(p) {
@@ -180,6 +184,8 @@ func TestComposeBanner_SectionOverlaysReplace(t *testing.T) {
 // orchestrators refuse a bad one with the same code (ComposeParallel
 // under FailFast, which surfaces the slot's own coded error).
 func TestComposeBanner_SectionOverlayRefusalMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{})
 	c := bannerComposed(nil)
 	bad := looseLettersOverlay()

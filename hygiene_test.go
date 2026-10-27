@@ -66,6 +66,8 @@ func findGoTestFiles(t *testing.T, root string) []string {
 // TestClaudeMdMentionsFormatVersion verifies that CLAUDE.md contains the
 // current format_version value "1.1". This is a non-skippable CI gate.
 func TestClaudeMdMentionsFormatVersion(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMd(t)
 	// The format version is "1.1" as defined in descriptor/envelope.go.
 	if !strings.Contains(content, "1.1") {
@@ -77,6 +79,8 @@ func TestClaudeMdMentionsFormatVersion(t *testing.T) {
 // calls and verifies that each environment variable name appears in CLAUDE.md.
 // This is a non-skippable CI gate.
 func TestClaudeMdMentionsAllEnvVars(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMd(t)
 
 	// Find all Go files in the repo using find (works even if files are untracked).
@@ -125,6 +129,8 @@ func TestClaudeMdMentionsAllEnvVars(t *testing.T) {
 // are part of the CI contract and must be documented.
 // This is a non-skippable CI gate.
 func TestClaudeMdMentionsAllNonSkippableGates(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMd(t)
 
 	// Collect all test function names matching the non-skippable gate prefixes.
@@ -177,6 +183,8 @@ func TestClaudeMdMentionsAllNonSkippableGates(t *testing.T) {
 // has rows covering every registered component category and contract type.
 // This is a non-skippable CI gate.
 func TestUpdateDemandTableCovers(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMd(t)
 
 	required := []string{
@@ -222,6 +230,8 @@ func TestUpdateDemandTableCovers(t *testing.T) {
 // `_schema.pulse` entry name. Non-skippable CI gate (Update Demand row
 // for shard archive layout enforces this).
 func TestShardArchiveLayoutDocumented(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMd(t)
 
 	start := strings.Index(content, "### Byte-layout invariants")
@@ -253,6 +263,8 @@ func TestShardArchiveLayoutDocumented(t *testing.T) {
 }
 
 func TestSkillsCoverShardingTopics(t *testing.T) {
+	t.Parallel()
+
 	schemaSkill, err := os.ReadFile(filepath.Join("internal", "skills", "cohort-schema-design.md"))
 	if err != nil {
 		t.Fatalf("reading skills/cohort-schema-design.md: %v", err)
@@ -294,6 +306,8 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //
 // Aggregate across core packages >= 80%.
 func TestPerPackageCoverageFloors(t *testing.T) {
+	t.Parallel()
+
 	floors := map[string]int{
 		"encoding":              95,
 		"internal/encoding":     95,
@@ -363,6 +377,8 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 const claudeMdSizeCeiling = 40_000
 
 func TestClaudeMdSizeBudget(t *testing.T) {
+	t.Parallel()
+
 	size := len(readClaudeMd(t))
 	if size > claudeMdSizeCeiling {
 		t.Errorf("CLAUDE.md is %d bytes, over the %d-byte ceiling by %d. "+

@@ -21,6 +21,8 @@ import (
 // ATTR_FORMULA alike — and DecodeWorkers 1 (streaming) and 4 (parallel
 // decode) return byte-identical responses.
 func TestParams_U64FieldExactAcrossArms(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	dir := u64ParamsDir(t)
 	var mu sync.Mutex

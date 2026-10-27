@@ -13,6 +13,8 @@ import (
 // the region field repeats on every within-shard pair and would break on
 // a pair spanning the boundary.
 func TestProfile_ShardArchiveRunContinuation(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "shard1.pulse", []string{"region", "id"},
 		[][]string{{"east", "1"}, {"east", "2"}, {"east", "3"}})

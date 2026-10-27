@@ -57,6 +57,8 @@ func noDFExtensions() pulse.Extensions {
 // coefficient without a standard error a null interval (key kept on
 // the wire), and its df stays unreported.
 func TestExtensions_RegressionConfLevelNormalWithoutDF(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, noDFExtensions())
 	for _, conf := range []float64{0, 0.9} {
 		spec := &types.RegressionSpec{Type: regNoDF, Name: "fit", Target: "score", Predictors: []string{"qty", "day"}, ConfLevel: conf}
@@ -102,6 +104,8 @@ func TestExtensions_RegressionConfLevelNormalWithoutDF(t *testing.T) {
 // conf_level outside (0, 1) on an extension model is PROCESSING_CONFIG
 // with the built-ins' message and details at predict and at runtime.
 func TestExtensions_RegressionConfLevelRefusedPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, cohort := openE2E(t, noDFExtensions())
 	for _, conf := range []float64{1, -0.5, 1.5} {
@@ -132,6 +136,8 @@ func TestExtensions_RegressionConfLevelRefusedPredictMatchesRuntime(t *testing.T
 // on an unresampled fit, absent (and no longer a reported figure) under
 // resample, whose intervals are normal.
 func TestExtensions_RegressionConfLevelDFFollowsInterval(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := modifierInstance(t)
 	for _, resample := range []string{"", "jackknife", "bootstrap"} {
 		spec := &types.RegressionSpec{Type: regParityOLS, Name: "fit", Target: "score", Predictors: []string{"qty", "day"},

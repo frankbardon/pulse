@@ -21,6 +21,8 @@ import (
 // regression's own multiplicity block is still folded at the terminal
 // flush.
 func TestExperimentStreaming_TestsOnlyAndRegressionOnly(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	var mu sync.Mutex
 	var arms []observe.Arm
@@ -107,6 +109,8 @@ func TestExperimentStreaming_TestsOnlyAndRegressionOnly(t *testing.T) {
 // and components once drained; ProcessStreamResult sends no chunk and
 // one StreamCompleted terminator with TotalRows 0.
 func TestExperimentStreaming_NoAggregationChunkShape(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

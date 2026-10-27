@@ -115,6 +115,8 @@ var packedBoolLevelCases = []struct{ name, body string }{
 // statistic; a refusal fails the run. Predict accepts every request the
 // runtime runs.
 func TestPackedBoolLevel_TestsMatchCategoricalTwin(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := packedBoolLevelCohort(t)
 	ctx := context.Background()
 	run := func(t *testing.T, body string) []byte {
@@ -167,6 +169,8 @@ func TestPackedBoolLevel_TestsMatchCategoricalTwin(t *testing.T) {
 // count no success); TestExperimentChecks_PredictMatchesRuntime pins
 // that refusal's parity.
 func TestPackedBoolLevel_PropZSuccessStrict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := packedBoolLevelCohort(t)
 	ctx := context.Background()
 	for _, tc := range []struct {
@@ -225,6 +229,8 @@ func TestPackedBoolLevel_PropZSuccessStrict(t *testing.T) {
 // subject, so TEST_ANOVA_RM refuses a packed_bool subject_field on both
 // sides with the table's code.
 func TestPackedBoolLevel_AnovaRMSubjectRefused(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := packedBoolLevelCohort(t)
 	mk := func() *types.Request {
 		var req types.Request
@@ -289,6 +295,8 @@ var packedBoolMatrixCases = []struct{ name, body string }{
 // refusal on either side, a level read as missing, or a one-hot column
 // set built from a dictionary the packed_bool lacks all fail it.
 func TestPackedBoolLevel_MatrixMatchesCategoricalTwin(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := packedBoolLevelCohort(t)
 	ctx := context.Background()
 	run := func(t *testing.T, body string) []byte {
@@ -348,6 +356,8 @@ func TestPackedBoolLevel_MatrixMatchesCategoricalTwin(t *testing.T) {
 // so the validation share inside level "0" and inside level "1" is half
 // (within one row), and every row of each level is assigned.
 func TestPackedBoolLevel_StratifyPreservesProportion(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := packedBoolLevelCohort(t)
 	var req types.Request
 	body := `{"features":[{"type":"FEAT_TRAIN_TEST_SPLIT","label":"split","params":{"ratios":[0.5,0.5],"seed":3,"stratify":"pb_flag"}}],` +

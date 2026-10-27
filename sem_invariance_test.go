@@ -48,6 +48,8 @@ func equalityParams(ref mgLavaan) map[string]any {
 // categorical and a packed_bool wave (the modifiers read the level
 // index either way).
 func TestSEM_InvarianceProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range invarianceCases {
 		for _, wave := range []encoding.FieldType{encoding.FieldTypeCategoricalU8, encoding.FieldTypePackedBool} {
 			t.Run(c.ref+"/"+wave.String(), func(t *testing.T) {
@@ -77,6 +79,8 @@ func TestSEM_InvarianceProcessMatchesLavaan(t *testing.T) {
 // c(...) over the dictionary [0, 1, 2], level 0 empty, fits exactly
 // lavaan's two-group modifier fit over levels 1 and 2.
 func TestSEM_InvarianceModifierLevels(t *testing.T) {
+	t.Parallel()
+
 	ref := loadMGLavaan(t, "brand_mg_modifiers")
 	desc, err := os.ReadFile(semGroupTestdata + "brand_mgmod_model.txt")
 	if err != nil {
@@ -96,6 +100,8 @@ func TestSEM_InvarianceModifierLevels(t *testing.T) {
 // identification reference too — under equal intercepts its latent
 // means stay 0 and the other level's are freed.
 func TestSEM_InvarianceReferenceLevel(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	res := semGroupRun(t, p, semGroupRequest(t, "brand_ms", map[string]any{"group_equal": []string{"loadings", "intercepts"}, "group_reference": "2"}))
 	if res.Error != nil {
@@ -125,6 +131,8 @@ func TestSEM_InvarianceReferenceLevel(t *testing.T) {
 // integer group field — each a SERVICE_VALIDATION bad_params naming
 // the knob, predict refusing identically.
 func TestSEM_InvarianceProcessRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	modifiers := "quality =~ q1 + q2 + q3\nvalue =~ v1 + c(a, b, c)*v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value + service"
 	for _, c := range []struct {
@@ -183,6 +191,8 @@ func TestSEM_InvarianceProcessRefusals(t *testing.T) {
 // lavaan's, so the comparison reads as lavaan's: dof rises step by
 // step and the chi-square differences are lavaan's.
 func TestSEM_InvarianceComposeSweep(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	body, err := json.Marshal(semGroupRequest(t, "brand_ms", map[string]any{"group_equal": "{{eq}}"}))
 	if err != nil {

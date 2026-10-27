@@ -9,8 +9,12 @@ import (
 )
 
 func TestNew_DefaultTimeZone_UnknownRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"EST", "Local", "+05:00", "Mars/Olympus_Mons", "europe/berlin"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := New(Options{FS: afero.NewMemMapFs(), DefaultTimeZone: name})
 			if !errors.HasCode(err, errors.PULSE_TIMEZONE_UNKNOWN) {
 				t.Fatalf("DefaultTimeZone %q: want PULSE_TIMEZONE_UNKNOWN, got p=%v err=%v", name, p, err)
@@ -23,6 +27,8 @@ func TestNew_DefaultTimeZone_UnknownRefused(t *testing.T) {
 }
 
 func TestNew_DefaultTimeZone_Accepted(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		want string
@@ -51,6 +57,8 @@ func TestNew_DefaultTimeZone_Accepted(t *testing.T) {
 // The default zone is loaded through the instance cache, so a later
 // request-time resolution of the same name reuses the table built at New.
 func TestPulse_ZoneCacheSharesDefaultZone(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: afero.NewMemMapFs(), DefaultTimeZone: "America/Chicago"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -70,6 +78,8 @@ func TestPulse_ZoneCacheSharesDefaultZone(t *testing.T) {
 // Each instance owns its cache: a zone loaded by one never appears as
 // the same pointer in another.
 func TestPulse_ZoneCacheIsPerInstance(t *testing.T) {
+	t.Parallel()
+
 	a, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("New a: %v", err)

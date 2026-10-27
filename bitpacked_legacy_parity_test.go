@@ -111,6 +111,8 @@ func wantLegacyBits() map[int]map[string]float64 {
 }
 
 func TestLegacyBitPosition_ExportEngineSPSSLookupAgree(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeLegacyBitsCohort(t, fsys)

@@ -129,6 +129,8 @@ func wantBuckets(t *testing.T, name string, got, want map[string]float64) {
 // TestPreEpoch_CSVExportRoundTrip pins the text writer: every date and
 // datetime prints back exactly as imported.
 func TestPreEpoch_CSVExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	_, fs := preEpochPulse(t)
 	if got := string(exportBytes(t, fs, "pre.pulse", pio.FormatCSV)); got != preEpochCSV {
 		t.Fatalf("CSV export =\n%s\nwant\n%s", got, preEpochCSV)
@@ -144,6 +146,8 @@ func TestPreEpoch_CSVExportRoundTrip(t *testing.T) {
 // TestPreEpoch_FiltersAcrossTheEpoch pins FILTER_RANGE on the signed day
 // and FILTER_DATE_RANGES with a pre-1970 start and post-1970 end.
 func TestPreEpoch_FiltersAcrossTheEpoch(t *testing.T) {
+	t.Parallel()
+
 	p, _ := preEpochPulse(t)
 	if n := countOf(t, p, &types.Filterer{Type: types.FILTER_RANGE, Field: "d", Values: []string{"-1", "0"}}); n != 2 {
 		t.Errorf("FILTER_RANGE d in [-1,0] kept %v, want 2 (1969-12-31, 1970-01-01)", n)
@@ -169,6 +173,8 @@ func TestPreEpoch_FiltersAcrossTheEpoch(t *testing.T) {
 // TestPreEpoch_GroupersAcrossTheEpoch pins GROUP_DATE day/month/year on
 // both types (1969-12-31T23:59:59Z floors to day -1) and GROUP_DATE_RANGES.
 func TestPreEpoch_GroupersAcrossTheEpoch(t *testing.T) {
+	t.Parallel()
+
 	p, _ := preEpochPulse(t)
 	for _, field := range []string{"d", "ts"} {
 		wantBuckets(t, field+" day", bucketCounts(t, p, &types.Group{Type: types.GROUP_DATE, Field: field, Params: json.RawMessage(`{"component":"day"}`)}),
@@ -193,6 +199,8 @@ func TestPreEpoch_GroupersAcrossTheEpoch(t *testing.T) {
 // TestPreEpoch_AggregatesAttributesAndSort pins AGG_MIN/MAX, ATTR_DATE_PART
 // year and Request.Sort ordering on the signed day.
 func TestPreEpoch_AggregatesAttributesAndSort(t *testing.T) {
+	t.Parallel()
+
 	p, _ := preEpochPulse(t)
 	rows := processRows(t, p, &types.Request{Aggregations: []*types.Aggregation{
 		{Type: types.AGG_MIN, Field: "d", Label: "dmin"},
@@ -242,6 +250,8 @@ func TestPreEpoch_AggregatesAttributesAndSort(t *testing.T) {
 // platform (a float64->uint64 conversion of a negative is
 // architecture-defined, so the encoder must go through int32/int64).
 func TestPreEpoch_PointLookup(t *testing.T) {
+	t.Parallel()
+
 	p, _ := preEpochPulse(t)
 	ctx := context.Background()
 	for _, tc := range []struct{ field, value, wantID string }{
@@ -267,6 +277,8 @@ func TestPreEpoch_PointLookup(t *testing.T) {
 // does with a pre-1970 `1969-12-31T12:00:00` in an otherwise date-only
 // column: it stays `date` and day-truncates, and export prints the day.
 func TestPreEpoch_ImportInfersDateForTimeOfDayLiteral(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	importCSVBytes(t, memFs, []byte("id,d\n1,1900-01-01\n2,1969-12-31T12:00:00\n3,1969-12-31\n"), "mixed.pulse")
 	got := string(exportBytes(t, memFs, "mixed.pulse", pio.FormatCSV))
@@ -280,8 +292,12 @@ func TestPreEpoch_ImportInfersDateForTimeOfDayLiteral(t *testing.T) {
 // typed adapter that carries dates and back: the re-imported cohort must
 // export the same CSV.
 func TestPreEpoch_AdapterRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	for _, f := range []pio.Format{pio.FormatArrow, pio.FormatParquet, pio.FormatExcel, pio.FormatSPSS, pio.FormatNDJSON, pio.FormatJSONArray, pio.FormatTSV} {
 		t.Run(string(f), func(t *testing.T) {
+			t.Parallel()
+
 			_, fs := preEpochPulse(t)
 			data := exportBytes(t, fs, "pre.pulse", f)
 			r, err := pio.NewReaderFromBytes(f, data, pio.ReaderOptions{})

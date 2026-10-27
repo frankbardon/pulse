@@ -22,6 +22,8 @@ import (
 // threshold row and free scale factor carries a bootstrap SE; predict
 // reports the buffered path and the declared keys cover the result.
 func TestSEM_OrdinalBootstrapDeterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name   string
 		params map[string]any
@@ -30,6 +32,8 @@ func TestSEM_OrdinalBootstrapDeterministic(t *testing.T) {
 		{"grouped", map[string]any{"group_equal": "thresholds,loadings"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := func(seed int) *types.Request {
 				params := map[string]any{"resample": "bootstrap", "bootstrap_iters": 12, "rng_seed": seed}
 				for k, v := range c.params {

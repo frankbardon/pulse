@@ -86,6 +86,8 @@ func sameBits(a, b []any) bool {
 // exactly the double of the literal alpha 0.3 — through Process,
 // ProcessStream and Materialize — and not with the float64 1 - 0.7.
 func TestEWMADecay_EqualsLiteralAlphaOnEverySurface(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 	alpha := ewmaProcess(t, p, `{"alpha": 0.3}`)
@@ -148,6 +150,8 @@ func TestEWMADecay_EqualsLiteralAlphaOnEverySurface(t *testing.T) {
 // the window family's one code (internal/windowparams), the same rule
 // sentence on every surface — and a valid params set passes all.
 func TestEWMADecay_PredictRefusesWhatRuntimeRefuses(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := ewmaCohort(t)
 	ctx := context.Background()
 	for name, params := range map[string]string{

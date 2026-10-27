@@ -12,6 +12,8 @@ import (
 // slots included, and the label survives the standard / minimal
 // presets. A standalone Process response has no label key.
 func TestCompose_ResponsesEchoSlotLabel(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	slot := func(label, ret string) string {

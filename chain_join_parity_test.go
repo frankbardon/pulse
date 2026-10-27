@@ -19,6 +19,8 @@ import (
 // or refused by both sides alike — including the next stage's view of
 // a defaulted aggregator's "<TYPE>_<field>" output label.
 func TestChainDefaults_ValidatorMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -124,6 +126,8 @@ func twoJoins(cohort string) *types.Request {
 // chain validator exactly as the runtime refuses it — the one shared
 // rule (descriptor.JoinCountRefusal), PULSE_JOIN_TOO_MANY {count}.
 func TestJoinTooMany_PredictAndValidatorsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {

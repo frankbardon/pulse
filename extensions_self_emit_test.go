@@ -137,6 +137,8 @@ func selfEmitExtensions(cat string, b selfEmitBehaviour, schema descriptor.Compo
 }
 
 func TestExtensions_SelfEmitterProbe(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		b      selfEmitBehaviour
@@ -187,6 +189,8 @@ func TestExtensions_SelfEmitterProbe(t *testing.T) {
 // TestExtensions_SchemaWithoutAnyEmitterStillRefused: a value with no
 // Components() method and no ComponentsFunc still cannot declare keys.
 func TestExtensions_SchemaWithoutAnyEmitterStillRefused(t *testing.T) {
+	t.Parallel()
+
 	reg := highRegistration(attrHighPlain, false)
 	reg.ComponentSchema = highSchema()
 	_, err := pulse.New(newTestOptions(pulse.Extensions{Attributes: []pulse.AttributeRegistration{reg}}))
@@ -203,6 +207,8 @@ func TestExtensions_SchemaWithoutAnyEmitterStillRefused(t *testing.T) {
 // adapter adopts the method, as it does for the other categories), and
 // predict and runtime agree it stays off the chain merge arm.
 func TestExtensions_SelfEmittingAttributeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const name = types.AttributeType("ATTR_ACME_SELF")
 	p, path := brandScoreCohort(t, selfEmitExtensions("attribute", selfEmitBehaviour{}, selfEmitSchema("n_high")))

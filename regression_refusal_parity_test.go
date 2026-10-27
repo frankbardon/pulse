@@ -22,6 +22,8 @@ import (
 // itself) with the same code (PULSE_REGRESSION_INVALID)
 // and the same sentence, indexed by the slot's position in the request.
 func TestRegressionUnknownType_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	for _, tc := range []struct {
 		name, typ string
@@ -132,6 +134,8 @@ func assertUnknownRegressionTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.
 // predict and the runtime with PULSE_TEST_UNKNOWN_TYPE and the same
 // sentence.
 func TestTestUnknownType_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	ctx := context.Background()
 	for _, tc := range []struct {

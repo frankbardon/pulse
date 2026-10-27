@@ -130,6 +130,8 @@ func assertChainParity(t *testing.T, p *pulse.Pulse, name string, mk func() *typ
 // stage — the labels used to be dropped silently at runtime and the
 // rest used to predict valid. Stage 0 gets the same body check.
 func TestChainPredict_StageBodyMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := labelCohort(t)
 	for _, c := range []struct {
 		name, body string
@@ -173,6 +175,8 @@ func TestChainPredict_StageBodyMatchesRuntime(t *testing.T) {
 // augment adds the <field>_label sibling — where it used to be dropped
 // and the raw key returned.
 func TestChain_StageLabelsApplied(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := labelCohort(t)
 	ctx := context.Background()
 	for _, c := range []struct {
@@ -213,6 +217,8 @@ func TestChain_StageLabelsApplied(t *testing.T) {
 // PULSE_LABEL_FIELD_COLLISION on both Process and predict (predict used
 // to miss the aggregation, window and group-key sources).
 func TestLabelCollision_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := labelCohort(t)
 	ctx := context.Background()
 	aug := `"labels":[{"field":"region","table":"regions","mode":"augment"}]`

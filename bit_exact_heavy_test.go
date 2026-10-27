@@ -20,6 +20,8 @@ import (
 // DecodeWorkers 7), the buffered crosstab arm (fusion disabled, serial
 // and with a parallel record decode) and the archive.
 func TestBitExact_Crosstab(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	arms := []bitExactArm{
 		{name: "flat/fused", cohort: "flat.pulse", opts: pulse.Options{DecodeWorkers: 1}, arm: observe.ArmFusedCrosstab},
@@ -61,6 +63,8 @@ func TestBitExact_Crosstab(t *testing.T) {
 // ShardWorkers 2 / 3 / 8 must really fan out AND answer the serial
 // bits — the binned sum does not care about the split.
 func TestBitExact_FormulaTotal(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	arms := bitExactArms(true)
 	cases := []struct {
@@ -127,6 +131,8 @@ func TestBitExact_FormulaTotal(t *testing.T) {
 // the parallel reducers (mergegate.ParallelTotals) — every knob runs
 // the sequential arm — and still answer the same bits.
 func TestBitExact_FormulaTotalOutsideFirstCut(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	for _, c := range []struct {
 		name string
@@ -167,6 +173,8 @@ func TestBitExact_FormulaTotalOutsideFirstCut(t *testing.T) {
 // identical bits, ungrouped and grouped, on every worker count and
 // shard split — their sums are binned too.
 func TestBitExact_CountsAndDistinctSums(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	arms := bitExactArms(true)
 	freq, _ := json.Marshal(map[string]string{"value": "east"})
@@ -203,6 +211,8 @@ func TestBitExact_CountsAndDistinctSums(t *testing.T) {
 // answers the serial single file's Data and Components bit for bit,
 // grouper components (per-bucket counts, low / high, edges) included.
 func TestBitExact_GroupRounded(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	arms := bitExactArms(true)
 	cases := map[string][]*types.Group{

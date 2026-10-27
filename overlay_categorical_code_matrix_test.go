@@ -79,6 +79,8 @@ func ccCrosstab(col string, typ types.AggregationType, field string, specs ...ty
 // "crosstab.cell" — on predict (first) and runtime alike, messages
 // equal. AGG_MODE over the numeric x still runs.
 func TestProcessMatrixOverlay_CategoricalCodeCellRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := ccFixture(t, pulse.Options{})
 	for _, kind := range ccValueKinds {
@@ -162,6 +164,8 @@ func ccStage(overlays []types.OverlaySpec, aggs ...*types.Aggregation) *types.Re
 // Request.Overlays (located details.stage), predict first; a forwarded
 // magnitude (AGG_MODE over the numeric x) still scores.
 func TestChainOverlay_ForwardedCodePropagates(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ccFixture(t, pulse.Options{})
 	kind := types.OverlayKindDeltaVsStage
 	s0 := func() []*types.Aggregation {

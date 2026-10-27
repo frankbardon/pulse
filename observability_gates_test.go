@@ -102,6 +102,7 @@ func captureProcessOutput(t *testing.T, fn func()) processOutput {
 // Falsified by making observing() return true: the observed path issues
 // operation IDs.
 func TestObservabilityDefaultsSilent(t *testing.T) {
+	// serial: swaps os.Stdout / os.Stderr
 	var (
 		p       *Pulse
 		newErr  error
@@ -245,6 +246,7 @@ func sentinelCalls() []struct {
 //
 // Falsified by logging err.Error() on the failed-operation record.
 func TestObservabilityNoRowData(t *testing.T) {
+	// serial: swaps os.Stdout / os.Stderr
 	variants := []struct {
 		name string
 		opts func(h *captureHandler) Options
@@ -430,6 +432,8 @@ const logMsgHookPanic = "pulse: observability hook panicked"
 // Falsified by removing the defer p.recoverHook in hookEnd, or the
 // hookPanic count in recoverHook.
 func TestHookPanicRecovered(t *testing.T) {
+	t.Parallel()
+
 	ht := reflect.TypeOf(observe.Hooks{})
 	covered := map[string]bool{}
 	for _, b := range panicHooks {
@@ -613,6 +617,7 @@ var obsOffAllocBaseline = map[string]float64{
 // Falsified by building the OperationInfo (or computing the request
 // hash) before the observing() branch in observe/observed.
 func TestObservabilityOffNoAllocs(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
 	t.Run("helper", func(t *testing.T) {
 		p, _ := obsFixture(t, Options{})
 		req := obsRequest()

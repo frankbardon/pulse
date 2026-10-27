@@ -15,6 +15,8 @@ import (
 // it fails exactly as it does with defaults disabled — while the same
 // request defaults and runs on an unprofiled instance.
 func TestHiddenDefaultTargetGetsNoDefault(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	req := func() *Request {
 		return &Request{
@@ -59,6 +61,8 @@ func (keepAllBuilder) Build(*types.Filterer, *encoding.Schema) (extend.FilterFun
 // filterer works there too (it used to be built against no registry and
 // fail as an unknown filter type).
 func TestFacetSchemaAdditiveScopeUsesInstanceRegistry(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	p, err := New(Options{FS: fsys, Extensions: Extensions{Filterers: []FiltererRegistration{{
 		Name:        keepAllFilter,

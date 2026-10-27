@@ -54,6 +54,8 @@ func decodeInto[T any](t *testing.T, raw string) *T {
 // stage (ProcessChain, PredictChain). Windows carry no expression slot;
 // their for_each beside the refused item is legal and never reached.
 func TestExprSplice_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ewmaCohort(t)
 	ctx := context.Background()
 

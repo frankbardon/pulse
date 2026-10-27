@@ -102,6 +102,8 @@ func sfModes() []mgMode {
 // from the default on every kind (YoY runs annual, so its second point
 // has a prior), so the equality is not two copies of the default.
 func TestSeriesOverlayField_ScoresNamedAggregation(t *testing.T) {
+	t.Parallel()
+
 	// 13 kinds score any aggregation here; the three prior-period tests
 	// (U47 #328) score only their measure family, and their params.field
 	// is pinned by root TestVsPrior_* instead.
@@ -155,6 +157,8 @@ func TestSeriesOverlayField_ScoresNamedAggregation(t *testing.T) {
 // one input field (a sum and a mean of y) are told apart by their
 // default TYPE_field labels.
 func TestSeriesOverlayField_SameInputFieldByLabel(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	sum := func() *types.Aggregation { return &types.Aggregation{Type: types.AGG_SUM, Field: "y"} }
 	mean := func() *types.Aggregation { return &types.Aggregation{Type: types.AGG_AVERAGE, Field: "y"} }
@@ -189,6 +193,8 @@ func TestSeriesOverlayField_SameInputFieldByLabel(t *testing.T) {
 // PULSE_OVERLAY_FIELD_UNKNOWN with Details {index, kind, field,
 // available} by predict and by every runtime arm, the Details equal.
 func TestSeriesOverlayField_UnknownRefusedIdentically(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, bad := range []any{"revenue", "AGG_SUM_y", 7.0} {
 		for _, s := range sfSpecs() {

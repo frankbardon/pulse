@@ -90,6 +90,8 @@ func streamTwinExpected(t *testing.T, src []byte, keep func(i int) bool) ([]byte
 // bytes, over the rich layout and a grouped cohort, with a predicate
 // and without (a flatten no-op, a truncated tail dropped).
 func TestShardStream_FilterSingleFileByteTwin(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := memBuilderEngine(t)
 	buildCohort(t, p, "rich.pulse", streamTwinSchema(), CohortBuilderOptions{}, streamTwinRows(97))

@@ -12,6 +12,8 @@ import (
 // wires the converted ExtensionRegistry into the underlying service
 // and that lookups resolve via the overlay.
 func TestExtensions_RegistryInstalledOnService(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{
 			{
@@ -42,6 +44,8 @@ func TestExtensions_RegistryInstalledOnService(t *testing.T) {
 // Options produces a nil ExtensionRegistry on the service — the
 // runtime takes the built-in-only path with no overlay lookups.
 func TestExtensions_ZeroValueProducesNilRegistry(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("pulse.New rejected zero options: %v", err)
@@ -56,6 +60,8 @@ func TestExtensions_ZeroValueProducesNilRegistry(t *testing.T) {
 // registries — required so a process can host multiple Pulse
 // services without leaking registrations across them.
 func TestExtensions_RegistryIsolationAcrossInstances(t *testing.T) {
+	t.Parallel()
+
 	a, err := pulse.New(pulse.Options{
 		FS: afero.NewMemMapFs(),
 		Extensions: pulse.Extensions{
@@ -94,6 +100,8 @@ func TestExtensions_RegistryIsolationAcrossInstances(t *testing.T) {
 // fallthrough path. This is critical: a custom registration must
 // never shadow the built-in registry from view, only override it.
 func TestExtensions_RegistryFallsThroughToBuiltins(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{
 		FS: afero.NewMemMapFs(),
 		Extensions: pulse.Extensions{
@@ -119,6 +127,8 @@ func TestExtensions_RegistryFallsThroughToBuiltins(t *testing.T) {
 // ExtensionRegistry — the expr environment cannot reach them
 // otherwise. Operator-category maps stay empty.
 func TestExtensions_OnlyExprEntriesYieldsRegistry(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{
 		FS: afero.NewMemMapFs(),
 		Extensions: pulse.Extensions{
@@ -149,6 +159,8 @@ func TestExtensions_OnlyExprEntriesYieldsRegistry(t *testing.T) {
 // registered AttributeMode flows into the runtime Streamable
 // override: row_local / two_pass are streamable, buffered is not.
 func TestExtensions_AttributeStreamabilityFromMode(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		mode  pulse.AttributeMode
 		label string
@@ -159,6 +171,8 @@ func TestExtensions_AttributeStreamabilityFromMode(t *testing.T) {
 		{pulse.AttributeModeBuffered, "BUFFERED", false},
 	} {
 		t.Run(string(tc.mode), func(t *testing.T) {
+			t.Parallel()
+
 			name := types.AttributeType("ATTR_ACME_" + tc.label)
 			p, err := pulse.New(pulse.Options{
 				FS: afero.NewMemMapFs(),

@@ -144,6 +144,8 @@ func dkoBuckets(t *testing.T, resp *types.Response, i int) []string {
 // grouper's Components buckets follow the calendar / supplied / include
 // order — buffered over a file and an archive, and streamed.
 func TestDateKeyOrder_GroupedRowsEveryArm(t *testing.T) {
+	t.Parallel()
+
 	p := dkoEngine(t, Options{})
 	ctx := context.Background()
 	for _, tc := range dkoCases() {
@@ -176,6 +178,8 @@ func TestDateKeyOrder_GroupedRowsEveryArm(t *testing.T) {
 // TestDateKeyOrder_MultiGrouperComposite: a Request.Groups composite
 // orders the date position by its own key order within each region.
 func TestDateKeyOrder_MultiGrouperComposite(t *testing.T) {
+	t.Parallel()
+
 	p := dkoEngine(t, Options{})
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 	for _, tc := range dkoCases() {
@@ -223,6 +227,8 @@ func isSubsequence(got, want []string) bool {
 // taken) and the buffered arm, over a file and an archive, and the two
 // arms' crosstab payloads and components are byte-identical.
 func TestDateKeyOrder_CrosstabBothArms(t *testing.T) {
+	t.Parallel()
+
 	fused := dkoEngine(t, Options{})
 	buffered := dkoEngine(t, Options{DisableCrosstabFusion: true})
 	ctx := context.Background()
@@ -286,6 +292,8 @@ func TestDateKeyOrder_CrosstabBothArms(t *testing.T) {
 // wall-clock hour of the resolved zone — a New York run shifts every
 // count by the UTC offset of its instant, as a time.In reference does.
 func TestDateKeyOrder_HourOfDayZoneAware(t *testing.T) {
+	t.Parallel()
+
 	p := dkoEngine(t, Options{})
 	zone, err := temporal.LoadZone("America/New_York")
 	if err != nil {
@@ -327,6 +335,8 @@ func TestDateKeyOrder_HourOfDayZoneAware(t *testing.T) {
 // GROUP_CATEGORY include rule; a hour_of_day over a date field is
 // refused PROCESSING_CONFIG by both.
 func TestDateKeyOrder_IncludePredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p := dkoEngine(t, Options{})
 	ctx := context.Background()
 	for _, g := range []*types.Group{

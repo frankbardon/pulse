@@ -12,6 +12,8 @@ import (
 // honest: every OperationKind, Phase, Arm, Scope and metric name in code
 // must appear in it. Falsified by adding an enum value without a doc edit.
 func TestObservabilityDocCoversEnums(t *testing.T) {
+	t.Parallel()
+
 	b, err := os.ReadFile(".claude/reference/observability.md")
 	if err != nil {
 		t.Fatal(err)

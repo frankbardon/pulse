@@ -98,6 +98,8 @@ func hiddenDescriptionNames(t *testing.T, p *Pulse, fullSkills []string) (tokens
 // all (they are name-free), and the full manifest's (cached)
 // descriptions are never written by that render.
 func TestManifestSkills_DescriptionsNameNoHidden(t *testing.T) {
+	t.Parallel()
+
 	full := descx.BuildManifest()
 	fullDesc := map[string]string{}
 	var fullSkills []string
@@ -175,6 +177,8 @@ func kebabDescriptionTokens(s string) []string {
 // nodes ARE the listed skills, every listed skill reads, a pruned one
 // reads exactly as a nonexistent one, and the graph is a fresh copy.
 func TestFacade_OntologySkillsAgree(t *testing.T) {
+	t.Parallel()
+
 	fullP, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)

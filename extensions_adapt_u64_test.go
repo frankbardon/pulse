@@ -14,6 +14,8 @@ import (
 // neighbour), a null as (0, false), and a native vector element member
 // "f[k]" through its element — (0, false) exactly when NumericValue is.
 func TestExtRecord_Uint64Value(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "k", Type: encoding.FieldTypeU64, Nullable: true},
@@ -71,6 +73,8 @@ func (echoOnlyFeatureRecord) SetNull(string)                                 {}
 // TestFeatureRecordView_Uint64Value: a non-engine feature record degrades
 // to its float echo (saturating past 2^64), false when absent.
 func TestFeatureRecordView_Uint64Value(t *testing.T) {
+	t.Parallel()
+
 	r := featureRecord(echoOnlyFeatureRecord{"a": 42, "big": 1e30})
 	if got, ok := r.Uint64Value("a"); !ok || got != 42 {
 		t.Errorf("Uint64Value(a) = (%d, %v), want (42, true)", got, ok)

@@ -47,6 +47,8 @@ func aucReq(field, params string) *Request {
 // predict reports is exactly the runtime's — code, message, details —
 // and every accepted slot is accepted by both.
 func TestAUC_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fsys := aucFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -103,6 +105,8 @@ func TestAUC_PredictMatchesRuntime(t *testing.T) {
 // passes predict (no schema type promises 0 / 1, and predict reads no
 // record) and fails the run with PROCESSING_AUC_OUTCOME_NOT_BINARY.
 func TestAUC_NonBinaryOutcomeIsRunTimeOnly(t *testing.T) {
+	t.Parallel()
+
 	fsys := aucFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -131,6 +135,8 @@ func TestAUC_NonBinaryOutcomeIsRunTimeOnly(t *testing.T) {
 // weighted pair figure and the DeLong figures are null on the wire with
 // se_note naming PULSE_AUC_DELONG_WEIGHTED; unweighted they are numbers.
 func TestAUC_WeightedWithholdsDeLong(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: aucFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -205,6 +211,8 @@ func TestAUC_WeightedWithholdsDeLong(t *testing.T) {
 // so a stream carries its operator map on the terminal chunk only, equal
 // to the buffered Process call's Components.
 func TestAUC_StreamTerminalCarriesOperator(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: aucFS(t)})
 	if err != nil {
 		t.Fatal(err)

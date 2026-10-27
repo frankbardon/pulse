@@ -74,6 +74,8 @@ func requireLimitExceeded(t *testing.T, err error, limit string, configured int6
 // refuses it with the error predict reports — code, message and
 // details.
 func TestLimits_MatrixDim_PredictCertainAndProcessRefuses(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	p := limitsPulse(t, fs, pulse.Limits{MaxMatrixDim: 2})
@@ -126,6 +128,8 @@ func TestLimits_MatrixDim_PredictCertainAndProcessRefuses(t *testing.T) {
 // TestLimits_MatrixDim_AtLimitAndDefaults: a matrix at the limit, and
 // any matrix under the defaults, produce no finding and run.
 func TestLimits_MatrixDim_AtLimitAndDefaults(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	for name, l := range map[string]pulse.Limits{"at_limit": {MaxMatrixDim: 3}, "defaults": {}, "unlimited": {MaxMatrixDim: pulse.Unlimited}} {
@@ -160,6 +164,8 @@ func composeOf(cohort string, n int) *types.ComposedRequest {
 // refused whole on the serial and the parallel path (FailFast off and
 // on); N slots run.
 func TestLimits_ComposeSlots(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	p := limitsPulse(t, fs, pulse.Limits{MaxComposeSlots: 2})
@@ -205,6 +211,8 @@ func chainOf(cohort string, n int) *types.ChainRequest {
 // TestLimits_ChainStages: N+1 stages under MaxChainStages=N are
 // refused before stage 0 runs; N stages run.
 func TestLimits_ChainStages(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	p := limitsPulse(t, fs, pulse.Limits{MaxChainStages: 2})
@@ -227,6 +235,8 @@ func TestLimits_ChainStages(t *testing.T) {
 // error the run refuses with (code, message, details); N stages carry
 // no finding.
 func TestLimits_ChainStages_PredictParity(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	p := limitsPulse(t, fs, pulse.Limits{MaxChainStages: 2})
@@ -259,6 +269,8 @@ func TestLimits_ChainStages_PredictParity(t *testing.T) {
 // a later stage's input rows exist only at runtime, so it never carries
 // a certain memory finding.
 func TestLimits_PredictChain_StageFindings(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	p := limitsPulse(t, fs, pulse.Limits{MaxEstimatedMemory: 1})
@@ -290,6 +302,8 @@ func TestLimits_PredictChain_StageFindings(t *testing.T) {
 // certain finding per slot whose first error is the one the run
 // refuses with.
 func TestLimits_PredictCompose_SlotFindings(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	batch := func() *types.ComposedRequest {
@@ -344,6 +358,8 @@ func TestLimits_PredictCompose_SlotFindings(t *testing.T) {
 // field mints no group) — Valid stays true, the run trips it — and the
 // certain memory finding whose error the run refuses with.
 func TestLimits_PredictFacet_Findings(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	facet := func() *pulse.FacetRequest {

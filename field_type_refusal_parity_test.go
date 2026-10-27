@@ -198,6 +198,8 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 // bytes, never an n=0 test), and predict reports exactly one error with
 // the same code.
 func TestFieldTypeRefusal_RuntimeRefusesPredictAgrees(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	cases := fieldTypeRefusalCases()
@@ -237,6 +239,8 @@ func TestFieldTypeRefusal_RuntimeRefusesPredictAgrees(t *testing.T) {
 // TestFieldTypeRefusal_SafePairsStillRun pins the other direction: the
 // numeric inputs the table accepts still run on both sides.
 func TestFieldTypeRefusal_SafePairsStillRun(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	ops := []string{"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG", "WIN_EWMA",
@@ -274,6 +278,8 @@ func TestFieldTypeRefusal_SafePairsStillRun(t *testing.T) {
 // the table's code and reported once by predict; a valid twin of each
 // runs on both sides.
 func TestFieldTypeRefusal_EverySlotPredicts(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	cases := []struct {

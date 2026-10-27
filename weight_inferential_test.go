@@ -126,6 +126,8 @@ var permanentRefusalKeys = map[string]bool{
 // details carry sum_weights and n_eff, raw n unchanged) and `weight:
 // null` runs it unweighted, byte-identical to a plain instance.
 func TestWeight_DefaultInstanceWeightsTTest(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	p := weightPulse(t, fs, &types.WeightSpec{Field: "y"})
 	plain := weightPulse(t, fs, nil)
@@ -170,6 +172,8 @@ func TestWeight_DefaultInstanceWeightsTTest(t *testing.T) {
 // runs under the instance default; filterers, features, row-local
 // attributes and the other groupers run under a request weight.
 func TestWeight_WindowsAndUnaffectedMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	def := &types.WeightSpec{Field: "y"}
@@ -237,6 +241,8 @@ func sortedKeys(m map[string]*types.Request) []string {
 // shared rule (ComposeOverlayWeightRefusal) is pinned per still-refused
 // kind by internal/descriptor TestComposeOverlayWeightRefusal.
 func TestWeight_ComposeInferentialOverlayMatchesValidator(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	def := &types.WeightSpec{Field: "y"}
@@ -273,6 +279,8 @@ func TestWeight_ComposeInferentialOverlayMatchesValidator(t *testing.T) {
 // runtime and predict identically, and runs weighted under a frequency
 // weight (predict reports it applied, the result carries sum_weights).
 func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
@@ -346,6 +354,8 @@ func TestWeight_FrequencyOnlyMatchesPredict(t *testing.T) {
 // the kind, at runtime and predict identically; `weight: null` runs
 // either unweighted.
 func TestWeight_RegressionsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
@@ -425,6 +435,8 @@ func TestWeight_RegressionsMatchPredict(t *testing.T) {
 // the runtime's Σ fitted moves off the unweighted Σ fitted (= Σ target,
 // an OLS identity) while `weight: null` restores it.
 func TestWeight_RegressionAttributesMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
@@ -497,6 +509,8 @@ func TestWeight_RegressionAttributesMatchPredict(t *testing.T) {
 // the slot applied, the runtime answer moves off the opted-out one, and
 // the grouper floor total_n stays the raw row count.
 func TestWeight_ScoresAndQuantileMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}
@@ -602,6 +616,8 @@ func TestWeight_ScoresAndQuantileMatchPredict(t *testing.T) {
 // and is PROCESSING_CONFIG under an explicit request or slot weight, at
 // runtime and predict identically.
 func TestWeight_NormalizedNotWeightableMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	def := &types.WeightSpec{Field: "y"}
@@ -645,6 +661,8 @@ func TestWeight_NormalizedNotWeightableMatchesPredict(t *testing.T) {
 // predict's inert-selector PULSE_OVERLAY_PARAM_MISSING, the runtime
 // ignoring them — exactly as on an unweighted host.
 func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	mk := func(w types.WeightSpec, nSource string) *types.Request {
@@ -709,6 +727,8 @@ func TestWeight_PairwiseNSourceMatchesPredict(t *testing.T) {
 // sugar (kind probability). "kish" on the same host, and "weights" on a
 // frequency host, run and predict clean.
 func TestWeight_PairwiseWeightedNBasisMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	freq := types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}
@@ -764,6 +784,8 @@ func TestWeight_PairwiseWeightedNBasisMatchesPredict(t *testing.T) {
 // runtime and in predict with one code and message; an unweighted-count
 // n_source on the weighted host is PROCESSING_CONFIG on both arms.
 func TestWeight_ContingencyOverlaysMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	freq := types.WeightSpec{Field: "t_u8", Kind: types.WeightKindFrequency}

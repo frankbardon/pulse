@@ -17,6 +17,8 @@ import (
 // records — whether the stage groups by the output or only carries it,
 // with or without an expression filter reading it by state name.
 func TestPreviousState_ProcessChainRefusesAlike(t *testing.T) {
+	t.Parallel()
+
 	_, p, _ := prevModeBaseline(t)
 	reqs := prevModeRequests("panel.pulse")
 	for _, name := range []string{"grouped_by_prev", "ungrouped", "expr_filter_grouped"} {
@@ -34,6 +36,8 @@ func TestPreviousState_ProcessChainRefusesAlike(t *testing.T) {
 // of it, or an expression filter reading it, is refused by FacetSchema
 // and PredictFacet with one code, message and details.
 func TestPreviousState_FacetRootsRefuseAlike(t *testing.T) {
+	t.Parallel()
+
 	_, p, _ := prevModeBaseline(t)
 	ctx := context.Background()
 	for name, mk := range map[string]func() *types.FacetRequest{
@@ -66,6 +70,8 @@ func TestPreviousState_FacetRootsRefuseAlike(t *testing.T) {
 // GROUP_CATEGORY counts; null count = Process's AGG_NULL_COUNT; Facet:
 // the observed names; Sample: names, never dictionary codes).
 func TestPreviousState_MaterializedCohortFacetsAndSamplesLikeProcess(t *testing.T) {
+	t.Parallel()
+
 	_, p, _ := prevModeBaseline(t)
 	ctx := context.Background()
 	reqs := prevModeRequests("panel.pulse")

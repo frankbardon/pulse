@@ -66,6 +66,8 @@ func requireCoded(t *testing.T, err error, code perr.Code) *perr.CodedError {
 // byte-identical to the same slots written by hand, on Compose and
 // ComposeParallel, explicit slots first.
 func TestComposeSweep_MatchesHandWritten(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	ctx := context.Background()
 	swept := decodeComposedJSON(t, `{"requests":[{"label":"base","cohort":{"filename":"`+parityCohort+`"},
@@ -107,6 +109,8 @@ func TestComposeSweep_MatchesHandWritten(t *testing.T) {
 
 // TestComposeSweep_SweepOnly: a sweep with no explicit requests runs.
 func TestComposeSweep_SweepOnly(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	c := decodeComposedJSON(t, `{"sweep":{"axes":[{"name":"op","values":["AGG_SUM","AGG_MAX"]}],"request":`+sweepSlotBody+`}}`)
 	resp, err := p.Compose(context.Background(), c)
@@ -125,6 +129,8 @@ func TestComposeSweep_SweepOnly(t *testing.T) {
 // OVERLAY_DELTA_VS_REF layer per sweep slot against an explicit
 // baseline, after the explicit layers.
 func TestComposeSweep_OverlayPerSlot(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	ctx := context.Background()
 	c := decodeComposedJSON(t, `{"requests":[{"label":"base","cohort":{"filename":"`+parityCohort+`"},
@@ -166,6 +172,8 @@ func TestComposeSweep_OverlayPerSlot(t *testing.T) {
 // points. Predict's parity on the same limit is
 // TestPredictCompose_SlotLimitParity.
 func TestComposeSweep_LimitBeforeAnySlot(t *testing.T) {
+	t.Parallel()
+
 	var slotsRun atomic.Int64
 	hooks := &observe.Hooks{OnOperationStart: func(ctx context.Context, info observe.OperationInfo) context.Context {
 		if info.Scope == observe.ScopeChild {
@@ -214,6 +222,8 @@ func sweepSlotBodyWith(op string) string {
 // TestComposeSweep_InvalidRefusedEverywhere: FR-3 faults are
 // PULSE_SWEEP_INVALID on Compose, ComposeParallel and PredictCompose.
 func TestComposeSweep_InvalidRefusedEverywhere(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	ctx := context.Background()
 	cases := map[string]string{
@@ -255,6 +265,8 @@ func TestComposeSweep_InvalidRefusedEverywhere(t *testing.T) {
 // same details.path — on Compose, ComposeParallel and PredictCompose;
 // the sweep fault adds its slot.
 func TestComposeSweep_UnknownKeyMatchesPlainSlot(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	ctx := context.Background()
 	const grouper = `"groups":[{"type":"GROUP_RANGE","field":"x","interval":10,"label":"bands"}]`
@@ -298,6 +310,8 @@ func TestComposeSweep_UnknownKeyMatchesPlainSlot(t *testing.T) {
 // without overlays), the overlay resolve, and the hash normaliser's
 // label default, which the expansion leaves the explicit slots.
 func TestComposeSweep_LabelCollisionAllSites(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	ctx := context.Background()
 	cases := map[string]string{
@@ -354,6 +368,8 @@ func TestComposeSweep_LabelCollisionAllSites(t *testing.T) {
 // the instance hides is refused as on an explicit slot — runtime and
 // predict alike, details.request locating the expanded slot.
 func TestComposeSweep_HiddenSlotInSweepBody(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	feats := []string{"capability:compose", "capability:compose_sweep", string(types.AGG_COUNT), string(types.GROUP_CATEGORY)}
 	h := newParityHostWith(t, fsys, "sweep-no-crosstab", parityHostConfig{

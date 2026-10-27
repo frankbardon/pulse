@@ -7,6 +7,8 @@ import "testing"
 // first member of every ExactlyOneOf group, optional params absent, and
 // nil when nothing needs a value.
 func TestProbeParams_Placeholders(t *testing.T) {
+	t.Parallel()
+
 	fields := []string{"probe_x1", "probe_x2"}
 	cases := []struct {
 		name   string

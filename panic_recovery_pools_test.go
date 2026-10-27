@@ -340,6 +340,7 @@ func waitGoroutines(t *testing.T, before int) {
 // runRecovered, and the recover defers of the two stream.go producer
 // goroutines — each deletion crashes this test binary with the panic.
 func TestPanicRecovery_PoolArms(t *testing.T) {
+	// serial: its runtime.NumGoroutine leak check counts every concurrent test's goroutines; swaps the package-level stream hooks (testWrapStreamIter / synthStreamBytes)
 	ctx := context.Background()
 	for _, arm := range poolArms() {
 		t.Run(arm.name, func(t *testing.T) {
@@ -372,6 +373,8 @@ func TestPanicRecovery_PoolArms(t *testing.T) {
 // instead of runRecovered on the serial arm (the facade then recovers
 // with details.op compose).
 func TestPanicRecovery_ComposeFitsSerialMatchesPool(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := memSetup(t, "", Options{ShardWorkers: 1, DecodeWorkers: 1})
 	_, serial := p.Compose(ctx, poolFitsBatch())
@@ -391,6 +394,7 @@ func TestPanicRecovery_ComposeFitsSerialMatchesPool(t *testing.T) {
 // aggregate SERVICE_INTERNAL error names its index — and the pool still
 // drains without a leak.
 func TestPanicRecovery_ComposeParallelNoFailFast(t *testing.T) {
+	// serial: its runtime.NumGoroutine leak check counts every concurrent test's goroutines
 	ctx := context.Background()
 	p := memSetup(t, "", Options{ShardWorkers: 1, DecodeWorkers: 1})
 	before := runtime.NumGoroutine()
@@ -439,6 +443,7 @@ func runRepanicChild(t *testing.T, name, dir string) {
 // New (both production subtests see the service default) or its
 // `|| testForcePanicRecoveryOff` (the ordinary instance recovers).
 func TestPanicRecovery_NewWiresServiceKnob(t *testing.T) {
+	// serial: flips the package-level testForcePanicRecoveryOff
 	ordinary, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)
@@ -476,6 +481,7 @@ func (panickingCloseIter) Close() error { panic(panicSecret) }
 // channel. Falsified by dropping the `if !terminated` guard (the second
 // send panics on the closed channel and crashes the binary).
 func TestPanicRecovery_StreamPanicAfterTerminator(t *testing.T) {
+	// serial: its runtime.NumGoroutine leak check counts every concurrent test's goroutines; swaps the package-level stream hooks (testWrapStreamIter / synthStreamBytes)
 	ctx := context.Background()
 	p := memSetup(t, "", Options{ShardWorkers: 1, DecodeWorkers: 1})
 	testWrapStreamIter = func(it RowIter) RowIter { return panickingCloseIter{it} }

@@ -18,6 +18,8 @@ import (
 // instance digest, no hidden operator anywhere in the payload — and each
 // intent it prunes is PULSE_RECOMMEND_INTENT_UNKNOWN.
 func TestManifestForIntent_UnderEveryShippedProfile(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for name, p := range shippedProfilePulses(t) {
 		t.Run(name, func(t *testing.T) {

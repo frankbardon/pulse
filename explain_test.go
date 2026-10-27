@@ -20,6 +20,8 @@ import (
 // for every root that names a cohort, and still names the operators
 // smart defaults infer.
 func TestExplain_FacadeReadsNoRecord(t *testing.T) {
+	t.Parallel()
+
 	spy := &readSpyFs{Fs: afero.NewMemMapFs(), maxRead: map[string]int64{}}
 	head := wideRecommendCohort(t, spy.Fs, "wide.pulse", 500)
 	p, err := New(Options{FS: spy})
@@ -62,6 +64,8 @@ func TestExplain_FacadeReadsNoRecord(t *testing.T) {
 // carries them too (the Compose check reads each slot's sidecar), and
 // the instance's suppression list drops them.
 func TestExplain_FacadeSidecarAdvisories(t *testing.T) {
+	t.Parallel()
+
 	codes := func(p *Pulse, req descriptor.ExplainRequest) []string {
 		res, err := p.Explain(context.Background(), req)
 		if err != nil {
@@ -92,6 +96,8 @@ func TestExplain_FacadeSidecarAdvisories(t *testing.T) {
 }
 
 func TestExplain_FacadeErrors(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)
@@ -118,6 +124,8 @@ func TestExplain_FacadeErrors(t *testing.T) {
 // TestExplain_FacadeProfiled: the facade reads the instance snapshot,
 // so a profiled instance never names a hidden operator in the result.
 func TestExplain_FacadeProfiled(t *testing.T) {
+	t.Parallel()
+
 	const hidden = "AGG_MEDIAN"
 	req := descriptor.ExplainRequest{Detail: descriptor.ExplainFull, Request: &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "x"}, {Type: types.AGG_AVERAGE, Field: "x"}},
@@ -154,6 +162,8 @@ func TestExplain_FacadeProfiled(t *testing.T) {
 // count only with the partial note without — and response mode opens
 // no cohort.
 func TestExplain_FacadeResponseMode(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	wideRecommendCohort(t, fsys, "wide.pulse", 20)
 	p, err := New(Options{FS: fsys})
@@ -199,6 +209,8 @@ func TestExplain_FacadeResponseMode(t *testing.T) {
 // FacetSchema return read into findings — a chain run with its request
 // echoed names its stages' operators with no request supplied.
 func TestExplain_FacadeResultRoots(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	wideRecommendCohort(t, fsys, "wide.pulse", 20)
 	ctx := context.Background()
@@ -271,6 +283,8 @@ func TestExplain_FacadeResultRoots(t *testing.T) {
 // offering explain but hiding compose drops the composed roots from
 // ExplainRequest with the ComposedRequest / ComposedResponse defs.
 func TestExplain_HiddenFeatureSurfaces(t *testing.T) {
+	t.Parallel()
+
 	const feat = "capability:explain"
 	for _, tc := range []struct {
 		name         string
@@ -283,6 +297,8 @@ func TestExplain_HiddenFeatureSurfaces(t *testing.T) {
 		{"compose hidden", allFeaturesBut("capability:compose"), true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: &FeatureProfile{Features: tc.features}})
 			if err != nil {
 				t.Fatal(err)

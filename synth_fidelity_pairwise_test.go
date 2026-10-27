@@ -39,6 +39,8 @@ func fidelityCorrelatedSpec(rows int, targetRho float64) *synth.Spec {
 // actual numbers rather than a smoke test that the report merely
 // renders a "pairwise" key.
 func TestSynth_FidelityReportPairwiseWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.03
 	const sourceRows = 8000
 	const newRows = 20000
@@ -123,6 +125,8 @@ func TestSynth_FidelityReportPairwiseWithinTolerance(t *testing.T) {
 // SynthOptions.FidelityWarnings — exactly what `synth from-profile`
 // does with the profile document it already has in hand.
 func TestSynth_FidelityReportSurfacesThinPairWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := New(Options{FS: fs})
 	if err != nil {
@@ -181,6 +185,8 @@ func TestSynth_FidelityReportSurfacesThinPairWarning(t *testing.T) {
 // caller) leaves the "warnings" key entirely absent from the wire JSON
 // rather than present-but-empty.
 func TestSynth_FidelityReportOmitsWarningsKeyWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupFidelityFixture(t, fs)
 

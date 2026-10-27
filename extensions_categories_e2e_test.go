@@ -110,8 +110,12 @@ func (a e2eAttrTwoPass) Row(rec extend.Record, field string) (float64, error) {
 // attribute per mode and checks AGG_SUM over its output equals twice
 // the built-in AGG_SUM(score), on both Process and ProcessStream.
 func TestExtensions_AttributesAuthoredAgainstExtend(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []pulse.AttributeMode{pulse.AttributeModeBuffered, pulse.AttributeModeRowLocal, pulse.AttributeModeTwoPass} {
 		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
 			calls := &e2eCalls{}
 			factory := func(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 				base := e2eAttr{calls: calls}
@@ -210,8 +214,12 @@ func (f e2eFeatStreaming) EmitRow(rec extend.Record, field string) (map[string]e
 // the built-in AGG_SUM(score), and the streaming variant must actually
 // be driven through EmitRow on the streaming run.
 func TestExtensions_FeaturesAuthoredAgainstExtend(t *testing.T) {
+	t.Parallel()
+
 	for _, streaming := range []bool{false, true} {
 		t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+			t.Parallel()
+
 			calls := &e2eCalls{}
 			factory := func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
 				if streaming {
@@ -275,6 +283,8 @@ func (r e2ePostTest) Run(rows []map[string]any) (*types.TestResult, error) {
 // statistic is the score sum (must equal built-in AGG_SUM) and a tier-2
 // test whose statistic is the number of result rows (four regions).
 func TestExtensions_TestsAuthoredAgainstExtend(t *testing.T) {
+	t.Parallel()
+
 	calls := &e2eCalls{}
 	p, cohort := openE2E(t, pulse.Extensions{Tests: []pulse.TestRegistration{
 		{
@@ -337,6 +347,8 @@ func (e2eWindow) Compute(rows []map[string]any, partitions [][]int, label string
 // partition ordered by the group sum, the ordinals are 0..n-1 in sum
 // order.
 func TestExtensions_WindowsAuthoredAgainstExtend(t *testing.T) {
+	t.Parallel()
+
 	var opts *extend.WindowOptions
 	p, cohort := openE2E(t, pulse.Extensions{Windows: []pulse.WindowRegistration{{
 		Name: "WIN_ACME_E2E_ORDINAL",

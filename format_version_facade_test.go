@@ -227,6 +227,8 @@ func formatProbes(ctx context.Context) []formatProbe {
 // version would parse the 0x02 schema block as 0x01, start the record
 // region four bytes early, and diverge (or fail) here.
 func TestFormatV2_FacadeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs1, fs2 := formatTwinFS(t)
 
@@ -268,6 +270,8 @@ func TestFormatV2_FacadeParity(t *testing.T) {
 // file) surfaces as a coded ENCODING_INVALID naming the version on the
 // facade — never a silent misparse.
 func TestFormatV2_UnsupportedVersionIsCoded(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs1, _ := formatTwinFS(t)
 	raw, err := afero.ReadFile(fs1, "cohort.pulse")
@@ -331,6 +335,8 @@ func versionDetail(err error) (byte, bool) {
 // group descriptor. This is what pins the schema-only read sites, which
 // the parity test cannot see while the extension is empty.
 func TestFormatV2_FacadeRefusesUnknownExtension(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	_, fs2 := formatTwinFS(t)
 	raw, err := afero.ReadFile(fs2, "cohort.pulse")

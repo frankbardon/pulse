@@ -24,6 +24,8 @@ func retentionOverlay(params string) types.OverlaySpec {
 }
 
 func TestRetention_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	square := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
@@ -75,6 +77,8 @@ func TestRetention_RefusalsMatchPredict(t *testing.T) {
 // g x subj (one grouper per axis, different keys) runs too: no
 // from-state has a column of its own, so every stay rate is 0.
 func TestRetention_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, cols := range [][]*types.Group{

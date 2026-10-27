@@ -74,6 +74,8 @@ func writeModelFidelityReport(t *testing.T, spec *synth.Spec) (*synth.FidelityRe
 // report carries the section, with the captured coefficient on the
 // latent scale beside a recovery that lands on it.
 func TestSynth_FidelityReportCarriesModelRecovery(t *testing.T) {
+	t.Parallel()
+
 	report, raw := writeModelFidelityReport(t, modelReportSpec(6000, synth.FieldModelSpec{
 		Field:       "spend",
 		Intercept:   100,
@@ -108,6 +110,8 @@ func TestSynth_FidelityReportCarriesModelRecovery(t *testing.T) {
 // spec with no models produces a report whose JSON carries no "models"
 // key at all, so every pre-`--fit-models` profile's report is unchanged.
 func TestSynth_FidelityReportOmitsModelsKey(t *testing.T) {
+	t.Parallel()
+
 	_, raw := writeModelFidelityReport(t, modelReportSpec(600))
 
 	var wire map[string]any

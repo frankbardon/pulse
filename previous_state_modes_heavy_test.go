@@ -23,6 +23,8 @@ import (
 // parallel segments, but the attribute still scores the whole decoded
 // set, never a segment.
 func TestPreviousState_ParallelDecodeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	want, _, _ := prevModeBaseline(t)
 	fs := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
 	serial, _ := prevModeEngine(t, fs, pulse.Options{DecodeWorkers: 1})

@@ -106,6 +106,8 @@ func wideSetLabelsForRow(r int) []string {
 // unless FullDict is asked for. InspectEnvelope (not Inspect) is the
 // only way to reach the FullDict knob, per the predict-inspect contract.
 func TestInspectEnvelope_WideSetCohort(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writeWideSetCohort(t, memFs, "battery.pulse")
 
@@ -181,6 +183,8 @@ func findInspectField(t *testing.T, res *descriptor.InspectResult, name string) 
 // from every word — including bit 64+r and bit 200+r, which a 64-bit
 // read would drop without erroring.
 func TestBuildIndexAndLookup_WideSetCohort(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writeWideSetCohort(t, memFs, "battery.pulse")
 

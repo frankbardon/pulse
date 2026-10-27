@@ -128,6 +128,8 @@ func chainFirstError(t *testing.T, p *pulse.Pulse, req *types.ChainRequest) *des
 }
 
 func TestSeriesOverlay_SpecRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 

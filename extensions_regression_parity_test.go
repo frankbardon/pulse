@@ -404,6 +404,8 @@ func assertRegressionParity(t *testing.T, builtin, ext []*types.RegressionResult
 // regression never merges, so every worker count folds the admitted
 // rows in record order — streaming and buffered, weighted and not.
 func TestExtensions_RegressionWorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())(t)
 	prob := types.SlotWeightOf(types.WeightSpec{Field: "qty", Kind: types.WeightKindProbability})
 	specs := []*types.RegressionSpec{

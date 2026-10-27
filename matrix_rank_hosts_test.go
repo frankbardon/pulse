@@ -47,6 +47,8 @@ func rankHostSpecs() []types.MatrixSpec {
 // ProcessChain stage 0 carry the same results as the plain Process —
 // a non-mergeable spec runs serially wherever it lands.
 func TestMatrixRankCorrelation_Hosts(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := rankHostCohort(t)
 	ctx := context.Background()
 	grouped := func() *types.Request {

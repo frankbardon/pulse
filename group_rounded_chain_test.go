@@ -15,6 +15,8 @@ import (
 // PredictChain validates the same chain with no error, where both used
 // to answer PULSE_CHAIN_NOT_MERGEABLE.
 func TestGroupRounded_ChainStageAdmitted(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeBitExactFile(t, filepath.Join(dir, "small.pulse"), bitExactSchema(), func(r uint64) bool { return r < 600 })
 	p, err := pulse.New(pulse.Options{DataDir: dir})

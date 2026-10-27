@@ -77,6 +77,8 @@ func processRegressionTypeEnum(t *testing.T, p *pulse.Pulse) []string {
 // feature profile that leaves it out removes it from all three and it
 // acts as never registered at runtime and in predict.
 func TestExtensions_RegressionSelfDescribed(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "e2e.pulse", paritySchema(t), 0, paritySmallRows)
@@ -180,6 +182,8 @@ func TestExtensions_RegressionSelfDescribed(t *testing.T) {
 // Interpretation is held to the figures a model can report and the
 // declared OutputSchema keys.
 func TestExtensions_RegressionGuidanceValidated(t *testing.T) {
+	t.Parallel()
+
 	with := func(mut func(*pulse.RegressionRegistration)) error {
 		ext := describedRegressions()
 		ext.Regressions[0].OutputSchema = []pulse.RegressionOutputMeta{{Key: "half_life", JSONType: "number"}}
@@ -223,6 +227,8 @@ func TestExtensions_RegressionGuidanceValidated(t *testing.T) {
 // runtime raise the same PULSE_FIELD_TYPE_UNSUPPORTED, and the manifest
 // lists the accepted types; a malformed Accepts is refused at pulse.New.
 func TestExtensions_RegressionAcceptsTypes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ext := describedRegressions()
 	ext.Regressions[1].Accepts = []encoding.FieldType{encoding.FieldTypeF64, encoding.FieldTypeDate}
@@ -290,6 +296,8 @@ func TestExtensions_RegressionAcceptsTypes(t *testing.T) {
 // the cohort lacks is the field-reference refusal at predict and at
 // runtime alike.
 func TestExtensions_RegressionFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ext := describedRegressions()
 	ext.Regressions[1].Params = []pulse.ParamMeta{{Name: "offset", JSONType: "string", Description: "an offset field"}}
@@ -339,6 +347,8 @@ func TestExtensions_RegressionFieldInputs(t *testing.T) {
 // lower_bound basis (the model names its own coefficients), or its
 // explicit multiplicity list exactly — corrected when it is a member.
 func TestExtensions_RegressionPValueCount(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, cohort := openE2E(t, describedRegressions())
 	for _, tc := range []struct {

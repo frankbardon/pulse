@@ -68,6 +68,8 @@ func crosstabLimitsPulse(t *testing.T, fs afero.Fs, cells int64, disableFusion b
 // DisableCrosstabFusion — predict's CrosstabFusable names the arm. At 6
 // there is no finding and both arms run.
 func TestLimits_MaxCrosstabCells_BothArms(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := crosstabLimitsCohort(t)
 	ctx := context.Background()
 	want := []descriptor.LimitFinding{{Limit: "max_crosstab_cells", Configured: 5, Estimated: 6, Grade: descriptor.LimitGradePossible}}
@@ -132,6 +134,8 @@ func TestLimits_MaxCrosstabCells_BothArms(t *testing.T) {
 // the right side's r_tier (3) — as a possible finding and trips at
 // runtime.
 func TestLimits_MaxCrosstabCells_JoinedCrosstab(t *testing.T) {
+	t.Parallel()
+
 	fs, left, right := joinLimitCohorts(t)
 	ctx := context.Background()
 	p := crosstabLimitsPulse(t, fs, 5, false)

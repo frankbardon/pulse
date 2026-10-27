@@ -24,6 +24,8 @@ import (
 // extension aggregator merges on its DECLARED flag and reads decimals
 // itself).
 func TestChainGate_ValidatorMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	const cohort = "gate.pulse"
 	writeParityCohort(t, fs, cohort, paritySchema(t), 0, 40)
@@ -124,6 +126,8 @@ func TestChainGate_ValidatorMatchesRuntime(t *testing.T) {
 // runtime and the validator alike, PULSE_CHAIN_STAGE_JOIN {count,
 // stage, stage_name}, before that stage's defaults, zones and gate.
 func TestChainStageJoin_RefusedBothSides(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -178,6 +182,8 @@ func TestChainStageJoin_RefusedBothSides(t *testing.T) {
 // it carries details.request, inside a chain details.stage, exactly as
 // a zone refusal does, and the validators add the same location.
 func TestJoinTooMany_LocatedInsideComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {

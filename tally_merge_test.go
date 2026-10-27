@@ -177,6 +177,8 @@ func lastArmOf(t *testing.T, rec *execRecorder) observe.Arm {
 // with cohort-wide counts). A filter admitting no row reports the zero
 // tallies the serial run does.
 func TestTallyMerge_ParallelArmsMatchSerial(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, a := range tallyArms(t) {
 		t.Run(a.name, func(t *testing.T) {
@@ -296,6 +298,8 @@ func warnString(ws []*types.ResponseWarning) string {
 // validator alike — and keeps the centroid form and an undeclared
 // component-emitting extension refused on both sides.
 func TestTallyMerge_ChainStages(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "c.pulse", paritySchema(t), 0, paritySmallRows)
@@ -366,6 +370,8 @@ func TestTallyMerge_ChainStages(t *testing.T) {
 // the fan-out for the tally request (the declared extension included)
 // and a serial run for the undeclared extension, as the runtime routes.
 func TestTallyMerge_PredictFanOutMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rec := &execRecorder{}
 	p, path, _, _ := tallyArms(t)[0].open(t, rec)
@@ -403,6 +409,8 @@ func TestTallyMerge_PredictFanOutMatchesRuntime(t *testing.T) {
 // an emitting value must implement extend.MergeableAttribute, and the
 // ComponentSchema must not be "none".
 func TestTallyMerge_ExtensionMergeableRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		edit   func(*pulse.AttributeRegistration)
@@ -450,6 +458,8 @@ func TestTallyMerge_ExtensionMergeableRefusals(t *testing.T) {
 // TestTallyMerge_ManifestDeclaresMergeable: the declaration reaches the
 // extension snapshot the manifest and predict read.
 func TestTallyMerge_ManifestDeclaresMergeable(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(newTestOptions(tallyExtensions()))
 	if err != nil {
 		t.Fatal(err)

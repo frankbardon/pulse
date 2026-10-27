@@ -61,6 +61,8 @@ func crosstabMatrix(cohort string) *types.Request {
 // the shared rules mergegate.MatrixRefusal / StageMatrixRefusal, with
 // their own PULSE_MATRIX_* codes, never PROCESSING_INTERNAL.
 func TestMatrixRefusal_PredictAndValidatorsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -179,6 +181,8 @@ func hasCode(env *descriptor.Envelope, code errors.Code) bool {
 // per-bucket matrices follow the sorted Data rows on every one of those
 // hosts.
 func TestMatrices_ComposeAndChainStageZero(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -320,6 +324,8 @@ func matricesEqual(a, b []types.MatrixResult) bool {
 //     with an empty `matrices` slot and after a refused matrix twin ran
 //     on the same instance.
 func TestCrosstab_MatricesDoNotPerturb(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	schema := paritySchema(t)
 	fsys := afero.NewMemMapFs()

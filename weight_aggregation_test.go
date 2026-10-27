@@ -40,6 +40,8 @@ func weightedCohort(t *testing.T) (afero.Fs, string) {
 // warning, reports `applied` from predict, and under Options.Strict the
 // warning is the error.
 func TestWeight_DefaultWeightsCoreAggregators(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	req := func() *types.Request {
@@ -100,6 +102,8 @@ func TestWeight_DefaultWeightsCoreAggregators(t *testing.T) {
 // runtime and in predict. AGG_CI_* (refused until U12 E5-S1) now
 // applies the instance default and reports the weighted floor.
 func TestWeight_ClassRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := weightedCohort(t)
 	ctx := context.Background()
 	p, err := pulse.New(pulse.Options{FS: fs, DefaultWeight: &types.WeightSpec{Field: "w"}})

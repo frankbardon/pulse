@@ -220,6 +220,8 @@ func tpoAggs(label string) []*types.Aggregation {
 // and extension two-pass attribute fed by every row-local kind, across
 // the execution arms.
 func TestTwoPassOrder_UpstreamRowLocal(t *testing.T) {
+	t.Parallel()
+
 	upstreams := map[string]*types.Attribute{
 		"formula":      {Type: types.ATTR_FORMULA, Expression: "qty * qty + 1", Label: "u"},
 		"date_part":    {Type: types.ATTR_DATE_PART, Field: "day", Params: []byte(`{"part":"day"}`), Label: "u"},

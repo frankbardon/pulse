@@ -12,6 +12,8 @@ import (
 )
 
 func TestScalarOverlayHost_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 

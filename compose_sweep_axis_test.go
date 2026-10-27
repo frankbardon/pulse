@@ -59,6 +59,8 @@ func sweepAxisBatch(t *testing.T) *ComposedRequest {
 // multiplier hand-computed from ranking[0].axes.tv, on both
 // orchestrators, and predict judges the batch valid.
 func TestComposeSweepAxis_ReadsWinningAxes(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -104,6 +106,8 @@ func TestComposeSweepAxis_ReadsWinningAxes(t *testing.T) {
 // refusal — mirroring coef()'s — is the same coded error in predict and
 // on both orchestrators, located the same way.
 func TestComposeSweepAxis_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -174,6 +178,8 @@ func TestComposeSweepAxis_RefusalsMatchPredict(t *testing.T) {
 // TestComposeSweepAxis_NameReserved: an embedder may not register an
 // expression function named sweep_axis.
 func TestComposeSweepAxis_NameReserved(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{FS: fitsFacadeFS(t), Extensions: Extensions{
 		ExprFunctions: []ExprFunction{{Name: "sweep_axis", Fn: func(a, b string) float64 { return 0 }}},
 	}})
@@ -187,6 +193,8 @@ func TestComposeSweepAxis_NameReserved(t *testing.T) {
 // attribute: an adstock rebuilt from lag columns at the winning decay)
 // resolves per row, on both orchestrators.
 func TestComposeSweepAxis_PostWindowFormula(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)

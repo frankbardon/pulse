@@ -108,6 +108,8 @@ func unknownFieldRequests(cohort string) map[string]struct {
 // code, message and details predict reports — Process, ProcessStream,
 // and a crosstab on both the fused-enabled and fused-disabled engines.
 func TestFieldRefs_UnknownFieldRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	for _, disable := range []bool{false, true} {
@@ -140,6 +142,8 @@ func TestFieldRefs_UnknownFieldRefusedLikePredict(t *testing.T) {
 // against the previous stage's synthesised output — and the Compose and
 // chain validators report the identical entry.
 func TestFieldRefs_UnknownFieldLocatedInComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -236,6 +240,8 @@ func TestFieldRefs_UnknownFieldLocatedInComposeAndChain(t *testing.T) {
 // aggregation label, and a post-test over an aggregation label. Predict
 // and the runtime accept every one.
 func TestFieldRefs_DerivedNamesAccepted(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -306,6 +312,8 @@ func TestFieldRefs_DerivedNamesAccepted(t *testing.T) {
 // filter on an all-null column and keep nothing); an attribute cannot
 // read a LATER attribute's label. Both sides refuse.
 func TestFieldRefs_PipelineOrder(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -341,6 +349,8 @@ func TestFieldRefs_PipelineOrder(t *testing.T) {
 // (internal/encoding.JoinKeysRefusals). Inside Compose / a chain it is
 // located like the join-count rule.
 func TestJoinKeys_UnknownKeyRefusedLikeRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {

@@ -17,6 +17,8 @@ import (
 // as PULSE_REQUEST_UNKNOWN_FIELD on both Compose entry points, Go struct
 // and JSON-decoded alike; the unprofiled control does not.
 func TestHiddenComposeSweep_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	control := newParityHost(t, fsys, "")
 	feats := []string{"capability:compose", string(types.AGG_COUNT), string(types.GROUP_CATEGORY)}
@@ -76,6 +78,8 @@ func TestHiddenComposeSweep_RefusedAsUnknownField(t *testing.T) {
 // the same code and details on Compose, ComposeParallel and
 // PredictCompose; the unprofiled control runs the sampled sweep.
 func TestSweepRandom_HiddenSamplingParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	control := newParityHost(t, fsys, "")
 	feats := []string{"capability:compose", "capability:compose_sweep", string(types.AGG_COUNT), string(types.GROUP_CATEGORY)}

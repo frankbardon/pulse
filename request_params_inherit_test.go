@@ -56,6 +56,8 @@ func inheritCompose(params types.Params) *types.ComposedRequest {
 // slot by wave 3; a slot declaring from_wave = 5 uses 5 — serial
 // Compose and ComposeParallel alike.
 func TestParams_ComposeInherits(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	run := map[string]func(*types.ComposedRequest) (*types.ComposedResponse, error){
@@ -81,6 +83,8 @@ func TestParams_ComposeInherits(t *testing.T) {
 // written, so the same requests re-run under another top-level value
 // read the new one.
 func TestParams_ComposeNoStaleMerge(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{EchoRequest: true})
 	c := inheritCompose(types.Params{"from_wave": json.Number("3")})
@@ -109,6 +113,8 @@ func TestParams_ComposeNoStaleMerge(t *testing.T) {
 // TestParams_ComposeSweepAndFitInherit: a sweep-expanded slot and a fit
 // request inherit the top-level params too.
 func TestParams_ComposeSweepAndFitInherit(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	c := &types.ComposedRequest{
@@ -166,6 +172,8 @@ func inheritChain(params, own0, own1 types.Params) *types.ChainRequest {
 // stage declaring a key itself uses its own. Wave 3 by region: west 14,
 // east 24; wave 5: west 18, east 28.
 func TestParams_ChainInherits(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	top := types.Params{"from_wave": json.Number("3"), "min_s": json.Number("0")}
@@ -193,6 +201,8 @@ func TestParams_ChainInherits(t *testing.T) {
 // the inherited keys; a re-run under another value reads it; the echo
 // shows the merged params per stage.
 func TestParams_ChainNoStaleMerge(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{EchoRequest: true})
 	req := inheritChain(types.Params{"from_wave": json.Number("3"), "min_s": json.Number("0")}, nil, nil)
@@ -228,6 +238,8 @@ func TestParams_ChainNoStaleMerge(t *testing.T) {
 // PredictCompose / PredictChain and at run; an inherited name is never
 // refused.
 func TestParams_InheritPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	top := types.Params{"from_wave": json.Number("3")}
@@ -332,6 +344,8 @@ func assertPredictHasRunError(t *testing.T, errs []*descriptor.EnvelopeEntry, ce
 // merged params on every sub-request, as the run's normalized request
 // does.
 func TestParams_InheritEchoPredict(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{EchoRequest: true})
 	env, err := p.PredictCompose(ctx, inheritCompose(types.Params{"from_wave": json.Number("3")}))
@@ -357,6 +371,8 @@ func TestParams_InheritEchoPredict(t *testing.T) {
 // that root, and the payload schema's ComposedRequest / ChainRequest
 // carry no params key.
 func TestParams_InheritFeatureProfileGate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	openParams(t, pulse.Options{FS: fsys})

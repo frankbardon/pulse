@@ -60,6 +60,8 @@ func referenceSplits(t *testing.T) map[string][]string {
 // index stays an index, every live slice stays loadable on its own, and an
 // unsplit reference stays under the slice ceiling (past it, split it).
 func TestReferenceDocSplitLayout(t *testing.T) {
+	t.Parallel()
+
 	splits := referenceSplits(t)
 	for _, name := range []string{
 		"update-demand", "execution-modes", "matrix-and-vectors", // E9-S1
@@ -262,6 +264,8 @@ const (
 // the shared file is indexed in CLAUDE.md's Reference Docs table, and both stay
 // inside their size ceilings (split or trim, never raise).
 func TestAgentPersonasReferencePractices(t *testing.T) {
+	t.Parallel()
+
 	info, err := os.Stat(agentPracticesPath)
 	if err != nil {
 		t.Fatalf("%s is missing: %v", agentPracticesPath, err)

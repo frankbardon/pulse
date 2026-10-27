@@ -49,6 +49,8 @@ func hasAdvisory(r *descriptor.PredictResult, code errors.Code) bool {
 // TestNew_SuppressAdvisoriesUnknownIsCoded: an unknown code fails New
 // with PULSE_SUPPRESS_ADVISORY_UNKNOWN; registered codes are accepted.
 func TestNew_SuppressAdvisoriesUnknownIsCoded(t *testing.T) {
+	t.Parallel()
+
 	_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), SuppressAdvisories: []string{"PULSE_ADVISORY_NOPE"}})
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN {
@@ -65,6 +67,8 @@ func TestNew_SuppressAdvisoriesUnknownIsCoded(t *testing.T) {
 // pulse_predict takes) carries both advisories on the result itself,
 // and Options.SuppressAdvisories drops exactly the suppressed code.
 func TestPredict_AdvisoriesReachTheFacade(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	req := manyOneSampleTests(cohort)
 	req.Tests = append(req.Tests, &types.Test{Type: types.TEST_T, Field: "a", SplitBy: "cat", Label: "two"})
@@ -94,6 +98,8 @@ func TestPredict_AdvisoriesReachTheFacade(t *testing.T) {
 // TestPredictBytes_StrictNeverEscalatesAdvisories: under Options.Strict
 // an advisory stays an advisory — never an error, never a warning.
 func TestPredictBytes_StrictNeverEscalatesAdvisories(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -127,6 +133,8 @@ func TestPredictBytes_StrictNeverEscalatesAdvisories(t *testing.T) {
 // processes byte-identically on an instance suppressing it and on one
 // that does not.
 func TestAdvisories_NeverChangeExecution(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	ctx := context.Background()
 	run := func(opts pulse.Options) []byte {
@@ -164,6 +172,8 @@ func TestAdvisories_NeverChangeExecution(t *testing.T) {
 // PredictResult itself (envelope warnings never reach it), so the
 // advisories slot must — and does — ride the tool output.
 func TestHandlePredict_CarriesAdvisories(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := limitsCohort(t)
 	out, err := mcp.HandlePredict(context.Background(), limitsPulse(t, fs, pulse.Limits{}), mcp.PredictIn{Request: *manyOneSampleTests(cohort)})
 	if err != nil {

@@ -130,6 +130,8 @@ func sweepSlotExtensions() Extensions {
 // shipped profile hides, and on every all-but profile the probe's full
 // render names that capability's tokens.
 func TestProfileRenderedSkillSweep(t *testing.T) {
+	t.Parallel()
+
 	full, err := New(Options{FS: afero.NewMemMapFs(), Extensions: sweepSlotExtensions()})
 	if err != nil {
 		t.Fatal(err)

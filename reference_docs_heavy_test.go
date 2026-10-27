@@ -21,6 +21,8 @@ import (
 // naming several anchors ("(Date-family field types, Time zones)") must
 // resolve every one.
 func TestReferenceDocPointersResolve(t *testing.T) {
+	t.Parallel()
+
 	splits := referenceSplits(t)
 	sources := referencePointerSources(t)
 

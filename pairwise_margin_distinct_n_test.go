@@ -79,6 +79,8 @@ func pwMarginAxisIndex(t *testing.T, keys []types.AxisKey, want string) int {
 // components block: the distinct row margin is the true respondent
 // count, and the cell-sum over the same row is not.
 func TestPairwiseMarginDistinct_MemmapExactWhereCellSumOverCounts(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 
@@ -173,6 +175,8 @@ func TestPairwiseMarginDistinct_MemmapExactWhereCellSumOverCounts(t *testing.T) 
 // through the public facade and checks each p-value against the
 // independent pooled two-proportion z written for E1-S2.
 func TestPairwiseMarginDistinct_MemmapPValues(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 
@@ -256,6 +260,8 @@ func TestPairwiseMarginDistinct_MemmapPValues(t *testing.T) {
 // would sum across — must run clean under row_margin_distinct at BOTH
 // predict and process, because a margin does not sum cells.
 func TestPairwiseMarginDistinct_MemmapFanOutInnerLevelRunsClean(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 
@@ -308,6 +314,8 @@ func TestPairwiseMarginDistinct_MemmapFanOutInnerLevelRunsClean(t *testing.T) {
 // aggregated warning. A zero n would render a p-value off a sample size
 // that was never measured.
 func TestPairwiseMarginDistinct_MemmapMissingMarginSkips(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 

@@ -57,6 +57,8 @@ const cupedFormula = `pages_viewed - ((total(1)*total(pages_viewed*prior_session
 // 10.0076 (the showcase's REG_OLS slope and AGG_AVERAGE). TEST_T and
 // TEST_Z_TWO_SAMPLE take the same adjustment.
 func TestExperimentCUPED_OracleEqualsTwoStep(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -137,6 +139,8 @@ func jsonString(s string) string {
 // — and over a shard archive of the same rows it reports what the
 // single file does.
 func TestExperimentCUPED_StreamsAndShardsAgree(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -186,6 +190,8 @@ func TestExperimentCUPED_StreamsAndShardsAgree(t *testing.T) {
 // code — a non-numeric column PULSE_TEST_COVARIATE_INVALID
 // (not_numeric), a vector PULSE_VECTOR_FIELD_NOT_SCALAR.
 func TestExperimentCUPED_CovariateFieldTypeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, tmpl := range []string{
@@ -231,6 +237,8 @@ func covariateFieldTypeParity(ctx context.Context, t *testing.T, p *pulse.Pulse,
 // is the plain test's, and the adjusted interval is narrower than the
 // unadjusted Wald one by exactly the reported variance reduction.
 func TestExperimentCUPED_PropZOnShowcase(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -276,6 +284,8 @@ func TestExperimentCUPED_PropZOnShowcase(t *testing.T) {
 // and proportion) is exactly the ungrouped adjusted test filtered to
 // that group, and the per-partition slopes differ.
 func TestExperimentCUPED_GroupedThetaPerPartition(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

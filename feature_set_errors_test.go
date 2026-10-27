@@ -66,8 +66,12 @@ func errorsJSON(t *testing.T, v any) string {
 // appears in any error list, lookup result, fixup or message reachable
 // from the instance, and the manifest error fields agree with lookup.
 func TestFeatureSet_ErrorsShowOnlyInstanceCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range featureSetFixtures {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			p := newFixturePulse(t, name, Options{})
 			hidden := errorsHiddenTokens(p)
 			if len(hidden) == 0 {
@@ -133,6 +137,8 @@ func TestFeatureSet_ErrorsShowOnlyInstanceCodes(t *testing.T) {
 // TestFeatureSet_ErrorsDefaultIsFull: with no profile the errors facade
 // and the manifest error fields are the full registry, unchanged.
 func TestFeatureSet_ErrorsDefaultIsFull(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatalf("New: %v", err)

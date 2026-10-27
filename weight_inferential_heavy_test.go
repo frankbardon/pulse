@@ -24,6 +24,8 @@ import (
 // slot's `weight: null` opts out on both sides (an instance with
 // Options.DefaultWeight still runs TEST_T).
 func TestWeight_InferentialRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	def := &types.WeightSpec{Field: "y"}

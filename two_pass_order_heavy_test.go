@@ -12,6 +12,8 @@ import (
 // two-pass chains (including an extension two-pass in the middle and a
 // filter), on every arm including the >threshold single file.
 func TestTwoPassOrder_Layers(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]*types.Request{
 		"repro_formula_zscore": {
 			Attributes: []*types.Attribute{

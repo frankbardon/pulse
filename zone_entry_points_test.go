@@ -286,6 +286,8 @@ func zepFS(t *testing.T) afero.Fs {
 // FILTER_DATE_RANGES in that zone (the UTC instance is the control —
 // the cohort separates the two).
 func TestTimeZone_DefaultZoneReachesEveryEntryPoint(t *testing.T) {
+	t.Parallel()
+
 	preds := zepPredicates(t)
 	for _, pr := range preds {
 		if zepWant(t, pr, "") == zepWant(t, pr, zepZone) {
@@ -319,6 +321,8 @@ func TestTimeZone_DefaultZoneReachesEveryEntryPoint(t *testing.T) {
 // refused (reason zone_capable). A never-registered type keeps its
 // coded refusal.
 func TestTimeZone_FilterToFileDateRanges(t *testing.T) {
+	t.Parallel()
+
 	fsys := zepFS(t)
 	ny, utc := zepPulse(t, fsys, zepZone), zepPulse(t, fsys, "")
 	for _, pr := range zepPredicates(t) {
@@ -357,6 +361,8 @@ func TestTimeZone_FilterToFileDateRanges(t *testing.T) {
 // the same resolved zone lands on the same output whichever knob named
 // it and different zones never share one.
 func TestTimeZone_FilterToFileRequestZone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := zepFS(t)
 	utc, ny := zepPulse(t, fsys, ""), zepPulse(t, fsys, zepZone)
@@ -422,6 +428,8 @@ func TestTimeZone_FilterToFileRequestZone(t *testing.T) {
 // front, as Request.TimeZone is, whether or not the predicate reads it,
 // before the source is read — and no output is written.
 func TestTimeZone_FilterToFileRequestUnknownZone(t *testing.T) {
+	t.Parallel()
+
 	fsys := zepFS(t)
 	p := zepPulse(t, fsys, "")
 	for _, expr := range []string{"to_day(ts) == d", "x > 1"} {
@@ -445,6 +453,8 @@ func TestTimeZone_FilterToFileRequestUnknownZone(t *testing.T) {
 // filter-to-file output for a to_day predicate — the zone the predicate
 // read joins its dedup hash. A zone-free predicate keeps one output.
 func TestTimeZone_FilterToFileDedupKeysTheZone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := zepFS(t)
 	utc, ny := zepPulse(t, fsys, ""), zepPulse(t, fsys, zepZone)

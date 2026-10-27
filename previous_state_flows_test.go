@@ -207,6 +207,8 @@ func flowsJSON(t *testing.T, v any) string {
 // equals the wide twin's from × to crosstab cell for cell, label for
 // label, margins included, and both equal the by-hand table.
 func TestPreviousState_FlowsCrosstabMatchesWideTwin(t *testing.T) {
+	t.Parallel()
+
 	p, _ := flowsLongAndWide(t)
 	ctx := context.Background()
 	lreq, wreq := flowsRequests(nil)
@@ -258,6 +260,8 @@ func TestPreviousState_FlowsCrosstabMatchesWideTwin(t *testing.T) {
 // params.absorbing (the unit row is synthesized) and, without it,
 // refuses PULSE_OVERLAY_MATRIX_NOT_SQUARE alike on both forms.
 func TestPreviousState_FlowsOverlaysMatchWideTwin(t *testing.T) {
+	t.Parallel()
+
 	p, _ := flowsLongAndWide(t)
 	ctx := context.Background()
 	markov := func(params string) types.OverlaySpec {
@@ -314,6 +318,8 @@ func TestPreviousState_FlowsOverlaysMatchWideTwin(t *testing.T) {
 // every overlay figure — so the example's numbers are the wide form's,
 // with no pre-pivot.
 func TestExamples_PreviousStateFlowsMatchWideTwin(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: fs})

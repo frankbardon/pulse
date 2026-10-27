@@ -212,6 +212,8 @@ func composeRuns(p *pulse.Pulse) map[string]func(*types.ComposedRequest) (*types
 // corrected significance). The stitched table copies every slot's cells,
 // keys and margins into its block.
 func TestComposeBanner_MatchesHandWritten(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{})
 	for _, mult := range []*types.Multiplicity{nil, {Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyCompose}} {
 		for name, run := range composeRuns(p) {
@@ -291,6 +293,8 @@ func checkStitched(t *testing.T, resp *types.ComposedResponse) {
 // it is compared to nothing, even sitting beside lettered columns. Each
 // stitched cell is its slot's letters cell through the banner map.
 func TestComposeBanner_LettersNeverCrossGroups(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{})
 	resp, err := p.Compose(context.Background(), bannerComposed(nil))
 	if err != nil {
@@ -419,6 +423,8 @@ func groupBlockIndex(sec types.BannerSectionResult, slot string) int {
 // but the banner slots ran unshaped (the rank veto), so the stitched
 // banner — pinned outside every `return` — is still whole.
 func TestComposeBanner_ReturnShapingKeepsTheStitch(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{})
 	c := bannerComposed(nil)
 	c.Banner.Request.Return = &types.Return{Preset: types.ReturnPresetFull, Exclude: []string{"crosstab", "overlays"}, Precision: 2}
@@ -456,6 +462,8 @@ func TestComposeBanner_ReturnShapingKeepsTheStitch(t *testing.T) {
 // unknown field on all three; and MaxComposeSlots counts the expanded
 // banner slots before any runs.
 func TestComposeBanner_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		mutate func(*types.BannerSpec)
@@ -556,6 +564,8 @@ func bannerlessProfile(t *testing.T) *pulse.FeatureProfile {
 // and its slot labels without running a slot, and judges each expanded
 // slot like a hand-written one.
 func TestComposeBanner_PredictSummary(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{})
 	env, err := p.PredictCompose(context.Background(), bannerComposed(nil))
 	if err != nil {
@@ -604,6 +614,8 @@ func TestComposeBanner_PredictSummary(t *testing.T) {
 // response carry no `banner` key and hash as before; a banner moves the
 // hash.
 func TestComposeBanner_AbsentIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	hand := handWrittenBanner(nil)
 	if strings.Contains(marshalJSON(t, hand), `"banner"`) {
 		t.Fatal("a banner-free request marshals a banner key")
@@ -629,6 +641,8 @@ func TestComposeBanner_AbsentIsByteIdentical(t *testing.T) {
 // echoes the effective request — the banner expanded into labelled
 // slots, no `banner`.
 func TestComposeBanner_EchoesTheExpandedSlots(t *testing.T) {
+	t.Parallel()
+
 	p := bannerPulse(t, pulse.Options{EchoRequest: true})
 	resp, err := p.Compose(context.Background(), bannerComposed(nil))
 	if err != nil {

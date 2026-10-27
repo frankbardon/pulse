@@ -58,6 +58,7 @@ const facetBody = `{"cohort": {"filename": "sales.pulse"}, "fields": [{"$var": "
 // case is the one that must not panic — an engine with no template
 // directories is an ordinary deployment.
 func TestListTemplates(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	t.Run("unconfigured engine lists nothing without panicking", func(t *testing.T) {
 		t.Setenv(envTemplatesDir, "")
 
@@ -171,6 +172,7 @@ func TestListTemplates(t *testing.T) {
 // declaration (variables included, so a caller can build a form), and every
 // miss is PULSE_TEMPLATE_NOT_FOUND naming what was asked for.
 func TestGetTemplate(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	dir := t.TempDir()
 	writeTmpl(t, dir, "finance/revenue.json", tmplDoc("Revenue by region"))
 
@@ -229,6 +231,7 @@ func TestGetTemplate(t *testing.T) {
 // pointer for every target, exactly one populated, and the raw JSON
 // retained alongside it.
 func TestRenderTemplate(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	t.Run("populates exactly the pointer the target names", func(t *testing.T) {
 		tests := []struct {
 			name   string
@@ -320,6 +323,7 @@ func TestRenderTemplate(t *testing.T) {
 // TestRenderTemplateRequest is the 95% path plus its one new failure mode:
 // a template whose target is valid but is not one this method can return.
 func TestRenderTemplateRequest(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	t.Run("returns the typed request directly", func(t *testing.T) {
 		dir := t.TempDir()
 		writeTmpl(t, dir, "finance/revenue.json", facadeDoc("revenue", "request", requestBody))
@@ -440,6 +444,8 @@ func TestRenderTemplateRequest(t *testing.T) {
 // walk raises reaches the caller with its own code and its own details,
 // through both render entry points.
 func TestRenderTemplate_VariableFaultsPropagateCoded(t *testing.T) {
+	t.Parallel()
+
 	const doc = `{
   "target": "request",
   "variables": [
@@ -513,6 +519,8 @@ func TestRenderTemplate_VariableFaultsPropagateCoded(t *testing.T) {
 // a slot on the target type. It reaches the facade caller coded, naming the
 // offending field.
 func TestRenderTemplateRequest_RenderInvalidPropagates(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeTmpl(t, dir, "typo.json", `{
   "target": "request",
@@ -570,6 +578,8 @@ func buildTemplateFacadeCohort(t *testing.T, memFs afero.Fs, path string) {
 // It is also the demonstration that no ProcessTemplate wrapper is needed:
 // the two calls compose without one.
 func TestRenderTemplateRequest_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	const cohort = "sales.pulse"
 
 	memFs := afero.NewMemMapFs()

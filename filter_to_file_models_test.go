@@ -83,6 +83,8 @@ func processSumX(t *testing.T, p *Pulse, cohort, expr string) (float64, float64)
 // Models writes exactly the rows Process's equivalent filter keeps;
 // without Models the same predicate is PULSE_MODEL_UNKNOWN.
 func TestFilterToFileWithRequest_ModelsBindCoef(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	writeCoefModel(t, fsys, facadeModel, 2)
 	_ = fsys.MkdirAll("out", 0o755)
@@ -128,6 +130,8 @@ func TestFilterToFileWithRequest_ModelsBindCoef(t *testing.T) {
 // model file (same name and path, different fit) lands on a different
 // output that is not reused; an unchanged model reuses its output.
 func TestFilterToFileWithRequest_ModelIdentityInDedupHash(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	writeCoefModel(t, fsys, facadeModel, 2)
 	_ = fsys.MkdirAll("out", 0o755)
@@ -167,6 +171,8 @@ func TestFilterToFileWithRequest_ModelIdentityInDedupHash(t *testing.T) {
 // model-free request already wrote is still reused. A predicate naming
 // no registered table (nil tables) hashes the same way.
 func TestFilterToFileWithRequest_NoModelsHashUnchanged(t *testing.T) {
+	t.Parallel()
+
 	req := &FilterToFileRequest{Expression: "age >= 20"}
 	legacy := types.CanonicalHash("filter_predicate", struct {
 		Expression string            `json:"expression,omitempty"`
@@ -181,6 +187,8 @@ func TestFilterToFileWithRequest_NoModelsHashUnchanged(t *testing.T) {
 // without capability:models refuses FilterToFileRequest.Models as
 // PULSE_REQUEST_UNKNOWN_FIELD; a profile enabling it runs.
 func TestHiddenModels_FilterToFileRefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	writeCoefModel(t, fsys, facadeModel, 2)
 	_ = fsys.MkdirAll("out", 0o755)

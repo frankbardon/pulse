@@ -65,6 +65,8 @@ func merrSlot() *Request {
 // from the generating constants, never from Pulse: holdout residual
 // y − ŷ is exactly the bump (the fit is the generating line).
 func TestModelError_HoldoutSplitInOneSlot(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: merrFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -122,6 +124,8 @@ func TestModelError_HoldoutSplitInOneSlot(t *testing.T) {
 // predict reports is exactly the runtime's — code, message, details —
 // and every accepted slot is accepted by both.
 func TestModelError_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	createTestPulseFile(t, fsys, "merr_types.pulse", []string{"y", "p", "region"},
 		[][]string{{"1", "1.5", "north"}, {"2", "2.5", "south"}, {"3", "2", "north"}})

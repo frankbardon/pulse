@@ -15,6 +15,8 @@ import (
 // holds — paper forms leave income blank far more often than web
 // forms.
 func TestExamples_IntakeNullsArePlanted(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: osfs})

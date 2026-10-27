@@ -19,6 +19,8 @@ import (
 // details.expression. It used to be PROCESSING_RUNTIME without the
 // reason (U45 #315).
 func TestFormulaCompileError_Process(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)

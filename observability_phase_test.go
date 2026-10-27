@@ -21,6 +21,8 @@ import (
 // Falsified per phase by deleting its Lap (the phase disappears from
 // its arm's list), e.g. the PhaseReduce lap in shard_reduce.go.
 func TestObservabilityPhases(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	want := map[string][]string{
 		"streaming":         {"plan", "open", "scan"},
@@ -67,6 +69,8 @@ func TestObservabilityPhases(t *testing.T) {
 // operation, and an operation that runs no engine phase (inspect)
 // reports none.
 func TestObservabilityPhaseTimings(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	var phases []observe.PhaseTiming
 	var total []observe.OperationResult

@@ -36,6 +36,8 @@ import (
 // overlay registrations (panic-recovery + streamable parity), not a
 // separate weaker path.
 func TestExtensions_OverlayKinds_ProbeValidation(t *testing.T) {
+	t.Parallel()
+
 	// Forward-compat invariant: the probe surface MUST treat overlay
 	// registrations the same way it treats aggregators / groupers /
 	// filterers — panic-recovery wrapping every factory call and a

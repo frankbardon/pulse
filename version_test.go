@@ -9,6 +9,7 @@ import (
 )
 
 func TestVersion_ReflectsBuildinfo(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version
 	t.Cleanup(buildinfo.SetForTest("v1.2.3-test"))
 	if got := pulse.Version(); got != "v1.2.3-test" {
 		t.Fatalf("pulse.Version() = %q, want injected %q", got, "v1.2.3-test")
@@ -16,6 +17,7 @@ func TestVersion_ReflectsBuildinfo(t *testing.T) {
 }
 
 func TestVersion_FallbackNeverEmpty(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version
 	t.Cleanup(buildinfo.SetForTest(""))
 	got := pulse.Version()
 	if got == "" {

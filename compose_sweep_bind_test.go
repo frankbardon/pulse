@@ -61,6 +61,8 @@ func sweepBound(name, regression string) types.FitSpec {
 // Compose and ComposeParallel return it — code, message and details
 // (details.fit and details.reason included).
 func TestComposeSweepBind_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +125,8 @@ func TestComposeSweepBind_RefusalsMatchPredict(t *testing.T) {
 // slot filter and an optimize block with no data; a name nothing binds
 // is still PULSE_MODEL_UNKNOWN.
 func TestPredictCompose_SweepBoundFit(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -177,6 +181,8 @@ func TestPredictCompose_SweepBoundFit(t *testing.T) {
 // rank-1 slot's regression refitted (its coefficients those of an
 // authored fit of the winning window) and the explicit slot scores it.
 func TestComposeSweepBind_BindsWinnerAtFacade(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -213,6 +219,8 @@ func TestComposeSweepBind_BindsWinnerAtFacade(t *testing.T) {
 // refuses a set `from_sweep` as PULSE_REQUEST_UNKNOWN_FIELD on Compose,
 // ComposeParallel and PredictCompose; the unprofiled instance judges it.
 func TestHiddenSweepBind_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	feats := []string{"capability:compose", "capability:compose_sweep", "capability:compose_fits",
 		string(types.AGG_SUM), string(types.REG_OLS), string(types.FILTER_RANGE)}

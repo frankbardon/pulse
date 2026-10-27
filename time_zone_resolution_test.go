@@ -107,6 +107,8 @@ func zoneCapableOverDate(cohort, tz string) map[string]*types.Request {
 // same operator inheriting a non-UTC Request.TimeZone runs: the
 // inherited zone is not applied to a date, and predict echoes tz null.
 func TestDateFieldRejectsTZ(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -170,6 +172,8 @@ func assertRefusal(t *testing.T, err error, slot, op, tz string) {
 // zone on a `datetime` schema field is applied:
 // TestTimeZone_LocalDayEveryMode.)
 func TestTimeZone_DerivedFieldRefusedEveryMode(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	const berlin = "Europe/Berlin"
@@ -265,6 +269,8 @@ func TestTimeZone_DerivedFieldRefusedEveryMode(t *testing.T) {
 // their own resolution call — a `tz` on a non-capable stage-1 slot is
 // refused there too.
 func TestTimeZone_ChainLaterStageResolved(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	_, err := p.ProcessChain(context.Background(), &types.ChainRequest{
@@ -287,6 +293,8 @@ func TestTimeZone_ChainLaterStageResolved(t *testing.T) {
 // operator is not zone-capable — built-in or embedder-registered — is
 // PROCESSING_CONFIG, never silently ignored.
 func TestTimeZone_NonCapableOperatorRefused(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs, Extensions: pulse.Extensions{
 		Filterers: []pulse.FiltererRegistration{{Name: "FILTER_ACME_PASS", Factory: stubFiltererFactory}},
@@ -324,6 +332,8 @@ func TestTimeZone_NonCapableOperatorRefused(t *testing.T) {
 // request, facet request — is PULSE_TIMEZONE_UNKNOWN, even when no
 // zone-capable slot would consume it.
 func TestTimeZone_UnknownZoneRefused(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -342,6 +352,8 @@ func TestTimeZone_UnknownZoneRefused(t *testing.T) {
 // translator supports no zone-capable filterer, so a `tz` there is
 // refused rather than dropped.
 func TestFilterToFileRequest_RefusesTZ(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{
@@ -356,6 +368,8 @@ func TestFilterToFileRequest_RefusesTZ(t *testing.T) {
 // structured filter-to-file filterer is refused like a `tz`, never
 // dropped.
 func TestFilterToFileRequest_RefusesTZField(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{

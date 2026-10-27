@@ -62,6 +62,8 @@ func requestObjects(v any, out *[]map[string]any) {
 // and the window-column aggregation examples (mmm-followups E4-S5)
 // aggregate a window label, so they MUST classify windows-first.
 func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
+	t.Parallel()
+
 	teaches := map[string]bool{"compose-mmm-decay-sweep": true, "compose-mmm-decay-lhs-sweep": true}
 	teachesWindowsFirst := map[string]bool{"win_column_aggregate": true, "win_column_by_quarter": true}
 	var taught, taughtWindowsFirst int

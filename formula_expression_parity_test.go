@@ -18,6 +18,8 @@ import (
 // it. Predict now refuses it with the runtime's code and message, on
 // the request, Compose-slot and chain-stage roots.
 func TestFormulaAttribute_ExpressionSlotPredictParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)

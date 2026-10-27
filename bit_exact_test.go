@@ -389,6 +389,8 @@ func bitExactAggs() []*types.Aggregation {
 // TestBitExact_ScalarSums: the reproducible-sum slots, ungrouped and
 // grouped, answer identical bits on every worker count and shard split.
 func TestBitExact_ScalarSums(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	arms := bitExactArms(true)
 	for _, grouped := range []bool{false, true} {
@@ -420,6 +422,8 @@ func TestBitExact_ScalarSums(t *testing.T) {
 // streaming arm's figures bit for bit, on the single file and the
 // archive.
 func TestBitExact_StreamingVsBuffered(t *testing.T) {
+	t.Parallel()
+
 	dir := bitExactCohorts(t)
 	arms := []bitExactArm{
 		{name: "flat/streaming", cohort: "flat.pulse", opts: pulse.Options{DecodeWorkers: 1, ShardWorkers: 1}, arm: observe.ArmStreaming},

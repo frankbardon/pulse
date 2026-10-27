@@ -50,6 +50,8 @@ func fiscalCohort(t *testing.T) *Pulse {
 // grouper: process with {grouper: GROUP_DATE_RANGES, table:"fiscal"} yields
 // the customer's range labels as bucket keys.
 func TestFacade_GroupDateRanges_TableSource(t *testing.T) {
+	t.Parallel()
+
 	p := fiscalCohort(t)
 	req := &types.Request{
 		Cohort:       &types.Cohort{Filename: "txns.pulse"},
@@ -78,6 +80,8 @@ func TestFacade_GroupDateRanges_TableSource(t *testing.T) {
 // TestFacade_GroupDateRanges_InlineVsTableEquivalence proves a named table
 // and an equivalent inline set produce identical process results.
 func TestFacade_GroupDateRanges_InlineVsTableEquivalence(t *testing.T) {
+	t.Parallel()
+
 	p := fiscalCohort(t)
 	inline := json.RawMessage(`{"ranges":[` +
 		`{"label":"launch","start":"2024-01-01","end":"2024-03-31"},` +
@@ -115,6 +119,8 @@ func TestFacade_GroupDateRanges_InlineVsTableEquivalence(t *testing.T) {
 // TestFacade_FilterDateRanges_TableSource is the E2E acceptance for the
 // filter: the named table narrows the cohort to in-range rows.
 func TestFacade_FilterDateRanges_TableSource(t *testing.T) {
+	t.Parallel()
+
 	p := fiscalCohort(t)
 	req := &types.Request{
 		Cohort:       &types.Cohort{Filename: "txns.pulse"},
@@ -133,6 +139,8 @@ func TestFacade_FilterDateRanges_TableSource(t *testing.T) {
 // TestFacade_DateRanges_TableErrors covers ambiguous-source and
 // unknown-table surfacing through the facade for both operators.
 func TestFacade_DateRanges_TableErrors(t *testing.T) {
+	t.Parallel()
+
 	p := fiscalCohort(t)
 	ctx := context.Background()
 

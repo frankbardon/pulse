@@ -63,6 +63,8 @@ func assertExactU64Cell(t *testing.T, where string, cell any, want uint64) {
 }
 
 func TestArchiveLookup_U64RowsExact(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeU64RenderCohort(t, fsys, "single.pulse", u64RenderIDs)

@@ -27,6 +27,8 @@ func (f fixedPTest) Finalize() (*types.TestResult, error) {
 // TEST_* joins the request family exactly like a built-in — counted in
 // m, adjusted with its peers, raw figures untouched.
 func TestMultiplicity_ExtensionTestJoinsFamily(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs, Extensions: pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
@@ -88,6 +90,8 @@ func TestMultiplicity_ExtensionTestJoinsFamily(t *testing.T) {
 // carrying inferential overlays, and over a request with regressions
 // (REG_BAYES_LINEAR included: an explicit none is accepted on it).
 func TestMultiplicityNoneIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	none := &types.Multiplicity{Method: types.MultiplicityMethodNone}
 	shapes := map[string]func() *types.Request{
@@ -203,6 +207,8 @@ func TestMultiplicityNoneIsIdentity(t *testing.T) {
 // default block corrects the tests and leaves every regression result
 // byte-identical (no p_adjusted, no echo), Bayes included.
 func TestMultiplicity_InheritedBlockSkipsRegressions(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	holm := &types.Multiplicity{Method: types.MultiplicityMethodHolm}
 	mk := func(m *types.Multiplicity) *types.Request {

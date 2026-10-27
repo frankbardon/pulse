@@ -94,6 +94,8 @@ func chainFitted(t *testing.T, single []*types.RegressionResult) {
 // hill() → REG_OLS bounds.nonnegative} in one request fits bit for bit
 // what materialize{windows} → Process{hill attribute, regression} fits.
 func TestWindowPredictor_ParityAdstockHillChain(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	runWindowParity(t, p, chainCase(t, "chain", "chain", "0.6", processRoute(chainSingle(t, "0.6", "chain"))))
 }
@@ -158,6 +160,8 @@ func numberOf(v any) (float64, bool) {
 // and a coef() rebuild — scores every row bit for bit as the
 // materialized route's slot does, null exactly where it is null.
 func TestWindowPredictor_ParityComposeFitsScoring(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	ctx := context.Background()
 
@@ -267,6 +271,8 @@ func chainSweep(t *testing.T) *ComposedRequest {
 // bit, and the slots' coefficients differ (the decay reached the
 // window), serial and parallel alike.
 func TestWindowPredictor_ParitySweepAdstockDecay(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	ctx := context.Background()
 	serial, err := p.Compose(ctx, chainSweep(t))

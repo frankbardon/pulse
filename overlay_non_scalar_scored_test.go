@@ -128,6 +128,8 @@ func nsCompose(a nsAgg, kind types.OverlayKind, layout string, field any) *pulse
 // (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF on AGG_WELFORD), which runs.
 // Scoring the scalar beside it runs and equals the scalar-only slot.
 func TestComposeOverlay_NonScalarScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ComposeKinds() {
@@ -223,6 +225,8 @@ func nsProcess(a nsAgg, kind types.OverlayKind, layout string, field any) *pulse
 // TestProcessOverlay_NonScalarScoredRefused: the Process-host twin,
 // over the series kinds that need no reference beyond the host.
 func TestProcessOverlay_NonScalarScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := nsFixture(t, pulse.Options{})
 	for _, kind := range []types.OverlayKind{types.OverlayKindDeltaVsPrior, types.OverlayKindIndexVsTotal, types.OverlayKindShareOfTotal} {
@@ -303,6 +307,8 @@ func nsChain(a nsAgg, kind types.OverlayKind, layout string, field any) *pulse.C
 // non-mergeable one (AGG_WELFORD) is the chain gate's
 // PULSE_CHAIN_NOT_MERGEABLE on both sides, whichever host it sits in.
 func TestChainOverlay_NonScalarScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ChainKinds() {
@@ -397,6 +403,8 @@ func nsLabelsRegistration(nonScalar bool) pulse.AggregatorRegistration {
 // built-in (predict from the snapshot, runtime from the registry);
 // undeclared, the same operator is judged scalar on both sides.
 func TestExtensionAggregator_NonScalarScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	a := nsAgg{"AGG_NSTEST_LABELS", "score"}
 	kind := types.OverlayKindDeltaVsPrior
@@ -440,6 +448,8 @@ func TestExtensionAggregator_NonScalarScoredRefused(t *testing.T) {
 // came back 0, silently. It is refused like an array-valued
 // aggregation, reason "non_scalar", on predict (first) and runtime.
 func TestChainStage_NonScalarCannotFeed(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	for _, a := range nsBuiltins() {

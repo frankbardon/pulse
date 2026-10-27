@@ -24,6 +24,8 @@ import (
 // null elements included). The CLI ≡ library byte identity is internal/cli's
 // TestImportCLI_VectorMatchesLibrary.
 func TestVectorImport_ListColumnEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var nd, csv strings.Builder
 	csv.WriteString("id,v_a,v_b,v_c\n")

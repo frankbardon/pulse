@@ -68,6 +68,8 @@ func newBytesFacadePulse(t *testing.T, opts pulse.Options) *pulse.Pulse {
 // A registered extension operator is KNOWN to PredictBytes — the
 // snapshot comes from the instance, not from the caller.
 func TestPredictBytes_ExtensionOperatorIsKnown(t *testing.T) {
+	t.Parallel()
+
 	data := bytesFacadeCohort(t, 2, 0)
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
@@ -106,6 +108,8 @@ func TestPredictBytes_ExtensionOperatorIsKnown(t *testing.T) {
 
 // Options.Strict promotes a predict warning into an error.
 func TestPredictBytes_HonoursStrict(t *testing.T) {
+	t.Parallel()
+
 	data := bytesFacadeCohort(t, 2, 0)
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
@@ -132,6 +136,8 @@ func TestPredictBytes_HonoursStrict(t *testing.T) {
 
 // Options.EchoRequest populates envelope.Request.
 func TestPredictBytes_HonoursEchoRequest(t *testing.T) {
+	t.Parallel()
+
 	data := bytesFacadeCohort(t, 2, 0)
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
@@ -153,6 +159,8 @@ func TestPredictBytes_HonoursEchoRequest(t *testing.T) {
 }
 
 func TestPredictBytes_NilRequestAndCancelledContextError(t *testing.T) {
+	t.Parallel()
+
 	p := newBytesFacadePulse(t, pulse.Options{})
 	data := bytesFacadeCohort(t, 1, 0)
 	if _, err := p.PredictBytes(context.Background(), data, nil); err == nil {
@@ -171,6 +179,8 @@ func TestPredictBytes_NilRequestAndCancelledContextError(t *testing.T) {
 // InspectBytes returns the envelope whole: a half-written trailing
 // record floors the count AND raises the truncated-tail warning.
 func TestInspectBytes_SurfacesTruncatedTailWarning(t *testing.T) {
+	t.Parallel()
+
 	p := newBytesFacadePulse(t, pulse.Options{})
 
 	clean, err := p.InspectBytes(context.Background(), bytesFacadeCohort(t, 3, 0), nil)
@@ -208,6 +218,8 @@ func TestInspectBytes_SurfacesTruncatedTailWarning(t *testing.T) {
 // A malformed byte slice is an envelope error, not a Go error, so a
 // --json caller can emit it verbatim.
 func TestInspectBytes_BadHeaderIsAnEnvelopeError(t *testing.T) {
+	t.Parallel()
+
 	env, err := newBytesFacadePulse(t, pulse.Options{}).InspectBytes(context.Background(), []byte("nope"), nil)
 	if err != nil {
 		t.Fatalf("InspectBytes: %v", err)

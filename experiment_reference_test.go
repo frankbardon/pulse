@@ -164,6 +164,8 @@ func flippedDetailsMismatch(base, flipped map[string]any) string {
 // equals today's with every signed figure negated, every per-group
 // array reversed and the p-value unchanged.
 func TestReference_SignFlipProperty(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := packedBoolLevelCohort(t)
 	for _, tc := range referenceTests {
 		weights := []string{"", "frequency", "probability"}
@@ -229,6 +231,8 @@ func TestReference_SignFlipProperty(t *testing.T) {
 // other subjects) is the runtime's PULSE_TEST_REFERENCE_MISSING;
 // predict, reading no records, accepts the request.
 func TestReference_MissingLevelIsRuntimeRefusal(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := packedBoolLevelCohort(t)
 	for _, test := range []string{
 		`{"type":"TEST_T","field":"x","split_by":"subj","params":{"reference":"s5"}}`,
@@ -263,6 +267,8 @@ func TestReference_MissingLevelIsRuntimeRefusal(t *testing.T) {
 // remap) as over the single file — the level check at construction and
 // the reorder at Finalize see the cohort's levels, never a shard's.
 func TestReference_ShardArchiveMatchesSingleFile(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, ref := range []string{"F", "M"} {
 		for _, test := range []string{

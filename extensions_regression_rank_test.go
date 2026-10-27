@@ -67,6 +67,8 @@ func rankCompose(t *testing.T, p *pulse.Pulse, body string) (*pulse.ComposedResp
 }
 
 func TestExtensions_RegressionSweepRank(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, pulse.Extensions{Regressions: rankRegistrations()})
 	file := cohort.Filename
 

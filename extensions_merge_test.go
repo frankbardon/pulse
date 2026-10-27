@@ -66,6 +66,8 @@ func mergeMismatch(t *testing.T, reg pulse.AggregatorRegistration, reason string
 // TestExtensions_ProbeAggregator_MergeableMismatch covers the three
 // probe-validation triggers for Mergeable=true.
 func TestExtensions_ProbeAggregator_MergeableMismatch(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	t.Run("not_streamable", func(t *testing.T) {
 		reg := paritySumRegistration(probe, aggMrgSum, true)
@@ -167,6 +169,8 @@ func mergeGateExtensions(probe *parityProbe) pulse.Extensions {
 // and row_local attributes as row-local operators, two_pass / buffered
 // attributes never. A nil registry is exactly CanMergeRequest.
 func TestExtensions_CanMergeRequestWithExtensions(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mergeGateExtensions(&parityProbe{})})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -245,6 +249,8 @@ func openMergeArchive(t *testing.T, ext pulse.Extensions) *pulse.Pulse {
 // same paritySum merges when declared and runs serially when not, and
 // both answer exactly what AGG_SUM answers.
 func TestExtensions_MergeableAggregatorMergesShards(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	p := openMergeArchive(t, pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{
 		paritySumRegistration(probe, aggMrgSum, true),
@@ -283,6 +289,8 @@ func TestExtensions_MergeableAggregatorMergesShards(t *testing.T) {
 // extension aggregator is admitted to ProcessChain and an undeclared
 // one is refused with PULSE_CHAIN_NOT_MERGEABLE.
 func TestExtensions_MergeableAggregatorChains(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "parity.pulse", paritySchema(t), 0, paritySmallRows)
@@ -328,6 +336,8 @@ func TestExtensions_MergeableAggregatorChains(t *testing.T) {
 // TestExtensions_ManifestProjectsMergeable asserts the declaration
 // reaches the manifest's extensions block (OperatorMeta.Mergeable).
 func TestExtensions_ManifestProjectsMergeable(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{
@@ -357,6 +367,8 @@ func TestExtensions_ManifestProjectsMergeable(t *testing.T) {
 // reducers read it absent on every row (null_records = filtered). The
 // buffered exit, which counts after attributes, is the reference.
 func TestRunNullRecords_AttributePrimaryFieldAcrossModes(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	req := func(extra ...*types.Attribute) *types.Request {
 		return &types.Request{
@@ -478,6 +490,8 @@ func grouperMergeMismatch(t *testing.T, reg pulse.GrouperRegistration, reason st
 // its own Components() method): a bucket-less grouper has no state to
 // fold, so the adapter supplies a no-op merge.
 func TestExtensions_ProbeGrouper_MergeableMismatch(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	floor := floorGrouperRegistrations(probe)[0]
 	emitSchema := descriptor.ComponentSchema{
@@ -540,6 +554,8 @@ func TestExtensions_ProbeGrouper_MergeableMismatch(t *testing.T) {
 // reducers used to drop it from the merged GroupedTail, so the merged
 // arm reported total_n 0 and n_null = every filtered record.
 func TestExtensions_MergeableGrouperFloorAcrossModes(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	cases := []struct {
 		name    string
@@ -602,6 +618,8 @@ func TestExtensions_MergeableGrouperFloorAcrossModes(t *testing.T) {
 // TestExtensions_ManifestProjectsMergeableGrouper asserts the grouper
 // declaration reaches the manifest's extensions block.
 func TestExtensions_ManifestProjectsMergeableGrouper(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mergeGateExtensions(&parityProbe{})})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)

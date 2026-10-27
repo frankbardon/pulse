@@ -94,6 +94,8 @@ func predictRoot(t *testing.T, p *pulse.Pulse, root string) rootVerdict {
 // never twice (the per-slot body call keeps Strict off; the root
 // promotes).
 func TestPredictRoots_StrictEscalatesWarnings(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]string{
 		"compose": string(perr.PULSE_VECTOR_METRIC_UNSUITED),
 		"chain":   string(perr.PULSE_VECTOR_METRIC_UNSUITED),
@@ -129,6 +131,8 @@ func TestPredictRoots_StrictEscalatesWarnings(t *testing.T) {
 // predict, located like the runtime's one refusal of the same request
 // (details.request / details.stage = 0), with the same code.
 func TestPredictRoots_StrictSlotWarningMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := rootsStrictPulse(t, pulse.Options{Strict: true})
 	cases := []struct {
@@ -192,6 +196,8 @@ func defaultedRequest() *types.Request {
 // every stage defaults-resolved; facet: the request as passed) — and
 // leaves it nil otherwise.
 func TestPredictRoots_EchoRequest(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	off := rootsStrictPulse(t, pulse.Options{})
 	on := rootsStrictPulse(t, pulse.Options{EchoRequest: true})
@@ -292,6 +298,8 @@ func TestPredictRoots_EchoRequest(t *testing.T) {
 // carries the envelope's coded errors and warnings, so a Valid false
 // result names its reason.
 func TestPredict_ResultCarriesReasons(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := rootsStrictPulse(t, pulse.Options{})
 	bad := &types.Request{Cohort: &types.Cohort{Filename: "v.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "nope"}}}

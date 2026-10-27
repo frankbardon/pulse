@@ -102,6 +102,8 @@ func (g adaptGrpMultiMergeable) MergeState(other extend.Grouper) error {
 // interface-embedding wrapper (the R6 bug) fails every keying row
 // whenever emit is set.
 func TestAdaptGrouper_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
+	t.Parallel()
+
 	emit := func(extend.Grouper) (map[string]any, error) { return map[string]any{"k": 1}, nil }
 	var sink extend.Grouper
 	cases := []struct {
@@ -179,6 +181,8 @@ func (foreignGrouper) Group([]*processing.Record, string) (map[string][]*process
 // PROCESSING_INTERNAL error — on the forwarding fold and on the
 // declared-only no-op fold alike — never a panic or a silent no-op.
 func TestAdaptGrouper_MergeRefusesForeignPartner(t *testing.T) {
+	t.Parallel()
+
 	var sink extend.Grouper
 	for name, g := range map[string]processing.Grouper{
 		"forwarding":    adaptGrouper("GROUP_ACME_T", "x", adaptGrpMergeable{adaptGrpStreaming{key: "k"}, &sink}, nil, true),
@@ -201,6 +205,8 @@ func TestAdaptGrouper_MergeRefusesForeignPartner(t *testing.T) {
 // dispatch every streaming grouped run uses) and keyed through the
 // embedder's KeyForRow, not refused as "neither keying interface".
 func TestAdaptGrouper_StreamingWithComponentsDrivesKeyForRow(t *testing.T) {
+	t.Parallel()
+
 	n := 0
 	emit := func(extend.Grouper) (map[string]any, error) { return nil, nil }
 	adapted := adaptGrouper("GROUP_ACME_T", "x", adaptGrpStreaming{key: "hi", n: &n}, emit, false)
@@ -217,6 +223,8 @@ func TestAdaptGrouper_StreamingWithComponentsDrivesKeyForRow(t *testing.T) {
 // TestAdaptGrouper_NullSentinelMapsToSkip: extend.ErrGrouperKeyNull
 // from either key method is the engine's ok=false, not a run failure.
 func TestAdaptGrouper_NullSentinelMapsToSkip(t *testing.T) {
+	t.Parallel()
+
 	rec := twoRecords()[0]
 	s := adaptGrouper("GROUP_ACME_T", "x", adaptGrpStreaming{null: true}, nil, false).(processing.StreamingGrouper)
 	if key, ok, err := s.KeyForRow(rec, "x"); key != "" || ok || err != nil {
@@ -260,6 +268,8 @@ func (fieldEcho) KeyForRow(_ extend.Record, field string) (string, bool, error) 
 // with that same field, and both null shapes (ok=false and
 // extend.ErrGrouperKeyNull) become processing.ErrGrouperKeyNull.
 func TestAdaptGrouper_KeyForUsesBoundField(t *testing.T) {
+	t.Parallel()
+
 	rec := twoRecords()[0]
 	g := adaptGrouper("GROUP_ACME_T", "region", fieldEcho{}, nil, false)
 	sg, ok := g.(processing.StreamableGrouper)
@@ -305,6 +315,8 @@ func (e errStreaming) KeyForRow(extend.Record, string) (string, bool, error) { r
 // TestAdaptGrouper_TranslatesIndexMap: indices come back as the
 // engine's own record pointers; an out-of-range index is a coded error.
 func TestAdaptGrouper_TranslatesIndexMap(t *testing.T) {
+	t.Parallel()
+
 	recs := twoRecords()
 	got, err := adaptGrouper("GROUP_ACME_T", "x", adaptGrpBase{idx: map[string][]int{"a": {1, 0}, "b": {1}}}, nil, false).Group(recs, "x")
 	if err != nil {
@@ -330,6 +342,8 @@ func TestAdaptGrouper_TranslatesIndexMap(t *testing.T) {
 // value carrying its own Components() still emits (MetaGrouper), and
 // an explicit ComponentsFunc wins over it.
 func TestAdaptGrouper_SelfEmittingComponentsKept(t *testing.T) {
+	t.Parallel()
+
 	got := adaptGrouper("GROUP_ACME_T", "x", adaptGrpSelfEmitting{}, nil, false)
 	meta, ok := got.(processing.MetaGrouper)
 	if !ok {
@@ -348,6 +362,8 @@ func TestAdaptGrouper_SelfEmittingComponentsKept(t *testing.T) {
 // TestAdaptGrouperFactory_PropagatesErrorAndNil keeps the factory
 // adapter transparent for the two non-instance outcomes.
 func TestAdaptGrouperFactory_PropagatesErrorAndNil(t *testing.T) {
+	t.Parallel()
+
 	boom := stderrors.New("boom")
 	f := adaptGrouperFactory(GrouperRegistration{
 		Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return nil, boom },
@@ -388,6 +404,8 @@ func (adaptFltSelfEmitting) Components() (map[string]any, error) {
 // sees the engine's own record and returns the embedder's verdict;
 // MetaFilterer is present iff a ComponentsFunc (or self-emission) is.
 func TestAdaptFilterer_BuildForwardsRecordAndMeta(t *testing.T) {
+	t.Parallel()
+
 	recs := twoRecords()
 	var seen extend.Record
 	emit := func(extend.FiltererBuilder) (map[string]any, error) { return map[string]any{"k": 1}, nil }

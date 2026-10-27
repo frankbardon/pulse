@@ -82,6 +82,8 @@ func unknownEntries(t *testing.T, ce *errors.CodedError) map[string]map[string]a
 // TestProfileRejectsPatterns: wildcards are never expanded — every
 // pattern is an unknown name, and every one is reported.
 func TestProfileRejectsPatterns(t *testing.T) {
+	t.Parallel()
+
 	patterns := []string{"TEST_*", "capability:*", "AGG_?UM", "io_format:[cj]sv", "*"}
 	ce := requireCode(t, newWithProfile(t, Extensions{}, append(patterns, "capability:process")...),
 		errors.PULSE_FEATURE_PROFILE_UNKNOWN)
@@ -99,6 +101,8 @@ func TestProfileRejectsPatterns(t *testing.T) {
 // TestFeatureProfile_UnknownReasons covers each unknown class with its
 // classification and suggestion.
 func TestFeatureProfile_UnknownReasons(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, reason, didYouMean string
 	}{
@@ -134,6 +138,8 @@ func TestFeatureProfile_UnknownReasons(t *testing.T) {
 // TestFeatureProfile_UnknownListsEveryName: the whole class is
 // reported, sorted, with the running version.
 func TestFeatureProfile_UnknownListsEveryName(t *testing.T) {
+	t.Parallel()
+
 	ce := requireCode(t, newWithProfile(t, Extensions{}, "ZZZ", "capability:process", "AAA", "inspect"),
 		errors.PULSE_FEATURE_PROFILE_UNKNOWN)
 	if got, want := ce.Details["names"], []string{"AAA", "ZZZ", "inspect"}; !reflect.DeepEqual(got, want) {
@@ -148,6 +154,7 @@ func TestFeatureProfile_UnknownListsEveryName(t *testing.T) {
 // release: it is unknown to an older running build, and resolves for a
 // pre-release of its own line or a devel build.
 func TestFeatureProfile_FutureSince(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version; swaps the package-level feature-table hooks
 	const future = "capability:from_the_future"
 	prev := lookupBuiltinFeature
 	lookupBuiltinFeature = func(name string) (descx.Feature, bool) {
@@ -184,6 +191,7 @@ func TestFeatureProfile_FutureSince(t *testing.T) {
 // TestFeatureProfile_PreReleaseAcceptsBaseline: a 1.0.0 pre-release
 // build offers the Since 1.0.0 baseline.
 func TestFeatureProfile_PreReleaseAcceptsBaseline(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version
 	restore := buildinfo.SetForTest("1.0.0-alpha.2")
 	if err := newWithProfile(t, Extensions{}, "AGG_SUM", "capability:process"); err != nil {
 		t.Fatalf("New: %v", err)
@@ -199,6 +207,8 @@ func TestFeatureProfile_PreReleaseAcceptsBaseline(t *testing.T) {
 }
 
 func TestSinceReached(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		since, running string
 		want           bool
@@ -231,6 +241,8 @@ func TestSinceReached(t *testing.T) {
 // TestFeatureProfile_Dependency reports every unmet group, naming the
 // enabled feature and the group.
 func TestFeatureProfile_Dependency(t *testing.T) {
+	t.Parallel()
+
 	ce := requireCode(t, newWithProfile(t, Extensions{}, "AGG_SUM", "OVERLAY_T_CELL", "capability:sample"),
 		errors.PULSE_FEATURE_PROFILE_DEPENDENCY)
 	unmet, ok := ce.Details["unmet"].([]map[string]any)
@@ -259,6 +271,8 @@ func TestFeatureProfile_Dependency(t *testing.T) {
 
 // TestFeatureProfile_ClassOrder: INVALID beats UNKNOWN beats DEPENDENCY.
 func TestFeatureProfile_ClassOrder(t *testing.T) {
+	t.Parallel()
+
 	requireProfileInvalid(t, newWithProfile(t, Extensions{}, "AGG_SUM", "AGG_SUM", "NOPE"), featureProfileReasonDuplicate)
 	requireCode(t, newWithProfile(t, Extensions{}, "AGG_SUM", "NOPE"), errors.PULSE_FEATURE_PROFILE_UNKNOWN)
 	requireCode(t, newWithProfile(t, Extensions{}, "AGG_SUM"), errors.PULSE_FEATURE_PROFILE_DEPENDENCY)
@@ -268,6 +282,8 @@ func TestFeatureProfile_ClassOrder(t *testing.T) {
 // is fine, a listed one resolves, and its DependsOn plus the request
 // host group are enforced only when the profile enables it.
 func TestFeatureProfile_Extensions(t *testing.T) {
+	t.Parallel()
+
 	ext := profileExt("AGG_WELFORD")
 	if err := newWithProfile(t, ext, "AGG_SUM", "capability:process"); err != nil {
 		t.Errorf("extension omitted: %v", err)
@@ -291,6 +307,8 @@ func TestFeatureProfile_Extensions(t *testing.T) {
 // feature fails pulse.New even without a profile; built-ins and other
 // extension operators are known.
 func TestExtensionDependsOnMustBeKnown(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{FS: memFsWith(t, nil), Extensions: profileExt("AGG_NOPE", "operator:AGG_SUM")})
 	ce := requireCode(t, err, errors.PULSE_FEATURE_PROFILE_UNKNOWN)
 	got := unknownEntries(t, ce)
@@ -318,6 +336,8 @@ func TestExtensionDependsOnMustBeKnown(t *testing.T) {
 // type" that would also leak the hidden name. With both, a request using
 // only a visible FILTER_INCLUDE runs.
 func TestFeatureProfile_FilterToFileRequiresFilterExpression(t *testing.T) {
+	t.Parallel()
+
 	base := []string{"capability:process", "capability:filter_to_file", "FILTER_INCLUDE"}
 	ce := requireCode(t, newWithProfile(t, Extensions{}, base...), errors.PULSE_FEATURE_PROFILE_DEPENDENCY)
 	want := []map[string]any{{"feature": "capability:filter_to_file", "requires_any_of": []string{"FILTER_EXPRESSION"}}}

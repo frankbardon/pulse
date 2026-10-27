@@ -112,6 +112,8 @@ func runCreditWith(t *testing.T, fsys afero.Fs, decodeWorkers int) (*ComposedRes
 }
 
 func TestTargetEncodeCredit_FitOnFoldsGLMHoldoutAUC(t *testing.T) {
+	t.Parallel()
+
 	base, codes := runCredit(t, creditFS(t, nil))
 	for _, c := range codes {
 		if c == string(perr.PULSE_FEAT_TARGET_LEAKAGE_RISK) {

@@ -322,6 +322,8 @@ func malformedEntryPoints() []parityEntryPoint {
 // indistinguishable from a never-registered name on every entry point,
 // Predict included.
 func TestHiddenOperatorMalformedParity(t *testing.T) {
+	t.Parallel()
+
 	fixtures := append([]string(nil), featureSetFixtures...)
 	sort.Strings(fixtures)
 	fsys := parityMalformedFS(t)

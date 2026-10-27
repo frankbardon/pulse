@@ -790,6 +790,8 @@ func mgRender(t *testing.T, data []map[string]any, cols []string, metric string)
 // TestMultiGrouper_Gate is the #422 gate: every case × every mode
 // matches the hand-computed rows exactly (count, order, key columns).
 func TestMultiGrouper_Gate(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range mgModes {
 		f := newMGFixture(t, pulse.Options{})
 		for _, c := range mgCases() {
@@ -814,6 +816,8 @@ func TestMultiGrouper_Gate(t *testing.T) {
 // grouper) in Data order, and Components.Groupers has one entry per
 // grouper slot with its own floor.
 func TestMultiGrouper_ComponentsCarryTuple(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, mode := range mgModes {
 		t.Run(mode.name, func(t *testing.T) {
@@ -858,6 +862,8 @@ func TestMultiGrouper_ComponentsCarryTuple(t *testing.T) {
 // id agree between [g, region] and [region, g], and summed over region
 // they equal the single-grouper run's per-key sum.
 func TestMultiGrouper_DataDependentKeyIndependentOfPosition(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	sum := &types.Aggregation{Type: types.AGG_SUM, Field: "id", Label: "s"}
 	for _, mode := range mgModes {
@@ -912,8 +918,12 @@ func TestMultiGrouper_DataDependentKeyIndependentOfPosition(t *testing.T) {
 // check counts observed composite keys — [region, sex] observes 6
 // though neither grouper alone exceeds 3.
 func TestMultiGrouper_MaxGroupsCountsCompositeKeys(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range mgModes {
 		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
 			over := newMGFixture(t, pulse.Options{Limits: pulse.Limits{MaxGroups: 5}})
 			if _, err := mode.run(t, over, mgRequest(over, []*types.Group{mgRegion(), mgSex()})); err == nil {
 				t.Fatal("6 observed composite keys passed max_groups=5")
@@ -935,6 +945,8 @@ func TestMultiGrouper_MaxGroupsCountsCompositeKeys(t *testing.T) {
 // record, even after an earlier position's null key (tier is null for 7
 // records; sex still sees all 30) — and the entries agree across modes.
 func TestMultiGrouper_GrouperComponentsPerSlot(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	groups := func() []*types.Group { return []*types.Group{mgTier(), mgTags(), mgSex()} }
 	floors := []struct {
@@ -983,6 +995,8 @@ func TestMultiGrouper_GrouperComponentsPerSlot(t *testing.T) {
 // counts every record it keyed — its own count, not the composite
 // rows' and not another grouper's.
 func TestMultiGrouper_ExtensionGrouperFloorPerSlot(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{Extensions: pulse.Extensions{Groupers: floorGrouperRegistrations(&parityProbe{})}})
 	for _, mode := range mgModes {
 		t.Run(mode.name, func(t *testing.T) {
@@ -1010,6 +1024,8 @@ func TestMultiGrouper_ExtensionGrouperFloorPerSlot(t *testing.T) {
 // only the None grouper's operator map (GROUP_QUANTILE, slot 1), and the
 // terminal chunk carries each Data row's full key tuple.
 func TestMultiGrouper_StreamChunkComponents(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, c := range []struct {
 		name      string
@@ -1076,6 +1092,8 @@ func TestMultiGrouper_StreamChunkComponents(t *testing.T) {
 // buffered and streaming arms alike. (ProcessStream's row iterator
 // carries no matrices.)
 func TestMultiGrouper_MatricesCarryTuple(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	header := types.AxisHeader{Fields: []string{"region", "sex"}, Types: []string{"GROUP_CATEGORY", "GROUP_CATEGORY"}}
 	for _, mode := range mgModes {
@@ -1113,6 +1131,8 @@ func TestMultiGrouper_MatricesCarryTuple(t *testing.T) {
 // depend on the data (range, date) leaves the request unsized: no
 // finding, never a guess.
 func TestMultiGrouper_PredictBoundsRuntime(t *testing.T) {
+	t.Parallel()
+
 	// Hand-computed over mgSchema: region 3, sex 2, tier 2, tags 2,
 	// quartiles 4, k-means k=2, an include list its length. 0 = unsized.
 	estimate := map[string]int64{
@@ -1211,6 +1231,8 @@ func (g nulKeyGrouper) KeyForRow(rec extend.Record, field string) (string, bool,
 // every mode — the composite string would be ambiguous — while the
 // same grouper alone runs unchanged.
 func TestMultiGrouper_SeparatorInKeyRefused(t *testing.T) {
+	t.Parallel()
+
 	reg := pulse.GrouperRegistration{
 		Name:       grpMGNul,
 		Streamable: true,
@@ -1379,6 +1401,8 @@ func mgSameBits(t *testing.T, label string, got, want mgBits) {
 // stage filters on stage 0's INNER key column and groups on its outer
 // one — every key column is a typed stage-1 input, not only the first.
 func TestMultiGrouper_ChainFiltersOnInnerKeyColumn(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	out, err := f.p.ProcessChain(context.Background(), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: f.cohort},
@@ -1407,6 +1431,8 @@ func TestMultiGrouper_ChainFiltersOnInnerKeyColumn(t *testing.T) {
 // six (region, sex) rows correlates their counts with their id sums — both hand-computed
 // from mgRows. (ProcessStream's row iterator carries no post-tests.)
 func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	// (region, sex) → the count's lag within region, ordered by sex.
 	wantPrev := map[string]any{
@@ -1482,6 +1508,8 @@ func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
 // writes is refused PULSE_RETURN_PATH_UNKNOWN by runtime and predict
 // alike, while the inner key column is accepted.
 func TestMultiGrouper_ReturnKeyColumns(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 

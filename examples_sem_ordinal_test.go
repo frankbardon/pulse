@@ -65,6 +65,8 @@ func runBrandExample(t *testing.T, dir, file string) *types.Response {
 // frees wave2's latent means, which recover the planted shift's signs
 // (value down, service up, quality within 2 SE of 0).
 func TestExamples_SEMOrdinalRecipe(t *testing.T) {
+	t.Parallel()
+
 	resp := runBrandExample(t, "matrices", "18_sem_ordinal.json")
 	if len(resp.Matrices) != 3 {
 		t.Fatalf("matrices %+v", resp.Matrices)
@@ -121,6 +123,8 @@ func TestExamples_SEMOrdinalRecipe(t *testing.T) {
 // in wave1 (the reference) and move with the planted shift in wave2
 // (value down, service up).
 func TestExamples_SEMOrdinalScores(t *testing.T) {
+	t.Parallel()
+
 	resp := runBrandExample(t, "attributes", "26_sem_ordinal_score.json")
 	means := map[string]map[string]float64{}
 	for _, row := range resp.Data {

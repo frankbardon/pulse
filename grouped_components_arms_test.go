@@ -102,6 +102,8 @@ func gaAssertGroups(t *testing.T, resp *types.Response) {
 // its single-file twin; the extension aggregator is merged on the
 // parallel shard arm.
 func TestGroupedComponents_ArmsAgree(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	s := paritySchema(t)
 	writeParityCohort(t, fsys, "twin.pulse", s, 0, paritySmallRows)
@@ -165,6 +167,8 @@ func TestGroupedComponents_ArmsAgree(t *testing.T) {
 // chunks carry no per-group state until the terminal chunk, which
 // carries the buffered response's groups[] verbatim.
 func TestGroupedComponents_StreamTerminalOnly(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "twin.pulse", paritySchema(t), 0, paritySmallRows)
 	p := gaOpen(t, pulse.Options{FS: fsys}, &parityProbe{})

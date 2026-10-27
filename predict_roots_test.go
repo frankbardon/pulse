@@ -26,6 +26,8 @@ func envCodes(env *descriptor.Envelope) []string {
 // SidecarLoader is wired), attributed to the slot, and the instance's
 // suppression list drops them.
 func TestPredictCompose_SlotSidecarAdvisories(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	codes := func(p *Pulse) []string {
 		env, err := p.PredictCompose(ctx, &ComposedRequest{Requests: []*Request{measuredRequest(nil)}})
@@ -62,6 +64,8 @@ func TestPredictCompose_SlotSidecarAdvisories(t *testing.T) {
 // request and reports a coded refusal (Valid false, no returned error)
 // over a bad one.
 func TestPredictRoots_Verdicts(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := obsFixture(t, Options{})
 	cohort := &types.Cohort{Filename: obsCohort}
@@ -121,6 +125,8 @@ func TestPredictRoots_Verdicts(t *testing.T) {
 // the facade cannot route (nil request or cohort) and an unreadable
 // cohort, each coded.
 func TestPredictRoots_Errors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
@@ -164,6 +170,8 @@ func TestPredictRoots_Errors(t *testing.T) {
 // TestPredictRoots_ReadNoRecord: the cohort-bound roots read a
 // single-file cohort's header and schema only.
 func TestPredictRoots_ReadNoRecord(t *testing.T) {
+	t.Parallel()
+
 	spy := &readSpyFs{Fs: afero.NewMemMapFs(), maxRead: map[string]int64{}}
 	head := wideRecommendCohort(t, spy.Fs, "wide.pulse", 500)
 	p, err := New(Options{FS: spy})

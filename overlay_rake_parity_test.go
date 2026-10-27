@@ -50,6 +50,8 @@ func rakeOverlay(rows map[string]float64, cols map[string]float64, extra map[str
 }
 
 func TestRake_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	ab := map[string]float64{"a": 0.3, "b": 0.7}
@@ -88,6 +90,8 @@ func TestRake_RefusalsMatchPredict(t *testing.T) {
 }
 
 func TestRake_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	spec := rakeOverlay(map[string]float64{"a": 0.3, "b": 0.7}, nil, nil)
@@ -135,6 +139,8 @@ func TestRake_EndToEnd(t *testing.T) {
 // on Response.Warnings (the per-Request overlay path's carrier, as for
 // every crosstab overlay kind).
 func TestRake_CappedFitShipsWithWarning(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	// The x sums are not a rank-one table, so one sweep cannot land on a
 	// 1e-15 tolerance.

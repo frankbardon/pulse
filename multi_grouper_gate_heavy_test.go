@@ -22,6 +22,8 @@ import (
 // DecodeWorkers count; weighted and unweighted. Each parallel run must
 // take its parallel arm, so no knob compares serial against serial.
 func TestMultiGrouper_BitExactAcrossWorkers(t *testing.T) {
+	t.Parallel()
+
 	const big = mgDecodeFiller + 1234
 	f := newMGFixture(t, pulse.Options{})
 	dir := t.TempDir()

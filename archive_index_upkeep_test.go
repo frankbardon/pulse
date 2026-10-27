@@ -42,6 +42,8 @@ func sidecarJSON(t *testing.T, v []StaleSidecar) string {
 }
 
 func TestArchiveIndexUpkeep_AnchoredAppend(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("ordinary append keeps the index", func(t *testing.T) {
@@ -81,6 +83,8 @@ func TestArchiveIndexUpkeep_AnchoredAppend(t *testing.T) {
 // An Overwrite of an indexed archive reports every per-shard sidecar
 // the replaced archive's index named.
 func TestArchiveIndexUpkeep_OverwriteNamesEveryShardSidecar(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := indexedSetArchive(t)
 	want, err := p.InvalidatedSidecars(ctx, "sets.pulse")

@@ -17,6 +17,8 @@ import (
 // wave — is within the sampling tolerances of lavaan's se =
 // "bootstrap"; the analytic SEs are replaced, the estimates are not.
 func TestSEM_BootstrapProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	t.Run("single", func(t *testing.T) {
 		plain := semGroupRun(t, p, semGroupRequest(t, "brand_def", map[string]any{"group": nil, "meanstructure": true}))
@@ -47,6 +49,8 @@ func TestSEM_BootstrapProcessMatchesLavaan(t *testing.T) {
 // order and the request runs serially) — ungrouped and grouped; another
 // seed moves the SEs.
 func TestSEM_BootstrapDeterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name, model string
 		params      map[string]any
@@ -55,6 +59,8 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 		{"grouped", "brand_mgdef", map[string]any{"group_equal": "loadings,intercepts"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := func(seed int) *types.Request {
 				params := map[string]any{"resample": "bootstrap", "bootstrap_iters": 25, "rng_seed": seed, "ci_level": 0.9}
 				for k, v := range c.params {
@@ -102,6 +108,8 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 // replicates, while a pinned seed draws the same ones whatever the
 // name.
 func TestSEM_BootstrapDerivedSeed(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name, model string
 		params      map[string]any
@@ -110,6 +118,8 @@ func TestSEM_BootstrapDerivedSeed(t *testing.T) {
 		{"grouped", "brand_mgdef", map[string]any{"group_equal": "loadings,intercepts"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := func(seed any, name string) *types.Request {
 				params := map[string]any{"resample": "bootstrap", "bootstrap_iters": 25}
 				if seed != nil {

@@ -105,6 +105,8 @@ func chPredict(t *testing.T, p *pulse.Pulse, req *types.ChainRequest) *descripto
 // alphabetically first aa_sum. The two figures differ, so neither
 // equality is two copies of one default. Predict-chain admits every run.
 func TestChainSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
+	t.Parallel()
+
 	if got := len(seriesfield.ChainKinds()); got != 2 {
 		t.Fatalf("seriesfield.ChainKinds() = %d kinds, want 2", got)
 	}
@@ -141,6 +143,8 @@ func TestChainSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
 // fold reads never reaches ChainResponse.Stages — every stage's Data
 // still carries both aggregations.
 func TestChainSeriesOverlay_StagesUntouched(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	resp, err := f.p.ProcessChain(context.Background(), chChain(f, types.OverlayKindIndexVsStage, "aa_sum", "zz_n", "aa_sum"))
 	if err != nil {
@@ -166,6 +170,8 @@ func TestChainSeriesOverlay_StagesUntouched(t *testing.T) {
 // from the runtime, Details {index, kind, field, available, which,
 // stage_index} equal (target checked before ref on both sides).
 func TestChainSeriesOverlay_FieldUnknownParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	cases := []struct {
 		name, field, which string
@@ -220,6 +226,8 @@ func TestChainSeriesOverlay_FieldUnknownParity(t *testing.T) {
 // field naming that label exactly as the explicitly typed twin;
 // predict-chain resolves the same default on the stage and admits it.
 func TestChainSeriesOverlay_DefaultedLabel(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	run := func(y *types.Aggregation) string {
 		req := chChain(f, types.OverlayKindIndexVsStage, "AGG_SUM_y", "zz_n")
@@ -246,6 +254,8 @@ func TestChainSeriesOverlay_DefaultedLabel(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO layer warning — so predict-chain refuses
 // nothing either. (Compose differs: its runtime key-set gate refuses.)
 func TestChainSeriesOverlay_KeyDivergenceParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := chChain(f, types.OverlayKindIndexVsStage, "", "zz_n")
 	req.Stages[0].Request.Groups = []*types.Group{mgRegion(), mgSex()}

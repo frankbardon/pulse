@@ -49,6 +49,7 @@ func renderedDescription(t *testing.T, p *Pulse, name string) string {
 // past a one-second gate would be slow when it passed and flaky when the
 // machine was busy.
 func TestReloadTemplates(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	t.Run("a file added after New becomes renderable", func(t *testing.T) {
 		dir := t.TempDir()
 		writeTmpl(t, dir, "revenue.json", tmplDoc("original"))

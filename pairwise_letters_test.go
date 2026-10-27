@@ -168,6 +168,8 @@ func propZOracle(p1, n1, p2, n2 float64) (pValue float64, dir float64) {
 // round and loses significance, so only C is beaten. Both crosstab arms
 // (fused, buffered) answer identically.
 func TestPairwiseLetters_Oracle3Columns(t *testing.T) {
+	t.Parallel()
+
 	freq := &types.WeightSpec{Field: "wt", Kind: types.WeightKindFrequency}
 	type want struct {
 		shares [2][3]float64 // [no,yes][X,Y,Z] — row keys sort no < yes
@@ -259,6 +261,8 @@ func TestPairwiseLetters_Oracle3Columns(t *testing.T) {
 // only X vs Z; an explicit letters.alpha applies to p_adjusted (Holm's
 // 0.114 < 0.2, so every pair) and is echoed as letters_alpha.
 func TestPairwiseLetters_HonourCorrection(t *testing.T) {
+	t.Parallel()
+
 	// Rows: no, yes.
 	onlyXZ := [][][]string{{{}, {}, {"A"}}, {{"C"}, {}, {}}}
 	all := [][][]string{{{}, {"A"}, {"A", "B"}}, {{"B", "C"}, {"C"}, {}}}
@@ -302,6 +306,8 @@ func TestPairwiseLetters_HonourCorrection(t *testing.T) {
 // are refreshed after the barrier fold exactly as a standalone Process
 // refreshes them after its own.
 func TestPairwiseLetters_ComposeMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	p, _ := lettersPulse(t, false)
 	ctx := context.Background()
 	mult := &types.Multiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyLayer}
@@ -333,6 +339,8 @@ func TestPairwiseLetters_ComposeMatchesProcess(t *testing.T) {
 // carries a letter; a multi-measure host letters each measure's stub
 // rows exactly as that measure's own crosstab does.
 func TestPairwiseLetters_GroupsTotalAndMeasures(t *testing.T) {
+	t.Parallel()
+
 	p, _ := lettersPulse(t, false)
 	ctx := context.Background()
 
@@ -404,6 +412,8 @@ func TestPairwiseLetters_GroupsTotalAndMeasures(t *testing.T) {
 // TestPairwiseLetters_AbsentIsByteIdentical: without params.letters the
 // layer carries no part and no letters_alpha.
 func TestPairwiseLetters_AbsentIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	p, _ := lettersPulse(t, false)
 	resp, err := p.Process(context.Background(), lettersRequest(`{}`, nil, nil))
 	if err != nil {
@@ -419,6 +429,8 @@ func TestPairwiseLetters_AbsentIsByteIdentical(t *testing.T) {
 // PULSE_OVERLAY_PARAM_MISSING with one message at predict and runtime,
 // on a proportion kind and a Welford kind.
 func TestPairwiseLetters_ParamRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs := lettersPulse(t, false)
 	ctx := context.Background()
 	for _, kind := range []types.OverlayKind{types.OverlayKindPairwisePropZ, types.OverlayKindPairwiseWelchT} {

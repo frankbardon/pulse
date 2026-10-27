@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"math"
 	"math/big"
-	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -53,47 +52,40 @@ func u64RowID2(i int) uint64 {
 	return id
 }
 
-var (
-	u64DirOnce sync.Once
-	u64Dir     string
-)
-
 // u64ParamsDir writes u64.pulse (id u64, id2 u64, y f64 nullable — null
-// on every third row) once per test binary.
+// on every third row) into a fresh t.TempDir. Per call, never cached in
+// a package-level sync.Once: a cached TempDir dies with the first test
+// that made it, so a later caller (or a -count=N rerun) read a deleted
+// directory.
 func u64ParamsDir(t *testing.T) string {
 	t.Helper()
-	u64DirOnce.Do(func() {
-		u64Dir = t.TempDir()
-		p, err := pulse.New(pulse.Options{DataDir: u64Dir})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s := encoding.Schema{Fields: []encoding.Field{
-			{Name: "id", Type: encoding.FieldTypeU64},
-			{Name: "id2", Type: encoding.FieldTypeU64},
-			{Name: "y", Type: encoding.FieldTypeF64, Nullable: true},
-		}}
-		b, err := p.NewCohortBuilder(context.Background(), "u64.pulse", s, pulse.CohortBuilderOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i := 0; i < u64Rows; i++ {
-			var y any = float64(i % 7)
-			if i%3 == 2 {
-				y = nil
-			}
-			if err := b.Append(pulse.CohortRow{u64RowID(i), u64RowID2(i), y}); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if _, err := b.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
-	if u64Dir == "" {
-		t.Fatal("u64 fixture not written")
+	dir := t.TempDir()
+	p, err := pulse.New(pulse.Options{DataDir: dir})
+	if err != nil {
+		t.Fatal(err)
 	}
-	return u64Dir
+	s := encoding.Schema{Fields: []encoding.Field{
+		{Name: "id", Type: encoding.FieldTypeU64},
+		{Name: "id2", Type: encoding.FieldTypeU64},
+		{Name: "y", Type: encoding.FieldTypeF64, Nullable: true},
+	}}
+	b, err := p.NewCohortBuilder(context.Background(), "u64.pulse", s, pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < u64Rows; i++ {
+		var y any = float64(i % 7)
+		if i%3 == 2 {
+			y = nil
+		}
+		if err := b.Append(pulse.CohortRow{u64RowID(i), u64RowID2(i), y}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }
 
 func u64Exact(op string, a, b *big.Int) bool {
@@ -117,6 +109,8 @@ func u64Exact(op string, a, b *big.Int) bool {
 // over a u64 field is refused by predict with the run's code and
 // message — the float64 echo's own compile error, as before.
 func TestParams_U64FieldPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
@@ -198,6 +192,7 @@ func TestParams_U64FieldPredictMatchesRuntime(t *testing.T) {
 // member is exact through the grouped filter precompute, per-row and on
 // the ungrouped twin alike.
 func TestParams_U64GroupMemberPrecompute(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fsys})

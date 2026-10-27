@@ -345,6 +345,8 @@ var uninstrumentedMethods = map[string]bool{
 // exported *Pulse method is either instrumented (obsCalls) or listed as
 // uninstrumented, and the instrumented set reaches every OperationKind.
 func TestObservedMethodsCoverSurface(t *testing.T) {
+	t.Parallel()
+
 	instrumented := map[string]bool{}
 	kinds := map[observe.OperationKind]bool{}
 	for _, c := range obsCalls() {
@@ -383,6 +385,8 @@ func TestObservedMethodsCoverSurface(t *testing.T) {
 // operations — Compose slots, chain stages — are covered by
 // TestObserveChildOperations.)
 func TestObserveFiresStartEndOncePerOperation(t *testing.T) {
+	t.Parallel()
+
 	rec := &hookRecorder{}
 	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
 	for _, c := range obsCalls() {
@@ -426,6 +430,8 @@ func TestObserveFiresStartEndOncePerOperation(t *testing.T) {
 // TestObserveWorkUsesStartHookContext: the operation's work runs under
 // the ctx OnOperationStart returned.
 func TestObserveWorkUsesStartHookContext(t *testing.T) {
+	t.Parallel()
+
 	// The start hook hands back an already-cancelled ctx: if the work
 	// runs under it, the operation fails with the cancellation; if it
 	// ran under the caller's ctx it would succeed.
@@ -453,6 +459,8 @@ func TestObserveWorkUsesStartHookContext(t *testing.T) {
 // TestObserveEndResultCode checks duration and code for success, a
 // coded error and an uncoded error.
 func TestObserveEndResultCode(t *testing.T) {
+	t.Parallel()
+
 	rec := &hookRecorder{}
 	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
 	ctx := context.Background()
@@ -499,6 +507,8 @@ func TestObserveEndResultCode(t *testing.T) {
 
 // TestObserveInfoCarriesCohortAndHash checks the lazily-built info.
 func TestObserveInfoCarriesCohortAndHash(t *testing.T) {
+	t.Parallel()
+
 	rec := &hookRecorder{}
 	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
 	req := obsRequest()
@@ -527,6 +537,8 @@ func (c *countingHasher) Hash() string { c.calls++; return "h" }
 // helper runs the work only — the request hash is never computed and
 // the observed path is not entered.
 func TestObserveOffSkipsHashAndHooks(t *testing.T) {
+	t.Parallel()
+
 	p, _ := obsFixture(t, Options{})
 	h := &countingHasher{}
 	ran := false

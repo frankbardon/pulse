@@ -22,6 +22,7 @@ import (
 // at a site: the child then exits cleanly and reports the recovered
 // error.
 func TestPanicRecovery_PoolRepanics(t *testing.T) {
+	// serial: swaps the package-level stream hooks (testWrapStreamIter / synthStreamBytes)
 	if arm := os.Getenv(panicChildEnv); arm != "" {
 		runRepanicChild(t, arm, os.Getenv(panicChildDirEnv))
 		return

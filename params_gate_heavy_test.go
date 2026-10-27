@@ -33,6 +33,7 @@ import (
 //   - every Slot-marked declaration is a json field of the slot object;
 //   - no example is refused for an unknown params key.
 func TestParamsDeclaredMatchRead(t *testing.T) {
+	// serial: paramread.Start records params reads process-wide; concurrent tests would add reads
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: fs})

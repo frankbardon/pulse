@@ -20,6 +20,8 @@ import (
 // it. A request's disable_components: false re-opens an
 // Options-disabled instance, so it runs on both sides.
 func TestPairwise_ComponentsRequiredMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	on, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

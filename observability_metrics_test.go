@@ -154,6 +154,8 @@ func metricsFixture(t *testing.T, opts Options) (*Pulse, *fakeMetrics) {
 // dropping the cell Store in resolveOpsCounter (every failure re-calls
 // the factory).
 func TestObservabilityMetricsResolvedAtNew(t *testing.T) {
+	t.Parallel()
+
 	p, fm := metricsFixture(t, Options{})
 	e := metricEnumSet()
 	nOps := len(observe.AllOperationKinds())
@@ -223,6 +225,8 @@ func TestObservabilityMetricsResolvedAtNew(t *testing.T) {
 // Falsified by calling the factory before taking lazyMu (or dropping the
 // re-check under it) in resolveOpsCounter.
 func TestObservabilityMetricsLazyConcurrent(t *testing.T) {
+	t.Parallel()
+
 	fm := newFakeMetrics()
 	om := newOpMetrics(fm)
 	fm.freeze()
@@ -258,6 +262,7 @@ const newMetricsAllocCeiling = 10_000
 // Falsified by pre-resolving operations_total over every code in
 // newOpMetrics (the pre-fix eager design).
 func TestObservabilityMetricsNewCost(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
 	if raceEnabled {
 		t.Skip("allocation counts are a plain-build figure")
 	}
@@ -288,6 +293,8 @@ factory calls.`, withMetrics, plain, extra, newMetricsAllocCeiling)
 // Falsified by dropping the scope split (children counted as top), or the
 // limit-trip Add in opMetrics.end.
 func TestObservabilityMetricsSet(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fm := metricsFixture(t, Options{Limits: Limits{MaxGroups: 1}})
 
@@ -390,6 +397,8 @@ func TestObservabilityMetricsSet(t *testing.T) {
 //
 // Falsified by dropping the in-flight Add(-1) in opMetrics.end.
 func TestObservabilityMetricsInFlight(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fm := metricsFixture(t, Options{})
 	cases := []struct {
@@ -451,6 +460,8 @@ func TestObservabilityMetricsInFlight(t *testing.T) {
 //
 // Falsified by adding a cohort label to any instrument.
 func TestObservabilityMetricLabelsBounded(t *testing.T) {
+	t.Parallel()
+
 	p, fm := metricsFixture(t, Options{})
 	ctx := context.Background()
 	for _, c := range obsCalls() {
@@ -510,6 +521,8 @@ func TestObservabilityMetricLabelsBounded(t *testing.T) {
 // through the stdlib exporter as valid exposition carrying all 8
 // documented families.
 func TestObservabilityMetricsObsprom(t *testing.T) {
+	t.Parallel()
+
 	reg := obsprom.New()
 	p, _ := obsFixture(t, Options{Metrics: reg})
 	if _, err := p.Process(context.Background(), obsRequest()); err != nil {

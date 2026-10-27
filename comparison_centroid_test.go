@@ -51,6 +51,8 @@ func centroidScoring(typ types.AttributeType, params string) *Request {
 // population refusal predict reports is the error Process returns —
 // code, message and details.
 func TestComparisonCentroid_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -123,6 +125,8 @@ func TestComparisonCentroid_PredictRuntimeParity(t *testing.T) {
 // row-local metric is row-local (grouped streamable, fusable). Each
 // request also runs.
 func TestComparisonCentroid_PredictRouting(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -180,6 +184,8 @@ func TestComparisonCentroid_PredictRouting(t *testing.T) {
 // two-pass drive and the buffered arm (an ATTR_PERCENTILE forces it),
 // and its centroid is AGG_VEC_MEAN's over the same rows.
 func TestComparisonCentroid_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	fsys := vecFacadeFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -237,6 +243,8 @@ func TestComparisonCentroid_StreamingEqualsBuffered(t *testing.T) {
 // in-batch Compose vector fit by name — the fit's mean, so the scores
 // are the cosine to it.
 func TestComparisonPopulation_ComposeFit(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: vecFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)

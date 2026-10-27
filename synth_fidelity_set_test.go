@@ -305,6 +305,8 @@ func buildCrossSellCohort(t *testing.T, rowCount, flipEvery int) []byte {
 // E5 set_* support — composes correctly on real runs of the exact
 // scenario the effort was scoped around, not isolated unit checks.
 func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const marginalTolerance = 0.03
 	const categoricalTolerance = 0.05
 	const numericMeanTolerance = 3.0

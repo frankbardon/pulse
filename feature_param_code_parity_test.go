@@ -15,6 +15,8 @@ import (
 // runtime constructor's PROCESSING_CONFIG (predict used
 // SERVICE_VALIDATION), and predict reports it exactly once.
 func TestFeatureParamRefusal_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	const count = `,"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`

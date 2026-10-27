@@ -134,6 +134,8 @@ func gfPerSegment(t *testing.T, p *pulse.Pulse, f *mgFixture, inner *types.Group
 // k-means. global equals the whole-set (pre-U46 plain-groups) fit;
 // within equals inner run separately over each region.
 func TestGroupFit_CrossPath(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	f := newMGFixture(t, pulse.Options{})
 	p := f.p
@@ -229,6 +231,8 @@ func TestGroupFit_CrossPath(t *testing.T) {
 // position (groups[0], crosstab rows[0]) "within" has no outer segment
 // and fits over the whole set exactly as "global" does.
 func TestGroupFit_OutermostWithinIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	f := newMGFixture(t, pulse.Options{})
 	for _, inner := range []func() *types.Group{mgQuartile, mgKMeans} {
@@ -263,6 +267,8 @@ func TestGroupFit_OutermostWithinIsNoOp(t *testing.T) {
 // groups and both crosstab axes, quantile and k-means — and fit never
 // moves the fused-dispatch answer.
 func TestGroupFit_RefusedIdentically(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	f := newMGFixture(t, pulse.Options{})
 	for _, inner := range []func() *types.Group{mgQuartile, mgKMeans} {
@@ -354,6 +360,8 @@ func gfKeys(lines []string) []string {
 // own warning stays unstamped. "global", absent fit and an outermost
 // "within" raise only the unstamped whole-set warning.
 func TestGroupFit_RefitWarnings(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	f := newMGFixture(t, pulse.Options{})
 	p := f.p

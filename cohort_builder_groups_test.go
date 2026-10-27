@@ -107,6 +107,8 @@ func importGrouped(t *testing.T, p *Pulse, path string, groups []pio.GroupDecl, 
 // the same explicit schema; each is format 0x02 and reports what it
 // formed.
 func TestCohortBuilder_GroupedByteIdenticalToImport(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name       string
 		groups     []pio.GroupDecl
@@ -119,6 +121,8 @@ func TestCohortBuilder_GroupedByteIdenticalToImport(t *testing.T) {
 		{"group+elide", []pio.GroupDecl{custGroup}, true, 2, []string{"source", "version"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, fsys := memBuilderEngine(t)
 			imported := importGrouped(t, p, "imported.pulse", tc.groups, tc.elide)
 			rows, _ := groupedData()
@@ -151,6 +155,8 @@ func TestCohortBuilder_GroupedByteIdenticalToImport(t *testing.T) {
 // through CohortReader exactly as the appended rows and as its
 // ungrouped twin, and Process returns the twin's result.
 func TestCohortBuilder_GroupedReadBack(t *testing.T) {
+	t.Parallel()
+
 	p, _ := memBuilderEngine(t)
 	rows, _ := groupedData()
 	buildCohort(t, p, "flat.pulse", groupedSchema(), CohortBuilderOptions{}, rows)
@@ -197,6 +203,8 @@ func TestCohortBuilder_GroupedReadBack(t *testing.T) {
 // error — the narrow one at NewCohortBuilder, the ratio one at Close —
 // and nothing is left on disk.
 func TestCohortBuilder_GroupGate(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	narrow := []pio.GroupDecl{{Members: []string{"region"}}}
 	unique := []pio.GroupDecl{{Key: []string{"order"}, Members: []string{"amount"}}}
@@ -279,6 +287,8 @@ func TestCohortBuilder_GroupGate(t *testing.T) {
 // PULSE_GROUP_MEMBER_NOT_CONSTANT whose source_row is the Append call
 // (rejected calls counted) — and leaves nothing on disk.
 func TestCohortBuilder_GroupDeclarationErrors(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := memBuilderEngine(t)
 	_, err := p.NewCohortBuilder(context.Background(), "x.pulse", groupedSchema(),
 		CohortBuilderOptions{Groups: []pio.GroupDecl{{Key: []string{"cust"}, Members: []string{"nope"}}}})
@@ -321,6 +331,8 @@ func TestCohortBuilder_GroupDeclarationErrors(t *testing.T) {
 // TestCohortBuilder_GroupedFailedCloseLeavesNothing: a publish failure
 // after the physical spool exists removes it with everything else.
 func TestCohortBuilder_GroupedFailedCloseLeavesNothing(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	p, err := New(Options{FS: renameFailFs{mem}})
 	if err != nil {

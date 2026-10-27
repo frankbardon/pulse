@@ -7,6 +7,8 @@ import (
 )
 
 func TestProfileInvisibilityParity(t *testing.T) {
+	t.Parallel()
+
 	if NewMCPParitySession == nil {
 		t.Fatal("MCP bridge not installed (feature_parity_mcp_bridge_test.go)")
 	}

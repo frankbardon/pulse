@@ -62,6 +62,8 @@ func importArmCohort(t *testing.T, p *pulse.Pulse, fs afero.Fs, target string, l
 // design cohort, the detour it replaces. One-proportion TEST_PROP_Z
 // against p0 = 0.5 is the same test: z² = χ², equal p-values.
 func TestExperimentSRM_GOFEqualsChiSqVsPopFacet(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -117,6 +119,8 @@ func TestExperimentSRM_GOFEqualsChiSqVsPopFacet(t *testing.T) {
 // refusal (an observed level expected omits) is the runtime's alone:
 // predict accepts the request, as for any data-dependent test refusal.
 func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := packedBoolLevelCohort(t)
 	ctx := context.Background()
 	cases := []struct {
@@ -274,6 +278,8 @@ func TestExperimentChecks_PredictMatchesRuntime(t *testing.T) {
 // runtime alike, and a level no shard holds is refused by both with
 // the same code and message.
 func TestExperimentChecks_SuccessLevelOverShardArchive(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

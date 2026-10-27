@@ -90,12 +90,16 @@ var ordinalScaledKeys = map[string]string{
 // per-level scalars, the scaled test — and predict sizes the estimates
 // rows the run emits.
 func TestSEM_OrdinalGroupsProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ ref, csv, model string }{
 		{"brand_ordmg_configural", "brand", "brand_ord"},
 		{"brand_ordmg_thload", "brand", "brand_ord"},
 		{"brand_ordmg_scalar", "brand_uneq", "brand_ms"},
 	} {
 		t.Run(c.ref, func(t *testing.T) {
+			t.Parallel()
+
 			raw, err := os.ReadFile(semGroupTestdata + c.ref + "_lavaan.json")
 			if err != nil {
 				t.Fatal(err)
@@ -241,6 +245,8 @@ func predictEstimatesRows(t *testing.T, fsys afero.Fs, req *types.Request) int {
 // ordered members (two categories each: thresholds known, no free
 // scale).
 func TestSEM_OrdinalGroupsPValuesMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name    string
 		fields  []string
@@ -432,6 +438,8 @@ func readBrandColumns(t *testing.T) map[string][]float64 {
 // ordinal estimator — is bad_params; predict refuses each with the same
 // entry.
 func TestSEM_OrdinalParameterizationRefusal(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, c := range []struct {
@@ -466,6 +474,8 @@ func TestSEM_OrdinalParameterizationRefusal(t *testing.T) {
 // group_partial threshold the data do not hold is
 // PULSE_MATRIX_INSUFFICIENT_N partial_threshold_absent.
 func TestSEM_OrdinalGroupsDataRefusals(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	// rows 1..600 are wave 1: a filter dropping wave 2's v2 = 1 rows
 	// leaves category 1 held by wave 1 alone.

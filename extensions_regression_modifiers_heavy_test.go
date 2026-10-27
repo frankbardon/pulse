@@ -13,6 +13,8 @@ import (
 // rng_seed 0 (the data-derived seed) and a jackknife are bit-identical
 // across runs and across DecodeWorkers, streaming and buffered.
 func TestExtensions_RegressionResampleDeterministic(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())(t)
 	specs := []*types.RegressionSpec{
 		{Type: regParityOLS, Name: "s", Target: "score", Predictors: []string{"qty", "day"}, Resample: "bootstrap", BootstrapIters: 50},
