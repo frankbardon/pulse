@@ -53,7 +53,7 @@ use case justifies it; prefer `internal/`.
 - **`TestPublicAPIGolden`** (blocking) fails on any unregenerated change to
   the public surface, including the fields and methods behind a root alias
   into `internal/`. Regenerate with
-  `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` and
+  `go test -tags heavy ./internal/apigolden/ -run TestPublicAPIGolden -update` and
   call the delta out in the PR description.
 - **`apidiff`** (`.github/workflows/api-compat.yml`) compares the PR
   against the latest `v*` tag and writes the report to the job summary.

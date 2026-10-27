@@ -102,7 +102,7 @@ Every package outside `internal/` and `cmd/` is frozen Go API at
 `v1.0.0`. Three guards keep the surface deliberate:
 
 ```bash
-go test ./internal/apigolden/            # TestPublicAPIGolden (blocking)
+go test -tags heavy ./internal/apigolden/ # TestPublicAPIGolden (blocking, heavy tier)
 make smoke                               # builds internal/embeddersmoke as an external module
 ```
 
@@ -110,7 +110,7 @@ make smoke                               # builds internal/embeddersmoke as an e
   with each root alias expanded into its target's fields, tags and
   methods, and compares it to `internal/apigolden/testdata/public_api.txt`.
   If you meant to change the surface, regenerate with
-  `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` and
+  `go test -tags heavy ./internal/apigolden/ -run TestPublicAPIGolden -update` and
   review the diff as the API delta.
 - `make smoke` compiles and tests `internal/embeddersmoke`, a nested module
   with its own `go.mod` that may only use public spellings. CI runs it.
@@ -147,12 +147,52 @@ gh workflow run ci.yml --ref <branch>
 gh run watch "$(gh run list --workflow ci.yml --branch <branch> --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
-Its `lint` and `test (1.26)` check runs land on the branch head, which
-branch protection requires before merge. A `v*.*.*` tag push
-(`release.yml`) reuses a passing `ci.yml` run whose head commit has
-the tagged commit's tree, runs the suite itself only when there is
-none, and then builds the archives with `make dist`. A tag containing
-`-` is published as a pre-release.
+The jobs run in parallel, so the wall clock is the slowest job, not
+the sum:
+
+| Job (check name) | Runs |
+|---|---|
+| `lint` | `make lint`: gofmt check, `go vet` and `staticcheck`, each over both tiers |
+| `docs` | `mdbook build docs` |
+| `build` | `make build`, `make smoke`, `make contrib` |
+| `test (1.26)` | the fast tier: `go test -count=1 -json ./...`, plus `citest heavy-check` |
+| `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
+
+Each shard runs only the heavy tests it owns, with `go test -tags heavy
+-run '^(...)$'`. The fast tests run once, in `test (1.26)`.
+`.github/heavy-shards.txt` assigns heavy tests to shards with one
+`<shard> <package> <Test>` line per test. A heavy test the file does not
+name runs in the `catchall` shard, so a new heavy test is never skipped.
+To rebalance the shards, add the test to the file.
+`internal/tools/citest` does the work:
+
+```bash
+go run ./internal/tools/citest heavy-check       # list vs tree vs the ci.yml matrix
+go run ./internal/tools/citest heavy-list        # <shard> <package> <Test>, every heavy test
+go run ./internal/tools/citest heavy-run 3 -count=1   # one shard, as CI runs it
+```
+
+`heavy-check` fails on a stale or duplicate entry, and on a shard id
+that is missing from (or extra in) the `test-heavy` matrix.
+`TestRepoHeavyShardList_Valid` runs the same check in the fast tier.
+`heavy-run` splits a shard into several `go test` runs when a name it
+owns in one package also names a different test in another package, so
+each heavy test runs in exactly one shard.
+
+The test jobs pipe `-json` through `citest filter`. It prints `go
+test`'s usual non-verbose log, plus the full output of each failed or
+unfinished test. It also appends the 10 slowest tests to the job
+summary. The report never fails a job; `pipefail` keeps `go test`'s
+exit status. Each Go job restores the `setup-go` module and build
+cache. `lint` and `build` hash different files into their cache keys,
+so they never seed the cache the test jobs use.
+
+Branch protection requires the `lint` and `test (1.26)` check runs on
+the branch head before merge. A `v*.*.*` tag push (`release.yml`)
+reuses a passing `ci.yml` run whose head commit has the tagged commit's
+tree. It runs the whole workflow itself (`workflow_call`) only when no
+such run exists, and then builds the archives with `make dist`. A tag
+containing `-` is published as a pre-release.
 `api-compat.yml` still runs on pull requests (it diffs against the PR
 base and takes under a minute).
 
@@ -178,7 +218,7 @@ go test . -run 'TestClaudeMd|TestUpdateDemandTable'
 | An MCP tool | `go test ./internal/skills/ -run TestSkillsCoverAllMCPTools && go test ./internal/descriptor/ -run TestManifestMCPToolsComplete && go test ./internal/mcp/ -run TestMCPSchemaBinding` |
 | A field type | `go test ./internal/skills/ -run TestSkillsCoverAllFieldTypes && go test ./encoding/... ./internal/encoding/...` |
 | The Update Demand table or a contract listed in it | `go test . -run TestUpdateDemandTableCovers` |
-| Any exported identifier in a public package, or a root alias's target | `go test ./internal/apigolden/` (then `-update` only if the change is intended) + `make smoke` |
+| Any exported identifier in a public package, or a root alias's target | `go test -tags heavy ./internal/apigolden/` (then `-update` only if the change is intended) + `make smoke` |
 | A package move under `internal/io/**` / `internal/iocore` | `go test ./internal/iocore/ -run TestIOImportBoundary` |
 
 The full set is documented in [Testing Conventions → Non-skippable

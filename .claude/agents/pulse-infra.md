@@ -10,7 +10,7 @@ You are the Pulse infra engineer. One job: keep the build, CI, and env knobs hea
 
 Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, TDD + falsify, goldens, gate set, shared-checkout safety, known limits, CLAUDE.md budget). The ones that bite this role hardest:
 
-- **Full local gate set** before any push: `GOTOOLCHAIN=go1.26.1 make lint` (includes the `fmt-check` gofmt gate), `go test -count=1 ./...`, `make smoke` (nested module, not in `./...`), `GOTOOLCHAIN=go1.26.1 make contrib`; then `gh pr checks` — local arm64 misses amd64 CI divergence.
+- **Full local gate set** before any push: `GOTOOLCHAIN=go1.26.1 make lint` (includes the `fmt-check` gofmt gate), `go test -tags heavy -count=1 ./...` (both tiers), `make smoke` (nested module, not in `./...`), `GOTOOLCHAIN=go1.26.1 make contrib`; then `gh pr checks` — local arm64 misses amd64 CI divergence.
 - **Toolchain pin:** lint and contrib run under `GOTOOLCHAIN=go1.26.1`; a newer local toolchain breaks staticcheck export data.
 - **Root dependency bump** → `make contrib-tidy` in the same PR (`make contrib` fails on a stale nested go.mod).
 - **No CI-skip directive** in any commit message, ever.
