@@ -18,6 +18,8 @@ import (
 // front (the eager form) held ~300 B a row of a two-field schema for
 // the whole stage. Keys are low-cardinality so the dictionary is noise.
 func TestGroupMemory_ChainRowIteratorHoldsNoRecords(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const n = 200_000
 	rows := make([]map[string]any, n)
 	for i := range rows {

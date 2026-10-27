@@ -23,6 +23,8 @@ func newCalendarGrouper(t *testing.T, params, tz string) *dateGrouper {
 // the local wall-clock hour (`YYYY-MM-DDTHH`) — UTC with no zone, Berlin
 // with one — and both arms (KeyFor and buffered Group) agree.
 func TestGroupDate_HourKeysAreLocalWallClock(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		tz   string
 		v    float64
@@ -55,6 +57,8 @@ func TestGroupDate_HourKeysAreLocalWallClock(t *testing.T) {
 // period_end == the hour label, and range_start / range_end at hour
 // resolution; the merged fall-back hour is one bucket of both rows.
 func TestGroupDate_HourComponents(t *testing.T) {
+	t.Parallel()
+
 	g := newCalendarGrouper(t, `{"component":"hour"}`, "Europe/Berlin")
 	recs := makeRecords(datetimeSchema(), "enrolled", []float64{
 		epochSeconds(2026, time.October, 24, 23, 15, 0), // 01:15 CEST
@@ -81,6 +85,8 @@ func TestGroupDate_HourComponents(t *testing.T) {
 // `YYYY-Www` label and Monday..Sunday periods; another start keys by the
 // local date of the week's first day and periods follow it.
 func TestGroupDate_WeekStart(t *testing.T) {
+	t.Parallel()
+
 	sat := epochSeconds(2026, time.February, 28, 23, 30, 0) // Sat UTC; Sun 00:30 Berlin
 	for _, tc := range []struct {
 		params, tz, key, start, end string
@@ -112,6 +118,8 @@ func TestGroupDate_WeekStart(t *testing.T) {
 // TestGroupDate_WeekStartDateColumn: a `date` column keys dated weeks
 // the same way (no zone involved).
 func TestGroupDate_WeekStartDateColumn(t *testing.T) {
+	t.Parallel()
+
 	g, err := newDateGrouper(&types.Group{Type: types.GROUP_DATE, Field: "enrolled", Params: json.RawMessage(`{"component":"week","week_start":"sunday"}`)}, dateSchema())
 	if err != nil {
 		t.Fatal(err)
@@ -126,6 +134,8 @@ func TestGroupDate_WeekStartDateColumn(t *testing.T) {
 // `hour` on a `date` column, `week_start` without `week`, a bad day
 // name — with PROCESSING_CONFIG.
 func TestGroupDate_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		params string
 		date   bool
@@ -150,6 +160,8 @@ func TestGroupDate_FactoryRefusals(t *testing.T) {
 // TestDateField_EpochHourProbe: a day count (the schema-less probe path)
 // reads as hour 00 of that day.
 func TestDateField_EpochHourProbe(t *testing.T) {
+	t.Parallel()
+
 	day := epochDays(2026, time.March, 4)
 	got := dateField{}.epochHour(day)
 	if s := temporal.HourToTime(got).Format("2006-01-02T15"); s != "2026-03-04T00" {

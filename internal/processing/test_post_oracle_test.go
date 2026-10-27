@@ -125,6 +125,8 @@ func loadPostNullCases(t *testing.T) []postNullCase {
 // TestReferenceOracle_PostTestNulls: every post family over rows holding
 // nulls against R at its default NA handling (listwise), 1e-10.
 func TestReferenceOracle_PostTestNulls(t *testing.T) {
+	t.Parallel()
+
 	cases := loadPostNullCases(t)
 	seen := map[types.TestType]bool{}
 	c := newOracleCheck(t, "post-test nulls", oracleRelTol, oracleFigureAbsFloor)
@@ -178,6 +180,8 @@ func TestReferenceOracle_PostTestNulls(t *testing.T) {
 // its mean column and on its n column — where it used to skip such a row
 // silently; its null rows still drop.
 func TestPostTests_NonNumericNonNullStillRefused(t *testing.T) {
+	t.Parallel()
+
 	tukey := &types.Test{Type: types.TEST_TUKEY_HSD, Field: "mean", SplitBy: "group",
 		Params: json.RawMessage(`{"ms_within": 2.5, "df_within": 20}`)}
 	tukeyRows := func(last map[string]any) []map[string]any {
@@ -333,6 +337,8 @@ var postTwinFamilies = map[types.TestType]bool{
 // the listwise drop is part of what is compared. The R-pinned goldens of
 // the paired / split families add the untouched-data leg.
 func TestPostTwins_MatchRowVariant(t *testing.T) {
+	t.Parallel()
+
 	c := newOracleCheck(t, "post twin vs row variant", oracleRelTol, oracleFigureAbsFloor)
 	figures := 0
 	covered := map[types.TestType]bool{}

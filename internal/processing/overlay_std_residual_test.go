@@ -94,6 +94,8 @@ func stdResidualSpec() *types.OverlaySpec {
 // leaves NaN), the weighted fixture under kind frequency (the Σw table
 // as is) and under kind probability (scaled to its Kish n_eff).
 func TestStdResidual_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[stdResidualCase](t, "std_residual")
 	hosts := map[string]func(c stdResidualCase) *CrosstabHostView{
 		"weighted_frequency": func(stdResidualCase) *CrosstabHostView {
@@ -130,6 +132,8 @@ func TestStdResidual_MatchesR(t *testing.T) {
 // Analysis, Table 2.5 / Section 2.4.5) — party identification by
 // gender, rounded to two decimals in the book.
 func TestStdResidual_AgrestiWorkedExample(t *testing.T) {
+	t.Parallel()
+
 	host := countHost([][]float64{{762, 327, 468}, {484, 239, 477}})
 	layer, ws, err := applyStdResidual(stdResidualSpec(), host)
 	if err != nil {
@@ -154,6 +158,8 @@ func TestStdResidual_AgrestiWorkedExample(t *testing.T) {
 // defined residuals with Baseline 0; the default name; parts are the
 // only multi-output slot (no p_adjusted before a correction).
 func TestStdResidual_Layer(t *testing.T) {
+	t.Parallel()
+
 	host := countHost([][]float64{{10, 20, 30}, {20, 10, 5}})
 	layer, _, err := applyStdResidual(stdResidualSpec(), host)
 	if err != nil {
@@ -195,6 +201,8 @@ func TestStdResidual_Layer(t *testing.T) {
 // column holding the whole table leaves the variance term 0 on a cell
 // with E > 0, also NaN.
 func TestStdResidual_UndefinedCells(t *testing.T) {
+	t.Parallel()
+
 	layer, ws, err := applyStdResidual(stdResidualSpec(), countHost([][]float64{{50, 30, 20}, {0, 0, 0}, {40, 60, 90}}))
 	if err != nil {
 		t.Fatal(err)
@@ -232,12 +240,16 @@ func TestStdResidual_UndefinedCells(t *testing.T) {
 // total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, as
 // OVERLAY_CHISQ_MATRIX refuses it.
 func TestStdResidual_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for name, table := range map[string][][]float64{
 		"one row":    {{1, 2, 3}},
 		"one column": {{1}, {2}},
 		"zero total": {{0, 0}, {0, 0}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			_, _, err := applyStdResidual(stdResidualSpec(), countHost(table))
 			var ce *errors.CodedError
 			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {
@@ -252,6 +264,8 @@ func TestStdResidual_Refusals(t *testing.T) {
 // probability — and the probability residuals differ from the
 // frequency ones (the Kish scaling moved them).
 func TestStdResidual_WeightedParameters(t *testing.T) {
+	t.Parallel()
+
 	ct := tallyCT(ctFixture, 2, 3)
 	nEff := ct.table.sw * ct.table.sw / ct.table.sww
 	freq, _, err := applyStdResidual(stdResidualSpec(), weightedCountHost(ctFixture, 2, 3, weighting.Frequency))
@@ -280,6 +294,8 @@ func TestStdResidual_WeightedParameters(t *testing.T) {
 // Level / Within gate refuses a non-zero slot — the runtime twin of
 // descriptor.ValidateOverlays.
 func TestStdResidual_DispatchGates(t *testing.T) {
+	t.Parallel()
+
 	host := countHost([][]float64{{10, 20}, {20, 10}})
 	layers, _, err := applyOverlays([]types.OverlaySpec{*stdResidualSpec()}, host)
 	if err != nil || len(layers) != 1 || len(layers[0].Payload.Parts) != 2 {

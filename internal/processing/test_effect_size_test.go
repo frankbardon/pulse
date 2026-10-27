@@ -38,6 +38,8 @@ func wantEffect(t *testing.T, es map[string]any, key string, want float64) {
 // only) against published / closed-form references. Pulse's χ² carries
 // no Yates correction, so the references are the uncorrected ones.
 func TestChiSquare_EffectSizes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		ref     string
@@ -123,6 +125,8 @@ func TestChiSquare_EffectSizes(t *testing.T) {
 // 1988 §6.2) on exact arcsine anchors and on the existing 150/200 vs
 // 170/200 fixture (pwr::ES.h(0.75, 0.85) = −0.2517987).
 func TestPropZ_CohensH(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		succA, nA    int
@@ -183,6 +187,8 @@ func TestPropZ_CohensH(t *testing.T) {
 // mu) / sd against R's sleep data (group 1): t.test gives t = 1.3257,
 // df = 9; effectsize::cohens_d(extra, mu = 0) = 0.42 (0.4192264).
 func TestTTest_OneSample_CohensD(t *testing.T) {
+	t.Parallel()
+
 	sleep1 := []float64{0.7, -1.6, -0.2, -1.2, -0.1, 3.4, 3.7, 0.8, 0.0, 2.0}
 	cases := []struct {
 		name  string
@@ -235,9 +241,13 @@ func TestTTest_OneSample_CohensD(t *testing.T) {
 // Groups sort alphabetically, so "control" is the first (minuend) group,
 // matching R's x/y order.
 func TestTwoSample_CohensD(t *testing.T) {
+	t.Parallel()
+
 	const want = -0.84327404271156781
 	for _, typ := range []types.TestType{types.TEST_T, types.TEST_WELCH, types.TEST_Z_TWO_SAMPLE} {
 		t.Run(string(typ), func(t *testing.T) {
+			t.Parallel()
+
 			schema := twoSampleFixtureSchema()
 			spec := &types.Test{Type: typ, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 			factory := rowTestRegistry[typ]
@@ -273,6 +283,8 @@ func TestTwoSample_CohensD(t *testing.T) {
 // an undefined effect size is OMITTED (never NaN / ±Inf on the wire),
 // and the effect_size map is not created when nothing lands in it.
 func TestEffectSize_DegenerateInputsOmitKey(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		v    float64

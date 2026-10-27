@@ -45,6 +45,8 @@ func sameRegFigure(got, want float64) bool {
 }
 
 func TestWeightedRegression_FrequencyFloorIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	// one: a single raw row standing for three (p = 1); two: two raw
 	// rows standing for four (p = 2). Both sit below the raw p + 1.
 	one := []wRegRow{{x1: 2, x2: 0, y: 3, w: 3}}
@@ -127,6 +129,8 @@ func TestWeightedRegression_FrequencyFloorIsExpansion(t *testing.T) {
 // reproduces the full engine fit, and a poisson GLM refit answers with
 // the rank check, never the raw-row floor.
 func TestWeightedRefit_FrequencyFloorIsFullFit(t *testing.T) {
+	t.Parallel()
+
 	two := []wRegRow{{x1: 1.5, x2: -0.5, y: 2.25, w: 2}, {x1: 3.0, x2: 1.25, y: 4.5, w: 2}}
 	spec := types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}, Penalty: "l2", Alpha: 0.3,
 		Weight: types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency})}

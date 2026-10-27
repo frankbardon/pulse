@@ -24,6 +24,8 @@ func makeAttribute(t *testing.T, attrType types.AttributeType, field string, sch
 }
 
 func TestAttribute_ZScore_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_ZSCORE, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{2, 4, 4, 4, 5, 5, 7, 9})
@@ -46,6 +48,8 @@ func TestAttribute_ZScore_Basic(t *testing.T) {
 }
 
 func TestAttribute_ZScore_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_ZSCORE, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{})
@@ -60,6 +64,8 @@ func TestAttribute_ZScore_Empty(t *testing.T) {
 }
 
 func TestAttribute_ZScore_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_ZSCORE, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{42})
@@ -79,6 +85,8 @@ func TestAttribute_ZScore_SingleValue(t *testing.T) {
 }
 
 func TestAttribute_TScore_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_TSCORE, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{2, 4, 4, 4, 5, 5, 7, 9})
@@ -101,6 +109,8 @@ func TestAttribute_TScore_Basic(t *testing.T) {
 }
 
 func TestAttribute_Normalized_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_NORMALIZED, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
@@ -125,6 +135,8 @@ func TestAttribute_Normalized_Basic(t *testing.T) {
 }
 
 func TestAttribute_Normalized_AllSame(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_NORMALIZED, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{5, 5, 5})
@@ -143,6 +155,8 @@ func TestAttribute_Normalized_AllSame(t *testing.T) {
 }
 
 func TestAttribute_Formula_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_FORMULA, "score", schema, "score * 2")
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
@@ -163,6 +177,8 @@ func TestAttribute_Formula_Basic(t *testing.T) {
 }
 
 func TestFormulaAttribute_CategoricalStringAccess(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	attr := makeAttribute(t, types.ATTR_FORMULA, "brand", schema, `brand == "Apple"`)
 
@@ -186,6 +202,8 @@ func TestFormulaAttribute_CategoricalStringAccess(t *testing.T) {
 }
 
 func TestFormulaAttribute_CategoricalInOperator(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	attr := makeAttribute(t, types.ATTR_FORMULA, "brand", schema, `brand in ["Apple", "Samsung"]`)
 
@@ -211,6 +229,8 @@ func TestFormulaAttribute_CategoricalInOperator(t *testing.T) {
 }
 
 func TestAttribute_Percentile_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_PERCENTILE, "score", schema, "")
 	records := makeRecords(schema, "score", []float64{10, 30, 20, 40})
@@ -236,6 +256,8 @@ func TestAttribute_Percentile_Basic(t *testing.T) {
 // Migration: use WIN_RANK with empty PartitionBy and one ASC OrderBy on the
 // same field. See skills/window-design.md.
 func TestAttribute_RankRemoved(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := attributeRegistry[types.AttributeType("ATTR_RANK")]; ok {
 		t.Error("ATTR_RANK still registered; expected removal in favor of WIN_RANK")
 	}
@@ -274,6 +296,8 @@ func makeDatePartAttribute(t *testing.T, field string, schema *encoding.Schema, 
 // 2025-01-31 = 20119 days since epoch
 
 func TestAttribute_DatePart_Year(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
 	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
@@ -297,6 +321,8 @@ func TestAttribute_DatePart_Year(t *testing.T) {
 }
 
 func TestAttribute_DatePart_Month(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "month")
 	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
@@ -317,6 +343,8 @@ func TestAttribute_DatePart_Month(t *testing.T) {
 }
 
 func TestAttribute_DatePart_Day(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "day")
 	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
@@ -337,6 +365,8 @@ func TestAttribute_DatePart_Day(t *testing.T) {
 }
 
 func TestAttribute_DatePart_YearMonth(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year_month")
 	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
@@ -358,6 +388,8 @@ func TestAttribute_DatePart_YearMonth(t *testing.T) {
 }
 
 func TestAttribute_DatePart_YearMonthDay(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year_month_day")
 	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
@@ -379,6 +411,8 @@ func TestAttribute_DatePart_YearMonthDay(t *testing.T) {
 }
 
 func TestAttribute_DatePart_MonthDay(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "month_day")
 	records := makeRecords(schema, "enrolled", []float64{19797, 19692, 20119})
@@ -400,6 +434,8 @@ func TestAttribute_DatePart_MonthDay(t *testing.T) {
 }
 
 func TestAttribute_DatePart_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
 	records := makeRecords(schema, "enrolled", []float64{})
@@ -414,6 +450,8 @@ func TestAttribute_DatePart_Empty(t *testing.T) {
 }
 
 func TestAttribute_DatePart_NullReturnsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
 	records := makeRecordsWithNulls(schema, "enrolled", []float64{19797, 0}, []int{1})
@@ -431,6 +469,8 @@ func TestAttribute_DatePart_NullReturnsNull(t *testing.T) {
 }
 
 func TestAttribute_DatePart_NonDateFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := attributeRegistry[types.ATTR_DATE_PART]
 	params := json.RawMessage(`{"part":"year"}`)
@@ -446,6 +486,8 @@ func TestAttribute_DatePart_NonDateFieldErrors(t *testing.T) {
 }
 
 func TestAttribute_DatePart_MissingPartErrors(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := attributeRegistry[types.ATTR_DATE_PART]
 	params := json.RawMessage(`{}`)
@@ -461,6 +503,8 @@ func TestAttribute_DatePart_MissingPartErrors(t *testing.T) {
 }
 
 func TestAttribute_DatePart_InvalidPartErrors(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := attributeRegistry[types.ATTR_DATE_PART]
 	params := json.RawMessage(`{"part":"quarter"}`)
@@ -476,6 +520,8 @@ func TestAttribute_DatePart_InvalidPartErrors(t *testing.T) {
 }
 
 func TestAttribute_DatePart_NilParamsErrors(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := attributeRegistry[types.ATTR_DATE_PART]
 	_, err := factory(&types.Attribute{
@@ -503,6 +549,8 @@ var _ = math.Abs
 // ATTR_SET_POPCOUNT (an empty selection stays 0) and 0 for the
 // membership flag ATTR_SET_HAS (a null set holds no label).
 func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	cases := []struct {
 		typ       types.AttributeType
@@ -584,6 +632,8 @@ func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 // When ties are made to share a rank, update the ATTR_PERCENTILE
 // Interpretation and op-attr-percentile.md with this test.
 func TestAttribute_Percentile_TiesTakeDistinctRanks(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	attr := makeAttribute(t, types.ATTR_PERCENTILE, "score", schema, "")
 	got, err := attr.Compute(makeRecords(schema, "score", []float64{5, 5, 5, 5}), "score")

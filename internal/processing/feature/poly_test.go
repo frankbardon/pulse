@@ -14,6 +14,8 @@ import (
 // x_poly_3: [1, 8, 27, 64]}. Asserts exact equality — the operator is
 // integer powers of a known input.
 func TestFEAT_POLY_Numerical(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{1, 2, 3, 4}, nil, "x")
 	c, err := newPoly(&types.Feature{
 		Type:   types.FEAT_POLY,
@@ -58,6 +60,8 @@ func TestFEAT_POLY_Numerical(t *testing.T) {
 // default <field>_poly prefix so callers can clean up the predictor
 // list when composing with REG_OLS.
 func TestFEAT_POLY_LabelOverride(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{2}, nil, "x")
 	c, _ := newPoly(&types.Feature{
 		Type:   types.FEAT_POLY,
@@ -77,6 +81,8 @@ func TestFEAT_POLY_LabelOverride(t *testing.T) {
 // TestFEAT_POLY_DegreeValidation walks the rejection boundary: degree 0,
 // 1, and 11 all surface PROCESSING_CONFIG. Degree 2 and 10 are accepted.
 func TestFEAT_POLY_DegreeValidation(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		params  string
@@ -122,6 +128,8 @@ func TestFEAT_POLY_DegreeValidation(t *testing.T) {
 // records null out via Record.NumericValue (covered by NullPropagation
 // below).
 func TestFEAT_POLY_FieldValidation(t *testing.T) {
+	t.Parallel()
+
 	_, err := newPoly(&types.Feature{
 		Type:   types.FEAT_POLY,
 		Params: json.RawMessage(`{"degree":2}`),
@@ -144,6 +152,8 @@ func TestFEAT_POLY_FieldValidation(t *testing.T) {
 // TestFEAT_POLY_NullPropagation verifies a null input row produces null
 // on every derived column. Mirrors FEAT_LOG / FEAT_SQRT semantics.
 func TestFEAT_POLY_NullPropagation(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{2, 0, 3}, []bool{false, true, false}, "x")
 	c, _ := newPoly(&types.Feature{
 		Type:   types.FEAT_POLY,
@@ -169,6 +179,8 @@ func TestFEAT_POLY_NullPropagation(t *testing.T) {
 // asserts identical outputs to the parity contract every per-row FEAT_*
 // honours.
 func TestFEAT_POLY_StreamingParity(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords(
 		[]float64{0, 1, -2, 3.5, 7, 0},
 		[]bool{false, false, false, false, false, true},
@@ -196,6 +208,8 @@ func TestFEAT_POLY_StreamingParity(t *testing.T) {
 // TestFEAT_POLY_RegisteredViaInit confirms the operator is wired into
 // the package's init() registry so processing.Apply can dispatch it.
 func TestFEAT_POLY_RegisteredViaInit(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := Lookup(types.FEAT_POLY); !ok {
 		t.Fatal("expected FEAT_POLY to be registered via init()")
 	}

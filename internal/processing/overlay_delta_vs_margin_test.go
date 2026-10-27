@@ -58,6 +58,8 @@ func deltaMeanPayload() *types.MatrixPayload {
 // warnings — DELTA_VS_MARGIN never emits PULSE_OVERLAY_REF_ZERO
 // because there is no division.
 func TestOverlay_DeltaVsMargin_RowAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(deltaMeanPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -134,6 +136,8 @@ func TestOverlay_DeltaVsMargin_RowAxis(t *testing.T) {
 // Per cell: cell - col_mean → uniform (-30, 0, +30) shape per column.
 // Per-column sum of deltas must be exactly zero.
 func TestOverlay_DeltaVsMargin_ColAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(deltaMeanPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -196,6 +200,8 @@ func TestOverlay_DeltaVsMargin_ColAxis(t *testing.T) {
 // must be exactly zero (cells centre on the grand-mean centerpoint)
 // and the centre cell (which equals the grand mean) must delta to 0.
 func TestOverlay_DeltaVsMargin_GrandAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(deltaMeanPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -259,6 +265,8 @@ func TestOverlay_DeltaVsMargin_GrandAxis(t *testing.T) {
 // there is no division-by-zero hazard; the absent overlay cell is the
 // only signal.
 func TestOverlay_DeltaVsMargin_NullHostCell_AbsentOverlay(t *testing.T) {
+	t.Parallel()
+
 	// Construct a payload where the (1,1) center cell is absent.
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},

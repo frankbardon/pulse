@@ -34,6 +34,8 @@ import (
 //	alpha = 2.0: β = [0.5443478260869564, 0.9478260869565217]
 //	             intercept = 1.5965217391304356
 func TestRegOLS_Ridge_ClosedForm(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	X := [][]float64{{1, 2}, {3, 5}, {5, 8}, {2, 1}, {4, 6}}
 	y := []float64{3, 8, 13, 3, 10}
@@ -115,6 +117,8 @@ func TestRegOLS_Ridge_ClosedForm(t *testing.T) {
 // dispatch table rejects Alpha=0 with Penalty set via ValidateRegression,
 // so this test calls solveRidge directly to exercise the math.
 func TestRegOLS_Ridge_AlphaZeroReducesToOLS(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	X := [][]float64{{1, 2}, {3, 5}, {5, 8}, {2, 1}, {4, 6}}
 	y := []float64{3, 8, 13, 3, 10}
@@ -156,6 +160,8 @@ func TestRegOLS_Ridge_AlphaZeroReducesToOLS(t *testing.T) {
 // reject. Two predictors with x2 = 2·x1 yield a singular centered Gram;
 // adding nλI makes it positive-definite.
 func TestRegOLS_Ridge_RankDeficientBoundary(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	records := make([]Record, 10)
 	for i := 0; i < 10; i++ {

@@ -27,6 +27,8 @@ import (
 // per-record contributions the request returns without aggregations;
 // the aggregation Components follow the declared slot order.
 func TestWindowsFirst_AggregationEqualsSumOfRecordRows(t *testing.T) {
+	t.Parallel()
+
 	set, _ := coefFit(t)
 	schema := predictSchema()
 	wins := []*types.Window{{Type: types.WIN_LAG, Field: "x1", Label: "lag_x1", OrderBy: []types.OrderKey{{Field: "y"}}}}
@@ -90,6 +92,8 @@ func TestWindowsFirst_AggregationEqualsSumOfRecordRows(t *testing.T) {
 // row) — data and every Components entry, sum_weights and n_eff
 // included.
 func TestWindowsFirst_WindowColumnAggregatesAsCohortColumn(t *testing.T) {
+	t.Parallel()
+
 	src := windowRegRows(30)
 	aggs := func() []*types.Aggregation {
 		return []*types.Aggregation{
@@ -145,6 +149,8 @@ func TestWindowsFirst_WindowColumnAggregatesAsCohortColumn(t *testing.T) {
 // an aggregation reads is PROCESSING_CONFIG naming the label, as the
 // regression, matrix and post-window attribute copies refuse it.
 func TestWindowsFirst_NonNumericWindowRefused(t *testing.T) {
+	t.Parallel()
+
 	s := windowRegSchema()
 	var recs []*Record
 	for _, r := range windowRegRows(6) {

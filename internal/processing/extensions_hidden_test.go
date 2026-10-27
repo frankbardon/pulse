@@ -48,8 +48,12 @@ var hiddenLookupCases = []hiddenLookupCase{
 // resolves without the predicate, on a nil registry and on a registry
 // that hides something else.
 func TestExtensionRegistry_HiddenLookupsMiss(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range hiddenLookupCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			var nilReg *ExtensionRegistry
 			if !tc.lookup(nilReg, tc.name) {
 				t.Fatalf("%s does not resolve on a nil registry; the case is vacuous", tc.name)
@@ -73,6 +77,8 @@ func TestExtensionRegistry_HiddenLookupsMiss(t *testing.T) {
 // path report a hidden built-in the way they report a never-registered
 // name, so a hidden name cannot take a different route to its error.
 func TestExtensionRegistry_HiddenRoutingFacts(t *testing.T) {
+	t.Parallel()
+
 	const never = "_NEVER_REGISTERED"
 	scoped := (*ExtensionRegistry)(nil).WithHidden(hiddenSet("AGG_SUM", "GROUP_CATEGORY", "ATTR_ZSCORE", "TEST_T", "AGG_AVERAGE"))
 
@@ -116,6 +122,8 @@ func TestExtensionRegistry_HiddenRoutingFacts(t *testing.T) {
 // never-registered name, per category — including ATTR_FORMULA, which
 // the gate otherwise admits from its built-in row-local list.
 func TestExtensionRegistry_HiddenMergeRefusal(t *testing.T) {
+	t.Parallel()
+
 	const never = "_NEVER_REGISTERED"
 	base := func() *types.Request {
 		return &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}}}
@@ -164,6 +172,8 @@ func TestExtensionRegistry_HiddenMergeRefusal(t *testing.T) {
 // TestExtensionRegistry_WithHiddenNilPredicate: no predicate returns
 // the registry unchanged — a profile-free instance keeps a nil registry.
 func TestExtensionRegistry_WithHiddenNilPredicate(t *testing.T) {
+	t.Parallel()
+
 	var nilReg *ExtensionRegistry
 	if got := nilReg.WithHidden(nil); got != nil {
 		t.Errorf("nil.WithHidden(nil) = %p, want nil", got)

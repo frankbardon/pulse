@@ -7,6 +7,8 @@ import (
 )
 
 func TestAttrSetPopcount_RowDerivesCount(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	c, err := newSetPopcountAttribute(&types.Attribute{Type: types.ATTR_SET_POPCOUNT, Field: "tags"}, schema)
 	if err != nil {
@@ -34,6 +36,8 @@ func TestAttrSetPopcount_RowDerivesCount(t *testing.T) {
 }
 
 func TestAttrSetHas_LabelBitTest(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	c, err := newSetHasAttribute(&types.Attribute{
 		Type:   types.ATTR_SET_HAS,
@@ -62,6 +66,8 @@ func TestAttrSetHas_LabelBitTest(t *testing.T) {
 }
 
 func TestAttrSetHas_UnknownLabelRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	_, err := newSetHasAttribute(&types.Attribute{
 		Type:   types.ATTR_SET_HAS,

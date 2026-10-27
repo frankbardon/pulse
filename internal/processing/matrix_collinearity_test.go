@@ -41,6 +41,8 @@ func collinearityInput(t *testing.T, cols []string, rows [][]float64) *matrixFin
 // refused. The control (the same spread around a mean of 3) keeps every
 // Belsley figure defined with no warning, so the path is not vacuous.
 func TestMatrixCollinearity_UncenteredSingularNullsBelsley(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name     string
 		base     float64
@@ -50,6 +52,8 @@ func TestMatrixCollinearity_UncenteredSingularNullsBelsley(t *testing.T) {
 		{"control", 3, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			rows := make([][]float64, 30)
 			for i := range rows {
 				rows[i] = []float64{tc.base + float64(i%7)}

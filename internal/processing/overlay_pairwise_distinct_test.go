@@ -58,6 +58,8 @@ func pairwiseDistinctHost() *CrosstabHostView {
 // AGG_MODE_COUNT and AGG_MODE must classify as THEMSELVES and never be
 // admitted, even though both carry a key spelled "distinct_count".
 func TestPairwiseCellAggregatorIdentity(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		cell     map[string]any
@@ -148,6 +150,8 @@ func TestPairwiseCellAggregatorIdentity(t *testing.T) {
 // prefix match as RowSlabN, distinct-key figures instead of counts, and
 // a nil components slot contributing zero rather than failing the slab.
 func TestPairwiseRowSlabDistinctN(t *testing.T) {
+	t.Parallel()
+
 	host := pairwiseDistinctHost()
 
 	// prefix=1 fixes the fan-out outer dim (brand) and sums across the
@@ -190,6 +194,8 @@ func TestPairwiseRowSlabDistinctN(t *testing.T) {
 // aggregator: AGG_DISTINCT_COUNT spells its figure "cardinality", so
 // the slab accumulator must find it there and not fall back to zero.
 func TestPairwiseRowSlabDistinctN_CardinalityKey(t *testing.T) {
+	t.Parallel()
+
 	mx := &types.MatrixPayload{
 		RowKeys: []types.AxisKey{
 			{"acme", "urban"}, {"acme", "rural"}, {"zenith", "urban"},
@@ -220,6 +226,8 @@ func TestPairwiseRowSlabDistinctN_CardinalityKey(t *testing.T) {
 // TestPairwiseColumnSlabDistinctN mirrors the row assertions on the
 // column axis so neither accessor can drift from the other.
 func TestPairwiseColumnSlabDistinctN(t *testing.T) {
+	t.Parallel()
+
 	mx := &types.MatrixPayload{
 		RowKeys: []types.AxisKey{{"r0"}},
 		ColumnKeys: []types.AxisKey{
@@ -255,6 +263,8 @@ func TestPairwiseColumnSlabDistinctN(t *testing.T) {
 // must be up front, coded, and must NAME both the observed aggregator
 // and the admitted set.
 func TestOverlayPairwise_NWithinDistinctRefusesFrequencyCells(t *testing.T) {
+	t.Parallel()
+
 	mx := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"brand", "segment"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"wave"}},
@@ -311,6 +321,8 @@ func TestOverlayPairwise_NWithinDistinctRefusesFrequencyCells(t *testing.T) {
 // unidentified branch — a cell aggregator that carries no distinct-key
 // figure at all is refused just as loudly, never silently skipped.
 func TestOverlayPairwise_NWithinDistinctRefusesPlainSumCells(t *testing.T) {
+	t.Parallel()
+
 	host := pairwisePropHost() // cells carry {"n": 100} only
 	specs := []types.OverlaySpec{{
 		Kind:   types.OverlayKindPairwisePropZ,
@@ -334,6 +346,8 @@ func TestOverlayPairwise_NWithinDistinctRefusesPlainSumCells(t *testing.T) {
 // distinct-key slab, not the record-count slab: the two modes must
 // disagree on this host.
 func TestOverlayPairwise_NWithinDistinctAdmittedProducesLayer(t *testing.T) {
+	t.Parallel()
+
 	host := pairwiseDistinctHost()
 
 	run := func(nSource string) float64 {
@@ -385,6 +399,8 @@ func TestOverlayPairwise_NWithinDistinctAdmittedProducesLayer(t *testing.T) {
 // n_within_depth range guard fires for the distinct mode too — it was
 // keyed on n_within alone.
 func TestOverlayPairwise_NWithinDistinctDepthGuard(t *testing.T) {
+	t.Parallel()
+
 	host := pairwiseDistinctHost() // row axis depth = 2
 	specs := []types.OverlaySpec{{
 		Kind:   types.OverlayKindPairwisePropZ,
@@ -422,6 +438,8 @@ func TestOverlayPairwise_NWithinDistinctDepthGuard(t *testing.T) {
 const pairwiseBaselineLayerJSON = `[{"name":"pz","kind":"OVERLAY_PAIRWISE_PROP_Z","scope":"row","ref":{},"payload":{"shape":"matrix","matrix":{"row_header":{"fields":["pair_a","pair_b"],"types":["PAIR","PAIR"]},"column_header":{"fields":["aud"],"types":["GROUP_CATEGORY"]},"row_keys":[["A","B"],["A","C"],["B","C"]],"column_keys":[["x"],["y"]],"cells":[[{"value":0.003892417122778627,"present":true},{"value":1,"present":true}],[{"value":6.737436018932718e-10,"present":true},{"value":1,"present":true}],[{"value":0.0004069520174449609,"present":true},{"value":1,"present":true}]],"grand_total":{"present":false},"cell_label":"p_value","normalize_applied":""}},"summary":{"count":6}}]`
 
 func TestOverlayPairwise_DistinctModeInertWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	host := pairwisePropHost()
 	specs := []types.OverlaySpec{{
 		Name:  "pz",

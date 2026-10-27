@@ -52,6 +52,8 @@ func wantFault(t *testing.T, err error, field, reason string) {
 // Falsified by deleting noteAllValuesFault in AllValues' wide-slot
 // branch (the set case then passes).
 func TestCorruptCategorical_AllValuesChecked(t *testing.T) {
+	t.Parallel()
+
 	if _, err := faultRecord(1, 0b11).AllValuesChecked(); err != nil {
 		t.Fatalf("clean record: %v", err)
 	}
@@ -78,6 +80,8 @@ func TestCorruptCategorical_AllValuesChecked(t *testing.T) {
 // with an unconditional return of the fault (the "x + 1" cached case
 // then refuses).
 func TestCorruptCategorical_ExpressionReadsOnlyItsFields(t *testing.T) {
+	t.Parallel()
+
 	schema := faultSchema()
 	reads, err := newExprProgram(`region == "north" ? 1 : 0`, "formula", schema, nil, nil, (*ExtensionRegistry)(nil).ExprOptions())
 	if err != nil {
@@ -117,6 +121,8 @@ func TestCorruptCategorical_ExpressionReadsOnlyItsFields(t *testing.T) {
 // Falsified by restoring the record.AllValues() read in the truthy
 // closure (the filter then drops the row as false).
 func TestCorruptCategorical_TruthyFilterRefuses(t *testing.T) {
+	t.Parallel()
+
 	fns, err := BuildFilters([]*types.Filterer{{Type: types.FILTER_TRUE, Field: "region", Values: []string{"truthy"}}}, faultSchema(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +137,8 @@ func TestCorruptCategorical_TruthyFilterRefuses(t *testing.T) {
 // TestCorruptCategorical_RecordRowsRefuse: the two row renderers
 // (Process record rows, Sample / Lookup cells) refuse a corrupt cell.
 func TestCorruptCategorical_RecordRowsRefuse(t *testing.T) {
+	t.Parallel()
+
 	recs := []*Record{faultRecord(0, 1), faultRecord(7, 1)}
 	if _, _, err := recordsToRows(recs[:1], faultSchema()); err != nil {
 		t.Fatalf("clean rows: %v", err)

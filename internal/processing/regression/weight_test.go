@@ -155,6 +155,8 @@ func mapsClose(t *testing.T, what string, got, want map[string]float64, tol floa
 // either kind reproduce the unweighted fit bit for bit, with
 // SumWeights = n and (probability) NEff = n.
 func TestWeightedRegression_UnityBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegRows(wRegFixture()).withW(1)
 	for name, spec := range regSpecs() {
 		base := fitWeighted(t, spec, rows, "")
@@ -182,6 +184,8 @@ func TestWeightedRegression_UnityBitIdentical(t *testing.T) {
 // weights equal the expanded rows run unweighted (every variant), with
 // NObs the raw row count and SumWeights the expanded n.
 func TestWeightedRegression_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegFixture()
 	exp := expand(rows)
 	for name, spec := range regSpecs() {
@@ -288,6 +292,8 @@ func wlsReference(t *testing.T, rows []wRegRow, prob bool) wlsRef {
 // p − 1, fractional); probability SEs are wider than frequency ones on
 // the same weights.
 func TestWeightedRegression_OLSClosedForm(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegFixture()
 	spec := regSpecs()["ols"]
 	for _, kind := range []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability} {
@@ -317,6 +323,8 @@ func TestWeightedRegression_OLSClosedForm(t *testing.T) {
 // are scale-free — weights × 0.37 answer the same fit (coefficients,
 // SEs, p-values, R²s, residual SE and n_eff), SumWeights × 0.37.
 func TestWeightedRegression_ProbabilityScaleInvariant(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegFixture()
 	for name, spec := range regSpecs() {
 		if spec.Type == types.REG_BAYES_LINEAR {
@@ -342,6 +350,8 @@ func TestWeightedRegression_ProbabilityScaleInvariant(t *testing.T) {
 // identical under frequency and probability on the same weights (the
 // penalty is scaled by Σw, never N*), and only its SEs move.
 func TestWeightedRegression_PenalisedBetaKindFree(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegFixture()
 	for _, name := range []string{"ols", "ridge", "lasso", "elasticnet"} {
 		spec := regSpecs()[name]
@@ -361,6 +371,8 @@ func TestWeightedRegression_PenalisedBetaKindFree(t *testing.T) {
 // fit or NObs; a row dropped listwise for a null predictor is dropped
 // before its weight is judged.
 func TestWeightedRegression_ExcludesInvalidAndZero(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegFixture()
 	recs := wRegRecords(rows)
 	bad := []Record{
@@ -404,6 +416,8 @@ func TestWeightedRegression_ExcludesInvalidAndZero(t *testing.T) {
 // UpdateRow / Finalize path and FitBuffered answer the same weighted
 // fit bit for bit.
 func TestWeightedRegression_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	rows := wRegFixture()
 	for name, spec := range regSpecs() {
 		for _, kind := range kindsFor(spec) {
@@ -447,6 +461,8 @@ func TestWeightedRegression_StreamingMatchesBuffered(t *testing.T) {
 // defined. Two cases: n_eff < p + 1 (one row dominates) and n_eff =
 // p + 1 exactly (weights 1, 1, 1, 3: (6)²/12 = 3).
 func TestWeightedRegression_UndefinedAtNonPositiveDF(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string][]float64{
 		"below": {1000, 1, 1, 1, 1, 1},
 		"equal": {1, 1, 1, 3},

@@ -16,6 +16,8 @@ import (
 // table row, and a grouper that gains or loses a per-record keying
 // interface fails until the row is flipped.
 func TestBuiltinGrouperKeyableMatchesRegistry(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allGroupParityFixtures(t)
 	for _, groupType := range types.AllGroupTypes() {
 		declared, known := crosstabfuse.BuiltinGrouperKeyable(groupType)
@@ -59,6 +61,8 @@ func TestBuiltinGrouperKeyableMatchesRegistry(t *testing.T) {
 // the instance feature set hides declines fusion exactly as an unknown
 // name does, through the registry facts.
 func TestCanFuseCrosstab_HiddenBuiltinGrouperDeclines(t *testing.T) {
+	t.Parallel()
+
 	reg := (*ExtensionRegistry)(nil).WithHidden(func(n string) bool { return n == string(types.GROUP_CATEGORY) })
 	ok, reason := CanFuseCrosstab(happyPathCrosstabRequest(), crosstabFusedGateSchema(), reg)
 	if ok || reason != "non-streamable grouper on row axis (GROUP_CATEGORY)" {
@@ -71,6 +75,8 @@ func TestCanFuseCrosstab_HiddenBuiltinGrouperDeclines(t *testing.T) {
 // its params declines fusion so the buffered path reports the coded
 // error.
 func TestCanFuseCrosstab_UnconstructableGrouperDeclines(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Rows = []*types.Group{{Type: types.GROUP_DATE, Field: "ts", Params: []byte(`{"component":"fortnight"}`)}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)

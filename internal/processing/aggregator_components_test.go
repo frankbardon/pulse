@@ -14,6 +14,8 @@ import (
 )
 
 func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	makeRecs := func(values []float64, nullIdxs []int) []*Record {
 		return makeRecordsWithNulls(schema, "score", values, nullIdxs)
@@ -224,6 +226,8 @@ func TestMetaAggregator_ScalarOps_Components(t *testing.T) {
 // path. The cohort uses fields with no two-pass attribute / grouper /
 // feature so canStream() returns true.
 func TestMetaAggregator_StreamingEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	records := makeRecordsWithNulls(schema, "score",
 		[]float64{10, 0, 30, 0, 50}, []int{1, 3})
@@ -545,6 +549,8 @@ func mapKeysSorted(m map[string]any) []string {
 }
 
 func TestMetaAggregator_AllOps_ManifestParity(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allAggParityFixtures(t)
 	for _, op := range types.AllAggregationTypes() {
 		op := op
@@ -588,6 +594,8 @@ func TestMetaAggregator_AllOps_ManifestParity(t *testing.T) {
 }
 
 func TestComponentsUniversalFloor(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allAggParityFixtures(t)
 	for _, op := range types.AllAggregationTypes() {
 		op := op

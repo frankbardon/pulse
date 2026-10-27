@@ -28,6 +28,8 @@ func withAttribute(at types.AttributeType) *types.Request {
 // the registry does NOT mark two_pass stays fusable — the decision is
 // keyed by the declaration, not by "is an extension".
 func TestCanFuseCrosstab_TwoPassAttributeDeclines(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	reg := twoPassFusedRegistry()
 	for _, tc := range []struct {
@@ -59,6 +61,8 @@ func TestCanFuseCrosstab_TwoPassAttributeDeclines(t *testing.T) {
 // a two_pass extension attribute that drifts past the gate fails fast
 // with PROCESSING_INTERNAL instead of being valued row-locally.
 func TestAssertCanFuse_TwoPassExtensionAttribute(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	for _, tc := range []struct {
 		name string

@@ -12,6 +12,8 @@ import (
 // sign of its test statistic — +1 when leg i (pair_a) is the higher, -1
 // when leg j is — and swapping the legs flips it without moving p.
 func TestPairwiseKernels_RecordDirection(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]struct {
 		k  pwKernel
 		in pwInputs // leg i higher
@@ -54,6 +56,8 @@ func TestPairwiseKernels_RecordDirection(t *testing.T) {
 // TestPairwiseLetterName: A … Z, AA, AB, … ZZ, AAA — the spreadsheet
 // sequence, so a group past 26 indexes never repeats a letter.
 func TestPairwiseLetterName(t *testing.T) {
+	t.Parallel()
+
 	for k, want := range map[int]string{0: "A", 1: "B", 25: "Z", 26: "AA", 27: "AB", 51: "AZ", 52: "BA", 701: "ZZ", 702: "AAA"} {
 		if got := PairwiseLetterName(k); got != want {
 			t.Errorf("PairwiseLetterName(%d) = %q, want %q", k, got, want)
@@ -66,6 +70,8 @@ func TestPairwiseLetterName(t *testing.T) {
 // groups do not rebuild the PAIR axis is PROCESSING_INTERNAL, never a
 // silent mislabel.
 func TestPairwiseLetters_RowScopeAndInvariant(t *testing.T) {
+	t.Parallel()
+
 	host := pairwisePropHost() // rows A/B/C at 50/30/10 (x) and 20/20/20 (y), n = 100
 	specs := []types.OverlaySpec{{
 		Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow,

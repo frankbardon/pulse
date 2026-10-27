@@ -98,6 +98,8 @@ func rankPClose(got, want float64) bool {
 // n ≤ 9 (the exact permutation counts) and a grid to n = 1290 (the
 // Edgeworth series, clamped), both tails.
 func TestPRho_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadRankInferenceOracle(t)
 	for _, c := range doc.RankRho {
 		got := pRho(c.Q, c.N, c.Lower)
@@ -111,6 +113,8 @@ func TestPRho_MatchesR(t *testing.T) {
 // C_pKendall over every q (and one past each end) for n ≤ 10 and a
 // grid to n = 49.
 func TestPKendall_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadRankInferenceOracle(t)
 	for _, c := range doc.RankKendall {
 		got := pKendall(c.Q, c.N)
@@ -124,6 +128,8 @@ func TestPKendall_MatchesR(t *testing.T) {
 // mid-ranks, the Knight counts, ties, the exact / approximate switch —
 // equals cor.test(method = …)'s p (and estimate).
 func TestRankCellP_MatchesCorTest(t *testing.T) {
+	t.Parallel()
+
 	doc := loadRankInferenceOracle(t)
 	for i, c := range doc.RankPairs {
 		if c.Gen != nil {
@@ -165,6 +171,8 @@ func TestRankCellP_MatchesCorTest(t *testing.T) {
 // untested), and the recurrence reproduces R's integers (the cell test
 // matches cor.test's estimate on them).
 func TestRankPairs_CoverSpearmanBoundary(t *testing.T) {
+	t.Parallel()
+
 	doc := loadRankInferenceOracle(t)
 	seen := map[int]bool{}
 	for _, c := range doc.RankPairs {
@@ -192,6 +200,8 @@ func TestRankPairs_CoverSpearmanBoundary(t *testing.T) {
 // is kendallVarS (one tie-corrected variance for the test and the
 // matrix).
 func TestKendallVarS_IsTheTestsVariance(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		tx, ty []float64

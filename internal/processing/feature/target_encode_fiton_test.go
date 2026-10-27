@@ -99,6 +99,8 @@ var fitOnRows = []teRow{
 // means come from the fit_on rows only; every row is encoded from them,
 // an unseen category (c: holdout only) with the TRAINING global mean.
 func TestTargetEncode_FitOn_TrainingMeansAppliedToAll(t *testing.T) {
+	t.Parallel()
+
 	out := encodeBoth(t, `{"target":"y","fit_on":"train == 1"}`, teRecords(fitOnRows))
 	global := (1.0 + 3 + 10 + 5) / 4
 	want := []float64{3, 3, 10, 3, 10, global, 3, 0, 10}
@@ -127,6 +129,8 @@ func TestTargetEncode_FitOn_TrainingMeansAppliedToAll(t *testing.T) {
 // same perturbation without fit_on DOES move the values, so the check is
 // not vacuous.
 func TestTargetEncode_FitOn_HoldoutOutcomesNeverLeak(t *testing.T) {
+	t.Parallel()
+
 	perturbed := make([]teRow, len(fitOnRows))
 	copy(perturbed, fitOnRows)
 	for i := range perturbed {
@@ -164,6 +168,8 @@ func TestTargetEncode_FitOn_HoldoutOutcomesNeverLeak(t *testing.T) {
 // full-training value. Folds are balanced to within one row and the
 // deal is deterministic in the seed.
 func TestTargetEncode_Folds_OutOfFold(t *testing.T) {
+	t.Parallel()
+
 	var rows []teRow
 	cats := []string{"a", "b", "c"}
 	for i := 0; i < 23; i++ {
@@ -244,6 +250,8 @@ func TestTargetEncode_Folds_OutOfFold(t *testing.T) {
 // TestTargetEncode_FoldsWithoutFitOn: every row is a training row, so
 // every row is encoded out-of-fold.
 func TestTargetEncode_FoldsWithoutFitOn(t *testing.T) {
+	t.Parallel()
+
 	rows := []teRow{{cat: "a", y: 1}, {cat: "a", y: 2}, {cat: "a", y: 4}, {cat: "a", y: 8}}
 	out := encodeBoth(t, `{"target":"y","folds":4,"rng_seed":1}`, teRecords(rows))
 	for i, r := range rows {
@@ -256,6 +264,8 @@ func TestTargetEncode_FoldsWithoutFitOn(t *testing.T) {
 // TestTargetEncode_FitOn_Unbound: a fit_on the engine never bound is an
 // internal fault on both drives, never an all-rows fit.
 func TestTargetEncode_FitOn_Unbound(t *testing.T) {
+	t.Parallel()
+
 	c, err := newTargetEncode(&types.Feature{Type: types.FEAT_TARGET_ENCODE, Field: "g", Params: json.RawMessage(`{"target":"y","fit_on":"train == 1"}`)}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -274,6 +284,8 @@ func TestTargetEncode_FitOn_Unbound(t *testing.T) {
 // reads the raw record, so a fit_on (or target) over a column an earlier
 // feature derives is not streamable and the streaming build refuses it.
 func TestIsStreamable_TargetEncodeDerivedInputs(t *testing.T) {
+	t.Parallel()
+
 	schema := makeCategoricalSchema(t, "g", "a", "b")
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "y", Type: encoding.FieldTypeF64}, encoding.Field{Name: "s", Type: encoding.FieldTypeU8})
 	te := func(params string) []*types.Feature {

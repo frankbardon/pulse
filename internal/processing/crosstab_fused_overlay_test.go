@@ -62,6 +62,8 @@ func jsonOf(t *testing.T, v any) string {
 // matrix, so any divergence here means the fused exit lost the fold or
 // the finalised host view differs.
 func TestFusedCrosstab_OverlaysMatchBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 
@@ -169,6 +171,8 @@ func TestFusedCrosstab_OverlaysMatchBuffered(t *testing.T) {
 // hook, so this asserts the fused path really routes through it rather
 // than reconstructing layers on its own.
 func TestFusedCrosstab_OverlayWarningsPromotedLikeBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	mk := func(row, col uint64, value float64) *Record {
 		return NewRecord(schema, map[string]float64{
@@ -223,6 +227,8 @@ func TestFusedCrosstab_OverlayWarningsPromotedLikeBuffered(t *testing.T) {
 // with no MatrixPayload the shared hook short-circuits, so neither path
 // populates Response.Overlays and the long rows stay equal.
 func TestFusedCrosstab_LongShapeOverlayNoOpsLikeBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 
@@ -270,6 +276,8 @@ func TestFusedCrosstab_LongShapeOverlayNoOpsLikeBuffered(t *testing.T) {
 // PULSE_OVERLAY_COMPONENTS_REQUIRED on the fused path exactly as it
 // does on the buffered path.
 func TestFusedCrosstab_ComponentsDisabledOverlayParity(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 
@@ -319,6 +327,8 @@ func TestFusedCrosstab_ComponentsDisabledOverlayParity(t *testing.T) {
 // under a future non-omitempty tag and would break byte-identity against
 // the pre-E1 baseline — and the fused and buffered wire forms must agree.
 func TestFusedCrosstab_NoOverlaysStillNilOverlays(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 
@@ -362,6 +372,8 @@ func TestFusedCrosstab_NoOverlaysStillNilOverlays(t *testing.T) {
 // TestFusedCrosstab_UnknownOverlayKindErrorsLikeBuffered pins that the
 // fused exit propagates the fold's error rather than swallowing it.
 func TestFusedCrosstab_UnknownOverlayKindErrorsLikeBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 
@@ -534,6 +546,8 @@ func pairwisePropZLayerPresentCells(resp *types.Response) int {
 // Each row asserts the gate FIRST: without that, a parity assertion over
 // two buffered runs would pass vacuously.
 func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabWeightedOverlaySchema(t)
 	recs := crosstabWeightedOverlayRecords(schema)
 
@@ -758,6 +772,8 @@ func TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered(t *testing.T
 // extract-failure and the parity assertion would go green over two
 // empty matrices. Pinning the component key keeps that failure loud.
 func TestFusedCrosstab_WeightedMeanComponentsCarrySumWeights(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabWeightedOverlaySchema(t)
 	recs := crosstabWeightedOverlayRecords(schema)
 
@@ -822,6 +838,8 @@ func TestFusedCrosstab_WeightedMeanComponentsCarrySumWeights(t *testing.T) {
 // recomputed from the response's own CellComponents, so a coordinate or
 // extraction bug cannot hide behind a self-consistent kernel call.
 func TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabWeightedOverlaySchema(t)
 	recs := crosstabWeightedOverlayRecords(schema)
 

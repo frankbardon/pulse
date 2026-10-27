@@ -21,6 +21,8 @@ import (
 // predicting service and its s3; v3 numeric) scores the same way, its
 // mediator a dummy latent, one group and across the waves.
 func TestSEMScore_OrdinalInlineMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	scalar := map[string]any{"group": "wave", "group_equal": []string{"thresholds", "loadings", "intercepts"}}
 	for _, c := range []struct {

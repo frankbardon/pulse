@@ -27,6 +27,8 @@ func zeroSpreadRows() []map[string]float64 {
 // (R stats::dist()), chebyshev and cosine over the complete pairs; the
 // PULSE_MATRIX_ZERO_VARIANCE warning still names the member.
 func TestMatrixDistance_ZeroSpreadMemberDroppedPairwise(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(3)
 	spec := distanceSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "g"}, "metric": "euclidean", "standardize": true}`)
 	spec.Fields = []string{"x1", "x2", "x3"}
@@ -70,6 +72,8 @@ func TestMatrixDistance_ZeroSpreadMemberDroppedPairwise(t *testing.T) {
 // member pairs a distance needs; below it every cell — the diagonal too
 // — is null.
 func TestMatrixDistance_MinValid(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(3)
 	for _, c := range []struct {
 		minValid string
@@ -101,6 +105,8 @@ func TestMatrixDistance_MinValid(t *testing.T) {
 // the metric, the refused pairs, their buckets and the reasons; the
 // other distances are the registry's.
 func TestMatrixDistance_MetricDomain(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	rows, nulls := distanceRows() // bucket 3's centroid is (-1.5, 5)
 	for _, c := range []struct {
@@ -141,6 +147,8 @@ func TestMatrixDistance_MetricDomain(t *testing.T) {
 // pooled-covariance path and its value is the registry's quadratic
 // form over the raw centroids, bit for bit.
 func TestMatrixDistance_MahalanobisIsRegistry(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	rows, nulls := distanceRows()
 	rows = append(rows, map[string]float64{"x1": 2, "x2": 3, "g": 1, "w": 1}, map[string]float64{"x1": 5, "x2": 9, "g": 2, "w": 1})
@@ -184,6 +192,8 @@ func pooledInverseFromValues(t *testing.T, rows [][]float64) *linalg.Sym {
 // centroid off the mean — never ±Inf, which the registry would read as
 // an ordinary value.
 func TestStandardizeCentroid(t *testing.T) {
+	t.Parallel()
+
 	c := []float64{3, 0.30000000000000004, 1, 2}
 	mean := []float64{1, 0.3, 1, 2}
 	sd := []float64{2, 0, math.NaN(), math.Inf(1)}

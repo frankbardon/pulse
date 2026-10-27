@@ -68,6 +68,8 @@ func overlayIntegrationBaseRequest() *types.Request {
 }
 
 func TestProcess_OverlaysSeriesPopulatesResponse(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
 	req := overlayIntegrationBaseRequest()
@@ -123,6 +125,8 @@ func TestProcess_OverlaysSeriesPopulatesResponse(t *testing.T) {
 // whose Data is byte-identical to a no-overlay baseline. The hook
 // must never mutate the host result when req.Overlays is empty.
 func TestProcess_NoOverlaysSeriesPreservesBaseline(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
 
@@ -156,6 +160,8 @@ func TestProcess_NoOverlaysSeriesPreservesBaseline(t *testing.T) {
 }
 
 func TestProcess_OverlayKindUnknown(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
 	req := overlayIntegrationBaseRequest()
@@ -184,6 +190,8 @@ func TestProcess_OverlayKindUnknown(t *testing.T) {
 }
 
 func TestProcess_OverlayMixedModeDowngrades(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayIntegrationSchema(t)
 	req := overlayIntegrationBaseRequest()
 	// Pure streamable: INDEX_VS_TOTAL alone. CanStreamRequest should
@@ -321,6 +329,8 @@ func assertOverlayLayerStatistics(t *testing.T, layer *types.OverlayLayer, want 
 // SeriesPayload values must match (group/grand_total) * 100 within ULP.
 // Sum of indexed statistics is exactly 100 by construction.
 func TestOverlay_IndexVsTotal_Streaming_E2E(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsTotalSpec("idx_total"),
 	}, false /*forceBuffered*/)
@@ -349,6 +359,8 @@ func TestOverlay_IndexVsTotal_Streaming_E2E(t *testing.T) {
 }
 
 func TestOverlay_IndexVsTotal_Buffered_E2E(t *testing.T) {
+	t.Parallel()
+
 	streamResp, streamPath := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsTotalSpec("idx_total"),
 	}, false)
@@ -391,6 +403,8 @@ func TestOverlay_IndexVsTotal_Buffered_E2E(t *testing.T) {
 // SeriesPayload values are raw shares (group/grand_total) so the per-
 // group Σ over a complete partition is 1.0.
 func TestOverlay_ShareOfTotal_Streaming_E2E(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newShareOfTotalSeriesSpec("share_total"),
 	}, false)
@@ -419,6 +433,8 @@ func TestOverlay_ShareOfTotal_Streaming_E2E(t *testing.T) {
 // with AGG_MEDIAN attached. Asserts byte-identity (within ULP) of the
 // SeriesPayload output across modes.
 func TestOverlay_ShareOfTotal_Buffered_E2E(t *testing.T) {
+	t.Parallel()
+
 	streamResp, _ := runOverlayE2E(t, []types.OverlaySpec{
 		newShareOfTotalSeriesSpec("share_total"),
 	}, false)
@@ -445,6 +461,8 @@ func TestOverlay_ShareOfTotal_Buffered_E2E(t *testing.T) {
 }
 
 func TestOverlay_ZScoreVsTotal_Streaming_E2E(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newZScoreVsTotalSpec("z_total"),
 	}, false)
@@ -486,6 +504,8 @@ func TestOverlay_ZScoreVsTotal_Streaming_E2E(t *testing.T) {
 // streaming path matches the classical two-pass reducer in the
 // buffered path on this benign fixture.
 func TestOverlay_ZScoreVsTotal_Buffered_E2E(t *testing.T) {
+	t.Parallel()
+
 	streamResp, _ := runOverlayE2E(t, []types.OverlaySpec{
 		newZScoreVsTotalSpec("z_total"),
 	}, false)
@@ -519,6 +539,8 @@ func TestOverlay_ZScoreVsTotal_Buffered_E2E(t *testing.T) {
 // the per-group additive delta math and the unknown-sibling warning
 // path (PULSE_OVERLAY_REF_UNKNOWN).
 func TestOverlay_DeltaVsSibling_E2E(t *testing.T) {
+	t.Parallel()
+
 	t.Run("happy_path", func(t *testing.T) {
 		resp, path := runOverlayE2E(t, []types.OverlaySpec{
 			newDeltaVsSiblingSpec("delta_east", "region", "east"),
@@ -576,6 +598,8 @@ func TestOverlay_DeltaVsSibling_E2E(t *testing.T) {
 // statistics). The fixture for the zero path overrides the per-region
 // totals to drive the sibling group to a post-filter sum of zero.
 func TestOverlay_IndexVsSibling_E2E(t *testing.T) {
+	t.Parallel()
+
 	t.Run("happy_path", func(t *testing.T) {
 		resp, path := runOverlayE2E(t, []types.OverlaySpec{
 			newIndexVsSiblingSpec("idx_east", "region", "east"),
@@ -641,6 +665,8 @@ func TestOverlay_IndexVsSibling_E2E(t *testing.T) {
 }
 
 func TestStreamability_OverlaysKnown_ProcessSubset(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		kind            types.OverlayKind
 		wantStreamable  bool
@@ -676,6 +702,8 @@ func TestStreamability_OverlaysKnown_ProcessSubset(t *testing.T) {
 // Spec order: [ZSCORE_VS_TOTAL, INDEX_VS_TOTAL, SHARE_OF_TOTAL]. All
 // three streamable so the test exercises the streaming-grouped exit.
 func TestOverlay_SeriesSpecOrderPreserved_E2E(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{
 		newZScoreVsTotalSpec("z_total"),
 		newIndexVsTotalSpec("idx_total"),
@@ -710,6 +738,8 @@ func TestOverlay_SeriesSpecOrderPreserved_E2E(t *testing.T) {
 }
 
 func TestOverlay_NoOverlaysAdditiveByteIdentity_E2E(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
 
@@ -769,6 +799,8 @@ func TestOverlay_NoOverlaysAdditiveByteIdentity_E2E(t *testing.T) {
 // pipeline so the assertions cover the dispatched path AND the
 // post-finalize Overlays output.
 func TestOverlay_MixedModeForceBuffered_E2E(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsTotalSpec("idx_total_streamable"),
 		newDeltaVsSiblingSpec("delta_buffered", "region", "east"),

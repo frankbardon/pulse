@@ -13,6 +13,8 @@ import (
 )
 
 func TestResolveLookupKeyBytes_NumericMatchesKeyFieldOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "id", Type: encoding.FieldTypeU32}
 
 	got, err := ResolveLookupKeyBytes(field, "3")
@@ -34,6 +36,8 @@ func TestResolveLookupKeyBytes_NumericMatchesKeyFieldOnWireBytes(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_Categorical(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("north") // id 0
 	dict.Add("south") // id 1
@@ -49,6 +53,8 @@ func TestResolveLookupKeyBytes_Categorical(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_CategoricalMiss(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("north")
 	field := &encoding.Field{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict}
@@ -63,6 +69,8 @@ func TestResolveLookupKeyBytes_CategoricalMiss(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_NumericParseError(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "id", Type: encoding.FieldTypeU32}
 
 	_, err := ResolveLookupKeyBytes(field, "not-a-number")
@@ -82,6 +90,8 @@ func TestResolveLookupKeyBytes_NumericParseError(t *testing.T) {
 // "not in either list" branch below and fails the test, forcing an
 // explicit policy decision for the new type.
 func TestIsIndexKeyableFieldType_Matrix(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		ft   encoding.FieldType
 		want bool
@@ -121,6 +131,8 @@ func TestIsIndexKeyableFieldType_Matrix(t *testing.T) {
 // encoding.ParseDate (via the standard library directly) so the test
 // does not just check the resolver against itself.
 func TestResolveLookupKeyBytes_DateMatchesKeyFieldOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "created", Type: encoding.FieldTypeDate}
 
 	got, err := ResolveLookupKeyBytes(field, "2024-01-01")
@@ -145,6 +157,8 @@ func TestResolveLookupKeyBytes_DateMatchesKeyFieldOnWireBytes(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_DateParseError(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "created", Type: encoding.FieldTypeDate}
 
 	_, err := ResolveLookupKeyBytes(field, "not-a-date")
@@ -165,6 +179,8 @@ func TestResolveLookupKeyBytes_DateParseError(t *testing.T) {
 // expectation AND the record-resolved bytes for a Record carrying the
 // same Decimal128 in its wide value map.
 func TestResolveLookupKeyBytes_Decimal128ExactMatchesKeyFieldOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 18, Scale: 2}
 
 	got, err := ResolveLookupKeyBytes(field, "12.34")
@@ -198,6 +214,8 @@ func TestResolveLookupKeyBytes_Decimal128ExactMatchesKeyFieldOnWireBytes(t *test
 // against a scale-2 field must resolve to mantissa 1230, matching what
 // internal/io/import.go's convertValueWide would persist for the same cell.
 func TestResolveLookupKeyBytes_Decimal128RescalesToFieldScale(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 18, Scale: 2}
 
 	got, err := ResolveLookupKeyBytes(field, "12.3")
@@ -212,6 +230,8 @@ func TestResolveLookupKeyBytes_Decimal128RescalesToFieldScale(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_Decimal128PrecisionOverflow(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 2, Scale: 0}
 
 	_, err := ResolveLookupKeyBytes(field, "999")
@@ -224,6 +244,8 @@ func TestResolveLookupKeyBytes_Decimal128PrecisionOverflow(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_Decimal128ParseError(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 18, Scale: 2}
 
 	_, err := ResolveLookupKeyBytes(field, "not-a-decimal")
@@ -239,6 +261,8 @@ func TestResolveLookupKeyBytes_Decimal128ParseError(t *testing.T) {
 // packed_bool keys resolve exactly and that the record-side and
 // literal-side bytes agree, for both the true and false states.
 func TestResolveLookupKeyBytes_PackedBoolMatchesKeyFieldOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "active", Type: encoding.FieldTypePackedBool}
 	schema := &encoding.Schema{Fields: []encoding.Field{*field}}
 
@@ -279,6 +303,8 @@ func TestResolveLookupKeyBytes_PackedBoolMatchesKeyFieldOnWireBytes(t *testing.T
 // other bit-packed keyable type: u4's decoded range 0-15 fits in the
 // same synthetic 1-byte slot packed_bool uses.
 func TestResolveLookupKeyBytes_U4MatchesKeyFieldOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "tier", Type: encoding.FieldTypeU4}
 	schema := &encoding.Schema{Fields: []encoding.Field{*field}}
 
@@ -306,6 +332,8 @@ func TestResolveLookupKeyBytes_U4MatchesKeyFieldOnWireBytes(t *testing.T) {
 // rationale rather than a generic "not supported" string, so the
 // caller understands WHY (not just that) a set_* key is disallowed.
 func TestResolveLookupKeyBytes_SetRejectedWithClearMessage(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("VISA")
 	dict.Add("MC")
@@ -331,6 +359,8 @@ func TestResolveLookupKeyBytes_SetRejectedWithClearMessage(t *testing.T) {
 // rejects set_* fields too (KeyFieldOnWireBytes short-circuits via
 // IsIndexKeyableFieldType before ever touching the record).
 func TestKeyFieldOnWireBytes_SetRejected(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("VISA")
 	field := &encoding.Field{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: dict}
@@ -344,6 +374,8 @@ func TestKeyFieldOnWireBytes_SetRejected(t *testing.T) {
 }
 
 func TestResolveLookupKeyBytes_NilField(t *testing.T) {
+	t.Parallel()
+
 	_, err := ResolveLookupKeyBytes(nil, "1")
 	if err == nil {
 		t.Fatal("expected error for a nil field")
@@ -363,6 +395,8 @@ func compositeTestFields() (*encoding.Field, *encoding.Field) {
 }
 
 func TestCompositeKeyFieldOnWireBytes_TwoColumn_ConcatenatesInOrder(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
 	rec := NewRecord(schema, map[string]float64{"region": 1, "period": 2022})
@@ -380,6 +414,8 @@ func TestCompositeKeyFieldOnWireBytes_TwoColumn_ConcatenatesInOrder(t *testing.T
 }
 
 func TestCompositeKeyFieldOnWireBytes_OrderSignificant(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
 	rec := NewRecord(schema, map[string]float64{"region": 1, "period": 2022})
@@ -401,6 +437,8 @@ func TestCompositeKeyFieldOnWireBytes_OrderSignificant(t *testing.T) {
 }
 
 func TestCompositeKeyFieldOnWireBytes_AnyNullComponentSkipsRow(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 	region.Nullable = true
 	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
@@ -413,6 +451,8 @@ func TestCompositeKeyFieldOnWireBytes_AnyNullComponentSkipsRow(t *testing.T) {
 }
 
 func TestCompositeKeyFieldOnWireBytes_EmptyFieldsNotOK(t *testing.T) {
+	t.Parallel()
+
 	_, ok := CompositeKeyFieldOnWireBytes(&Record{}, nil)
 	if ok {
 		t.Fatal("expected not-ok for an empty fields slice")
@@ -420,6 +460,8 @@ func TestCompositeKeyFieldOnWireBytes_EmptyFieldsNotOK(t *testing.T) {
 }
 
 func TestCompositeKeyFieldOnWireBytes_SingleColumnMatchesKeyFieldOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "id", Type: encoding.FieldTypeU32}
 	schema := &encoding.Schema{Fields: []encoding.Field{*field}}
 	rec := NewRecord(schema, map[string]float64{"id": 3})
@@ -438,6 +480,8 @@ func TestCompositeKeyFieldOnWireBytes_SingleColumnMatchesKeyFieldOnWireBytes(t *
 }
 
 func TestResolveCompositeLookupKeyBytes_MatchesRecordResolvedBytes(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 	schema := &encoding.Schema{Fields: []encoding.Field{*region, *period}}
 	rec := NewRecord(schema, map[string]float64{"region": 1, "period": 2022})
@@ -458,6 +502,8 @@ func TestResolveCompositeLookupKeyBytes_MatchesRecordResolvedBytes(t *testing.T)
 }
 
 func TestResolveCompositeLookupKeyBytes_OrderSignificant(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 
 	ab, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"south", "2022"})
@@ -474,6 +520,8 @@ func TestResolveCompositeLookupKeyBytes_OrderSignificant(t *testing.T) {
 }
 
 func TestResolveCompositeLookupKeyBytes_ArityMismatch(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 
 	_, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"south"})
@@ -486,6 +534,8 @@ func TestResolveCompositeLookupKeyBytes_ArityMismatch(t *testing.T) {
 }
 
 func TestResolveCompositeLookupKeyBytes_PropagatesPerFieldError(t *testing.T) {
+	t.Parallel()
+
 	region, period := compositeTestFields()
 
 	_, err := ResolveCompositeLookupKeyBytes([]*encoding.Field{region, period}, []string{"nowhere", "2022"})
@@ -504,6 +554,8 @@ func TestResolveCompositeLookupKeyBytes_PropagatesPerFieldError(t *testing.T) {
 // ones the float path always produced, so an existing index over such
 // keys is byte-identical.
 func TestIndexKeyU64_ExactAboveTwoTo53(t *testing.T) {
+	t.Parallel()
+
 	field := &encoding.Field{Name: "k", Type: encoding.FieldTypeU64}
 	schema := &encoding.Schema{Fields: []encoding.Field{*field}}
 	const lo = uint64(1) << 53

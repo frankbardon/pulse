@@ -132,6 +132,8 @@ func mkCategorical(field string, values []string, nulls []bool) []Record {
 }
 
 func TestStreamingParity_Log(t *testing.T) {
+	t.Parallel()
+
 	records := mkNumeric("x", []float64{0, math.E - 1, 99, -2, 0}, []bool{false, false, false, false, true})
 	feat := &types.Feature{Type: types.FEAT_LOG, Field: "x"}
 
@@ -150,6 +152,8 @@ func TestStreamingParity_Log(t *testing.T) {
 }
 
 func TestStreamingParity_Sqrt(t *testing.T) {
+	t.Parallel()
+
 	records := mkNumeric("x", []float64{0, 4, 9, -1, 0}, []bool{false, false, false, false, true})
 	feat := &types.Feature{Type: types.FEAT_SQRT, Field: "x"}
 
@@ -164,6 +168,8 @@ func TestStreamingParity_Sqrt(t *testing.T) {
 }
 
 func TestStreamingParity_BucketizeExplicit(t *testing.T) {
+	t.Parallel()
+
 	records := mkNumeric("x", []float64{1, 11, 25, 0, 100}, []bool{false, false, false, true, false})
 	feat := &types.Feature{
 		Type:   types.FEAT_BUCKETIZE,
@@ -181,6 +187,8 @@ func TestStreamingParity_BucketizeExplicit(t *testing.T) {
 }
 
 func TestStreamingParity_BucketizeQuantile(t *testing.T) {
+	t.Parallel()
+
 	records := mkNumeric("x",
 		[]float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0},
 		[]bool{false, false, false, false, false, false, false, false, false, false, true},
@@ -201,6 +209,8 @@ func TestStreamingParity_BucketizeQuantile(t *testing.T) {
 }
 
 func TestStreamingParity_OneHot(t *testing.T) {
+	t.Parallel()
+
 	schema := makeCategoricalSchema(t, "region", "north", "south", "east")
 	records := []Record{
 		newStringRecord("region", "north"),
@@ -226,6 +236,8 @@ func TestStreamingParity_OneHot(t *testing.T) {
 }
 
 func TestStreamingParity_DateFeatures(t *testing.T) {
+	t.Parallel()
+
 	// Days since Unix epoch — the encoding.FieldTypeDate convention.
 	records := mkNumeric("d", []float64{0, 365, 18262, 0}, []bool{false, false, false, true})
 	feat := &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "d"}
@@ -244,6 +256,8 @@ func TestStreamingParity_DateFeatures(t *testing.T) {
 }
 
 func TestStreamingParity_FrequencyEncode(t *testing.T) {
+	t.Parallel()
+
 	records := mkCategorical("region",
 		[]string{"north", "north", "north", "south", ""},
 		[]bool{false, false, false, false, true},
@@ -261,6 +275,8 @@ func TestStreamingParity_FrequencyEncode(t *testing.T) {
 }
 
 func TestStreamingParity_TargetEncode(t *testing.T) {
+	t.Parallel()
+
 	mk := func(region string, target float64, regionNull, targetNull bool) Record {
 		r := newFakeRecord()
 		if regionNull {
@@ -303,6 +319,8 @@ func TestStreamingParity_TargetEncode(t *testing.T) {
 }
 
 func TestStreamingParity_TrainTestSplit(t *testing.T) {
+	t.Parallel()
+
 	records := make([]Record, 100)
 	for i := range records {
 		records[i] = newFakeRecord()
@@ -325,6 +343,8 @@ func TestStreamingParity_TrainTestSplit(t *testing.T) {
 }
 
 func TestStreamingParity_TrainTestSplit_Stratified(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "label", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 	}}
@@ -356,12 +376,16 @@ func TestStreamingParity_TrainTestSplit_Stratified(t *testing.T) {
 }
 
 func TestIsStreamable_UnknownType(t *testing.T) {
+	t.Parallel()
+
 	if IsStreamable([]*types.Feature{{Type: "FEAT_UNREGISTERED_TEST"}}, nil) {
 		t.Error("unknown feature type should not be streamable")
 	}
 }
 
 func TestIsStreamable_FactoryError(t *testing.T) {
+	t.Parallel()
+
 	// FEAT_LOG without a Field is a PROCESSING_CONFIG error from its
 	// factory; IsStreamable must surface that as not-streamable so the
 	// buffered path can re-run and produce the canonical error.
@@ -371,6 +395,8 @@ func TestIsStreamable_FactoryError(t *testing.T) {
 }
 
 func TestIsStreamable_AllRegisteredOperators(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, Description: "numeric for log/sqrt/bucketize"},
 		{Name: "d", Type: encoding.FieldTypeDate, Description: "date for date_features"},

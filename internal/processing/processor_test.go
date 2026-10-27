@@ -17,6 +17,8 @@ import (
 // selection in a Bayesian setting is a posterior-based question that
 // the conjugate-NIG engine doesn't support.
 func TestProcessor_RegressionBayesModifierRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
 
@@ -51,6 +53,8 @@ func TestProcessor_RegressionBayesModifierRejected(t *testing.T) {
 }
 
 func TestProcessor_SimpleRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -95,6 +99,8 @@ func TestProcessor_SimpleRequest(t *testing.T) {
 }
 
 func TestProcessor_MultipleAggregations(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -130,6 +136,8 @@ func TestProcessor_MultipleAggregations(t *testing.T) {
 }
 
 func TestProcessor_WithFilter(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -160,6 +168,8 @@ func TestProcessor_WithFilter(t *testing.T) {
 }
 
 func TestProcessor_WithGroup(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeU8},
@@ -215,6 +225,8 @@ func TestProcessor_WithGroup(t *testing.T) {
 }
 
 func TestProcessor_WithAttribute(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -249,6 +261,8 @@ func TestProcessor_WithAttribute(t *testing.T) {
 }
 
 func TestProcessor_ComposedRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 

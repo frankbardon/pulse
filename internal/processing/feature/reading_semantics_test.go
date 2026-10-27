@@ -18,6 +18,8 @@ import (
 // FEAT_LOG is ln(1 + x): 0 -> 0, values in (-1, 0) go negative, and
 // x <= -1 reads null, not an error.
 func TestReading_LogIsLog1pAndNullsAtMinusOne(t *testing.T) {
+	t.Parallel()
+
 	recs := makeRecords([]float64{0, -0.5, -1, -3, 9}, nil, "x")
 	if err := Apply(recs, []*types.Feature{{Type: types.FEAT_LOG, Field: "x", Label: "l"}}, nil); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -42,6 +44,8 @@ func TestReading_LogIsLog1pAndNullsAtMinusOne(t *testing.T) {
 // FEAT_SQRT nulls a negative input and maps 0 to 0; between 0 and 1 the
 // root is larger than the value.
 func TestReading_SqrtNegativeNullFractionGrows(t *testing.T) {
+	t.Parallel()
+
 	recs := makeRecords([]float64{-4, 0, 0.25}, nil, "x")
 	if err := Apply(recs, []*types.Feature{{Type: types.FEAT_SQRT, Field: "x", Label: "s"}}, nil); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -60,6 +64,8 @@ func TestReading_SqrtNegativeNullFractionGrows(t *testing.T) {
 // FEAT_POLY emits only <prefix>_2 .. <prefix>_<degree> (no power-1
 // column), with the default prefix <field>_poly; even powers lose the sign.
 func TestReading_PolyColumnsAndSign(t *testing.T) {
+	t.Parallel()
+
 	recs := makeRecords([]float64{-3}, nil, "x")
 	feat := &types.Feature{Type: types.FEAT_POLY, Field: "x", Params: json.RawMessage(`{"degree":3}`)}
 	if err := Apply(recs, []*types.Feature{feat}, nil); err != nil {
@@ -77,6 +83,8 @@ func TestReading_PolyColumnsAndSign(t *testing.T) {
 // FEAT_FREQUENCY_ENCODE divides by the records WITH a category: a null
 // row is out of the denominator and reads null.
 func TestReading_FrequencyDenominatorExcludesNulls(t *testing.T) {
+	t.Parallel()
+
 	recs := mkCategorical("c", []string{"a", "a", "b", ""}, []bool{false, false, false, true})
 	if err := Apply(recs, []*types.Feature{{Type: types.FEAT_FREQUENCY_ENCODE, Field: "c", Label: "f"}}, nil); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -96,6 +104,8 @@ func TestReading_FrequencyDenominatorExcludesNulls(t *testing.T) {
 // warns about; ordering the split first changes no value, so predict
 // warns on every FEAT_TARGET_ENCODE whether or not a split precedes it.
 func TestReading_TargetEncodeIgnoresSplitAndIncludesOwnRow(t *testing.T) {
+	t.Parallel()
+
 	var recs []Record
 	targets := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	for i, tv := range targets {
@@ -157,6 +167,8 @@ func TestReading_TargetEncodeIgnoresSplitAndIncludesOwnRow(t *testing.T) {
 // FEAT_TRAIN_TEST_SPLIT: shares are round(n * ratio), and the same seed
 // on the same rows reproduces the labels.
 func TestReading_SplitSharesAndDeterminism(t *testing.T) {
+	t.Parallel()
+
 	run := func() []float64 {
 		recs := makeRecords(make([]float64, 10), nil, "x")
 		feat := &types.Feature{Type: types.FEAT_TRAIN_TEST_SPLIT, Params: json.RawMessage(`{"ratios":[0.7,0.2,0.1],"seed":3}`)}

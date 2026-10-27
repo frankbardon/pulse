@@ -14,6 +14,8 @@ import (
 // compareAny knew only float64 / int / string) and every decimal
 // aggregate compared equal.
 func TestCompareRows_SharedComparator(t *testing.T) {
+	t.Parallel()
+
 	dec := func(m int64) decimalAggResult {
 		return decimalAggResult{Value: encoding.NewDecimal128FromInt(m), Scale: 2}
 	}

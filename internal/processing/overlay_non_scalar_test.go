@@ -22,6 +22,8 @@ import (
 // writes one number. A new RichAggregator lift fails here until the
 // class names it.
 func TestNonScalarAggregationTypes_MatchRowValues(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allAggParityFixtures(t)
 	nonScalar := vectors.NonScalarAggregationTypes()
 	for _, op := range types.AllAggregationTypes() {
@@ -55,6 +57,8 @@ func TestNonScalarAggregationTypes_MatchRowValues(t *testing.T) {
 // keys on the group column alone — the payload column once rendered as
 // "u=\x01unknown" inside the divergence Details.
 func TestKeySetDivergence_DetailsCarryGroupColumnsOnly(t *testing.T) {
+	t.Parallel()
+
 	row := func(region string, u any, s float64) map[string]any {
 		return map[string]any{"region": region, "u": u, "s": s}
 	}
@@ -91,6 +95,8 @@ func TestKeySetDivergence_DetailsCarryGroupColumnsOnly(t *testing.T) {
 // back empty. Without components (disabled) the struct stays and the
 // layer is empty, as before.
 func TestTwoSampleVsRef_ScoredWelfordReadsComponents(t *testing.T) {
+	t.Parallel()
+
 	type bucket struct {
 		mean, variance, m2 float64
 		n                  int

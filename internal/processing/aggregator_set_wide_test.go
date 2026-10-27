@@ -170,6 +170,8 @@ func aggSetComponentsOf(t *testing.T, agg Aggregator) map[string]any {
 // old uint64 accumulator the three upper words were unreachable: the
 // union collapsed to the two bits below 64 and reported popcount 2.
 func TestSetAggWide_Union_FoldAcrossAllFourWords(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	recs := []*Record{
 		aggWideRecord(schema, aggMask(0, 63)),
@@ -232,6 +234,8 @@ func TestSetAggWide_Union_FoldAcrossAllFourWords(t *testing.T) {
 // at 256 bits. The shared bits are deliberately placed one per word so a
 // word-index bug drops exactly one of them.
 func TestSetAggWide_Intersection_FoldAcrossAllFourWords(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	shared := []int{7, 70, 140, 205}
 	recs := []*Record{
@@ -290,6 +294,8 @@ func TestSetAggWide_Intersection_FoldAcrossAllFourWords(t *testing.T) {
 // above bit 64. Row r selects member i when i%4 >= r, so member i is
 // counted (i%4)+1 times.
 func TestSetAggWide_Frequency_206Members(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	const rows = 4
 	recs := make([]*Record, 0, rows+1)
@@ -374,6 +380,8 @@ func TestSetAggWide_Frequency_206Members(t *testing.T) {
 // members. bits.OnesCount64 over a narrowed low word would have capped
 // each row's contribution at 64.
 func TestSetAggWide_CardinalityOver64(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	rowA := aggMask(aggSeqBits(0, 100)...)   // popcount 100
 	rowB := aggMask(aggSeqBits(100, 106)...) // popcount 106, all at or above bit 100
@@ -444,6 +452,8 @@ func TestSetAggWide_CardinalityOver64(t *testing.T) {
 // collapsed all three into one bucket and reported 1 distinct
 // combination; the correct answer is 3.
 func TestSetAggWide_DistinctValues_DiffersOnlyAboveBit63(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	recs := []*Record{
 		aggWideRecord(schema, aggMask(1, 2, 64)),
@@ -492,6 +502,8 @@ func TestSetAggWide_DistinctValues_DiffersOnlyAboveBit63(t *testing.T) {
 // isolation. An EMPTY MASK IS PRESENT — a respondent who selected
 // nothing still answered — so only the bitmap-null rows land in n_null.
 func TestSetAggWide_UniversalFloor(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	recs := []*Record{
 		aggWideRecord(schema, aggMask(0, 205)),
@@ -542,6 +554,8 @@ func TestSetAggWide_UniversalFloor(t *testing.T) {
 // AGG_COUNT read 0 for an entire multi-select column while it asked its
 // question through the numeric accessor.
 func TestSetAggWide_CountAndNullCountScalars(t *testing.T) {
+	t.Parallel()
+
 	schema := aggWideSchema(t)
 	recs := []*Record{
 		aggWideRecord(schema, aggMask(0, 205)),
@@ -584,6 +598,8 @@ func TestSetAggWide_CountAndNullCountScalars(t *testing.T) {
 // it is a plausible wrong number rather than an error. Presence rides
 // FieldPresent instead.
 func TestRecordNumericValue_RefusesSetFields(t *testing.T) {
+	t.Parallel()
+
 	wideSchema := aggWideSchema(t)
 	narrowSchema := makeSetTestSchema(t)
 

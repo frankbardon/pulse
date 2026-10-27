@@ -40,6 +40,8 @@ func ksVsPopSpec() *types.OverlaySpec {
 //
 // KS distance = 1.0 (maximum possible separation).
 func TestApplyKSVsPop_HistogramPathKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	// Host: left-half histogram.
 	hostHist := &types.FacetHistogram{
 		Min:  0,
@@ -143,6 +145,8 @@ func TestApplyKSVsPop_HistogramPathKnownAnswer(t *testing.T) {
 // anchors. The KS distance D is the maximum |F_subset(x) - F_pop(x)| over
 // the union of anchor x-values.
 func TestApplyKSVsPop_PercentileFallback(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count:  100,
 		Min:    0,
@@ -201,6 +205,8 @@ func TestApplyKSVsPop_PercentileFallback(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO warning whose Details document which knobs were
 // missing.
 func TestApplyKSVsPop_WelfordOnlyDegenerate(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count:  100,
 		Min:    0,
@@ -265,6 +271,8 @@ func TestApplyKSVsPop_WelfordOnlyDegenerate(t *testing.T) {
 }
 
 func TestApplyKSVsPop_CategoricalHostRejected(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 50},
@@ -301,6 +309,8 @@ func TestApplyKSVsPop_CategoricalHostRejected(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO warning whose Details name the empty_arm
 // reason.
 func TestApplyKSVsPop_EmptyHostDegenerate(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count: 0,
 	}, 0, 0, 0)
@@ -336,6 +346,8 @@ func TestApplyKSVsPop_EmptyHostDegenerate(t *testing.T) {
 // degenerate path: a population with zero numeric count. Same NaN +
 // PULSE_OVERLAY_REF_ZERO shape as the empty-host arm.
 func TestApplyKSVsPop_EmptyPopulation(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count: 100, Mean: 20, StdDev: 10, Min: 0, Max: 50,
 	}, 100, 100, 0)
@@ -368,6 +380,8 @@ func TestApplyKSVsPop_EmptyPopulation(t *testing.T) {
 // rejection of nil host / population view (mirrors INDEX_VS_POP /
 // ZSCORE_VS_POP / CHISQ_VS_POP).
 func TestApplyKSVsPop_NilHost(t *testing.T) {
+	t.Parallel()
+
 	pop := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count: 100, Mean: 25, StdDev: 10, Min: 0, Max: 50,
 	}, 100, 100, 0)
@@ -385,6 +399,8 @@ func TestApplyKSVsPop_NilHost(t *testing.T) {
 }
 
 func TestApplyKSVsPop_NilPopulation(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count: 100, Mean: 20, StdDev: 10, Min: 0, Max: 50,
 	}, 100, 100, 0)
@@ -402,6 +418,8 @@ func TestApplyKSVsPop_NilPopulation(t *testing.T) {
 // Mirrors TestApplyOverlaysFacet_DispatchesChiSqVsPop /
 // TestApplyOverlaysFacet_DispatchesZScoreVsPop.
 func TestApplyOverlaysFacet_DispatchesKSVsPop(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count: 100, Mean: 20, StdDev: 10, Min: 0, Max: 50,
 		Histogram: &types.FacetHistogram{
@@ -442,6 +460,8 @@ func TestApplyOverlaysFacet_DispatchesKSVsPop(t *testing.T) {
 // the public OverlayStreamable surface so a future regression that flips
 // the row trips this test.
 func TestOverlayKSVsPop_StreamabilityIsBuffered(t *testing.T) {
+	t.Parallel()
+
 	streamable, known := types.OverlayStreamable(types.OverlayKindKSVsPop)
 	if !known {
 		t.Fatal("OverlayKindKSVsPop missing from OverlayStreamability table")
@@ -458,6 +478,8 @@ func TestOverlayKSVsPop_StreamabilityIsBuffered(t *testing.T) {
 // state. Documents the invariant explicitly so a future refactor that
 // introduces a side channel (e.g. a per-record re-scan) trips the test.
 func TestApplyKSVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultNumeric("price", &types.FacetNumeric{
 		Count: 100, Mean: 20, StdDev: 10, Min: 0, Max: 50,
 		Histogram: &types.FacetHistogram{

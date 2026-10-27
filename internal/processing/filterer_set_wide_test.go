@@ -44,6 +44,8 @@ func buildSetFilterFn(t *testing.T, b FiltererBuilder, typ types.FiltererType, s
 }
 
 func TestFilterSetWide_ContainsAny_WordBoundaries(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	for _, bit := range setOpBoundaryBits {
 		fn := buildSetFilterFn(t, newSetContainsAnyFilterer(), types.FILTER_SET_CONTAINS_ANY,
@@ -84,6 +86,8 @@ func TestFilterSetWide_ContainsAny_WordBoundaries(t *testing.T) {
 }
 
 func TestFilterSetWide_ContainsAny_EmptyQueryMatchesNothing(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	fn := buildSetFilterFn(t, newSetContainsAnyFilterer(), types.FILTER_SET_CONTAINS_ANY, schema, nil)
 	for _, bit := range setOpBoundaryBits {
@@ -94,6 +98,8 @@ func TestFilterSetWide_ContainsAny_EmptyQueryMatchesNothing(t *testing.T) {
 }
 
 func TestFilterSetWide_ContainsAll_206Members(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	const members = 206
 	values := make([]string, 0, members)
@@ -143,6 +149,8 @@ func TestFilterSetWide_ContainsAll_206Members(t *testing.T) {
 }
 
 func TestFilterSetWide_ContainsNone_WordBoundaries(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	for _, bit := range setOpBoundaryBits {
 		fn := buildSetFilterFn(t, newSetContainsNoneFilterer(), types.FILTER_SET_CONTAINS_NONE,
@@ -173,6 +181,8 @@ func TestFilterSetWide_ContainsNone_WordBoundaries(t *testing.T) {
 // operator collapses: an empty mask (respondent picked nothing), a null
 // (no answer at all) and a single-member mask above bit 63.
 func TestFilterSetWide_Equals_EmptyNullSingleMember(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		ft      encoding.FieldType
@@ -231,6 +241,8 @@ func TestFilterSetWide_Equals_EmptyNullSingleMember(t *testing.T) {
 // The construction-time guard used to reject any dictionary ID at or
 // above 64, which made a perfectly valid wide-rung label unusable.
 func TestFilterSetWide_BuildAcceptsLabelAboveBit63(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		ft      encoding.FieldType
 		entries int
@@ -261,6 +273,8 @@ func TestFilterSetWide_BuildAcceptsLabelAboveBit63(t *testing.T) {
 // bit the declared field type cannot store is still a config error,
 // because such a row can never match and the request is meaningless.
 func TestFilterSetWide_BuildRejectsLabelBeyondRungCapacity(t *testing.T) {
+	t.Parallel()
+
 	// A set_u8 field whose dictionary has outgrown its rung.
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU8, 16)
 	_, err := newSetContainsAnyFilterer().Build(&types.Filterer{
@@ -286,6 +300,8 @@ func TestFilterSetWide_BuildRejectsLabelBeyondRungCapacity(t *testing.T) {
 // the predicate, and must land in n_in minus n_out, never in
 // n_null_input.
 func TestFilterSetWide_ComponentsFloor_EmptyMaskIsNotNull(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	filter := &types.Filterer{
 		Type:   types.FILTER_SET_CONTAINS_ANY,
@@ -332,6 +348,8 @@ func TestFilterSetWide_ComponentsFloor_EmptyMaskIsNotNull(t *testing.T) {
 // types only, so the mismatch is refused at build time rather than
 // answered wrongly at run time.
 func TestFilterRange_RejectsSetField(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU64,
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,

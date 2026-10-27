@@ -27,6 +27,8 @@ func u64Schema(name string, ft encoding.FieldType) *encoding.Schema {
 }
 
 func TestLoadMemberSet_Categorical_Bitset(t *testing.T) {
+	t.Parallel()
+
 	schema := memberSetCategoricalSchema(t, "color", encoding.FieldTypeCategoricalU8, "red", "green", "blue")
 	r := strings.NewReader("red\nblue\nred\n")
 	res, err := LoadMemberSetFromReader(r, schema, "color")
@@ -55,6 +57,8 @@ func TestLoadMemberSet_Categorical_Bitset(t *testing.T) {
 }
 
 func TestLoadMemberSet_CategoricalDrops_NotInDictionary(t *testing.T) {
+	t.Parallel()
+
 	schema := memberSetCategoricalSchema(t, "color", encoding.FieldTypeCategoricalU8, "red", "green")
 	r := strings.NewReader("red\norange\nyellow\n")
 	res, err := LoadMemberSetFromReader(r, schema, "color")
@@ -70,6 +74,8 @@ func TestLoadMemberSet_CategoricalDrops_NotInDictionary(t *testing.T) {
 }
 
 func TestLoadMemberSet_Integer_Uint64(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU64)
 	r := strings.NewReader("1\n2\n2\n42\n9999999999\n")
 	res, err := LoadMemberSetFromReader(r, schema, "id")
@@ -94,6 +100,8 @@ func TestLoadMemberSet_Integer_Uint64(t *testing.T) {
 }
 
 func TestLoadMemberSet_IntegerInvalid(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU32)
 	r := strings.NewReader("1\nabc\n2\n-3\n4\n")
 	res, err := LoadMemberSetFromReader(r, schema, "id")
@@ -109,6 +117,8 @@ func TestLoadMemberSet_IntegerInvalid(t *testing.T) {
 }
 
 func TestLoadMemberSet_FloatRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("x", encoding.FieldTypeF64)
 	_, err := LoadMemberSetFromReader(strings.NewReader("1.0\n"), schema, "x")
 	if err == nil {
@@ -124,6 +134,8 @@ func TestLoadMemberSet_FloatRejected(t *testing.T) {
 }
 
 func TestLoadMemberSet_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU32)
 	_, err := LoadMemberSetFromReader(strings.NewReader("1\n"), schema, "nope")
 	if err == nil {
@@ -135,6 +147,8 @@ func TestLoadMemberSet_UnknownField(t *testing.T) {
 }
 
 func TestLoadMemberSet_BlanksBOM_CRLF(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU64)
 	r := strings.NewReader("\xEF\xBB\xBF1\r\n\r\n2\n\n   3   \n")
 	res, err := LoadMemberSetFromReader(r, schema, "id")
@@ -156,6 +170,8 @@ func TestLoadMemberSet_BlanksBOM_CRLF(t *testing.T) {
 }
 
 func TestLoadMemberSet_DecimalIsStringSet(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amt", Type: encoding.FieldTypeDecimal128, Precision: 18, Scale: 2},
 	}}
@@ -173,6 +189,8 @@ func TestLoadMemberSet_DecimalIsStringSet(t *testing.T) {
 }
 
 func TestLoadMemberSet_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU32)
 	res, err := LoadMemberSetFromReader(strings.NewReader(""), schema, "id")
 	if err != nil {
@@ -187,6 +205,8 @@ func TestLoadMemberSet_EmptyFile(t *testing.T) {
 }
 
 func TestBuildMemberSetPredicate_Bitset_Categorical(t *testing.T) {
+	t.Parallel()
+
 	schema := memberSetCategoricalSchema(t, "color", encoding.FieldTypeCategoricalU8, "red", "green", "blue")
 	bs := newBitsetSet(3)
 	bs.Add(0) // red
@@ -220,6 +240,8 @@ func TestBuildMemberSetPredicate_Bitset_Categorical(t *testing.T) {
 }
 
 func TestBuildMemberSetPredicate_Bitset_NonCategoricalRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU32)
 	bs := newBitsetSet(4)
 	_, err := BuildMemberSetPredicate(bs, schema, "id")
@@ -229,6 +251,8 @@ func TestBuildMemberSetPredicate_Bitset_NonCategoricalRejected(t *testing.T) {
 }
 
 func TestBuildMemberSetPredicate_Uint64Set(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU32)
 	us := newUint64Set(4)
 	us.Add(1)
@@ -251,6 +275,8 @@ func TestBuildMemberSetPredicate_Uint64Set(t *testing.T) {
 }
 
 func TestBuildMemberSetPredicate_StringSet_Categorical(t *testing.T) {
+	t.Parallel()
+
 	schema := memberSetCategoricalSchema(t, "color", encoding.FieldTypeCategoricalU8, "red", "green", "blue")
 	ss := newStringSet(2)
 	ss.Add("green")
@@ -273,6 +299,8 @@ func TestBuildMemberSetPredicate_StringSet_Categorical(t *testing.T) {
 }
 
 func TestBuildMemberSetPredicate_FloatRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("x", encoding.FieldTypeF64)
 	_, err := BuildMemberSetPredicate(newUint64Set(0), schema, "x")
 	if err == nil {
@@ -281,6 +309,8 @@ func TestBuildMemberSetPredicate_FloatRejected(t *testing.T) {
 }
 
 func TestBuildMemberSetPredicate_NullValueDrops(t *testing.T) {
+	t.Parallel()
+
 	schema := u64Schema("id", encoding.FieldTypeU32)
 	us := newUint64Set(2)
 	us.Add(1)
@@ -296,6 +326,8 @@ func TestBuildMemberSetPredicate_NullValueDrops(t *testing.T) {
 }
 
 func TestBitsetSet_ContainsOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	bs := newBitsetSet(8)
 	if bs.Contains(99) {
 		t.Error("out-of-range id should return false without panic")
@@ -309,8 +341,12 @@ var _ = math.Pi
 // signed temporal words: a negative epoch-day (date) or epoch-second
 // (datetime) member loads, and a decoded negative value matches it.
 func TestMemberSet_PreEpochTemporal(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{encoding.FieldTypeDate, encoding.FieldTypeDateTime} {
 		t.Run(ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			schema := u64Schema("d", ft)
 			res, err := LoadMemberSetFromReader(strings.NewReader("-25567\n-1\n19782\n"), schema, "d")
 			if err != nil {

@@ -35,6 +35,8 @@ func pairwisePropHost() *CrosstabHostView {
 }
 
 func TestOverlayPairwise_PropZ_RowScope(t *testing.T) {
+	t.Parallel()
+
 	host := pairwisePropHost()
 	specs := []types.OverlaySpec{{
 		Name:  "pz",
@@ -74,6 +76,8 @@ func TestOverlayPairwise_PropZ_RowScope(t *testing.T) {
 }
 
 func TestOverlayPairwise_ColumnScope(t *testing.T) {
+	t.Parallel()
+
 	host := pairwisePropHost()
 	specs := []types.OverlaySpec{{
 		Kind:  types.OverlayKindPairwisePropZ,
@@ -94,6 +98,8 @@ func TestOverlayPairwise_ColumnScope(t *testing.T) {
 }
 
 func TestOverlayPairwise_PairAlongDim(t *testing.T) {
+	t.Parallel()
+
 	// Two-dim column axis: (wave, aud). pair_along_dim=1 pairs auds within
 	// each wave bucket only — never across waves.
 	mx := &types.MatrixPayload{
@@ -134,6 +140,8 @@ func TestOverlayPairwise_PairAlongDim(t *testing.T) {
 }
 
 func TestOverlayPairwise_WelchT_Welford(t *testing.T) {
+	t.Parallel()
+
 	mx := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"brand"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"aud"}, Types: []string{"GROUP_CATEGORY"}},
@@ -167,6 +175,8 @@ func TestOverlayPairwise_WelchT_Welford(t *testing.T) {
 }
 
 func TestOverlayPairwise_ComponentsRequired(t *testing.T) {
+	t.Parallel()
+
 	mx := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"brand"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"aud"}, Types: []string{"GROUP_CATEGORY"}},
@@ -187,6 +197,8 @@ func TestOverlayPairwise_ComponentsRequired(t *testing.T) {
 }
 
 func TestOverlayPairwise_NonWelfordShapeMismatch(t *testing.T) {
+	t.Parallel()
+
 	// Welch kind against a host with only "n" (no mean/variance) — must
 	// fail the Welford-shape gate.
 	host := pairwisePropHost()
@@ -201,6 +213,8 @@ func TestOverlayPairwise_NonWelfordShapeMismatch(t *testing.T) {
 }
 
 func TestStandardNormalPPF_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, p := range []float64{0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975, 0.99} {
 		z := standardNormalPPF(p)
 		back := standardNormalCDF(z)
@@ -241,6 +255,8 @@ func pairwiseErrHasCode(err error, code errors.Code) bool {
 // absent. An AGG_WELFORD cell (already sample) and an untyped host are
 // read as is.
 func TestOverlayPairwise_WelchT_PopulationVarianceCell(t *testing.T) {
+	t.Parallel()
+
 	// A = {1, 2, 4}: mean 7/3, m2 42/9. B = {3, 5, 6, 10}: mean 6, m2 26.
 	// C = {8}: n 1.
 	mA, m2A, mB, m2B := 7.0/3, 42.0/9, 6.0, 26.0

@@ -13,6 +13,8 @@ import (
 // scalar+Params fallback path. Cell (0,0): target_mean=10, ref_mean=9,
 // var=1, n=2 ⇒ se = sqrt(0.5+0.5) = 1, z = 1 ⇒ p ≈ 0.3173.
 func TestApplyZCell_ScalarKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{9, 9, 9},
 		{9, 9, 9},
@@ -52,6 +54,8 @@ func TestApplyZCell_ScalarKnownAnswer(t *testing.T) {
 // Params are left unset — when a triple is present the handler reads
 // no params at all, so the test pins that a components side needs none.
 func TestApplyZCell_TripleKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	targetTriple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -83,6 +87,8 @@ func TestApplyZCell_TripleKnownAnswer(t *testing.T) {
 // triple-only answer; the assertion succeeds only when the handler
 // reads (variance, n) off the triple and ignores the Params.
 func TestApplyZCell_TripleBypassesParamsDefaults(t *testing.T) {
+	t.Parallel()
+
 	targetTriple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -117,6 +123,8 @@ func TestApplyZCell_TripleBypassesParamsDefaults(t *testing.T) {
 // arm. The Params override drops sample size to 1; the handler should
 // emit PULSE_OVERLAY_REF_ZERO and surface NaN on every cell.
 func TestApplyZCell_DegenerateInsufficientN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{9, 9, 9},
 		{9, 9, 9},
@@ -155,6 +163,8 @@ func TestApplyZCell_DegenerateInsufficientN(t *testing.T) {
 // params variance is refused (twosample.Inputs), so this test uses
 // WelfordTriple cells with Variance=0 on both sides to collapse the SE.
 func TestApplyZCell_DegenerateZeroVariance(t *testing.T) {
+	t.Parallel()
+
 	targetTriple := WelfordTriple{Mean: 10, Variance: 0, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 0, N: 10}
 	tripleTarget := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -191,6 +201,8 @@ func TestApplyZCell_DegenerateZeroVariance(t *testing.T) {
 // the handler emits PULSE_OVERLAY_REF_ZERO with ref_missing=true and
 // leaves the target cell absent in the overlay layer.
 func TestApplyZCell_MissingRefCell(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{math.NaN(), 9, 9},
 		{9, 9, 9},
@@ -224,6 +236,8 @@ func TestApplyZCell_MissingRefCell(t *testing.T) {
 // either slot lacks a matrix payload ⇒ coded error (defense in depth;
 // the chassis schema-match gate normally catches this earlier).
 func TestApplyZCell_NonMatrixSlotRejected(t *testing.T) {
+	t.Parallel()
+
 	target := makeMatrixFromValues([3][3]float64{
 		{10, 10, 10},
 		{10, 10, 10},
@@ -251,6 +265,8 @@ func TestApplyZCell_NonMatrixSlotRejected(t *testing.T) {
 // (overlay_two_sample.json "z_cell") — the figure TEST_Z_TWO_SAMPLE
 // reports on the same legs.
 func TestWelchZTest_MatchesTestZTwoSample(t *testing.T) {
+	t.Parallel()
+
 	gotP, ok := welchZTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
 	if !ok {
 		t.Fatal("welchZTest reported degenerate where TEST_Z parity expects a real p-value")

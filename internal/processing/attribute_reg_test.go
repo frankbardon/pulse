@@ -61,6 +61,8 @@ func makeRegAttr(t *testing.T, kind types.AttributeType, schema *encoding.Schema
 // ŷᵢ = Xᵢ · β + β₀ per row to within 1e-10. Constructs a noise-free
 // linear fixture so OLS recovers the coefficients exactly.
 func TestAttrRegFitted_Numerical(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	// y = 2 + 3*x1 + 5*x2
 	x1 := []float64{1, 2, 3, 4, 5, 6}
@@ -93,6 +95,8 @@ func TestAttrRegFitted_Numerical(t *testing.T) {
 // sum to ≈ 0 over n=50 noisy points when the OLS fit includes the
 // (implicit) intercept. Tolerance 1e-8 absorbs rounding.
 func TestAttrRegResidual_SumsToZero(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	const n = 50
 	x1 := make([]float64, n)
@@ -127,6 +131,8 @@ func TestAttrRegResidual_SumsToZero(t *testing.T) {
 // Σᵢ hᵢᵢ = p + 1 for OLS with an intercept, where p is the predictor
 // count.
 func TestAttrRegLeverage_TraceEqualsP(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	x1 := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	x2 := []float64{2, 1, 3, 2, 5, 4, 7, 6, 9, 8}
@@ -158,6 +164,8 @@ func TestAttrRegLeverage_TraceEqualsP(t *testing.T) {
 // (Strictly positive given the n > p+1 fixture and bounded predictors,
 // but the closed identity guarantees the unit interval.)
 func TestAttrRegLeverage_RangeInUnit(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	x1 := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	x2 := []float64{0.1, 0.3, 0.7, 1.2, 1.5, 2.1, 2.5, 3.0, 3.5, 4.0}
@@ -186,6 +194,8 @@ func TestAttrRegLeverage_RangeInUnit(t *testing.T) {
 // surfaces PROCESSING_CONFIG. Penalized leverage uses a different
 // formula and is deferred.
 func TestAttrRegLeverage_PenaltyRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	for _, pen := range []string{"l1", "l2", "elasticnet"} {
 		spec := &types.Attribute{
@@ -214,6 +224,8 @@ func TestAttrRegLeverage_PenaltyRejected(t *testing.T) {
 // TestAttrReg_PredictorValidation covers the spec-level errors:
 // empty Predictors, missing Target, non-numeric predictor.
 func TestAttrReg_PredictorValidation(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 
 	cases := []struct {
@@ -259,6 +271,8 @@ func TestAttrReg_PredictorValidation(t *testing.T) {
 // substitutes Target for the missing Field. Mirrors the rule in
 // processing.defaultAttributeLabel / descriptor.attributeDefaultLabel.
 func TestAttrReg_LabelDefaults(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	// x1 / x2 not collinear so OLS has a unique solution.
 	x1 := []float64{1, 2, 3, 4, 5}
@@ -293,6 +307,8 @@ func TestAttrReg_LabelDefaults(t *testing.T) {
 // the streaming two-pass path and the buffered path; outputs must
 // match to 1e-10.
 func TestAttrReg_TwoPassStreamingParity(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	const n = 25
 	x1 := make([]float64, n)
@@ -345,6 +361,8 @@ func TestAttrReg_TwoPassStreamingParity(t *testing.T) {
 // path delegates to regression.ValidateRegression so the same rules
 // apply to penalized fits inside the attribute as to a REG_OLS slot.
 func TestAttrRegFitted_PenalizedAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	cases := []struct {
 		name string
@@ -406,6 +424,8 @@ func TestAttrRegFitted_PenalizedAccepted(t *testing.T) {
 // TestAttrRegResidual_PenalizedAccepted mirrors the FITTED case for
 // residuals.
 func TestAttrRegResidual_PenalizedAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := regSchema()
 	x1 := []float64{1, 2, 3, 4, 5, 6, 7, 8}
 	y := []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8}

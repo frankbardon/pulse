@@ -143,6 +143,8 @@ func requireKeySet(t *testing.T, got map[string]any, want []string) {
 // {mean, m2, variance} keys plus bit-equal values vs the control
 // recurrence.
 func TestWelfordFamilyComponents_VarianceEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	multi := []float64{1, 4, 9, 16, 25, 36}
 	cases := []struct {
@@ -182,6 +184,8 @@ func TestWelfordFamilyComponents_VarianceEmits(t *testing.T) {
 // aggregator surfaces {mean, m2, variance, stddev} with bit-equal
 // values vs the control recurrence.
 func TestWelfordFamilyComponents_StdDevEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	cases := []struct {
 		name string
@@ -222,6 +226,8 @@ func TestWelfordFamilyComponents_StdDevEmits(t *testing.T) {
 // degenerate; both fall back to zero for one row or no spread, and are
 // undefined (NaN) with the mean over no row.
 func TestWelfordFamilyComponents_SkewnessEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	cases := []struct {
 		name string
@@ -271,6 +277,8 @@ func TestWelfordFamilyComponents_SkewnessEmits(t *testing.T) {
 // aggregator surfaces {mean, m2, m3, m4, kurtosis} with the excess
 // kurtosis estimator m4 / (n * variance^2) - 3.
 func TestWelfordFamilyComponents_KurtosisEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	cases := []struct {
 		name string
@@ -319,6 +327,8 @@ func TestWelfordFamilyComponents_KurtosisEmits(t *testing.T) {
 // target_value is the last value seen; zscore is (target - mean) / sd
 // under those population params.
 func TestWelfordFamilyComponents_ZScoreEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	cases := []struct {
 		name string
@@ -362,6 +372,8 @@ func TestWelfordFamilyComponents_ZScoreEmits(t *testing.T) {
 // returned via Rich(). Empty input emits (nil, nil) so the universal
 // floor (n=0) carries the entire payload.
 func TestWelfordFamilyComponents_WelfordEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := welfordSchema()
 	cases := []struct {
 		name      string
@@ -426,6 +438,8 @@ func TestWelfordFamilyComponents_WelfordEmits(t *testing.T) {
 // AGG_CI_UPPER surface their schema-declared keys. Bound key flips
 // with the aggregator: ciLower emits "lower"; ciUpper emits "upper".
 func TestWelfordFamilyComponents_CIEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	cases := []struct {
 		name string
@@ -498,6 +512,8 @@ func TestWelfordFamilyComponents_CIEmits(t *testing.T) {
 // Aggregate→Components path on the same cohort, asserting bit-equal
 // emission of every key.
 func TestWelfordFamilyComponents_ParallelVsSerial(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(0x57E4D))
 	samples := make([]float64, 200)
 	for i := range samples {
@@ -671,6 +687,8 @@ func TestWelfordFamilyComponents_ParallelVsSerial(t *testing.T) {
 // compile. This test exists as runtime documentation of the lock —
 // the meaningful enforcement is at build time.
 func TestWelfordFamilyComponents_CompileTimeLocks(t *testing.T) {
+	t.Parallel()
+
 	var (
 		_ MetaAggregator = (*varianceAggregator)(nil)
 		_ MetaAggregator = (*stdDevAggregator)(nil)

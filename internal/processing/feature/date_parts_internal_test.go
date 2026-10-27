@@ -10,6 +10,8 @@ import (
 // TestDecodeDateParts pins FEAT_DATE_FEATURES' epoch-day decode across
 // the sign boundary.
 func TestDecodeDateParts(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		v               float64
 		y, m, d, dow, q float64
@@ -31,6 +33,8 @@ func TestDecodeDateParts(t *testing.T) {
 // wall clock. Saturday 23:30 in New York is Sunday 04:30 UTC: dow 6
 // there, 7 in UTC.
 func TestDecodeParts_ISODow(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		day  float64
 		want float64

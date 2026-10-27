@@ -91,6 +91,8 @@ func nearPDCases(t *testing.T) (bare, full nearPDCase) {
 // (nearestCorrelation, with the final eigenvalue floor) to
 // do2eigen = TRUE, including the Frobenius adjustment.
 func TestNearestCorrelation_MatchesNearPD(t *testing.T) {
+	t.Parallel()
+
 	bare, full := nearPDCases(t)
 	in := symFrom(t, bare.InputCorrelation)
 
@@ -156,6 +158,8 @@ func partialGuardInput(repair string) *matrixFinalizeInput {
 // (pairwise) correlation and scaled back: its variances stay exactly,
 // and it matches nearPD's repaired_covariance (D·nearest·D).
 func TestGuardPSD_RefusesOrRepairs(t *testing.T) {
+	t.Parallel()
+
 	_, full := nearPDCases(t)
 	cov := symFrom(t, full.InputCovariance)
 
@@ -230,6 +234,8 @@ func TestGuardPSD_RefusesOrRepairs(t *testing.T) {
 // the PULSE_MATRIX_NOT_PSD warning (which keeps converged false), with
 // the cap and tolerance; a converged one emits NOT_PSD alone.
 func TestRepairWarnings_NotConvergedBesideNotPSD(t *testing.T) {
+	t.Parallel()
+
 	rep := nearestResult{Iterations: nearestMaxIter, Converged: false, Adjustment: 0.25}
 	ws := repairWarnings("m", map[string]any{"matrix": "m"}, rep)
 	if len(ws) != 2 || ws[0].Code != string(errors.PULSE_MATRIX_NOT_PSD) || ws[1].Code != string(errors.PULSE_MATRIX_NOT_CONVERGED) {
@@ -254,6 +260,8 @@ func TestRepairWarnings_NotConvergedBesideNotPSD(t *testing.T) {
 // the conditional covariance R_OO − R_OC·R_CC⁻¹·R_CO — and the "all"
 // form equals −P_ij / √(P_ii·P_jj).
 func TestPartialCorrelation_ControlsAreSchurComplement(t *testing.T) {
+	t.Parallel()
+
 	r := symFrom(t, [][]float64{
 		{1, 0.6, 0.3, 0.4},
 		{0.6, 1, 0.2, 0.5},

@@ -228,6 +228,8 @@ func liveFitOn(t *testing.T, c fittedGoldenCase, weight string) fittedGoldenEntr
 // fittedGoldenDiff) — the bitwise refactor proof for those is
 // TestFittedState_PrebuiltMatchesFitOn's same-process equality.
 func TestFittedState_FitOnGolden(t *testing.T) {
+	t.Parallel()
+
 	got := map[string]fittedGoldenEntry{}
 	exact := map[string]bool{}
 	scored := 0
@@ -356,6 +358,8 @@ func modelSetOf(t *testing.T, fits ...*model.VectorFit) *model.Set {
 // label to the same bits. Same-process, so bitwise on every
 // architecture (the stored golden is FitOnGolden's business).
 func TestFittedState_PrebuiltMatchesFitOn(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range fittedGoldenCases() {
 		for _, w := range c.weights {
 			t.Run(fittedGoldenKey(c, w), func(t *testing.T) {
@@ -382,6 +386,8 @@ func TestFittedState_PrebuiltMatchesFitOn(t *testing.T) {
 // (swapped between members, labels kept) no longer reproduces the
 // fit_on scores — the equality reads the state, not the rows.
 func TestFittedState_SwappedStateMoves(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range fittedGoldenCases()[:4] {
 		want := liveFitOn(t, c, "frequency")
 		for name, mut := range map[string]func(*model.VectorFit){
@@ -419,6 +425,8 @@ func TestFittedState_SwappedStateMoves(t *testing.T) {
 // labels are not the slot's is PULSE_VECTOR_REFERENCE_MISMATCH naming
 // the fit; fit on a row-local comparison metric is refused.
 func TestFittedState_FitRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := hotellingFixture(t, "attitude", "")
 	fields := []string{"rating", "complaints", "privileges", "learning"}
 	vf := &model.VectorFit{Name: "pop", Labels: []string{"rating", "complaints", "privileges", "raises"}, Members: fields,
@@ -499,6 +507,8 @@ func TestFittedState_FitRefusals(t *testing.T) {
 // them out), so a fit captured under those labels scores to the bit of
 // its fit_on fold, and params.labels beside a named vector is refused.
 func TestFittedState_NamedVectorLabels(t *testing.T) {
+	t.Parallel()
+
 	c := fittedGoldenCases()[0] // maha_d2_attitude
 	want := liveFitOn(t, c, "none")
 	vf := captureFittedState(t, c, "none", "pop")
@@ -535,6 +545,8 @@ func fixtureSchema(t *testing.T, fixture string) *encoding.Schema {
 // routing predicate and the built computers, where the same slot with
 // fit_on plans two; the z-scores equal the buffered arm's bit for bit.
 func TestFittedState_BoundIsRowLocal(t *testing.T) {
+	t.Parallel()
+
 	c := fittedGoldenCases()[0] // maha_d2_attitude
 	set := modelSetOf(t, captureFittedState(t, c, "none", "pop"))
 	build := func(bound bool) *types.Request {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestRowNumber_Single(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0},
 		{"ts": 2.0},
@@ -28,6 +30,8 @@ func TestRowNumber_Single(t *testing.T) {
 }
 
 func TestRowNumber_Partitioned(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"region": "us", "ts": 2.0},
 		{"region": "us", "ts": 1.0},

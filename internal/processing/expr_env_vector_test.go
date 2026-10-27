@@ -96,6 +96,8 @@ func processVector(t *testing.T, req *types.Request) (*types.Response, error) {
 func closeTo(got, want float64) bool { return math.Abs(got-want) <= 1e-12 }
 
 func TestVectorBuiltins_CaseCoverage(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range exprenv.Names() {
 		c, ok := vectorBuiltinCases[name]
 		if !ok {
@@ -109,8 +111,12 @@ func TestVectorBuiltins_CaseCoverage(t *testing.T) {
 }
 
 func TestVectorBuiltins_InFormula(t *testing.T) {
+	t.Parallel()
+
 	for name, c := range vectorBuiltinCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := processVector(t, &types.Request{
 				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "x", Expression: c.src, Label: "v"}},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "s"}},
@@ -126,8 +132,12 @@ func TestVectorBuiltins_InFormula(t *testing.T) {
 }
 
 func TestVectorBuiltins_InFilter(t *testing.T) {
+	t.Parallel()
+
 	for name, c := range vectorBuiltinCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			for _, tc := range []struct {
 				src  string
 				keep float64
@@ -151,8 +161,12 @@ func TestVectorBuiltins_InFilter(t *testing.T) {
 }
 
 func TestVectorBuiltins_InTotal(t *testing.T) {
+	t.Parallel()
+
 	for name, c := range vectorBuiltinCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			resp, err := processVector(t, &types.Request{
 				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "x", Expression: `total(` + c.src + `) + 0 * x`, Label: "v"}},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "s"}},
@@ -196,6 +210,8 @@ func topCode(err error) perr.Code {
 // own code at the top of the chain, in each consumer — never swallowed
 // as a null row or wrapped as PROCESSING_RUNTIME.
 func TestVectorBuiltins_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		src  string // a scalar-shaped expression for formula / total
@@ -246,6 +262,8 @@ func TestVectorBuiltins_Refusals(t *testing.T) {
 }
 
 func TestVectorBuiltins_FilterVectorResult(t *testing.T) {
+	t.Parallel()
+
 	for _, src := range []string{`vcenter([x, y])`, `x > 0 ? vnormalize([x, y], "l1") : false`} {
 		_, err := processVector(t, &types.Request{
 			Filterers:    []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: src}},
@@ -261,6 +279,8 @@ func TestVectorBuiltins_FilterVectorResult(t *testing.T) {
 // filter row as UNKNOWN, but a length mismatch on that row still fails
 // the run.
 func TestVectorBuiltins_NullInputRefusalNotSwallowed(t *testing.T) {
+	t.Parallel()
+
 	schema := vectorTestSchema()
 	records := []*Record{NewRecordWithNulls(schema, map[string]float64{"y": 2, "z": 3}, map[string]bool{"x": true})}
 	proc := NewProcessorWithExtensions(schema, &ExtensionRegistry{})
@@ -288,6 +308,8 @@ func TestVectorBuiltins_NullInputRefusalNotSwallowed(t *testing.T) {
 // TestVectorBuiltins_FilterPrecomputePure: a filter calling any reserved
 // built-in keeps the filter-precompute fast path.
 func TestVectorBuiltins_FilterPrecomputePure(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range exprenv.Names() {
 		src := `(` + vectorBuiltinCases[name].src + `) > x`
 		got, ok := exprPureInputs(src, nil)
@@ -306,6 +328,8 @@ func TestVectorBuiltins_FilterPrecomputePure(t *testing.T) {
 // TestVectorBuiltins_OverlayRuntimeNoRegistry: the overlay formula's
 // nil-registry compile sees the shared built-ins too.
 func TestVectorBuiltins_OverlayRuntimeNoRegistry(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindFormula}
 	if _, err := compileFormulaProgramWithExtensions(spec, `sqrt(cell) + pow(cell, 2)`, map[string]any{"cell": 0.0}, nil); err != nil {
 		t.Fatalf("overlay formula without a registry: %v", err)
@@ -316,6 +340,8 @@ func TestVectorBuiltins_OverlayRuntimeNoRegistry(t *testing.T) {
 // none of the new built-ins compiles and evaluates exactly as before —
 // the same value, the same error text.
 func TestVectorBuiltins_ExistingExpressionsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	resp, err := processVector(t, &types.Request{
 		Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "x", Expression: `abs(x - z) ** 2 + len([1, 2])`, Label: "v"}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "s"}},
@@ -339,6 +365,8 @@ func TestVectorBuiltins_ExistingExpressionsUnchanged(t *testing.T) {
 // judge fail when the program is built, before any row — so a run over
 // zero rows still fails.
 func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		src  string
 		want perr.Code

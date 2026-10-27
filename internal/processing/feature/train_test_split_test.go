@@ -17,6 +17,8 @@ func makeRecordsForSplit(n int) []Record {
 }
 
 func TestTrainTestSplit_RoughRatios(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecordsForSplit(1000)
 	c, err := newTrainTestSplit(&types.Feature{
 		Params: json.RawMessage(`{"ratios":[0.7,0.15,0.15],"seed":42}`),
@@ -47,6 +49,8 @@ func TestTrainTestSplit_RoughRatios(t *testing.T) {
 }
 
 func TestTrainTestSplit_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	records1 := makeRecordsForSplit(100)
 	records2 := makeRecordsForSplit(100)
 
@@ -71,6 +75,8 @@ func TestTrainTestSplit_Deterministic(t *testing.T) {
 }
 
 func TestTrainTestSplit_TwoElementRatios(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecordsForSplit(100)
 	c, err := newTrainTestSplit(&types.Feature{
 		Params: json.RawMessage(`{"ratios":[0.5,0.5],"seed":1}`),
@@ -88,6 +94,8 @@ func TestTrainTestSplit_TwoElementRatios(t *testing.T) {
 }
 
 func TestTrainTestSplit_Stratified(t *testing.T) {
+	t.Parallel()
+
 	// 100 north + 100 south. With stratify, each class should get a
 	// proportional split.
 	mk := func(label string) Record {
@@ -145,6 +153,8 @@ func TestTrainTestSplit_Stratified(t *testing.T) {
 }
 
 func TestTrainTestSplit_RejectsBadRatios(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		`{"ratios":[0.5,0.4]}`,
 		`{"ratios":[0.5]}`,
@@ -163,6 +173,8 @@ func TestTrainTestSplit_RejectsBadRatios(t *testing.T) {
 }
 
 func TestTrainTestSplit_RejectsNumericStratify(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64},
@@ -177,6 +189,8 @@ func TestTrainTestSplit_RejectsNumericStratify(t *testing.T) {
 }
 
 func TestTrainTestSplit_RequiresParams(t *testing.T) {
+	t.Parallel()
+
 	_, err := newTrainTestSplit(&types.Feature{}, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
@@ -184,6 +198,8 @@ func TestTrainTestSplit_RequiresParams(t *testing.T) {
 }
 
 func TestTrainTestSplit_Registered(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := Lookup(types.FEAT_TRAIN_TEST_SPLIT); !ok {
 		t.Error("expected FEAT_TRAIN_TEST_SPLIT to be registered")
 	}

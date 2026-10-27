@@ -71,6 +71,8 @@ func requireMaxCrosstabCells(t *testing.T, err error, configured, observed int64
 // is a column. Each runs at 6; a processor without SetLimits enforces
 // nothing.
 func TestMaxCrosstabCells_Arms(t *testing.T) {
+	t.Parallel()
+
 	rowLast := [][2]float64{{0, 0}, {0, 1}, {1, 0}, {2, 0}} // grid 1x1, 1x2, 2x2, 3x2
 	colLast := [][2]float64{{0, 0}, {1, 0}, {2, 0}, {0, 1}} // grid 1x1, 2x1, 3x1, 3x2
 	run := func(fused bool, pairs [][2]float64, l *limits.Limits) (*types.Response, error) {

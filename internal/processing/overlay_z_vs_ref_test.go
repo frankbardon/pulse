@@ -32,6 +32,8 @@ func makeSeriesResponseTriples(keys []string, triples []WelfordTriple) *types.Re
 // (10 vs 9); explicit params supply variance=1, n=2 ⇒
 // se = sqrt(1/2 + 1/2) = 1, z = 1, p ≈ 0.3173.
 func TestApplyZVsRef_ScalarKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{9, 9, 9, 9})
 	target := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 10, 10, 10})
 	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(nil))
@@ -60,6 +62,8 @@ func TestApplyZVsRef_ScalarKnownAnswer(t *testing.T) {
 //	z      = 1 / 0.8944 ≈ 1.118
 //	p      ≈ 0.2636
 func TestApplyZVsRef_TripleKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},
 		{Mean: 10, Variance: 4, N: 10},
@@ -93,6 +97,8 @@ func TestApplyZVsRef_TripleKnownAnswer(t *testing.T) {
 // triple path must produce the same answer as
 // TestApplyZVsRef_TripleKnownAnswer.
 func TestApplyZVsRef_TripleBypassesParamsDefaults(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},
 		{Mean: 10, Variance: 4, N: 10},
@@ -127,6 +133,8 @@ func TestApplyZVsRef_TripleBypassesParamsDefaults(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO with ref_missing=true and the entry carries
 // NaN.
 func TestApplyZVsRef_MissingRefGroup(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south", "east"}, []float64{9, 9, 9})
 	target := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 10, 10, 10})
 	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(nil))
@@ -157,6 +165,8 @@ func TestApplyZVsRef_MissingRefGroup(t *testing.T) {
 // Params override. Every group should emit PULSE_OVERLAY_REF_ZERO
 // and surface a NaN statistic.
 func TestApplyZVsRef_DegenerateInsufficientN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south"}, []float64{9, 9})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{10, 10})
 	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, legacyTwoSampleParams(map[string]any{
@@ -187,6 +197,8 @@ func TestApplyZVsRef_DegenerateInsufficientN(t *testing.T) {
 // variance is refused, so the triple path is the only way to drive
 // degenerate variance through the handler).
 func TestApplyZVsRef_DegenerateZeroVariance(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 0, N: 10},
 		{Mean: 10, Variance: 0, N: 10},
@@ -215,6 +227,8 @@ func TestApplyZVsRef_DegenerateZeroVariance(t *testing.T) {
 // TestApplyZVsRef_NilReferenceRejected asserts the structural guard:
 // nil reference slot ⇒ coded error.
 func TestApplyZVsRef_NilReferenceRejected(t *testing.T) {
+	t.Parallel()
+
 	target := makeSeriesResponse([]string{"north"}, []float64{10})
 	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, nil)
 	_, _, err := applyZVsRef(&spec, nil, []*types.Response{target}, 0, []int{1})
@@ -229,6 +243,8 @@ func TestApplyZVsRef_NilReferenceRejected(t *testing.T) {
 // inputs. Cross-shape consistency keeps callers honest when they
 // switch between Compose authoring surfaces.
 func TestApplyZVsRef_MatchesMatrixForSameInputs(t *testing.T) {
+	t.Parallel()
+
 	// SERIES: target=10, ref=9, var defaults, n defaults
 	refSeries := makeSeriesResponse([]string{"only"}, []float64{9})
 	targetSeries := makeSeriesResponse([]string{"only"}, []float64{10})

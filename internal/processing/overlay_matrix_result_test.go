@@ -11,6 +11,8 @@ import (
 )
 
 func TestExpandMatrixValues(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		in   *types.MatrixValues
@@ -93,6 +95,8 @@ func mgsResult(name string, enc types.MatrixEncoding, keys []string, values [][]
 // upper bucket reads as its mirrored full matrix; another spec's
 // result is not read.
 func TestMatrixGroupSummary_Cells(t *testing.T) {
+	t.Parallel()
+
 	results := []types.MatrixResult{
 		mgsResult("r", types.MatrixEncodingFull, []string{"a", "b"}, [][]float64{{1, 0.2}, {0.2, 1}}),
 		mgsResult("other", types.MatrixEncodingFull, []string{"a", "b"}, [][]float64{{1, 9}, {9, 1}}),
@@ -162,6 +166,8 @@ func TestMatrixGroupSummary_Cells(t *testing.T) {
 // TestMatrixGroupSummary_NoResults: a spec with no result (an empty
 // grouped run) emits an empty matrix, not a fault.
 func TestMatrixGroupSummary_NoResults(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindMatrixGroupSummary, Scope: types.OverlayScopeMatrix,
 		Ref: types.OverlayRef{Matrix: &types.OverlayMatrixRef{Name: "r"}}}
 	layer, _, err := applyMatrixGroupSummary(spec, newMatrixResultHostView("r", nil))
@@ -179,6 +185,8 @@ func TestMatrixGroupSummary_NoResults(t *testing.T) {
 // and is a no-op (resp untouched) without a MATRIX_RESULT spec or under
 // a ComputePlan that skips it.
 func TestApplyMatrixResultOverlays_IndexAligned(t *testing.T) {
+	t.Parallel()
+
 	mr := types.OverlaySpec{Kind: types.OverlayKindMatrixGroupSummary, Scope: types.OverlayScopeMatrix,
 		Ref: types.OverlayRef{Matrix: &types.OverlayMatrixRef{Name: "r"}}}
 	share := types.OverlaySpec{Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup}

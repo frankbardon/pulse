@@ -28,6 +28,8 @@ func withTestOverlayHandler(t *testing.T, kind types.OverlayKind, h overlayHandl
 // parts map untouched and refuses a handler that nests parts with
 // PROCESSING_INTERNAL naming the layer index and the part.
 func TestApplyOverlays_PartsRefusal(t *testing.T) {
+	// serial: swaps the package-level processing.overlayHandlers test hook
+
 	scalar := func(v float64) *types.OverlayPayload {
 		return &types.OverlayPayload{Shape: types.OverlayShapeScalar, Scalar: &v}
 	}
@@ -78,6 +80,8 @@ func TestApplyOverlays_PartsRefusal(t *testing.T) {
 // kind's layer leaves Parts nil, so its wire bytes carry no `parts`
 // key — the pre-Parts form.
 func TestApplyOverlays_ExistingKindsCarryNoParts(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{
 		{Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix},
 		{Kind: types.OverlayKindChiSqRow, Scope: types.OverlayScopeRow},

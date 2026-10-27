@@ -116,6 +116,8 @@ func nearRel(a, b, tol float64) bool {
 // the direct-sum slope and mean, diff_unadjusted the raw difference,
 // variance_reduction 1 − SE²′/SE².
 func TestCuped_EqualsTwoStep(t *testing.T) {
+	t.Parallel()
+
 	rows := cupedFixture(400, 0)
 	yadj, theta, xbar := twoStepAdjusted(rows)
 	for _, typ := range []types.TestType{types.TEST_WELCH, types.TEST_T, types.TEST_Z_TWO_SAMPLE} {
@@ -162,6 +164,8 @@ func TestCuped_EqualsTwoStep(t *testing.T) {
 // the test is the unadjusted one — and theta / variance_reduction are
 // undefined (NaN, null on the wire), never 0.
 func TestCuped_ConstantCovariate(t *testing.T) {
+	t.Parallel()
+
 	rows := cupedFixture(60, 0)
 	for i := range rows {
 		rows[i].x = 7
@@ -201,6 +205,8 @@ func TestCuped_ConstantCovariate(t *testing.T) {
 // dropped listwise and counted; the result equals the test over the
 // complete rows alone.
 func TestCuped_NullCovariateDropped(t *testing.T) {
+	t.Parallel()
+
 	rows := cupedFixture(300, 7)
 	var complete []cupedRow
 	dropped := 0
@@ -234,6 +240,8 @@ func TestCuped_NullCovariateDropped(t *testing.T) {
 // difference, interval, statistic) and leaves theta and the variance
 // reduction alone.
 func TestCuped_ComposesWithReference(t *testing.T) {
+	t.Parallel()
+
 	rows := cupedFixture(200, 0)
 	for _, typ := range []types.TestType{types.TEST_WELCH, types.TEST_T, types.TEST_Z_TWO_SAMPLE} {
 		s1, s2 := cupedSchema(), cupedSchema()
@@ -259,6 +267,8 @@ func TestCuped_ComposesWithReference(t *testing.T) {
 // TestCuped_AbsentAddsNothing: without params.covariate the result
 // carries none of the adjustment's keys (the unadjusted test).
 func TestCuped_AbsentAddsNothing(t *testing.T) {
+	t.Parallel()
+
 	schema := cupedSchema()
 	res := runCupedTest(t, &types.Test{Type: types.TEST_WELCH, Field: "y", SplitBy: "arm"}, schema, cupedRecords(t, schema, cupedFixture(40, 0), nil))
 	for _, k := range []string{"theta", "covariate_mean", "variance_reduction", "diff_unadjusted", "n_covariate_dropped"} {
@@ -271,6 +281,8 @@ func TestCuped_AbsentAddsNothing(t *testing.T) {
 // TestCuped_StreamingEqualsBuffered: the adjustment folds in one pass,
 // so the streaming arm and the buffered arm agree byte for byte.
 func TestCuped_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := cupedSchema()
 	recs := cupedRecords(t, schema, cupedFixture(500, 9), nil)
 	req := func() *types.Request {
@@ -301,6 +313,8 @@ func TestCuped_StreamingEqualsBuffered(t *testing.T) {
 // row weight, so under a frequency weight the adjusted test equals the
 // unweighted one on the expanded rows (each row repeated w times).
 func TestCuped_FrequencyWeightEqualsExpansion(t *testing.T) {
+	t.Parallel()
+
 	rows := cupedFixture(120, 0)
 	ws := cupedSchema()
 	ws.Fields = append(ws.Fields, encoding.Field{Name: "w", Type: encoding.FieldTypeF64})

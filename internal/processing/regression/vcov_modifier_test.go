@@ -122,6 +122,8 @@ func assertVcovDescribesSE(t *testing.T, res *types.RegressionResult, preds []st
 // is SE², its off-diagonal is the replicate covariance computed by
 // hand, and it is symmetric and PSD.
 func TestVcov_Bootstrap_ReplicateCovariance(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 60, []float64{1.5, -0.7, 0.3}, 2, 1, 11)
 	preds := predictorNames(3)
 	base := fitBase(t, records, preds)
@@ -152,6 +154,8 @@ func TestVcov_Bootstrap_ReplicateCovariance(t *testing.T) {
 // TestVcov_Jackknife_ReplicateCovariance: (n − 1)/n · Σ (β₋ᵢ − β̄)(β₋ᵢ −
 // β̄)ᵀ over the leave-one-out replicates, computed by hand.
 func TestVcov_Jackknife_ReplicateCovariance(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 40, []float64{1.5, -0.7}, 2, 1, 12)
 	preds := predictorNames(2)
 	base := fitBase(t, records, preds)
@@ -176,6 +180,8 @@ func TestVcov_Jackknife_ReplicateCovariance(t *testing.T) {
 // TestVcov_Bootstrap_Deterministic: a fixed seed reproduces the vcov
 // bit for bit, and switching vcov on moves no other figure.
 func TestVcov_Bootstrap_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 50, []float64{1, 2}, 0.5, 1, 13)
 	preds := predictorNames(2)
 	spec := func(vcov bool) *types.RegressionSpec {
@@ -202,6 +208,8 @@ func TestVcov_Bootstrap_Deterministic(t *testing.T) {
 // refit's covariance keyed (intercept) + the selected predictors; with
 // Resample on top the vcov follows the resample SEs over that subset.
 func TestVcov_SelectionAndResample(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 200, 5)
 	sel := &types.RegressionSpec{Name: "fit", Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2", "x3", "x4", "x5"}, Selection: "forward", Criterion: "bic", Vcov: true}
 	res := runOLSWithModifier(t, sel, records)
@@ -226,6 +234,8 @@ func TestVcov_SelectionAndResample(t *testing.T) {
 // TestVcov_InterceptOnlySelection: a selection that keeps no predictor
 // still answers vcov — the 1×1 variance of β₀ = ȳ its SE is the root of.
 func TestVcov_InterceptOnlySelection(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 30, []float64{0}, 3, 1, 14)
 	spec := &types.RegressionSpec{Name: "fit", Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Selection: "forward", Criterion: "bic", Vcov: true}
 	e := &modifierEngine{spec: spec, family: "OLS"}
@@ -242,6 +252,8 @@ func TestVcov_InterceptOnlySelection(t *testing.T) {
 // TestVcov_ModifierRefusals: Resample and Selection no longer refuse
 // vcov; lasso / elastic net still do, under either modifier too.
 func TestVcov_ModifierRefusals(t *testing.T) {
+	t.Parallel()
+
 	base := types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Vcov: true}
 	cases := []struct {
 		name   string

@@ -27,6 +27,8 @@ import (
 // a cohort carrying the lagged column — values and coefficients bit for
 // bit — and the output rows carry the post-window label.
 func TestWindowPredictor_PostWindowFormulaEqualsMaterializedColumn(t *testing.T) {
+	t.Parallel()
+
 	rows := windowRegRows(40)
 	s := windowRegSchema()
 	recs := make([]*Record, len(rows))
@@ -98,6 +100,8 @@ func TestWindowPredictor_PostWindowFormulaEqualsMaterializedColumn(t *testing.T)
 // without the service's field-reference pass still refuses a
 // window-dependent slot that cannot run after the windows.
 func TestWindowPredictor_ProcessorRefusesWindowOrder(t *testing.T) {
+	t.Parallel()
+
 	s := windowRegSchema()
 	var recs []*Record
 	for _, r := range windowRegRows(8) {
@@ -119,6 +123,8 @@ func TestWindowPredictor_ProcessorRefusesWindowOrder(t *testing.T) {
 // window value a post-window attribute reads is PROCESSING_CONFIG naming
 // the label, as the regression and matrix copies refuse it.
 func TestWindowPredictor_PostWindowNonNumericWindowRefused(t *testing.T) {
+	t.Parallel()
+
 	s := windowRegSchema()
 	var recs []*Record
 	for _, r := range windowRegRows(6) {

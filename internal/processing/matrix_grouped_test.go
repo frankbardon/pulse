@@ -16,6 +16,8 @@ import (
 // row holds one — and Merge moves a key one partition alone saw over
 // whole while merging a shared key block-wise.
 func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 0},
 		{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 8},
@@ -80,6 +82,8 @@ func TestGroupedMatrices_TouchedBlocksOnly(t *testing.T) {
 // stores hold 4 x records rows: the multiplicity the memory estimate's
 // row_buffer_bytes charges (descriptor.FanOutMultiplicity).
 func TestGroupedMatrices_FanOutRowStorePerBucket(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c", "d"} {
 		if _, err := dict.Add(v); err != nil {

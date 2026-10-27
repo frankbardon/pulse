@@ -38,6 +38,8 @@ func newIndexVsRollingMeanSpec(name string, window int) types.OverlaySpec {
 // point[6]=70 / mean(40,50,60)=50 * 100 = 140
 // point[7]=80 / mean(50,60,70)=60 * 100 = 133.33...
 func TestOverlay_IndexVsRollingMean_Basic_Window3(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"jan"}, {"feb"}, {"mar"}, {"apr"}, {"may"},
 		{"jun"}, {"jul"}, {"aug"}, {"sep"}, {"oct"},
@@ -98,6 +100,8 @@ func TestOverlay_IndexVsRollingMean_Basic_Window3(t *testing.T) {
 // immediately preceding present value (the "rolling mean" of a 1-element
 // window IS that element).
 func TestOverlay_IndexVsRollingMean_Window1(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -135,6 +139,8 @@ func TestOverlay_IndexVsRollingMean_Window1(t *testing.T) {
 // INDEX_VS_PRIOR first-point semantics: "no comparison available" is
 // structurally distinct from "denominator was zero").
 func TestOverlay_IndexVsRollingMean_WindowExceedsSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0, 50.0}
 	host := newStubSeriesHost(keys, values)
@@ -172,6 +178,8 @@ func TestOverlay_IndexVsRollingMean_WindowExceedsSeries(t *testing.T) {
 // unfilled, and the 4th entry hits the zero-mean arm (mean of three
 // zeros is 0) and emits NaN + PULSE_OVERLAY_REF_ZERO.
 func TestOverlay_IndexVsRollingMean_ZeroRollingMeanEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{0.0, 0.0, 0.0, 10.0}
 	host := newStubSeriesHost(keys, values)
@@ -210,6 +218,8 @@ func TestOverlay_IndexVsRollingMean_ZeroRollingMeanEmitsRefZero(t *testing.T) {
 // math.NaN signals absent (newStubSeriesHost's resolver returns
 // (0, false) for NaN inputs).
 func TestOverlay_IndexVsRollingMean_AbsentPointDoesNotAdvanceCarrier(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{10.0, 20.0, math.NaN(), 30.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -252,6 +262,8 @@ func TestOverlay_IndexVsRollingMean_AbsentPointDoesNotAdvanceCarrier(t *testing.
 // missing-Params arm: spec without Params (or with empty Params) is
 // rejected with a coded error carrying PULSE_OVERLAY_PARAM_MISSING.
 func TestOverlay_IndexVsRollingMean_MissingWindowParamRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0})
 
@@ -304,6 +316,8 @@ func TestOverlay_IndexVsRollingMean_MissingWindowParamRejected(t *testing.T) {
 // window<=0 arm: spec with window=0 or window=-1 is rejected with a
 // coded error carrying PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
 func TestOverlay_IndexVsRollingMean_NonPositiveWindowRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0})
 
@@ -339,6 +353,8 @@ func TestOverlay_IndexVsRollingMean_NonPositiveWindowRejected(t *testing.T) {
 // bare-kind string "index_vs_rolling_mean" mirroring the
 // INDEX_VS_PRIOR / INDEX_VS_BASELINE convention.
 func TestOverlay_IndexVsRollingMean_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0, 30.0})
 	params, _ := json.Marshal(map[string]any{"window": 2})
@@ -372,6 +388,8 @@ func TestOverlay_IndexVsRollingMean_DefaultLayerName(t *testing.T) {
 //	north: NaN (window unfilled — count goes 1→2 inside this push)
 //	west:  90 / mean(30, 150) * 100 = 90 / 90 * 100 = 100
 func TestOverlay_IndexVsRollingMean_BufferedPath(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsRollingMeanSpec("idx_rolling", 2),
 	}, true /*forceBuffered*/)
@@ -396,6 +414,8 @@ func TestOverlay_IndexVsRollingMean_BufferedPath(t *testing.T) {
 // PROCESSING_INTERNAL error rather than panicking. Mirrors the
 // INDEX_VS_PRIOR / INDEX_VS_TOTAL safety pattern.
 func TestOverlay_IndexVsRollingMean_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newIndexVsRollingMeanSpec("idx_rolling", 3)
 	_, _, err := applyIndexVsRollingMean(&spec, nil)
 	if err == nil {

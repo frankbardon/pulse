@@ -79,6 +79,8 @@ func chiSqRowPayloadKnown() *types.MatrixPayload {
 // Scalar / Matrix slots nil; layer-level Summary stays nil (the per-row
 // statistics ride on the entries, not the layer slot).
 func TestOverlay_ChiSqRow_PerRowStat(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(chiSqRowPayloadKnown())
 	specs := []types.OverlaySpec{
 		{
@@ -174,6 +176,8 @@ func TestOverlay_ChiSqRow_PerRowStat(t *testing.T) {
 // 0 has small counts (every expected < 5) and row 1 has large counts
 // (every expected ≥ 5) so exactly one warning fires.
 func TestOverlay_ChiSqRow_ExpectedLowEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	// 2×3. Row 0 sums to 6 (expecteds 1.07 / 2.0 / 2.93); row 1 sums to
 	// 100 (expecteds 17.86 / 33.33 / 48.81). col_margins = [10, 35, 51],
 	// grand = 106.
@@ -257,6 +261,8 @@ func TestOverlay_ChiSqRow_ExpectedLowEmitsWarn(t *testing.T) {
 // equals host RowKeys[i] element-for-element. Renderers rely on this
 // to lay the SERIES overlay alongside the host axis without re-keying.
 func TestOverlay_ChiSqRow_SeriesEntryOrderMatchesRowKeys(t *testing.T) {
+	t.Parallel()
+
 	payload := chiSqRowPayloadKnown()
 	host := NewCrosstabHostView(payload)
 	specs := []types.OverlaySpec{
@@ -311,6 +317,8 @@ func TestOverlay_ChiSqRow_SeriesEntryOrderMatchesRowKeys(t *testing.T) {
 // Verifies the handler does NOT crash on an absent cell and the row's
 // statistic correctly absorbs the zero observation.
 func TestOverlay_ChiSqRow_AbsentCellsHandled(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -370,6 +378,8 @@ func TestOverlay_ChiSqRow_AbsentCellsHandled(t *testing.T) {
 // surfaces the failure the same way predict would have flagged it
 // (defense in depth — validator catches this at predict time too).
 func TestOverlay_ChiSqRow_DegenerateShapeRejected(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowKeys:    []types.AxisKey{{"r0"}, {"r1"}},
 		ColumnKeys: []types.AxisKey{{"c0"}},

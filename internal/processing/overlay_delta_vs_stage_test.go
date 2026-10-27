@@ -16,6 +16,8 @@ import (
 // payload with the matching shape inherited from the target stage.
 // No warnings expected.
 func TestApplyDeltaVsStage_MatrixHappyPath(t *testing.T) {
+	t.Parallel()
+
 	rowKeys := []types.AxisKey{{"r0"}, {"r1"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
 	target := matrixResponse(rowKeys, colKeys, [][]*float64{
@@ -72,6 +74,8 @@ func TestApplyDeltaVsStage_MatrixHappyPath(t *testing.T) {
 // ZERO reference — the cell should surface `target - 0 == target` with
 // no NaN and no warning. Zero is a number, not a divisor.
 func TestApplyDeltaVsStage_MatrixZeroRefNoNaN(t *testing.T) {
+	t.Parallel()
+
 	rowKeys := []types.AxisKey{{"r0"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
 	target := matrixResponse(rowKeys, colKeys, [][]*float64{{fpr(50), fpr(80)}})
@@ -105,6 +109,8 @@ func TestApplyDeltaVsStage_MatrixZeroRefNoNaN(t *testing.T) {
 }
 
 func TestApplyDeltaVsStage_MatrixMissingRefCellWarns(t *testing.T) {
+	t.Parallel()
+
 	rowKeys := []types.AxisKey{{"r0"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
 	target := matrixResponse(rowKeys, colKeys, [][]*float64{{fpr(100), fpr(200)}})
@@ -144,6 +150,8 @@ func TestApplyDeltaVsStage_MatrixMissingRefCellWarns(t *testing.T) {
 // 3-row target × 3-row reference. Per-row delta = target_value -
 // ref_value; entries align by row-key string. No warnings expected.
 func TestApplyDeltaVsStage_SeriesHappyPath(t *testing.T) {
+	t.Parallel()
+
 	target := seriesResponse([]map[string]any{
 		{"group": "us", "sum": 120.0},
 		{"group": "uk", "sum": 60.0},
@@ -203,6 +211,8 @@ func TestApplyDeltaVsStage_SeriesHappyPath(t *testing.T) {
 // SeriesEntry whose Statistic equals the target value (delta against
 // implicit zero reference per acceptance).
 func TestApplyDeltaVsStage_SeriesMissingRefKeyWarns(t *testing.T) {
+	t.Parallel()
+
 	target := seriesResponse([]map[string]any{
 		{"group": "us", "sum": 120.0},
 		{"group": "mx", "sum": 30.0}, // missing in ref
@@ -249,6 +259,8 @@ func TestApplyDeltaVsStage_SeriesMissingRefKeyWarns(t *testing.T) {
 // responses carry a single numeric value, the delta is the simple
 // target - reference.
 func TestApplyDeltaVsStage_ScalarHappyPath(t *testing.T) {
+	t.Parallel()
+
 	target := &types.Response{Data: []map[string]any{{"sum": 250.0}}}
 	ref := &types.Response{Data: []map[string]any{{"sum": 100.0}}}
 	spec := &types.ChainOverlaySpec{Kind: types.OverlayKindDeltaVsStage, Scope: types.OverlayScopeTotal}
@@ -280,6 +292,8 @@ func TestApplyDeltaVsStage_ScalarHappyPath(t *testing.T) {
 // TestApplyDeltaVsStage_ScalarZeroRefNoNaN covers the zero-reference
 // scalar arm. Zero is a number; delta == target verbatim; no warning.
 func TestApplyDeltaVsStage_ScalarZeroRefNoNaN(t *testing.T) {
+	t.Parallel()
+
 	target := &types.Response{Data: []map[string]any{{"sum": 100.0}}}
 	ref := &types.Response{Data: []map[string]any{{"sum": 0.0}}}
 	spec := &types.ChainOverlaySpec{Kind: types.OverlayKindDeltaVsStage, Scope: types.OverlayScopeTotal}
@@ -303,6 +317,8 @@ func TestApplyDeltaVsStage_ScalarZeroRefNoNaN(t *testing.T) {
 }
 
 func TestApplyDeltaVsStage_ShapeDivergenceWarning(t *testing.T) {
+	t.Parallel()
+
 	target := matrixResponse(
 		[]types.AxisKey{{"r0"}},
 		[]types.AxisKey{{"c0"}},
@@ -339,6 +355,8 @@ func TestApplyDeltaVsStage_ShapeDivergenceWarning(t *testing.T) {
 // runtime function pointer; runtime.FuncForPC keeps the assertion
 // stable across binary layouts.
 func TestApplyDeltaVsStage_DispatchReplacesStub(t *testing.T) {
+	t.Parallel()
+
 	handler, ok := chainOverlayHandlers[types.OverlayKindDeltaVsStage]
 	if !ok {
 		t.Fatal("OVERLAY_DELTA_VS_STAGE has no dispatch entry")
@@ -355,6 +373,8 @@ func TestApplyDeltaVsStage_DispatchReplacesStub(t *testing.T) {
 }
 
 func TestApplyDeltaVsStage_SpecOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	target := seriesResponse([]map[string]any{{"group": "us", "sum": 120.0}})
 	ref := seriesResponse([]map[string]any{{"group": "us", "sum": 100.0}})
 	stages := []*types.Response{ref, target}
@@ -412,6 +432,8 @@ func TestApplyDeltaVsStage_SpecOrderPreserved(t *testing.T) {
 // TestDeltaKernel_HappyPath confirms the kernel produces the
 // documented `target - reference` shape for a known input pair.
 func TestDeltaKernel_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	got := deltaKernel(250.0, 100.0)
 	if math.Abs(got-150.0) > 1e-9 {
 		t.Errorf("deltaKernel(250,100) = %g, want 150", got)
@@ -422,6 +444,8 @@ func TestDeltaKernel_HappyPath(t *testing.T) {
 // target verbatim when the reference is zero — no special-casing, no
 // NaN. The DELTA kernel is unconditional float subtraction.
 func TestDeltaKernel_ZeroReferenceFinite(t *testing.T) {
+	t.Parallel()
+
 	got := deltaKernel(50.0, 0.0)
 	if math.IsNaN(got) {
 		t.Errorf("deltaKernel(50,0) = NaN, want 50 (zero is a number, not a divisor)")

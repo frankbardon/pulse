@@ -11,6 +11,8 @@ import (
 // hashes the raw params in canonical form — key order (any depth) and
 // whitespace never move it, a value change does.
 func TestBootstrapSeed_ParamsKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 20, []float64{1.5, -0.8}, 0.3, 0.4, 11)
 	spec := func(params string) *types.RegressionSpec {
 		return &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2),

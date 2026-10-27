@@ -20,6 +20,8 @@ import (
 // Welford kinds' predict-only selector refusal), so drift on either side
 // is a contract break.
 func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	wspec := types.WeightSpec{Field: "weight"}
 	freq := types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency}
 	cases := []struct {
@@ -125,6 +127,8 @@ func TestPairwiseWeightedTwoMeansZ_PredictRuntimeParity(t *testing.T) {
 // predict keeps succeeding. Same predict-only split as the Welford
 // kinds' n_source / p_source refusal.
 func TestPairwiseOverlay_NBasisInertAtRuntimeOnOtherKinds(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range types.AllOverlayKinds() {
 		if !types.IsPairwiseOverlayKind(kind) || types.PairwiseKindUsesWeightedMoments(kind) {
 			continue
@@ -171,6 +175,8 @@ func TestPairwiseOverlay_NBasisInertAtRuntimeOnOtherKinds(t *testing.T) {
 // weighted AGG_AVERAGE); if a second built-in ever emitted the moments
 // unconditionally, that refusal would reject a host the runtime accepts.
 func TestPairwiseWeightedMomentKeysMatchCapabilities(t *testing.T) {
+	t.Parallel()
+
 	declared := func(agg types.AggregationType) map[string]bool {
 		m := descx.BuildManifest()
 		schema, ok := m.ComponentsSchemas.Aggregators[string(agg)]

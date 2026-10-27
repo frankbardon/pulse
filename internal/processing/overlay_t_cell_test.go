@@ -57,6 +57,8 @@ func expectedMatrixPValueScalar(t *testing.T) float64 {
 }
 
 func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	ref := scalarMatrix3x3([3][3]float64{
 		{9, 9, 9},
 		{9, 9, 9},
@@ -111,6 +113,8 @@ func expectedSeriesPValueScalar(t *testing.T) float64 {
 }
 
 func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{"east", "north", "south", "west"}
 	ref := makeSeriesResponse(keys, []float64{9, 9, 9, 9})
 	target := makeSeriesResponse(keys, []float64{10, 10, 10, 10})

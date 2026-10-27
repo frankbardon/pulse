@@ -93,6 +93,8 @@ func (c bayesPrecisionCase) spec() *types.RegressionSpec {
 // interval, df, σ scale, R², adjusted R² and posterior covariance, every
 // figure within relative 1e-10.
 func TestReferenceOracle_RegBayesPrecisionVectorMatchesR(t *testing.T) {
+	t.Parallel()
+
 	const tol = 1e-10
 	var sawFlat, sawWeighted bool
 	for _, c := range loadBayesPrecisionReference(t) {
@@ -159,6 +161,8 @@ func precisionFixture() []Record {
 // scale figures (standard errors, intervals, residual SE, vcov) agree
 // within a few ulps.
 func TestRegBayes_ScalarPrecisionEqualsUniformVector(t *testing.T) {
+	t.Parallel()
+
 	recs := precisionFixture()
 	for _, mu := range [][]float64{nil, {0.5, 1.1, -0.7}} {
 		scalar := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"},
@@ -193,6 +197,8 @@ func TestRegBayes_ScalarPrecisionEqualsUniformVector(t *testing.T) {
 // mean and, at 1e12, sits on it; the coefficients with a weak prior keep
 // fitting the data.
 func TestRegBayes_PrecisionToInfinityPinsPriorMean(t *testing.T) {
+	t.Parallel()
+
 	recs := precisionFixture()
 	const target = -0.25
 	prevGap := math.Inf(1)
@@ -219,6 +225,8 @@ func TestRegBayes_PrecisionToInfinityPinsPriorMean(t *testing.T) {
 // slopes flat the posterior is improper and the fit is the existing
 // RANK_DEFICIENT refusal, and one proper entry on the pair restores it.
 func TestRegBayes_FlatPriorImproperRefused(t *testing.T) {
+	t.Parallel()
+
 	recs := make([]Record, 20)
 	for i := range recs {
 		x := float64(i%7) - 2

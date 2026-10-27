@@ -11,6 +11,8 @@ import (
 
 // EWMA with alpha=0.5: s_0 = x_0 = 10; s_1 = 0.5*20+0.5*10=15; s_2 = 0.5*30+0.5*15=22.5.
 func TestEWMA_Recurrence(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},
@@ -38,6 +40,8 @@ func TestEWMA_Recurrence(t *testing.T) {
 
 // alpha = 1.0 → identity (each row's EWMA is the row's value).
 func TestEWMA_AlphaOneIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 7.0},
 		{"ts": 2.0, "x": 13.0},
@@ -62,6 +66,8 @@ func TestEWMA_AlphaOneIsIdentity(t *testing.T) {
 }
 
 func TestEWMA_LeadingNullsThenSeed(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": nil},
 		{"ts": 2.0, "x": 100.0},
@@ -91,6 +97,8 @@ func TestEWMA_LeadingNullsThenSeed(t *testing.T) {
 }
 
 func TestEWMA_BadAlphaError(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"ts": 1.0, "x": 1.0}}
 	w := []*types.Window{
 		{

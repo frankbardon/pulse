@@ -18,6 +18,8 @@ import (
 // over a `datetime` (which adds `hour`), a `date` writes all of them but
 // `hour`, and the Description names no part it does not emit.
 func TestFeatDateFeatures_ManifestNamesRealColumns(t *testing.T) {
+	t.Parallel()
+
 	factory, ok := feature.Lookup(types.FEAT_DATE_FEATURES)
 	if !ok {
 		t.Fatal("FEAT_DATE_FEATURES not registered")

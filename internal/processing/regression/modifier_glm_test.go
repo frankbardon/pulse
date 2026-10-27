@@ -58,6 +58,8 @@ func runGLMWithModifier(t *testing.T, spec *types.RegressionSpec, records []Reco
 // TestRegGLM_Jackknife_Logistic: logistic regression + jackknife
 // produces finite, positive SE entries for every coefficient.
 func TestRegGLM_Jackknife_Logistic(t *testing.T) {
+	t.Parallel()
+
 	records := makeLogisticFixture(t, 60, []float64{1.2, -0.8}, 0.1, 53)
 	spec := &types.RegressionSpec{
 		Type:       types.REG_GLM,
@@ -85,6 +87,8 @@ func TestRegGLM_Jackknife_Logistic(t *testing.T) {
 // make exact recovery noisier than the OLS case, so we assert
 // containment rather than equality.
 func TestRegGLM_Stepwise_Logistic(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewPCG(67, 67^0xABCDEF1234567890))
 	n := 250
 	records := make([]Record, n)

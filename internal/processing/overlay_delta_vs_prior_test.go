@@ -29,6 +29,8 @@ func newDeltaVsPriorSpec(name string) types.OverlaySpec {
 // warning). Subsequent points emit the lag-1 difference in the metric's
 // own units.
 func TestOverlay_DeltaVsPrior_BasicLag1(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}, {"apr"}, {"may"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0, 50.0}
 	host := newStubSeriesHost(keys, values)
@@ -82,6 +84,8 @@ func TestOverlay_DeltaVsPrior_BasicLag1(t *testing.T) {
 // value below 100; a delta reports it as a negative number in the
 // metric's own units, which is the whole reason both kinds exist.
 func TestOverlay_DeltaVsPrior_NegativeAndMixed(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"q1"}, {"q2"}, {"q3"}, {"q4"}}
 	values := []float64{95.8, 96.4, 94.1, 97.9}
 	host := newStubSeriesHost(keys, values)
@@ -119,6 +123,8 @@ func TestOverlay_DeltaVsPrior_NegativeAndMixed(t *testing.T) {
 // with NO warnings. A delta of zero here would CLAIM that nothing
 // changed about a comparison that was never made.
 func TestOverlay_DeltaVsPrior_FirstPointNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"only"}}
 	values := []float64{42.0}
 	host := newStubSeriesHost(keys, values)
@@ -153,6 +159,8 @@ func TestOverlay_DeltaVsPrior_FirstPointNaN(t *testing.T) {
 // warning appeared, someone has "restored" a zero-ref branch that was
 // deliberately left out.
 func TestOverlay_DeltaVsPrior_ZeroPriorIsValidNotAWarning(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{4.0, 0.0, 5.0}
 	host := newStubSeriesHost(keys, values)
@@ -183,6 +191,8 @@ func TestOverlay_DeltaVsPrior_ZeroPriorIsValidNotAWarning(t *testing.T) {
 // with an unset Statistic and does NOT advance the lag carrier, so the
 // next present point differences against the last PRESENT value.
 func TestOverlay_DeltaVsPrior_AbsentPointPreservesPriorCarrier(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, math.NaN(), 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -213,6 +223,8 @@ func TestOverlay_DeltaVsPrior_AbsentPointPreservesPriorCarrier(t *testing.T) {
 // `Ref.Prior` populated authoring shape produces the same output as the
 // empty-Ref shape — both are the lag-1 implicit-default spellings.
 func TestOverlay_DeltaVsPrior_RefPriorPopulatedAccepted(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 25.0, 40.0}
 
@@ -250,6 +262,8 @@ func TestOverlay_DeltaVsPrior_RefPriorPopulatedAccepted(t *testing.T) {
 // TestOverlay_DeltaVsPrior_DefaultLayerName pins the synthesised
 // renderer-facing label when the spec carries no explicit Name.
 func TestOverlay_DeltaVsPrior_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{1.0, 2.0})
 	spec := newDeltaVsPriorSpec("")
@@ -267,6 +281,8 @@ func TestOverlay_DeltaVsPrior_DefaultLayerName(t *testing.T) {
 // branch: a nil host is a coded PROCESSING_INTERNAL error rather than a
 // panic.
 func TestOverlay_DeltaVsPrior_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newDeltaVsPriorSpec("delta_prior")
 	_, _, err := applyDeltaVsPrior(&spec, nil)
 	if err == nil {

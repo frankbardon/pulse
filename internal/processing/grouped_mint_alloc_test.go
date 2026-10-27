@@ -10,6 +10,8 @@ import (
 // fan-out's MaxGroups admission (tests x groups, checked before any
 // bucket folds) allocates nothing while in bounds.
 func TestGroupMemory_GroupedTestAdmitAllocationFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	g := &groupedRowTests{nTests: 3, limits: limits.Defaults()}
 	got := testing.AllocsPerRun(1000, func() {
 		if err := g.admit(1000); err != nil {
@@ -26,6 +28,8 @@ func TestGroupMemory_GroupedTestAdmitAllocationFree(t *testing.T) {
 // path minus the slots it mints — allocates nothing, so the MaxGroups
 // check at the mint costs no heap.
 func TestGroupMemory_GroupedMatricesMintAllocationFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	const runs = 1000
 	keys := make([]string, runs+1)
 	for i := range keys {

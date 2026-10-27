@@ -74,6 +74,8 @@ func kmRun(t *testing.T, req *types.Request, recs []*Record) *types.Response {
 // order gives byte-identical Data and Components (the labels are a
 // function of the member tuples alone).
 func TestKMeans_InvariantUnderRowOrder(t *testing.T) {
+	t.Parallel()
+
 	pts := kmBlobs([]int{40, 25, 12}, 1)
 	base := kmRun(t, kmRequest(`{"k":3,"seed":11}`), kmRecords(kmSchema(), pts))
 	want, _ := json.Marshal(base)
@@ -94,6 +96,8 @@ func TestKMeans_InvariantUnderRowOrder(t *testing.T) {
 // that order (never alphabetical: cluster_10 after cluster_9) with
 // strictly descending sizes.
 func TestKMeans_K12EmitsSizeOrder(t *testing.T) {
+	t.Parallel()
+
 	sizes := make([]int, 12)
 	for i := range sizes {
 		sizes[i] = 5 + i
@@ -118,6 +122,8 @@ func TestKMeans_K12EmitsSizeOrder(t *testing.T) {
 // TestKMeans_LloydFixedPoint: every clustered point is nearest its own
 // centroid and every centroid is its cluster's mean (clustering space).
 func TestKMeans_LloydFixedPoint(t *testing.T) {
+	t.Parallel()
+
 	pts := kmBlobs([]int{30, 30, 30}, 9)
 	// Blur the blobs so the partition is not trivially separable.
 	for i := range pts {
@@ -156,6 +162,8 @@ func TestKMeans_LloydFixedPoint(t *testing.T) {
 // TestKMeans_NullMemberToNNull: a row null on a member joins no
 // cluster and is counted in n_null.
 func TestKMeans_NullMemberToNNull(t *testing.T) {
+	t.Parallel()
+
 	schema := kmSchema()
 	recs := kmRecords(schema, kmBlobs([]int{10, 10}, 4))
 	recs = append(recs, NewRecordWithNulls(schema, map[string]float64{"x": 1}, map[string]bool{"z": true}))
@@ -171,6 +179,8 @@ func TestKMeans_NullMemberToNNull(t *testing.T) {
 // TestKMeans_KAboveDistinctRefused: k above the distinct member tuples
 // is refused (PROCESSING_CONFIG, reason k_exceeds_distinct_points).
 func TestKMeans_KAboveDistinctRefused(t *testing.T) {
+	t.Parallel()
+
 	schema := kmSchema()
 	recs := kmRecords(schema, [][2]float64{{1, 1}, {1, 1}, {2, 2}, {2, 2}})
 	_, err := NewProcessor(schema).Process(context.Background(), kmRequest(`{"k":3}`), NewSliceIterator(recs))
@@ -187,6 +197,8 @@ func TestKMeans_KAboveDistinctRefused(t *testing.T) {
 // clusters exactly as w copies of the row (one canonical point of mass
 // w either way): identical labels and components.
 func TestKMeans_FrequencyWeightIsReplication(t *testing.T) {
+	t.Parallel()
+
 	schema := kmSchema()
 	pts := kmBlobs([]int{15, 9, 6}, 5)
 	var weighted, replicated []*Record
@@ -225,6 +237,8 @@ func TestKMeans_FrequencyWeightIsReplication(t *testing.T) {
 // TestKMeans_NotConvergedWarns: a best start capped at max_iter raises
 // PULSE_MATRIX_NOT_CONVERGED (solver kmeans_lloyd) and still groups.
 func TestKMeans_NotConvergedWarns(t *testing.T) {
+	t.Parallel()
+
 	resp := kmRun(t, kmRequest(`{"k":3,"max_iter":1}`), kmRecords(kmSchema(), kmBlobs([]int{20, 20, 20}, 6)))
 	if len(resp.Warnings) != 1 || resp.Warnings[0].Code != string(errors.PULSE_MATRIX_NOT_CONVERGED) ||
 		resp.Warnings[0].Details["solver"] != "kmeans_lloyd" {
@@ -242,6 +256,8 @@ func TestKMeans_NotConvergedWarns(t *testing.T) {
 // clusters are fitted once over every filtered row — never refitted
 // inside each row bucket — and emitted in size order.
 func TestKMeans_CrosstabFitsTheWholeSet(t *testing.T) {
+	t.Parallel()
+
 	schema := kmSchema()
 	pts := kmBlobs([]int{30, 18, 9}, 8)
 	// The row axis splits the blobs (g = a: the first blob only), so a
@@ -283,6 +299,8 @@ func TestKMeans_CrosstabFitsTheWholeSet(t *testing.T) {
 // TestKMeans_PrepareResolvesNamedVectorAndKeyColumn: a named vector
 // resolves onto the slot copy and the key column is GROUP_KMEANS_<vector>.
 func TestKMeans_PrepareResolvesNamedVectorAndKeyColumn(t *testing.T) {
+	t.Parallel()
+
 	req := kmRequest(`{"k":2}`)
 	req.Vectors = []types.VectorSpec{{Name: "xy", Fields: []string{"x", "y"}}}
 	req.Groups[0].Fields, req.Groups[0].Vector = nil, "xy"
@@ -325,6 +343,8 @@ func kmClose(got, want float64) bool {
 // rep()-expanded rows); on attitude (not separable) the within-SS is no
 // worse than R's best of 200 starts.
 func TestKMeans_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[kmeansOracle](t, "mv_kmeans")
 	kinds := map[string]bool{}
 	for _, c := range doc.Cases {

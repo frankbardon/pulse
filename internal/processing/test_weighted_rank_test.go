@@ -62,6 +62,8 @@ func expandRows(rows []wRow) []wRow {
 // identical rows; ties are the expansion's tie sizes; unit weights are
 // midRanks bit for bit.
 func TestWeightedMidRanks_EqualsExpansion(t *testing.T) {
+	t.Parallel()
+
 	values := []float64{3, 1, 4, 1, 5, 9, 2, 6, 5, 3}
 	weights := []float64{2, 1, 3, 1, 1, 4, 2, 1, 2, 1}
 	var ev []float64
@@ -104,6 +106,8 @@ func TestWeightedMidRanks_EqualsExpansion(t *testing.T) {
 // kind frequency reproduces the unweighted result byte for byte and
 // reports sum_weights = n (no n_eff).
 func TestWeightedRankTests_UnityMatchesUnweighted(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range rankTestCases() {
 		ones := append([]wRow(nil), tc.rows...)
 		for i := range ones {
@@ -139,6 +143,8 @@ func numbersAny(v any) []float64 {
 // numeric detail (effect sizes included) and the warnings; the raw row
 // counts stay raw and sum_weights is the expanded n.
 func TestWeightedRankTests_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range rankTestCases() {
 		got := runWeightedRowTest(t, tc.spec, tc.rows, types.WeightKindFrequency)
 		want := runWeightedRowTest(t, tc.spec, expandRows(tc.rows), "")
@@ -191,6 +197,8 @@ func TestWeightedRankTests_FrequencyIsExpansion(t *testing.T) {
 // null, negative, NaN, infinite, non-integer (kind frequency) or zero is
 // dropped; the result equals the run without those rows.
 func TestWeightedRankTests_ExcludeInvalidAndZero(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	for _, tc := range rankTestCases() {
 		spec := tc.spec

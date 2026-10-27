@@ -72,6 +72,8 @@ func pgExtGroup(kind types.GroupType, field string) *types.Group {
 // accessor, including the nil receiver and the built-in names it
 // deliberately does NOT answer for.
 func TestExtensionRegistry_GrouperFanOut(t *testing.T) {
+	t.Parallel()
+
 	reg := pgExtRegistry()
 	cases := []struct {
 		name      string
@@ -113,6 +115,8 @@ func TestExtensionRegistry_GrouperFanOut(t *testing.T) {
 // (summed-across) pair-axis level refuses, on both crosstab exits,
 // with the same code and details the built-in case produces.
 func TestCrosstabOverlays_ExtensionFanOutRefused_BothArms(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgFlat("segment"), pgExtGroup(pgExtFan, "brand")},
 		[]*types.Group{pgFlat("wave")},
@@ -149,6 +153,8 @@ func TestCrosstabOverlays_ExtensionFanOutRefused_BothArms(t *testing.T) {
 // one bucket partitions the key set, so the summed distinct counts are
 // exact and the request must run.
 func TestCrosstabOverlays_ExtensionSingleKeyRuns_BothArms(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgFlat("wave"), pgExtGroup(pgExtFlat, "segment")},
 		[]*types.Group{pgFlat("wave")},
@@ -169,6 +175,8 @@ func TestCrosstabOverlays_ExtensionSingleKeyRuns_BothArms(t *testing.T) {
 // accepted shape accepted for extension groupers: OUTER, inside the
 // fixed prefix, it multiplies slabs rather than cells.
 func TestCrosstabOverlays_ExtensionFanOutInPrefixRuns_BothArms(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgExtGroup(pgExtFan, "brand"), pgFlat("segment")},
 		[]*types.Group{pgFlat("wave")},
@@ -198,6 +206,8 @@ func TestCrosstabOverlays_ExtensionFanOutInPrefixRuns_BothArms(t *testing.T) {
 // of a grouper that does not exist and bury the accurate
 // unknown-operator error the operator actually needs.
 func TestCrosstabOverlays_UnregisteredGrouperIsNotAPartitionError(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgFlat("segment"), pgExtGroup(types.GroupType("GROUP_ACME_NOPE_X"), "brand")},
 		[]*types.Group{pgFlat("wave")},

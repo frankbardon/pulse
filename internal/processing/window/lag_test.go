@@ -9,6 +9,8 @@ import (
 )
 
 func TestLag_Default(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},
@@ -32,6 +34,8 @@ func TestLag_Default(t *testing.T) {
 }
 
 func TestLag_Offset2(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},
@@ -60,6 +64,8 @@ func TestLag_Offset2(t *testing.T) {
 }
 
 func TestLag_Default_Value(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},
@@ -80,6 +86,8 @@ func TestLag_Default_Value(t *testing.T) {
 }
 
 func TestLag_Partitioned(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"region": "us", "ts": 1.0, "x": 10.0},
 		{"region": "us", "ts": 2.0, "x": 11.0},
@@ -122,6 +130,8 @@ func TestLag_Partitioned(t *testing.T) {
 }
 
 func TestLead_Default(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},
@@ -145,6 +155,8 @@ func TestLead_Default(t *testing.T) {
 }
 
 func TestLag_EmptyPartitions(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{}
 	w := []*types.Window{
 		{Type: types.WIN_LAG, Field: "x", OrderBy: []types.OrderKey{{Field: "x"}}},
@@ -159,6 +171,8 @@ func TestLag_EmptyPartitions(t *testing.T) {
 // and the rows are written exactly as ApplyKeyed writes them; a
 // non-copy window is never observed.
 func TestLag_CopyObserver(t *testing.T) {
+	t.Parallel()
+
 	mk := func() []map[string]any {
 		return []map[string]any{{"ts": 1.0, "x": 10.0}, {"ts": 2.0, "x": 20.0}, {"ts": 3.0, "x": 30.0}}
 	}

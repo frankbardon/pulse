@@ -383,6 +383,8 @@ func assertNoStaleWideAfterSet(t *testing.T, where string, rec *Record, fields [
 }
 
 func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
+	t.Parallel()
+
 	fx := buildParityFixture(t)
 	schema := fx.schema
 	allFields := make([]*encoding.Field, len(schema.Fields))
@@ -533,6 +535,8 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 // Read/WriteFieldValue API refuses the wide rungs with
 // ENCODING_TYPE_MISMATCH rather than truncating.
 func TestRecord_WideSetsRefuseUint64ValueAPI(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{encoding.FieldTypeSetU128, encoding.FieldTypeSetU256} {
 		var buf bytes.Buffer
 		err := encoding.WriteFieldValue(&buf, ft, 1)
@@ -558,6 +562,8 @@ func assertCode(t *testing.T, what string, err error, want perrors.Code) {
 // narrow mask at or above 256 and a wide-rung mask would each cost a
 // heap allocation per row through SetWideFieldAt's `any`.
 func TestRecord_TypedSetDecodeAllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "s16", Type: encoding.FieldTypeSetU16, Dictionary: parityDict("a", 16)},
 		{Name: "s64", Type: encoding.FieldTypeSetU64, Dictionary: parityDict("b", 64)},
@@ -604,6 +610,8 @@ func TestRecord_TypedSetDecodeAllocatesNothing(t *testing.T) {
 // ANY occurrence was null. The positional record shares one slot per
 // name to reproduce exactly that, on every decode path.
 func TestRecord_DuplicateFieldNamesKeepMapSemantics(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU8, Nullable: true},
 		{Name: "b", Type: encoding.FieldTypeCategoricalU8, Dictionary: parityDict("x", 3)},
@@ -696,6 +704,8 @@ func TestRecord_DuplicateFieldNamesKeepMapSemantics(t *testing.T) {
 // reads it exactly as a full-layout record would. A position past the
 // schema panics rather than landing on another field.
 func TestRecord_ProjectedWritesOutsideLayout(t *testing.T) {
+	t.Parallel()
+
 	fx := buildParityFixture(t)
 	schema := fx.schema
 	keep := func(n string) bool { return n == "f_u8" }
@@ -769,6 +779,8 @@ func TestRecord_ProjectedWritesOutsideLayout(t *testing.T) {
 // positions — a projected binding, or a schema with a repeated name. The
 // copy must land every value on the right field.
 func TestRecord_CopyIntoProjectedAndDuplicateLayouts(t *testing.T) {
+	t.Parallel()
+
 	fx := buildParityFixture(t)
 	schema := fx.schema
 	src := NewReusableRecord(schema)
@@ -801,6 +813,8 @@ func TestRecord_CopyIntoProjectedAndDuplicateLayouts(t *testing.T) {
 // decodes it into its own storage: boxing a []float64 through
 // SetWideFieldAt would cost an allocation per vector field per row.
 func TestRecord_VectorDecodeAllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeVecF32, Nullable: true},
 		{Name: "b", Type: encoding.FieldTypeVecF64},

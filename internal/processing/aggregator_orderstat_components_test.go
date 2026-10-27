@@ -11,6 +11,8 @@ import (
 )
 
 func TestMetaAggregator_OrderStatOps_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	makeRecs := func(values []float64, nullIdxs []int) []*Record {
 		return makeRecordsWithNulls(schema, "score", values, nullIdxs)
@@ -256,6 +258,8 @@ func TestMetaAggregator_OrderStatOps_Components(t *testing.T) {
 // catches drift at build time; this test catches the inverse drift
 // (an embedder casting an aggregator to MetaAggregator must succeed).
 func TestMetaAggregator_OrderStatOps_InterfaceLock(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	for _, aggType := range []types.AggregationType{types.AGG_MEDIAN, types.AGG_PERCENTILE} {
 		t.Run(string(aggType), func(t *testing.T) {
@@ -287,6 +291,8 @@ func TestMetaAggregator_OrderStatOps_InterfaceLock(t *testing.T) {
 // BufferedComponents flag is the dedicated signal for "components
 // emission is buffered-only" and survives independently of streamability.
 func TestPredict_BufferedComponentsFlag_OrderStat(t *testing.T) {
+	t.Parallel()
+
 	// Predict touches schema only — a minimal header is enough.
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{

@@ -25,6 +25,8 @@ func makeGrouper(t *testing.T, groupType types.GroupType, field string, interval
 }
 
 func TestGrouper_Category_NumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
 
@@ -46,6 +48,8 @@ func TestGrouper_Category_NumericField(t *testing.T) {
 }
 
 func TestGrouper_Category_CategoricalField(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "brand", 0, schema)
 
@@ -77,6 +81,8 @@ func TestGrouper_Category_CategoricalField(t *testing.T) {
 }
 
 func TestGrouper_Category_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
 
@@ -90,6 +96,8 @@ func TestGrouper_Category_Empty(t *testing.T) {
 }
 
 func TestGrouper_Category_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
 
@@ -109,6 +117,8 @@ func TestGrouper_Category_NullHandling(t *testing.T) {
 }
 
 func TestGrouper_Rounded_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "age", 10, schema)
 
@@ -137,6 +147,8 @@ func TestGrouper_Rounded_Basic(t *testing.T) {
 }
 
 func TestGrouper_Rounded_IntervalOf5(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 5, schema)
 
@@ -153,6 +165,8 @@ func TestGrouper_Rounded_IntervalOf5(t *testing.T) {
 }
 
 func TestGrouper_Rounded_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 10, schema)
 
@@ -166,6 +180,8 @@ func TestGrouper_Rounded_Empty(t *testing.T) {
 }
 
 func TestGrouper_Range_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "age", 10, schema)
 
@@ -196,6 +212,8 @@ func TestGrouper_Range_Basic(t *testing.T) {
 }
 
 func TestGrouper_Range_FloatInterval(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "score", 0.5, schema)
 
@@ -220,6 +238,8 @@ func TestGrouper_Range_FloatInterval(t *testing.T) {
 }
 
 func TestGrouper_Range_NegativeValues(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
 
@@ -247,6 +267,8 @@ func TestGrouper_Range_NegativeValues(t *testing.T) {
 }
 
 func TestGrouper_Range_DefaultInterval(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "age", 0, schema)
 
@@ -272,6 +294,8 @@ func TestGrouper_Range_DefaultInterval(t *testing.T) {
 }
 
 func TestGrouper_Range_SingleRecord(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "age", 10, schema)
 
@@ -290,6 +314,8 @@ func TestGrouper_Range_SingleRecord(t *testing.T) {
 }
 
 func TestGrouper_Range_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "age", 10, schema)
 
@@ -303,6 +329,8 @@ func TestGrouper_Range_Empty(t *testing.T) {
 }
 
 func TestGrouper_Range_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "age", 10, schema)
 
@@ -326,6 +354,8 @@ func TestGrouper_Range_NullHandling(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Quartiles(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 4, schema)
 
@@ -346,6 +376,8 @@ func TestGrouper_Quantile_Quartiles(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Deciles(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 10, schema)
 
@@ -371,6 +403,8 @@ func TestGrouper_Quantile_Deciles(t *testing.T) {
 }
 
 func TestGrouper_Quantile_DefaultInterval(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 0, schema)
 
@@ -392,6 +426,8 @@ func TestGrouper_Quantile_DefaultInterval(t *testing.T) {
 }
 
 func TestGrouper_Quantile_UnevenDistribution(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 4, schema)
 
@@ -417,6 +453,8 @@ func TestGrouper_Quantile_UnevenDistribution(t *testing.T) {
 }
 
 func TestGrouper_Quantile_SingleRecord(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 4, schema)
 
@@ -435,6 +473,8 @@ func TestGrouper_Quantile_SingleRecord(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 4, schema)
 
@@ -448,6 +488,8 @@ func TestGrouper_Quantile_Empty(t *testing.T) {
 }
 
 func TestGrouper_Quantile_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "age", 4, schema)
 
@@ -474,6 +516,8 @@ func TestGrouper_Quantile_NullHandling(t *testing.T) {
 }
 
 func TestGrouper_Quantile_KeyPrefixes(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 
 	tests := []struct {
@@ -532,6 +576,8 @@ func makeDateGrouper(t *testing.T, component string, schema *encoding.Schema) Gr
 }
 
 func TestGrouper_Date_Month(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "month", schema)
 
@@ -560,6 +606,8 @@ func TestGrouper_Date_Month(t *testing.T) {
 }
 
 func TestGrouper_Date_Year(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "year", schema)
 
@@ -588,6 +636,8 @@ func TestGrouper_Date_Year(t *testing.T) {
 }
 
 func TestGrouper_Date_Quarter(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "quarter", schema)
 
@@ -620,6 +670,8 @@ func TestGrouper_Date_Quarter(t *testing.T) {
 }
 
 func TestGrouper_Date_DayOfWeek(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "day_of_week", schema)
 
@@ -645,6 +697,8 @@ func TestGrouper_Date_DayOfWeek(t *testing.T) {
 }
 
 func TestGrouper_Date_Week(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "week", schema)
 
@@ -670,6 +724,8 @@ func TestGrouper_Date_Week(t *testing.T) {
 }
 
 func TestGrouper_Date_Day(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "day", schema)
 
@@ -694,6 +750,8 @@ func TestGrouper_Date_Day(t *testing.T) {
 }
 
 func TestGrouper_Date_DefaultComponent(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory, ok := grouperRegistry[types.GROUP_DATE]
 	if !ok {
@@ -725,6 +783,8 @@ func TestGrouper_Date_DefaultComponent(t *testing.T) {
 }
 
 func TestGrouper_Date_InvalidComponent(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory, ok := grouperRegistry[types.GROUP_DATE]
 	if !ok {
@@ -738,6 +798,8 @@ func TestGrouper_Date_InvalidComponent(t *testing.T) {
 }
 
 func TestGrouper_Date_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "month", schema)
 
@@ -751,6 +813,8 @@ func TestGrouper_Date_Empty(t *testing.T) {
 }
 
 func TestGrouper_Date_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateGrouper(t, "month", schema)
 
@@ -796,6 +860,8 @@ func makeFiscalDateGrouper(t *testing.T, component string, fiscalOffset int, sch
 // preceding FY2024-Q4, and December 2024 (still inside FY2025) lands in
 // FY2025-Q3.
 func TestGrouper_Date_FiscalQuarter_AprilStart(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeFiscalDateGrouper(t, "quarter", 3, schema)
 
@@ -831,6 +897,8 @@ func TestGrouper_Date_FiscalQuarter_AprilStart(t *testing.T) {
 // TestGrouper_Date_FiscalYear_OctoberStart pins US-Federal-style FY: Oct 1
 // 2023 through Sep 30 2024 is FY2024, Oct 1 2024 flips to FY2025.
 func TestGrouper_Date_FiscalYear_OctoberStart(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeFiscalDateGrouper(t, "year", 9, schema)
 
@@ -855,6 +923,8 @@ func TestGrouper_Date_FiscalYear_OctoberStart(t *testing.T) {
 // (3 months earlier) and offset=9 (October start) produce identical
 // fiscal-year bucketing. Both should land Oct 1 2024 in FY2025.
 func TestGrouper_Date_FiscalOffset_NegativeEquivalence(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	records := makeRecords(schema, "enrolled", []float64{
 		epochDays(2023, 10, 1),
@@ -884,6 +954,8 @@ func TestGrouper_Date_FiscalOffset_NegativeEquivalence(t *testing.T) {
 // is byte-identical to the no-fiscal_offset path: keys must be bare years
 // (no FY prefix) so existing behaviour is preserved.
 func TestGrouper_Date_FiscalOffset_ZeroIsCalendar(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeFiscalDateGrouper(t, "year", 0, schema)
 
@@ -904,6 +976,8 @@ func TestGrouper_Date_FiscalOffset_ZeroIsCalendar(t *testing.T) {
 }
 
 func TestGrouper_Date_FiscalOffset_OutOfRange(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE]
 	for _, off := range []int{-12, 12, 50, -50} {
@@ -916,6 +990,8 @@ func TestGrouper_Date_FiscalOffset_OutOfRange(t *testing.T) {
 }
 
 func TestGrouper_Date_FiscalOffset_InvalidComponent(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE]
 	for _, comp := range []string{"month", "week", "day", "day_of_week"} {

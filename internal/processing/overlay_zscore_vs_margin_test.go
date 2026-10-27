@@ -79,6 +79,8 @@ func zscoreMeanPayload() *types.MatrixPayload {
 // construction) and the produced layer must match hand-computed
 // expectations exactly within 1e-9.
 func TestOverlay_ZScoreVsMargin_RowAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(zscoreMeanPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -156,6 +158,8 @@ func TestOverlay_ZScoreVsMargin_RowAxis(t *testing.T) {
 // (= column mean) subtracted from each cell, ÷ sd → per-column
 // distribution of z-scores summing to zero within each column.
 func TestOverlay_ZScoreVsMargin_ColAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(zscoreMeanPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -226,6 +230,8 @@ func TestOverlay_ZScoreVsMargin_ColAxis(t *testing.T) {
 // (cells centre on the grand-mean centerpoint) and individual values
 // must match hand-computed expectations.
 func TestOverlay_ZScoreVsMargin_GrandAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(zscoreMeanPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -288,6 +294,8 @@ func TestOverlay_ZScoreVsMargin_GrandAxis(t *testing.T) {
 // null contract the SHARE_OF_* and INDEX_VS_MARGIN handlers use for
 // missing / zero denominators.
 func TestOverlay_ZScoreVsMargin_ZeroSD_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Construct a payload whose first row's cells are all identical
 	// (sd_row0 = 0). The other two rows have non-zero variance so the
 	// warning surface is row-scoped, not whole-matrix.
@@ -370,6 +378,8 @@ func TestOverlay_ZScoreVsMargin_ZeroSD_EmitsWarning(t *testing.T) {
 // reflects a structurally-locked axis, ZSCORE_VS_MARGIN honours
 // whichever axis the spec named.
 func TestOverlay_ZScoreVsMargin_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(zscoreMeanPayload())
 	for _, tc := range []struct {
 		axis types.MarginAxis

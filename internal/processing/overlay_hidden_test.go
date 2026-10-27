@@ -75,6 +75,8 @@ func hiddenRouteSchema() *encoding.Schema {
 // a hidden type, and regression.BuildWith over it raises the error a
 // never-registered type raises.
 func TestExtensionRegistry_HiddenRegressionLookup(t *testing.T) {
+	t.Parallel()
+
 	var nilReg *ExtensionRegistry
 	if _, ok := nilReg.LookupRegression(types.REG_OLS); !ok {
 		t.Fatal("REG_OLS does not resolve on a nil registry; the case is vacuous")
@@ -101,6 +103,8 @@ func TestExtensionRegistry_HiddenRegressionLookup(t *testing.T) {
 // route a hidden streamable regression type or overlay kind exactly like
 // a never-registered one.
 func TestHiddenRouting_StreamAndMergeGates(t *testing.T) {
+	t.Parallel()
+
 	schema := hiddenRouteSchema()
 	cases := []struct {
 		name, hidden, never string
@@ -143,6 +147,8 @@ func TestHiddenRouting_StreamAndMergeGates(t *testing.T) {
 // out-of-range Level before dispatch; a never-registered kind passes it
 // to the table miss — and so must a hidden one.
 func TestHiddenOverlayRoute_LevelWithinGate(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHostWithMargins(2, 2, func(r, c int) float64 { return float64(r + c + 1) })
 	run := func(kind string, exts *ExtensionRegistry) string {
 		specs := []types.OverlaySpec{{Kind: types.OverlayKind(kind), Scope: types.OverlayScopeCell, Level: 5}}
@@ -158,6 +164,8 @@ func TestHiddenOverlayRoute_LevelWithinGate(t *testing.T) {
 // promotes the grouper's frequency onto OVERLAY_YOY specs only; a
 // hidden OVERLAY_YOY is left as authored, like any other kind.
 func TestHiddenOverlayRoute_YoYFrequencyPromotion(t *testing.T) {
+	t.Parallel()
+
 	req := func(kind types.OverlayKind) *types.Request {
 		return &types.Request{
 			Groups:   []*types.Group{{Type: types.GROUP_DATE, Field: "d", Params: json.RawMessage(`{"frequency":"month"}`)}},
@@ -178,6 +186,8 @@ func TestHiddenOverlayRoute_YoYFrequencyPromotion(t *testing.T) {
 // axis; a never-registered kind skips it and reaches the table miss on
 // both crosstab exits — and so must a hidden one.
 func TestHiddenOverlayRoute_PairwiseSlabGate(t *testing.T) {
+	t.Parallel()
+
 	schema := partitionGateSchema(t)
 	recs := partitionGateRecords(schema)
 	hidden := string(types.OverlayKindPairwisePropZ)
@@ -213,6 +223,8 @@ func TestHiddenOverlayRoute_PairwiseSlabGate(t *testing.T) {
 // axis; a never-registered kind skips it and folds to the stub layer —
 // and so must a hidden one.
 func TestHiddenOverlayRoute_ComposePanelSlabGate(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	params := map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}
 	run := func(kind string, exts *ExtensionRegistry) string {

@@ -21,6 +21,8 @@ const singleGrouperStreamAllocCeiling = 317
 // streaming arm allocates no more than it did before composite keys —
 // no per-record composite work, no extra per-run state.
 func TestStreamingGrouped_SingleGrouperAllocCeiling(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	recs := make([]*Record, 0, 200)
 	for i := 0; i < 200; i++ {
 		recs = append(recs, NewRecord(nil, map[string]float64{"a": float64(i % 7), "b": float64(i)}))

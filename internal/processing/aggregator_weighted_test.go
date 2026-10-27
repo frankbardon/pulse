@@ -78,6 +78,8 @@ func wcoreStream(t *testing.T, agg Aggregator, records []*Record) float64 {
 // the population m2/Σw, WELFORD the running mean plus the sample
 // m2/(Σw−1) triple.
 func TestWeightedCore_Oracle(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 	for _, op := range wcoreSpecs {
 		t.Run(string(op), func(t *testing.T) {
@@ -154,6 +156,8 @@ func stripWeightedOnly(m map[string]any) map[string]any {
 // streaming and merged paths (the operation-order rule). Values are
 // chosen so a reassociated formula would drift in the last ULP.
 func TestWeightedCore_UnityParity(t *testing.T) {
+	t.Parallel()
+
 	// 400 deterministic values over several magnitudes: enough rows
 	// that a reassociated recurrence ((w/Σw)·δ instead of (w·δ)/Σw, or
 	// a regrouped merge term) drifts in the last ULP somewhere.
@@ -221,6 +225,8 @@ func TestWeightedCore_UnityParity(t *testing.T) {
 // and (under frequency) fractional weights are excluded — never
 // coerced — and a zero weight contributes nothing.
 func TestWeightedCore_InvalidWeightsExcluded(t *testing.T) {
+	t.Parallel()
+
 	good := []*Record{cohortRec(10, 1, 0, 0, nil), cohortRec(20, 3, 0, 0, nil)}
 	bad := []*Record{
 		cohortRec(1000, 0, 0, 0, map[string]bool{"weight": true}),
@@ -256,6 +262,8 @@ func TestWeightedCore_InvalidWeightsExcluded(t *testing.T) {
 // weight is the stamped slot weight or, unstamped, params.weight_field;
 // none at all (or an explicit null) is PROCESSING_CONFIG.
 func TestWeightedCore_WeightedMeanAlias(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 	avg, _ := wcoreNew(t, wcoreAgg(types.AGG_AVERAGE, types.SlotWeightField("weight"))).Aggregate(records, "value")
 	wm := wcoreNew(t, wcoreAgg(types.AGG_WEIGHTED_MEAN, types.SlotWeightField("weight")))
@@ -294,6 +302,8 @@ func TestWeightedCore_WeightedMeanAlias(t *testing.T) {
 // a weight-aware operator, `null` elsewhere. Stamping is idempotent
 // and never mutates the caller's request.
 func TestStampWeights(t *testing.T) {
+	t.Parallel()
+
 	plain := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}}}
 	if got := StampWeights(plain, nil); got != plain {
 		t.Fatal("unweighted request must be returned as-is")
@@ -404,6 +414,8 @@ func weightProcRequest(w *types.WeightSpec) *types.Request {
 // carries one PULSE_WEIGHT_INVALID_ROWS warning counting every
 // filter-passing row with an invalid weight, by reason.
 func TestWeightedProcess_FloorAndWarning(t *testing.T) {
+	t.Parallel()
+
 	type path struct {
 		name string
 		run  func(p *Processor, req *types.Request) (*types.Response, error)
@@ -507,6 +519,8 @@ func TestWeightedProcess_FloorAndWarning(t *testing.T) {
 // response carries no weighted key and no warning — byte-identical to
 // the pre-weighting wire form.
 func TestWeightedProcess_UnweightedUnchanged(t *testing.T) {
+	t.Parallel()
+
 	resp, err := NewProcessor(weightProcSchema()).Process(context.Background(), weightProcRequest(nil), NewSliceIterator(weightProcRecords()))
 	if err != nil {
 		t.Fatal(err)
@@ -548,6 +562,8 @@ func assertInvalidRowsWarning(t *testing.T, resp *types.Response, byReason map[s
 // aggregator's streamability or mergeability (CanStreamRequest /
 // CanMergeRequest answer exactly as for the unweighted request).
 func TestWeightedCore_StaysMergeable(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range wcoreSpecs {
 		plain := &types.Request{Aggregations: []*types.Aggregation{{Type: op, Field: "value", Params: json.RawMessage(`{"weight_field":"weight"}`)}}}
 		req := &types.Request{
@@ -579,6 +595,8 @@ func deref[T any](p *T) any {
 // schema declares (optional weighted keys included) and the typed
 // weighted floor the schema declares as optional floor keys.
 func TestWeightedCore_ComponentsDeclared(t *testing.T) {
+	t.Parallel()
+
 	floor := map[string]bool{"n": true, "n_null": true, "sum_weights": true, "n_eff": true, "n_weight_invalid": true}
 	m := descx.BuildManifest()
 	ops := append(append([]types.AggregationType{}, wcoreSpecs...),

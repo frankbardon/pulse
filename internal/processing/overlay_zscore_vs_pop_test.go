@@ -33,6 +33,8 @@ func zscoreVsPopSpec() *types.OverlaySpec {
 // against `(subset_freq - pop_freq) / sd_pop` with `1e-12` tolerance
 // (well below ULP for the f64 magnitudes involved).
 func TestApplyZScoreVsPop_DiscreteKnownSDULP(t *testing.T) {
+	t.Parallel()
+
 	// Population: 100 records, frequencies {0.5, 0.3, 0.2} for
 	// categories {a, b, c}. Counts: 50, 30, 20.
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
@@ -146,6 +148,8 @@ func TestApplyZScoreVsPop_DiscreteKnownSDULP(t *testing.T) {
 // INDEX_VS_POP which divides by pop_freq and emits a warning when the
 // value is absent — ZSCORE_VS_POP subtracts so the math is well-defined.
 func TestApplyZScoreVsPop_DiscreteAbsentValueNoWarning(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 30},
@@ -181,6 +185,8 @@ func TestApplyZScoreVsPop_DiscreteAbsentValueNoWarning(t *testing.T) {
 }
 
 func TestApplyZScoreVsPop_DiscreteZeroSDPop(t *testing.T) {
+	t.Parallel()
+
 	// Population: single category, sd_pop = 0 (n=1 — Welford variance
 	// is zero).
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
@@ -239,6 +245,8 @@ func TestApplyZScoreVsPop_DiscreteZeroSDPop(t *testing.T) {
 // host (no per-value counts) emits an empty Entries slice without
 // warning — same shape as INDEX_VS_POP's empty-host arm.
 func TestApplyZScoreVsPop_DiscreteEmptyHost(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{}, 0, 0, 0, 0)
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
@@ -268,6 +276,8 @@ func TestApplyZScoreVsPop_DiscreteEmptyHost(t *testing.T) {
 // known Welford summary. Each bin's centre value is standardised
 // against the population's mean / stddev.
 func TestApplyZScoreVsPop_NumericBasic(t *testing.T) {
+	t.Parallel()
+
 	// Host histogram: 4 bins over [0, 100], so bin centres are
 	// 12.5 / 37.5 / 62.5 / 87.5.
 	hostNum := &types.FacetNumeric{
@@ -324,6 +334,8 @@ func TestApplyZScoreVsPop_NumericBasic(t *testing.T) {
 // population) the handler emits ONE layer-level
 // PULSE_OVERLAY_REF_ZERO warning and zero entries.
 func TestApplyZScoreVsPop_NumericZeroPopSD(t *testing.T) {
+	t.Parallel()
+
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,
 		Histogram: &types.FacetHistogram{
@@ -364,6 +376,8 @@ func TestApplyZScoreVsPop_NumericZeroPopSD(t *testing.T) {
 // without a histogram emits an empty layer without warning — same
 // shape as INDEX_VS_POP's numeric-no-histogram arm.
 func TestApplyZScoreVsPop_NumericNoHistogram(t *testing.T) {
+	t.Parallel()
+
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,
 		// No Histogram populated.
@@ -396,6 +410,8 @@ func TestApplyZScoreVsPop_NumericNoHistogram(t *testing.T) {
 // TestApplyOverlaysFacet_DispatchesZScoreVsPop verifies the FACET-host
 // dispatch table routes OVERLAY_ZSCORE_VS_POP to the runtime handler.
 func TestApplyOverlaysFacet_DispatchesZScoreVsPop(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 	}, 1, 50, 50, 0)
@@ -425,6 +441,8 @@ func TestApplyOverlaysFacet_DispatchesZScoreVsPop(t *testing.T) {
 // TestApplyZScoreVsPop_NilHost / NilPopulation pin the defense-in-depth
 // rejection of nil host / population view (mirrors INDEX_VS_POP).
 func TestApplyZScoreVsPop_NilHost(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 50},
@@ -443,6 +461,8 @@ func TestApplyZScoreVsPop_NilHost(t *testing.T) {
 }
 
 func TestApplyZScoreVsPop_NilPopulation(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 	}, 1, 50, 50, 0)
@@ -464,6 +484,8 @@ func TestApplyZScoreVsPop_NilPopulation(t *testing.T) {
 // INDEX_VS_POP test). Documents the invariant explicitly so future
 // refactors do not silently introduce a streaming-only side channel.
 func TestApplyZScoreVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 		{Value: "b", Count: 30},
@@ -507,6 +529,8 @@ func TestApplyZScoreVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
 }
 
 func TestFacetPopulationView_DiscreteFrequencyStdev(t *testing.T) {
+	t.Parallel()
+
 	t.Run("multi-category", func(t *testing.T) {
 		result := newFacetResultDiscrete("category", []types.FacetValueCount{
 			{Value: "a", Count: 50},

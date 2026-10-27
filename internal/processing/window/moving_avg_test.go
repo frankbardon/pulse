@@ -10,6 +10,8 @@ import (
 
 // 3-row trailing window (preceding=2, following=0).
 func TestMovingAvg_Trailing3(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},

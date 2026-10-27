@@ -277,6 +277,8 @@ func sortedStringSlice(v any) []string {
 }
 
 func TestComponents_ParallelMergeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	runComponentsParallelMerge(t, []int{1_000, 10_000})
 }
 

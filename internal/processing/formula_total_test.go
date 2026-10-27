@@ -27,6 +27,8 @@ func totalFormula(t *testing.T, s *encoding.Schema, src string) AttributeCompute
 // TestFormulaTotal_Interface: only a formula that calls total() is a
 // TwoPassAttribute; any other stays the row-local formulaAttribute.
 func TestFormulaTotal_Interface(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	if _, ok := totalFormula(t, s, "x * 2").(*formulaAttribute); !ok {
 		t.Fatal("plain formula is not the row-local formulaAttribute")
@@ -43,6 +45,8 @@ func TestFormulaTotal_Interface(t *testing.T) {
 // reproducible sum (internal/reprosum) of expr over the records, null
 // rows skipped — bit for bit, and the same bits in any row order.
 func TestFormulaTotal_ExactBinnedSum(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := exprParityRecords(s, 203, true)
 	var want reprosum.Sum
@@ -88,6 +92,8 @@ func TestFormulaTotal_ExactBinnedSum(t *testing.T) {
 // TestFormulaTotal_EmptyIsNaN: a total over zero non-null rows is NaN,
 // so the formula is NaN on every row — never 0.
 func TestFormulaTotal_EmptyIsNaN(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	var nullOnly []*Record
 	for _, r := range exprParityRecords(s, 40, true) {
@@ -112,6 +118,8 @@ func TestFormulaTotal_EmptyIsNaN(t *testing.T) {
 // TestFormulaTotal_ZeroDivisor: a total of exactly 0 used as a divisor
 // gives a non-finite row value, which the wire writes as null.
 func TestFormulaTotal_ZeroDivisor(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := exprParityRecords(s, 20, false)
 	got, err := totalFormula(t, s, "(y + 1) / total(y * 0)").Compute(recs, "")
@@ -135,6 +143,8 @@ func TestFormulaTotal_ZeroDivisor(t *testing.T) {
 // TestFormulaTotal_RowBeforeFinalize: reading a total before its
 // pre-pass is a coded internal fault, never a silent 0.
 func TestFormulaTotal_RowBeforeFinalize(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	comp := totalFormula(t, s, "x / total(x)")
 	_, err := comp.(RowLocalAttribute).Row(exprParityRecords(s, 1, false)[0], "")
@@ -147,6 +157,8 @@ func TestFormulaTotal_RowBeforeFinalize(t *testing.T) {
 // the formula builds; a total() in a filter or overlay formula is
 // refused by its own build.
 func TestFormulaTotal_BuildRefusals(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	for src, code := range map[string]errors.Code{
 		"total(x * total(y))": errors.PULSE_FORMULA_TOTAL_NESTED,
@@ -194,6 +206,8 @@ func runTotal(t *testing.T, s *encoding.Schema, recs []*Record, req *types.Reque
 // equal the hand sum. An earlier attribute's label — row-local or
 // two-pass — is a valid argument on both arms.
 func TestFormulaTotal_Routing(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := exprParityRecords(s, 120, true)
 	var want float64
@@ -274,6 +288,8 @@ func TestFormulaTotal_Routing(t *testing.T) {
 // partition would need per-bucket publication), and no total() formula
 // passes the ProcessChain stage gate, which has no two-phase runtime.
 func TestFormulaTotal_MergeAdmission(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	req := func(expr string) *types.Request {
 		return &types.Request{
@@ -304,6 +320,8 @@ func TestFormulaTotal_MergeAdmission(t *testing.T) {
 // registryFuseFacts.AttributeTwoPass may stay type-keyed. The runtime
 // AssertCanFuse echo refuses it per attribute.
 func TestFormulaTotal_CrosstabDeclines(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	req := &types.Request{
 		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "share"}},
@@ -355,6 +373,8 @@ func weightedTotalFormula(t *testing.T, s *encoding.Schema, src string, w *types
 // bit for bit on the buffered arm and through both Processor arms
 // (ungrouped two-pass streaming, grouped buffered).
 func TestFormulaTotal_FrequencyWeighted(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := exprParityRecords(s, 203, true)
 	freq := &types.WeightSpec{Field: "y", Kind: types.WeightKindFrequency}
@@ -404,6 +424,8 @@ func TestFormulaTotal_FrequencyWeighted(t *testing.T) {
 // leaves total() bit-identical to the unweighted sum, and an unweighted
 // slot is untouched.
 func TestFormulaTotal_UnitWeightByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, Nullable: true},
 		{Name: "w", Type: encoding.FieldTypeU16},

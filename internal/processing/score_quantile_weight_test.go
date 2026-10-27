@@ -75,6 +75,8 @@ func ones(n int) []float64 {
 // TestScoreAttrWeighted_UnityBitIdentical: all-ones weights under either
 // kind reproduce the unweighted scores bit for bit.
 func TestScoreAttrWeighted_UnityBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreRecords(scoreSchema(), ones(len(scoreValues)))
 	for _, typ := range scoreTypes {
 		base := computeScore(t, typ, recs, types.SlotWeight{})
@@ -92,6 +94,8 @@ func TestScoreAttrWeighted_UnityBitIdentical(t *testing.T) {
 // TestScoreAttrWeighted_FrequencyIsExpansion: integer frequency weights
 // give each row the score its copies get on the expanded rows.
 func TestScoreAttrWeighted_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreRecords(scoreSchema(), scoreWeights)
 	var exp []*Record
 	var first []int
@@ -116,6 +120,8 @@ func TestScoreAttrWeighted_FrequencyIsExpansion(t *testing.T) {
 // μ_w = Σwx/Σw and σ_w = √(Σw(x − μ_w)²/Σw), identical under both kinds
 // and invariant to multiplying every weight by a constant.
 func TestScoreAttrWeighted_ClosedForm(t *testing.T) {
+	t.Parallel()
+
 	ws := []float64{0.8, 1.7, 0.35, 2.2, 0.95, 1.15, 0.6, 1.3, 2.7, 0.45, 1.05}
 	sw, swx := 0.0, 0.0
 	for i, w := range ws {
@@ -163,6 +169,8 @@ func TestScoreAttrWeighted_ClosedForm(t *testing.T) {
 // weight keeps the row out of the population statistics while the row
 // still gets its score against them.
 func TestScoreAttrWeighted_ExcludedRows(t *testing.T) {
+	t.Parallel()
+
 	schema := scoreSchema()
 	ws := append([]float64(nil), scoreWeights...)
 	ws[0], ws[1], ws[2] = 0, -1, math.NaN()
@@ -240,6 +248,8 @@ func bucketByRecord(t *testing.T, groups map[string][]*Record) map[*Record]int {
 // either kind give the unweighted partition (same records, same order)
 // and the same components, for every bucket count.
 func TestQuantileGrouperWeighted_UnityBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreRecords(scoreSchema(), ones(len(scoreValues)))
 	for _, k := range []int{2, 3, 4, 10, 100} {
 		base, baseComp := quantileGroup(t, recs, k, types.SlotWeight{})
@@ -260,6 +270,8 @@ func TestQuantileGrouperWeighted_UnityBitIdentical(t *testing.T) {
 // the expanded rows (the cut is the order statistic that opens a
 // bucket), and the bucket counts stay raw row counts.
 func TestQuantileGrouperWeighted_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreRecords(scoreSchema(), scoreWeights)
 	var exp []*Record
 	for i, r := range recs {
@@ -295,6 +307,8 @@ func TestQuantileGrouperWeighted_FrequencyIsExpansion(t *testing.T) {
 // components unchanged (the weights are rescaled to the row count,
 // Hmisc normwt = TRUE); integer weights cut the same as frequency ones.
 func TestQuantileGrouperWeighted_ProbabilityScaleInvariance(t *testing.T) {
+	t.Parallel()
+
 	frac := []float64{0.8, 1.7, 0.35, 2.2, 0.95, 1.15, 0.6, 1.3, 2.7, 0.45, 1.05}
 	base := scoreRecords(scoreSchema(), frac)
 	for _, k := range []int{3, 4, 10} {
@@ -330,6 +344,8 @@ func TestQuantileGrouperWeighted_ProbabilityScaleInvariance(t *testing.T) {
 // it were absent — but is still bucketed by its value (with the row
 // sorted just below it) and counted raw.
 func TestQuantileGrouperWeighted_ExcludedRows(t *testing.T) {
+	t.Parallel()
+
 	schema := scoreSchema()
 	ws := append([]float64(nil), scoreWeights...)
 	ws[0], ws[1], ws[2] = 0, -1, math.NaN()
@@ -381,6 +397,8 @@ func TestQuantileGrouperWeighted_ExcludedRows(t *testing.T) {
 // counts the stamped grouper slots, and a grouper slot weight alone
 // makes the request weighted.
 func TestStampWeights_Groupers(t *testing.T) {
+	t.Parallel()
+
 	reqW := &types.WeightSpec{Field: "w"}
 	q := func(w types.SlotWeight) *types.Group {
 		return &types.Group{Type: types.GROUP_QUANTILE, Field: "x", Weight: w}
@@ -428,6 +446,8 @@ func TestStampWeights_Groupers(t *testing.T) {
 // (0.1 × 3 = 0.30000000000000004), so this holds only because every
 // cumulative weight within 1e-9 of an integer is snapped to it.
 func TestQuantileGrouperWeighted_EqualWeightsKnifeEdge(t *testing.T) {
+	t.Parallel()
+
 	for _, w := range []float64{0.1, 0.3, 1.0 / 3, 0.7} {
 		ws := make([]float64, len(scoreValues))
 		for i := range ws {

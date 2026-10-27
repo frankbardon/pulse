@@ -84,6 +84,8 @@ func rakeCell(t *testing.T, where string, c types.MatrixCell) float64 {
 // sweeps — with the host columns REVERSED against the targets' order,
 // so a positional (not by-key) alignment would fail.
 func TestRake_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rakeCase](t, "rake")
 	if len(doc.Cases) < 5 {
 		t.Fatalf("rake.json has %d cases, want at least 5", len(doc.Cases))
@@ -154,6 +156,8 @@ func TestRake_MatchesR(t *testing.T) {
 // (100) converge on the census case, and the fitted margins hit the
 // scaled shares.
 func TestRake_DefaultsConverge(t *testing.T) {
+	t.Parallel()
+
 	rows, cols := []string{"young", "old"}, []string{"n", "s", "e"}
 	counts := [][]float64{{40, 22, 31}, {35, 41, 28}}
 	spec := rakeSpec(t, map[string]any{
@@ -191,6 +195,8 @@ func TestRake_DefaultsConverge(t *testing.T) {
 // NOT_CONVERGED warning, still ships its payload (converged 0), and the
 // empty row stays zero.
 func TestRake_UnreachableTargetWarnsAndShips(t *testing.T) {
+	t.Parallel()
+
 	rows, cols := []string{"a", "b", "c"}, []string{"x", "y"}
 	counts := [][]float64{{10, 5}, {0, 0}, {4, 9}}
 	spec := rakeSpec(t, map[string]any{
@@ -222,6 +228,8 @@ func TestRake_UnreachableTargetWarnsAndShips(t *testing.T) {
 // TestRake_RuntimeRefusals: every runtime refusal, with its own code
 // and the spec index from the MATRIX dispatcher.
 func TestRake_RuntimeRefusals(t *testing.T) {
+	t.Parallel()
+
 	rows, cols := []string{"a", "b"}, []string{"x", "y"}
 	counts := [][]float64{{3, 4}, {5, 6}}
 	good := map[string]float64{"a": 1, "b": 1}
@@ -283,6 +291,8 @@ func TestRake_RuntimeRefusals(t *testing.T) {
 // TestRake_DoesNotMutateHost: the host payload is byte-identical after
 // the overlay ran.
 func TestRake_DoesNotMutateHost(t *testing.T) {
+	t.Parallel()
+
 	rows, cols := []string{"a", "b", "c"}, []string{"x", "y"}
 	host := rakeHost(rows, cols, []int{1, 0}, [][]float64{{10, 0}, {3, 7}, {8, 2}})
 	before, _ := json.Marshal(host.Payload())
@@ -302,6 +312,8 @@ func TestRake_DoesNotMutateHost(t *testing.T) {
 // TestRake_ZeroTargetEmptiesTheRow: a zero target zeroes its row (and
 // its factors) exactly, and the fit still converges.
 func TestRake_ZeroTargetEmptiesTheRow(t *testing.T) {
+	t.Parallel()
+
 	rows, cols := []string{"a", "b"}, []string{"x", "y"}
 	spec := rakeSpec(t, map[string]any{
 		"row_targets": map[string]float64{"a": 0, "b": 1},

@@ -134,6 +134,8 @@ func warningsWith(ws []types.OverlayWarning, code errors.Code, reason string) []
 // markovchain's — with the host columns REVERSED against the rows, so
 // a positional (not by-key) alignment would fail.
 func TestMarkov_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[markovCase](t, "markov")
 	if len(doc.Cases) < 6 {
 		t.Fatalf("markov.json has %d cases, want at least 6", len(doc.Cases))
@@ -211,6 +213,8 @@ func TestMarkov_MatchesR(t *testing.T) {
 // 1; a chain too sticky for 10,000 iterations falls back to the exact
 // solve and still matches the closed form (b / (a + b), a / (a + b)).
 func TestMarkov_PowerIterationSelfCheck(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[markovCase](t, "markov")
 	checked := 0
 	for _, c := range doc.Cases {
@@ -266,6 +270,8 @@ func TestMarkov_PowerIterationSelfCheck(t *testing.T) {
 // absorption_time only with params.absorbing (over the non-absorbing
 // states), the summary parameters.
 func TestMarkov_Layer(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "c"}
 	counts := [][]float64{{5, 3, 2}, {1, 6, 3}, {2, 2, 6}}
 	layer, ws, err := applyMarkov(markovSpec(""), markovHost(states, []int{2, 0, 1}, counts))
@@ -324,6 +330,8 @@ func sortedStrings(in []string) []string {
 // the host lacks — is PULSE_OVERLAY_PARAM_MISSING; the accepted forms
 // run.
 func TestMarkov_Params(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "c"}
 	counts := [][]float64{{5, 3, 2}, {1, 6, 3}, {2, 2, 6}}
 	many := make([]string, 65)
@@ -392,6 +400,8 @@ func TestMarkov_Params(t *testing.T) {
 // fewer than 2 states or a zero total is
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestMarkov_HostRefusals(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "c"}
 	counts := [][]float64{{5, 3, 2}, {1, 6, 3}, {2, 2, 6}}
 	for _, c := range []struct {
@@ -477,6 +487,8 @@ func TestMarkov_HostRefusals(t *testing.T) {
 // TestMarkov_ZeroRowAbsorbs: a state with a zero row becomes the unit
 // row (it absorbs) with one PULSE_OVERLAY_REF_ZERO warning naming it.
 func TestMarkov_ZeroRowAbsorbs(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "c"}
 	layer, ws, err := applyMarkov(markovSpec(""), markovHost(states, markovIdentity(3), [][]float64{{5, 3, 2}, {1, 6, 3}, {0, 0, 0}}))
 	if err != nil {
@@ -500,6 +512,8 @@ func TestMarkov_ZeroRowAbsorbs(t *testing.T) {
 // absorption_not_certain warning; a state that can only reach the
 // absorbing set keeps its exact time.
 func TestMarkov_AbsorptionNotCertain(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "z", "d", "e"}
 	counts := [][]float64{
 		{1, 1, 2, 0, 0}, // a → a, b, z: certain
@@ -545,6 +559,8 @@ func TestMarkov_AbsorptionNotCertain(t *testing.T) {
 // leak so small that 1 − P_bb rounds to 0) drops the absorption_time
 // part with a coded PULSE_MATRIX_SINGULAR warning — never a NaN time.
 func TestMarkov_SingularFundamentalMatrix(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "z"}
 	counts := [][]float64{{1, 1, 0}, {0, 1e17, 1}, {0, 0, 1}}
 	layer, ws, err := applyMarkov(markovSpec(`{"absorbing":["z"]}`), markovHost(states, markovIdentity(3), counts))
@@ -563,6 +579,8 @@ func TestMarkov_SingularFundamentalMatrix(t *testing.T) {
 // TestMarkov_ScaleInvariant: scaling every cell (a weighted host's Σw
 // table) moves no figure.
 func TestMarkov_ScaleInvariant(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"a", "b", "c"}
 	counts := [][]float64{{5, 3, 2}, {1, 6, 3}, {2, 2, 6}}
 	scaled := make([][]float64, 3)
@@ -621,6 +639,8 @@ func churnHost() *CrosstabHostView {
 // closed form. Q = [[.6,.3],[.2,.4]] → (I − Q)⁻¹·1 = [0.9, 0.6] / 0.18
 // = [5, 10/3] (markovchain::meanAbsorptionTime agrees).
 func TestMarkov_SynthesizedAbsorbingRow(t *testing.T) {
+	t.Parallel()
+
 	states := []string{"active", "lapsed", "churned"}
 	layer, ws, err := applyMarkov(markovSpec(`{"absorbing":["churned"],"steps":[1],"initial":"margin"}`), churnHost())
 	if err != nil {

@@ -49,6 +49,8 @@ func lassoFixture() ([]string, []Record) {
 // Reference β values per alpha: the glmnet oracle's (lassoFixture),
 // asserted at the default tolerance.
 func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
+	t.Parallel()
+
 	predictors, records := lassoFixture()
 
 	cases := []struct {
@@ -141,6 +143,8 @@ func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
 // usually converges in ~6 cycles on this data; capping to 1 prevents
 // it from reaching tol.
 func TestRegOLS_Lasso_NonConvergence(t *testing.T) {
+	t.Parallel()
+
 	predictors, records := lassoFixture()
 	spec := &types.RegressionSpec{
 		Type: types.REG_OLS, Target: "y", Predictors: predictors,
@@ -163,6 +167,8 @@ func TestRegOLS_Lasso_NonConvergence(t *testing.T) {
 // α/2 with every slope halved (the objective is the same function), and
 // the same α on 2·x is a weaker penalty than on x.
 func TestRegOLS_PenaltyReadsPredictorUnits(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x0", "x1"}
 	n := 40
 	makeRecords := func(scale float64) []Record {

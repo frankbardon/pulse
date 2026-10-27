@@ -162,6 +162,8 @@ const semScoreTol = 1e-4
 // with its own wave's parameters), the members alternating between
 // inline fields and a named vector.
 func TestSEMScore_InlineMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	for ci, c := range []struct {
 		ref    string
@@ -218,6 +220,8 @@ func TestSEMScore_InlineMatchesLavaan(t *testing.T) {
 // sit on the latent-mean scale. The fixture plants value −0.30 and
 // service +0.70 in factor units (quality 0).
 func TestSEMScore_GroupedMeanIsLatentMeanShift(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	model := brandModel(t, "brand_ms")
 	semParams := map[string]any{"model": model, "group": "wave", "group_equal": []string{"loadings", "intercepts"}}
@@ -282,6 +286,8 @@ func TestSEMScore_GroupedMeanIsLatentMeanShift(t *testing.T) {
 // a fit that cannot score nulls every score with one warning of the
 // matrix code, on both arms.
 func TestSEMScore_FailedFitNullsEveryScore(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	ms := brandModel(t, "brand_ms")
 	for _, c := range []struct {
@@ -321,6 +327,8 @@ func TestSEMScore_FailedFitNullsEveryScore(t *testing.T) {
 // fits MAT_SEM's nearest positive-definite substitute, scores every
 // complete row and warns PULSE_MATRIX_NEAREST_PD.
 func TestSEMScore_SingularFitFollowsParamsSingular(t *testing.T) {
+	t.Parallel()
+
 	schema, mk0 := brandSEMFixture(t, nil, nil)
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "q1copy", Type: encoding.FieldTypeF64})
 	mk := func() []*Record {
@@ -372,6 +380,8 @@ func TestSEMScore_SingularFitFollowsParamsSingular(t *testing.T) {
 // without a warning; every other row is its wave's score, the same bits
 // as the fit without those rows.
 func TestSEMScore_UnseenLevelAndNullGroup(t *testing.T) {
+	t.Parallel()
+
 	relevel := func(r int) string {
 		switch {
 		case r < 12:
@@ -428,6 +438,8 @@ func TestSEMScore_UnseenLevelAndNullGroup(t *testing.T) {
 // predictor of recommend in the same request: the attribute column is
 // an ordinary numeric column downstream.
 func TestSEMScore_DownstreamRegression(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	params := map[string]any{"model": "service =~ s1 + s2 + s3"}
 	req := &types.Request{

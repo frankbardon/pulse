@@ -86,6 +86,8 @@ func assertSlabRefusal(t *testing.T, err error, wantPanelIdx, wantSlotIdx, wantD
 // rows, and a fan-out row grouper OUTSIDE the fixed prefix lands one
 // record in two summed rows.
 func TestApplyComposeOverlays_PanelWithinFanOutBeyondPrefixRefused(t *testing.T) {
+	t.Parallel()
+
 	layers, err := panelPartitionFold(t,
 		[]types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT},
 		[]types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT},
@@ -107,6 +109,8 @@ func TestApplyComposeOverlays_PanelWithinFanOutBeyondPrefixRefused(t *testing.T)
 // gate that fired on both would be invisible and this test would prove
 // nothing.
 func TestApplyComposeOverlays_PanelWithinOmittedDepthNotGated(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	layers, err := panelPartitionFold(t, fanOut, fanOut,
 		map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}, nil)
@@ -138,6 +142,8 @@ func TestApplyComposeOverlays_PanelWithinOmittedDepthNotGated(t *testing.T) {
 // partitions its own keys. This is the shape the within-prefix mode
 // exists for and refusing it would refuse the filed request.
 func TestApplyComposeOverlays_PanelWithinFanOutInsidePrefixAccepted(t *testing.T) {
+	t.Parallel()
+
 	inside := []types.GroupType{types.GROUP_SET_PER_ELEMENT, types.GROUP_CATEGORY}
 	layers, err := panelPartitionFold(t, inside, inside,
 		map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}, nil)
@@ -153,6 +159,8 @@ func TestApplyComposeOverlays_PanelWithinFanOutInsidePrefixAccepted(t *testing.T
 // TARGET still refuses, and the diagnostic names the target by both
 // panel index and authored slot index.
 func TestApplyComposeOverlays_PanelWithinOffendingTargetSlotRefuses(t *testing.T) {
+	t.Parallel()
+
 	layers, err := panelPartitionFold(t,
 		[]types.GroupType{types.GROUP_CATEGORY, types.GROUP_CATEGORY},
 		[]types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT},
@@ -170,6 +178,8 @@ func TestApplyComposeOverlays_PanelWithinOffendingTargetSlotRefuses(t *testing.T
 // flattened upper-triangular vector, so a caller would silently receive
 // a shorter vector with no way to tell which slot left.
 func TestApplyComposeOverlays_PanelWithinOffendingSlotSuppressesCleanSpecs(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	clean := composeSpecMultiTargetPropZPanel([]string{"t1"}, nil)
 	clean.Name = "clean_panel"
@@ -201,6 +211,8 @@ func TestApplyComposeOverlays_PanelWithinOffendingSlotSuppressesCleanSpecs(t *te
 // the caller has to fix before the params question is even meaningful,
 // and both arms order it that way.
 func TestApplyComposeOverlays_PanelWithinCapFiresBeforeSlabGate(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	// A cap of 0 means "unset", so the over-cap shape is two targets
 	// against an explicit cap of 1.
@@ -234,6 +246,8 @@ func TestApplyComposeOverlays_PanelWithinCapFiresBeforeSlabGate(t *testing.T) {
 // known to NEITHER the built-ins nor the registry passes — it cannot
 // execute, so it can produce no wrong n.
 func TestApplyComposeOverlays_PanelWithinExtensionGrouperGated(t *testing.T) {
+	t.Parallel()
+
 	const custom types.GroupType = "GROUP_PANEL_FANOUT_X"
 	axis := []types.GroupType{types.GROUP_CATEGORY, custom}
 	params := map[string]any{
@@ -259,6 +273,8 @@ func TestApplyComposeOverlays_PanelWithinExtensionGrouperGated(t *testing.T) {
 // every request arriving through pulse.Compose goes via the
 // requests-aware entry point instead.
 func TestApplyComposeOverlays_LegacyEntryPointCannotGate(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t1"}, nil)
 	spec.Params = map[string]any{

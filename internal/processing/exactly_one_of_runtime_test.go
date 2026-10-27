@@ -58,6 +58,8 @@ func runWithParams(t *testing.T, name, category string, params map[string]any) e
 // each member alone — the rule the manifest declares is the rule the
 // engine enforces.
 func TestExactlyOneOfRefusedAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	grouped := 0
 	for name, op := range manifestOperatorEntries() {
 		members := map[string][]string{}

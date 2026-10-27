@@ -44,6 +44,8 @@ func BenchmarkFormulaTranscendental(b *testing.B) {
 // dense enough that a FEAT_LOG reverted to math.Log1p differs on some
 // row where the compiler fuses multiply-adds (arm64).
 func TestFeatLog_MatchesFormulaLog(t *testing.T) {
+	t.Parallel()
+
 	s := mkSchema("x")
 	var recs []*Record
 	for i := -1000; i <= 5000; i++ {

@@ -7,6 +7,8 @@ import (
 )
 
 func TestRecord_NumericValue_Present(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecord(schema, map[string]float64{"score": 42})
 	v, ok := r.NumericValue("score")
@@ -16,6 +18,8 @@ func TestRecord_NumericValue_Present(t *testing.T) {
 }
 
 func TestRecord_NumericValue_Missing(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecord(schema, map[string]float64{"score": 42})
 	v, ok := r.NumericValue("nonexistent")
@@ -25,6 +29,8 @@ func TestRecord_NumericValue_Missing(t *testing.T) {
 }
 
 func TestRecord_NumericValue_Null(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecordWithNulls(schema, map[string]float64{"score": 42}, map[string]bool{"score": true})
 	v, ok := r.NumericValue("score")
@@ -34,6 +40,8 @@ func TestRecord_NumericValue_Null(t *testing.T) {
 }
 
 func TestRecord_StringValue_Categorical(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	r := NewRecord(schema, map[string]float64{"brand": 0, "score": 10})
 	s, ok := r.StringValue("brand")
@@ -43,6 +51,8 @@ func TestRecord_StringValue_Categorical(t *testing.T) {
 }
 
 func TestRecord_StringValue_NonCategorical(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecord(schema, map[string]float64{"score": 10})
 	s, ok := r.StringValue("score")
@@ -52,6 +62,8 @@ func TestRecord_StringValue_NonCategorical(t *testing.T) {
 }
 
 func TestRecord_StringValue_Null(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	r := NewRecordWithNulls(schema, map[string]float64{"brand": 0}, map[string]bool{"brand": true})
 	s, ok := r.StringValue("brand")
@@ -61,6 +73,8 @@ func TestRecord_StringValue_Null(t *testing.T) {
 }
 
 func TestRecord_StringValue_MissingField(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	r := NewRecord(schema, map[string]float64{"brand": 0})
 	s, ok := r.StringValue("nonexistent")
@@ -70,6 +84,8 @@ func TestRecord_StringValue_MissingField(t *testing.T) {
 }
 
 func TestRecord_StringValue_MissingValue(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	r := NewRecord(schema, map[string]float64{}) // no brand value
 	s, ok := r.StringValue("brand")
@@ -79,6 +95,8 @@ func TestRecord_StringValue_MissingValue(t *testing.T) {
 }
 
 func TestRecord_StringValue_OutOfRangeID(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	r := NewRecord(schema, map[string]float64{"brand": 999}) // out of range
 	s, ok := r.StringValue("brand")
@@ -88,6 +106,8 @@ func TestRecord_StringValue_OutOfRangeID(t *testing.T) {
 }
 
 func TestRecord_Schema(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecord(schema, map[string]float64{"score": 42})
 	if r.Schema() != schema {
@@ -96,6 +116,8 @@ func TestRecord_Schema(t *testing.T) {
 }
 
 func TestRecord_AllValues(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	r := NewRecord(schema, map[string]float64{"brand": 0, "score": 10})
 	vals := r.AllValues()
@@ -111,6 +133,8 @@ func TestRecord_AllValues(t *testing.T) {
 }
 
 func TestRecord_AllValues_NullSkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecordWithNulls(schema, map[string]float64{"score": 42}, map[string]bool{"score": true})
 	vals := r.AllValues()
@@ -120,6 +144,8 @@ func TestRecord_AllValues_NullSkipped(t *testing.T) {
 }
 
 func TestNewRecordWithNulls_NilNulls(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	r := NewRecordWithNulls(schema, map[string]float64{"score": 42}, nil)
 	v, ok := r.NumericValue("score")
@@ -129,6 +155,8 @@ func TestNewRecordWithNulls_NilNulls(t *testing.T) {
 }
 
 func TestSliceIterator_Reset(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	records := makeRecords(schema, "score", []float64{10, 20})
 	iter := NewSliceIterator(records)
@@ -154,6 +182,8 @@ func TestSliceIterator_Reset(t *testing.T) {
 }
 
 func TestSliceIterator_Empty(t *testing.T) {
+	t.Parallel()
+
 	iter := NewSliceIterator([]*Record{})
 	if iter.Next() {
 		t.Error("expected Next() to return false on empty iterator")
@@ -161,6 +191,8 @@ func TestSliceIterator_Empty(t *testing.T) {
 }
 
 func TestRecord_StringValue_NilDictionary(t *testing.T) {
+	t.Parallel()
+
 	// Create a categorical field without a dictionary
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{

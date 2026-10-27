@@ -59,6 +59,8 @@ func singularityRecords(c singularityOracle) (*encoding.Schema, []*Record) {
 // TEST_BARTLETT_SPHERICITY, MAT_PARTIAL_CORRELATION and
 // MAT_COLLINEARITY, which asked only whether InverseSPD failed.
 func TestSingularRule_EverySurfaceAgreesWithROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[singularityOracle](t, "mv_singularity")
 	sawBorderline := false
 	for _, c := range doc.Cases {

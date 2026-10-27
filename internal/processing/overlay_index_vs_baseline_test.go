@@ -28,6 +28,8 @@ func newIndexVsBaselineSpec(name string, position int) types.OverlaySpec {
 // happy path: four points [10, 15, 20, 30] anchored against Position 0
 // produce indices [100, 150, 200, 300].
 func TestOverlay_IndexVsBaseline_BasicBaselineAtZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}, {"apr"}}
 	values := []float64{10.0, 15.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -79,6 +81,8 @@ func TestOverlay_IndexVsBaseline_BasicBaselineAtZero(t *testing.T) {
 // ordinal itself reads `100.0` (self-vs-self under the ratio scaling) and
 // the surrounding ordinals lift / fall against it.
 func TestOverlay_IndexVsBaseline_BaselineAtMiddle(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -107,6 +111,8 @@ func TestOverlay_IndexVsBaseline_BaselineAtMiddle(t *testing.T) {
 // every entry plus ONE PULSE_OVERLAY_REF_ZERO warning. Mirrors the
 // share / index / zscore family's zero-denominator contract.
 func TestOverlay_IndexVsBaseline_BaselineZeroEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 5.0, 10.0}
 	host := newStubSeriesHost(keys, values)
@@ -140,6 +146,8 @@ func TestOverlay_IndexVsBaseline_BaselineZeroEmitsRefZero(t *testing.T) {
 }
 
 func TestOverlay_IndexVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, math.NaN(), 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -172,6 +180,8 @@ func TestOverlay_IndexVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
 // PULSE_OVERLAY_REF_UNKNOWN-coded error and the handler propagates it
 // verbatim through ApplyOverlaysSeries.
 func TestOverlay_IndexVsBaseline_NegativeBaselineRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -189,6 +199,8 @@ func TestOverlay_IndexVsBaseline_NegativeBaselineRejected(t *testing.T) {
 // out-of-range-Position rejection: Position 10 against a 5-point series
 // fires PULSE_OVERLAY_REF_UNKNOWN with `series_length: 5`.
 func TestOverlay_IndexVsBaseline_OutOfRangeBaselineRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{1.0, 2.0, 3.0, 4.0, 5.0}
 	host := newStubSeriesHost(keys, values)
@@ -208,6 +220,8 @@ func TestOverlay_IndexVsBaseline_OutOfRangeBaselineRejected(t *testing.T) {
 // bare-kind string "index_vs_baseline" mirroring the INDEX_VS_TOTAL /
 // SHARE_OF_TOTAL SERIES / INDEX_VS_PRIOR convention.
 func TestOverlay_IndexVsBaseline_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}}
 	host := newStubSeriesHost(keys, []float64{1.0})
 	specs := []types.OverlaySpec{{
@@ -241,6 +255,8 @@ func TestOverlay_IndexVsBaseline_DefaultLayerName(t *testing.T) {
 //	north (150): 150 / 30 * 100 = 500
 //	west  (90):  90 / 30  * 100 = 300
 func TestOverlay_IndexVsBaseline_BufferedPath(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsBaselineSpec("idx_baseline", 0),
 	}, true /*forceBuffered*/)
@@ -267,6 +283,8 @@ func TestOverlay_IndexVsBaseline_BufferedPath(t *testing.T) {
 // empty specs before dispatch, but the defense matches the
 // INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES / INDEX_VS_PRIOR safety pattern.
 func TestOverlay_IndexVsBaseline_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newIndexVsBaselineSpec("idx_baseline", 0)
 	_, _, err := applyIndexVsBaseline(&spec, nil)
 	if err == nil {

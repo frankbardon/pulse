@@ -13,6 +13,8 @@ import (
 // variance = 0 (every diff is 2.0) actually surfaces zero-variance.
 // Use slightly noisy lift so the test exercises the happy path.
 func TestPairedTPost_KnownDiff(t *testing.T) {
+	t.Parallel()
+
 	post, err := newPairedTPost(&types.Test{
 		Type: types.TEST_PAIRED_T, Field: "post", Field2: "pre", Alpha: 0.05,
 	}, nil)
@@ -43,6 +45,8 @@ func TestPairedTPost_KnownDiff(t *testing.T) {
 }
 
 func TestPairedTPost_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newPairedTPost(&types.Test{
 		Type: types.TEST_PAIRED_T, Field: "x", Field2: "y",
 	}, nil)
@@ -53,6 +57,8 @@ func TestPairedTPost_InsufficientN(t *testing.T) {
 }
 
 func TestPairedTPost_ZeroVariance(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newPairedTPost(&types.Test{
 		Type: types.TEST_PAIRED_T, Field: "x", Field2: "y",
 	}, nil)
@@ -67,6 +73,8 @@ func TestPairedTPost_ZeroVariance(t *testing.T) {
 }
 
 func TestSpearmanRPost_PerfectMonotone(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newSpearmanRPost(&types.Test{
 		Type: types.TEST_SPEARMAN_R, Field: "x", Field2: "y",
 	}, nil)
@@ -92,6 +100,8 @@ func TestSpearmanRPost_PerfectMonotone(t *testing.T) {
 }
 
 func TestSpearmanRPost_AgreesWithRowVariant(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},
@@ -112,6 +122,8 @@ func TestSpearmanRPost_AgreesWithRowVariant(t *testing.T) {
 }
 
 func TestKendallTauPost_PerfectMonotone(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newKendallTauPost(&types.Test{
 		Type: types.TEST_KENDALL_TAU, Field: "x", Field2: "y",
 	}, nil)
@@ -135,6 +147,8 @@ func TestKendallTauPost_PerfectMonotone(t *testing.T) {
 }
 
 func TestKendallTauPost_RequiresFields(t *testing.T) {
+	t.Parallel()
+
 	_, err := newKendallTauPost(&types.Test{Type: types.TEST_KENDALL_TAU, Field: "x"}, nil)
 	if err == nil {
 		t.Fatal("expected error for missing field2")
@@ -142,6 +156,8 @@ func TestKendallTauPost_RequiresFields(t *testing.T) {
 }
 
 func TestWilcoxonSRPost_AllPositiveDiffs(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newWilcoxonSRPost(&types.Test{
 		Type: types.TEST_WILCOXON_SR, Field: "after", Field2: "before",
 	}, nil)
@@ -172,6 +188,8 @@ func TestWilcoxonSRPost_AllPositiveDiffs(t *testing.T) {
 }
 
 func TestWilcoxonSRPost_DropsZeroDiffs(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newWilcoxonSRPost(&types.Test{
 		Type: types.TEST_WILCOXON_SR, Field: "a", Field2: "b",
 	}, nil)
@@ -195,6 +213,8 @@ func TestWilcoxonSRPost_DropsZeroDiffs(t *testing.T) {
 }
 
 func TestAnovaWelchPost_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	post, err := newAnovaWelchPost(&types.Test{
 		Type:    types.TEST_ANOVA_WELCH,
 		Field:   "mean_x",
@@ -224,6 +244,8 @@ func TestAnovaWelchPost_KnownStatistic(t *testing.T) {
 }
 
 func TestAnovaWelchPost_RequiresParams(t *testing.T) {
+	t.Parallel()
+
 	_, err := newAnovaWelchPost(&types.Test{
 		Type: types.TEST_ANOVA_WELCH, Field: "x", SplitBy: "g",
 	}, nil)
@@ -233,6 +255,8 @@ func TestAnovaWelchPost_RequiresParams(t *testing.T) {
 }
 
 func TestBrownForsythePost_UnequalVariances(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newBrownForsythePost(&types.Test{
 		Type: types.TEST_BROWN_FORSYTHE, Field: "x", SplitBy: "g",
 	}, nil)
@@ -256,6 +280,8 @@ func TestBrownForsythePost_UnequalVariances(t *testing.T) {
 }
 
 func TestBrownForsythePost_EqualVariances(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newBrownForsythePost(&types.Test{
 		Type: types.TEST_BROWN_FORSYTHE, Field: "x", SplitBy: "g",
 	}, nil)
@@ -275,6 +301,8 @@ func TestBrownForsythePost_EqualVariances(t *testing.T) {
 }
 
 func TestShapiroWilkPost_NormalSample(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newShapiroWilkPost(&types.Test{
 		Type: types.TEST_SHAPIRO_WILK, Field: "x",
 	}, nil)
@@ -297,6 +325,8 @@ func TestShapiroWilkPost_NormalSample(t *testing.T) {
 }
 
 func TestShapiroWilkPost_SkewedSample(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newShapiroWilkPost(&types.Test{
 		Type: types.TEST_SHAPIRO_WILK, Field: "x", Alpha: 0.05,
 	}, nil)
@@ -316,6 +346,8 @@ func TestShapiroWilkPost_SkewedSample(t *testing.T) {
 }
 
 func TestShapiroWilkPost_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newShapiroWilkPost(&types.Test{Type: types.TEST_SHAPIRO_WILK, Field: "x"}, nil)
 	_, err := post.Run([]map[string]any{{"x": 1.0}, {"x": 2.0}})
 	if err == nil {
@@ -324,6 +356,8 @@ func TestShapiroWilkPost_InsufficientN(t *testing.T) {
 }
 
 func TestKSPost_FullySeparated(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newKSPost(&types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "g"}, nil)
 	rows := []map[string]any{
 		{"g": "a", "x": 1.0}, {"g": "a", "x": 2.0}, {"g": "a", "x": 3.0},
@@ -347,6 +381,8 @@ func TestKSPost_FullySeparated(t *testing.T) {
 }
 
 func TestKSPost_IdenticalDistributions(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newKSPost(&types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "g"}, nil)
 	rows := []map[string]any{
 		{"g": "a", "x": 1.0}, {"g": "a", "x": 2.0}, {"g": "a", "x": 3.0},
@@ -364,6 +400,8 @@ func TestKSPost_IdenticalDistributions(t *testing.T) {
 }
 
 func TestKSPost_TooManyGroups(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newKSPost(&types.Test{Type: types.TEST_KS, Field: "x", SplitBy: "g"}, nil)
 	rows := []map[string]any{
 		{"g": "a", "x": 1.0}, {"g": "a", "x": 2.0},

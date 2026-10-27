@@ -117,6 +117,8 @@ func requireSlotShapeDivergent(t *testing.T, err error, wantReference, wantTarge
 // must reject with PULSE_OVERLAY_SCHEMA_DIVERGENT and surface the
 // canonical schema strings so renderers can diff the structures.
 func TestValidateOverlay_SchemaDivergent_DifferentRowGrouperKind(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -144,6 +146,8 @@ func TestValidateOverlay_SchemaDivergent_DifferentRowGrouperKind(t *testing.T) {
 // two nested row groupers. Same kind at depth 0, different depth.
 // The check must reject with PULSE_OVERLAY_SCHEMA_DIVERGENT.
 func TestValidateOverlay_SchemaDivergent_DifferentDepth(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -167,6 +171,8 @@ func TestValidateOverlay_SchemaDivergent_DifferentDepth(t *testing.T) {
 }
 
 func TestValidateOverlay_SchemaDivergent_FieldNamesAllowedToDiffer(t *testing.T) {
+	t.Parallel()
+
 	ref := &types.Response{
 		Crosstab: &types.CrosstabResult{
 			Matrix: &types.MatrixPayload{
@@ -203,6 +209,8 @@ func TestValidateOverlay_SchemaDivergent_FieldNamesAllowedToDiffer(t *testing.T)
 // SERIES (Data). Mixed shapes have no shared coordinate grid; the
 // check rejects with PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.
 func TestValidateOverlay_SlotShapeDivergent_MatrixVsSeries(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -224,6 +232,8 @@ func TestValidateOverlay_SlotShapeDivergent_MatrixVsSeries(t *testing.T) {
 // the scalar arm: reference is MATRIX, target is SCALAR (empty
 // *Response). Mixed shapes ⇒ PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.
 func TestValidateOverlay_SlotShapeDivergent_MatrixVsScalar(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -242,6 +252,8 @@ func TestValidateOverlay_SlotShapeDivergent_MatrixVsScalar(t *testing.T) {
 }
 
 func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t *testing.T) {
+	t.Parallel()
+
 	if !kindRequiresMatrix(types.OverlayKindTCell) {
 		t.Fatal("invariant violated: kindRequiresMatrix(OverlayKindTCell) must return true after the matrix-required catalog flip")
 	}
@@ -295,6 +307,8 @@ func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t
 // when field names differ. The gate must return nil and the per-
 // kind handler is free to dispatch.
 func TestValidateOverlay_SchemaMatch_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY", "GROUP_DATE"},
 		[]string{"GROUP_CATEGORY"},
@@ -321,6 +335,8 @@ func TestValidateOverlay_SchemaMatch_HappyPath(t *testing.T) {
 // the same and the underlying aggregator values differ — values
 // never participate in the structural axis.
 func TestValidateOverlay_SchemaMatch_SeriesHappyPath(t *testing.T) {
+	t.Parallel()
+
 	ref := &types.Response{Data: []map[string]any{
 		{"region": "us", "sum": 1.0},
 		{"region": "eu", "sum": 2.0},
@@ -343,6 +359,8 @@ func TestValidateOverlay_SchemaMatch_SeriesHappyPath(t *testing.T) {
 // (empty *Response). The gate degenerates to a no-op and returns
 // nil — there is no coordinate grid OR structural axis to compare.
 func TestValidateOverlay_SchemaMatch_ScalarHappyPath(t *testing.T) {
+	t.Parallel()
+
 	ref := &types.Response{}
 	target := &types.Response{}
 	spec := types.ComposeOverlaySpec{
@@ -361,6 +379,8 @@ func TestValidateOverlay_SchemaMatch_ScalarHappyPath(t *testing.T) {
 // The check stops at the first failing target — multi-target
 // reporting is a future surface.
 func TestValidateOverlay_SchemaMatch_MultiTargetMixedDivergence(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -410,6 +430,8 @@ func TestValidateOverlay_SchemaMatch_MultiTargetMixedDivergence(t *testing.T) {
 // schema-string format the Details payload exposes. Matrix shape
 // renders as "<rowKinds>/<colKinds>" with kinds joined "|".
 func TestExtractSchemaShape_Canonical_Matrix(t *testing.T) {
+	t.Parallel()
+
 	resp := schemaMatrixSlot(
 		[]string{"GROUP_CATEGORY", "GROUP_DATE"},
 		[]string{"GROUP_RANGE"},
@@ -427,6 +449,8 @@ func TestExtractSchemaShape_Canonical_Matrix(t *testing.T) {
 // column axis is empty (no col axis on a SERIES host). Output:
 // "<rowFields>/".
 func TestExtractSchemaShape_Canonical_Series(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.Response{Data: []map[string]any{
 		{"region": "us", "segment": "north", "sum": 1.0},
 	}}
@@ -442,6 +466,8 @@ func TestExtractSchemaShape_Canonical_Series(t *testing.T) {
 // TestExtractSchemaShape_Canonical_Scalar locks the degenerate
 // scalar render: "/" with both axes empty.
 func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
+	t.Parallel()
+
 	got := extractSchemaShape(&types.Response{}).canonical()
 	if got != "/" {
 		t.Errorf("canonical(scalar) = %q, want %q", got, "/")
@@ -449,6 +475,8 @@ func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
 }
 
 func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
+	t.Parallel()
+
 	matrixRequired := map[types.OverlayKind]bool{
 		types.OverlayKindPropZCell:  true,
 		types.OverlayKindPropZPanel: true,
@@ -472,6 +500,8 @@ func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 // must not trip the structural-divergence gate against another
 // degenerate slot.
 func TestAxisKindsEqual_NilEmptyEquivalent(t *testing.T) {
+	t.Parallel()
+
 	if !axisKindsEqual(nil, []string{}) {
 		t.Error("axisKindsEqual(nil, []) = false, want true")
 	}
@@ -489,6 +519,8 @@ func TestAxisKindsEqual_NilEmptyEquivalent(t *testing.T) {
 // GROUP_DATE) is structurally distinct from (GROUP_DATE,
 // GROUP_CATEGORY).
 func TestAxisKindsEqual_OrderSensitive(t *testing.T) {
+	t.Parallel()
+
 	a := []string{"GROUP_CATEGORY", "GROUP_DATE"}
 	b := []string{"GROUP_DATE", "GROUP_CATEGORY"}
 	if axisKindsEqual(a, b) {
@@ -502,6 +534,8 @@ func TestAxisKindsEqual_OrderSensitive(t *testing.T) {
 // encodeSeriesRow), subsequent numeric columns stay in the axis,
 // and the result is sorted lexicographically.
 func TestExtractSeriesAxisFields_DropFirstNumeric(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{
 			"alpha":  "x", // non-numeric, stays
@@ -525,6 +559,8 @@ func TestExtractSeriesAxisFields_DropFirstNumeric(t *testing.T) {
 // branch on it the same way it branches on LookupReference /
 // LookupTarget failures.
 func TestApplyComposeOverlays_SchemaDivergenceFailsLoud(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		schemaMatrixSlot(
 			[]string{"GROUP_CATEGORY"},
@@ -589,6 +625,8 @@ func schemaMatrixSlotWithCellShape(rowKinds, colKinds []string, rowCount, colCou
 }
 
 func TestValidateOverlay_SchemaMatch_TripleOnBothPasses(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -611,6 +649,8 @@ func TestValidateOverlay_SchemaMatch_TripleOnBothPasses(t *testing.T) {
 }
 
 func TestValidateOverlay_SchemaMatch_ScalarOnBothPasses(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -633,6 +673,8 @@ func TestValidateOverlay_SchemaMatch_ScalarOnBothPasses(t *testing.T) {
 }
 
 func TestValidateOverlay_SchemaDivergent_TripleVsScalar(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -682,6 +724,8 @@ func TestValidateOverlay_SchemaDivergent_TripleVsScalar(t *testing.T) {
 // symmetric (no implicit ordering bias toward whichever slot
 // happens to be the reference).
 func TestValidateOverlay_SchemaDivergent_ScalarVsTriple(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -718,6 +762,8 @@ func TestValidateOverlay_SchemaDivergent_ScalarVsTriple(t *testing.T) {
 }
 
 func TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct(t *testing.T) {
+	t.Parallel()
+
 	ref := schemaMatrixSlotWithCellShape(
 		[]string{"GROUP_CATEGORY"},
 		[]string{"GROUP_CATEGORY"},
@@ -754,6 +800,8 @@ func TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct(t *testing.T) {
 }
 
 func TestCanonicalCellShape_Tokens(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		v    any
@@ -787,6 +835,8 @@ func TestCanonicalCellShape_Tokens(t *testing.T) {
 // gate against any populated triple / scalar slot it was paired
 // with.
 func TestProbeMatrixCellShape_EmptyMatrixReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	empty := &types.MatrixPayload{}
 	if got := probeMatrixCellShape(empty); got != "" {
 		t.Errorf("probeMatrixCellShape(empty matrix) = %q, want %q", got, "")
@@ -808,6 +858,8 @@ func TestProbeMatrixCellShape_EmptyMatrixReturnsEmpty(t *testing.T) {
 // non-empty mismatch (scalar vs welford_triple) returns false;
 // matching non-empty tokens return true.
 func TestCellShapesEqual_EmptyTokenShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	if !cellShapesEqual("", "scalar") {
 		t.Error("cellShapesEqual(\"\", scalar) = false, want true (empty short-circuits)")
 	}
@@ -829,6 +881,8 @@ func TestCellShapesEqual_EmptyTokenShortCircuits(t *testing.T) {
 }
 
 func TestApplyComposeOverlays_SlotShapeDivergenceFailsLoud(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		schemaMatrixSlot(
 			[]string{"GROUP_CATEGORY"},

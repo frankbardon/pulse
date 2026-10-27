@@ -25,6 +25,8 @@ import (
 // relErr 1 + 1e-7: near_tie_relerr has a table 8.4e-8 relative above the
 // observed one, a tie in R but not under a 1e-12 slack.
 func TestReferenceOracle_FisherExact(t *testing.T) {
+	t.Parallel()
+
 	type ciCase struct {
 		ConfLevel   float64  `json:"conf_level"`
 		CILow       float64  `json:"ci_low"`
@@ -203,6 +205,8 @@ func fisherSlackP(a, b, c, d int, slack float64) float64 {
 // root (a support boundary its callers keep out) stops at the bracket
 // cap with the boundary — 0 or +Inf — rather than doubling forever.
 func TestFisherSolveTheta_NoRootStops(t *testing.T) {
+	t.Parallel()
+
 	if got := fisherSolveTheta(func(float64) (float64, float64) { return 1, 0 }); got != 0 {
 		t.Errorf("always-positive g: got %v, want 0", got)
 	}

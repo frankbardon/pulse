@@ -20,6 +20,8 @@ import (
 // the block-list filters (FILTER_EXCLUDE, FILTER_SET_CONTAINS_NONE) keep
 // them.
 func TestReading_FilterNullKeepDrop(t *testing.T) {
+	t.Parallel()
+
 	num := numericSchema()
 	nullNum := NewRecordWithNulls(num, map[string]float64{"score": 0}, map[string]bool{"score": true})
 	for _, c := range []struct {
@@ -55,6 +57,8 @@ func TestReading_FilterNullKeepDrop(t *testing.T) {
 
 // FILTER_RANGE keeps both end points.
 func TestReading_FilterRangeInclusive(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_RANGE, "score", []string{"10", "20"}, "", s)
 	for v, want := range map[float64]bool{9.999: false, 10: true, 20: true, 20.001: false} {
@@ -67,6 +71,8 @@ func TestReading_FilterRangeInclusive(t *testing.T) {
 // FILTER_TRUE drops a missing value in both modes; FILTER_FALSE drops it
 // in strict mode but keeps it in truthy mode (missing counts as false).
 func TestReading_FilterBoolMissing(t *testing.T) {
+	t.Parallel()
+
 	s := boolSchema()
 	null := NewRecordWithNulls(s, map[string]float64{"flag": 0}, map[string]bool{"flag": true})
 	for _, c := range []struct {
@@ -121,6 +127,8 @@ func sameSizes(a, b map[string]int) bool {
 // GROUP_ROUNDED rounds DOWN to a multiple of Interval (floor), never to
 // the nearest: 19 -> 10, -3 -> -10.
 func TestReading_GroupRoundedFloors(t *testing.T) {
+	t.Parallel()
+
 	got := groupSizes(t, types.GROUP_ROUNDED, 10, []float64{19, 10, -3})
 	want := map[string]int{"10": 2, "-10": 1}
 	if !sameSizes(got, want) {
@@ -131,6 +139,8 @@ func TestReading_GroupRoundedFloors(t *testing.T) {
 // GROUP_RANGE keys a bin "low-high"; the low edge is in the bin, the
 // high edge starts the next one.
 func TestReading_GroupRangeKeyHalfOpen(t *testing.T) {
+	t.Parallel()
+
 	got := groupSizes(t, types.GROUP_RANGE, 10, []float64{10, 19.5, 20})
 	want := map[string]int{"10-20": 2, "20-30": 1}
 	if !sameSizes(got, want) {
@@ -141,6 +151,8 @@ func TestReading_GroupRangeKeyHalfOpen(t *testing.T) {
 // GROUP_QUANTILE splits by rank into equal-count buckets, so equal
 // values can land in different buckets.
 func TestReading_GroupQuantileTiesSplit(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 2, s)
 	groups, err := g.Group(makeRecords(s, "score", []float64{5, 5, 5, 5}), "score")
@@ -162,6 +174,8 @@ func TestReading_GroupQuantileTiesSplit(t *testing.T) {
 
 // GROUP_DATE with no component groups by month.
 func TestReading_GroupDateDefaultsToMonth(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{{Name: "d", Type: encoding.FieldTypeDate}}}
 	g := makeGrouper(t, types.GROUP_DATE, "d", 0, s)
 	// 19800 = 2024-03-18 (epoch days).

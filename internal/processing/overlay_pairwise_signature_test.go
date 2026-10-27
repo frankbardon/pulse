@@ -26,12 +26,16 @@ import (
 // may import descriptor/ from a test — the no-execute import ban runs
 // the other way and only forbids descriptor/ importing internal/processing/.
 func TestPairwiseCellAggregatorSignaturesMatchCapabilities(t *testing.T) {
+	t.Parallel()
+
 	if len(cellAggregatorIdentitySignatures) == 0 {
 		t.Fatal("cellAggregatorIdentitySignatures is empty")
 	}
 	for _, sig := range cellAggregatorIdentitySignatures {
 		sig := sig
 		t.Run(string(sig.agg), func(t *testing.T) {
+			t.Parallel()
+
 			want := manifestAggregatorOperatorKeys(t, string(sig.agg))
 			got := append([]string(nil), sig.keys...)
 			sort.Strings(got)
@@ -53,6 +57,8 @@ func TestPairwiseCellAggregatorSignaturesMatchCapabilities(t *testing.T) {
 // classifies as unidentified — or, worse, the reader picks its key up
 // off a cell that was never identified.
 func TestPairwiseCellAggregatorSignaturesCoverDistinctBearers(t *testing.T) {
+	t.Parallel()
+
 	listed := map[types.AggregationType]bool{}
 	for _, sig := range cellAggregatorIdentitySignatures {
 		listed[sig.agg] = true
@@ -92,6 +98,8 @@ func TestPairwiseCellAggregatorSignaturesCoverDistinctBearers(t *testing.T) {
 // Distinguishing it needs per-registration provenance the components
 // block does not carry.
 func TestPairwiseCellAggregatorIdentity_ExactKeySetOnly(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		cell     map[string]any

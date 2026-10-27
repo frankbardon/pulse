@@ -10,6 +10,8 @@ import (
 )
 
 func TestPctChange_Default(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 100.0},
 		{"ts": 2.0, "x": 110.0},
@@ -40,6 +42,8 @@ func TestPctChange_Default(t *testing.T) {
 }
 
 func TestPctChange_DenominatorZeroYieldsNil(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 0.0},
 		{"ts": 2.0, "x": 5.0},
@@ -59,6 +63,8 @@ func TestPctChange_DenominatorZeroYieldsNil(t *testing.T) {
 }
 
 func TestPctChange_Periods2(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 100.0},
 		{"ts": 2.0, "x": 50.0},

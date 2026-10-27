@@ -16,6 +16,8 @@ import (
 // lower / upper bound scores ci_lower / ci_upper × the column, bit for
 // bit, a null column is a null score, and point is the coefficient.
 func TestRegPredict_BoundEqualsIntervalTimesColumn(t *testing.T) {
+	t.Parallel()
+
 	set, res := bindFit(t, &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x1", "x2"}})
 	cases := []struct {
 		params string
@@ -60,6 +62,8 @@ func TestRegPredict_BoundEqualsIntervalTimesColumn(t *testing.T) {
 // for (a lasso-dropped predictor) scores null on every row, never 0; a
 // fit that reports no intervals at all is refused at bind.
 func TestRegPredict_BoundAbsentIsNull(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x3"}}
 	b, err := model.Bind("m", spec, &types.RegressionResult{Type: types.REG_OLS,
 		Coefficients: map[string]float64{model.InterceptKey: 1, "x1": 2, "x3": 0},
@@ -138,6 +142,8 @@ func TestRegPredict_BoundAbsentIsNull(t *testing.T) {
 // TestRegPredict_BoundRefusals: a non-point bound over anything but one
 // predictor term, or an unknown bound, is refused at bind.
 func TestRegPredict_BoundRefusals(t *testing.T) {
+	t.Parallel()
+
 	set, _ := bindFit(t, &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x1", "x2"}})
 	cases := map[string]string{
 		`{"fit":"m","bound":"lower"}`:                         model.ReasonBoundTerms,

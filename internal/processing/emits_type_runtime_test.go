@@ -669,6 +669,8 @@ func manifestOperatorEntries() map[string]descriptor.Operator {
 // This gate is load-bearing: it is the only thing anywhere that compares
 // a declared EmitsType against a produced value.
 func TestManifestEmitsTypeHoldsAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	entries := manifestOperatorEntries()
 
 	declared := make([]string, 0, len(entries))

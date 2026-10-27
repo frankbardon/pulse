@@ -62,6 +62,8 @@ const (
 // rules (subject, order, previous state — no carry-forward) and both
 // order types and state types.
 func TestPreviousState_Compute(t *testing.T) {
+	t.Parallel()
+
 	s := prevStateSchema(t)
 	type row = map[string]float64
 	cases := []struct {
@@ -177,6 +179,8 @@ func TestPreviousState_Compute(t *testing.T) {
 // strict and fails with the warning's own code and details under
 // Strict; a tie-free run under Strict passes.
 func TestPreviousState_StrictFailsTheRun(t *testing.T) {
+	t.Parallel()
+
 	s := prevStateSchema(t)
 	attrs := []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "st", SubjectField: "id", OrderField: "d", Label: "prev"}}
 	mk := func(tie bool) []*Record {
@@ -220,6 +224,8 @@ func TestPreviousState_StrictFailsTheRun(t *testing.T) {
 // TestPreviousState_FactoryRefusals: the shared slot rule's refusals,
 // by code, through the runtime factory.
 func TestPreviousState_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	s := prevStateSchema(t)
 	base := func() *types.Attribute {
 		return &types.Attribute{Type: types.ATTR_PREVIOUS_STATE, Field: "st", SubjectField: "id", OrderField: "d", Label: "prev"}
@@ -267,6 +273,8 @@ func TestPreviousState_FactoryRefusals(t *testing.T) {
 // ambiguous tie (n_ambiguous) or a record with a null subject / order —
 // so the four add up with those to n_null.
 func TestPreviousState_Components(t *testing.T) {
+	t.Parallel()
+
 	s := prevStateSchema(t)
 	type row = map[string]float64
 	rows := []row{

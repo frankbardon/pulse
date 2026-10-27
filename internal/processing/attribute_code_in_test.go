@@ -81,6 +81,8 @@ func catID(t *testing.T, schema *encoding.Schema, field, label string) float64 {
 }
 
 func TestAttrCodeIn_Refusals(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	cases := []struct {
 		name string
@@ -146,6 +148,8 @@ func TestAttrCodeIn_Refusals(t *testing.T) {
 // The width ceiling is inclusive: the largest value each type can hold
 // is accepted.
 func TestAttrCodeIn_WidthCeilingInclusive(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	for field, code := range map[string]string{
 		"n4": "15", "n8": "255", "n16": "65535", "n32": "4294967295", "n64": "18446744073709551615",
@@ -157,6 +161,8 @@ func TestAttrCodeIn_WidthCeilingInclusive(t *testing.T) {
 }
 
 func TestAttrCodeIn_AcceptedTypes(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	for _, f := range []string{"cat", "cat16", "cat32", "n4", "n8", "n16", "n32", "n64"} {
 		if _, err := newCodeInAttribute(codeIn(f, `{"codes":["1"]}`), schema); err != nil {
@@ -166,6 +172,8 @@ func TestAttrCodeIn_AcceptedTypes(t *testing.T) {
 }
 
 func TestAttrCodeIn_CategoricalMatch(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	attr := codeIn("cat", `{"codes":["4","5"]}`)
 	for label, want := range map[string]float64{"1": 0, "3": 0, "4": 1, "5": 1, "DK": 0} {
@@ -187,6 +195,8 @@ func TestAttrCodeIn_CategoricalMatch(t *testing.T) {
 // label "4" sits at ID 3, so a row holding ID 4 (label "5") must not
 // match code 4.
 func TestAttrCodeIn_CategoricalMatchesLabelNotID(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	attr := codeIn("cat", `{"codes":[4]}`)
 	five := NewRecord(schema, map[string]float64{"cat": catID(t, schema, "cat", "5")})
@@ -200,6 +210,8 @@ func TestAttrCodeIn_CategoricalMatchesLabelNotID(t *testing.T) {
 }
 
 func TestAttrCodeIn_IntegerMatchByValue(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	attr := codeIn("n8", `{"codes":["4", 5]}`)
 	for v, want := range map[float64]float64{0: 0, 3: 0, 4: 1, 5: 1, 6: 0, 255: 0} {
@@ -211,6 +223,8 @@ func TestAttrCodeIn_IntegerMatchByValue(t *testing.T) {
 }
 
 func TestAttrCodeIn_JSONIntegerCodes(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	rec := NewRecord(schema, map[string]float64{"n16": 300})
 	if got := codeInRow(t, schema, codeIn("n16", `{"codes":[300]}`), rec); got != 1 {
@@ -219,6 +233,8 @@ func TestAttrCodeIn_JSONIntegerCodes(t *testing.T) {
 }
 
 func TestAttrCodeIn_DuplicatesDeduped(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	codes, err := parseCodeInCodes([]byte(`{"codes":["4", 4, "5", "4", 5]}`))
 	if err != nil {
@@ -237,6 +253,8 @@ func TestAttrCodeIn_DuplicatesDeduped(t *testing.T) {
 }
 
 func TestAttrCodeIn_NullInputReadsZero(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	for field, attr := range map[string]*types.Attribute{
 		"cat": codeIn("cat", `{"codes":["1"]}`),
@@ -252,6 +270,8 @@ func TestAttrCodeIn_NullInputReadsZero(t *testing.T) {
 }
 
 func TestAttrCodeIn_AbsentCategoricalCodeSilent(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	// "9" is not in the dictionary: dropped, no error, matches nothing.
 	attr := codeIn("cat", `{"codes":["9", "NA"]}`)
@@ -272,6 +292,8 @@ func TestAttrCodeIn_AbsentCategoricalCodeSilent(t *testing.T) {
 // A categorical field without a dictionary has no labels: a numeric
 // code must not be read as a dictionary ID.
 func TestAttrCodeIn_CategoricalWithoutDictionaryMatchesNothing(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "c", Type: encoding.FieldTypeCategoricalU8}}}
 	rec := NewRecord(schema, map[string]float64{"c": 4})
 	if got := codeInRow(t, schema, codeIn("c", `{"codes":[4]}`), rec); got != 0 {
@@ -282,6 +304,8 @@ func TestAttrCodeIn_CategoricalWithoutDictionaryMatchesNothing(t *testing.T) {
 // The registry probe constructs with a nil schema: it must succeed and
 // match nothing — not guess that a code is a number or an ID.
 func TestAttrCodeIn_NilSchemaProbeNeverMatches(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	c, err := newCodeInAttribute(codeIn("n8", `{"codes":[0, 1, 4]}`), nil)
 	if err != nil {
@@ -296,6 +320,8 @@ func TestAttrCodeIn_NilSchemaProbeNeverMatches(t *testing.T) {
 }
 
 func TestAttrCodeIn_ComputeMatchesRow(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInSchema(t)
 	c, err := newCodeInAttribute(codeIn("n8", `{"codes":[2]}`), schema)
 	if err != nil {
@@ -316,6 +342,8 @@ func TestAttrCodeIn_ComputeMatchesRow(t *testing.T) {
 }
 
 func TestAttrCodeIn_RegisteredRowLocalNotTwoPass(t *testing.T) {
+	t.Parallel()
+
 	factory, ok := attributeRegistry[types.ATTR_CODE_IN]
 	if !ok {
 		t.Fatal("ATTR_CODE_IN is not registered")
@@ -379,6 +407,8 @@ func codeInXtabRecords(schema *encoding.Schema) []*Record {
 // buffered one — on null-bearing inputs, for a categorical and an
 // integer code field.
 func TestAttrCodeIn_FusedCrosstabMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := codeInXtabSchema(t)
 	for name, attr := range map[string]*types.Attribute{
 		"categorical": {Type: types.ATTR_CODE_IN, Field: "fam", Label: "top2", Params: []byte(`{"codes":["4","5","9"]}`)},

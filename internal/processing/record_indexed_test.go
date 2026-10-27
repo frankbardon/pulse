@@ -87,6 +87,8 @@ func snapshotRecord(r *Record) (map[string]float64, map[string]bool, map[string]
 // bit-packed nibbles/bools, decimal128, narrow and wide sets, and the
 // trailing null bitmap included.
 func TestRecord_IndexedReusePathMatchesNameKeyed(t *testing.T) {
+	t.Parallel()
+
 	schema := indexedRecordSchema()
 	const rows = 16
 	raw := encodeIndexedRows(t, schema, rows)

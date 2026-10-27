@@ -37,6 +37,8 @@ func includeSetGroup(field string, include ...string) *types.Group {
 // remains the oracle: the contract is byte-equality, not a
 // hand-computed number.
 func TestFusedCrosstab_FanOutBreadthMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	zero, one := 0, 1
 	cases := []struct {
 		name string
@@ -237,6 +239,8 @@ func TestFusedCrosstab_FanOutBreadthMatchesBuffered(t *testing.T) {
 // the set-family ones — including two that fold a SET field inside a
 // cell whose axis is itself fanning on a set field.
 func TestFusedCrosstab_FanOutCellAggregatorBreadth(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		cell *types.Aggregation
@@ -359,6 +363,8 @@ func nonNullValueFanoutRecords(schema *encoding.Schema) []*Record {
 // reshapes, so a routing divergence surfaces here as a wrong overlay
 // value even when the base cells agree.
 func TestFusedCrosstab_FanOutWithOverlaysMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		spec     *types.CrosstabSpec
@@ -537,6 +543,8 @@ func presentOverlayValues(layer types.OverlayLayer) int {
 // BOTH paths — Components nil, not an empty struct — while the matrix
 // itself is unchanged by the knob.
 func TestFusedCrosstab_FanOutComponentsDisabledParity(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec *types.CrosstabSpec
@@ -606,6 +614,8 @@ func TestFusedCrosstab_FanOutComponentsDisabledParity(t *testing.T) {
 // both paths. A parity assertion alone would pass if both paths sorted
 // the keys and ignored the list entirely.
 func TestFusedCrosstab_FanOutIncludeOrderingIsHonoured(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		axis    string // "rows" or "columns"
@@ -673,6 +683,8 @@ func TestFusedCrosstab_FanOutIncludeOrderingIsHonoured(t *testing.T) {
 // so it reaches no cell and, under the cell-admission rule (U47 #325),
 // no margin either: the grand margin counts only the admitted records.
 func TestFusedCrosstab_FanOutIncludeCanEmptyARecord(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	recs := fanoutRecords(schema)
 	// Only AMEX survives. Of the eight fixture rows, two carry AMEX
@@ -728,6 +740,8 @@ func TestFusedCrosstab_FanOutIncludeCanEmptyARecord(t *testing.T) {
 // once (Processor.axisComponentsFor), so each label's count is the
 // number of RECORDS carrying it — independent of the column axis.
 func TestFusedCrosstab_FanOutAxisComponentsBucketCounts(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	recs := fanoutRecords(schema)
 	req := &types.Request{Crosstab: &types.CrosstabSpec{
@@ -793,6 +807,8 @@ func TestFusedCrosstab_FanOutAxisComponentsBucketCounts(t *testing.T) {
 //	AMEX -> rec0 (north,10), rec6 (north,7)
 //	DISC -> rec4 (south,50), rec5 (south, NULL value), rec6 (north,7)
 func TestFusedCrosstab_FanOutCellFloorIsHandChecked(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	recs := fanoutRecords(schema)
 	req := &types.Request{Crosstab: &types.CrosstabSpec{

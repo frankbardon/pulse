@@ -69,6 +69,8 @@ func panelTwoDimSlots() (*types.Response, *types.Response) {
 // assertion that n_within reads the PAYLOAD margin: a components read
 // would refuse these slots outright.
 func TestApplyPropZPanel_NWithinOmittedDepthMatchesBaselineBytes(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelBaselineSlots()
 	if ref.Components != nil {
 		t.Fatal("fixture gained components; it must stay components-free to prove n_within is a payload read")
@@ -100,6 +102,8 @@ func TestApplyPropZPanel_NWithinOmittedDepthMatchesBaselineBytes(t *testing.T) {
 // who asked for the first-dim slab the unsummed per-row margin — a
 // smaller, entirely plausible number.
 func TestApplyPropZPanel_NWithinOmittedDepthIsNotDepthZero(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 
@@ -157,6 +161,8 @@ func TestApplyPropZPanel_NWithinOmittedDepthIsNotDepthZero(t *testing.T) {
 // must move — an implementation that summed the whole axis would pass
 // the row-0 assertion above and fail here.
 func TestApplyPropZPanel_NWithinDepthSumsOnlyThePrefixSlab(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}
@@ -200,6 +206,8 @@ func TestApplyPropZPanel_NWithinDepthSumsOnlyThePrefixSlab(t *testing.T) {
 // opposite bound from depth 0 and pins that prefix means d+1 positions
 // rather than d.
 func TestApplyPropZPanel_NWithinMaxDepthEqualsExactMargin(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 
@@ -238,6 +246,8 @@ func TestApplyPropZPanel_NWithinMaxDepthEqualsExactMargin(t *testing.T) {
 // catch a future rewrite that indexes slabs positionally, which is
 // exactly what E3-S3's components read had to be defended from.
 func TestApplyPropZPanel_NWithinResolvesSlabsPerSlot(t *testing.T) {
+	t.Parallel()
+
 	ref, ordered := panelTwoDimSlots()
 	// Same key SET as the reference, reversed, with values and
 	// margins carried along so the per-slot answer is unchanged by
@@ -295,6 +305,8 @@ func TestApplyPropZPanel_NWithinResolvesSlabsPerSlot(t *testing.T) {
 // emits, which is what proves the fallback was dropped deliberately
 // rather than never reached.
 func TestApplyPropZPanel_NWithinDoesNotFallBackToCellValue(t *testing.T) {
+	t.Parallel()
+
 	build := func() (*types.Response, *types.Response) {
 		ref := makeMatrixWithRowMargins(
 			[3][3]float64{{30, 50, 50}, {50, 50, 50}, {50, 50, 50}},
@@ -368,6 +380,8 @@ func TestApplyPropZPanel_NWithinDoesNotFallBackToCellValue(t *testing.T) {
 // both the skip above and the legacy fallback, so all three states
 // stay distinguishable.
 func TestApplyPropZPanel_NWithinPresentZeroMarginIsNotASkip(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{{30, 50, 50}, {50, 50, 50}, {50, 50, 50}},
 		[3]float64{0, 100, 100},
@@ -403,6 +417,8 @@ func TestApplyPropZPanel_NWithinPresentZeroMarginIsNotASkip(t *testing.T) {
 // buildPairwisePairs guard. It is a RUNTIME guard on both families —
 // predict cannot see a materialised row axis.
 func TestApplyPropZPanel_NWithinDepthOutOfRangeRefused(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 	// Row depth is 2, so depth 2 (prefix 3) is one past the end.
@@ -438,6 +454,8 @@ func TestApplyPropZPanel_NWithinDepthOutOfRangeRefused(t *testing.T) {
 // tell which leg left. Pairing legs counted over different prefixes
 // would be worse still.
 func TestApplyPropZPanel_NWithinDepthRefusesOnTheShallowestSlot(t *testing.T) {
+	t.Parallel()
+
 	ref, _ := panelTwoDimSlots()
 	// The target declares a ONE-dim row axis. Depth 1 (prefix 2) is
 	// valid for the reference and out of range here.
@@ -490,6 +508,8 @@ func TestApplyPropZPanel_NWithinDepthRefusesOnTheShallowestSlot(t *testing.T) {
 // NWithinDepth is a *int: "written" is distinguishable from "zero", so
 // the check cannot misfire on a caller who never named the key.
 func TestApplyPropZPanel_NWithinDepthRefusedWithoutAWithinMode(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		nSource any
@@ -537,6 +557,8 @@ func TestApplyPropZPanel_NWithinDepthRefusedWithoutAWithinMode(t *testing.T) {
 // A negative depth refuses under the same code, before any host is
 // looked at.
 func TestApplyPropZPanel_NegativeNWithinDepthRefused(t *testing.T) {
+	t.Parallel()
+
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": -1}
@@ -554,6 +576,8 @@ func TestApplyPropZPanel_NegativeNWithinDepthRefused(t *testing.T) {
 // The cap keeps firing FIRST, now against a depth fault too. Both arms
 // must agree on which failure a doubly-wrong spec reports.
 func TestApplyPropZPanel_CapFiresBeforeNWithinDepthFault(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelBaselineSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, &types.OverlayOptions{MaxPanelTargets: 1})
 	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": -1}
@@ -575,6 +599,8 @@ func TestApplyPropZPanel_CapFiresBeforeNWithinDepthFault(t *testing.T) {
 // readable. A partial sum would understate the denominator silently
 // and be indistinguishable from a genuinely smaller subgroup.
 func TestPanelRowMarginSlabLookup_PartialSlabIsUnreadable(t *testing.T) {
+	t.Parallel()
+
 	resp := withRowKeys(makeMatrixWithRowMargins(
 		[3][3]float64{{1, 1, 1}, {1, 1, 1}, {1, 1, 1}},
 		[3]float64{100, 60, 80},

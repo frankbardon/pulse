@@ -150,6 +150,8 @@ func gpforthKaiserVarimax(a [][]float64) rotationResult {
 // within rotationOracleTol (the trial-step polar factor is gonum's SVD
 // against LAPACK's, so rounding only), and the same iteration count.
 func TestGPForth_VarimaxMatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rotationCase](t, "mv_rotation")
 	for _, c := range doc.Cases {
 		t.Run(fmt.Sprintf("%s/%s/k%d", c.Fixture, c.Weight, c.K), func(t *testing.T) {
@@ -199,6 +201,8 @@ const gpforthVarimaxTol = 2e-3
 // orthogonality invariants: the two algorithms may legitimately stop
 // in different optima there.
 func TestGPForth_VarimaxCriterionMatchesSVDVarimax(t *testing.T) {
+	t.Parallel()
+
 	for name, a := range gpaRotationInputs(t) {
 		t.Run(name, func(t *testing.T) {
 			got := gpforthKaiserVarimax(a)

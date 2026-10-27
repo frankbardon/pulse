@@ -17,6 +17,8 @@ import (
 //
 // Fixed seed for reproducibility. K = 200 keeps the test under ~1s.
 func TestRegBayes_CredibleIntervalCoverage(t *testing.T) {
+	t.Parallel()
+
 	const (
 		K         = 200
 		n         = 80

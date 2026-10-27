@@ -98,6 +98,8 @@ func nnlsCase(t *testing.T, name string) olsNNLSCase {
 // exactly 0; a binding fit reports every standard error, p-value and
 // interval null, a non-binding one finite ones.
 func TestReferenceOracle_OLSNonnegative(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadOLSNNLSReference(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			res, err := newOLS(t, c.spec(nil)).FitBuffered(c.records())
@@ -145,6 +147,8 @@ func TestReferenceOracle_OLSNonnegative(t *testing.T) {
 // solution already satisfies every bound is plain OLS bit for bit — the
 // whole result, vcov included, on the buffered and streaming paths.
 func TestRegOLS_BoundsNoBindingIsPlainOLS(t *testing.T) {
+	t.Parallel()
+
 	c := nnlsCase(t, "no_binding")
 	withVcov := func(s *types.RegressionSpec) { s.Vcov = true }
 	plain := c.spec(func(s *types.RegressionSpec) { s.Bounds, s.Vcov = nil, true })
@@ -188,6 +192,8 @@ func TestRegOLS_BoundsNoBindingIsPlainOLS(t *testing.T) {
 // covariance and correlation with the keys kept; ActiveBounds names the
 // held predictors. Streaming equals buffered.
 func TestRegOLS_BoundsBindingNullsInference(t *testing.T) {
+	t.Parallel()
+
 	c := nnlsCase(t, "binding_mixed_free")
 	spec := c.spec(func(s *types.RegressionSpec) { s.Vcov = true })
 	res, err := newOLS(t, spec).FitBuffered(c.records())
@@ -244,6 +250,8 @@ func TestRegOLS_BoundsBindingNullsInference(t *testing.T) {
 // (the held slope 0), and the replicate standard errors, p-values and
 // intervals replace the nulls — finite on every key.
 func TestRegOLS_BoundsBootstrap(t *testing.T) {
+	t.Parallel()
+
 	c := nnlsCase(t, "binding_one")
 	base, err := newOLS(t, c.spec(nil)).FitBuffered(c.records())
 	if err != nil {
@@ -285,6 +293,8 @@ func TestRegOLS_BoundsBootstrap(t *testing.T) {
 // TestRegOLS_BoundsSingularRefused: a rank-deficient design goes through
 // the existing singular-fit refusal, bounded or not.
 func TestRegOLS_BoundsSingularRefused(t *testing.T) {
+	t.Parallel()
+
 	c := nnlsCase(t, "binding_one")
 	recs := c.records()
 	for i, r := range recs {
@@ -305,6 +315,8 @@ func TestRegOLS_BoundsSingularRefused(t *testing.T) {
 // TestRegOLS_BoundsRefusals: the engine refuses what regbounds.Check
 // refuses (predict parity lives in internal/service).
 func TestRegOLS_BoundsRefusals(t *testing.T) {
+	t.Parallel()
+
 	base := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
 		s := &types.RegressionSpec{
 			Type: types.REG_OLS, Target: "y", Predictors: []string{"a", "b"},

@@ -81,6 +81,8 @@ func errCodeLookupMatrix() *types.MatrixPayload {
 // each asserted to land a code on `errors[0].code` that resolves to a
 // codeMetadata entry with a Message and a usable fixup.
 func TestOverlayErrorCodes_RoundTripToFixupMetadata(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		shape    string
 		wantCode pulseerrors.Code
@@ -188,6 +190,8 @@ func TestOverlayErrorCodes_RoundTripToFixupMetadata(t *testing.T) {
 // Details key. The details payload is the actionable half of these
 // errors — the slot label, the offending index, the observed shape.
 func TestOverlayErrorCodes_DetailsPayloadSurvives(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{
 		"baseline": composeSlotOf(types.OverlayShapeScalar),
 	}
@@ -228,6 +232,8 @@ func TestOverlayErrorCodes_DetailsPayloadSurvives(t *testing.T) {
 // failing. This test asserts the runtime half; the predict half lives
 // in internal/descriptor/overlay_pairwise_welford_params_test.go.
 func TestPairwiseWelfordDistinct_PredictAndRuntimeAgreeOnCode(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []types.OverlayKind{
 		types.OverlayKindPairwiseWelchT,
 		types.OverlayKindPairwiseTwoMeansZ,

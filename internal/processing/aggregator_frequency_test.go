@@ -38,6 +38,8 @@ func buildFrequency(t *testing.T, schema *encoding.Schema, field, params string)
 }
 
 func TestAggFrequency_BufferedStreamingMergedAgree(t *testing.T) {
+	t.Parallel()
+
 	cat := categoricalSchema() // brand: Apple=0, Samsung=1, Google=2
 	num := numericSchema()
 	boolS := boolSchema()
@@ -130,6 +132,8 @@ func TestAggFrequency_BufferedStreamingMergedAgree(t *testing.T) {
 // TestAggFrequency_MergeSumsBothPartials: a match on each side of the
 // split — a merge that kept either partial alone reads 1, not 2.
 func TestAggFrequency_MergeSumsBothPartials(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	a := buildFrequency(t, schema, "score", `{"value":"7"}`).(MergeableAggregator)
 	b := buildFrequency(t, schema, "score", `{"value":"7"}`).(MergeableAggregator)
@@ -153,6 +157,8 @@ func TestAggFrequency_MergeSumsBothPartials(t *testing.T) {
 // end to end under GROUP_CATEGORY on another field: one count per
 // group, a group with no match reads 0, and both paths agree.
 func TestAggFrequency_GroupedBufferedEqualsStreaming(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	rows := []struct {
 		brand, score float64
@@ -205,6 +211,8 @@ func TestAggFrequency_GroupedBufferedEqualsStreaming(t *testing.T) {
 // non-scalar values are refused at construction with PROCESSING_CONFIG
 // naming params.value and pointing at AGG_MODE_COUNT.
 func TestAggFrequency_MissingValueRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, params := range []string{"", `{}`, `{"value":null}`, `{"value":""}`, `{"value":true}`, `{"value":["a"]}`} {
 		_, err := newFrequencyAggregator(frequencyAgg("score", params), numericSchema())
 		if err == nil || !errors.HasCode(err, errors.PROCESSING_CONFIG) {
@@ -227,6 +235,8 @@ func TestAggFrequency_MissingValueRefused(t *testing.T) {
 // TestAggFrequency_UnparseableNumberRefused: a non-numeric value on a
 // numeric field is refused like FILTER_INCLUDE refuses it.
 func TestAggFrequency_UnparseableNumberRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := newFrequencyAggregator(frequencyAgg("score", `{"value":"high"}`), numericSchema())
 	if err == nil || !errors.HasCode(err, errors.PROCESSING_CONFIG) {
 		t.Fatalf("err = %v, want PROCESSING_CONFIG", err)
@@ -236,6 +246,8 @@ func TestAggFrequency_UnparseableNumberRefused(t *testing.T) {
 // TestAggFrequency_SetFieldRefused: a set column is refused at build
 // time, pointing at AGG_SET_FREQUENCY.
 func TestAggFrequency_SetFieldRefused(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	_, err := newFrequencyAggregator(frequencyAgg("tags", `{"value":"VISA"}`), schema)
 	if err == nil || !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) || !strings.Contains(err.Error(), "AGG_SET_FREQUENCY") {

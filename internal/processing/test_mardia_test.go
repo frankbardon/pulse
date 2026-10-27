@@ -92,6 +92,8 @@ func runMardia(t *testing.T, schema *encoding.Schema, recs []*Record, build func
 // headline statistic and the member source (inline fields / a named
 // vector): b1p, b2p, the skewness χ² / df / p, the kurtosis z / p.
 func TestMardia_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[mardiaOracle](t, "mv_mardia")
 	if doc.Packages["psych"] == "" {
 		t.Fatal("mv_mardia.json does not record the psych package version")
@@ -196,6 +198,8 @@ func mardiaReq(mod func(*types.Test)) func() *types.Request {
 // and counted in n_dropped, and the figures equal a run on the complete
 // rows alone.
 func TestMardia_ListwiseAndNulls(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	all := mardiaRows(schema, 200, func(i int, v map[string]float64) {
 		if i%7 == 3 {
@@ -224,6 +228,8 @@ func TestMardia_ListwiseAndNulls(t *testing.T) {
 // TestMardia_FrequencyIsExpansion: integer frequency weights answer like
 // the physically duplicated rows run unweighted (n stays raw).
 func TestMardia_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	weighted := mardiaRows(schema, 15, nil)
 	var expanded []*Record
@@ -255,6 +261,8 @@ func TestMardia_FrequencyIsExpansion(t *testing.T) {
 // no more rows than members leave every figure null with
 // PULSE_MATRIX_SINGULAR.
 func TestMardia_Singular(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	cases := []struct {
 		name string
@@ -285,6 +293,8 @@ func TestMardia_Singular(t *testing.T) {
 // TestMardia_Refusals: too few rows is PULSE_TEST_INSUFFICIENT_N; a
 // bad statistic, split_by or a bad alpha refuse at construction.
 func TestMardia_Refusals(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	rt, err := newMardiaRow(&types.Test{Type: types.TEST_MARDIA, Fields: []string{"x1", "x2"}}, schema)
 	if err != nil {
@@ -326,6 +336,8 @@ func TestMardia_Refusals(t *testing.T) {
 // TestMardia_NotStreamable: the type opts out of streaming, so a
 // tests-plus-aggregation request that would otherwise stream buffers.
 func TestMardia_NotStreamable(t *testing.T) {
+	t.Parallel()
+
 	if types.TEST_MARDIA.Streamable() {
 		t.Fatal("TEST_MARDIA.Streamable() = true; it needs the fitted mean and covariance before any row's products")
 	}

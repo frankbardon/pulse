@@ -13,6 +13,8 @@ func registryWithLabelTables(tables map[string]LabelTable) *ExtensionRegistry {
 }
 
 func TestBuildLabelResolver_NilBindings(t *testing.T) {
+	t.Parallel()
+
 	r, err := BuildLabelResolver(nil, nil)
 	if err != nil {
 		t.Fatalf("nil bindings should not error: %v", err)
@@ -23,6 +25,8 @@ func TestBuildLabelResolver_NilBindings(t *testing.T) {
 }
 
 func TestBuildLabelResolver_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	_, err := BuildLabelResolver(
 		[]*types.LabelBinding{{Field: "country", Table: "missing"}},
 		registryWithLabelTables(map[string]LabelTable{}),
@@ -33,6 +37,8 @@ func TestBuildLabelResolver_UnknownTable(t *testing.T) {
 }
 
 func TestLabelResolver_Replace_Hit(t *testing.T) {
+	t.Parallel()
+
 	r, err := BuildLabelResolver(
 		[]*types.LabelBinding{{Field: "country", Table: "names", Mode: types.LabelModeReplace}},
 		registryWithLabelTables(map[string]LabelTable{
@@ -49,6 +55,8 @@ func TestLabelResolver_Replace_Hit(t *testing.T) {
 }
 
 func TestLabelResolver_Replace_Miss(t *testing.T) {
+	t.Parallel()
+
 	r, _ := BuildLabelResolver(
 		[]*types.LabelBinding{{Field: "country", Table: "names"}},
 		registryWithLabelTables(map[string]LabelTable{
@@ -69,6 +77,8 @@ func TestLabelResolver_Replace_Miss(t *testing.T) {
 }
 
 func TestLabelResolver_Augment(t *testing.T) {
+	t.Parallel()
+
 	r, _ := BuildLabelResolver(
 		[]*types.LabelBinding{{Field: "country", Table: "names", Mode: types.LabelModeAugment}},
 		registryWithLabelTables(map[string]LabelTable{
@@ -87,6 +97,8 @@ func TestLabelResolver_Augment(t *testing.T) {
 // Rows-backed tables get a pre-pass so both colliding source values
 // render disambiguated symmetrically.
 func TestLabelResolver_ReplaceCollisionSymmetric(t *testing.T) {
+	t.Parallel()
+
 	r, _ := BuildLabelResolver(
 		[]*types.LabelBinding{{Field: "country", Table: "names", Mode: types.LabelModeReplace}},
 		registryWithLabelTables(map[string]LabelTable{
@@ -128,6 +140,8 @@ func TestLabelResolver_ReplaceCollisionSymmetric(t *testing.T) {
 // source seen renders cleanly, subsequent collisions render
 // disambiguated.
 func TestLabelResolver_FuncBackedAsymmetricCollision(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]string{
 		"US":  "United States",
 		"USA": "United States",
@@ -152,6 +166,8 @@ func TestLabelResolver_FuncBackedAsymmetricCollision(t *testing.T) {
 }
 
 func TestLabelResolver_NoBindingPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	r, _ := BuildLabelResolver(
 		[]*types.LabelBinding{{Field: "country", Table: "names"}},
 		registryWithLabelTables(map[string]LabelTable{
@@ -165,6 +181,8 @@ func TestLabelResolver_NoBindingPassesThrough(t *testing.T) {
 }
 
 func TestLabelResolver_FieldsWithAugment(t *testing.T) {
+	t.Parallel()
+
 	r, _ := BuildLabelResolver(
 		[]*types.LabelBinding{
 			{Field: "a", Table: "t", Mode: types.LabelModeReplace},
@@ -185,6 +203,8 @@ func TestLabelResolver_FieldsWithAugment(t *testing.T) {
 // — or an unbound field — lists nothing. A `.sav` export labels an
 // integer-coded field from these entries.
 func TestLabelResolver_Entries(t *testing.T) {
+	t.Parallel()
+
 	lookup := func(k string) (string, bool, error) { return "L" + k, true, nil }
 	r, err := BuildLabelResolver(
 		[]*types.LabelBinding{

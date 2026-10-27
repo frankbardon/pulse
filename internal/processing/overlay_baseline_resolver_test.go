@@ -14,6 +14,8 @@ import (
 // Position 1 → 200, Position 2 → 300 — same series, same Position,
 // byte-equal value on every invocation.
 func TestResolveBaselineIndex_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2024-01"}, {"2024-02"}, {"2024-03"}}
 	values := []float64{100.0, 200.0, 300.0}
 	host := newStubSeriesHost(keys, values)
@@ -41,6 +43,8 @@ func TestResolveBaselineIndex_HappyPath(t *testing.T) {
 // the resolver returns `(0, nil)` so the caller can short-circuit
 // cleanly when no BaselineIndex ref was supplied.
 func TestResolveBaselineIndex_NilRefShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHost([]types.AxisKey{{"x"}}, []float64{1.0})
 	got, err := ResolveBaselineIndex(host, nil)
 	if err != nil {
@@ -55,6 +59,8 @@ func TestResolveBaselineIndex_NilRefShortCircuits(t *testing.T) {
 // rejection: any negative ordinal fires PULSE_OVERLAY_REF_UNKNOWN with
 // `{baseline_index, series_length}` Details.
 func TestResolveBaselineIndex_NegativeRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{1.0, 2.0, 3.0}
 	host := newStubSeriesHost(keys, values)
@@ -75,6 +81,8 @@ func TestResolveBaselineIndex_NegativeRejected(t *testing.T) {
 // rejection: `Position >= host.GroupCount()` fires
 // PULSE_OVERLAY_REF_UNKNOWN with the same Details shape.
 func TestResolveBaselineIndex_OutOfRangeRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -95,6 +103,8 @@ func TestResolveBaselineIndex_OutOfRangeRejected(t *testing.T) {
 // arm: Position 0 against an empty host series is still out-of-range
 // (0 >= 0) and fires PULSE_OVERLAY_REF_UNKNOWN with `series_length: 0`.
 func TestResolveBaselineIndex_EmptyHostRejected(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHost(nil, nil)
 	got, err := ResolveBaselineIndex(host, &types.OverlayBaselineIndexRef{Position: 0})
 	if err == nil {
@@ -114,6 +124,8 @@ func TestResolveBaselineIndex_EmptyHostRejected(t *testing.T) {
 // surface a layer-level warning. The structural validation is the
 // resolver's only responsibility.
 func TestResolveBaselineIndex_AbsentHostValuePassesThrough(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{math.NaN(), 2.0, 3.0}
 	host := newStubSeriesHost(keys, values)
@@ -132,6 +144,8 @@ func TestResolveBaselineIndex_AbsentHostValuePassesThrough(t *testing.T) {
 // the same host + same Position. Guards against future drift where a
 // caller might fold state into the resolver.
 func TestResolveBaselineIndex_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{1.5, 2.5, 3.5, 4.5}
 	host := newStubSeriesHost(keys, values)
@@ -161,6 +175,8 @@ func TestResolveBaselineIndex_Deterministic(t *testing.T) {
 // returns the Position-indexed value cleanly so future MATRIX kinds can
 // land without breaking the SERIES handlers' resolver call shape.
 func TestResolveBaselineIndex_RowColumnIgnored(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)

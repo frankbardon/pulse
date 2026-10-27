@@ -11,6 +11,8 @@ import (
 // is the canonical params (rng_seed dropped) — nested key order and
 // whitespace never move it, a value change does.
 func TestSEMSeedSpec_ParamsKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	spec := func(params string) types.MatrixSpec {
 		return types.MatrixSpec{Type: types.MAT_SEM, Params: json.RawMessage(params)}
 	}

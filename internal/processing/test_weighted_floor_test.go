@@ -99,6 +99,8 @@ func assertFloorParity(t *testing.T, name string, runs bool, got *types.TestResu
 // TestWeightedTests_FrequencyFloorIsExpansion: the univariate and
 // bivariate frequency-weighted tests at the raw-row floor's edge.
 func TestWeightedTests_FrequencyFloorIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	// one: a group of ONE raw row standing for w rows; the others are
 	// ordinary multi-row groups.
 	one := func(g string, x, w float64) wRow { return wRow{x: x, y: 0.5*x + 1, g: g, w: w} }
@@ -196,6 +198,8 @@ func runMVTest(t *testing.T, schema *encoding.Schema, recs []*Record, req *types
 // same, not refuse on raw rows. Hotelling's unequal-covariance form with
 // one constant level and Mardia at p = 1 run outright.
 func TestWeightedMVTests_FrequencyFloorIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	type row struct {
 		x1, x2 float64
 		g      string

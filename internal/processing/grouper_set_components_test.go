@@ -31,6 +31,8 @@ func makeSetU16Schema(t *testing.T) *encoding.Schema {
 }
 
 func TestGrouper_SetValue_Components_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetValueGrouper(&types.Group{Type: types.GROUP_SET_VALUE, Field: "tags"}, schema)
 	if err != nil {
@@ -64,6 +66,8 @@ func TestGrouper_SetValue_Components_EmptyCohort(t *testing.T) {
 }
 
 func TestGrouper_SetValue_Components_AllEmptyMasks(t *testing.T) {
+	t.Parallel()
+
 	// Every row carries mask == 0. Each contributes to the "" bucket
 	// and bumps n_empty_mask.
 	schema := makeSetTestSchema(t)
@@ -104,6 +108,8 @@ func TestGrouper_SetValue_Components_AllEmptyMasks(t *testing.T) {
 }
 
 func TestGrouper_SetValue_Components_SingleElementSelections(t *testing.T) {
+	t.Parallel()
+
 	// Each row selects a single distinct bit. Verify per-bucket
 	// mask + count + decoded labels and zero n_empty_mask.
 	schema := makeSetTestSchema(t)
@@ -158,6 +164,8 @@ func TestGrouper_SetValue_Components_SingleElementSelections(t *testing.T) {
 }
 
 func TestGrouper_SetValue_Components_FullWidthSelection(t *testing.T) {
+	t.Parallel()
+
 	// One row sets every dictionary bit. Verify the mask, labels,
 	// and that the bucket key is the pipe-joined sorted label list.
 	schema := makeSetTestSchema(t)
@@ -196,6 +204,8 @@ func TestGrouper_SetValue_Components_FullWidthSelection(t *testing.T) {
 }
 
 func TestGrouper_SetValue_Components_Mixed(t *testing.T) {
+	t.Parallel()
+
 	// Mixed: distinct masks, repeated masks, and one empty mask.
 	// Verifies bucket dedup (rows sharing a mask collapse to one
 	// bucket), label resolution per bucket, and n_empty_mask.
@@ -253,6 +263,8 @@ func TestGrouper_SetValue_Components_Mixed(t *testing.T) {
 }
 
 func TestGrouper_SetValue_Components_SetU16Field(t *testing.T) {
+	t.Parallel()
+
 	// Same operator on a set_u16 field — verifies the dictionary
 	// path is wire-width agnostic. Bits 0, 4, 8 ≡ APPLE, ELDERBERRY,
 	// KIWI in the makeSetU16Schema dictionary.
@@ -289,6 +301,8 @@ func TestGrouper_SetValue_Components_SetU16Field(t *testing.T) {
 }
 
 func TestGrouper_SetPerElement_Components_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}, schema)
 	if err != nil {
@@ -322,6 +336,8 @@ func TestGrouper_SetPerElement_Components_EmptyCohort(t *testing.T) {
 }
 
 func TestGrouper_SetPerElement_Components_SingleBucketShared(t *testing.T) {
+	t.Parallel()
+
 	// All rows carry the same single-bit mask. Per-label count must
 	// equal row count; total_label_observations == TotalN here since
 	// every row contributes to exactly one bucket.
@@ -362,6 +378,8 @@ func TestGrouper_SetPerElement_Components_SingleBucketShared(t *testing.T) {
 }
 
 func TestGrouper_SetPerElement_Components_MultiBitFanOut(t *testing.T) {
+	t.Parallel()
+
 	// Rows with popcount > 1 fan into multiple buckets.
 	// total_label_observations must EXCEED row count (TotalN).
 	schema := makeSetTestSchema(t)
@@ -419,6 +437,8 @@ func TestGrouper_SetPerElement_Components_MultiBitFanOut(t *testing.T) {
 }
 
 func TestGrouper_SetPerElement_Components_EmptyMasksDoNotCount(t *testing.T) {
+	t.Parallel()
+
 	// Empty-mask rows contribute to zero buckets. Verify they are
 	// absent from total_label_observations.
 	schema := makeSetTestSchema(t)
@@ -446,6 +466,8 @@ func TestGrouper_SetPerElement_Components_EmptyMasksDoNotCount(t *testing.T) {
 }
 
 func TestGrouper_SetPerElement_Components_DictIndexMatchesDictOrder(t *testing.T) {
+	t.Parallel()
+
 	// Verify dict_index matches the bit position (== dictionary order)
 	// for every observed label. Uses the wider set_u16 fixture so
 	// indices 4+ are exercised.
@@ -487,6 +509,8 @@ func TestGrouper_SetPerElement_Components_DictIndexMatchesDictOrder(t *testing.T
 }
 
 func TestGrouper_SetPerElement_Components_StreamingKeysForRow(t *testing.T) {
+	t.Parallel()
+
 	// Drive the multi-key streaming path directly via KeysForRow
 	// (not Group) and verify Components() reflects the streaming
 	// fold identically to the buffered Group() path.
@@ -528,6 +552,8 @@ func TestGrouper_SetPerElement_Components_StreamingKeysForRow(t *testing.T) {
 }
 
 func TestGrouper_SetValue_Components_StreamingKeyForRow(t *testing.T) {
+	t.Parallel()
+
 	// Drive the streaming path via KeyForRow (not Group) and verify
 	// liveBuckets / nEmptyMask track the same way as the buffered
 	// Group() path.

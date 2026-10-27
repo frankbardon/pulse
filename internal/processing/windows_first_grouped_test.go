@@ -156,6 +156,8 @@ func wfAssertTwin(t *testing.T, req func() *types.Request) *types.Response {
 // grouper and per-bucket aggregation Components in declared order)
 // equals the twin.
 func TestWindowsFirst_GroupedSumByDateBucket(t *testing.T) {
+	t.Parallel()
+
 	req := func() *types.Request {
 		return &types.Request{
 			Windows: []*types.Window{wfLagXWindow()},
@@ -204,6 +206,8 @@ func TestWindowsFirst_GroupedSumByDateBucket(t *testing.T) {
 // window label buckets the records by their lag (null lags in the null
 // bucket) exactly as the twin's stored column does.
 func TestWindowsFirst_GrouperOnWindowLabel(t *testing.T) {
+	t.Parallel()
+
 	wfAssertTwin(t, func() *types.Request {
 		return &types.Request{
 			Windows:      []*types.Window{wfLagXWindow()},
@@ -217,6 +221,8 @@ func TestWindowsFirst_GrouperOnWindowLabel(t *testing.T) {
 // crosstab of AGG_SUM(lag_x) with every margin equals the twin (payload
 // and Components), and each cell is the hand-grouped per-record sum.
 func TestWindowsFirst_CrosstabCellsByDateBucket(t *testing.T) {
+	t.Parallel()
+
 	resp := wfAssertTwin(t, func() *types.Request {
 		return &types.Request{
 			Windows: []*types.Window{wfLagXWindow()},
@@ -262,6 +268,8 @@ func TestWindowsFirst_CrosstabCellsByDateBucket(t *testing.T) {
 // TestWindowsFirst_CrosstabAxisOnWindowLabel: a crosstab axis on the
 // window label equals the twin.
 func TestWindowsFirst_CrosstabAxisOnWindowLabel(t *testing.T) {
+	t.Parallel()
+
 	wfAssertTwin(t, func() *types.Request {
 		return &types.Request{
 			Windows: []*types.Window{wfLagXWindow()},
@@ -282,6 +290,8 @@ func TestWindowsFirst_CrosstabAxisOnWindowLabel(t *testing.T) {
 // label: grouped and crosstab equal the twin, whose formula reads the
 // stored column — attribute Components included.
 func TestWindowsFirst_PostWindowAttributeGroupedAndCrosstab(t *testing.T) {
+	t.Parallel()
+
 	attrs := func() []*types.Attribute {
 		return []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "contrib", Expression: "(lag_x ?? 0) * 2 + x"}}
 	}
@@ -315,6 +325,8 @@ func TestWindowsFirst_PostWindowAttributeGroupedAndCrosstab(t *testing.T) {
 // label to key by: PULSE_FIELD_TYPE_UNSUPPORTED naming the window type,
 // slot and field type, grouped and crosstab alike.
 func TestWindowsFirst_CategoryGroupOnCategoricalWindowRefused(t *testing.T) {
+	t.Parallel()
+
 	lag := &types.Window{Type: types.WIN_LAG, Field: "region", Label: "lag_region", OrderBy: []types.OrderKey{{Field: "d"}}}
 	for name, req := range map[string]*types.Request{
 		"grouped": {Windows: []*types.Window{lag}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_region"}},

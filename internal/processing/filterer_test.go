@@ -27,6 +27,8 @@ func makeFilterFunc(t *testing.T, filterType types.FiltererType, field string, v
 }
 
 func TestFilterer_Include_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_INCLUDE, "score", []string{"10", "20"}, "", schema)
 
@@ -50,6 +52,8 @@ func TestFilterer_Include_Basic(t *testing.T) {
 }
 
 func TestFilterer_Include_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_INCLUDE, "score", []string{"10"}, "", schema)
 
@@ -64,6 +68,8 @@ func TestFilterer_Include_NullHandling(t *testing.T) {
 }
 
 func TestFilterer_Exclude_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_EXCLUDE, "score", []string{"10", "20"}, "", schema)
 
@@ -87,6 +93,8 @@ func TestFilterer_Exclude_Basic(t *testing.T) {
 }
 
 func TestFilterer_Exclude_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_EXCLUDE, "score", []string{"10"}, "", schema)
 
@@ -102,6 +110,8 @@ func TestFilterer_Exclude_NullHandling(t *testing.T) {
 }
 
 func TestFilterer_Range_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_RANGE, "score", []string{"10", "30"}, "", schema)
 
@@ -129,6 +139,8 @@ func TestFilterer_Range_Basic(t *testing.T) {
 }
 
 func TestFilterer_Range_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_RANGE, "score", []string{"10", "30"}, "", schema)
 
@@ -143,6 +155,8 @@ func TestFilterer_Range_NullHandling(t *testing.T) {
 }
 
 func TestFilterer_Expression_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_EXPRESSION, "", nil, "score > 15", schema)
 
@@ -166,6 +180,8 @@ func TestFilterer_Expression_Basic(t *testing.T) {
 }
 
 func TestFilterer_Expression_Compound(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	fn := makeFilterFunc(t, types.FILTER_EXPRESSION, "", nil, "score >= 10 && age < 50", schema)
 
@@ -189,6 +205,8 @@ func TestFilterer_Expression_Compound(t *testing.T) {
 }
 
 func TestFilterer_Expression_Categorical(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	fn := makeFilterFunc(t, types.FILTER_EXPRESSION, "", nil, `brand == "Apple"`, schema)
 

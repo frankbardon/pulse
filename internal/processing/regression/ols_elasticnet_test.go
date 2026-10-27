@@ -23,6 +23,8 @@ import (
 //	β = [1.7119963906750262, 0, -2.636211728115934, 0, 0]
 //	intercept = 0.478894099318167
 func TestRegOLS_ElasticNet_SparseRecovery(t *testing.T) {
+	t.Parallel()
+
 	predictors, records := lassoFixture()
 
 	cases := []struct {
@@ -103,6 +105,8 @@ func TestRegOLS_ElasticNet_SparseRecovery(t *testing.T) {
 // OLS — the streaming Gram is the same as the unpenalized path; only
 // the finalize-time solver iterates.
 func TestRegOLS_RegularizedStreaming(t *testing.T) {
+	t.Parallel()
+
 	predictors, records := lassoFixture()
 
 	cases := []struct {
@@ -191,6 +195,8 @@ func TestRegOLS_RegularizedStreaming(t *testing.T) {
 // for the full request → CanStreamRequest path; here we exercise the
 // type-level helper that processing.canStream consults.
 func TestCanStreamRequest_RegularizedOLS(t *testing.T) {
+	t.Parallel()
+
 	cases := []*types.RegressionSpec{
 		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l2", Alpha: 0.1},
 		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1},

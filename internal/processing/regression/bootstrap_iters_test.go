@@ -12,6 +12,8 @@ import (
 // beside the replicates that actually refit — a failed replicate is
 // counted out of BootstrapSucceeded, never silently.
 func TestBootstrap_ItersHonouredAndEchoed(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 60, []float64{1.5, -0.7}, 2, 1, 11)
 	preds := predictorNames(2)
 	base := fitBase(t, records, preds)
@@ -51,6 +53,8 @@ func TestBootstrap_ItersHonouredAndEchoed(t *testing.T) {
 // TestJackknife_NoBootstrapEcho: the bootstrap echo is bootstrap-only;
 // a jackknife result leaves both counts zero (absent on the wire).
 func TestJackknife_NoBootstrapEcho(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 30, []float64{1.5}, 0.3, 0.4, 3)
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife", BootstrapIters: 50}
 	res := runOLSWithModifier(t, spec, records)

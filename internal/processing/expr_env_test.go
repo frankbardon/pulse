@@ -15,6 +15,8 @@ import (
 // but the builtin has branches that are easier to exercise here.
 
 func TestLookupBuiltin_NoArgsError(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"x": 1}}},
 	}
@@ -28,6 +30,8 @@ func TestLookupBuiltin_NoArgsError(t *testing.T) {
 }
 
 func TestLookupBuiltin_NonStringTableError(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"x": 1}}},
 	}
@@ -38,6 +42,8 @@ func TestLookupBuiltin_NonStringTableError(t *testing.T) {
 }
 
 func TestLookupBuiltin_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"x": 1}}},
 	}
@@ -48,6 +54,8 @@ func TestLookupBuiltin_UnknownTable(t *testing.T) {
 }
 
 func TestLookupBuiltin_Miss(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"x": 1}}},
 	}
@@ -58,6 +66,8 @@ func TestLookupBuiltin_Miss(t *testing.T) {
 }
 
 func TestLookupBuiltin_Hit(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"x": 9}}},
 	}
@@ -71,6 +81,8 @@ func TestLookupBuiltin_Hit(t *testing.T) {
 }
 
 func TestLookupBuiltin_FuncBackedError(t *testing.T) {
+	t.Parallel()
+
 	sentinel := errors.New("table broke")
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{
@@ -102,6 +114,8 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 var setExprHelperCount = 8 + 2 + 3 + len(exprenv.Names()) + 17 + 12 + 11
 
 func TestExprOptions_NilRegistry(t *testing.T) {
+	t.Parallel()
+
 	var r *ExtensionRegistry
 	opts := r.ExprOptions()
 	if len(opts) != setExprHelperCount {
@@ -110,6 +124,8 @@ func TestExprOptions_NilRegistry(t *testing.T) {
 }
 
 func TestExprOptions_NoEntries(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{}
 	opts := r.ExprOptions()
 	if len(opts) != setExprHelperCount {
@@ -118,6 +134,8 @@ func TestExprOptions_NoEntries(t *testing.T) {
 }
 
 func TestExprOptions_SkipsNilFn(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		ExprFunctions: []ExprFunction{
 			{Name: "good", Fn: func() float64 { return 1 }},
@@ -132,6 +150,8 @@ func TestExprOptions_SkipsNilFn(t *testing.T) {
 }
 
 func TestExprOptions_LookupBuiltinAddedWhenTablesPresent(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"x": 1}}},
 	}

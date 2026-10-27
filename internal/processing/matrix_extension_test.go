@@ -12,6 +12,8 @@ import (
 // tier and a hidden name do not — never on the built-in
 // types.MatrixSpec.Streamable, which knows no extension name.
 func TestMatrixExtension_CanStream(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64},
 		{Name: "b", Type: encoding.FieldTypeF64, ByteOffset: 8},

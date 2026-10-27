@@ -15,6 +15,8 @@ import (
 // populated RegressionResult on the response. Mirrors the Phase 0
 // not-implemented test, but for the live engine.
 func TestProcessor_OLSStreams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -68,6 +70,8 @@ func TestProcessor_OLSStreams(t *testing.T) {
 // streamable regression is per-record work, no throwaway aggregation
 // needed) and fits the OLS model correctly.
 func TestProcessor_OLSRegressionOnlyStreams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -113,6 +117,8 @@ func TestProcessor_OLSRegressionOnlyStreams(t *testing.T) {
 // request) and asserts the
 // emitted RegressionResult is identical to ~1e-10 across paths.
 func TestProcessor_OLSStreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -179,6 +185,8 @@ func TestProcessor_OLSStreamingMatchesBuffered(t *testing.T) {
 // pattern with no new regression operator — FEAT_POLY emits the basis
 // columns; REG_OLS does the linear fit.
 func TestPolynomialRegressionEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -267,6 +275,8 @@ func TestPolynomialRegressionEndToEnd(t *testing.T) {
 // the streaming path. Phase 4 lights up this code path; same shape as
 // TestProcessor_OLSStreams but for the Bayes engine.
 func TestProcessor_BayesStreams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},

@@ -55,6 +55,8 @@ var weightedNArms = []struct {
 // integer, while a real fractional part truncates (49.55 is a base under
 // 50, never rounded up to clear min_n 50).
 func TestPairwiseSampleSize_WeightedNTruncatesTrueBase(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   float64
@@ -97,6 +99,8 @@ func TestPairwiseSampleSize_WeightedNTruncatesTrueBase(t *testing.T) {
 // TestPairwiseSampleSize_CellWeightSumAbsentSkips keeps the !ok path: a
 // cell with no sum_weights key yields (0, false) so the pair skips.
 func TestPairwiseSampleSize_CellWeightSumAbsentSkips(t *testing.T) {
+	t.Parallel()
+
 	params := types.PairwiseOverlayParams{NSource: types.PairwiseNSourceCellWeightSum}
 	n, ok := pairwiseCountSampleSize(pairwiseWeightSumHost(nil), params, true, 0, 0)
 	if ok || n != 0 {
@@ -121,6 +125,8 @@ const (
 // kernel and yields p ≈ 0.0997349 < 0.10. The cell_weight_sum arm also
 // runs the full OVERLAY_PAIRWISE_PROP_Z path through ApplyOverlays.
 func TestPairwiseWeightedN_NoisePairMarkedAtAlpha(t *testing.T) {
+	t.Parallel()
+
 	for _, arm := range weightedNArms {
 		t.Run(arm.name, func(t *testing.T) {
 			params := types.PairwiseOverlayParams{NSource: arm.source}

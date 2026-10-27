@@ -64,6 +64,8 @@ func fitWeightedGLM(t *testing.T, family string, rows []wGLMRow, kind types.Weig
 // reproduce the unweighted fit bit for bit once SumWeights / NEff are
 // shed.
 func TestWeightedGLM_UnityBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := wGLMFixture()
 	for i := range rows {
 		rows[i].w = 1
@@ -89,6 +91,8 @@ func TestWeightedGLM_UnityBitIdentical(t *testing.T) {
 // TestWeightedGLM_FrequencyIsExpansion: integer frequency weights equal
 // the expanded rows run unweighted, NObs staying the raw row count.
 func TestWeightedGLM_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	rows := wGLMFixture()
 	var exp []wGLMRow
 	for _, r := range rows {
@@ -119,6 +123,8 @@ func TestWeightedGLM_FrequencyIsExpansion(t *testing.T) {
 // weight drops its row — the fit equals the fixture without those rows
 // and NObs never counts them.
 func TestWeightedGLM_ExcludesInvalidAndZero(t *testing.T) {
+	t.Parallel()
+
 	rows := wGLMFixture()
 	recs := wGLMRecords(rows)
 	recs[0] = mockRecord{values: map[string]float64{"x1": rows[0].x1, "x2": rows[0].x2, "yb": rows[0].yb, "yp": rows[0].yp, "yg": rows[0].yg, "w": 0}}

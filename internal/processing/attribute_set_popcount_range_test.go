@@ -51,6 +51,8 @@ func popcountMaskOfFirstN(n int) encoding.SetMask {
 // at 255 and wrap to 0 at 256, so testing only the saturated mask could
 // not tell a correct answer from a wrapped one.
 func TestAttrSetPopcount_TopOfRangeSurvivesTheWholeChannel(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft    encoding.FieldType
 		bits  int

@@ -30,6 +30,8 @@ func makeDecimalRecord(t *testing.T, schema *encoding.Schema, field, dec string,
 }
 
 func TestAggregateDecimalField_Sum(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6},
 	}}
@@ -48,6 +50,8 @@ func TestAggregateDecimalField_Sum(t *testing.T) {
 }
 
 func TestAggregateDecimalField_SumOverflow(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 38, Scale: 0},
 	}}
@@ -67,6 +71,8 @@ func TestAggregateDecimalField_SumOverflow(t *testing.T) {
 }
 
 func TestAggregateDecimalField_Average(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},
 	}}
@@ -86,6 +92,8 @@ func TestAggregateDecimalField_Average(t *testing.T) {
 }
 
 func TestAggregateDecimalField_AverageFallback(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 38, Scale: 0},
 	}}
@@ -104,6 +112,8 @@ func TestAggregateDecimalField_AverageFallback(t *testing.T) {
 }
 
 func TestAggregateDecimalField_MinMax(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 4},
 	}}
@@ -129,6 +139,8 @@ func TestAggregateDecimalField_MinMax(t *testing.T) {
 }
 
 func TestAggregateDecimalField_AgainstReference(t *testing.T) {
+	t.Parallel()
+
 	// Sum of 1..10000 in decimal128(20, 6).
 	// Reference sum = (10000 * 10001) / 2 = 50_005_000.
 	schema := &encoding.Schema{Fields: []encoding.Field{
@@ -153,6 +165,8 @@ func TestAggregateDecimalField_AgainstReference(t *testing.T) {
 }
 
 func TestAggregateDecimalField_VarianceExact(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "v", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},
 	}}
@@ -179,6 +193,8 @@ func TestAggregateDecimalField_VarianceExact(t *testing.T) {
 }
 
 func TestAggregateDecimalField_StddevExact(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "v", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},
 	}}
@@ -202,6 +218,8 @@ func TestAggregateDecimalField_StddevExact(t *testing.T) {
 }
 
 func TestProcessor_DecimalSumDispatch(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2},
 	}}
@@ -239,6 +257,8 @@ func TestProcessor_DecimalSumDispatch(t *testing.T) {
 // empty figure — the counts a JSON integer, never a decimal string. Both
 // the row path and the crosstab cell path.
 func TestDecimalAggregation_NoValueIsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "cat", Type: encoding.FieldTypeU8},
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2, Nullable: true},

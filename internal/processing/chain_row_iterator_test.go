@@ -39,6 +39,8 @@ func chainIterCells(r *Record) []chainIterCell {
 // dictionary complete, in first-seen row order, BEFORE the first Next.
 // Reset replays the same records; each Next builds a fresh record.
 func TestChainRowIterator_YieldsRowRecords(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"k": "b", "v": 2.5, "j": 7.0},
 		{"k": "a", "v": math.NaN(), "j": "x"},
@@ -105,6 +107,8 @@ func TestChainRowIterator_YieldsRowRecords(t *testing.T) {
 // carrying a value for it, as the eager form did — and not at all when
 // no row does.
 func TestChainRowIterator_RefusesUnsupportedFieldAtFirstValue(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "u", Type: encoding.FieldTypeU8}}}
 	if _, err := NewChainRowIterator([]map[string]any{{"x": 1.0}, {"u": nil}}, schema); err != nil {
 		t.Errorf("no row carries u: %v", err)

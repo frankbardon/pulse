@@ -16,6 +16,8 @@ import (
 // Winitzki inverse-erf approximation (U36 #205) that was ~4.7e-4
 // relative too small at α = 0.05 — far outside this tolerance.
 func TestNormalCriticalTwoSided_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ alpha, want float64 }{
 		// R 4.6.1: sprintf("%.17g", qnorm(1 - a/2))
 		{0.2, 1.2815515655446006},
@@ -111,6 +113,8 @@ func ciRel(a, b float64) float64 { return math.Abs(a-b) / math.Abs(b) }
 // TestAggregator_CI_CriticalValueBehaviourChange: the bound is
 // mean ∓ qnorm(1 − α/2)·s/√n with R's qnorm, and t_critical reports it.
 func TestAggregator_CI_CriticalValueBehaviourChange(t *testing.T) {
+	t.Parallel()
+
 	rows := []ciRow{{8, 1}, {9, 1}, {10, 1}, {11, 1}, {12, 1}}
 	const z = 1.9599639845400534 // R qnorm(0.975)
 	se := math.Sqrt(2.5 / 5)
@@ -127,6 +131,8 @@ func TestAggregator_CI_CriticalValueBehaviourChange(t *testing.T) {
 // answers the unweighted bound bit for bit under both kinds, on the
 // streaming, buffered and merged paths.
 func TestAggregator_CI_WeightedUnityIsBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	ones := make([]ciRow, len(ciRows))
 	for i, r := range ciRows {
 		ones[i] = ciRow{r.x, 1}
@@ -159,6 +165,8 @@ func TestAggregator_CI_WeightedUnityIsBitIdentical(t *testing.T) {
 // TestAggregator_CI_FrequencyIsExpansion: integer frequency weights
 // answer the unweighted bound on the physically repeated rows.
 func TestAggregator_CI_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	var expanded []ciRow
 	for _, r := range ciRows {
 		for range int(r.w) {
@@ -191,6 +199,8 @@ func TestAggregator_CI_FrequencyIsExpansion(t *testing.T) {
 // w* = w·n_eff/Σw (closed form), invariant under a common weight scale
 // and different from the frequency bound on the same weights.
 func TestAggregator_CI_ProbabilityKish(t *testing.T) {
+	t.Parallel()
+
 	var sw, sww, swx float64
 	for _, r := range ciRows {
 		sw += r.w
@@ -234,6 +244,8 @@ func TestAggregator_CI_ProbabilityKish(t *testing.T) {
 // TestAggregator_CI_WeightedRowHandling: an invalid or zero weight
 // contributes nothing, and N* ≤ 1 is the undefined (NaN) bound.
 func TestAggregator_CI_WeightedRowHandling(t *testing.T) {
+	t.Parallel()
+
 	freq := types.SlotWeightOf(types.WeightSpec{Field: "weight", Kind: types.WeightKindFrequency})
 	clean, _ := ciRun(t, ciSpec(types.AGG_CI_UPPER, "0.95", freq), ciRows)
 	dirty := append(append([]ciRow(nil), ciRows...), ciRow{1000, 0}, ciRow{-1000, -2}, ciRow{500, math.NaN()}, ciRow{700, 1.5})

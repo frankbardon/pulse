@@ -23,6 +23,8 @@ func refTables() vectors.ReferenceTables {
 // numeric field key resolved per row — and a null key is the row's null
 // input, never a refusal.
 func TestRef_ProgramAlignment(t *testing.T) {
+	t.Parallel()
+
 	vecs, rec := vecBindSchemaAndVectors(t)
 	s := mkSchema("a", "b", "c", "x")
 	row := rec(map[string]float64{"a": 1, "b": 2, "c": 6, "x": 9}) // v = [6, 1, 2]
@@ -83,6 +85,8 @@ func TestRef_ProgramAlignment(t *testing.T) {
 // result, a request cannot supply the internal third argument, and the
 // shared reference rules refuse at build.
 func TestRef_BuildRefusals(t *testing.T) {
+	t.Parallel()
+
 	vecs, _ := vecBindSchemaAndVectors(t)
 	s := mkSchema("a", "b", "c", "x")
 	cases := []struct {
@@ -112,6 +116,8 @@ func TestRef_BuildRefusals(t *testing.T) {
 // other vector built-ins, while a Compose host's `ref` VARIABLE still
 // binds (an env name wins over a function of the same name).
 func TestRef_OverlayFormula(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindFormula}
 	exts := &ExtensionRegistry{ReferenceVectors: refTables()}
 	if _, err := compileFormulaProgramWithExtensions(spec, `ref("t", "k")[0]`, map[string]any{"value": 0.0}, exts); topCode(err) != perr.PULSE_OVERLAY_FORMULA_INVALID_IDENT {

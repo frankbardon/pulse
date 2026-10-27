@@ -366,6 +366,8 @@ func runFilterParity(t *testing.T, schema *encoding.Schema, slot *types.Filterer
 // specific addition surfaces here as either a missing key or a missing
 // emit.
 func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allFiltererParityFixtures(t)
 	overrides := emptyCaseOverrides()
 
@@ -500,6 +502,8 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 // surfaces here without the service-fs marshalling between source and
 // counter.
 func TestFiltererComponents_NInChainInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	records := makeRecords(schema, "score", []float64{10, 20, 30, 40, 50})
 	req := &types.Request{

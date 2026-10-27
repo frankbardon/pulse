@@ -67,6 +67,8 @@ func splitCohort(t *testing.T, data []byte) (*encoding.Schema, []byte) {
 }
 
 func TestRecord_Uint64ValueExactOnEveryDecodePath(t *testing.T) {
+	t.Parallel()
+
 	const rows = 40
 	flat := exactU64Flat(t, rows)
 	var grouped bytes.Buffer
@@ -164,6 +166,8 @@ func TestRecord_Uint64ValueExactOnEveryDecodePath(t *testing.T) {
 // A value written after decode, a null, and a copy keep the exact word
 // honest; with no word the echo converts, saturating at 2^64.
 func TestRecord_Uint64ValueWritesNullsCopiesFallback(t *testing.T) {
+	t.Parallel()
+
 	schema := exactU64Schema()
 	flat := exactU64Flat(t, 8)
 	_, region := splitCohort(t, flat)

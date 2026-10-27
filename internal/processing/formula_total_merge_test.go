@@ -27,6 +27,8 @@ func totalsAttrs() []*types.Attribute {
 // a fresh instance bound to the published totals (PublishedTotals.Bind)
 // scores every row as the serial two-pass Compute does.
 func TestTotalsPrepass_PartitionMergeEqualsSerial(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	attrs := totalsAttrs()
 	serial, err := newFormulaAttribute(attrs[1], s)
@@ -109,6 +111,8 @@ func TestTotalsPrepass_PartitionMergeEqualsSerial(t *testing.T) {
 // TestTotalsPrepass_Refusals: the hooks refuse every inconsistent use
 // as PROCESSING_INTERNAL — never a silent 0.
 func TestTotalsPrepass_Refusals(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	internal := func(t *testing.T, err error, want string) {
 		t.Helper()
@@ -181,6 +185,8 @@ func TestTotalsPrepass_Refusals(t *testing.T) {
 // aggregations, groups and matrices; a multi-layer request comes back
 // unchanged (full projection).
 func TestTotalsPrepassRequest(t *testing.T) {
+	t.Parallel()
+
 	attrs := append(totalsAttrs(), &types.Attribute{Type: types.ATTR_FORMULA, Expression: "y + 1", Label: "unused"})
 	req := &types.Request{
 		Filterers:    []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "y > 1"}},

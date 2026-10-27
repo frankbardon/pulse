@@ -7,6 +7,8 @@ import (
 )
 
 func TestAggregatorRegistryComplete(t *testing.T) {
+	t.Parallel()
+
 	expected := types.AllAggregationTypes()
 	for _, aggType := range expected {
 		if _, ok := aggregatorRegistry[aggType]; !ok {
@@ -19,6 +21,8 @@ func TestAggregatorRegistryComplete(t *testing.T) {
 }
 
 func TestAttributeRegistryComplete(t *testing.T) {
+	t.Parallel()
+
 	expected := types.AllAttributeTypes()
 	for _, attrType := range expected {
 		if _, ok := attributeRegistry[attrType]; !ok {
@@ -31,6 +35,8 @@ func TestAttributeRegistryComplete(t *testing.T) {
 }
 
 func TestFiltererRegistryComplete(t *testing.T) {
+	t.Parallel()
+
 	expected := types.AllFiltererTypes()
 	for _, filterType := range expected {
 		if _, ok := filtererRegistry[filterType]; !ok {
@@ -43,6 +49,8 @@ func TestFiltererRegistryComplete(t *testing.T) {
 }
 
 func TestGrouperRegistryComplete(t *testing.T) {
+	t.Parallel()
+
 	expected := types.AllGroupTypes()
 	for _, groupType := range expected {
 		if _, ok := grouperRegistry[groupType]; !ok {
@@ -55,6 +63,8 @@ func TestGrouperRegistryComplete(t *testing.T) {
 }
 
 func TestNoAdjustmentAttribute(t *testing.T) {
+	t.Parallel()
+
 	// Verify no "adjustment" attribute exists
 	for key := range attributeRegistry {
 		if key == "ATTR_ADJUSTMENT" {

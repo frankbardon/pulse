@@ -19,6 +19,8 @@ func makeNumericRecord(t *testing.T, schema *encoding.Schema, field string, valu
 // TestFeaturePipeline_LogThenAggregate verifies a per-row feature output
 // is visible to downstream aggregation under the buffered path.
 func TestFeaturePipeline_LogThenAggregate(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input value for log feature"},
@@ -61,6 +63,8 @@ func TestFeaturePipeline_LogThenAggregate(t *testing.T) {
 // requests whose every feature implements StreamingComputer flow
 // through the streaming path with online-capable aggregators.
 func TestFeaturePipeline_StreamableFeaturePicksStreamingPath(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "stream-eligible numeric field"},
@@ -104,6 +108,8 @@ func TestFeaturePipeline_StreamableFeaturePicksStreamingPath(t *testing.T) {
 // TestFeaturePipeline_BucketizeThenFilter verifies feature output is
 // reachable to filters that run after the feature stage.
 func TestFeaturePipeline_BucketizeThenFilter(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input value to bucketize and filter"},

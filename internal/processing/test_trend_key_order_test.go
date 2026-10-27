@@ -53,6 +53,8 @@ func trendS(t *testing.T, res *types.TestResult) float64 {
 // grouper's key order), not alphabetically: a series rising 1..7 from
 // Monday is the monotone S = +21, tau = +1. Descending reverses it.
 func TestTrendPost_DayOfWeekKeyFollowsGrouperOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	groups := []*types.Group{{Type: types.GROUP_DATE, Field: "enrolled",
 		Params: json.RawMessage(`{"component":"day_of_week"}`)}}
@@ -76,6 +78,8 @@ func TestTrendPost_DayOfWeekKeyFollowsGrouperOrder(t *testing.T) {
 // GROUP_DATE_RANGES label column trends in the ranges' supplied order
 // (launch, growth, steady), not alphabetically (growth, launch, steady).
 func TestTrendPost_DateRangesKeyFollowsSuppliedOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"enrolled": epochDays(2024, 2, 15), "score": 1}), // launch
@@ -94,6 +98,8 @@ func TestTrendPost_DateRangesKeyFollowsSuppliedOrder(t *testing.T) {
 // request each partition's trend (the partitioned post-test path)
 // orders its day_of_week key column Monday-first too.
 func TestTrendPost_DayOfWeekKeyOrderPerPartition(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "site", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "enrolled", Type: encoding.FieldTypeDate},
@@ -126,6 +132,8 @@ func TestTrendPost_DayOfWeekKeyOrderPerPartition(t *testing.T) {
 // TestTrendPost_CrosstabAxisKeyFollowsGrouperOrder: a crosstab post-test
 // over cell rows orders a day_of_week axis key Monday-first too.
 func TestTrendPost_CrosstabAxisKeyFollowsGrouperOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "site", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "enrolled", Type: encoding.FieldTypeDate},
@@ -161,6 +169,8 @@ func TestTrendPost_CrosstabAxisKeyFollowsGrouperOrder(t *testing.T) {
 // (no intrinsic rank beyond its string order) trends exactly as before —
 // the grouper hook leaves an unranked key on the byte-wise comparator.
 func TestTrendPost_ISODateKeyUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	groups := []*types.Group{{Type: types.GROUP_DATE, Field: "enrolled",
 		Params: json.RawMessage(`{"component":"day"}`)}}
@@ -174,6 +184,8 @@ func TestTrendPost_ISODateKeyUnchanged(t *testing.T) {
 // ("5", "10", "15") trends by bucket value, not as strings ("10", "15",
 // "5", which would give S = -1).
 func TestTrendPost_NumericBucketKeyFollowsValue(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	var records []*Record
 	for _, v := range []float64{5, 10, 15} {
@@ -191,6 +203,8 @@ func TestTrendPost_NumericBucketKeyFollowsValue(t *testing.T) {
 // before its key order is read, so a named table's labels trend in the
 // table's supplied order too.
 func TestTrendPost_NamedRangeTableKeyFollowsSuppliedOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"enrolled": epochDays(2024, 2, 15), "score": 1}), // launch

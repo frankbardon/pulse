@@ -87,6 +87,8 @@ func bufferedAuxFinal(t *testing.T, slot []auxMarginFigure, idx int) (float64, i
 // merely cohort-wide instead of metric-scoped — so each of the three
 // exclusions carries a diagnostic naming which admission was lost.
 func TestCrosstab_BufferedAuxMarginObservesCellAdmission(t *testing.T) {
+	t.Parallel()
+
 	aux, _, colPart := driveBufferedAuxMarginParts(t, auxMarginSpec())
 
 	// Grand slot: respondents 1 and 5 are the only admitted records.
@@ -144,6 +146,8 @@ func TestCrosstab_BufferedAuxMarginObservesCellAdmission(t *testing.T) {
 // parity test without a fan-out arm would pass against the wrong
 // implementation.
 func TestCrosstab_BufferedAuxMarginMatchesFused(t *testing.T) {
+	t.Parallel()
+
 	specs := map[string]func() *types.CrosstabSpec{
 		"all margins": auxMarginSpec,
 		"rows only": func() *types.CrosstabSpec {
@@ -352,6 +356,8 @@ func assertFanoutAuxMarginParity(t *testing.T) {
 // allocation test from both directions: nothing at all when the slot is
 // undeclared, and only the requested margin slots when it is.
 func TestCrosstab_BufferedAuxMarginNoAllocationWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	t.Run("slot absent", func(t *testing.T) {
 		spec := auxMarginSpec()
 		spec.MarginAggregations = nil
@@ -394,8 +400,12 @@ func TestCrosstab_BufferedAuxMarginNoAllocationWhenAbsent(t *testing.T) {
 // The gate assertion is the non-vacuity control: without it the case
 // would silently become a third fused test the day the gate widened.
 func TestCrosstab_BufferedAuxMarginNonMergeableCell(t *testing.T) {
+	t.Parallel()
+
 	for _, cellType := range []types.AggregationType{types.AGG_WELFORD, types.AGG_MEDIAN} {
 		t.Run(string(cellType), func(t *testing.T) {
+			t.Parallel()
+
 			spec := auxMarginSpec()
 			spec.Cell = &types.Aggregation{Type: cellType, Field: "metric"}
 
@@ -443,6 +453,8 @@ func TestCrosstab_BufferedAuxMarginNonMergeableCell(t *testing.T) {
 // that resolution is a mutation nothing detects, and the two arms would
 // disagree about a request neither can serve.
 func TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused(t *testing.T) {
+	t.Parallel()
+
 	bogus := func() []*types.Aggregation {
 		return []*types.Aggregation{
 			{Type: types.AggregationType("AGG_NOT_A_REAL_OPERATOR"), Field: "weight", Label: "bogus"},
@@ -504,6 +516,8 @@ func TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused(t *testing.T) {
 // step with its figure slices would key every auxiliary figure under the
 // wrong name — a silent mislabelling, not a missing field.
 func TestCrosstab_BufferedAuxMarginLabelsTrackDeclarationOrder(t *testing.T) {
+	t.Parallel()
+
 	spec := auxMarginSpec()
 	aux := driveBufferedAuxMargin(t, spec)
 	want := spec.MarginAggregationLabels()
@@ -540,6 +554,8 @@ func vecElementAuxSpec() *types.CrosstabSpec {
 // two admitted respondents on both arms (weights 1 + 16) — never the
 // null-metric row, the Include-excluded row or the null column key.
 func TestCrosstab_VecElementAuxObservesCellAdmission(t *testing.T) {
+	t.Parallel()
+
 	buffered := driveBufferedAuxMargin(t, vecElementAuxSpec())
 	v, n, nNull := bufferedAuxFinal(t, buffered.Grand, 0)
 	if v != 17 || n != 2 || nNull != 0 {

@@ -20,12 +20,16 @@ func blockTestSchema() *encoding.Schema {
 // The merge position packs into the padding after groupIdxOK; growing
 // the Record moves every buffered record into the next size class.
 func TestRecordMergePosition_FitsPadding(t *testing.T) {
+	t.Parallel()
+
 	if got := unsafe.Sizeof(Record{}); got != 96 {
 		t.Fatalf("unsafe.Sizeof(Record{}) = %d, want 96 — the merge position must ride the padding", got)
 	}
 }
 
 func TestRecordMergePosition(t *testing.T) {
+	t.Parallel()
+
 	B := linalg.MergeBlockSize
 	cases := []struct {
 		name                 string
@@ -153,6 +157,8 @@ func foldPartitioned(t *testing.T, rows []posRow, p int, mode linalg.CoMomentMod
 // edges fall inside blocks here — then MergeTree over the blocks.
 // Falsified by keying blocks per shard (ignoring the shard start).
 func TestBlockCoMoments_PartitionAndOrderInvariant(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(11, 12))
 	const p = 3
 	B := linalg.MergeBlockSize
@@ -200,6 +206,8 @@ func TestBlockCoMoments_PartitionAndOrderInvariant(t *testing.T) {
 // A block's head fragment must be its first: a head behind a non-head
 // fragment means inconsistent stamps, refused PROCESSING_INTERNAL.
 func TestBlockCoMoments_HeadNotFirstRefused(t *testing.T) {
+	t.Parallel()
+
 	b, _ := NewBlockCoMoments(1, linalg.Listwise)
 	if err := b.AddAt(BlockKey{Block: 0, Shard: 0, Head: false}, []float64{1}, 1); err != nil {
 		t.Fatal(err)
@@ -217,6 +225,8 @@ func TestBlockCoMoments_HeadNotFirstRefused(t *testing.T) {
 }
 
 func TestBlockCoMoments_Refusals(t *testing.T) {
+	t.Parallel()
+
 	b, err := NewBlockCoMoments(2, linalg.Listwise)
 	if err != nil {
 		t.Fatal(err)
@@ -255,6 +265,8 @@ func TestBlockCoMoments_Refusals(t *testing.T) {
 }
 
 func TestBlockCoMoments_EmptyTree(t *testing.T) {
+	t.Parallel()
+
 	b, _ := NewBlockCoMoments(2, linalg.Pairwise)
 	root, err := b.Tree()
 	if err != nil {

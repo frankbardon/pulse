@@ -10,6 +10,8 @@ import (
 // TestApply_TwoWindowsShareSort verifies that when two windows share the
 // same (PartitionBy, OrderBy) tuple, they share a single cached sort.
 func TestApply_TwoWindowsShareSort(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 3.0, "x": 30.0},
 		{"ts": 1.0, "x": 10.0},
@@ -50,6 +52,8 @@ func TestApply_TwoWindowsShareSort(t *testing.T) {
 
 // TestApply_Determinism: same request twice produces identical output.
 func TestApply_Determinism(t *testing.T) {
+	t.Parallel()
+
 	build := func() []map[string]any {
 		return []map[string]any{
 			{"ts": 1.0, "x": 10.0},

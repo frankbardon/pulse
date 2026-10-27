@@ -16,6 +16,8 @@ import (
 // diagonal and every NaN pair, carries each pair's own n, and lists
 // every candidate when k exceeds them.
 func TestTopPairs_Ranking(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	// Members a b c d e; d has no spread (its row / column NaN).
 	rows := [][]float64{
@@ -64,6 +66,8 @@ func TestTopPairs_Ranking(t *testing.T) {
 // primary matrix (r bit-equal to the cell) with the listwise N, or the
 // pairwise per-pair N; without the param no vectors are emitted.
 func TestMatrixCorrelation_TopPairsResult(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 0, Nullable: true},
 		{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 8, Nullable: true},

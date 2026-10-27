@@ -18,6 +18,8 @@ import (
 // most inputs). At least one run must stop at its cap so that path is
 // covered too.
 func TestGPFoblq_ObliminBitIdenticalToReference(t *testing.T) {
+	t.Parallel()
+
 	capped := 0
 	for name, a := range gpaRotationInputs(t) {
 		for _, gamma := range []float64{0, 0.5, -0.5, 1, 2} {

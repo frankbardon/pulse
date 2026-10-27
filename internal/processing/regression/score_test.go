@@ -64,6 +64,8 @@ func sameBits(a, b float64) bool { return math.Float64bits(a) == math.Float64bit
 // family / link — the coefficients travel through RegressionResult and
 // model.Bind exactly as a compose fit binds them.
 func TestScorer_GLMMatchesEngineFittedBitForBit(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreGLMRecords()
 	for _, tc := range []struct{ family, link, target string }{
 		{"binomial", "logit", "b"},
@@ -108,6 +110,8 @@ func TestScorer_GLMMatchesEngineFittedBitForBit(t *testing.T) {
 // intercept + Σ coefficient·x with the posterior means the result
 // reports, at full precision.
 func TestScorer_BayesScoresPosteriorMean(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreGLMRecords()
 	spec := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "c", Predictors: []string{"x1", "x2"}}
 	res, err := newBayes(t, spec).FitBuffered(recs)
@@ -132,6 +136,8 @@ func TestScorer_BayesScoresPosteriorMean(t *testing.T) {
 // intercept is the whole model bit for bit; the intercept is included
 // only when listed; a subset reads only its own columns.
 func TestScorer_Terms(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreGLMRecords()
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "c", Predictors: []string{"x1", "x2"}}
 	res, err := newOLS(t, spec).FitBuffered(recs)
@@ -173,6 +179,8 @@ func TestScorer_Terms(t *testing.T) {
 // TestScorer_NullColumnIsNull: a null (or absent) column the score
 // reads makes the score null, never 0.
 func TestScorer_NullColumnIsNull(t *testing.T) {
+	t.Parallel()
+
 	b := &model.Bound{Name: "m", Type: types.REG_OLS, Predictors: []string{"a", "b"}, Coefficients: []float64{2, 3}, Intercept: 1}
 	s := mustScorer(t, b, nil, "")
 	if v, ok := s.Score(mockRecord{values: map[string]float64{"a": 1, "b": 2}}); !ok || v != 9 {
@@ -187,6 +195,8 @@ func TestScorer_NullColumnIsNull(t *testing.T) {
 // predictors are the kept features; a candidate the selection dropped
 // may still be listed in terms, contributes nothing and reads no column.
 func TestScorer_SelectionDroppedTermScoresZero(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"a", "b"}, Selection: "forward", Criterion: "aic"}
 	res := &types.RegressionResult{Type: types.REG_OLS, SelectedFeatures: []string{"a"},
 		Coefficients: map[string]float64{model.InterceptKey: 1, "a": 2}}
@@ -209,6 +219,8 @@ func TestScorer_SelectionDroppedTermScoresZero(t *testing.T) {
 // (internal/regadapt, whose TestModelRegressions_RegisteredByEngine holds
 // it to the declaration), never a nil factory reported present.
 func TestBuiltinScorer_MatchesScorableType(t *testing.T) {
+	t.Parallel()
+
 	for _, rt := range types.AllRegressionTypes() {
 		f, ok := BuiltinScorer(rt)
 		if model.ModelRegression(rt) {
@@ -235,6 +247,8 @@ func (c constScorer) Score(model.Row) (float64, bool) { return c.v, true }
 // linear predictor; a type the source does not resolve is CheckScore's
 // PULSE_MODEL_SCORE_INVALID type_unsupported.
 func TestBound_ScorerDelegatesToSource(t *testing.T) {
+	t.Parallel()
+
 	b := &model.Bound{Name: "m", Type: types.REG_OLS, Predictors: []string{"x"}, Coefficients: []float64{2}, Intercept: 1}
 	params := model.ScoreParams{Fit: "m", Terms: []string{"x"}}
 	stub := func(rt types.RegressionType) (model.ScorerFactory, bool) {

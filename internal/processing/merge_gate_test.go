@@ -13,6 +13,8 @@ import (
 // unregistered name would fan out across workers instead of surfacing
 // the buffered path's unknown-aggregator error.
 func TestMergeableAggregatorsAreRegistered(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range types.AllAggregationTypes() {
 		if !a.Mergeable() {
 			continue
@@ -26,6 +28,8 @@ func TestMergeableAggregatorsAreRegistered(t *testing.T) {
 // TestChainRefusal_RegistryFacts: the registry adapter answers the
 // extension half of the shared gate — a nil registry is built-ins only.
 func TestChainRefusal_RegistryFacts(t *testing.T) {
+	t.Parallel()
+
 	ok := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}}
 	if err := ChainRefusal(ok, nil, nil, 0, "s0"); err != nil {
 		t.Fatalf("nil registry refused a built-in stage: %v", err)

@@ -46,6 +46,8 @@ func newStubSeriesHostWithField(keys []types.AxisKey, values []float64, field st
 // reference (region, US). US is the sibling so US emits 100 - 100 = 0;
 // CA emits 200 - 100 = 100; MX emits 300 - 100 = 200.
 func TestOverlay_DeltaVsSibling_BasicSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 200.0, 300.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -87,6 +89,8 @@ func TestOverlay_DeltaVsSibling_BasicSeries(t *testing.T) {
 // emission: the sibling group's own entry surfaces a delta of exactly
 // 0.0, NOT a nil Statistic.
 func TestOverlay_DeltaVsSibling_SelfEmitsZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"baseline"}, {"a"}, {"b"}}
 	values := []float64{50.0, 75.0, 25.0}
 	host := newStubSeriesHostWithField(keys, values, "grp")
@@ -112,6 +116,8 @@ func TestOverlay_DeltaVsSibling_SelfEmitsZero(t *testing.T) {
 // GroupFields slot the handler emits ONE PULSE_OVERLAY_REF_UNKNOWN
 // warning and every present entry's Statistic is NaN.
 func TestOverlay_DeltaVsSibling_UnknownFieldEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{1.0, 2.0, 3.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -143,6 +149,8 @@ func TestOverlay_DeltaVsSibling_UnknownFieldEmitsWarn(t *testing.T) {
 // handler emits ONE PULSE_OVERLAY_REF_UNKNOWN warning and every
 // present entry's Statistic is NaN.
 func TestOverlay_DeltaVsSibling_UnknownValueEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{1.0, 2.0, 3.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -171,6 +179,8 @@ func TestOverlay_DeltaVsSibling_UnknownValueEmitsWarn(t *testing.T) {
 // defined (each entry = value - 0 = value). No warning fires
 // (distinguishing this kind from the INDEX_VS_SIBLING twin).
 func TestOverlay_DeltaVsSibling_ZeroSiblingNoWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 7.0, 10.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -193,6 +203,8 @@ func TestOverlay_DeltaVsSibling_ZeroSiblingNoWarn(t *testing.T) {
 // group contract: groups for which the resolver reports (0, false)
 // surface a SeriesEntry whose Summary leaves Statistic unset.
 func TestOverlay_DeltaVsSibling_AbsentGroupsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	// NaN signals absent for the stub host.
 	values := []float64{10.0, math.NaN(), 30.0, math.NaN()}
@@ -227,6 +239,8 @@ func TestOverlay_DeltaVsSibling_AbsentGroupsStayAbsent(t *testing.T) {
 // label when the spec omits Name. DELTA_VS_SIBLING uses the bare
 // lower-case kind string.
 func TestOverlay_DeltaVsSibling_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHostWithField(keys, []float64{1.0, 2.0}, "region")
 	specs := []types.OverlaySpec{{
@@ -246,6 +260,8 @@ func TestOverlay_DeltaVsSibling_DefaultLayerName(t *testing.T) {
 }
 
 func TestOverlay_DeltaVsSibling_FallbackResolverScansKeys(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 200.0, 300.0}
 	// newStubSeriesHost uses NewSeriesHostView (no GroupFields slot).

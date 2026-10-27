@@ -21,6 +21,8 @@ func modeRequest() *types.Request {
 }
 
 func TestAggMode_ScalarIsSmallestTiedValue_BufferedEqualsStreaming(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		codes     []float64

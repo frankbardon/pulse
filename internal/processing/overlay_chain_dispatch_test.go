@@ -40,6 +40,8 @@ func chainStageOf(shape types.OverlayShape) *types.Response {
 func ptrInt(i int) *int { return &i }
 
 func TestApplyChainOverlays_EmptySpecsShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{chainStageOf(types.OverlayShapeMatrix)}
 
 	layers, warnings, err := ApplyChainOverlays(nil, stages, nil)
@@ -67,6 +69,8 @@ func TestApplyChainOverlays_EmptySpecsShortCircuits(t *testing.T) {
 // Kind echoed verbatim. The stub handler emits exactly one layer per
 // spec; the chassis preserves spec-order emission (FR-A2).
 func TestApplyChainOverlays_StubLayerOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{
 		chainStageOf(types.OverlayShapeSeries),
 		chainStageOf(types.OverlayShapeSeries),
@@ -116,6 +120,8 @@ func TestApplyChainOverlays_StubLayerOrderPreserved(t *testing.T) {
 // Payload.Shape is the canonical proof that the resolver picked the
 // right stage.
 func TestApplyChainOverlays_StageRefByIndexHappyPath(t *testing.T) {
+	t.Parallel()
+
 	// Two distinguishable stages — stage 0 carries a series shape;
 	// stage 1 carries a matrix shape. The spec targets stage 1 by
 	// Index, so the emitted layer must carry matrix shape.
@@ -146,6 +152,8 @@ func TestApplyChainOverlays_StageRefByIndexHappyPath(t *testing.T) {
 // populated. The target stage name resolves to stage 1; the resulting
 // layer shape matches stage 1's host shape.
 func TestApplyChainOverlays_StageRefByNameHappyPath(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{
 		chainStageOf(types.OverlayShapeSeries),
 		chainStageOf(types.OverlayShapeMatrix),
@@ -174,6 +182,8 @@ func TestApplyChainOverlays_StageRefByNameHappyPath(t *testing.T) {
 // The two-stage fixture's latest stage is stage 1 (matrix shape);
 // the stub layer's Payload.Shape must match.
 func TestApplyChainOverlays_TargetDefaultsToLatest(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{
 		chainStageOf(types.OverlayShapeSeries),
 		chainStageOf(types.OverlayShapeMatrix),
@@ -198,6 +208,8 @@ func TestApplyChainOverlays_TargetDefaultsToLatest(t *testing.T) {
 }
 
 func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
 		{
@@ -228,6 +240,8 @@ func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 }
 
 func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
 		{
@@ -263,6 +277,8 @@ func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 // PULSE_OVERLAY_KIND_UNKNOWN coded shape (same
 // envelope shape the MATRIX / SERIES / FACET dispatchers emit).
 func TestApplyChainOverlays_UnknownKind_CodedError(t *testing.T) {
+	t.Parallel()
+
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
 	specs := []*types.ChainOverlaySpec{
 		{

@@ -65,6 +65,8 @@ func columnOf(t *testing.T, recs []*Record, name string) ([]float64, []bool) {
 // outcome leaves every record's encoding bit-identical, with and
 // without folds; a holdout record carries the training-only mean.
 func TestTargetEncode_FitOnSplit_HoldoutNeverLeaks(t *testing.T) {
+	t.Parallel()
+
 	schema := teSchema()
 	p := NewProcessor(schema)
 	for _, params := range []string{
@@ -131,6 +133,8 @@ func TestTargetEncode_FitOnSplit_HoldoutNeverLeaks(t *testing.T) {
 // the streamed response equals the buffered one; a fit_on over an
 // earlier feature's column routes buffered.
 func TestTargetEncode_FitOn_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := teSchema()
 	req := func(params string) *types.Request {
 		return &types.Request{
@@ -183,6 +187,8 @@ func TestTargetEncode_FitOn_StreamingMatchesBuffered(t *testing.T) {
 // to_day reads the local day: 2023-11-15T00:00Z is 2023-11-14 in New
 // York (epoch day 19675), still 19676 in UTC.
 func TestTargetEncode_FitOn_ReadsSlotZone(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("a")
 	schema := &encoding.Schema{Fields: []encoding.Field{
@@ -217,6 +223,8 @@ func TestTargetEncode_FitOn_ReadsSlotZone(t *testing.T) {
 // buffered figures — the streaming drive used to fold nothing there (all
 // nulls, every row in bucket 0).
 func TestFeatures_DerivedPrePassInputs_StreamedEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := teSchema()
 	for name, feats := range map[string][]*types.Feature{
 		"target encode of a log": {

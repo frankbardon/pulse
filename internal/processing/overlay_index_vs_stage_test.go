@@ -43,6 +43,8 @@ func fpr(v float64) *float64 { return &v }
 // hand-computed `target / ref * 100`. The layer carries one MATRIX
 // payload with the matching shape inherited from the target stage.
 func TestApplyIndexVsStage_MatrixHappyPath(t *testing.T) {
+	t.Parallel()
+
 	rowKeys := []types.AxisKey{{"r0"}, {"r1"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
 	target := matrixResponse(rowKeys, colKeys, [][]*float64{
@@ -93,6 +95,8 @@ func TestApplyIndexVsStage_MatrixHappyPath(t *testing.T) {
 // a PULSE_OVERLAY_REF_ZERO warning per the acceptance "reference == 0
 // → emit PULSE_OVERLAY_REF_ZERO warning and substitute NaN".
 func TestApplyIndexVsStage_MatrixZeroRefEmitsWarningAndNaN(t *testing.T) {
+	t.Parallel()
+
 	rowKeys := []types.AxisKey{{"r0"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
 	target := matrixResponse(rowKeys, colKeys, [][]*float64{{fpr(50), fpr(80)}})
@@ -130,6 +134,8 @@ func TestApplyIndexVsStage_MatrixZeroRefEmitsWarningAndNaN(t *testing.T) {
 // with a "ref_missing" Detail. The overlay cell stays absent (silent
 // zero contribution to denominator per acceptance).
 func TestApplyIndexVsStage_MatrixMissingRefCellWarns(t *testing.T) {
+	t.Parallel()
+
 	rowKeys := []types.AxisKey{{"r0"}}
 	colKeys := []types.AxisKey{{"c0"}, {"c1"}}
 	target := matrixResponse(rowKeys, colKeys, [][]*float64{{fpr(100), fpr(200)}})
@@ -172,6 +178,8 @@ func seriesResponse(rows []map[string]any) *types.Response {
 // 3-row target × 3-row reference. Per-row index = target_value /
 // ref_value * 100; entries align by row-key string.
 func TestApplyIndexVsStage_SeriesHappyPath(t *testing.T) {
+	t.Parallel()
+
 	target := seriesResponse([]map[string]any{
 		{"group": "us", "sum": 120.0},
 		{"group": "uk", "sum": 60.0},
@@ -215,6 +223,8 @@ func TestApplyIndexVsStage_SeriesHappyPath(t *testing.T) {
 // row key is not present in the reference table fires
 // PULSE_OVERLAY_REF_ZERO with ref_missing=true.
 func TestApplyIndexVsStage_SeriesMissingRefKeyWarns(t *testing.T) {
+	t.Parallel()
+
 	target := seriesResponse([]map[string]any{
 		{"group": "us", "sum": 120.0},
 		{"group": "mx", "sum": 30.0}, // missing in ref
@@ -247,6 +257,8 @@ func TestApplyIndexVsStage_SeriesMissingRefKeyWarns(t *testing.T) {
 // responses carry a single numeric value, the index is the simple
 // target / ref * 100.
 func TestApplyIndexVsStage_ScalarHappyPath(t *testing.T) {
+	t.Parallel()
+
 	target := &types.Response{Data: []map[string]any{{"sum": 250.0}}}
 	ref := &types.Response{Data: []map[string]any{{"sum": 100.0}}}
 	spec := &types.ChainOverlaySpec{Kind: types.OverlayKindIndexVsStage, Scope: types.OverlayScopeTotal}
@@ -281,6 +293,8 @@ func TestApplyIndexVsStage_ScalarHappyPath(t *testing.T) {
 // scalar arm. The kernel substitutes NaN and emits
 // PULSE_OVERLAY_REF_ZERO.
 func TestApplyIndexVsStage_ScalarZeroRefNaN(t *testing.T) {
+	t.Parallel()
+
 	target := &types.Response{Data: []map[string]any{{"sum": 100.0}}}
 	ref := &types.Response{Data: []map[string]any{{"sum": 0.0}}}
 	spec := &types.ChainOverlaySpec{Kind: types.OverlayKindIndexVsStage, Scope: types.OverlayScopeTotal}
@@ -301,6 +315,8 @@ func TestApplyIndexVsStage_ScalarZeroRefNaN(t *testing.T) {
 }
 
 func TestApplyIndexVsStage_ShapeDivergenceWarning(t *testing.T) {
+	t.Parallel()
+
 	target := matrixResponse(
 		[]types.AxisKey{{"r0"}},
 		[]types.AxisKey{{"c0"}},
@@ -338,6 +354,8 @@ func TestApplyIndexVsStage_ShapeDivergenceWarning(t *testing.T) {
 // runtime function pointer; runtime.FuncForPC keeps the assertion
 // stable across binary layouts.
 func TestApplyIndexVsStage_DispatchReplacesStub(t *testing.T) {
+	t.Parallel()
+
 	handler, ok := chainOverlayHandlers[types.OverlayKindIndexVsStage]
 	if !ok {
 		t.Fatal("OVERLAY_INDEX_VS_STAGE has no dispatch entry")
@@ -354,6 +372,8 @@ func TestApplyIndexVsStage_DispatchReplacesStub(t *testing.T) {
 }
 
 func TestApplyIndexVsStage_SpecOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	target := seriesResponse([]map[string]any{{"group": "us", "sum": 120.0}})
 	ref := seriesResponse([]map[string]any{{"group": "us", "sum": 100.0}})
 	stages := []*types.Response{ref, target}
@@ -401,6 +421,8 @@ func TestApplyIndexVsStage_SpecOrderPreserved(t *testing.T) {
 // directly so any future deltaKernel-style refactor preserves the
 // canonical zero-reference contract.
 func TestIndexKernel_ZeroReferenceReturnsNaN(t *testing.T) {
+	t.Parallel()
+
 	got, ok := indexKernel(50.0, 0.0)
 	if ok {
 		t.Fatalf("indexKernel(_,0) ok = true, want false")
@@ -413,6 +435,8 @@ func TestIndexKernel_ZeroReferenceReturnsNaN(t *testing.T) {
 // TestIndexKernel_HappyPath confirms the kernel produces the
 // documented `target / ref * 100` shape for a known input pair.
 func TestIndexKernel_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	got, ok := indexKernel(250.0, 100.0)
 	if !ok {
 		t.Fatalf("indexKernel ok = false, want true")

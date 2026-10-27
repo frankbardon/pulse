@@ -84,6 +84,8 @@ func runOLSWithModifier(t *testing.T, spec *types.RegressionSpec, records []Reco
 // (jackknife is exact only asymptotically) but on n=40 well-conditioned
 // data they should agree to that tolerance.
 func TestRegOLS_Jackknife_SEMatchesAnalytical(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 40, []float64{2.0, -1.5}, 1.0, 0.5, 7)
 
 	baseSpec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2)}
@@ -116,6 +118,8 @@ func TestRegOLS_Jackknife_SEMatchesAnalytical(t *testing.T) {
 // TestRegOLS_Bootstrap_Reproducible asserts the bootstrap path produces
 // identical SE / p-value maps when run twice with the same RNGSeed.
 func TestRegOLS_Bootstrap_Reproducible(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 50, []float64{1.5, -0.8}, 0.3, 0.4, 11)
 
 	spec := &types.RegressionSpec{
@@ -148,6 +152,8 @@ func TestRegOLS_Bootstrap_Reproducible(t *testing.T) {
 // the SE produced is materially different from a 50-iter run (which
 // has higher variance and noticeably different finite-sample SE).
 func TestRegOLS_Bootstrap_DefaultIters(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 50, []float64{1.5}, 0.3, 0.4, 13)
 	specDefault := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "bootstrap", RNGSeed: 1}
 	res := runOLSWithModifier(t, specDefault, records)
@@ -161,6 +167,8 @@ func TestRegOLS_Bootstrap_DefaultIters(t *testing.T) {
 // are populated (the resample replaces the active-set plug-in SE that
 // Phase 2 emitted).
 func TestRegOLS_Resample_RegularizedFlag(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 60, []float64{1.5, 0, 0.7}, 0.3, 0.4, 17)
 	spec := &types.RegressionSpec{
 		Type:       types.REG_OLS,
@@ -186,6 +194,8 @@ func TestRegOLS_Resample_RegularizedFlag(t *testing.T) {
 // TestRegOLS_Resample_RejectsSmallN: jackknife / bootstrap both require
 // at least 3 observations. Smaller fixtures surface INSUFFICIENT_DATA.
 func TestRegOLS_Resample_RejectsSmallN(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 2, []float64{1.5}, 0.3, 0.0, 19)
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife"}
 	schema := schemaWithFields("y", "x1")
@@ -209,6 +219,8 @@ func TestRegOLS_Resample_RejectsSmallN(t *testing.T) {
 // bootstrap figures, and a different request or different data draws
 // a different seed.
 func TestRegOLS_Bootstrap_ZeroSeedDeterministic(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 50, []float64{1.5, -0.8}, 0.3, 0.4, 11)
 	spec := &types.RegressionSpec{
 		Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2),
@@ -246,6 +258,8 @@ func TestRegOLS_Bootstrap_ZeroSeedDeterministic(t *testing.T) {
 // value's bits in record order (a null as one NaN payload) — so moving
 // the derivation out for MAT_SEM moved no REG_RESAMPLE seed.
 func TestRegOLS_Bootstrap_DerivedSeedStream(t *testing.T) {
+	t.Parallel()
+
 	records := makeLinearRecords(t, 20, []float64{1.5, -0.8}, 0.3, 0.4, 11)
 	records[3] = nullField{records[3], "x2"}
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2),

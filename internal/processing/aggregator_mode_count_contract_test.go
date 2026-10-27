@@ -29,6 +29,8 @@ func frequencyRequest(groups ...*types.Group) *types.Request {
 }
 
 func TestAggFrequency_ScalarIsModalCount_BufferedEqualsStreaming(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		codes     []float64
@@ -83,6 +85,8 @@ func TestAggFrequency_ScalarIsModalCount_BufferedEqualsStreaming(t *testing.T) {
 // group then holds a single value, so the modal count is the group's
 // row count.
 func TestAggFrequency_GroupedBySameFieldIsRowCount(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	resp, err := NewProcessor(schema).processRecords(context.Background(),
 		frequencyRequest(&types.Group{Type: types.GROUP_CATEGORY, Field: "brand"}),
@@ -107,6 +111,8 @@ func TestAggFrequency_GroupedBySameFieldIsRowCount(t *testing.T) {
 // workers and the chain's mergeable gate assume) yields the serial
 // result, including a mode that only wins once the partials combine.
 func TestAggFrequency_MergeOnlineEqualsSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	// Left alone the mode is Apple (2 of 3); right alone it is Samsung
 	// (2 of 3); together Google wins 3-of-6 with 1+2 split across both.

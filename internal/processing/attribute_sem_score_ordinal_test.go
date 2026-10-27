@@ -24,6 +24,8 @@ var brandOrderedMed = []string{"q1", "q2", "q3", "v1", "v2", "s1", "s2", "s3"}
 // ordered member) nulls every score with the fit's
 // PULSE_MATRIX_SINGULAR warning (reason constant).
 func TestSEMScore_OrdinalInlineRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	for _, c := range []struct {
 		params map[string]any

@@ -168,6 +168,8 @@ func wfpClasses() []wfpClass {
 // TestCrosstab_WeightedFusedMatchesBufferedPerClass: every fused
 // accumulator class answers the buffered arm's weighted figure.
 func TestCrosstab_WeightedFusedMatchesBufferedPerClass(t *testing.T) {
+	t.Parallel()
+
 	for _, class := range wfpClasses() {
 		for _, op := range []types.AggregationType{types.AGG_COUNT, types.AGG_SUM, types.AGG_AVERAGE} {
 			t.Run(class.name+"/"+string(op), func(t *testing.T) {

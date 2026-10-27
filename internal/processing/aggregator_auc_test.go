@@ -138,6 +138,8 @@ func aucClose(got, want float64) bool {
 // equals the hand-computed weighted Mann–Whitney double sum, with the
 // DeLong figures withheld and se_note set.
 func TestAUC_Oracle(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadAUCReference(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			rows := make([]aucRow, len(c.Score))
@@ -192,6 +194,8 @@ func TestAUC_Oracle(t *testing.T) {
 // TestAUC_TiesCountHalf: positives {1, 2} against negatives {1, 0}: the
 // pairs score ½, 1, 1, 1 — AUC 3.5 / 4, exactly.
 func TestAUC_TiesCountHalf(t *testing.T) {
+	t.Parallel()
+
 	got, _ := aucRun(t, aucAgg(`{"outcome":"y"}`, false), []aucRow{{1, 1, 1, 0}, {2, 1, 1, 0}, {1, 0, 1, 0}, {0, 0, 1, 0}})
 	if got != 0.875 {
 		t.Fatalf("auc = %v, want 0.875", got)
@@ -202,6 +206,8 @@ func TestAUC_TiesCountHalf(t *testing.T) {
 // a null outcome under a present score is left out and counted in
 // n_null_outcome. Neither moves the figure.
 func TestAUC_NullsSkipped(t *testing.T) {
+	t.Parallel()
+
 	clean := []aucRow{{0.9, 1, 1, 0}, {0.2, 0, 1, 0}, {0.6, 1, 1, 0}, {0.7, 0, 1, 0}}
 	dirty := append(append([]aucRow(nil), clean...),
 		aucRow{math.NaN(), 1, 1, 0}, aucRow{math.NaN(), 0, 1, 0}, aucRow{0.1, math.NaN(), 1, 0})
@@ -229,6 +235,8 @@ func TestAUC_NullsSkipped(t *testing.T) {
 // (NaN included) fails the run with PROCESSING_AUC_OUTCOME_NOT_BINARY —
 // never thresholded, never skipped.
 func TestAUC_NonBinaryOutcomeRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, bad := range []float64{2, 0.5, -1} {
 		agg := aucNew(t, aucAgg(`{"outcome":"y"}`, false))
 		_, err := agg.Aggregate(aucRecords([]aucRow{{0.1, 0, 1, 0}, {0.4, bad, 1, 0}, {0.8, 1, 1, 0}}), "s")
@@ -252,6 +260,8 @@ func TestAUC_NonBinaryOutcomeRefused(t *testing.T) {
 // TestAUC_PositiveZero: positive 0 swaps the classes, so the AUC is the
 // complement and the class counts swap.
 func TestAUC_PositiveZero(t *testing.T) {
+	t.Parallel()
+
 	rows := []aucRow{{0.9, 1, 1, 0}, {0.2, 0, 1, 0}, {0.6, 1, 1, 0}, {0.6, 0, 1, 0}, {0.3, 0, 1, 0}}
 	one, c1 := aucRun(t, aucAgg(`{"outcome":"y"}`, false), rows)
 	zero, c0 := aucRun(t, aucAgg(`{"outcome":"y","positive":0}`, false), rows)
@@ -266,6 +276,8 @@ func TestAUC_PositiveZero(t *testing.T) {
 // TestAUC_PackedBoolOutcome: a packed_bool outcome reads as 0 / 1 and
 // answers the numeric twin exactly.
 func TestAUC_PackedBoolOutcome(t *testing.T) {
+	t.Parallel()
+
 	rows := []aucRow{{0.9, 1, 1, 0}, {0.2, 0, 1, 0}, {0.6, 1, 1, 0}, {0.7, 0, 1, 0}, {0.6, 0, 1, 0}}
 	num, _ := aucRun(t, aucAgg(`{"outcome":"y"}`, false), rows)
 	flag, _ := aucRun(t, aucAgg(`{"outcome":"flag"}`, false), rows)
@@ -277,6 +289,8 @@ func TestAUC_PackedBoolOutcome(t *testing.T) {
 // TestAUC_EmptyClassAndNaNScore: no positive (or no negative) yields
 // NaN, never 0.5; a stored NaN score makes every figure NaN.
 func TestAUC_EmptyClassAndNaNScore(t *testing.T) {
+	t.Parallel()
+
 	got, comp := aucRun(t, aucAgg(`{"outcome":"y"}`, false), []aucRow{{0.2, 0, 1, 0}, {0.4, 0, 1, 0}})
 	if !math.IsNaN(got) || !math.IsNaN(comp["gini"].(float64)) {
 		t.Errorf("no positive: auc %v gini %v, want NaN", got, comp["gini"])
@@ -296,6 +310,8 @@ func TestAUC_EmptyClassAndNaNScore(t *testing.T) {
 
 // TestAUC_ConfigRefusals: the constructor's refusals.
 func TestAUC_ConfigRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, field, params string
 		want                errors.Code // "" = accepted
@@ -335,6 +351,8 @@ func TestAUC_ConfigRefusals(t *testing.T) {
 // weight) before any sum, so any record order answers the same bits —
 // the property that keeps DecodeWorkers / ShardWorkers counts identical.
 func TestAUC_RecordOrderInvariant(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(42))
 	rows := make([]aucRow, 400)
 	for i := range rows {
@@ -364,6 +382,8 @@ func TestAUC_RecordOrderInvariant(t *testing.T) {
 // TestAUC_UnityWeightBitIdentical: an all-ones weight answers the
 // unweighted AUC bit for bit; only the DeLong figures are withheld.
 func TestAUC_UnityWeightBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	c := loadAUCReference(t)[1] // logistic_300
 	rows := make([]aucRow, len(c.Score))
 	for i := range rows {
@@ -382,6 +402,8 @@ func TestAUC_UnityWeightBitIdentical(t *testing.T) {
 // TestAUC_InvalidWeightSkipsRow: a zero, negative or null weight leaves
 // the row out of both classes.
 func TestAUC_InvalidWeightSkipsRow(t *testing.T) {
+	t.Parallel()
+
 	clean := []aucRow{{0.9, 1, 2, 0}, {0.2, 0, 1, 0}, {0.6, 1, 0.5, 0}, {0.7, 0, 1.5, 0}}
 	dirty := append(append([]aucRow(nil), clean...), aucRow{0.1, 1, 0, 0}, aucRow{0.95, 0, -1, 0}, aucRow{0.05, 1, math.NaN(), 0})
 	want, _ := aucRun(t, aucAgg(`{"outcome":"y"}`, true), clean)
@@ -394,6 +416,8 @@ func TestAUC_InvalidWeightSkipsRow(t *testing.T) {
 // TestAUC_Grouped: per group the figure (and its components) equals an
 // ungrouped run over that group's rows alone.
 func TestAUC_Grouped(t *testing.T) {
+	t.Parallel()
+
 	c := loadAUCReference(t)[1] // logistic_300
 	rows := make([]aucRow, len(c.Score))
 	var byCat [2][]aucRow

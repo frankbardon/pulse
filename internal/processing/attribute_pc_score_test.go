@@ -69,6 +69,8 @@ func pcScoreParams(component int, on, rotation string, k int, fitOn []map[string
 // streaming two-pass and buffered arms (bit-identical), alternating
 // the member source between inline fields and a named vector.
 func TestPCScore_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[pcScoreOracle](t, "mv_pc_score")
 	seen := map[string]bool{}
 	for ci, c := range doc.Cases {
@@ -141,6 +143,8 @@ func TestPCScore_MatchesROracle(t *testing.T) {
 // for a standardized score — so the score's sign, order and scale are
 // MAT_PCA's, unrotated and varimax, unweighted and weighted.
 func TestPCScore_SignAgreesWithMATPCA(t *testing.T) {
+	t.Parallel()
+
 	fields := []string{"rating", "complaints", "privileges", "learning", "raises", "critical", "advance"}
 	for _, c := range []struct {
 		name     string
@@ -244,6 +248,8 @@ func weightedCorr(recs []*Record, a, b string, w *types.WeightSpec) float64 {
 // combination of others nulls every score with PULSE_MATRIX_SINGULAR on
 // both arms (a zero eigenvalue has no standardized score).
 func TestPCScore_SingularNullsEveryScore(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	rows := make([][3]float64, len(mahaRows))
 	for i, r := range mahaRows {
@@ -271,6 +277,8 @@ func TestPCScore_SingularNullsEveryScore(t *testing.T) {
 // mean 0 and unit (ddof = 1) variance; a row with a null member scores
 // null and stays out of the fit.
 func TestPCScore_UnitVarianceAndNullMember(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	rows := append([][3]float64(nil), mahaRows...)
 	rows[3][1] = math.NaN()
@@ -313,6 +321,8 @@ func TestPCScore_UnitVarianceAndNullMember(t *testing.T) {
 // "<TYPE>_<first fields entry>_PC<component>", so two components of one
 // vector never collide.
 func TestPCScore_DefaultLabels(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	recs := mahaRecords(schema, mahaRows, mahaGroups)
 	req := &types.Request{
@@ -337,6 +347,8 @@ func TestPCScore_DefaultLabels(t *testing.T) {
 // TestPCScore_FactoryRefusals: missing / out-of-range components and a
 // components key without a rotation are refused at construction.
 func TestPCScore_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	for _, c := range []struct {
 		params string
@@ -389,6 +401,8 @@ func (stubRefusingNoteModel) fitNotes() []*fitRefusal {
 // the notes it raised before refusing — each a fit-scoped warning ahead
 // of the refusal's — while every score is null.
 func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_FACTOR_SCORE, Label: "fs", Fields: []string{"x", "y"}}, schema, fittedSource{}, stubRefusingNoteModel{})
 	if err != nil {
@@ -421,6 +435,8 @@ func TestFittedAttribute_RefusalKeepsFitNotes(t *testing.T) {
 // (ATTR_PC_SCORE's unconverged rotation) become fit-scoped warnings
 // while every row is still scored.
 func TestFittedAttribute_FitNotesBecomeWarnings(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	a, err := newFittedVectorAttribute(&types.Attribute{Type: types.ATTR_PC_SCORE, Label: "pc", Fields: []string{"x", "y"}}, schema, fittedSource{}, stubNoteModel{})
 	if err != nil {

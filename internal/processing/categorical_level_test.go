@@ -31,6 +31,8 @@ import (
 // Falsified by deleting the encx.CategoricalIndexFault check in
 // resolveLevel (the corrupt row then reads ("", false, nil)).
 func TestCorruptLevel_CheckedReaders(t *testing.T) {
+	t.Parallel()
+
 	for _, read := range []struct {
 		name string
 		fn   func(*Record, string) (string, bool, error)
@@ -71,6 +73,8 @@ func TestCorruptLevel_CheckedReaders(t *testing.T) {
 //
 // Falsified by deleting `r.aux.readFault = nil` in ClearForRow.
 func TestCorruptLevel_ReadFaultLatch(t *testing.T) {
+	t.Parallel()
+
 	r := faultRecord(7, 1)
 	_, _, err := r.StringValueChecked("region")
 	r.NoteReadFault(err)
@@ -98,6 +102,8 @@ var errSentinel = os.ErrInvalid
 // Falsified by reverting comparisonCore.reference's key read to
 // discard the error (the table case then counts the row unmatched).
 func TestCorruptLevel_ComparisonAndMemberKeys(t *testing.T) {
+	t.Parallel()
+
 	c := &comparisonCore{
 		bound:    true,
 		cfg:      vectors.ComparisonConfig{Reference: vectors.ComparisonReference{Form: vectors.ReferenceTableKeyField, KeyField: "region"}},
@@ -137,6 +143,8 @@ func TestCorruptLevel_ComparisonAndMemberKeys(t *testing.T) {
 // trainTestSplit.Compute (the buffered split then answers, the corrupt
 // row stratified under "").
 func TestCorruptLevel_FeatureLevelReads(t *testing.T) {
+	t.Parallel()
+
 	feats := map[string]*types.Feature{
 		"one_hot":     {Type: types.FEAT_ONE_HOT, Field: "region"},
 		"frequency":   {Type: types.FEAT_FREQUENCY_ENCODE, Field: "region", Label: "f"},
@@ -186,6 +194,8 @@ func TestCorruptLevel_FeatureLevelReads(t *testing.T) {
 // Falsified by restoring the unchecked read in attribute_compare.go's
 // centroidFold.key (the gate names the file and line).
 func TestLevelReaders_Checked(t *testing.T) {
+	t.Parallel()
+
 	var files []string
 	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
 		if err != nil {

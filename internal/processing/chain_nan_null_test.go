@@ -12,6 +12,8 @@ import (
 // no row answered) — reaches the next chain stage as a null, like a
 // nil or missing cell, never as a NaN value.
 func TestRecordsFromChainRows_NaNIsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "m[b1]", Type: encoding.FieldTypeF64}}}
 	recs, err := RecordsFromChainRows([]map[string]any{
 		{"m[b1]": 2.5},

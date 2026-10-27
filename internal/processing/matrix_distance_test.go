@@ -112,6 +112,8 @@ func distNearRows(t *testing.T, where string, got *types.MatrixValues, want [][]
 // the between grouper and, on the k-means case, GROUP_KMEANS
 // (reproducing R's partition, keys cluster_1..3).
 func TestMatrixDistance_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[distanceOracle](t, "mv_distance")
 	sawKMeans, sawCompositional := false, 0
 	for _, c := range doc.Cases {
@@ -240,6 +242,8 @@ func distanceSpec(params string) types.MatrixSpec {
 // row with a null member is listwise-dropped (n_null). The centroids
 // are the hand means over the remaining rows.
 func TestMatrixDistance_NullKeyExcludedAndCounted(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	rows, nulls := distanceRows()
 	res, comp := runDistance(t, schema, distanceSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "g"}, "metric": "manhattan"}`), rows, nulls)
@@ -259,6 +263,8 @@ func TestMatrixDistance_NullKeyExcludedAndCounted(t *testing.T) {
 // writes the triangle; a between include list both filters the buckets
 // (an excluded key counts as n_null_key) and orders them.
 func TestMatrixDistance_UpperEncodingAndInclude(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	rows, nulls := distanceRows()
 	spec := distanceSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "g", "include": ["3", "1"]}}`)
@@ -283,6 +289,8 @@ func TestMatrixDistance_UpperEncodingAndInclude(t *testing.T) {
 // null (scope "pooled"), and over collinear members is null with
 // PULSE_MATRIX_SINGULAR.
 func TestMatrixDistance_UndefinedFigures(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	wf := types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency})
 	t.Run("massless bucket", func(t *testing.T) {
@@ -349,6 +357,8 @@ func findDistanceWarning(res types.MatrixResult, code errors.Code) *types.Respon
 // matrix, centroids and components — and a buffered (GROUP_QUANTILE)
 // between refuses to merge.
 func TestMatrixDistance_MergeEqualsSerial(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	spec := distanceSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "g"}, "metric": "mahalanobis", "standardize": true}`)
 	const n = 3*4096 + 17
@@ -424,6 +434,8 @@ func TestMatrixDistance_MergeEqualsSerial(t *testing.T) {
 // a k-means between's inline fields — beside the members; left out,
 // every row would read a null key and land in no bucket.
 func TestMatrixDistance_ProjectionReadsBetween(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(3)
 	for _, c := range []struct {
 		params string
@@ -448,6 +460,8 @@ func TestMatrixDistance_ProjectionReadsBetween(t *testing.T) {
 // answer over the precomputed bucket column g (a null instant is a
 // null key, like a null g).
 func TestMatrixDistance_DateBetweenSlotZone(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "ts", Type: encoding.FieldTypeDateTime, Nullable: true})
 	rows, nulls := distanceRows()
@@ -486,6 +500,8 @@ func TestMatrixDistance_DateBetweenSlotZone(t *testing.T) {
 // centroids and distances still equal the GROUP_CATEGORY answer over
 // g; a row whose zone cell is null is a null key like a null instant.
 func TestMatrixDistance_DateBetweenPerRowZone(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(2)
 	zd := encoding.NewDictionary()
 	_, _ = zd.Add("UTC")
@@ -519,6 +535,8 @@ func TestMatrixDistance_DateBetweenPerRowZone(t *testing.T) {
 // Request.Groups — its field plus what its FieldInputs hook declares,
 // and the whole row when it registers no hook.
 func TestMatrixDistance_ProjectionReadsExtensionBetween(t *testing.T) {
+	t.Parallel()
+
 	schema, _ := distanceSchema(3)
 	spec := distanceSpec(`{"between": {"type": "GROUP_ACME_LABEL", "field": "g", "params": {"also": "x3"}}}`)
 	req := &types.Request{Matrices: []types.MatrixSpec{spec}}

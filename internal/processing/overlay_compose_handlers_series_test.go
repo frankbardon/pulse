@@ -60,6 +60,8 @@ func entryStat(t *testing.T, layer types.OverlayLayer, i int) float64 {
 // to 100. The shape dispatcher detects SERIES from both slots and
 // routes into applyIndexVsRefSeries.
 func TestApplyIndexVsRef_SeriesHappyPath(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 20, 30, 40})
 	target := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{15, 30, 45, 60})
 	spec := composeSpecSeriesRef(types.OverlayKindIndexVsRef, nil)
@@ -86,6 +88,8 @@ func TestApplyIndexVsRef_SeriesHappyPath(t *testing.T) {
 // reference value emits PULSE_OVERLAY_REF_ZERO and substitutes NaN on
 // the affected entry. Other entries stay finite.
 func TestApplyIndexVsRef_SeriesZeroRefEmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south", "east"}, []float64{0, 10, 20})
 	target := makeSeriesResponse([]string{"north", "south", "east"}, []float64{5, 50, 100})
 	spec := composeSpecSeriesRef(types.OverlayKindIndexVsRef, nil)
@@ -110,6 +114,8 @@ func TestApplyIndexVsRef_SeriesZeroRefEmitsWarning(t *testing.T) {
 // dropped from the output (no NaN substitution — the row carries no
 // reference to compare against).
 func TestApplyIndexVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south"}, []float64{10, 20})
 	target := makeSeriesResponse([]string{"north", "south", "east"}, []float64{15, 30, 45})
 	spec := composeSpecSeriesRef(types.OverlayKindIndexVsRef, nil)
@@ -139,6 +145,8 @@ func TestApplyIndexVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
 
 // TestApplyDeltaVsRef_SeriesHappyPath pins the per-group subtraction.
 func TestApplyDeltaVsRef_SeriesHappyPath(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south", "east"}, []float64{1, 2, 3})
 	target := makeSeriesResponse([]string{"north", "south", "east"}, []float64{2, 4, 6})
 	spec := composeSpecSeriesRef(types.OverlayKindDeltaVsRef, nil)
@@ -163,6 +171,8 @@ func TestApplyDeltaVsRef_SeriesHappyPath(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO — subtraction is well-defined for any finite
 // reference value.
 func TestApplyDeltaVsRef_SeriesZeroRefNoNaN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south"}, []float64{0, 5})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{10, 20})
 	spec := composeSpecSeriesRef(types.OverlayKindDeltaVsRef, nil)
@@ -185,6 +195,8 @@ func TestApplyDeltaVsRef_SeriesZeroRefNoNaN(t *testing.T) {
 // reference row emits PULSE_OVERLAY_REF_ZERO with ref_missing=true and
 // the affected entry is dropped from the output.
 func TestApplyDeltaVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north"}, []float64{1})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{5, 10})
 	spec := composeSpecSeriesRef(types.OverlayKindDeltaVsRef, nil)
@@ -214,6 +226,8 @@ func TestApplyDeltaVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
 // the Welch-Satterthwaite shape is = (1)² / ((0.25)/1 + (0.25)/1) = 2.
 // For target=4, ref=2, t=2, df=2, the two-sided p ≈ 0.1835.
 func TestApplyTVsRef_SeriesKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south"}, []float64{2, 5})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{4, 5})
 	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, legacyTwoSampleParams(nil))
@@ -243,6 +257,8 @@ func TestApplyTVsRef_SeriesKnownAnswer(t *testing.T) {
 // NaN rather than dropping the entry — distinct from the descriptive
 // INDEX/DELTA siblings which drop the entry entirely).
 func TestApplyTVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north"}, []float64{1})
 	target := makeSeriesResponse([]string{"north", "south"}, []float64{5, 10})
 	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, legacyTwoSampleParams(nil))
@@ -282,6 +298,8 @@ func TestApplyTVsRef_SeriesMissingRefKeyWarns(t *testing.T) {
 // output". We exercise that by invoking the handler against the same
 // pair of pre-finalised Responses twice and asserting byte identity.
 func TestOverlay_ComposeIndexVsRef_Series_Streaming(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{"north", "south", "east", "west"}
 	ref := makeSeriesResponse(keys, []float64{10, 20, 30, 40})
 	target := makeSeriesResponse(keys, []float64{15, 30, 45, 60})
@@ -324,6 +342,8 @@ func TestOverlay_ComposeIndexVsRef_Series_Streaming(t *testing.T) {
 // out), and MATRIX-shape Responses route into the matrix arm
 // (MatrixPayload out). Locks the composeHostIsSeries discriminator.
 func TestApplyComposeOverlays_SeriesShapeDispatchesCorrectly(t *testing.T) {
+	t.Parallel()
+
 	// SERIES dispatch.
 	refSeries := makeSeriesResponse([]string{"north"}, []float64{10})
 	targetSeries := makeSeriesResponse([]string{"north"}, []float64{20})
@@ -360,6 +380,8 @@ func TestApplyComposeOverlays_SeriesShapeDispatchesCorrectly(t *testing.T) {
 }
 
 func TestApplyTVsRef_TripleKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},
 		{Mean: 10, Variance: 4, N: 10},
@@ -396,6 +418,8 @@ func TestApplyTVsRef_TripleKnownAnswer(t *testing.T) {
 // Params here, if honoured, would shift p toward 1.0; the triple path
 // must produce the same answer as TestApplyTVsRef_TripleKnownAnswer.
 func TestApplyTVsRef_TripleBypassesParamsDefaults(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},
 		{Mean: 10, Variance: 4, N: 10},
@@ -426,6 +450,8 @@ func TestApplyTVsRef_TripleBypassesParamsDefaults(t *testing.T) {
 // of the triple-bearing series path. Every group should surface NaN +
 // PULSE_OVERLAY_REF_ZERO.
 func TestApplyTVsRef_TripleDegenerateInsufficientN(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 1},
 		{Mean: 10, Variance: 4, N: 1},
@@ -460,6 +486,8 @@ func TestApplyTVsRef_TripleDegenerateInsufficientN(t *testing.T) {
 // of the triple path. Both sides carry Variance=0 ⇒ welchTTest
 // surfaces NaN/false ⇒ every entry surfaces NaN + PULSE_OVERLAY_REF_ZERO.
 func TestApplyTVsRef_TripleZeroVariance(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 0, N: 10},
 		{Mean: 10, Variance: 0, N: 10},
@@ -486,6 +514,8 @@ func TestApplyTVsRef_TripleZeroVariance(t *testing.T) {
 }
 
 func TestApplyTVsRef_MixedShapeRejected(t *testing.T) {
+	t.Parallel()
+
 	targetTriples := []WelfordTriple{
 		{Mean: 10, Variance: 4, N: 10},
 		{Mean: 10, Variance: 4, N: 10},

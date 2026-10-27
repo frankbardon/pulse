@@ -30,6 +30,8 @@ func newIndexVsPriorSpec(name string) types.OverlaySpec {
 // (without warning). Subsequent points emit the lag-1 ratio scaled to
 // 100.
 func TestOverlay_IndexVsPrior_BasicLag1(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}, {"apr"}, {"may"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0, 50.0}
 	host := newStubSeriesHost(keys, values)
@@ -89,6 +91,8 @@ func TestOverlay_IndexVsPrior_BasicLag1(t *testing.T) {
 // branch — "no comparison" is structurally distinct from "denominator
 // was zero".
 func TestOverlay_IndexVsPrior_FirstPointNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"only"}}
 	values := []float64{42.0}
 	host := newStubSeriesHost(keys, values)
@@ -128,6 +132,8 @@ func TestOverlay_IndexVsPrior_FirstPointNaN(t *testing.T) {
 // warning); the second entry is NaN because the prior carrier is 0 at
 // the divide step (the PULSE_OVERLAY_REF_ZERO branch).
 func TestOverlay_IndexVsPrior_PriorZeroEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	values := []float64{0.0, 5.0}
 	host := newStubSeriesHost(keys, values)
@@ -164,6 +170,8 @@ func TestOverlay_IndexVsPrior_PriorZeroEmitsRefZero(t *testing.T) {
 // math.NaN signals absent (newStubSeriesHost's resolver returns
 // (0, false) for NaN inputs).
 func TestOverlay_IndexVsPrior_AbsentPointPreservesPriorCarrier(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, math.NaN(), 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -198,6 +206,8 @@ func TestOverlay_IndexVsPrior_AbsentPointPreservesPriorCarrier(t *testing.T) {
 // to the empty-Ref shape — both are the lag-1 implicit-default
 // authoring spellings.
 func TestOverlay_IndexVsPrior_RefPriorPopulatedAccepted(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}}
 	values := []float64{10.0, 20.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -255,6 +265,8 @@ func TestOverlay_IndexVsPrior_RefPriorPopulatedAccepted(t *testing.T) {
 // "index_vs_prior" mirroring the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES
 // dispatch convention.
 func TestOverlay_IndexVsPrior_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}}
 	host := newStubSeriesHost(keys, []float64{1.0})
 	// No Name on the spec — exercises the synthesiser.
@@ -293,6 +305,8 @@ func TestOverlay_IndexVsPrior_DefaultLayerName(t *testing.T) {
 // AGG_MEDIAN forcing the buffered path) variants must produce
 // byte-identical SeriesPayload output.
 func TestOverlay_IndexVsPrior_Streaming(t *testing.T) {
+	t.Parallel()
+
 	streamResp, streamPath := runOverlayE2E(t, []types.OverlaySpec{
 		newIndexVsPriorSpec("idx_prior"),
 	}, false /*forceBuffered*/)
@@ -362,6 +376,8 @@ func TestOverlay_IndexVsPrior_Streaming(t *testing.T) {
 // empty specs before dispatch, but the defense matches the
 // INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES safety pattern.
 func TestOverlay_IndexVsPrior_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newIndexVsPriorSpec("idx_prior")
 	_, _, err := applyIndexVsPrior(&spec, nil)
 	if err == nil {

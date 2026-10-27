@@ -135,6 +135,8 @@ func auxFinal(t *testing.T, slot []auxMarginAccumulator, idx int) (float64, int,
 // Getting this wrong is silent: every number still renders, the base is
 // merely cohort-wide instead of metric-scoped.
 func TestFusedCrosstab_AuxMarginObservesCellAdmission(t *testing.T) {
+	t.Parallel()
+
 	state := driveAuxMargin(t, auxMarginSpec())
 
 	// Grand slot: respondents 1 and 5 are the only admitted records.
@@ -171,6 +173,8 @@ func TestFusedCrosstab_AuxMarginObservesCellAdmission(t *testing.T) {
 // the cell's own margin still counts the null-cell-field record (as
 // n_null) where the auxiliary beside it does not.
 func TestFusedCrosstab_AuxMarginPerAxisSlots(t *testing.T) {
+	t.Parallel()
+
 	state := driveAuxMargin(t, auxMarginSpec())
 
 	// One row key survives the Include: alpha.
@@ -203,6 +207,8 @@ func TestFusedCrosstab_AuxMarginPerAxisSlots(t *testing.T) {
 // allocated when the slot is not declared, and a declared auxiliary
 // allocates only for the margin slots the spec actually asks for.
 func TestFusedCrosstab_AuxMarginNoAllocationWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	t.Run("slot absent", func(t *testing.T) {
 		spec := auxMarginSpec()
 		spec.MarginAggregations = nil
@@ -237,6 +243,8 @@ func TestFusedCrosstab_AuxMarginNoAllocationWhenAbsent(t *testing.T) {
 // path, where the same numbers cost roughly six times the memory and
 // nothing says so.
 func TestCanFuseCrosstab_MarginAggregationsStayFusable(t *testing.T) {
+	t.Parallel()
+
 	schema := auxMarginSchema(t)
 	req := &types.Request{Crosstab: auxMarginSpec()}
 	if ok, reason := CanFuseCrosstab(req, schema, nil); !ok {
@@ -249,6 +257,8 @@ func TestCanFuseCrosstab_MarginAggregationsStayFusable(t *testing.T) {
 // drive record-by-record must decline fusion rather than be silently
 // dropped or blow up mid-scan.
 func TestCanFuseCrosstab_MarginAggregationDeclinesUnaccumulable(t *testing.T) {
+	t.Parallel()
+
 	schema := auxMarginSchema(t)
 
 	t.Run("non-online auxiliary", func(t *testing.T) {

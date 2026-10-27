@@ -172,6 +172,8 @@ func assertMetadataEqual(t *testing.T, want, got *types.ResponseMetadata) {
 // no margins, no normalization. Fused MatrixPayload must equal the
 // buffered MatrixPayload byte-for-byte.
 func TestFusedCrosstab_BasicAggSumMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecords(schema)
 	req := &types.Request{
@@ -197,6 +199,8 @@ func TestFusedCrosstab_BasicAggSumMatchesBuffered(t *testing.T) {
 // combination must produce byte-equal MatrixPayload (including the
 // margin slices' Present flags) on the fused vs buffered paths.
 func TestFusedCrosstab_MarginsMatchBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecords(schema)
 	cases := []struct {
@@ -234,6 +238,8 @@ func TestFusedCrosstab_MarginsMatchBuffered(t *testing.T) {
 // canonical benchmark's shape, and the path most likely to drift
 // between the two implementations.
 func TestFusedCrosstab_NormalizeWithinMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := normalizeWithinSchema(t)
 	recs := normalizeWithinRecords(schema)
 	zero := 0
@@ -288,6 +294,8 @@ func TestFusedCrosstab_NormalizeWithinMatchesBuffered(t *testing.T) {
 // cells in each (region, segment) row tuple must sum to the same value
 // as the buffered path emits.
 func TestFusedCrosstab_NormalizeLevelMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecords(schema)
 	zero := 0
@@ -319,6 +327,8 @@ func TestFusedCrosstab_NormalizeLevelMatchesBuffered(t *testing.T) {
 // neither path guarantees a stable sort across runs, but both must
 // produce the same multiset of rows.
 func TestFusedCrosstab_LongShapeMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecords(schema)
 	req := &types.Request{
@@ -513,6 +523,8 @@ func fusedCrosstabRecordsWithNulls(schema *encoding.Schema) []*Record {
 // keys are per-axis), with an absent margin when nothing in it was
 // admitted.
 func TestFusedCrosstab_RowNullColValidSkipsColMargin(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -564,6 +576,8 @@ func TestFusedCrosstab_RowNullColValidSkipsColMargin(t *testing.T) {
 // TestFusedCrosstab_ColNullRowValidSkipsRowMargin is the row-axis mirror:
 // a (north, NULL) record reached no cell, so it feeds no row margin.
 func TestFusedCrosstab_ColNullRowValidSkipsRowMargin(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -603,6 +617,8 @@ func TestFusedCrosstab_ColNullRowValidSkipsRowMargin(t *testing.T) {
 }
 
 func TestFusedCrosstab_RowKeysIncludeAllSeenBrands(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -644,6 +660,8 @@ func TestFusedCrosstab_RowKeysIncludeAllSeenBrands(t *testing.T) {
 // resolved — on both arms (U47 #325). A record with a null axis key
 // passed the filters but was never placed in the table.
 func TestFusedCrosstab_GrandMarginCountsAdmittedRows(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecordsWithNulls(schema)
 	req := &types.Request{
@@ -721,6 +739,8 @@ func normalizeWithinRecords(schema *encoding.Schema) []*Record {
 // a normalize-level partial-margin case whose leading row position carries
 // Include (exercising buildPartialAxisFromKeys).
 func TestFusedCrosstab_EquivalenceVsBuffered(t *testing.T) {
+	t.Parallel()
+
 	// Region dict natural (dictionary/alphabetical) order differs from the
 	// Include order below, so an unordered fused path would visibly diverge
 	// from buffered.

@@ -36,6 +36,8 @@ func fakeBrandScoreFactory(*types.Aggregation, *encoding.Schema) (Aggregator, er
 // Process path: canStream sees the OnlineAggregator and the result
 // appears in Response.Data under the operator's label.
 func TestExtensions_AggregatorRoundTrip_Streaming(t *testing.T) {
+	t.Parallel()
+
 	records, schema := benchRecords(10)
 	exts := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -75,6 +77,8 @@ func TestExtensions_AggregatorRoundTrip_Streaming(t *testing.T) {
 // forces the orchestrator into PathBuffered. The result must still
 // flow through the per-aggregation lookup.
 func TestExtensions_AggregatorRoundTrip_Buffered(t *testing.T) {
+	t.Parallel()
+
 	records, schema := benchRecords(5)
 	exts := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -115,6 +119,8 @@ func bufferedOnlyFactory(*types.Aggregation, *encoding.Schema) (Aggregator, erro
 // built-in factory. Used by embedders that need to replace stock
 // behaviour without renaming.
 func TestExtensions_AggregatorRoundTrip_OverlayOverridesBuiltin(t *testing.T) {
+	t.Parallel()
+
 	records, schema := benchRecords(5)
 	called := 0
 	overlayFactory := AggregatorFactory(func(*types.Aggregation, *encoding.Schema) (Aggregator, error) {

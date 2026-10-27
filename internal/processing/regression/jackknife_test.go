@@ -111,6 +111,8 @@ func fitModifier(t *testing.T, spec *types.RegressionSpec, records []Record) (*t
 // deletions — the coefficients, the jackknife standard errors and the
 // replicate covariance — and echo g.
 func TestJackknife_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadJackknifeReference(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			res, err := fitModifier(t, c.spec(), c.records())
@@ -167,6 +169,8 @@ func glmJackknifeRecords(n int, seed uint64) []Record {
 // seed) bit for bit (so the cluster oracle above covers the grouped
 // arithmetic); the same seed reproduces it and another seed moves it.
 func TestJackknife_GroupsAreTheSeededAssignment(t *testing.T) {
+	t.Parallel()
+
 	recs := glmJackknifeRecords(400, 11)
 	grouped := func(seed int64) *types.RegressionSpec {
 		return &types.RegressionSpec{Name: "g", Type: types.REG_GLM, Family: "binomial", Target: "y",
@@ -215,6 +219,8 @@ func TestJackknife_GroupsAreTheSeededAssignment(t *testing.T) {
 // TestJackknife_ZeroSeedIsDeterministic: rng_seed 0 derives the seed
 // from the request and the data, never the clock.
 func TestJackknife_ZeroSeedIsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	recs := glmJackknifeRecords(120, 3)
 	spec := &types.RegressionSpec{Name: "g", Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"},
 		Resample: "jackknife", JackknifeGroups: 10}
@@ -232,6 +238,8 @@ func TestJackknife_ZeroSeedIsDeterministic(t *testing.T) {
 // every row is the unweighted jackknife bit for bit, leave-one-out and
 // grouped, REG_OLS and REG_GLM (the weighted refit folds w = 1 exactly).
 func TestJackknife_UnitWeightsAreUnweighted(t *testing.T) {
+	t.Parallel()
+
 	recs := glmJackknifeRecords(60, 4)
 	for i, r := range recs {
 		r.(mockRecord).values["one"] = 1
@@ -265,6 +273,8 @@ func TestJackknife_UnitWeightsAreUnweighted(t *testing.T) {
 // is null drops from the fit listwise — the full-data fit too — so the
 // result equals the fit on the rows that carry one.
 func TestJackknife_ByDropsNullClusterRows(t *testing.T) {
+	t.Parallel()
+
 	recs := glmJackknifeRecords(90, 8)
 	withNull := make([]Record, 0, len(recs))
 	kept := make([]Record, 0, len(recs))
@@ -301,6 +311,8 @@ func TestJackknife_ByDropsNullClusterRows(t *testing.T) {
 // in which x1 varies leaves it constant) fail the slot with the
 // refit's own code; the replicate refusal names the group.
 func TestJackknife_DataRefusals(t *testing.T) {
+	t.Parallel()
+
 	recs := glmJackknifeRecords(30, 5)
 	base := func() *types.RegressionSpec {
 		return &types.RegressionSpec{Name: "r", Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife"}
@@ -365,6 +377,8 @@ func TestJackknife_DataRefusals(t *testing.T) {
 // converges to the cold start's estimate (to the convergence
 // tolerance) in fewer iterations; an invalid start falls back.
 func TestIRLS_WarmStartSameFixedPoint(t *testing.T) {
+	t.Parallel()
+
 	recs := glmJackknifeRecords(500, 21)
 	x, y := buildDesign(recs, []string{"x1", "x2"}, "y")
 	pr := func(start []float64) *irlsProblem {

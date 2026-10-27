@@ -15,6 +15,8 @@ import (
 // carrying the spec's index — and a well-formed spec ahead of it in the
 // same request does not mask it.
 func TestApplyOverlays_CrosstabSpecRefusal(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{3, 1}, {2, 4}})
 	lead := types.OverlaySpec{Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix}
 	for _, kind := range overlayhost.CrosstabSpecKinds() {

@@ -103,6 +103,8 @@ func mixedRows() []finalizeRow {
 // in — in fold order, with their weights and Σw / Σw²; Pair selects a
 // cell's own rows.
 func TestMatrixRows_AdmitsWhatCoMomentAdmits(t *testing.T) {
+	t.Parallel()
+
 	wt := types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
 	cases := []struct {
 		name      string
@@ -169,6 +171,8 @@ func TestMatrixRows_AdmitsWhatCoMomentAdmits(t *testing.T) {
 // TestMatrixSlot_CoMomentPlanHasNoRowBuffer: a streamable (co-moment)
 // plan keeps no rows — U16 state is unchanged.
 func TestMatrixSlot_CoMomentPlanHasNoRowBuffer(t *testing.T) {
+	t.Parallel()
+
 	slots, err := testPlanSet(t, types.MatrixSpec{}, types.MAT_CORRELATION, true, FullComputePlan()).fresh()
 	if err != nil {
 		t.Fatalf("fresh: %v", err)
@@ -183,6 +187,8 @@ func TestMatrixSlot_CoMomentPlanHasNoRowBuffer(t *testing.T) {
 // rows, and every part reaches the MatrixResult; a part the run's plan
 // skips is dropped even when the finalizer built it.
 func TestMatrixFinalizer_MultiOutput(t *testing.T) {
+	// serial: swaps the package-level processing.matrixFinalizers test hook
+
 	var seen int
 	installFinalizer(t, testBufferedType, func(in *matrixFinalizeInput) (matrixOutput, error) {
 		if in.Rows == nil {
@@ -238,6 +244,8 @@ func TestMatrixFinalizer_MultiOutput(t *testing.T) {
 // reaches the caller with its own code and the annotated singular
 // details — rank, condition_number and the dependent members by name.
 func TestMatrixFinalizer_CodedErrorPropagates(t *testing.T) {
+	// serial: swaps the package-level processing.matrixFinalizers test hook
+
 	installFinalizer(t, testBufferedType, func(in *matrixFinalizeInput) (matrixOutput, error) {
 		s, _ := linalg.NewSymFromRows([][]float64{{1, 1}, {1, 1}})
 		_, err := linalg.Cholesky(s)
@@ -268,6 +276,8 @@ func TestMatrixFinalizer_CodedErrorPropagates(t *testing.T) {
 // PULSE_MATRIX_SINGULAR is annotated; dependent_fields appears only
 // where linalg identified the indices.
 func TestSingularMatrixError_PassesOthersThrough(t *testing.T) {
+	t.Parallel()
+
 	other := errors.NewCodedError(errors.PULSE_MATRIX_SHAPE_MISMATCH, "shape")
 	if got := singularMatrixError(other, "m", []string{"a"}); got != other {
 		t.Errorf("non-singular error rewritten: %v", got)
@@ -288,6 +298,8 @@ func TestSingularMatrixError_PassesOthersThrough(t *testing.T) {
 // TestMatrixFinalizer_NilPrimaryIsInternal: a finalizer without a
 // primary is a programming fault, PROCESSING_INTERNAL.
 func TestMatrixFinalizer_NilPrimaryIsInternal(t *testing.T) {
+	// serial: swaps the package-level processing.matrixFinalizers test hook
+
 	installFinalizer(t, testBufferedType, func(*matrixFinalizeInput) (matrixOutput, error) {
 		return matrixOutput{}, nil
 	})
@@ -306,6 +318,8 @@ func TestMatrixFinalizer_NilPrimaryIsInternal(t *testing.T) {
 // merge reaching a buffered slot is a routing fault, never a silent
 // loss of one partition's rows.
 func TestMatrixSlots_BufferedMergeRefused(t *testing.T) {
+	t.Parallel()
+
 	set := testPlanSet(t, types.MatrixSpec{}, testBufferedType, false, FullComputePlan())
 	a, err := set.fresh()
 	if err != nil {
@@ -324,6 +338,8 @@ func TestMatrixSlots_BufferedMergeRefused(t *testing.T) {
 // ProcessStream, which runs Process — onto the buffered path, and the
 // merge gate keeps it serial; the Pearson spec beside it streams.
 func TestCanStream_BufferedMatrixSpecRoutesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := finalizeSchema()
 	pearson := types.MatrixSpec{Type: types.MAT_CORRELATION, Fields: []string{"x", "y"}}
 	rank := pearson

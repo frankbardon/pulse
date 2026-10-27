@@ -142,6 +142,8 @@ func wvOracleWant() map[string]float64 {
 }
 
 func TestWeightedMean_VarianceComponents_Oracle(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 	wvAssert(t, "buffered", wvBuffered(t, records), wvOracleWant())
 	wvAssert(t, "streaming", wvStream(t, records), wvOracleWant())
@@ -150,6 +152,8 @@ func TestWeightedMean_VarianceComponents_Oracle(t *testing.T) {
 // Buffered (Aggregate) and streaming (UpdateRow/Finalize) both run
 // foldOne in the same order, so their component maps agree exactly.
 func TestWeightedMean_VarianceComponents_BufferedMatchesStreaming(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 	b := wvBuffered(t, records)
 	s := wvStream(t, records)
@@ -167,6 +171,8 @@ func TestWeightedMean_VarianceComponents_BufferedMatchesStreaming(t *testing.T) 
 // INTO an empty one: the empty-copy branch) and len (merge an empty
 // partial in) — must reproduce the single-pass oracle.
 func TestWeightedMean_VarianceComponents_MergeMatchesSinglePass(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 	for split := 0; split <= len(records); split++ {
 		left, right := wvNew(t), wvNew(t)
@@ -189,6 +195,8 @@ func TestWeightedMean_VarianceComponents_MergeMatchesSinglePass(t *testing.T) {
 // Three-way merge in shard order, head empty — mirrors a shard reduce
 // whose first shard contributed no weighted rows.
 func TestWeightedMean_VarianceComponents_MergeIntoEmptyHead(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 	head, mid, tail := wvNew(t), wvNew(t), wvNew(t)
 	for _, r := range records[:2] {
@@ -209,6 +217,8 @@ func TestWeightedMean_VarianceComponents_MergeIntoEmptyHead(t *testing.T) {
 }
 
 func TestWeightedMean_VarianceComponents_EdgeCells(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		xs   []float64
@@ -273,6 +283,8 @@ func TestWeightedMean_VarianceComponents_EdgeCells(t *testing.T) {
 // Reusing one instance must not leak Σw² across runs: Aggregate resets
 // the live accumulators, and Finalize wipes them for the next stream.
 func TestWeightedMean_VarianceComponents_ResetBetweenRuns(t *testing.T) {
+	t.Parallel()
+
 	records := wvRecords(wvOracleX, wvOracleW)
 
 	a := wvNew(t)

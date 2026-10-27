@@ -250,6 +250,8 @@ func assertNoOverlayWarnings(t *testing.T, warnings []types.OverlayWarning) {
 // pass-failure semantics are pinned to the same fixtures the production
 // tests already validate independently.
 func TestOverlay_SharedAssertionHelpers(t *testing.T) {
+	t.Parallel()
+
 	// assertMatrixCellWithinTol + assertNoOverlayWarnings via
 	// INDEX_VS_MARGIN on a self-indexed matrix. Cell (0, 0) reads
 	// (cell / row_margin × 100); with indexUniformPayload every cell

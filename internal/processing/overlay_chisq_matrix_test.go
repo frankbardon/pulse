@@ -57,6 +57,8 @@ func chiSqMatrixPayloadKnown() *types.MatrixPayload {
 // asserts the SCALAR payload + Summary plumbing — Statistic, PValue,
 // and Parameters{"df"} populated; Matrix / Series slots nil.
 func TestOverlay_ChiSqMatrix_StatMatchesGonum(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(chiSqMatrixPayloadKnown())
 	specs := []types.OverlaySpec{
 		{
@@ -133,6 +135,8 @@ func TestOverlay_ChiSqMatrix_StatMatchesGonum(t *testing.T) {
 }
 
 func TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	// 2×2 with small counts. Row margins = 5 each, col margins = 5 each,
 	// grand = 10. Expected cells = 5 × 5 / 10 = 2.5 (all below 5).
 	payload := &types.MatrixPayload{
@@ -213,6 +217,8 @@ func TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn(t *testing.T) {
 // expected warning must also fire. The handler must NOT crash on an
 // absent cell.
 func TestOverlay_ChiSqMatrix_AbsentCellsHandled(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -275,6 +281,8 @@ func TestOverlay_ChiSqMatrix_AbsentCellsHandled(t *testing.T) {
 // the failure the same way predict would have flagged it (defense in
 // depth — validator catches this at predict time too).
 func TestOverlay_ChiSqMatrix_DegenerateShapeRejected(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowKeys:    []types.AxisKey{{"r0"}},
 		ColumnKeys: []types.AxisKey{{"c0"}, {"c1"}},

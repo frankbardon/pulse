@@ -84,6 +84,8 @@ func warningCodes(ws []*types.ResponseWarning) []string {
 // the streaming, grouped-streaming and buffered arms, with the inline
 // fit's warnings (none).
 func TestSEMScore_BoundMatchesInline(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	desc := brandModel(t, "brand_ms")
 	for _, c := range []struct {
@@ -135,6 +137,8 @@ func TestSEMScore_BoundMatchesInline(t *testing.T) {
 // no longer reproduces the inline scores — the equality reads the
 // stored matrices, never the rows.
 func TestSEMScore_BoundReadsTheFit(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	knobs := map[string]any{"model": brandModel(t, "brand_ms"), "group": "wave", "group_equal": []string{"loadings", "intercepts"}}
 	inline := map[string]any{"latent": "value"}
@@ -165,6 +169,8 @@ func TestSEMScore_BoundReadsTheFit(t *testing.T) {
 // a latent the fit's model lacks is latent_unknown; member labels other
 // than the fit's are PULSE_VECTOR_REFERENCE_MISMATCH.
 func TestSEMScore_BoundRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	sf := captureSEMFit(t, schema, mk, "brand", map[string]any{"model": brandModel(t, "brand_ms"), "meanstructure": true})
 	set := semSetOf(t, sf)
@@ -219,6 +225,8 @@ func TestSEMScore_BoundRefusals(t *testing.T) {
 // PULSE_FIT_UNAVAILABLE warning naming the fit's code; the slot is
 // still row-local (streams).
 func TestSEMScore_BoundFailedFitNulls(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	set := &model.Set{}
 	if err := set.AddFailed(model.Signature{Name: "brand", Kind: types.FitKindSEM}, &types.SlotError{Code: string(errors.PULSE_MATRIX_SINGULAR), Message: "singular"}); err != nil {
@@ -242,6 +250,8 @@ func TestSEMScore_BoundFailedFitNulls(t *testing.T) {
 // as on the fit's own cohort — and a level the fit has no parameters for
 // scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN.
 func TestSEMScore_BoundUnseenLevelByLabel(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	sf := captureSEMFit(t, schema, mk, "brand", map[string]any{"model": brandModel(t, "brand_ms"), "group": "wave"})
 	set := semSetOf(t, sf)
@@ -283,6 +293,8 @@ func TestSEMScore_BoundUnseenLevelByLabel(t *testing.T) {
 // partitions' instances scoring halves of the rows report, merged, the
 // serial instance's warning; resetTally clears it.
 func TestSEMScore_BoundMergeTally(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	sf := captureSEMFit(t, schema, mk, "brand", map[string]any{"model": brandModel(t, "brand_ms"), "group": "wave"})
 	set := semSetOf(t, sf)

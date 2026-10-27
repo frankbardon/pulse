@@ -43,6 +43,8 @@ func kendallCountsNaive(xs, ys, ws []float64) (c, d, tx, ty float64) {
 // τ-b, and every TEST_KENDALL_TAU figure built on the counts, is
 // bit-identical to the pre-Knight test.
 func TestKendallCounts_MatchesPairLoop(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewPCG(7, 11))
 	for trial := 0; trial < 400; trial++ {
 		n := rng.IntN(80)
@@ -84,6 +86,8 @@ func TestKendallCounts_MatchesPairLoop(t *testing.T) {
 // y = 1 2 2 1 — pairs (0,1) tie x, (0,2) C, (0,3) tie y, (1,2) tie y,
 // (1,3) D, (2,3) D.
 func TestKendallCounts_KnownCase(t *testing.T) {
+	t.Parallel()
+
 	c, d, tx, ty := kendallCounts([]float64{1, 1, 2, 3}, []float64{1, 2, 2, 1}, nil)
 	if c != 1 || d != 2 || tx != 1 || ty != 2 {
 		t.Fatalf("(c, d, tx, ty) = (%v, %v, %v, %v), want (1, 2, 1, 2)", c, d, tx, ty)

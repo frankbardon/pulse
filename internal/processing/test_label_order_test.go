@@ -85,6 +85,8 @@ var labelOrderCells = []struct {
 }
 
 func TestChiSq_LabelsSorted(t *testing.T) {
+	t.Parallel()
+
 	rows := expandCells(labelOrderCells)
 	for _, kind := range []types.WeightKind{"", types.WeightKindFrequency} {
 		res := runContingency(t, types.TEST_CHISQ, rows, kind)
@@ -120,6 +122,8 @@ func TestChiSq_LabelsSorted(t *testing.T) {
 }
 
 func TestFisherExact_LabelsSorted(t *testing.T) {
+	t.Parallel()
+
 	res := runContingency(t, types.TEST_FISHER_EXACT, expandCells(labelOrderCells), "")
 	d := res.Details
 	if got := d["row_labels"]; !reflect.DeepEqual(got, []string{"control", "treatment"}) {
@@ -142,6 +146,8 @@ func TestFisherExact_LabelsSorted(t *testing.T) {
 // TestTiesDominateWarning_SaysSharesOfTies: the shared warning text
 // every rank test emits names what the test then mostly measures.
 func TestTiesDominateWarning_SaysSharesOfTies(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	rt, err := newMannWhitneyRow(&types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "revenue", SplitBy: "treatment"}, schema)
 	if err != nil {

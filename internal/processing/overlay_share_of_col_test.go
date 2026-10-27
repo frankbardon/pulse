@@ -27,6 +27,8 @@ import (
 // Each column's cells sum to 1.0 exactly (the share-of-column
 // contract — mirror of TestOverlay_ShareOfRow_CellByCell).
 func TestOverlay_ShareOfCol_CellByCell(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -124,6 +126,8 @@ func TestOverlay_ShareOfCol_CellByCell(t *testing.T) {
 // leaves the overlay cells absent. Mirrors the SHARE_OF_ROW missing-
 // margin defense.
 func TestOverlay_ShareOfCol_MissingMargin_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	payload.ColumnMargins = nil // simulate "column margin not computed"
 	host := NewCrosstabHostView(payload)
@@ -168,6 +172,8 @@ func TestOverlay_ShareOfCol_MissingMargin_EmitsWarning(t *testing.T) {
 // zero column-margin denominator surfaces PULSE_OVERLAY_REF_ZERO and
 // emits an absent overlay cell rather than leaking Inf / NaN.
 func TestOverlay_ShareOfCol_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -219,6 +225,8 @@ func TestOverlay_ShareOfCol_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
 // overlay cell without emitting a warning. Defends against false
 // positive warnings for cells that genuinely had no observation.
 func TestOverlay_ShareOfCol_AbsentCellsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	payload.Cells[1][1] = types.MatrixCell{Present: false}
 	host := NewCrosstabHostView(payload)
@@ -248,6 +256,8 @@ func TestOverlay_ShareOfCol_AbsentCellsStayAbsent(t *testing.T) {
 // TestOverlay_ShareOfCol_DefaultLayerName verifies SHARE_OF_COL
 // synthesises a deterministic default name when Name is omitted.
 func TestOverlay_ShareOfCol_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{

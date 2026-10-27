@@ -50,6 +50,8 @@ func makeSeriesResponseLegacyTriples(keys []string, triples []WelfordTriple) *ty
 // source is the universal Components surface and a stale typed-payload
 // smuggle does not reach the math.
 func TestApplyTCell_LegacyTripleNotConsumed(t *testing.T) {
+	t.Parallel()
+
 	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeSingleCellLegacyTripleResponse(triple)
@@ -77,6 +79,8 @@ func TestApplyTCell_LegacyTripleNotConsumed(t *testing.T) {
 // consume a typed WelfordTriple from MatrixCell.Value when the
 // components-source map is absent.
 func TestApplyZCell_LegacyTripleNotConsumed(t *testing.T) {
+	t.Parallel()
+
 	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeSingleCellLegacyTripleResponse(triple)
@@ -104,6 +108,8 @@ func TestApplyZCell_LegacyTripleNotConsumed(t *testing.T) {
 // scalar-or-triple-map value; a typed WelfordTriple is neither, so the
 // rows are silently dropped and no entries land.
 func TestApplyTVsRef_LegacyTripleNotConsumed(t *testing.T) {
+	t.Parallel()
+
 	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeSeriesResponseLegacyTriples([]string{"north", "south"}, []WelfordTriple{triple, triple})
@@ -125,6 +131,8 @@ func TestApplyTVsRef_LegacyTripleNotConsumed(t *testing.T) {
 // sibling regression gate — the SERIES-arm two-sample-z handler MUST
 // NOT consume a typed WelfordTriple from the row's value column.
 func TestApplyZVsRef_LegacyTripleNotConsumed(t *testing.T) {
+	t.Parallel()
+
 	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeSeriesResponseLegacyTriples([]string{"north", "south"}, []WelfordTriple{triple, triple})
@@ -143,6 +151,8 @@ func TestApplyZVsRef_LegacyTripleNotConsumed(t *testing.T) {
 }
 
 func TestApplyTCell_ComponentsTripleSourcePrimary(t *testing.T) {
+	t.Parallel()
+
 	// Components map carries the canonical (10, 4, 10) and (9, 4, 10)
 	// — same shape the parity tests pin to a known answer.
 	target := &types.Response{
@@ -209,6 +219,8 @@ func TestApplyTCell_ComponentsTripleSourcePrimary(t *testing.T) {
 // sibling regression gate — confirms the components-source map is
 // canonical, not MatrixCell.Value's typed smuggle.
 func TestApplyZCell_ComponentsTripleSourcePrimary(t *testing.T) {
+	t.Parallel()
+
 	target := &types.Response{
 		Crosstab: &types.CrosstabResult{
 			Matrix: &types.MatrixPayload{

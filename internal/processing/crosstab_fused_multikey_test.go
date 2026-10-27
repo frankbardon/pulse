@@ -21,6 +21,8 @@ func setPerElementGroup() *types.Group {
 // position of a multi-grouper chain — the buffered PartitionByAxis
 // recursion fans at any depth, so the gate cannot special-case depth 0.
 func TestCanFuseCrosstab_MultiKeyGrouperAdmitted(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		apply func(*types.CrosstabSpec)
@@ -69,6 +71,8 @@ func TestCanFuseCrosstab_MultiKeyGrouperAdmitted(t *testing.T) {
 // GROUP_QUANTILE needs a finalize-time sorted view and implements
 // neither keying interface; the reason string shape is unchanged.
 func TestCanFuseCrosstab_MultiKeyWideningKeepsQuantileRejected(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		apply   func(*types.CrosstabSpec)
@@ -112,6 +116,8 @@ func TestCanFuseCrosstab_MultiKeyWideningKeepsQuantileRejected(t *testing.T) {
 // MultiKeyStreamingGrouper.KeysForRow takes the field as an argument
 // (StreamableGrouper implementations bind their field at factory time).
 func TestBuildStreamableAxis_DiscriminatesKeyingShape(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	axis := []*types.Group{
 		{Type: types.GROUP_CATEGORY, Field: "brand"},
@@ -162,6 +168,8 @@ func TestBuildStreamableAxis_DiscriminatesKeyingShape(t *testing.T) {
 // keying interface is a typed PROCESSING_INTERNAL error, not a silent
 // nil entry.
 func TestBuildStreamableAxis_RejectsUnkeyableGrouper(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	axis := []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}}
 	if _, err := buildStreamableAxis(axis, schema, nil, "rows"); err == nil {
@@ -175,6 +183,8 @@ func TestBuildStreamableAxis_RejectsUnkeyableGrouper(t *testing.T) {
 // Key derivation and record routing land in E2-S2 / E2-S3; this test
 // deliberately asserts construction and components wiring only.
 func TestNewFusedCrosstabState_AdmitsMultiKeyAxis(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	spec := &types.CrosstabSpec{
 		Rows:    []*types.Group{setPerElementGroup()},
@@ -219,6 +229,8 @@ func TestNewFusedCrosstabState_AdmitsMultiKeyAxis(t *testing.T) {
 // an extension could be, and silently taking the narrow path there
 // would drop buckets.
 func TestFusedAxisGrouper_MultiPreferredOverSingle(t *testing.T) {
+	t.Parallel()
+
 	entry := classifyFusedAxisGrouper(&dualShapeGrouper{}, "tags")
 	if !entry.fansOut() {
 		t.Fatal("dual-shape grouper must classify as fan-out")

@@ -15,6 +15,8 @@ import (
 // must decline each one first, so a valid request never reaches the
 // fused walk's PROCESSING_INTERNAL. The happy-path crosstab both admit.
 func TestAssertCanFuse_RejectionsDeclinedByGate(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	base := func() *types.Request {
 		return &types.Request{Crosstab: &types.CrosstabSpec{

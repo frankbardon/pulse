@@ -18,6 +18,8 @@ import (
 //
 // χ² = (25/85 + 25/15) * 2 = 3.9216, df=1, p ≈ 0.0477.
 func TestChiSquare_2x2_Independence(t *testing.T) {
+	t.Parallel()
+
 	schema := chiSquareFixtureSchema()
 	spec := &types.Test{
 		Type:  types.TEST_CHISQ,
@@ -64,6 +66,8 @@ func TestChiSquare_2x2_Independence(t *testing.T) {
 
 // TestChiSquare_DegenerateContingency rejects a 1x1 table.
 func TestChiSquare_DegenerateContingency(t *testing.T) {
+	t.Parallel()
+
 	schema := chiSquareFixtureSchema()
 	spec := &types.Test{Type: types.TEST_CHISQ, Rows: "kind", Cols: "outcome"}
 	cs, _ := newChiSqRow(spec, schema)
@@ -83,6 +87,8 @@ func TestChiSquare_DegenerateContingency(t *testing.T) {
 // Grand mean = 6, SSB = 10, SSW = 30, MSB/MSW = 5/2.5 = 2.0.
 // df_between=2, df_within=12, p ≈ 0.178.
 func TestAnovaF_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema() // reused — revenue + treatment categorical
 	spec := &types.Test{
 		Type:    types.TEST_ANOVA_F,
@@ -132,6 +138,8 @@ func TestAnovaF_KnownStatistic(t *testing.T) {
 
 // TestAnovaF_LargeEffectRejects: well-separated means → tiny p.
 func TestAnovaF_LargeEffectRejects(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_ANOVA_F, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	rt, _ := newAnovaRow(spec, schema)
@@ -162,6 +170,8 @@ func TestAnovaF_LargeEffectRejects(t *testing.T) {
 
 // TestKS_FullySeparatedSamples: two disjoint ranges → D=1, p very small.
 func TestKS_FullySeparatedSamples(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_KS, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	rt, err := newKSRow(spec, schema)
@@ -193,6 +203,8 @@ func TestKS_FullySeparatedSamples(t *testing.T) {
 
 // TestKS_IdenticalDistributions: D close to 0, p close to 1.
 func TestKS_IdenticalDistributions(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_KS, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	rt, _ := newKSRow(spec, schema)
@@ -222,6 +234,8 @@ func TestKS_IdenticalDistributions(t *testing.T) {
 // TestAnovaPost_MatchesRowAnova: feeding the per-group summary stats
 // from the row-test fixture into anovaPost reproduces the same F/p.
 func TestAnovaPost_MatchesRowAnova(t *testing.T) {
+	t.Parallel()
+
 	post, err := newAnovaPost(&types.Test{
 		Type:    types.TEST_ANOVA_F,
 		Field:   "mean_x",
@@ -255,6 +269,8 @@ func TestAnovaPost_MatchesRowAnova(t *testing.T) {
 // TestTrendPost_MonotonicIncreasing: strict monotone series → S = n(n-1)/2.
 // For n=8: S = 28, Var(S) = 65.33, Z = 27/sqrt(65.33) ≈ 3.34, p ≈ 0.0008.
 func TestTrendPost_MonotonicIncreasing(t *testing.T) {
+	t.Parallel()
+
 	post, err := newTrendPost(&types.Test{
 		Type:    types.TEST_TREND,
 		Field:   "value",
@@ -294,6 +310,8 @@ func TestTrendPost_MonotonicIncreasing(t *testing.T) {
 
 // TestTrendPost_FlatSeries: constant values → S=0, p=1.
 func TestTrendPost_FlatSeries(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newTrendPost(&types.Test{Type: types.TEST_TREND, Field: "value", Alpha: 0.05}, nil)
 	rows := []map[string]any{
 		{"value": 5.0}, {"value": 5.0}, {"value": 5.0}, {"value": 5.0},
@@ -319,6 +337,8 @@ func TestTrendPost_FlatSeries(t *testing.T) {
 // TestTrendPost_OrderingApplied: rows shuffled with explicit OrderBy
 // produce the same Z as a pre-sorted input.
 func TestTrendPost_OrderingApplied(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newTrendPost(&types.Test{
 		Type:    types.TEST_TREND,
 		Field:   "value",
@@ -351,6 +371,8 @@ func TestTrendPost_OrderingApplied(t *testing.T) {
 // column follows its grouper's key order instead
 // (TestTrendPost_DayOfWeekKeyFollowsGrouperOrder: S = +21 Monday-first).
 func TestTrendPost_StringOrderKeysSortLexicographically(t *testing.T) {
+	t.Parallel()
+
 	post, _ := newTrendPost(&types.Test{
 		Type:    types.TEST_TREND,
 		Field:   "value",
@@ -397,6 +419,8 @@ func chiSquareTestRecord(t *testing.T, schema *encoding.Schema, kind, outcome st
 // TestPearsonRPost_PerfectPositive: y = 2x + 3 over 5 result rows; r must
 // be exactly 1 (clamped from float drift). p ≈ 0, df = n − 2.
 func TestPearsonRPost_PerfectPositive(t *testing.T) {
+	t.Parallel()
+
 	post, err := newPearsonRPost(&types.Test{
 		Type:   types.TEST_PEARSON_R,
 		Field:  "x_col",
@@ -435,6 +459,8 @@ func TestPearsonRPost_PerfectPositive(t *testing.T) {
 // negatively associated series. Confirms the sign carries through and
 // the p-value rejects at α = 0.05.
 func TestPearsonRPost_NegativeCorrelation(t *testing.T) {
+	t.Parallel()
+
 	post, err := newPearsonRPost(&types.Test{
 		Type:   types.TEST_PEARSON_R,
 		Field:  "x",
@@ -466,6 +492,8 @@ func TestPearsonRPost_NegativeCorrelation(t *testing.T) {
 // the tier-1 variant and via rows to the tier-2 variant must produce
 // identical r, df, and p (the math path is shared).
 func TestPearsonRPost_AgreesWithRowVariant(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64},
@@ -518,6 +546,8 @@ func TestPearsonRPost_AgreesWithRowVariant(t *testing.T) {
 
 // TestPearsonRPost_InsufficientN: n < 3 surfaces PULSE_TEST_INSUFFICIENT_N.
 func TestPearsonRPost_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	post, err := newPearsonRPost(&types.Test{
 		Type: types.TEST_PEARSON_R, Field: "x", Field2: "y",
 	}, nil)
@@ -536,6 +566,8 @@ func TestPearsonRPost_InsufficientN(t *testing.T) {
 // TestPearsonRPost_ZeroVariance: constant y must surface
 // PULSE_TEST_CORRELATION_UNDEFINED.
 func TestPearsonRPost_ZeroVariance(t *testing.T) {
+	t.Parallel()
+
 	post, err := newPearsonRPost(&types.Test{
 		Type: types.TEST_PEARSON_R, Field: "x", Field2: "y",
 	}, nil)
@@ -555,6 +587,8 @@ func TestPearsonRPost_ZeroVariance(t *testing.T) {
 
 // TestPearsonRPost_RequiresField2: factory rejects missing field2.
 func TestPearsonRPost_RequiresField2(t *testing.T) {
+	t.Parallel()
+
 	_, err := newPearsonRPost(&types.Test{
 		Type:  types.TEST_PEARSON_R,
 		Field: "x",

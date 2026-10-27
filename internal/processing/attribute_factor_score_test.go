@@ -115,6 +115,8 @@ func factorScoreParams(factor int, method string, factors any, extraction, rotat
 // the streaming two-pass and buffered arms (bit-identical), alternating
 // the member source between inline fields and a named vector.
 func TestFactorScore_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorScoreOracle](t, "mv_factor_score")
 	seen := map[string]bool{}
 	for ci, c := range doc.Cases {
@@ -249,6 +251,8 @@ func TestFactorScore_MatchesROracle(t *testing.T) {
 // math.Signbit would read an arch-dependent NaN sign bit (clear on
 // arm64, set on amd64) and pass or fail by architecture.
 func TestFactorScore_SignAgreesWithMATFactor(t *testing.T) {
+	t.Parallel()
+
 	fields := []string{"rating", "complaints", "privileges", "learning", "raises", "critical", "advance"}
 	seen := map[string]bool{}
 	for _, c := range []struct {
@@ -396,6 +400,8 @@ func fsRun(t *testing.T, fixture string, fields []string, params string) ([]floa
 // cannot give a score nulls every score with one fit-scoped warning, a
 // usable fit that owes a caveat scores and warns.
 func TestFactorScore_FitWarnings(t *testing.T) {
+	t.Parallel()
+
 	heywood := []string{"h1", "h2", "h3"}
 	attitude := []string{"rating", "complaints", "privileges", "learning", "raises", "critical", "advance"}
 	for _, c := range []struct {
@@ -449,6 +455,8 @@ func TestFactorScore_FitWarnings(t *testing.T) {
 // TestFactorScore_KaiserMatchesFixedCount: the default factors "kaiser"
 // fits the k the eigenvalue rule keeps — the same scores as that fixed k.
 func TestFactorScore_KaiserMatchesFixedCount(t *testing.T) {
+	t.Parallel()
+
 	fields := []string{"rating", "complaints", "privileges", "learning", "raises", "critical", "advance"}
 	for f := 1; f <= 2; f++ {
 		kaiser, _ := fsRun(t, "attitude", fields, fmt.Sprintf(`{"factor": %d, "rotation": "varimax"}`, f))
@@ -463,6 +471,8 @@ func TestFactorScore_KaiserMatchesFixedCount(t *testing.T) {
 // combination of others nulls every score with PULSE_MATRIX_SINGULAR
 // (regression scores need R⁻¹).
 func TestFactorScore_SingularNullsEveryScore(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	rows := make([][3]float64, len(mahaRows))
 	for i, r := range mahaRows {
@@ -486,6 +496,8 @@ func TestFactorScore_SingularNullsEveryScore(t *testing.T) {
 // TestFactorScore_DefaultLabels: "<TYPE>_<vector>_F<factor>" and
 // "<TYPE>_<first fields entry>_F<factor>".
 func TestFactorScore_DefaultLabels(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	recs := mahaRecords(schema, mahaRows, mahaGroups)
 	req := &types.Request{
@@ -509,6 +521,8 @@ func TestFactorScore_DefaultLabels(t *testing.T) {
 // TestFactorScore_FactoryRefusals: a missing or out-of-range factor,
 // MAT_FACTOR's knob rules and unknown keys are refused at construction.
 func TestFactorScore_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	for _, c := range []struct {
 		params string

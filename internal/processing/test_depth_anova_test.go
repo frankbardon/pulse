@@ -20,6 +20,8 @@ import (
 // implementation does not falsely reject when means are equal across
 // unequal-variance groups.
 func TestAnovaWelch_EqualMeansUnequalVariance(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_ANOVA_WELCH, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, err := newAnovaWelchRow(spec, schema)
@@ -50,6 +52,8 @@ func TestAnovaWelch_EqualMeansUnequalVariance(t *testing.T) {
 // TestAnovaWelch_RejectsOnMeanShift confirms Welch's ANOVA rejects when
 // means differ even under unequal variances.
 func TestAnovaWelch_RejectsOnMeanShift(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_ANOVA_WELCH, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, _ := newAnovaWelchRow(spec, schema)
@@ -74,6 +78,8 @@ func TestAnovaWelch_RejectsOnMeanShift(t *testing.T) {
 // TestBrownForsythe_HomogeneousVariance verifies that equal-variance
 // groups produce a non-significant F.
 func TestBrownForsythe_HomogeneousVariance(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_BROWN_FORSYTHE, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, err := newBrownForsytheRow(spec, schema)
@@ -102,6 +108,8 @@ func TestBrownForsythe_HomogeneousVariance(t *testing.T) {
 // TestBrownForsythe_UnequalVariance verifies that very different spreads
 // produce a significant F.
 func TestBrownForsythe_UnequalVariance(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_BROWN_FORSYTHE, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, _ := newBrownForsytheRow(spec, schema)
@@ -122,6 +130,8 @@ func TestBrownForsythe_UnequalVariance(t *testing.T) {
 // with small per-cell noise so SS_error > 0. Treatment effect (+2, +4)
 // dominates the within-subject jitter, so the test rejects.
 func TestAnovaRM_Balanced(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "metric", Type: encoding.FieldTypeF64},
@@ -190,6 +200,8 @@ func TestAnovaRM_Balanced(t *testing.T) {
 // TestAnovaRM_DropsIncompleteSubject verifies that subjects with any
 // missing condition are dropped and surfaced as a warning.
 func TestAnovaRM_DropsIncompleteSubject(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "metric", Type: encoding.FieldTypeF64},

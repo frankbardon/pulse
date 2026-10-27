@@ -101,6 +101,8 @@ func dummyRecord() *Record { return NewRecord(nil, map[string]float64{}) }
 // shape every existing fused test exercises; the fan-out widening must
 // leave it untouched.
 func TestFusedAxisKeyer_SingleKeyAxis(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		keys         []string
@@ -171,6 +173,8 @@ func TestFusedAxisKeyer_SingleKeyAxis(t *testing.T) {
 // cartesian product of every position's key set, in position order, with
 // the component order buffered PartitionByAxis produces (parent-major).
 func TestFusedAxisKeyer_CartesianProduct(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		build        func() []fusedAxisGrouper
@@ -299,6 +303,8 @@ func TestFusedAxisKeyer_CartesianProduct(t *testing.T) {
 // instances bind their field at factory time) and copying that into the
 // multi path would make every fan-out axis silently resolve to nothing.
 func TestFusedAxisKeyer_PassesBoundFieldToMultiKey(t *testing.T) {
+	t.Parallel()
+
 	g, entry := multiFake("tags", "VISA")
 	if _, err := newFusedAxisKeyer([]fusedAxisGrouper{entry}).derive(dummyRecord()); err != nil {
 		t.Fatalf("derive: %v", err)
@@ -322,6 +328,8 @@ func TestFusedAxisKeyer_PassesBoundFieldToMultiKey(t *testing.T) {
 // counts by the width of the fan in front of it — silently, because the
 // cell values would stay correct.
 func TestFusedAxisKeyer_DerivesEachPositionExactlyOnce(t *testing.T) {
+	t.Parallel()
+
 	// Position 1 sits behind a 3-wide fan and position 2 behind a 12-wide
 	// one, so a product-walk derivation would show calls of 1 / 3 / 12
 	// rather than 1 / 1 / 1.
@@ -366,6 +374,8 @@ func TestFusedAxisKeyer_DerivesEachPositionExactlyOnce(t *testing.T) {
 // reused by design, so a stale tail from a wider previous record would be
 // an easy and silent bug.
 func TestFusedAxisKeyer_ScratchReuseAcrossRecords(t *testing.T) {
+	t.Parallel()
+
 	g := &fakeMultiKeyGrouper{keys: []string{"a", "b", "c"}, ok: true}
 	_, s := singleFake("region", "north")
 	keyer := newFusedAxisKeyer([]fusedAxisGrouper{
@@ -401,6 +411,8 @@ func TestFusedAxisKeyer_ScratchReuseAcrossRecords(t *testing.T) {
 // while it derives the column result, and a fusedAxisKeys value aliases
 // its producing keyer's scratch.
 func TestFusedAxisKeyer_RowAndColumnScratchAreIndependent(t *testing.T) {
+	t.Parallel()
+
 	_, rowEntry := multiFake("tags", "VISA", "MC")
 	_, colEntry := multiFake("channels", "web", "app", "store")
 	rowKeyer := newFusedAxisKeyer([]fusedAxisGrouper{rowEntry})
@@ -427,6 +439,8 @@ func TestFusedAxisKeyer_RowAndColumnScratchAreIndependent(t *testing.T) {
 // more than 2. A regression here means a scratch buffer stopped being
 // reused across records.
 func TestFusedAxisKeyer_SingleKeyFastPathAllocation(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	_, entry := singleFake("region", "north")
 	keyer := newFusedAxisKeyer([]fusedAxisGrouper{entry})
 	rec := dummyRecord()
@@ -453,6 +467,8 @@ func TestFusedAxisKeyer_SingleKeyFastPathAllocation(t *testing.T) {
 // resolve are still returned so the partial-depth and cross-axis margin
 // consumers keep their inputs.
 func TestFusedAxisKeyer_UnresolvedPosition(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		build        func() []fusedAxisGrouper
@@ -556,6 +572,8 @@ func TestFusedAxisKeyer_UnresolvedPosition(t *testing.T) {
 // surfaced rather than folded into "unresolved" — only ErrGrouperKeyNull
 // is a null signal.
 func TestFusedAxisKeyer_ErrorsPropagate(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.NewCodedError(errors.PROCESSING_CONFIG, "boom")
 	cases := map[string][]fusedAxisGrouper{
 		"single-key": {classifyFusedAxisGrouper(&fakeSingleKeyGrouper{err: boom}, "region")},
@@ -580,6 +598,8 @@ func TestFusedAxisKeyer_ErrorsPropagate(t *testing.T) {
 // it to the one composite key "" under the "Total" tuple, the pair the
 // buffered empty-axis partition carries.
 func TestFusedAxisKeyer_ZeroGroupersIsTotalColumn(t *testing.T) {
+	t.Parallel()
+
 	got, err := newFusedAxisKeyer(nil).derive(dummyRecord())
 	if err != nil {
 		t.Fatalf("derive: %v", err)
@@ -603,6 +623,8 @@ func TestFusedAxisKeyer_ZeroGroupersIsTotalColumn(t *testing.T) {
 // a nil-interface panic. buildStreamableAxis rejects that shape at
 // construction, so this only fires under contract drift.
 func TestFusedAxisGrouper_UnkeyableEntryIsTyped(t *testing.T) {
+	t.Parallel()
+
 	entry := fusedAxisGrouper{field: "score"}
 	_, _, err := entry.keysForRow(dummyRecord(), nil)
 	if err == nil {
@@ -626,6 +648,8 @@ func TestFusedAxisGrouper_UnkeyableEntryIsTyped(t *testing.T) {
 // full key set must stay duplicate-free, because E2-S3 routes one margin
 // update per deduped prefix.
 func TestFusedAxisKeyer_DedupesPositionKeys(t *testing.T) {
+	t.Parallel()
+
 	_, s := singleFake("region", "north")
 	entries := []fusedAxisGrouper{
 		classifyFusedAxisGrouper(
@@ -658,6 +682,8 @@ func TestFusedAxisKeyer_DedupesPositionKeys(t *testing.T) {
 // multi-label set, an empty mask, a null field, and a set that empties
 // after Include filtering.
 func TestFusedAxisKeyer_SetPerElementAxis(t *testing.T) {
+	t.Parallel()
+
 	schema := setAxisSchema()
 	// Dictionary order is VISA, MC, AMEX, DISC — bit i maps to entry i.
 	const (
@@ -763,6 +789,8 @@ func TestFusedAxisKeyer_SetPerElementAxis(t *testing.T) {
 // produces by re-running the grouper over the full filtered set. A
 // product-walk derivation would multiply these counts.
 func TestFusedAxisKeyer_SetPerElementComponentsCountOncePerLabel(t *testing.T) {
+	t.Parallel()
+
 	schema := setAxisSchema()
 	const (
 		visa = 1 << 0

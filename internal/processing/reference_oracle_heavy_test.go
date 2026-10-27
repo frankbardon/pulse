@@ -7,6 +7,8 @@ import (
 )
 
 func TestReferenceOracle_StudentizedRangeInverse(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[tukeyInverseCase](t, "studentized_range_inverse")
 	got := parallelEval(len(doc.Cases), func(i int) float64 {
 		k := doc.Cases[i]

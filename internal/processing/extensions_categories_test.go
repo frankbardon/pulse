@@ -24,6 +24,8 @@ func (keepHighFilter) Build(*types.Filterer, *encoding.Schema) (FilterFunc, erro
 func keepHighFilterFactory() FiltererBuilder { return keepHighFilter{} }
 
 func TestExtensions_FiltererRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -88,6 +90,8 @@ func parityGrouperFactory(*types.Group, *encoding.Schema) (Grouper, error) {
 }
 
 func TestExtensions_GrouperRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -143,6 +147,8 @@ func constWindowFactory(*types.Window, window.WindowOptions) (window.WindowCompu
 }
 
 func TestExtensions_WindowRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -192,6 +198,8 @@ func doubleFeatureFactory(*types.Feature, *encoding.Schema) (feature.Computer, e
 }
 
 func TestExtensions_FeatureRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -237,6 +245,8 @@ func constRowTestFactory(*types.Test, *encoding.Schema) (RowTest, error) {
 }
 
 func TestExtensions_TestRoundTrip_Tier1(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -286,6 +296,8 @@ func constPostTestFactory(*types.Test, *encoding.Schema) (PostTest, error) {
 }
 
 func TestExtensions_TestRoundTrip_Tier2(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}

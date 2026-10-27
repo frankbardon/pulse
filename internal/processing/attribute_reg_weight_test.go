@@ -52,6 +52,8 @@ var bothKinds = []types.WeightKind{types.WeightKindFrequency, types.WeightKindPr
 // kind reproduce the unweighted outputs bit for bit (penalised fitted
 // included).
 func TestAttrRegWeighted_UnityBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	ones := []float64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 	recs := regWeightRecords(schema, ones)
@@ -77,6 +79,8 @@ func TestAttrRegWeighted_UnityBitIdentical(t *testing.T) {
 // give each row the fitted value / residual of its expanded copies and
 // w times a copy's leverage (the copies share the row's hat mass).
 func TestAttrRegWeighted_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, attrRegWeights)
 	var exp []*Record
@@ -106,6 +110,8 @@ func TestAttrRegWeighted_FrequencyIsExpansion(t *testing.T) {
 // row out of the refit (the fit equals the one without it) while it
 // still gets its fitted value / residual; its leverage is 0.
 func TestAttrRegWeighted_ExcludedRows(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	ws := append([]float64(nil), attrRegWeights...)
 	ws[0], ws[1] = 0, -1
@@ -131,6 +137,8 @@ func TestAttrRegWeighted_ExcludedRows(t *testing.T) {
 // slot weight and a request weight both reach the refit (stamped) on
 // the streaming and buffered paths; `weight: null` opts out.
 func TestAttrRegWeighted_WeightReachesRefit(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, attrRegWeights)
 	wantSum := 0.0
@@ -187,6 +195,8 @@ func closeRel(a, b, tol float64) bool {
 // weight unstamped on it (skipped, the ATTR_REG_PREDICT rule) — what
 // the resolver reports — while the refit slot carries the weight.
 func TestStampWeights_FitReferenceSkipped(t *testing.T) {
+	t.Parallel()
+
 	w := types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	req := &types.Request{
 		Weight: &w,

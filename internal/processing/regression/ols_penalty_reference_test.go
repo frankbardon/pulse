@@ -76,6 +76,8 @@ func (c olsPenaltyCase) records() []Record {
 // within relative 1e-10 of the KKT-checked oracle (worst seen 4e-15), the
 // oracle's zeros exactly 0.
 func TestRegOLS_PenaltyMatchesGlmnet(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	for _, c := range loadOLSPenaltyReference(t) {
 		t.Run(c.Name, func(t *testing.T) {
@@ -126,6 +128,8 @@ func (c olsPenaltyCase) spec() *types.RegressionSpec {
 // (gen_ols_penalty.R ridge_inference), unweighted and
 // frequency-weighted, every figure within relative 1e-10.
 func TestReferenceOracle_RidgeInferenceMatchesClosedForm(t *testing.T) {
+	t.Parallel()
+
 	n := 0
 	for _, c := range loadOLSPenaltyReference(t) {
 		if c.Penalty != "l2" {
@@ -167,6 +171,8 @@ func TestReferenceOracle_RidgeInferenceMatchesClosedForm(t *testing.T) {
 // intercept and the zeroed predictors included — while the
 // coefficients stay glmnet's (TestRegOLS_PenaltyMatchesGlmnet).
 func TestRegOLS_LassoElasticNetInferenceNull(t *testing.T) {
+	t.Parallel()
+
 	n := 0
 	for _, c := range loadOLSPenaltyReference(t) {
 		if c.Penalty == "l2" {
@@ -226,6 +232,8 @@ func assertInferenceNull(t *testing.T, res *types.RegressionResult, keys []strin
 // OLS penalties — the coordinate-descent elastic net at l1_ratio = 0 is
 // the closed-form ridge at the same α.
 func TestRegOLS_RidgeEqualsElasticNetAtZeroL1(t *testing.T) {
+	t.Parallel()
+
 	predictors, records := lassoFixture()
 	for _, alpha := range []float64{0.01, 0.5, 3} {
 		acc := newOLSAccumulator(len(predictors))
@@ -269,6 +277,8 @@ func TestRegOLS_RidgeEqualsElasticNetAtZeroL1(t *testing.T) {
 // dropping the list moves every figure (the listed slopes escape the
 // shrinkage, so they sit further from 0 than the fully penalised fit's).
 func TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet(t *testing.T) {
+	t.Parallel()
+
 	n := 0
 	for _, c := range loadOLSPenaltyReference(t) {
 		if len(c.Unpenalized) == 0 {
@@ -314,6 +324,8 @@ func TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet(t *testing.T) {
 // over a reordered predictor subset equals a fresh fit of that subset
 // with the same list.
 func TestRegOLS_RidgeUnpenalizedFollowsNamesInRefit(t *testing.T) {
+	t.Parallel()
+
 	predictors, records := lassoFixture()
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictors,
 		Penalty: "l2", Alpha: 0.4, Unpenalized: []string{predictors[2]}}

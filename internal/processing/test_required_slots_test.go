@@ -17,6 +17,8 @@ import (
 // fieldaccept.RequiredSlotsRefusal — the coded error predict reports —
 // and a combination the table accepts draws no missing-slot refusal.
 func TestRequiredSlots_ConstructorsRaiseTheTable(t *testing.T) {
+	t.Parallel()
+
 	type factory func(*types.Test) error
 	var cases []struct {
 		op   types.TestType

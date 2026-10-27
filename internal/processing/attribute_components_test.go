@@ -33,6 +33,8 @@ func scaleEntry(want []float64, op map[string]any) types.AttributeComponents {
 // buffered arm's forcing attribute) declares no ComponentSchema and so
 // adds no entry.
 func TestAttributeComponents_ScaleScoreEveryArm(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		vecs []types.VectorSpec
@@ -84,6 +86,8 @@ func TestAttributeComponents_ScaleScoreEveryArm(t *testing.T) {
 // crosstab arm tallies the entry inline; it equals the buffered
 // RunCrosstab's.
 func TestAttributeComponents_ScaleScoreFusedMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := scaleSchema()
 	build := func() *types.Request {
 		return &types.Request{
@@ -119,6 +123,8 @@ func TestAttributeComponents_ScaleScoreFusedMatchesBuffered(t *testing.T) {
 // stage on the prepass AND the emission scan; the tally (entry and
 // warning) still counts each row once — the other arms' figures.
 func TestAttributeComponents_TwoPassCountsOnce(t *testing.T) {
+	t.Parallel()
+
 	schema := scaleSchema()
 	req := &types.Request{
 		Vectors: scaleVector(true, 1, 5),
@@ -151,6 +157,8 @@ func TestAttributeComponents_TwoPassCountsOnce(t *testing.T) {
 // build) on every arm, while the rest of the block is untouched; an
 // attribute that declares no ComponentSchema never emits one.
 func TestAttributeComponents_ComputeGate(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	schema := scaleSchema()
 	noAttrs := FullComputePlan()
 	noAttrs.Attributes = false

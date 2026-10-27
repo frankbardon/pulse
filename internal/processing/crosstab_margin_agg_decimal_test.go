@@ -17,6 +17,8 @@ import (
 // same aggregator in the cell is. A decimal-arm auxiliary resolves on
 // both.
 func TestCrosstabAuxMargin_DecimalRuleBothArms(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("a")
 	schema := &encoding.Schema{Fields: []encoding.Field{

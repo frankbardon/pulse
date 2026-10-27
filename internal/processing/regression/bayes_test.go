@@ -36,6 +36,8 @@ func newBayes(t *testing.T, spec *types.RegressionSpec) BufferedEngine {
 // TestRegOLS_Univariate_Exact (y = 2x + 1) plus a noisier multivariate
 // configuration to exercise the off-diagonal posterior precision.
 func TestRegBayes_DiffusePriorMatchesOLS(t *testing.T) {
+	t.Parallel()
+
 	t.Run("univariate exact line with very diffuse prior", func(t *testing.T) {
 		// Phase 1's exact-line fixture (y = 2x + 1, n=5). With only 5
 		// rows, the *default* ε = 1e-3 prior shrinks the intercept by
@@ -151,6 +153,8 @@ func TestRegBayes_DiffusePriorMatchesOLS(t *testing.T) {
 // but we focus on slopes to keep the assertion robust to the centering
 // of the data.)
 func TestRegBayes_StrongPriorShrinks(t *testing.T) {
+	t.Parallel()
+
 	// y = 10 + 3 x1 − 1.5 x2 + small noise. The OLS estimate recovers
 	// these coefficients; a very strong N(0, σ²/ε) prior with ε = 1e6
 	// shrinks them substantially.
@@ -195,6 +199,8 @@ func TestRegBayes_StrongPriorShrinks(t *testing.T) {
 // TestRegBayes_PriorValidation table-drives every invalid combination
 // of prior parameters and disallowed cross-engine knobs.
 func TestRegBayes_PriorValidation(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec
@@ -307,6 +313,8 @@ func TestRegBayes_PriorValidation(t *testing.T) {
 // Resample / Selection are tested separately (those route to the
 // not-implemented stub for Phase 5; see TestFit_NotImplemented).
 func TestRegBayes_CompatibilityRejected(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec
@@ -350,6 +358,8 @@ func TestRegBayes_CompatibilityRejected(t *testing.T) {
 // buffered engine (FitBuffered) to ~1e-10 because both consume the same
 // Welford accumulator.
 func TestRegBayes_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	records := make([]Record, 50)
 	for i := 0; i < 50; i++ {
@@ -418,6 +428,8 @@ func TestRegBayes_StreamingMatchesBuffered(t *testing.T) {
 // path lives there. (CanStreamRequest itself sits in the parent
 // processing package; importing it here would create a cycle.)
 func TestCanStreamRequest_BayesLinear(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec types.RegressionSpec
@@ -439,6 +451,8 @@ func TestCanStreamRequest_BayesLinear(t *testing.T) {
 
 // TestRegBayes_InsufficientData covers the n < p+1 guard rail.
 func TestRegBayes_InsufficientData(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"}}
 	// Only 2 records but we need n ≥ p+1 = 3.
 	records := []Record{

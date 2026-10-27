@@ -57,6 +57,8 @@ func intToStr(n int) string {
 }
 
 func TestGrouper_Category_Components_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
 
@@ -90,6 +92,8 @@ func TestGrouper_Category_Components_EmptyCohort(t *testing.T) {
 }
 
 func TestGrouper_Category_Components_CategoricalSmallCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "brand", 0, schema)
 
@@ -139,6 +143,8 @@ func TestGrouper_Category_Components_CategoricalSmallCohort(t *testing.T) {
 }
 
 func TestGrouper_Category_Components_AllNullInputs(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
 
@@ -167,6 +173,8 @@ func TestGrouper_Category_Components_AllNullInputs(t *testing.T) {
 }
 
 func TestGrouper_Category_Components_NarrowDict_U8(t *testing.T) {
+	t.Parallel()
+
 	// 3-entry dict, well below 256 (u8 cap).
 	schema := makeCategoricalSchemaWithDictSize(t, encoding.FieldTypeCategoricalU8, 3)
 	g := makeGrouper(t, types.GROUP_CATEGORY, "brand", 0, schema)
@@ -186,6 +194,8 @@ func TestGrouper_Category_Components_NarrowDict_U8(t *testing.T) {
 }
 
 func TestGrouper_Category_Components_WideDict_U32(t *testing.T) {
+	t.Parallel()
+
 	// Dictionary cardinality > 65535 — exercises the categorical_u32
 	// width and verifies dict_size is reported as the underlying
 	// dictionary Count(), not capped to u16.
@@ -244,6 +254,8 @@ func daysSinceEpoch(t *testing.T, ymd string) float64 {
 }
 
 func TestGrouper_Date_Components_DayGranularity(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := dateGrouperWithComponent(t, schema, "enrolled", "day")
 	records := []*Record{
@@ -287,6 +299,8 @@ func TestGrouper_Date_Components_DayGranularity(t *testing.T) {
 }
 
 func TestGrouper_Date_Components_WeekGranularity(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := dateGrouperWithComponent(t, schema, "enrolled", "week")
 	// 2024-03-15 (Fri, ISO week 11), 2024-03-16 (Sat, week 11),
@@ -340,6 +354,8 @@ func TestGrouper_Date_Components_WeekGranularity(t *testing.T) {
 }
 
 func TestGrouper_Date_Components_MonthGranularity(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := dateGrouperWithComponent(t, schema, "enrolled", "month")
 	// March + April 2024.
@@ -387,6 +403,8 @@ func TestGrouper_Date_Components_MonthGranularity(t *testing.T) {
 }
 
 func TestGrouper_Date_Components_QuarterGranularity(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := dateGrouperWithComponent(t, schema, "enrolled", "quarter")
 	// Q1 2024 (Jan-Mar) + Q2 2024 (Apr-Jun) — 4 + 4 rows.
@@ -437,6 +455,8 @@ func TestGrouper_Date_Components_QuarterGranularity(t *testing.T) {
 }
 
 func TestGrouper_Date_Components_YearGranularity(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := dateGrouperWithComponent(t, schema, "enrolled", "year")
 	records := []*Record{
@@ -484,6 +504,8 @@ func TestGrouper_Date_Components_YearGranularity(t *testing.T) {
 }
 
 func TestGrouper_Range_Components_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
 
@@ -542,6 +564,8 @@ func TestGrouper_Range_Components_EmptyCohort(t *testing.T) {
 }
 
 func TestGrouper_Range_Components_AllInRange(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
 	records := makeRecords(schema, "score", []float64{5, 12, 18, 25, 33, 47})
@@ -606,6 +630,8 @@ func TestGrouper_Range_Components_AllInRange(t *testing.T) {
 }
 
 func TestGrouper_Range_Components_NegativeValues(t *testing.T) {
+	t.Parallel()
+
 	// Cross-zero coverage — verifies the bucket-low numeric sort
 	// keeps "-20--10" before "-10-0" rather than relying on the
 	// lexical string ordering that would group all "-" prefixes
@@ -641,6 +667,8 @@ func TestGrouper_Range_Components_NegativeValues(t *testing.T) {
 }
 
 func TestGrouper_Range_Components_NullValuesSkipped(t *testing.T) {
+	t.Parallel()
+
 	// Null inputs participate in n_null (orchestrator floor) but
 	// never widen range_min/range_max or land in a bucket.
 	schema := numericSchema()
@@ -664,6 +692,8 @@ func TestGrouper_Range_Components_NullValuesSkipped(t *testing.T) {
 }
 
 func TestGrouper_Range_Components_SingleBucket(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "score", 10, schema)
 	records := makeRecords(schema, "score", []float64{42, 45, 49})
@@ -689,6 +719,8 @@ func TestGrouper_Range_Components_SingleBucket(t *testing.T) {
 }
 
 func TestGrouper_Rounded_Components_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 5, schema)
 	if _, err := g.Group([]*Record{}, "score"); err != nil {
@@ -728,6 +760,8 @@ func TestGrouper_Rounded_Components_EmptyCohort(t *testing.T) {
 }
 
 func TestGrouper_Rounded_Components_MultipleBuckets(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 10, schema)
 	// 23,27 → 20; 35 → 30; 12 → 10; 48 → 40.
@@ -777,6 +811,8 @@ func TestGrouper_Rounded_Components_MultipleBuckets(t *testing.T) {
 }
 
 func TestGrouper_Rounded_Components_SingleBucket(t *testing.T) {
+	t.Parallel()
+
 	// Values within `interval` of one scalar all collapse to the
 	// same bucket; ROUNDED is a single-point partition.
 	schema := numericSchema()
@@ -804,6 +840,8 @@ func TestGrouper_Rounded_Components_SingleBucket(t *testing.T) {
 }
 
 func TestGrouper_Rounded_Components_FloatInterval(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "score", 0.5, schema)
 	records := makeRecords(schema, "score", []float64{0.1, 0.3, 0.6, 0.8, 1.2})
@@ -824,6 +862,8 @@ func TestGrouper_Rounded_Components_FloatInterval(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Components_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	// Empty input: Group() still runs (frozen state stamped), but
 	// the resulting buckets / edges slices are empty. The schema
 	// contract emits the keys with empty payloads so downstream
@@ -872,6 +912,8 @@ func TestGrouper_Quantile_Components_EmptyCohort(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Components_BeforeGroup(t *testing.T) {
+	t.Parallel()
+
 	// Calling Components() before Group() collapses to (nil, nil)
 	// per the universal-floor convention — the orchestrator still
 	// emits TotalN / NNull.
@@ -887,6 +929,8 @@ func TestGrouper_Quantile_Components_BeforeGroup(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Components_Quartiles(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 4, schema)
 	// 8 sorted values → 2 per quartile.
@@ -939,6 +983,8 @@ func TestGrouper_Quantile_Components_Quartiles(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Components_Deciles(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 10, schema)
 	// 20 sorted values → 2 per decile.
@@ -976,6 +1022,8 @@ func TestGrouper_Quantile_Components_Deciles(t *testing.T) {
 }
 
 func TestGrouper_Quantile_Components_NonStandardCount(t *testing.T) {
+	t.Parallel()
+
 	// 3 buckets uses the generic "B" prefix.
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_QUANTILE, "score", 3, schema)
@@ -1194,6 +1242,8 @@ func allGroupParityFixturesNullHeavy(t *testing.T) map[types.GroupType]groupPari
 }
 
 func TestMetaGrouper_AllOps_ManifestParity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("small", func(t *testing.T) {
 		fixtures := allGroupParityFixtures(t)
 		for _, op := range types.AllGroupTypes() {

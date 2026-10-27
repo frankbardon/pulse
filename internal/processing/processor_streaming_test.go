@@ -13,6 +13,8 @@ import (
 // the streaming path for a request that has only online aggregations,
 // no groups, no attributes, and only row-level filters.
 func TestProcessor_StreamingPathSelected(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -40,6 +42,8 @@ func TestProcessor_StreamingPathSelected(t *testing.T) {
 // TestProcessor_StreamingPathFallsBackForBufferedAgg verifies that any
 // non-online aggregator (MEDIAN here) forces the buffered path.
 func TestProcessor_StreamingPathFallsBackForBufferedAgg(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -64,6 +68,8 @@ func TestProcessor_StreamingPathFallsBackForBufferedAgg(t *testing.T) {
 // TestProcessor_StreamingForStreamableGroups verifies grouped streaming
 // runs when every grouper.Type.Streamable() is true.
 func TestProcessor_StreamingForStreamableGroups(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -94,6 +100,8 @@ func TestProcessor_StreamingForStreamableGroups(t *testing.T) {
 // TestProcessor_NonStreamableGroupForcesBuffered verifies QUANTILE
 // (non-streamable) routes through the buffered path.
 func TestProcessor_NonStreamableGroupForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -119,6 +127,8 @@ func TestProcessor_NonStreamableGroupForcesBuffered(t *testing.T) {
 // TestProcessor_StreamingTwoPassForNormalizedAttribute verifies
 // ATTR_NORMALIZED routes through the two-pass streaming orchestrator.
 func TestProcessor_StreamingTwoPassForNormalizedAttribute(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -145,6 +155,8 @@ func TestProcessor_StreamingTwoPassForNormalizedAttribute(t *testing.T) {
 // TestProcessor_PercentileAttributeForcesBuffered: ATTR_PERCENTILE has
 // no streaming path — needs sorted distribution.
 func TestProcessor_PercentileAttributeForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -171,6 +183,8 @@ func TestProcessor_PercentileAttributeForcesBuffered(t *testing.T) {
 // TestProcessor_StreamingFiltersWork verifies row-level filters compose
 // with the streaming path (FilteredRows reflects post-filter count).
 func TestProcessor_StreamingFiltersWork(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 
@@ -237,6 +251,8 @@ func onlineAggCases() []types.AggregationType {
 // integer aggregators) and float-equivalent output (for moment-based
 // aggregators) compared to the buffered path.
 func TestProcessor_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	rng := rand.New(rand.NewSource(0xC0FFEE))
 	values := make([]float64, 1000)
@@ -289,6 +305,8 @@ func TestProcessor_StreamingMatchesBuffered(t *testing.T) {
 // verify that batching multiple online aggregators in one streaming
 // pass produces identical output to buffered.
 func TestProcessor_StreamingMatchesBuffered_NullsAndCombinations(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	records := makeRecordsWithNulls(schema, "score",
 		[]float64{1, 0, 2, 3, 0, 5, 8, 13, 0, 21},

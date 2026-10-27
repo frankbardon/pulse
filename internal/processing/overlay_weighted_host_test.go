@@ -127,6 +127,8 @@ func assertParams(t *testing.T, where string, got *types.OverlaySummary, want ma
 }
 
 func TestReadMeanLeg_WeightedHost(t *testing.T) {
+	t.Parallel()
+
 	unweighted := map[string]any{"mean": 2.5, "variance": 1.25, "n": 9, "n_null": 1}
 	leg, ok := readMeanLeg(unweighted)
 	if !ok || leg.mean != 2.5 || leg.variance != 1.25 || leg.nStar != 9 || leg.basis.Weighted() {
@@ -159,6 +161,8 @@ func TestReadMeanLeg_WeightedHost(t *testing.T) {
 // pre-E3-S1 code gave on such a host (a slot-only weight never refused
 // it) differs.
 func TestMeanOverlays_WeightedHost(t *testing.T) {
+	t.Parallel()
+
 	for _, basis := range []weighting.Basis{weighting.Frequency, weighting.Probability} {
 		a, b := weightedWelfordCell(legA, basis), weightedWelfordCell(legB, basis)
 		ca, cb := legClosedForm(legA, basis), legClosedForm(legB, basis)
@@ -248,6 +252,8 @@ func pairwiseHostOf(a, b map[string]any) *CrosstabHostView {
 // summary carries no Parameters (its layer is byte-identical to the
 // pre-E3-S1 one; the per-kind byte-identity suites pin the payload).
 func TestMeanOverlays_UnweightedHostReportsNoWeights(t *testing.T) {
+	t.Parallel()
+
 	a := map[string]any{"mean": 10.0, "variance": 4.0, "n": 50}
 	b := map[string]any{"mean": 12.0, "variance": 9.0, "n": 60}
 	layer, _, err := applyPairwiseWelchT(&types.OverlaySpec{Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow}, pairwiseHostOf(a, b))
@@ -267,6 +273,8 @@ func TestMeanOverlays_UnweightedHostReportsNoWeights(t *testing.T) {
 // unweighted host every selector stays inert (E2-S1's predict-only
 // decision).
 func TestPairwiseWelchT_WeightedHostNSource(t *testing.T) {
+	t.Parallel()
+
 	run := func(basis weighting.Basis, nSource string) (float64, error) {
 		a, b := weightedWelfordCell(legA, basis), weightedWelfordCell(legB, basis)
 		if !basis.Weighted() {
@@ -321,6 +329,8 @@ func TestPairwiseWelchT_WeightedHostNSource(t *testing.T) {
 
 // TestHostWeightBasis: the host's basis is read off the floor keys.
 func TestHostWeightBasis(t *testing.T) {
+	t.Parallel()
+
 	for _, basis := range []weighting.Basis{weighting.Frequency, weighting.Probability} {
 		h := pairwiseHostOf(weightedWelfordCell(legA, basis), weightedWelfordCell(legB, basis))
 		if got := h.WeightBasis(); got != basis {

@@ -23,6 +23,8 @@ import (
 // lookup refusal surfaces with its own code, located on the slot; a
 // record the Service never resolved is PROCESSING_INTERNAL.
 func TestComparison_RecordReference(t *testing.T) {
+	t.Parallel()
+
 	// The stored record's cohort: x f64, y u8, z f64 (nullable), g
 	// categorical — another schema than the scanned rows'.
 	refSchema := &encoding.Schema{Fields: []encoding.Field{
@@ -126,6 +128,8 @@ func TestComparison_RecordReference(t *testing.T) {
 // packed_bool columns are known (a null one present false), vector
 // elements read by "v[k]", anything else unknown.
 func TestStoredRecord_Member(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "u", Type: encoding.FieldTypeU16},
 		{Name: "f", Type: encoding.FieldTypeF32, Nullable: true},

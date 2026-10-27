@@ -84,6 +84,8 @@ func composeSlotFixtures() *ComposeHostView {
 // states are read off the same host in one pass so a future change
 // that collapses any pair fails here.
 func TestComposeHostView_SlotStates(t *testing.T) {
+	t.Parallel()
+
 	host := composeSlotFixtures()
 	if got := host.SlotCount(); got != 4 {
 		t.Fatalf("SlotCount() = %d, want 4", got)
@@ -126,6 +128,8 @@ func TestComposeHostView_SlotStates(t *testing.T) {
 // reads return ok=false, and the STATE is what separates a
 // configuration error from a data condition.
 func TestComposeHostView_DisabledIsNotKeyAbsent(t *testing.T) {
+	t.Parallel()
+
 	host := composeSlotFixtures()
 
 	present := host.Slot(0)
@@ -153,6 +157,8 @@ func TestComposeHostView_DisabledIsNotKeyAbsent(t *testing.T) {
 // the fixture block. Every figure is asserted against the literal the
 // fixture declares, so a forwarder wired to the wrong slot is caught.
 func TestComposeSlotView_ComponentsPresent(t *testing.T) {
+	t.Parallel()
+
 	slot := composeSlotFixtures().Slot(0)
 
 	if got := slot.Components(); got == nil {
@@ -242,6 +248,8 @@ func TestComposeSlotView_ComponentsPresent(t *testing.T) {
 // there, and a key whose value is not a number. Both are ok=false and
 // neither moves the slot state.
 func TestComposeSlotView_KeyAbsentAndNonNumeric(t *testing.T) {
+	t.Parallel()
+
 	slot := composeSlotFixtures().Slot(0)
 	for _, tc := range []struct {
 		name string
@@ -274,6 +282,8 @@ func TestComposeSlotView_KeyAbsentAndNonNumeric(t *testing.T) {
 // TestComposeSlotView_OutOfRangeIndexes checks the bounds-checking
 // posture across every indexed accessor. Nothing here may panic.
 func TestComposeSlotView_OutOfRangeIndexes(t *testing.T) {
+	t.Parallel()
+
 	slot := composeSlotFixtures().Slot(0)
 	for _, tc := range []struct {
 		name string
@@ -315,6 +325,8 @@ func TestComposeSlotView_OutOfRangeIndexes(t *testing.T) {
 // absent slot and a nil view. Every read must answer ok=false without
 // panicking — the nil-safety criterion.
 func TestComposeSlotView_DisabledAndAbsentSlotsAreInert(t *testing.T) {
+	t.Parallel()
+
 	host := composeSlotFixtures()
 	var nilView *ComposeSlotView
 	for _, tc := range []struct {
@@ -391,6 +403,8 @@ func TestComposeSlotView_DisabledAndAbsentSlotsAreInert(t *testing.T) {
 // TestNewComposeHostView_NilAndEmpty pins the constructor's degenerate
 // inputs: a nil receiver and an empty slot list are both usable.
 func TestNewComposeHostView_NilAndEmpty(t *testing.T) {
+	t.Parallel()
+
 	var nilHost *ComposeHostView
 	if got := nilHost.SlotCount(); got != 0 {
 		t.Fatalf("nil host SlotCount() = %d, want 0", got)
@@ -412,6 +426,8 @@ func TestNewComposeHostView_NilAndEmpty(t *testing.T) {
 // on the same payload + components pair. If the two ever diverge, one
 // of the two arms is reading a different number from the same block.
 func TestComposeHostView_MatchesCrosstabHostView(t *testing.T) {
+	t.Parallel()
+
 	resp := withCrosstabComponents(
 		makeMatrixWithRowMargins(
 			[3][3]float64{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},

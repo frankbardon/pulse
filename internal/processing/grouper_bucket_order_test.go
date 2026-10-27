@@ -15,6 +15,8 @@ import (
 // the buffered order — partial normalisation margins included.
 
 func TestQuantileGrouper_KeyRank(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		buckets int
 		key     string
@@ -43,6 +45,8 @@ func TestQuantileGrouper_KeyRank(t *testing.T) {
 }
 
 func TestRangeGrouper_KeyRank(t *testing.T) {
+	t.Parallel()
+
 	g := &rangeGrouper{interval: 5}
 	for _, tc := range []struct {
 		key  string
@@ -72,6 +76,8 @@ func TestRangeGrouper_KeyRank(t *testing.T) {
 // key set — bucket order for the two hook groupers, an unranked
 // straggler last, alphabetical for a grouper without the hook.
 func TestOrderKeys_BucketOrder(t *testing.T) {
+	t.Parallel()
+
 	shuffle := func(in []string) []string {
 		out := append([]string(nil), in...)
 		rand.New(rand.NewSource(7)).Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
@@ -101,6 +107,8 @@ func TestOrderKeys_BucketOrder(t *testing.T) {
 // level-0 normalisation whose partial margin rows the fused arm orders
 // in buildPartialAxisFromKeys.
 func TestFusedCrosstab_BucketOrderMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecords(schema)
 	rangeRow := func() *types.Group { return &types.Group{Type: types.GROUP_RANGE, Field: "value", Interval: 10} }

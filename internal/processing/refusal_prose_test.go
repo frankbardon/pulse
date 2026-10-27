@@ -14,6 +14,8 @@ import (
 // instance-aware: an instance without a feature profile is
 // byte-identical.
 func TestRefusalRemedies_DefaultsAreHistorical(t *testing.T) {
+	t.Parallel()
+
 	want := []string{
 		" Use AGG_SET_FREQUENCY for per-member counts, AGG_SET_DISTINCT_VALUES for distinct combinations, or AGG_COUNT for answered rows.",
 		" Use ATTR_SET_POPCOUNT for set size or ATTR_SET_HAS for membership.",
@@ -51,6 +53,8 @@ func TestRefusalRemedies_DefaultsAreHistorical(t *testing.T) {
 // TestRefusalRemedies_Distinct: no default rendering contains another,
 // so ScopeRefusal rewrites each clause exactly once.
 func TestRefusalRemedies_Distinct(t *testing.T) {
+	t.Parallel()
+
 	rs := refusalRemedies()
 	for i := range rs {
 		for j := range rs {
@@ -64,6 +68,8 @@ func TestRefusalRemedies_Distinct(t *testing.T) {
 // TestRefusalRemedies_NameNoHiddenOperator: with every name a remedy
 // can recommend hidden, no rendering names any of them.
 func TestRefusalRemedies_NameNoHiddenOperator(t *testing.T) {
+	t.Parallel()
+
 	none := func(string) bool { return false }
 	for i, r := range refusalRemedies() {
 		got := r(none)
@@ -89,6 +95,8 @@ func scopedRegistry(hidden ...string) *ExtensionRegistry {
 // the instance's, alternates drop hidden names, a wrapped coded error is
 // reached, and an unscoped registry leaves the error untouched.
 func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
+	t.Parallel()
+
 	build := func() *errors.CodedError {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"GROUP_RANGE: field tags is a set column (set_u8)"+remedyGrouperSetField(nil),
@@ -136,6 +144,8 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 // TestRefusalRemedies_PartialRenderings pins the instance wording for
 // a partly hidden alternative set.
 func TestRefusalRemedies_PartialRenderings(t *testing.T) {
+	t.Parallel()
+
 	hide := func(names ...string) func(string) bool {
 		set := map[string]bool{}
 		for _, n := range names {

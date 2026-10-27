@@ -145,6 +145,8 @@ func wtzAssertP(t *testing.T, got, want float64, label string) {
 // the aggregator actually emits, and checks every p-value against the
 // exact-arithmetic oracle under both n_basis arms and both scopes.
 func TestPairwiseWeightedTwoMeansZ_OracleRowAndColumn(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		nBasis       string
 		rowC0, rowC1 float64
@@ -194,6 +196,8 @@ func TestPairwiseWeightedTwoMeansZ_OracleRowAndColumn(t *testing.T) {
 // response — matrix, components, data, warnings — identical to the
 // overlay-free run.
 func TestPairwiseWeightedTwoMeansZ_BasePayloadUntouched(t *testing.T) {
+	t.Parallel()
+
 	base, err := wtzRun(t, nil, false)
 	if err != nil {
 		t.Fatalf("baseline RunCrosstab: %v", err)
@@ -257,6 +261,8 @@ func wtzMoments(mean, m2, sumW, sumWSq float64) map[string]any {
 // within each wave only. Each in-wave pair is checked against the
 // closed form, so a cross-wave pairing could not pass by luck.
 func TestPairwiseWeightedTwoMeansZ_PairAlongDim(t *testing.T) {
+	t.Parallel()
+
 	// Every cell: Σw = 5, Σw² = 9 (weights 1,2,2), m2 = 8, so under
 	// n_basis=weights var/n = (8/4)/5 = 2/5 per leg and se² = 4/5.
 	m := func(mean float64) map[string]any { return wtzMoments(mean, 8, 5, 9) }
@@ -295,6 +301,8 @@ func TestPairwiseWeightedTwoMeansZ_PairAlongDim(t *testing.T) {
 // one aggregated PULSE_OVERLAY_REF_ZERO warning, while a healthy pair in
 // the same layer still computes — so a skip that over-reaches fails.
 func TestPairwiseWeightedTwoMeansZ_Skips(t *testing.T) {
+	t.Parallel()
+
 	healthy := wtzMoments(10, 8, 5, 9)
 	healthy2 := wtzMoments(12, 8, 5, 9)
 	cases := []struct {
@@ -371,6 +379,8 @@ func TestPairwiseWeightedTwoMeansZ_Skips(t *testing.T) {
 // TestPairwiseWeightedTwoMeansZ_Refusals covers every hard refusal and
 // pins each one's canonical code as the CodedError's own Code.
 func TestPairwiseWeightedTwoMeansZ_Refusals(t *testing.T) {
+	t.Parallel()
+
 	weightedHost := func() *CrosstabHostView {
 		return wtzHost(
 			[]types.AxisKey{{"A"}, {"B"}}, []types.AxisKey{{"x"}}, []string{"aud"},
@@ -447,6 +457,8 @@ func TestPairwiseWeightedTwoMeansZ_Refusals(t *testing.T) {
 // real crosstab with components off: the overlay must refuse with
 // PULSE_OVERLAY_COMPONENTS_REQUIRED rather than skip every pair.
 func TestPairwiseWeightedTwoMeansZ_ComponentsDisabledEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	_, err := wtzRun(t, []types.OverlaySpec{
 		wtzSpec(t, types.OverlayScopeRow, types.PairwiseOverlayParams{NBasis: types.PairwiseNBasisWeights}),
 	}, true)
@@ -465,6 +477,8 @@ func TestPairwiseWeightedTwoMeansZ_ComponentsDisabledEndToEnd(t *testing.T) {
 // host does. An UNWEIGHTED AGG_AVERAGE cell (no weight, or `weight:
 // null`) still refuses PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestPairwiseWeightedTwoMeansZ_WeightedAverageCell(t *testing.T) {
+	t.Parallel()
+
 	run := func(t *testing.T, weight types.SlotWeight) (*types.Response, error) {
 		t.Helper()
 		schema := wtzSchema(t)

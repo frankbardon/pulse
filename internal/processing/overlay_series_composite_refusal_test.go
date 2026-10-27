@@ -183,8 +183,12 @@ func interleave(rows []ptRow) []ptRow {
 // in key order and under an interleaving sort. The layer summary is the
 // merge of the per-region summaries (min / max widen, count sums).
 func TestOverlaySeries_PartitionedEqualsPerSegment(t *testing.T) {
+	t.Parallel()
+
 	for _, spec := range partitionedSeriesSpecs() {
 		t.Run(string(spec.Kind), func(t *testing.T) {
+			t.Parallel()
+
 			want := map[string]string{}
 			// The merged summary, by hand: min / max over the regions'
 			// present extremes, counts summed, the baseline constant.
@@ -235,6 +239,8 @@ func TestOverlaySeries_PartitionedEqualsPerSegment(t *testing.T) {
 // the handler once over every composite row, exactly as the handler
 // does on the host directly; the default differs, so the param is live.
 func TestOverlaySeries_PartitionNoneIsTheWholeWalk(t *testing.T) {
+	t.Parallel()
+
 	spec := partitionedSeriesSpecs()[3] // ZSCORE_VS_ROLLING
 	rows := interleave(ptRows())
 	none, _, _ := ptRun(t, withParam(t, spec, "partition_by", []string{}), []string{"region", "step"}, rows)
@@ -264,6 +270,8 @@ func TestOverlaySeries_PartitionNoneIsTheWholeWalk(t *testing.T) {
 // handler over the whole host — while the default takes each region's
 // own total, so the share sums to 1 within every region.
 func TestOverlaySeries_TotalKindsPartitionNoneIsTheGrandTotal(t *testing.T) {
+	t.Parallel()
+
 	rows := interleave(ptRows())
 	keys := make([]types.AxisKey, len(rows))
 	for i, r := range rows {
@@ -326,6 +334,8 @@ func TestOverlaySeries_TotalKindsPartitionNoneIsTheGrandTotal(t *testing.T) {
 // partition_by [] — and the default [region, tier] equals a [step] host
 // per (region, tier).
 func TestOverlaySeries_ThreeGroupersPrefixes(t *testing.T) {
+	t.Parallel()
+
 	spec := partitionedSeriesSpecs()[0] // DELTA_VS_PRIOR
 	var rows []ptRow
 	for i, r := range ptRows() {
@@ -392,6 +402,8 @@ func TestOverlaySeries_ThreeGroupersPrefixes(t *testing.T) {
 // one-row zero "north" partition is a zero total and a zero SD for the
 // _TOTAL kinds, so they raise it from that partition alone.
 func TestOverlaySeries_PartitionWarningsOncePerLayer(t *testing.T) {
+	t.Parallel()
+
 	rows := ptRows()
 	rows = append(rows, ptRow{keys: map[string]string{"region": "north", "step": "s1"}, v: 0})
 	specs := partitionedSeriesSpecs()
@@ -419,6 +431,8 @@ func TestOverlaySeries_PartitionWarningsOncePerLayer(t *testing.T) {
 // reading predict shares); a kind outside the partitioned set ignores
 // the param.
 func TestOverlaySeries_PartitionInvalidRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, pb := range [][]string{{"step"}, {"warehouse"}} {
 		spec := withParam(t, partitionedSeriesSpecs()[0], "partition_by", pb)
 		req := &types.Request{
@@ -443,6 +457,8 @@ func TestOverlaySeries_PartitionInvalidRefused(t *testing.T) {
 // keys each row on that column, not the empty one, so partitions and
 // sibling lookups see the real bucket.
 func TestSeriesHost_VectorGrouperKeysOnItsColumn(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Groups: []*types.Group{
 			{Type: types.GROUP_KMEANS, Fields: []string{"y", "z"}},

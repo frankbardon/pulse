@@ -51,6 +51,8 @@ func happyPathCrosstabRequest() *types.Request {
 }
 
 func TestCanFuseCrosstab_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	req := happyPathCrosstabRequest()
 	ok, reason := CanFuseCrosstab(req, schema, nil)
@@ -63,6 +65,8 @@ func TestCanFuseCrosstab_HappyPath(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_NilRequest(t *testing.T) {
+	t.Parallel()
+
 	ok, reason := CanFuseCrosstab(nil, crosstabFusedGateSchema(), nil)
 	if ok {
 		t.Fatalf("expected ineligible for nil request")
@@ -73,6 +77,8 @@ func TestCanFuseCrosstab_NilRequest(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_NoCrosstab(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 	}
@@ -86,6 +92,8 @@ func TestCanFuseCrosstab_NoCrosstab(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_MissingCell(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Cell = nil
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -98,6 +106,8 @@ func TestCanFuseCrosstab_MissingCell(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_NonMergeableCellAggregator(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score"}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -114,6 +124,8 @@ func TestCanFuseCrosstab_NonMergeableCellAggregator(t *testing.T) {
 // aggregators must classify as Summable or MeanReducible, so these
 // should be rejected on the recompute branch.
 func TestCanFuseCrosstab_RecomputeMarginCellAggregator(t *testing.T) {
+	t.Parallel()
+
 	cases := []types.AggregationType{
 		types.AGG_MIN, types.AGG_MAX, types.AGG_STDDEV, types.AGG_VARIANCE,
 	}
@@ -135,6 +147,8 @@ func TestCanFuseCrosstab_RecomputeMarginCellAggregator(t *testing.T) {
 // AGG_AVERAGE / AGG_WEIGHTED_MEAN / AGG_RATIO classify as
 // MarginMeanReducible — accepted alongside MarginSummable.
 func TestCanFuseCrosstab_MeanReducibleCellAccepted(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_AVERAGE, Field: "score"}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -144,6 +158,8 @@ func TestCanFuseCrosstab_MeanReducibleCellAccepted(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_DecimalCellFieldForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_SUM, Field: "amount"}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -156,6 +172,8 @@ func TestCanFuseCrosstab_DecimalCellFieldForcesBuffered(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_NonStreamableGrouperOnRowAxis(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Rows = []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -168,6 +186,8 @@ func TestCanFuseCrosstab_NonStreamableGrouperOnRowAxis(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_NonStreamableGrouperOnColumnAxis(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Columns = []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -187,6 +207,8 @@ func TestCanFuseCrosstab_NonStreamableGrouperOnColumnAxis(t *testing.T) {
 // uses a fiscal-offset GROUP_DATE column axis; this test pins the
 // widened gate so the bench can actually engage the fused path.
 func TestCanFuseCrosstab_GroupDateOnAxisAccepted(t *testing.T) {
+	t.Parallel()
+
 	// fiscal_offset=10 mirrors the canonical bench shape: October FY
 	// start (the same offset huge-request.json carries).
 	dateParams := []byte(`{"component":"quarter","fiscal_offset":10}`)
@@ -218,6 +240,8 @@ func TestCanFuseCrosstab_GroupDateOnAxisAccepted(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_FeaturesForceBuffered(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "score"}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -230,6 +254,8 @@ func TestCanFuseCrosstab_FeaturesForceBuffered(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_TestsForceBuffered(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Tests = []*types.Test{{Type: types.TEST_T, Field: "score"}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -242,6 +268,8 @@ func TestCanFuseCrosstab_TestsForceBuffered(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_PostTestsForceBuffered(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.PostTests = []*types.Test{{Type: types.TEST_TUKEY_HSD}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
@@ -260,6 +288,8 @@ func TestCanFuseCrosstab_PostTestsForceBuffered(t *testing.T) {
 // there is no reason to force the buffered path. The old
 // "overlays force buffered" arm is gone and must not come back.
 func TestCanFuseCrosstab_OverlaysAdmitted(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		overlay types.OverlaySpec
@@ -301,6 +331,8 @@ func TestCanFuseCrosstab_OverlaysAdmitted(t *testing.T) {
 // Multiple overlay specs on one request stay eligible too — the fold
 // walks the slice, it does not widen the decode bound.
 func TestCanFuseCrosstab_MultipleOverlaysAdmitted(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Overlays = []types.OverlaySpec{
 		{
@@ -324,6 +356,8 @@ func TestCanFuseCrosstab_MultipleOverlaysAdmitted(t *testing.T) {
 // mergeable cell aggregator still forces buffered even with an overlay
 // attached, so AGG_WELFORD-style pairwise kinds stay buffered for now.
 func TestCanFuseCrosstab_OverlaysDoNotOverrideOtherExclusions(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_MEDIAN, Field: "score"}
 	req.Overlays = []types.OverlaySpec{
@@ -343,6 +377,8 @@ func TestCanFuseCrosstab_OverlaysDoNotOverrideOtherExclusions(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_AttrFormulaBail(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Attributes = []*types.Attribute{
 		{Type: types.ATTR_FORMULA, Field: "derived", Expression: "score * 2"},
@@ -360,6 +396,8 @@ func TestCanFuseCrosstab_AttrFormulaBail(t *testing.T) {
 // should NOT trigger the bail — the bail rule keys on a non-empty
 // expression.
 func TestCanFuseCrosstab_AttrFormulaEmptyExpressionAccepted(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Attributes = []*types.Attribute{
 		{Type: types.ATTR_DATE_PART, Field: "ts"},
@@ -371,6 +409,8 @@ func TestCanFuseCrosstab_AttrFormulaEmptyExpressionAccepted(t *testing.T) {
 }
 
 func TestCanFuseCrosstab_FilterExpressionBail(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Filterers = []*types.Filterer{
 		{Type: types.FILTER_EXPRESSION, Expression: "score > 0"},
@@ -387,6 +427,8 @@ func TestCanFuseCrosstab_FilterExpressionBail(t *testing.T) {
 // FILTER_INCLUDE / FILTER_EXCLUDE / FILTER_RANGE are row-local and
 // streamable — they should not disqualify the fused path.
 func TestCanFuseCrosstab_RowLocalFilterAccepted(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Filterers = []*types.Filterer{
 		{Type: types.FILTER_RANGE, Field: "score"},
@@ -399,6 +441,8 @@ func TestCanFuseCrosstab_RowLocalFilterAccepted(t *testing.T) {
 
 // extension-bound aggregator without a FieldInputs hook → ineligible.
 func TestCanFuseCrosstab_ExtensionAggregatorWithoutFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	customAgg := types.AggregationType("AGG_CUSTOM_X")
 	ext := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -422,6 +466,8 @@ func TestCanFuseCrosstab_ExtensionAggregatorWithoutFieldInputs(t *testing.T) {
 
 // extension aggregator on the cell slot, same rule.
 func TestCanFuseCrosstab_ExtensionCellAggregatorWithoutFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	customAgg := types.AggregationType("AGG_CUSTOM_Y")
 	ext := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -454,6 +500,8 @@ func TestCanFuseCrosstab_ExtensionCellAggregatorWithoutFieldInputs(t *testing.T)
 
 // extension aggregator WITH a FieldInputs hook → accepted.
 func TestCanFuseCrosstab_ExtensionAggregatorWithFieldInputsAccepted(t *testing.T) {
+	t.Parallel()
+
 	customAgg := types.AggregationType("AGG_CUSTOM_Z")
 	ext := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -477,6 +525,8 @@ func TestCanFuseCrosstab_ExtensionAggregatorWithFieldInputsAccepted(t *testing.T
 
 // extension filterer without FieldInputs hook → ineligible.
 func TestCanFuseCrosstab_ExtensionFiltererWithoutFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	customFilt := types.FiltererType("FILTER_CUSTOM_X")
 	ext := &ExtensionRegistry{
 		Filterers: map[types.FiltererType]FiltererFactory{
@@ -499,6 +549,8 @@ func TestCanFuseCrosstab_ExtensionFiltererWithoutFieldInputs(t *testing.T) {
 // extension grouper on a crosstab axis without FieldInputs hook →
 // ineligible.
 func TestCanFuseCrosstab_ExtensionGrouperOnAxisWithoutFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	customGrp := types.GroupType("GROUP_CUSTOM_X")
 	ext := &ExtensionRegistry{
 		Groupers: map[types.GroupType]GrouperFactory{
@@ -542,6 +594,8 @@ func TestCanFuseCrosstab_ExtensionGrouperOnAxisWithoutFieldInputs(t *testing.T) 
 // the peak heap. This test fails the moment the gate stops admitting
 // the class, which is the only observable symptom that failure has.
 func TestCanFuseCrosstab_IndependentMarginCellAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	cases := []struct {
 		agg    types.AggregationType
@@ -572,6 +626,8 @@ func TestCanFuseCrosstab_IndependentMarginCellAccepted(t *testing.T) {
 // numbers, no warning, several times the peak heap. This is the assertion
 // that reddens if either declaration is dropped.
 func TestCanFuseCrosstab_DistinctSumCell(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabFusedGateSchema()
 	req := happyPathCrosstabRequest()
 	req.Crosstab.Cell = &types.Aggregation{
@@ -590,6 +646,8 @@ func TestCanFuseCrosstab_DistinctSumCell(t *testing.T) {
 // than admitted into a fused walk that would fail AssertCanFuse with
 // PROCESSING_INTERNAL.
 func TestCanFuseCrosstab_JoinsForceBuffered(t *testing.T) {
+	t.Parallel()
+
 	req := happyPathCrosstabRequest()
 	req.Joins = []*types.JoinSpec{{Right: "right.pulse", On: []types.OnPair{{LeftField: "score", RightField: "score"}}}}
 	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)

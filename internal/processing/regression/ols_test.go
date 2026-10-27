@@ -74,6 +74,8 @@ func closef(a, b, tol float64) bool {
 // The closed-form fit should recover intercept and slope to machine
 // precision (tolerance 1e-12). R² is exactly 1.
 func TestRegOLS_Univariate_Exact(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}
 	eng := newOLS(t, spec)
 
@@ -122,6 +124,8 @@ func TestRegOLS_Univariate_Exact(t *testing.T) {
 // noise vector so the expected values are reproducible from the
 // codebase alone (avoids non-deterministic numpy-version drift).
 func TestRegOLS_Univariate_Noisy(t *testing.T) {
+	t.Parallel()
+
 	// Deterministic noise: cyclical pattern with zero mean over the 100
 	// samples. Specific values are arbitrary; what matters is that the
 	// expected coefficients below match the data this loop produces.
@@ -200,6 +204,8 @@ func TestRegOLS_Univariate_Noisy(t *testing.T) {
 // check style test; numerical tightness lives in the univariate exact
 // fixture above.
 func TestRegOLS_Multivariate(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2", "x3"}
 	trueIntercept := 1.0
 	trueBeta := []float64{2.5, -1.2, 0.3}
@@ -247,6 +253,8 @@ func TestRegOLS_Multivariate(t *testing.T) {
 // Cholesky fails and the engine surfaces
 // PROCESSING_REGRESSION_RANK_DEFICIENT.
 func TestRegOLS_RankDeficient(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	records := make([]Record, 30)
 	for i := 0; i < 30; i++ {
@@ -272,6 +280,8 @@ func TestRegOLS_RankDeficient(t *testing.T) {
 // surface PROCESSING_REGRESSION_INSUFFICIENT_DATA without ever
 // invoking Cholesky.
 func TestRegOLS_InsufficientData(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2", "x3"}
 	records := []Record{
 		mockRecord{values: map[string]float64{"x1": 1, "x2": 2, "x3": 3, "y": 10}},
@@ -293,6 +303,8 @@ func TestRegOLS_InsufficientData(t *testing.T) {
 // (its centered column is all zeros). Cholesky factorization fails;
 // the engine surfaces PROCESSING_REGRESSION_RANK_DEFICIENT.
 func TestRegOLS_AllConstantPredictor(t *testing.T) {
+	t.Parallel()
+
 	records := make([]Record, 20)
 	for i := range records {
 		records[i] = mockRecord{values: map[string]float64{"x": 7.0, "y": float64(i)}}
@@ -319,6 +331,8 @@ func TestRegOLS_AllConstantPredictor(t *testing.T) {
 // constructs without error; Fit() returns INSUFFICIENT_DATA (modifier
 // engines always require buffered FitBuffered).
 func TestRegOLS_ModifierConstructsBufferedEngine(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		mod  func(*types.RegressionSpec)
@@ -355,6 +369,8 @@ func TestRegOLS_ModifierConstructsBufferedEngine(t *testing.T) {
 // Finalize cycle. Coefficients, std errors, p-values, and R² must agree
 // to ~1e-10 because both paths share the same Welford accumulator.
 func TestRegOLS_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	records := make([]Record, 50)
 	for i := 0; i < 50; i++ {
@@ -416,6 +432,8 @@ func TestRegOLS_StreamingMatchesBuffered(t *testing.T) {
 // null target are dropped from the fit (listwise deletion). The engine
 // reports the surviving-row count via NObs, not the iterator length.
 func TestRegOLS_ListwiseNullDeletion(t *testing.T) {
+	t.Parallel()
+
 	// 6 rows total: 4 valid, 2 with a null somewhere. After listwise
 	// deletion the fit sees 4 rows on the line y = 3x + 2.
 	x := []float64{1, 2, 3, 4, 5, 6}

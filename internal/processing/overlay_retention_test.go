@@ -77,6 +77,8 @@ func checkRetentionEntries(t *testing.T, layer types.OverlayLayer, want []retent
 // pooled layer rates equal the hand-computed figures, with churn into
 // the named absorbing state; the diagonal aligns by key.
 func TestRetention_HandOracle(t *testing.T) {
+	t.Parallel()
+
 	layer, ws, err := applyRetention(retentionSpec(`{"absorbing":["churned"]}`), retentionTiers())
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +108,8 @@ func TestRetention_HandOracle(t *testing.T) {
 // a switch, churn is absent everywhere, and churned is just another
 // to-state.
 func TestRetention_NoAbsorbing(t *testing.T) {
+	t.Parallel()
+
 	layer, _, err := applyRetention(retentionSpec(""), retentionTiers())
 	if err != nil {
 		t.Fatal(err)
@@ -126,6 +130,8 @@ func TestRetention_NoAbsorbing(t *testing.T) {
 // a retention rate — it is left out of the entries and the pooled
 // rates; a move from an active state into it is still churn.
 func TestRetention_AbsorbingRowNotReported(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost(
 		[]string{"active", "churned"},
 		[]string{"active", "churned"},
@@ -146,6 +152,8 @@ func TestRetention_AbsorbingRowNotReported(t *testing.T) {
 // TestRetention_RowOnlyStateStaysZero: a from-state with no column of
 // its own (nobody ended there) has stay 0 — every unit switched.
 func TestRetention_RowOnlyStateStaysZero(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost([]string{"new", "gold"}, []string{"gold"}, [][]float64{{4}, {6}})
 	layer, _, err := applyRetention(retentionSpec(""), host)
 	if err != nil {
@@ -159,6 +167,8 @@ func TestRetention_RowOnlyStateStaysZero(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO naming it; it adds nothing to the pooled
 // rates. Every figure null when no row has a total.
 func TestRetention_ZeroRowIsNull(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{3, 1}, {0, 0}})
 	layer, ws, err := applyRetention(retentionSpec(""), host)
 	if err != nil {
@@ -209,6 +219,8 @@ func TestRetention_ZeroRowIsNull(t *testing.T) {
 // TestRetention_UndefinedCellIsAbsent: an undefined (NaN) cell is read
 // as an absent one (E4-S6) — the same layer as a 0 there.
 func TestRetention_UndefinedCellIsAbsent(t *testing.T) {
+	t.Parallel()
+
 	nan := symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{5, math.NaN()}, {2, 6}})
 	zero := symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{5, 0}, {2, 6}})
 	got, _, err := applyRetention(retentionSpec(""), nan)
@@ -230,6 +242,8 @@ func TestRetention_UndefinedCellIsAbsent(t *testing.T) {
 // weight) gives the same rates as the count table — the reason the kind
 // carries no weight class.
 func TestRetention_ScaleInvariant(t *testing.T) {
+	t.Parallel()
+
 	base, _, err := applyRetention(retentionSpec(`{"absorbing":["churned"]}`), retentionTiers())
 	if err != nil {
 		t.Fatal(err)
@@ -254,6 +268,8 @@ func TestRetention_ScaleInvariant(t *testing.T) {
 // TestRetention_Refusals: each runtime refusal carries its own code (and
 // the spec index through applyRetentionAt), never PROCESSING_INTERNAL.
 func TestRetention_Refusals(t *testing.T) {
+	t.Parallel()
+
 	square := func() *CrosstabHostView {
 		return symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{1, 2}, {3, 4}})
 	}
@@ -300,6 +316,8 @@ func TestRetention_Refusals(t *testing.T) {
 // TestRetention_DoesNotMutateHost: the overlay is a read-only sibling —
 // the host payload is byte-identical after the handler runs.
 func TestRetention_DoesNotMutateHost(t *testing.T) {
+	t.Parallel()
+
 	host := retentionTiers()
 	before, _ := json.Marshal(host.Payload())
 	if _, _, err := applyRetention(retentionSpec(`{"absorbing":["churned"]}`), host); err != nil {

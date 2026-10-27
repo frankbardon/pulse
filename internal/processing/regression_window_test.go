@@ -55,6 +55,8 @@ func windowRegRows(n int) [][3]float64 {
 // label equals the same fit over a cohort carrying the lagged column
 // (the first row's null lag drops it listwise), bit for bit.
 func TestWindowPredictor_RegressionReadsWindowLabel(t *testing.T) {
+	t.Parallel()
+
 	rows := windowRegRows(40)
 	s := windowRegSchema()
 	recs := make([]*Record, len(rows))
@@ -121,6 +123,8 @@ func (stringComputer) Compute(rows []map[string]any, _ [][]int, label string) er
 // default — is PROCESSING_CONFIG naming the label, as the matrix-member
 // copy refuses it.
 func TestWindowPredictor_NonNumericWindowRefused(t *testing.T) {
+	t.Parallel()
+
 	s := windowRegSchema()
 	recs := func() RecordIterator {
 		var out []*Record
@@ -158,6 +162,8 @@ func TestWindowPredictor_NonNumericWindowRefused(t *testing.T) {
 // naming no window label runs exactly as before — the record keeps no
 // such column.
 func TestWindowPredictor_NoRegressionReadCopiesNothing(t *testing.T) {
+	t.Parallel()
+
 	s := windowRegSchema()
 	p := NewProcessor(s)
 	req := &types.Request{

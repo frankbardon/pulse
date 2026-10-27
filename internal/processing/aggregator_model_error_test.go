@@ -97,6 +97,8 @@ func approx(a, b float64) bool {
 // TestModelError_Oracle: unweighted and weighted figures equal the R
 // reference, and the counters say which rows were left out.
 func TestModelError_Oracle(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		op       types.AggregationType
 		weighted bool
@@ -152,6 +154,8 @@ func TestModelError_Oracle(t *testing.T) {
 // TestModelError_UnityWeightBitIdentical: an all-ones weight answers the
 // unweighted figure bit for bit.
 func TestModelError_UnityWeightBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := append([]merrRow(nil), merrOracleRows...)
 	for i := range rows {
 		rows[i].w = 1
@@ -168,6 +172,8 @@ func TestModelError_UnityWeightBitIdentical(t *testing.T) {
 // TestModelError_InvalidWeightSkipsRow: a zero, negative or null weight
 // leaves the row out entirely (its loss and its weight).
 func TestModelError_InvalidWeightSkipsRow(t *testing.T) {
+	t.Parallel()
+
 	clean := []merrRow{{10, 12, 1}, {20, 15, 2}}
 	dirty := append(append([]merrRow(nil), clean...), merrRow{30, 0, 0}, merrRow{30, 0, -1}, merrRow{30, 0, math.NaN()})
 	for _, op := range []types.AggregationType{types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE} {
@@ -182,6 +188,8 @@ func TestModelError_InvalidWeightSkipsRow(t *testing.T) {
 // TestModelError_EmptyIsNaN: no contributing row — and, for MAPE, only
 // zero actuals — yields NaN, never 0.
 func TestModelError_EmptyIsNaN(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range []types.AggregationType{types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE} {
 		got, _ := merrNew(t, merrAgg(op, false)).Aggregate(merrRecords([]merrRow{{math.NaN(), 1, 1}, {2, math.NaN(), 1}}), "y")
 		if !math.IsNaN(got) {
@@ -197,6 +205,8 @@ func TestModelError_EmptyIsNaN(t *testing.T) {
 // TestModelError_StreamingMatchesBuffered: UpdateRow + Finalize equals
 // Aggregate bit for bit (same fold order), components included.
 func TestModelError_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	recs := merrRecords(merrOracleRows)
 	for _, op := range []types.AggregationType{types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE} {
 		for _, weighted := range []bool{false, true} {
@@ -227,6 +237,8 @@ func TestModelError_StreamingMatchesBuffered(t *testing.T) {
 // split equals the single pass — counters exactly, figures to summation
 // rounding — so sharded and parallel arms answer the serial figure.
 func TestModelError_MergeEqualsSinglePass(t *testing.T) {
+	t.Parallel()
+
 	recs := merrRecords(merrOracleRows)
 	for _, op := range []types.AggregationType{types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE} {
 		for _, weighted := range []bool{false, true} {
@@ -262,6 +274,8 @@ func TestModelError_MergeEqualsSinglePass(t *testing.T) {
 // TestModelError_MergeRefusesOtherKind: an AGG_MAE partial never folds
 // into an AGG_RMSE accumulator.
 func TestModelError_MergeRefusesOtherKind(t *testing.T) {
+	t.Parallel()
+
 	a := merrNew(t, merrAgg(types.AGG_RMSE, false))
 	b := merrNew(t, merrAgg(types.AGG_MAE, false))
 	if err := a.MergeOnline(b); err == nil {
@@ -274,6 +288,8 @@ func TestModelError_MergeRefusesOtherKind(t *testing.T) {
 // PULSE_FIELD_TYPE_UNSUPPORTED) are refused; packed_bool
 // (a 0/1 outcome) is admitted.
 func TestModelError_ConfigRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, field, params string
 		ok                  bool

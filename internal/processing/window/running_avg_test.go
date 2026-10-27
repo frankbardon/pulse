@@ -8,6 +8,8 @@ import (
 )
 
 func TestRunningAvg_Cumulative(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},

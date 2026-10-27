@@ -10,6 +10,8 @@ import (
 // TestNamedTableFeatureNames pins the engine's spelling of the named
 // tables' capabilities to the feature table's.
 func TestNamedTableFeatureNames(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ engine, bare string }{
 		{featureLabels, "labels"},
 		{featureRangeTables, "range_tables"},
@@ -28,6 +30,8 @@ func TestNamedTableFeatureNames(t *testing.T) {
 // table misses on a registry whose instance hides its capability, and
 // resolves when only the other capability is hidden.
 func TestNamedTables_HiddenCapabilityMisses(t *testing.T) {
+	t.Parallel()
+
 	base := &ExtensionRegistry{
 		LabelTables: map[string]LabelTable{"lt": {Rows: map[string]string{"1": "one"}}},
 		RangeTables: map[string]RangeTable{"rt": {}},

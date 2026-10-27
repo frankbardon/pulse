@@ -102,6 +102,8 @@ func oracleClose(got, want, tol float64) bool {
 // epoch_seconds_poisson (x ~ 1.7e9, raw XᵀWX condition ~1e23) has no
 // closed form; it pins the equilibrated solve against glm alone.
 func TestRegGLM_IRLSMatchesR(t *testing.T) {
+	t.Parallel()
+
 	cases := loadGLMIRLSReference(t)
 	var sawSeparated, sawConverged bool
 	for _, c := range cases {
@@ -175,6 +177,8 @@ func TestRegGLM_IRLSMatchesR(t *testing.T) {
 // no iteration — for an exact linear combination and for a constant
 // predictor aliased with the intercept, on the plain and the refit path.
 func TestRegGLM_RankDeficient_UpFront(t *testing.T) {
+	t.Parallel()
+
 	const n = 50
 	cases := []struct {
 		name       string
@@ -220,6 +224,8 @@ func TestRegGLM_RankDeficient_UpFront(t *testing.T) {
 // WEIGHTED design — a column that is only non-zero on zero-weight rows
 // is aliased, though the unweighted design has full rank.
 func TestAliasedColumns_WeightedDesign(t *testing.T) {
+	t.Parallel()
+
 	// k = 3: intercept, x, z; z is non-zero only on rows weighted 0.
 	x := []float64{1, 0, 0, 1, 1, 0, 1, 2, 0, 1, 3, 1, 1, 4, 2}
 	prior := []float64{1, 1, 1, 0, 0}
@@ -237,6 +243,8 @@ func TestAliasedColumns_WeightedDesign(t *testing.T) {
 // raised it once the working weights collapsed), and a run too short to
 // reach the boundary stays NO_CONVERGE — separation needs the evidence.
 func TestRegGLM_Separation_NotBlamedOnCollinearity(t *testing.T) {
+	t.Parallel()
+
 	recs := make([]Record, 40)
 	for i := range recs {
 		x := float64(i) - 19.5
@@ -269,6 +277,8 @@ func TestRegGLM_Separation_NotBlamedOnCollinearity(t *testing.T) {
 // verdict — a poisson fit that diverges (a level with only zero counts:
 // its log mean runs to −∞) stays PROCESSING_REGRESSION_NO_CONVERGE.
 func TestRegGLM_PoissonNoConvergeIsNotSeparation(t *testing.T) {
+	t.Parallel()
+
 	var recs []Record
 	for i := 0; i < 30; i++ {
 		y := 0.0
@@ -292,6 +302,8 @@ func TestRegGLM_PoissonNoConvergeIsNotSeparation(t *testing.T) {
 
 // TestFamilies_MuStart pins R's per-row starting means.
 func TestFamilies_MuStart(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		fam  glmFamily
 		y, w float64
@@ -367,6 +379,8 @@ func small2x2() (x, y []float64) {
 // than the last (within the round-off allowance) and the fit still
 // reaches the MLE.
 func TestIRLS_StepHalving_RestoresDescent(t *testing.T) {
+	t.Parallel()
+
 	x, y := small2x2()
 	pr := &irlsProblem{X: x, Y: y, K: 2, Family: binomialLogit, Penalty: overshootPenalty{f: 4}, Tol: 1e-4}
 	prev, halvings := math.Inf(1), 0
@@ -396,6 +410,8 @@ func TestIRLS_StepHalving_RestoresDescent(t *testing.T) {
 // produce an acceptable step, the fit stops after maxStepHalvings with
 // PROCESSING_REGRESSION_NO_CONVERGE (reason step_halving_exhausted).
 func TestIRLS_StepHalving_ExhaustionIsNoConverge(t *testing.T) {
+	t.Parallel()
+
 	x, y := small2x2()
 	pr := &irlsProblem{X: x, Y: y, K: 2, Family: binomialLogit, Penalty: nanPenalty{}}
 	_, err := irlsFit(pr)
@@ -413,6 +429,8 @@ func TestIRLS_StepHalving_ExhaustionIsNoConverge(t *testing.T) {
 // named): strictly rising |β| with a fixed sign over the last three
 // accepted iterations, its last increment at least half the one before.
 func TestGrowingPredictors(t *testing.T) {
+	t.Parallel()
+
 	h := func(rows ...[]float64) [][]float64 { return rows }
 	cases := []struct {
 		name    string
@@ -440,6 +458,8 @@ func TestGrowingPredictors(t *testing.T) {
 // fitted probability near 0 or 1 yet — it stays NO_CONVERGE; the same
 // fit run on refuses SEPARATION.
 func TestRegGLM_SeparationNeedsBoundaryEvidence(t *testing.T) {
+	t.Parallel()
+
 	var recs []Record
 	for _, cell := range []struct{ x, y, n float64 }{{0, 0, 50}, {0, 1, 10}, {1, 1, 25}} {
 		for i := 0; i < int(cell.n); i++ {
@@ -459,6 +479,8 @@ func TestRegGLM_SeparationNeedsBoundaryEvidence(t *testing.T) {
 // positive) is not a usable step and is halved like a deviance rise;
 // the canonical logit / log links take every finite η.
 func TestIRLS_ValidEta(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		fam  glmFamily
 		eta  float64

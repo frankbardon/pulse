@@ -6,6 +6,8 @@ import (
 )
 
 func TestArena_AllocBytes_Independent(t *testing.T) {
+	t.Parallel()
+
 	a := New(0)
 	x := a.AllocBytes(4)
 	y := a.AllocBytes(4)
@@ -31,6 +33,8 @@ func TestArena_AllocBytes_Independent(t *testing.T) {
 }
 
 func TestArena_AllocF64s_StoresValues(t *testing.T) {
+	t.Parallel()
+
 	a := New(0)
 	xs := a.AllocF64s(5)
 	for i := range xs {
@@ -45,6 +49,8 @@ func TestArena_AllocF64s_StoresValues(t *testing.T) {
 }
 
 func TestArena_Reset_OverwritesPriorAllocs(t *testing.T) {
+	t.Parallel()
+
 	a := New(0)
 	first := a.AllocBytes(8)
 	for i := range first {
@@ -68,6 +74,8 @@ func TestArena_Reset_OverwritesPriorAllocs(t *testing.T) {
 }
 
 func TestArena_Grow_PreservesAlreadyAllocatedData(t *testing.T) {
+	t.Parallel()
+
 	a := New(8)
 	first := a.AllocBytes(8)
 	for i := range first {
@@ -87,6 +95,8 @@ func TestArena_Grow_PreservesAlreadyAllocatedData(t *testing.T) {
 }
 
 func TestArena_F64Alignment(t *testing.T) {
+	t.Parallel()
+
 	a := New(0)
 	_ = a.AllocBytes(3) // unaligned offset
 	xs := a.AllocF64s(2)
@@ -101,6 +111,8 @@ func TestArena_F64Alignment(t *testing.T) {
 }
 
 func TestArena_ZeroSizedAlloc(t *testing.T) {
+	t.Parallel()
+
 	a := New(0)
 	if got := a.AllocBytes(0); got != nil {
 		t.Fatalf("AllocBytes(0) = %v, want nil", got)

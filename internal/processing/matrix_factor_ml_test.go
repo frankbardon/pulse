@@ -71,6 +71,8 @@ func faCheckLikelihood(t *testing.T, c factorCase, l [][]float64, want faOut, to
 // floor-bound uniquenesses (the ML Heywood case) exactly where R's
 // optimum sits on the 0.005 bound, on more than one case.
 func TestFactorML_MatchesExactOptimum(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	bounded := 0
 	for _, c := range doc.Cases {
@@ -107,6 +109,8 @@ func TestFactorML_MatchesExactOptimum(t *testing.T) {
 // faMLPsychTol of Pulse's loadings, and Pulse's objective is never above
 // the one at psych's uniquenesses.
 func TestFactorML_BeatsPsych(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	for _, c := range doc.Cases {
 		t.Run(c.name(), func(t *testing.T) {
@@ -141,6 +145,8 @@ func faMLObjectiveAt(r *linalg.Sym, psi []float64, k int) (float64, error) {
 // equal psych::fa.stats on them (null at df ≤ 0), and the solver's
 // objective at psych's uniquenesses is psych's F.
 func TestFactorMLFitIndices_MatchPsychFaStats(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	nullTLI := 0
 	for _, c := range doc.Cases {
@@ -161,6 +167,8 @@ func TestFactorMLFitIndices_MatchPsychFaStats(t *testing.T) {
 // without the flag, the chi-square is never negative, and a zero-factor
 // model reduces to Bartlett's statistic.
 func TestFactorMLFitIndices_Guards(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	c := doc.Cases[1]
 	r := c.sym(t)
@@ -209,6 +217,8 @@ func faPerfectLoadings(c factorCase, t *testing.T) [][]float64 {
 // equals a central difference of the analytic gradient, at the start
 // and away from it, so the Newton step is the true one.
 func TestFactorMLHessian_MatchesFiniteDifference(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	for _, c := range doc.Cases[:7] {
 		t.Run(c.name(), func(t *testing.T) {
@@ -271,6 +281,8 @@ func TestFactorMLHessian_MatchesFiniteDifference(t *testing.T) {
 // estimate is null, and df ≤ 0, N* ≤ 1 or a coverage outside (0, 1)
 // nulls both.
 func TestFaRMSEAInterval_Rule(t *testing.T) {
+	t.Parallel()
+
 	const chi, df, n = 40.0, 12.0, 150.0
 	rmsea := math.Sqrt(math.Max(chi/(df*n)-1/(n-1), 0))
 	lo, hi := faRMSEAInterval(chi, df, n, rmsea, 0.9)

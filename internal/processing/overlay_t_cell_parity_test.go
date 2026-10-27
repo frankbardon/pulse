@@ -261,6 +261,8 @@ func parityTuples() []parityTuple {
 }
 
 func TestOverlayTCell_ParityWithTestWelch(t *testing.T) {
+	t.Parallel()
+
 	tuples := parityTuples()
 	if len(tuples) < 10 {
 		t.Fatalf("parityTuples returned %d, want >= 10", len(tuples))
@@ -298,6 +300,8 @@ func TestOverlayTCell_ParityWithTestWelch(t *testing.T) {
 }
 
 func TestOverlayTVsRef_ParityWithTestWelch(t *testing.T) {
+	t.Parallel()
+
 	tuples := parityTuples()
 	for _, tc := range tuples {
 		t.Run(tc.name, func(t *testing.T) {
@@ -334,6 +338,8 @@ func TestOverlayTVsRef_ParityWithTestWelch(t *testing.T) {
 // behavioural rather than bit-equal: where the row test fails, the
 // overlay also fails (no spurious finite p-value emitted).
 func TestOverlayTCell_DegenerateNaNParity(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		targetStream []float64
@@ -376,6 +382,8 @@ func TestOverlayTCell_DegenerateNaNParity(t *testing.T) {
 }
 
 func TestOverlayTCell_HelpersReused(t *testing.T) {
+	t.Parallel()
+
 	stream := makeParityStream(10.0, 2.0, 50)
 	refStream := makeParityStream(9.5, 2.0, 50)
 	targetBucket := bucketFromStream(stream)

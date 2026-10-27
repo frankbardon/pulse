@@ -145,6 +145,8 @@ func sameBits(a, b []float64) bool {
 // two-pass and buffered arms (bit-identical), alternating the member
 // source between inline fields and a named Request.Vectors entry.
 func TestMahalanobis_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[mahalanobisOracle](t, "mv_mahalanobis")
 	fitOnCases, weighted := 0, map[string]bool{}
 	for ci, c := range doc.Cases {
@@ -245,6 +247,8 @@ var mahaGroups = []string{"a", "a", "a", "a", "a", "b", "b", "b", "b", "b"}
 // every FILTERED row is still scored — rows outside fit_on included —
 // while a row the request's filter drops gets no value.
 func TestMahalanobis_FitOnRestrictsFitScoresEveryFilteredRow(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	build := func(fitOn bool) func() *types.Request {
 		return func() *types.Request {
@@ -295,6 +299,8 @@ func TestMahalanobis_FitOnRestrictsFitScoresEveryFilteredRow(t *testing.T) {
 // fit it did not join — exactly D² against the subset's centre and
 // covariance.
 func TestMahalanobis_FitOnScoresRowsOutsideTheFit(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	recs := mahaRecords(schema, mahaRows, mahaGroups)
 	req := &types.Request{Attributes: []*types.Attribute{{
@@ -336,6 +342,8 @@ func TestMahalanobis_FitOnScoresRowsOutsideTheFit(t *testing.T) {
 // is a linear combination of others, and a fit with N* ≤ p, null every
 // score and raise the coded warning on both arms.
 func TestMahalanobis_SingularAndInsufficientNullEveryScore(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		rows [][3]float64
@@ -397,6 +405,8 @@ func TestMahalanobis_SingularAndInsufficientNullEveryScore(t *testing.T) {
 // out of the fit and scores null; the other rows are scored off the
 // complete-case fit (listwise).
 func TestMahalanobis_NullMemberNullScore(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	rows := append([][3]float64(nil), mahaRows...)
 	rows[3][1] = math.NaN()
@@ -423,6 +433,8 @@ func TestMahalanobis_NullMemberNullScore(t *testing.T) {
 // TestMahalanobis_DefaultLabels: "<TYPE>_<vector>" and
 // "<TYPE>_<first fields entry>".
 func TestMahalanobis_DefaultLabels(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	for _, c := range []struct {
 		attr  *types.Attribute
@@ -451,6 +463,8 @@ func TestMahalanobis_DefaultLabels(t *testing.T) {
 // earlier attribute's label makes the fitted attribute a layer-1 two-pass
 // stage; the streaming planner and the buffered arm agree bit for bit.
 func TestMahalanobis_FitOnReadsEarlierAttribute(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	mk := func() []*Record { return mahaRecords(schema, mahaRows, mahaGroups) }
 	streamed, buffered, _ := runMahalanobisArms(t, schema, mk, "md", func() *types.Request {
@@ -476,6 +490,8 @@ func TestMahalanobis_FitOnReadsEarlierAttribute(t *testing.T) {
 // TestMahalanobis_FactoryRefusals: an unresolved vector and bad params
 // are refused at construction; fit_on unbound is an internal error.
 func TestMahalanobis_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	if _, err := newMahalanobisAttribute(&types.Attribute{Type: types.ATTR_MAHALANOBIS, Vector: "v"}, schema); err == nil {
 		t.Error("an unresolved vector was accepted")
@@ -498,6 +514,8 @@ func TestMahalanobis_FactoryRefusals(t *testing.T) {
 // nothing to the fit but is scored; the result equals the fit without
 // the row.
 func TestMahalanobis_ZeroWeightRowScoredNotFitted(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "w", Type: encoding.FieldTypeF64})
 	recs := mahaRecords(schema, mahaRows, mahaGroups)
@@ -552,6 +570,8 @@ func TestMahalanobis_ZeroWeightRowScoredNotFitted(t *testing.T) {
 // TestDeriveRecords_SurfacesFitWarnings: the materialize drive reads a
 // fitted attribute's warning back through DeriveWarnings.
 func TestDeriveRecords_SurfacesFitWarnings(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	recs := mahaRecords(schema, mahaRows[:2], mahaGroups[:2])
 	req := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "md", Fields: []string{"x", "y"}}}}
@@ -568,6 +588,8 @@ func TestDeriveRecords_SurfacesFitWarnings(t *testing.T) {
 // TestNeededFields_AttributeVectorMembersAndFitOn: projection decodes
 // the inline members and the fit_on filterer columns.
 func TestNeededFields_AttributeVectorMembersAndFitOn(t *testing.T) {
+	t.Parallel()
+
 	schema := mahaSchema()
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}},

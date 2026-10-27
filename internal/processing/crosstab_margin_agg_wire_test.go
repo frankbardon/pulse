@@ -90,6 +90,8 @@ func auxScalar(t *testing.T, fig types.MarginAggregationFigure, what string) flo
 // projection onto Response.Components.Crosstab and land under the axis
 // key and the label a caller can address them by.
 func TestCrosstabAuxMargin_FiguresReachTheWire(t *testing.T) {
+	t.Parallel()
+
 	// Measured against auxMarginRecords: respondents 1 (weight 1) and 5
 	// (weight 16) are the only admitted records; respondent 1 is
 	// column f, respondent 5 is column m, and both are row alpha.
@@ -167,6 +169,8 @@ func TestCrosstabAuxMargin_FiguresReachTheWire(t *testing.T) {
 // the caller receives, including the omitempty-driven presence
 // distinctions reflect.DeepEqual is too strict about.
 func TestCrosstabAuxMargin_WireFiguresAgreeAcrossPaths(t *testing.T) {
+	t.Parallel()
+
 	schema := auxMarginSchema(t)
 	spec := auxMarginSpec()
 
@@ -203,6 +207,8 @@ func TestCrosstabAuxMargin_WireFiguresAgreeAcrossPaths(t *testing.T) {
 // second row would cost a second aggregation and, in the shape this slot
 // exists for, a second scan.
 func TestCrosstabAuxMargin_DistinctCountReachablePerSlot(t *testing.T) {
+	t.Parallel()
+
 	// Distinct respondents admitted at each slot, alongside the weighted
 	// sum the same operator emits as its value.
 	type want struct{ sum, distinct float64 }
@@ -330,6 +336,8 @@ func emptySlotSpec() *types.CrosstabSpec {
 // "the auxiliary saw nothing here" is a measured difference rather than
 // an empty response.
 func TestCrosstabAuxMargin_EmptySlotIsPresentFalseNotZero(t *testing.T) {
+	t.Parallel()
+
 	for _, fused := range []bool{false, true} {
 		name := "buffered"
 		if fused {
@@ -401,6 +409,8 @@ func TestCrosstabAuxMargin_EmptySlotIsPresentFalseNotZero(t *testing.T) {
 // not a null, nothing. Anything else changes the bytes every existing
 // caller already receives.
 func TestCrosstabAuxMargin_UndeclaredRequestEmitsNothing(t *testing.T) {
+	t.Parallel()
+
 	for _, fused := range []bool{false, true} {
 		name := "buffered"
 		if fused {
@@ -430,6 +440,8 @@ func TestCrosstabAuxMargin_UndeclaredRequestEmitsNothing(t *testing.T) {
 // never built, so a figure that leaked out under it would be the one
 // piece of components work a caller cannot turn off.
 func TestCrosstabAuxMargin_SuppressedWhenComponentsDisabled(t *testing.T) {
+	t.Parallel()
+
 	for _, fused := range []bool{false, true} {
 		name := "buffered"
 		if fused {
@@ -460,6 +472,8 @@ func TestCrosstabAuxMargin_SuppressedWhenComponentsDisabled(t *testing.T) {
 // and components are withheld — would put a figure on the wire beside no
 // margin at all, in a slot MatrixPayload does not render either.
 func TestCrosstabAuxMargin_DisplayFlagGatesEmission(t *testing.T) {
+	t.Parallel()
+
 	for _, fused := range []bool{false, true} {
 		name := "buffered"
 		if fused {

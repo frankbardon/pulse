@@ -57,6 +57,8 @@ func newVecAggForTest(t *testing.T, typ types.AggregationType, weighted bool, pa
 // with a valid weight > 0 while element_n stays raw, and labels follow
 // params.labels.
 func TestVecAgg_PerElementSemantics(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	rows := []*Record{
 		vecRec(s, 1, 10, nan, 1),
@@ -129,6 +131,8 @@ func TestVecAgg_PerElementSemantics(t *testing.T) {
 // TestVecAgg_NaNElementMarshalsNull: a non-finite element is null on
 // the wire, the array kept.
 func TestVecAgg_NaNElementMarshalsNull(t *testing.T) {
+	t.Parallel()
+
 	b, err := types.MarshalFinite([]float64{1.5, math.NaN(), math.Inf(1)})
 	if err != nil {
 		t.Fatal(err)
@@ -141,6 +145,8 @@ func TestVecAgg_NaNElementMarshalsNull(t *testing.T) {
 // TestVecAgg_FactoryRefusals: an unresolved vector is an engine fault,
 // a field slot a config error, bad params refused.
 func TestVecAgg_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		agg  *types.Aggregation
@@ -154,6 +160,8 @@ func TestVecAgg_FactoryRefusals(t *testing.T) {
 		{"element not its member", &types.Aggregation{Type: types.AGG_VEC_SUM, Fields: []string{"a"}, Params: json.RawMessage(`{"element":"b"}`)}, errors.PROCESSING_INTERNAL},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := newVecAggregator(c.agg, vecAggSchema())
 			var ce *errors.CodedError
 			if !asCoded(err, &ce) || ce.Code != c.code {
@@ -203,6 +211,8 @@ func vecBits(t *testing.T, a *vecAggregator) []uint64 {
 // boundaries, merged in any order, gives the serial fold's exact bits
 // — one shard or several.
 func TestVecAgg_MergeBitExact(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	n := 5*linalg.MergeBlockSize + 77
 	var rows []*Record
@@ -250,6 +260,8 @@ func TestVecAgg_MergeBitExact(t *testing.T) {
 // order (the per-shard reducer), or every row on one (the serial shard
 // iterator). Falsified by keying blocks per shard (start 0).
 func TestVecAgg_ShardSplitBitExact(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	B := linalg.MergeBlockSize
 	n := 3*B + 500
@@ -332,6 +344,8 @@ func TestVecAgg_ShardSplitBitExact(t *testing.T) {
 // rows on both sides, refuses PROCESSING_INTERNAL; a type mismatch
 // refuses too.
 func TestVecAgg_MergeRefusals(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	mk := func(pos bool) *vecAggregator {
 		a := newVecAggForTest(t, types.AGG_VEC_SUM, false, "")
@@ -371,6 +385,8 @@ func TestVecAgg_MergeRefusals(t *testing.T) {
 // "<label>[<element label>]" column each (no label key); a scalar
 // aggregator keeps the plain dispatch.
 func TestVecAgg_WriteAggregationResult(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	rows := []*Record{vecRec(s, 1, 2, math.NaN(), 1), vecRec(s, 3, math.NaN(), math.NaN(), 1)}
 	cases := []struct {
@@ -424,6 +440,8 @@ func TestVecAgg_WriteAggregationResult(t *testing.T) {
 // Rich payload (the crosstab cell takes the scalar), and one-entry
 // components — equal to the same element of the full array slot.
 func TestVecAgg_ElementScalar(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	nan := math.NaN()
 	rows := []*Record{vecRec(s, 1, 2, nan, 1), vecRec(s, 3, nan, nan, 2), vecRec(s, 5, 7, nan, 1)}

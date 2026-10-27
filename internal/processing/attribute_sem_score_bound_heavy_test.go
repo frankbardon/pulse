@@ -15,6 +15,8 @@ import (
 // (dropping it reshapes the tree and moves the bits). Ungrouped and the
 // joint two-wave fit, both methods.
 func TestSEMScore_BoundMatchesInlineAcrossBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema, base := brandSEMFixture(t, nil, nil)
 	const copies = 18
 	mk := func() []*Record {

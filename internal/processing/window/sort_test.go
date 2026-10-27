@@ -9,6 +9,8 @@ import (
 )
 
 func TestSortIndices_AscendingNumeric(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": 3.0},
 		{"x": 1.0},
@@ -23,6 +25,8 @@ func TestSortIndices_AscendingNumeric(t *testing.T) {
 }
 
 func TestSortIndices_DescendingNumeric(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": 1.0},
 		{"x": 3.0},
@@ -37,6 +41,8 @@ func TestSortIndices_DescendingNumeric(t *testing.T) {
 }
 
 func TestSortIndices_NullsLast(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": nil},
 		{"x": 2.0},
@@ -55,6 +61,8 @@ func TestSortIndices_NullsLast(t *testing.T) {
 }
 
 func TestSortIndices_PartitionThenOrder(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"region": "us", "ts": 2.0},
 		{"region": "eu", "ts": 1.0},
@@ -75,6 +83,8 @@ func TestSortIndices_PartitionThenOrder(t *testing.T) {
 }
 
 func TestSortIndices_StableForEqualKeys(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": 1.0, "id": "a"},
 		{"x": 1.0, "id": "b"},
@@ -89,6 +99,8 @@ func TestSortIndices_StableForEqualKeys(t *testing.T) {
 }
 
 func TestPartition_NoPartitionBy(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"x": 1.0}, {"x": 2.0}, {"x": 3.0}}
 	parts := partition(rows, []int{0, 1, 2}, nil)
 	if len(parts) != 1 {
@@ -100,6 +112,8 @@ func TestPartition_NoPartitionBy(t *testing.T) {
 }
 
 func TestPartition_TwoGroups(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"region": "eu", "ts": 1.0},
 		{"region": "eu", "ts": 2.0},
@@ -119,6 +133,8 @@ func TestPartition_TwoGroups(t *testing.T) {
 }
 
 func TestPartition_SingletonGroups(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"region": "a"},
 		{"region": "b"},
@@ -131,6 +147,8 @@ func TestPartition_SingletonGroups(t *testing.T) {
 }
 
 func TestSortCache_SharesSortAcrossEqualTuples(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"x": 2.0}, {"x": 1.0}}
 	cache := newSortCache(rows, nil)
 	a, _ := cache.get(nil, []types.OrderKey{{Field: "x"}})
@@ -142,6 +160,8 @@ func TestSortCache_SharesSortAcrossEqualTuples(t *testing.T) {
 }
 
 func TestSortCache_DistinctTuplesGetDistinctSorts(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"x": 2.0}, {"x": 1.0}}
 	cache := newSortCache(rows, nil)
 	a, _ := cache.get(nil, []types.OrderKey{{Field: "x"}})
@@ -155,6 +175,8 @@ func TestSortCache_DistinctTuplesGetDistinctSorts(t *testing.T) {
 // unboxed encoding.Decimal128) order by value, negatives first, nulls
 // last — before, every decimal compared equal and kept input order.
 func TestCompareCell_Decimal128ByValue(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDecimal128FromInt
 	rows := []map[string]any{{"x": d(1050)}, {"x": d(-325)}, {"x": nil}, {"x": d(250)}, {"x": d(10000)}}
 	idx := []int{0, 1, 2, 3, 4}
@@ -175,6 +197,8 @@ func (nilSortValue) SortValue() any { return nil }
 // Before, Desc negated compareCell wholesale — null term included — so
 // nulls led every descending order.
 func TestCompareKey_NullsLastBothDirections(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDecimal128FromInt
 	families := map[string]any{
 		"float":          2.5,
@@ -205,6 +229,8 @@ func TestCompareKey_NullsLastBothDirections(t *testing.T) {
 // points (Request.Sort's Sort, window order_by's sortIndices) keep nulls
 // and missing keys last under Desc.
 func TestSortAndSortIndices_DescNullsLast(t *testing.T) {
+	t.Parallel()
+
 	mk := func() []map[string]any {
 		return []map[string]any{{"id": 1, "x": 1.0}, {"id": 2, "x": nil}, {"id": 3, "x": 3.0}, {"id": 4}, {"id": 5, "x": 2.0}}
 	}
@@ -230,6 +256,8 @@ func TestSortAndSortIndices_DescNullsLast(t *testing.T) {
 // exactly; across scales and against a plain number (an aggregate that
 // fell back to f64) by value.
 func TestCompareCell_ScaledDecimal(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDecimal128FromInt
 	cases := []struct {
 		a, b any
@@ -252,6 +280,8 @@ func TestCompareCell_ScaledDecimal(t *testing.T) {
 // ties kept in input order — and leaves rows untouched; no keys is the
 // identity (nil).
 func TestSortOrder_IsSortsPermutation(t *testing.T) {
+	t.Parallel()
+
 	mk := func() []map[string]any {
 		return []map[string]any{
 			{"id": 0, "g": "b", "v": 3.0},

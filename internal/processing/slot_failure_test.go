@@ -63,6 +63,8 @@ func slotFailureRequest(agg types.AggregationType) *types.Request {
 // survive — on the streaming path (terminal flush) and the buffered
 // path alike, with the same failed and surviving slots.
 func TestSlotFailure_FailsAloneOnEveryPath(t *testing.T) {
+	t.Parallel()
+
 	var wires []string
 	for _, c := range []struct {
 		agg  types.AggregationType
@@ -144,6 +146,8 @@ func TestSlotFailure_FailsAloneOnEveryPath(t *testing.T) {
 // key, never null — and a slot that did not fail is byte-identical to
 // the pre-SlotError form (no `error` key).
 func TestSlotFailure_WireIsIdentityPlusError(t *testing.T) {
+	t.Parallel()
+
 	se := &types.SlotError{Code: "PULSE_TEST_VARIANCE_ZERO", Message: "m", Details: map[string]any{"k": 1}}
 	for name, c := range map[string]struct {
 		v    any
@@ -181,6 +185,8 @@ func TestSlotFailure_WireIsIdentityPlusError(t *testing.T) {
 // is per-slot — a configuration fault (a test on a field it cannot
 // read) still fails the whole run.
 func TestSlotFailure_ConfigFaultStaysFatal(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "y", Type: encoding.FieldTypeF64},
 		{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
@@ -203,6 +209,8 @@ func TestSlotFailure_ConfigFaultStaysFatal(t *testing.T) {
 // rows it cannot carry (a correlation against a constant column) fails
 // alone beside a good one.
 func TestSlotFailure_PostTestFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	schema := slotFailureSchema()
 	req := &types.Request{
 		Windows: []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "rn", OrderBy: []types.OrderKey{{Field: "x"}}}},

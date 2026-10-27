@@ -76,6 +76,8 @@ func fisherCellPayloadKnown() *types.MatrixPayload {
 //	  Verifies the handler does not crash on a zero cell and emits the
 //	  conservative no-evidence p = 1.0.
 func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
+	t.Parallel()
+
 	t.Run("normal_counts", func(t *testing.T) {
 		host := NewCrosstabHostView(fisherCellPayloadKnown())
 		specs := []types.OverlaySpec{
@@ -227,6 +229,8 @@ func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
 // unreliable. The warning is advisory; the p-value still rides on the
 // cell.
 func TestOverlay_FisherExactCell_ExpectedLowEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	// 2×2 with small marginals so every expected cell is small.
 	// row1 = 3, row2 = 17, col1 = 4, col2 = 16, grand = 20.
 	// Expected = [3*4/20=0.6, 3*16/20=2.4, 17*4/20=3.4, 17*16/20=13.6]
@@ -317,6 +321,8 @@ func TestOverlay_FisherExactCell_ExpectedLowEmitsWarn(t *testing.T) {
 // (Present=false) stays absent on the overlay. Mirrors the
 // INDEX_VS_MARGIN / SHARE_OF_* policy.
 func TestOverlay_FisherExactCell_AbsentCellsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	payload := fisherCellPayloadKnown()
 	payload.Cells[0][1] = types.MatrixCell{Present: false}
 	host := NewCrosstabHostView(payload)
@@ -344,6 +350,8 @@ func TestOverlay_FisherExactCell_AbsentCellsStayAbsent(t *testing.T) {
 }
 
 func TestOverlay_FisherExactCell_HelperMatchesRowTest(t *testing.T) {
+	t.Parallel()
+
 	// The first two expectations are R's fisher.test
 	// (overlay_fisher_exact_cell.json), at relative 1e-10.
 	cases := []struct {

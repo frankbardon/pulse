@@ -140,6 +140,8 @@ func assertQualitySeries(t *testing.T, where string, got *types.OverlayPayload, 
 // linalg.SVD convention — including a table with a zero row and a zero
 // column, which Pulse drops (R sees the remainder).
 func TestCorrespondence_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[correspondenceCase](t, "correspondence")
 	norms := []string{"symmetric", "row_principal", "column_principal"}
 	seen := 0
@@ -199,6 +201,8 @@ func TestCorrespondence_MatchesR(t *testing.T) {
 // table) — 0.0748, 0.0100, 0.0004, total 0.0852 — and the first two
 // dimensions' shares of 87.8% and 11.8%.
 func TestCorrespondence_GreenacreWorkedExample(t *testing.T) {
+	t.Parallel()
+
 	smoke := [][]float64{{4, 2, 3, 2}, {4, 3, 7, 4}, {25, 10, 12, 4}, {18, 24, 33, 13}, {10, 6, 7, 2}}
 	layer, ws, err := applyCorrespondence(correspondenceSpec(""), countHost(smoke))
 	if err != nil || len(ws) != 0 {
@@ -229,6 +233,8 @@ func TestCorrespondence_GreenacreWorkedExample(t *testing.T) {
 // the SVD side's Σ S²); they equal the registry kernel bit for bit; and
 // neither dimensions nor normalization moves a bit.
 func TestCorrespondence_ChiSquareDistances(t *testing.T) {
+	t.Parallel()
+
 	smoke := [][]float64{{4, 2, 3, 2}, {4, 3, 7, 4}, {25, 10, 12, 4}, {18, 24, 33, 13}, {10, 6, 7, 2}}
 	host := countHost(smoke)
 	layer, _, err := applyCorrespondence(correspondenceSpec(""), host)
@@ -321,6 +327,8 @@ func TestCorrespondence_ChiSquareDistances(t *testing.T) {
 // columns dim_1 … dim_d and rows by the host keys; the summary's total
 // inertia, dimensions, retained_share and share_dim_<k>.
 func TestCorrespondence_Layer(t *testing.T) {
+	t.Parallel()
+
 	host := countHost([][]float64{{20, 5, 3, 9}, {4, 18, 6, 2}, {7, 6, 21, 3}, {9, 2, 4, 15}, {3, 11, 8, 6}})
 	layer, _, err := applyCorrespondence(correspondenceSpec(""), host)
 	if err != nil {
@@ -386,6 +394,8 @@ func TestCorrespondence_Layer(t *testing.T) {
 // coordinate, inertia, quality and contribution unchanged; and a
 // weighted host reads the Σw table as is under either weight kind.
 func TestCorrespondence_ScaleInvariant(t *testing.T) {
+	t.Parallel()
+
 	base := [][]float64{{20, 5, 3}, {4, 18, 6}, {7, 6, 21}, {9, 2, 4}}
 	ref, _, err := applyCorrespondence(correspondenceSpec(""), countHost(base))
 	if err != nil {
@@ -457,6 +467,8 @@ func assertLayersClose(t *testing.T, where string, got, want types.OverlayLayer,
 // unknown param is PULSE_OVERLAY_PARAM_MISSING; the normalization picks
 // principal vs standard coordinates per axis.
 func TestCorrespondence_Params(t *testing.T) {
+	t.Parallel()
+
 	table := [][]float64{{20, 5, 3}, {4, 18, 6}, {7, 6, 21}, {9, 2, 4}} // 4 × 3: K = 2
 	for _, c := range []struct {
 		name, params string
@@ -524,6 +536,8 @@ func TestCorrespondence_Params(t *testing.T) {
 // cell, or a known cell aggregation other than AGG_COUNT / AGG_SUM, is
 // PULSE_OVERLAY_NONNEGATIVE_REQUIRED; AGG_COUNT and AGG_SUM run.
 func TestCorrespondence_NonnegativeRequired(t *testing.T) {
+	t.Parallel()
+
 	table := [][]float64{{20, 5, 3}, {4, 18, 6}, {7, 6, 21}}
 	for _, c := range []struct {
 		name    string
@@ -558,6 +572,8 @@ func TestCorrespondence_NonnegativeRequired(t *testing.T) {
 // remaining points key the parts; a table that leaves fewer than 2 × 2
 // points is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestCorrespondence_ZeroMargins(t *testing.T) {
+	t.Parallel()
+
 	host := countHost([][]float64{{12, 0, 7, 30}, {0, 0, 0, 0}, {25, 0, 4, 9}, {8, 0, 16, 11}})
 	layer, ws, err := applyCorrespondence(correspondenceSpec(""), host)
 	if err != nil {
@@ -597,6 +613,8 @@ func TestCorrespondence_ZeroMargins(t *testing.T) {
 		"all zero":        {{0, 0}, {0, 0}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			_, _, err := applyCorrespondence(correspondenceSpec(""), countHost(table))
 			var ce *errors.CodedError
 			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {
@@ -611,6 +629,8 @@ func TestCorrespondence_ZeroMargins(t *testing.T) {
 // contributions NaN, shares NaN, qualities NaN (each profile sits on
 // the centroid).
 func TestCorrespondence_DegenerateDimensions(t *testing.T) {
+	t.Parallel()
+
 	layer, _, err := applyCorrespondence(correspondenceSpec(""), countHost([][]float64{{1, 2, 3}, {2, 4, 6}, {3, 6, 9}}))
 	if err != nil {
 		t.Fatal(err)
@@ -647,6 +667,8 @@ func TestCorrespondence_DegenerateDimensions(t *testing.T) {
 // Level / Within is PULSE_OVERLAY_LEVEL_OUT_OF_RANGE — the runtime twin
 // of descriptor.ValidateOverlays.
 func TestCorrespondence_DispatchGates(t *testing.T) {
+	t.Parallel()
+
 	host := countHost([][]float64{{10, 20, 5}, {20, 10, 8}, {3, 9, 14}})
 	layers, _, err := applyOverlays([]types.OverlaySpec{*correspondenceSpec("")}, host)
 	if err != nil || len(layers) != 1 || len(layers[0].Payload.Parts) != 8 {

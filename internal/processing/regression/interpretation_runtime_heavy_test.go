@@ -24,6 +24,8 @@ import (
 // (no r2 on REG_GLM, no p_values on REG_BAYES_LINEAR, pseudo_r2 on
 // REG_GLM only). Echo fields (type, family, penalty, ...) are ignored.
 func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	universe := map[string]bool{}
 	for _, r := range types.AllRegressionTypes() {
 		for _, k := range descx.RegressionOutputKeys(string(r)) {

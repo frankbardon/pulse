@@ -26,6 +26,8 @@ func newShareOfTotalSeriesSpec(name string) types.OverlaySpec {
 // surfaces a share of 1/3. Tolerance is tight because the math is plain
 // f64 division.
 func TestOverlay_ShareOfTotal_Series_BasicSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 100.0, 100.0}
 	host := newStubSeriesHost(keys, values)
@@ -80,6 +82,8 @@ func TestOverlay_ShareOfTotal_Series_BasicSeries(t *testing.T) {
 // per-group shares are exactly 0.5 / 0.3 / 0.2. Verifies the per-entry
 // math without divisor-induced rounding.
 func TestOverlay_ShareOfTotal_Series_UnequalGroups(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{50.0, 30.0, 20.0}
 	host := newStubSeriesHost(keys, values)
@@ -98,6 +102,8 @@ func TestOverlay_ShareOfTotal_Series_UnequalGroups(t *testing.T) {
 }
 
 func TestOverlay_ShareOfTotal_Series_SumsToOneULP(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{125.0, 375.0, 250.0, 250.0} // sum = 1000
 	host := newStubSeriesHost(keys, values)
@@ -143,6 +149,8 @@ func TestOverlay_ShareOfTotal_Series_SumsToOneULP(t *testing.T) {
 // INDEX_VS_TOTAL statistic — anything else would indicate the SHARE
 // scaling regressed.
 func TestOverlay_ShareOfTotal_Series_NoIndexScalingMatches(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{50.0, 30.0, 20.0}
 	host := newStubSeriesHost(keys, values)
@@ -184,6 +192,8 @@ func TestOverlay_ShareOfTotal_Series_NoIndexScalingMatches(t *testing.T) {
 // zero-denominator emission shape (one warning per layer, not per
 // cell).
 func TestOverlay_ShareOfTotal_Series_ZeroGrandTotalEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 0.0, 0.0}
 	host := newStubSeriesHost(keys, values)
@@ -233,6 +243,8 @@ func TestOverlay_ShareOfTotal_Series_ZeroGrandTotalEmitsWarn(t *testing.T) {
 // a → 100/300 ≈ 0.333; c → 200/300 ≈ 0.667. Absent entries: nil
 // Statistic.
 func TestOverlay_ShareOfTotal_Series_AbsentGroupsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{100.0, math.NaN(), 200.0, math.NaN()}
 	host := newStubSeriesHost(keys, values)
@@ -297,6 +309,8 @@ func TestOverlay_ShareOfTotal_Series_AbsentGroupsStayAbsent(t *testing.T) {
 // one, because in both cases the handler consumes the same finalised
 // SeriesHostView. Mirrors the INDEX_VS_TOTAL byte-identity assertion.
 func TestOverlay_ShareOfTotal_Series_StreamingBufferedByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"x"}, {"y"}, {"z"}}
 	values := []float64{12.0, 34.0, 56.0}
 
@@ -373,6 +387,8 @@ func TestOverlay_ShareOfTotal_Series_StreamingBufferedByteIdentical(t *testing.T
 // an empty Entries slice + a warning because grand_total == 0 in the
 // every-group-absent case.
 func TestOverlay_ShareOfTotal_Series_ZeroGroupsClean(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHost(nil, nil)
 	specs := []types.OverlaySpec{newShareOfTotalSeriesSpec("share_total")}
 
@@ -398,6 +414,8 @@ func TestOverlay_ShareOfTotal_Series_ZeroGroupsClean(t *testing.T) {
 // populated — keeping the two synthesised defaults distinct surfaces
 // the dispatch routing decision at the renderer-label level.
 func TestOverlay_ShareOfTotal_Series_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}}
 	host := newStubSeriesHost(keys, []float64{1.0})
 	specs := []types.OverlaySpec{{

@@ -45,6 +45,8 @@ func expectScalar(t *testing.T, agg Aggregator, recs []*Record, want float64) {
 }
 
 func TestSetUnion_AggregateAndRich(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, err := newSetUnionAggregator(&types.Aggregation{Type: types.AGG_SET_UNION, Field: "tags"}, schema)
 	if err != nil {
@@ -76,6 +78,8 @@ func TestSetUnion_AggregateAndRich(t *testing.T) {
 }
 
 func TestSetIntersection_OnlyCommonBitsSurvive(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, err := newSetIntersectionAggregator(&types.Aggregation{Type: types.AGG_SET_INTERSECTION, Field: "tags"}, schema)
 	if err != nil {
@@ -99,6 +103,8 @@ func TestSetIntersection_OnlyCommonBitsSurvive(t *testing.T) {
 }
 
 func TestSetIntersection_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, _ := newSetIntersectionAggregator(&types.Aggregation{Type: types.AGG_SET_INTERSECTION, Field: "tags"}, schema)
 	expectScalar(t, agg, nil, 0)
@@ -109,6 +115,8 @@ func TestSetIntersection_EmptyInput(t *testing.T) {
 }
 
 func TestSetFrequency_PerBitCounts(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, err := newSetFrequencyAggregator(&types.Aggregation{Type: types.AGG_SET_FREQUENCY, Field: "tags"}, schema)
 	if err != nil {
@@ -135,6 +143,8 @@ func TestSetFrequency_PerBitCounts(t *testing.T) {
 }
 
 func TestSetCardinalitySum_PopcountSummation(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, _ := newSetCardinalitySumAggregator(&types.Aggregation{Type: types.AGG_SET_CARDINALITY_SUM, Field: "tags"}, schema)
 	recs := []*Record{
@@ -146,6 +156,8 @@ func TestSetCardinalitySum_PopcountSummation(t *testing.T) {
 }
 
 func TestSetCardinalityAvg_MeanPopcount(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, _ := newSetCardinalityAvgAggregator(&types.Aggregation{Type: types.AGG_SET_CARDINALITY_AVG, Field: "tags"}, schema)
 	recs := []*Record{
@@ -156,6 +168,8 @@ func TestSetCardinalityAvg_MeanPopcount(t *testing.T) {
 }
 
 func TestSetDistinctValues_AtomicCombinations(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	agg, _ := newSetDistinctValuesAggregator(&types.Aggregation{Type: types.AGG_SET_DISTINCT_VALUES, Field: "tags"}, schema)
 	recs := []*Record{
@@ -168,6 +182,8 @@ func TestSetDistinctValues_AtomicCombinations(t *testing.T) {
 }
 
 func TestSetUnion_MergeOnline(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	a, _ := newSetUnionAggregator(&types.Aggregation{Type: types.AGG_SET_UNION, Field: "tags"}, schema)
 	b, _ := newSetUnionAggregator(&types.Aggregation{Type: types.AGG_SET_UNION, Field: "tags"}, schema)
@@ -190,6 +206,8 @@ func TestSetUnion_MergeOnline(t *testing.T) {
 }
 
 func TestSetIntersection_MergeOnline(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	a, _ := newSetIntersectionAggregator(&types.Aggregation{Type: types.AGG_SET_INTERSECTION, Field: "tags"}, schema)
 	b, _ := newSetIntersectionAggregator(&types.Aggregation{Type: types.AGG_SET_INTERSECTION, Field: "tags"}, schema)
