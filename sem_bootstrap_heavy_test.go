@@ -44,11 +44,10 @@ func TestSEM_BootstrapProcessMatchesLavaan(t *testing.T) {
 	})
 }
 
-// TestSEM_BootstrapDeterministic: the same seed gives the same bits —
-// run to run, under every decode-worker count and over a shard archive
-// under any shard-worker count (the slot buffers its rows in record
-// order and the request runs serially) — ungrouped and grouped; another
-// seed moves the SEs.
+// TestSEM_BootstrapDeterministic: another seed moves the SEs, ungrouped
+// and grouped. That the same seed gives the same bits — run to run,
+// under every worker knob, over a shard archive — is the MAT_SEM
+// invariance family's (TestSEMInvariance_Heavy, bootstrap_*).
 func TestSEM_BootstrapDeterministic(t *testing.T) {
 	t.Parallel()
 
@@ -77,25 +76,9 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 				raw, _ := json.Marshal(res)
 				return string(raw)
 			}
-			p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: 1, ShardWorkers: 1})
-			want := bits(p, 7)
-			if bits(p, 7) != want {
-				t.Fatal("a second run differs")
-			}
-			if bits(p, 8) == want {
+			p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
+			if bits(p, 8) == bits(p, 7) {
 				t.Fatal("another seed gave the same result")
-			}
-			for _, dw := range []int{3, 8} {
-				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: dw})
-				if bits(p, 7) != want {
-					t.Errorf("DecodeWorkers %d differs", dw)
-				}
-			}
-			for _, sw := range []int{1, 3} {
-				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, shards: 230}.build(t, pulse.Options{ShardWorkers: sw})
-				if bits(p, 7) != want {
-					t.Errorf("shard archive, ShardWorkers %d differs", sw)
-				}
 			}
 		})
 	}
@@ -103,11 +86,11 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 
 // TestSEM_BootstrapDerivedSeed: without rng_seed (or at 0) the seed is
 // derived from the request and the rows, REG_RESAMPLE's rule — an
-// absent seed and an explicit 0 give the same bits, run to run, under
-// any decode-worker count and over a shard archive; a request that
-// differs only in the slot's name (no figure reads it) draws other
-// replicates, while a pinned seed draws the same ones whatever the
-// name. Twelve replicates (sem.BootstrapMinSuccesses is 10): the bits
+// absent seed and an explicit 0 give the same bits (run to run and
+// under every worker knob: TestSEMInvariance_Heavy, derived_seed_*); a
+// request that differs only in the slot's name (no figure reads it)
+// draws other replicates, while a pinned seed draws the same ones
+// whatever the name. Twelve replicates (sem.BootstrapMinSuccesses is 10): the bits
 // under test are the seed's and the row order's, whatever the count.
 func TestSEM_BootstrapDerivedSeed(t *testing.T) {
 	t.Parallel()
@@ -142,28 +125,16 @@ func TestSEM_BootstrapDerivedSeed(t *testing.T) {
 				raw, _ := json.Marshal(res.Auxiliary["estimates"])
 				return string(raw)
 			}
-			p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: 1, ShardWorkers: 1})
+			p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 			want := ses(p, req(nil, "sem"))
-			if ses(p, req(nil, "sem")) != want || ses(p, req(0, "sem")) != want {
-				t.Fatal("an absent seed and rng_seed 0 differ, or a second run does")
+			if ses(p, req(0, "sem")) != want {
+				t.Fatal("an absent seed and rng_seed 0 differ")
 			}
 			if ses(p, req(nil, "other")) == want {
 				t.Error("the derived seed does not move with the request")
 			}
 			if ses(p, req(11, "sem")) != ses(p, req(11, "other")) {
 				t.Error("a pinned seed moved with the slot name")
-			}
-			for _, dw := range []int{3, 8} {
-				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: dw})
-				if ses(p, req(nil, "sem")) != want {
-					t.Errorf("DecodeWorkers %d differs", dw)
-				}
-			}
-			for _, sw := range []int{1, 3} {
-				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, shards: 230}.build(t, pulse.Options{ShardWorkers: sw})
-				if ses(p, req(nil, "sem")) != want {
-					t.Errorf("shard archive, ShardWorkers %d differs", sw)
-				}
 			}
 		})
 	}

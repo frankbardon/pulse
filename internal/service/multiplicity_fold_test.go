@@ -386,6 +386,12 @@ func multArchive(t testing.TB, shardRows []int) []byte {
 	return buf.Bytes()
 }
 
+// TestMultiplicityFold_ProcessArms: the request-level fold corrects
+// every serial Process arm (streaming, buffered, crosstab, join) and
+// ProcessStream. The shard-archive arms (serial fallback with tests, the
+// parallel reducer's identity on a test-free request) and the parallel
+// decode arm are the overlay invariance family's
+// (TestOverlayInvariance_{Archive,Heavy}).
 func TestMultiplicityFold_ProcessArms(t *testing.T) {
 	t.Parallel()
 
@@ -402,9 +408,6 @@ func TestMultiplicityFold_ProcessArms(t *testing.T) {
 		rightRecs[i] = []uint64{uint64(i), math.Float64bits(float64(i%7) + 0.1*math.Sin(float64(i)))}
 	}
 	if err := afero.WriteFile(cfg.Fs(), "r.pulse", writePulseFile(t, right, rightRecs), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", multArchive(t, []int{30, 27, 33}), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	base := func(cohort string) *types.Request {
@@ -454,27 +457,6 @@ func TestMultiplicityFold_ProcessArms(t *testing.T) {
 			return r
 		}
 		assertProcessFold(t, New(cfg), mk)
-	})
-	t.Run("shard archive", func(t *testing.T) {
-		svc := New(cfg)
-		svc.SetShardWorkers(2)
-		// Tests exclude the per-shard parallel arm, so the serial
-		// shard iterator answers and the post-hook corrects it.
-		mk := func() *types.Request { r := base("arch.pulse"); r.Tests = multTests(false); return r }
-		assertProcessFold(t, svc, mk)
-	})
-	t.Run("shard parallel", func(t *testing.T) {
-		svc := New(cfg)
-		svc.SetShardWorkers(2)
-		mk := func() *types.Request { return base("arch.pulse") }
-		cohort, err := svc.Open(context.Background(), "arch.pulse")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := svc.shouldFanOut(mk(), cohort); !ok {
-			t.Fatal("shouldFanOut refused; the parallel arm would not be exercised")
-		}
-		assertNoTestArmIdentical(t, svc, mk)
 	})
 	t.Run("process stream", func(t *testing.T) {
 		// ProcessStream drains a Process response: same gates, same

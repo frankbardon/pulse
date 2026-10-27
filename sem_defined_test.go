@@ -340,21 +340,3 @@ func TestSEM_DefinedNonFinite(t *testing.T) {
 		t.Error("the undefined row is missing from the wire")
 	}
 }
-
-// TestSEM_DefinedWorkerInvariant: the := rows are bit-identical under
-// every decode worker count (they read the merged fit only).
-func TestSEM_DefinedWorkerInvariant(t *testing.T) {
-	t.Parallel()
-
-	var first []byte
-	for _, w := range []int{1, 3, 8} {
-		p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: w})
-		res := semGroupRun(t, p, semGroupRequest(t, "brand_mgdef", map[string]any{"group_equal": "loadings,intercepts"}))
-		raw, _ := json.Marshal(res)
-		if first == nil {
-			first = raw
-		} else if string(raw) != string(first) {
-			t.Fatalf("DecodeWorkers %d differs", w)
-		}
-	}
-}

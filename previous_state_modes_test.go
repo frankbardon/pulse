@@ -3,7 +3,6 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -203,62 +201,9 @@ func prevModeBaseline(t *testing.T) (map[string]string, *pulse.Pulse, afero.Fs) 
 	return want, p, fs
 }
 
-// TestPreviousState_ShardArchiveMatchesSingleFile: a shard archive whose
-// subjects' records span shards — later waves in earlier shards, an
-// empty shard, per-shard dictionaries in different orders — answers
-// every matrix request (the expression filter reading the output by
-// name included) exactly as the single file does, data, crosstab,
-// warnings and Components alike, under ShardWorkers 1, 3 and the
-// NumCPU default. The merge gate refuses the request as not row-local,
-// so no run takes the per-shard reducer (a partition-local previous
-// state would read across the wrong records), and predict reports it
-// non-streamable.
-func TestPreviousState_ShardArchiveMatchesSingleFile(t *testing.T) {
-	t.Parallel()
-
-	want, base, fs := prevModeBaseline(t)
-	var shards []string
-	for i, rows := range prevModeShards() {
-		name := fmt.Sprintf("panel_s%d.pulse", i)
-		panelCohort(t, base, name, rows)
-		shards = append(shards, name)
-	}
-	if _, err := base.CreateShardArchive(context.Background(), "panel_archive.pulse", shards); err != nil {
-		t.Fatal(err)
-	}
-	reqs := prevModeRequests("panel_archive.pulse")
-	for name, mk := range reqs {
-		if mk().Crosstab != nil {
-			continue // the crosstab arms judge the fusion gate instead (TestPreviousState_EveryBufferedArmAgrees)
-		}
-		if why := mergegate.MergeRefusal(mk(), nil, nil); !strings.Contains(why, "attribute ATTR_PREVIOUS_STATE is not row-local") {
-			t.Errorf("%s: merge refusal %q, want the not-row-local attribute", name, why)
-		}
-	}
-	for _, workers := range []int{1, 3, 0} {
-		p, arm := prevModeEngine(t, fs, pulse.Options{ShardWorkers: workers})
-		for name, mk := range reqs {
-			t.Run(fmt.Sprintf("%s/shard_workers_%d", name, workers), func(t *testing.T) {
-				if got := prevModeRun(t, p, mk(), true); got != want[name] {
-					t.Errorf("archive\n%s\nsingle file\n%s", got, want[name])
-				}
-				if a := arm.last(); a != observe.ArmBuffered {
-					t.Errorf("ran on arm %q, want the serial buffered scan", a)
-				}
-				pr, err := p.Predict(context.Background(), mk())
-				if err != nil {
-					t.Fatal(err)
-				}
-				if pr.Streamable {
-					t.Errorf("predict streamable over the archive")
-				}
-			})
-		}
-	}
-}
-
 // prevModeDecodeFiller is above the parallel-decode threshold (100,000
-// records) so DecodeWorkers engages wherever the request admits it.
+// records) so DecodeWorkers engages wherever the request admits it
+// (TestPreviousStateInvariance_Heavy).
 const prevModeDecodeFiller = 102_400
 
 // TestPreviousState_EveryBufferedArmAgrees: on the single file, every

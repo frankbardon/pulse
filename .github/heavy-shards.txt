@@ -27,7 +27,7 @@
 1 ./internal/service TestFitBound_ParallelDecodeMatchesSerial
 1 ./internal/service TestGroupMemory_AggregatorStateTable
 1 ./internal/service TestGroupMemory_EstimateBoundsPeak
-1 ./internal/service TestMultiplicityFold_ParallelDecodeArm
+1 ./internal/service TestOverlayInvariance_Heavy
 1 ./internal/service TestProcess_ParallelDecode_MemMapFsBails
 1 ./internal/service TestProcess_ParallelDecode_WorkersOneBails
 1 ./internal/service TestTimeZoneInvariance_Heavy
@@ -104,6 +104,7 @@
 4 . TestGroupKMeans_DecodeWorkersAgree
 4 . TestPanicRecovery_PoolRepanics
 4 . TestProfileInvisibilityParity
+4 . TestSEMInvariance_Heavy
 4 . TestSEM_BootstrapDerivedSeed
 4 . TestSEM_OrdinalBootstrapDeterministic
 4 . TestVectorInvariance_Heavy
@@ -123,7 +124,7 @@
 5 . TestLimitsDefaultsNeverTripGoldens
 5 . TestMultiGrouperInvariance_Heavy
 5 . TestParams_U64FieldExactAcrossArms
-5 . TestPreviousState_ParallelDecodeMatchesSerial
+5 . TestPreviousStateInvariance_Heavy
 5 . TestReferenceDocPointersResolve
 5 . TestSEM_BootstrapProcessMatchesLavaan
 5 . TestScalarOverlayHost_RefusalsMatchPredict

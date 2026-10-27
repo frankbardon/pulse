@@ -16,11 +16,12 @@ import (
 
 // TestSEM_OrdinalBootstrapDeterministic: a seeded bootstrap of a WLSMV
 // fit — single group, and the waves under threshold + loading
-// invariance (rows redrawn within each wave) — gives the same bits run
-// to run, under every decode-worker count and over a shard archive
-// under any shard-worker count; another seed moves the SEs; every
-// threshold row and free scale factor carries a bootstrap SE; predict
-// reports the buffered path and the declared keys cover the result.
+// invariance (rows redrawn within each wave) — moves with another seed;
+// every threshold row and free scale factor carries a bootstrap SE;
+// predict reports the buffered path and the declared keys cover the
+// result. The same seed's bits run to run and under every worker knob
+// are the MAT_SEM invariance family's (TestSEMInvariance_Heavy,
+// ordinal_bootstrap_*).
 func TestSEM_OrdinalBootstrapDeterministic(t *testing.T) {
 	t.Parallel()
 
@@ -49,7 +50,7 @@ func TestSEM_OrdinalBootstrapDeterministic(t *testing.T) {
 				raw, _ := json.Marshal(res)
 				return string(raw), res
 			}
-			p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: 1, ShardWorkers: 1})
+			p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 			want, res := run(p, 7)
 			if res.Scalars["bootstrap_succeeded"] != 12 {
 				t.Fatalf("bootstrap_succeeded %v", res.Scalars["bootstrap_succeeded"])
@@ -61,23 +62,8 @@ func TestSEM_OrdinalBootstrapDeterministic(t *testing.T) {
 					t.Errorf("%s carries no bootstrap p", k)
 				}
 			}
-			if again, _ := run(p, 7); again != want {
-				t.Fatal("a second run differs")
-			}
 			if other, _ := run(p, 8); other == want {
 				t.Fatal("another seed gave the same result")
-			}
-			for _, dw := range []int{3, 8} {
-				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: dw})
-				if got, _ := run(p, 7); got != want {
-					t.Errorf("DecodeWorkers %d differs", dw)
-				}
-			}
-			for _, sw := range []int{1, 3} {
-				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, shards: 230}.build(t, pulse.Options{ShardWorkers: sw})
-				if got, _ := run(p, 7); got != want {
-					t.Errorf("shard archive, ShardWorkers %d differs", sw)
-				}
 			}
 			env := predictEnvelope(t, p, fsys, "brand.pulse", req(7))
 			if len(env.Errors) != 0 {
