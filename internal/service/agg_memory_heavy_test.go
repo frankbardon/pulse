@@ -159,27 +159,3 @@ func TestGroupMemory_FinalizedRowBytes(t *testing.T) {
 		check("every streaming built-in, weighted", aggMemoryCase{aggs: mixed, weighted: true, off: off, rows: 1})
 	}
 }
-
-// TestGroupMemory_FinalizeReleasesBuckets (U51 E5-S12, #499): the
-// grouped tail consumes the merged buckets as it writes the Data rows,
-// so once a grouped response is built the merged partial — still
-// reachable from the reducer's frame — holds next to nothing of its
-// per-key state. Before, every bucket stayed live beside its row until
-// the response left the reducer: on the retention-shaped stage (15
-// slots, ~1 KB of state and ~1.3 KB of row a key) the two peaked
-// together. Measured on the retention stage's slots with components
-// on (the per-group Components entries are built from each bucket
-// before it is released) and off; held is what the partial keeps a key
-// once the response exists, against the state it held before finalize.
-func TestGroupMemory_FinalizeReleasesBuckets(t *testing.T) {
-	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
-
-	for _, off := range []bool{false, true} {
-		f := measureAggMemory(t, aggMemoryCase{aggs: retentionStageAggregations(), off: off, rows: 2, merge: true}, aggMemoryKeys)
-		held := f.finalized - f.response
-		t.Logf("components off=%-5v: merged state %7.1f B a key, response %7.1f, partial still holds %6.1f after finalize", off, f.merged, f.response, held)
-		if held > 0.25*f.merged {
-			t.Errorf("components off=%v: the merged partial still holds %.1f B a key after finalize (state %.1f): its buckets were not released", off, held, f.merged)
-		}
-	}
-}

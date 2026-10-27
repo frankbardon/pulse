@@ -201,8 +201,13 @@ func measureAggMemory(t *testing.T, c aggMemoryCase, keys int) aggMemoryFigures 
 }
 
 // aggMemoryKeys is the gated cardinality: enough keys that a byte a
-// key is resolved, few enough to keep the sweep fast.
-const aggMemoryKeys = 10_000
+// key is resolved (the measured shares are whole size-class multiples,
+// within ~1 B a key of their 10,000-key figures, against a tightest
+// entry headroom of 16 B), and past limits.MergeBlockSize so the first
+// partition ends inside a merge block at 1, 2 and 4 rows a key and the
+// second buffers that block's rest (aggMemoryBufferedRows) — few
+// enough to keep the sweep fast.
+const aggMemoryKeys = 5_000
 
 // vectorAggregation reports whether at is a built-in AGG_VEC_*.
 func vectorAggregation(at types.AggregationType) bool {
@@ -315,4 +320,28 @@ func retentionStageAggregations() []*types.Aggregation {
 		aggs = append(aggs, aggMemorySlot(types.AGG_MAX, fmt.Sprintf("active_m%02d", m+1), 0))
 	}
 	return aggs
+}
+
+// TestGroupMemory_FinalizeReleasesBuckets (U51 E5-S12, #499): the
+// grouped tail consumes the merged buckets as it writes the Data rows,
+// so once a grouped response is built the merged partial — still
+// reachable from the reducer's frame — holds next to nothing of its
+// per-key state. Before, every bucket stayed live beside its row until
+// the response left the reducer: on the retention-shaped stage (15
+// slots, ~1 KB of state and ~1.3 KB of row a key) the two peaked
+// together. Measured on the retention stage's slots with components
+// on (the per-group Components entries are built from each bucket
+// before it is released) and off; held is what the partial keeps a key
+// once the response exists, against the state it held before finalize.
+func TestGroupMemory_FinalizeReleasesBuckets(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
+	for _, off := range []bool{false, true} {
+		f := measureAggMemory(t, aggMemoryCase{aggs: retentionStageAggregations(), off: off, rows: 2, merge: true}, aggMemoryKeys)
+		held := f.finalized - f.response
+		t.Logf("components off=%-5v: merged state %7.1f B a key, response %7.1f, partial still holds %6.1f after finalize", off, f.merged, f.response, held)
+		if held > 0.25*f.merged {
+			t.Errorf("components off=%v: the merged partial still holds %.1f B a key after finalize (state %.1f): its buckets were not released", off, held, f.merged)
+		}
+	}
 }

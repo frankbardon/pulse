@@ -176,12 +176,25 @@ func setCellRecord(c cellMemoryCase, rec *processing.Record, i int) {
 }
 
 func newCellRecord(schema *encoding.Schema) *processing.Record {
-	vals := map[string]float64{"g": 0, "h": 0, "i": 0, "k": 0, "x": 1.5, "y": 2.25, "z": 1, "w": 1.25}
-	for i := range aggMemoryMaxMembers {
-		vals[fmt.Sprintf("f%02d", i)] = float64(i) + 0.5
-	}
-	return processing.NewRecordWithWide(schema, vals, nil, map[string]any{"tags": uint64(0b1011)})
+	return processing.NewRecordWithWide(schema, cellRecordVals, nil, cellRecordWide)
 }
+
+// cellRecordVals / cellRecordWide are newCellRecord's field values,
+// built once: NewRecordWithWide copies them into the record, so the
+// buffered arm's materialised records are the same live bytes, while
+// building a fresh 72-entry map (and 64 formatted names) per record
+// was over half the gate's allocation — garbage that, under peakLive's
+// GOGC=1, cost a collection every 1% of heap growth. Read-only.
+var (
+	cellRecordVals = func() map[string]float64 {
+		vals := map[string]float64{"g": 0, "h": 0, "i": 0, "k": 0, "x": 1.5, "y": 2.25, "z": 1, "w": 1.25}
+		for i := range aggMemoryMaxMembers {
+			vals[fmt.Sprintf("f%02d", i)] = float64(i) + 0.5
+		}
+		return vals
+	}()
+	cellRecordWide = map[string]any{"tags": uint64(0b1011)}
+)
 
 // cellMemoryIter generates the case's records into one reused record
 // (the fused arm keeps no record past its update) and reads the live

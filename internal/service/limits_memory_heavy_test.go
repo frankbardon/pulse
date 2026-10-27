@@ -185,20 +185,32 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		}, joinFanOut: true, maxFactor: 2.5},
 	}
 	ctx := context.Background()
-	for _, c := range cases {
+	// fanCfg holds f.pulse for the fan-out cases: written once, at the
+	// first, and dropped after the last, so the file is garbage outside
+	// them (a live extra cohort raises every other case's heap goal) and
+	// each fan-out case runs over the same live set as with a file of
+	// its own.
+	var fanCfg *fs.Config
+	lastFanOut := -1
+	for i, c := range cases {
+		if c.fanOut {
+			lastFanOut = i
+		}
+	}
+	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc := New(cfg)
 			if c.fanOut {
-				// A fs of its own, so the file is garbage outside this
-				// case (a live extra cohort raises every other case's
-				// heap goal).
-				fm := afero.NewMemMapFs()
-				writeWide(fm, "f.pulse", 95, rows, true)
-				fcfg, err := fs.New(fs.WithFs(fm))
-				if err != nil {
-					t.Fatal(err)
+				if fanCfg == nil {
+					fm := afero.NewMemMapFs()
+					writeWide(fm, "f.pulse", 95, rows, true)
+					fcfg, err := fs.New(fs.WithFs(fm))
+					if err != nil {
+						t.Fatal(err)
+					}
+					fanCfg = fcfg
 				}
-				svc = New(fcfg)
+				svc = New(fanCfg)
 			}
 			if c.joinFanOut {
 				jm := afero.NewMemMapFs()
@@ -251,5 +263,8 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 				t.Fatalf("estimate is %.2fx the measured peak heap; documented bound %.1fx", factor, c.maxFactor)
 			}
 		})
+		if i == lastFanOut {
+			fanCfg = nil
+		}
 	}
 }

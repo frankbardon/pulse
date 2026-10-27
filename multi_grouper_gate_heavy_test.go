@@ -18,8 +18,8 @@ import (
 // per-grouper) and grouped matrices — serially over a single file,
 // under every DecodeWorkers count over that file, and over a shard
 // archive of the same rows split unevenly (1-row shards, an empty
-// shard, edges inside merge blocks) under every ShardWorkers ×
-// DecodeWorkers count; weighted and unweighted. Each parallel run must
+// shard, edges inside merge blocks) under every ShardWorkers count,
+// each with DecodeWorkers serial and parallel; weighted and unweighted. Each parallel run must
 // take its parallel arm, so no knob compares serial against serial.
 func TestMultiGrouper_BitExactAcrossWorkers(t *testing.T) {
 	t.Parallel()
@@ -48,9 +48,15 @@ func TestMultiGrouper_BitExactAcrossWorkers(t *testing.T) {
 	for _, dw := range []int{2, 3, 7} {
 		decoders[dw] = f.engine(t, osFs, 1, dw)
 	}
+	// A shard archive never takes the per-segment decode arm (each
+	// shard is decoded whole; the service's single-file parallel gate
+	// declines any cohort with shards), so DecodeWorkers over the
+	// archive is pinned at its serial value and one parallel one:
+	// further counts would re-run the same arm.
+	archiveDecoders := []int{1, 7}
 	sharders := map[[2]int]*pulse.Pulse{}
 	for _, sw := range []int{1, 2, 3, 4} {
-		for _, dw := range []int{1, 2, 3, 7} {
+		for _, dw := range archiveDecoders {
 			sharders[[2]int{sw, dw}] = f.engine(t, osFs, sw, dw)
 		}
 	}
@@ -73,7 +79,7 @@ func TestMultiGrouper_BitExactAcrossWorkers(t *testing.T) {
 				}
 				twin := mgRunBits(t, serial, f, mgBitsRequest("small.pulse", c.groups, weighted))
 				for _, sw := range []int{1, 2, 3, 4} {
-					for _, dw := range []int{1, 2, 3, 7} {
+					for _, dw := range archiveDecoders {
 						got := mgRunBits(t, sharders[[2]int{sw, dw}], f, mgBitsRequest("bits_archive.pulse", c.groups, weighted))
 						if sw > 1 && got.Arm != observe.ArmShardParallel {
 							t.Fatalf("ShardWorkers=%d ran on arm %q", sw, got.Arm)

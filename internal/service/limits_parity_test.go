@@ -24,9 +24,12 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// limitsRows is the FR-31 cohort size: past parallelDecodeRecordThreshold,
-// so the per-segment reducer engages on the single file.
-const limitsRows = 200_000
+// limitsRows is the FR-31 cohort size: past parallelDecodeRecordThreshold
+// (a record-count threshold, 100,000), so the per-segment reducer
+// engages on the single file. Every tight limit a case sets trips well
+// below it, and the built-in defaults (MaxJoinBuildRows 100,000,000;
+// MaxEstimatedMemory unlimited) sit orders of magnitude above it.
+const limitsRows = 120_000
 
 // limitsFields keeps buildWideCohort's named fields plus a pad tail
 // narrow enough that the ~60 runs below stay a few seconds.
@@ -37,7 +40,7 @@ const limitsFields = 24
 type limitsFixture struct {
 	cfg    *fs.Config
 	schema *encoding.Schema
-	// wide is the 200,000-row buildWideCohort file; arch the same rows
+	// wide is the limitsRows-row buildWideCohort file; arch the same rows
 	// as a two-shard archive whose shards each carry 10 of the 16
 	// brands (A: 0-9, B: 6-15) and whose union carries all 16 — so
 	// MaxGroups=12 passes every partition and only the merge can trip;

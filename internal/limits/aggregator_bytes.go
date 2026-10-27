@@ -10,7 +10,7 @@ import "github.com/frankbardon/pulse/types"
 // extension) keeps those ceilings. Every entry is a MEASURED CEILING,
 // pinned by internal/service TestGroupMemory_AggregatorStateTable: the
 // gate builds a grouped partition of each built-in exactly as the
-// parallel reducers do (40,000 keys, 1 and 4 rows a key, weighted and
+// parallel reducers do (5,000 keys, 1 and 4 rows a key, weighted and
 // not, components on and off), merges two of them and finalizes, and
 // asserts each entry is at least the live heap the slot adds to a bucket
 // — so a new built-in without an entry fails it.

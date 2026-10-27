@@ -48,6 +48,7 @@ func TestMatrixGrouped_WorkerInvariant(t *testing.T) {
 		for _, g := range groupedInvGroupers {
 			for _, v := range groupedInvVariants {
 				t.Run(g.name+"_"+v.String(), func(t *testing.T) {
+					t.Parallel()
 					req := groupedInvRequest(path, v, g)
 					serial := runGroupedInv(t, cfg, req, g, 1, 0)
 					if want := g.common + g.thin; serial.instances != want {
@@ -74,6 +75,7 @@ func TestMatrixGrouped_WorkerInvariant(t *testing.T) {
 		for _, g := range groupedInvGroupers {
 			for _, v := range groupedInvVariants {
 				t.Run(g.name+"_"+v.String(), func(t *testing.T) {
+					t.Parallel()
 					req := groupedInvRequest("archive.pulse", v, g)
 					serial := runGroupedInv(t, cfg, req, g, 0, 1)
 					for _, workers := range []int{2, 3, 8} {

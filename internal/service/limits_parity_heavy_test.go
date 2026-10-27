@@ -10,7 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 )
 
-// TestLimitsPredictRuntimeParity is the FR-31 gate on a 200,000-row
+// TestLimitsPredictRuntimeParity is the FR-31 gate on a limitsRows-row
 // buildWideCohort cohort: on every runtime enforcement site — serial,
 // buffered, the parallel decode and shard reducers, the shard merge,
 // the buffered and fused crosstab, join, matrix, Compose (serial and
@@ -75,7 +75,7 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 				}
 			}
 
-			// The built-in defaults: no finding, no trip, on 200,000 rows.
+			// The built-in defaults: no finding, no trip, on limitsRows rows.
 			if c.site != "timeout" {
 				if fs, trip := checkParity(t, f, c, limits.Defaults()); len(fs) != 0 || trip != nil {
 					t.Fatalf("defaults: findings %+v, trip %v", fs, trip)

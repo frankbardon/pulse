@@ -53,7 +53,6 @@
 2 ./internal/service TestCrosstab_ParallelDecode_ByteEqualToSerial
 2 ./internal/service TestCrosstab_WeightedTwoMeansZ_DecodeWorkersParity
 2 ./internal/service TestDecodeWorkers_WeightedParity
-2 ./internal/service TestGroupMemory_FinalizeReleasesBuckets
 2 ./internal/service TestLimitsReleaseMemory
 2 ./internal/service TestMatrixGrouped_ParallelArms_DecodeWorkers
 2 ./internal/service TestMemoryEstimate_Calibration

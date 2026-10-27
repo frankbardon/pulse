@@ -53,6 +53,7 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 			}
 			for _, v := range matrixInvarianceVariants {
 				t.Run(fmt.Sprintf("n%d_%s", n, v), func(t *testing.T) {
+					t.Parallel()
 					req := matrixInvarianceRequest(path, v)
 					serial := runMatrixInvariance(t, cfg, req, 1, 0)
 					assertMatrixCloseToReference(t, serial, referenceMatrixWords(t, n, v))
@@ -84,6 +85,7 @@ func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
 		}
 		for _, v := range matrixInvarianceVariants {
 			t.Run(v.String(), func(t *testing.T) {
+				t.Parallel()
 				req := matrixInvarianceRequest("archive.pulse", v)
 				serial := runMatrixInvariance(t, cfg, req, 0, 1)
 				assertMatrixCloseToReference(t, serial, referenceMatrixWords(t, total, v))
