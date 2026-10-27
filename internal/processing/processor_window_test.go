@@ -33,6 +33,8 @@ func recordsForWindowTest(t *testing.T) []*Record {
 // TestProcessor_NoAggOnlyWindow verifies that windowed requests without
 // aggregations or groups produce one row per record with the window column.
 func TestProcessor_NoAggOnlyWindow(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForWindowTest(t)
 	records := recordsForWindowTest(t)
 
@@ -76,6 +78,8 @@ func TestProcessor_NoAggOnlyWindow(t *testing.T) {
 // TestProcessor_WindowForcesBuffered verifies canStream returns false when
 // req.Windows is non-empty.
 func TestProcessor_WindowForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForWindowTest(t)
 	records := recordsForWindowTest(t)
 
@@ -99,6 +103,8 @@ func TestProcessor_WindowForcesBuffered(t *testing.T) {
 // TestProcessor_WindowOnAggregateRow verifies window applies to the single
 // aggregate row when no group is present.
 func TestProcessor_WindowOnAggregateRow(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForWindowTest(t)
 	records := recordsForWindowTest(t)
 
@@ -125,6 +131,8 @@ func TestProcessor_WindowOnAggregateRow(t *testing.T) {
 
 // TestProcessor_SortByDate verifies Request.Sort orders the response rows.
 func TestProcessor_SortByDate(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForWindowTest(t)
 	// Records emitted out of date order to prove Sort reorders.
 	records := []*Record{
@@ -162,6 +170,8 @@ func TestProcessor_SortByDate(t *testing.T) {
 
 // TestProcessor_SortDescending verifies DESC ordering on a single key.
 func TestProcessor_SortDescending(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForWindowTest(t)
 	records := recordsForWindowTest(t)
 
@@ -185,6 +195,8 @@ func TestProcessor_SortDescending(t *testing.T) {
 // TestProcessor_SortByAggLabelOverGroups verifies sorting by an aggregation
 // output label across grouped output.
 func TestProcessor_SortByAggLabelOverGroups(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Description: "Region code", Dictionary: makeDict(t, "us", "eu", "apac")},
@@ -253,6 +265,8 @@ func NewRecordWithDict(schema *encoding.Schema, dictField, dictVal string, other
 
 // TestProcessor_UnknownWindowType surfaces PROCESSING_CONFIG.
 func TestProcessor_UnknownWindowType(t *testing.T) {
+	t.Parallel()
+
 	schema := schemaForWindowTest(t)
 	records := recordsForWindowTest(t)
 

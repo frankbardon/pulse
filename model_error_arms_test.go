@@ -81,6 +81,8 @@ func merrDoc(t *testing.T, resp *types.Response) any {
 // TestModelError_ArmsAgree: buffered ≡ streaming ≡ archive serial ≡
 // archive ShardWorkers=3, grouped and ungrouped.
 func TestModelError_ArmsAgree(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	s := paritySchema(t)
 	writeParityCohort(t, fsys, "twin.pulse", s, 0, paritySmallRows)
@@ -155,6 +157,8 @@ func TestModelError_ArmsAgree(t *testing.T) {
 // TestModelError_StreamTerminalMatchesBuffered: an ungrouped streamed
 // run's terminal chunk carries the buffered components.
 func TestModelError_StreamTerminalMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "twin.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys})

@@ -88,35 +88,6 @@ func assertPlanReusedMatchesRestricted(t *testing.T, schema *encoding.Schema, ra
 	}
 }
 
-// TestReadRecordReusedWithPlan_MatchesReusedRestrictedPerType sweeps every
-// 2^N projection subset of each per-type fixture and asserts the plan-aware
-// reuse output equals the full-reuse output restricted to that subset —
-// including subsets that drop a bit-packed member sharing a byte with a
-// retained member and subsets that drop/retain a nullable field.
-func TestReadRecordReusedWithPlan_MatchesReusedRestrictedPerType(t *testing.T) {
-	for _, f := range perTypeFixtures() {
-		f := f
-		t.Run(f.name, func(t *testing.T) {
-			if got := len(f.schema.Fields); got > 12 {
-				t.Fatalf("fixture %s has %d fields; subset sweep intractable", f.name, got)
-			}
-			records := generatePerTypeRecords(t, f, 0x9A11+int64(len(f.name)))
-			fieldCount := uint(len(f.schema.Fields))
-			masks := uint64(1) << fieldCount
-			for mask := uint64(0); mask < masks; mask++ {
-				retained := subsetFromMask(f.schema, mask)
-				for ri, raw := range records {
-					label := fmt.Sprintf("%s/mask=%0*b/rec=%d", f.name, fieldCount, mask, ri)
-					assertPlanReusedMatchesRestricted(t, f.schema, raw, retained, label)
-					if t.Failed() {
-						return
-					}
-				}
-			}
-		})
-	}
-}
-
 // TestReadRecordReusedWithPlan_MatchesReusedRestrictedBigMixed exercises the
 // 26-field mixed schema (every type, nullable variants, bit-packed runs,
 // decimal128, every set width, rotating null patterns) across several
@@ -127,6 +98,8 @@ func TestReadRecordReusedWithPlan_MatchesReusedRestrictedPerType(t *testing.T) {
 //   - the whole nullable set dropped (bitmap becomes a pure skip);
 //   - the empty set (whole stride skipped).
 func TestReadRecordReusedWithPlan_MatchesReusedRestrictedBigMixed(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xB16B0F00)
 
@@ -163,6 +136,8 @@ func TestReadRecordReusedWithPlan_MatchesReusedRestrictedBigMixed(t *testing.T) 
 // nil plan is byte-identical to ReadRecordReused (the full-decode reuse
 // path). This is the guarantee that no-projection reuse is unchanged.
 func TestReadRecordReusedWithPlan_NilPlanEqualsReused(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0x711D1A00)
 
@@ -220,6 +195,8 @@ func (c *countingSeeker) Seek(offset int64, whence int) (int64, error) {
 // Seeks past everything else — strictly fewer bytes than the full stride
 // (which the full-reuse path reads in its entirety).
 func TestReadRecordReusedWithPlan_SkipsUnreadBytes(t *testing.T) {
+	t.Parallel()
+
 	// 200 u32 fields = 800-byte stride; retain exactly one in the middle.
 	fields := make([]encoding.Field, 0, 200)
 	for i := 0; i < 200; i++ {
@@ -281,6 +258,8 @@ func TestReadRecordReusedWithPlan_SkipsUnreadBytes(t *testing.T) {
 // TestReadRecordReusedWithPlan_EOF asserts EOF surfacing on an exhausted
 // reader and on a partial trailing record, matching ReadRecordReused.
 func TestReadRecordReusedWithPlan_EOF(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xE0F0F100)
 	retained := []string{"u8_a", "u32_a", "amount", "u4_lo"}

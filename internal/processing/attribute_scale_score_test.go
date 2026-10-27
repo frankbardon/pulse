@@ -121,6 +121,8 @@ func sameScore(a, b float64) bool {
 // vector's bounds or the params' range, out-of-range as missing with
 // one counted warning — identically on the streaming and buffered arms.
 func TestScaleScore_RowSemantics(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		vecs   []types.VectorSpec
@@ -196,6 +198,8 @@ func TestScaleScore_RowSemantics(t *testing.T) {
 // scored (as missing, with a warning) by ATTR_SCALE_SCORE and refused
 // by MAT_RELIABILITY — both read the one vectors.ScaleKey.
 func TestScaleScore_ReliabilityContrast(t *testing.T) {
+	t.Parallel()
+
 	schema := scaleSchema()
 	vecs := scaleVector(true, 1, 5)
 	recs := scaleRecords(schema)
@@ -228,6 +232,8 @@ func TestScaleScore_ReliabilityContrast(t *testing.T) {
 // drives the row-local attribute inline; its cells and its warning
 // equal the buffered RunCrosstab's.
 func TestScaleScore_FusedCrosstabMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := scaleSchema()
 	build := func() *types.Request {
 		return &types.Request{
@@ -261,6 +267,8 @@ func TestScaleScore_FusedCrosstabMatchesBuffered(t *testing.T) {
 // TestScaleScore_FactoryRules: an unresolved vector is refused, a probe
 // without members scores null, and canonical params decode.
 func TestScaleScore_FactoryRules(t *testing.T) {
+	t.Parallel()
+
 	if _, err := newScaleScoreAttribute(&types.Attribute{Type: types.ATTR_SCALE_SCORE, Vector: "bat"}, scaleSchema()); err == nil {
 		t.Error("an unresolved vector constructed")
 	}
@@ -281,6 +289,8 @@ func TestScaleScore_FactoryRules(t *testing.T) {
 // members, named vector and inline fields alike — a dropped member
 // would read as missing and silently move every score.
 func TestNeededFields_ScaleScoreMembers(t *testing.T) {
+	t.Parallel()
+
 	schema := scaleSchema()
 	for name, attr := range map[string]*types.Attribute{
 		"vector": {Type: types.ATTR_SCALE_SCORE, Vector: "bat", Label: "s"},

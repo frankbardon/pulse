@@ -16,6 +16,8 @@ import (
 // MaxUint64 print their own digits; a value below 2^53 prints the same
 // digits the float64 echo always did. Other numeric cells stay float64.
 func TestRenderRecordCells_U64Exact(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "k", Type: encoding.FieldTypeU64},
 		{Name: "a", Type: encoding.FieldTypeF64, ByteOffset: 8},
@@ -57,6 +59,8 @@ func TestRenderRecordCells_U64Exact(t *testing.T) {
 // and leaves a cell no stage left as that word's echo (null / absent, or
 // rewritten) untouched. No u64 field means no side table at all.
 func TestFinalizeRowCells_U64Words(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "k", Type: encoding.FieldTypeU64},
 		{Name: "a", Type: encoding.FieldTypeF64, ByteOffset: 8},
@@ -111,6 +115,8 @@ func TestFinalizeRowCells_U64Words(t *testing.T) {
 // out-of-partition default / null and a copy of a non-u64 column are
 // untouched, as is a non-copy window over the id.
 func TestFinalizeRowCells_U64CopyWindows(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "k", Type: encoding.FieldTypeU64},
 		{Name: "a", Type: encoding.FieldTypeF64, ByteOffset: 8},

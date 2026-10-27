@@ -13,6 +13,8 @@ import (
 // item's own expansion, while template variables substitute everywhere —
 // beside the axis placeholders, and inside the for_each value itself.
 func TestRenderJSON_ForEachItemAxesPassThrough(t *testing.T) {
+	t.Parallel()
+
 	runRenderRows(t, []renderRow{
 		{
 			name: "axis placeholders pass through; template variables substitute beside them and in the axis list",
@@ -90,6 +92,8 @@ func TestRenderJSON_ForEachItemAxesPassThrough(t *testing.T) {
 // and carries the axis name's body path. It fires even when the
 // colliding variable is never referenced.
 func TestValidate_ForEachAxisCollisionIsDeclarationTime(t *testing.T) {
+	t.Parallel()
+
 	tm := renderTmpl(decls(varDecl("decay", template.VarNumber)),
 		`{"windows": [{"type": "WIN_EWMA", "field": "x", "params": {"decay": {"$var": "decay"}},
 			"for_each": {"axes": [{"name": "decay", "values": [0.3]}]}}]}`)
@@ -116,6 +120,8 @@ func TestValidate_ForEachAxisCollisionIsDeclarationTime(t *testing.T) {
 // placeholders and inside `axes` itself (so a variable supplies an
 // axis's values); an undeclared non-axis placeholder still refuses.
 func TestRenderJSON_SweepAxesPassThrough(t *testing.T) {
+	t.Parallel()
+
 	runRenderRows(t, []renderRow{
 		{
 			name: "axis placeholders in request, overlays and label pass through; variables substitute beside them and in axes",
@@ -184,6 +190,8 @@ func TestRenderJSON_SweepAxesPassThrough(t *testing.T) {
 // TestValidate_SweepAxisCollisionIsDeclarationTime: a sweep axis
 // collision is caught by Validate, carrying the axis name's body path.
 func TestValidate_SweepAxisCollisionIsDeclarationTime(t *testing.T) {
+	t.Parallel()
+
 	tm := renderTmpl(decls(varDecl("ch", template.VarString)),
 		`{"sweep": {"axes": [{"name": "k", "values": [1]}, {"name": "ch", "values": ["tv"]}], "request": {"label": "{{k}}"}}}`)
 	err := template.Validate(tm)

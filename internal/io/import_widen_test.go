@@ -88,6 +88,8 @@ func warningFor(t *testing.T, ws []*perrors.CodedError, field string) *perrors.C
 // on the narrowest type that holds it, with one warning naming the
 // inferred type, the written type and the first row that forced it.
 func TestImportWiden_PromotesInsteadOfRowErrors(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := widenFixture()
 	rep, _ := importRaw(t, cols, rows)
 	if rep.RowsImported != len(rows) || len(rep.RowErrors) != 0 {
@@ -128,6 +130,8 @@ func TestImportWiden_PromotesInsteadOfRowErrors(t *testing.T) {
 // The f64 arm is included: the full-sample inference types a column
 // with a negative integer as f64 too.
 func TestImportWiden_ByteIdenticalToFullSample(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := widenFixture()
 	_, promoted := importRaw(t, cols, rows)
 	full, fullRaw := importRaw(t, cols, rows, func(j *ImportJob) { j.SampleRows = len(rows) })
@@ -142,6 +146,8 @@ func TestImportWiden_ByteIdenticalToFullSample(t *testing.T) {
 // TestImportWiden_ValuesRoundTrip: every value decodes as the source
 // wrote it, on both sides of each promotion.
 func TestImportWiden_ValuesRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := widenFixture()
 	rep, _, fs, err := runGroupImport(t, newMockReader(cols, rows), nil)
 	if err != nil {
@@ -180,6 +186,8 @@ func TestImportWiden_ValuesRoundTrip(t *testing.T) {
 // for integers only up to 2^24), and every earlier integer decodes
 // unchanged.
 func TestImportWiden_FractionalPromotesToF64(t *testing.T) {
+	t.Parallel()
+
 	cols := []string{"n"}
 	var rows [][]string
 	for i := 0; i < 600; i++ {
@@ -212,6 +220,8 @@ func TestImportWiden_FractionalPromotesToF64(t *testing.T) {
 // integer column, and any non-integer in a u64 column (f64 is not exact
 // past 2^53).
 func TestImportWiden_NoCleanPromotionStaysRowError(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		sample string
@@ -222,6 +232,8 @@ func TestImportWiden_NoCleanPromotionStaysRowError(t *testing.T) {
 		{"u64 negative", "5000000000", "-1", encoding.FieldTypeU64},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			var rows [][]string
 			for i := 0; i < 600; i++ {
 				rows = append(rows, []string{tc.sample, "x"})
@@ -261,6 +273,8 @@ func overflowRows() ([]string, [][]string) {
 // promotes either, but the first value past its rung refuses the whole
 // import (E4-S13) rather than skipping rows.
 func TestImportWiden_DeclaredWidthsNeverPromote(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := overflowRows()
 	explicit := func() *encoding.Schema {
 		return &encoding.Schema{Fields: []encoding.Field{{Name: "c", Type: encoding.FieldTypeCategoricalU8}}}
@@ -309,6 +323,8 @@ func TestImportWiden_DeclaredWidthsNeverPromote(t *testing.T) {
 // promotion stands (its dictionary entry was interned), and every
 // other row imports with its value intact.
 func TestImportWiden_ForcingRowThatFailsElsewhere(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]string
 	for i := 0; i < 600; i++ {
 		rows = append(rows, []string{fmt.Sprint(i % 100), fmt.Sprint(i % 3)})
@@ -332,6 +348,8 @@ func TestImportWiden_ForcingRowThatFailsElsewhere(t *testing.T) {
 
 // TestWidenTarget is the rung table.
 func TestWidenTarget(t *testing.T) {
+	t.Parallel()
+
 	full := func(n int) *encoding.Dictionary {
 		d := encoding.NewDictionary()
 		for i := 0; i < n; i++ {
@@ -382,6 +400,8 @@ func TestWidenTarget(t *testing.T) {
 // suffix bytes moved intact, the widened cell zero-extended — or
 // converted to the exactly-equal f64.
 func TestWidenBufferedColumn(t *testing.T) {
+	t.Parallel()
+
 	held := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU16},
 		{Name: "b", Type: encoding.FieldTypeU8},
@@ -443,8 +463,12 @@ func widenGroupFixture() ([]string, [][]string, []GroupDecl) {
 // too narrow), with or without --strict, and predict reports exactly
 // what the import reports and writes.
 func TestImportWiden_GroupsJudgedOnFinalWidths(t *testing.T) {
+	t.Parallel()
+
 	for _, strict := range []bool{false, true} {
 		t.Run(fmt.Sprintf("strict=%v", strict), func(t *testing.T) {
+			t.Parallel()
+
 			cols, rows, decls := widenGroupFixture()
 			set := func(j *ImportJob) { j.StrictDedup = strict }
 			ir, raw, _, err := runGroupImport(t, newMockReader(cols, rows), decls, set)
@@ -489,6 +513,8 @@ func TestImportWiden_GroupsJudgedOnFinalWidths(t *testing.T) {
 // too narrow on the FINAL widths still fails --strict, import and
 // predict alike, with PULSE_GROUP_TOO_NARROW.
 func TestImportWiden_StrictStillRefusesAGenuinelyNarrowGroup(t *testing.T) {
+	t.Parallel()
+
 	cols, rows, _ := widenGroupFixture()
 	decls := []GroupDecl{{Key: []string{"k"}, Members: []string{"qty"}}} // u16 + u4 byte: 3 bytes
 	strict := func(j *ImportJob) { j.StrictDedup = true }

@@ -75,6 +75,8 @@ func processCount(t *testing.T, p *pulse.Pulse, cohort string, filterers []*type
 // exact u64 hit (2^53+1 or MaxUint64-1 — each shares its float64 echo
 // with a neighbour the filter must drop).
 func TestFilterToFile_ExtensionFiltererMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cases := map[string][]*types.Filterer{
 		"extension":    {{Type: u64ExactFilter, Field: "k"}},
@@ -127,6 +129,8 @@ func TestFilterToFile_ExtensionFiltererMatchesProcess(t *testing.T) {
 // FILTER_SET_*, on a narrow and a wide set) run through
 // FilterToFileWithRequest and keep exactly the rows Process keeps.
 func TestFilterToFile_BuiltinDirectFiltererMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _, cohort := acceptanceCohort(t)
 	cases := []*types.Filterer{
@@ -186,6 +190,8 @@ func processCountX(t *testing.T, p *pulse.Pulse, cohort string, filterers []*typ
 // non-zone-capable operator (TestFilterToFile_ZoneRefusalsMatchProcess
 // pins it equal to Process's refusal).
 func TestFilterToFile_DirectRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	m := u64KeyModes(t, filterToFileDirectExtensions())["streaming"]
 	cases := []struct {

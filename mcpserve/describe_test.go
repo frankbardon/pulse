@@ -15,6 +15,8 @@ import (
 // EFFECTIVE cohort-scan setting — Options OR the profile's
 // behaviour.disable_cohort_scan — and names the loaded profile.
 func TestDescribe_FoldsTheFeatureProfile(t *testing.T) {
+	t.Parallel()
+
 	build := func(fp *pulse.FeatureProfile) *pulse.Pulse {
 		t.Helper()
 		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: fp})
@@ -58,6 +60,8 @@ func TestDescribe_FoldsTheFeatureProfile(t *testing.T) {
 // default (pulse.Options.DefaultReturn over the feature profile's
 // `return`), then the built-in standard preset.
 func TestDescribe_DefaultReturnPrecedence(t *testing.T) {
+	t.Parallel()
+
 	build := func(o pulse.Options) *pulse.Pulse {
 		t.Helper()
 		o.FS = afero.NewMemMapFs()
@@ -100,6 +104,8 @@ func TestDescribe_DefaultReturnPrecedence(t *testing.T) {
 // `limits` block for the same instance — the effective values, tuned
 // keys included, in the same order and shape.
 func TestDescribe_LimitsMatchManifest(t *testing.T) {
+	t.Parallel()
+
 	for _, lim := range []pulse.Limits{{}, {MaxGroups: 7, RequestTimeout: 3 * time.Second, MaxMatrixDim: pulse.Unlimited}} {
 		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Limits: lim})
 		if err != nil {

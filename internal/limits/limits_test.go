@@ -24,6 +24,8 @@ func wantDefaults() Limits {
 }
 
 func TestDefaults(t *testing.T) {
+	t.Parallel()
+
 	if got := Defaults(); got != wantDefaults() {
 		t.Fatalf("Defaults() = %+v, want %+v", got, wantDefaults())
 	}
@@ -33,6 +35,8 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestNamesAndOptions(t *testing.T) {
+	t.Parallel()
+
 	want := map[Name]string{
 		RequestTimeout:     "Options.Limits.RequestTimeout",
 		MaxGroups:          "Options.Limits.MaxGroups",
@@ -74,6 +78,8 @@ func setField(t *testing.T, l Limits, n Name, v int64) Limits {
 // of the three layers, on every field, with the other fields left at
 // their defaults.
 func TestResolve_Precedence(t *testing.T) {
+	t.Parallel()
+
 	const optV, profV = 7, 11
 	cases := []struct {
 		name       string
@@ -111,6 +117,8 @@ func TestResolve_Precedence(t *testing.T) {
 }
 
 func TestResolve_DoesNotMutateInputs(t *testing.T) {
+	t.Parallel()
+
 	opts := Limits{MaxGroups: 3}
 	prof := Limits{MaxMatrixDim: 4}
 	_ = Resolve(opts, &prof)
@@ -120,6 +128,8 @@ func TestResolve_DoesNotMutateInputs(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	t.Parallel()
+
 	if err := Validate(Limits{}); err != nil {
 		t.Fatalf("zero Limits refused: %v", err)
 	}
@@ -146,6 +156,8 @@ func TestValidate(t *testing.T) {
 }
 
 func TestExceeded(t *testing.T) {
+	t.Parallel()
+
 	ce := Exceeded(MaxGroups, 10_000_000, 10_000_001)
 	if ce.Code != errors.PULSE_LIMIT_EXCEEDED {
 		t.Fatalf("code = %s", ce.Code)
@@ -180,6 +192,8 @@ func TestExceeded(t *testing.T) {
 }
 
 func TestGroupThousands(t *testing.T) {
+	t.Parallel()
+
 	for in, want := range map[int64]string{0: "0", 999: "999", 1000: "1,000", -1: "-1", -12345: "-12,345", 100_000_000: "100,000,000"} {
 		if got := groupThousands(in); got != want {
 			t.Errorf("groupThousands(%d) = %q, want %q", in, got, want)
@@ -188,6 +202,8 @@ func TestGroupThousands(t *testing.T) {
 }
 
 func TestIsUnlimited(t *testing.T) {
+	t.Parallel()
+
 	if !IsUnlimited(Unlimited) || IsUnlimited(1) {
 		t.Fatal("IsUnlimited misclassifies")
 	}

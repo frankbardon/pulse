@@ -78,6 +78,8 @@ func categoricalRequest(t *testing.T, body, cohort string) *types.Request {
 // PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL warning beside it — at every
 // slot that builds the operator.
 func TestCategoricalNumericReaders_RuntimeRefusesPredictAgrees(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for name, tmpl := range categoricalNumericReaders {
@@ -109,6 +111,8 @@ func TestCategoricalNumericReaders_RuntimeRefusesPredictAgrees(t *testing.T) {
 // aggregators a categorical is meaningful for run on both sides, with
 // no categorical warning (the cohort's other advisories aside).
 func TestCategoricalReaders_StillRun(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for name, tmpl := range categoricalReaders {
@@ -140,6 +144,8 @@ func TestCategoricalReaders_StillRun(t *testing.T) {
 // predict). Same count and messages on both sides; a numeric field
 // draws none.
 func TestFacetNotMeaningfulForCategorical_RuntimeMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	code := string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL)

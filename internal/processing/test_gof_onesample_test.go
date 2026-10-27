@@ -79,6 +79,8 @@ func mustGOF(t *testing.T, expected string, rows []armRow, kind types.WeightKind
 // OVERLAY_CHISQ_VS_POP computes from the facet counts against a 1:1
 // design population.
 func TestChiSqGOF_SRMOracleEqualsChiSqVsPop(t *testing.T) {
+	t.Parallel()
+
 	rows := armCounts([]string{"old_page", "new_page"}, []int{19913, 20087})
 	res := mustGOF(t, `{"new_page":0.5,"old_page":0.5}`, rows, "")
 	if res.Variant != "goodness_of_fit" || res.DF != 1 {
@@ -117,6 +119,8 @@ func TestChiSqGOF_SRMOracleEqualsChiSqVsPop(t *testing.T) {
 // TestChiSqGOF_AbsentLabelIsObservedZero: a label in expected that the
 // data never shows still counts, as observed 0, and keeps its df.
 func TestChiSqGOF_AbsentLabelIsObservedZero(t *testing.T) {
+	t.Parallel()
+
 	rows := armCounts([]string{"a", "b"}, []int{30, 70})
 	res := mustGOF(t, `{"a":0.2,"b":0.5,"c":0.3}`, rows, "")
 	// Expected 20 / 50 / 30: 100/20 + 400/50 + 900/30 = 5 + 8 + 30.
@@ -137,6 +141,8 @@ func TestChiSqGOF_AbsentLabelIsObservedZero(t *testing.T) {
 // TestChiSqGOF_Refusals: every params.expected refusal, and a data
 // label missing from expected.
 func TestChiSqGOF_Refusals(t *testing.T) {
+	t.Parallel()
+
 	rows := armCounts([]string{"a", "b"}, []int{3, 7})
 	for _, c := range []struct {
 		name, expected string
@@ -203,6 +209,8 @@ const gofWeightedExpected = `{"a":0.5,"b":0.3,"c":0.2}`
 // byte for byte; frequency weights equal the expanded rows; probability
 // weights equal Pearson on the table scaled to Kish n_eff.
 func TestChiSqGOF_Weighted(t *testing.T) {
+	t.Parallel()
+
 	rows := gofWeightedFixture()
 	ones := append([]armRow(nil), rows...)
 	for i := range ones {
@@ -295,6 +303,8 @@ func runPropOne(t *testing.T, params string, rows []armRow, kind types.WeightKin
 // TestPropZOne_HandComputed: 120 successes in 200 against p0 = 0.5 —
 // the score z (null SE), the Wald interval on p̂ − p0 and Cohen's h.
 func TestPropZOne_HandComputed(t *testing.T) {
+	t.Parallel()
+
 	rows := armCounts([]string{"yes", "no"}, []int{120, 80})
 	res, err := runPropOne(t, `{"success":"yes","p0":0.5}`, rows, "")
 	if err != nil {
@@ -325,6 +335,8 @@ func TestPropZOne_HandComputed(t *testing.T) {
 // frequency weights equal the expanded rows; probability weights read
 // p̂ = Σw_success/Σw on N* = Kish n_eff.
 func TestPropZOne_Weighted(t *testing.T) {
+	t.Parallel()
+
 	rows := gofWeightedFixture() // success = "a"
 	const params = `{"success":"a","p0":0.4}`
 	ones := append([]armRow(nil), rows...)
@@ -391,6 +403,8 @@ func TestPropZOne_Weighted(t *testing.T) {
 // TestPropZOne_Refusals: p0 outside (0, 1); p0 beside split_by; no
 // split_by and no p0 keeps the two-proportion requirement; no rows.
 func TestPropZOne_Refusals(t *testing.T) {
+	t.Parallel()
+
 	rows := armCounts([]string{"yes", "no"}, []int{3, 7})
 	for _, p := range []string{`0`, `1`, `-0.2`, `1.5`} {
 		_, err := runPropOne(t, `{"success":"yes","p0":`+p+`}`, rows, "")

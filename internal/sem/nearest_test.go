@@ -15,6 +15,8 @@ import (
 // positive definite (unclipped), and an exact dependency beside a
 // unit-variance uncorrelated member.
 func TestCovNearest_MatchesStatsmodels(t *testing.T) {
+	t.Parallel()
+
 	b, err := os.ReadFile("testdata/nearest_statsmodels.json")
 	if err != nil {
 		t.Fatal(err)
@@ -67,6 +69,8 @@ func TestCovNearest_MatchesStatsmodels(t *testing.T) {
 // TestCovNearest_Refusals: a variance that is zero, negative or not
 // finite has no correlation form (statsmodels produces NaN there).
 func TestCovNearest_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for name, d := range map[string]float64{"zero": 0, "negative": -1, "inf": math.Inf(1), "nan": math.NaN()} {
 		s := mat.NewSymDense(2, []float64{1, 0, 0, d})
 		if _, err := CovNearest(s, NearestThreshold); err == nil {
@@ -83,6 +87,8 @@ func TestCovNearest_Refusals(t *testing.T) {
 // off the data's covariance, and pins the fit to semopy's on it — the
 // default setup to its default fit, Fisher scoring to its tight fit.
 func TestFit_NearestMatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"singular", "constant"} {
 		desc, err := os.ReadFile("testdata/" + name + "_model.txt")
 		if err != nil {
@@ -150,6 +156,8 @@ func TestFit_NearestMatchesSemopy(t *testing.T) {
 // tighten its estimate bar: the stopping POINT is chaotic, the stopping
 // objective is not.
 func TestFit_NearSingularRawMatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/near_model.txt")
 	if err != nil {
 		t.Fatal(err)

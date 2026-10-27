@@ -37,6 +37,8 @@ func runPredictForSuggestions(t *testing.T, schema *encoding.Schema, req *types.
 }
 
 func TestPredict_Suggestions_TypoMatchesNearestField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "revenue", Type: encoding.FieldTypeF64, Description: "Total revenue in USD per row"},
@@ -84,6 +86,8 @@ func TestPredict_Suggestions_TypoMatchesNearestField(t *testing.T) {
 }
 
 func TestPredict_Suggestions_NoTypoWhenFieldExists(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "revenue", Type: encoding.FieldTypeF64, Description: "Total revenue in USD per row"},
@@ -99,6 +103,8 @@ func TestPredict_Suggestions_NoTypoWhenFieldExists(t *testing.T) {
 }
 
 func TestPredict_Suggestions_NumericAggOnCategorical(t *testing.T) {
+	t.Parallel()
+
 	dict := makeDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -131,6 +137,8 @@ func TestPredict_Suggestions_NumericAggOnCategorical(t *testing.T) {
 }
 
 func TestPredict_Suggestions_DecimalAggMismatch(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Description: "Transaction amount in USD"},
@@ -160,6 +168,8 @@ func TestPredict_Suggestions_DecimalAggMismatch(t *testing.T) {
 }
 
 func TestPredict_Suggestions_GroupCategoryOnDate(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "ts", Type: encoding.FieldTypeDate, Description: "Event timestamp as epoch days"},
@@ -182,6 +192,8 @@ func TestPredict_Suggestions_GroupCategoryOnDate(t *testing.T) {
 }
 
 func TestPredict_Suggestions_WindowMissingOrderBy(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "ts", Type: encoding.FieldTypeDate, Description: "Event timestamp as epoch days"},
@@ -215,6 +227,8 @@ func TestPredict_Suggestions_WindowMissingOrderBy(t *testing.T) {
 }
 
 func TestPredict_Suggestions_PercentileMissingP(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score in range [0, 1]"},
@@ -237,6 +251,8 @@ func TestPredict_Suggestions_PercentileMissingP(t *testing.T) {
 }
 
 func TestPredict_Suggestions_PercentileWithParamSilent(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score in range [0, 1]"},
@@ -252,6 +268,8 @@ func TestPredict_Suggestions_PercentileWithParamSilent(t *testing.T) {
 }
 
 func TestPredict_Suggestions_StreamabilityAlternative(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score in range [0, 1]"},
@@ -277,6 +295,8 @@ func TestPredict_Suggestions_StreamabilityAlternative(t *testing.T) {
 }
 
 func TestPredict_Suggestions_StreamabilityNoPeer(t *testing.T) {
+	t.Parallel()
+
 	// ATTR_PERCENTILE has no streamable peer; suggestion must still
 	// fire so the caller is not left in silence.
 	schema := &encoding.Schema{
@@ -302,6 +322,8 @@ func TestPredict_Suggestions_StreamabilityNoPeer(t *testing.T) {
 }
 
 func TestPredict_Suggestions_StreamabilityValidRequest(t *testing.T) {
+	t.Parallel()
+
 	// Otherwise-valid request that uses AGG_MEDIAN — Streamable=false
 	// but Errors should be empty. Suggestion fires on the success
 	// path.
@@ -331,6 +353,8 @@ func TestPredict_Suggestions_StreamabilityValidRequest(t *testing.T) {
 }
 
 func TestPredict_Suggestions_StreamabilityGroupQuantile(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score in range [0, 1]"},
@@ -351,6 +375,8 @@ func TestPredict_Suggestions_StreamabilityGroupQuantile(t *testing.T) {
 }
 
 func TestPredict_Suggestions_EmptySliceJSON(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score in range [0, 1]"},
@@ -375,6 +401,8 @@ func TestPredict_Suggestions_EmptySliceJSON(t *testing.T) {
 }
 
 func TestLevenshtein(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		a, b string
 		want int

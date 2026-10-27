@@ -126,6 +126,8 @@ func trailingVecRows(ft encoding.FieldType, dim, n, base int) []pulse.CohortRow 
 // CreateShardArchive and AddShard with PULSE_SHARD_SCHEMA_MISMATCH, and
 // a refused add leaves the archive byte-identical.
 func TestVectorShards_DimAndTypeStrict(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cases := []struct {
 		name    string
@@ -181,6 +183,8 @@ func TestVectorShards_DimAndTypeStrict(t *testing.T) {
 // wins, and each divergence is a PULSE_SHARD_DESCRIPTION_DIVERGENCE
 // warning naming the dimension. The archive decodes every row.
 func TestVectorShards_MetadataDivergenceWarns(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -269,6 +273,8 @@ func setVecRows(n, base int, tagPrefix string) []pulse.CohortRow {
 // and decodes identically — through Pulse.WidenSetField on a single file
 // and through a shard add whose dictionary union outgrows set_u8.
 func TestVectorShards_SetWidenCarriesVectors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -353,6 +359,8 @@ func groupVecRows(n int, lastDiffers bool) []pulse.CohortRow {
 // --elide-constants), through Pulse.Dedup, and through a sharded
 // grouped archive.
 func TestVectorGroups_GroupElideDedupRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -403,6 +411,8 @@ func TestVectorGroups_GroupElideDedupRoundTrip(t *testing.T) {
 // LAST element differs on one row is not a constant — elision must
 // compare the vector's whole stride, not a prefix of it.
 func TestVectorGroups_ConstantDetectionComparesWholeStride(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -441,6 +451,8 @@ func TestVectorGroups_ConstantDetectionComparesWholeStride(t *testing.T) {
 // declaring one (from-schema), profile capture of a single-file cohort
 // and of a shard archive, and a tagged top-up whose source carries one.
 func TestVectorSynth_EverySurface(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})

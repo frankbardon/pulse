@@ -77,6 +77,8 @@ func labelsN(prefix string, n int) []string {
 // zero-row shard built with the same schema; a refusal leaves the
 // archive byte-identical and nothing else on the filesystem.
 func TestCohortBuilder_AppendPrecheckParity(t *testing.T) {
+	t.Parallel()
+
 	with := func(mut func(fs []precheckField) []precheckField) []precheckField {
 		return mut(precheckBase())
 	}
@@ -201,6 +203,8 @@ func TestCohortBuilder_AppendPrecheckParity(t *testing.T) {
 // only pre-seeded dictionaries, so a union decided by the rows is
 // AddShard's call at Close.
 func TestCohortBuilder_AppendPrecheckLabelsStillLegal(t *testing.T) {
+	t.Parallel()
+
 	p, _ := memBuilderEngine(t)
 	buildCohort(t, p, "arch.pulse", precheckSchema(precheckBase()...), CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 3}}, precheckRows())
 	drop := []CohortRow{{uint64(9), "zeta", []string{"x", "q"}, nil}}

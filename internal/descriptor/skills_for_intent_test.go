@@ -27,6 +27,8 @@ func tierOf(md skills.Metadata) int {
 // serving operator (or its category) by name, then every serving
 // operator's atomic skill, basic → intermediate → advanced, then name.
 func TestSkillsForIntent_Ranking(t *testing.T) {
+	t.Parallel()
+
 	snap := hidingSnapshot()
 	for _, tc := range []struct {
 		intent     string
@@ -85,6 +87,8 @@ func TestSkillsForIntent_Ranking(t *testing.T) {
 // (flows served none until OVERLAY_MARKOV, and hiding an intent's only
 // operator prunes the intent itself).
 func TestSkillsForIntent_NoServingOperator(t *testing.T) {
+	t.Parallel()
+
 	got, err := hidingSnapshot().SkillsForIntent(IntentLookup)
 	if err != nil || !slices.Equal(skillNames(got), []string{skills.VirtualIntents}) {
 		t.Fatalf("lookup = %v, err %v", skillNames(got), err)
@@ -96,6 +100,8 @@ func TestSkillsForIntent_NoServingOperator(t *testing.T) {
 // pruned intent is refused like an unknown one through the shared
 // resolver.
 func TestSkillsForIntent_ProfilePruning(t *testing.T) {
+	t.Parallel()
+
 	hidden := hidingSnapshot("TEST_ANOVA_F", "TEST_TUKEY_HSD")
 	got, err := hidden.SkillsForIntent(IntentCompareGroups)
 	if err != nil {

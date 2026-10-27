@@ -18,6 +18,8 @@ import (
 // are spread so segment block counts differ by at most one, and
 // W > blocks leaves the surplus segments empty rather than failing.
 func TestBlockAlignedSegments_Math(t *testing.T) {
+	t.Parallel()
+
 	B := linalg.MergeBlockSize
 	ns := []int{1, B - 1, B, B + 1, 3*B - 7, 24 * B, parallelDecodeRecordThreshold,
 		25 * B, 25*B + 1, 1_000_003}
@@ -97,6 +99,8 @@ func idCohort(t *testing.T, n int) *parallelDecodeContext {
 // record start+i — so a block-keyed reducer can key row start+i to
 // block (start+i)/MergeBlockSize. Empty segments never call the factory.
 func TestParallelDecodeMmap_FactoryReceivesAbsoluteStart(t *testing.T) {
+	t.Parallel()
+
 	B := linalg.MergeBlockSize
 	for _, tc := range []struct{ n, w int }{
 		{3*B + 17, 2}, {3*B + 17, 3}, {10 * B, 7}, {2*B + 1, 8}, {B - 3, 4},

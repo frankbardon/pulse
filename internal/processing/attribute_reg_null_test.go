@@ -70,6 +70,8 @@ var regNullTypes = []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_R
 // (null) exactly on the null-input rows and finite elsewhere — a null
 // target alone leaves FITTED / LEVERAGE defined.
 func TestAttrReg_NullInputEmitsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := regNullSchema()
 	for _, typ := range regNullTypes {
 		t.Run(string(typ), func(t *testing.T) {
@@ -95,6 +97,8 @@ func TestAttrReg_NullInputEmitsNull(t *testing.T) {
 // buffered arms a downstream AGG_AVERAGE counts the null-input rows in
 // n_null and averages only the defined rows.
 func TestAttrReg_NullSkippedDownstream(t *testing.T) {
+	t.Parallel()
+
 	schema := regNullSchema()
 	for _, typ := range regNullTypes {
 		attr := func() *types.Attribute {
@@ -145,6 +149,8 @@ func TestAttrReg_NullSkippedDownstream(t *testing.T) {
 // the refit drops the row and the attribute emits null on exactly the
 // same rows, every defined row bit-identical to the null fixture's.
 func TestAttrReg_NonFiniteInputEmitsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := regNullSchema()
 	for _, typ := range regNullTypes {
 		attr := &types.Attribute{Target: "y", Predictors: []string{"x1", "x2"}}
@@ -186,6 +192,8 @@ func (constScorer) Score(model.Row) (float64, bool) { return 1, true }
 // a bound fit (params.fit) reads a NaN / ±Inf target as missing — a
 // null residual, as for a null target — and a finite one as y − ŷ.
 func TestAttrReg_FitResidualNonFiniteTargetIsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := regNullSchema()
 	a := &regFitScoreAttribute{attr: &types.Attribute{Type: types.ATTR_REG_RESIDUAL}, kind: regAttrResidual, scorer: constScorer{}, target: "y"}
 	for _, fill := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {

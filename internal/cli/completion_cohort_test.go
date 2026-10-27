@@ -326,6 +326,8 @@ func completeLeaf(t *testing.T, words ...string) []string {
 // cohort of many records reads no more than its header + schema, and
 // over a shard archive no more than the archive's non-record bytes.
 func TestCompletion_FieldsReadHeaderOnly(t *testing.T) {
+	// serial: swaps the package-level cli.completionBaseFs test hook; t.Setenv mutates the process environment
+
 	fx := newCompletionFixture(t)
 
 	got := completeLeaf(t, "api", "facet", "--input", fx.single, "--field")
@@ -363,6 +365,8 @@ func TestCompletion_FieldsReadHeaderOnly(t *testing.T) {
 // on the filesystem (no imports dir, no sidecar), and the Pulse
 // instances completion builds refuse writes outright.
 func TestCompletion_ReadOnly(t *testing.T) {
+	// serial: swaps the package-level cli.completionBaseFs test hook; t.Setenv mutates the process environment
+
 	fx := newCompletionFixture(t)
 	before := snapshot(t, fx.fs.Fs)
 
@@ -402,6 +406,8 @@ func TestCompletion_ReadOnly(t *testing.T) {
 // --input, else the positional cohort, else --cohort; with none named
 // nothing completes.
 func TestCompletion_CohortSources(t *testing.T) {
+	// serial: swaps the package-level cli.completionBaseFs test hook; t.Setenv mutates the process environment
+
 	fx := newCompletionFixture(t)
 	for _, words := range [][]string{
 		{"api", "facet", "--input", fx.single, "--additive"},

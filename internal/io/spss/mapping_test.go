@@ -88,6 +88,8 @@ func columnOf(t *testing.T, r *Reader, name string) columnMapping {
 // the last would tempt decimal128; the source declared a double, so a
 // double is what the mapping produces.
 func TestMapping_NumericIsAlwaysF64(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "TINY"},   // 0..3, would fit u4
@@ -127,6 +129,8 @@ func TestMapping_NumericIsAlwaysF64(t *testing.T) {
 //
 //	Rscript -e 'x <- haven::read_sav("temporal.sav"); str(x)'
 func TestMapping_PrintFormatDispatch(t *testing.T) {
+	t.Parallel()
+
 	// Every value is midnight-aligned and after the Unix epoch so the
 	// dispatch alone decides; the widening rules get their own test.
 	midnight := spssInstant(2024, time.March, 4, 0, 0, 0)
@@ -185,6 +189,8 @@ func TestMapping_PrintFormatDispatch(t *testing.T) {
 // column imports as a native `date`: the date word is signed int32 epoch
 // days, so 1955 and 1900 need no widen and raise no warning.
 func TestMapping_PreEpochDateStaysNativeDate(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		datum float64
 		want  string
@@ -229,6 +235,8 @@ func TestMapping_PreEpochDateStaysNativeDate(t *testing.T) {
 // day-resolution `date` cannot hold — a time of day. It widens to
 // datetime, which holds it exactly, and says so.
 func TestMapping_DateWidensRatherThanCorrupt(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		datum  float64
@@ -282,6 +290,8 @@ func TestMapping_DateWidensRatherThanCorrupt(t *testing.T) {
 // fractional value routes to lossless raw seconds instead of truncating.
 // The same rule catches a non-finite datum, which no temporal type holds.
 func TestMapping_TemporalPrecisionDropsToF64(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		format spsstest.FormatType
@@ -326,6 +336,8 @@ func TestMapping_TemporalPrecisionDropsToF64(t *testing.T) {
 // encoding.ParseDateTime read back, because the shared import path parses
 // them with nothing else.
 func TestReadRows_TemporalRendering(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "DAY", Print: spsstest.Format{Type: spsstest.FormatDATE, Width: 11}},
@@ -374,6 +386,8 @@ func TestReadRows_TemporalRendering(t *testing.T) {
 // SPSS CODES in the file's declared order, and the triple carries the
 // labels alongside the IDs.
 func TestMapping_ValueLabelledNumericIsCategorical(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "Q1", Label: "Satisfaction"}},
 		Cases: [][]spsstest.Value{{spsstest.Num(1)}, {spsstest.Num(5)}, {spsstest.Num(9)}},
@@ -442,6 +456,8 @@ func TestMapping_ValueLabelledNumericIsCategorical(t *testing.T) {
 // first-seen order, the declared width retained for re-padding, and the
 // trailing spaces SPSS pads with gone.
 func TestMapping_StringIsCategorical(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "CITY", Width: 12, Label: "City of residence"}},
 		Cases: [][]spsstest.Value{
@@ -483,6 +499,8 @@ func TestMapping_StringIsCategorical(t *testing.T) {
 // TestMapping_StringValueLabelsSeedTheOrder proves a short-string value
 // label set drives the dictionary order the same way a numeric one does.
 func TestMapping_StringValueLabelsSeedTheOrder(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "GRADE", Width: 2}},
 		Cases: [][]spsstest.Value{{spsstest.Text("C")}, {spsstest.Text("A")}},
@@ -510,6 +528,8 @@ func TestMapping_StringValueLabelsSeedTheOrder(t *testing.T) {
 // TestMapping_CategoricalWidthByCardinality walks the u8 → u16 boundary
 // with real data on both sides of it.
 func TestMapping_CategoricalWidthByCardinality(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		distinct int
 		want     encoding.FieldType
@@ -538,6 +558,8 @@ func TestMapping_CategoricalWidthByCardinality(t *testing.T) {
 // TestCategoricalTypeFor covers the width ladder directly, including the
 // u32 backstop no fixture can reach.
 func TestCategoricalTypeFor(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		distinct int64
 		want     encoding.FieldType
@@ -570,6 +592,8 @@ func TestCategoricalTypeFor(t *testing.T) {
 // ladder (TestCategoricalTypeFor) and the refusal it produces are tested
 // separately and the two-line wiring between them is read, not run.
 func TestCategoricalOverflow_IsAHardError(t *testing.T) {
+	t.Parallel()
+
 	v := variable{name: "OTHER", longName: "OtherPleaseSpecify", offset: 0x1C0}
 	const distinct = 5_000_000_000
 
@@ -595,6 +619,8 @@ func TestCategoricalOverflow_IsAHardError(t *testing.T) {
 // never a refusal, because the mapping is lossless and the cost is
 // performance.
 func TestMapping_CardinalityWarning(t *testing.T) {
+	t.Parallel()
+
 	unique := func(n int) spsstest.Spec {
 		spec := spsstest.Spec{Vars: []spsstest.Var{{Name: "OTHER", Width: 8}}}
 		for i := 0; i < n; i++ {
@@ -656,6 +682,8 @@ func TestMapping_CardinalityWarning(t *testing.T) {
 // silently, but a literal "NA" is real data the shared import path
 // collapses to null, and that must be visible.
 func TestMapping_NullTokenCollision(t *testing.T) {
+	t.Parallel()
+
 	t.Run("an all-blank string is silently null", func(t *testing.T) {
 		spec := spsstest.Spec{
 			Vars: []spsstest.Var{{Name: "NOTE", Width: 4}},
@@ -700,6 +728,8 @@ func TestMapping_NullTokenCollision(t *testing.T) {
 // so leading whitespace is not distinguishing. Both source values stay in
 // the triple against the shared id so the ambiguity is visible.
 func TestMapping_ValueCollision(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "CODE", Width: 4}},
 		Cases: [][]spsstest.Value{
@@ -731,6 +761,8 @@ func TestMapping_ValueCollision(t *testing.T) {
 // system-missing sentinel can never match a datum, so it must not occupy
 // an ID that would shift every later code.
 func TestMapping_LabelOnSysmisIsNotAnEntry(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "Q1"}},
 		Cases: [][]spsstest.Value{{spsstest.Num(1)}},
@@ -760,6 +792,8 @@ func TestMapping_LabelOnSysmisIsNotAnEntry(t *testing.T) {
 // SchemaAwareReader contract forbids out-of-sample promotion, which is
 // only safe because of this.
 func TestMapping_NullabilityIsAFactNotASample(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "ALWAYS"}, {Name: "SOMETIME"}},
 		Cases: [][]spsstest.Value{
@@ -779,6 +813,8 @@ func TestMapping_NullabilityIsAFactNotASample(t *testing.T) {
 // TestMapping_VariableLabelBecomesDescription is the acceptance criterion
 // for the label → description mapping, including the absent case.
 func TestMapping_VariableLabelBecomesDescription(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "ID", Label: "Respondent identifier"},
@@ -799,6 +835,8 @@ func TestMapping_VariableLabelBecomesDescription(t *testing.T) {
 // contract calls load-bearing: CsvColumnIdx is the row position, and the
 // byte offsets are contiguous in the declared widths.
 func TestMapping_SchemaGeometry(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "A"},
@@ -830,6 +868,8 @@ func TestMapping_SchemaGeometry(t *testing.T) {
 // and the import path appends to it, so two imports off one reader must
 // not share one.
 func TestPulseSchema_FreshDictionaryPerCall(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "CITY", Width: 8}},
 		Cases: [][]spsstest.Value{{spsstest.Text("Leeds")}},
@@ -857,6 +897,8 @@ func TestPulseSchema_FreshDictionaryPerCall(t *testing.T) {
 // the coded error rather than quietly fall back to inference and produce
 // a differently-typed cohort.
 func TestPulseSchema_FailsRatherThanDeclines(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 	r := NewReaderFromBytes(raw[:len(raw)-3])
 	s, err := r.PulseSchema()
@@ -878,6 +920,8 @@ func TestPulseSchema_FailsRatherThanDeclines(t *testing.T) {
 // still f64, because narrowing on optional metadata would make two
 // otherwise identical files map differently.
 func TestMapping_MeasureLevelHints(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "NOM", Measure: spsstest.MeasureNominal},
@@ -928,6 +972,8 @@ func TestMapping_MeasureLevelHints(t *testing.T) {
 // labels maps categorical, which changes the defaults Pulse will apply.
 // The mapping reports the disagreement instead of resolving it by guess.
 func TestMapping_MeasureLevelMismatch(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:          []spsstest.Var{{Name: "AGE", Measure: spsstest.MeasureScale}},
 		Cases:         [][]spsstest.Value{{spsstest.Num(41)}, {spsstest.Num(99)}},
@@ -972,6 +1018,8 @@ func TestMapping_MeasureLevelMismatch(t *testing.T) {
 // ReadRows emits must agree, or every row of a real import fails. It runs
 // the shared io.ImportJob against a `.sav` and reads the cohort back out.
 func TestPulseSchema_ImportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "ID"},

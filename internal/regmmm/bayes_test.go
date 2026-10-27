@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
-	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -45,6 +44,8 @@ func (r probeRows) At(i int) extend.Record { return r[i] }
 // TestMMMBayes_PosteriorMoments: the coefficient table's mean, SD and
 // covariance are the pooled draws' (chain order, divisor N − 1).
 func TestMMMBayes_PosteriorMoments(t *testing.T) {
+	t.Parallel()
+
 	draws := [][][]float64{
 		{{1, 2, 3}, {2, 4, 7}},
 		{{4, 5, 6}, {1, 0, 2}},
@@ -64,33 +65,14 @@ func TestMMMBayes_PosteriorMoments(t *testing.T) {
 	}
 }
 
-// TestMMMBayes_FitMatchesFitContext: Fit is FitContext under a
-// background context, byte for byte.
-func TestMMMBayes_FitMatchesFitContext(t *testing.T) {
-	model, err := BayesFactory(BayesSpec(FastParams), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows := make(probeRows, 0, BayesWeeks)
-	for _, r := range BayesRows(11) {
-		rows = append(rows, probeRow{"week": r.Week, "tv": r.TV, "price": r.Price, "sales": r.Sales})
-	}
-	a, errA := model.(extend.BufferedRegression).Fit(rows)
-	b, errB := model.(extend.ContextRegression).FitContext(context.Background(), rows)
-	if errA != nil || errB != nil {
-		t.Fatalf("Fit %v, FitContext %v", errA, errB)
-	}
-	if !reflect.DeepEqual(a, b) {
-		t.Errorf("Fit and FitContext differ:\n%+v\n%+v", a, b)
-	}
-}
-
 // TestMMMBayes_FactoryRefusesCoefficientNameCollision: a predictor
 // named like a coefficient the model adds, or listed twice, would
 // collide in the table, so the factory refuses it (PROCESSING_CONFIG,
 // slot predictors); one merely starting with k builds. The engine refuses an unknown field
 // first, so the factory is called directly.
 func TestMMMBayes_FactoryRefusesCoefficientNameCollision(t *testing.T) {
+	t.Parallel()
+
 	for _, x := range []string{"(intercept)", "sigma", "decay:x", "k:x", "s:x", "tv"} {
 		s := BayesSpec(`{"channels":["tv"],"time":"week"}`)
 		s.Predictors = []string{"tv", x}
@@ -110,6 +92,8 @@ func TestMMMBayes_FactoryRefusesCoefficientNameCollision(t *testing.T) {
 // coded data refusal — PROCESSING_REGRESSION_INSUFFICIENT_DATA before
 // any value is read — and the sampler never runs.
 func TestMMMBayes_ShortInputNeverSamples(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	runs := 0
 	SetBayesSampler(t, func(float64) mcmc.Sampler { runs++; return mcmc.NUTS{} })
 	s := &types.RegressionSpec{Type: BayesName, Target: "probe_y", Predictors: []string{"probe_x1", "probe_x2"},
@@ -135,6 +119,8 @@ func TestMMMBayes_ShortInputNeverSamples(t *testing.T) {
 // failure to run on the posterior (an options refusal) and a ctx error
 // pass through samplerError unchanged.
 func TestMMMBayes_SamplerErrorPassThrough(t *testing.T) {
+	t.Parallel()
+
 	r := &bayesRegression{cfg: &bayesConfig{name: "bayes"}}
 	other := perr.NewCodedErrorWithDetails(perr.PULSE_MCMC_INVALID, "mcmc: chains", map[string]any{"reason": "chains"})
 	if got := r.samplerError(other); got != other {

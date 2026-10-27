@@ -31,6 +31,8 @@ func buildVersionedShard(t *testing.T, v byte) []byte {
 // extension block is not counted as record bytes) and refuses a version
 // outside the supported set with PULSE_SHARD_HEADER_INVALID.
 func TestArchive_ShardFormatVersions(t *testing.T) {
+	t.Parallel()
+
 	v2 := buildVersionedShard(t, encoding.FormatVersionV2)
 	future := append([]byte{}, v2...)
 	future[encoding.HeaderSize-1] = 0x03

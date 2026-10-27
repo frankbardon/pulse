@@ -153,6 +153,8 @@ func pwExtNewPulse(t *testing.T) (*Pulse, afero.Fs) {
 // AND at process, with the same code, the same prose and the same
 // details.
 func TestPairwiseExtensionFanOut_PredictAndProcessAgree(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := pwExtNewPulse(t)
 	req := pwExtRequest(pwExtFanGrouper, types.PairwiseNSourceNWithinDistinct, 0)
 	wantCode := string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED)
@@ -196,6 +198,8 @@ func TestPairwiseExtensionFanOut_PredictAndProcessAgree(t *testing.T) {
 // live registry — so "predict refuses, process runs" (or the reverse)
 // is the failure mode this exists to catch.
 func TestPairwiseExtensionFanOut_ArmsAgreeOnEveryCase(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := pwExtNewPulse(t)
 	wantCode := string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED)
 
@@ -243,6 +247,8 @@ func TestPairwiseExtensionFanOut_ArmsAgreeOnEveryCase(t *testing.T) {
 // carry the declaration, per registration. Without this the gate above
 // could pass for the wrong reason (e.g. a name-shaped heuristic).
 func TestPairwiseExtensionFanOut_SnapshotCarriesTheFlag(t *testing.T) {
+	t.Parallel()
+
 	p, _ := pwExtNewPulse(t)
 	snap := p.svc.ExtensionsSnapshot()
 	if snap == nil {

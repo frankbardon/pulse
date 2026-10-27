@@ -19,6 +19,8 @@ func tinyShardSchema() *encoding.Schema {
 // (here a low-quality description), and the publisher sees one staged
 // file per shard, named part-NNNNN.pulse, in order.
 func TestCohortBuild_ShardWarningsSurface(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	shardWarn := errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SET_WIDENED, "widened",
 		map[string]any{"field": "tags"})
@@ -68,6 +70,8 @@ func TestCohortBuild_ShardWarningsSurface(t *testing.T) {
 // TestCohortBuild_ShardPublishFailureLeavesNothing: a publisher error
 // is Close's error, and the spool and the staging directory are gone.
 func TestCohortBuild_ShardPublishFailureLeavesNothing(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	boom := stderrors.New("publish failed")
 	b, err := NewCohortBuild(context.Background(), fsys, "arch.pulse", tinyShardSchema(), CohortBuildOptions{
@@ -99,6 +103,8 @@ func TestCohortBuild_ShardPublishFailureLeavesNothing(t *testing.T) {
 // TestCohortBuild_ShardOptions: a negative shard size and a sharded
 // build without a publisher are refused up front.
 func TestCohortBuild_ShardOptions(t *testing.T) {
+	t.Parallel()
+
 	pub := func(context.Context, string, []string) ([]*errors.CodedError, error) { return nil, nil }
 	for _, opts := range []CohortBuildOptions{
 		{ShardMaxRecords: -1, Archive: pub},
@@ -115,6 +121,8 @@ func TestCohortBuild_ShardOptions(t *testing.T) {
 // refused (the archive's shard count is a u16), leaves no trace, and
 // the build stays usable.
 func TestCohortBuild_ShardLimit(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	b, err := NewCohortBuild(context.Background(), fsys, "a.pulse", tinyShardSchema(), CohortBuildOptions{
 		ShardMaxRecords: 1,
@@ -146,6 +154,8 @@ func TestCohortBuild_ShardLimit(t *testing.T) {
 // AppendShard publisher is refused before the archive is even looked
 // at, so the engine can never silently drop an append.
 func TestCohortBuild_AppendNeedsPublisher(t *testing.T) {
+	t.Parallel()
+
 	_, err := NewCohortBuild(context.Background(), afero.NewMemMapFs(), "arch.pulse#s.pulse", tinyShardSchema(), CohortBuildOptions{})
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "append_option" {

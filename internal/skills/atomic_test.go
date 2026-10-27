@@ -14,6 +14,8 @@ import (
 )
 
 func TestAtomicSkillHasRequiredSections(t *testing.T) {
+	t.Parallel()
+
 	for _, stem := range embeddedMarkdownNames(t) {
 		raw, ok := Get(stem)
 		if !ok {
@@ -36,6 +38,8 @@ func TestAtomicSkillHasRequiredSections(t *testing.T) {
 // that outgrows the design cap splits into focused skills
 // (.claude/reference/skill-pack.md, Token budget).
 func TestSkillTokenBudget(t *testing.T) {
+	t.Parallel()
+
 	for _, stem := range embeddedMarkdownNames(t) {
 		raw, ok := Get(stem)
 		if !ok {
@@ -93,6 +97,8 @@ func TestSkillTokenBudget(t *testing.T) {
 //     than a typed enum, but the skill pack carries one atomic per
 //     modifier so the coverage gate enumerates them by hand.
 func TestOperatorHasAtomicSkill(t *testing.T) {
+	t.Parallel()
+
 	// Build the set of stem names currently embedded so existence checks
 	// are filesystem-driven, not hardcoded.
 	embedded := make(map[string]bool)
@@ -226,6 +232,8 @@ func allFieldTypes() []encoding.FieldType {
 // `## Contract` carries every component key, so no op family owes a
 // hand-written `## Components` (agg / group / filter / mat included).
 func TestRequiredSections_NoComponentsRequirement(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ stem, category string }{
 		{"op-agg-sum", "AGG"}, {"op-group-range", "GROUP"}, {"op-filter-range", "FILTER"},
 		{"op-mat-pca", "MAT"}, {"op-agg-acme-trim", ""}, {"op-attr-zscore", "ATTR"},

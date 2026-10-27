@@ -10,6 +10,8 @@ import (
 // TestCheck pins the shared penalty-knob rule on both types it covers;
 // every other type passes untouched.
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	glm := func(mod func(*types.RegressionSpec)) *types.RegressionSpec {
 		s := &types.RegressionSpec{Type: types.REG_GLM, Family: "binomial"}
 		mod(s)
@@ -87,6 +89,8 @@ func TestCheck(t *testing.T) {
 // TestVcovRefusal: vcov is refused on l1 / elasticnet on both types and
 // nowhere else.
 func TestVcovRefusal(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		spec   types.RegressionSpec
 		refuse bool
@@ -111,6 +115,8 @@ func TestVcovRefusal(t *testing.T) {
 // Resample — and nothing else — has undefined inference, and its
 // advisory names the slot, operator and penalty.
 func TestInferenceUndefined(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		spec types.RegressionSpec
 		want bool
@@ -142,6 +148,8 @@ func TestInferenceUndefined(t *testing.T) {
 // TestUnpenalizedMask: the mask follows the given predictor order by
 // name and is nil without a list.
 func TestUnpenalizedMask(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Unpenalized: []string{"b"}}
 	got := UnpenalizedMask(spec, []string{"c", "b", "a"})
 	if len(got) != 3 || got[0] || !got[1] || got[2] {

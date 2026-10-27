@@ -48,6 +48,8 @@ func runProcessForRunComponents(t *testing.T, svc *Service, req *types.Request) 
 // FilteredRecords == 5, NullRecords == 0, ShardCount == 0,
 // PartialCohortReason == "".
 func TestService_Process_RunComponents_BaseFloor(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -78,6 +80,8 @@ func TestService_Process_RunComponents_BaseFloor(t *testing.T) {
 // (here: only) filterer's NOut, locking the cross-slot invariant
 // documented on RunComponents.
 func TestService_Process_RunComponents_FilteredMatchesLastSlot(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -123,6 +127,8 @@ func TestService_Process_RunComponents_FilteredMatchesLastSlot(t *testing.T) {
 // MUST equal the post-filter null count (5 — every row's primary field
 // is null after the no-op filter pass).
 func TestService_Process_RunComponents_NullsOnPrimaryField(t *testing.T) {
+	t.Parallel()
+
 	svc := allNullScoreCohort(t, "all_null_scores.pulse")
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "all_null_scores.pulse"},
@@ -147,6 +153,8 @@ func TestService_Process_RunComponents_NullsOnPrimaryField(t *testing.T) {
 // buffered path). NullRecords here resolves via the per-aggregator
 // floor cache and must match the streaming-path semantics.
 func TestService_Process_RunComponents_BufferedPath(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -174,6 +182,8 @@ func TestService_Process_RunComponents_BufferedPath(t *testing.T) {
 // tracks NullRecords inline against the resolved primary field; with
 // no nullable score values the counter stays at 0.
 func TestService_Process_RunComponents_GroupedStreaming(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -202,6 +212,8 @@ func TestService_Process_RunComponents_GroupedStreaming(t *testing.T) {
 // asserts Run.ShardCount equals the merged shard count and
 // Run.TotalRecords / FilteredRecords sum across shards.
 func TestService_Process_RunComponents_ShardArchive(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -272,6 +284,8 @@ func TestService_Process_RunComponents_ShardArchive(t *testing.T) {
 // the source of truth — drift between the static round-trip lock and
 // the runtime emission surfaces here.
 func TestService_Process_RunComponents_RoundTripJSON(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},

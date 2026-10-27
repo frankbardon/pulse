@@ -19,6 +19,8 @@ import (
 func keys(m map[string]struct{}) []string { return sorted(m) }
 
 func TestCollect(t *testing.T) {
+	t.Parallel()
+
 	tree, err := exprparser.Parse(`sqrt(cell) + ref_cell * slot.us.cell - slot["eu"].value + abs(x) + foo.bar`)
 	if err != nil {
 		t.Fatal(err)
@@ -36,6 +38,8 @@ func TestCollect(t *testing.T) {
 }
 
 func TestComposeNamespace(t *testing.T) {
+	t.Parallel()
+
 	for shape, want := range map[types.OverlayShape]string{
 		types.OverlayShapeMatrix: "ref_cell", types.OverlayShapeSeries: "ref_value", types.OverlayShapeScalar: "ref",
 	} {
@@ -68,6 +72,8 @@ func TestComposeNamespace(t *testing.T) {
 }
 
 func TestComposeRefusal(t *testing.T) {
+	t.Parallel()
+
 	slots := []Slot{{"a", types.OverlayShapeSeries}, {"b", types.OverlayShapeSeries}}
 	funcs := AllowedFuncs(nil, false)
 	cases := []struct {
@@ -115,6 +121,8 @@ func TestComposeRefusal(t *testing.T) {
 // the stdlib-only params read recorder internal/paramread and
 // expression-slot list internal/exprslots.
 func TestFormulaidentImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowed := map[string]bool{
 		"sort": true, "github.com/expr-lang/expr/ast": true, "github.com/expr-lang/expr/parser": true,
 		"github.com/frankbardon/pulse/errors": true, "github.com/frankbardon/pulse/types": true,

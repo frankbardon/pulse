@@ -139,6 +139,8 @@ func groupedHeavyCohort(t testing.TB, rows int) []byte {
 // at the same byte as ReadSchema and reports the same stride, with no
 // dictionary or entry table attached.
 func TestPeekShardRecordCount_LayoutMatchesFullDecode(t *testing.T) {
+	t.Parallel()
+
 	type shard struct {
 		name    string
 		payload []byte
@@ -256,6 +258,8 @@ func TestPeekShardRecordCount_LayoutMatchesFullDecode(t *testing.T) {
 // skips — a dictionary or group entry table cut short, and a constant
 // group declaring other than one entry — as PULSE_SHARD_HEADER_INVALID.
 func TestPeekShardRecordCount_LayoutRefusesWhatReadSchemaRefuses(t *testing.T) {
+	t.Parallel()
+
 	dict := dictHeavyCohort(t, 50, 0)
 	grouped := groupedHeavyCohort(t, 40)
 	gv := groupedVecSchema()
@@ -310,6 +314,8 @@ func TestPeekShardRecordCount_LayoutRefusesWhatReadSchemaRefuses(t *testing.T) {
 // (the memory model's schema-decode term dropped from 2 x shards + 1 to
 // shards + 1 with it).
 func TestPeekShardRecordCount_SkipsDictionaries(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	dict := dictHeavyCohort(t, 100_000, 64)
 	grouped := groupedHeavyCohort(t, 50_000)
 	arch := storeArchive(t, [][]byte{dict, grouped})
@@ -367,6 +373,8 @@ func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
 // equals a full decode's; a deflated entry (no stored size to trust)
 // still drains its payload.
 func TestPeekShardRecordCount_ReadsNoRecords(t *testing.T) {
+	t.Parallel()
+
 	payload := dictHeavyCohort(t, 16, 50_000)
 	want, consumed, stride := fullDecodeRecordCount(t, payload)
 	if stride == 0 || want != 50_000 {

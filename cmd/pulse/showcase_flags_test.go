@@ -16,6 +16,8 @@ import (
 // variant conversions). The library suite (showcase_flags_money_test.go
 // at the repo root) pins every figure of all four shapes.
 func TestShowcase_CLIStrictFlagTests(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	t.Setenv("PULSE_DATA_DIR", dir)
 	t.Setenv("PULSE_FEATURE_PROFILE", "")

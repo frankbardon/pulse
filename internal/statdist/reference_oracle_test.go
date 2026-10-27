@@ -74,6 +74,8 @@ func (r *failReporter) done() {
 }
 
 func TestReferenceOracle_StudentTTwoSidedPAndCDF(t *testing.T) {
+	t.Parallel()
+
 	cases := loadReference[struct {
 		T         float64 `json:"t"`
 		DF        float64 `json:"df"`
@@ -99,6 +101,8 @@ func TestReferenceOracle_StudentTTwoSidedPAndCDF(t *testing.T) {
 }
 
 func TestReferenceOracle_StudentTInverseTwoSided(t *testing.T) {
+	t.Parallel()
+
 	cases := loadReference[struct {
 		Alpha float64 `json:"alpha"`
 		DF    float64 `json:"df"`
@@ -114,6 +118,8 @@ func TestReferenceOracle_StudentTInverseTwoSided(t *testing.T) {
 }
 
 func TestReferenceOracle_StudentTQuantile(t *testing.T) {
+	t.Parallel()
+
 	cases := loadReference[struct {
 		P  float64 `json:"p"`
 		DF float64 `json:"df"`

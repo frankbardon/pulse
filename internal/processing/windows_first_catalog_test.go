@@ -44,6 +44,8 @@ func leadModelSet(t *testing.T) *model.Set {
 // exactly as the same request turned windows-first directly (an extra
 // aggregation over lag_x) runs them, bit for bit.
 func TestWindowsFirst_CatalogTriggeredRecordReaders(t *testing.T) {
+	t.Parallel()
+
 	set := leadModelSet(t)
 	build := func(direct bool) *types.Request {
 		req := &types.Request{
@@ -94,6 +96,8 @@ func TestWindowsFirst_CatalogTriggeredRecordReaders(t *testing.T) {
 // over its filtered records — the record-row request's fit, bit for bit
 // (they were silently dropped before) — beside the unchanged cells.
 func TestCrosstab_RegressionsFitOnBufferedArm(t *testing.T) {
+	t.Parallel()
+
 	regs := func() []*types.RegressionSpec {
 		return []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x", Predictors: []string{"d"}}}
 	}
@@ -128,6 +132,8 @@ func TestCrosstab_RegressionsFitOnBufferedArm(t *testing.T) {
 // grouped or aggregated request runs the window over its output rows,
 // refused when they lack its names).
 func TestCrosstab_UnreadWindowRefused(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Windows: []*types.Window{wfLagXWindow()}, Crosstab: &types.CrosstabSpec{
 		Rows: []*types.Group{wfQuarterGroup()}, Columns: []*types.Group{wfRegionGroup()},
 		Cell: &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "c"}}}

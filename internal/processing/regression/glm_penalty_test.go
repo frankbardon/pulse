@@ -90,6 +90,8 @@ func (c glmPenaltyCase) spec() *types.RegressionSpec {
 // after data-driven selection) and the unpenalised deviance at the
 // estimate, every figure within relative 1e-10 (worst seen 2e-12).
 func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
+	t.Parallel()
+
 	cases := loadGLMPenaltyReference(t)
 	seen := map[string]bool{}
 	for _, c := range cases {
@@ -148,6 +150,8 @@ func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 // under penalty: l2 — finite coefficients and standard errors — where
 // the unpenalised fit refuses.
 func TestRegGLM_SeparatedFitsWithL2(t *testing.T) {
+	t.Parallel()
+
 	var sep glmIRLSCase
 	for _, c := range loadGLMIRLSReference(t) {
 		if c.Name == "complete_separation" {
@@ -182,6 +186,8 @@ func TestRegGLM_SeparatedFitsWithL2(t *testing.T) {
 // poisson; the knob coupling (internal/regpenalty, shared with predict)
 // and a penalty on gamma still refuse PROCESSING_CONFIG.
 func TestRegGLM_PenaltyAccepted(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		mod    func(*types.RegressionSpec)
@@ -230,6 +236,8 @@ func penaltyFixture(t *testing.T, name string) glmPenaltyCase {
 // PROCESSING_REGRESSION_VCOV_UNSUPPORTED (reason penalty), alone or under
 // a modifier.
 func TestRegGLM_PenaltyVcov(t *testing.T) {
+	t.Parallel()
+
 	c := penaltyFixture(t, "binomial_l2")
 	spec := c.spec()
 	spec.Vcov = true
@@ -264,6 +272,8 @@ func TestRegGLM_PenaltyVcov(t *testing.T) {
 // selection modifiers — every jackknife replicate and every selection
 // refit is penalised, so the point estimate is the penalised one.
 func TestRegGLM_PenaltyModifiers(t *testing.T) {
+	t.Parallel()
+
 	c := penaltyFixture(t, "binomial_l2")
 	base, err := asBuffered(t, newGLM(t, c.spec())).FitBuffered(c.records())
 	if err != nil {
@@ -320,6 +330,8 @@ func TestRegGLM_PenaltyModifiers(t *testing.T) {
 // with its exact active-set finish equals plain descent run to its own
 // tolerance (the finish is a shortcut, not a different answer).
 func TestGLMPenalty_ActiveSetMatchesDescent(t *testing.T) {
+	t.Parallel()
+
 	// A 3 × 3 working system with one predictor inside the l1 bound.
 	a := []float64{10, 2, 1, 2, 8, 0.5, 1, 0.5, 6}
 	b := []float64{3, 4, 0.2}
@@ -361,6 +373,8 @@ func TestGLMPenalty_ActiveSetMatchesDescent(t *testing.T) {
 // alpha, a low iteration cap) is NO_CONVERGE — never SEPARATION, whose
 // message says the estimate does not exist.
 func TestRegGLM_PenalizedStopIsNeverSeparation(t *testing.T) {
+	t.Parallel()
+
 	var sep glmIRLSCase
 	for _, c := range loadGLMIRLSReference(t) {
 		if c.Name == "complete_separation" {

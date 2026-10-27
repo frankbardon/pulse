@@ -19,6 +19,8 @@ import (
 // built-in keeps its own built-in refusal on both sides; an embedder
 // ExprFunction and a scalar-maths built-in still run.
 func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ext := pulse.Extensions{ExprFunctions: []pulse.ExprFunction{{Name: "boost", Fn: func(x float64) float64 { return 2 * x }}}}
 	withExt, err := pulse.New(pulse.Options{FS: fs, Extensions: ext})
@@ -104,6 +106,8 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 // for "no formula"; a present formula that does not parse keeps
 // PULSE_OVERLAY_FORMULA_PARSE_ERROR.
 func TestComposeFormula_MissingFormulaMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, _ := nsFixture(t, pulse.Options{})
 	ctx := context.Background()
 	for _, c := range []struct {

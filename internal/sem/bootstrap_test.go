@@ -141,76 +141,11 @@ func checkBootAgainstLavaanTol(t *testing.T, rows []Estimate, ref lavaanBootRef,
 	}
 }
 
-// TestSEM_BootstrapMatchesLavaanSampling holds a seeded 1000-replicate
-// bootstrap of the brand-survey mediation (free and := rows) to
-// lavaan's se = "bootstrap" within the sampling tolerances.
-func TestSEM_BootstrapMatchesLavaanSampling(t *testing.T) {
-	ref := loadLavaanBootRef(t, "testdata/brand_boot_def_lavaan.json")
-	desc, err := os.ReadFile("testdata/brand_def_model.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := NewModelWithOptions(string(desc), ModelOptions{MeanStructure: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	mean, s, n := readCSVMoments(t, "testdata/brand_data.csv", m.Observed)
-	fit, err := FitMoments(m, s, s, mean, n, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows := BootstrapRows(fit)
-	b, err := RunBootstrap(m, csvRows(t, "testdata/brand_data.csv", "", nil, m.Observed), Options{},
-		BootstrapOptions{Iters: bootIters, Seed: bootSeed, Level: 0.95}, rows)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if b.Requested != bootIters || b.Succeeded != bootIters {
-		t.Fatalf("requested %d succeeded %d", b.Requested, b.Succeeded)
-	}
-	b.Apply(rows)
-	checkBootAgainstLavaan(t, rows, ref, func(int) string { return "" })
-}
-
-// TestSEM_BootstrapMultiGroupMatchesLavaan is the scalar-invariant
-// two-wave fit's bootstrap (resampled within each wave) against
-// lavaan's: every group's rows and the cross-wave := rows.
-func TestSEM_BootstrapMultiGroupMatchesLavaan(t *testing.T) {
-	ref := loadLavaanBootRef(t, "testdata/brand_boot_mg_lavaan.json")
-	desc, err := os.ReadFile("testdata/brand_mgdef_model.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := NewGroupModel(string(desc), ModelOptions{GroupEqual: ref.Options.GroupEqual})
-	if err != nil {
-		t.Fatal(err)
-	}
-	labels := []string{"1", "2"}
-	groups := readCSVGroupMoments(t, "testdata/brand_data.csv", "wave", labels, m.Observed)
-	groups[0].Reference = true
-	gf, err := FitGroups(m, groups, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows := BootstrapGroupRows(gf)
-	b, err := RunBootstrap(m, csvRows(t, "testdata/brand_data.csv", "wave", labels, m.Observed), Options{},
-		BootstrapOptions{Iters: bootIters, Seed: bootSeed, Level: 0.95}, rows)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b.Apply(rows)
-	n0 := len(gf.Groups[0].Estimates)
-	checkBootAgainstLavaan(t, rows, ref, func(i int) string {
-		if i < n0 {
-			return labels[0]
-		}
-		return labels[1]
-	})
-}
-
 // TestSEM_BootstrapDeterministic: the same rows and seed give the same
 // bits; another seed other draws.
 func TestSEM_BootstrapDeterministic(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_def_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -252,6 +187,8 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 // TestSEM_BootstrapWithinGroupDraws: a replicate draws each group's n_g
 // rows from that group alone.
 func TestSEM_BootstrapWithinGroupDraws(t *testing.T) {
+	t.Parallel()
+
 	const p = 2
 	samples := []BootstrapSample{
 		{Rows: []float64{0, 0, 1, 1, 2, 2}},
@@ -280,6 +217,8 @@ func TestSEM_BootstrapWithinGroupDraws(t *testing.T) {
 // leave fewer than BootstrapMinSuccesses — a *BootstrapError after the
 // early stop, never figures.
 func TestSEM_BootstrapTooFewSuccesses(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_def_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -306,6 +245,8 @@ func TestSEM_BootstrapTooFewSuccesses(t *testing.T) {
 // boot:::norm.inter (R 4.6.1, boot 1.3): an extreme rank, an
 // interpolated one, an integral one and the top order statistic.
 func TestSEM_BootstrapNormInter(t *testing.T) {
+	t.Parallel()
+
 	x := []float64{3, 1, 4, 1.5, 9, 2.6, 5, 3.5, 8, 9.7, 7, 9.3}
 	for alpha, want := range map[float64]float64{0.025: 1, 0.2: 2.191783, 0.5: 4.5, 0.975: 9.7} {
 		if got := normInter(x, alpha); math.Abs(got-want) > 1e-6 {
@@ -320,6 +261,8 @@ func TestSEM_BootstrapNormInter(t *testing.T) {
 // TestSEM_BootstrapStopsOnContext: a cancelled context stops the
 // bootstrap before its next refit with the context's own error.
 func TestSEM_BootstrapStopsOnContext(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_def_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -348,6 +291,8 @@ func TestSEM_BootstrapStopsOnContext(t *testing.T) {
 // B − 1), the bounds norm.inter at (1 ∓ level)/2, z and p the bootstrap
 // SE's; a fixed row is left alone.
 func TestSEM_BootstrapFiguresFromReplicates(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_def_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -417,6 +362,8 @@ func TestSEM_BootstrapFiguresFromReplicates(t *testing.T) {
 
 // TestSEM_BootstrapSampleSD pins the replicate SD's divisor (B − 1).
 func TestSEM_BootstrapSampleSD(t *testing.T) {
+	t.Parallel()
+
 	if got, want := sampleSD([]float64{1, 2, 3, 4}), math.Sqrt(5.0/3); math.Abs(got-want) > 1e-15 {
 		t.Fatalf("sampleSD = %g, want %g", got, want)
 	}

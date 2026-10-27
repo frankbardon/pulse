@@ -8,6 +8,8 @@ import (
 )
 
 func TestManifestOverlayCapability(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	if got, want := len(m.Overlays), len(types.AllOverlayKinds()); got != want {
@@ -61,6 +63,8 @@ func TestManifestOverlayCapability(t *testing.T) {
 // Manifest.Overlays carries is ordered by Kind. Deterministic ordering
 // keeps the manifest golden stable as new kinds land.
 func TestManifestOverlayCapability_AlphabetizedByKind(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for i := 1; i < len(m.Overlays); i++ {
 		if string(m.Overlays[i-1].Kind) > string(m.Overlays[i].Kind) {

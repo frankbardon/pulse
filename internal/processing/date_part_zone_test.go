@@ -65,6 +65,8 @@ func datePartReference(part string, t time.Time) float64 {
 // across both DST changes and New Year) — the zone path through Row and
 // Compute alike — and the UTC reference with no zone or a UTC one.
 func TestAttribute_DatePart_DateTimeFollowsZone(t *testing.T) {
+	t.Parallel()
+
 	berlin, err := temporal.LoadZone("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -114,6 +116,8 @@ func TestAttribute_DatePart_DateTimeFollowsZone(t *testing.T) {
 // table's PULSE_FIELD_TYPE_UNSUPPORTED (a date under hour too); an absent
 // field and a bad part are PROCESSING_CONFIG; each names the field.
 func TestAttribute_DatePart_FieldRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := dateTimeSchema()
 	unsupported, config := errors.PULSE_FIELD_TYPE_UNSUPPORTED, errors.PROCESSING_CONFIG
 	for _, tc := range []struct {
@@ -143,6 +147,8 @@ func TestAttribute_DatePart_FieldRefusals(t *testing.T) {
 // zone-free calendar reading is unchanged and a null date is a null
 // part (AttributeNull), never 0.
 func TestAttribute_DatePart_DateIgnoresZoneNullIsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := dateTimeSchema()
 	attr, err := attributeRegistry[types.ATTR_DATE_PART](&types.Attribute{
 		Type: types.ATTR_DATE_PART, Field: "d", Label: "p", Params: json.RawMessage(`{"part":"year_month_day"}`),
@@ -167,6 +173,8 @@ func TestAttribute_DatePart_DateIgnoresZoneNullIsNull(t *testing.T) {
 // no zone, a slot zone, and a per-row zone field whose cell is set.
 // Never the legacy 0, a real-looking number.
 func TestAttribute_DatePart_NullInputIsNullEveryPart(t *testing.T) {
+	t.Parallel()
+
 	schema := dateTimeSchema()
 	dateParts := []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "iso_weekday"}
 	for _, tc := range []struct {
@@ -212,6 +220,8 @@ func TestAttribute_DatePart_NullInputIsNullEveryPart(t *testing.T) {
 // time.In reference in the slot zone, on both the buffered (Compute) and
 // streaming (EmitRow) paths; dow is ISO (Monday = 1 .. Sunday = 7).
 func TestDateFeatures_DateTimeFollowsZone(t *testing.T) {
+	t.Parallel()
+
 	berlin, err := temporal.LoadZone("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -281,6 +291,8 @@ func TestDateFeatures_DateTimeFollowsZone(t *testing.T) {
 // TestDateFeatures_FieldTypes: a `date` keeps its five columns; a
 // non-temporal field is refused naming both accepted types.
 func TestDateFeatures_FieldTypes(t *testing.T) {
+	t.Parallel()
+
 	schema := dateTimeSchema()
 	factory, _ := feature.Lookup(types.FEAT_DATE_FEATURES)
 	comp, err := factory(&types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "d", Label: "df"}, schema)
@@ -307,6 +319,8 @@ func TestDateFeatures_FieldTypes(t *testing.T) {
 // York is Sunday 04:30 UTC: 6 there, 7 in UTC — the local-midnight
 // crossing a UTC reading gets wrong.
 func TestAttribute_DatePart_ISOWeekdayPins(t *testing.T) {
+	t.Parallel()
+
 	schema := dateTimeSchema()
 	day := func(s string) float64 {
 		tm, _ := time.Parse("2006-01-02", s)

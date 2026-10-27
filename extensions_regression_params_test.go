@@ -95,6 +95,8 @@ func scaledSpec(params string) *types.RegressionSpec {
 // the wire, and they survive the per-request and the engine-level
 // components opt-out and every return preset.
 func TestExtensions_RegressionParamsReachModelOutputsSurvive(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, scaledExtensions())
 	base := processE2E(t, p, regressionRequest(cohort, scaledSpec(""))).Regressions[0]
 	got := processE2E(t, p, regressionRequest(cohort, scaledSpec(`{"scale":2,"label":"x2"}`))).Regressions[0]
@@ -159,6 +161,8 @@ func TestExtensions_RegressionParamsReachModelOutputsSurvive(t *testing.T) {
 // PULSE_REQUEST_UNKNOWN_FIELD at regressions[i].params.<key> with the
 // same code, path and message at predict and at runtime.
 func TestExtensions_RegressionParamsRefusedPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, scaledExtensions())
 	ctx := context.Background()
 	builtin := func(rt types.RegressionType, params string) *types.RegressionSpec {
@@ -210,6 +214,8 @@ func TestExtensions_RegressionParamsRefusedPredictMatchesRuntime(t *testing.T) {
 // shape, lists the shared slot keys (marked slot) then the model's own
 // params and the declared output schema.
 func TestExtensions_RegressionManifestCarriesParamsAndOutputSchema(t *testing.T) {
+	t.Parallel()
+
 	p, _ := openE2E(t, scaledExtensions())
 	m := p.Manifest(context.Background())
 	if len(m.Extensions.Regressions) != 1 {

@@ -15,6 +15,8 @@ import (
 // strict decode and shape the tool output (each slot / stage marked,
 // excluded keys absent).
 func TestTools_ComposeAndChainPassReturnThrough(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)

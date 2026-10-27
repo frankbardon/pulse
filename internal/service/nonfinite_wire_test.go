@@ -112,6 +112,8 @@ func ratioAgg(label string) *types.Aggregation {
 // undefined figure through the real JSON envelope and asserts it
 // serialises with null at exactly the undefined spot.
 func TestNonFiniteFiguresMarshalAsNull(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "nonfinite", nonFiniteRows)
 	path := store.paths[paritySingleFile]
 	grouped := func(aggs ...*types.Aggregation) *types.Request {
@@ -354,6 +356,8 @@ func nonFiniteSweepRows(n int) []parityRow {
 // through the envelope. A future operator that emits NaN or ±Inf for an
 // undefined figure cannot fail the response.
 func TestNonFiniteSweepMarshals(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "nonfinite_sweep", nonFiniteSweepRows)
 	path := store.paths[paritySingleFile]
 	for _, row := range parityOps {

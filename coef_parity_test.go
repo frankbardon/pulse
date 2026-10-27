@@ -29,6 +29,8 @@ func coefFilterSlot(expr string) *Request {
 }
 
 func TestCoef_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := scoringParityPulse(t)
 	cases := []struct {
 		name string
@@ -144,6 +146,8 @@ func TestCoef_PredictRuntimeParity(t *testing.T) {
 // equals the fit's reported coefficient and bounds exactly, and a bound
 // ATTR_REG_PREDICT column sums to ci × Σx.
 func TestCoef_ComposeReadsTheFit(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)

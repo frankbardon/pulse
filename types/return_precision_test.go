@@ -124,6 +124,8 @@ var wantPrecisionExempt = []string{"matrices[*].auxiliary.n", "matrices[*].scala
 	"matrices[*].scalars.factors_retained", "matrices[*].scalars.iterations", "matrices[*].scalars.n_params"}
 
 func TestPrecision_FloatLeavesClassified(t *testing.T) {
+	t.Parallel()
+
 	got := map[string]bool{}
 	floatLeafPaths(reflect.TypeFor[Response](), "", map[reflect.Type]bool{}, got)
 	var unclassified, stale []string
@@ -222,6 +224,8 @@ func precisionResponse() *Response {
 // Plan.Exact column exact, keeps NaN null and the upper encoding's
 // ragged shape — and never touches the Go values.
 func TestPrecision_SlotFamilies(t *testing.T) {
+	t.Parallel()
+
 	r := precisionResponse()
 	before := precisionResponse()
 	r.plan = precisionPlan(4, returnplan.Path{Segments: []returnplan.Segment{
@@ -262,6 +266,8 @@ func dropNaN(r *Response) *Response {
 // TestPrecision_AbsentIsUnchanged: a plan without precision walks the
 // same response to the same bytes as the unshaped form.
 func TestPrecision_AbsentIsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	r := precisionResponse()
 	want, err := MarshalFinite(r)
 	if err != nil {

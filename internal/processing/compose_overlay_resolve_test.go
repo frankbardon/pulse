@@ -13,6 +13,8 @@ import (
 // substitution. The two maps stay parallel (every byLabel key has a
 // matching byIndex entry at the originating slot index).
 func TestResolveComposeSlots_ByLabel(t *testing.T) {
+	t.Parallel()
+
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	respB := composeSlotOf(types.OverlayShapeSeries)
 	req := &types.ComposedRequest{
@@ -45,6 +47,8 @@ func TestResolveComposeSlots_ByLabel(t *testing.T) {
 }
 
 func TestResolveComposeSlots_AutoDefaultedLabels(t *testing.T) {
+	t.Parallel()
+
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	respB := composeSlotOf(types.OverlayShapeScalar)
 	respC := composeSlotOf(types.OverlayShapeScalar)
@@ -78,6 +82,8 @@ func TestResolveComposeSlots_AutoDefaultedLabels(t *testing.T) {
 // ComposedRequest. Slot 0 carries a user label, slot 1 is empty
 // (defaults to `request_2`), slot 2 carries another user label.
 func TestResolveComposeSlots_MixedLabels(t *testing.T) {
+	t.Parallel()
+
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	respB := composeSlotOf(types.OverlayShapeScalar)
 	respC := composeSlotOf(types.OverlayShapeScalar)
@@ -117,6 +123,8 @@ func TestResolveComposeSlots_MixedLabels(t *testing.T) {
 // / LookupTarget surface can surface the canonical TARGET / REFERENCE
 // UNKNOWN code rather than silently skipping the slot.
 func TestResolveComposeSlots_NilResponseSlot(t *testing.T) {
+	t.Parallel()
+
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -144,6 +152,8 @@ func TestResolveComposeSlots_NilResponseSlot(t *testing.T) {
 // label that was never registered fall through the same "unknown
 // label" coded-error branch as a typo.
 func TestResolveComposeSlots_NilRequestSlot(t *testing.T) {
+	t.Parallel()
+
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	respB := composeSlotOf(types.OverlayShapeScalar)
 	req := &types.ComposedRequest{
@@ -176,6 +186,8 @@ func TestResolveComposeSlots_NilRequestSlot(t *testing.T) {
 // unconditionally without zero-allocation cost on the no-overlay
 // path.
 func TestResolveComposeSlots_EmptyRequest(t *testing.T) {
+	t.Parallel()
+
 	byLabel, byIndex, err := ResolveComposeSlots(nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveComposeSlots(nil, nil): %v", err)
@@ -198,6 +210,8 @@ func TestResolveComposeSlots_EmptyRequest(t *testing.T) {
 // PROCESSING_INTERNAL error rather than indexing past the end of
 // either slice.
 func TestResolveComposeSlots_SlotCountMismatch(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			{Label: "baseline"},
@@ -226,6 +240,8 @@ func TestResolveComposeSlots_SlotCountMismatch(t *testing.T) {
 // catches the same condition when callers reach it directly
 // (descriptor predict, MCP tools, tests).
 func TestResolveComposeSlots_DuplicateLabelCollision(t *testing.T) {
+	t.Parallel()
+
 	respA := composeSlotOf(types.OverlayShapeScalar)
 	respB := composeSlotOf(types.OverlayShapeScalar)
 	req := &types.ComposedRequest{
@@ -253,6 +269,8 @@ func TestResolveComposeSlots_DuplicateLabelCollision(t *testing.T) {
 // non-nil *Response slot returns the slot pointer verbatim with no
 // error.
 func TestLookupReference_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	resp := composeSlotOf(types.OverlayShapeScalar)
 	byLabel := map[string]*types.Response{"baseline": resp}
 
@@ -266,6 +284,8 @@ func TestLookupReference_HappyPath(t *testing.T) {
 }
 
 func TestLookupReference_UnknownReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{"baseline": composeSlotOf(types.OverlayShapeScalar)}
 
 	_, err := LookupReference(byLabel, "missing", 7)
@@ -290,6 +310,8 @@ func TestLookupReference_UnknownReturnsCoded(t *testing.T) {
 // Compose-only spec must declare a Reference; predict catches this
 // upstream but the runtime resolver fails closed).
 func TestLookupReference_EmptyLabel(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{"baseline": composeSlotOf(types.OverlayShapeScalar)}
 
 	_, err := LookupReference(byLabel, "", 0)
@@ -304,6 +326,8 @@ func TestLookupReference_EmptyLabel(t *testing.T) {
 // PULSE_OVERLAY_REFERENCE_UNKNOWN rather than returning the nil
 // pointer to the handler.
 func TestLookupReference_NilSlotReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{"baseline": nil}
 
 	_, err := LookupReference(byLabel, "baseline", 0)
@@ -317,6 +341,8 @@ func TestLookupReference_NilSlotReturnsCoded(t *testing.T) {
 // non-nil *Response slot returns the slot pointer verbatim with no
 // error.
 func TestLookupTarget_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	resp := composeSlotOf(types.OverlayShapeScalar)
 	byLabel := map[string]*types.Response{"treatment": resp}
 
@@ -334,6 +360,8 @@ func TestLookupTarget_HappyPath(t *testing.T) {
 // canonical PULSE_OVERLAY_TARGET_UNKNOWN code plus the originating
 // (spec index, target index) coordinate pair.
 func TestLookupTarget_UnknownReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{"baseline": composeSlotOf(types.OverlayShapeScalar)}
 
 	_, err := LookupTarget(byLabel, "missing", 7, 3)
@@ -359,6 +387,8 @@ func TestLookupTarget_UnknownReturnsCoded(t *testing.T) {
 // TestLookupTarget_EmptyLabel asserts an empty target label surfaces
 // the canonical PULSE_OVERLAY_TARGET_UNKNOWN code.
 func TestLookupTarget_EmptyLabel(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{"baseline": composeSlotOf(types.OverlayShapeScalar)}
 
 	_, err := LookupTarget(byLabel, "", 0, 0)
@@ -373,6 +403,8 @@ func TestLookupTarget_EmptyLabel(t *testing.T) {
 // PULSE_OVERLAY_TARGET_UNKNOWN rather than returning the nil pointer
 // to the handler.
 func TestLookupTarget_NilSlotReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	byLabel := map[string]*types.Response{"treatment": nil}
 
 	_, err := LookupTarget(byLabel, "treatment", 0, 0)

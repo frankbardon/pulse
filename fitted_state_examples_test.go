@@ -103,6 +103,8 @@ func fittedExamplesNearDiff(path string, want, got any, tol float64) string {
 // Cross-architecture the non-arch-exact examples compare within
 // fittedExamplesCrossArchTol (fittedExamplesArchExact).
 func TestFittedState_ExamplesGolden(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	fs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: fs})

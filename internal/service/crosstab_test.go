@@ -63,6 +63,8 @@ func crosstabRecords() [][]uint64 {
 // matching (region, segment) bucket, computed via per-bucket Process
 // calls.
 func TestCrosstab_CountCellByteEqualToManual(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -140,6 +142,8 @@ func TestCrosstab_CountCellByteEqualToManual(t *testing.T) {
 // standalone single-axis median over the raw rows, NOT the median of
 // the per-cell medians.
 func TestCrosstab_MedianMarginRecomputesFromRaw(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -217,6 +221,8 @@ func TestCrosstab_MedianMarginRecomputesFromRaw(t *testing.T) {
 // TestCrosstab_NormalizeRow_SumsToOne checks that row normalization
 // makes each row's cells sum to 1 (within epsilon).
 func TestCrosstab_NormalizeRow_SumsToOne(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -253,6 +259,8 @@ func TestCrosstab_NormalizeRow_SumsToOne(t *testing.T) {
 
 // TestCrosstab_NormalizeColumn_SumsToOne checks column normalization.
 func TestCrosstab_NormalizeColumn_SumsToOne(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -288,6 +296,8 @@ func TestCrosstab_NormalizeColumn_SumsToOne(t *testing.T) {
 
 // TestCrosstab_NormalizeTotal_SumsToOne checks total normalization.
 func TestCrosstab_NormalizeTotal_SumsToOne(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -326,6 +336,8 @@ func TestCrosstab_NormalizeTotal_SumsToOne(t *testing.T) {
 // give. Uses (region, segment) rows × (segment) columns to keep the
 // inputs from the same fixture.
 func TestCrosstab_NestedAxes(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -402,6 +414,8 @@ func TestCrosstab_NestedAxes(t *testing.T) {
 // TestCrosstab_BinningGrouperOnAxis verifies GROUP_RANGE works on the
 // row axis (continuous-variable crosstab).
 func TestCrosstab_BinningGrouperOnAxis(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -436,6 +450,8 @@ func TestCrosstab_BinningGrouperOnAxis(t *testing.T) {
 // TestCrosstab_LongShape verifies long-shape output emits one tuple row
 // per (row-key, column-key) cell and tags margin rows.
 func TestCrosstab_LongShape(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -485,6 +501,8 @@ func TestCrosstab_LongShape(t *testing.T) {
 // when a margin is zero (or absent), affected cells are dropped from
 // the present set.
 func TestCrosstab_DivideByZeroDropsCell(t *testing.T) {
+	t.Parallel()
+
 	// Construct a fixture where one column has zero records — gives a
 	// zero column margin under normalize=column.
 	schema := crosstabSchema()
@@ -531,6 +549,8 @@ func TestCrosstab_DivideByZeroDropsCell(t *testing.T) {
 // TestCrosstab_ConflictsWithGroupsRejected verifies the mutual-exclusivity
 // guard at runtime entry.
 func TestCrosstab_ConflictsWithGroupsRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -562,6 +582,8 @@ func TestCrosstab_ConflictsWithGroupsRejected(t *testing.T) {
 
 // TestCrosstab_EmptyRowsRejected.
 func TestCrosstab_EmptyRowsRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -585,6 +607,8 @@ func TestCrosstab_EmptyRowsRejected(t *testing.T) {
 // is no longer refused (PULSE_CROSSTAB_EMPTY_COLUMNS is not raised) — it
 // runs with the one implicit Total column (U47 #326 / #328).
 func TestCrosstab_NoColumnsIsTotalColumn(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -618,6 +642,8 @@ func TestCrosstab_NoColumnsIsTotalColumn(t *testing.T) {
 
 // TestCrosstab_MissingCellRejected.
 func TestCrosstab_MissingCellRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -640,6 +666,8 @@ func TestCrosstab_MissingCellRejected(t *testing.T) {
 // TestCrosstab_AxisOrderingDeterministic runs the same crosstab twice
 // and asserts identical row + column key sequences.
 func TestCrosstab_AxisOrderingDeterministic(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -703,6 +731,8 @@ func indexOfKey(keys []types.AxisKey, want string) (int, bool) {
 // the silent-drop regression where RunCrosstab forgot to invoke the
 // tests slot.
 func TestCrosstab_Tier1TestSurfaces(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -740,6 +770,8 @@ func TestCrosstab_Tier1TestSurfaces(t *testing.T) {
 // crosstab+test pairing must equal the statistic from a standalone
 // TEST_CHISQ request against the same cohort.
 func TestCrosstab_Tier1TestEqualsStandalone(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -791,6 +823,8 @@ func TestCrosstab_Tier1TestEqualsStandalone(t *testing.T) {
 // over the synthesised cell rows when shape=matrix. TEST_TREND on a
 // monthly time-series crosstab is the canonical example.
 func TestCrosstab_Tier2PostTestSurfaces(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -828,6 +862,8 @@ func TestCrosstab_Tier2PostTestSurfaces(t *testing.T) {
 // cells in each leaf column to sum to 1.0; the partial behavior
 // promotes the parent grouper to the 100% denominator.
 func TestCrosstab_PartialColumnNormalize_SumsToOneWithinParent(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -878,6 +914,8 @@ func TestCrosstab_PartialColumnNormalize_SumsToOneWithinParent(t *testing.T) {
 // TestCrosstab_PartialRowNormalize_SumsToOneWithinParent mirrors the
 // column case for nested rows.
 func TestCrosstab_PartialRowNormalize_SumsToOneWithinParent(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -929,6 +967,8 @@ func TestCrosstab_PartialRowNormalize_SumsToOneWithinParent(t *testing.T) {
 // short-circuit: setting NormalizeLevel to len(axis)-1 produces
 // numerically identical cells to omitting the field entirely.
 func TestCrosstab_NormalizeLevelLeaf_ByteEqualToDefault(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -975,6 +1015,8 @@ func TestCrosstab_NormalizeLevelLeaf_ByteEqualToDefault(t *testing.T) {
 // TestCrosstab_NormalizeLevelOutOfRangeRejected confirms the runtime
 // gate rejects a depth value outside [0, len(axis)-1].
 func TestCrosstab_NormalizeLevelOutOfRangeRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1010,6 +1052,8 @@ func TestCrosstab_NormalizeLevelOutOfRangeRejected(t *testing.T) {
 // TestCrosstab_NormalizeLevelWithTotalRejected confirms NormalizeLevel
 // is rejected when paired with Normalize=total (no axis to descend).
 func TestCrosstab_NormalizeLevelWithTotalRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1044,6 +1088,8 @@ func TestCrosstab_NormalizeLevelWithTotalRejected(t *testing.T) {
 // (_margin=column_at_<depth>) margin rows when display margins +
 // partial-depth normalization combine.
 func TestCrosstab_NormalizeLevelLongShapeTagEmission(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1099,6 +1145,8 @@ func TestCrosstab_NormalizeLevelLongShapeTagEmission(t *testing.T) {
 // The median-of-cell-medians (20+100)/2 = 60 would give 0.333 — the test
 // is failed by that path.
 func TestCrosstab_PartialMarginMedianRecomputesFromRaw(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1175,6 +1223,8 @@ func TestCrosstab_PartialMarginMedianRecomputesFromRaw(t *testing.T) {
 //	(east, retail)     bin[0,50)=1                              denom=1
 //	(east, wholesale)  (empty — slab dropped)
 func TestCrosstab_NormalizeWithin_RowFixesColPrefix(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1230,6 +1280,8 @@ func TestCrosstab_NormalizeWithin_RowFixesColPrefix(t *testing.T) {
 // Same fixture; axes swapped so segment is the outer row, the value bin
 // is the inner row, and region is the column axis.
 func TestCrosstab_NormalizeWithin_ColumnFixesRowPrefix(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1294,6 +1346,8 @@ func TestCrosstab_NormalizeWithin_ColumnFixesRowPrefix(t *testing.T) {
 // every (region, *) row × (segment, *) column combination must sum to
 // the per-region/segment record count divided by itself = 1.0.
 func TestCrosstab_NormalizeWithin_CombinedWithLevel(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1356,6 +1410,8 @@ func TestCrosstab_NormalizeWithin_CombinedWithLevel(t *testing.T) {
 // Fixture: Rows=[segment, GROUP_RANGE value@50], Cols=[region, segment],
 // normalize=column, NormalizeLevel=0, NormalizeWithin=0.
 func TestCrosstab_NormalizeWithin_ColumnCombinedWithLevel(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1416,6 +1472,8 @@ func TestCrosstab_NormalizeWithin_ColumnCombinedWithLevel(t *testing.T) {
 // data rows must reach Response.Data with normalized values that obey
 // the (rowKey, outerColPrefix) slab-sum invariant.
 func TestCrosstab_NormalizeWithin_LongShape(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1465,6 +1523,8 @@ func TestCrosstab_NormalizeWithin_LongShape(t *testing.T) {
 // TestCrosstab_NormalizeWithinOutOfRangeRejected confirms the runtime
 // gate rejects a normalize_within value outside [0, len(other-axis)-1].
 func TestCrosstab_NormalizeWithinOutOfRangeRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1501,6 +1561,8 @@ func TestCrosstab_NormalizeWithinOutOfRangeRejected(t *testing.T) {
 // runtime gate's symmetric branch: normalize=column inspects the row
 // axis length, so the out-of-range message names "rows".
 func TestCrosstab_NormalizeWithinOutOfRangeRejected_ColumnAxis(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1537,6 +1599,8 @@ func TestCrosstab_NormalizeWithinOutOfRangeRejected_ColumnAxis(t *testing.T) {
 // is rejected when paired with Normalize=total (no other axis to
 // partition).
 func TestCrosstab_NormalizeWithinWithTotalRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1569,6 +1633,8 @@ func TestCrosstab_NormalizeWithinWithTotalRejected(t *testing.T) {
 // TestCrosstab_NormalizeWithinWithoutNormalizeRejected confirms
 // NormalizeWithin requires a normalize direction (row / column).
 func TestCrosstab_NormalizeWithinWithoutNormalizeRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1602,6 +1668,8 @@ func TestCrosstab_NormalizeWithinWithoutNormalizeRejected(t *testing.T) {
 // MarginReducibility classification. Reaching the default branch is a
 // CI-gated repair (PULSE_CROSSTAB_AGG_UNCLASSIFIED).
 func TestCrosstab_AllAggregatorsClassified(t *testing.T) {
+	t.Parallel()
+
 	var unclassified []string
 	classes := map[types.MarginReducibility]struct{}{
 		types.MarginSummable:      {},

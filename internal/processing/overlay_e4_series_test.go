@@ -11,6 +11,8 @@ import (
 )
 
 func TestOverlay_IndexVsBaseline_SpecOrderStable(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}, {"apr"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -88,6 +90,8 @@ func TestOverlay_IndexVsBaseline_SpecOrderStable(t *testing.T) {
 // the comparison isolates the arithmetic — any divergence localises to
 // the Welford recurrence.
 func TestOverlay_ZScoreVsRolling_WelfordParity(t *testing.T) {
+	t.Parallel()
+
 	const window = 5
 	const n = 20
 
@@ -204,6 +208,8 @@ func TestOverlay_ZScoreVsRolling_WelfordParity(t *testing.T) {
 // path (TestOverlay_YoY_DailyBasic + TestOverlay_YoY_HourlyExactArithmetic);
 // this test covers only the coarse-frequency table.
 func TestOverlay_YoY_AnnualMonthlyWeekly(t *testing.T) {
+	t.Parallel()
+
 	type freqCase struct {
 		freq       string
 		buildKeys  func() []types.AxisKey
@@ -330,6 +336,8 @@ func TestOverlay_YoY_AnnualMonthlyWeekly(t *testing.T) {
 // the boundaries + a few midpoints which catches any off-by-one in
 // the exact-key arithmetic).
 func TestOverlay_YoY_HourlyExactArithmetic(t *testing.T) {
+	t.Parallel()
+
 	// Build 8760 keys for 2019-01-01T00 through 2019-12-31T23, plus 24
 	// keys for 2020-01-01T00 through 2020-01-01T23.
 	const hours2019 = 8760
@@ -414,6 +422,8 @@ func TestOverlay_YoY_HourlyExactArithmetic(t *testing.T) {
 }
 
 func TestOverlay_E4SeriesHandlers_ShapeContract(t *testing.T) {
+	t.Parallel()
+
 	type kindCase struct {
 		name      string
 		newSpec   func() types.OverlaySpec // spec with Name unset so default-name path fires

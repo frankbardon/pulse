@@ -77,6 +77,8 @@ func checkAdvisories(t *testing.T, got []descriptor.Advisory, want []wantAdvisor
 // fires; a sum, a scale field, a categorical-typed field, a field the
 // schema no longer carries and a cohort without sidecar levels never do.
 func TestPredict_AdvisoryCategoricalAsNumeric(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC)
 	agg := func(typ types.AggregationType, field string) *types.Aggregation {
 		return &types.Aggregation{Type: typ, Field: field, Label: "v"}
@@ -117,6 +119,8 @@ func TestPredict_AdvisoryCategoricalAsNumeric(t *testing.T) {
 // names none fires without a suggestion; aggregators and rank-based
 // tests never fire.
 func TestPredict_AdvisoryOrdinalParametric(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC)
 	for _, c := range []struct {
 		name string
@@ -150,6 +154,8 @@ func TestPredict_AdvisoryOrdinalParametric(t *testing.T) {
 // is neither suggested nor named; a hidden firing operator routes as
 // never-registered and fires nothing.
 func TestPredict_SidecarAdvisoriesNeverProposeHidden(t *testing.T) {
+	t.Parallel()
+
 	avg := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "q", Label: "m"}}}
 	ttest := &types.Request{Tests: []*types.Test{{Type: types.TEST_T, Field: "o", SplitBy: "c"}}}
 	welchNominal := &types.Request{Tests: []*types.Test{{Type: types.TEST_WELCH, Field: "q", SplitBy: "c"}}}
@@ -193,6 +199,8 @@ func TestPredict_SidecarAdvisoriesNeverProposeHidden(t *testing.T) {
 // suggested_weight echo is set — silent once a weight resolves, when
 // capability:weighting is hidden, and without a sidecar weight variable.
 func TestPredict_AdvisoryWeightAvailableUnused(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED)
 	count := func(w *types.WeightSpec) *types.Request {
 		return &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "s", Label: "t"}}, Weight: w}
@@ -234,6 +242,8 @@ func TestPredict_AdvisoryWeightAvailableUnused(t *testing.T) {
 // TestSidecarAdvisoryMessagesPassProseLint: the three sidecar messages,
 // with and without a suggestion, read as guidance prose.
 func TestSidecarAdvisoryMessagesPassProseLint(t *testing.T) {
+	t.Parallel()
+
 	reqs := []struct {
 		req  *types.Request
 		opts *PredictOptions

@@ -71,6 +71,8 @@ func ignoredFieldDict() *encoding.Dictionary {
 // UpdateRow/Finalize pair, because a Field read that survives on only one
 // of them is still a Field read.
 func TestAggregators_IgnoredFieldSlotIsReallyIgnored(t *testing.T) {
+	t.Parallel()
+
 	m := descx.BuildManifest()
 
 	declared := 0

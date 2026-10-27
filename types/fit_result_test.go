@@ -12,6 +12,8 @@ import (
 // vector arm as {"vector": …} with undefined figures null, an empty
 // entry as null — and each reads back into its own arm.
 func TestFitResult_Wire(t *testing.T) {
+	t.Parallel()
+
 	reg := &RegressionResult{Type: REG_OLS, Coefficients: map[string]float64{"x": 2, "(intercept)": math.NaN()}, NObs: 9}
 	want, err := json.Marshal(reg)
 	if err != nil {
@@ -52,6 +54,8 @@ func TestFitResult_Wire(t *testing.T) {
 // {name, type, error}, a vector arm {"vector": {operator, error}} — and
 // each reads back into its own arm with the error.
 func TestFitResult_FailedWire(t *testing.T) {
+	t.Parallel()
+
 	se := &SlotError{Code: "PROCESSING_REGRESSION_SEPARATION", Message: "separated", Details: map[string]any{"k": "v"}}
 	got, err := json.Marshal(map[string]*FitResult{
 		"r": {RegressionResult: &RegressionResult{Name: "r", Type: REG_GLM, Error: se, NObs: 9}},

@@ -8,6 +8,8 @@ import (
 )
 
 func TestErrorsLookup_OverlayReferenceUnknown_FixupCount(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_REFERENCE_UNKNOWN")
@@ -25,6 +27,8 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupCount(t *testing.T) {
 // slot-label resolution AND chain StageRef resolution — so a reader
 // sees the full surface without having to chase the call site.
 func TestErrorsLookup_OverlayReferenceUnknown_MessageMentionsComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_REFERENCE_UNKNOWN")
@@ -43,6 +47,8 @@ func TestErrorsLookup_OverlayReferenceUnknown_MessageMentionsComposeAndChain(t *
 // (Overlays[*].Ref). Together they give the caller a complete repair
 // surface regardless of which host family fired the code.
 func TestErrorsLookup_OverlayReferenceUnknown_FixupsCoverComposeAndChainSlots(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	if len(r.Fixups) < 2 {
 		t.Skip("not enough fixups to test slot coverage")
@@ -73,6 +79,8 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupsCoverComposeAndChainSlots(t 
 // slot the story brief calls out — `ComposedRequest.Requests[].Label`
 // — so a caller hitting this code sees the exact location to edit.
 func TestErrorsLookup_OverlayReferenceUnknown_FixupHintMentionsRequestsLabel(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	for _, f := range r.Fixups {
 		if strings.Join(f.Path, "/") != "Overlays/*/Reference" {
@@ -90,6 +98,8 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupHintMentionsRequestsLabel(t *
 // templates. Same polish bar as the Reference sibling — cover both
 // host families in one canonical entry.
 func TestErrorsLookup_OverlayTargetUnknown_FixupCount(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_TARGET_UNKNOWN))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_TARGET_UNKNOWN")
@@ -105,6 +115,8 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupCount(t *testing.T) {
 // TestErrorsLookup_OverlayTargetUnknown_MessageMentionsComposeAndChain
 // asserts the Message body covers both host families.
 func TestErrorsLookup_OverlayTargetUnknown_MessageMentionsComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_TARGET_UNKNOWN))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_TARGET_UNKNOWN")
@@ -122,6 +134,8 @@ func TestErrorsLookup_OverlayTargetUnknown_MessageMentionsComposeAndChain(t *tes
 // (Overlays[*].Targets) AND the chain Target StageRef slot
 // (Overlays[*].Target).
 func TestErrorsLookup_OverlayTargetUnknown_FixupsCoverComposeAndChainSlots(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_TARGET_UNKNOWN))
 	if len(r.Fixups) < 2 {
 		t.Skip("not enough fixups to test slot coverage")
@@ -148,6 +162,8 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupsCoverComposeAndChainSlots(t *te
 // asserts the Compose-arm fixup hint mentions the canonical authoring
 // slot the story brief calls out.
 func TestErrorsLookup_OverlayTargetUnknown_FixupHintMentionsRequestsLabel(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_TARGET_UNKNOWN))
 	for _, f := range r.Fixups {
 		if strings.Join(f.Path, "/") != "Overlays/*/Targets" {
@@ -161,6 +177,8 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupHintMentionsRequestsLabel(t *tes
 }
 
 func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupCount(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP")
@@ -178,6 +196,8 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupCount(t *testing.T) {
 // (`OverlayOptions.MaxPanelTargets`) and the combinatorial-explosion
 // motivation so a reader sees both the surface and the why.
 func TestErrorsLookup_OverlayPanelTargetsOverCap_MessageMentionsMaxPanelTargets(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP")
@@ -195,6 +215,8 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_MessageMentionsMaxPanelTargets(
 // to fit the cap) AND an Options-side fixup (raise MaxPanelTargets).
 // The story brief required both authoring paths.
 func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupsCoverBothSurfaces(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	if len(r.Fixups) < 2 {
 		t.Skip("not enough fixups to test slot coverage")
@@ -222,6 +244,8 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupsCoverBothSurfaces(t *test
 // number or the OverlayOptions.MaxPanelTargets knob) so the caller sees
 // the bound they're up against.
 func TestErrorsLookup_OverlayPanelTargetsOverCap_TargetsFixupMentionsCap(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	for _, f := range r.Fixups {
 		if strings.Join(f.Path, "/") != "Overlays/*/Targets" {

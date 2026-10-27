@@ -89,6 +89,8 @@ func exportRequest(t *testing.T, spec spsstest.Spec) (DictionaryRequest, *Sideca
 // criterion in one assertion. The cohort has five columns; the `.sav` it came
 // from had three variables, and the file written back out has those three.
 func TestFold_EmittedFileCarriesExactlyTheSourcesVariables(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, sav := exportedFile(t, bothKindsSpec(), WriterOptions{})
 
 	// The cohort really does carry the two derived columns, so the
@@ -121,6 +123,8 @@ func TestFold_EmittedFileCarriesExactlyTheSourcesVariables(t *testing.T) {
 // E5-S5 audits: on a sidecar-driven plan the unbound cohort fields are the
 // derived ones, and nothing else.
 func TestFold_UnboundFieldsAreExactlyTheRegistry(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	plan := emit(t, req)
 
@@ -155,6 +159,8 @@ func TestFold_UnboundFieldsAreExactlyTheRegistry(t *testing.T) {
 // both would be a file that no longer distinguishes "refused" from "not
 // asked" — the exact loss E4-S2 exists to prevent.
 func TestFold_MissingCodesAreRestoredIntoTheVariable(t *testing.T) {
+	t.Parallel()
+
 	_, _, sav := exportedFile(t, bothKindsSpec(), WriterOptions{})
 
 	d, err := parseDictionary(sav)
@@ -190,6 +196,8 @@ func isSysmisBits(v, sysmis float64) bool {
 // reader, which re-applies the missing specification and regenerates the
 // sibling. The reasons that come back must be the reasons that went in.
 func TestFold_RestoredCodesSurviveAReimport(t *testing.T) {
+	t.Parallel()
+
 	_, _, sav := exportedFile(t, bothKindsSpec(), WriterOptions{})
 
 	head, rows := savRows(t, sav)
@@ -217,6 +225,8 @@ func TestFold_RestoredCodesSurviveAReimport(t *testing.T) {
 // is only half of it: the emitted file must also DECLARE 99 missing, or the
 // value comes back as ordinary data on the next read.
 func TestFold_MissingSpecificationIsReemittedBesideTheCodes(t *testing.T) {
+	t.Parallel()
+
 	_, _, sav := exportedFile(t, bothKindsSpec(), WriterOptions{})
 	d, err := parseDictionary(sav)
 	if err != nil {
@@ -241,6 +251,8 @@ func TestFold_MissingSpecificationIsReemittedBesideTheCodes(t *testing.T) {
 // record 7/7 DEFINITION must still go back out, or the file loses the set it
 // came from.
 func TestFold_SetColumnIsDroppedAndItsConstituentsRemain(t *testing.T) {
+	t.Parallel()
+
 	_, _, sav := exportedFile(t, bothKindsSpec(), WriterOptions{})
 	d, err := parseDictionary(sav)
 	if err != nil {
@@ -288,6 +300,8 @@ func TestFold_SetColumnIsDroppedAndItsConstituentsRemain(t *testing.T) {
 // still opened cleanly in every reader. The registry does not name it, so it
 // is a source variable by construction and is emitted like any other.
 func TestFold_ARealVariableNamedLikeASiblingIsEmitted(t *testing.T) {
+	t.Parallel()
+
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 8}
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -328,6 +342,8 @@ func TestFold_ARealVariableNamedLikeASiblingIsEmitted(t *testing.T) {
 // derived multiple-dichotomy column is called `media`, which matches no
 // pattern at all, and it is dropped because the registry says so.
 func TestFold_DroppedColumnNeedsNoRecognisableName(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	for _, d := range res.Document.Payload.Derived {
 		if d.Kind == DerivedKindMultipleDichotomy && d.Name != "media" {
@@ -350,6 +366,8 @@ func TestFold_DroppedColumnNeedsNoRecognisableName(t *testing.T) {
 // than the fold: a cohort column no variable is written from and the registry
 // does not account for is data about to leave the export silently.
 func TestFold_UnboundColumnOutsideTheRegistryIsRefused(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	// Forget the reason sibling. The column is still in the cohort and
 	// still bound to no variable — it is now simply unexplained.
@@ -372,6 +390,8 @@ func TestFold_UnboundColumnOutsideTheRegistryIsRefused(t *testing.T) {
 // is genuinely unknown, and both guesses — emit it, or drop it — are silent
 // data faults. DerivedFoldFor reports false precisely so this is detectable.
 func TestFold_UnknownDerivedKindIsRefused(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	res.Document.Payload.Derived[0].Kind = "something_a_later_import_invented"
 	emitFails(t, req, perr.PULSE_SPSS_DERIVED_UNFOLDABLE)
@@ -381,6 +401,8 @@ func TestFold_UnknownDerivedKindIsRefused(t *testing.T) {
 // `reasons` the fold would have to re-derive the mapping from the missing
 // specification plus the value labels and hope it matched. It does not hope.
 func TestFold_IncompleteRegistryEntryIsRefused(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	for i := range res.Document.Payload.Derived {
 		if res.Document.Payload.Derived[i].Kind == DerivedKindNumericMissing {
@@ -394,6 +416,8 @@ func TestFold_IncompleteRegistryEntryIsRefused(t *testing.T) {
 // declaring a column and disowning it at once. It is reported as the
 // collision it is — a generated name landing on a real variable.
 func TestFold_RegistryEntryNamingAnEmittedVariableIsRefused(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	res.Document.Payload.Derived = append(res.Document.Payload.Derived, Derived{
 		Name: "Q1A", Kind: DerivedKindMultipleDichotomy,
@@ -409,6 +433,8 @@ func TestFold_RegistryEntryNamingAnEmittedVariableIsRefused(t *testing.T) {
 // whose variable is not being written would discard the only record of which
 // missing state each row was in.
 func TestFold_RestoreIntoAnUnemittedSourceIsRefused(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	for i := range res.Document.Payload.Derived {
 		if d := &res.Document.Payload.Derived[i]; d.Kind == DerivedKindNumericMissing {
@@ -441,6 +467,8 @@ func missingOnlySpec() spsstest.Spec {
 // crucially, nothing is dropped — the audit that refuses an unexplained
 // unbound column runs on this path too.
 func TestFold_IgnoreSidecarEmitsEveryColumnIncludingTheDerivedOnes(t *testing.T) {
+	t.Parallel()
+
 	_, _, sav := exportedFile(t, missingOnlySpec(), WriterOptions{IgnoreSidecar: true})
 	names := emittedNames(t, sav)
 
@@ -469,6 +497,8 @@ func TestFold_IgnoreSidecarEmitsEveryColumnIncludingTheDerivedOnes(t *testing.T)
 // derived set column is still present, and the sidecar-driven path (which
 // drops the column) is the one that can.
 func TestFold_IgnoreSidecarOnADerivedSetColumnCollides(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, bothKindsSpec())
 	res, err := LoadSidecar(fs, cohort, WriterOptions{IgnoreSidecar: true})
 	if err != nil {
@@ -482,6 +512,8 @@ func TestFold_IgnoreSidecarOnADerivedSetColumnCollides(t *testing.T) {
 // TestFold_SynthesisedPlanBindsEveryCohortField. The audit is only as good as
 // its input, so the synthesised front-end is held to leaving nothing unbound.
 func TestFold_SynthesisedPlanBindsEveryCohortField(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, missingOnlySpec())
 	res, err := LoadSidecar(fs, cohort, WriterOptions{IgnoreSidecar: true})
 	if err != nil {
@@ -512,6 +544,8 @@ func TestFold_SynthesisedPlanBindsEveryCohortField(t *testing.T) {
 // front-end's model, which makes the two agree by construction instead of by
 // two implementations of one rule staying in step.
 func TestPlanSysmis_IsWhatAReaderOfTheEmittedBytesResolves(t *testing.T) {
+	t.Parallel()
+
 	declared := -1e300 // coherent with the highest/lowest below, and not -DBL_MAX
 
 	for _, tc := range []struct {
@@ -554,6 +588,8 @@ func TestPlanSysmis_IsWhatAReaderOfTheEmittedBytesResolves(t *testing.T) {
 // been made to agree in the plan: a null really does come out as the declared
 // sentinel when a source declares one.
 func TestPlanSysmis_IsWhatTheDataEncoderWrites(t *testing.T) {
+	t.Parallel()
+
 	req, res := exportRequest(t, bothKindsSpec())
 	declared := -1e300
 	res.Document.Payload.Source.MachineFloat = &MachineFloat{
@@ -595,6 +631,8 @@ func TestPlanSysmis_IsWhatTheDataEncoderWrites(t *testing.T) {
 // described has no SPSS form, and writing anything for it would be inventing
 // a missing state.
 func TestFold_UnrecordedReasonIDIsRefusedRatherThanGuessed(t *testing.T) {
+	t.Parallel()
+
 	req, _ := exportRequest(t, bothKindsSpec())
 	req.Cases = -1
 	plan := emit(t, req)
@@ -625,6 +663,8 @@ func TestFold_UnrecordedReasonIDIsRefusedRatherThanGuessed(t *testing.T) {
 // derived column that leaked would show up as an extra field, and a missing
 // code that did not restore would show up as a changed reason.
 func TestFold_ReimportedFileIsCohortIdentical(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, sav := exportedFile(t, bothKindsSpec(), WriterOptions{})
 
 	if err := afero.WriteFile(fs, "round.sav", sav, 0o644); err != nil {

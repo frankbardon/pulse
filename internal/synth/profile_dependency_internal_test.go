@@ -174,6 +174,8 @@ func depCandidateFor(cands []RuleSpec, source string) *RuleSpec {
 // group-by-source assembly in candidateFor and the partition comes back
 // as three rules that must be kept consistent by hand.
 func TestSuggestDeps_PartitionIsOneCandidateWithDiscoveredEdges(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	cands := depCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -255,6 +257,8 @@ func depSources(cands []RuleSpec) []string {
 // definition and a hardcoded detector would agree with it by accident.
 // Here the same shape carries edges at 3 and 6.
 func TestSuggestDeps_BandEdgesAreDiscoveredNotAssumed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "score", Type: encoding.FieldTypeU4},
 		{Name: "hi", Type: encoding.FieldTypePackedBool},
@@ -304,6 +308,8 @@ func TestSuggestDeps_BandEdgesAreDiscoveredNotAssumed(t *testing.T) {
 // count; `loose` contradicts far more often and is neither emitted nor
 // reported, because it is not "almost" anything.
 func TestSuggestDeps_AlmostDeterminedIsReportedNotEmitted(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	for _, c := range depCandidates(prof.RuleCandidates) {
 		for _, name := range sortedKeys(c.SetExpr) {
@@ -340,6 +346,8 @@ func TestSuggestDeps_AlmostDeterminedIsReportedNotEmitted(t *testing.T) {
 // written, because a set_expr clears the null mask and the two are not
 // absent on the same rows.
 func TestSuggestDeps_NullShapeMismatchIsReportedNotEmitted(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	for _, c := range depCandidates(prof.RuleCandidates) {
 		if _, ok := c.SetExpr["unshared"]; ok {
@@ -358,6 +366,8 @@ func TestSuggestDeps_NullShapeMismatchIsReportedNotEmitted(t *testing.T) {
 // categorical arm: a boolean determined by a categorical is an equality
 // set, not a threshold.
 func TestSuggestDeps_CategoricalSourceYieldsMembership(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	c := depCandidateFor(depCandidates(prof.RuleCandidates), "region")
 	if c == nil {
@@ -382,6 +392,8 @@ func TestSuggestDeps_CategoricalSourceYieldsMembership(t *testing.T) {
 // is determined by every other field and by none of them. It is excluded
 // from both roles and named once rather than proposed 117 times.
 func TestSuggestDeps_ConstantColumnIsItsOwnFinding(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	for _, c := range depCandidates(prof.RuleCandidates) {
 		for _, name := range []string{"flat", "fixednum"} {
@@ -420,6 +432,8 @@ func TestSuggestDeps_ConstantColumnIsItsOwnFinding(t *testing.T) {
 // them dozens of times. Loosening maxDepExceptions far enough admits it,
 // which is what makes this test capable of failing.
 func TestSuggestDeps_UnrelatedFieldIsNotProposed(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	for _, c := range depCandidates(prof.RuleCandidates) {
 		if _, ok := c.SetExpr["noise"]; ok {
@@ -436,6 +450,8 @@ func TestSuggestDeps_UnrelatedFieldIsNotProposed(t *testing.T) {
 // shape: the mapping the expression was read off, its support, and the
 // zero exception count that is the detector's central claim.
 func TestSuggestDeps_EvidenceCarriesTheMeasuredLookup(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	c := depCandidateFor(depCandidates(prof.RuleCandidates), "score")
 	if c == nil {
@@ -496,6 +512,8 @@ func TestSuggestDeps_EvidenceCarriesTheMeasuredLookup(t *testing.T) {
 // additional byte, counted the way TestProfileModels_RidesTheExistingScan
 // counts them.
 func TestSuggestDeps_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	schema := depFixtureSchema()
 	rows, nulls := depFixtureRows(400)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -523,6 +541,8 @@ func TestSuggestDeps_RidesTheExistingScan(t *testing.T) {
 // recorded for its own cardinality fixture. The property it does pin is
 // the ABANDON, and the boundary from both sides.
 func TestSuggestDeps_HighCardinalitySourceIsAbandoned(t *testing.T) {
+	t.Parallel()
+
 	build := func(levels int) *Profile {
 		t.Helper()
 		schema := &encoding.Schema{Fields: []encoding.Field{
@@ -575,6 +595,8 @@ func TestSuggestDeps_HighCardinalitySourceIsAbandoned(t *testing.T) {
 // support, because the analyst is better placed than the threshold to
 // judge a six-row arm.
 func TestSuggestDeps_ThinSupportShipsWithItsSupport(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "grade", Type: encoding.FieldTypeU4},
 		{Name: "top", Type: encoding.FieldTypePackedBool},
@@ -624,6 +646,8 @@ func TestSuggestDeps_ThinSupportShipsWithItsSupport(t *testing.T) {
 // one field leaves the earlier one firing with no effect, which is the
 // silent-inertness class the whole effort exists to remove.
 func TestSuggestDeps_OneRuleWritesEachTarget(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU4},
 		{Name: "b", Type: encoding.FieldTypeU4},
@@ -667,6 +691,8 @@ func TestSuggestDeps_OneRuleWritesEachTarget(t *testing.T) {
 // TestSuggestDeps_BoundedListingRollsUp: over maxDepCandidates the file
 // carries the strongest and the remainder is COUNTED, never dropped.
 func TestSuggestDeps_BoundedListingRollsUp(t *testing.T) {
+	t.Parallel()
+
 	n := maxDepCandidates + 5
 	fields := []encoding.Field{}
 	for i := 0; i < n; i++ {
@@ -711,6 +737,8 @@ func TestSuggestDeps_BoundedListingRollsUp(t *testing.T) {
 // and passes the SAME static coercion check validateRules applies, so a
 // candidate the loader would refuse is never written.
 func TestSuggestDeps_EmittedExpressionSurvivesTheRuleCompiler(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	cands := depCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -738,6 +766,8 @@ func TestSuggestDeps_EmittedExpressionSurvivesTheRuleCompiler(t *testing.T) {
 // untouched by detection. An unreviewed structural claim must not ride
 // inside the document that drives generation.
 func TestSuggestDeps_DocumentMovesOnlyItsWarnings(t *testing.T) {
+	t.Parallel()
+
 	schema := depFixtureSchema()
 	rows, nulls := depFixtureRows(400)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -791,6 +821,8 @@ func TestSuggestDeps_DocumentMovesOnlyItsWarnings(t *testing.T) {
 // inside a quoted literal and does not READ it. A substring check calls
 // that a self-reference and reports the opposite of the truth.
 func TestSuggestDeps_CandidatesArePreClaimEligible(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureProfile(t, 1100)
 	cands := depCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -830,6 +862,8 @@ func TestSuggestDeps_CandidatesArePreClaimEligible(t *testing.T) {
 // over maxDepExceptions and loses the finding entirely. Both orders are
 // driven here and must report the same three exceptions.
 func TestSuggestDeps_ExceptionCountIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "src", Type: encoding.FieldTypeU4},
 		{Name: "tgt", Type: encoding.FieldTypePackedBool},
@@ -891,6 +925,8 @@ func TestSuggestDeps_ExceptionCountIsOrderIndependent(t *testing.T) {
 // The candidate is dropped HERE, against the rule layer's own
 // environment, and the drop is counted rather than silent.
 func TestSuggestDeps_UncompilablePredicateIsDroppedNotWritten(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "in", Type: encoding.FieldTypeU4},
 		{Name: "flag", Type: encoding.FieldTypePackedBool},
@@ -931,6 +967,8 @@ func TestSuggestDeps_UncompilablePredicateIsDroppedNotWritten(t *testing.T) {
 // `set_expr` ends up un-nulling its target on every row its source is
 // absent from.
 func TestSuggestDeps_UnavailableCoNullMatrixRefusesRatherThanGuesses(t *testing.T) {
+	t.Parallel()
+
 	fields := []encoding.Field{
 		{Name: "src", Type: encoding.FieldTypeU4, Nullable: true},
 		{Name: "tgt", Type: encoding.FieldTypePackedBool, Nullable: true},

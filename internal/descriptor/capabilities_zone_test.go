@@ -23,6 +23,8 @@ var wantZoneCapabilities = map[string]string{
 // TestZoneCapabilities_ExactSet: the declaration table holds exactly the
 // contract set — nothing missing, nothing extra.
 func TestZoneCapabilities_ExactSet(t *testing.T) {
+	t.Parallel()
+
 	if !reflect.DeepEqual(zoneCapabilities, wantZoneCapabilities) {
 		t.Fatalf("zoneCapabilities = %v, want %v", zoneCapabilities, wantZoneCapabilities)
 	}
@@ -32,6 +34,8 @@ func TestZoneCapabilities_ExactSet(t *testing.T) {
 // operator and overlay kind reports exactly the contract value through
 // ZoneCapabilityOf, and every name in the contract is a registered one.
 func TestZoneCapabilities_EveryRegisteredName(t *testing.T) {
+	t.Parallel()
+
 	var names []string
 	for _, v := range types.AllGroupTypes() {
 		names = append(names, string(v))
@@ -77,6 +81,8 @@ func TestZoneCapabilities_EveryRegisteredName(t *testing.T) {
 // TestManifest_ZoneKey: the manifest carries the declaration on the
 // `zone` key of each operator / overlay entry and omits it elsewhere.
 func TestManifest_ZoneKey(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	b, err := json.Marshal(m)
 	if err != nil {

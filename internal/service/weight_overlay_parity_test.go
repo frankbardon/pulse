@@ -476,6 +476,8 @@ func assertOverlayParityCoverage(t *testing.T) {
 }
 
 func TestWeightOverlayUnityParity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertOverlayParityCoverage)
 	store := newParityStore(t, "ovp_unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
 	ran := map[string]int{}
@@ -568,6 +570,8 @@ func layerFigures(t *testing.T, layers []types.OverlayLayer) (any, map[string]we
 }
 
 func TestWeightOverlayFrequencyExpansionParity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertOverlayParityCoverage)
 	weighted := newParityStore(t, "ovp_weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "ovp_expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
@@ -639,6 +643,8 @@ func shedOverlayTotals(t *testing.T, c overlayParityCase, got, want any) {
 }
 
 func TestWeightOverlayProbabilityScaleInvariance(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertOverlayParityCoverage)
 	base := newParityStore(t, "ovp_prob", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	scaled := newParityStore(t, "ovp_scaled", func(n int) []parityRow {
@@ -701,6 +707,8 @@ func TestWeightOverlayProbabilityScaleInvariance(t *testing.T) {
 // frequency they equal the expanded cohort (the expansion harness
 // above). Reverting either fix fails here.
 func TestWeightOverlaySlotOnlyHostReadsNStar(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "ovp_slot", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	srcs := map[string]overlayParitySource{}
 	for _, s := range overlayParitySources() {

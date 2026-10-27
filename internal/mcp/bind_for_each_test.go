@@ -47,6 +47,8 @@ func validates(t *testing.T, sch *jsonschema.Schema, instance string) error {
 // draft 2020-12 validator over pulse_process, a pulse_compose slot and a
 // pulse_process_chain stage.
 func TestBind_ForEachPlaceholders(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, nil, pulse.Extensions{})
 	bound, err := BindForInstance(makeBindSchema(), inst)
 	if err != nil {
@@ -103,6 +105,8 @@ func TestBind_ForEachPlaceholders(t *testing.T) {
 // strings are the strict enums again and a placeholder is rejected even
 // beside a (now unadvertised) for_each.
 func TestBind_ForEachHiddenDropsPlaceholderBranch(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, &pulse.FeatureProfile{Features: []string{"capability:process", "WIN_EWMA", "FEAT_LOG"}}, pulse.Extensions{})
 	bound, err := BindForInstance(makeBindSchema(), inst)
 	if err != nil {
@@ -128,6 +132,8 @@ func TestBind_ForEachHiddenDropsPlaceholderBranch(t *testing.T) {
 // member (`{{y}}`) is still refused there, and an item carrying for_each
 // keeps accepting any placeholder.
 func TestBind_LiteralPlaceholderFieldName(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "{{x}}", Type: encoding.FieldTypeF64})
 	_, inst := instanceFor(t, nil, pulse.Extensions{})

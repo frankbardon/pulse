@@ -54,6 +54,8 @@ func elidedTwinFS(t *testing.T) (flat, elided afero.Fs) {
 // themselves — the null constant included. Shard archives do not carry
 // groups yet: that is a coded refusal, never a wrong archive.
 func TestElidedConstants_FacadeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs1, fs2 := elidedTwinFS(t)
 

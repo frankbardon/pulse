@@ -14,6 +14,8 @@ import (
 // and facet validators too — the code whose fixup names the fix —
 // matching Inspect and Predict (headerErrorCode), not ENCODING_INVALID.
 func TestValidateChainAndFacet_CompressedCohortCode(t *testing.T) {
+	t.Parallel()
+
 	data := append(encoding.ZstdMagic[:], []byte("synthetic-not-a-real-frame")...)
 	chain := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},

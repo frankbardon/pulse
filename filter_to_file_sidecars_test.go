@@ -38,6 +38,8 @@ func filterSidecarFixture(t *testing.T, ext Extensions) (*Pulse, []StaleSidecar)
 }
 
 func TestFilterToFile_ReplacingAnIndexedArchiveReportsSidecars(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, flatten := range []bool{false, true} {
 		name := map[bool]string{false: "archive_arm", true: "flatten"}[flatten]

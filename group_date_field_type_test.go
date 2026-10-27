@@ -21,6 +21,8 @@ import (
 // refusal alone — the table's row runs before the datetime rule, in
 // the factory's order on both sides.
 func TestGroupDate_RefusesNonDateFamily(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	templates := []struct{ name, body string }{

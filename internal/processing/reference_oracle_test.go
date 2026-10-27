@@ -119,6 +119,8 @@ func (c *oracleCheck) done(cases int) {
 // internal/statdist/reference_oracle_test.go, reading these goldens.
 
 func TestReferenceOracle_ChiSquareSurvival(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		X  float64 `json:"x"`
 		DF float64 `json:"df"`
@@ -138,6 +140,8 @@ func TestReferenceOracle_ChiSquareSurvival(t *testing.T) {
 // switches to an approximation it bounds at 1e-12 absolute, so those
 // rows (kept to CDFs in [1e-3, 1 − 1e-3]) are held to 1e-11 absolute.
 func TestReferenceOracle_NoncentralChiSquareCDF(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		X       float64 `json:"x"`
 		DF      float64 `json:"df"`
@@ -167,6 +171,8 @@ func TestReferenceOracle_NoncentralChiSquareCDF(t *testing.T) {
 // TestNoncentralChiSquareCDF_Edges: the domain guards, the central
 // special case, the bounds and monotonicity in x and ncp.
 func TestNoncentralChiSquareCDF_Edges(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ x, df, ncp float64 }{
 		{1, 0, 1}, {1, -1, 1}, {1, 2, -0.5}, {math.NaN(), 2, 1}, {1, math.NaN(), 1}, {1, 2, math.NaN()},
 	} {
@@ -207,6 +213,8 @@ func TestNoncentralChiSquareCDF_Edges(t *testing.T) {
 }
 
 func TestReferenceOracle_FSurvival(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		F   float64 `json:"f"`
 		DF1 float64 `json:"df1"`
@@ -221,6 +229,8 @@ func TestReferenceOracle_FSurvival(t *testing.T) {
 }
 
 func TestReferenceOracle_StandardNormalCDF(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Z   float64 `json:"z"`
 		CDF float64 `json:"cdf"`
@@ -233,6 +243,8 @@ func TestReferenceOracle_StandardNormalCDF(t *testing.T) {
 }
 
 func TestReferenceOracle_StandardNormalPPF(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		P float64 `json:"p"`
 		Q float64 `json:"q"`
@@ -250,6 +262,8 @@ func TestReferenceOracle_StandardNormalPPF(t *testing.T) {
 // C_pkolmogorov_two_limit at the same essentially-zero tolerance, so
 // the series is pinned untruncated.
 func TestReferenceOracle_KolmogorovSurvival(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Lambda float64 `json:"lambda"`
 		P      float64 `json:"p"`
@@ -305,6 +319,8 @@ type tukeyInverseCase struct {
 // cancellation-free survival (see gen_reference.R), not ptukey(): R's
 // ptukey() is accurate to only ~1e-8 and forms the tail as 1 − CDF.
 func TestReferenceOracle_StudentizedRangeSurvival(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[tukeySurvivalCase](t, "studentized_range_survival")
 	got := parallelEval(len(doc.Cases), func(i int) float64 {
 		k := doc.Cases[i]
@@ -313,19 +329,6 @@ func TestReferenceOracle_StudentizedRangeSurvival(t *testing.T) {
 	c := newOracleCheck(t, "studentizedRangeSurvival", oracleRelTol, oracleProbAbsFloor)
 	for i, k := range doc.Cases {
 		c.check(got[i], k.P, "q=%g, k=%g, df=%g", k.Q, k.K, k.DF)
-	}
-	c.done(len(doc.Cases))
-}
-
-func TestReferenceOracle_StudentizedRangeInverse(t *testing.T) {
-	doc := loadReference[tukeyInverseCase](t, "studentized_range_inverse")
-	got := parallelEval(len(doc.Cases), func(i int) float64 {
-		k := doc.Cases[i]
-		return studentizedRangeInverse(k.Alpha, int(k.K), k.DF)
-	})
-	c := newOracleCheck(t, "studentizedRangeInverse", oracleRelTol, oracleQuantileAbsFloor)
-	for i, k := range doc.Cases {
-		c.check(got[i], k.Q, "alpha=%g, k=%g, df=%g", k.Alpha, k.K, k.DF)
 	}
 	c.done(len(doc.Cases))
 }
@@ -344,6 +347,8 @@ func TestReferenceOracle_StudentizedRangeInverse(t *testing.T) {
 // TestStudentizedRange_TwoSampleIsStudentT), so the cross-check skips
 // them; the k = 2 closed form covers small df instead.
 func TestReferenceOracle_StudentizedRangeMatchesRBuiltins(t *testing.T) {
+	t.Parallel()
+
 	surv := loadReference[tukeySurvivalCase](t, "studentized_range_survival")
 	checked := 0
 	for _, k := range surv.Cases {
@@ -375,6 +380,8 @@ func TestReferenceOracle_StudentizedRangeMatchesRBuiltins(t *testing.T) {
 // so P(Q > q) = P(|T| > q/√2). Checked for both the Go port and the R
 // quadrature oracle, against the R-verified Student-t primitive.
 func TestStudentizedRange_TwoSampleIsStudentT(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[tukeySurvivalCase](t, "studentized_range_survival")
 	n := 0
 	for _, k := range doc.Cases {
@@ -399,6 +406,8 @@ func TestStudentizedRange_TwoSampleIsStudentT(t *testing.T) {
 // against the closed form for k = 2: the range of two iid N(0, 1) is
 // |Z₁ − Z₂| ~ |N(0, 2)|, so P(R > t) = 2·Φ(−t/√2) = erfc(t/2).
 func TestNormalRangeSurvival_TwoSampleClosedForm(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []float64{1e-3, 0.1, 0.5, 1, 2, 3.5, 5, 8, 12, 20, 30, 50} {
 		want := math.Erfc(tt / 2)
 		got := normalRangeSurvival(tt, 2)
@@ -414,6 +423,8 @@ func TestNormalRangeSurvival_TwoSampleClosedForm(t *testing.T) {
 // 7-point Gauss rule through degree 13, so a mistyped node or weight
 // shows up as a non-zero error on some monomial.
 func TestGK15_ExactOnPolynomials(t *testing.T) {
+	t.Parallel()
+
 	for deg := 0; deg <= 22; deg++ {
 		f := func(x float64) float64 { return math.Pow(x, float64(deg)) }
 		want := 0.0
@@ -435,6 +446,8 @@ func TestGK15_ExactOnPolynomials(t *testing.T) {
 // hash matches the body. Mirrors the regression and descriptor gates;
 // regenerate with `make reference`, never by hand.
 func TestGoldensNotHandEdited(t *testing.T) {
+	t.Parallel()
+
 	entries, err := os.ReadDir(referenceDir)
 	if err != nil {
 		t.Fatalf("reading %s: %v", referenceDir, err)

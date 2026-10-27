@@ -76,6 +76,8 @@ func sha256Hex(b []byte) string {
 // decompresses back to a file whose SHA-256 equals the original's, and
 // both reports carry that same digest.
 func TestTransfer_RoundTripByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs, fixtures := transferFixtures(t)
 	p, err := New(Options{FS: fs})
@@ -115,6 +117,8 @@ func TestTransfer_RoundTripByteIdentical(t *testing.T) {
 // ENCODING_INVALID alone — and by Open, CountRecords and Inspect as the
 // top-level code, so `pulse errors lookup` names the fix.
 func TestTransfer_CompressedCohortRefusedEverywhere(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := dedupFixtureFS(t)
 	p, err := New(Options{FS: fs})
@@ -167,6 +171,8 @@ func TestTransfer_CompressedCohortRefusedEverywhere(t *testing.T) {
 // source cohort is left byte-identical by an export, and a decompressed
 // cohort serves every read path exactly as the original does.
 func TestTransfer_UncompressedPathUnchanged(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := dedupFixtureFS(t)
 	before, _ := afero.ReadFile(fs, "cohort.pulse")

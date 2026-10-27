@@ -10,6 +10,8 @@ import (
 )
 
 func TestFenceFeatureID(t *testing.T) {
+	t.Parallel()
+
 	for name, want := range map[string]string{
 		"TEST_WELCH":          opID("TEST_WELCH"),
 		"capability:crosstab": "capability:crosstab",
@@ -26,6 +28,8 @@ func TestFenceFeatureID(t *testing.T) {
 }
 
 func TestValidateSkillFences(t *testing.T) {
+	t.Parallel()
+
 	ok := "a\n<!-- feature: TEST_WELCH, capability:crosstab -->\nb\n<!-- /feature -->\nc <!-- feature: io_format:csv -->d<!-- /feature -->\n"
 	if err := ValidateSkillFences(ok, nil); err != nil {
 		t.Errorf("valid body: %v", err)
@@ -49,6 +53,8 @@ func TestValidateSkillFences(t *testing.T) {
 // name is a validation error here, not a silently hidden fence at serve
 // time.
 func TestSkillFences_NamesAreFeatures(t *testing.T) {
+	t.Parallel()
+
 	for _, md := range skills.List() {
 		if skills.IsVirtual(md.Name) {
 			continue
@@ -61,6 +67,8 @@ func TestSkillFences_NamesAreFeatures(t *testing.T) {
 }
 
 func TestRenderSeeSection(t *testing.T) {
+	t.Parallel()
+
 	body := strings.Join([]string{
 		"## Params", "", "`op-gone` outside See stays.", "", "## See", "",
 		"- `pulse_examples_search tags=[dead]`",
@@ -110,6 +118,8 @@ func TestRenderSeeSection(t *testing.T) {
 // body's `## See` drops the stems of pruned skills and a tag search no
 // visible example answers; nothing outside the section moves.
 func TestDiscovery_RendersSeeByEdge(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot("REG_GLM").Discovery()
 	full, _ := skills.Get("op-reg-mod-resample")
 	if !strings.Contains(seeSection(full), "`op-reg-glm`") {
@@ -161,6 +171,8 @@ func TestDiscovery_RendersSeeByEdge(t *testing.T) {
 // section blank to begin with stays; without it (atomic: `## See` is
 // required) the heading survives over an empty section.
 func TestRenderSeeSection_TopicalShapes(t *testing.T) {
+	t.Parallel()
+
 	keep := func(span string) bool { return span != "gone" }
 	for _, tc := range []struct {
 		name       string
@@ -194,6 +206,8 @@ func TestRenderSeeSection_TopicalShapes(t *testing.T) {
 // whose every item names a hidden skill keeps its required heading in an
 // atomic body and goes with its heading in a topical one.
 func TestDiscovery_EmptiedSeeHeading(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot("REG_GLM").Discovery()
 	raw := "## Params\n\nx\n\n## See\n\n- `op-reg-glm`\n"
 	for _, tc := range []struct{ skill, want string }{
@@ -211,6 +225,8 @@ func TestDiscovery_EmptiedSeeHeading(t *testing.T) {
 // one — a hidden skill stem and a tag search no visible example answers
 // are cut, every visible sibling stays.
 func TestDiscovery_RendersTopicalSeeByEdge(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot("AGG_WELFORD", featWeighting).Discovery()
 	for _, tc := range []struct {
 		skill, cut string
@@ -246,6 +262,8 @@ func TestDiscovery_RendersTopicalSeeByEdge(t *testing.T) {
 // serves every shipped skill as skills.Get does, and a See render that
 // keeps every span leaves each body byte-identical.
 func TestDiscovery_FullRenderUnchangedBySeeRender(t *testing.T) {
+	t.Parallel()
+
 	for _, md := range skills.List() {
 		full, _ := skills.Get(md.Name)
 		if got, ok := fullDiscovery.Skill(md.Name); !ok || got != full {
@@ -263,6 +281,8 @@ func TestDiscovery_FullRenderUnchangedBySeeRender(t *testing.T) {
 // never cuts unfenced prose, so every table row survives. (The pack itself
 // no longer names FILTER_INCLUDE there — E2-S3 — so the body is synthetic.)
 func TestDiscovery_KeepsTableRows(t *testing.T) {
+	t.Parallel()
+
 	raw := "## Params\n\n| Name | Description |\n|---|---|\n| `value` | Matched as `FILTER_INCLUDE` matches |\n| `other` | plain |\n"
 	if got := hidingSnapshot("FILTER_INCLUDE").Discovery().renderBody("op-agg-frequency", raw); got != raw {
 		t.Errorf("table rows changed:\n got %q\nwant %q", got, raw)
@@ -273,6 +293,8 @@ func TestDiscovery_KeepsTableRows(t *testing.T) {
 // the instance's pruned graph — atomic and topical alike — and markers
 // never reach the served body.
 func TestDiscovery_RendersFences(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot("REG_GLM", featCrosstab).Discovery()
 	raw := "intro\n\n| op | use |\n|---|---|\n| `REG_OLS` | linear |\n<!-- feature: REG_GLM -->\n| `REG_GLM` | links |\n<!-- /feature -->\n\n<!-- feature: capability:crosstab -->\nCrosstab prose.\n<!-- /feature -->\n\nPair with <!-- feature: REG_OLS -->`REG_OLS`<!-- /feature --> and<!-- feature: REG_OLS, REG_GLM --> `REG_GLM`<!-- /feature -->.\n"
 	want := "intro\n\n| op | use |\n|---|---|\n| `REG_OLS` | linear |\n\nPair with `REG_OLS` and.\n"
@@ -291,6 +313,8 @@ func TestDiscovery_RendersFences(t *testing.T) {
 // by line — an unfenced sentence naming a hidden operator is served as
 // written (the fence gate, not the renderer, keeps the pack fenced).
 func TestDiscovery_NoProseScrubOnBodies(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot("REG_GLM").Discovery()
 	if _, ok := d.topical["regression-modeling"]; !ok {
 		t.Fatal("premise: regression-modeling is a visible topical skill")
@@ -310,6 +334,8 @@ func TestDiscovery_NoProseScrubOnBodies(t *testing.T) {
 // fence is a problem; atomic fences emit nothing; a routes_to edge never
 // prunes the skill.
 func TestOntology_TopicalFenceEdges(t *testing.T) {
+	t.Parallel()
+
 	src := ontologySources{
 		features: Features(),
 		skills: []skills.Metadata{
@@ -356,6 +382,8 @@ func TestOntology_TopicalFenceEdges(t *testing.T) {
 // in the served frontmatter — and a body naming nothing hidden is
 // byte-identical.
 func TestDiscovery_RendersFrontmatterCovers(t *testing.T) {
+	t.Parallel()
+
 	raw, ok := skills.Raw("regression-modeling")
 	if !ok || !strings.Contains(raw, "REG_GLM") || !strings.Contains(raw, "FEAT_POLY") {
 		t.Fatal("premise: regression-modeling covers REG_GLM and FEAT_POLY")

@@ -18,6 +18,8 @@ import (
 // processing.applyMarkovAt and validateOverlayLevelWithinRuntime,
 // through the same overlayhost refusals.
 func TestValidateOverlay_Markov(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	ok := types.OverlaySpec{Name: "flow", Kind: types.OverlayKindMarkov, Scope: types.OverlayScopeMatrix}
 	with := func(edit func(*types.OverlaySpec)) types.OverlaySpec {
@@ -95,6 +97,8 @@ func TestValidateOverlay_Markov(t *testing.T) {
 // declared for the manifest only, so an Interpretation cannot address
 // them — neither a concrete step_1 nor the template itself.
 func TestOverlayOutputResolver_MarkovParts(t *testing.T) {
+	t.Parallel()
+
 	r := overlayOutputResolver(types.OverlayKindMarkov)
 	for field, want := range map[string]FieldCheck{
 		"cells.value":                              FieldStatic,

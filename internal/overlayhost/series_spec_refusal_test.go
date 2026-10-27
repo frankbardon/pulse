@@ -44,6 +44,8 @@ var everyRefArm = map[string]func(*types.OverlayRef){
 // host "series" only on OVERLAY_SHARE_OF_TOTAL. A kind without a rule
 // (a crosstab kind, the empty route of a hidden kind) is never refused.
 func TestSeriesSpecRefusal_Rules(t *testing.T) {
+	t.Parallel()
+
 	ref, scope := errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED
 	for _, kind := range SeriesSpecKinds() {
 		rule := seriesRules[kind]
@@ -123,6 +125,8 @@ func TestSeriesSpecRefusal_Rules(t *testing.T) {
 // runs on a SERIES Process host has a rule and no rule names another
 // kind — a new SERIES kind cannot skip the shared rule.
 func TestSeriesSpecRefusal_CoversSeriesKinds(t *testing.T) {
+	t.Parallel()
+
 	ruled := map[types.OverlayKind]bool{}
 	for _, k := range SeriesSpecKinds() {
 		ruled[k] = true
@@ -139,6 +143,8 @@ func TestSeriesSpecRefusal_CoversSeriesKinds(t *testing.T) {
 // the SERIES table on a SERIES host, the SCALAR host rule (by the
 // request's grouping) on a SCALAR host, nothing on a MATRIX_RESULT host.
 func TestProcessSpecRefusal_Dispatch(t *testing.T) {
+	t.Parallel()
+
 	share := &types.OverlaySpec{Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup}
 	if cerr := ProcessSpecRefusal(types.OverlayShapeSeries, share, share.Kind, true, 0); cerr != nil {
 		t.Fatalf("series: %v", cerr)
@@ -163,6 +169,8 @@ func TestProcessSpecRefusal_Dispatch(t *testing.T) {
 // weight (null passes) — on
 // every FACET kind; a non-FACET kind and an unknown kind are not judged.
 func TestFacetSpecRefusal_Rules(t *testing.T) {
+	t.Parallel()
+
 	ref := errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 	for _, kind := range []types.OverlayKind{types.OverlayKindChiSqVsPop, types.OverlayKindIndexVsPop, types.OverlayKindKSVsPop, types.OverlayKindZScoreVsPop} {
 		good := types.OverlaySpec{Kind: kind, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: "c"}}}
@@ -214,6 +222,8 @@ func TestFacetSpecRefusal_Rules(t *testing.T) {
 // TestComposeSlotRefusals: reference first (alone), then no Targets
 // (alone), then one refusal per empty or unknown target.
 func TestComposeSlotRefusals(t *testing.T) {
+	t.Parallel()
+
 	known := func(l string) bool { return l == "a" || l == "b" }
 	for name, c := range map[string]struct {
 		ref     string
@@ -243,6 +253,8 @@ func TestComposeSlotRefusals(t *testing.T) {
 // stage and refuses a Ref, an out-of-range Index and an unknown Name
 // refuse under the arm's code.
 func TestResolveStageRef(t *testing.T) {
+	t.Parallel()
+
 	one, nine := 1, 9
 	named := map[string]int{"s0": 0, "s1": 1}
 	for name, c := range map[string]struct {

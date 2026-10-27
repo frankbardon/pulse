@@ -38,6 +38,8 @@ func adstockSpec(rows int) *synth.Spec {
 // sum as two operations, so the hand side writes the product's rounding
 // barrier explicitly.
 func TestSynthLag_RecursiveAdstock(t *testing.T) {
+	t.Parallel()
+
 	data, _, err := synth.SynthBytes(adstockSpec(300), synth.Options{Seed: 17})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -59,6 +61,8 @@ func TestSynthLag_RecursiveAdstock(t *testing.T) {
 // TestSynthLag_ByteIdentical: one spec and seed, two byte-identical
 // cohorts, with lag in set_expr, when and a rejecting constraint.
 func TestSynthLag_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := adstockSpec(400)
 	spec.Fields = append(spec.Fields, synth.FieldSpec{Name: "flag", Type: "f64", Distribution: synth.DistConstant,
 		Params: map[string]any{"value": 0.0}})
@@ -85,6 +89,8 @@ func TestSynthLag_ByteIdentical(t *testing.T) {
 // half the attempts, lag("x", 1) on every row is the PREVIOUS WRITTEN
 // row's x — never a rejected attempt's.
 func TestSynthLag_RejectedNotBuffered(t *testing.T) {
+	t.Parallel()
+
 	spec := rejectingSpec(200)
 	spec.Rules = []synth.RuleSpec{{SetExpr: map[string]string{"r": `lag("x", 1, -1)`}}}
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 11})
@@ -110,6 +116,8 @@ func TestSynthLag_RejectedNotBuffered(t *testing.T) {
 // too. The constraint bounds each step of x against the previous
 // accepted x, and the `when` flags rows whose previous x was high.
 func TestSynthLag_WhenAndConstraint(t *testing.T) {
+	t.Parallel()
+
 	spec := rejectingSpec(150)
 	spec.Constraints = []synth.ConstraintSpec{{Expr: `abs(x - lag("x", 1, x)) < 0.3`}}
 	spec.Rules = []synth.RuleSpec{{When: `lag("x", 1, 0) > 0.5`, Set: map[string]any{"r": 1.0}}}
@@ -160,6 +168,8 @@ func lagFields() []synth.FieldSpec {
 // its default, or null (here caught by `??`) when none is given. Past
 // that, a lagged row whose field was NULL reads null, not the default.
 func TestSynthLag_DefaultAndNullBeforeN(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{RowCount: 80, Fields: lagFields(), Rules: []synth.RuleSpec{{SetExpr: map[string]string{
 		"y": `lag("x", 3, -2)`,
 		"w": `lag("x", 3) ?? -1`,
@@ -215,6 +225,8 @@ func TestSynthLag_DefaultAndNullBeforeN(t *testing.T) {
 // to a field is null on row 0, and the coercion matrix refuses it at row
 // time rather than writing a silent 0.
 func TestSynthLag_UnguardedNullIsLoud(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{RowCount: 5, Fields: lagFields(), Rules: []synth.RuleSpec{{SetExpr: map[string]string{"y": `lag("x", 1)`}}}}
 	_, _, err := synth.SynthBytes(spec, synth.Options{Seed: 1})
 	ce, ok := err.(*errors.CodedError)
@@ -236,6 +248,8 @@ func lagDoc(tail string) string {
 // TestSynthLag_ValidationRefusals: lag's name and offset are literals
 // checked at spec parse, in every slot, with their own codes.
 func TestSynthLag_ValidationRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		call string
 		code errors.Code
@@ -282,6 +296,8 @@ func TestSynthLag_ValidationRefusals(t *testing.T) {
 // compile, and lag of a categorical into a categorical copies the
 // previous row's level.
 func TestSynthLag_ReturnIsTypedByTheLaggedField(t *testing.T) {
+	t.Parallel()
+
 	expectCode(t, lagDoc(`"rules": [{"set_expr": {"y": "lag(\"region\", 1, \"east\")"}}]`), errors.PULSE_SYNTH_RULE_VALUE_INVALID)
 	expectCode(t, lagDoc(`"rules": [{"set_expr": {"region": "lag(\"region\", 1, 0)"}}]`), errors.PULSE_SYNTH_RULE_EXPR_INVALID)
 
@@ -322,6 +338,8 @@ func TestSynthLag_ReturnIsTypedByTheLaggedField(t *testing.T) {
 // TestSynthLag_ConsumesNoRNG: a lag that binds nothing (a constraint it
 // can never fail, a rule rewriting a constant) moves no drawn byte.
 func TestSynthLag_ConsumesNoRNG(t *testing.T) {
+	t.Parallel()
+
 	plain := rejectingSpec(120)
 	withLag := rejectingSpec(120)
 	withLag.Constraints = append(withLag.Constraints, synth.ConstraintSpec{Expr: `lag("x", 7, 0) >= 0`})
@@ -343,6 +361,8 @@ func TestSynthLag_ConsumesNoRNG(t *testing.T) {
 // still writes the bytes pinned before lag existed (preSharedMathSpecHash
 // was taken on the tree before this story and is unchanged by it).
 func TestSynthLag_SpecWithoutLagIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	data, _, err := synth.SynthBytes(preU58RowEnvSpec(), synth.Options{Seed: 4242})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -357,6 +377,8 @@ func TestSynthLag_SpecWithoutLagIsByteIdentical(t *testing.T) {
 // first generated row — it returns the default there, never the last
 // source row's value, and thereafter reads generated rows only.
 func TestSynthLag_AugmentStartsEmptyAtTheFirstGeneratedRow(t *testing.T) {
+	t.Parallel()
+
 	fields := []synth.FieldSpec{
 		{Name: "x", Type: "f64", Distribution: synth.DistMonotonicFrom, Params: map[string]any{"start": 1000.0}},
 		{Name: "y", Type: "f64", Distribution: synth.DistConstant, Params: map[string]any{"value": 0.0}},
@@ -411,6 +433,8 @@ func TestSynthLag_AugmentStartsEmptyAtTheFirstGeneratedRow(t *testing.T) {
 // []float64 (indexable), and an expr number list is accepted as its
 // default.
 func TestSynthLag_VectorField(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{RowCount: 40, Fields: []synth.FieldSpec{
 		{Name: "emb", Type: "vec_f64", Distribution: synth.DistNormal,
 			Params: map[string]any{"mean": 0.0, "std": 1.0}, Vector: &synth.VectorSpec{Dim: 2}},

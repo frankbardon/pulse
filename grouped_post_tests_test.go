@@ -55,6 +55,8 @@ func gptRequest(f *mgFixture, groups []*types.Group) *types.Request {
 // that region and grouped by score-range alone — on every execution
 // mode that runs post-tests (the streaming grouped tail included).
 func TestGroupedPostTests_EqualPerPartitionRuns(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	regions := []string{"north", "south", "west"}
 	// The reference: per region, the one-grouper run's post-tests.
@@ -162,6 +164,8 @@ func gptClose(t *testing.T, a, b string) bool {
 // once over every row (the pre-U46 walk), one grouper never partitions,
 // and neither carries a group_key.
 func TestGroupedPostTests_PartitionByAndByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	run := func(groups []*types.Group, params string) *types.Response {
 		t.Helper()
@@ -197,6 +201,8 @@ func TestGroupedPostTests_PartitionByAndByteIdentity(t *testing.T) {
 // test gets null statistics and a coded warning naming its group_key;
 // the others proceed.
 func TestGroupedPostTests_SparsePartition(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := gptRequest(f, []*types.Group{mgRegion(), gptScore()})
 	// ids 23-24 leave west two score buckets: a trend needs three.
@@ -228,6 +234,8 @@ func TestGroupedPostTests_SparsePartition(t *testing.T) {
 // prefix rule, post-tests at mixed depths and a split on a partition
 // key are refused by predict and runtime with identical Details.
 func TestGroupedPostTests_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	cases := []struct {
 		name   string
@@ -292,6 +300,8 @@ func TestGroupedPostTests_RefusalsMatchPredict(t *testing.T) {
 // TestGroupedPostTests_PredictCountsPartitions: predict's p_values count
 // post-tests x partitions (dictionary basis) beside tests x groups.
 func TestGroupedPostTests_PredictCountsPartitions(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := mgRequest(f, []*types.Group{mgRegion(), mgSex()})
 	req.Tests = gtDecodeTests(t, `[{"type":"TEST_T","field":"score","split_by":"tier"}]`)
@@ -358,6 +368,8 @@ func refAdjust(method types.MultiplicityMethod, ps []float64) []float64 {
 // moves; a sparse group's undefined p is left out of m and counted in
 // every member's `excluded` stamp.
 func TestGroupedPostTests_OneFamily(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	build := func(mult *types.Multiplicity) *types.Request {
 		req := gptRequest(f, []*types.Group{mgRegion(), gptScore()})

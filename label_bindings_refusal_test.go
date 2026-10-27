@@ -30,6 +30,8 @@ func labelRefusalCode(err error) perrors.Code {
 // letting the last binding win. Export predict raises the same code with
 // a row target or none, and a refused export writes nothing.
 func TestExport_RowLabelBindingShapeRefusals(t *testing.T) {
+	t.Parallel()
+
 	p := rowLabelsPulse(t)
 	for _, tc := range []struct {
 		name     string
@@ -132,6 +134,8 @@ func convertWithLabels(t *testing.T, p *Pulse, schema *encoding.Schema, predict,
 // Run and in Predict alike. A valid categorical or integer-coded binding
 // converts exactly as before.
 func TestConvert_LabelBindingRefusalsMatchExport(t *testing.T) {
+	t.Parallel()
+
 	p := rowLabelsPulse(t)
 	declared := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, CsvColumnIdx: 0},

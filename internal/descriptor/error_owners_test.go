@@ -15,6 +15,8 @@ import (
 // error code exactly once, names nothing else, and every owner resolves
 // to a built-in feature (or is the lone shared sentinel).
 func TestErrorOwners_Complete(t *testing.T) {
+	t.Parallel()
+
 	registered := map[errors.Code]bool{}
 	for _, c := range errors.AllCodes() {
 		registered[c] = true
@@ -52,6 +54,8 @@ func TestErrorOwners_Complete(t *testing.T) {
 // TestErrorOwners_FeatureProfileCodesShared: the feature-profile codes
 // stay listed on every instance, the empty one included.
 func TestErrorOwners_FeatureProfileCodesShared(t *testing.T) {
+	t.Parallel()
+
 	empty := NewInstanceSnapshot(nil, FeatureSet{Hidden: FeatureNames()})
 	for _, c := range errors.AllCodes() {
 		if strings.HasPrefix(string(c), "PULSE_FEATURE_PROFILE_") && !ErrorCodeVisible(empty, c) {
@@ -120,6 +124,8 @@ func namedTokens(s string, tokens map[string]string) []string {
 // every instance that lists the code — i.e. implied by EVERY owner. A
 // shared code's Message names no feature at all.
 func TestErrorMessagesNameOnlyOwners(t *testing.T) {
+	t.Parallel()
+
 	tokens := proseFeatureTokens()
 	for _, c := range errors.AllCodes() {
 		m, _ := errors.MetadataFor(c)
@@ -157,6 +163,8 @@ func scopedExcept(hidden ...string) *InstanceSnapshot {
 // TestErrorCodeVisible_AnyOwnerKeepsIt: an owned code is hidden iff
 // every owner is hidden.
 func TestErrorCodeVisible_AnyOwnerKeepsIt(t *testing.T) {
+	t.Parallel()
+
 	c := errors.PULSE_TEST_PAIRED_LENGTH_MISMATCH // owners TEST_PAIRED_T, TEST_WILCOXON_SR
 	if !ErrorCodeVisible(scopedExcept("TEST_PAIRED_T"), c) {
 		t.Error("code hidden though TEST_WILCOXON_SR still owns it")
@@ -184,6 +192,8 @@ func lookupJSON(t *testing.T, v any) string {
 // TestErrorLookup_DefaultIsFull: a nil or unscoped instance renders the
 // errors package unchanged, and a fully-enabled scoped one does too.
 func TestErrorLookup_DefaultIsFull(t *testing.T) {
+	t.Parallel()
+
 	full := scopedExcept()
 	for _, inst := range []*InstanceSnapshot{nil, UnscopedInstanceSnapshot(&ExtensionsSnapshot{}), full} {
 		for _, c := range errors.AllCodes() {
@@ -209,6 +219,8 @@ func TestErrorLookup_DefaultIsFull(t *testing.T) {
 // TestErrorLookup_HiddenCodeNotFound: a code whose every owner is hidden
 // is not found, absent from its domain and from search.
 func TestErrorLookup_HiddenCodeNotFound(t *testing.T) {
+	t.Parallel()
+
 	inst := scopedExcept(FeatureName(FeatureKindIOFormat, "spss"))
 	const code = "PULSE_SPSS_FILE_EMPTY"
 	if _, ok := ErrorLookup(inst, code); ok {
@@ -235,6 +247,8 @@ func TestErrorLookup_HiddenCodeNotFound(t *testing.T) {
 // TestErrorLookup_FixupStrip: a visible code keeps only the fixups that
 // name no hidden feature, and a code may be left with none.
 func TestErrorLookup_FixupStrip(t *testing.T) {
+	t.Parallel()
+
 	full, _ := errors.Lookup("PULSE_TEST_TUKEY_REQUIRES_K_GE_3")
 	if len(full.Fixups) != 1 || !strings.Contains(full.Fixups[0].Hint, "TEST_WELCH") {
 		t.Fatalf("fixture drifted: %+v", full.Fixups)
@@ -273,6 +287,8 @@ func TestErrorLookup_FixupStrip(t *testing.T) {
 // stripped fixup finds nothing; every hit carries the query in what it
 // renders.
 func TestErrorsSearch_NeverMatchesHiddenText(t *testing.T) {
+	t.Parallel()
+
 	const q = "TEST_WELCH"
 	if len(errors.Search(q)) == 0 {
 		t.Fatal("full search finds nothing: vacuous")
@@ -292,6 +308,8 @@ func TestErrorsSearch_NeverMatchesHiddenText(t *testing.T) {
 // visible subset; a domain with no visible code vanishes; the full
 // instance keeps them whole.
 func TestManifestErrorFields_Scoped(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifestForInstance(scopedExcept(FeatureNames()...))
 	if m.ErrorCodesCount != len(m.ErrorCodes) {
 		t.Errorf("count %d != len(codes) %d", m.ErrorCodesCount, len(m.ErrorCodes))

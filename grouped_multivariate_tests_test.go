@@ -118,6 +118,8 @@ func gmvCohort(t *testing.T, opts pulse.Options) (*pulse.Pulse, string) {
 }
 
 func TestGroupedMultivariateTests_EqualFilteredRunsAndDegenerateGroupsDoNotAbort(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := gmvCohort(t, pulse.Options{})
 	ctx := context.Background()
 	members := `"fields":["x1","x2","x3"]`
@@ -226,6 +228,8 @@ func (g gmvMatrixTest) Finalize() (*types.TestResult, error) {
 // filtered single-group run still refuses), and the good groups keep
 // their results.
 func TestGroupedTests_MatrixRefusalIsSparseGroup(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := gmvCohort(t, pulse.Options{Extensions: pulse.Extensions{Tests: []pulse.TestRegistration{{
 		Name: "TEST_ACME_GMV", Tier: pulse.TestTierRow,
 		RowFactory: func(*types.Test, *encoding.Schema) (extend.RowTest, error) {

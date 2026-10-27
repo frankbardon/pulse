@@ -184,6 +184,8 @@ func wcountRun(t *testing.T, a *types.Aggregation, records []*Record, field stri
 // figure (the Rich map for AGG_SET_FREQUENCY) byte for byte, on the
 // buffered, streamed and merged paths, under both kinds.
 func TestWeightedCounts_UnityParity(t *testing.T) {
+	t.Parallel()
+
 	records := wcountRecords(wcountBase(func(int) float64 { return 1 }))
 	for _, s := range wcountSpecs {
 		for _, kind := range []types.WeightKind{types.WeightKindProbability, types.WeightKindFrequency} {
@@ -208,6 +210,8 @@ func TestWeightedCounts_UnityParity(t *testing.T) {
 // the physically duplicated rows run unweighted — exactly, on every
 // path: every figure here is a sum of integers or one exact division.
 func TestWeightedCounts_FrequencyExpansion(t *testing.T) {
+	t.Parallel()
+
 	base := wcountBase(func(i int) float64 { return float64((i * 5) % 4) })
 	var ex []wcountRow
 	for _, r := range base {
@@ -233,6 +237,8 @@ func TestWeightedCounts_FrequencyExpansion(t *testing.T) {
 
 // TestWeightedCounts_Oracle: hand-computed fractional-weight figures.
 func TestWeightedCounts_Oracle(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	records := wcountRecords([]wcountRow{
 		{value: 1, w: 0.5, num: 1, den: 2, mask: 0b01},
@@ -270,6 +276,8 @@ func TestWeightedCounts_Oracle(t *testing.T) {
 // TestWeightedCounts_InvalidWeightsExcluded: null, negative, NaN/Inf
 // and zero weights drop the row — never coerced — on every operator.
 func TestWeightedCounts_InvalidWeightsExcluded(t *testing.T) {
+	t.Parallel()
+
 	cleanRows := wcountBase(func(i int) float64 { return 0.5 + float64(i%3) })[:40]
 	dirtyRows := append([]wcountRow{}, cleanRows...)
 	for _, w := range []float64{-3, math.NaN(), math.Inf(1), 0} {
@@ -291,6 +299,8 @@ func TestWeightedCounts_InvalidWeightsExcluded(t *testing.T) {
 // TestWeightedCounts_ExecutionClassUnchanged: a weight keeps every
 // counting operator streamable and mergeable, exactly as unweighted.
 func TestWeightedCounts_ExecutionClassUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := wcountSchema()
 	for _, s := range wcountSpecs {
 		plain := &types.Request{Aggregations: []*types.Aggregation{s.agg(types.SlotWeight{})}}

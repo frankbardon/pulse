@@ -65,6 +65,8 @@ func vsdWelfordSD(t *testing.T, r *types.Response) []float64 {
 }
 
 func TestVecSD_CrosstabElementMatchesWelford(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 90)

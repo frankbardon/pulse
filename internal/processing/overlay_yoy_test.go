@@ -50,6 +50,8 @@ func newStubYoYHost(keys []types.AxisKey, values []float64) *SeriesHostView {
 // 5-year series [10, 20, 40, 80, 160] yields: year[0]=NaN, year[1]=200,
 // year[2]=200, year[3]=200, year[4]=200.
 func TestOverlay_YoY_AnnualBasic(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020"}, {"2021"}, {"2022"}, {"2023"}, {"2024"}}
 	values := []float64{10.0, 20.0, 40.0, 80.0, 160.0}
 	host := newStubYoYHost(keys, values)
@@ -84,6 +86,8 @@ func TestOverlay_YoY_AnnualBasic(t *testing.T) {
 // yields the first 12 months as NaN, months 13..24 as 200 (each month
 // doubled vs the same month one year prior).
 func TestOverlay_YoY_MonthlyBasic(t *testing.T) {
+	t.Parallel()
+
 	keys := make([]types.AxisKey, 24)
 	values := make([]float64, 24)
 	for i := 0; i < 24; i++ {
@@ -121,6 +125,8 @@ func TestOverlay_YoY_MonthlyBasic(t *testing.T) {
 // 104-week series with weeks[0..51]=10 and weeks[52..103]=15 yields
 // the first 52 weeks as NaN and weeks 52..103 as 150.
 func TestOverlay_YoY_WeeklyBasic(t *testing.T) {
+	t.Parallel()
+
 	keys := make([]types.AxisKey, 104)
 	values := make([]float64, 104)
 	for i := 0; i < 104; i++ {
@@ -156,6 +162,8 @@ func TestOverlay_YoY_WeeklyBasic(t *testing.T) {
 // 8-quarter series yields the first 4 NaN, then YoY ratios for
 // quarters 4..7.
 func TestOverlay_YoY_QuarterlyBasic(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020-Q1"}, {"2020-Q2"}, {"2020-Q3"}, {"2020-Q4"},
 		{"2021-Q1"}, {"2021-Q2"}, {"2021-Q3"}, {"2021-Q4"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0, 11.0, 22.0, 33.0, 44.0}
@@ -185,6 +193,8 @@ func TestOverlay_YoY_QuarterlyBasic(t *testing.T) {
 // spanning ~370 days exercise the exact-date 365-days-prior lookup.
 // 2020-01-01 has no prior; 2021-01-01 = 200; 2021-01-02 = 200.
 func TestOverlay_YoY_DailyBasic(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"2020-01-01"}, {"2020-01-02"},
 		{"2021-01-01"}, {"2021-01-02"},
@@ -217,6 +227,8 @@ func TestOverlay_YoY_DailyBasic(t *testing.T) {
 // 2020-02-29 → 2019-02-29 (non-leap) → no exact-key match → NaN, no
 // error or warning.
 func TestOverlay_YoY_DailyFeb29EmitsNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"2019-02-28"},
 		{"2020-02-28"},
@@ -250,6 +262,8 @@ func TestOverlay_YoY_DailyFeb29EmitsNaN(t *testing.T) {
 // TestOverlay_YoY_HourlyBasic pins the hourly frequency arm with a small
 // fixture spanning the 365-day stride. 2020-01-01T00 vs 2019-01-01T00.
 func TestOverlay_YoY_HourlyBasic(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"2019-01-01T00"},
 		{"2019-01-01T01"},
@@ -283,6 +297,8 @@ func TestOverlay_YoY_HourlyBasic(t *testing.T) {
 // spec without Params (or with empty Params) is rejected with a coded
 // error carrying PULSE_OVERLAY_YOY_FREQUENCY_MISSING.
 func TestOverlay_YoY_FrequencyMissingRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020-01"}, {"2021-01"}}
 	host := newStubYoYHost(keys, []float64{10.0, 20.0})
 
@@ -335,6 +351,8 @@ func TestOverlay_YoY_FrequencyMissingRejected(t *testing.T) {
 // rejected with a coded error carrying
 // PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY.
 func TestOverlay_YoY_FrequencyIncompatibleRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020-01"}, {"2021-01"}}
 	host := newStubYoYHost(keys, []float64{10.0, 20.0})
 
@@ -371,6 +389,8 @@ func TestOverlay_YoY_FrequencyIncompatibleRejected(t *testing.T) {
 // rejected at runtime with a coded error carrying
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestOverlay_YoY_NonDateGrouperRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"east"}, {"west"}}
 	host := NewSeriesHostViewWithGrouper(
 		keys,
@@ -399,6 +419,8 @@ func TestOverlay_YoY_NonDateGrouperRejected(t *testing.T) {
 // TestOverlay_YoY_ZeroPriorEmitsRefZero pins the zero-prior path:
 // annual frequency with prior-year value 0 yields NaN + REF_ZERO.
 func TestOverlay_YoY_ZeroPriorEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020"}, {"2021"}}
 	values := []float64{0.0, 100.0}
 	host := newStubYoYHost(keys, values)
@@ -429,6 +451,8 @@ func TestOverlay_YoY_ZeroPriorEmitsRefZero(t *testing.T) {
 // or warning ("no comparison available" is distinct from "denominator
 // was zero").
 func TestOverlay_YoY_FirstYearNoErrorJustNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020"}, {"2021"}, {"2022"}, {"2023"}, {"2024"}}
 	values := []float64{10.0, 20.0, 40.0, 80.0, 160.0}
 	host := newStubYoYHost(keys, values)
@@ -451,6 +475,8 @@ func TestOverlay_YoY_FirstYearNoErrorJustNaN(t *testing.T) {
 // year-over-year kind; the synthesiser surfaces the lower-case bare-
 // kind string "yoy".
 func TestOverlay_YoY_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020"}, {"2021"}}
 	host := newStubYoYHost(keys, []float64{10.0, 20.0})
 	params, _ := json.Marshal(map[string]any{"frequency": "annual"})
@@ -473,6 +499,8 @@ func TestOverlay_YoY_DefaultLayerName(t *testing.T) {
 // nil-host arm: a nil SeriesHostView surfaces a coded
 // PROCESSING_INTERNAL error rather than panicking.
 func TestOverlay_YoY_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newYoYSpec("yoy", "annual")
 	_, _, err := applyYoY(&spec, nil)
 	if err == nil {
@@ -488,6 +516,8 @@ func TestOverlay_YoY_NilHostReturnsCoded(t *testing.T) {
 }
 
 func TestOverlay_YoY_BufferedPath_RejectsNonDateHost(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{newYoYSpec("yoy", "monthly")}
 	schema := overlayIntegrationSchema(t)
 	recs := overlayIntegrationRecords(schema)
@@ -519,6 +549,8 @@ func TestOverlay_YoY_BufferedPath_RejectsNonDateHost(t *testing.T) {
 // promotion path the test calls promoteYoYFrequencyFromGroupParams
 // directly with a synthesised request.
 func TestOverlay_YoY_FrequencyPromotedFromGroupParams_E2E(t *testing.T) {
+	t.Parallel()
+
 	// Synthesised request with a GROUP_DATE grouper carrying
 	// `frequency=monthly` on its Params slot. The spec.Params slot is
 	// empty so the orchestrator must promote.
@@ -565,6 +597,8 @@ func TestOverlay_YoY_FrequencyPromotedFromGroupParams_E2E(t *testing.T) {
 // override-wins contract: when both spec.Params and Groups[0].Params
 // carry a frequency, the spec value wins.
 func TestOverlay_YoY_FrequencyPromotionSkipsWhenSpecHasOverride(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{{
 		Name:   "yoy",
 		Kind:   types.OverlayKindYoY,
@@ -603,6 +637,8 @@ func TestOverlay_YoY_FrequencyPromotionSkipsWhenSpecHasOverride(t *testing.T) {
 // partitions by the non-date keys and hands each partition the date key
 // alone (TestOverlay_YoY_GroupedPartitions).
 func TestOverlay_YoY_MultiGrouperHostRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"2020-01", "east"}, {"2021-01", "east"}}
 	values := func(i int) (float64, bool) { return 10.0, true }
 	for _, kinds := range [][]types.GroupType{
@@ -639,6 +675,8 @@ func yoyGroupedRun(t *testing.T, groups []*types.Group, spec types.OverlaySpec, 
 // host order. The frequency is promoted from the GROUP_DATE grouper
 // wherever it sits.
 func TestOverlay_YoY_GroupedPartitions(t *testing.T) {
+	t.Parallel()
+
 	// east: 2023-03-01=10, 2024-03-01=15; west: 2023-03-01=40,
 	// 2024-03-01=20, 2024-03-02=7 (no 2023-03-02 anywhere).
 	type pt struct {
@@ -703,6 +741,8 @@ func TestOverlay_YoY_GroupedPartitions(t *testing.T) {
 // and a partition_by other than the non-date keys with the
 // seriespartition.YoY Details predict echoes; no layer is written.
 func TestOverlay_YoY_GroupedRefused(t *testing.T) {
+	t.Parallel()
+
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 	day := &types.Group{Type: types.GROUP_DATE, Field: "day"}
 	shipped := &types.Group{Type: types.GROUP_DATE, Field: "shipped"}
@@ -745,6 +785,8 @@ func TestOverlay_YoY_GroupedRefused(t *testing.T) {
 // fallback reads the GROUP_DATE grouper's Params wherever it sits, never
 // a non-date groups[0]'s.
 func TestPromoteYoYFrequency_FromDateGrouperAnywhere(t *testing.T) {
+	t.Parallel()
+
 	spec := types.OverlaySpec{Name: "yoy", Kind: types.OverlayKindYoY, Scope: types.OverlayScopeGroup, Ref: types.OverlayRef{YoY: &types.OverlayYoYRef{}}}
 	req := &types.Request{
 		Groups: []*types.Group{

@@ -22,6 +22,8 @@ func runExportCLI(args ...string) error {
 // .sav writer and by export predict --format spss, and an unknown zone
 // is PULSE_TIMEZONE_UNKNOWN on both leaves.
 func TestExport_TZFlag(t *testing.T) {
+	t.Parallel()
+
 	cohort, _, err := zoneImport(t)
 	if err != nil {
 		t.Fatal(err)

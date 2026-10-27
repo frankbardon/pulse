@@ -19,6 +19,8 @@ import (
 // compile semantics.
 
 func TestExprPow_FormulaBitsAndNull(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	null := NewRecordWithWide(s, map[string]float64{"id": 7, "y": 4, "d": 18262}, map[string]bool{"x": true, "cat": true}, nil)
 	for i := range 64 {
@@ -52,6 +54,8 @@ func TestExprPow_FormulaBitsAndNull(t *testing.T) {
 }
 
 func TestExprPow_FilterUnknownOnNull(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := []*Record{
 		NewRecordWithWide(s, map[string]float64{"id": 4, "x": 3, "y": 1, "cat": 1, "d": 18262}, nil, nil),
@@ -87,6 +91,8 @@ func TestExprPow_FilterUnknownOnNull(t *testing.T) {
 }
 
 func TestExprPow_NonNumericStillFailsAtCompile(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	for _, src := range []string{"cat ** 2", "amt ** 2", "x ** 'a'", "(amt ?? 0) ^ 2"} {
 		_, err := newExprProgram(src, "filter", s, nil, nil, (*ExtensionRegistry)(nil).ExprOptions())
@@ -99,6 +105,8 @@ func TestExprPow_NonNumericStillFailsAtCompile(t *testing.T) {
 }
 
 func TestExprPow_OverlayFormula(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindFormula}
 	proto := map[string]any{"value": 0.0, "total": 0.0}
 	for _, exts := range []*ExtensionRegistry{nil, {}} {
@@ -120,6 +128,8 @@ func TestExprPow_OverlayFormula(t *testing.T) {
 }
 
 func TestExprPow_PureForPrecompute(t *testing.T) {
+	t.Parallel()
+
 	got, ok := exprPureInputs("x ** 2 > 1 && id ^ y > 1", nil)
 	if !ok || strings.Join(got, ",") != "x,id,y" {
 		t.Fatalf("exprPureInputs = %v, %v; want [x id y], true", got, ok)

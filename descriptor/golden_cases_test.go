@@ -14,6 +14,8 @@ import (
 )
 
 func TestInspectGolden(t *testing.T) {
+	t.Parallel()
+
 	dict := goldenDictionary(t, "red", "green", "blue")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -35,6 +37,8 @@ func TestInspectGolden(t *testing.T) {
 
 // TestInspectGroupedGolden pins the full grouped inspect envelope.
 func TestInspectGroupedGolden(t *testing.T) {
+	t.Parallel()
+
 	data := goldenGroupedCohort(t, 12, 3)
 	out, err := json.MarshalIndent(descx.Inspect(bytes.NewReader(data), nil), "", "  ")
 	if err != nil {
@@ -44,6 +48,8 @@ func TestInspectGroupedGolden(t *testing.T) {
 }
 
 func TestRootManifestGolden(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	// pulse_version is a build fact; pin it so the golden is deterministic
 	// regardless of ldflags, module version or VCS metadata.
 	defer buildinfo.SetForTest("v0.0.0-test")()
@@ -58,6 +64,8 @@ func TestRootManifestGolden(t *testing.T) {
 }
 
 func TestPredictGolden_SimpleRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -82,6 +90,8 @@ func TestPredictGolden_SimpleRequest(t *testing.T) {
 }
 
 func TestPredictGolden_ComposedRequest(t *testing.T) {
+	t.Parallel()
+
 	dict := goldenDictionary(t, "A", "B", "C")
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -116,6 +126,8 @@ func TestPredictGolden_ComposedRequest(t *testing.T) {
 //
 //	go test ./descriptor/ -run TestPayloadSchemaGolden -update
 func TestPayloadSchemaGolden(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	// The root $comment carries the profile-free feature_set_digest,
 	// whose reached-feature set depends on the build version: pin it.
 	defer buildinfo.SetForTest("v0.0.0-test")()

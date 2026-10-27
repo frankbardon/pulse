@@ -15,6 +15,8 @@ import (
 // runs and carries one PULSE_VECTOR_UNREFERENCED warning per vector no
 // operator references (none can yet), leaving the data unchanged.
 func TestProcess_VectorsResolveBeforeAnyRecord(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {

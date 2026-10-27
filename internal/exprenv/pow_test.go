@@ -74,6 +74,8 @@ func errText(err error) string {
 // error text — typed and null-row twin, full and null rows. Only the
 // value's last bits may differ (detmath.Pow vs math.Pow).
 func TestPow_SemanticsMatchExprLang(t *testing.T) {
+	t.Parallel()
+
 	s := powTestSchema()
 	envs := powEnvs(t, s)
 	for _, src := range []string{
@@ -125,6 +127,8 @@ func TestPow_SemanticsMatchExprLang(t *testing.T) {
 // expr-lang's own conversion failure, at the operator's position, not
 // pow()'s coded PROCESSING_RUNTIME argument refusal.
 func TestPow_NilOperandErrorText(t *testing.T) {
+	t.Parallel()
+
 	s := powTestSchema()
 	p, err := powCompile(s, "y + x ** 2", true, true)
 	if err != nil {
@@ -140,6 +144,8 @@ func TestPow_NilOperandErrorText(t *testing.T) {
 // TestPow_IntOperandsStayFloat: int ** int is float64, as expr-lang's
 // runtime.Exponent always answers, and exact for integer powers.
 func TestPow_IntOperandsStayFloat(t *testing.T) {
+	t.Parallel()
+
 	for src, want := range map[string]float64{"2 ** 10": 1024, "3 ^ 4": 81, "2 ** -1": 0.5, "len('abc') ** 2": 9, "2 ** 62": 1 << 62} {
 		v, err := expr.Eval(src, nil)
 		if err != nil {
@@ -163,6 +169,8 @@ func TestPow_IntOperandsStayFloat(t *testing.T) {
 // pow(x, y)'s bits (detmath.Pow) over a deterministic sweep — the
 // operator no longer rides math.Pow.
 func TestPow_OperatorBitEqualsPowBuiltin(t *testing.T) {
+	t.Parallel()
+
 	s := powTestSchema()
 	ops := map[string]*vm.Program{}
 	for _, src := range []string{"x ** y", "x ^ y", "pow(x, y)", "(x ?? 0) ** y"} {
@@ -210,6 +218,8 @@ func TestPow_OperatorBitEqualsPowBuiltin(t *testing.T) {
 // TestPow_BothSpellingsRewritten: the compiled program calls the
 // detmath builtin, never expr-lang's OpExponent.
 func TestPow_BothSpellingsRewritten(t *testing.T) {
+	t.Parallel()
+
 	s := powTestSchema()
 	for _, src := range []string{"x ** 2", "x ^ 2", "(x ?? 1) ** y"} {
 		for _, twin := range []bool{false, true} {

@@ -17,6 +17,8 @@ import (
 // foldComposeMultiplicity). The pass is observed through its seam; each
 // layer lands at its spec's index.
 func TestMatrixResultOverlays_RunAfterMultiplicityFold(t *testing.T) {
+	// serial: swaps the package-level service.applyMatrixResultOverlays test hook
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(160))
 	req := func() *types.Request {
 		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", "")

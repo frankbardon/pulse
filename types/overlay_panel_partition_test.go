@@ -21,6 +21,8 @@ func panelSlot(panelIdx, slotIdx int, label string, types_ ...GroupType) PanelSl
 // The gate's whole decision table. Each row is a (slot shape, params)
 // pair and the expected refusal.
 func TestCheckPanelSlabPartition(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		slots  []PanelSlabPartitionSlot
@@ -111,6 +113,8 @@ func TestCheckPanelSlabPartition(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			v, bad := CheckPanelSlabPartition(tc.slots, tc.params)
 			if bad != tc.bad {
 				t.Fatalf("CheckPanelSlabPartition bad = %v, want %v (violation %+v)", bad, tc.bad, v)
@@ -134,6 +138,8 @@ func TestCheckPanelSlabPartition(t *testing.T) {
 // A nil *Group in the row slice must be skipped, not dereferenced. The
 // axis-pairing twin takes the same posture.
 func TestCheckPanelSlabPartition_NilGroupSkipped(t *testing.T) {
+	t.Parallel()
+
 	slots := []PanelSlabPartitionSlot{{
 		Rows:  []*Group{{Type: GROUP_CATEGORY}, nil, {Type: GROUP_SET_PER_ELEMENT, Field: "brands"}},
 		Label: "ref",
@@ -153,6 +159,8 @@ func TestCheckPanelSlabPartition_NilGroupSkipped(t *testing.T) {
 // and a name known to NEITHER passes (it cannot execute, so it can
 // produce no wrong number).
 func TestCheckPanelSlabPartitionWith_ExtensionGrouper(t *testing.T) {
+	t.Parallel()
+
 	const custom GroupType = "GROUP_CUSTOM_FANOUT"
 	slots := []PanelSlabPartitionSlot{panelSlot(0, 0, "ref", GROUP_CATEGORY, custom)}
 	params := PanelOverlayParams{NSource: PanelNSourceRowMarginValueWithin, NWithinDepth: intPtr(0)}
@@ -177,6 +185,8 @@ func TestCheckPanelSlabPartitionWith_ExtensionGrouper(t *testing.T) {
 // A built-in ALWAYS answers from its own constant — an embedder
 // resolver cannot talk a built-in fan-out grouper into looking flat.
 func TestCheckPanelSlabPartitionWith_BuiltinWinsOverResolver(t *testing.T) {
+	t.Parallel()
+
 	slots := []PanelSlabPartitionSlot{panelSlot(0, 0, "ref", GROUP_CATEGORY, GROUP_SET_PER_ELEMENT)}
 	params := PanelOverlayParams{NSource: PanelNSourceRowMarginValueWithin, NWithinDepth: intPtr(0)}
 	liar := func(GroupType) (bool, bool) { return false, true }
@@ -188,6 +198,8 @@ func TestCheckPanelSlabPartitionWith_BuiltinWinsOverResolver(t *testing.T) {
 // Message and Details are shared by both arms, so their content is
 // pinned here rather than in either arm's test.
 func TestPanelSlabPartitionViolation_MessageAndDetails(t *testing.T) {
+	t.Parallel()
+
 	params := PanelOverlayParams{NSource: PanelNSourceRowMarginValueWithin, NWithinDepth: intPtr(0)}
 	v := PanelSlabPartitionViolation{
 		DimIndex: 1, GroupType: GROUP_SET_PER_ELEMENT, Field: "brands",

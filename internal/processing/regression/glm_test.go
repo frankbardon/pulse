@@ -61,6 +61,8 @@ func asBuffered(t *testing.T, eng Engine) BufferedEngine {
 // blocks below with t.Logf and inspect the output; the printed
 // coefficients become the constants here.
 func TestRegGLM_Logistic_NumericalFixture(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2"}
 	target := "y"
 
@@ -181,6 +183,8 @@ func TestRegGLM_Logistic_NumericalFixture(t *testing.T) {
 // Reference values were derived by running the engine itself on this
 // exact fixture; tolerance 1e-3 catches algorithmic regressions.
 func TestRegGLM_Poisson_NumericalFixture(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x"}
 	target := "y"
 	const n = 100
@@ -251,6 +255,8 @@ func TestRegGLM_Poisson_NumericalFixture(t *testing.T) {
 // never NO_CONVERGE, and never RANK_DEFICIENT (the working weights
 // collapsing is not collinearity).
 func TestRegGLM_Separable_Diverges(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x"}
 	target := "y"
 	const n = 40
@@ -290,6 +296,8 @@ func TestRegGLM_Separable_Diverges(t *testing.T) {
 // via PROCESSING_REGRESSION_INVALID_FAMILY at the spec-validation step.
 // Empty Family is also rejected (Family is required for REG_GLM).
 func TestRegGLM_InvalidFamily(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		family string
@@ -323,6 +331,8 @@ func TestRegGLM_InvalidFamily(t *testing.T) {
 // identity/sqrt, gamma log/identity) plus a cross-family combo
 // (binomial+log) plus unknown links.
 func TestRegGLM_InvalidLink(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		family string
@@ -364,6 +374,8 @@ func TestRegGLM_InvalidLink(t *testing.T) {
 // TestRegGLM_InsufficientData covers n < p + 1: 2 observations against
 // 3 predictors fails the n ≥ p + 1 = 4 threshold inside FitBuffered.
 func TestRegGLM_InsufficientData(t *testing.T) {
+	t.Parallel()
+
 	predictors := []string{"x1", "x2", "x3"}
 	records := []Record{
 		mockRecord{values: map[string]float64{"x1": 1, "x2": 2, "x3": 3, "y": 1}},
@@ -390,6 +402,8 @@ func TestRegGLM_InsufficientData(t *testing.T) {
 // GLM variant, the engine never implements StreamingEngine, and the
 // fit produces a populated RegressionResult with ConvergedIters > 0.
 func TestRegGLM_BufferedOrchestrator(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{
 		Type:       types.REG_GLM,
 		Target:     "y",

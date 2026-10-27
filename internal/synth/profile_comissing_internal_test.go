@@ -158,6 +158,8 @@ func blockMembers(cands []RuleSpec) []string {
 // term from blockDetector.classify and keep the rate term, and the
 // second half below fails with solo0 and solo1 folded into the block.
 func TestSuggestBlocks_PatternNotMerelyRateYieldsTheBlock(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	cands := blockCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -215,6 +217,8 @@ func TestSuggestBlocks_PatternNotMerelyRateYieldsTheBlock(t *testing.T) {
 // A column with no observations has no gate and no block; it is named
 // with its type and kept out of both.
 func TestSuggestBlocks_AlwaysNullIsItsOwnFinding(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	var line string
 	for _, w := range prof.Warnings {
@@ -281,6 +285,8 @@ func TestSuggestBlocks_AlwaysNullIsItsOwnFinding(t *testing.T) {
 // acceptance criterion 4: a near block is neither emitted silently nor
 // dropped silently.
 func TestSuggestBlocks_PartialOverlapIsReportedWithItsAgreement(t *testing.T) {
+	t.Parallel()
+
 	// 400 rows: the block covers 100, `near` covers those 100 plus 5.
 	prof := blockFixtureProfile(t, 400, 5)
 
@@ -359,6 +365,8 @@ func TestSuggestBlocks_PartialOverlapIsReportedWithItsAgreement(t *testing.T) {
 // rate and nothing else must not surface as a near miss either, or the
 // report becomes noise a reader learns to skip.
 func TestSuggestBlocks_IndependentPairsAreNotEvenReported(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	for _, w := range prof.Warnings {
 		if !strings.Contains(w, "null together on") {
@@ -376,6 +384,8 @@ func TestSuggestBlocks_IndependentPairsAreNotEvenReported(t *testing.T) {
 // property: a candidate a reader cannot verify is one they accept
 // blindly.
 func TestSuggestBlocks_EvidenceCarriesThePatternClaim(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	cands := blockCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -436,6 +446,8 @@ func TestSuggestBlocks_EvidenceCarriesThePatternClaim(t *testing.T) {
 // one-shot io.Reader, so a second pass is unrepresentable without
 // re-reading bytes.
 func TestSuggestBlocks_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	schema := blockFixtureSchema(t)
 	rows, nulls := blockFixtureRows(t, 400, 5)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -468,6 +480,8 @@ func TestSuggestBlocks_RidesTheExistingScan(t *testing.T) {
 // by every other accumulator in profileRecords and would be a test of
 // the allocator's noise floor.
 func TestSuggestBlocks_MemoryIsBoundedByTheChunkNotTheCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := blockFixtureSchema(t)
 	small := newBlockDetector(schema)
 	if small == nil {
@@ -525,6 +539,8 @@ func TestSuggestBlocks_MemoryIsBoundedByTheChunkNotTheCohort(t *testing.T) {
 // sizes would need more nullable fields than maxBlockFields admits, and
 // the detector would abandon instead. Found by this test.
 func TestSuggestBlocks_RankedLargestFirstAndBounded(t *testing.T) {
+	t.Parallel()
+
 	const blocks = maxBlockCandidates + 3
 	size := func(b int) int {
 		if b == 0 {
@@ -596,79 +612,13 @@ func TestSuggestBlocks_RankedLargestFirstAndBounded(t *testing.T) {
 	}
 }
 
-// TestSuggestBlocks_WideCohortIsAbandonedNotTruncated pins the field cap
-// from both sides, the way TestSuggestRules_HighCardinalityFieldIsNotAGate
-// pins maxGateLevels: a truncated field set would yield blocks that are
-// exact among the fields it kept and silently missing the rest.
-//
-// The fixture is expressed RELATIVE to the constant, so it keeps
-// exercising the cap when the constant moves; the cost is that the
-// numeric VALUE is not pinned here, which is correct — it is a tuning
-// documented at its declaration.
-func TestSuggestBlocks_WideCohortIsAbandonedNotTruncated(t *testing.T) {
-	build := func(nullable int) *Profile {
-		t.Helper()
-		var fields []encoding.Field
-		for i := 0; i < nullable; i++ {
-			fields = append(fields, encoding.Field{
-				Name: fmt.Sprintf("f%04d", i), Type: encoding.FieldTypeU4, Nullable: true})
-		}
-		const n = 40
-		rows := make([]map[string]any, 0, n)
-		nulls := make([]map[string]bool, 0, n)
-		for i := 0; i < n; i++ {
-			row := map[string]any{}
-			rowNull := map[string]bool{}
-			for j := 0; j < nullable; j++ {
-				name := fmt.Sprintf("f%04d", j)
-				row[name] = float64((i + j) % 8)
-				if i%4 == 0 {
-					rowNull[name] = true
-				}
-			}
-			rows = append(rows, row)
-			nulls = append(nulls, rowNull)
-		}
-		schema := &encoding.Schema{Fields: fields}
-		data := encodeModelRows(t, schema, rows, nulls)
-		prof, err := profileRecords(schema, bytes.NewReader(data), ProfileOptions{SuggestRules: true})
-		if err != nil {
-			t.Fatalf("profileRecords: %v", err)
-		}
-		return prof
-	}
-
-	over := build(maxBlockFields + 1)
-	if got := len(blockCandidates(over.RuleCandidates)); got != 0 {
-		t.Errorf("a %d-field cohort produced %d blocks; over the cap the detector must abandon",
-			maxBlockFields+1, got)
-	}
-	var reported bool
-	for _, w := range over.Warnings {
-		if strings.Contains(w, "co-missing block detection was not run") {
-			reported = true
-			kind, attention := classifyWarning(w)
-			if kind != "rule candidate not considered" || !attention {
-				t.Errorf("abandonment classified as %q / attention=%v", kind, attention)
-			}
-		}
-	}
-	if !reported {
-		t.Errorf("the abandonment was not reported; warnings = %v", over.Warnings)
-	}
-
-	atCap := build(maxBlockFields)
-	if got := len(blockCandidates(atCap.RuleCandidates)); got != 1 {
-		t.Errorf("a cohort with exactly %d nullable fields produced %d blocks, want 1 — "+
-			"the cap must admit its own boundary", maxBlockFields, got)
-	}
-}
-
 // TestSuggestBlocks_EvidenceKeepsTheGatingWireShape pins the one
 // backward-compatibility risk in widening RuleEvidence: the five gating
 // slots gained `omitempty` so a co-missing candidate does not write five
 // empty measurements, and a GATING candidate must still write all five.
 func TestSuggestBlocks_EvidenceKeepsTheGatingWireShape(t *testing.T) {
+	t.Parallel()
+
 	prof := gateFixtureProfile(t, 400, 4)
 	gate, ok := candidateByGate(prof.RuleCandidates, "aware")
 	if !ok {
@@ -728,6 +678,8 @@ func mustMarshalRule(t *testing.T, r RuleSpec) string {
 // thin-block warning outright broke no test, so the warning existed and
 // nothing asserted it.
 func TestSuggestBlocks_ThinBlockShipsWithItsSupport(t *testing.T) {
+	t.Parallel()
+
 	// Twelve rows: the block is null on three of them.
 	prof := blockFixtureProfile(t, 12, 0)
 	cands := blockCandidates(prof.RuleCandidates)
@@ -796,6 +748,8 @@ func nearBlockHandleFromLine(t *testing.T, line string) string {
 // say so rather than advertise a handle that resolves to nothing, which
 // is the failure a per-side flag exists to prevent.
 func TestNearBlockSideLabel_HandleOnlyWhenThereIsACandidate(t *testing.T) {
+	t.Parallel()
+
 	if got := blockSideLabel("solo", 1, false); got != `"solo"` {
 		t.Errorf("singleton label = %q, want the bare name", got)
 	}

@@ -126,6 +126,8 @@ func runCtxPollCase(ctx context.Context, p *Processor, c ctxPollCase, iter Recor
 // stops within CtxPollInterval rows of a mid-run cancel and returns the
 // caller's ctx error unchanged (never a coded error).
 func TestCtxPoll_CancelStopsEveryLoop(t *testing.T) {
+	t.Parallel()
+
 	schema, recs := ctxPollFixture(t)
 	for _, c := range ctxPollCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -155,6 +157,8 @@ func TestCtxPoll_CancelStopsEveryLoop(t *testing.T) {
 // TestCtxPoll_PreCancelledStopsAtFirstRow: a ctx cancelled before the
 // run stops every loop on its first row.
 func TestCtxPoll_PreCancelledStopsAtFirstRow(t *testing.T) {
+	t.Parallel()
+
 	schema, recs := ctxPollFixture(t)
 	for _, c := range ctxPollCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -176,6 +180,8 @@ func TestCtxPoll_PreCancelledStopsAtFirstRow(t *testing.T) {
 // CtxPollInterval-th row after it, never between; a nil ctx never
 // cancels.
 func TestCtxPoller_Cadence(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	p := NewCtxPoller(ctx)

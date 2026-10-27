@@ -10,6 +10,8 @@ import (
 )
 
 func TestShardArchiveProcessStream(t *testing.T) {
+	t.Parallel()
+
 	t.Run("SingleFileRegression", testShardArchiveProcessStream_SingleFileRegression)
 	t.Run("MultiShardRowCount", testShardArchiveProcessStream_MultiShardRowCount)
 	t.Run("MultiShardOnlineAccumulation", testShardArchiveProcessStream_MultiShardOnlineAccumulation)

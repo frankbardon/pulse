@@ -22,6 +22,8 @@ import (
 // rendered from the instance's pruned ontology, so the three read paths
 // must agree with each other (and, profile-free, with skills.Get).
 func TestGuidanceSkills_MCPParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	for _, profile := range []string{"", "minimal", "survey-crosstab", "empty"} {
 		t.Run("profile="+profile, func(t *testing.T) {

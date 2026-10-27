@@ -70,8 +70,12 @@ func collect(t *testing.T, r *Reader) ([]string, [][]string) {
 // statement of the bug: every object in the document must be yielded by
 // ReadRows, including the one ReadHeader looked at.
 func TestNdjsonReader_FirstRecordReachesTheRowPass(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{1, 2, 60} {
 		t.Run(strconv.Itoa(n)+"-records", func(t *testing.T) {
+			t.Parallel()
+
 			r := NewReaderFromBytes(ndjsonDoc(n))
 			defer r.Close()
 
@@ -95,6 +99,8 @@ func TestNdjsonReader_FirstRecordReachesTheRowPass(t *testing.T) {
 // other route: ReadRows auto-calls ReadHeader, and the object it
 // consumed there must still be emitted.
 func TestNdjsonReader_ReadRowsWithoutHeaderYieldsEveryRecord(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(ndjsonDoc(3))
 	defer r.Close()
 
@@ -118,6 +124,8 @@ func TestNdjsonReader_ReadRowsWithoutHeaderYieldsEveryRecord(t *testing.T) {
 // record included. This is the route an INFERRED import takes — infer,
 // Reset, ReadHeader, ReadRows.
 func TestNdjsonReader_ResetReplaysTheFirstRecord(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(ndjsonDoc(4))
 	defer r.Close()
 
@@ -141,8 +149,12 @@ func TestNdjsonReader_ResetReplaysTheFirstRecord(t *testing.T) {
 // claim on the inferred route, checked on the VALUES: the cohort
 // exported back out must start at the first source record.
 func TestNdjsonImport_InferredPathImportsEveryRecord(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{1, 60} {
 		t.Run(strconv.Itoa(n)+"-records", func(t *testing.T) {
+			t.Parallel()
+
 			fs := afero.NewMemMapFs()
 			job := pio.NewImportJob(NewReaderFromBytes(ndjsonOrdinalDoc(n)), "inferred.pulse")
 			job.FS = fs
@@ -163,8 +175,12 @@ func TestNdjsonImport_InferredPathImportsEveryRecord(t *testing.T) {
 // the explicit-schema route, which never calls Reset and reaches
 // ReadHeader only through ReadRows' auto-init.
 func TestNdjsonImport_ExplicitSchemaImportsEveryRecord(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{1, 60} {
 		t.Run(strconv.Itoa(n)+"-records", func(t *testing.T) {
+			t.Parallel()
+
 			fs := afero.NewMemMapFs()
 			job := pio.NewImportJob(NewReaderFromBytes(ndjsonOrdinalDoc(n)), "explicit.pulse")
 			job.FS = fs
@@ -226,6 +242,8 @@ func assertExportedOrdinals(t *testing.T, fs afero.Fs, path string, n int) {
 // appears only later is still dropped. Changing that is a separate
 // design question.
 func TestNdjsonReader_HeterogeneousKeysUnchanged(t *testing.T) {
+	t.Parallel()
+
 	data := `{"name":"alice","age":30}
 {"name":"bob","score":88.0}
 {"name":"charlie","age":35}
@@ -253,6 +271,8 @@ func TestNdjsonReader_HeterogeneousKeysUnchanged(t *testing.T) {
 // ReadHeader, and a malformed first line must not reach the row pass as
 // a second, differently-coded failure.
 func TestNdjsonReader_MalformedFirstLineStillErrors(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte("{bad json}\n{\"a\":1}\n"))
 	defer r.Close()
 
@@ -265,6 +285,8 @@ func TestNdjsonReader_MalformedFirstLineStillErrors(t *testing.T) {
 // is the first NON-EMPTY object, and that blank padding before it does
 // not turn into a phantom row.
 func TestNdjsonReader_LeadingBlankLinesSkipped(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte("\n\n{\"a\":1}\n{\"a\":2}\n"))
 	defer r.Close()
 
@@ -283,6 +305,8 @@ func TestNdjsonReader_LeadingBlankLinesSkipped(t *testing.T) {
 // iteration to reach, so without a check of its own a cancelled context
 // would still deliver a row.
 func TestNdjsonReader_CancellationBeforeTheFirstRecord(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(ndjsonDoc(1))
 	defer r.Close()
 

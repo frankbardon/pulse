@@ -243,6 +243,8 @@ func aucComponents(t *testing.T, resp *types.Response, label string) map[string]
 // TestCreditWorkbench_EndToEnd is the U49 acceptance: every figure of the
 // credit pipeline against R.
 func TestCreditWorkbench_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	ref := loadCreditRef(t)
 	p, cohort := creditPulse(t, ref, true) // strict: the fit_on encoder raises no leakage refusal
 	var batch types.ComposedRequest
@@ -388,6 +390,8 @@ func slotFailed(ws []*types.ResponseWarning, key string, want any) *types.Respon
 // a Compose fit — with PROCESSING_REGRESSION_SEPARATION, the good slot's
 // figures untouched; Strict keeps fail-fast with the slot's own code.
 func TestCreditWorkbench_SeparatedSlotFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	ref := loadCreditRef(t)
 	ctx := context.Background()
 	p, cohort := creditPulse(t, ref, false)

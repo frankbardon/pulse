@@ -116,6 +116,8 @@ func seriesRangeGroupedRequest(label, field, groupField string) *types.Request {
 // new matrix-required kind landing in internal/processing/ without an
 // accompanying descriptor row would break the predict-time gate.
 func TestKindRequiresMatrixCompose_MatchesProcessing(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range types.AllOverlayKinds() {
 		got := kindRequiresMatrixCompose(kind)
 		want := processing.KindRequiresMatrix(kind)
@@ -131,6 +133,8 @@ func TestKindRequiresMatrixCompose_MatchesProcessing(t *testing.T) {
 // implementations are independently maintained under the no-execute
 // structural ban; this test catches any drift on either side.
 func TestComposeDescriptorDefaultLabel_MatchesProcessingHelper(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < 32; i++ {
 		got := composeDescriptorDefaultLabel(i)
 		want := processing.ComposeDefaultLabel(i)
@@ -141,6 +145,8 @@ func TestComposeDescriptorDefaultLabel_MatchesProcessingHelper(t *testing.T) {
 }
 
 func TestInferComposeSlotShape_Matrix(t *testing.T) {
+	t.Parallel()
+
 	req := matrixCrosstabRequest("r", "row", "col")
 	got := inferComposeSlotShape(req)
 	if got != types.OverlayShapeMatrix {
@@ -149,6 +155,8 @@ func TestInferComposeSlotShape_Matrix(t *testing.T) {
 }
 
 func TestInferComposeSlotShape_Series(t *testing.T) {
+	t.Parallel()
+
 	req := seriesGroupedSumRequest("s", "x", "tag")
 	got := inferComposeSlotShape(req)
 	if got != types.OverlayShapeSeries {
@@ -157,6 +165,8 @@ func TestInferComposeSlotShape_Series(t *testing.T) {
 }
 
 func TestInferComposeSlotShape_Scalar(t *testing.T) {
+	t.Parallel()
+
 	req := scalarSumRequest("c", "x")
 	got := inferComposeSlotShape(req)
 	if got != types.OverlayShapeScalar {
@@ -165,6 +175,8 @@ func TestInferComposeSlotShape_Scalar(t *testing.T) {
 }
 
 func TestInferComposeSlotShape_NilReturnsScalar(t *testing.T) {
+	t.Parallel()
+
 	got := inferComposeSlotShape(nil)
 	if got != types.OverlayShapeScalar {
 		t.Errorf("inferComposeSlotShape(nil) = %q, want scalar", got)
@@ -176,6 +188,8 @@ func TestInferComposeSlotShape_NilReturnsScalar(t *testing.T) {
 // well-formed overlay against the first slot. Envelope should carry no
 // errors and the divergence slice should be empty.
 func TestValidateCompose_HappyPath_NoDivergence(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -205,6 +219,8 @@ func TestValidateCompose_HappyPath_NoDivergence(t *testing.T) {
 }
 
 func TestValidateCompose_UnknownReference_Coded(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -239,6 +255,8 @@ func TestValidateCompose_UnknownReference_Coded(t *testing.T) {
 }
 
 func TestValidateCompose_UnknownTarget_Coded(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -278,6 +296,8 @@ func TestValidateCompose_UnknownTarget_Coded(t *testing.T) {
 }
 
 func TestValidateCompose_PanelTargetsOverCap(t *testing.T) {
+	t.Parallel()
+
 	// 18 slots → over default cap of 16.
 	requests := make([]*types.Request, 0, 18)
 	requests = append(requests, matrixCrosstabRequest("ref", "row", "col"))
@@ -316,6 +336,8 @@ func TestValidateCompose_PanelTargetsOverCap(t *testing.T) {
 }
 
 func TestValidateCompose_PanelTargetsOverCap_RespectsOptionsOverride(t *testing.T) {
+	t.Parallel()
+
 	// 5 slots with MaxPanelTargets=3 → over caller-set cap.
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -349,6 +371,8 @@ func TestValidateCompose_PanelTargetsOverCap_RespectsOptionsOverride(t *testing.
 }
 
 func TestValidateCompose_SlotShapeDivergent(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"), // SERIES
@@ -388,6 +412,8 @@ func TestValidateCompose_SlotShapeDivergent(t *testing.T) {
 }
 
 func TestValidateCompose_SlotNotCrosstab(t *testing.T) {
+	t.Parallel()
+
 	// OVERLAY_RANK requires MATRIX; the reference is a SERIES slot.
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -417,6 +443,8 @@ func TestValidateCompose_SlotNotCrosstab(t *testing.T) {
 }
 
 func TestValidateCompose_SchemaDivergent_RowGrouperMismatch(t *testing.T) {
+	t.Parallel()
+
 	// Both MATRIX, but slot a uses GROUP_CATEGORY on row axis and
 	// slot b uses GROUP_RANGE — schema diverges, slot shapes agree.
 	req := &types.ComposedRequest{
@@ -458,6 +486,8 @@ func TestValidateCompose_SchemaDivergent_RowGrouperMismatch(t *testing.T) {
 }
 
 func TestValidateCompose_KindUnknown(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -488,6 +518,8 @@ func TestValidateCompose_KindUnknown(t *testing.T) {
 //   - ReferenceLabel + TargetLabel echo the slot labels and Reason is
 //     the stable identifier.
 func TestPredict_OverlaysSchemaDivergence_Populated_3Slot(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			matrixCrosstabRequest("a", "row", "col"),         // baseline
@@ -538,6 +570,8 @@ func TestPredict_OverlaysSchemaDivergence_Populated_3Slot(t *testing.T) {
 // circuit path — a ComposedRequest with no overlays returns a clean
 // envelope. Mirrors the chain validator's no-op contract.
 func TestValidateCompose_EmptyOverlays_NoError(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -556,6 +590,8 @@ func TestValidateCompose_EmptyOverlays_NoError(t *testing.T) {
 // TestValidateCompose_NilRequest_Coded exercises the defensive nil
 // guard.
 func TestValidateCompose_NilRequest_Coded(t *testing.T) {
+	t.Parallel()
+
 	env := ValidateCompose(nil)
 	if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.SERVICE_VALIDATION) {
 		t.Errorf("expected SERVICE_VALIDATION on nil request, got %+v", env.Errors)
@@ -563,6 +599,8 @@ func TestValidateCompose_NilRequest_Coded(t *testing.T) {
 }
 
 func TestValidateCompose_SchemaDivergent_ColGrouperMismatch(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			matrixCrosstabRequest("a", "row", "col"),
@@ -602,6 +640,8 @@ func TestValidateCompose_SchemaDivergent_ColGrouperMismatch(t *testing.T) {
 }
 
 func TestValidateCompose_SchemaDivergent_NestedDepthMismatch(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			matrixCrosstabRequest("a", "row", "col"),
@@ -641,6 +681,8 @@ func TestValidateCompose_SchemaDivergent_NestedDepthMismatch(t *testing.T) {
 }
 
 func TestValidateCompose_SchemaDivergent_SeriesTypeMismatch(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),   // GROUP_CATEGORY
@@ -680,6 +722,8 @@ func TestValidateCompose_SchemaDivergent_SeriesTypeMismatch(t *testing.T) {
 }
 
 func TestValidateCompose_FieldNameDivergence_NotReported(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			matrixCrosstabRequest("a", "row_orig", "col_orig"),
@@ -713,6 +757,8 @@ func TestValidateCompose_FieldNameDivergence_NotReported(t *testing.T) {
 // is always a non-nil slice (empty array in JSON renderers when no
 // divergence fires). Mirrors the same contract on PredictResult.
 func TestValidateCompose_OverlaysSchemaDivergence_NeverNil(t *testing.T) {
+	t.Parallel()
+
 	// No overlays at all — early-return path.
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -734,6 +780,8 @@ func TestValidateCompose_OverlaysSchemaDivergence_NeverNil(t *testing.T) {
 // at index 0 via its synthesized label; ValidateCompose must resolve
 // it the same way the runtime would.
 func TestValidateCompose_DefaultLabelResolution(t *testing.T) {
+	t.Parallel()
+
 	// Both slots leave Label empty → labels become request_1, request_2.
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
@@ -756,6 +804,8 @@ func TestValidateCompose_DefaultLabelResolution(t *testing.T) {
 }
 
 func TestValidateCompose_OverlayCost_SingleTargetBaseline(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -800,6 +850,8 @@ func TestValidateCompose_OverlayCost_SingleTargetBaseline(t *testing.T) {
 // fails closed) and includes the under-cap baseline, the at-cap edge,
 // and the over-cap clamp.
 func TestValidateCompose_OverlayCost_MultiRefScaling(t *testing.T) {
+	t.Parallel()
+
 	// Build a 5-slot fixture: 1 reference + 4 targets. PROP_Z_PANEL
 	// requires MATRIX hosts (kindRequiresMatrixCompose), PANEL_INDEX_VS_REF
 	// supports both MATRIX and SERIES hosts; both tests use MATRIX fixtures
@@ -891,6 +943,8 @@ func TestValidateCompose_OverlayCost_MultiRefScaling(t *testing.T) {
 // Options.MaxPanelTargets. A 20-target spec on PROP_Z_PANEL must surface
 // a cost reflecting cap=16, not the raw 20.
 func TestValidateCompose_OverlayCost_DefaultCapApplies(t *testing.T) {
+	t.Parallel()
+
 	// 21 slots: 1 reference + 20 targets. Over the default cap of 16.
 	requests := make([]*types.Request, 0, 21)
 	requests = append(requests, matrixCrosstabRequest("ref", "row", "col"))
@@ -933,6 +987,8 @@ func TestValidateCompose_OverlayCost_DefaultCapApplies(t *testing.T) {
 // overlays. Sibling contract to
 // TestPredict_FacetOverlaysApplied_EmptyWhenNoOverlays.
 func TestValidateCompose_OverlayCost_EmptyWhenNoOverlays(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			scalarSumRequest("a", "x"),
@@ -954,6 +1010,8 @@ func TestValidateCompose_OverlayCost_EmptyWhenNoOverlays(t *testing.T) {
 // single-target equivalent cost — the per-spec validator surfaces the
 // missing-target failure separately. The cost map stays well-formed.
 func TestValidateCompose_OverlayCost_NoTargetsFallback(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			matrixCrosstabRequest("ref", "row", "col"),
@@ -987,6 +1045,8 @@ func TestValidateCompose_OverlayCost_NoTargetsFallback(t *testing.T) {
 // the runtime composeOverlayLayerName resolution. Mirrors the
 // PredictResult / FacetValidationResult name-synthesis contract.
 func TestValidateCompose_OverlayCost_NameFallbackToKind(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{
 			seriesGroupedSumRequest("a", "x", "tag"),
@@ -1030,6 +1090,8 @@ func composeCostKeys(m map[string]float64) []string {
 // inferComposeSlotShape and inferChainStageShape: a grouped-vs-
 // ungrouped pair must diverge identically on both sides.
 func TestAuthoredHostShape_MatchesDescriptor(t *testing.T) {
+	t.Parallel()
+
 	agg := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "id"}}
 	grp := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 	cases := map[string]*types.Request{

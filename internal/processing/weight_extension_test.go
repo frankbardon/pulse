@@ -13,6 +13,8 @@ import (
 // then reads exactly the stamped slots. A nil registry is the
 // built-in-only StampWeights.
 func TestStampWeightsWith_ExtensionAwareness(t *testing.T) {
+	t.Parallel()
+
 	const (
 		aware     = "AGG_ACME_AWARE_SUM"
 		plain     = "AGG_ACME_PLAIN_SUM"

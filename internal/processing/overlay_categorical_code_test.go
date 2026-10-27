@@ -67,6 +67,8 @@ func codeRowValue(t *testing.T, op types.AggregationType, params json.RawMessage
 // dictionary's own code for the same label. A new picking aggregator
 // fails here until the class names it.
 func TestEmitsInputValueAggregationTypes_MatchRowValues(t *testing.T) {
+	t.Parallel()
+
 	rows := []string{"r", "r", "r", "q", "q", "p", "s"} // unique mode "r"
 	dictA := []string{"p", "q", "r", "s"}
 	dictB := []string{"s", "r", "q", "p"}

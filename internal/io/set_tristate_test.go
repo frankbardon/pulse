@@ -187,6 +187,8 @@ func importTristate(t *testing.T, ft encoding.FieldType, tokens int, rows [][]st
 // floor the rest of this file depends on: the empty-mask cell and the
 // null cell are NOT the same record.
 func TestImportJob_SetThreeStatesAreDistinctOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	for _, rung := range tristateRungs {
 		rows, _ := tristateCells(rung.Tokens)
 		fs := importTristate(t, rung.Type, rung.Tokens, rows)
@@ -211,6 +213,8 @@ func TestImportJob_SetThreeStatesAreDistinctOnTheWire(t *testing.T) {
 // empty selection both left ExportJob.Run as "", and re-import read
 // both as null — "ticked none of these" became "skipped the question".
 func TestExportJob_SetEmptyMaskIsNotNull(t *testing.T) {
+	t.Parallel()
+
 	for _, rung := range tristateRungs {
 		rows, wantSel := tristateCells(rung.Tokens)
 		fs := importTristate(t, rung.Type, rung.Tokens, rows)
@@ -248,6 +252,8 @@ func TestExportJob_SetEmptyMaskIsNotNull(t *testing.T) {
 // shared import/export path: cohort -> cells -> cohort reproduces the
 // same three storage states.
 func TestExportJob_SetThreeStatesRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, rung := range tristateRungs {
 		rows, _ := tristateCells(rung.Tokens)
 		fs := importTristate(t, rung.Type, rung.Tokens, rows)
@@ -284,6 +290,8 @@ func TestExportJob_SetThreeStatesRoundTrip(t *testing.T) {
 // the export loop from the bitmap — so it must take the empty-selection
 // form rather than impersonate a null.
 func TestFormatSetMask_DictionaryLessCellIsStillPresent(t *testing.T) {
+	t.Parallel()
+
 	if got := formatSetMask(encoding.SetMask{}.WithBit(0), nil); got != EmptySetCell {
 		t.Errorf("formatSetMask(mask, nil) = %q, want %q", got, EmptySetCell)
 	}
@@ -294,6 +302,8 @@ func TestFormatSetMask_DictionaryLessCellIsStillPresent(t *testing.T) {
 // the null-sentinel set does not recognise, so no other field type's
 // null handling moves.
 func TestIsNullToken_UnchangedBySetConvention(t *testing.T) {
+	t.Parallel()
+
 	null := []string{"", "null", "NULL", "Null", "na", "NA", "n/a", "N/A"}
 	for _, s := range null {
 		if !isNullToken(s) {
@@ -313,6 +323,8 @@ func TestIsNullToken_UnchangedBySetConvention(t *testing.T) {
 // holding the marker text is an ordinary category, not a null and not
 // an empty anything.
 func TestEmptySetCell_LeavesCategoricalAlone(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := NewImportJob(newMockReader([]string{"id", "cat"}, [][]string{
 		{"1", "red"}, {"2", EmptySetCell}, {"3", ""},
@@ -340,6 +352,8 @@ func TestEmptySetCell_LeavesCategoricalAlone(t *testing.T) {
 // would let a column of mostly-unanswered multi-selects re-import as a
 // categorical of literal "|" strings.
 func TestProbeSetClassification_EmptySelectionCellsDoNotBlockInference(t *testing.T) {
+	t.Parallel()
+
 	values := []string{"a|b", "b|c", "a|c"}
 	for i := 0; i < 9; i++ {
 		values = append(values, EmptySetCell)
@@ -361,6 +375,8 @@ func TestProbeSetClassification_EmptySelectionCellsDoNotBlockInference(t *testin
 // the fix above must not dissolve: a free-text categorical that happens
 // to carry a pipe in a minority of cells is still not a set.
 func TestProbeSetClassification_OccasionalPipeStillNotASet(t *testing.T) {
+	t.Parallel()
+
 	values := []string{"a|b", "plain", "plain", "other", "other", "more"}
 	if ft, _, ok := probeSetClassification(values, 50); ok {
 		t.Errorf("probeSetClassification fired (%s) on an occasional-pipe categorical", ft)

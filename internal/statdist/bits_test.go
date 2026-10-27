@@ -1,12 +1,7 @@
 package statdist
 
 import (
-	"bytes"
 	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -19,6 +14,8 @@ import (
 // and amd64. Pinned on darwin/arm64 and checked identical on
 // linux/amd64 (docker); CI re-runs it on linux/amd64.
 func TestStatdist_StudentTBitsPinned(t *testing.T) {
+	t.Parallel()
+
 	quantiles := []struct {
 		p, df float64
 		want  uint64
@@ -62,60 +59,5 @@ func TestStatdist_StudentTBitsPinned(t *testing.T) {
 		if got := StudentTCDF(c.t, c.df); math.Float64bits(got) != c.cumulative {
 			t.Errorf("StudentTCDF(%v, %v) = %v (%#016x), want %#016x", c.t, c.df, got, math.Float64bits(got), c.cumulative)
 		}
-	}
-}
-
-// fmahashReport cross-compiles dir's package for GOARCH=arm64 with the
-// compiler's contraction report on and returns the report lines.
-func fmahashReport(t *testing.T, dir, importPath string) []string {
-	t.Helper()
-	cmd := exec.Command("go", "build", "-o", os.DevNull, "-gcflags="+importPath+"=-d=fmahash=vy", ".")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0", "GOFLAGS=")
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("cross-compile for arm64: %v\n%s", err, out.String())
-	}
-	var lines []string
-	for l := range strings.SplitSeq(out.String(), "\n") {
-		if strings.Contains(l, "fmahash triggered") {
-			lines = append(lines, l)
-		}
-	}
-	return lines
-}
-
-// TestStatdist_NoFMAContraction asks the compiler: the package
-// cross-compiled for arm64 (which contracts a*b + c into a fused
-// multiply-add unless the product is an explicit float64(...)) must
-// report no contraction in the Student-t / incomplete-beta files, so
-// their bits are the same on every architecture. normal.go
-// (NormalQuantile) is exempt by name: it is not on the bit contract
-// (doc.go). A probe first proves the flag still reports one.
-func TestStatdist_NoFMAContraction(t *testing.T) {
-	probe := t.TempDir()
-	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(probe, "p.go"), []byte("package fmaprobe\n\nfunc F(a, b, c float64) float64 { return a + b*c }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if len(fmahashReport(t, probe, "fmaprobe")) == 0 {
-		t.Fatal("the -d=fmahash=vy probe reported no contraction for `a + b*c`: the flag changed and this gate is vacuous")
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got []string
-	for _, l := range fmahashReport(t, wd, "github.com/frankbardon/pulse/internal/statdist") {
-		if !strings.Contains(l, "normal.go:") {
-			got = append(got, l)
-		}
-	}
-	if len(got) > 0 {
-		t.Errorf("the arm64 compiler contracted %d multiply-adds in statdist's Student-t path; wrap each product in float64(...):\n%s",
-			len(got), strings.Join(got, "\n"))
 	}
 }

@@ -203,6 +203,8 @@ func buildNullableShardArchive(t testing.TB, schema *encoding.Schema, shardRows 
 // per-slot floor — the same request answering two different shapes
 // depending on worker count.
 func TestShardWorkers_AggregationComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
 
@@ -254,97 +256,6 @@ func TestShardWorkers_AggregationComponentsParity(t *testing.T) {
 	}
 }
 
-// Same contract, other knob. The DecodeWorkers arm shares
-// shardPartial / mergeShardPartials / finalizeMergedPartial with the
-// shard reducer, so it inherited the same hole — plus one of its own:
-// its per-record callback never incremented nullRecords at all, so
-// Run.NullRecords came back 0 where serial reported the real count.
-func TestDecodeWorkers_ComponentsParity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping decode-worker components parity in -short mode")
-	}
-	const rowCount = parallelDecodeRecordThreshold + 4096
-
-	schema := componentsParitySchema()
-	recs, nullAt := componentsParityRows(rowCount, 0)
-	payload := writeNullablePulse(t, schema, recs, nullAt)
-
-	dir := t.TempDir()
-	osFs := afero.NewOsFs()
-	path := dir + "/components_parity.pulse"
-	if err := afero.WriteFile(osFs, path, payload, 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-	if err != nil {
-		t.Fatalf("fs.New: %v", err)
-	}
-
-	req := componentsParityRequest(path)
-	if !processing.CanMergeRequest(req, schema) {
-		t.Fatal("fixture request is not mergeable; the parallel decode reducer would never engage")
-	}
-	if _, ok := shouldFanOutDecode(4, rowCount); !ok {
-		t.Fatal("shouldFanOutDecode refused a 4-worker fan-out above threshold")
-	}
-
-	serialSvc := New(cfg)
-	serialSvc.SetDecodeWorkers(1)
-	serialResp, err := serialSvc.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("serial Process: %v", err)
-	}
-	if serialResp.Components == nil {
-		t.Fatal("serial run emitted no Components at all")
-	}
-	want := serialResp.Components.Aggregations
-	assertAggregationComponentsUseful(t, want)
-	wantRun := serialResp.Components.Run
-	if wantRun == nil || wantRun.NullRecords == 0 {
-		t.Fatalf("serial Run components carry no null count: %+v", wantRun)
-	}
-
-	for _, workers := range []int{2, 4} {
-		t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
-			parSvc := New(cfg)
-			parSvc.SetDecodeWorkers(workers)
-
-			// Gate check: a silent bail would compare serial to serial.
-			cohort, oerr := parSvc.Open(context.Background(), path)
-			if oerr != nil {
-				t.Fatalf("Open: %v", oerr)
-			}
-			_, cleanup, available, berr := buildParallelDecodeContext(
-				parSvc, path, cohort.Schema(), nil, nil, len(cohort.Schema().Fields))
-			if berr != nil {
-				t.Fatalf("buildParallelDecodeContext: %v", berr)
-			}
-			if cleanup != nil {
-				defer func() { _ = cleanup() }()
-			}
-			if !available {
-				t.Fatal("parallel decode unavailable for an OsFs cohort above threshold")
-			}
-
-			resp, err := parSvc.Process(context.Background(), req)
-			if err != nil {
-				t.Fatalf("parallel Process: %v", err)
-			}
-			if resp.Components == nil {
-				t.Fatal("parallel run emitted no Components")
-			}
-			if !reflect.DeepEqual(resp.Components.Aggregations, want) {
-				t.Errorf("Components.Aggregations differ under DecodeWorkers=%d\n  parallel: %+v\n  serial:   %+v",
-					workers, resp.Components.Aggregations, want)
-			}
-			if !reflect.DeepEqual(resp.Components.Run, wantRun) {
-				t.Errorf("Components.Run differs under DecodeWorkers=%d\n  parallel: %+v\n  serial:   %+v",
-					workers, resp.Components.Run, wantRun)
-			}
-		})
-	}
-}
-
 // TestShardWorkers_AttributeComponentsParity: a tally attribute
 // (ATTR_SCALE_SCORE, U51 E3-S2) runs on the shard reducer — each shard
 // scores its rows on its own instance, the merge folds the
@@ -354,6 +265,8 @@ func TestDecodeWorkers_ComponentsParity(t *testing.T) {
 // ran serially; a reducer emitting per-shard figures would report one
 // shard's counts (or one warning per shard).
 func TestShardWorkers_AttributeComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
 	cfg := fs.NewMemMap()
@@ -410,6 +323,8 @@ func TestShardWorkers_AttributeComponentsParity(t *testing.T) {
 // disabled the wire form stays byte-identical to the pre-Components
 // baseline, i.e. Components is nil, not a floor-only shell.
 func TestShardWorkers_AggregationComponentsRespectOptOut(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{20, 21, 19})
 
@@ -441,6 +356,8 @@ func TestShardWorkers_AggregationComponentsRespectOptOut(t *testing.T) {
 // Two filterers, so the n_in invariant is load-bearing: slot 1's n_in
 // must equal slot 0's n_out, not the cohort total.
 func TestShardWorkers_FiltererComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
 

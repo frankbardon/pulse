@@ -87,6 +87,8 @@ func requireDictPrefixDrift(t *testing.T, err error, wantReference, wantTargetLa
 // path). Belt-and-braces against accidental flipping of the safe
 // default.
 func TestOverlayOptions_DictPrefixFast_Default_False(t *testing.T) {
+	t.Parallel()
+
 	var zero types.OverlayOptions
 	if zero.DictPrefixFast {
 		t.Errorf("zero-value OverlayOptions.DictPrefixFast = true, want false (safe default)")
@@ -98,6 +100,8 @@ func TestOverlayOptions_DictPrefixFast_Default_False(t *testing.T) {
 }
 
 func TestOverlay_DictDrift_ByLabelDefault(t *testing.T) {
+	t.Parallel()
+
 	// Reference: rows in [a, b] order.
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	// Target: same labels, byte-swapped row order. Key-set agrees
@@ -136,6 +140,8 @@ func TestOverlay_DictDrift_ByLabelDefault(t *testing.T) {
 // dictionaries on every axis. The probe accepts, the per-kind
 // stub handler runs, and one layer is emitted.
 func TestOverlay_DictDrift_PrefixFastOpt_MatchingPrefix(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 
@@ -167,6 +173,8 @@ func TestOverlay_DictDrift_PrefixFastOpt_MatchingPrefix(t *testing.T) {
 // The Details payload carries the canonical prefix strings up to
 // and including the divergence.
 func TestOverlay_DictDrift_PrefixFastOpt_MismatchedPrefix(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"b", "a"}, "region", []string{"x", "y"})
 
@@ -190,6 +198,8 @@ func TestOverlay_DictDrift_PrefixFastOpt_MismatchedPrefix(t *testing.T) {
 // probe does NOT run (Options.DictPrefixFast=false), and the
 // chassis emits one stub layer per spec.
 func TestApplyComposeOverlays_DictDrift_ByLabelHappyPath(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"b", "a"}, "region", []string{"x", "y"})
 
@@ -219,6 +229,8 @@ func TestApplyComposeOverlays_DictDrift_ByLabelHappyPath(t *testing.T) {
 // PULSE_OVERLAY_DICT_PREFIX_DRIFT and the chassis returns the
 // coded error without dispatching the per-kind handler.
 func TestApplyComposeOverlays_DictDrift_FastPathFailsLoud(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"b", "a"}, "region", []string{"x", "y"})
 
@@ -263,6 +275,8 @@ func TestApplyComposeOverlays_DictDrift_FastPathFailsLoud(t *testing.T) {
 // on the probe's prefix-extension contract while the end-to-end
 // chassis-level paths are exercised by the other tests in this file.
 func TestOverlay_DictDrift_PrefixFastOpt_TargetExtendsReference(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"a", "b", "c"}, "region", []string{"x", "y"})
 
@@ -282,6 +296,8 @@ func TestOverlay_DictDrift_PrefixFastOpt_TargetExtendsReference(t *testing.T) {
 // PULSE_OVERLAY_DICT_PREFIX_DRIFT with field="region" (the column
 // axis's field name).
 func TestOverlay_DictDrift_PrefixFastOpt_ColumnAxisDivergence(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"y", "x"})
 
@@ -304,6 +320,8 @@ func TestOverlay_DictDrift_PrefixFastOpt_ColumnAxisDivergence(t *testing.T) {
 // ApplyComposeOverlays accepts because the safe default path is
 // engaged.
 func TestOverlay_DictDrift_PrefixFastOpt_NilOptionsSkipsProbe(t *testing.T) {
+	t.Parallel()
+
 	ref := dictMatrixSlot("brand", []string{"a", "b"}, "region", []string{"x", "y"})
 	target := dictMatrixSlot("brand", []string{"b", "a"}, "region", []string{"x", "y"})
 
@@ -328,6 +346,8 @@ func TestOverlay_DictDrift_PrefixFastOpt_NilOptionsSkipsProbe(t *testing.T) {
 // DictPrefixFast=true. The probe only consults categorical
 // dictionaries at the MATRIX-host axis layer.
 func TestOverlay_DictDrift_PrefixFastOpt_NonMatrixHostSkipsProbe(t *testing.T) {
+	t.Parallel()
+
 	ref := composeSlotOf(types.OverlayShapeSeries)
 	target := composeSlotOf(types.OverlayShapeSeries)
 

@@ -48,6 +48,8 @@ func pruneFixtureSources() ontologySources {
 }
 
 func TestOntologyPrune_SkillsAndExamples(t *testing.T) {
+	t.Parallel()
+
 	base := buildOntology(pruneFixtureSources())
 	if p := base.Problems(); len(p) > 0 {
 		t.Fatalf("fixture problems: %v", p)
@@ -117,6 +119,8 @@ func TestOntologyPrune_SkillsAndExamples(t *testing.T) {
 // and the flattened any-of DependsOn edges never pruning an enabled
 // feature.
 func TestOntologyPrune_Operators(t *testing.T) {
+	t.Parallel()
+
 	base := BaseOntology()
 	g := pruneOntology(base, hidingSnapshot(featSynth))
 	if g.Has(opID("normal")) || g.Has(skillID("op-synth-normal")) {
@@ -162,6 +166,8 @@ func TestOntologyPrune_Operators(t *testing.T) {
 // TestOntologyPrune_Intents: an intent goes when every operator serving
 // it is hidden; one served by nobody (tooling) always stays.
 func TestOntologyPrune_Intents(t *testing.T) {
+	t.Parallel()
+
 	base := BaseOntology()
 	servers := base.OperatorsServing(IntentDrivers)
 	if len(servers) == 0 {
@@ -186,6 +192,8 @@ func TestOntologyPrune_Intents(t *testing.T) {
 // TestOntologyPrune_FollowUps: a follow_up edge goes with its hidden
 // target while the source operator and its other follow-ups stay.
 func TestOntologyPrune_FollowUps(t *testing.T) {
+	t.Parallel()
+
 	base := BaseOntology()
 	anova, tukey, pairwise := opID("TEST_ANOVA_F"), opID("TEST_TUKEY_HSD"), opID("OVERLAY_PAIRWISE_WELCH_T")
 	for _, to := range []string{tukey, pairwise} {
@@ -226,6 +234,8 @@ func termUsers(g *OntologyGraph, term string) []string {
 // user and every user is hidden; its SeeAlso edges go with it; a term
 // with no operator user stays.
 func TestOntologyPrune_Glossary(t *testing.T) {
+	t.Parallel()
+
 	base := BaseOntology()
 	var term string
 	var users []string
@@ -265,6 +275,8 @@ func TestOntologyPrune_Glossary(t *testing.T) {
 // glossary bodies drop what the graph pruned, the full instance's are
 // the registry renders, and both stay listed.
 func TestDiscovery_VirtualSkillsRenderPrunedGraph(t *testing.T) {
+	t.Parallel()
+
 	base := BaseOntology()
 	users := termUsers(base, "alpha")
 	hide := append(append([]string{}, base.OperatorsServing(IntentDrivers)...), users...)
@@ -304,6 +316,8 @@ func TestDiscovery_VirtualSkillsRenderPrunedGraph(t *testing.T) {
 // shares the base by pointer; extension operators and tables become
 // nodes with their edges, pruned with the capability they need.
 func TestInstanceOntology_SharesAndExtends(t *testing.T) {
+	t.Parallel()
+
 	if hidingSnapshot().Ontology() != BaseOntology() {
 		t.Error("hide-nothing instance does not share the base graph")
 	}

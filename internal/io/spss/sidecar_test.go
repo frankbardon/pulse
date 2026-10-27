@@ -134,6 +134,8 @@ func richSpec() spsstest.Spec {
 // ---------------------------------------------------------------------------
 
 func TestSidecarPath_FollowsImportsConvention(t *testing.T) {
+	t.Parallel()
+
 	// The imports.Sidecar convention is "suffix appended to the cohort
 	// filename", not "replace the extension" — a cohort and its sidecar
 	// stay adjacent and sort together.
@@ -149,6 +151,8 @@ func TestSidecarPath_FollowsImportsConvention(t *testing.T) {
 }
 
 func TestSidecarSuffix_DoesNotCollideWithManagedImportSidecar(t *testing.T) {
+	t.Parallel()
+
 	// imports.SidecarSuffix is ".meta.json" and a managed import writes
 	// it for the same cohort. Sharing the suffix would have one artefact
 	// silently overwrite the other.
@@ -161,6 +165,8 @@ func TestSidecarSuffix_DoesNotCollideWithManagedImportSidecar(t *testing.T) {
 }
 
 func TestSidecar_EnvelopeIsVersionedAndKinded(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, richSpec())
 	if doc.FormatVersion != SidecarFormatVersion {
 		t.Errorf("format_version = %d, want %d", doc.FormatVersion, SidecarFormatVersion)
@@ -179,6 +185,8 @@ func TestSidecar_EnvelopeIsVersionedAndKinded(t *testing.T) {
 // to anything outside itself — everything file-bound belongs in the
 // sibling Fingerprint block, which a lift would simply drop.
 func TestSidecar_PayloadIsSelfContained(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, doc := importFixture(t, richSpec())
 
 	payload, err := stdjson.Marshal(doc.Payload)
@@ -221,6 +229,8 @@ func TestSidecar_PayloadIsSelfContained(t *testing.T) {
 // `.pulse` cohort the sidecar sits beside, not the `.sav` it came from.
 // The source may be long gone; the cohort is what a consumer holds.
 func TestSidecar_FingerprintsTheCohortNotTheSource(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, doc := importFixture(t, richSpec())
 
 	cohortBytes, err := afero.ReadFile(fs, cohort)
@@ -270,6 +280,8 @@ func TestSidecar_FingerprintsTheCohortNotTheSource(t *testing.T) {
 }
 
 func TestFingerprintDigest_RejectsMalformed(t *testing.T) {
+	t.Parallel()
+
 	for _, bad := range []string{"", "zz", strings.Repeat("a", 63), strings.Repeat("a", 66)} {
 		if _, ok := (Fingerprint{SHA256: bad}).Digest(); ok {
 			t.Errorf("Digest() accepted malformed sha256 %q", bad)
@@ -286,6 +298,8 @@ func TestFingerprintDigest_RejectsMalformed(t *testing.T) {
 // pairing an export invents codes and downstream `IF q1 EQ 5` silently
 // addresses a different category.
 func TestSidecar_CategoryTriple(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, richSpec())
 	v := varOf(t, doc, "Satisfaction")
 
@@ -367,6 +381,8 @@ func TestSidecar_CategoryTriple(t *testing.T) {
 }
 
 func TestSidecar_StringCategoryCarriesTextNotCode(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, richSpec())
 	v := varOf(t, doc, "REGION")
 	if len(v.Categories) == 0 {
@@ -396,6 +412,8 @@ func TestSidecar_StringCategoryCarriesTextNotCode(t *testing.T) {
 // exercised against the parsed struct they land in. That is the same
 // value the dictionary walk produces; nothing is stubbed but the walk.
 func TestBuildMissing_AllThreeShapes(t *testing.T) {
+	t.Parallel()
+
 	slot := func(vals ...float64) [][elementSize]byte {
 		out := make([][elementSize]byte, 0, len(vals))
 		for _, v := range vals {
@@ -523,6 +541,8 @@ func TestBuildMissing_AllThreeShapes(t *testing.T) {
 // reaches the JSON, since that is the one the fixture generator can
 // actually emit.
 func TestSidecar_LongStringMissingRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "COMMENT", Width: 40, Label: "Free text"}},
 		Cases: [][]spsstest.Value{
@@ -560,6 +580,8 @@ func TestSidecar_LongStringMissingRoundTrips(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSidecar_CoversTheDictionaryElementsPulseCannotHold(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, richSpec())
 	p := doc.Payload
 
@@ -829,6 +851,8 @@ func TestSidecar_CoversTheDictionaryElementsPulseCannotHold(t *testing.T) {
 // TestSidecar_VeryLongStringSegmentation keeps the physical layout a
 // write path re-segments against.
 func TestSidecar_VeryLongStringSegmentation(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "ESSAY", Width: 600, Label: "Essay"}},
 		Cases: [][]spsstest.Value{{spsstest.Text(strings.Repeat("x", 600))}},
@@ -878,6 +902,8 @@ func TestSidecar_VeryLongStringSegmentation(t *testing.T) {
 // guarantee: a Reader that does not implement SidecarEmitter takes no
 // part, so every other format's import is unchanged.
 func TestImportJob_NoSidecarEmitter_WritesNothing(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	src := &plainReader{header: []string{"a"}, rows: [][]string{{"1"}, {"2"}}}
 	if _, ok := any(src).(pio.SidecarEmitter); ok {
@@ -922,6 +948,8 @@ func (r *plainReader) ReadRows(ctx context.Context, fn func([]string) error) err
 func (r *plainReader) Close() error { return nil }
 
 func TestWriteSidecar_NoFilesystemIsCoded(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(build(t, richSpec()))
 	if err := r.WriteSidecar(nil, "out.pulse"); err == nil {
 		t.Fatal("want an error with no filesystem")
@@ -929,6 +957,8 @@ func TestWriteSidecar_NoFilesystemIsCoded(t *testing.T) {
 }
 
 func TestWriteSidecar_MissingCohortIsCoded(t *testing.T) {
+	t.Parallel()
+
 	// The fingerprint describes the cohort, so a cohort that is not
 	// there is a fault rather than something to fingerprint as empty.
 	fs := afero.NewMemMapFs()
@@ -950,6 +980,8 @@ func TestWriteSidecar_MissingCohortIsCoded(t *testing.T) {
 // dictionary would otherwise fail the whole sidecar write, and with it
 // an import that is perfectly good.
 func TestFloat_NonFiniteSurvivesJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		in   float64
@@ -983,6 +1015,8 @@ func TestFloat_NonFiniteSurvivesJSON(t *testing.T) {
 }
 
 func TestFloat_UnknownTokenIsRejected(t *testing.T) {
+	t.Parallel()
+
 	var f Float
 	if err := stdjson.Unmarshal([]byte(`"inf"`), &f); err == nil {
 		t.Fatal("want an error for an unrecognised non-finite token")
@@ -993,6 +1027,8 @@ func TestFloat_UnknownTokenIsRejected(t *testing.T) {
 // hazard end to end: a data value the JSON number grammar cannot
 // express must not take the import down with it.
 func TestSidecar_NonFiniteCategoryCodeDoesNotFailTheImport(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "ODD", Measure: spsstest.MeasureNominal}},
 		Cases: [][]spsstest.Value{
@@ -1026,6 +1062,8 @@ func TestSidecar_NonFiniteCategoryCodeDoesNotFailTheImport(t *testing.T) {
 // TestSidecar_RoundTripsThroughJSON proves the document decodes back to
 // the value that was written — the read path E5-S1 builds on.
 func TestSidecar_RoundTripsThroughJSON(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, decoded := importFixture(t, richSpec())
 
 	raw, err := afero.ReadFile(fs, SidecarPath(cohort))
@@ -1045,6 +1083,8 @@ func TestSidecar_RoundTripsThroughJSON(t *testing.T) {
 // source must produce the same payload every time, or a review cannot
 // see a fidelity regression.
 func TestSidecar_IsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	spec := richSpec()
 	_, _, a := importFixture(t, spec)
 	_, _, b := importFixture(t, spec)

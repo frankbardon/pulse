@@ -21,6 +21,8 @@ func pwPartCT(rows, cols []*Group) *CrosstabSpec {
 }
 
 func TestCheckPairwiseSlabPartition_Table(t *testing.T) {
+	t.Parallel()
+
 	fanOut := func(field string) *Group { return &Group{Type: GROUP_SET_PER_ELEMENT, Field: field} }
 	flat := func(field string) *Group { return &Group{Type: GROUP_CATEGORY, Field: field} }
 
@@ -286,6 +288,8 @@ func TestCheckPairwiseSlabPartition_Table(t *testing.T) {
 // the pairwise MATRIX-host gate already refuses a crosstab-less request
 // and this predicate must not panic ahead of it.
 func TestCheckPairwiseSlabPartition_NilCrosstab(t *testing.T) {
+	t.Parallel()
+
 	params := PairwiseOverlayParams{NSource: PairwiseNSourceNWithinDistinct}
 	if _, bad := CheckPairwiseSlabPartition(nil, OverlayScopeRow, params); bad {
 		t.Fatal("nil CrosstabSpec must not report a violation")
@@ -298,6 +302,8 @@ func TestCheckPairwiseSlabPartition_NilCrosstab(t *testing.T) {
 // figure — keying the partition gate off UsesWithinDepth would refuse
 // correct n_within requests.
 func TestPairwiseNSourceSumsDistinctCells_NotUsesWithinDepth(t *testing.T) {
+	t.Parallel()
+
 	if !PairwiseNSourceUsesWithinDepth(PairwiseNSourceNWithin) {
 		t.Fatal("n_within must still read n_within_depth")
 	}
@@ -333,6 +339,8 @@ func TestPairwiseNSourceSumsDistinctCells_NotUsesWithinDepth(t *testing.T) {
 // admitted like n_within_distinct (same cell aggregators, same figure)
 // and gated unlike it (nothing is summed, so nothing can double-count).
 func TestPairwiseNSourceReadsDistinctKeys(t *testing.T) {
+	t.Parallel()
+
 	distinct := []string{
 		PairwiseNSourceNWithinDistinct,
 		PairwiseNSourceRowMarginDistinct,
@@ -372,6 +380,8 @@ func TestPairwiseNSourceReadsDistinctKeys(t *testing.T) {
 // message + details both arms emit. The acceptance criterion is that
 // Details carry the offending dim index, the grouper type and the axis.
 func TestPairwiseSlabPartitionViolation_Diagnostics(t *testing.T) {
+	t.Parallel()
+
 	params := PairwiseOverlayParams{NSource: PairwiseNSourceNWithinDistinct, NWithinDepth: 0}
 	v, bad := CheckPairwiseSlabPartition(
 		pwPartCT(

@@ -106,6 +106,8 @@ func residualFixtureProfile(t *testing.T, opts ProfileOptions) *Profile {
 // governs a ranked list of raw-value pairs and has nothing to say about
 // a matrix.
 func TestResidualCorrelations_FullSubmatrixCaptured(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		FitModels:               true,
 		FitResidualCorrelations: true,
@@ -149,6 +151,8 @@ func TestResidualCorrelations_FullSubmatrixCaptured(t *testing.T) {
 // region is a different number from the residual one. The residual
 // figure must be the one on the wire.
 func TestResidualCorrelations_MeasuresResidualsNotRawValues(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		FitModels:               true,
 		FitResidualCorrelations: true,
@@ -187,6 +191,8 @@ func TestResidualCorrelations_MeasuresResidualsNotRawValues(t *testing.T) {
 // the story's central distinction: a pair genuinely measured at ~0 is a
 // MEASUREMENT and must read back as one, rho key and all.
 func TestResidualCorrelations_MeasuredZeroSurvivesRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		FitModels:               true,
 		FitResidualCorrelations: true,
@@ -223,6 +229,8 @@ func TestResidualCorrelations_MeasuredZeroSurvivesRoundTrip(t *testing.T) {
 // rows must land in `unmeasured` with a reason, and the SERIALISED form
 // must carry no correlation for it anywhere — not a null, not a zero.
 func TestResidualCorrelations_UnmeasuredNeverEncodedAsZero(t *testing.T) {
+	t.Parallel()
+
 	// Hand-built models rather than a capture: the point is the
 	// representation, and disjoint residual presence is easier to state
 	// than to provoke through a cohort's null pattern.
@@ -308,6 +316,8 @@ func TestResidualCorrelations_UnmeasuredNeverEncodedAsZero(t *testing.T) {
 // and still admit no correlation, when one of them is constant — an
 // exactly fitted model is the ordinary cause. 0/0 is not 0.
 func TestResidualCorrelations_ConstantResidualIsUnmeasuredNotZero(t *testing.T) {
+	t.Parallel()
+
 	n := 50
 	flat := FieldModel{Field: "flat",
 		Residuals: make([]float64, n), ResidualPresent: make([]bool, n)}
@@ -343,6 +353,8 @@ func TestResidualCorrelations_ConstantResidualIsUnmeasuredNotZero(t *testing.T) 
 // deviation from its own mean). Dropping it would lose real structure
 // for a reason unrelated to that structure.
 func TestResidualCorrelations_ZeroPredictorModelParticipates(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		FitModels:               true,
 		FitResidualCorrelations: true,
@@ -374,6 +386,8 @@ func TestResidualCorrelations_ZeroPredictorModelParticipates(t *testing.T) {
 // must still produce exactly the ranked raw-value list they always did,
 // with or without the new flag.
 func TestResidualCorrelations_TopKFlagsKeepTheirMeaning(t *testing.T) {
+	t.Parallel()
+
 	base := ProfileOptions{
 		IncludeStats:        true,
 		IncludeCorrelations: true,
@@ -411,6 +425,8 @@ func TestResidualCorrelations_TopKFlagsKeepTheirMeaning(t *testing.T) {
 // contract: a capture that did not ask for the section emits no key,
 // byte-identically to before it existed.
 func TestResidualCorrelations_AbsentWithoutTheFlag(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{FitModels: true})
 	if prof.ResidualCorrelations != nil {
 		t.Fatalf("section present without the flag: %+v", prof.ResidualCorrelations)
@@ -429,6 +445,8 @@ func TestResidualCorrelations_AbsentWithoutTheFlag(t *testing.T) {
 // a caller who asked for a submatrix and silently got none has no way to
 // tell that from a cohort with no structure.
 func TestResidualCorrelations_WithoutFitModelsWarns(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{FitResidualCorrelations: true})
 	if prof.ResidualCorrelations != nil {
 		t.Fatalf("section present with no models: %+v", prof.ResidualCorrelations)
@@ -443,6 +461,8 @@ func TestResidualCorrelations_WithoutFitModelsWarns(t *testing.T) {
 // document. The submatrix is quadratic and built by nested iteration, so
 // it is exactly the shape a map-order fold would silently perturb.
 func TestResidualCorrelations_DeterministicDocument(t *testing.T) {
+	t.Parallel()
+
 	opts := ProfileOptions{
 		FitModels:               true,
 		FitResidualCorrelations: true,
@@ -466,6 +486,8 @@ func TestResidualCorrelations_DeterministicDocument(t *testing.T) {
 // TestResidualCorrelations_SingleParticipantEmitsNothing — a submatrix
 // over one field is the scalar 1 and carries no information.
 func TestResidualCorrelations_SingleParticipantEmitsNothing(t *testing.T) {
+	t.Parallel()
+
 	only := FieldModel{Field: "only",
 		Residuals: []float64{1, 2, 3}, ResidualPresent: []bool{true, true, true}}
 	if rc := computeResidualCorrelations([]FieldModel{only}, nil); rc != nil {
@@ -485,6 +507,8 @@ func TestResidualCorrelations_SingleParticipantEmitsNothing(t *testing.T) {
 // the third as independent — and says how many it completed, which is
 // the half that did not exist before.
 func TestBuildCorrelator_UnmeasuredPairsAssumedAndRecorded(t *testing.T) {
+	t.Parallel()
+
 	spec := &Spec{
 		RowCount: 1,
 		Fields: []FieldSpec{
@@ -532,6 +556,8 @@ func TestBuildCorrelator_UnmeasuredPairsAssumedAndRecorded(t *testing.T) {
 // supplied entries are not jointly realizable still factorizes (the
 // ridge is a deliberate safety net) but no longer does so in silence.
 func TestBuildCorrelator_RidgeActivationIsReported(t *testing.T) {
+	t.Parallel()
+
 	spec := &Spec{
 		RowCount: 1,
 		Fields: []FieldSpec{
@@ -566,6 +592,8 @@ func TestBuildCorrelator_RidgeActivationIsReported(t *testing.T) {
 // TestCholesky_ReportsNoRidgeForAConsistentMatrix keeps the ridge
 // warning honest in the other direction.
 func TestCholesky_ReportsNoRidgeForAConsistentMatrix(t *testing.T) {
+	t.Parallel()
+
 	m := [][]float64{
 		{1, 0.5, 0.2},
 		{0.5, 1, 0.1},

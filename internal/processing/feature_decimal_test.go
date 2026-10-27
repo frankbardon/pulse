@@ -33,6 +33,8 @@ func makeDecimalRecordF64(t *testing.T, schema *encoding.Schema, field, dec stri
 }
 
 func TestFeature_LogOnDecimal(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 4, Description: "Amount in USD with 4 decimal places of precision."},
 	}}
@@ -65,6 +67,8 @@ func TestFeature_LogOnDecimal(t *testing.T) {
 }
 
 func TestFeature_SqrtOnDecimal(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2, Description: "Amount cohort decimal field with two-place scale."},
 	}}
@@ -97,6 +101,8 @@ func TestFeature_SqrtOnDecimal(t *testing.T) {
 }
 
 func TestFeature_BucketizeOnDecimal(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 2, Description: "Amount field for cohort bucketization tests."},
 	}}

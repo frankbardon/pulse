@@ -362,6 +362,8 @@ func runComposeOverlayParity(t *testing.T, fx parityFixture) {
 // TestComposeOverlayParity_OVERLAY_INDEX_VS_REF locks the facade /
 // internal byte-equal parity for the MATRIX arm of OVERLAY_INDEX_VS_REF.
 func TestComposeOverlayParity_OVERLAY_INDEX_VS_REF(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindIndexVsRef,
 		scope:   types.OverlayScopeCell,
@@ -373,6 +375,8 @@ func TestComposeOverlayParity_OVERLAY_INDEX_VS_REF(t *testing.T) {
 // TestComposeOverlayParity_OVERLAY_DELTA_VS_REF locks the parity for
 // OVERLAY_DELTA_VS_REF (additive per-cell delta).
 func TestComposeOverlayParity_OVERLAY_DELTA_VS_REF(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindDeltaVsRef,
 		scope:   types.OverlayScopeCell,
@@ -385,6 +389,8 @@ func TestComposeOverlayParity_OVERLAY_DELTA_VS_REF(t *testing.T) {
 // OVERLAY_PROP_Z_CELL. The fixture uses crosstab row margins so the
 // per-cell two-proportion z reads non-degenerate sample sizes.
 func TestComposeOverlayParity_OVERLAY_PROP_Z_CELL(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindPropZCell,
 		scope:   types.OverlayScopeCell,
@@ -398,6 +404,8 @@ func TestComposeOverlayParity_OVERLAY_PROP_Z_CELL(t *testing.T) {
 // treatment slots; the single emitted layer holds the pairwise z-panel
 // matrix.
 func TestComposeOverlayParity_OVERLAY_PROP_Z_PANEL(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindPropZPanel,
 		scope:   types.OverlayScopeCell,
@@ -409,6 +417,8 @@ func TestComposeOverlayParity_OVERLAY_PROP_Z_PANEL(t *testing.T) {
 // TestComposeOverlayParity_OVERLAY_T_CELL locks the parity for the
 // per-cell Welch t-test variant.
 func TestComposeOverlayParity_OVERLAY_T_CELL(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindTCell,
 		scope:   types.OverlayScopeCell,
@@ -424,6 +434,8 @@ func TestComposeOverlayParity_OVERLAY_T_CELL(t *testing.T) {
 // (no Crosstab) so the per-slot Response carries the canonical
 // Response.Data series.
 func TestComposeOverlayParity_OVERLAY_T_VS_REF(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindTVsRef,
 		scope:   types.OverlayScopeGroup,
@@ -437,6 +449,8 @@ func TestComposeOverlayParity_OVERLAY_T_VS_REF(t *testing.T) {
 // TestComposeOverlayParity_OVERLAY_Z_CELL locks the parity for the
 // per-cell two-sample z-test variant.
 func TestComposeOverlayParity_OVERLAY_Z_CELL(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindZCell,
 		scope:   types.OverlayScopeCell,
@@ -450,6 +464,8 @@ func TestComposeOverlayParity_OVERLAY_Z_CELL(t *testing.T) {
 // TestComposeOverlayParity_OVERLAY_Z_VS_REF locks the parity for the
 // SERIES-host per-group two-sample z-test.
 func TestComposeOverlayParity_OVERLAY_Z_VS_REF(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindZVsRef,
 		scope:   types.OverlayScopeGroup,
@@ -463,6 +479,8 @@ func TestComposeOverlayParity_OVERLAY_Z_VS_REF(t *testing.T) {
 // TestComposeOverlayParity_OVERLAY_CHISQ_VS_REF locks the parity for
 // the whole-matrix χ² scalar-p test against a reference matrix.
 func TestComposeOverlayParity_OVERLAY_CHISQ_VS_REF(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindChiSqVsRef,
 		scope:   types.OverlayScopeMatrix,
@@ -474,6 +492,8 @@ func TestComposeOverlayParity_OVERLAY_CHISQ_VS_REF(t *testing.T) {
 // TestComposeOverlayParity_OVERLAY_RANK locks the parity for the
 // per-cell descending-rank overlay (Params.population = "matrix").
 func TestComposeOverlayParity_OVERLAY_RANK(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindRank,
 		scope:   types.OverlayScopeCell,
@@ -487,6 +507,8 @@ func TestComposeOverlayParity_OVERLAY_RANK(t *testing.T) {
 // for the multi-LAYER PANEL_INDEX_VS_REF kind. One spec → N target
 // layers, each carrying the per-target INDEX_VS_REF math.
 func TestComposeOverlayParity_OVERLAY_PANEL_INDEX_VS_REF(t *testing.T) {
+	t.Parallel()
+
 	runComposeOverlayParity(t, parityFixture{
 		kind:    types.OverlayKindPanelIndexVsRef,
 		scope:   types.OverlayScopeCell,
@@ -511,6 +533,8 @@ func TestComposeOverlayParity_OVERLAY_PANEL_INDEX_VS_REF(t *testing.T) {
 // the assertion below fails with the canonical name of the missing
 // gate so the author knows exactly what to add.
 func TestComposeOverlayParity_CoversAllComposeHostKinds(t *testing.T) {
+	t.Parallel()
+
 	// Build the set of expected test-function names from the canonical
 	// kind list.
 	expected := make(map[string]bool, len(composeHostOverlayKinds))

@@ -287,6 +287,8 @@ func checkBaseLayer(t *testing.T, where string, resp *types.Response, obs []base
 // base's count, so a frequency weight stays the expanded rows. The two
 // arms agree bit for bit.
 func TestCrosstab_WeightedPairwisePropZ_NFollowsNormalize(t *testing.T) {
+	t.Parallel()
+
 	schema := baseSchema(t)
 	obs := baseFixture()
 	recs := baseRecords(schema, obs)
@@ -344,6 +346,8 @@ func TestCrosstab_WeightedPairwisePropZ_NFollowsNormalize(t *testing.T) {
 // floor and its pairs skip — never a fallback to the cell or a raw
 // count.
 func TestCrosstab_WeightedPairwisePropZ_MarginNSources(t *testing.T) {
+	t.Parallel()
+
 	schema := baseSchema(t)
 	obs := baseFixture()
 	recs := baseRecords(schema, obs)
@@ -401,6 +405,8 @@ func TestCrosstab_WeightedPairwisePropZ_MarginNSources(t *testing.T) {
 // to the normalised cell's own N* breaks the equality and lifts the
 // p-value past 0.001.
 func TestCrosstab_WeightedPairwisePropZ_IndicatorMeanOracle(t *testing.T) {
+	t.Parallel()
+
 	schema := baseSchema(t)
 	type plan struct {
 		col     string
@@ -507,6 +513,8 @@ func TestCrosstab_WeightedPairwisePropZ_IndicatorMeanOracle(t *testing.T) {
 // carrier) skips every pair — it never falls back to the cell's own
 // N*, the pre-#324 reading.
 func TestPairwiseBaseFloor_UnreadableBaseSkips(t *testing.T) {
+	t.Parallel()
+
 	schema := baseSchema(t)
 	recs := baseRecords(schema, baseFixture())
 	c := baseCases()[0]

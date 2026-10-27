@@ -27,6 +27,8 @@ func crosstabFusionReq() *Request {
 // when asked) and is output-transparent — the fused and buffered arms
 // return byte-identical payloads for the same request.
 func TestOptions_DisableCrosstabFusion(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys, _ := groupedTwinFS(t)
 	var outs []string

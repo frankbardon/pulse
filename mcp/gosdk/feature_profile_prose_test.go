@@ -101,6 +101,8 @@ func mcpProse(t *testing.T, c *mcpsdk.ClientSession) map[string]string {
 // bind-on-inspect rebind), prompt descriptions and prompt bodies —
 // names a hidden operator or a tool the instance does not mount.
 func TestRegister_ProseNamesNoHiddenFeature(t *testing.T) {
+	t.Parallel()
+
 	profiles := map[string]*pulse.FeatureProfile{
 		"empty":           fixtureProfile(t, "empty"),
 		"minimal":         fixtureProfile(t, "minimal"),
@@ -152,6 +154,8 @@ func TestRegister_ProseNamesNoHiddenFeature(t *testing.T) {
 // keeps its structure and core steps, the author-request body keeps the
 // caller's question verbatim, and the process-only sentence is gone.
 func TestRegister_ProseScrubKeepsEnabledProse(t *testing.T) {
+	t.Parallel()
+
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), &pulse.FeatureProfile{Features: promptsProfile}, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	ctx := context.Background()
@@ -186,6 +190,8 @@ func TestRegister_ProseScrubKeepsEnabledProse(t *testing.T) {
 // server's tool descriptions are the toolmeta text verbatim and its
 // prompt bodies keep every tool name.
 func TestRegister_ProseProfileFreeUnchanged(t *testing.T) {
+	t.Parallel()
+
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), nil, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	tools, err := c.ListTools(context.Background(), nil)
@@ -248,6 +254,8 @@ func descriptionProse(raw string) []string {
 // pulse_lookup's same-spelled duplicate-key `multiplicity` sentence is a
 // different slot and stays: it names `assert_unique`.
 func TestRegister_ProseNamesNoHiddenSlotToken(t *testing.T) {
+	t.Parallel()
+
 	var features []string
 	for _, n := range descx.FeatureNames() {
 		if n != descx.FeatureMultiplicity {

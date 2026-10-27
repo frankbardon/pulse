@@ -114,6 +114,8 @@ func gammaSelectionEngine(t *testing.T, selection, criterion, weightField string
 // w*)), BIC on log n_eff). The fixed-dispersion score it replaced
 // (deviance + 2·rank) differs on every model.
 func TestReferenceOracle_GLMGammaAICMatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadGLMGammaSelectionReference(t)
 	recs := doc.records()
 	near := func(t *testing.T, what string, got, want float64) {
@@ -177,6 +179,8 @@ func TestReferenceOracle_GLMGammaAICMatchesR(t *testing.T) {
 // dispersion ≈ 0.025 — makes x2's deviance drop worth ~3.5 AIC units, so
 // the φ = 1 score, which sees 0.07, never adds it.
 func TestReferenceOracle_GLMGammaSelectionMatchesStep(t *testing.T) {
+	t.Parallel()
+
 	doc := loadGLMGammaSelectionReference(t)
 	recs := doc.records()
 	for _, r := range doc.Runs {
@@ -207,6 +211,8 @@ func TestReferenceOracle_GLMGammaSelectionMatchesStep(t *testing.T) {
 // exactly the rep() expansion's criterion, and a zero deviance (every
 // row fitted exactly) is the dominant bounded score the OLS helper uses.
 func TestAICBICFromGamma_PriorWeightIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	y := []float64{1.2, 0.8, 2.5, 1.9}
 	mu := []float64{1.1, 0.9, 2.2, 2.0}
 	w := []float64{1, 3, 2, 1}

@@ -53,9 +53,15 @@ var NewMCPParitySession func(t *testing.T, p *Pulse) *MCPParitySession
 
 // mcpSessions caches one session per instance for the harness arm: the
 // harness calls run three times per cell (hidden, never, control).
+// tools caches each session's tools/list names, listed once when the
+// session opens: the arm's tool calls (process, predict, compose,
+// process_chain, materialize, facet_schema) never rebind — only
+// pulse_inspect and pulse_import do, and a rebind re-registers the
+// same names — so the mounted set cannot move under the arm.
 type mcpSessions struct {
-	t  *testing.T
-	by map[*Pulse]*MCPParitySession
+	t     *testing.T
+	by    map[*Pulse]*MCPParitySession
+	tools map[*Pulse][]string
 }
 
 func (s *mcpSessions) of(p *Pulse) *MCPParitySession {
@@ -64,15 +70,20 @@ func (s *mcpSessions) of(p *Pulse) *MCPParitySession {
 	}
 	sess := NewMCPParitySession(s.t, p)
 	s.by[p] = sess
+	if s.tools == nil {
+		s.tools = map[*Pulse][]string{}
+	}
+	_, s.tools[p] = sess.ListTools()
 	return sess
 }
 
-// mcpToolMounted reports whether the instance mounts tool. A hidden
-// tool is a never-registered one — the tool-call cell below pins it —
-// so an operator cell through an unmounted tool would compare two
-// "unknown tool" errors and prove nothing about the operator.
-func mcpToolMounted(sess *MCPParitySession, tool string) bool {
-	_, names := sess.ListTools()
+// mounted reports whether p's session mounts tool. A hidden tool is a
+// never-registered one — the tool-call cell below pins it — so an
+// operator cell through an unmounted tool would compare two "unknown
+// tool" errors and prove nothing about the operator.
+func (s *mcpSessions) mounted(p *Pulse, tool string) bool {
+	s.of(p)
+	names := s.tools[p]
 	i := sort.SearchStrings(names, tool)
 	return i < len(names) && names[i] == tool
 }
@@ -94,11 +105,10 @@ func mcpArgs(t *testing.T, v any) map[string]any {
 // mcpParityEntryPoints are the MCP twins of the facade entry points.
 func mcpParityEntryPoints(sessions *mcpSessions) []parityEntryPoint {
 	call := func(t *testing.T, h *parityHost, tool string, args any) ([]byte, bool) {
-		sess := sessions.of(h.p)
-		if !mcpToolMounted(sess, tool) {
+		if !sessions.mounted(h.p, tool) {
 			return nil, false
 		}
-		return sess.CallTool(tool, mcpArgs(t, args)), true
+		return sessions.of(h.p).CallTool(tool, mcpArgs(t, args)), true
 	}
 	return []parityEntryPoint{
 		{name: "MCP/pulse_process", run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
@@ -227,36 +237,6 @@ func invisibilityProfiles(t *testing.T) (map[string][]string, []string) {
 	names = append(names, "mcp-hosts", "mcp-prompts", "mcp-intent-prompts")
 	sort.Strings(names)
 	return inline, names
-}
-
-func TestProfileInvisibilityParity(t *testing.T) {
-	if NewMCPParitySession == nil {
-		t.Fatal("MCP bridge not installed (feature_parity_mcp_bridge_test.go)")
-	}
-	inline, names := invisibilityProfiles(t)
-	t.Run("operators", func(t *testing.T) {
-		sessions := &mcpSessions{t: t, by: map[*Pulse]*MCPParitySession{}}
-		// mcp-prompts offers no base operator (like the empty fixture,
-		// whose vacuity the harness allows by name): surfaces only.
-		var hosts []string
-		for _, n := range names {
-			if n != "mcp-prompts" && n != "mcp-intent-prompts" {
-				hosts = append(hosts, n)
-			}
-		}
-		runHiddenParityWith(t, parityFS(t), parityHostConfig{profiles: inline}, hosts, parityCategories, mcpParityEntryPoints(sessions))
-	})
-	t.Run("surfaces", func(t *testing.T) {
-		fsys := parityFS(t)
-		full := newParityHostWith(t, fsys, "", parityHostConfig{})
-		fullSess := NewMCPParitySession(t, full.p)
-		for _, name := range names {
-			t.Run(name, func(t *testing.T) {
-				h := newParityHostWith(t, fsys, name, parityHostConfig{profiles: inline})
-				checkMCPSurfaces(t, h, NewMCPParitySession(t, h.p), fullSess)
-			})
-		}
-	})
 }
 
 // mcpHiddenNames is what a profiled instance must never name, derived

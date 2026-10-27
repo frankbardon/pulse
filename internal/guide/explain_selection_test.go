@@ -34,6 +34,8 @@ func selectedSpec() *types.RegressionSpec {
 }
 
 func TestExplainResponse_SelectionNamesKeptPredictors(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Regressions: []*types.RegressionSpec{selectedSpec()}}
 	res := readResponse(t, nil, &types.Response{Regressions: []*types.RegressionResult{selectedResult()}}, req, descriptor.ExplainFull)
 	model, _ := findingAt(res, "regressions[0]")
@@ -71,6 +73,8 @@ func TestExplainResponse_SelectionNamesKeptPredictors(t *testing.T) {
 }
 
 func TestExplainRequest_SelectionCallsPredictorsCandidates(t *testing.T) {
+	t.Parallel()
+
 	res := explain(t, nil, descriptor.ExplainRequest{Request: &types.Request{Regressions: []*types.RegressionSpec{selectedSpec()}}}, Checks{})
 	i := slices.IndexFunc(res.Steps, func(s descriptor.ExplainStep) bool { return s.Slot == "regressions[0]" })
 	if i < 0 {
@@ -86,6 +90,8 @@ func TestExplainRequest_SelectionCallsPredictorsCandidates(t *testing.T) {
 }
 
 func TestExplainComposedResponse_ReadsRegressionFits(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.ComposedResponse{
 		Responses: []*types.Response{{Data: []map[string]any{{"n": 3.0}}}},
 		Fits: map[string]*types.FitResult{
@@ -126,6 +132,8 @@ func TestExplainComposedResponse_ReadsRegressionFits(t *testing.T) {
 // is read off the sweep body's regression of that name, whose
 // placeholders elsewhere in the body do not hide it.
 func TestExplainComposedResponse_SweepBoundFitReadsSweepBody(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.ComposedResponse{
 		Responses: []*types.Response{{Data: []map[string]any{{"n": 3.0}}}},
 		Fits:      map[string]*types.FitResult{"best": {RegressionResult: selectedResult()}},

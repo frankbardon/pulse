@@ -35,6 +35,8 @@ func guidanceExemplarRequest() *types.Request {
 // and PredictResult for a request using the purpose-declaring operators
 // carry no declared guidance prose. Guidance is served on demand only.
 func TestManifestGuidanceBudget_DefaultResults(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	regions := []string{"north", "south", "east", "west"}
 	var rows [][]string

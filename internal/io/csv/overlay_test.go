@@ -74,6 +74,8 @@ func helperLayers() []*types.OverlayLayer {
 }
 
 func TestCsvWriter_OverlayInterface(t *testing.T) {
+	t.Parallel()
+
 	var w pio.OverlayAwareWriter = NewWriterToBuffer()
 	// Nil and empty slices must be safe to pass — the dispatcher will
 	// pass nil when Response.Overlays is empty and an empty slice
@@ -90,6 +92,8 @@ func TestCsvWriter_OverlayInterface(t *testing.T) {
 // § 7.1, story acceptance "Host CSV byte-identical to non-overlay
 // export").
 func TestCsvWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	header := []string{"name", "value"}
 	rows := [][]any{
 		{"alice", 42},
@@ -157,6 +161,8 @@ func TestCsvWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
 // OverlayWarnings(). Research § 7.1 calls this out as the explicit
 // "accepted risk".
 func TestCsvWriter_OverlaysBodyByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	header := []string{"name", "value"}
 	rows := [][]any{
 		{"alice", 42},
@@ -203,6 +209,8 @@ func TestCsvWriter_OverlaysBodyByteIdenticalToBaseline(t *testing.T) {
 // carry layer_count, layer_names, and layer_kinds matching the
 // recorded layers.
 func TestCsvWriter_OverlayWarnings_FiresOnNonEmptyOverlays(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays(helperLayers())
 
@@ -256,6 +264,8 @@ func TestCsvWriter_OverlayWarnings_FiresOnNonEmptyOverlays(t *testing.T) {
 // not "CSV cannot carry overlays in general" — so an overlay-free
 // export emits no warning.
 func TestCsvWriter_OverlayWarnings_EmptyWhenNoOverlays(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		set  func(*Writer)
@@ -282,6 +292,8 @@ func TestCsvWriter_OverlayWarnings_EmptyWhenNoOverlays(t *testing.T) {
 // writer a slice with nil entries, but the warn-and-skip surface
 // must not panic if it does.
 func TestCsvWriter_OverlayWarning_SkipsNilLayers(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays([]*types.OverlayLayer{
 		{Name: "first", Kind: types.OverlayKindIndexVsMargin},

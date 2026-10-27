@@ -59,6 +59,8 @@ func dirListing(t *testing.T, fs afero.Fs) []string {
 // path and one gate, not a parallel implementation. The rewrite is in
 // place and leaves no staging file behind.
 func TestDedupJob_InPlaceMatchesImport(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	fs, flat := flatCohortFS(t, cols, rows)
 	importRep, imported, _, err := runGroupImport(t, newMockReader(cols, rows), joinGroups)
@@ -106,6 +108,8 @@ func importRepFlatStride(t *testing.T, raw []byte) int {
 // result equals importing with the new declaration alone, and decodes
 // to the flat cohort's values.
 func TestDedupJob_RegroupsGroupedSource(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	_, custOnly, _, err := runGroupImport(t, newMockReader(cols, rows), joinGroups[:1])
 	if err != nil {
@@ -141,6 +145,8 @@ func TestDedupJob_RegroupsGroupedSource(t *testing.T) {
 // TestDedupJob_Out: Target writes a new cohort and leaves the source
 // byte-identical; an existing Target is refused before anything runs.
 func TestDedupJob_Out(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	fs, flat := flatCohortFS(t, cols, rows)
 	_, imported, _, err := runGroupImport(t, newMockReader(cols, rows), joinGroups)
@@ -168,6 +174,8 @@ func TestDedupJob_Out(t *testing.T) {
 // cancelled context — leaves the original byte-identical and no staging
 // file behind.
 func TestDedupJob_FailureLeavesOriginal(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -231,6 +239,8 @@ func assertUntouched(t *testing.T, fs afero.Fs, flat []byte) {
 // same codes and verdicts as import. When every declared group is
 // dropped there is nothing to write and the cohort is untouched.
 func TestDedupJob_Gate(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	fs, _ := flatCohortFS(t, cols, rows)
 	decls := []GroupDecl{{Members: []string{"line_id", "cust_name", "prod_price"}}, {Members: []string{"qty"}}}
@@ -264,6 +274,8 @@ func TestDedupJob_Gate(t *testing.T) {
 // TestDedupJob_ElideConstants: elision on retro-dedup equals elision on
 // import, composed with declared groups.
 func TestDedupJob_ElideConstants(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	cols = append(cols, "batch")
 	for i := range rows {
@@ -293,6 +305,8 @@ func TestDedupJob_ElideConstants(t *testing.T) {
 // it was imported from — the same engine fed decoded rows — and a
 // suggestion-only run writes nothing.
 func TestDedupJob_SuggestGroups(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := orderLinesFixture(14000)
 	fs, flat := flatCohortFS(t, cols, rows)
 	pred, err := predictJob(t, newMockReader(cols, rows), suggest)
@@ -320,6 +334,8 @@ func TestDedupJob_SuggestGroups(t *testing.T) {
 // detector's full-bitmap layout, and detection still equals import
 // predict's over the same source.
 func TestDedupJob_SuggestGroups_NoBitmap(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	for _, r := range rows {
 		if r[4] == "" {
@@ -348,6 +364,8 @@ func TestDedupJob_SuggestGroups_NoBitmap(t *testing.T) {
 // TestDedupJob_TruncatedSource: a cohort whose payload ends mid-record
 // is refused, never silently shortened.
 func TestDedupJob_TruncatedSource(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(60)
 	fs, flat := flatCohortFS(t, cols, rows)
 	if err := afero.WriteFile(fs, "c.pulse", flat[:len(flat)-3], 0o644); err != nil {

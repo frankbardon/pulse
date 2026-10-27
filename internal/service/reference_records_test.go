@@ -44,6 +44,8 @@ func recordAttr(label, ref string) *types.Attribute {
 // refusal is bound in the record's place, a request without one leaves
 // ctx untouched, and a cancelled context returns at once.
 func TestBindReferenceRecords(t *testing.T) {
+	t.Parallel()
+
 	svc := recordFixture(t)
 	own := `{"record":{"keys":[{"field":"id","value":"3"}]}}`
 	other := `{"record":{"cohort":{"filename":"other.pulse"},"keys":[{"field":"id","value":"102"}]}}`
@@ -110,6 +112,8 @@ func TestBindReferenceRecords(t *testing.T) {
 // of its member values, and a record the cohort's index cannot find
 // refuses the run with PULSE_LOOKUP_NOT_FOUND located on the slot.
 func TestProcess_RecordReference(t *testing.T) {
+	t.Parallel()
+
 	svc := recordFixture(t)
 	ctx := context.Background()
 	run := func(ref string) (*types.Response, error) {

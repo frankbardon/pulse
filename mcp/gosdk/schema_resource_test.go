@@ -39,6 +39,8 @@ func readSchemaResource(t *testing.T, p *pulse.Pulse) string {
 // schema, while a feature-profiled server carries its own digest in the
 // root $comment and never names a hidden operator.
 func TestSchemaResource_ServesInstanceSchema(t *testing.T) {
+	t.Parallel()
+
 	t.Run("profile-free unchanged", func(t *testing.T) {
 		p := newPulse(t, afero.NewMemMapFs())
 		got := readSchemaResource(t, p)

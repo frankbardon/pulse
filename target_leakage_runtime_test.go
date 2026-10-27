@@ -41,6 +41,8 @@ func leakageEntries(es []*descriptor.EnvelopeEntry) []*descriptor.EnvelopeEntry 
 // code, message and details — and under Options.Strict refuses the run
 // with it, the error predict reports.
 func TestTargetLeakage_ProcessRepeatsPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 
@@ -80,6 +82,8 @@ func TestTargetLeakage_ProcessRepeatsPredict(t *testing.T) {
 // details.request; under Strict both refuse with it, located the same
 // way. (A chain stage carries no features: PULSE_CHAIN_NOT_MERGEABLE.)
 func TestTargetLeakage_ComposeMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	compose := func() *pulse.ComposedRequest {

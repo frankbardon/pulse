@@ -10,6 +10,8 @@ import (
 // MAT_<NS>_<NAME> name parses with category MAT, and the matrix category
 // expects that prefix.
 func TestExtensionNameRegex_Matrix(t *testing.T) {
+	t.Parallel()
+
 	g := extensionNameRegex.FindStringSubmatch("MAT_ACME_X_Y")
 	if g == nil || g[1] != "MAT" || g[2] != "ACME" || g[3] != "X_Y" {
 		t.Fatalf("MAT_ACME_X_Y parsed %v, want [MAT ACME X_Y]", g)
@@ -30,6 +32,8 @@ func TestExtensionNameRegex_Matrix(t *testing.T) {
 // TestBuiltinMatrixNames_CoverRegistry pins the collision set to the
 // live registry, so a new built-in MAT_* is reserved automatically.
 func TestBuiltinMatrixNames_CoverRegistry(t *testing.T) {
+	t.Parallel()
+
 	names := builtinMatrixNames()
 	if len(names) != len(types.AllMatrixTypes()) {
 		t.Fatalf("builtinMatrixNames has %d entries, registry %d", len(names), len(types.AllMatrixTypes()))
@@ -46,6 +50,8 @@ func TestBuiltinMatrixNames_CoverRegistry(t *testing.T) {
 // extension feature name, a reserved namespace is not, and a SYNTH name
 // (no extension category since U34) fails the regex.
 func TestLooksLikeExtensionName_Matrix(t *testing.T) {
+	t.Parallel()
+
 	for name, want := range map[string]bool{
 		"MAT_ACME_SCATTER":  true,
 		"MAT_PULSE_SCATTER": false,
@@ -63,6 +69,8 @@ func TestLooksLikeExtensionName_Matrix(t *testing.T) {
 // merged Extensions values, and that a MatrixOps-only value counts as a
 // registration.
 func TestMergeExtensions_MatrixOps(t *testing.T) {
+	t.Parallel()
+
 	a := Extensions{MatrixOps: []MatrixOpRegistration{{Name: "MAT_ACME_A"}}}
 	b := Extensions{MatrixOps: []MatrixOpRegistration{{Name: "MAT_ACME_B"}}}
 	got := mergeExtensions([]Extensions{a, b}).MatrixOps

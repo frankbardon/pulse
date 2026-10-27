@@ -69,6 +69,8 @@ func sumSq(c ...float64) (func([]float64) float64, func([]float64) []float64) {
 // runs unbounded (the LSEI no-inequality QR path) and boxed (the LSI
 // path), which must agree.
 func TestOptimize_EqualityQuadratic(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(0, 0)
 	for name, opts := range map[string]optimize.MinimizeOptions{
 		"unbounded": {},
@@ -97,6 +99,8 @@ func TestOptimize_EqualityQuadratic(t *testing.T) {
 // x − y = 0 → x = y = z = ⅓ with λ = (⅔, 0) — two equality rows through
 // the RQ reduction.
 func TestOptimize_TwoEqualities(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(0, 0, 0)
 	res, err := optimize.Minimize(f, g, []float64{1, 2, 3}, optimize.MinimizeOptions{
 		Acc: 1e-12,
@@ -119,6 +123,8 @@ func TestOptimize_TwoEqualities(t *testing.T) {
 // me = n basis return) — min (x−3)² + (y+1)² s.t. x + y = 1, x − y = 0
 // → (½, ½) with ∇f = (−5, 3) = λ1(1, 1) + λ2(1, −1), λ = (−1, −4).
 func TestOptimize_FullyDetermined(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(3, -1)
 	res, err := optimize.Minimize(f, g, []float64{0, 0}, optimize.MinimizeOptions{
 		Acc: 1e-12,
@@ -141,6 +147,8 @@ func TestOptimize_FullyDetermined(t *testing.T) {
 // constraints are listed slack-first and inequality-before-equality-free
 // to prove Multipliers follows the caller's order.
 func TestOptimize_InequalityActive(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(2, 2)
 	res, err := optimize.Minimize(f, g, []float64{0, 0}, optimize.MinimizeOptions{
 		Acc: 1e-12,
@@ -163,6 +171,8 @@ func TestOptimize_InequalityActive(t *testing.T) {
 // caller's order. min x² + y² s.t. y − 2 ≥ 0 (binds, λ = 4 at y = 2)
 // and x − 1 = 0 (λ = 2 at x = 1).
 func TestOptimize_MixedOrder(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(0, 0)
 	res, err := optimize.Minimize(f, g, []float64{0, 0}, optimize.MinimizeOptions{
 		Acc: 1e-12,
@@ -184,6 +194,8 @@ func TestOptimize_MixedOrder(t *testing.T) {
 // 0 ≤ x ≤ 1, y ≥ 0, z free lands on (1, 0, 3): x at its upper bound, y
 // at its lower, z inside.
 func TestOptimize_BoundActive(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(2, -1, 3)
 	res, err := optimize.Minimize(f, g, []float64{0.5, 5, 0}, optimize.MinimizeOptions{
 		Lower: []float64{0, 0, math.Inf(-1)},
@@ -211,6 +223,8 @@ func TestOptimize_BoundActive(t *testing.T) {
 // (and one that violates an equality) still converges to the feasible
 // optimum.
 func TestOptimize_InfeasibleStart(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(2, 2)
 	res, err := optimize.Minimize(f, g, []float64{5, 5}, optimize.MinimizeOptions{
 		Acc:         1e-12,
@@ -238,6 +252,8 @@ func TestOptimize_InfeasibleStart(t *testing.T) {
 // returns its final iterate WITH PULSE_OPTIMIZE_INFEASIBLE, never a
 // success.
 func TestOptimize_Infeasible(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(0)
 	res, err := optimize.Minimize(f, g, []float64{0.5}, optimize.MinimizeOptions{
 		Constraints: []optimize.Constraint{
@@ -281,6 +297,8 @@ func rosenGrad(x []float64) []float64 {
 // short with StatusIterLimit and PULSE_OPTIMIZE_NOT_CONVERGED, the
 // iterate returned.
 func TestOptimize_NotConverged(t *testing.T) {
+	t.Parallel()
+
 	res, err := optimize.Minimize(rosen, rosenGrad, []float64{-1.2, 1}, optimize.MinimizeOptions{MaxIter: 2})
 	mustCode(t, err, perr.PULSE_OPTIMIZE_NOT_CONVERGED)
 	if res == nil || res.Status != optimize.StatusIterLimit || res.Iterations != 2 {
@@ -299,6 +317,8 @@ func TestOptimize_NotConverged(t *testing.T) {
 // with a nil result and the reason in details — never a panic, including
 // a gradient of the wrong length discovered mid-run.
 func TestOptimize_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(0, 0)
 	ok := linear(optimize.Eq, -1, 1, 1)
 	badGrad := func([]float64) []float64 { return []float64{1} }
@@ -345,6 +365,8 @@ func TestOptimize_InvalidInput(t *testing.T) {
 // TestOptimize_CallerCannotCorruptIterate: an objective that scribbles on
 // its argument sees a scratch copy, so the run is unaffected.
 func TestOptimize_CallerCannotCorruptIterate(t *testing.T) {
+	t.Parallel()
+
 	f, g := sumSq(2, 2)
 	clean, err := optimize.Minimize(f, g, []float64{0, 0}, optimize.MinimizeOptions{})
 	if err != nil {
@@ -374,6 +396,8 @@ func TestOptimize_CallerCannotCorruptIterate(t *testing.T) {
 // these the bits on every architecture. A dropped float64() barrier, a
 // reordered sum or a changed iteration moves them.
 func TestOptimize_BitExact(t *testing.T) {
+	t.Parallel()
+
 	res, err := optimize.Minimize(rosen, rosenGrad, []float64{0.6, 0.6}, optimize.MinimizeOptions{
 		Lower: []float64{-2, -0.5},
 		Upper: []float64{0.75, 2},

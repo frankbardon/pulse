@@ -21,6 +21,8 @@ import (
 // Royston's (1993) transform, so the shared 1e-10 holds even though the
 // transform is itself a published approximation.
 func TestReferenceOracle_ShapiroWilk(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Name      string    `json:"name"`
 		N         int       `json:"n"`
@@ -65,6 +67,8 @@ func TestReferenceOracle_ShapiroWilk(t *testing.T) {
 // refusal the engine turns into a per-slot failure — and n = 5 runs
 // without a warning. Replaces the U08 advisory-warning behaviour.
 func TestShapiroFrancia_RefusesBelowFive(t *testing.T) {
+	t.Parallel()
+
 	for _, sample := range [][]float64{{1.0, 2.5, 4.0}, {1.0, 2.5, 3.1, 4.0}, {1.0, 2.5, 3.1, 4.0, 6.2}} {
 		schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
 		rt, err := newShapiroWilkRow(&types.Test{Type: types.TEST_SHAPIRO_WILK, Field: "x"}, schema)
@@ -107,6 +111,8 @@ func TestShapiroFrancia_RefusesBelowFive(t *testing.T) {
 // (min = max), so a constant whose float mean is inexact (0.1 × 6)
 // refuses too, and one constant group refuses a split slot.
 func TestShapiroFrancia_ZeroVarianceRefuses(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name   string
 		values []float64
@@ -201,6 +207,8 @@ func (k bfOracleCase) checkFigure(t *testing.T, c *oracleCheck, got float64, wan
 // weights where nothing repeats), which R's expanded-row value pins
 // (frequency = expansion).
 func TestReferenceOracle_BrownForsythe(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[bfOracleCase](t, "test_brown_forsythe")
 	c := newOracleCheck(t, "TEST_BROWN_FORSYTHE", oracleRelTol, oracleProbAbsFloor)
 	undefined := 0

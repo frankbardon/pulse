@@ -165,6 +165,8 @@ func checkPlan(t *testing.T, w *planWriter, want map[string]wantColumn, wantHead
 // plan whose Field types each column by name — never by the schema's
 // field at the same position — before WriteHeader.
 func TestColumnAwareWriter_ExternalWriterGetsPlan(t *testing.T) {
+	t.Parallel()
+
 	w := &planWriter{}
 	planExport(t, w)
 
@@ -202,6 +204,8 @@ func TestColumnAwareWriter_ExternalWriterGetsPlan(t *testing.T) {
 // takes native lists sees the vector as ONE ExportColumnList typed by the
 // vector field, and SetListColumns after SetExportColumns.
 func TestColumnAwareWriter_ListAwareGetsListColumn(t *testing.T) {
+	t.Parallel()
+
 	w := &planListWriter{}
 	planExport(t, w)
 
@@ -223,6 +227,8 @@ func TestColumnAwareWriter_ListAwareGetsListColumn(t *testing.T) {
 // types by NAME through ColumnFields — the documented fallback — so the
 // label column is text and each element column its element field.
 func TestColumnFields_ByNameWithoutPlan(t *testing.T) {
+	t.Parallel()
+
 	w := &planWriter{}
 	planExport(t, schemaOnlyWriter{w})
 	if w.plan != nil {
@@ -245,6 +251,8 @@ func TestColumnFields_ByNameWithoutPlan(t *testing.T) {
 // TestColumnAwareWriter_ConvertNeverCalls: a convert's columns are
 // source text, so ConvertJob never hands a plan.
 func TestColumnAwareWriter_ConvertNeverCalls(t *testing.T) {
+	t.Parallel()
+
 	nd, err := pio.NewReaderFromBytes(pio.FormatNDJSON, []byte(planNDJSON), pio.ReaderOptions{})
 	if err != nil {
 		t.Fatal(err)

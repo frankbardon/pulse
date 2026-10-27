@@ -50,6 +50,8 @@ func calendarRun(t *testing.T, src string, b Bound, env map[string]any) (any, er
 // weekday, month index, the four period starts, to_day at UTC — across a
 // leap day and a year boundary.
 func TestCalendarHelpers_Oracle(t *testing.T) {
+	t.Parallel()
+
 	ts := float64(time.Date(2024, 12, 31, 23, 30, 0, 0, time.UTC).Unix())
 	env := map[string]any{"d": day(2024, 2, 29), "ts": ts, "x": 1.0, "cat": "a"}
 	cases := []struct {
@@ -87,6 +89,8 @@ func TestCalendarHelpers_Oracle(t *testing.T) {
 // UTC day otherwise — including either side of a DST transition and the
 // date line.
 func TestToDay_Zone(t *testing.T) {
+	t.Parallel()
+
 	ny, err := temporal.LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +137,8 @@ func TestToDay_Zone(t *testing.T) {
 // TestCalendarHelpers_NullAndNonFinite: a nil argument answers nil for
 // every helper (log1p included); a non-finite day or instant answers NaN.
 func TestCalendarHelpers_NullAndNonFinite(t *testing.T) {
+	t.Parallel()
+
 	for _, call := range [][]any{
 		{FuncWeekday, nil}, {FuncMonthIndex, nil}, {FuncToDay, nil}, {FuncLog1p, nil},
 		{FuncDateTrunc, "month", nil}, {FuncDateTrunc, nil, 1.0},
@@ -165,6 +171,8 @@ func TestCalendarHelpers_NullAndNonFinite(t *testing.T) {
 // TestDateTrunc_RuntimeUnit: a unit computed at run time outside the set
 // is the coded PROCESSING_CONFIG refusal {function, unit, valid}.
 func TestDateTrunc_RuntimeUnit(t *testing.T) {
+	t.Parallel()
+
 	got, err := calendarRun(t, `date_trunc(cat, d)`, Bound{}, map[string]any{"cat": "fortnight", "d": 0.0})
 	var ce *perr.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG || !stderrors.Is(ce.Cause, ErrUnknownTruncUnit) {
@@ -184,6 +192,8 @@ func TestDateTrunc_RuntimeUnit(t *testing.T) {
 // to_day(), a date field, an expression over the datetime and a `let`
 // over to_day compile.
 func TestCalendarGuard(t *testing.T) {
+	t.Parallel()
+
 	refused := []struct{ src, reason string }{
 		{"weekday(ts)", `weekday() reads epoch days but "ts" is a datetime field (epoch seconds): wrap it in to_day(), as in weekday(to_day(ts))`},
 		{"month_index(ts) - month_index(d)", `month_index() reads epoch days but "ts" is a datetime field`},

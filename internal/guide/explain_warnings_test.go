@@ -34,6 +34,8 @@ func leakage(es []descriptor.EnvelopeEntry) []descriptor.EnvelopeEntry {
 // locates it details.request; the slot's own predict repeats it),
 // details.slot naming the slot.
 func TestExplain_CarriesPredictWarnings(t *testing.T) {
+	t.Parallel()
+
 	c := explainChecks(t, nil)
 	res := explain(t, nil, descriptor.ExplainRequest{Request: leakingRequest()}, c)
 	data := cohortBytes(t, boundFixture(t))

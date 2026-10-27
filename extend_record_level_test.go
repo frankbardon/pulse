@@ -169,6 +169,8 @@ func wantLevelRefusal(t *testing.T, err error) {
 // replacing readFault's taken fault with err in fltCore's closure (the
 // filter case answers).
 func TestExtendRecord_StringValueRefusesCorruptCode(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	lvlCohort(t, fsys, "clean.pulse", 32, -1)
 	lvlCohort(t, fsys, "bad.pulse", 32, 5)

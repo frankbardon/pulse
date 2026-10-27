@@ -92,6 +92,8 @@ func hasFloorParameter(layers []types.OverlayLayer) bool {
 // under `standard` builds no component map for its χ² / Fisher layers,
 // and every layer equals the return-absent run's byte for byte.
 func TestReturnSkipsComponents_UnweightedFloorOverlays(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	fused, buffered := overlayFoldService(t)
 	standard := &types.Return{Preset: types.ReturnPresetStandard}
 	for name, svc := range map[string]*Service{"fused": fused, "buffered": buffered} {
@@ -119,6 +121,8 @@ func TestReturnSkipsComponents_UnweightedFloorOverlays(t *testing.T) {
 // layers (their floor Parameters included) equal the return-absent
 // run's byte for byte.
 func TestReturnKeepsComponents_WeightedFloorOverlays(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	freq := &types.WeightSpec{Field: "id", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "x", Kind: types.WeightKindProbability}
 	chiSq := basisVetoKinds[:3] // Fisher is frequency-only: the resolver refuses it under prob
@@ -166,6 +170,8 @@ func TestReturnKeepsComponents_WeightedFloorOverlays(t *testing.T) {
 // basis rides the stamped cell weight, not the floor keys a skip would
 // hide.
 func TestReturnSkipsComponents_FisherProbabilityHostStillRefuses(t *testing.T) {
+	t.Parallel()
+
 	fused, buffered := overlayFoldService(t)
 	for name, svc := range map[string]*Service{"fused": fused, "buffered": buffered} {
 		for _, ret := range []*types.Return{

@@ -12,6 +12,8 @@ import (
 // FacetCapability descriptor with every supports_* flag set to true and
 // at least one streamable condition documented.
 func TestManifestFacetCapability(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if m.Facet.Name != "facet_schema" {
 		t.Fatalf("Facet.Name = %q, want \"facet_schema\"", m.Facet.Name)
@@ -72,6 +74,8 @@ func buildSimplePulseBytes(t *testing.T) []byte {
 }
 
 func TestValidateFacet_Valid(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -87,6 +91,8 @@ func TestValidateFacet_Valid(t *testing.T) {
 }
 
 func TestValidateFacet_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -98,6 +104,8 @@ func TestValidateFacet_UnknownField(t *testing.T) {
 }
 
 func TestValidateFacet_PercentileOnNonNumericWarns(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort:             &types.Cohort{Filename: "x.pulse"},
@@ -113,6 +121,8 @@ func TestValidateFacet_PercentileOnNonNumericWarns(t *testing.T) {
 }
 
 func TestValidateFacet_HistogramRequiresValidRange(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort:           &types.Cohort{Filename: "x.pulse"},
@@ -126,6 +136,8 @@ func TestValidateFacet_HistogramRequiresValidRange(t *testing.T) {
 }
 
 func TestValidateFacet_AdditiveExpressionRejected(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},

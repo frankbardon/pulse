@@ -10,6 +10,8 @@ import (
 )
 
 func TestParseDecimal128_Success(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in        string
 		wantStr   string
@@ -41,6 +43,8 @@ func TestParseDecimal128_Success(t *testing.T) {
 }
 
 func TestParseDecimal128_Reject(t *testing.T) {
+	t.Parallel()
+
 	bad := []string{
 		"",
 		"   ",
@@ -66,6 +70,8 @@ func TestParseDecimal128_Reject(t *testing.T) {
 }
 
 func TestDecimal128_Add_Overflow(t *testing.T) {
+	t.Parallel()
+
 	maxStr := strings.Repeat("9", 38)
 	a, _, err := encoding.ParseDecimal128(maxStr)
 	if err != nil {
@@ -82,6 +88,8 @@ func TestDecimal128_Add_Overflow(t *testing.T) {
 }
 
 func TestDecimal128_BankerRound(t *testing.T) {
+	t.Parallel()
+
 	// 1.5 round to scale 0 => 2 (even)
 	d15, _, _ := encoding.ParseDecimal128("1.5")
 	r, err := d15.Rescale(1, 0)
@@ -133,6 +141,8 @@ func TestDecimal128_BankerRound(t *testing.T) {
 }
 
 func TestPromoteAdd(t *testing.T) {
+	t.Parallel()
+
 	p, s := PromoteAdd(10, 4, 10, 4)
 	if p != 11 || s != 4 {
 		t.Errorf("PromoteAdd(10,4,10,4) = (%d,%d), want (11,4)", p, s)
@@ -144,6 +154,8 @@ func TestPromoteAdd(t *testing.T) {
 }
 
 func TestPromoteMul(t *testing.T) {
+	t.Parallel()
+
 	p, s := PromoteMul(10, 4, 10, 4)
 	if p != 20 || s != 8 {
 		t.Errorf("PromoteMul(10,4,10,4) = (%d,%d), want (20,8)", p, s)
@@ -151,6 +163,8 @@ func TestPromoteMul(t *testing.T) {
 }
 
 func TestPromoteDiv(t *testing.T) {
+	t.Parallel()
+
 	p, s := PromoteDiv(10, 4, 10, 4)
 	if s < 4 {
 		t.Errorf("PromoteDiv must not drop below MIN_SCALE; got s=%d", s)
@@ -161,6 +175,8 @@ func TestPromoteDiv(t *testing.T) {
 }
 
 func TestDecimal128_DivByZero(t *testing.T) {
+	t.Parallel()
+
 	a, _, _ := encoding.ParseDecimal128("100")
 	b := encoding.ZeroDecimal128()
 	_, err := a.Div(b, 0, 0, 4)
@@ -173,6 +189,8 @@ func TestDecimal128_DivByZero(t *testing.T) {
 }
 
 func TestDecimal128_RoundTripEncoding(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"0",
 		"1",
@@ -198,6 +216,8 @@ func TestDecimal128_RoundTripEncoding(t *testing.T) {
 }
 
 func TestDecimal128_AggregateAgainstReference(t *testing.T) {
+	t.Parallel()
+
 	// Sum of 1..1000 in decimal128(20, 6) => 500500.000000.
 	acc := encoding.ZeroDecimal128()
 	for i := 1; i <= 1000; i++ {

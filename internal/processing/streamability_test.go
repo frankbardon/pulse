@@ -12,6 +12,8 @@ import (
 // row is a (request, schema, want) triple. If predict.Streamable ever
 // drifts from runtime behavior, this matrix breaks.
 func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
+	t.Parallel()
+
 	numericSchema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64},
@@ -217,6 +219,8 @@ func TestCanStreamRequest_RegressionMatrix(t *testing.T) {
 // validation (PROCESSING_CONFIG) before reaching the streamability
 // gate.
 func TestCanStreamRequest_ModifiersBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -271,6 +275,8 @@ func TestCanStreamRequest_ModifiersBuffered(t *testing.T) {
 // the same request with a regularization penalty reports false.
 // Predict mirrors this via TestPredict_Streamable_MatchesRuntime.
 func TestCanStreamRequest_OLSNoPenalty(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -323,6 +329,8 @@ func TestCanStreamRequest_OLSNoPenalty(t *testing.T) {
 // of the link function, so streamability must stay false even after
 // poisson / gamma land.
 func TestCanStreamRequest_GLMNeverStreams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64},
@@ -361,6 +369,8 @@ func TestCanStreamRequest_GLMNeverStreams(t *testing.T) {
 // for one-pass row-local OR TwoPassAttribute for population-stat
 // streaming) matches the type's declared Streamable() value.
 func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
+	t.Parallel()
+
 	for _, attrType := range types.AllAttributeTypes() {
 		factory, ok := attributeRegistry[attrType]
 		if !ok {
@@ -441,6 +451,8 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 // value. This catches drift between types/streamability.go and the
 // processing implementations.
 func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
+	t.Parallel()
+
 	// Aggregators that require non-empty Params at construction time.
 	// Supply matching JSON so the factory does not fail before the
 	// streamability assertion runs.

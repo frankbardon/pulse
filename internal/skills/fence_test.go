@@ -23,6 +23,8 @@ func mustRender(t *testing.T, body string, keep func(string) bool) string {
 }
 
 func TestRenderFences_Inline(t *testing.T) {
+	t.Parallel()
+
 	body := "Use `A` or <!-- feature: TEST_WELCH -->`TEST_WELCH`<!-- /feature --> here.\n"
 	if got, want := mustRender(t, body, hide("TEST_WELCH")), "Use `A` or here.\n"; got != want {
 		t.Errorf("hidden inline:\n got %q\nwant %q", got, want)
@@ -38,6 +40,8 @@ func TestRenderFences_Inline(t *testing.T) {
 }
 
 func TestRenderFences_Block(t *testing.T) {
+	t.Parallel()
+
 	body := "para\n\n<!-- feature: capability:crosstab -->\nCrosstab prose.\n<!-- /feature -->\n\nnext\n"
 	if got, want := mustRender(t, body, hide("capability:crosstab")), "para\n\nnext\n"; got != want {
 		t.Errorf("hidden block:\n got %q\nwant %q", got, want)
@@ -53,6 +57,8 @@ func TestRenderFences_Block(t *testing.T) {
 }
 
 func TestRenderFences_TableRow(t *testing.T) {
+	t.Parallel()
+
 	body := "| op | use |\n|---|---|\n| `AGG_SUM` | totals |\n<!-- feature: AGG_MEDIAN -->\n| `AGG_MEDIAN` | middle |\n<!-- /feature -->\n| `AGG_MAX` | top |\n"
 	want := "| op | use |\n|---|---|\n| `AGG_SUM` | totals |\n| `AGG_MAX` | top |\n"
 	if got := mustRender(t, body, hide("AGG_MEDIAN")); got != want {
@@ -64,6 +70,8 @@ func TestRenderFences_TableRow(t *testing.T) {
 }
 
 func TestRenderFences_CodeFence(t *testing.T) {
+	t.Parallel()
+
 	body := "Example:\n\n<!-- feature: capability:compose -->\n```json\n{\"requests\": []}\n```\n<!-- /feature -->\n\nInline in code:\n```json\n{\"type\": \"AGG_SUM\"<!-- feature: AGG_MEDIAN -->, \"alt\": \"AGG_MEDIAN\"<!-- /feature -->}\n```\n"
 	want := "Example:\n\nInline in code:\n```json\n{\"type\": \"AGG_SUM\"}\n```\n"
 	if got := mustRender(t, body, hide("capability:compose", "AGG_MEDIAN")); got != want {
@@ -76,6 +84,8 @@ func TestRenderFences_CodeFence(t *testing.T) {
 }
 
 func TestRenderFences_AndList(t *testing.T) {
+	t.Parallel()
+
 	body := "a\n<!-- feature: TEST_WELCH, capability:crosstab -->\nboth\n<!-- /feature -->\nz"
 	for _, tc := range []struct {
 		hidden []string
@@ -97,6 +107,8 @@ func TestRenderFences_AndList(t *testing.T) {
 }
 
 func TestRenderFences_Errors(t *testing.T) {
+	t.Parallel()
+
 	for name, tc := range map[string]struct {
 		body string
 		line int
@@ -126,6 +138,8 @@ func TestRenderFences_Errors(t *testing.T) {
 // TestRenderFences_NoMarkersIsIdentity pins the profile-free contract: a
 // body without fences renders byte-identically, blank runs included.
 func TestRenderFences_NoMarkersIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	body := "a\n\n\nb <!-- a plain comment -->\n\n"
 	if got := mustRender(t, body, hide("X")); got != body {
 		t.Errorf("got %q want %q", got, body)
@@ -137,6 +151,8 @@ func TestRenderFences_NoMarkersIsIdentity(t *testing.T) {
 // serves the embedded bytes. (Fence NAMES are checked against the
 // feature table in internal/descriptor — TestSkillFences_NamesAreFeatures.)
 func TestSkillFences_EmbeddedPackParses(t *testing.T) {
+	t.Parallel()
+
 	entries, err := fs.ReadDir(content, ".")
 	if err != nil {
 		t.Fatal(err)

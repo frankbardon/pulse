@@ -43,6 +43,8 @@ func fieldZoneJob(fs afero.Fs, rows [][]string) *ImportJob {
 // non-hour offset zone, a fixed ±HH:MM); a Z literal never moves; the date
 // column and the zone column itself import as ordinary columns.
 func TestImportSourceTZField_EachRowReadsInItsOwnZone(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := repeatRows(fieldZoneTuples, 60)
 	rep, err := fieldZoneJob(fs, rows).Run(context.Background())
@@ -71,6 +73,8 @@ func TestImportSourceTZField_EachRowReadsInItsOwnZone(t *testing.T) {
 // TestImportSourceTZField_ColumnSourceTZWins: a ColumnSourceTZ entry fixes
 // its column's zone; every other naive column still follows the row.
 func TestImportSourceTZField_ColumnSourceTZWins(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := repeatRows(fieldZoneTuples, 60)
 	j := fieldZoneJob(fs, rows)
@@ -103,6 +107,8 @@ func TestImportSourceTZField_ColumnSourceTZWins(t *testing.T) {
 // when one is set; without one the row is a row error naming the row and
 // the datetime column, and the rest imports.
 func TestImportSourceTZField_EmptyCell(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(fieldZoneTuples, 60)
 	rows[5][3] = ""
 
@@ -143,6 +149,8 @@ func TestImportSourceTZField_EmptyCell(t *testing.T) {
 // row error carrying PULSE_TIMEZONE_UNKNOWN and the row number; other rows
 // import.
 func TestImportSourceTZField_UnknownZoneIsRowCoded(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(fieldZoneTuples, 60)
 	rows[11][3] = "Mars/Olympus"
 	rows[12][3] = "EST" // not Area/Location: refused by LoadImportZone
@@ -170,6 +178,8 @@ func TestImportSourceTZField_UnknownZoneIsRowCoded(t *testing.T) {
 // datetime cells carry their own offset imports even when its zone cell
 // is empty or unknown — the zone is never consulted.
 func TestImportSourceTZField_OffsetLiteralIgnoresBadZone(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := repeatRows(fieldZoneTuples, 60)
 	rows[2][0], rows[2][2], rows[2][3] = "2026-07-01T12:00:00+02:00", "", "Mars/Olympus"
@@ -192,6 +202,8 @@ func TestImportSourceTZField_OffsetLiteralIgnoresBadZone(t *testing.T) {
 // while the same wall clock in a Berlin row imports; a policy resolves and
 // counts per row.
 func TestImportSourceTZField_DSTPerRow(t *testing.T) {
+	t.Parallel()
+
 	base := repeatRows(fieldZoneTuples, 60)
 	berlin := func(rows [][]string, i int, wall string) {
 		rows[i][0], rows[i][3] = wall, "Europe/Berlin"
@@ -236,6 +248,8 @@ func TestImportSourceTZField_DSTPerRow(t *testing.T) {
 // carry, or one that is itself a datetime, is an option refusal before
 // the row pass — on Run and Predict alike.
 func TestImportSourceTZField_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		field string
@@ -244,6 +258,8 @@ func TestImportSourceTZField_Refusals(t *testing.T) {
 		{"datetime column", "other"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			for _, predict := range []bool{false, true} {
 				fs := afero.NewMemMapFs()
 				j := fieldZoneJob(fs, repeatRows(fieldZoneTuples, 60))
@@ -270,6 +286,8 @@ func TestImportSourceTZField_Refusals(t *testing.T) {
 // predict refuse at Run's row with Run's code and count the resolved
 // values Run counts.
 func TestImportSourceTZField_PredictAgreesWithRun(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(fieldZoneTuples, 60)
 	rows[9][0] = "2026-11-01 01:30"
 	rows[19][0] = "2026-11-01 01:30"
@@ -297,6 +315,8 @@ func TestImportSourceTZField_PredictAgreesWithRun(t *testing.T) {
 // TestImportSourceTZField_ZonesMemoisedPerName: a pass loads each distinct
 // zone name once, however many rows name it.
 func TestImportSourceTZField_ZonesMemoisedPerName(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(fieldZoneTuples, 60)
 	j := fieldZoneJob(afero.NewMemMapFs(), rows)
 	if _, err := j.Run(context.Background()); err != nil {
@@ -326,6 +346,8 @@ func TestImportSourceTZField_ZonesMemoisedPerName(t *testing.T) {
 // writes exactly what a job that never heard of it writes, with or
 // without a SourceTZ.
 func TestImportSourceTZField_UnsetIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(fieldZoneTuples, 60)
 	run := func(field, tz string) []byte {
 		fs := afero.NewMemMapFs()
@@ -350,6 +372,8 @@ func TestImportSourceTZField_UnsetIsByteIdentical(t *testing.T) {
 // cannot be resolved is dropped before the target (stage "source"), the
 // kept cohort matches a plain import, and predict agrees with Run.
 func TestConvertSourceTZField_TargetCarriesRowInstants(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(fieldZoneTuples, 60)
 	rows[4][3] = "Mars/Olympus"
 	rep, target, kept := runConvert(t, newMockReader(fieldZoneColumns, rows), true, func(j *ConvertJob) {

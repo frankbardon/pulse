@@ -91,6 +91,8 @@ func enumOf(req map[string]any, arrayKey, innerKey string) []string {
 // numeric-only ATTR_ZSCORE; the v1 aggregation cut applies the
 // all-fields union but still carries the numeric "score".
 func TestMCPSchemaBinding_RemovesInvalidFields(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -118,6 +120,8 @@ func TestMCPSchemaBinding_RemovesInvalidFields(t *testing.T) {
 // TestMCPSchemaBinding_AllFieldsInFiltererEnum verifies the filterer field
 // enum is the full set of cohort field names.
 func TestMCPSchemaBinding_AllFieldsInFiltererEnum(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -140,6 +144,8 @@ func TestMCPSchemaBinding_AllFieldsInFiltererEnum(t *testing.T) {
 // sample/facet bound schemas: sample has no field arg; facet's field carries
 // an enum of all field names.
 func TestMCPSchemaBinding_SampleAndFacetFieldEnum(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -208,6 +214,8 @@ func crosstabIntProperty(t *testing.T, raw json.RawMessage, key string) {
 // TestMCPSchemaBinding_CrosstabNormalizeLevel verifies the bound process schema
 // exposes Crosstab.normalize_level with the documented integer constraint.
 func TestMCPSchemaBinding_CrosstabNormalizeLevel(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -219,6 +227,8 @@ func TestMCPSchemaBinding_CrosstabNormalizeLevel(t *testing.T) {
 // schema exposes Crosstab.normalize_within with the documented integer
 // constraint.
 func TestMCPSchemaBinding_CrosstabNormalizeWithin(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -260,6 +270,8 @@ func overlayKindEnum(t *testing.T, raw json.RawMessage) []string {
 // enum is the per-facade narrowed set: Request-only kinds present, Compose- /
 // Chain- / Facet-only kinds excluded.
 func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -290,6 +302,8 @@ func TestMCPSchemaBinding_OverlayKindEnum(t *testing.T) {
 // operator names merge into the per-category enum returned by the bound tools
 // without dropping the built-ins.
 func TestMCPSchemaBinding_IncludesCustomAggregator(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -313,6 +327,8 @@ func TestMCPSchemaBinding_IncludesCustomAggregator(t *testing.T) {
 // overlay kind merges into the Request-facade overlay_kind enum (the per-facade
 // merge path) while built-in Request kinds survive.
 func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -343,6 +359,8 @@ func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
 // TestMCPSchemaBinding_BackwardCompatNoCustomNames asserts the no-snapshot path
 // keeps the built-in-only enum.
 func TestMCPSchemaBinding_BackwardCompatNoCustomNames(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -363,6 +381,8 @@ func TestMCPSchemaBinding_BackwardCompatNoCustomNames(t *testing.T) {
 // cohort has categorical fields AND label tables are registered, with the field
 // enum constrained to categoricals and the table enum to registered tables.
 func TestMCPSchemaBinding_LabelsSchema(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("US")
 	schema := &encoding.Schema{
@@ -393,6 +413,8 @@ func TestMCPSchemaBinding_LabelsSchema(t *testing.T) {
 // TestMCPSchemaBinding_LabelsOmittedWhenNoTables asserts the labels slot is
 // omitted when no tables are registered.
 func TestMCPSchemaBinding_LabelsOmittedWhenNoTables(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("US")
 	schema := &encoding.Schema{
@@ -412,6 +434,8 @@ func TestMCPSchemaBinding_LabelsOmittedWhenNoTables(t *testing.T) {
 // TestMCPSchemaBinding_DedupAndSort verifies merging an extension snapshot does
 // not introduce duplicate names and the final enum is sorted.
 func TestMCPSchemaBinding_DedupAndSort(t *testing.T) {
+	t.Parallel()
+
 	builtin := []string{"AGG_COUNT", "AGG_SUM"}
 	snap := &descx.ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{
@@ -430,6 +454,8 @@ func TestMCPSchemaBinding_DedupAndSort(t *testing.T) {
 // TestMCPSchemaBinding_NilSchema asserts Bind tolerates a nil schema (no panic,
 // nil map) — the bind hook degrades to the unbound global tools in that case.
 func TestMCPSchemaBinding_NilSchema(t *testing.T) {
+	t.Parallel()
+
 	bound, err := Bind(nil)
 	if err != nil {
 		t.Fatalf("Bind(nil): %v", err)
@@ -444,6 +470,8 @@ func TestMCPSchemaBinding_NilSchema(t *testing.T) {
 // items carry the same aggregation shape as the cell slot. An agent that
 // cannot see the slot cannot use it.
 func TestMCPSchemaBinding_CrosstabMarginAggregations(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -494,6 +522,8 @@ func TestMCPSchemaBinding_CrosstabMarginAggregations(t *testing.T) {
 // field enum limited to weight-capable columns (the f64 "score"; never
 // the categorical or date column).
 func TestMCPSchemaBinding_WeightSlots(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -542,6 +572,8 @@ func TestMCPSchemaBinding_WeightSlots(t *testing.T) {
 // TestMergeEnumNames_ExtensionMatrixOps: the matrices[*].type enum reads
 // the snapshot's MatrixOps beside the built-ins.
 func TestMergeEnumNames_ExtensionMatrixOps(t *testing.T) {
+	t.Parallel()
+
 	inst := descx.UnscopedInstanceSnapshot(&descx.ExtensionsSnapshot{
 		MatrixOps: []descriptor.OperatorMeta{{Name: "MAT_ACME_COV"}},
 	})
@@ -556,6 +588,8 @@ func TestMergeEnumNames_ExtensionMatrixOps(t *testing.T) {
 // grouper is the implicit Total column (U47 #326 / #328), so an MCP
 // client validating against the bound schema must not refuse it.
 func TestMCPSchemaBinding_CrosstabColumnsOptional(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)
@@ -586,6 +620,8 @@ func TestMCPSchemaBinding_CrosstabColumnsOptional(t *testing.T) {
 // exposes regressions[].params as an object — an extension REG_* model's
 // own configuration (U53).
 func TestMCPSchemaBinding_RegressionParams(t *testing.T) {
+	t.Parallel()
+
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
 		t.Fatalf("Bind: %v", err)

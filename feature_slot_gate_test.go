@@ -195,6 +195,8 @@ func toStrings(v any) []string {
 // TestHiddenRequestSlot_RefusedAsUnknownField: per fixture, every slot
 // the fixture hides, every entry point, Go struct and JSON-decoded.
 func TestHiddenRequestSlot_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	control := newParityHost(t, fsys, "")
 	ran := 0
@@ -242,6 +244,8 @@ func TestHiddenRequestSlot_RefusedAsUnknownField(t *testing.T) {
 // TestHiddenRootSlot_RefusedAsUnknownField: the root-level overlay
 // slots of ComposedRequest, ChainRequest and FacetRequest.
 func TestHiddenRootSlot_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	control := newParityHost(t, fsys, "")
 	h := newParityHost(t, fsys, "survey-crosstab")
@@ -308,6 +312,8 @@ func withCohort(h *parityHost) *types.Request {
 // default instance refuses as PULSE_JOIN_TOO_MANY is an unknown field
 // on an instance hiding its slots.
 func TestHiddenRequestSlot_RefusedBeforeJoinCount(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	control := newParityHost(t, fsys, "")
 	h := newParityHost(t, fsys, "minimal")

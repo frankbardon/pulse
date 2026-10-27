@@ -19,6 +19,8 @@ import (
 // would get the unsummed per-row margin, a smaller and entirely
 // plausible number.
 func TestDecodePanelParams_NWithinDepthOmittedIsNotZero(t *testing.T) {
+	t.Parallel()
+
 	omitted, err := DecodePanelParams(json.RawMessage(`{"n_source":"row_margin_value_within"}`))
 	if err != nil {
 		t.Fatalf("decode omitted: %v", err)
@@ -54,6 +56,8 @@ func TestDecodePanelParams_NWithinDepthOmittedIsNotZero(t *testing.T) {
 // float64 through the map arm, which is exactly the coercion a second
 // hand-written decoder would get wrong.
 func TestDecodePanelParamsMap_NWithinDepthBothCarriers(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		val  any
@@ -65,6 +69,8 @@ func TestDecodePanelParamsMap_NWithinDepthBothCarriers(t *testing.T) {
 		{"float64 two", float64(2), 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := DecodePanelParamsMap(map[string]any{
 				"n_source":       PanelNSourceRowMarginValueWithin,
 				"n_within_depth": tc.val,
@@ -87,6 +93,8 @@ func TestDecodePanelParamsMap_NWithinDepthBothCarriers(t *testing.T) {
 // form can carry the distinction at all — a plain int with omitempty
 // would drop 0 and the round trip would lose it.
 func TestPanelOverlayParams_NWithinDepthMarshalRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	for _, tc := range []struct {
 		name string
@@ -125,6 +133,8 @@ func TestPanelOverlayParams_NWithinDepthMarshalRoundTrip(t *testing.T) {
 // added later that forgets to join the set gets a hard refusal rather
 // than an inert param.
 func TestPanelNSourceUsesWithinDepth(t *testing.T) {
+	t.Parallel()
+
 	if !PanelNSourceUsesWithinDepth(PanelNSourceRowMarginValueWithin) {
 		t.Errorf("%q must consume n_within_depth", PanelNSourceRowMarginValueWithin)
 	}
@@ -141,6 +151,8 @@ func TestPanelNSourceUsesWithinDepth(t *testing.T) {
 // at both gates and never reachable — the failure E1-S4's own
 // falsification found on the axis-pairing family.
 func TestValidPanelNSource_AcceptsRowMarginValueWithin(t *testing.T) {
+	t.Parallel()
+
 	if !ValidPanelNSource(PanelNSourceRowMarginValueWithin) {
 		t.Fatalf("ValidPanelNSource(%q) = false", PanelNSourceRowMarginValueWithin)
 	}

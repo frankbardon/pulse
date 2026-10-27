@@ -11,6 +11,8 @@ import (
 )
 
 func TestConvertJob_CsvToTsv(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "hello"},
 		{"20", "world"},
@@ -36,6 +38,8 @@ func TestConvertJob_CsvToTsv(t *testing.T) {
 }
 
 func TestConvertJob_KeepPulse(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "hello"},
 		{"20", "world"},
@@ -68,6 +72,8 @@ func TestConvertJob_KeepPulse(t *testing.T) {
 // inference sample must not hard-error the intermediate .pulse write — the
 // re-import inherits promote-on-null via ImportJob.InferredSchema.
 func TestConvertJob_KeepPulse_PromotesOutOfSampleNull(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]string
 	for i := range 60 {
 		v := "7"
@@ -102,6 +108,8 @@ func TestConvertJob_KeepPulse_PromotesOutOfSampleNull(t *testing.T) {
 }
 
 func TestConvertJob_Includes_ProjectsOutputButKeepsFullSchemaIntermediate(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "alpha", "US"},
 		{"20", "beta", "GB"},
@@ -148,6 +156,8 @@ func TestConvertJob_Includes_ProjectsOutputButKeepsFullSchemaIntermediate(t *tes
 }
 
 func TestConvertJob_Includes_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{{"10", "x"}}
 	source := newMockReader([]string{"age", "name"}, rows)
 	target := &collectWriter{}
@@ -165,6 +175,8 @@ func TestConvertJob_Includes_UnknownField(t *testing.T) {
 }
 
 func TestConvertJob_Predict(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
 	}

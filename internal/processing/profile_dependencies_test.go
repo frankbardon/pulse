@@ -37,6 +37,8 @@ import (
 // invisible to it, which is why the hard edges are also pinned by name in
 // TestFeatureDependenciesResolve (internal/descriptor).
 func TestProfileDependenciesComplete(t *testing.T) {
+	t.Parallel()
+
 	t.Run("host_groups", testDependencyHostGroups)
 	t.Run("overlay_hosts_match_handler_maps", testOverlayHostsMatchHandlerMaps)
 	t.Run("handler_reference_scan", testHandlerReferenceScan)

@@ -52,6 +52,8 @@ func hiddenEnvJSON(t *testing.T, v any) string {
 // out-of-range Level makes the Level/Within gate kind-keyed too: a
 // registered share kind reports its axis, an unknown kind does not.
 func TestValidateOverlays_HiddenKindIsNotInCatalog(t *testing.T) {
+	t.Parallel()
+
 	hiddenOverlayParity(t, types.OverlayKindShareOfRow, func(kind types.OverlayKind, opts *PredictOptions) string {
 		req := &types.Request{
 			Crosstab: &types.CrosstabSpec{
@@ -71,6 +73,8 @@ func TestValidateOverlays_HiddenKindIsNotInCatalog(t *testing.T) {
 // gate alone: with the catalog gate passed for every kind it is the
 // only kind-keyed rule left.
 func TestValidateOverlays_HiddenKindLevelWithinRoute(t *testing.T) {
+	t.Parallel()
+
 	hiddenOverlayParity(t, types.OverlayKindIndexVsTotal, func(kind types.OverlayKind, opts *PredictOptions) string {
 		req := &types.Request{
 			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}},
@@ -85,6 +89,8 @@ func TestValidateOverlays_HiddenKindLevelWithinRoute(t *testing.T) {
 // TestValidateCompose_HiddenKindIsNotInCatalog: Compose host — the
 // gate-0 error and the per-spec cost.
 func TestValidateCompose_HiddenKindIsNotInCatalog(t *testing.T) {
+	t.Parallel()
+
 	hiddenOverlayParity(t, types.OverlayKindIndexVsRef, func(kind types.OverlayKind, opts *PredictOptions) string {
 		slot := func(label string) *types.Request {
 			return &types.Request{
@@ -105,6 +111,8 @@ func TestValidateCompose_HiddenKindIsNotInCatalog(t *testing.T) {
 
 // TestValidateFacetOverlays_HiddenKindIsNotInCatalog: Facet host.
 func TestValidateFacetOverlays_HiddenKindIsNotInCatalog(t *testing.T) {
+	t.Parallel()
+
 	schema := buildOverlayFacetSchema(t)
 	hiddenOverlayParity(t, types.OverlayKindIndexVsPop, func(kind types.OverlayKind, opts *PredictOptions) string {
 		req := &types.FacetRequest{
@@ -125,6 +133,8 @@ func TestValidateFacetOverlays_HiddenKindIsNotInCatalog(t *testing.T) {
 // entry point hands its options to the Facet-host gate. Errors only —
 // the OverlaysApplied / cost surface is predict's (E1-S4).
 func TestValidateFacetWithOptions_HiddenKindReachesGate(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 	hiddenOverlayParity(t, types.OverlayKindIndexVsPop, func(kind types.OverlayKind, opts *PredictOptions) string {
 		req := &types.FacetRequest{

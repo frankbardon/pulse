@@ -18,6 +18,8 @@ import (
 // reports `group_index_headroom`, and on an ungrouped archive emits no
 // such key (its envelope is unchanged).
 func TestCliShardGroups_JsonSurfacesRegroupAndHeadroom(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	flat := filepath.Join(dir, "flat.pulse")
 	writeSetCohortFile(t, flat, encoding.FieldTypeSetU8, []string{"a", "b"},

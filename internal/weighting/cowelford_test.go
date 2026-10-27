@@ -8,6 +8,8 @@ import (
 // TestCoWelford_YHalfIsWelford: the y half of the bivariate bucket is
 // the Welford bucket of y alone, bit for bit, weighted or not.
 func TestCoWelford_YHalfIsWelford(t *testing.T) {
+	t.Parallel()
+
 	var c CoWelford
 	var w Welford
 	for i := range 500 {
@@ -29,6 +31,8 @@ func TestCoWelford_YHalfIsWelford(t *testing.T) {
 // gives the serial bucket's moments, and the moments equal the direct
 // centred sums.
 func TestCoWelford_MergeEqualsSerial(t *testing.T) {
+	t.Parallel()
+
 	type row struct{ x, y, w float64 }
 	var rows []row
 	for i := range 1000 {

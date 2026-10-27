@@ -8,6 +8,8 @@ import (
 )
 
 func TestNew_AutoLabels_UnknownTableRejected(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{
 		FS: afero.NewMemMapFs(),
 		Extensions: Extensions{
@@ -25,6 +27,8 @@ func TestNew_AutoLabels_UnknownTableRejected(t *testing.T) {
 }
 
 func TestNew_AutoLabels_ShapeValidated(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{
 		FS: afero.NewMemMapFs(),
 		Extensions: Extensions{
@@ -38,6 +42,8 @@ func TestNew_AutoLabels_ShapeValidated(t *testing.T) {
 }
 
 func TestNew_AutoLabels_ValidAccepted(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{
 		FS: afero.NewMemMapFs(),
 		Extensions: Extensions{

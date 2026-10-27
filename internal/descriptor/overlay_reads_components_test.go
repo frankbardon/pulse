@@ -18,6 +18,8 @@ import (
 // reads them. validateOverlayHiddenFloor's refusal set (a floor kind
 // over a probability cell) stays inside the flagged set.
 func TestOverlayReadsHostComponents(t *testing.T) {
+	t.Parallel()
+
 	weighted := []weighting.Basis{weighting.Frequency, weighting.Probability}
 	for _, kind := range types.AllOverlayKinds() {
 		floor := weighting.ScalesByHostFloor(kind) || kind == types.OverlayKindFisherExactCell
@@ -50,6 +52,8 @@ func TestOverlayReadsHostComponents(t *testing.T) {
 // the request weight, the cell's own slot weight, the instance default
 // (alone) — and `weight: null` on the cell opts out of all three.
 func TestCrosstabCellWeightBasis(t *testing.T) {
+	t.Parallel()
+
 	mk := func() *types.Request {
 		return &types.Request{Crosstab: &types.CrosstabSpec{
 			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},

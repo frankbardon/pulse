@@ -11,6 +11,8 @@ import (
 // validateSpec still meets each lag refusal with the SAME code, message
 // and details at compileRules / compileConstraints as at validation.
 func TestSynthLag_EagerAndCompileRefusalsAgree(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		call string
 		code errors.Code
@@ -64,6 +66,8 @@ func TestSynthLag_EagerAndCompileRefusalsAgree(t *testing.T) {
 // registered, so a call the patcher did not rewrite cannot slip through
 // a path that skips rowExprStaticRefusal.
 func TestSynthLag_DetectorsCompileAgainstTheLoaderEnvironment(t *testing.T) {
+	t.Parallel()
+
 	gate := (&gateDetector{schema: &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeU4},
 	}}}).predicateCompiler()
@@ -90,6 +94,8 @@ func TestSynthLag_DetectorsCompileAgainstTheLoaderEnvironment(t *testing.T) {
 // value rule, retiring its model and pairs. Reading the CURRENT draw
 // beside the lag still transforms it, and does not claim.
 func TestSynthLag_SelfLagClaimsItsTarget(t *testing.T) {
+	t.Parallel()
+
 	claims := ruleClaims([]RuleSpec{
 		{SetExpr: map[string]string{"ad": `spend + 0.6 * lag("ad", 1, 0)`}},
 		{SetExpr: map[string]string{"nps": `nps + lag("nps", 1, 0)`}},
@@ -103,6 +109,8 @@ func TestSynthLag_SelfLagClaimsItsTarget(t *testing.T) {
 // the fields some expression lags, sized to the largest n over rules and
 // constraints, and is absent for a spec that never calls lag.
 func TestSynthLag_BufferHoldsOnlyLaggedFieldsAndMaxN(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(
 		RuleSpec{When: `lag("nps", 3, 0) > 5`, SetNull: []string{"score"}},
 		RuleSpec{SetExpr: map[string]string{"score": `lag("score", 2, 0) + lag("nps", 1, 0)`}},
@@ -128,6 +136,8 @@ func TestSynthLag_BufferHoldsOnlyLaggedFieldsAndMaxN(t *testing.T) {
 // selection or vector is the row's value AT COMMIT; a later in-place
 // change to the row's map or slice does not reach the buffer.
 func TestSynthLag_BufferCopiesSelectionsAndVectors(t *testing.T) {
+	t.Parallel()
+
 	b := &lagBuffer{size: 1, fields: []string{"s", "v"}, slot: map[string]int{"s": 0, "v": 1},
 		class: []lagClass{lagSet, lagVector}, vals: [][]any{make([]any, 1), make([]any, 1)}, nulls: [][]bool{make([]bool, 1), make([]bool, 1)}}
 	sel, vec := map[string]bool{"a": true}, []float64{1, 2}

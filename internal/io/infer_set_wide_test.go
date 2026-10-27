@@ -61,6 +61,8 @@ func (c *countingReader) ReadRows(ctx context.Context, fn func(row []string) err
 // mis-coded comparison (>= instead of >) silently costs a record
 // either capacity or bytes on every row of every import.
 func TestSetWidth_LadderBoundaries(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		unique int
 		want   encoding.FieldType
@@ -100,6 +102,8 @@ func TestSetWidth_LadderBoundaries(t *testing.T) {
 // cardinality gate at the moved ceiling: 256 tokens classify, 257 do
 // not.
 func TestProbeSetClassification_LadderBoundaries(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		tokens  int
 		want    encoding.FieldType
@@ -139,6 +143,8 @@ func TestProbeSetClassification_LadderBoundaries(t *testing.T) {
 // difference, rather than being demoted to a categorical (which would
 // silently collapse each multi-select cell into one opaque string).
 func TestInfer_206TokensInfersSetU256(t *testing.T) {
+	t.Parallel()
+
 	r := wideSetReader(206, 480)
 	res, err := InferSchemaWithOptions(r, InferOptions{})
 	if err != nil {
@@ -159,6 +165,8 @@ func TestInfer_206TokensInfersSetU256(t *testing.T) {
 // a SINGLE walk of the source (one ReadHeader, one ReadRows). A
 // restart-to-widen design would break every non-rewindable source.
 func TestInfer_SetLadderWidensWithinOnePass(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		tokens int
 		want   encoding.FieldType
@@ -187,6 +195,8 @@ func TestInfer_SetLadderWidensWithinOnePass(t *testing.T) {
 // TestInfer_SetAbove256FallsBackToCategorical pins the moved ceiling
 // from the other side. 256 is hard: above it the column is not a set.
 func TestInfer_SetAbove256FallsBackToCategorical(t *testing.T) {
+	t.Parallel()
+
 	r := wideSetReader(258, 480)
 	res, err := InferSchemaWithOptions(r, InferOptions{})
 	if err != nil {
@@ -210,6 +220,8 @@ func TestInfer_SetAbove256FallsBackToCategorical(t *testing.T) {
 // set_u128" would send the reader to denormalize a column that now
 // imports natively.
 func TestSetOverflowFixup_NamesTheMovedCeiling(t *testing.T) {
+	t.Parallel()
+
 	md, ok := errors.MetadataFor(errors.PULSE_IMPORT_SET_OVERFLOW)
 	if !ok {
 		t.Fatal("no codeMetadata for PULSE_IMPORT_SET_OVERFLOW")
@@ -237,6 +249,8 @@ func TestSetOverflowFixup_NamesTheMovedCeiling(t *testing.T) {
 // below the threshold is still not a set, and lowering the threshold
 // still yields the wide rung.
 func TestInfer_SetInferenceMinPctUnchangedAtWideWidths(t *testing.T) {
+	t.Parallel()
+
 	// 480 rows; only 48 (10%) carry the delimiter, the rest are
 	// single tokens from the same 206-token alphabet.
 	build := func() *mockReader {
@@ -273,6 +287,8 @@ func TestInfer_SetInferenceMinPctUnchangedAtWideWidths(t *testing.T) {
 // priority and splitSetTokens trimming against a wide vocabulary —
 // both are width-agnostic and must stay so.
 func TestSetDelimiterProbing_UnchangedAtWideWidths(t *testing.T) {
+	t.Parallel()
+
 	semi := make([]string, 0, 300)
 	for i := 0; i < 300; i++ {
 		semi = append(semi, "T"+itoa((2*i)%206)+"; T"+itoa((2*i+1)%206))
@@ -296,6 +312,8 @@ func TestSetDelimiterProbing_UnchangedAtWideWidths(t *testing.T) {
 // hatch at the new rungs — the path a caller uses when the sample
 // under-counts the vocabulary.
 func TestInfer_ColumnTypeOverrideWideSetRungs(t *testing.T) {
+	t.Parallel()
+
 	for _, want := range []encoding.FieldType{
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,
 	} {

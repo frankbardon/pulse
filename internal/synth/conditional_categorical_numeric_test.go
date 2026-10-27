@@ -26,6 +26,8 @@ import (
 // build-failing assertion on the actual numbers, not a smoke test that
 // capture merely completes without error.
 func TestProfile_ConditionalCapturesCategoricalNumericPair(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -103,6 +105,8 @@ func TestProfile_ConditionalCapturesCategoricalNumericPair(t *testing.T) {
 // E2-S1/E3-S1's own regression tests: no "categorical_numeric_pairs"
 // key at all unless --conditional was requested.
 func TestProfile_WithoutConditional_OmitsCategoricalNumericPairs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -131,6 +135,8 @@ func TestProfile_WithoutConditional_OmitsCategoricalNumericPairs(t *testing.T) {
 // number of Categories entries must never exceed TopK+1 (the "other"
 // bucket).
 func TestProfile_ConditionalCategoricalNumericRespectsPerFieldTopK(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -195,6 +201,8 @@ func TestProfile_ConditionalCategoricalNumericRespectsPerFieldTopK(t *testing.T)
 // already use for thin numeric/categorical pairs — no separate,
 // divergent warning mechanism for this third pair kind.
 func TestProfile_ConditionalCategoricalNumericThinCellWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {

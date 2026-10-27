@@ -55,6 +55,8 @@ func runCohortCLIJSON(t *testing.T, args ...string) map[string]any {
 // with --filter only the survivors — and the envelope says so; on a
 // single-file input it is a no-op (`flattened: false`).
 func TestCohortFilterCLI_Flatten(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	arch := seedArchiveViaImport(t, dir)
 

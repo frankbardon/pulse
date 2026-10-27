@@ -29,11 +29,12 @@ first run via `go run`.
 | Command | What it does |
 |---|---|
 | `make build` | Builds the CLI binary to `bin/pulse` (default goal) |
-| `make test`  | Runs `go test ./...` |
+| `make test`  | Runs `go test ./...` (the fast test tier) |
+| `make test-heavy` | Runs `go test -tags heavy ./...`: both tiers, the `//go:build heavy` files included ([Test tiers](local-ci.md#test-tiers)) |
 | `make fmt`   | Runs `gofmt -w .` |
 | `make fmt-check` | Fails listing any Go file `gofmt` would rewrite |
-| `make vet`   | Runs `go vet ./...` |
-| `make lint`  | Runs `fmt-check`, `go vet`, then `staticcheck ./...` (the CI `lint` job runs exactly this) |
+| `make vet`   | Runs `go vet ./...`, then again with `-tags heavy` |
+| `make lint`  | Runs `fmt-check`, `vet`, then `staticcheck` over both test tiers, merged (the CI `lint` job runs exactly this) |
 | `make cover` | Runs tests with coverage; outputs `coverage.out` |
 | `make clean` | Removes `bin/` and `coverage.out` |
 

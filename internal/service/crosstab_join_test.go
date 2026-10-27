@@ -126,6 +126,8 @@ func joinedGroupedExpectation(t *testing.T, svc *Service, rowField, colField str
 // service alike. Cells, margins and Components equal the independent
 // grouped-join expectation and the hand-computed figures.
 func TestCrosstabJoin_HonoursJoinOnBothArms(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name          string
 		disableFusion bool
@@ -134,6 +136,8 @@ func TestCrosstabJoin_HonoursJoinOnBothArms(t *testing.T) {
 		{"fusion_disabled", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			svc := New(crosstabJoinFixture(t))
 			svc.SetDisableCrosstabFusion(tc.disableFusion)
 			wantSum, wantN := joinedGroupedExpectation(t, svc, "region", "r_tier")
@@ -237,8 +241,12 @@ func TestCrosstabJoin_HonoursJoinOnBothArms(t *testing.T) {
 // match counts twice. This is the silent-drop shape: before the fix
 // the fused-disabled arm ran over the bare left cohort.
 func TestCrosstabJoin_LeftOnlyAxesStillJoin(t *testing.T) {
+	t.Parallel()
+
 	for _, disable := range []bool{false, true} {
 		t.Run(fmt.Sprintf("disable_fusion_%v", disable), func(t *testing.T) {
+			t.Parallel()
+
 			svc := New(crosstabJoinFixture(t))
 			svc.SetDisableCrosstabFusion(disable)
 			wantSum, wantN := joinedGroupedExpectation(t, svc, "region", "segment")

@@ -75,6 +75,8 @@ func buildBlockOrderedRegionPlanCohort(t *testing.T, rowCount, half int) []byte 
 // below asserts does NOT happen under the new Algorithm R reservoir
 // sampling.
 func TestOldFirstNTruncation_WouldHaveMisrepresentedBlockOrderedMarginal(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 30000
 	const half = 15000 // true marginal: 50% us / 50% eu
 	const capN = conditionalJointCap
@@ -121,6 +123,8 @@ func TestOldFirstNTruncation_WouldHaveMisrepresentedBlockOrderedMarginal(t *test
 // tolerance — unlike the old first-N truncation demonstrated above to
 // diverge by 50 percentage points.
 func TestProfile_ConditionalCategoricalReservoirSampling_BlockOrderedSourceMatchesTrueMarginal(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 30000
 	const half = 15000 // true marginal: 50% us / 50% eu
 	data := buildBlockOrderedRegionPlanCohort(t, rowCount, half)
@@ -171,6 +175,8 @@ func TestProfile_ConditionalCategoricalReservoirSampling_BlockOrderedSourceMatch
 // ProfileBytes twice with the same Seed and asserts the two resulting
 // Profile values are deeply equal.
 func TestProfile_ConditionalCategoricalReservoirSampling_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 30000
 	const half = 15000
 	data := buildBlockOrderedRegionPlanCohort(t, rowCount, half)

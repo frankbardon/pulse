@@ -8,6 +8,8 @@ import "testing"
 // field-accessor table cost ~100 B per mint (0.23 GB on a 1/20
 // retention-shaped run).
 func TestGroupMemory_MaxGroupsCheckAllocationFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	l := Defaults()
 	names := Names()
 	var sink int64
@@ -33,6 +35,8 @@ func TestGroupMemory_MaxGroupsCheckAllocationFree(t *testing.T) {
 // (a distinct value per field, so a crossed accessor shows), and 0 for
 // an unknown name.
 func TestValue_EveryNameRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	var l Limits
 	for i, n := range Names() {
 		l = setField(t, l, n, int64(1000+i))

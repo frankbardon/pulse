@@ -28,6 +28,8 @@ var requestRoots = []reflect.Type{
 // opaqueUnmarshalers (never accepts an object). A new one fails here
 // until it is classified — never silently lenient.
 func TestStrictJSON_UnmarshalersAudited(t *testing.T) {
+	t.Parallel()
+
 	seen := map[reflect.Type]bool{}
 	var unaudited []string
 	var visit func(reflect.Type)
@@ -70,6 +72,8 @@ func TestStrictJSON_UnmarshalersAudited(t *testing.T) {
 // The strict decode yields exactly what encoding/json decodes for a
 // request carrying every custom unmarshaller's accepted forms.
 func TestStrictJSON_WalkAgreesWithDecoder(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"cohort":{"filename":"c"},"aggregations":[{"type":"AGG_SUM","field":"x","weight":{"field":"w","kind":"frequency"}}],"regressions":[{"type":"REG_OLS","covariance":{"type":"hac","lags":"auto"}}]}`)
 	var viaJSON types.Request
 	dec := json.NewDecoder(bytes.NewReader(body))
@@ -92,6 +96,8 @@ func TestStrictJSON_WalkAgreesWithDecoder(t *testing.T) {
 // + errors) so the no-execute descriptor, the template package and the
 // sweep rules can all import it.
 func TestStrictJSON_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	const prefix = "github.com/frankbardon/pulse"
 	allowed := map[string]bool{
 		prefix + "/internal/strictjson": true,
@@ -116,6 +122,8 @@ func TestStrictJSON_ImportBoundary(t *testing.T) {
 // encoding/json does, numbers kept as json.Number — while an unknown
 // key beside params, or inside a slot after it, is still refused.
 func TestStrictJSON_ParamsFreeFormKeys(t *testing.T) {
+	t.Parallel()
+
 	accepted := []struct {
 		name   string
 		decode func([]byte) error

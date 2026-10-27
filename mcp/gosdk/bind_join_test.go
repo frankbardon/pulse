@@ -22,6 +22,8 @@ import (
 // validator. Inspected without `joins`, the same request is refused by
 // the bound schema (the documented pre-fix limit).
 func TestRegister_BindOnInspectJoinTargets(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeRichCohort(t, fs, "left.pulse")
 	dict := encoding.NewDictionary()

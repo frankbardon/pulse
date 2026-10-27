@@ -14,6 +14,8 @@ import (
 // exactly the slots — and, on Request.Overlays, exactly the MATRIX /
 // SERIES / MATRIX_RESULT host shapes — that can execute it.
 func TestOverlayHostTable_MatchesRuntimeHandlers(t *testing.T) {
+	t.Parallel()
+
 	for _, k := range types.AllOverlayKinds() {
 		_, matrix := overlayHandlers[k]
 		_, series := seriesOverlayHandlers[k]
@@ -59,6 +61,8 @@ func TestOverlayHostTable_MatchesRuntimeHandlers(t *testing.T) {
 // a SCALAR host (nothing runs there), routes the run buffered, whose
 // hook raises the wrong-slot / SCALAR host refusal.
 func TestCanStreamOverlays_WrongHostRoutesBuffered(t *testing.T) {
+	t.Parallel()
+
 	if s, _ := types.OverlayStreamable(types.OverlayKindIndexVsPop); !s {
 		t.Fatal("vacuous: OVERLAY_INDEX_VS_POP is not streamable")
 	}
@@ -82,6 +86,8 @@ func TestCanStreamOverlays_WrongHostRoutesBuffered(t *testing.T) {
 // raises nothing; the first kept wrong-slot spec is refused at its own
 // index.
 func TestRefuseWrongHostOverlays_KeepMask(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{
 		{Kind: types.OverlayKindTCell},
 		{Kind: types.OverlayKindShareOfTotal},
@@ -115,6 +121,8 @@ func TestRefuseWrongHostOverlays_KeepMask(t *testing.T) {
 // Pulse.ApplySeriesOverlays, say) gets the refusal, not
 // PULSE_OVERLAY_KIND_UNKNOWN.
 func TestApplyOverlays_WrongHostRefusedInDispatch(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal}, {Kind: types.OverlayKindZVsRef}}
 	want := overlayhost.Refusal(overlayhost.Request, types.OverlayKindZVsRef, types.OverlayKindZVsRef, 1)
 	host := &SeriesHostView{}
@@ -149,6 +157,8 @@ func TestApplyOverlays_WrongHostRefusedInDispatch(t *testing.T) {
 // SCALAR host every Process kind is refused by the shared SCALAR host
 // rule (overlayhost.ScalarSpecRefusal).
 func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
+	t.Parallel()
+
 	series := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}},
 		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindShareOfTotal, Scope: types.OverlayScopeGroup}, {Kind: types.OverlayKindShareOfCol}}}
@@ -193,6 +203,8 @@ func TestRefuseWrongHostOverlays_Shape(t *testing.T) {
 // payload guard — the processor's grouped tails all reach it — and does
 // not judge it on a crosstab or an ungrouped request.
 func TestRefuseWrongHostOverlays_SeriesSpec(t *testing.T) {
+	t.Parallel()
+
 	grouped := func(ov ...types.OverlaySpec) *types.Request {
 		return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}}, Overlays: ov}

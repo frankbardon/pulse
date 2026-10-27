@@ -58,6 +58,8 @@ func distinctRows(n int) [][]string {
 // so there is no partial answer worth reporting: Run refuses with the code
 // AddWithLimit already raises.
 func TestConvertJob_CategoricalOverflowIsReported(t *testing.T) {
+	t.Parallel()
+
 	source := newMockReader([]string{"answer"}, distinctRows(300))
 	target := &collectWriter{}
 
@@ -92,6 +94,8 @@ func TestConvertJob_CategoricalOverflowIsReported(t *testing.T) {
 // same reason the total-row-failure refusal does. A cohort on disk under a
 // command that errored is the silent half of this bug.
 func TestConvertJob_CategoricalOverflowLeavesNoCohort(t *testing.T) {
+	t.Parallel()
+
 	source := newMockReader([]string{"answer"}, distinctRows(300))
 	target := &collectWriter{}
 	fs := afero.NewMemMapFs()
@@ -112,6 +116,8 @@ func TestConvertJob_CategoricalOverflowLeavesNoCohort(t *testing.T) {
 // TestConvertJob_CategoricalWithinCapacityStillConverts guards the other
 // side: a dictionary that fits is untouched by the new check.
 func TestConvertJob_CategoricalWithinCapacityStillConverts(t *testing.T) {
+	t.Parallel()
+
 	source := newMockReader([]string{"answer"}, distinctRows(200))
 	target := &collectWriter{}
 

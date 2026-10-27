@@ -18,6 +18,8 @@ import (
 // saves it; without the custom model (or with one carrying no Scorer
 // where scoring is needed) the profile still fails as before.
 func TestFeatureProfile_ExtensionRegressionMeetsRegEdges(t *testing.T) {
+	t.Parallel()
+
 	base := []string{
 		"capability:compose", "capability:compose_fits", "capability:model_save",
 		"ATTR_REG_PREDICT", "FILTER_RANGE", "GROUP_RANGE", "AGG_MIN",

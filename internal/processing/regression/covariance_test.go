@@ -56,6 +56,8 @@ func covFit(t *testing.T, cov *types.RegressionCovariance, recs []Record) *types
 // lag 0 is exactly HC1 (same meat, same N*/(N*−k)) when the rows are
 // already in order — the two estimators share one sandwich.
 func TestCovariance_HACLagZeroIsHC1(t *testing.T) {
+	t.Parallel()
+
 	recs := covRecords()
 	hc1 := covFit(t, &types.RegressionCovariance{Type: types.CovarianceHC1}, recs)
 	hac := covFit(t, &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t", Lags: types.LagsOf(0)}, recs)
@@ -87,6 +89,8 @@ func TestCovariance_HACLagZeroIsHC1(t *testing.T) {
 // HC1 (G/(G−1)·(n−1)/(n−k) = n/(n−k)); a cluster keyed by label or by
 // number gives the same fit, the label read through LabeledRecord.
 func TestCovariance_SingletonClustersAreHC1(t *testing.T) {
+	t.Parallel()
+
 	recs := covRecords()
 	hc1 := covFit(t, &types.RegressionCovariance{Type: types.CovarianceHC1}, recs)
 	one := covFit(t, &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "t"}, recs)
@@ -113,6 +117,8 @@ func TestCovariance_SingletonClustersAreHC1(t *testing.T) {
 // TestCovariance_NullKeyDropsRow: a null cluster value drops the row
 // from the fit itself (n_obs), like a null predictor.
 func TestCovariance_NullKeyDropsRow(t *testing.T) {
+	t.Parallel()
+
 	recs := covRecords()
 	lr := recs[4].(labeledRecord)
 	recs[4] = labeledRecord{mockRecord: mockRecord{values: lr.values, nulls: map[string]bool{"g": true}}, labels: lr.labels}
@@ -130,6 +136,8 @@ func TestCovariance_NullKeyDropsRow(t *testing.T) {
 // (RegressionSpec.Streamable); driven through UpdateRow / Finalize
 // anyway, the engine refuses rather than report classical errors.
 func TestCovariance_StreamingRefusesRobust(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Covariance: &types.RegressionCovariance{Type: types.CovarianceHC0}}
 	eng, err := newOLSEngine(spec, nil)
 	if err != nil {
@@ -152,6 +160,8 @@ func TestCovariance_StreamingRefusesRobust(t *testing.T) {
 // by (1−h) / (1−h)²; a leverage of 1 is undefined (NaN → null), never
 // ±Inf.
 func TestCovariance_HCOmega(t *testing.T) {
+	t.Parallel()
+
 	if hcOmega(types.CovarianceHC0, 0.5) != 1 || hcOmega(types.CovarianceHC1, 0.5) != 1 {
 		t.Error("hc0 / hc1 must weigh 1")
 	}
@@ -195,6 +205,8 @@ func glmBayesCovFit(t *testing.T, typ types.RegressionType, cov *types.Regressio
 // from the fit itself (n_obs) and so moves the coefficients, like a
 // null predictor; the classical fit keeps it.
 func TestCovariance_GLMBayesNullKeyDropsRow(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range []types.RegressionType{types.REG_GLM, types.REG_BAYES_LINEAR} {
 		for _, cov := range []*types.RegressionCovariance{
 			{Type: types.CovarianceCluster, Cluster: "g"},
@@ -224,6 +236,8 @@ func TestCovariance_GLMBayesNullKeyDropsRow(t *testing.T) {
 // order is HC1 to the bit, and hc3 ≥ hc2 ≥ hc0 on the diagonal (the
 // leverage the engines hand it is in [0, 1)).
 func TestCovariance_GLMBayesHACLagZeroIsHC1(t *testing.T) {
+	t.Parallel()
+
 	recs := covRecords()
 	for _, typ := range []types.RegressionType{types.REG_GLM, types.REG_BAYES_LINEAR} {
 		hc1 := glmBayesCovFit(t, typ, &types.RegressionCovariance{Type: types.CovarianceHC1}, recs)
@@ -248,6 +262,8 @@ func TestCovariance_GLMBayesHACLagZeroIsHC1(t *testing.T) {
 // classically, but a robust spec driven through UpdateRow / Finalize is
 // refused rather than reporting the posterior marginals.
 func TestCovariance_BayesStreamingRefusesRobust(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Covariance: &types.RegressionCovariance{Type: types.CovarianceHC0}}
 	eng, err := newBayesLinearEngine(spec, nil)
 	if err != nil {

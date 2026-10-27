@@ -15,6 +15,8 @@ import (
 // with neither (empty, attributes only) and one whose test or
 // regression is buffered-only still routes buffered.
 func TestNoAggregationRequests_StreamAndMatchBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	var recs []*Record
 	for _, r := range weightedTestFixture() {
@@ -138,6 +140,8 @@ func TestNoAggregationRequests_StreamAndMatchBuffered(t *testing.T) {
 // the shared grouped tail. The ungrouped streaming arms and the crosstab
 // arm keep runPostTests' warnings anyway, in the buffered arm's order.
 func TestPostTestWarnings_StreamAndMatchBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	var recs []*Record
 	for _, r := range weightedTestFixture() {

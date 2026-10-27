@@ -16,6 +16,8 @@ import (
 // unknown type and the whole managed open fails — this is the seam
 // that makes a wide-set override expressible at all.
 func TestParseColumnTypeOverrides_WideSetRungs(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]encoding.FieldType{
 		"set_u8":   encoding.FieldTypeSetU8,
 		"set_u64":  encoding.FieldTypeSetU64,
@@ -42,6 +44,8 @@ func TestParseColumnTypeOverrides_WideSetRungs(t *testing.T) {
 // TestSidecar_WideSetOverrideJSONRoundTrip confirms the override map
 // survives the on-disk JSON shape unchanged for the wide rungs.
 func TestSidecar_WideSetOverrideJSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	in := Sidecar{
 		Handle:              "issuers",
 		ColumnTypeOverrides: map[string]string{"a": "set_u128", "b": "set_u256"},
@@ -75,6 +79,8 @@ func TestSidecar_WideSetOverrideJSONRoundTrip(t *testing.T) {
 // cell yet. This test pins the width CHOICE and its persistence, which
 // is what E3-S1 owns.
 func TestManager_Open_WideSetOverridePersists(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeSetCSV(t, afs, "issuers.csv")
 	res, err := m.Open(context.Background(), Spec{

@@ -15,6 +15,8 @@ import (
 // only online aggregations on numeric fields reports streamable=true with
 // no reasons.
 func TestPredict_Streamable_OnlineAggregations(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -43,6 +45,8 @@ func TestPredict_Streamable_OnlineAggregations(t *testing.T) {
 // TestPredict_Streamable_StreamableGroupAllowed: GROUP_CATEGORY with
 // online aggregators reports streamable=true.
 func TestPredict_Streamable_StreamableGroupAllowed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -66,6 +70,8 @@ func TestPredict_Streamable_StreamableGroupAllowed(t *testing.T) {
 // TestPredict_Streamable_NonStreamableGroupBlocks: GROUP_QUANTILE forces
 // buffered.
 func TestPredict_Streamable_NonStreamableGroupBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -90,6 +96,8 @@ func TestPredict_Streamable_NonStreamableGroupBlocks(t *testing.T) {
 // TestPredict_Streamable_NonOnlineAggBlocksStreaming asserts MEDIAN forces
 // buffered with a per-aggregation reason.
 func TestPredict_Streamable_NonOnlineAggBlocksStreaming(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -114,6 +122,8 @@ func TestPredict_Streamable_NonOnlineAggBlocksStreaming(t *testing.T) {
 // TestPredict_Streamable_PercentileAttributeBlocks asserts ATTR_PERCENTILE
 // (the only remaining buffered-only attribute) forces buffered.
 func TestPredict_Streamable_PercentileAttributeBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -139,6 +149,8 @@ func TestPredict_Streamable_PercentileAttributeBlocks(t *testing.T) {
 // TestPredict_Streamable_TwoPassAttributeAllowed: ZSCORE/TSCORE/NORMALIZED
 // implement TwoPassAttribute and report streamable=true.
 func TestPredict_Streamable_TwoPassAttributeAllowed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -163,6 +175,8 @@ func TestPredict_Streamable_TwoPassAttributeAllowed(t *testing.T) {
 // are row-local; predict should report Streamable=true even with them
 // present (provided no other gates fire).
 func TestPredict_Streamable_RowLocalAttributesAllowed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -187,6 +201,8 @@ func TestPredict_Streamable_RowLocalAttributesAllowed(t *testing.T) {
 // TestPredict_Streamable_DecimalFieldBlocks asserts decimal128 fields
 // force buffered even with online aggregations.
 func TestPredict_Streamable_DecimalFieldBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2, Description: "Transaction amount in USD cents"},
@@ -212,6 +228,8 @@ func TestPredict_Streamable_DecimalFieldBlocks(t *testing.T) {
 // gate flip: REG_OLS with Penalty == "" and no Resample / Selection
 // modifiers reports Streamable=true with no blocking reasons.
 func TestPredict_Streamable_UnpenalizedOLSStreams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},
@@ -238,6 +256,8 @@ func TestPredict_Streamable_UnpenalizedOLSStreams(t *testing.T) {
 // force Streamable=false. After Phase 4, REG_BAYES_LINEAR without
 // modifiers streams; modifier-wrapped Bayes specs remain buffered.
 func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},
@@ -280,6 +300,8 @@ func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
 // missing target / predictors, non-numeric fields, missing GLM Family,
 // and Selection-without-Criterion.
 func TestPredict_RegressionValidation(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score"},
@@ -359,6 +381,8 @@ func TestPredict_RegressionValidation(t *testing.T) {
 // with no per-record work (no aggregation, matrix, test or regression)
 // is non-streamable (nothing drives UpdateRow).
 func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -382,6 +406,8 @@ func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {
 // beside a streamable regression stream too (the one-request readout).
 // Each case pins the expected answer as well as the parity.
 func TestPredict_Streamable_NoAggregationWork(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
 		{Name: "prior", Type: encoding.FieldTypeF64, Description: "Pre-period score of the same student"},
@@ -466,6 +492,8 @@ func TestPredict_Streamable_NoAggregationWork(t *testing.T) {
 // agrees with processing.CanStreamRequest for a representative matrix.
 // This is the cross-package parity gate: drift in either side breaks it.
 func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	numericSchema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -1009,6 +1037,8 @@ func containsReason(reasons []string, needle string) bool {
 // regularized+selection warning fires when REG_OLS combines a
 // non-empty Penalty with a non-empty Selection.
 func TestPredict_RegressionRegularizedSelectionWarning(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "y", Type: encoding.FieldTypeF64, Description: "Response variable values"},

@@ -98,8 +98,12 @@ func requireJoinBuildExceeded(t *testing.T, err error, configured, observed int6
 // header-only count — no handle ever drains the right cohort — while
 // the same request at the limit decodes it (the control).
 func TestLimitsPreflight_JoinBuildRowsRefusesBeforeDecode(t *testing.T) {
+	t.Parallel()
+
 	for name, req := range joinLimitRequests() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			run := func(max int64) (fsCounts, error) {
 				mem := afero.NewMemMapFs()
 				joinLimitFixture(t, mem)
@@ -135,6 +139,8 @@ func TestLimitsPreflight_JoinBuildRowsRefusesBeforeDecode(t *testing.T) {
 // under-reports, the build loop refuses as soon as its decode passes
 // the limit, on both join hosts.
 func TestLimitsPreflight_JoinBuildRowsLoopBackstop(t *testing.T) {
+	// serial: swaps the package-level service.joinBuildCount test hook
+
 	orig := joinBuildCount
 	joinBuildCount = func(context.Context, *Service, string) (uint64, error) { return 0, nil }
 	t.Cleanup(func() { joinBuildCount = orig })
@@ -160,6 +166,8 @@ func TestLimitsPreflight_JoinBuildRowsLoopBackstop(t *testing.T) {
 // TestJoinBuildRows_UnlimitedSkipsTheCount: an Unlimited
 // MaxJoinBuildRows never pays the header count.
 func TestJoinBuildRows_UnlimitedSkipsTheCount(t *testing.T) {
+	// serial: swaps the package-level service.joinBuildCount test hook
+
 	orig := joinBuildCount
 	calls := 0
 	joinBuildCount = func(ctx context.Context, s *Service, p string) (uint64, error) {
@@ -203,6 +211,8 @@ func TestJoinBuildRows_UnlimitedSkipsTheCount(t *testing.T) {
 // probed (the left cohort never drains). At that figure the run
 // succeeds, byte-identical to the Unlimited run.
 func TestJoinFanOutBackstop_RefusesBeforeProbe(t *testing.T) {
+	t.Parallel()
+
 	hosts := map[string]func() *types.Request{
 		"process": func() *types.Request {
 			r := joinLimitRequests()["process"]()

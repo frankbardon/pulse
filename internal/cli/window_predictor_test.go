@@ -50,6 +50,8 @@ func windowPredictorCLICohort(t *testing.T) (dir, cohort string) {
 // REG_OLS reads a same-request WIN_DISTRIBUTED_LAG label and returns the fit in
 // the envelope — no error, the leading-null-free n, a finite slope.
 func TestWindowPredictor_ParityCLIProcessSmoke(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir, cohort := windowPredictorCLICohort(t)
 	reqPath := filepath.Join(dir, "req.json")
 	if err := os.WriteFile(reqPath, []byte(`{"cohort":{"filename":"`+cohort+`"},`+
@@ -105,6 +107,8 @@ func adstockHillSweep(cohort string) string {
 // slot per decay, each slope different, each bit for bit the slot the
 // library's Compose fits for the same batch.
 func TestWindowPredictor_ParityCLIComposeSweep(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir, cohort := windowPredictorCLICohort(t)
 	composed := adstockHillSweep(cohort)
 	reqPath := filepath.Join(dir, "sweep.json")

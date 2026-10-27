@@ -39,6 +39,8 @@ func weightedSum(cohort string, w types.SlotWeight, reqW *types.WeightSpec) *typ
 // TestWeight_NewValidatesDefault: Options.DefaultWeight is shape-checked
 // at pulse.New — no field, or an unknown kind, is PROCESSING_CONFIG.
 func TestWeight_NewValidatesDefault(t *testing.T) {
+	t.Parallel()
+
 	for _, def := range []*types.WeightSpec{{}, {Field: "n", Kind: "replicate"}} {
 		_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), DefaultWeight: def})
 		ce := requireCode(t, err, errors.PROCESSING_CONFIG)
@@ -58,6 +60,8 @@ func TestWeight_NewValidatesDefault(t *testing.T) {
 // a mistyped slot or request weight, an unknown kind, an unknown field,
 // and a joined (prefixed) field resolved through the joined schema.
 func TestWeight_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := weightPulse(t, fs, nil)
 	ctx := context.Background()
@@ -116,6 +120,8 @@ func TestWeight_PredictMatchesRuntime(t *testing.T) {
 // instance default through to PredictResult.Weights, and a request with
 // no weight anywhere omits the key from its JSON.
 func TestWeight_PredictReportsResolution(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 
@@ -152,6 +158,8 @@ func TestWeight_PredictReportsResolution(t *testing.T) {
 // each resolve their own weights; the validators refuse what the
 // runtime refuses, located by details.request / details.stage.
 func TestWeight_ValidatorsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := weightPulse(t, fs, nil)
 	ctx := context.Background()
@@ -207,6 +215,8 @@ func TestWeight_ValidatorsMatchRuntime(t *testing.T) {
 // an unweighted figure into a weighted table). `weight: null` opts the
 // slot out on both sides.
 func TestWeight_DecimalPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	decSum := func(w types.SlotWeight, reqW *types.WeightSpec) *types.Request {

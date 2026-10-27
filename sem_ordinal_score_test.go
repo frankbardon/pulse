@@ -67,6 +67,8 @@ const semOrdFitPath = "fits/brand_ord" + model.SEMSuffix
 // mediator a dummy latent — no refusal on any arm, predict alike) holds
 // the same, ungrouped and grouped.
 func TestSEMScore_OrdinalBoundAndLoadedMatchInline(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name, model string
 		ordered     []string
@@ -74,7 +76,10 @@ func TestSEMScore_OrdinalBoundAndLoadedMatchInline(t *testing.T) {
 		{"cfa", semScoreCFA, brandOrdered},
 		{"mediator", semOrdMediator, brandOrderedMed},
 	} {
-		t.Run(c.name, func(t *testing.T) { checkOrdinalBoundAndLoaded(t, c.model, c.ordered) })
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			checkOrdinalBoundAndLoaded(t, c.model, c.ordered)
+		})
 	}
 }
 
@@ -147,6 +152,8 @@ func checkOrdinalBoundAndLoaded(t *testing.T, mdl string, ordered []string) {
 // loaded from a file — and predict reports the same entry; "regression"
 // is accepted everywhere.
 func TestSEMScore_OrdinalBartlettRefusedPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	bart := func(params map[string]any) map[string]any {
@@ -213,6 +220,8 @@ func semSaveComposeWith(knobs map[string]any, save string, slot *types.Request) 
 // PULSE_SEM_SCORE_LEVEL_UNSEEN warning (reason category_unseen) counting
 // them — bound and loaded alike — and every other row scores.
 func TestSEMScore_OrdinalUnseenCategory(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	fit := semFitRequest(semOrdKnobs(false))

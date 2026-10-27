@@ -207,8 +207,12 @@ func checkArrowTable(t *testing.T, tc typingCase, sc *arrow.Schema, cols []arrow
 }
 
 func TestExport_ArrowColumnTypingFollowsColumnPlan(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range typingCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, predicted := runTypingExport(t, tc,
 				func() Writer { return parrow.NewWriterToBuffer() },
 				func(w Writer) []byte { return w.(*parrow.Writer).Bytes() })
@@ -227,8 +231,12 @@ func TestExport_ArrowColumnTypingFollowsColumnPlan(t *testing.T) {
 }
 
 func TestExport_ParquetColumnTypingFollowsColumnPlan(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range typingCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, predicted := runTypingExport(t, tc,
 				func() Writer { return parquet.NewWriterToBuffer() },
 				func(w Writer) []byte { return w.(*parquet.Writer).Bytes() })
@@ -255,8 +263,12 @@ func TestExport_ParquetColumnTypingFollowsColumnPlan(t *testing.T) {
 // and every other value as text, so a column's physical type is right
 // exactly when it is numeric iff its source is the decimal.
 func TestExport_ExcelColumnTypingFollowsColumnPlan(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range typingCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, predicted := runTypingExport(t, tc,
 				func() Writer { return excel.NewWriterToBuffer() },
 				func(w Writer) []byte { return w.(*excel.Writer).Bytes() })

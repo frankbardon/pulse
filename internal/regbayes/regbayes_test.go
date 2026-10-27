@@ -13,6 +13,8 @@ import (
 // and entries included) and the other engines' knobs; every other type
 // passes untouched.
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	bayes := func(mod func(*types.RegressionSpec)) *types.RegressionSpec {
 		s := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"a", "b"}}
 		mod(s)
@@ -71,6 +73,8 @@ func TestCheck(t *testing.T) {
 // TestRemedies: a remedy's nil rendering is the historical literal and
 // drops out when the type it names is not offered.
 func TestRemedies(t *testing.T) {
+	t.Parallel()
+
 	none := func(string) bool { return false }
 	for _, r := range Remedies() {
 		if r(nil) == "" || r(none) != "" {

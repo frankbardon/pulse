@@ -45,6 +45,8 @@ func runImportCSV(t *testing.T, out *bytes.Buffer, args ...string) error {
 // row fails used to print "Imported 0 rows" and exit 0. It now returns the
 // error, which cmd/pulse turns into a non-zero exit.
 func TestImportCLI_TotalFailure_TextArmExitsNonZero(t *testing.T) {
+	t.Parallel()
+
 	csvPath, schemaPath, outPath := seedTotalFailureImport(t)
 
 	var buf bytes.Buffer
@@ -63,6 +65,8 @@ func TestImportCLI_TotalFailure_TextArmExitsNonZero(t *testing.T) {
 // total-failure verdict must arrive coded: an envelope carrying
 // "IMPORT_ERROR" is unusable with `pulse errors lookup`.
 func TestImportCLI_TotalFailure_EnvelopeCarriesRealCode(t *testing.T) {
+	t.Parallel()
+
 	csvPath, schemaPath, outPath := seedTotalFailureImport(t)
 
 	var buf bytes.Buffer
@@ -112,6 +116,8 @@ func TestImportCLI_TotalFailure_EnvelopeCarriesRealCode(t *testing.T) {
 // starts streaming to disk before Close breaks it, and must then bring its
 // own cleanup rather than silently leaving a truncated file behind.
 func TestExportTargets_EmitNothingBeforeClose(t *testing.T) {
+	t.Parallel()
+
 	formats := []string{
 		string(pio.FormatCSV), string(pio.FormatTSV), string(pio.FormatNDJSON), string(pio.FormatJSONArray),
 		string(pio.FormatParquet), string(pio.FormatArrow), string(pio.FormatExcel), string(pio.FormatSPSS),

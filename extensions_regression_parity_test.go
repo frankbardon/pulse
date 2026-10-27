@@ -1,7 +1,6 @@
 package pulse_test
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"slices"
@@ -14,7 +13,6 @@ import (
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
-	"github.com/spf13/afero"
 )
 
 // Regression parity (U53 E1-S5): REG_PARITY_OLS (streaming) and
@@ -396,66 +394,4 @@ func assertRegressionParity(t *testing.T, builtin, ext []*types.RegressionResult
 			t.Errorf("regressions[%d].multiplicity: builtin %+v extension %+v", i, b.Multiplicity, e.Multiplicity)
 		}
 	}
-}
-
-// TestExtensions_RegressionWorkerInvariant: a custom regression's result
-// is byte-identical across DecodeWorkers (a cohort past the parallel
-// decode threshold) and across ShardWorkers (a shard archive) — a
-// regression never merges, so every worker count folds the admitted
-// rows in record order — streaming and buffered, weighted and not.
-func TestExtensions_RegressionWorkerInvariant(t *testing.T) {
-	large := parityLargeCohort(t.TempDir())(t)
-	prob := types.SlotWeightOf(types.WeightSpec{Field: "qty", Kind: types.WeightKindProbability})
-	specs := []*types.RegressionSpec{
-		{Type: regParityOLS, Name: "s", Target: "score", Predictors: []string{"qty", "day"}},
-		{Type: regParityOLS, Name: "sw", Target: "score", Predictors: []string{"day"}, Weight: prob},
-		{Type: regParityOLSBuf, Name: "b", Target: "score", Predictors: []string{"qty", "day"}},
-		{Type: regParityOLSBuf, Name: "bw", Target: "score", Predictors: []string{"day"}, Weight: prob,
-			Multiplicity: &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}},
-	}
-	ext := pulse.Extensions{Regressions: regressionParityRegistrations()}
-	run := func(t *testing.T, opts pulse.Options, path string) string {
-		t.Helper()
-		opts.Extensions = ext
-		p, err := pulse.New(opts)
-		if err != nil {
-			t.Fatalf("pulse.New: %v", err)
-		}
-		resp := processE2E(t, p, &types.Request{Cohort: &types.Cohort{Filename: path}, Regressions: specs})
-		for _, r := range resp.Regressions {
-			if r == nil || r.Error != nil || r.NObs == 0 {
-				t.Fatalf("regression failed: %+v", r)
-			}
-		}
-		return mustJSON(t, resp.Regressions)
-	}
-	t.Run("decode_workers", func(t *testing.T) {
-		want := run(t, pulse.Options{DataDir: large, DecodeWorkers: 1}, "large.pulse")
-		for _, w := range []int{2, 4, 7} {
-			if got := run(t, pulse.Options{DataDir: large, DecodeWorkers: w}, "large.pulse"); got != want {
-				t.Errorf("DecodeWorkers %d differs from 1:\n%s\n%s", w, got, want)
-			}
-		}
-	})
-	t.Run("shard_workers", func(t *testing.T) {
-		fsys := afero.NewMemMapFs()
-		s := paritySchema(t)
-		shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}
-		for i, path := range shards {
-			writeParityCohort(t, fsys, path, s, i*40, (i+1)*40)
-		}
-		archive, err := pulse.New(pulse.Options{FS: fsys})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := archive.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
-			t.Fatalf("CreateShardArchive: %v", err)
-		}
-		want := run(t, pulse.Options{FS: fsys, ShardWorkers: 1}, "archive.pulse")
-		for _, w := range []int{2, 3} {
-			if got := run(t, pulse.Options{FS: fsys, ShardWorkers: w}, "archive.pulse"); got != want {
-				t.Errorf("ShardWorkers %d differs from 1:\n%s\n%s", w, got, want)
-			}
-		}
-	})
 }

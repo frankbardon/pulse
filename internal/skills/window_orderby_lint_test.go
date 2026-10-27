@@ -45,6 +45,8 @@ func orderByClaims(body string) []string {
 // op-win-* skill may narrow it to "numeric" again, and one that states
 // a type rule must name both refused families.
 func TestWindowSkillOrderByClaimsMatchEngine(t *testing.T) {
+	t.Parallel()
+
 	checked := 0
 	for _, stem := range embeddedMarkdownNames(t) {
 		if !strings.HasPrefix(stem, "op-win-") {

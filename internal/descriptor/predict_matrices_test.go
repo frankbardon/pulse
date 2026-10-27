@@ -18,6 +18,8 @@ import (
 // mergeability, a buffered spec's row store and pairwise PSD risk, in
 // request order, off the runtime's own resolver.
 func TestPredict_Matrices(t *testing.T) {
+	t.Parallel()
+
 	pairwise := json.RawMessage(`{"missing": "pairwise"}`)
 	req := &types.Request{
 		Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"q_2", "q_1", "q_3"}, Labels: []string{"Two", "One", "Three"}}},
@@ -164,6 +166,8 @@ func vectorPredictCohort(t *testing.T, n int) []byte {
 // buckets x accumulator bytes, plus the rows a shard starting inside a
 // block buffers (blocks key by the global record ordinal).
 func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
+	t.Parallel()
+
 	req := func() *types.Request {
 		return &types.Request{
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}},
@@ -224,6 +228,8 @@ func TestPredict_MatrixEstimatedBytesCountsBlocks(t *testing.T) {
 // whose keys depend on the data reports basis "unknown" and omits the
 // three figures — never a guess, never a refusal (no guard: U19).
 func TestPredict_MatrixBucketEstimate(t *testing.T) {
+	t.Parallel()
+
 	pairwise := json.RawMessage(`{"missing": "pairwise"}`)
 	specs := []types.MatrixSpec{
 		{Name: "c", Type: types.MAT_COVARIANCE, Fields: []string{"q_1", "q_2", "q_3"}},
@@ -285,6 +291,8 @@ func TestPredict_MatrixBucketEstimate(t *testing.T) {
 // TestPredict_MatricesOmitted: a matrix-free request and a refused spec
 // carry no matrices key.
 func TestPredict_MatricesOmitted(t *testing.T) {
+	t.Parallel()
+
 	for name, req := range map[string]*types.Request{
 		"none":    {Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}},
 		"refused": {Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "missing"}}},
@@ -306,6 +314,8 @@ func TestPredict_MatricesOmitted(t *testing.T) {
 // which carries it — scale with the set dictionary size: records x 4 x
 // 8·(p + 1) over a 4-entry set, against records x 8·(p + 1) ungrouped.
 func TestPredict_MatrixRowBufferFanOut(t *testing.T) {
+	t.Parallel()
+
 	const n = 50
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, Description: "First measured score of the row"},

@@ -89,6 +89,8 @@ func wideSetMemberCounts(members, rowCount int) []int {
 // multiple-response width, and every member's frequency is an exact
 // rational the test computes independently.
 func TestProfile_WideSetMarginalFrequencies(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		ft      encoding.FieldType
@@ -98,6 +100,8 @@ func TestProfile_WideSetMarginalFrequencies(t *testing.T) {
 		{"set_u256", encoding.FieldTypeSetU256, 206},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			const rowCount = 1000
 			options := wideSetOptionNames(tc.members)
 			counts := wideSetMemberCounts(tc.members, rowCount)
@@ -158,6 +162,8 @@ func TestProfile_WideSetMarginalFrequencies(t *testing.T) {
 // per-element marginals must match the source's within tolerance BELOW
 // and ABOVE bit 64.
 func TestSpecFromProfile_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 	const sourceRows = 1000
 	const newRows = 20000
@@ -409,6 +415,8 @@ func cellCount(cells []synth.ContingencyCell, a, b string) int {
 // "behaves the same" is asserted as an equality between the two
 // captures rather than as a tolerance.
 func TestProfile_WideSetConditionalPairsMatchNarrowBehaviour(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 2400
 	data, gt := buildWideSetPairCohort(t, rowCount, true)
 
@@ -504,6 +512,8 @@ func TestProfile_WideSetConditionalPairsMatchNarrowBehaviour(t *testing.T) {
 // silently: the capture reports a target with no predictors, which is a
 // legitimate outcome elsewhere and therefore carries no signal at all.
 func TestProfileModels_WideSetPredictorIsAdmitted(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 2400
 	data, gt := buildWideSetPairCohort(t, rowCount, false)
 
@@ -550,6 +560,8 @@ func TestProfileModels_WideSetPredictorIsAdmitted(t *testing.T) {
 // clamp was applied in silence, which is indistinguishable in the
 // document from a cohort that genuinely never selects those options.
 func TestProfile_WideSetDictionaryBeyondMaskWidthWarns(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 100
 	// A set_u64 carrying a 70-entry dictionary: six members the mask
 	// cannot address. Reachable through a hand-built or corrupt file,

@@ -64,6 +64,8 @@ func decimalTypeName(t *testing.T) string {
 // Regressions carry their own AcceptsTypes list in a separate file and
 // are checked in the same pass for the same reason.
 func TestCapabilities_AcceptsTypesAreRegisteredNames(t *testing.T) {
+	t.Parallel()
+
 	for kind, ops := range capabilityOperatorTables() {
 		for _, op := range ops {
 			if len(op.AcceptsTypes) == 0 && !op.ForbidsField {
@@ -99,6 +101,8 @@ func TestCapabilities_AcceptsTypesAreRegisteredNames(t *testing.T) {
 // separately so the failure message names the real mistake rather than
 // reporting a generic unknown name.
 func TestCapabilities_NoNullableTypeNames(t *testing.T) {
+	t.Parallel()
+
 	check := func(kind, op string, names []string) {
 		for _, name := range names {
 			if len(name) >= 9 && name[:9] == "nullable_" {
@@ -133,6 +137,8 @@ func TestCapabilities_NoNullableTypeNames(t *testing.T) {
 // decimal128. Universality is computed from nonSetFieldTypes rather
 // than matched by operator name.
 func TestCapabilities_DecimalDeclaredOnlyWhereSupported(t *testing.T) {
+	t.Parallel()
+
 	decimal := decimalTypeName(t)
 	for _, op := range aggregatorCapabilities() {
 		if !slices.Contains(op.AcceptsTypes, decimal) {
@@ -164,6 +170,8 @@ func TestCapabilities_DecimalDeclaredOnlyWhereSupported(t *testing.T) {
 // the live type list. That instruction is only true if the two blocks
 // agree, and until this gate they did not.
 func TestManifest_AcceptsTypesResolveInCohortTypes(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	known := map[string]bool{}
@@ -220,6 +228,8 @@ func TestManifest_AcceptsTypesResolveInCohortTypes(t *testing.T) {
 // or a type that should not be registered; either way it must not pass
 // silently.
 func TestManifest_EveryRegisteredTypeHasSomeOperator(t *testing.T) {
+	t.Parallel()
+
 	for _, ct := range BuildManifest().CohortTypes {
 		n := len(ct.CompatibleAggregators) + len(ct.CompatibleAttributes) +
 			len(ct.CompatibleFilterers) + len(ct.CompatibleGroupers) +

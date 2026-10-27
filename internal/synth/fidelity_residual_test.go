@@ -89,6 +89,8 @@ func syntheticValueCorrelation(t *testing.T, schema *encoding.Schema, records []
 // takes the full Q/Phi round trip — the same fixture discipline E5-S1's
 // coefficient tests use.
 func TestBuildModelResidualFidelity_RecoversRequestedCorrelation(t *testing.T) {
+	t.Parallel()
+
 	const wantRho = 0.7
 	const recoveryBar = 0.05
 
@@ -171,6 +173,8 @@ func TestBuildModelResidualFidelity_RecoversRequestedCorrelation(t *testing.T) {
 // internal/synth/residual_corr.go's header warns about: imposing a raw-value
 // correlation on a residual applies every shared predictor twice.
 func TestBuildModelResidualFidelity_MeasuresResidualsNotValues(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(20000,
 		synth.FieldModelSpec{
 			Field:     "spend",
@@ -220,6 +224,8 @@ func TestBuildModelResidualFidelity_MeasuresResidualsNotValues(t *testing.T) {
 // so a report produced for such a profile is byte-identical to the
 // pre-E5-S2 document.
 func TestBuildModelResidualFidelity_AbsentWithoutResidualCorrelations(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		models []synth.FieldModelSpec
@@ -239,6 +245,8 @@ func TestBuildModelResidualFidelity_AbsentWithoutResidualCorrelations(t *testing
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := modelFidelitySpec(4000, tc.models...)
 			schema, records := augmentForModelFidelity(t, spec, 4000, 321)
 
@@ -270,6 +278,8 @@ func TestBuildModelResidualFidelity_AbsentWithoutResidualCorrelations(t *testing
 // has nothing to estimate from — the ModelFidelity entry reports that,
 // and this section must not paper over it.
 func TestBuildModelResidualFidelity_UnmeasurableEndpointCarriesNoRho(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(6000,
 		synth.FieldModelSpec{
 			Field:       "spend",
@@ -367,6 +377,8 @@ func manyModelSpec(n, rows int) *synth.Spec {
 // hidden, and a pair that did not make the listing recovered at least
 // as well as the last one that did.
 func TestBuildModelResidualFidelity_ListingIsBoundedAtScale(t *testing.T) {
+	t.Parallel()
+
 	const participants = 9 // C(9,2) = 36 pairs, comfortably over the cap
 	const wantPairs = participants * (participants - 1) / 2
 
@@ -415,6 +427,8 @@ func TestBuildModelResidualFidelity_ListingIsBoundedAtScale(t *testing.T) {
 // and a fidelity number that moves when nothing moved is unusable for
 // the regression-gating this report exists to support).
 func TestBuildModelResidualFidelity_IsByteReproducible(t *testing.T) {
+	t.Parallel()
+
 	spec := manyModelSpec(6, 3000)
 	schema, records := augmentForModelFidelity(t, spec, 3000, 351)
 
@@ -511,6 +525,8 @@ func buildAllPairwiseSections(schema *encoding.Schema, records []byte, spec *syn
 // no business touching. Only the numeric-target sections may move, and
 // only by the modelled field's entry.
 func TestFidelityReport_NumericTargetSectionsRetiredForModelledTargets(t *testing.T) {
+	t.Parallel()
+
 	modelled := retirementSpec(6000)
 	modelled.Models = []synth.FieldModelSpec{{
 		Field:       "spend",
@@ -602,6 +618,8 @@ func TestFidelityReport_NumericTargetSectionsRetiredForModelledTargets(t *testin
 // `profile create --fit-models` — produces a report whose top-level key
 // set is exactly the pre-E5-S1 one, so its bytes are unchanged.
 func TestFidelityReport_OldFormatSpecCarriesNoNewKeys(t *testing.T) {
+	t.Parallel()
+
 	spec := retirementSpec(3000)
 	schema, records := augmentForModelFidelity(t, spec, 3000, 371)
 
@@ -659,6 +677,8 @@ func TestFidelityReport_OldFormatSpecCarriesNoNewKeys(t *testing.T) {
 // C(58,2) - C(55,2). The accounting identity below is what makes that
 // readable as bookkeeping rather than as blindness.
 func TestBuildModelResidualFidelity_ClaimRemovesItsPairsFromTheAccounting(t *testing.T) {
+	t.Parallel()
+
 	build := func(rules []synth.RuleSpec) *synth.Spec {
 		spec := modelFidelitySpec(6000,
 			synth.FieldModelSpec{

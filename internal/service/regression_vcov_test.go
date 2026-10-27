@@ -89,6 +89,8 @@ func vcovNear(got, want, tol float64) bool {
 // computed from), and the inference basis is N* (the oracle's n_star)
 // on a weighted fit.
 func TestRegressionVcov_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -159,6 +161,8 @@ func TestRegressionVcov_MatchesROracle(t *testing.T) {
 // the marshalled result has no "vcov" / "correlation" key — and the
 // fitted figures do not move when it is switched on.
 func TestRegressionVcov_OffByDefault(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -200,6 +204,8 @@ func TestRegressionVcov_OffByDefault(t *testing.T) {
 // −μ_xᵀ·Cov(β); Bayes is the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ —
 // its diagonal is the marginal-t scale² times a_n/(a_n−1), not SE².
 func TestRegressionVcov_RidgeAndBayes(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -260,6 +266,8 @@ func TestRegressionVcov_RidgeAndBayes(t *testing.T) {
 // same code (one rule). The modifiers alone are not refused
 // (TestRegressionVcov_Modifiers*).
 func TestRegressionVcov_Refusals(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -327,6 +335,8 @@ func TestRegressionVcov_Refusals(t *testing.T) {
 // repeat b <- b + solve(t(X) %*% (w*X), t(X) %*% (y - mu)) at
 // mu = plogis(X %*% b), w = mu(1 − mu); V <- solve(t(X) %*% (w*X)).
 func TestRegressionVcov_GLMAtConvergedWeights(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -416,6 +426,8 @@ func checkModifierVcov(t *testing.T, res *types.RegressionResult, keys []string,
 // so the two walk the same path), keyed (intercept) + the selected
 // predictors in the order selected_features reports them.
 func TestRegressionVcov_ModifiersMatchROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Jackknife []modifierOracle `json:"jackknife_cases"`
 		Selection []modifierOracle `json:"selection_cases"`
@@ -461,6 +473,8 @@ func TestRegressionVcov_ModifiersMatchROracle(t *testing.T) {
 // covariance under Resample, the final IRLS refit's (XᵀWX)⁻¹ under
 // Selection — and predict raises no refusal.
 func TestRegressionVcov_ModifiersGLM(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}

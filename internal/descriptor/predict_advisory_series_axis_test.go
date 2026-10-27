@@ -65,6 +65,8 @@ func saWithPartition(spec types.OverlaySpec, pb any) types.OverlaySpec {
 // partition_by (even []), a _TOTAL kind, a crosstab and a hidden kind
 // never fire.
 func TestPredict_AdvisorySeriesAxisNotDate(t *testing.T) {
+	t.Parallel()
+
 	day := saGroup(types.GROUP_DATE, "day")
 	wh := saGroup(types.GROUP_CATEGORY, "warehouse")
 	region := saGroup(types.GROUP_CATEGORY, "region")
@@ -136,6 +138,8 @@ func TestPredict_AdvisorySeriesAxisNotDate(t *testing.T) {
 // advisory in its slot (valid, no error, no warning) and suppressing the
 // code drops it.
 func TestPredict_AdvisorySeriesAxisNeverEscalated(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE)
 	req := saRequest([]*types.Group{saGroup(types.GROUP_DATE, "day"), saGroup(types.GROUP_CATEGORY, "warehouse")}, saPrior())
 	env := predictFromBytes(seriesAxisCohort(t), req, &PredictOptions{Strict: true})

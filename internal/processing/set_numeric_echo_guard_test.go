@@ -78,8 +78,12 @@ var setRungs = []struct {
 }
 
 func TestFilterInclude_RefusesSetField(t *testing.T) {
+	t.Parallel()
+
 	for _, rung := range setRungs {
 		t.Run(rung.ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			schema := echoGuardSchema(t, rung.ft, rung.members)
 			for _, ftype := range []types.FiltererType{types.FILTER_INCLUDE, types.FILTER_EXCLUDE} {
 				b, ok := filtererRegistry[ftype]
@@ -96,6 +100,8 @@ func TestFilterInclude_RefusesSetField(t *testing.T) {
 // A non-set field must keep working — the guard is a set guard, not a
 // general narrowing of these filterers.
 func TestFilterInclude_StillAcceptsNumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := echoGuardSchema(t, encoding.FieldTypeSetU256, 206)
 	for _, ftype := range []types.FiltererType{types.FILTER_INCLUDE, types.FILTER_EXCLUDE} {
 		if _, err := filtererRegistry[ftype]().Build(
@@ -106,8 +112,12 @@ func TestFilterInclude_StillAcceptsNumericField(t *testing.T) {
 }
 
 func TestGroupCategory_RefusesSetField(t *testing.T) {
+	t.Parallel()
+
 	for _, rung := range setRungs {
 		t.Run(rung.ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			schema := echoGuardSchema(t, rung.ft, rung.members)
 			_, err := newCategoryGrouper(&types.Group{Type: types.GROUP_CATEGORY, Field: "tags"}, schema)
 			assertSetRefusal(t, err, string(types.GROUP_CATEGORY), rung.ft)
@@ -119,6 +129,8 @@ func TestGroupCategory_RefusesSetField(t *testing.T) {
 }
 
 func TestGroupCategory_StillAcceptsNumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := echoGuardSchema(t, encoding.FieldTypeSetU256, 206)
 	if _, err := newCategoryGrouper(&types.Group{Type: types.GROUP_CATEGORY, Field: "age"}, schema); err != nil {
 		t.Errorf("GROUP_CATEGORY on a u8 field: %v", err)
@@ -126,6 +138,8 @@ func TestGroupCategory_StillAcceptsNumericField(t *testing.T) {
 }
 
 func TestNumericAggregators_RefuseSetField(t *testing.T) {
+	t.Parallel()
+
 	aggs := []types.AggregationType{types.AGG_MODE_COUNT, types.AGG_MODE, types.AGG_DISTINCT_COUNT}
 	for _, rung := range setRungs {
 		t.Run(rung.ft.String(), func(t *testing.T) {
@@ -143,6 +157,8 @@ func TestNumericAggregators_RefuseSetField(t *testing.T) {
 }
 
 func TestNumericAggregators_StillAcceptNumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := echoGuardSchema(t, encoding.FieldTypeSetU256, 206)
 	for _, at := range []types.AggregationType{types.AGG_MODE_COUNT, types.AGG_MODE, types.AGG_DISTINCT_COUNT} {
 		if _, err := aggregatorRegistry[at](&types.Aggregation{Type: at, Field: "age"}, schema); err != nil {
@@ -155,6 +171,8 @@ func TestNumericAggregators_StillAcceptNumericField(t *testing.T) {
 // presence, not value (internal/processing/record_presence.go). The guard must
 // not catch them.
 func TestPresenceAggregators_StillAcceptSetField(t *testing.T) {
+	t.Parallel()
+
 	schema := echoGuardSchema(t, encoding.FieldTypeSetU256, 206)
 	for _, at := range []types.AggregationType{types.AGG_COUNT, types.AGG_NULL_COUNT} {
 		if _, err := aggregatorRegistry[at](&types.Aggregation{Type: at, Field: "tags"}, schema); err != nil {
@@ -164,6 +182,8 @@ func TestPresenceAggregators_StillAcceptSetField(t *testing.T) {
 }
 
 func TestNumericAttributes_RefuseSetField(t *testing.T) {
+	t.Parallel()
+
 	attrs := []types.AttributeType{
 		types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED, types.ATTR_PERCENTILE,
 	}
@@ -183,6 +203,8 @@ func TestNumericAttributes_RefuseSetField(t *testing.T) {
 }
 
 func TestNumericAttributes_StillAcceptNumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := echoGuardSchema(t, encoding.FieldTypeSetU256, 206)
 	for _, at := range []types.AttributeType{
 		types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED, types.ATTR_PERCENTILE,
@@ -202,6 +224,8 @@ func TestNumericAttributes_StillAcceptNumericField(t *testing.T) {
 // after the guard, so a nil schema panics there today for reasons that
 // have nothing to do with set types and that this story does not change.
 func TestNumericEchoGuards_TolerateNilSchema(t *testing.T) {
+	t.Parallel()
+
 	if err := rejectSetFieldForNumericFilter(&types.Filterer{Type: types.FILTER_INCLUDE, Field: "tags"}, nil); err != nil {
 		t.Errorf("rejectSetFieldForNumericFilter(nil schema) = %v, want nil", err)
 	}
@@ -230,6 +254,8 @@ func TestNumericEchoGuards_TolerateNilSchema(t *testing.T) {
 // rungs inherit the existing IsSet()-keyed rejection and its written
 // rationale, unchanged.
 func TestWideSets_RejectedAsIndexKeys(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32,
 		encoding.FieldTypeSetU64, encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,

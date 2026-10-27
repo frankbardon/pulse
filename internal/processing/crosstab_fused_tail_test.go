@@ -44,6 +44,8 @@ func (g *fakeMetaMultiKeyGrouper) Components() (map[string]any, error) {
 // first unresolved position, but every position behind it is still
 // called exactly once so its liveBuckets observes the record.
 func TestFusedAxisKeyer_DrivesTrailingPositionsAfterUnresolved(t *testing.T) {
+	t.Parallel()
+
 	missAt0 := &fakeMetaSingleKeyGrouper{fakeSingleKeyGrouper{null: true}}
 	tail1 := &fakeMetaSingleKeyGrouper{fakeSingleKeyGrouper{key: "north"}}
 	tail2 := &fakeMetaMultiKeyGrouper{fakeMultiKeyGrouper{keys: []string{"VISA", "MC"}, ok: true}}
@@ -98,6 +100,8 @@ func TestFusedAxisKeyer_DrivesTrailingPositionsAfterUnresolved(t *testing.T) {
 // levels and the prefix sets reflect only the positions that resolved
 // BEFORE the miss, while the positions behind it are still driven.
 func TestFusedAxisKeyer_TailDriveKeepsResolvedPrefix(t *testing.T) {
+	t.Parallel()
+
 	lead := &fakeMetaMultiKeyGrouper{fakeMultiKeyGrouper{keys: []string{"VISA", "MC"}, ok: true}}
 	miss := &fakeMetaSingleKeyGrouper{fakeSingleKeyGrouper{null: true}}
 	tail := &fakeMetaSingleKeyGrouper{fakeSingleKeyGrouper{key: "north"}}
@@ -135,6 +139,8 @@ func TestFusedAxisKeyer_TailDriveKeepsResolvedPrefix(t *testing.T) {
 // chain, computed once in newFusedAxisKeyer — never re-derived per
 // record.
 func TestFusedAxisKeyer_TailDriveSkippedWithoutMetaGrouper(t *testing.T) {
+	t.Parallel()
+
 	missAt0 := &fakeSingleKeyGrouper{null: true}
 	tail := &fakeSingleKeyGrouper{key: "north"}
 	keyer := newFusedAxisKeyer([]fusedAxisGrouper{
@@ -177,6 +183,8 @@ func TestFusedAxisKeyer_TailDriveSkippedWithoutMetaGrouper(t *testing.T) {
 // a request that fails on the buffered path silently succeed on the
 // fused one.
 func TestFusedAxisKeyer_TailDriveErrorsPropagate(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.NewCodedError(errors.PROCESSING_CONFIG, "boom")
 	cases := map[string][]fusedAxisGrouper{
 		"single-key tail errors": {
@@ -206,6 +214,8 @@ func TestFusedAxisKeyer_TailDriveErrorsPropagate(t *testing.T) {
 // other half of the error rule: a trailing position that is ITSELF
 // unresolved is not an error, and does not change the axis result.
 func TestFusedAxisKeyer_TailDriveAbsorbsNullFromTrailingPosition(t *testing.T) {
+	t.Parallel()
+
 	entries := []fusedAxisGrouper{
 		classifyFusedAxisGrouper(&fakeMetaSingleKeyGrouper{fakeSingleKeyGrouper{null: true}}, "value"),
 		classifyFusedAxisGrouper(&fakeMetaSingleKeyGrouper{fakeSingleKeyGrouper{err: ErrGrouperKeyNull}}, "region"),
@@ -259,6 +269,8 @@ func rangeGroup(field string) *types.Group {
 // reproduces in; the fanning cases follow to prove the fix composes with
 // E2-S3's routing.
 func TestFusedCrosstab_TrailingAxisPositionComponentsMatchBuffered(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec *types.CrosstabSpec
@@ -366,6 +378,8 @@ func TestFusedCrosstab_TrailingAxisPositionComponentsMatchBuffered(t *testing.T)
 // across its buckets — three per region — not just the four the leading
 // GROUP_RANGE position let through.
 func TestFusedCrosstab_TrailingPositionBucketCountsAreNotUndercounted(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	req := &types.Request{Crosstab: &types.CrosstabSpec{
 		Rows:    []*types.Group{rangeGroup("value"), catGroup("region")},

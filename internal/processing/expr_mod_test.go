@@ -31,6 +31,8 @@ func exprModFormula(t *testing.T, s *encoding.Schema, src string, r *Record) (fl
 }
 
 func TestExprMod_FormulaSemantics(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	full := NewRecordWithWide(s, map[string]float64{"id": 7, "x": 6.5, "y": 4, "cat": 1, "d": 18262}, nil, nil)
 	null := NewRecordWithWide(s, map[string]float64{"id": 7, "y": 4, "d": 18262}, map[string]bool{"x": true, "cat": true}, nil)
@@ -76,6 +78,8 @@ func TestExprMod_FormulaSemantics(t *testing.T) {
 }
 
 func TestExprMod_NonNumericStillFailsAtCompile(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	for _, src := range []string{"cat % 2", "amt % 2", "x % 'a'"} {
 		_, err := newExprProgram(src, "filter", s, nil, nil, (*ExtensionRegistry)(nil).ExprOptions())
@@ -87,6 +91,8 @@ func TestExprMod_NonNumericStillFailsAtCompile(t *testing.T) {
 }
 
 func TestExprMod_FilterTypedAndUntyped(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := []*Record{
 		NewRecordWithWide(s, map[string]float64{"id": 4, "x": 6.5, "y": 1, "cat": 1, "d": 18262}, nil, nil),
@@ -117,6 +123,8 @@ func TestExprMod_FilterTypedAndUntyped(t *testing.T) {
 }
 
 func TestExprMod_OverlayFormula(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindFormula}
 	env := map[string]any{"value": 7.5, "total": 2.0}
 	for _, exts := range []*ExtensionRegistry{nil, {}} {
@@ -132,6 +140,8 @@ func TestExprMod_OverlayFormula(t *testing.T) {
 }
 
 func TestExprMod_PureForPrecompute(t *testing.T) {
+	t.Parallel()
+
 	got, ok := exprPureInputs("x % 2 == 0 && id % y > 1", nil)
 	if !ok || strings.Join(got, ",") != "x,id,y" {
 		t.Fatalf("exprPureInputs = %v, %v; want [x id y], true", got, ok)

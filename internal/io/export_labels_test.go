@@ -75,6 +75,8 @@ func importLabelledCohort(t *testing.T, fs afero.Fs) string {
 }
 
 func TestExportJob_Labels_Replace(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	path := importLabelledCohort(t, fs)
 
@@ -99,6 +101,8 @@ func TestExportJob_Labels_Replace(t *testing.T) {
 }
 
 func TestExportJob_Labels_Augment(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	path := importLabelledCohort(t, fs)
 
@@ -126,6 +130,8 @@ func TestExportJob_Labels_Augment(t *testing.T) {
 }
 
 func TestExportJob_Labels_Augment_RespectsIncludes(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	path := importLabelledCohort(t, fs)
 
@@ -152,6 +158,8 @@ func TestExportJob_Labels_Augment_RespectsIncludes(t *testing.T) {
 }
 
 func TestExportJob_Labels_Augment_SkippedWhenSourceFieldExcluded(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	path := importLabelledCohort(t, fs)
 
@@ -176,6 +184,8 @@ func TestExportJob_Labels_Augment_SkippedWhenSourceFieldExcluded(t *testing.T) {
 }
 
 func TestExportJob_Labels_NoResolver(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	path := importLabelledCohort(t, fs)
 

@@ -40,6 +40,8 @@ func chiSqVsPopSpec() *types.OverlaySpec {
 // Parameters{"df"}. The p-value is R's chisq.test figure
 // (overlay_chisq_vs_pop.json, U36 E3-S1), held at relative 1e-10.
 func TestApplyChiSqVsPop_FourCategoryKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	// Population: 100 records, frequencies {0.4, 0.3, 0.2, 0.1} for
 	// categories {a, b, c, d}.
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
@@ -131,6 +133,8 @@ func TestApplyChiSqVsPop_FourCategoryKnownAnswer(t *testing.T) {
 // statistic and back-computes the expected slice to assert the
 // invariant holds.
 func TestApplyChiSqVsPop_ExpectedCountsSumToSubsetN(t *testing.T) {
+	t.Parallel()
+
 	// Population frequencies {0.4, 0.3, 0.2, 0.1} sum to 1.0.
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 40},
@@ -196,6 +200,8 @@ func TestApplyChiSqVsPop_ExpectedCountsSumToSubsetN(t *testing.T) {
 // category has frequency 0.04 — expected count = 4, below the canonical
 // χ² reliability threshold (5).
 func TestApplyChiSqVsPop_LowExpectedWarning(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 		{Value: "b", Count: 36},
@@ -246,6 +252,8 @@ func TestApplyChiSqVsPop_LowExpectedWarning(t *testing.T) {
 // emit a SCALAR payload with NaN statistic + NaN p-value and a layer-
 // level PULSE_OVERLAY_REF_ZERO warning.
 func TestApplyChiSqVsPop_EmptyHostDegenerate(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 		{Value: "b", Count: 40},
@@ -283,6 +291,8 @@ func TestApplyChiSqVsPop_EmptyHostDegenerate(t *testing.T) {
 // is zero; the handler emits NaN statistic + NaN p-value with
 // PULSE_OVERLAY_REF_ZERO.
 func TestApplyChiSqVsPop_EmptyPopulationDegenerate(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{}, 0, 0, 0, 0)
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
@@ -316,6 +326,8 @@ func TestApplyChiSqVsPop_EmptyPopulationDegenerate(t *testing.T) {
 }
 
 func TestApplyChiSqVsPop_NumericHostRejected(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 50},
@@ -343,6 +355,8 @@ func TestApplyChiSqVsPop_NumericHostRejected(t *testing.T) {
 // rejection of nil host / population view (mirrors INDEX_VS_POP /
 // ZSCORE_VS_POP).
 func TestApplyChiSqVsPop_NilHost(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 50},
@@ -361,6 +375,8 @@ func TestApplyChiSqVsPop_NilHost(t *testing.T) {
 }
 
 func TestApplyChiSqVsPop_NilPopulation(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 	}, 1, 50, 50, 0)
@@ -377,6 +393,8 @@ func TestApplyChiSqVsPop_NilPopulation(t *testing.T) {
 // dispatch table routes OVERLAY_CHISQ_VS_POP to the runtime handler.
 // Mirrors TestApplyOverlaysFacet_DispatchesZScoreVsPop.
 func TestApplyOverlaysFacet_DispatchesChiSqVsPop(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 50},
@@ -413,6 +431,8 @@ func TestApplyOverlaysFacet_DispatchesChiSqVsPop(t *testing.T) {
 // Anchored against the public OverlayStreamable surface so a future
 // regression that flips the row trips this test.
 func TestOverlayChiSqVsPop_StreamabilityIsBuffered(t *testing.T) {
+	t.Parallel()
+
 	streamable, known := types.OverlayStreamable(types.OverlayKindChiSqVsPop)
 	if !known {
 		t.Fatal("OverlayKindChiSqVsPop missing from OverlayStreamability table")
@@ -430,6 +450,8 @@ func TestOverlayChiSqVsPop_StreamabilityIsBuffered(t *testing.T) {
 // future refactor that introduces a side channel (e.g. a per-record
 // re-scan) trips the test.
 func TestApplyChiSqVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 30},
 		{Value: "b", Count: 30},
@@ -494,6 +516,8 @@ func chiSqVsPopRelClose(got, want, tol float64) bool {
 //	chisq.test(c(30,30,30,10), p = c(40,30,20,10), rescale.p = TRUE)
 //	# X-squared = 7.5, df = 3, p-value = 0.057558451972636406
 func TestApplyChiSqVsPop_RenormalisesOverPopulationNulls(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 40},
 		{Value: "b", Count: 30},
@@ -551,6 +575,8 @@ func TestApplyChiSqVsPop_RenormalisesOverPopulationNulls(t *testing.T) {
 //	chisq.test(c(30,20,10), p = c(60,50,30), rescale.p = TRUE)
 //	# X-squared = 1.4444444444444451, df = 2, p-value = 0.48567178524771221
 func TestApplyChiSqVsPop_RenormalisesOverComparedCategories(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 		{Value: "b", Count: 50},
@@ -614,6 +640,8 @@ func TestApplyChiSqVsPop_RenormalisesOverComparedCategories(t *testing.T) {
 // category is absent from a non-empty population, so nothing can be
 // compared. NaN statistic + p-value with one layer-level REF_ZERO.
 func TestApplyChiSqVsPop_NoComparedCategoriesDegenerate(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 	}, 1, 60, 60, 0)

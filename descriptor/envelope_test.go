@@ -7,6 +7,8 @@ import (
 )
 
 func TestNewEnvelope(t *testing.T) {
+	t.Parallel()
+
 	env := NewEnvelope("test")
 	if env.FormatVersion != "1.1" {
 		t.Errorf("FormatVersion = %q, want %q", env.FormatVersion, "1.1")
@@ -23,6 +25,8 @@ func TestNewEnvelope(t *testing.T) {
 }
 
 func TestEnvelope_AddError(t *testing.T) {
+	t.Parallel()
+
 	env := NewEnvelope(nil)
 	env.AddError("CODE", "msg", map[string]any{"key": "val"})
 	if len(env.Errors) != 1 {
@@ -37,6 +41,8 @@ func TestEnvelope_AddError(t *testing.T) {
 }
 
 func TestEnvelope_AddWarning(t *testing.T) {
+	t.Parallel()
+
 	env := NewEnvelope(nil)
 	env.AddWarning("WARN", "warning msg", nil)
 	if len(env.Warnings) != 1 {
@@ -48,6 +54,8 @@ func TestEnvelope_AddWarning(t *testing.T) {
 }
 
 func TestEnvelope_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	env := NewEnvelope(map[string]string{"key": "value"})
 	env.AddWarning("W1", "test warning", nil)
 
@@ -72,6 +80,8 @@ func TestEnvelope_MarshalJSON(t *testing.T) {
 // surface does not change the wire shape for existing callers — the
 // "request" key must be absent from JSON when Request is nil.
 func TestEnvelope_RequestOmittedByDefault(t *testing.T) {
+	t.Parallel()
+
 	env := NewEnvelope("data")
 	if env.Request != nil {
 		t.Fatalf("Request defaulted non-nil: %#v", env.Request)
@@ -92,6 +102,8 @@ func TestEnvelope_RequestOmittedByDefault(t *testing.T) {
 // TestEnvelope_RequestPopulatedWhenSet verifies the echo field surfaces
 // the value the caller attached via NewEnvelopeWithRequest / WithRequest.
 func TestEnvelope_RequestPopulatedWhenSet(t *testing.T) {
+	t.Parallel()
+
 	req := map[string]any{"name": "demo"}
 	env := NewEnvelopeWithRequest("data", req)
 	if env.Request == nil {
@@ -126,6 +138,8 @@ func TestEnvelope_RequestPopulatedWhenSet(t *testing.T) {
 // the envelope — an untyped data map, a warning's details — is written
 // as null and the envelope still serialises (types.MarshalFinite).
 func TestEnvelope_UndefinedFigureIsNull(t *testing.T) {
+	t.Parallel()
+
 	env := NewEnvelope(map[string]any{"ratio": math.NaN(), "n": 3})
 	env.AddWarning("W", "w", map[string]any{"bound": math.Inf(-1)})
 	body, err := json.Marshal(env)

@@ -12,6 +12,8 @@ import (
 // (explicit first, then one per combination, labelled) and no `sweep`;
 // a sweep-free request echoes as written.
 func TestAPICompose_EchoShowsExpandedSweep(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "sw.csv", "n,cat\n1,a\n2,b\n3,a\n")
 	slot := `{"cohort":{"filename":"` + cohort + `"},"aggregations":[{"type":"AGG_SUM","field":"n","label":"t"}]}`

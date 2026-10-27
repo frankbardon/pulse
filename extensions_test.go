@@ -63,6 +63,8 @@ func assertCodedError(t *testing.T, err error, want perr.Code) {
 }
 
 func TestExtensions_ValidRegistrationPasses(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{
 			{
@@ -83,6 +85,8 @@ func TestExtensions_ValidRegistrationPasses(t *testing.T) {
 }
 
 func TestExtensions_NameInvalidRegex(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		label string
 		name  string
@@ -110,6 +114,8 @@ func TestExtensions_NameInvalidRegex(t *testing.T) {
 }
 
 func TestExtensions_NameWrongCategoryPrefix(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:    "ATTR_ACME_BRAND",
@@ -121,8 +127,12 @@ func TestExtensions_NameWrongCategoryPrefix(t *testing.T) {
 }
 
 func TestExtensions_NameReservedNamespace(t *testing.T) {
+	t.Parallel()
+
 	for _, ns := range []string{"BUILTIN", "STANDARD", "CORE", "PULSE"} {
 		t.Run(ns, func(t *testing.T) {
+			t.Parallel()
+
 			ext := pulse.Extensions{
 				Aggregators: []pulse.AggregatorRegistration{{
 					Name:    types.AggregationType("AGG_" + ns + "_FOO"),
@@ -136,6 +146,8 @@ func TestExtensions_NameReservedNamespace(t *testing.T) {
 }
 
 func TestExtensions_CollisionWithBuiltin(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:    types.AGG_COUNT,
@@ -147,6 +159,8 @@ func TestExtensions_CollisionWithBuiltin(t *testing.T) {
 }
 
 func TestExtensions_DuplicateWithinCategory(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{
 			{Name: "AGG_ACME_BRAND_SCORE", Factory: stubAggregatorFactory},
@@ -158,6 +172,8 @@ func TestExtensions_DuplicateWithinCategory(t *testing.T) {
 }
 
 func TestExtensions_DuplicateAcrossCategoriesAllowed(t *testing.T) {
+	t.Parallel()
+
 	// Two registrations with parallel names in different categories
 	// have distinct namespaces (different category prefix) and must
 	// both register cleanly.
@@ -179,6 +195,8 @@ func TestExtensions_DuplicateAcrossCategoriesAllowed(t *testing.T) {
 }
 
 func TestExtensions_ParamMetaInvalidJSONType(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:    "AGG_ACME_BRAND_SCORE",
@@ -193,6 +211,8 @@ func TestExtensions_ParamMetaInvalidJSONType(t *testing.T) {
 }
 
 func TestExtensions_ParamMetaEmptyName(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:    "AGG_ACME_BRAND_SCORE",
@@ -205,6 +225,8 @@ func TestExtensions_ParamMetaEmptyName(t *testing.T) {
 }
 
 func TestExtensions_ParamMetaRequiredWithDefault(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:    "AGG_ACME_BRAND_SCORE",
@@ -219,6 +241,8 @@ func TestExtensions_ParamMetaRequiredWithDefault(t *testing.T) {
 }
 
 func TestExtensions_AttributeModeRequired(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_ADJUSTMENT",
@@ -231,6 +255,8 @@ func TestExtensions_AttributeModeRequired(t *testing.T) {
 }
 
 func TestExtensions_AttributeModeUnknown(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_ADJUSTMENT",
@@ -243,6 +269,8 @@ func TestExtensions_AttributeModeUnknown(t *testing.T) {
 }
 
 func TestExtensions_TestTierMissingFactory(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
 			Name: "TEST_ACME_BRAND_TEST",
@@ -255,6 +283,8 @@ func TestExtensions_TestTierMissingFactory(t *testing.T) {
 }
 
 func TestExtensions_TestTierBothFactoriesSet(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
 			Name:        "TEST_ACME_BRAND_TEST",
@@ -268,6 +298,8 @@ func TestExtensions_TestTierBothFactoriesSet(t *testing.T) {
 }
 
 func TestExtensions_ExprFunctionEmptyName(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		ExprFunctions: []pulse.ExprFunction{{Fn: func() float64 { return 1 }}},
 	}
@@ -276,6 +308,8 @@ func TestExtensions_ExprFunctionEmptyName(t *testing.T) {
 }
 
 func TestExtensions_ExprFunctionNilFn(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		ExprFunctions: []pulse.ExprFunction{{Name: "rank_familiarity"}},
 	}
@@ -284,6 +318,8 @@ func TestExtensions_ExprFunctionNilFn(t *testing.T) {
 }
 
 func TestExtensions_ExprFunctionDuplicate(t *testing.T) {
+	t.Parallel()
+
 	fn := func(v float64) float64 { return v }
 	ext := pulse.Extensions{
 		ExprFunctions: []pulse.ExprFunction{
@@ -296,6 +332,8 @@ func TestExtensions_ExprFunctionDuplicate(t *testing.T) {
 }
 
 func TestExtensions_LookupTableRowsOK(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		LookupTables: map[string]pulse.LookupTable{
 			"adjustments": {
@@ -310,6 +348,8 @@ func TestExtensions_LookupTableRowsOK(t *testing.T) {
 }
 
 func TestExtensions_LookupTableFuncOK(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		LookupTables: map[string]pulse.LookupTable{
 			"adjustments": {
@@ -325,6 +365,8 @@ func TestExtensions_LookupTableFuncOK(t *testing.T) {
 }
 
 func TestExtensions_LookupTableNeitherOrBoth(t *testing.T) {
+	t.Parallel()
+
 	t.Run("neither", func(t *testing.T) {
 		ext := pulse.Extensions{
 			LookupTables: map[string]pulse.LookupTable{"x": {}},
@@ -347,6 +389,8 @@ func TestExtensions_LookupTableNeitherOrBoth(t *testing.T) {
 }
 
 func TestExtensions_LabelTableRowsOK(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		LabelTables: map[string]pulse.LabelTable{
 			"country_names": {
@@ -361,6 +405,8 @@ func TestExtensions_LabelTableRowsOK(t *testing.T) {
 }
 
 func TestExtensions_LabelTableFuncOK(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		LabelTables: map[string]pulse.LabelTable{
 			"country_names": {
@@ -376,6 +422,8 @@ func TestExtensions_LabelTableFuncOK(t *testing.T) {
 }
 
 func TestExtensions_LabelTableNeitherOrBoth(t *testing.T) {
+	t.Parallel()
+
 	t.Run("neither", func(t *testing.T) {
 		ext := pulse.Extensions{
 			LabelTables: map[string]pulse.LabelTable{"x": {}},
@@ -401,6 +449,8 @@ func TestExtensions_LabelTableNeitherOrBoth(t *testing.T) {
 // and, on a Rows table, only keys Rows holds; a Lookup table may order any
 // keys.
 func TestExtensions_LabelTableOrder(t *testing.T) {
+	t.Parallel()
+
 	rows := map[string]string{"a": "A", "b": "B"}
 	lookup := func(key string) (string, bool, error) { return key, true, nil }
 	for _, tc := range []struct {
@@ -429,6 +479,8 @@ func TestExtensions_LabelTableOrder(t *testing.T) {
 }
 
 func TestExtensions_LabelTableEmptyName(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		LabelTables: map[string]pulse.LabelTable{
 			"": {Rows: map[string]string{"k": "v"}},
@@ -444,6 +496,8 @@ func TestExtensions_LabelTableEmptyName(t *testing.T) {
 // extensions block carries no synth_distributions list. Built-in
 // distributions stay in the top-level synth_distributions section.
 func TestExtensions_SynthDistributionSlotRetired(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := reflect.TypeOf(pulse.Extensions{}).FieldByName("SynthDistributions"); ok {
 		t.Error("pulse.Extensions still declares SynthDistributions")
 	}
@@ -469,6 +523,8 @@ func TestExtensions_SynthDistributionSlotRetired(t *testing.T) {
 }
 
 func TestExtensions_ZeroValuePassesThrough(t *testing.T) {
+	t.Parallel()
+
 	// Zero-value Extensions must be a no-op — the existing pulse.New
 	// contract for embedders that do not opt in.
 	if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()}); err != nil {
@@ -477,6 +533,8 @@ func TestExtensions_ZeroValuePassesThrough(t *testing.T) {
 }
 
 func TestExtensions_ErrorDetailsCarryContext(t *testing.T) {
+	t.Parallel()
+
 	// Error details must surface category + index + name for
 	// debugging; downstream tooling (predict suggestions, MCP error
 	// surface) consumes the structured payload.

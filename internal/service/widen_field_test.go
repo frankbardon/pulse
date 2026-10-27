@@ -181,6 +181,8 @@ func widenSvcCode(t *testing.T, err error) errors.Code {
 // ---------------------------------------------------------------------------
 
 func TestServiceWidenSetField_WidensSingleFileCohort(t *testing.T) {
+	t.Parallel()
+
 	cfg, before := widenSvcSetup(t, "cohort.pulse", encoding.FieldTypeSetU64)
 	svc := New(cfg)
 
@@ -241,6 +243,8 @@ func TestServiceWidenSetField_WidensSingleFileCohort(t *testing.T) {
 // SERVICE_VALIDATION naming the archive layout — rather than "invalid pulse
 // file", and that the archive is still openable afterwards.
 func TestServiceWidenSetField_RefusesShardArchive(t *testing.T) {
+	t.Parallel()
+
 	cfg := pfs.NewMemMap()
 	shard := widenSvcCohortBytes(t, widenSvcSchema(t, encoding.FieldTypeSetU64, 8), widenSvcRows())
 	for _, name := range []string{"a.pulse", "b.pulse"} {
@@ -280,6 +284,8 @@ func TestServiceWidenSetField_RefusesShardArchive(t *testing.T) {
 }
 
 func TestServiceWidenSetField_RefusesAnchoredShardPath(t *testing.T) {
+	t.Parallel()
+
 	cfg, _ := widenSvcSetup(t, "cohort.pulse", encoding.FieldTypeSetU64)
 	svc := New(cfg)
 
@@ -290,6 +296,8 @@ func TestServiceWidenSetField_RefusesAnchoredShardPath(t *testing.T) {
 }
 
 func TestServiceWidenSetField_MissingCohortIsCoded(t *testing.T) {
+	t.Parallel()
+
 	cfg := pfs.NewMemMap()
 	svc := New(cfg)
 
@@ -302,6 +310,8 @@ func TestServiceWidenSetField_MissingCohortIsCoded(t *testing.T) {
 // Every refusal the engine owns must reach the caller CODED, and must leave
 // the cohort byte-identical — a refused widen is not a partial widen.
 func TestServiceWidenSetField_RefusalsAreCodedAndNonDestructive(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		setType encoding.FieldType

@@ -112,6 +112,8 @@ func fitEffectCohort(t *testing.T, n int, strongDelta, weakDelta float64, seed u
 // spacing puts `strong` at ~4% of y's variance (four times the floor)
 // and 0.05 spacing puts `weak` at ~0.17% (a sixth of it).
 func TestModelSelection_AdmitsStrongRejectsNegligible(t *testing.T) {
+	t.Parallel()
+
 	m, _ := fitEffectCohort(t, 4000, 0.25, 0.05, 7, ProfileOptions{})
 	got := predictorFields(m)
 	if len(got) != 1 || got[0] != "strong" {
@@ -144,6 +146,8 @@ func TestModelSelection_AdmitsStrongRejectsNegligible(t *testing.T) {
 //
 // The effect sizes are held fixed and only n moves.
 func TestModelSelection_AdmissionInvariantToRowCount(t *testing.T) {
+	t.Parallel()
+
 	const (
 		strongDelta = 0.25 // ~4% of y's variance
 		weakDelta   = 0.05 // ~0.17% of y's variance
@@ -179,6 +183,8 @@ func TestModelSelection_AdmissionInvariantToRowCount(t *testing.T) {
 // the residual scale is its own spread, so generation reading it back
 // reproduces the marginal exactly.
 func TestModelSelection_ZeroSurvivingPredictorsIsAModel(t *testing.T) {
+	t.Parallel()
+
 	// Both candidates negligible.
 	m, prof := fitEffectCohort(t, 4000, 0.02, 0.02, 5, ProfileOptions{})
 	if len(m.Predictors) != 0 {
@@ -225,6 +231,8 @@ func TestModelSelection_ZeroSurvivingPredictorsIsAModel(t *testing.T) {
 // and the tail becomes one catch-all column rather than disappearing
 // into the reference level.
 func TestModelSelection_TopKCollapseBoundsDesignWidth(t *testing.T) {
+	t.Parallel()
+
 	const levels = 200
 	dict := encoding.NewDictionary()
 	for i := 0; i < levels; i++ {
@@ -305,6 +313,8 @@ func TestModelSelection_TopKCollapseBoundsDesignWidth(t *testing.T) {
 // selection is tunable. No other capture flag may move which predictors
 // are admitted, and there is no floor knob at all.
 func TestModelSelection_NoUserFacingOverride(t *testing.T) {
+	t.Parallel()
+
 	schema := effectSchema(t)
 	rows, nulls := effectRows(4000, 0.25, 0.05, 21)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -351,6 +361,8 @@ func TestModelSelection_NoUserFacingOverride(t *testing.T) {
 // every shape that must answer 0 because the question is unanswerable
 // rather than answered in the negative.
 func TestVarianceExplained_Matrix(t *testing.T) {
+	t.Parallel()
+
 	// group builds a groupScore from an explicit sample so the expected
 	// value can be reasoned about by hand.
 	group := func(vals ...float64) groupScore {
@@ -440,6 +452,8 @@ func TestVarianceExplained_Matrix(t *testing.T) {
 // which is what makes ONE floor comparable across candidates of
 // different cardinality.
 func TestVarianceExplained_NullPredictorScoreDoesNotGrowWithGroupCount(t *testing.T) {
+	t.Parallel()
+
 	// A null predictor: every group is a fresh sample of the same
 	// distribution, so all between-group spread is sampling noise.
 	build := func(k, per int, seed uint64) []groupScore {

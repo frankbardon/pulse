@@ -62,6 +62,8 @@ func noPValueSpec(t types.RegressionType, mult *types.RegressionMultiplicity) *t
 // with the same message and details at predict and at runtime; method
 // none passes both.
 func TestExtensions_RegressionPValuesUndeclaredRefusesMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, cohort := openE2E(t, pulse.Extensions{Regressions: []pulse.RegressionRegistration{noPValueRegistration(regNoPValues, 0)}})
 	for _, method := range []types.MultiplicityMethod{types.MultiplicityMethodHolm, types.MultiplicityMethodBH} {
@@ -98,6 +100,8 @@ func TestExtensions_RegressionPValuesUndeclaredRefusesMultiplicity(t *testing.T)
 // coefficient — under a bootstrap and a jackknife too, whose replicate
 // standard errors stay.
 func TestExtensions_RegressionPValuesUndeclaredEmitsNone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	regs := append(regressionParityRegistrations(), noPValueRegistration(regNoPValues, 0))
 	p, cohort := openE2E(t, pulse.Extensions{Regressions: regs})
@@ -141,6 +145,8 @@ func TestExtensions_RegressionPValuesUndeclaredEmitsNone(t *testing.T) {
 // pulse.New's probe, and on a run when it reports one only over the
 // real rows.
 func TestExtensions_RegressionPValuesUndeclaredOutputMismatch(t *testing.T) {
+	t.Parallel()
+
 	probe := noPValueRegistration(regLateP, 1) // every fit past one row keeps its p
 	_, err := pulse.New(newTestOptions(pulse.Extensions{Regressions: []pulse.RegressionRegistration{probe}}))
 	ce := requireCodedError(t, err, perr.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH)
@@ -161,6 +167,8 @@ func TestExtensions_RegressionPValuesUndeclaredOutputMismatch(t *testing.T) {
 // emits note naming the correction; a model without lists no
 // multiplicity slot and says its p_values are null.
 func TestExtensions_RegressionPValuesManifest(t *testing.T) {
+	t.Parallel()
+
 	regs := append(regressionParityRegistrations(), noPValueRegistration(regNoPValues, 0))
 	p, _ := openE2E(t, pulse.Extensions{Regressions: regs})
 	rows := map[string]bool{}

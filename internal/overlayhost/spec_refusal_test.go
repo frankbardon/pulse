@@ -12,6 +12,8 @@ import (
 // when >= 0. A kind without a rule (OVERLAY_FORMULA, a SERIES kind, the
 // empty route of a hidden kind) is never refused here.
 func TestCrosstabSpecRefusal_Rules(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range CrosstabSpecKinds() {
 		scopes := CrosstabSpecScopes(kind)
 		if len(scopes) == 0 {
@@ -64,6 +66,8 @@ func TestCrosstabSpecRefusal_Rules(t *testing.T) {
 // Ref / Scope contract on either side), and no rule names a kind outside
 // that set — a new crosstab kind cannot skip the shared rule.
 func TestCrosstabSpecRefusal_CoversMatrixKinds(t *testing.T) {
+	t.Parallel()
+
 	ruled := map[types.OverlayKind]bool{}
 	for _, k := range CrosstabSpecKinds() {
 		ruled[k] = true

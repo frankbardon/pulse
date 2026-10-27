@@ -33,6 +33,8 @@ func seq(t *testing.T, prefix string, n int) []string {
 }
 
 func TestSetTypeFor_Ladder(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		elements int
 		want     encoding.FieldType
@@ -66,6 +68,8 @@ func TestSetTypeFor_Ladder(t *testing.T) {
 // persists ByteOffset verbatim, so a stale offset here describes a
 // layout the records do not have and decodes as plausible garbage.
 func TestWidenSchemaSetField_RecomputesOffsets(t *testing.T) {
+	t.Parallel()
+
 	src := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "opts", Type: encoding.FieldTypeSetU8, ByteOffset: 0},
 		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 1},
@@ -94,6 +98,8 @@ func TestWidenSchemaSetField_RecomputesOffsets(t *testing.T) {
 }
 
 func TestWidenSchemaSetField_Rejections(t *testing.T) {
+	t.Parallel()
+
 	src := setSchema(t, encoding.FieldTypeSetU8, []string{"a"})
 	if _, err := WidenSchemaSetField(src, "missing", encoding.FieldTypeSetU16); err == nil {
 		t.Error("widen of an unknown field: expected an error")
@@ -110,6 +116,8 @@ func TestWidenSchemaSetField_Rejections(t *testing.T) {
 }
 
 func TestPlanSetWidening(t *testing.T) {
+	t.Parallel()
+
 	t.Run("union fits: no plan", func(t *testing.T) {
 		canonical := setSchema(t, encoding.FieldTypeSetU8, []string{"a", "b"})
 		incoming := setSchema(t, encoding.FieldTypeSetU8, []string{"b", "c"})
@@ -217,6 +225,8 @@ func TestPlanSetWidening(t *testing.T) {
 }
 
 func TestSetWidthHeadroomFor(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32},
 		{Name: "opts", Type: encoding.FieldTypeSetU8, Dictionary: mustDict(t, "a", "b", "c")},

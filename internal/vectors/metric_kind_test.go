@@ -31,6 +31,8 @@ const between = `"between": {"type": "GROUP_CATEGORY", "field": "region"}`
 // metric, a kind-free vector, inline fields and a non-metric type are
 // left alone; standardize skips the non-negative-domain metrics.
 func TestMatrixMetricDefaults(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		spec         types.MatrixSpec
@@ -86,6 +88,8 @@ func TestMatrixMetricDefaults(t *testing.T) {
 // TestResolveKindMetric: explicit wins (and is judged by the registry),
 // a kind fills its default, and neither is PULSE_VECTOR_METRIC_REQUIRED.
 func TestResolveKindMetric(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		c         metric.Consumer
@@ -126,6 +130,8 @@ func TestResolveKindMetric(t *testing.T) {
 // vector and a suited metric raise nothing. Each issue names the kind's
 // default.
 func TestMetricUnsuitedIssues(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		slot, vector, metric, suggested, function string
 	}

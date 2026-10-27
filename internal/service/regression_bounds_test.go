@@ -54,6 +54,8 @@ func boundedOLS(mut func(*types.RegressionSpec)) *types.RegressionSpec {
 }
 
 func TestRegBounds_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	cfg, cohort, data := boundsFixture(t)
 	nn := func(names ...string) *types.RegressionBounds { return &types.RegressionBounds{Nonnegative: names} }
 	cases := []struct {
@@ -98,6 +100,8 @@ func TestRegBounds_PredictRuntimeParity(t *testing.T) {
 }
 
 func TestRegBounds_ConstraintActiveAdvisory(t *testing.T) {
+	t.Parallel()
+
 	cfg, cohort, data := boundsFixture(t)
 	code := string(errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE)
 	run := func(t *testing.T, svc *Service, specs ...*types.RegressionSpec) *types.Response {
@@ -188,6 +192,8 @@ func TestRegBounds_ConstraintActiveAdvisory(t *testing.T) {
 // TestRegBounds_WireRequestRuns: bounds arrives through a strict JSON
 // request; a misspelled key inside it is refused by the strict decoder.
 func TestRegBounds_WireRequestRuns(t *testing.T) {
+	t.Parallel()
+
 	cfg, cohort, _ := boundsFixture(t)
 	raw := `{"cohort":{"filename":` + jsonString(cohort) + `},"regressions":[
 		{"name":"nn","type":"REG_OLS","target":"mpg","predictors":["wt","hp","qsec"],"bounds":{"nonnegative":["wt","qsec"]}}]}`

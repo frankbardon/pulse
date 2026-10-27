@@ -18,6 +18,8 @@ func refTestTables() ReferenceTables {
 }
 
 func TestReferenceTable_MatchAndProfile(t *testing.T) {
+	t.Parallel()
+
 	rt := refTestTables()["t"]
 	cases := []struct {
 		name    string
@@ -73,6 +75,8 @@ func TestReferenceTable_MatchAndProfile(t *testing.T) {
 }
 
 func TestExprReferenceIssues(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64}, {Name: "b", Type: encoding.FieldTypeF64},
 		{Name: "c", Type: encoding.FieldTypeF64}, {Name: "shadow", Type: encoding.FieldTypeF64},
@@ -145,6 +149,8 @@ func TestExprReferenceIssues(t *testing.T) {
 // TestReferenceIssues_RequestSlots: the request walk reports each
 // expression slot's issues with its path.
 func TestReferenceIssues_RequestSlots(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64}, {Name: "b", Type: encoding.FieldTypeF64},
 	}}

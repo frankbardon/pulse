@@ -11,6 +11,8 @@ import (
 // an embedder must be able to declare a variable of each one without
 // importing an internal package.
 func TestRootAliases_NameFacadeResultFields(t *testing.T) {
+	t.Parallel()
+
 	var (
 		add    pulse.AddShardResult
 		create pulse.CreateShardArchiveResult
@@ -48,6 +50,8 @@ func TestRootAliases_NameFacadeResultFields(t *testing.T) {
 // nameable through root aliases, so an embedder can construct and walk
 // a BuildIndexResult.Index without importing an internal package.
 func TestRootAliases_WalkSidecarIndex(t *testing.T) {
+	t.Parallel()
+
 	var fp pulse.CohortFingerprint
 	fp[0] = 0xAB
 	idx := pulse.SidecarIndex{

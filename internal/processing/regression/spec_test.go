@@ -12,6 +12,8 @@ import (
 // Each row exercises a separate guard rail in spec.go; new rules added
 // in later phases extend this table.
 func TestRegOLS_RegularizedSpecValidation(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec

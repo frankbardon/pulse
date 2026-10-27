@@ -13,6 +13,8 @@ import (
 )
 
 func TestNdjsonReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := `{"name":"alice","age":30,"score":95.5}
 {"name":"bob","age":25,"score":88.0}
 `
@@ -37,6 +39,8 @@ func TestNdjsonReader_ReadHeader(t *testing.T) {
 }
 
 func TestNdjsonReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	data := `{"name":"alice","age":30}
 {"name":"bob","age":25}
 {"name":"charlie","age":35}
@@ -66,6 +70,8 @@ func TestNdjsonReader_ReadRows(t *testing.T) {
 }
 
 func TestNdjsonReader_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(""))
 	defer r.Close()
 
@@ -79,6 +85,8 @@ func TestNdjsonReader_EmptyFile(t *testing.T) {
 }
 
 func TestNdjsonReader_MalformedLine(t *testing.T) {
+	t.Parallel()
+
 	data := `{"name":"alice","age":30}
 {bad json}
 {"name":"charlie","age":35}
@@ -99,6 +107,8 @@ func TestNdjsonReader_MalformedLine(t *testing.T) {
 }
 
 func TestNdjsonReader_NestedObject(t *testing.T) {
+	t.Parallel()
+
 	// Nested objects should be rejected with an error.
 	data := `{"name":"alice","meta":{"x":1}}
 `
@@ -112,6 +122,8 @@ func TestNdjsonReader_NestedObject(t *testing.T) {
 }
 
 func TestNdjsonReader_MixedKeys(t *testing.T) {
+	t.Parallel()
+
 	// Rows with different key sets: missing keys get empty string.
 	data := `{"name":"alice","age":30}
 {"name":"bob","score":88.0}
@@ -170,6 +182,8 @@ func TestNdjsonReader_MixedKeys(t *testing.T) {
 }
 
 func TestNdjsonWriter_WriteRows(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteHeader([]string{"name", "age"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -197,6 +211,8 @@ func TestNdjsonWriter_WriteRows(t *testing.T) {
 }
 
 func TestNdjsonImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ndjsonData := `{"age":10,"name":"alice","score":95.5}
 {"age":20,"name":"bob","score":88.0}
 {"age":30,"name":"charlie","score":72.3}
@@ -247,6 +263,8 @@ func TestNdjsonImportExportRoundTrip(t *testing.T) {
 }
 
 func TestNdjsonImport_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	// Build NDJSON with categorical column.
 	colors := []string{"red", "green", "blue"}
 	var lines []string
@@ -281,6 +299,8 @@ func TestNdjsonImport_CategoricalColumn(t *testing.T) {
 }
 
 func TestNdjsonExport_CategoricalResolved(t *testing.T) {
+	t.Parallel()
+
 	colors := []string{"red", "green", "blue"}
 	var lines []string
 	for i := 0; i < 100; i++ {
@@ -327,6 +347,8 @@ func TestNdjsonExport_CategoricalResolved(t *testing.T) {
 }
 
 func TestNdjsonImport_InferredSchema(t *testing.T) {
+	t.Parallel()
+
 	// Integer, float, boolean, null values.
 	data := `{"count":10,"ratio":1.5,"flag":true}
 {"count":20,"ratio":2.5,"flag":false}
@@ -367,6 +389,8 @@ func TestNdjsonImport_InferredSchema(t *testing.T) {
 }
 
 func TestConvertJob_CsvToNdjson(t *testing.T) {
+	t.Parallel()
+
 	csvData := "name,age\nalice,30\nbob,25\ncharlie,35\n"
 	csvReader := csv.NewReaderFromBytes([]byte(csvData))
 	ndjsonWriter := NewWriterToBuffer()
@@ -394,6 +418,8 @@ func TestConvertJob_CsvToNdjson(t *testing.T) {
 }
 
 func TestConvertJob_NdjsonToCsv(t *testing.T) {
+	t.Parallel()
+
 	ndjsonData := `{"name":"alice","age":"30"}
 {"name":"bob","age":"25"}
 {"name":"charlie","age":"35"}
@@ -419,6 +445,8 @@ func TestConvertJob_NdjsonToCsv(t *testing.T) {
 }
 
 func TestNdjsonReader_Reset(t *testing.T) {
+	t.Parallel()
+
 	data := `{"name":"alice","age":"30"}
 {"name":"bob","age":"25"}
 `
@@ -455,6 +483,8 @@ func TestNdjsonReader_Reset(t *testing.T) {
 }
 
 func TestNdjsonWriter_FilePath(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "output.ndjson")
 	w.WriteHeader([]string{"a", "b"})
@@ -476,6 +506,8 @@ func TestNdjsonWriter_FilePath(t *testing.T) {
 }
 
 func TestNdjsonReader_NullValues(t *testing.T) {
+	t.Parallel()
+
 	data := `{"name":"alice","age":null}
 {"name":null,"age":25}
 `
@@ -502,6 +534,8 @@ func TestNdjsonReader_NullValues(t *testing.T) {
 }
 
 func TestNdjsonReader_BooleanValues(t *testing.T) {
+	t.Parallel()
+
 	data := `{"flag":true,"name":"a"}
 {"flag":false,"name":"b"}
 `
@@ -540,6 +574,8 @@ func TestNdjsonReader_BooleanValues(t *testing.T) {
 }
 
 func TestNdjsonReader_NumberValues(t *testing.T) {
+	t.Parallel()
+
 	data := `{"val":42}
 {"val":3.14}
 `
@@ -572,6 +608,8 @@ func TestNdjsonReader_NumberValues(t *testing.T) {
 }
 
 func TestNdjsonReader_FromFS(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	ndjsonData := `{"name":"alice","age":30}
 {"name":"bob","age":25}
@@ -600,6 +638,8 @@ func TestNdjsonReader_FromFS(t *testing.T) {
 }
 
 func TestNdjsonReader_NoDataSource(t *testing.T) {
+	t.Parallel()
+
 	r := &Reader{} // no data, no fs
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -608,6 +648,8 @@ func TestNdjsonReader_NoDataSource(t *testing.T) {
 }
 
 func TestNdjsonReader_FSFileNotFound(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	r := NewReader(fs, "nonexistent.ndjson")
 	_, err := r.ReadHeader()
@@ -617,6 +659,8 @@ func TestNdjsonReader_FSFileNotFound(t *testing.T) {
 }
 
 func TestNdjsonReader_ReadRowsWithoutInit(t *testing.T) {
+	t.Parallel()
+
 	data := `{"a":"1"}
 {"a":"2"}
 `
@@ -644,6 +688,8 @@ func TestNdjsonReader_ReadRowsWithoutInit(t *testing.T) {
 // detect them; (2) nested objects / non-scalar element arrays are
 // still rejected with a typed parse error.
 func TestNdjsonReader_ArrayValue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ScalarArrayAccepted", func(t *testing.T) {
 		// Both lines yield rows; each array gets pipe-joined.
 		data := "{\"name\":\"alice\",\"tags\":[\"a\",\"b\"]}\n" +
@@ -687,6 +733,8 @@ func TestNdjsonReader_ArrayValue(t *testing.T) {
 }
 
 func TestNdjsonWriter_WriteRowNoHeader(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	err := w.WriteRow([]any{"value"})
 	if err == nil {
@@ -695,6 +743,8 @@ func TestNdjsonWriter_WriteRowNoHeader(t *testing.T) {
 }
 
 func TestNdjsonWriter_WriteRowFewerValues(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"a", "b", "c"})
 	// Only 1 value for 3 columns.
@@ -711,6 +761,8 @@ func TestNdjsonWriter_WriteRowFewerValues(t *testing.T) {
 }
 
 func TestNdjsonCoerceValue_Types(t *testing.T) {
+	t.Parallel()
+
 	// Test that non-string values pass through.
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"int", "float", "bool", "nil"})
@@ -733,6 +785,8 @@ func TestNdjsonCoerceValue_Types(t *testing.T) {
 }
 
 func TestNdjsonCoerceValue_StringBool(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"val"})
 	w.WriteRow([]any{"false"})
@@ -746,6 +800,8 @@ func TestNdjsonCoerceValue_StringBool(t *testing.T) {
 }
 
 func TestNdjsonCoerceValue_EmptyString(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"val"})
 	w.WriteRow([]any{""})
@@ -758,6 +814,8 @@ func TestNdjsonCoerceValue_EmptyString(t *testing.T) {
 }
 
 func TestNdjsonReader_StopIteration(t *testing.T) {
+	t.Parallel()
+
 	data := `{"a":"1"}
 {"a":"2"}
 {"a":"3"}
@@ -780,6 +838,8 @@ func TestNdjsonReader_StopIteration(t *testing.T) {
 }
 
 func TestNdjsonReader_Cancellation(t *testing.T) {
+	t.Parallel()
+
 	data := `{"a":"1"}
 {"a":"2"}
 {"a":"3"}

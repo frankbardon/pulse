@@ -15,6 +15,8 @@ import (
 // with each stored contribution β·hill(adstock) of its channel and the
 // sales equal to the truth's sum within the noise (|residual| ≤ 5σ).
 func TestJointTruth_DeterministicShape(t *testing.T) {
+	t.Parallel()
+
 	d, again := Joint(), Joint()
 	if !reflect.DeepEqual(d, again) {
 		t.Fatal("two Joint() calls differ: the generator is not deterministic")
@@ -93,6 +95,8 @@ const jointFrozenHash = "687a955c1b785f0f8eedcf0d7f856c1c5d2f07b3b124fe40c914a1a
 // TestJointTruth_FrozenBits: Joint() is byte-identical to the
 // pre-JointWithSeed generator and equals JointWithSeed(JointSeed).
 func TestJointTruth_FrozenBits(t *testing.T) {
+	t.Parallel()
+
 	if got := jointDataHash(Joint()); got != jointFrozenHash {
 		t.Errorf("Joint() hash %s, frozen %s: the joint fixture's bits moved", got, jointFrozenHash)
 	}
@@ -106,6 +110,8 @@ func TestJointTruth_FrozenBits(t *testing.T) {
 // Joint(), every row the truth's sum within the noise, and every
 // channel spending (so a replicate's ROI is defined).
 func TestJointTruth_WithSeed(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]uint64{jointDataHash(Joint()): JointSeed}
 	for _, seed := range []uint64{1, 2, 1001, 1050} {
 		d := JointWithSeed(seed)

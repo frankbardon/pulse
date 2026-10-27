@@ -208,6 +208,8 @@ func rezsav(t *testing.T, raw []byte, blockSize int, mutate func([]byte) []byte)
 // one spec are the same stream in different wrappers, and a reader that
 // treated the inflated bytes as anything else would disagree here first.
 func TestZSAV_MatchesItsUncompressedTwin(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		spec      spsstest.Spec
@@ -245,6 +247,8 @@ func TestZSAV_MatchesItsUncompressedTwin(t *testing.T) {
 // against, so a decoder producing the right rows but the wrong count would
 // warn on every clean file.
 func TestZSAV_NoWarningsOnACleanFile(t *testing.T) {
+	t.Parallel()
+
 	spec := zsavSpec(everyCommandSpec(), 16)
 	r := NewReaderFromBytes(build(t, spec))
 	if rows := readAll(t, r); len(rows) != 4 {
@@ -261,6 +265,8 @@ func TestZSAV_NoWarningsOnACleanFile(t *testing.T) {
 // for it, or that hardcoded 100, would read every integer command offset by a
 // constant.
 func TestZSAV_HonoursTheDeclaredBias(t *testing.T) {
+	t.Parallel()
+
 	for _, bias := range []float64{37, 50, 100} {
 		spec := zsavSpec(everyCommandSpec(), 16)
 		spec.CompressionBias = bias
@@ -277,6 +283,8 @@ func TestZSAV_HonoursTheDeclaredBias(t *testing.T) {
 // to grow across many blocks, and where a per-block off-by-one that a
 // four-case fixture tolerates compounds into visible drift.
 func TestZSAV_ManyCases(t *testing.T) {
+	t.Parallel()
+
 	const n = 5000
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -303,6 +311,8 @@ func TestZSAV_ManyCases(t *testing.T) {
 // mapping, so the second pass must see the same cases and raise no second set
 // of diagnostics.
 func TestZSAV_Reset(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(build(t, zsavSpec(everyCommandSpec(), 16)))
 	first := readAll(t, r)
 	if err := r.Reset(); err != nil {
@@ -318,6 +328,8 @@ func TestZSAV_Reset(t *testing.T) {
 // is still non-empty — the end-of-file command and its block padding are part
 // of the encoding — so there is a block to inflate and nothing in it.
 func TestZSAV_EmptyDataSection(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{Vars: []spsstest.Var{{Name: "A"}}, Compression: spsstest.CompressionZSAV}
 	rows := readAll(t, NewReaderFromBytes(build(t, spec)))
 	if len(rows) != 0 {
@@ -339,6 +351,8 @@ func TestZSAV_EmptyDataSection(t *testing.T) {
 // something. Where a block is implicated the message and the details must
 // both name it, so a user is told which of a thousand blocks to look at.
 func TestZSAV_IndexIsValidatedNotTrusted(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		// mutate corrupts the index in place.
@@ -471,6 +485,8 @@ func TestZSAV_IndexIsValidatedNotTrusted(t *testing.T) {
 // — so it is PULSE_SPSS_DATA_TRUNCATED, the code the rest of the package uses
 // for exactly that.
 func TestZSAV_TruncatedTrailer(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, zsavSpec(spsstest.ReferenceSpec(), 0))
 	f := locateZSAV(t, raw)
 	putI64(raw, f.zheader+16, getI64(raw, f.zheader+16)+ztrailerEntrySize)
@@ -486,6 +502,8 @@ func TestZSAV_TruncatedTrailer(t *testing.T) {
 // TestZSAV_HeaderTruncated covers a file that ends inside the 24-byte ZHEADER
 // itself — before there is any index to validate.
 func TestZSAV_HeaderTruncated(t *testing.T) {
+	t.Parallel()
+
 	full := build(t, zsavSpec(spsstest.ReferenceSpec(), 0))
 	f := locateZSAV(t, full)
 	for cut := 0; cut < zheaderSize; cut++ {
@@ -507,6 +525,8 @@ func TestZSAV_HeaderTruncated(t *testing.T) {
 // trailer — and it must read as an empty cohort rather than as a fault, since
 // refusing it would be inventing a rule the format does not state.
 func TestZSAV_NoBlocksIsNoCases(t *testing.T) {
+	t.Parallel()
+
 	raw := rezsav(t, build(t, zsavSpec(spsstest.ReferenceSpec(), 0)), 64,
 		func([]byte) []byte { return nil })
 
@@ -535,6 +555,8 @@ func TestZSAV_NoBlocksIsNoCases(t *testing.T) {
 // damaged — and it carries its own code so a user can tell "this file was
 // built wrong" from "this file arrived wrong".
 func TestZSAV_BlockPayloadCorrupt(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, zsavSpec(multiBlockSpec(), 64))
 	f := locateZSAV(t, base)
 	if f.blocks < 4 {
@@ -580,6 +602,8 @@ func TestZSAV_BlockPayloadCorrupt(t *testing.T) {
 // TestZSAV_BlockNotAZlibStream covers a block whose first bytes are not a
 // zlib header at all — the shape a wrong compressed offset produces.
 func TestZSAV_BlockNotAZlibStream(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, zsavSpec(spsstest.ReferenceSpec(), 0))
 	f := locateZSAV(t, raw)
 	start := getI64(raw, f.entry(0)+8)
@@ -606,6 +630,8 @@ func TestZSAV_BlockNotAZlibStream(t *testing.T) {
 // one worth having — it is invisible unless the reader deliberately reads
 // past the length it was promised.
 func TestZSAV_BlockSizeDisagreesWithItsPayload(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		delta   int32
@@ -647,6 +673,8 @@ func TestZSAV_BlockSizeDisagreesWithItsPayload(t *testing.T) {
 // command as a compression fault would send a user to look at the zlib layer,
 // which is intact.
 func TestZSAV_InnerStreamFaultsAreBytecodeFaults(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, zsavSpec(spsstest.ReferenceSpec(), 8))
 
 	t.Run("a command that contradicts the dictionary", func(t *testing.T) {
@@ -693,6 +721,8 @@ func TestZSAV_InnerStreamFaultsAreBytecodeFaults(t *testing.T) {
 // statement available, and it is what a user can act on. A position past the
 // end of the stream reports where the compressed data stops.
 func TestZSAV_LocatorNamesTheBlockThatHeldTheByte(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, zsavSpec(multiBlockSpec(), 64))
 	d := mustParse(t, raw)
 	idx, err := readZSAVIndex(d, raw)
@@ -730,6 +760,8 @@ func TestZSAV_LocatorNamesTheBlockThatHeldTheByte(t *testing.T) {
 // it is the compact one, so it is the one people move — and every prefix of it
 // must be a coded error rather than a panic or a plausible cohort.
 func TestZSAV_TruncatedAnywhere(t *testing.T) {
+	t.Parallel()
+
 	full := build(t, zsavSpec(multiBlockSpec(), 64))
 	start := mustParse(t, full).dataOffset
 
@@ -755,6 +787,8 @@ func TestZSAV_TruncatedAnywhere(t *testing.T) {
 // every one of the 256 possible byte fills, and each must produce a cohort or
 // a coded error.
 func TestZSAV_DoesNotPanicOnArbitraryBytes(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, zsavSpec(multiBlockSpec(), 64))
 	start := mustParse(t, base).dataOffset
 
@@ -777,6 +811,8 @@ func TestZSAV_DoesNotPanicOnArbitraryBytes(t *testing.T) {
 // and the extremes of both widths. Nothing here may panic, and nothing may
 // read as a cohort with the wrong number of cases.
 func TestZSAV_IndexFieldFuzz(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, zsavSpec(multiBlockSpec(), 64))
 	f := locateZSAV(t, base)
 

@@ -116,6 +116,8 @@ func auxKeys(t *testing.T, m map[string]json.RawMessage) []string {
 // asked for (n beside p under pairwise; the multiplicity twins and the
 // echo on a claimed spec), nothing on a spec without inference.
 func TestReturnAuxiliary_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, data := auxParityPulse(t)
 	std := types.ReturnPresetStandard
 	inference := []string{"ci_lower", "ci_upper", "p"}
@@ -193,6 +195,8 @@ var legacyStandard = []string{
 // marker's digest names the new selection), and `full` / `minimal` are
 // untouched.
 func TestReturnAuxiliary_NoInferenceByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	p, _ := auxParityPulse(t)
 	specs := []types.MatrixSpec{
 		auxSpec("plain_pairwise", types.MAT_CORRELATION, `{"missing": "pairwise", "summary": {"top_pairs": 1}}`, nil),

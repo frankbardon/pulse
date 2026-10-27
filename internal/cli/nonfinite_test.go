@@ -18,6 +18,8 @@ import (
 // compose — emits it as null and still serialises the whole response
 // (types.MarshalFinite).
 func TestAPI_UndefinedFiguresAreNullOnTheWire(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "cat,num,den\n"
 	for _, row := range []string{"a,1,0", "a,2,0", "b,3,1", "b,4,2"} {
@@ -89,6 +91,8 @@ func TestAPI_UndefinedFiguresAreNullOnTheWire(t *testing.T) {
 // `null` (key kept) through `pulse api process --json`, while its p-value
 // stays a number: Fisher's exact p, 0 at |r| = 1 and at the infinite F.
 func TestAPI_InfiniteTestStatisticsAreNull(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "g,o,x,y,v\n" +
 		"a,no,1,2,0\na,no,2,4,2\na,no,3,6,0\na,no,4,8,2\n" +

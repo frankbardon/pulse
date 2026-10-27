@@ -88,6 +88,8 @@ func dataJSON(t *testing.T, v any) string {
 // twin runs buffered and the bound slot streams (predict says so) —
 // and the compose `fits` entry is {"sem": …} with the fit's matrices.
 func TestSEMFit_BoundScoresMatchInline(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	for _, grouped := range []bool{false, true} {
@@ -163,6 +165,8 @@ func TestSEMFit_BoundScoresMatchInline(t *testing.T) {
 // single file's figures, grouped and not; the fit itself, taken on the
 // archive, is the single file's fit.
 func TestSEMFit_BoundMergesAcrossShards(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	run := func(shards, workers int, grouped bool) (string, string) {
 		p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, shards: shards}.build(t, pulse.Options{ShardWorkers: workers})
@@ -201,6 +205,8 @@ func TestSEMFit_BoundMergesAcrossShards(t *testing.T) {
 // name, PULSE_MODEL_UNKNOWN (one loading a saved SEM fit file runs:
 // TestSEMFit_LoadedChainStage).
 func TestSEMFit_BoundChainStage(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	chain := func(params map[string]any) *pulse.ChainRequest {
@@ -235,6 +241,8 @@ func TestSEMFit_BoundChainStage(t *testing.T) {
 // unbound name is PULSE_MODEL_UNKNOWN listing the SEM fits. Runtime and
 // PredictCompose return the same entry.
 func TestSEMFit_KindMismatchAndUnknown(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	vecFit := semFitRequest(nil)
@@ -301,6 +309,8 @@ func TestSEMFit_KindMismatchAndUnknown(t *testing.T) {
 // is still the kind mismatch (its save writes nothing:
 // TestSEMFit_SaveAndLoadRefusals).
 func TestSEMFit_FailedFitScoresNull(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	oneWave := semFitRequest(semFitKnobs())
@@ -380,6 +390,8 @@ func semSameRefusal(t *testing.T, what string, rerr error, pe *descriptor.Envelo
 // 1 and 3, ungrouped and by wave; the archive's inline figures are the
 // single file's.
 func TestSEMFit_BoundScoresMatchInlineAboveMergeBlock(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const repeat = 8 // 1,200 brand rows × 8: 4,800 fit rows a wave
 	for _, grouped := range []bool{false, true} {

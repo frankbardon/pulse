@@ -10,6 +10,8 @@ import (
 )
 
 func TestPredict_DecimalAggValidity(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6,
@@ -34,6 +36,8 @@ func TestPredict_DecimalAggValidity(t *testing.T) {
 }
 
 func TestInspect_SurfacesDecimalMetadata(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6,

@@ -36,6 +36,8 @@ func assertSnakeKeys(t *testing.T, path string, v any) {
 // render as. The JSON shape is a report shape only: the `.pulse` bytes
 // never pass through it.
 func TestSchema_JSONSnakeCaseAndTypeNames(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	_, _ = d.Add("x")
 	_, _ = d.Add("y")
@@ -111,6 +113,8 @@ func TestSchema_JSONSnakeCaseAndTypeNames(t *testing.T) {
 // same FieldType for every registered type, and an unknown name is
 // refused rather than decoded as u8.
 func TestFieldType_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for ft := FieldType(0); ft < fieldTypeCount; ft++ {
 		raw, err := json.Marshal(ft)
 		if err != nil {

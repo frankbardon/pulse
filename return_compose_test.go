@@ -92,6 +92,8 @@ func chainJSON(t *testing.T, p *pulse.Pulse, req *types.ChainRequest) (*types.Ch
 // byte-identical responses with no `returned` marker anywhere; a
 // non-identity block changes the bytes (the gate is not vacuous).
 func TestReturnFullIsIdentity_ComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	variants := map[string]func() *types.Return{
 		"preset full": func() *types.Return { return &types.Return{Preset: types.ReturnPresetFull} },
@@ -146,6 +148,8 @@ func TestReturnFullIsIdentity_ComposeAndChain(t *testing.T) {
 // run's (the fold read unshaped slots) and ComposeParallel answers
 // byte-identically to Compose.
 func TestReturn_ComposeShapesPerSlotAndOverlays(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	p := newReturnInstance(t, fs, pulse.Options{})
 	pd := newReturnInstance(t, fs, pulse.Options{DefaultReturn: &types.Return{Exclude: []string{"components"}}})
@@ -227,6 +231,8 @@ func rawJSON(t *testing.T, v any) json.RawMessage {
 // still feeds the next stage its rows (shaping runs after the whole
 // chain), and `final` follows the last stage's block.
 func TestReturn_ChainShapesAfterWholeChain(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	base, _ := chainJSON(t, p, chainReturnFixture(cohort))
 
@@ -270,6 +276,8 @@ func decodeArr2(t *testing.T, b json.RawMessage) []json.RawMessage {
 // slot / stage index in details, exactly as ValidateCompose /
 // ValidateChainWithOptions report first.
 func TestReturn_ComposeAndChainRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	p := newReturnInstance(t, fs, pulse.Options{})
 	ctx := context.Background()

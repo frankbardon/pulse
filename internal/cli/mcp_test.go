@@ -18,6 +18,8 @@ import (
 // as the flag — an MCP client config usually sets `env`, not `args`, so a
 // flag-only knob is unreachable from the place operators configure the server.
 func TestMCPCommand_HasTheCohortScanKnob(t *testing.T) {
+	t.Parallel()
+
 	cmd := MCPCommand("test")
 
 	var flag cli.Flag
@@ -61,6 +63,8 @@ func flagNames(cmd *cli.Command) []string {
 // effective return preset is always shown, and the log level / metrics
 // address appear only when set.
 func TestMCPStartupLine_ReportsTheEffectiveSettings(t *testing.T) {
+	t.Parallel()
+
 	std := types.ReturnPresetStandard
 	cases := []struct {
 		info mcpserve.ServeInfo
@@ -86,6 +90,8 @@ func TestMCPStartupLine_ReportsTheEffectiveSettings(t *testing.T) {
 // TestMCPStartupLine_EchoesTunedLimits: only limits off their default
 // are echoed, in the --limit grammar.
 func TestMCPStartupLine_EchoesTunedLimits(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	l := limits.Defaults()
 	l.MaxGroups = 1_000

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const modulePath = "github.com/frankbardon/pulse"
@@ -24,17 +25,31 @@ const selfDir = "internal/tools/sites/"
 
 // repo is the tracked tree (plus untracked, non-ignored files, so a
 // story's freshly created files are visible) with lazily loaded
-// contents and parsed Go files.
+// contents and parsed Go files. The lazy caches each take their own
+// mutex (the type-checked module its own sync.Once), so one repo is
+// safe to share across goroutines (the parallel tests share one); a
+// cache's fill only ever calls into lower caches (consts / calls /
+// testFuncs -> parsed -> content), so the locks never cycle.
 type repo struct {
-	root    string
-	files   []string // repo-relative, slash-separated, sorted
-	content map[string][]byte
-	parsed  map[string]*goFile
-	fset    *token.FileSet
+	root  string
+	files []string // repo-relative, slash-separated, sorted
+	fset  *token.FileSet
 
-	testFuncs map[string][]string          // test func name -> package dirs declaring it
-	calls     map[string][]callSite        // callee name -> non-test calls (callIndex)
+	contentMu sync.Mutex
+	content   map[string][]byte
+	parsedMu  sync.Mutex
+	parsed    map[string]*goFile
+
+	testMu    sync.Mutex
+	testFuncs map[string][]string // test func name -> package dirs declaring it
+	callsMu   sync.Mutex
+	calls     map[string][]callSite // callee name -> non-test calls (callIndex)
+	constsMu  sync.Mutex
 	consts    map[string]map[string]string // dir -> const name -> string value
+
+	typedOnce sync.Once // typeCheck: the module type-checked once
+	typed     *typedModule
+	typedErr  error
 }
 
 func openRepo(root string) (*repo, error) {
@@ -89,6 +104,8 @@ func skipPath(p string) bool {
 
 // read returns a file's contents, or nil for a missing or binary file.
 func (r *repo) read(p string) []byte {
+	r.contentMu.Lock()
+	defer r.contentMu.Unlock()
 	if b, ok := r.content[p]; ok {
 		return b
 	}
@@ -115,6 +132,8 @@ type goFile struct {
 }
 
 func (r *repo) parse(p string) *goFile {
+	r.parsedMu.Lock()
+	defer r.parsedMu.Unlock()
 	if g, ok := r.parsed[p]; ok {
 		return g
 	}
@@ -246,6 +265,8 @@ var testFuncRe = regexp.MustCompile(`(?m)^func ((?:Test|Benchmark|Fuzz)\w*)\(`)
 // testIndex maps every Test/Benchmark/Fuzz function to the package
 // directories declaring it.
 func (r *repo) testIndex() map[string][]string {
+	r.testMu.Lock()
+	defer r.testMu.Unlock()
 	if r.testFuncs != nil {
 		return r.testFuncs
 	}

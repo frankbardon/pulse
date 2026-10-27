@@ -151,8 +151,12 @@ func itoa(n int) string {
 }
 
 func TestSymEigenReconstruction(t *testing.T) {
+	t.Parallel()
+
 	for name, rows := range symEigenCases() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			n := len(rows)
 			res, err := linalg.SymEigen(mustSym(t, rows))
 			if err != nil {
@@ -182,6 +186,8 @@ func TestSymEigenReconstruction(t *testing.T) {
 // (asserted, so the case set cannot go stale), and every eigenvector
 // SymEigen returns has a positive one.
 func TestSymEigenSignRule(t *testing.T) {
+	t.Parallel()
+
 	rawNegative := 0
 	for name, rows := range symEigenCases() {
 		n := len(rows)
@@ -216,6 +222,8 @@ func TestSymEigenSignRule(t *testing.T) {
 // (1,1)/√2 and (1,-1)/√2 — both components tie on magnitude, so the
 // lowest index (0) is dominant and must be positive.
 func TestSymEigenMagnitudeTie(t *testing.T) {
+	t.Parallel()
+
 	res, err := linalg.SymEigen(mustSym(t, [][]float64{{2, 1}, {1, 2}}))
 	if err != nil {
 		t.Fatal(err)
@@ -238,6 +246,8 @@ func TestSymEigenMagnitudeTie(t *testing.T) {
 // TestSymEigenTieOrder: repeated eigenvalues are ordered by original
 // variable order — the dominant-component index of their eigenvector.
 func TestSymEigenTieOrder(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		rows       [][]float64
@@ -276,6 +286,8 @@ func TestSymEigenTieOrder(t *testing.T) {
 }
 
 func TestSymEigenEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	res, err := linalg.SymEigen(mustSym(t, nil))
 	if err != nil || res.Values.Len() != 0 || res.Vectors.Rows() != 0 {
 		t.Fatalf("empty: %v %v", res, err)
@@ -307,8 +319,12 @@ func svdCases() map[string][][]float64 {
 }
 
 func TestSVDReconstruction(t *testing.T) {
+	t.Parallel()
+
 	for name, rows := range svdCases() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			r, c := len(rows), len(rows[0])
 			k := min(r, c)
 			res, err := linalg.SVD(mustMatrix(t, rows))
@@ -349,6 +365,8 @@ func TestSVDReconstruction(t *testing.T) {
 // non-zero singular value u_k must equal A·v_k / σ_k — which fails if U
 // and V were flipped inconsistently.
 func TestSVDSignRule(t *testing.T) {
+	t.Parallel()
+
 	rawNegative := 0
 	for name, rows := range svdCases() {
 		r, c := len(rows), len(rows[0])
@@ -397,6 +415,8 @@ func TestSVDSignRule(t *testing.T) {
 }
 
 func TestSVDTieOrder(t *testing.T) {
+	t.Parallel()
+
 	// Singular values 3, 3, 1, 1 on a permuted diagonal: V columns are
 	// unit vectors, ordered within each tie by variable index.
 	rows := [][]float64{
@@ -422,6 +442,8 @@ func TestSVDTieOrder(t *testing.T) {
 }
 
 func TestSVDEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	empty, _ := linalg.NewMatrix(3, 0, nil)
 	res, err := linalg.SVD(empty)
 	if err != nil || res.Values.Len() != 0 || res.U.Rows() != 3 || res.U.Cols() != 0 || res.V.Rows() != 0 {
@@ -437,6 +459,8 @@ func TestSVDEdgeCases(t *testing.T) {
 }
 
 func TestQR(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(17))
 	cases := map[string][][]float64{
 		"1x1 negative": {{-5}},
@@ -486,6 +510,8 @@ func TestQR(t *testing.T) {
 // TestQRSignRule: gonum's Householder QR of a positive first column
 // gives R[0][0] < 0; the returned R must have it flipped positive.
 func TestQRSignRule(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]float64{{3, 1}, {4, 2}}
 	var raw mat.QR
 	raw.Factorize(mat.NewDense(2, 2, []float64{3, 1, 4, 2}))
@@ -504,6 +530,8 @@ func TestQRSignRule(t *testing.T) {
 }
 
 func TestQREdgeCases(t *testing.T) {
+	t.Parallel()
+
 	_, err := linalg.QR(mustMatrix(t, [][]float64{{1, 2, 3}}))
 	if codeOf(t, err) != perr.PULSE_MATRIX_SHAPE_MISMATCH {
 		t.Fatal("rows < cols must be a shape mismatch")
@@ -528,6 +556,8 @@ func nearSingular(delta float64) [][]float64 {
 }
 
 func TestRank(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(18))
 	cases := []struct {
 		name string
@@ -563,6 +593,8 @@ func TestRank(t *testing.T) {
 }
 
 func TestRankEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	empty, _ := linalg.NewMatrix(0, 3, nil)
 	if got, err := linalg.Rank(empty, 0); err != nil || got != 0 {
 		t.Fatalf("empty: %d %v", got, err)
@@ -577,6 +609,8 @@ func TestRankEdgeCases(t *testing.T) {
 }
 
 func TestConditionNumber(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		rows   [][]float64
@@ -612,6 +646,8 @@ func TestConditionNumber(t *testing.T) {
 }
 
 func TestConditionNumberEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	if _, err := linalg.ConditionNumber(nil); codeOf(t, err) != perr.PULSE_MATRIX_SHAPE_MISMATCH {
 		t.Fatal("nil must be a shape mismatch")
 	}

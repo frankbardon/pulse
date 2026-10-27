@@ -115,6 +115,8 @@ func jsonFloatBits(v float64) string {
 // every path the operator runs (buffered; streamed and merged where it
 // has them), under both kinds.
 func TestWeightedShape_UnityParity(t *testing.T) {
+	t.Parallel()
+
 	for _, coarse := range []bool{false, true} {
 		records := unitRecords(wshapeValues(coarse))
 		for _, s := range wshapeSpecs {
@@ -155,6 +157,8 @@ func wshapePaths(m map[string][2]string) []string {
 // physically duplicated rows run unweighted — exactly for median,
 // percentile, mode and mode count; 1e-12 relative for the moments.
 func TestWeightedShape_FrequencyExpansion(t *testing.T) {
+	t.Parallel()
+
 	for _, coarse := range []bool{false, true} {
 		xs := wshapeValues(coarse)
 		ws := make([]float64, len(xs))
@@ -202,6 +206,8 @@ func mustAggregate(t *testing.T, a Aggregator, records []*Record) float64 {
 // TestWeightedShape_Oracle pins hand-computed weighted figures,
 // fractional (non-integer Σw) weights included.
 func TestWeightedShape_Oracle(t *testing.T) {
+	t.Parallel()
+
 	pct := func(p string) wshapeSpec {
 		return wshapeSpec{op: types.AGG_PERCENTILE, params: json.RawMessage(`{"percentile":` + p + `}`)}
 	}
@@ -318,6 +324,8 @@ func wshapeFractionalWeights() []float64 {
 // every percentile, and their components, unchanged; and the figure is
 // NOT the raw expanded-index one (the rescale engaged).
 func TestWeightedShape_ProbabilityQuantileScaleInvariant(t *testing.T) {
+	t.Parallel()
+
 	xs := wshapeValues(false)
 	ws := wshapeFractionalWeights()
 	sum := 0.0
@@ -359,6 +367,8 @@ func TestWeightedShape_ProbabilityQuantileScaleInvariant(t *testing.T) {
 // differently from the unweighted twin on arm64 and answers
 // 36.99999999999999 instead of 37.
 func TestWeightedShape_FrequencyQuantileRaw(t *testing.T) {
+	t.Parallel()
+
 	xs := []float64{40, 10, 30, 20}
 	ws := []float64{1, 1, 2, 3}
 	expanded := unitRecords([]float64{40, 10, 30, 30, 20, 20, 20})
@@ -386,6 +396,8 @@ func mustJSON(t *testing.T, v any) []byte {
 // closed-form weighted population moments — g1 = (Σw d³/W)/(Σw d²/W)^1.5,
 // g2 = (Σw d⁴/W)/(Σw d²/W)² − 3 — on the buffered and streamed paths.
 func TestWeightedShape_Moments(t *testing.T) {
+	t.Parallel()
+
 	xs := []float64{2, 4, 4, 5, 7, 9, 13}
 	ws := []float64{0.5, 1.5, 1.0, 2.0, 0.8, 1.2, 0.3}
 	var W, swx float64
@@ -434,6 +446,8 @@ func TestWeightedShape_Moments(t *testing.T) {
 // TestWeightedShape_InvalidWeightsExcluded: null, negative and NaN/Inf
 // weights drop the row — never coerced — on every shape operator.
 func TestWeightedShape_InvalidWeightsExcluded(t *testing.T) {
+	t.Parallel()
+
 	clean := wvRecords([]float64{1, 2, 2, 3, 8}, []float64{1, 1, 2, 1, 0.5})
 	dirty := append(append([]*Record{}, clean...),
 		cohortRec(100, -3, 0, 0, nil),
@@ -457,6 +471,8 @@ func TestWeightedShape_InvalidWeightsExcluded(t *testing.T) {
 // buffered, mode / mode count stay streamable and mergeable, skewness /
 // kurtosis stay streamable and non-mergeable.
 func TestWeightedShape_ExecutionClassUnchanged(t *testing.T) {
+	t.Parallel()
+
 	for _, s := range wshapeSpecs {
 		plain := &types.Request{Aggregations: []*types.Aggregation{s.agg(types.SlotWeight{})}}
 		weighted := StampWeights(&types.Request{Weight: &types.WeightSpec{Field: "weight"},
@@ -485,6 +501,8 @@ func TestWeightedShape_ExecutionClassUnchanged(t *testing.T) {
 // the interpolation lo + 0.5·(hi − lo) — the two differ in the last
 // ULP on this pair.
 func TestWeightedShape_MedianMeanOfMiddles(t *testing.T) {
+	t.Parallel()
+
 	lo, hi := 0.254458609934608, 10.944941000576247
 	if (lo+hi)/2 == lo+0.5*(hi-lo) {
 		t.Fatal("fixture no longer separates the two forms")
@@ -506,6 +524,8 @@ func TestWeightedShape_MedianMeanOfMiddles(t *testing.T) {
 // shape — while Hmisc writes (1 − f)·lo + f·hi, so the two may differ
 // in the last ulps (7.275 vs 7.2749999999999986); 1e-12 relative.
 func TestWeightedShape_HmiscQuantile(t *testing.T) {
+	t.Parallel()
+
 	// The reference fixture's x with the null and invalid-weight rows
 	// dropped; w its fractional probability weights (a zero kept — both
 	// drop it from n), p = 0.37·f its integer frequency twin.
@@ -550,6 +570,8 @@ func TestWeightedShape_HmiscQuantile(t *testing.T) {
 // rank (float summation order — e.g. FMA contraction on one
 // architecture but not another) answers exactly as the exact integer.
 func TestWeightedShape_QuantileRankSnap(t *testing.T) {
+	t.Parallel()
+
 	xs := []float64{10, 20, 30, 40}
 	quantileOrderStat := func(xs, cum []float64, k int) float64 { return xs[quantileOrderIndex(cum, k)] }
 	exact := []float64{1, 2, 3, 4}

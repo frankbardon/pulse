@@ -60,6 +60,8 @@ func setupFidelityFixture(t *testing.T, fs afero.Fs) (*Pulse, *synth.Spec) {
 // changes nothing — no report file, no behavior change, and
 // Result.FidelityReportPath stays empty.
 func TestSynth_FidelityReportOmittedWritesNoFile(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupFidelityFixture(t, fs)
 
@@ -80,6 +82,8 @@ func TestSynth_FidelityReportOmittedWritesNoFile(t *testing.T) {
 // FidelityReportPath has no effect on the plain synthesis path
 // (SourceCohort empty) — there is no _synthetic partition to compare.
 func TestSynth_FidelityReportIgnoredWithoutSourceCohort(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := New(Options{FS: fs})
 	if err != nil {
@@ -104,6 +108,8 @@ func TestSynth_FidelityReportIgnoredWithoutSourceCohort(t *testing.T) {
 // field via TEST_CHISQ, with no per-field errors on this
 // well-behaved fixture.
 func TestSynth_FidelityReportWrittenWhenRequested(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupFidelityFixture(t, fs)
 
@@ -170,6 +176,8 @@ func TestSynth_FidelityReportWrittenWhenRequested(t *testing.T) {
 // criterion 4: the wire JSON carries no "pairwise" key at all — later
 // epics add it as a genuinely new key, not an emptied-out placeholder.
 func TestSynth_FidelityReportOmitsPairwiseKey(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupFidelityFixture(t, fs)
 
@@ -202,6 +210,8 @@ func TestSynth_FidelityReportOmitsPairwiseKey(t *testing.T) {
 // builds that request independently of buildFidelityReport/
 // runFidelityTest to prove the report is not fabricating numbers.
 func TestSynth_FidelityReportMatchesHandRunTest(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupFidelityFixture(t, fs)
 

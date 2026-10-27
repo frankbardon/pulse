@@ -23,6 +23,8 @@ func sumOf(field string) []*types.Aggregation {
 // the shared fusion rule accepts and neither a join nor the instance
 // switch declines it.
 func TestMemoryArm(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	xt := &types.CrosstabSpec{
 		Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
@@ -81,6 +83,8 @@ var (
 // AGG_SET_FREQUENCY slot adds a counter and an output label per member
 // of its set field (3 here: 64 + 128 B each) to every bucket.
 func TestEstimateMemory_WeightAndSetTerms(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	est := func(req *types.Request, in LimitInputs) int64 {
 		t.Helper()
@@ -128,6 +132,8 @@ func TestEstimateMemory_WeightAndSetTerms(t *testing.T) {
 // build side, the per-shard matrix blocks — and an unknown record
 // count (or right count) yields no estimate.
 func TestEstimateMemory_Terms(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	stride := int64(schema.RecordByteSize())
 	rec := limits.RecordBytes(schema)
@@ -281,6 +287,8 @@ func TestEstimateMemory_Terms(t *testing.T) {
 // and per-value state. ShardWorkers decides that arm as the runtime
 // does. An anchor-opened shard is a single file.
 func TestEstimateMemory_ArchiveTerms(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	stride := int64(schema.RecordByteSize())
 	decode := limits.SchemaDecodeBytes(schema)
@@ -376,6 +384,8 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 // shard count) and a request the merge gate admits; a crosstab or a
 // join never reaches that dispatch.
 func TestShardFanOut(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	plain := &types.Request{Aggregations: sumOf("num")}
 	in := func(workers int, shards ...int64) LimitInputs {
@@ -408,6 +418,8 @@ func TestShardFanOut(t *testing.T) {
 // pre-flight refusal); at the estimate, under the default (Unlimited)
 // and without a record count there is none.
 func TestRequestLimitFindings_MaxEstimatedMemoryCertain(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	req := &types.Request{Aggregations: sumOf("num")}
 	n, ok := EstimateMemory(req, schema, nil, memIn(1000))
@@ -440,6 +452,8 @@ func TestRequestLimitFindings_MaxEstimatedMemoryCertain(t *testing.T) {
 // reports the certain finding with the PULSE_LIMIT_EXCEEDED error, so
 // Valid is false; under the default there is no finding.
 func TestPredict_MaxEstimatedMemory(t *testing.T) {
+	t.Parallel()
+
 	data := vectorPredictCohort(t, 500)
 	req := func() *types.Request { return &types.Request{Aggregations: sumOf("q_1")} }
 	pr := func(l limits.Limits) (*descriptor.PredictResult, *descriptor.Envelope) {
@@ -475,6 +489,8 @@ func TestPredict_MaxEstimatedMemory(t *testing.T) {
 // per faceted field, per-value state for a dictionary-less field (twice
 // with percentiles) — refuses only under a set limit.
 func TestFacetLimitRefusal(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	req := &types.FacetRequest{Fields: []string{"cat", "num"}}
 	n, ok := EstimateFacetMemory(req, schema, memIn(1000))
@@ -513,6 +529,8 @@ func TestFacetLimitRefusal(t *testing.T) {
 // mints none. FacetLimitFindings grades it possible, beside the certain
 // memory estimate.
 func TestFacetGroupBound(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	cases := []struct {
 		name     string
@@ -559,6 +577,8 @@ func TestFacetGroupBound(t *testing.T) {
 // run, keep the record bound — times the fan-out multiplicity, the
 // composite keys one record can mint.
 func TestEstimateMemory_ValueWidthBound(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	schema.Fields = append(schema.Fields,
 		encoding.Field{Name: "nib", Type: encoding.FieldTypeU4},
@@ -632,6 +652,8 @@ func TestEstimateMemory_ValueWidthBound(t *testing.T) {
 // disable_components when set, else the instance default
 // LimitInputs.DisableComponents. A partition's state is unchanged.
 func TestEstimateMemory_ComponentsOffOutput(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	req := func(disable *bool) *types.Request {
 		return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, // 5 buckets
@@ -682,6 +704,8 @@ func TestEstimateMemory_ComponentsOffOutput(t *testing.T) {
 // can hold — min(merge blocks x buckets, rows) — plus the rows a shard
 // starting inside a block buffers.
 func TestEstimateMemory_VectorAggregationTerms(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "num2", Type: encoding.FieldTypeF64})
 	vec := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_MEAN, Fields: []string{"num", "num2"}, Label: "v"}}}
@@ -723,6 +747,8 @@ func TestEstimateMemory_VectorAggregationTerms(t *testing.T) {
 // measure keeps a value per row in its cell and in each margin the row
 // feeds; the buffered arm adds its records and partitions.
 func TestEstimateMemory_CrosstabCharges(t *testing.T) {
+	t.Parallel()
+
 	dict := func(n int) *encoding.Dictionary {
 		d := encoding.NewDictionary()
 		for i := range n {
@@ -833,6 +859,8 @@ func TestEstimateMemory_CrosstabCharges(t *testing.T) {
 // which the schema fixes, no larger than the records, charges no
 // position beyond its cells.
 func TestEstimateMemory_CrosstabGrid(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c"} {
 		if _, err := d.Add(v); err != nil {

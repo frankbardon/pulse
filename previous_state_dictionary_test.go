@@ -90,6 +90,8 @@ func transitionCrosstab(cohort, from, to string, attrs []*types.Attribute) *type
 // names, never dictionary indices, and a null previous state drops from
 // the axis instead of becoming a bucket.
 func TestPreviousState_CrosstabMatchesWideForm(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	long, err := p.Process(ctx, transitionCrosstab("panel.pulse", "prev", "plan", prevStateAttr()))
@@ -118,6 +120,8 @@ func TestPreviousState_CrosstabMatchesWideForm(t *testing.T) {
 // those names, the grouper's dict_size is the state field's, and the
 // null previous states count in the grouper's n_null.
 func TestPreviousState_GroupCategoryKeysAndInclude(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	req := func(include []string) *types.Request {
@@ -165,6 +169,8 @@ func TestPreviousState_GroupCategoryKeysAndInclude(t *testing.T) {
 // inherited dictionary) on Process and predict alike and translates the
 // axis as the same binding translates the state field's.
 func TestPreviousState_LabelsTranslateLikeTheSourceField(t *testing.T) {
+	t.Parallel()
+
 	p, fs := prevStateLongAndWide(t, pulse.Options{Extensions: pulse.Extensions{LabelTables: map[string]pulse.LabelTable{
 		"plans": {Rows: map[string]string{"free": "Free tier", "paid": "Paid tier", "pro": "Pro tier"}},
 	}}})
@@ -190,6 +196,8 @@ func TestPreviousState_LabelsTranslateLikeTheSourceField(t *testing.T) {
 // p-value count on the dictionary basis — and the runtime's row axis
 // carries that many states (one per-row test each).
 func TestPreviousState_PredictTypesOutputCategorical(t *testing.T) {
+	t.Parallel()
+
 	p, fs := prevStateLongAndWide(t, pulse.Options{})
 	withChiSq := func(r *types.Request) *types.Request {
 		r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindChiSqRow, Scope: types.OverlayScopeRow}}
@@ -224,6 +232,8 @@ func TestPreviousState_PredictTypesOutputCategorical(t *testing.T) {
 // over the square previous-state × state host (both axes carry the same
 // state names, so the key sets match).
 func TestPreviousState_MarkovOverTransitionCrosstab(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateLongAndWide(t, pulse.Options{})
 	req := transitionCrosstab("panel.pulse", "prev", "plan", prevStateAttr())
 	req.Overlays = []types.OverlaySpec{markovOverlay("")}
@@ -242,6 +252,8 @@ func TestPreviousState_MarkovOverTransitionCrosstab(t *testing.T) {
 // 3 x 3 transition table is refused by predict exactly as the runtime
 // refuses it (code, message, details).
 func TestPreviousState_CorrespondenceDimensionsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs := prevStateLongAndWide(t, pulse.Options{})
 	req := transitionCrosstab("panel.pulse", "prev", "plan", prevStateAttr())
 	req.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindCorrespondence, Scope: types.OverlayScopeMatrix,
@@ -259,6 +271,8 @@ func TestPreviousState_CorrespondenceDimensionsMatchRuntime(t *testing.T) {
 // alike, with the runtime's code, message and details; so is the same
 // overlay over the state field's own GROUP_CATEGORY host.
 func TestPreviousState_SeriesBaselineBoundMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs := prevStateLongAndWide(t, pulse.Options{})
 	baselineRef := types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{Position: 3}}
 	for _, c := range []struct {
@@ -294,6 +308,8 @@ func TestPreviousState_SeriesBaselineBoundMatchesRuntime(t *testing.T) {
 // column itself keeps its own binding, and a request without the
 // attribute is untouched.
 func TestPreviousState_AutoLabelsCarryToTheOutputColumn(t *testing.T) {
+	t.Parallel()
+
 	tables := map[string]pulse.LabelTable{
 		"plans": {Rows: map[string]string{"free": "Free tier", "paid": "Paid tier", "pro": "Pro tier"}},
 		"short": {Rows: map[string]string{"free": "F", "paid": "P", "pro": "R"}},
@@ -368,6 +384,8 @@ func TestPreviousState_AutoLabelsCarryToTheOutputColumn(t *testing.T) {
 // predict (DefaultsApplied, valid) and at runtime alike, and runs
 // exactly as the explicit spelling does.
 func TestPreviousState_SmartDefaultsReadTheOutputAsItsStateField(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	mk := func(group types.GroupType, agg types.AggregationType) *types.Request {

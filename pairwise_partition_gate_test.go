@@ -73,6 +73,8 @@ func pwPartitionEnvelopeCode(env *descriptor.Envelope, code string) *descriptor.
 // criterion in one test: the same offending request refuses at predict
 // and at process, with the same code.
 func TestPairwisePartitionGate_PredictAndProcessAgree(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 	p, err := New(Options{FS: memFs})
@@ -125,6 +127,8 @@ func TestPairwisePartitionGate_PredictAndProcessAgree(t *testing.T) {
 // fixed prefix) must still run and still produce a layer. Refusing it
 // would refuse the request that motivated the whole mode.
 func TestPairwisePartitionGate_FanOutInPrefixRuns(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 	p, err := New(Options{FS: memFs})
@@ -161,6 +165,8 @@ func TestPairwisePartitionGate_FanOutInPrefixRuns(t *testing.T) {
 // each, so it is exact under a fan-out grouper and gating it would
 // refuse a correct request.
 func TestPairwisePartitionGate_NWithinAndMarginsUnaffected(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 	p, err := New(Options{FS: memFs})
@@ -194,6 +200,8 @@ func TestPairwisePartitionGate_NWithinAndMarginsUnaffected(t *testing.T) {
 // fixup actually works end to end: moving the fan-out dim inside the
 // fixed prefix turns the refusal into a run.
 func TestPairwisePartitionGate_RaisingDepthClearsIt(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
 	p, err := New(Options{FS: memFs})
@@ -217,6 +225,8 @@ func TestPairwisePartitionGate_RaisingDepthClearsIt(t *testing.T) {
 // catalogue with a Message and at least one actionable Fixup, so
 // `pulse errors lookup` is useful on it.
 func TestPairwisePartitionGate_FixupsReachable(t *testing.T) {
+	t.Parallel()
+
 	meta, ok := errors.MetadataFor(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED)
 	if !ok {
 		t.Fatal("no codeMetadata entry for PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED")

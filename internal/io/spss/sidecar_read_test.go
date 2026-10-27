@@ -94,6 +94,8 @@ func codeOf(t *testing.T, err error) perr.Code {
 //
 // If a later change unifies them, this test is what fails.
 func TestLoadSidecar_AbsentAndStaleAreNotTheSameVerdict(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 
 	// Absent: warning, and the export PROCEEDS on a synthesised default.
@@ -154,6 +156,8 @@ func TestLoadSidecar_AbsentAndStaleAreNotTheSameVerdict(t *testing.T) {
 //  3. The refusal is on the error channel, not the warning one — a
 //     caller that logs warnings and carries on cannot proceed past it.
 func TestLoadSidecar_StaleCannotSilentlyProduceOutput(t *testing.T) {
+	t.Parallel()
+
 	base, cohort := sidecarFixture(t)
 	original, err := afero.ReadFile(base, cohort)
 	if err != nil {
@@ -272,6 +276,8 @@ func flipLastByte(in []byte) []byte {
 // case: an untouched pair resolves to the real metadata, with no
 // warning at all.
 func TestLoadSidecar_FreshIsPresentAndCarriesTheDocument(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	res, err := LoadSidecar(fs, cohort, WriterOptions{})
 	if err != nil {
@@ -308,6 +314,8 @@ func TestLoadSidecar_FreshIsPresentAndCarriesTheDocument(t *testing.T) {
 // there would be a performance regression this test would catch.
 // VerifyDigest is the authoritative answer; see the test below.
 func TestLoadSidecar_CheckIsCheap(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	original, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -334,6 +342,8 @@ func TestLoadSidecar_CheckIsCheap(t *testing.T) {
 // the pair: the authoritative full SHA-256 recompute catches exactly
 // what the cheap check cannot.
 func TestDocument_VerifyDigest_ClosesTheCheapCheckGap(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	doc := readSidecar(t, fs, cohort)
 
@@ -359,6 +369,8 @@ func TestDocument_VerifyDigest_ClosesTheCheapCheckGap(t *testing.T) {
 }
 
 func TestDocument_VerifyDigest_Degenerate(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	doc := readSidecar(t, fs, cohort)
 
@@ -387,6 +399,8 @@ func TestDocument_VerifyDigest_Degenerate(t *testing.T) {
 // ERROR into the absent-sidecar WARNING PATH — warn, synthesise a
 // default dictionary, proceed. It never applies the stale dictionary.
 func TestLoadSidecar_IgnoreDowngradesStaleToTheAbsentPath(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	original, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -426,6 +440,8 @@ func TestLoadSidecar_IgnoreDowngradesStaleToTheAbsentPath(t *testing.T) {
 // hatch works for the failure it was named after AND for the one it
 // was not).
 func TestLoadSidecar_IgnoreSuppressesTheReadNotOnlyTheVerdict(t *testing.T) {
+	t.Parallel()
+
 	t.Run("healthy sidecar is still ignored", func(t *testing.T) {
 		fs, cohort := sidecarFixture(t)
 		res, err := LoadSidecar(fs, cohort, WriterOptions{IgnoreSidecar: true})
@@ -468,6 +484,8 @@ func mustErr(t *testing.T, fs afero.Fs, cohort string) error {
 // nothing to suppress, and reporting "ignored" for a file that is not
 // there would be as false as reporting "absent" for one that is.
 func TestLoadSidecar_IgnoreOnAnAbsentSidecarStaysAbsent(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	if err := fs.Remove(SidecarPath(cohort)); err != nil {
 		t.Fatalf("removing sidecar: %v", err)
@@ -494,6 +512,8 @@ func TestLoadSidecar_IgnoreOnAnAbsentSidecarStaysAbsent(t *testing.T) {
 // silently substitute invented codes for recorded ones — the same class
 // of loss a stale document causes, reached differently.
 func TestLoadSidecar_ForeignOrUnreadableDocumentIsRefused(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// mutate rewrites the sidecar in place. Exactly one of mutate /
@@ -582,6 +602,8 @@ func TestLoadSidecar_ForeignOrUnreadableDocumentIsRefused(t *testing.T) {
 // the answer is a plain file fault rather than "stale" — which would
 // send a caller to re-import when the actual problem is a missing path.
 func TestLoadSidecar_MissingCohortIsNotASidecarVerdict(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 	if err := fs.Remove(cohort); err != nil {
 		t.Fatalf("removing cohort: %v", err)
@@ -593,6 +615,8 @@ func TestLoadSidecar_MissingCohortIsNotASidecarVerdict(t *testing.T) {
 }
 
 func TestLoadSidecar_NoFilesystemIsCoded(t *testing.T) {
+	t.Parallel()
+
 	if got := codeOf(t, func() error {
 		_, err := LoadSidecar(nil, "out.pulse", WriterOptions{})
 		return err
@@ -613,6 +637,8 @@ func TestLoadSidecar_NoFilesystemIsCoded(t *testing.T) {
 // "this set has no members". Rejecting it would refuse every sidecar
 // written before E4-S5.
 func TestNormalise_BackfillsFieldsForAPreE4S5Document(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := sidecarFixture(t)
 
 	// Strip the slot, exactly as a pre-E4-S5 writer would have left it.
@@ -660,6 +686,8 @@ func TestNormalise_BackfillsFieldsForAPreE4S5Document(t *testing.T) {
 // divergence would silently bind a member to a different column than
 // the import actually read.
 func TestNormalise_ResolutionRulesMatchTheWriter(t *testing.T) {
+	t.Parallel()
+
 	doc := &Document{
 		FormatVersion: SidecarFormatVersion,
 		Kind:          SidecarKind,
@@ -698,6 +726,8 @@ func TestNormalise_ResolutionRulesMatchTheWriter(t *testing.T) {
 // this binary's view of the mapping override the one the import
 // actually applied.
 func TestNormalise_DoesNotSecondGuessAResolvedDocument(t *testing.T) {
+	t.Parallel()
+
 	doc := &Document{
 		FormatVersion: SidecarFormatVersion,
 		Kind:          SidecarKind,
@@ -719,6 +749,8 @@ func TestNormalise_DoesNotSecondGuessAResolvedDocument(t *testing.T) {
 }
 
 func TestNormalise_IsIdempotentAndNilSafe(t *testing.T) {
+	t.Parallel()
+
 	if err := (*Document)(nil).Normalise(); err != nil {
 		t.Errorf("Normalise on a nil document: %v", err)
 	}
@@ -750,12 +782,16 @@ func TestNormalise_IsIdempotentAndNilSafe(t *testing.T) {
 // to invent a dictionary from nothing — but it is also not a reason to
 // panic. A nil receiver answers "synthesise", the safe reading.
 func TestSidecarResolution_NilSynthesises(t *testing.T) {
+	t.Parallel()
+
 	if !(*SidecarResolution)(nil).Synthesise() {
 		t.Error("a nil resolution must report Synthesise() == true")
 	}
 }
 
 func TestSidecarStatus_StringsAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	for _, s := range []SidecarStatus{
 		SidecarStatusUnknown, SidecarStatusPresent, SidecarStatusAbsent, SidecarStatusIgnored,
@@ -774,6 +810,8 @@ func TestSidecarStatus_StringsAreDistinct(t *testing.T) {
 // raise must carry Message + Fixup metadata, or `pulse errors lookup`
 // answers nothing for the diagnostic a user just hit.
 func TestSidecarCodes_AreRegisteredWithFixups(t *testing.T) {
+	t.Parallel()
+
 	for _, code := range []perr.Code{
 		perr.PULSE_SPSS_SIDECAR_ABSENT,
 		perr.PULSE_SPSS_SIDECAR_STALE,

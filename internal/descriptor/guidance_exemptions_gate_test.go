@@ -38,6 +38,8 @@ func hasProblem(problems []string, fragments ...string) bool {
 // malformed or unknown owner, a duplicate key, a covered gap or a done
 // owner is a problem; a permanent entry never goes stale on status.
 func TestGuidanceExemptions_Apply(t *testing.T) {
+	t.Parallel()
+
 	ok := guidanceExemption{Key: "A", Why: "justified", Owner: "U50"}
 	cases := []struct {
 		name      string
@@ -78,6 +80,8 @@ func TestGuidanceExemptions_Apply(t *testing.T) {
 // resolves a fixture units directory, and a ledger entry owned by a unit
 // whose doc says `status: done` is stale while an open owner is not.
 func TestGuidanceExemptions_RoadmapStatusReader(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	write := func(name, body string) {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
@@ -113,6 +117,8 @@ func TestGuidanceExemptions_RoadmapStatusReader(t *testing.T) {
 // against the REAL ledger, fails on a gap that is neither covered nor
 // exempted, and flags the ledger entry of a gap that has been closed.
 func TestGuidanceExemptions_GatesBite(t *testing.T) {
+	t.Parallel()
+
 	live := roadmapUnitStatus()
 	wantRemaining := func(t *testing.T, table string, gaps []string, ledger []guidanceExemption, gap string) {
 		t.Helper()
@@ -176,6 +182,8 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 // simulate's example exemption are permanent and justified, and nothing else is — a new permanent
 // exemption is a deliberate edit of this test.
 func TestGuidanceExemptions_Ledger(t *testing.T) {
+	t.Parallel()
+
 	tables := exemptionTables()
 	permanent := map[string]bool{}
 	for table, ledger := range tables {
@@ -197,6 +205,8 @@ func TestGuidanceExemptions_Ledger(t *testing.T) {
 // TestExampleIntentExemptions_StaleWhenTagged: a directory whose
 // examples are all tagged has no gap, so its ledger entry is stale.
 func TestExampleIntentExemptions_StaleWhenTagged(t *testing.T) {
+	t.Parallel()
+
 	fx := []examples.ExampleSummary{{Name: "t1", Category: "tests"}}
 	gaps := untaggedExampleCategories(fx, map[string][]string{"t1": {IntentDescribe}})
 	ledger := []guidanceExemption{{Key: "tests", Owner: "U09", Why: "fixture entry for a directory that is now fully tagged"}}
@@ -210,6 +220,8 @@ func TestExampleIntentExemptions_StaleWhenTagged(t *testing.T) {
 // owned, so no ledger table holds a U09 entry — an orphan the backfill
 // could not cover honestly is re-owned to the later unit that will.
 func TestGuidanceExemptions_NoU09Owner(t *testing.T) {
+	t.Parallel()
+
 	if got := entriesOwnedBy("U09", exemptionTables()); len(got) != 0 {
 		t.Errorf("ledger entries still owned by U09: %v; close the gap or re-own it to a later unit with a justification", got)
 	}
@@ -228,6 +240,8 @@ func TestGuidanceExemptions_NoU09Owner(t *testing.T) {
 // guidance_exemptions_test.go is listed in exemptionTables, so the
 // ledger-wide assertions (permanent set, no U09 owner) see all of them.
 func TestGuidanceExemptions_TablesComplete(t *testing.T) {
+	t.Parallel()
+
 	src, err := os.ReadFile("guidance_exemptions_test.go")
 	if err != nil {
 		t.Fatal(err)

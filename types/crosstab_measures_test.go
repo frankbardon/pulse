@@ -12,6 +12,8 @@ import (
 // entry and a duplicate effective label, each reported once, in
 // declaration order; the single-measure form reports nothing.
 func TestCrosstabSpec_CellsFaults(t *testing.T) {
+	t.Parallel()
+
 	count := func(f string) *Aggregation { return &Aggregation{Type: AGG_COUNT, Field: f} }
 	cases := []struct {
 		name string
@@ -42,6 +44,8 @@ func TestCrosstabSpec_CellsFaults(t *testing.T) {
 // TestCrosstabSpec_MarginAggregationFaultsSeedEveryMeasure: an auxiliary
 // label may collide with ANY measure's label, not only Cell's.
 func TestCrosstabSpec_MarginAggregationFaultsSeedEveryMeasure(t *testing.T) {
+	t.Parallel()
+
 	spec := &CrosstabSpec{
 		Cells:              []*Aggregation{{Type: AGG_COUNT, Field: "x", Label: "n"}, {Type: AGG_SUM, Field: "x", Label: "total"}},
 		MarginAggregations: []*Aggregation{{Type: AGG_COUNT, Field: "w", Label: "total"}},
@@ -55,6 +59,8 @@ func TestCrosstabSpec_MarginAggregationFaultsSeedEveryMeasure(t *testing.T) {
 // TestCrosstabSpec_MeasureHelpers pins the walk every slot visitor uses
 // and the single-measure spec each measure runs as.
 func TestCrosstabSpec_MeasureHelpers(t *testing.T) {
+	t.Parallel()
+
 	a := &Aggregation{Type: AGG_COUNT, Field: "x", Label: "n"}
 	b := &Aggregation{Type: AGG_AVERAGE, Field: "x"}
 	spec := &CrosstabSpec{
@@ -90,6 +96,8 @@ func TestCrosstabSpec_MeasureHelpers(t *testing.T) {
 // TestCrosstabSpec_CellsAbsentByteIdentical: a single-measure spec and
 // its payload marshal with no cells / cell_labels / measures key.
 func TestCrosstabSpec_CellsAbsentByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := &CrosstabSpec{Rows: []*Group{{Type: GROUP_CATEGORY, Field: "r"}}, Cell: &Aggregation{Type: AGG_COUNT, Field: "x"}}
 	payload := &MatrixPayload{CellLabel: "AGG_COUNT_x"}
 	comps := &CrosstabComponents{CellCounts: [][]int{{1}}}

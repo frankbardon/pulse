@@ -43,6 +43,8 @@ func readCohort(t *testing.T, p *pulse.Pulse, path string) (*encoding.Schema, []
 // beside it stays a nullable f64. A crosstab on the derived cohort
 // equals the in-request crosstab cell for cell and label for label.
 func TestPreviousState_MaterializeWritesCategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	attrs := func() []*types.Attribute {
@@ -127,6 +129,8 @@ func TestPreviousState_MaterializeWritesCategoricalColumn(t *testing.T) {
 // materializes as a nullable packed_bool column of the earlier record's
 // flag.
 func TestPreviousState_MaterializePackedBoolState(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)

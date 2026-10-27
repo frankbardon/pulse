@@ -73,6 +73,8 @@ func hasLabel(labels []string, want string) bool {
 // option count) and each option's generated selection frequency must
 // match its declared Bernoulli frequency within tolerance.
 func TestSynth_SetBernoulli_GeneratesValidMasksAndMarginalFrequencies(t *testing.T) {
+	t.Parallel()
+
 	options := []string{"email", "sms", "push"}
 	freqs := []float64{0.7, 0.3, 0.9}
 	const rowCount = 20000
@@ -136,6 +138,8 @@ func TestSynth_SetBernoulli_GeneratesValidMasksAndMarginalFrequencies(t *testing
 // iteration order (see buildSchema's dictionary pre-registration
 // comment).
 func TestSynth_SetBernoulli_DeterministicByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 500,
 		Fields: []synth.FieldSpec{
@@ -164,6 +168,8 @@ func TestSynth_SetBernoulli_DeterministicByteIdentical(t *testing.T) {
 // fallback probability is accumulated from SetCategoricalPairSpec.Cells
 // — deliberately a slice walk, never a map range, so this locks that in.
 func TestSynth_SetJointStructure_DeterministicByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 500,
 		Fields: []synth.FieldSpec{
@@ -206,6 +212,8 @@ func TestSynth_SetJointStructure_DeterministicByteIdentical(t *testing.T) {
 // within tolerance, with no --conditional involved — proving joint
 // structure is additive, not required, for correct generation.
 func TestAugmentFromProfile_SetMarginalMatchesSourceWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	options := []string{"email", "sms", "push", "chat"}
 	const rowCount = 4000
 	// Exact frequencies: 1.0, 0.5, 0.2, 0.025.
@@ -296,6 +304,8 @@ func TestAugmentFromProfile_SetMarginalMatchesSourceWithinTolerance(t *testing.T
 // partition must reproduce the source's per-region conditional
 // selection rate for a feature with a genuine regional association.
 func TestAugmentFromProfile_ReconstructsSetCategoricalAssociationWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"darkmode", "export", "api", "sso"}
 	regionOpts := []string{"us", "eu"}
 	const rowsPerRegion = 3000
@@ -437,6 +447,8 @@ func synthSetNumericPair(t *testing.T, rowCount int, seed int64, meanSelected, m
 // selected/not_selected state, must reproduce the source's captured
 // per-bucket mean.
 func TestAugmentFromProfile_ReconstructsSetNumericMeanWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 8000
 	const newRows = 20000
 	const tolerance = 2.0
@@ -557,6 +569,8 @@ func synthSetSetPair(t *testing.T, rowCount, flipEvery int) []byte {
 // partition must reproduce the source's captured cross-field option
 // co-selection rate between two DIFFERENT set_* fields.
 func TestAugmentFromProfile_ReconstructsSetSetAssociationWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 8000
 	const newRows = 20000
 	const tolerance = 0.05
@@ -649,6 +663,8 @@ func TestAugmentFromProfile_ReconstructsSetSetAssociationWithinTolerance(t *test
 // sampling — because Conditional is nil and SpecFromProfile therefore
 // populates no SetCategoricalPairs.
 func TestAugmentFromProfile_WithoutSetConditional_GeneratesIndependentMarginals(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"export"}
 	regionOpts := []string{"us", "eu"}
 	const rowsPerRegion = 3000

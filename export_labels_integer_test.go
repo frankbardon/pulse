@@ -93,6 +93,8 @@ func exportRowLabels(t *testing.T, p *Pulse, f pio.Format, bindings ...types.Lab
 // categorical value — replace keeps the raw code's spelling, augment
 // leaves the sibling empty, and PULSE_LABEL_LOOKUP_MISS summarises it.
 func TestExport_IntegerCodedFieldLabels(t *testing.T) {
+	t.Parallel()
+
 	p := rowLabelsPulse(t)
 
 	csv, rep := exportRowLabels(t, p, pio.FormatCSV, types.LabelBinding{Field: "n", Table: "counts"})
@@ -172,6 +174,8 @@ func TestExport_IntegerCodedFieldLabels(t *testing.T) {
 // export byte for byte: the integer-coded rule adds a branch beside it and
 // must not move it.
 func TestExport_CategoricalLabelsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	p := rowLabelsPulse(t)
 	csv, _ := exportRowLabels(t, p, pio.FormatCSV, types.LabelBinding{Field: "region", Table: "regions"})
 	if want := "region,n\nNortheast,1\nSouth,2\nWE,7\n"; string(csv) != want {
@@ -189,6 +193,8 @@ func TestExport_CategoricalLabelsUnchanged(t *testing.T) {
 // it stores — with the code the `.sav` writer raises, and export predict
 // (with a row target or none) raises the same code.
 func TestPredictExport_RowLabelRefusalsMatchExport(t *testing.T) {
+	t.Parallel()
+
 	p := rowLabelsPulse(t)
 	code := func(err error) perrors.Code {
 		var ce *perrors.CodedError

@@ -94,6 +94,8 @@ func indexUniformPayload() *types.MatrixPayload {
 // 100. Defends against axis confusion (a column / grand axis on the
 // same data would produce row means other than 100).
 func TestApplyOverlays_IndexVsMargin_AxisRow_RowMeansHitBaseline(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(indexUniformPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -175,6 +177,8 @@ func TestApplyOverlays_IndexVsMargin_AxisRow_RowMeansHitBaseline(t *testing.T) {
 // cell equals its column margin so axis=COLUMN produces 100
 // everywhere and column means are 100.
 func TestApplyOverlays_IndexVsMargin_AxisColumn_ColumnMeansHitBaseline(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -228,6 +232,8 @@ func TestApplyOverlays_IndexVsMargin_AxisColumn_ColumnMeansHitBaseline(t *testin
 // of representative cells and that the total of indexed cells sums to
 // 100 (Σ cells / grand × 100 = 100).
 func TestApplyOverlays_IndexVsMargin_AxisGrand_GrandIndexedScaled(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -273,6 +279,8 @@ func TestApplyOverlays_IndexVsMargin_AxisGrand_GrandIndexedScaled(t *testing.T) 
 // evaluates false; the runtime test exercises the defense-in-depth
 // branch the handler runs anyway.
 func TestApplyOverlays_IndexVsMargin_MissingMargin_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	payload.RowMargins = nil // simulate "row margin not computed"
 	host := NewCrosstabHostView(payload)
@@ -318,6 +326,8 @@ func TestApplyOverlays_IndexVsMargin_MissingMargin_EmitsWarning(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO warning rather than emitting an infinite
 // cell value. Defends the per-cell branch in applyIndexVsMargin.
 func TestApplyOverlays_IndexVsMargin_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -360,6 +370,8 @@ func TestApplyOverlays_IndexVsMargin_ZeroMargin_EmitsWarningNotInf(t *testing.T)
 // without emitting a warning — the cell genuinely had no observation
 // and is not a denominator failure.
 func TestApplyOverlays_AbsentCellsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	payload := indexUniformPayload()
 	payload.Cells[1][1] = types.MatrixCell{Present: false}
 	host := NewCrosstabHostView(payload)
@@ -390,6 +402,8 @@ func TestApplyOverlays_AbsentCellsStayAbsent(t *testing.T) {
 // with no specs returns nil layers, nil warnings, nil error — the
 // crosstab orchestrator can call applyOverlays unconditionally.
 func TestApplyOverlays_EmptySpecsShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	layers, warnings, err := applyOverlays(nil, nil)
 	if err != nil || layers != nil || warnings != nil {
 		t.Fatalf("empty specs must short-circuit: layers=%v warnings=%v err=%v",
@@ -403,6 +417,8 @@ func TestApplyOverlays_EmptySpecsShortCircuits(t *testing.T) {
 // PULSE_OVERLAY_KIND_UNKNOWN code. The validator catches this at
 // predict time; the runtime gate is defense in depth.
 func TestApplyOverlays_UnknownKind_StubCoded(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(indexUniformPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -420,6 +436,8 @@ func TestApplyOverlays_UnknownKind_StubCoded(t *testing.T) {
 // TestApplyOverlays_DefaultLayerName synthesises the kind_axis name
 // when the spec omits Name; an explicit name passes through verbatim.
 func TestApplyOverlays_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(indexUniformPayload())
 	specs := []types.OverlaySpec{
 		{

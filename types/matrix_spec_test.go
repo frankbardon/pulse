@@ -11,6 +11,8 @@ import (
 // and does not merge; an unknown type does neither; malformed params
 // read as the type's own answer (resolution refuses them).
 func TestMatrixSpec_StreamableMergeable(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		spec   MatrixSpec

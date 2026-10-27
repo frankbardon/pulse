@@ -51,6 +51,8 @@ func categoricalCohortConfig(t *testing.T) (string, *encoding.Schema) {
 // strict or not — the refusal is the runtime constructor's, not a
 // promoted warning.
 func TestService_Process_CategoricalAggregation_Refused(t *testing.T) {
+	t.Parallel()
+
 	path, schema := categoricalCohortConfig(t)
 	records := [][]uint64{{0}, {1}, {0}, {2}}
 	cfg := setupTestFS(t, path, schema, records)
@@ -79,6 +81,8 @@ func TestService_Process_CategoricalAggregation_Refused(t *testing.T) {
 // does not regress the happy path: a numeric aggregation on a numeric
 // field still runs to completion.
 func TestService_Process_StrictPreservesValidRequests(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)

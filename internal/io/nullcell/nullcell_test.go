@@ -199,6 +199,8 @@ func exactly(t *testing.T, what string, xs []cellState) []cellState {
 // NullAwareReader channel both rows land on isNullToken("") and the
 // cohort carries two nulls.
 func TestNullAwareSource_EmptyStringIsAValue(t *testing.T) {
+	t.Parallel()
+
 	fs := buildCohort(t)
 	got := exactly(t, "source cohort", readStates(t, fs, "src.pulse", "c"))
 
@@ -220,6 +222,8 @@ func TestNullAwareSource_EmptyStringIsAValue(t *testing.T) {
 // a source that does NOT implement NullAwareReader is read exactly as
 // before — "" is the null token, whatever the field type.
 func TestPlainSource_EmptyStringIsStillNull(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := pio.NewImportJob(&plainMock{columns: []string{"id", "c"},
 		rows: [][]string{{"1", "red"}, {"2", ""}, {"3", ""}}}, "plain.pulse")
@@ -320,8 +324,12 @@ func exportThrough(t *testing.T, a adapter) afero.Fs {
 // reproduces all three states; one without collapses the empty-string
 // value into NULL — never the other way, which would invent data.
 func TestAdapters_NullVsEmptyCategoricalRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range adapters {
 		t.Run(a.Name, func(t *testing.T) {
+			t.Parallel()
+
 			fs := exportThrough(t, a)
 
 			job := pio.NewImportJob(a.Reader(fs, a.Path), "rt.pulse")
@@ -381,6 +389,8 @@ func TestAdapters_NullVsEmptyCategoricalRoundTrip(t *testing.T) {
 // LITERALLY different JSON: `null` for the null cell, `""` for the
 // empty-string value.
 func TestJSONAdapters_EmittedDocumentSpellsTheTwoStates(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range adapters {
 		if a.Name != "ndjson" && a.Name != "jsonarray" {
 			continue
@@ -411,6 +421,8 @@ func TestJSONAdapters_EmittedDocumentSpellsTheTwoStates(t *testing.T) {
 // declared-null and the empty-string row declared-present, both with
 // the same "" cell text.
 func TestColumnarAdapters_ValidityBitCarriesTheNull(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range adapters {
 		if !a.CarriesNull {
 			continue

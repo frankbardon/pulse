@@ -196,6 +196,8 @@ func faCheck(t *testing.T, c factorCase, fit faFit, want faOut, tol, gpaTol floa
 // loadings, communalities, residual figures and every rotation of the
 // loadings within faPAOracleTol.
 func TestFactorPrincipalAxis_MatchesPsych(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	capped := 0
 	for _, c := range doc.Cases {
@@ -234,6 +236,8 @@ func TestFactorPrincipalAxis_MatchesPsych(t *testing.T) {
 // exact optimum at all (its principal-axis iteration never settles), so
 // detection is all it checks.
 func TestFactorMinres_MatchesPsych(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	improper := 0
 	for _, c := range doc.Cases {
@@ -277,6 +281,8 @@ func TestFactorMinres_MatchesPsych(t *testing.T) {
 // (the finalizer turns that into PULSE_MATRIX_NOT_CONVERGED), and the
 // uncapped fit converges.
 func TestFactorSolvers_NotConvergedAtCap(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[factorCase](t, "mv_factor")
 	c := doc.Cases[1] // attitude k = 2: minres and ml need > 1 Newton step, pa > 1 iteration
 	r := c.sym(t)
@@ -309,6 +315,8 @@ func TestFactorSolvers_NotConvergedAtCap(t *testing.T) {
 // method, and a fit's loadings are p × k with every column summing
 // positive and communalities = row sums of squares.
 func TestFactorMinres_DispatchAndShape(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range vectors.FactorExtractions() {
 		if faExtractors[name] == nil {
 			t.Errorf("extraction %q has no solver", name)

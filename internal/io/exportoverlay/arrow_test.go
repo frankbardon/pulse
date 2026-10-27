@@ -21,6 +21,8 @@ import (
 // batch 0; the reader walks every list element across every batch and
 // returns the first non-empty list.
 func TestExportJob_Overlays_Arrow_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := parrow.NewWriter(fs, "out.arrow")
@@ -70,6 +72,8 @@ func TestExportJob_Overlays_Arrow_RoundTrip(t *testing.T) {
 // This locks down the tri-state dispatcher contract from io.go's
 // ExportJob.IncludeOverlays doc (nil / *true emit; *false opt out).
 func TestExportJob_Overlays_Arrow_OptOutDropsOverlays(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := parrow.NewWriter(fs, "out.arrow")
@@ -103,6 +107,8 @@ func TestExportJob_Overlays_Arrow_OptOutDropsOverlays(t *testing.T) {
 // not present-with-empty-list). The host record stream stays
 // untouched.
 func TestExportJob_Overlays_Arrow_EmptyOverlaysIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := parrow.NewWriter(fs, "out.arrow")

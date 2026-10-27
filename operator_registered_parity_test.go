@@ -18,6 +18,8 @@ import (
 // valid for an aggregation, group, filterer or attribute, and refuse
 // SERVICE_VALIDATION for a feature).
 func TestUnregisteredOperator_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, c := range []struct{ body, msg string }{

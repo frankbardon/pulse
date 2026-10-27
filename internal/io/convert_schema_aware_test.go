@@ -23,6 +23,8 @@ import (
 // proves the inference pass was bypassed structurally rather than
 // merely having its output overwritten.
 func TestConvertJob_SchemaAwareReader_BypassesInference(t *testing.T) {
+	t.Parallel()
+
 	src := &authoritativeReader{
 		columns: []string{"score", "grade"},
 		rows:    [][]string{{"1", "A"}, {"2", "B"}, {"3", "A"}},
@@ -61,6 +63,8 @@ func TestConvertJob_SchemaAwareReader_BypassesInference(t *testing.T) {
 // re-guessed cohort at KeepPulseAt — the file downstream analysis then
 // runs against.
 func TestConvertJob_SchemaAwareReader_KeepPulseAtCarriesAuthoritativeTypes(t *testing.T) {
+	t.Parallel()
+
 	src := &resettableAuthoritativeReader{
 		mockReader: newMockReader(
 			[]string{"score", "grade"},
@@ -96,6 +100,8 @@ func TestConvertJob_SchemaAwareReader_KeepPulseAtCarriesAuthoritativeTypes(t *te
 // bug — the same file converted and imported would land differently
 // typed.
 func TestConvertJob_SchemaAwareReader_ExplicitSchemaWins(t *testing.T) {
+	t.Parallel()
+
 	src := &authoritativeReader{
 		columns: []string{"score"},
 		rows:    [][]string{{"1"}, {"2"}},
@@ -126,6 +132,8 @@ func TestConvertJob_SchemaAwareReader_ExplicitSchemaWins(t *testing.T) {
 // "not for this source"; that must be indistinguishable from not
 // implementing it.
 func TestConvertJob_SchemaAwareReader_DeclineFallsBackToInference(t *testing.T) {
+	t.Parallel()
+
 	src := &resettableAuthoritativeReader{
 		mockReader: newMockReader([]string{"score"}, [][]string{{"1"}, {"2"}}),
 		schema:     nil,
@@ -149,6 +157,8 @@ func TestConvertJob_SchemaAwareReader_DeclineFallsBackToInference(t *testing.T) 
 // rule: a source that HAS a dictionary and could not read it must not
 // quietly produce a differently-typed output.
 func TestConvertJob_SchemaAwareReader_ErrorFailsConvert(t *testing.T) {
+	t.Parallel()
+
 	src := &resettableAuthoritativeReader{
 		mockReader: newMockReader([]string{"score"}, [][]string{{"1"}}),
 		err:        perrors.NewCodedError(perrors.PULSE_SPSS_DICT_INVALID, "boom"),
@@ -165,6 +175,8 @@ func TestConvertJob_SchemaAwareReader_ErrorFailsConvert(t *testing.T) {
 // schema Run would actually use. A predict that disagreed with its own
 // run is worse than no predict at all.
 func TestConvertJob_Predict_SchemaAwareReader(t *testing.T) {
+	t.Parallel()
+
 	src := &authoritativeReader{
 		columns: []string{"score"},
 		rows:    [][]string{{"1"}, {"2"}, {"3"}},
@@ -192,6 +204,8 @@ func TestConvertJob_Predict_SchemaAwareReader(t *testing.T) {
 // arrow, excel) reaches convert through this branch, so the new lookup
 // must be invisible to them.
 func TestConvertJob_NonSchemaAwareReader_Unchanged(t *testing.T) {
+	t.Parallel()
+
 	src := newMockReader([]string{"score", "grade"}, [][]string{{"1", "A"}, {"2", "B"}})
 	target := &collectWriter{}
 	job := NewConvertJob(src, target)
@@ -246,6 +260,8 @@ func newWarningReader(codes ...perrors.Code) *warningReader {
 // from a near-unique categorical or a demoted temporal column with the
 // user never told.
 func TestImportJob_SourceWarnings_Lifted(t *testing.T) {
+	t.Parallel()
+
 	src := newWarningReader(
 		perrors.PULSE_SPSS_CARDINALITY_HIGH,
 		perrors.PULSE_SPSS_TEMPORAL_PRECISION,
@@ -275,6 +291,8 @@ func TestImportJob_SourceWarnings_Lifted(t *testing.T) {
 // all, so PredictReport.Warnings is empty and SourceWarnings is the ONLY
 // signal a user gets before committing to an import.
 func TestImportJob_Predict_SourceWarnings_Lifted(t *testing.T) {
+	t.Parallel()
+
 	src := newWarningReader(perrors.PULSE_SPSS_EXTENSION_UNKNOWN)
 	job := NewImportJob(src, "out.pulse")
 	job.FS = afero.NewMemMapFs()
@@ -296,6 +314,8 @@ func TestImportJob_Predict_SourceWarnings_Lifted(t *testing.T) {
 // writer, these from the SOURCE reader, and a report must not conflate
 // them.
 func TestConvertJob_SourceWarnings_Lifted(t *testing.T) {
+	t.Parallel()
+
 	src := newWarningReader(perrors.PULSE_SPSS_DATA_CASE_COUNT_MISMATCH)
 	job := NewConvertJob(src, &collectWriter{})
 	job.FS = afero.NewMemMapFs()
@@ -317,6 +337,8 @@ func TestConvertJob_SourceWarnings_Lifted(t *testing.T) {
 // empty non-nil slice, so `omitempty`-style consumers and equality
 // checks against pre-interface reports still hold.
 func TestSourceWarnings_AbsentInterfaceIsNil(t *testing.T) {
+	t.Parallel()
+
 	job := NewImportJob(newMockReader([]string{"a"}, [][]string{{"1"}}), "out.pulse")
 	job.FS = afero.NewMemMapFs()
 
@@ -333,6 +355,8 @@ func TestSourceWarnings_AbsentInterfaceIsNil(t *testing.T) {
 // reader that implements the interface and simply had nothing to say —
 // the overwhelmingly common case for a clean `.sav`.
 func TestSourceWarnings_EmptySliceIsNil(t *testing.T) {
+	t.Parallel()
+
 	src := newWarningReader()
 	job := NewImportJob(src, "out.pulse")
 	job.FS = afero.NewMemMapFs()

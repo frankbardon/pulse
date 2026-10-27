@@ -41,6 +41,8 @@ func baselineSpec(position int) types.OverlaySpec {
 // rejection. The predict gate surfaces PULSE_OVERLAY_REF_UNKNOWN
 // regardless of whether the schema can bound the host length.
 func TestValidateOverlay_BaselineIndexNegative(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -65,6 +67,8 @@ func TestValidateOverlay_BaselineIndexNegative(t *testing.T) {
 // is categorical_u8 with 2 dict entries, so Position >= 2 is out of
 // range at predict time.
 func TestValidateOverlay_BaselineIndexExceedsKnownCardinality(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -90,6 +94,8 @@ func TestValidateOverlay_BaselineIndexExceedsKnownCardinality(t *testing.T) {
 // — unknown kind, etc. — may still fire, but PULSE_OVERLAY_REF_UNKNOWN
 // must NOT).
 func TestValidateOverlay_BaselineIndexInRangeAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -110,6 +116,8 @@ func TestValidateOverlay_BaselineIndexInRangeAccepted(t *testing.T) {
 // the schema. The predict gate accepts Position values that runtime
 // might still reject; the runtime resolver owns the range check.
 func TestValidateOverlay_BaselineIndexDefersOnNonCategoricalGrouper(t *testing.T) {
+	t.Parallel()
+
 	// Build a schema with a date field so the request can use
 	// GROUP_DATE without referencing a categorical column.
 	schema := &encoding.Schema{
@@ -144,6 +152,8 @@ func TestValidateOverlay_BaselineIndexDefersOnNonCategoricalGrouper(t *testing.T
 // catches the missing-host case for shipping kinds; the BaselineIndex
 // gate does not double-report.
 func TestValidateOverlay_BaselineIndexDefersWhenNoSeriesHost(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -158,6 +168,8 @@ func TestValidateOverlay_BaselineIndexDefersWhenNoSeriesHost(t *testing.T) {
 }
 
 func TestValidateOverlay_BaselineIndexSkipsCrosstabHost(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -176,6 +188,8 @@ func TestValidateOverlay_BaselineIndexSkipsCrosstabHost(t *testing.T) {
 // BaselineIndex pointer" no-op: a spec without Ref.BaselineIndex never
 // surfaces PULSE_OVERLAY_REF_UNKNOWN from the baseline-index gate.
 func TestValidateOverlay_BaselineIndexAbsentRefSkips(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 

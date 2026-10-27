@@ -45,6 +45,8 @@ func asCoded(t *testing.T, err error) *errors.CodedError {
 // capability slots follow their capability, an overlay slot needs an
 // enabled host that lists an enabled kind.
 func TestHiddenSlotKeys_Rules(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		inst *InstanceSnapshot
@@ -145,6 +147,8 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 // TestSlotRefusal_DefaultInstanceRefusesNothing: no feature profile, no
 // change — every slot set passes on a nil or unscoped instance.
 func TestSlotRefusal_DefaultInstanceRefusesNothing(t *testing.T) {
+	t.Parallel()
+
 	roots := []any{
 		allSlotsRequest(),
 		&types.ComposedRequest{Requests: []*types.Request{allSlotsRequest()}, Overlays: []types.ComposeOverlaySpec{{}}, Sweep: &types.SweepSpec{}, Fits: []types.FitSpec{{Name: "f", Request: allSlotsRequest()}}},
@@ -168,6 +172,8 @@ func TestSlotRefusal_DefaultInstanceRefusesNothing(t *testing.T) {
 // PULSE_REQUEST_UNKNOWN_FIELD in exactly the unknown-key shape, with
 // valid_keys the instance's visible keys.
 func TestSlotRefusal_UnknownFieldShape(t *testing.T) {
+	t.Parallel()
+
 	inst := scopedOnly(featProcess, featJoins, "AGG_COUNT")
 	req := &types.Request{Crosstab: &types.CrosstabSpec{}, Joins: []*types.JoinSpec{{}}}
 	ce := asCoded(t, SlotRefusal(req, inst))
@@ -197,6 +203,8 @@ func TestSlotRefusal_UnknownFieldShape(t *testing.T) {
 // hidden slot suggests nothing hidden — suggestions are computed over
 // the candidate list the caller passes (the visible keys).
 func TestUnknownFieldError_SuggestionsRangeOverCandidates(t *testing.T) {
+	t.Parallel()
+
 	all := JSONObjectKeys(&types.Request{})
 	open := UnknownFieldError([]string{"crosstabs"}, all)
 	if got := open.Details["suggestions"].(map[string]any)["crosstabs"]; got != "crosstab" {
@@ -218,6 +226,8 @@ func TestUnknownFieldError_SuggestionsRangeOverCandidates(t *testing.T) {
 // composed slot or a chain stage carries details.request / .stage; the
 // root's own slot is reported first.
 func TestSlotRefusal_NestedRootsAreLocated(t *testing.T) {
+	t.Parallel()
+
 	inst := scopedOnly(featProcess, featCompose, featProcessChain, "AGG_COUNT")
 	plain := func() *types.Request { return &types.Request{} }
 
@@ -262,6 +272,8 @@ func TestSlotRefusal_NestedRootsAreLocated(t *testing.T) {
 // an unknown field before the join-count rule (which it would otherwise
 // report) and before reading the cohort.
 func TestPredict_HiddenSlotRefusedFirst(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{},
@@ -291,6 +303,8 @@ func TestPredict_HiddenSlotRefusedFirst(t *testing.T) {
 // TestValidators_HiddenSlotRefused: the compose / chain / facet
 // validators refuse a hidden slot as the runtime funnels do.
 func TestValidators_HiddenSlotRefused(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	opts := &PredictOptions{Instance: scopedOnly(featProcess, featCompose, featProcessChain, featFacet, "AGG_COUNT")}
 	firstCode := func(errs []*descriptor.EnvelopeEntry) string {

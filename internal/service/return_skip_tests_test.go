@@ -83,6 +83,8 @@ func inferentialRequest() *types.Request {
 // chain stage refuses the slots outright and still does when excluded —
 // the refusal reads the original request.
 func TestReturnSkipsComputation_TestsAndRegressions(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	_, svc := overlayFoldService(t)
 	for _, arm := range inferentialArms() {
 		t.Run(arm.name, func(t *testing.T) {
@@ -192,6 +194,8 @@ func TestReturnSkipsComputation_TestsAndRegressions(t *testing.T) {
 // skipped) and the kept post-test's p_adjusted and m are the full
 // run's. Without the block the same selection folds nothing.
 func TestReturnSkipsTests_MultiplicityVeto(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	_, svc := overlayFoldService(t)
 	mk := func(ret *types.Return, block bool) *types.Request {
 		r := inferentialRequest()
@@ -246,6 +250,8 @@ func TestReturnSkipsTests_MultiplicityVeto(t *testing.T) {
 // (a rank-deficient fit, a non-numeric test field) is not raised and
 // predict stays the validator; kept, the same request still refuses.
 func TestReturnSkipsTests_ErrorRule(t *testing.T) {
+	t.Parallel()
+
 	_, svc := overlayFoldService(t)
 	for _, c := range []struct {
 		name    string
@@ -293,6 +299,8 @@ func TestReturnSkipsTests_ErrorRule(t *testing.T) {
 // counters aside) tells the arms apart — the control with the slots
 // REMOVED fans out and differs.
 func TestReturnSkipsTests_MergeGateArmUnchanged(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", multArchive(t, []int{30, 27, 33}), 0o644); err != nil {
 		t.Fatal(err)
@@ -352,6 +360,8 @@ func TestReturnSkipsTests_MergeGateArmUnchanged(t *testing.T) {
 // the request's own plan, or a Compose slot's share carried on ctx;
 // regressions follow the selection unvetoed.
 func TestResolveComputePlan_TestEntries(t *testing.T) {
+	t.Parallel()
+
 	svc := &Service{}
 	ctx := context.Background()
 	req := &types.Request{Tests: make([]*types.Test, 3), PostTests: make([]*types.Test, 2), Regressions: olsSpec("y", "x")}

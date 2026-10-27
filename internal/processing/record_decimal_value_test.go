@@ -7,6 +7,8 @@ import (
 )
 
 func TestRecord_DecimalValue(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "d", Type: encoding.FieldTypeDecimal128},
 		{Name: "x", Type: encoding.FieldTypeF64},

@@ -17,6 +17,8 @@ import (
 
 // TestRequestMarshalJSON verifies JSON round-trip for Request.
 func TestRequestMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{
 			Filename: "test.pulse",
@@ -71,6 +73,8 @@ func TestRequestMarshalJSON(t *testing.T) {
 
 // TestResponseMarshalJSON verifies JSON round-trip for Response.
 func TestResponseMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	resp := types.Response{
 		Data: []map[string]any{
 			{"region": "us", "avg_score": 42.5},
@@ -105,6 +109,8 @@ func TestResponseMarshalJSON(t *testing.T) {
 
 // TestFiltererEnumValues verifies all 4 filter types are present.
 func TestFiltererEnumValues(t *testing.T) {
+	t.Parallel()
+
 	expected := []types.FiltererType{
 		types.FILTER_INCLUDE,
 		types.FILTER_EXCLUDE,
@@ -143,6 +149,8 @@ func TestFiltererEnumValues(t *testing.T) {
 
 // TestAggregationEnumValues verifies all 9 aggregation types are present.
 func TestAggregationEnumValues(t *testing.T) {
+	t.Parallel()
+
 	expected := []types.AggregationType{
 		types.AGG_COUNT,
 		types.AGG_SUM,
@@ -180,6 +188,8 @@ func TestAggregationEnumValues(t *testing.T) {
 
 // TestGroupEnumValues verifies GROUP_CATEGORY and GROUP_ROUNDED are present.
 func TestGroupEnumValues(t *testing.T) {
+	t.Parallel()
+
 	expected := []types.GroupType{
 		types.GROUP_CATEGORY,
 		types.GROUP_ROUNDED,
@@ -209,6 +219,8 @@ func TestGroupEnumValues(t *testing.T) {
 
 // TestNoOrbitPrefix verifies no type in the types package references "Orbit".
 func TestNoOrbitPrefix(t *testing.T) {
+	t.Parallel()
+
 	// Check type names via their string representations.
 	typeNames := []string{
 		"Request", "Response", "Filterer", "Aggregation",
@@ -340,6 +352,8 @@ func orbitStringLiterals(t *testing.T) []string {
 
 // TestComposedRequestMarshalJSON verifies multi-request composition round-trips.
 func TestComposedRequestMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	composed := types.ComposedRequest{
 		Requests: []*types.Request{
 			{
@@ -380,6 +394,8 @@ func TestComposedRequestMarshalJSON(t *testing.T) {
 
 // TestFileRequestMarshalJSON verifies FileRequest JSON round-trip.
 func TestFileRequestMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	req := types.FileRequest{
 		Filename: "data.pulse",
 		DataDir:  "/var/data",
@@ -405,6 +421,8 @@ func TestFileRequestMarshalJSON(t *testing.T) {
 
 // TestFileResponseMarshalJSON verifies FileResponse JSON round-trip.
 func TestFileResponseMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	resp := types.FileResponse{
 		Filename:    "data.pulse",
 		RecordCount: 42000,
@@ -434,6 +452,8 @@ func TestFileResponseMarshalJSON(t *testing.T) {
 
 // TestVersionResponseMarshalJSON verifies VersionResponse JSON round-trip.
 func TestVersionResponseMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	resp := types.VersionResponse{
 		Version:   "0.1.0",
 		BuildDate: "2026-04-26",
@@ -461,6 +481,8 @@ func TestVersionResponseMarshalJSON(t *testing.T) {
 // TestAttributeEnumValues verifies the registered attribute types are present.
 // ATTR_RANK was removed; use WIN_RANK instead.
 func TestAttributeEnumValues(t *testing.T) {
+	t.Parallel()
+
 	expected := []types.AttributeType{
 		types.ATTR_ZSCORE,
 		types.ATTR_TSCORE,
@@ -494,6 +516,8 @@ func TestAttributeEnumValues(t *testing.T) {
 
 // TestCohortMarshalJSON verifies Cohort JSON round-trip.
 func TestCohortMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	c := types.Cohort{
 		Filename: "test.pulse",
 		DataDir:  "/data",
@@ -516,6 +540,8 @@ func TestCohortMarshalJSON(t *testing.T) {
 
 // TestOutputMarshalJSON verifies Output JSON round-trip.
 func TestOutputMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	o := types.Output{
 		Format:     "json",
 		Filename:   "result.json",
@@ -543,6 +569,8 @@ func TestOutputMarshalJSON(t *testing.T) {
 
 // TestRequestEmptyFields verifies that a Request with nil slices round-trips.
 func TestRequestEmptyFields(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "empty.pulse"},
 	}
@@ -564,6 +592,8 @@ func TestRequestEmptyFields(t *testing.T) {
 
 // TestFiltererWithValues verifies that Filterer values round-trip correctly.
 func TestFiltererWithValues(t *testing.T) {
+	t.Parallel()
+
 	f := types.Filterer{
 		Type:   types.FILTER_RANGE,
 		Field:  "age",
@@ -587,6 +617,8 @@ func TestFiltererWithValues(t *testing.T) {
 
 // TestFiltererWithExpression verifies that expression filterers round-trip.
 func TestFiltererWithExpression(t *testing.T) {
+	t.Parallel()
+
 	f := types.Filterer{
 		Type:       types.FILTER_EXPRESSION,
 		Expression: "age > 18 && age < 65",
@@ -611,6 +643,8 @@ func TestFiltererWithExpression(t *testing.T) {
 // (AllWindowTypes, the registry list) is a WIN_-prefixed constant and
 // round-trips via JSON.
 func TestWindowEnumValues(t *testing.T) {
+	t.Parallel()
+
 	expected := types.AllWindowTypes()
 	if len(expected) == 0 {
 		t.Fatal("AllWindowTypes is empty")
@@ -639,6 +673,8 @@ func TestWindowEnumValues(t *testing.T) {
 
 // TestAllWindowTypesAlphabetical verifies AllWindowTypes returns alphabetically sorted entries.
 func TestAllWindowTypesAlphabetical(t *testing.T) {
+	t.Parallel()
+
 	all := types.AllWindowTypes()
 	if len(all) != 14 {
 		t.Fatalf("AllWindowTypes returned %d entries, want 14", len(all))
@@ -652,6 +688,8 @@ func TestAllWindowTypesAlphabetical(t *testing.T) {
 
 // TestWindowMarshalJSON verifies a Window with all fields round-trips.
 func TestWindowMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	preceding := 3
 	following := 0
 	w := types.Window{
@@ -703,6 +741,8 @@ func TestWindowMarshalJSON(t *testing.T) {
 
 // TestRequestWithSortRoundTrip verifies Request.Sort round-trips via JSON.
 func TestRequestWithSortRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "ts.pulse"},
 		Sort: []types.OrderKey{
@@ -734,6 +774,8 @@ func TestRequestWithSortRoundTrip(t *testing.T) {
 
 // TestRequestWithWindowsRoundTrip verifies Request.Windows round-trips via JSON.
 func TestRequestWithWindowsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "ts.pulse"},
 		Windows: []*types.Window{
@@ -765,6 +807,8 @@ func TestRequestWithWindowsRoundTrip(t *testing.T) {
 
 // TestTestEnumValues verifies all 10 statistical test types round-trip via JSON.
 func TestTestEnumValues(t *testing.T) {
+	t.Parallel()
+
 	expected := []types.TestType{
 		types.TEST_T,
 		types.TEST_WELCH,
@@ -803,6 +847,8 @@ func TestTestEnumValues(t *testing.T) {
 // TestAllTestTypesAlphabetical verifies AllTestTypes returns alphabetically
 // sorted entries.
 func TestAllTestTypesAlphabetical(t *testing.T) {
+	t.Parallel()
+
 	all := types.AllTestTypes()
 	if len(all) != 26 {
 		t.Fatalf("AllTestTypes returned %d entries, want 26", len(all))
@@ -816,6 +862,8 @@ func TestAllTestTypesAlphabetical(t *testing.T) {
 
 // TestTestMarshalJSON verifies a Test with all fields round-trips.
 func TestTestMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	test := types.Test{
 		Type:    types.TEST_T,
 		Field:   "revenue",
@@ -862,6 +910,8 @@ func TestTestMarshalJSON(t *testing.T) {
 // TestTestField2RoundTrip verifies the Field2 slot used by paired and
 // bivariate tests survives JSON round-trip.
 func TestTestField2RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	test := types.Test{
 		Type:   types.TEST_PEARSON_R,
 		Field:  "revenue",
@@ -891,6 +941,8 @@ func TestTestField2RoundTrip(t *testing.T) {
 // TestTestChiSquareMarshalJSON verifies a chi-square Test with Rows/Cols
 // round-trips.
 func TestTestChiSquareMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	test := types.Test{
 		Type:  types.TEST_CHISQ,
 		Rows:  "region",
@@ -922,6 +974,8 @@ func TestTestChiSquareMarshalJSON(t *testing.T) {
 
 // TestTestResultMarshalJSON verifies a TestResult with Details round-trips.
 func TestTestResultMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	result := types.TestResult{
 		Label:      "rev_ttest",
 		Type:       types.TEST_T,
@@ -970,6 +1024,8 @@ func TestTestResultMarshalJSON(t *testing.T) {
 // TestRequestWithTestsRoundTrip verifies Request.Tests and Request.PostTests
 // both survive JSON round-trip.
 func TestRequestWithTestsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "sales.pulse"},
 		Aggregations: []*types.Aggregation{
@@ -1014,6 +1070,8 @@ func TestRequestWithTestsRoundTrip(t *testing.T) {
 // TestResponseWithTestsRoundTrip verifies Response.Tests and Response.PostTests
 // both survive JSON round-trip.
 func TestResponseWithTestsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	resp := types.Response{
 		Data: []map[string]any{{"region": "north", "avg_revenue": 142.30}},
 		Tests: []*types.TestResult{
@@ -1063,6 +1121,8 @@ func TestResponseWithTestsRoundTrip(t *testing.T) {
 
 // TestGroupWithRoundedInterval verifies that rounded groups carry interval.
 func TestGroupWithRoundedInterval(t *testing.T) {
+	t.Parallel()
+
 	g := types.Group{
 		Type:     types.GROUP_ROUNDED,
 		Field:    "age",
@@ -1085,6 +1145,8 @@ func TestGroupWithRoundedInterval(t *testing.T) {
 }
 
 func TestComposeOverlaySpec_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	src := types.ComposeOverlaySpec{
 		Name:      "audience_a_vs_pop",
 		Kind:      types.OverlayKind("OVERLAY_INDEX_VS_REF"),
@@ -1136,6 +1198,8 @@ func TestComposeOverlaySpec_RoundTrip(t *testing.T) {
 }
 
 func TestComposeOverlaySpec_OmitemptyShape(t *testing.T) {
+	t.Parallel()
+
 	minimal := types.ComposeOverlaySpec{
 		Kind:      types.OverlayKind("OVERLAY_INDEX_VS_REF"),
 		Reference: "total_pop",
@@ -1160,6 +1224,8 @@ func TestComposeOverlaySpec_OmitemptyShape(t *testing.T) {
 // Authoring shapes from before the Overlays slot existed therefore stay
 // wire-stable.
 func TestComposedResponse_OverlayFreeByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	base := types.ComposedResponse{
 		Responses: []*types.Response{
 			{Data: []map[string]any{{"x": 1.0}}},
@@ -1195,6 +1261,8 @@ func TestComposedResponse_OverlayFreeByteIdentical(t *testing.T) {
 // the ComposedResponse wrapper: per-slot Responses and Compose-level
 // OverlayLayer entries both deserialize back to slot-equal shapes.
 func TestComposedResponse_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	src := types.ComposedResponse{
 		Responses: []*types.Response{
 			{Data: []map[string]any{{"x": 1.0}}},
@@ -1237,6 +1305,8 @@ func TestComposedResponse_RoundTrip(t *testing.T) {
 }
 
 func TestResponse_ComponentsByteIdentityWhenNil(t *testing.T) {
+	t.Parallel()
+
 	implicit := types.Response{}
 	explicit := types.Response{Components: nil}
 
@@ -1264,6 +1334,8 @@ func TestResponse_ComponentsByteIdentityWhenNil(t *testing.T) {
 }
 
 func TestResponse_ComponentsRoundTripJSON(t *testing.T) {
+	t.Parallel()
+
 	src := types.Response{
 		Components: &types.ResponseComponents{
 			Aggregations: []types.AggregationComponents{
@@ -1402,6 +1474,8 @@ func TestResponse_ComponentsRoundTripJSON(t *testing.T) {
 // universal-floor keys does NOT leak empty `operator` maps onto the
 // wire.
 func TestResponse_ComponentsEmptyNestedFieldsOmitted(t *testing.T) {
+	t.Parallel()
+
 	resp := types.Response{
 		Components: &types.ResponseComponents{},
 	}
@@ -1436,6 +1510,8 @@ func TestResponse_ComponentsEmptyNestedFieldsOmitted(t *testing.T) {
 }
 
 func TestCrosstabComponents_EmptyMarshalsToNothing(t *testing.T) {
+	t.Parallel()
+
 	resp := types.Response{
 		Components: &types.ResponseComponents{
 			Crosstab: &types.CrosstabComponents{},
@@ -1453,6 +1529,8 @@ func TestCrosstabComponents_EmptyMarshalsToNothing(t *testing.T) {
 }
 
 func TestCrosstabComponents_RoundTripJSON(t *testing.T) {
+	t.Parallel()
+
 	src := types.Response{
 		Components: &types.ResponseComponents{
 			Crosstab: &types.CrosstabComponents{
@@ -1596,6 +1674,8 @@ func TestCrosstabComponents_RoundTripJSON(t *testing.T) {
 // MUST hash identically. Covers the [][]map[string]any walk noted in
 // the story's acceptance criteria.
 func TestCanonicalHash_CrosstabComponentsKeyOrderInvariant(t *testing.T) {
+	t.Parallel()
+
 	mk := func(cellAB string) types.Response {
 		var cellMap map[string]any
 		switch cellAB {

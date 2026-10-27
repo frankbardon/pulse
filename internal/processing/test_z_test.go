@@ -20,6 +20,8 @@ import (
 // Same statistic as TEST_WELCH; the p-value differs because TEST_WELCH
 // uses T_df (df ≈ 6.113 → p ≈ 0.230) while TEST_Z_TWO_SAMPLE uses Φ.
 func TestZTwoSample_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{
 		Type:    types.TEST_Z_TWO_SAMPLE,
@@ -71,6 +73,8 @@ func TestZTwoSample_KnownStatistic(t *testing.T) {
 // Welch t p-values agree to ~3 decimals. Same data fed to both, p-values
 // must differ by < 1e-3 with n=500 per group.
 func TestZTwoSample_LargeNConvergesToWelch(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	zSpec := &types.Test{Type: types.TEST_Z_TWO_SAMPLE, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	tSpec := &types.Test{Type: types.TEST_WELCH, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
@@ -106,6 +110,8 @@ func TestZTwoSample_LargeNConvergesToWelch(t *testing.T) {
 
 // TestZTwoSample_RequiresSplitBy rejects when split_by is absent.
 func TestZTwoSample_RequiresSplitBy(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_Z_TWO_SAMPLE, Field: "revenue", Alpha: 0.05}
 	_, err := newZTestRow(spec, schema)
@@ -116,6 +122,8 @@ func TestZTwoSample_RequiresSplitBy(t *testing.T) {
 
 // TestZTwoSample_RejectsKGreaterThan2 errors out on a three-level split.
 func TestZTwoSample_RejectsKGreaterThan2(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_Z_TWO_SAMPLE, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	rt, _ := newZTestRow(spec, schema)
@@ -136,6 +144,8 @@ func TestZTwoSample_RejectsKGreaterThan2(t *testing.T) {
 
 // TestZTwoSample_FieldTypeMustBeNumeric rejects categorical fields up front.
 func TestZTwoSample_FieldTypeMustBeNumeric(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},

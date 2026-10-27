@@ -62,6 +62,8 @@ func adminTwoSimpleShards(t *testing.T, fsys afero.Fs) (schema *encoding.Schema,
 // basename equals the reserved `_schema.pulse` entry. The error code is
 // PULSE_SHARD_RESERVED_NAME and surfaces at the precheck (no I/O).
 func TestShardArchiveReservedName(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -110,6 +112,8 @@ func TestShardArchiveReservedName(t *testing.T) {
 // basename matches an entry already in the archive) must raise
 // PULSE_SHARD_NAME_COLLISION.
 func TestShardArchiveNameCollision(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -158,6 +162,8 @@ func TestShardArchiveNameCollision(t *testing.T) {
 //   - raise PULSE_SHARD_MISSING for an absent anchor name,
 //   - reject anchors against non-archive (single-file) cohorts.
 func TestShardArchiveAnchorSyntax(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -260,6 +266,8 @@ func TestShardArchiveAnchorSyntax(t *testing.T) {
 // exercised end-to-end. Then re-runs the prior-state invariant against
 // a memfs with an injected Rename failure.
 func TestShardArchiveAddCrashRecovery(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success leaves no temp residue", func(t *testing.T) {
 		dir := t.TempDir()
 		cfg, err := fs.New(fs.WithFs(afero.NewOsFs()))
@@ -412,6 +420,8 @@ func (f *failingRenameFs) Rename(oldname, newname string) error {
 // archive's contents read back identically to the union of the source
 // shard payloads.
 func TestShardArchiveCreateRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -446,6 +456,8 @@ func TestShardArchiveCreateRoundTrip(t *testing.T) {
 // that parse as a standalone single-file .pulse with the original
 // shard's records intact.
 func TestShardArchiveExtractRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -485,6 +497,8 @@ func TestShardArchiveExtractRoundTrip(t *testing.T) {
 // the shard from subsequent List output and preserves the canonical
 // schema (orphan dictionary entries retained per design).
 func TestShardArchiveRemoveDropsShard(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)

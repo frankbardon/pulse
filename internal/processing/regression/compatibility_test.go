@@ -27,6 +27,8 @@ import (
 // fits run end-to-end on real data. This matrix is a contract test:
 // the *factory* must accept or reject the right combinations.
 func TestRegression_CompatibilityMatrix(t *testing.T) {
+	t.Parallel()
+
 	type cell struct {
 		name      string
 		spec      *types.RegressionSpec

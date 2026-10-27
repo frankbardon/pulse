@@ -43,6 +43,8 @@ func (w *validatingWriter) ValidateCohort(_ context.Context, src CohortSource) (
 // predict used to answer from the source schema alone no matter what the
 // target was.
 func TestExportJob_Predict_ConsultsTheTarget(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	w := &validatingWriter{}
@@ -77,6 +79,8 @@ func TestExportJob_Predict_ConsultsTheTarget(t *testing.T) {
 // or a validator would refuse a projection the export accepts — or worse,
 // accept one the export refuses.
 func TestExportJob_Predict_CarriesTheSourceAndTheRefusables(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	w := &validatingWriter{}
@@ -106,6 +110,8 @@ func TestExportJob_Predict_CarriesTheSourceAndTheRefusables(t *testing.T) {
 // channel. A warning stranded inside the adapter is a warning nobody acts
 // on.
 func TestExportJob_Predict_WarningsLandOnTheReport(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	want := errors.NewCodedError(errors.PULSE_SPSS_SIDECAR_ABSENT, "synthesised")
@@ -130,6 +136,8 @@ func TestExportJob_Predict_WarningsLandOnTheReport(t *testing.T) {
 // CLI depends on. `pulse errors lookup` is only usable if the code that
 // reaches the envelope is the export's own, so Predict must not wrap.
 func TestExportJob_Predict_RefusalIsReturnedVerbatim(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	want := errors.NewCodedError(errors.PULSE_SPSS_NAME_INVALID, "illegal name")
@@ -156,6 +164,8 @@ func TestExportJob_Predict_RefusalIsReturnedVerbatim(t *testing.T) {
 // is what `pulse export predict` built before E6-S1 — must produce the
 // same report the function produced before the interface existed.
 func TestExportJob_Predict_NonValidatingTargetUnchanged(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	for name, target := range map[string]Writer{

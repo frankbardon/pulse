@@ -84,6 +84,8 @@ func runBoth(t *testing.T, req *types.Request) (full, proj *types.Response) {
 }
 
 func TestProjection_BufferedMatchesFullDecode_Aggregation(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Aggregations: []*types.Aggregation{
@@ -98,6 +100,8 @@ func TestProjection_BufferedMatchesFullDecode_Aggregation(t *testing.T) {
 }
 
 func TestProjection_BufferedMatchesFullDecode_Grouped(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Groups: []*types.Group{
@@ -117,6 +121,8 @@ func TestProjection_BufferedMatchesFullDecode_Grouped(t *testing.T) {
 }
 
 func TestProjection_BufferedMatchesFullDecode_FilterExpression(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Filterers: []*types.Filterer{{
@@ -134,6 +140,8 @@ func TestProjection_BufferedMatchesFullDecode_FilterExpression(t *testing.T) {
 }
 
 func TestProjection_BufferedMatchesFullDecode_AttributeFormula(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		Attributes: []*types.Attribute{{
@@ -153,6 +161,8 @@ func TestProjection_BufferedMatchesFullDecode_AttributeFormula(t *testing.T) {
 }
 
 func TestProjection_ByteCursorAlignmentWhenSkipping(t *testing.T) {
+	t.Parallel()
+
 	// Request reads only y (16-bit field positioned AFTER a heterogeneous
 	// run of u32/f64/categorical/f64). Projection skips id/v/color/x but
 	// bytes for them still advance — y decodes correctly only when the
@@ -170,6 +180,8 @@ func TestProjection_ByteCursorAlignmentWhenSkipping(t *testing.T) {
 }
 
 func TestProjection_RespectsDisableFlag(t *testing.T) {
+	t.Parallel()
+
 	// With projection disabled, even narrow requests should decode every
 	// field — verified indirectly by stream iterator returning records
 	// whose values map contains every schema field.
@@ -192,6 +204,8 @@ func TestProjection_RespectsDisableFlag(t *testing.T) {
 }
 
 func TestProjection_ProjectsToNarrowSet(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
 	svc := New(cfg)
@@ -233,6 +247,8 @@ func TestProjection_ProjectsToNarrowSet(t *testing.T) {
 // test asserts the reuse+projection path decodes ONLY the retained field
 // and leaves the rest unpopulated, per record.
 func TestProjection_ReuseBranchHonorsPlan(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
 	svc := New(cfg)
@@ -287,6 +303,8 @@ func TestProjection_ReuseBranchHonorsPlan(t *testing.T) {
 // that goes through the reuse branch (EnableReuse is invoked on the
 // mergeable streaming Process path).
 func TestProjection_ReuseBranchMatchesFullDecode(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "wide.pulse"},
 		// AGG_SUM/AGG_COUNT are mergeable ⇒ the processor opts the
@@ -309,6 +327,8 @@ func TestProjection_ReuseBranchMatchesFullDecode(t *testing.T) {
 }
 
 func TestProjection_WideRequestSkipsProjection(t *testing.T) {
+	t.Parallel()
+
 	// A request touching every field shouldn't install projection (no
 	// point — full decode would do the same work without the filter
 	// indirection).
@@ -343,6 +363,8 @@ func TestProjection_WideRequestSkipsProjection(t *testing.T) {
 // value; left out, it would read as null on every row and every row
 // would count as an invalid weight.
 func TestProjection_WeightColumnDecodes(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
 	agg := func(w types.SlotWeight) []*types.Aggregation {

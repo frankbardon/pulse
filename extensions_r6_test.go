@@ -48,6 +48,8 @@ func (a *r6Aggregator) Finalize() (float64, error) { return a.sum, nil }
 // interface, so the engine's OnlineAggregator assertion failed on the
 // wrapper and the request silently fell back to the buffered path.
 func TestExtensions_StreamableWithComponentsTakesOnlinePath(t *testing.T) {
+	t.Parallel()
+
 	var updates, aggregates atomic.Int64
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{

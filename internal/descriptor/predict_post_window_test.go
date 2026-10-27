@@ -118,6 +118,8 @@ func checkPostWindowParity(t *testing.T, name string, req *types.Request, cat mo
 // every request of the shipped example corpus with a probe window
 // added, the plan predict reports is the internal classifier's.
 func TestPredictPostWindow_ParityWithClassifier(t *testing.T) {
+	t.Parallel()
+
 	var moved int
 	for name, req := range postWindowCorpus() {
 		checkPostWindowParity(t, name, req, postWindowCatalog())
@@ -190,6 +192,8 @@ func exampleRequestObjects(t *testing.T, v any) []json.RawMessage {
 // moved attribute; a request without a window carries no post_window
 // key.
 func TestPredictPostWindow_ProcessReportsPlanOnRefusal(t *testing.T) {
+	t.Parallel()
+
 	cohort := buildTestPulseFile(t, fieldRefSchema())
 	predict := func(req *types.Request) (*descriptor.PredictResult, *descriptor.Envelope) {
 		env := Predict(bytes.NewReader(cohort), req, &PredictOptions{})
@@ -233,6 +237,8 @@ func TestPredictPostWindow_ProcessReportsPlanOnRefusal(t *testing.T) {
 // whose fit reads a window label moves after the windows — and a slot
 // without a window reports none.
 func TestPredictPostWindow_ComposeSlotsReadFits(t *testing.T) {
+	t.Parallel()
+
 	cohort := buildTestPulseFile(t, fieldRefSchema())
 	opts := &PredictOptions{SchemaLoader: composeSchemaLoader(t, map[string][]byte{"c.pulse": cohort})}
 	at := &types.Cohort{Filename: "c.pulse"}
@@ -297,6 +303,8 @@ var composeEarlyCodes = map[string]string{
 // a hidden slot, an item for_each refusal (indexing the request as
 // written) and an unreadable cohort header.
 func TestPredictPostWindow_ProcessEarlyStops(t *testing.T) {
+	t.Parallel()
+
 	want := &descriptor.PostWindowPlan{WindowLabels: []string{"lag_n"}, Attributes: []descriptor.PostWindowAttribute{
 		{Index: 1, Label: "sat", DependsOn: "lag_n", WindowReads: []string{"lag_n"}},
 	}}
@@ -344,6 +352,8 @@ func TestPredictPostWindow_ProcessEarlyStops(t *testing.T) {
 // its plan, classified over the batch's fits (the ATTR_REG_PREDICT
 // moves through the fit's window term).
 func TestPredictPostWindow_ComposeEarlyStops(t *testing.T) {
+	t.Parallel()
+
 	cohort := buildTestPulseFile(t, fieldRefSchema())
 	opts := &PredictOptions{SchemaLoader: composeSchemaLoader(t, map[string][]byte{"c.pulse": cohort})}
 	at := &types.Cohort{Filename: "c.pulse"}

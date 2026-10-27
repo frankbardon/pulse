@@ -234,8 +234,12 @@ func ownMarginCases() []ownMarginCase {
 // a null-set, an empty-set and an Include-excluded respondent change no
 // margin and no normalised cell, on either arm.
 func TestCrosstab_OwnMarginsFollowCellAdmission(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range ownMarginCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			schema := fanoutCrosstabSchema(t)
 			base := tc.base(schema)
 			extras := tc.extras(schema)
@@ -280,6 +284,8 @@ func TestCrosstab_OwnMarginsFollowCellAdmission(t *testing.T) {
 // when both arms are wrong in the same direction; this one catches the
 // arms disagreeing.
 func TestCrosstab_OwnMarginAdmissionFusedMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range ownMarginCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			schema := fanoutCrosstabSchema(t)

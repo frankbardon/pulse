@@ -61,6 +61,8 @@ func readsCellComps(m func(i, j int) map[string]any) *types.CrosstabComponents {
 // declared not (the moment pairwise kinds) identically. A new MATRIX
 // kind fails here until it is classified.
 func TestOverlayReadsCellValue_MatchesHandlers(t *testing.T) {
+	t.Parallel()
+
 	a := [3][3]float64{{12, 30, 8}, {25, 9, 41}, {6, 18, 27}}
 	b := [3][3]float64{{40, 7, 22}, {11, 35, 14}, {28, 16, 5}}
 	plain := readsCellComps(func(i, j int) map[string]any { return map[string]any{"n": 100 + 7*i + 3*j} })

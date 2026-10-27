@@ -110,6 +110,8 @@ func archiveCases(t *testing.T) map[string]func(t *testing.T) (*Service, afero.F
 // whole archive equals reading each shard individually (extracted to a
 // standalone cohort), concatenated in archive order; Len is the sum.
 func TestCohortRecordReader_ArchiveEqualsShardsInOrder(t *testing.T) {
+	t.Parallel()
+
 	for name, build := range archiveCases(t) {
 		t.Run(name, func(t *testing.T) {
 			svc, fsys, shards := build(t)
@@ -148,6 +150,8 @@ func TestCohortRecordReader_ArchiveEqualsShardsInOrder(t *testing.T) {
 // prefix of the union dictionaries — but it is decode-compatible (same
 // structure, set rungs and group layout, every dictionary a prefix).
 func TestCohortRecordReader_AnchorDecodesWithCanonicalSchema(t *testing.T) {
+	t.Parallel()
+
 	prefixSeen := map[string]bool{}
 	for name, build := range archiveCases(t) {
 		t.Run(name, func(t *testing.T) {
@@ -216,6 +220,8 @@ func dictsOf(s *encoding.Schema) []any {
 // group dictionary that is not a prefix of canonical — is refused at
 // open with the code `shard verify` reports, never decoded wrongly.
 func TestCohortRecordReader_RefusesIncompatibleShard(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, _ := gShardA().build(t, nil)
 	b := gShardB()
 	b.regionDict = gRegions
@@ -251,6 +257,8 @@ func TestCohortRecordReader_RefusesIncompatibleShard(t *testing.T) {
 // TestCohortRecordReader_ArchiveConcurrent fans RecordAt across shard
 // boundaries from many goroutines; run under -race.
 func TestCohortRecordReader_ArchiveConcurrent(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := archiveCases(t)["grouped"](t)
 	r := openRecordReader(t, svc, "arch.pulse")
 	want := readAllRows(t, r)

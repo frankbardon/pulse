@@ -55,6 +55,8 @@ func refs(pairs ...string) []types.ModelRef {
 }
 
 func TestCheckModelRefs(t *testing.T) {
+	t.Parallel()
+
 	ok := "m" + FileSuffix
 	fits := CatalogFromFits([]types.FitSpec{{Name: "a", Request: olsReq(ols())}, {Name: "f", Request: olsReq(ols())}})
 	cases := []struct {
@@ -101,6 +103,8 @@ func TestCheckModelRefs(t *testing.T) {
 }
 
 func TestLoadModelFiles(t *testing.T) {
+	t.Parallel()
+
 	good := encodedFullFit(t)
 	files := map[string][]byte{
 		"good" + FileSuffix: good,
@@ -153,6 +157,8 @@ func TestLoadModelFiles(t *testing.T) {
 // under its entry's name, stamped models[j]; the outer set is never
 // mutated; predict's catalog gives every name the runtime's Signature.
 func TestSetWithModels(t *testing.T) {
+	t.Parallel()
+
 	data := encodedFullFit(t)
 	f, err := DecodeFile("m"+FileSuffix, data)
 	if err != nil {
@@ -208,6 +214,8 @@ func TestSetWithModels(t *testing.T) {
 // request's `models` see nothing outside it (details.fit), a slot's are
 // judged against the fits' names (details.request, both sources).
 func TestCheckComposeBatch_Models(t *testing.T) {
+	t.Parallel()
+
 	a := "a" + FileSuffix
 	fits := []types.FitSpec{{Name: "f", Request: olsReq(ols()), Save: a}}
 	withModels := func(r *types.Request, rs []types.ModelRef) *types.Request { r.Models = rs; return r }
@@ -223,6 +231,8 @@ func TestCheckComposeBatch_Models(t *testing.T) {
 }
 
 func TestCheckChainModels(t *testing.T) {
+	t.Parallel()
+
 	stage := func(r *types.Request) *types.ChainStage { return &types.ChainStage{Request: r} }
 	ok := saveReq()
 	ok.Models = refs("m", "m"+FileSuffix)

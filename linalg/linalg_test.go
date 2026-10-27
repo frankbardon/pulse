@@ -45,6 +45,8 @@ var (
 )
 
 func TestMatrixConstructors(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		rows, cols int
@@ -112,6 +114,8 @@ func TestMatrixConstructors(t *testing.T) {
 }
 
 func TestMatrixAtPanicsOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	m, _ := linalg.NewMatrix(2, 2, nil)
 	defer func() {
 		if recover() == nil {
@@ -122,6 +126,8 @@ func TestMatrixAtPanicsOutOfRange(t *testing.T) {
 }
 
 func TestSymConstructors(t *testing.T) {
+	t.Parallel()
+
 	s, err := linalg.NewSym(3, []float64{1, 2, 3, 4, 5, 6})
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +178,8 @@ func TestSymConstructors(t *testing.T) {
 }
 
 func TestSymAtPanicsOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	s, _ := linalg.NewSym(2, nil)
 	defer func() {
 		if recover() == nil {
@@ -182,6 +190,8 @@ func TestSymAtPanicsOutOfRange(t *testing.T) {
 }
 
 func TestVec(t *testing.T) {
+	t.Parallel()
+
 	src := []float64{1, 2, 3}
 	v := linalg.NewVec(src)
 	src[0] = 9
@@ -195,6 +205,8 @@ func TestVec(t *testing.T) {
 }
 
 func TestCholesky(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		in       *linalg.Sym
@@ -237,6 +249,8 @@ func TestCholesky(t *testing.T) {
 }
 
 func TestCholeskySingularDetailsPivot(t *testing.T) {
+	t.Parallel()
+
 	_, err := linalg.Cholesky(mustSym(t, rankDeficient))
 	var ce *perr.CodedError
 	if !stderrors.As(err, &ce) || ce.Details["pivot"] != 1 {
@@ -245,6 +259,8 @@ func TestCholeskySingularDetailsPivot(t *testing.T) {
 }
 
 func TestDefaultRidgeSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := linalg.DefaultRidgeSchedule()
 	want := []float64{1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10}
 	if len(s) != 8 {
@@ -262,6 +278,8 @@ func TestDefaultRidgeSchedule(t *testing.T) {
 }
 
 func TestCholeskyRidge(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		in        *linalg.Sym
@@ -312,6 +330,8 @@ func TestCholeskyRidge(t *testing.T) {
 }
 
 func TestSolveSPD(t *testing.T) {
+	t.Parallel()
+
 	// spd3 · [1, 2, 3] = [-20, -43, 192]
 	s := mustSym(t, spd3)
 	x, err := linalg.SolveSPD(s, linalg.NewVec([]float64{-20, -43, 192}))
@@ -351,6 +371,8 @@ func TestSolveSPD(t *testing.T) {
 }
 
 func TestInverseSPD(t *testing.T) {
+	t.Parallel()
+
 	s := mustSym(t, spd3)
 	inv, err := linalg.InverseSPD(s)
 	if err != nil {
@@ -396,6 +418,8 @@ func TestInverseSPD(t *testing.T) {
 }
 
 func TestRankTolerance(t *testing.T) {
+	t.Parallel()
+
 	if linalg.Epsilon != math.Nextafter(1, 2)-1 {
 		t.Fatalf("Epsilon = %v, want float64 machine epsilon", linalg.Epsilon)
 	}

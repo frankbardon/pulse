@@ -19,6 +19,8 @@ import (
 // co-moment matrix over it runs, and predict reports the option with
 // the unstandardized twin's streamability and mergeability.
 func TestProcess_StandardizeRefusesLikePredict(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	var rows [][]string
 	for i := 0; i < 30; i++ {

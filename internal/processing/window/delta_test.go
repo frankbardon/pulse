@@ -54,6 +54,8 @@ func checkDeltaCells(t *testing.T, rows []map[string]any, label string, want []w
 // from the requester plus the empty / single-row / null-bearing / order-sensitive
 // cases the contributor guide requires.
 func TestDelta_Compute(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		rows        []map[string]any
@@ -211,6 +213,8 @@ func TestDelta_Compute(t *testing.T) {
 // point at. WIN_PCT_CHANGE nulls a zero prior because the division is
 // undefined; subtraction has no such case.
 func TestDelta_ZeroPriorIsNotNulled(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 0.0},
 		{"ts": 2.0, "x": 12.5},
@@ -236,6 +240,8 @@ func TestDelta_ZeroPriorIsNotNulled(t *testing.T) {
 // TestDelta_IsNotAPctChange pins the arithmetic against the operator it mirrors:
 // the same inputs must produce the difference, never the ratio.
 func TestDelta_IsNotAPctChange(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 90.0},
 		{"ts": 2.0, "x": 97.9},
@@ -262,6 +268,8 @@ func TestDelta_IsNotAPctChange(t *testing.T) {
 // TestDelta_FrameRejected is acceptance case 6: WIN_DELTA has no frame, so a
 // Frame on the window is a configuration error.
 func TestDelta_FrameRejected(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 20.0},
@@ -283,6 +291,8 @@ func TestDelta_FrameRejected(t *testing.T) {
 // TestDelta_PeriodsValidation covers the params contract: default 1, malformed
 // JSON and periods < 1 are configuration errors.
 func TestDelta_PeriodsValidation(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		params  json.RawMessage
@@ -327,6 +337,8 @@ func TestDelta_PeriodsValidation(t *testing.T) {
 // TestDelta_EmptyRows covers the contributor guide's empty case: no rows means
 // no work and no error.
 func TestDelta_EmptyRows(t *testing.T) {
+	t.Parallel()
+
 	var rows []map[string]any
 	w := []*types.Window{
 		{
@@ -342,6 +354,8 @@ func TestDelta_EmptyRows(t *testing.T) {
 // TestDelta_Registered asserts the init() registration landed under the
 // constant, not a copy-pasted neighbour's.
 func TestDelta_Registered(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := Lookup(types.WIN_DELTA); !ok {
 		t.Fatal("WIN_DELTA is not registered in the window registry")
 	}
@@ -349,6 +363,8 @@ func TestDelta_Registered(t *testing.T) {
 
 // TestDelta_DefaultLabel pins the output column name when Label is empty.
 func TestDelta_DefaultLabel(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 10.0},
 		{"ts": 2.0, "x": 25.0},

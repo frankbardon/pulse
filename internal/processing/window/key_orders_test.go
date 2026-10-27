@@ -26,6 +26,8 @@ func byLen(a, b string) bool {
 // a tie through the same comparator that sorted the partition, so two
 // keys the key order ties share a rank.
 func TestApplyKeyed_RankTiesFollowKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typ  types.WindowType
 		want map[string]int64
@@ -50,6 +52,8 @@ func TestApplyKeyed_RankTiesFollowKeyOrder(t *testing.T) {
 // its KeyLess (reversed under Desc, nulls still last); a column they do
 // not name, and a nil orders, keep the byte-wise CompareKey order.
 func TestSortKeyed_KeyOrderAndFallbacks(t *testing.T) {
+	t.Parallel()
+
 	keys := func(rows []map[string]any, col string) []any {
 		out := make([]any, len(rows))
 		for i, r := range rows {

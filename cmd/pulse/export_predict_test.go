@@ -76,6 +76,8 @@ func listDir(t *testing.T, dir string) []string {
 // refusal must carry the export's own code — not the PREDICT_ERROR
 // placeholder — or `pulse errors lookup` cannot be used on it.
 func TestCliExportPredict_SPSSRefusesIllegalNames(t *testing.T) {
+	t.Parallel()
+
 	_, cohort := predictFixture(t, "household income,age", "10,1", "20,2")
 
 	out, err := runApp(t, "export", "predict", "--input", cohort, "--format", "spss", "--json")
@@ -107,6 +109,8 @@ func TestCliExportPredict_SPSSRefusesIllegalNames(t *testing.T) {
 // than reproduced — and the caveat must reach the envelope's `warnings`
 // array rather than being stranded in the adapter.
 func TestCliExportPredict_SPSSWarnsWhereTheExportWarns(t *testing.T) {
+	t.Parallel()
+
 	dir, cohort := predictFixture(t, "age,score", "10,1", "20,2")
 
 	out, err := runApp(t, "export", "predict", "--input", cohort, "--format", "spss", "--json")
@@ -139,6 +143,8 @@ func TestCliExportPredict_SPSSWarnsWhereTheExportWarns(t *testing.T) {
 // and the throwaway writer it builds to ask the question must not leave one
 // anywhere either.
 func TestCliExportPredict_CreatesNoOutputFile(t *testing.T) {
+	t.Parallel()
+
 	dir, cohort := predictFixture(t, "age,score", "10,1", "20,2")
 	before := listDir(t, dir)
 
@@ -157,6 +163,8 @@ func TestCliExportPredict_CreatesNoOutputFile(t *testing.T) {
 // no --format there is no target, so nothing is validated and nothing can
 // newly fail — including for a cohort a `.sav` export would refuse outright.
 func TestCliExportPredict_NoFormatIsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	_, cohort := predictFixture(t, "household income,age", "10,1", "20,2")
 
 	out, err := runApp(t, "export", "predict", "--input", cohort, "--json")

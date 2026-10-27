@@ -17,6 +17,8 @@ import (
 // refusal (PULSE_OVERLAY_COMPONENTS_REQUIRED) and the Compose veto
 // exist so this never fires on a correct engine.
 func TestComposeOverlayTwoSampleLegsPresent(t *testing.T) {
+	t.Parallel()
+
 	svc := New(crosstabJoinFixture(t))
 	slot := func(label string, agg types.AggregationType) *types.Request {
 		return &types.Request{Label: label,
@@ -65,6 +67,8 @@ func TestComposeOverlayTwoSampleLegsPresent(t *testing.T) {
 // without them would leave the cell a bare scalar with no variance or
 // n — PROCESSING_INTERNAL, never a default.
 func TestComposeOverlayTwoSampleLegsPresent_Crosstab(t *testing.T) {
+	t.Parallel()
+
 	svc := New(crosstabJoinFixture(t))
 	slot := func(label string) *types.Request {
 		return &types.Request{Label: label, Crosstab: &types.CrosstabSpec{

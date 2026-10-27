@@ -176,6 +176,8 @@ func exprDecodePaths(t *testing.T, s *encoding.Schema, raw []byte, fn func(path 
 }
 
 func TestExprValueType_MatchesAllValues(t *testing.T) {
+	t.Parallel()
+
 	s := exprAllTypesSchema(t)
 	raw := encodeExprRows(t, s, 6)
 	seen := map[string]map[string]bool{} // path → field → present on some row
@@ -217,6 +219,8 @@ func TestExprValueType_MatchesAllValues(t *testing.T) {
 }
 
 func TestRecord_ExprValueMatchesAllValues(t *testing.T) {
+	t.Parallel()
+
 	s := exprAllTypesSchema(t)
 	raw := encodeExprRows(t, s, 6)
 	probe := func(path string, r *Record, extra ...string) {
@@ -377,6 +381,8 @@ func exprParityExts() *ExtensionRegistry {
 }
 
 func TestExprProgram_MatchesPerRowCompile(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	exts := exprParityExts()
 	for _, src := range exprParityFilters {
@@ -448,6 +454,8 @@ func TestExprProgram_MatchesPerRowCompile(t *testing.T) {
 }
 
 func TestExprProgram_CompilesOncePerBuild(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	s := exprParitySchema()
 	exts := exprParityExts()
 	filter := []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "x > 8 && cat != 'c1'"}}
@@ -521,6 +529,8 @@ func TestExprProgram_CompilesOncePerBuild(t *testing.T) {
 }
 
 func TestExprFilter_NullSemantics(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	// Row 0: x=2.5 cat=c1 tags={t0}; row 1: every nullable field null.
 	recs := []*Record{
@@ -579,6 +589,8 @@ func TestExprFilter_NullSemantics(t *testing.T) {
 }
 
 func TestExprFormula_NullSemantics(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	full := NewRecordWithWide(s, map[string]float64{"id": 0, "x": 2.5, "y": 1, "cat": 1, "d": 18262}, nil, nil)
 	null := NewRecordWithWide(s, map[string]float64{"id": 1, "y": 1, "d": 18262}, map[string]bool{"x": true, "cat": true}, nil)
@@ -620,6 +632,8 @@ func TestExprFormula_NullSemantics(t *testing.T) {
 }
 
 func TestExprProgram_CompileErrorsAtBuild(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	// A compile failure is PULSE_FORMULA_COMPILE_ERROR (U45 #315; it was
 	// PROCESSING_RUNTIME with expr-lang's reason dropped): the message
@@ -690,6 +704,8 @@ func TestExprProgram_CompileErrorsAtBuild(t *testing.T) {
 }
 
 func TestExprProgram_ConcurrentRuns(t *testing.T) {
+	t.Parallel()
+
 	s := exprParitySchema()
 	recs := exprParityRecords(s, 400, true)
 	for _, r := range recs {
@@ -720,6 +736,8 @@ func TestExprProgram_ConcurrentRuns(t *testing.T) {
 // row). With an input whose boxing is free (a zero) and a constant
 // result, a warm ATTR_FORMULA row allocates nothing at all.
 func TestExprProgram_RunReusesVM(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	s := exprParitySchema()
 	rec := NewRecordWithWide(s, map[string]float64{"id": 0, "x": 0, "y": 1, "cat": 1, "d": 18262}, nil, nil)
 	comp, err := newFormulaAttribute(&types.Attribute{Type: types.ATTR_FORMULA, Expression: "x >= 20089 && x < 20120 ? 1 : 0", Label: "v"}, s)

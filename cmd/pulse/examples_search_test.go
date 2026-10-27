@@ -34,6 +34,8 @@ func decodeExamplesSearch(t *testing.T, text string) examplesSearchEnvelope {
 // arguments, a misspelt word reaches the fuzzy tier, the synonym tier
 // answers an alias, and an unknown intent is its own coded envelope.
 func TestCliExamplesSearch(t *testing.T) {
+	t.Parallel()
+
 	text, err := runApp(t, "examples", "search", "--intent", "compare_groups", "--json", "regon")
 	if err != nil {
 		t.Fatalf("intent + fuzzy: %v\n%s", err, text)

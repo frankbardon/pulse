@@ -85,6 +85,8 @@ func dayWindow(t *testing.T, day int) *types.Filterer {
 // for each window. Computed after the filter, every in-window record
 // would be its subject's first and the grid would be empty.
 func TestPreviousState_DateWindowKeepsFirstInWindowTransition(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	for _, tc := range []struct {
@@ -146,6 +148,8 @@ func TestPreviousState_DateWindowKeepsFirstInWindowTransition(t *testing.T) {
 // (n_in = every record, n_out = the survivors), Run keeps the pre-filter
 // total, and the attribute's floor counts every record it scored.
 func TestPreviousState_ExpressionFilterReadsOutput(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	mk := func() *types.Request {
@@ -197,6 +201,8 @@ func TestPreviousState_ExpressionFilterReadsOutput(t *testing.T) {
 // field-reference walk's unknown-field refusal, on predict and at
 // runtime alike.
 func TestPreviousState_FieldFilterOnOutputRefused(t *testing.T) {
+	t.Parallel()
+
 	p, fs := prevStateWavesLongAndWide(t, pulse.Options{})
 	mk := func() *types.Request {
 		return &types.Request{
@@ -217,6 +223,8 @@ func TestPreviousState_FieldFilterOnOutputRefused(t *testing.T) {
 // wave, exactly as it does without the previous-state slot — and the
 // attribute warnings / Components keep declared slot order.
 func TestPreviousState_OtherAttributesRunAfterFilters(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	pct := &types.Attribute{Type: types.ATTR_PERCENTILE, Field: "x", Label: "pct"}
@@ -286,6 +294,8 @@ func TestPreviousState_OtherAttributesRunAfterFilters(t *testing.T) {
 // same pipeline — its date-windowed previous-state crosstab equals the
 // stand-alone Process.
 func TestPreviousState_ComposeSlotUnderDateWindow(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	mk := func() *types.Request {
@@ -311,6 +321,8 @@ func TestPreviousState_ComposeSlotUnderDateWindow(t *testing.T) {
 // of a one-wave window equals the unfiltered request's — and the
 // runtime refuses exactly when predict reports a certain finding.
 func TestPreviousState_LimitsJudgeUnfilteredBuffer(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mk := func(filtered bool) *types.Request {
 		req := transitionCrosstab("waves.pulse", "prev", "plan", prevStateAttr())

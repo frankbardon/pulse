@@ -83,6 +83,8 @@ func newKeyedReader() *keyedReader {
 // the embedder's reader, and its late key refuses the import with
 // PULSE_IMPORT_SCHEMA_KEY_LATE.
 func TestLateKeyRefuser_ExternalReaderArmed(t *testing.T) {
+	t.Parallel()
+
 	src := newKeyedReader()
 	_, _, err := importCohort(t, src, catSchema("a"), false)
 	ce := hasCode(t, err, perrors.PULSE_IMPORT_SCHEMA_KEY_LATE)
@@ -97,6 +99,8 @@ func TestLateKeyRefuser_ExternalReaderArmed(t *testing.T) {
 // TestLateKeyRefuser_ExternalReaderIgnoreExtra: IgnoreExtra disarms it
 // explicitly and the late key is dropped.
 func TestLateKeyRefuser_ExternalReaderIgnoreExtra(t *testing.T) {
+	t.Parallel()
+
 	src := newKeyedReader()
 	_, rows, err := importCohort(t, src, catSchema("a"), true)
 	if err != nil {
@@ -113,6 +117,8 @@ func TestLateKeyRefuser_ExternalReaderIgnoreExtra(t *testing.T) {
 // TestLateKeyRefuser_ExternalReaderInferenceUntouched: the inference
 // path never arms it.
 func TestLateKeyRefuser_ExternalReaderInferenceUntouched(t *testing.T) {
+	t.Parallel()
+
 	src := newKeyedReader()
 	job := pio.NewImportJob(src, "i.pulse")
 	job.FS = afero.NewMemMapFs()

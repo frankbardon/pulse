@@ -281,6 +281,8 @@ func scorerSameBits(a, b float64) bool { return math.Float64bits(a) == math.Floa
 // a later Process scores the same JSON; a fit without intervals refuses
 // `bound` with PULSE_MODEL_INTERVALS_UNAVAILABLE.
 func TestRowScorer_BuiltinScoresByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	single, sharded := scorerParityModes(t)
 	ctx := context.Background()
 	for name, spec := range scorerParityFits() {
@@ -372,6 +374,8 @@ func TestRowScorer_BuiltinScoresByteIdentical(t *testing.T) {
 // parallel decode and from the saved-and-reloaded model, and every
 // score it reads is legacyScore's.
 func TestRowScorer_FitErrorFixtureByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	fsys := merrFS(t)
 	ctx := context.Background()
 	fit := &Request{

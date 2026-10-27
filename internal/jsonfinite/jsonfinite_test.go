@@ -37,6 +37,8 @@ type sample struct {
 // A null in every kind of float slot becomes NaN; pointer and any
 // slots keep their nil; a self-decoding type is left alone.
 func TestUnmarshal_NullFloatIsNaN(t *testing.T) {
+	t.Parallel()
+
 	raw := `{"e":null,"f":null,"f32":null,"p":null,"s":[1,null],"a":[null,2],"m":{"k":null,"j":3},
 		"in":{"x":null},"ins":[{"x":null},null],"map_ins":{"q":{"x":null}},"any":null,"untag":null,"w":null}`
 	var s sample
@@ -64,6 +66,8 @@ func TestUnmarshal_NullFloatIsNaN(t *testing.T) {
 
 // Input with no null decodes exactly as encoding/json decodes it.
 func TestUnmarshal_NoNullIsJSONUnmarshal(t *testing.T) {
+	t.Parallel()
+
 	raw := []byte(`{"f":1.5,"s":[1,2],"m":{"k":4},"in":{"x":2},"ins":[{"x":1}],"any":{"z":1}}`)
 	var a, b sample
 	if err := Unmarshal(raw, &a); err != nil {
@@ -84,6 +88,8 @@ func TestUnmarshal_NoNullIsJSONUnmarshal(t *testing.T) {
 // statistic, p-value and regression figure written as null by the wire
 // rule read back as NaN — never as a real 0.
 func TestUnmarshal_ResultRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	resp := &types.Response{
 		Tests: []*types.TestResult{{Type: types.TEST_T, Statistic: math.NaN(), PValue: math.NaN(), Alpha: 0.05}},
 		Regressions: []*types.RegressionResult{{Type: types.REG_OLS, R2: math.NaN(),

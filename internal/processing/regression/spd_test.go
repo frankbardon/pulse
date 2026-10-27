@@ -44,6 +44,8 @@ func gramRowMajor(rng *rand.Rand, p int) []float64 {
 func bitsEqual(a, b float64) bool { return math.Float64bits(a) == math.Float64bits(b) }
 
 func TestSPDBridge_MatchesDirectGonum(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewPCG(19, 23))
 	for _, p := range []int{1, 2, 3, 4, 6, 9} {
 		for trial := 0; trial < 5; trial++ {
@@ -130,6 +132,8 @@ func TestSPDBridge_MatchesDirectGonum(t *testing.T) {
 // but factorable Gram reports the "gonum_error" text gonum's own
 // Condition error carried, byte for byte.
 func TestSPDBridge_SingularBehaviourUnchanged(t *testing.T) {
+	t.Parallel()
+
 	for name, g := range map[string][]float64{
 		"rank_deficient": {1, 2, 2, 4},
 		"indefinite":     {1, 3, 3, 1},

@@ -61,6 +61,8 @@ func initializeServerVersion(t *testing.T, opts mcpserve.Options) string {
 // TestServe_EmptyVersionAdvertisesBuildVersion: with Options.Version unset the
 // server identifies itself with pulse.Version(), not a hardcoded literal.
 func TestServe_EmptyVersionAdvertisesBuildVersion(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 	if got := initializeServerVersion(t, mcpserve.Options{}); got != "v0.0.0-test" {
 		t.Fatalf("serverInfo.version = %q, want pulse.Version() = %q", got, pulse.Version())
@@ -69,6 +71,8 @@ func TestServe_EmptyVersionAdvertisesBuildVersion(t *testing.T) {
 
 // TestServe_ExplicitVersionWins: a caller-supplied identity is advertised as-is.
 func TestServe_ExplicitVersionWins(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 	if got := initializeServerVersion(t, mcpserve.Options{Version: "9.9.9"}); got != "9.9.9" {
 		t.Fatalf("serverInfo.version = %q, want 9.9.9", got)

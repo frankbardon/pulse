@@ -30,6 +30,8 @@ type callSite struct {
 // of it (an *ast.CallExpr whose callee is that identifier or selector),
 // so a struct FIELD of the same name is never a caller.
 func (r *repo) callIndex() map[string][]callSite {
+	r.callsMu.Lock()
+	defer r.callsMu.Unlock()
 	if r.calls != nil {
 		return r.calls
 	}
@@ -517,6 +519,8 @@ func (r *repo) resolveEnum(p string, g *goFile, e ast.Expr, ep *enumParam) {
 
 // constValue returns the string value of constant name declared in dir.
 func (r *repo) constValue(dir, name string) (string, bool) {
+	r.constsMu.Lock()
+	defer r.constsMu.Unlock()
 	if r.consts == nil {
 		r.consts = map[string]map[string]string{}
 	}

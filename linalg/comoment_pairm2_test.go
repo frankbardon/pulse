@@ -15,6 +15,8 @@ import (
 // and unit-weight rows, every ddof and both index orders; PairM2 is
 // symmetric. A denominator ≤ 0 leaves Cov NaN while PairM2 stays finite.
 func TestCoMomentPairM2MatchesCov(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(31, 7))
 	weighted := randomRows(r, 300, 4)
 	unit := make([]wrow, len(weighted))
@@ -68,6 +70,8 @@ func TestCoMomentPairM2MatchesCov(t *testing.T) {
 // Pairwise, a NaN in y drops that row from the (x, y) and (y, y) pairs
 // but not from (x, x).
 func TestCoMomentPairM2HandComputed(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range bothModes {
 		c := mustCoMoment(t, 2, mode)
 		c.Add([]float64{1, 2}, 1)
@@ -99,6 +103,8 @@ func TestCoMomentPairM2HandComputed(t *testing.T) {
 }
 
 func TestCoMomentPairM2PanicsOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range bothModes {
 		c := mustCoMoment(t, 2, mode)
 		for _, ij := range [][2]int{{0, 2}, {-1, 0}, {2, 2}} {

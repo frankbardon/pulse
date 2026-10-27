@@ -12,6 +12,8 @@ import (
 // above 1 (an embedder-built triple); it never scores a NaN p-value as
 // a present cell, nor reads the undefined variance as a 0.
 func TestPairwiseWelfordKernels_UndefinedVarianceSkips(t *testing.T) {
+	t.Parallel()
+
 	for name, k := range map[string]pwKernel{
 		"welch_t":     pairwiseWelchTKernel,
 		"two_means_z": pairwiseTwoMeansZKernel,
@@ -36,6 +38,8 @@ func TestPairwiseWelfordKernels_UndefinedVarianceSkips(t *testing.T) {
 // pooled proportion happened to land inside (0, 1): a silent wrong
 // answer rather than a coded skip.
 func TestPairwiseProportionKernels_OutOfUnitProportionSkips(t *testing.T) {
+	t.Parallel()
+
 	for name, k := range map[string]pwKernel{
 		"prop_z":   pairwisePropZKernel,
 		"probit_t": pairwiseProbitTKernel,

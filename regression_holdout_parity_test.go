@@ -220,6 +220,8 @@ func holdoutParityHeldN() int {
 // bootstrap (explicit and derived seed), jackknife and a weight — each
 // fit on the train rows only, each scored by its point-estimate model.
 func TestHoldout_ParityCompositions(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	trainN := func(t *testing.T, r *types.RegressionResult) {
 		t.Helper()
@@ -303,6 +305,8 @@ func TestHoldout_ParityCompositions(t *testing.T) {
 // 0 contribute to neither the fit nor the figures — holdout n is
 // AGG_RMSE's n_scored, which skips them too — on both gates.
 func TestHoldout_ParityZeroWeightRows(t *testing.T) {
+	t.Parallel()
+
 	rows := windowParityRows()
 	zeroed := 0
 	for i := range rows {
@@ -330,6 +334,8 @@ func TestHoldout_ParityZeroWeightRows(t *testing.T) {
 // (n_null), exactly as a FILTER_EXPRESSION on the materialized column
 // drops them from both the !pred fit and the pred scoring.
 func TestHoldout_ParityNullPredicate(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	spec := &types.RegressionSpec{Name: "null-pred", Type: types.REG_OLS, Target: "sales", Predictors: []string{"tv_ad", "trend"}}
 	holdoutParityRoutes(t, p, holdoutParityCase{name: "null-pred", spec: spec, pred: "radio_lag > 1.6",
@@ -372,6 +378,8 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 // is refused alike by predict and the runtime
 // (internal/regmmm TestMMMBayes_SharedSlotsRefusedLikePredict).
 func TestHoldout_EveryScorableBuiltin(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	for _, typ := range types.AllRegressionTypes() {
 		if _, scorable := regression.BuiltinScorer(typ); !scorable {
@@ -399,6 +407,8 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 // the coefficients are the train rows' point estimate, and the holdout
 // figures are those of the plain fit's — the replicates never score.
 func TestHoldout_ResampleScoresPointEstimate(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	ctx := context.Background()
 	run := func(mut func(*types.RegressionSpec)) *types.RegressionResult {
@@ -448,6 +458,8 @@ func holdoutExtensionInstance(t *testing.T, scorer extend.RegressionScorerFactor
 // Scorer takes a holdout with no declaration — fit on the train rows,
 // scored by its own scorer — and passes gates A and B.
 func TestHoldout_ParityExtensionWithScorer(t *testing.T) {
+	t.Parallel()
+
 	p := holdoutExtensionInstance(t, centredScorerFactory)
 	spec := &types.RegressionSpec{Name: "centred", Type: regScoredName, Target: "sales", Predictors: []string{"tv_ad"}}
 	got := holdoutParityRoutes(t, p, holdoutParityCase{name: "centred", spec: spec})
@@ -461,6 +473,8 @@ func TestHoldout_ParityExtensionWithScorer(t *testing.T) {
 // supplies a Scorer, and predict accepts a holdout on that model with no
 // declaration while refusing it (no_scorer) on one without.
 func TestHoldout_ExtensionManifestParam(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, tc := range []struct {
 		name   string

@@ -60,6 +60,8 @@ func renderFault(t *testing.T, p *Pulse, name, key string) (string, string) {
 // empty value still counts: a set KEY is what strict decode refuses.
 // The unprofiled engine renders the hidden-slot body (non-vacuity).
 func TestRenderTemplate_HiddenSlotRefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	const agg = `"aggregations": [{"type": "AGG_COUNT", "field": "age"}]`
 	const req = `{"cohort": {"filename": "c.pulse"}, ` + agg + `, "SLOT": VALUE}`
 	cases := []struct {
@@ -114,6 +116,8 @@ func TestRenderTemplate_HiddenSlotRefusedAsUnknownField(t *testing.T) {
 // at the point in the document an unknown key would be — a genuine
 // unknown key earlier in the body wins, one later loses.
 func TestRenderTemplate_HiddenSlotDocumentOrder(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeTmpl(t, dir, "typo-first.json", `{"target": "request", "body": {"aaa_typo": 1, "crosstab": {}}}`)
 	writeTmpl(t, dir, "typo-last.json", `{"target": "request", "body": {"crosstab": {}, "zzz_typo": 1}}`)
@@ -133,6 +137,8 @@ func TestRenderTemplate_HiddenSlotDocumentOrder(t *testing.T) {
 // operator — both succeed, identical after name substitution — and
 // RenderTemplateRequest agrees.
 func TestRenderTemplate_HiddenOperatorRendersLikeNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	const hiddenOp, neverOp = "AGG_AVERAGE", "AGG_ZZ_NEVER_REGISTERED"
 	dir := t.TempDir()
 	doc := func(op string) string {
@@ -174,6 +180,8 @@ func TestRenderTemplate_HiddenOperatorRendersLikeNeverRegistered(t *testing.T) {
 // TestRenderTemplateRequest_HiddenSlotRefused: the request shorthand
 // surfaces the same refusal.
 func TestRenderTemplateRequest_HiddenSlotRefused(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeTmpl(t, dir, "x.json", `{"target": "request", "body": {"cohort": {"filename": "c.pulse"}, "joins": []}}`)
 	_, err := profiledTemplatePulse(t, "minimal", dir).RenderTemplateRequest("x", nil)

@@ -15,6 +15,8 @@ import (
 // instance serves the full-registry schema byte for byte, and its
 // $comment names the instance's FeatureSetDigest.
 func TestPayloadSchema_DefaultIsBuildPayloadSchema(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: parityFS(t)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -59,6 +61,8 @@ func collectRefs(v any, out map[string]bool) {
 // omits the root of every hidden capability, keeps Request / Response /
 // Envelope, and carries the instance digest.
 func TestPayloadSchema_FixturesNameNoHiddenFeature(t *testing.T) {
+	t.Parallel()
+
 	roots := map[string][]string{
 		"capability:compose":       {"ComposedRequest", "ComposedResponse"},
 		"capability:process_chain": {"ChainRequest", "ChainResponse"},

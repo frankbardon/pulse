@@ -315,6 +315,8 @@ const referenceDictionarySize = 441
 //	0x01B5  4   filler             0
 //	0x01B9      end of the dictionary section. 441 bytes.
 func TestEmittedDictionary_HandVerified(t *testing.T) {
+	t.Parallel()
+
 	plan := emit(t, DictionaryRequest{Schema: referenceSchema(t), Cases: 0, Compression: compressionNone})
 	got := plan.Bytes
 
@@ -508,6 +510,8 @@ func indexOfRecord(b []byte, want int32) int {
 // name, creation stamp, charset — so that a difference is a difference in
 // how the two read the FORMAT, never in what they were asked to write.
 func TestEmittedDictionary_ByteIdenticalToTheFixtureGenerator(t *testing.T) {
+	t.Parallel()
+
 	plan := emit(t, DictionaryRequest{Schema: referenceSchema(t), Cases: 0, Compression: compressionNone})
 
 	zero := int64(0)
@@ -570,6 +574,8 @@ func TestEmittedDictionary_ByteIdenticalToTheFixtureGenerator(t *testing.T) {
 // pair — rather than through our own reader, because the point is what the
 // file says and not what we make of it.
 func TestEmittedDictionary_EmitsOriginalCodesNotDictionaryPositions(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "Q1", LongName: "Satisfaction"}},
 		Cases: [][]spsstest.Value{
@@ -655,6 +661,8 @@ func valueLabelPairs(t *testing.T, b []byte) []labelPair {
 // would put a string in the file the source never had; dropping the code
 // from the plan would lose the value. Both must hold at once.
 func TestEmittedDictionary_UnlabelledCodesGetNoInventedLabel(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "Q1"}},
 		Cases: [][]spsstest.Value{
@@ -697,6 +705,8 @@ func TestEmittedDictionary_UnlabelledCodesGetNoInventedLabel(t *testing.T) {
 // case: a label the source declared and no case used. It still occupies its
 // ID, so the round trip owes it back.
 func TestEmittedDictionary_DeclaredButUnobservedLabelSurvives(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, richSpec())
 	plan := emit(t, DictionaryRequest{Schema: schema, Sidecar: res, Cases: 3, Compression: compressionNone})
 
@@ -726,6 +736,8 @@ func slicesContains(hay []string, needle string) bool {
 // criterion: measure levels, formats, labels, documents, attributes,
 // response sets and the weight variable all come back.
 func TestEmittedDictionary_ReparsesWithEverythingIntact(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, richSpec())
 	plan := emit(t, DictionaryRequest{Schema: schema, Sidecar: res, Cases: 3, Compression: compressionNone})
 	d := reparse(t, plan)
@@ -849,6 +861,8 @@ func TestEmittedDictionary_ReparsesWithEverythingIntact(t *testing.T) {
 // TestEmittedDictionary_MissingSpecificationsRoundTrip checks both homes a
 // missing-value specification can have.
 func TestEmittedDictionary_MissingSpecificationsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{
@@ -909,6 +923,8 @@ func TestEmittedDictionary_MissingSpecificationsRoundTrip(t *testing.T) {
 // record 7/14 half: a string past 255 bytes goes back out as the physical
 // variables the source declared.
 func TestEmittedDictionary_VeryLongStringsKeepTheirSegmentation(t *testing.T) {
+	t.Parallel()
+
 	long := strings.Repeat("a", 300)
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -955,6 +971,8 @@ func TestEmittedDictionary_VeryLongStringsKeepTheirSegmentation(t *testing.T) {
 // licence and emphatically not a writer's. A writer that spelled the short
 // name here would produce files most of the ecosystem rejects.
 func TestLongStringRecords_NameTheFinalName(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "CODE", LongName: "LongCodeName", Width: 20}},
 		Cases: [][]spsstest.Value{
@@ -1010,6 +1028,8 @@ func TestLongStringRecords_NameTheFinalName(t *testing.T) {
 // than as 1.4e10. Downgrading them to a plain F would leave a column whose
 // values are perfect and whose meaning is gone.
 func TestEmittedDictionary_MoyrKeepsItsFormatAndItsRawSeconds(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		code uint8
@@ -1017,6 +1037,8 @@ func TestEmittedDictionary_MoyrKeepsItsFormatAndItsRawSeconds(t *testing.T) {
 		{"MOYR", 28}, {"QYR", 29}, {"WKYR", 30},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := spsstest.Spec{
 				Vars: []spsstest.Var{{
 					Name: "PERIOD", LongName: "FiscalPeriod",
@@ -1055,6 +1077,8 @@ func TestEmittedDictionary_MoyrKeepsItsFormatAndItsRawSeconds(t *testing.T) {
 // the E5-S1 handoff: an absent sidecar is benign, and its warning must reach
 // the caller rather than being swallowed by the writer that acted on it.
 func TestBuildDictionary_AbsentSidecarSynthesisesAndCarriesItsWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "out.pulse", []byte("not a real cohort"), 0644); err != nil {
 		t.Fatalf("writing cohort: %v", err)
@@ -1081,6 +1105,8 @@ func TestBuildDictionary_AbsentSidecarSynthesisesAndCarriesItsWarning(t *testing
 // [SidecarResolution.Synthesise] states: no resolution is not a licence to
 // invent one.
 func TestBuildDictionary_NilResolutionSynthesises(t *testing.T) {
+	t.Parallel()
+
 	plan := emit(t, DictionaryRequest{Schema: referenceSchema(t), Cases: 0, Compression: compressionNone})
 	if !plan.Synthesised {
 		t.Error("a nil resolution did not select the synthesised path")
@@ -1101,6 +1127,8 @@ func TestBuildDictionary_NilResolutionSynthesises(t *testing.T) {
 // cross-checks them against the registry, and a field that is unbound and
 // NOT derived is a column about to vanish.
 func TestBuildDictionary_DerivedColumnsAreNotEmittedAndAreReported(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, richSpec())
 	plan := emit(t, DictionaryRequest{Schema: schema, Sidecar: res, Cases: 3, Compression: compressionNone})
 
@@ -1128,6 +1156,8 @@ func TestBuildDictionary_DerivedColumnsAreNotEmittedAndAreReported(t *testing.T)
 // writer that does not know its case count up front may emit the dictionary
 // with -1 and patch both counts once the last case is written.
 func TestBuildDictionary_CaseCountIsPatchable(t *testing.T) {
+	t.Parallel()
+
 	unknown := emit(t, DictionaryRequest{Schema: referenceSchema(t), Cases: -1, Compression: compressionNone})
 	if unknown.CaseCount64Offset != -1 {
 		t.Errorf("an unknown case count emitted a record 7/16 at 0x%04X; there is nothing yet to state",
@@ -1152,6 +1182,8 @@ func TestBuildDictionary_CaseCountIsPatchable(t *testing.T) {
 
 // TestBuildDictionary_RefusesWhatItCannotWrite checks the guard rails.
 func TestBuildDictionary_RefusesWhatItCannotWrite(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		req  DictionaryRequest
@@ -1195,6 +1227,8 @@ func TestBuildDictionary_RefusesWhatItCannotWrite(t *testing.T) {
 // application: a dictionary half from a stranger's file is the failure mode
 // the whole staleness rule exists to prevent.
 func TestBuildDictionary_SidecarThatDoesNotDescribeTheCohortIsRefused(t *testing.T) {
+	t.Parallel()
+
 	_, res := exportFixture(t, richSpec())
 	other := &encoding.Schema{Fields: []encoding.Field{{Name: "unrelated", Type: encoding.FieldTypeF64}}}
 
@@ -1213,6 +1247,8 @@ func TestBuildDictionary_SidecarThatDoesNotDescribeTheCohortIsRefused(t *testing
 // little-endian files. The record 7/3 endianness field must agree, or the
 // file states two orders and fails the reader's cross-check.
 func TestBuildDictionary_ByteOrderIsAlwaysLittleEndian(t *testing.T) {
+	t.Parallel()
+
 	spec := richSpec()
 	spec.ByteOrder = spsstest.BigEndian
 	schema, res := exportFixture(t, spec)
@@ -1241,6 +1277,8 @@ func TestBuildDictionary_ByteOrderIsAlwaysLittleEndian(t *testing.T) {
 // TestBuildDictionary_ProvenanceFieldsDescribeTheseBytes checks the second
 // and third deliberate departures from verbatim.
 func TestBuildDictionary_ProvenanceFieldsDescribeTheseBytes(t *testing.T) {
+	t.Parallel()
+
 	spec := richSpec()
 	spec.ProductName = "@(#) SPSS DATA FILE IBM SPSS Statistics 29"
 	schema, res := exportFixture(t, spec)

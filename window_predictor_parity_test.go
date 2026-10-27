@@ -315,6 +315,8 @@ const windowParityNObs = 2*(windowParityWeeks-2) - 2
 // materialize → Process fits over the materialized columns — plain
 // OLS, bounds.nonnegative, a seeded bootstrap and a weighted fit.
 func TestWindowPredictor_ParityWithMaterializeRoute(t *testing.T) {
+	t.Parallel()
+
 	p := windowParityPulse(t, Options{})
 	nObs := func(t *testing.T, single []*types.RegressionResult) {
 		t.Helper()
@@ -386,6 +388,8 @@ func (c countedLag) Compute(rows []map[string]any, partitions [][]int, label str
 // all replicates — a replicate resamples the windowed records, it
 // never re-runs the window over a resampled series.
 func TestWindowPredictor_ParityBootstrapRunsWindowsOnce(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	p := windowParityPulse(t, Options{Extensions: Extensions{Windows: []WindowRegistration{{
 		Name:        "WIN_ACME_COUNTED_LAG",
@@ -431,6 +435,8 @@ func TestWindowPredictor_ParityBootstrapRunsWindowsOnce(t *testing.T) {
 // drops its record listwise too, on both routes alike; so does a NaN
 // schema cell regressed on directly.
 func TestWindowPredictor_ParityNullAndNaNCells(t *testing.T) {
+	t.Parallel()
+
 	rows := windowParityRows()
 	rows[10][2] = math.NaN() // east, week 11: tv is NaN
 	p := windowParityPulseRows(t, Options{}, rows)

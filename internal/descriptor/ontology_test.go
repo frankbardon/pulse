@@ -39,6 +39,8 @@ func featureNodeID(t *testing.T, name string) string {
 }
 
 func TestOntologyID_Spelling(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		OntologyID(descriptor.OntologyNodeOperator, "AGG_COUNT"):             "operator:AGG_COUNT",
 		OntologyID(descriptor.OntologyNodeSkill, "op-agg-count"):             "skill:op-agg-count",
@@ -57,6 +59,8 @@ func TestOntologyID_Spelling(t *testing.T) {
 // nodes are sorted unique by ID, edges sorted unique by (From, Kind, To),
 // and every edge joins two existing nodes.
 func TestOntology_BaseDeterministicAndSorted(t *testing.T) {
+	t.Parallel()
+
 	a := buildOntology(builtinOntologySources()).Ontology()
 	b := buildOntology(builtinOntologySources()).Ontology()
 	if !reflect.DeepEqual(a, b) {
@@ -98,6 +102,8 @@ func TestOntology_BaseDeterministicAndSorted(t *testing.T) {
 // metadata resolves to a node — in particular every skill `requires:`
 // entry names a built-in feature.
 func TestOntology_BaseHasNoProblems(t *testing.T) {
+	t.Parallel()
+
 	if p := BaseOntology().Problems(); len(p) > 0 {
 		t.Errorf("base ontology has %d unresolved references:\n%s", len(p), strings.Join(p, "\n"))
 	}
@@ -107,6 +113,8 @@ func TestOntology_BaseHasNoProblems(t *testing.T) {
 // requires_capability edge to the feature's node; an unknown feature is
 // a problem (the gate above fails on it) and emits no edge.
 func TestOntology_SkillRequires(t *testing.T) {
+	t.Parallel()
+
 	src := ontologySources{
 		features: Features(),
 		skills: []skills.Metadata{
@@ -132,6 +140,8 @@ func TestOntology_SkillRequires(t *testing.T) {
 // TestOntology_SkillOperatorFrontmatter: every atomic operator skill
 // documents its operator, SYNTH and REG spec modifiers included.
 func TestOntology_SkillOperatorFrontmatter(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	n := 0
 	for _, md := range skills.List() {
@@ -159,6 +169,8 @@ func TestOntology_SkillOperatorFrontmatter(t *testing.T) {
 // TestOntology_ToolEdges: each tool skill documents its pulse_<snake>
 // tool; a feature-bound tool requires its feature, a core one nothing.
 func TestOntology_ToolEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for _, b := range MCPToolBindings() {
 		tool := OntologyID(descriptor.OntologyNodeMCPTool, b.Tool)
@@ -184,6 +196,8 @@ func TestOntology_ToolEdges(t *testing.T) {
 // TestOntology_PurposeEdges: every Purpose intent, NotFor alternative,
 // follow-up and glossary term becomes an edge.
 func TestOntology_PurposeEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for name, p := range builtinPurposes {
 		for _, in := range p.Intents {
@@ -213,6 +227,8 @@ func TestOntology_PurposeEdges(t *testing.T) {
 // edges (not not_for), and a FollowUps entry on an injected Purpose is
 // the only thing that adds one.
 func TestOntology_FollowUpEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for _, want := range []descriptor.OntologyEdge{
 		ontoEdge(opID("TEST_ANOVA_F"), opID("TEST_TUKEY_HSD"), descriptor.OntologyEdgeFollowUp),
@@ -243,6 +259,8 @@ func TestOntology_FollowUpEdges(t *testing.T) {
 // TestOntology_OperatorsServing: the intent → operator reverse index
 // equals a scan of the Purpose registry, for every intent.
 func TestOntology_OperatorsServing(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for _, in := range IntentIDs() {
 		var want []string
@@ -264,6 +282,8 @@ func TestOntology_OperatorsServing(t *testing.T) {
 // TestOntology_GlossaryEdges: SeeAlso → routes_to; every term and intent
 // is documented by its virtual skill.
 func TestOntology_GlossaryEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for _, term := range Glossary() {
 		id := OntologyID(descriptor.OntologyNodeGlossaryTerm, term.ID)
@@ -292,6 +312,8 @@ func TestOntology_GlossaryEdges(t *testing.T) {
 // (request hosts, overlay hosts, hard edges) is a requires_capability
 // edge, and every synth distribution requires capability:synth.
 func TestOntology_DependencyEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for _, f := range Features() {
 		for _, group := range f.DependsOn {
@@ -322,6 +344,8 @@ func TestOntology_DependencyEdges(t *testing.T) {
 // TestOntology_CapabilityNodes: every non-operator feature is a
 // capability node whose ID and Name are its feature spelling.
 func TestOntology_CapabilityNodes(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	for _, f := range Features() {
 		want := descriptor.OntologyNode{ID: f.Name, Kind: descriptor.OntologyNodeCapability, Name: f.Name}
@@ -337,6 +361,8 @@ func TestOntology_CapabilityNodes(t *testing.T) {
 // TestOntology_ExampleEdges: _meta.operators → exemplified_by,
 // _meta.intents → serves_intent.
 func TestOntology_ExampleEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	intents := examples.Intents()
 	for _, s := range examples.Search("", nil, "") {
@@ -358,6 +384,8 @@ func TestOntology_ExampleEdges(t *testing.T) {
 // skills and `tags=[…]` links every example carrying all the tags; prose
 // spans emit nothing.
 func TestOntology_SeeEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	if e := ontoEdge(skillID("op-test-welch"), skillID("op-test-t"), descriptor.OntologyEdgeRoutesTo); !hasEdge(g, e) {
 		t.Errorf("missing %+v", e)
@@ -409,6 +437,8 @@ func TestOntology_SeeEdges(t *testing.T) {
 
 // TestOntology_CopyIsIndependent: Ontology() hands out a copy.
 func TestOntology_CopyIsIndependent(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	o := g.Ontology()
 	first, firstEdge := o.Nodes[0], o.Edges[0]
@@ -423,6 +453,8 @@ func TestOntology_CopyIsIndependent(t *testing.T) {
 }
 
 func TestSeeParsing(t *testing.T) {
+	t.Parallel()
+
 	body := "# T\n## Params\n`x`\n## See\n- `a` and `b`\n- `pulse_examples_search tags=[p, q]`\n## Gotchas\n`c`\n"
 	if got := backtickSpans(seeSection(body)); !slices.Equal(got, []string{"a", "b", "pulse_examples_search tags=[p, q]"}) {
 		t.Errorf("spans = %q", got)

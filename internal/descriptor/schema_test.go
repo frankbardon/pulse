@@ -17,6 +17,8 @@ import (
 // version tracks the live envelope format_version. Drift here means the
 // published contract advertises a version the engine does not emit.
 func TestPayloadSchema_VersionMatchesEnvelope(t *testing.T) {
+	t.Parallel()
+
 	if got := descriptor.NewEnvelope(nil).FormatVersion; got != PayloadSchemaFormatVersion {
 		t.Fatalf("PayloadSchemaFormatVersion %q != envelope format_version %q",
 			PayloadSchemaFormatVersion, got)
@@ -27,6 +29,8 @@ func TestPayloadSchema_VersionMatchesEnvelope(t *testing.T) {
 // enum def carries exactly the registry's current value set — the
 // anti-drift hinge for operator/kind/regression additions.
 func TestPayloadSchema_EnumsMatchRegistry(t *testing.T) {
+	t.Parallel()
+
 	var doc struct {
 		Defs map[string]struct {
 			Enum []string `json:"enum"`
@@ -63,6 +67,8 @@ func TestPayloadSchema_EnumsMatchRegistry(t *testing.T) {
 // strict JSON Schema engine, proving it is a well-formed draft-2020-12
 // schema (no dangling $ref, no invalid keyword shapes).
 func TestPayloadSchema_MetaValidates(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -80,6 +86,8 @@ func TestPayloadSchema_MetaValidates(t *testing.T) {
 // payloads through the compiled schema: a request must validate against
 // #/$defs/Request and a wrapped response against #/$defs/Envelope.
 func TestPayloadSchema_ValidatesRepresentativePayloads(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -140,6 +148,8 @@ func TestPayloadSchema_ValidatesRepresentativePayloads(t *testing.T) {
 // float slots are "number or null". Request floats stay "number": a
 // null where a request carries a number is still refused.
 func TestPayloadSchema_UndefinedFiguresValidate(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -230,6 +240,8 @@ func compileSchema(t *testing.T, raw []byte) {
 // pulse.New) and the nil instance both serve BuildPayloadSchema byte for
 // byte, and the $comment carries the digest the manifest carries.
 func TestPayloadSchemaForInstance_FullScopedEqualsBuildPayloadSchema(t *testing.T) {
+	t.Parallel()
+
 	want := string(BuildPayloadSchema())
 	full := NewInstanceSnapshot(nil, FeatureSet{Enabled: ReachedFeatureNames(buildinfo.Version())})
 	if got := string(BuildPayloadSchemaForInstance(full)); got != want {
@@ -250,6 +262,8 @@ func TestPayloadSchemaForInstance_FullScopedEqualsBuildPayloadSchema(t *testing.
 // roots, keeps Request / Response / Envelope, stays a valid draft
 // 2020-12 document and carries the instance digest.
 func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
+	t.Parallel()
+
 	inst := NewInstanceSnapshot(nil, FeatureSet{Enabled: []string{
 		featProcess, "AGG_COUNT", "AGG_SUM", "GROUP_CATEGORY", "TEST_T",
 	}})
@@ -327,6 +341,8 @@ func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
 // capability brings its root (and, for a host listing an enabled
 // overlay kind, the overlays slot) back.
 func TestPayloadSchemaForInstance_EnabledCapabilityKeepsRoot(t *testing.T) {
+	t.Parallel()
+
 	inst := NewInstanceSnapshot(nil, FeatureSet{Enabled: []string{
 		featProcess, featCompose, featSample, featCrosstab, featRecommend, "AGG_COUNT", "OVERLAY_SHARE_OF_ROW",
 	}})
@@ -356,6 +372,8 @@ func TestPayloadSchemaForInstance_EnabledCapabilityKeepsRoot(t *testing.T) {
 // field validates without a `field` key — the server runs it — while
 // `type` stays required.
 func TestPayloadSchema_ColumnInputOptionalField(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -397,6 +415,8 @@ func TestPayloadSchema_ColumnInputOptionalField(t *testing.T) {
 // shape validates; a part carrying parts of its own is refused (parts
 // never nest), as is a part whose declared shape lacks its arm.
 func TestPayloadSchema_OverlayParts(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -444,6 +464,8 @@ func TestPayloadSchema_OverlayParts(t *testing.T) {
 // schema, while a result missing those keys WITHOUT an error is still
 // refused (the figures stay required on a slot that did not fail).
 func TestPayloadSchema_FailedSlotsValidate(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -488,6 +510,8 @@ func TestPayloadSchema_FailedSlotsValidate(t *testing.T) {
 // while a vector fit summary with neither its figures nor an error is
 // refused.
 func TestPayloadSchema_FailedFitsValidate(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {
@@ -524,6 +548,8 @@ func TestPayloadSchema_FailedFitsValidate(t *testing.T) {
 // (rectangular, with record fields and a null cell) validates, beside a
 // full one; a records payload missing its rows does not.
 func TestPayloadSchema_MatrixRecordsValidate(t *testing.T) {
+	t.Parallel()
+
 	c := jsonschema.NewCompiler()
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
 	if err != nil {

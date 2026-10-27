@@ -59,6 +59,8 @@ func mergeGrouperRecords(schema *encoding.Schema, n int) []*Record {
 // through MergeGrouperState yield the same Components(). That equality
 // is what lets the parallel reducers emit Components.Groupers at all.
 func TestMergeableGrouper_MergedComponentsEqualSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := mergeGrouperSchema(t)
 	recs := mergeGrouperRecords(schema, 211)
 	ranges, _ := json.Marshal(map[string]any{"ranges": []map[string]any{
@@ -145,6 +147,8 @@ func TestMergeableGrouper_MergedComponentsEqualSerial(t *testing.T) {
 // A merge across two different grouper kinds is a caller invariant
 // violation, never a silent partial fold.
 func TestMergeableGrouper_RefusesAForeignInstance(t *testing.T) {
+	t.Parallel()
+
 	schema := mergeGrouperSchema(t)
 	cat, _ := grouperRegistry[types.GROUP_CATEGORY](&types.Group{Type: types.GROUP_CATEGORY, Field: "region"}, schema)
 	rng, _ := grouperRegistry[types.GROUP_RANGE](&types.Group{Type: types.GROUP_RANGE, Field: "score", Interval: 5}, schema)

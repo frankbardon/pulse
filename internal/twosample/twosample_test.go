@@ -7,6 +7,8 @@ import (
 )
 
 func TestInputs(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		params  map[string]any

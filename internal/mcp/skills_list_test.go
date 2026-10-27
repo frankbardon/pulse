@@ -15,6 +15,8 @@ import (
 // an intent serves p.SkillsForIntent's ranked list; an unknown one is
 // the coded recommend error, not a stringified one.
 func TestSkillsList_IntentArg(t *testing.T) {
+	t.Parallel()
+
 	p := defaultPulse(t)
 	ctx := context.Background()
 	all, err := HandleSkillsList(ctx, p, SkillsListIn{})

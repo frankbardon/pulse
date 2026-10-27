@@ -182,6 +182,8 @@ func outcomeCode(outcome []byte) string {
 // hidden feature either. An unprofiled control proves each clause is
 // reached and still names the recommended operators by default.
 func TestProfileRuntimeRefusalSweep(t *testing.T) {
+	t.Parallel()
+
 	fsys := runtimeSweepFS(t)
 	open, err := New(Options{FS: fsys})
 	if err != nil {

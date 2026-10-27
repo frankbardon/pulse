@@ -78,6 +78,8 @@ func panicCodeOutsideSuite(root string) ([]string, error) {
 // Falsified by adding a probe *_test.go naming the code outside the
 // suite (reported), and by the table below.
 func TestPanicRecoverySuiteIsolated(t *testing.T) {
+	t.Parallel()
+
 	bad, err := panicCodeOutsideSuite(".")
 	if err != nil {
 		t.Fatal(err)
@@ -90,6 +92,8 @@ func TestPanicRecoverySuiteIsolated(t *testing.T) {
 // TestPanicRecoverySuiteIsolated_Detects pins the allowlist convention
 // and that the walker reports an offending file.
 func TestPanicRecoverySuiteIsolated_Detects(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		rel  string
 		want bool

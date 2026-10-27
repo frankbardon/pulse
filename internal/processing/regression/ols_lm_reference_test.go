@@ -87,6 +87,8 @@ func refRelClose(got, want, tol float64) bool {
 // output; its p-values (~1e-49 … 1e-70) are compared relatively, which
 // the snapshot's 1.0-floored tolerance never did.
 func TestReferenceOracle_RegOLSMatchesLM(t *testing.T) {
+	t.Parallel()
+
 	const tol = 1e-10
 	var sawWeighted, sawPlain bool
 	for _, c := range loadOLSLMReference(t) {

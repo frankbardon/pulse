@@ -11,6 +11,8 @@ const (
 )
 
 func TestRewrite_SelectorsMethodsAndImports(t *testing.T) {
+	t.Parallel()
+
 	src := `package p
 
 import (
@@ -48,6 +50,8 @@ func f(s *enc.Schema) {
 }
 
 func TestRewrite_DropsUnusedFromImport(t *testing.T) {
+	t.Parallel()
+
 	src := `package p
 
 import "example.com/m/enc"
@@ -65,6 +69,8 @@ var r = enc.NewReader(nil, nil)
 }
 
 func TestRewrite_ShadowedLocalUntouched(t *testing.T) {
+	t.Parallel()
+
 	src := `package p
 
 import "example.com/m/enc"
@@ -85,6 +91,8 @@ func f() {
 }
 
 func TestRewrite_SamePackageMethodToFunc(t *testing.T) {
+	t.Parallel()
+
 	src := `package enc
 
 func (s *Schema) BuildPlan(r []string) (int, error) { return 0, nil }
@@ -101,6 +109,8 @@ func g(s *Schema) { _, _ = s.BuildPlan(nil) }
 }
 
 func TestQualify_FreeRefsOnly(t *testing.T) {
+	t.Parallel()
+
 	src := `package enc
 
 import "io"
@@ -125,6 +135,8 @@ func NewReader(r io.Reader, s *Schema) *Reader {
 }
 
 func TestMove_CutsDeclsWithDocsIntoNewFile(t *testing.T) {
+	t.Parallel()
+
 	src := `package enc
 
 import "io"

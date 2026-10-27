@@ -41,6 +41,8 @@ func makeDateRangesFilter(t *testing.T, params json.RawMessage, field string, sc
 // TestFilter_DateRanges_KeepDrop exercises keep/drop correctness including
 // inclusive edges and unbounded (open) ranges via a table.
 func TestFilter_DateRanges_KeepDrop(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	// Two bounded phases plus one open-upper phase.
 	params := dateRangesFilterParamsJSON(t, []map[string]any{
@@ -80,6 +82,8 @@ func TestFilter_DateRanges_KeepDrop(t *testing.T) {
 // TestFilter_DateRanges_OpenLowerBound verifies an omitted start matches
 // everything up to (and including) the end boundary.
 func TestFilter_DateRanges_OpenLowerBound(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	params := dateRangesFilterParamsJSON(t, []map[string]any{
 		{"label": "early", "end": "2024-01-01"},
@@ -101,6 +105,8 @@ func TestFilter_DateRanges_OpenLowerBound(t *testing.T) {
 
 // TestFilter_DateRanges_NullDropped confirms a null/missing date is dropped.
 func TestFilter_DateRanges_NullDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	params := dateRangesFilterParamsJSON(t, []map[string]any{
 		{"label": "launch", "start": "2024-01-01", "end": "2024-03-31"},
@@ -119,6 +125,8 @@ func TestFilter_DateRanges_NullDropped(t *testing.T) {
 
 // TestFilter_DateRanges_Validation covers the config/validation error paths.
 func TestFilter_DateRanges_Validation(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := filtererRegistry[types.FILTER_DATE_RANGES]
 
@@ -183,6 +191,8 @@ func TestFilter_DateRanges_Validation(t *testing.T) {
 // TestFilter_DateRanges_Streamable asserts the type is classified row-local
 // streamable so facet/process/sample stay single-pass.
 func TestFilter_DateRanges_Streamable(t *testing.T) {
+	t.Parallel()
+
 	if !types.FILTER_DATE_RANGES.Streamable() {
 		t.Errorf("FILTER_DATE_RANGES must be row-local streamable")
 	}

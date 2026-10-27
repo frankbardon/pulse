@@ -56,6 +56,8 @@ func windowLabels(ws []*types.Window) []string {
 // splicing the decay into params type-preserving, plain items untouched
 // and kept in place.
 func TestExpandItems_GridInPlace(t *testing.T) {
+	t.Parallel()
+
 	r := decodeRequest(t, `{
 		"cohort": {"filename": "x.pulse"},
 		"windows": [
@@ -96,6 +98,8 @@ func TestExpandItems_GridInPlace(t *testing.T) {
 // The zip label-axis idiom: an integer label axis walked in lockstep
 // with the decay axis, so `tv_ad10` carries decay 0.1.
 func TestExpandItems_ZipLabelAxis(t *testing.T) {
+	t.Parallel()
+
 	r := decodeRequest(t, `{"windows": [{
 		"for_each": {"axes": [{"name": "d", "values": [10, 30, 50, 70]}, {"name": "decay", "values": [0.1, 0.3, 0.5, 0.7]}], "mode": "zip"},
 		"type": "WIN_EWMA", "field": "tv_spend_k", "label": "tv_ad{{d}}", "order_by": [{"field": "week"}],
@@ -115,6 +119,8 @@ func TestExpandItems_ZipLabelAxis(t *testing.T) {
 // Features and attributes fan out the same way; a for_each-free request
 // comes back as the same pointer with no fan-outs.
 func TestExpandItems_FeaturesAttributesAndPlain(t *testing.T) {
+	t.Parallel()
+
 	r := decodeRequest(t, `{
 		"features": [{"for_each": {"axes": [{"name": "f", "values": ["a", "b"]}]}, "type": "FEAT_LOG", "field": "{{f}}", "label": "log_{{f}}"}],
 		"attributes": [{"for_each": {"axes": [{"name": "f", "values": ["a", "b", "c"]}]}, "type": "ATTR_ZSCORE", "field": "{{f}}", "label": "z_{{f}}"}]
@@ -144,6 +150,8 @@ func TestExpandItems_FeaturesAttributesAndPlain(t *testing.T) {
 // The preflight sees the expanded count (plain + expanded) before
 // anything renders, and its error comes back unchanged.
 func TestExpandItems_PreflightBeforeRender(t *testing.T) {
+	t.Parallel()
+
 	r := decodeRequest(t, `{"windows": [
 		{"type": "WIN_LAG", "field": "x", "order_by": [{"field": "t"}]},
 		{"for_each": {"axes": [{"name": "n", "values": [1, 2, 3]}, {"name": "m", "values": [1, 2]}]},
@@ -160,6 +168,8 @@ func TestExpandItems_PreflightBeforeRender(t *testing.T) {
 // (the shared strict decoder), its details.path rooted at the item and
 // the combination named; a mistyped value stays item_decode.
 func TestRenderItem_StrictDecode(t *testing.T) {
+	t.Parallel()
+
 	p := pendingItem{
 		path: "windows[3]",
 		spec: &types.ForEach{Axes: []types.SweepAxis{{Name: "x", Values: []any{"a"}}}},
@@ -187,6 +197,8 @@ func TestRenderItem_StrictDecode(t *testing.T) {
 }
 
 func TestExpandItems_Faults(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, body, reason, field string
 	}{
@@ -224,6 +236,8 @@ func TestExpandItems_Faults(t *testing.T) {
 // A Go caller can put a mistyped value where strict decode refuses it:
 // the decode fault names the unknown or mistyped key.
 func TestExpandItems_StrictDecode(t *testing.T) {
+	t.Parallel()
+
 	r := &types.Request{Windows: []*types.Window{{
 		Type: types.WIN_EWMA, Field: "x", Label: "e{{d}}",
 		Params:  json.RawMessage(`{"decay": {"$var": "d"}}`),
@@ -239,6 +253,8 @@ func TestExpandItems_StrictDecode(t *testing.T) {
 // A compose sweep body carrying an item for_each is refused before the
 // sweep's own placeholder scan.
 func TestExpand_NestedForEachInSweep(t *testing.T) {
+	t.Parallel()
+
 	c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "request": {
 		"label_unused": "{{a}}",
 		"windows": [{"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "WIN_LAG", "field": "x", "label": "{{d}}", "order_by": []}]}}}`)

@@ -51,6 +51,8 @@ func advisoryCodesOf(as []descriptor.Advisory) []string {
 // multiplicity block named, or with capability:multiplicity hidden it
 // stays silent.
 func TestFacetPredict_AdvisoryManyTests(t *testing.T) {
+	t.Parallel()
+
 	th := descriptor.MultiplicityTriggerThreshold
 	req := func(n int) *types.FacetRequest {
 		return &types.FacetRequest{Cohort: &types.Cohort{Filename: "x.pulse"}, Fields: []string{"category"}, Overlays: facetChiSqSpecs(n)}
@@ -93,6 +95,8 @@ func TestFacetPredict_AdvisoryManyTests(t *testing.T) {
 // TestFacetPredict_AdvisoryFreeOutputOmitsTheKeys: a facet request with
 // no inferential overlay carries neither key.
 func TestFacetPredict_AdvisoryFreeOutputOmitsTheKeys(t *testing.T) {
+	t.Parallel()
+
 	env, _ := facetResult(t, &types.FacetRequest{Cohort: &types.Cohort{Filename: "x.pulse"}, Fields: []string{"category"}}, nil)
 	b, err := json.Marshal(env)
 	if err != nil {
@@ -140,6 +144,8 @@ func composeResult(t *testing.T, req *types.ComposedRequest, opts *PredictOption
 // in the many-tests message) — the sidecar rules read each slot's own
 // cohort sidecar.
 func TestComposePredict_SlotAdvisoriesAttributed(t *testing.T) {
+	t.Parallel()
+
 	th := descriptor.MultiplicityTriggerThreshold
 	req := &types.ComposedRequest{Requests: []*types.Request{
 		{Cohort: &types.Cohort{Filename: "a.pulse"}, Tests: oneSampleTests(th)},
@@ -206,6 +212,8 @@ func TestComposePredict_SlotAdvisoriesAttributed(t *testing.T) {
 // at the threshold, with no slot attribution; a Compose-level block or
 // a hidden capability:multiplicity silences it.
 func TestComposePredict_HostOverlayManyTests(t *testing.T) {
+	t.Parallel()
+
 	th := descriptor.MultiplicityTriggerThreshold
 	req := func() *types.ComposedRequest {
 		r := &types.ComposedRequest{Requests: []*types.Request{
@@ -257,6 +265,8 @@ func TestComposePredict_HostOverlayManyTests(t *testing.T) {
 // (limit_findings is U35 E7-S1's, not an advisory) and a stage that
 // fires on Request predict raises nothing there.
 func TestChainValidationResult_CarriesNoAdvisories(t *testing.T) {
+	t.Parallel()
+
 	var keys []string
 	rt := reflect.TypeFor[ChainValidationResult]()
 	for i := 0; i < rt.NumField(); i++ {

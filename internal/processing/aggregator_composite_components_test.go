@@ -11,6 +11,8 @@ import (
 )
 
 func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := cohortSchema()
 
 	type expectation struct {
@@ -261,6 +263,8 @@ func componentsEqual(got, want map[string]any) bool {
 // The cohort uses fields with no two-pass attribute / grouper /
 // feature so canStream() returns true.
 func TestMetaAggregator_CompositeOps_StreamingEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := cohortSchema()
 
 	// Mixed inputs: weights 1, 1, 2 + nums 4, 6, 0 + dens 2, 3, 5.
@@ -350,6 +354,8 @@ func TestMetaAggregator_CompositeOps_StreamingEmits(t *testing.T) {
 // converge on identical post-result state — any divergence is a
 // regression in the freeze contract.
 func TestMetaAggregator_CompositeOps_BufferedStreamingParity(t *testing.T) {
+	t.Parallel()
+
 	schema := cohortSchema()
 	records := []*Record{
 		cohortRec(1.5, 0.5, 7, 3, nil),

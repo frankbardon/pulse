@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -26,6 +25,8 @@ const cliHelperEnv = "GO_WANT_PULSE_CLI_HELPER"
 // arguments after "--" and exits with its status, when re-executed by
 // runCLIProcess / cliProcess.
 func TestCLIHelperProcess(t *testing.T) {
+	t.Parallel()
+
 	if os.Getenv(cliHelperEnv) != "1" {
 		return
 	}
@@ -64,6 +65,8 @@ func runCLIProcess(t *testing.T, args ...string) (stdout, stderr string) {
 // persistent flags, so every actionable leaf parses them after its own
 // name (urfave/cli v3 flags persist unless Local) and lists them in help.
 func TestLogFlags_AcceptedOnEveryLeaf(t *testing.T) {
+	t.Parallel()
+
 	leaves := cliLeaves()
 	if len(leaves) < 20 {
 		t.Fatalf("cliLeaves() = %d leaves; the walk is broken", len(leaves))
@@ -92,45 +95,10 @@ func TestLogFlags_AcceptedOnEveryLeaf(t *testing.T) {
 // TestLogFlags_BadValueIsRefused: an unknown level fails before any leaf
 // runs.
 func TestLogFlags_BadValueIsRefused(t *testing.T) {
+	t.Parallel()
+
 	if _, err := runApp(t, "version", "--log-level", "loud"); err == nil || !strings.Contains(err.Error(), "--log-level loud") {
 		t.Fatalf("--log-level loud: err = %v", err)
-	}
-}
-
-// TestLogFlags_StderrOnly: `pulse <leaf> --log-level debug` writes its
-// records to stderr and leaves stdout byte-identical to the flagless run,
-// `--json` envelopes included.
-func TestLogFlags_StderrOnly(t *testing.T) {
-	dir := t.TempDir()
-	pulsePath := createTestPulseFile(t, dir)
-	reqPath := filepath.Join(dir, "request.json")
-	req := `{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`
-	if err := os.WriteFile(reqPath, []byte(req), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	leaves := [][]string{
-		{"api", "process", "--request", reqPath, "--json"},
-		{"api", "process", "--request", reqPath},
-		{"api", "predict", "--request", reqPath, "--json"},
-		{"cohort", "inspect", pulsePath, "--json"},
-	}
-	for _, args := range leaves {
-		t.Run(strings.Join(args[:2], " "), func(t *testing.T) {
-			plain, plainErr := runCLIProcess(t, args...)
-			if plainErr != "" {
-				t.Errorf("flagless run wrote stderr: %q", plainErr)
-			}
-			for _, format := range []string{"text", "json"} {
-				logged, stderr := runCLIProcess(t, append(args, "--log-level", "debug", "--log-format", format)...)
-				if logged != plain {
-					t.Errorf("--log-format %s: stdout changed\n got  %q\n want %q", format, logged, plain)
-				}
-				if !strings.Contains(stderr, "op=new") && !strings.Contains(stderr, `"op":"new"`) {
-					t.Errorf("--log-format %s: no log records on stderr: %q", format, stderr)
-				}
-			}
-		})
 	}
 }
 
@@ -141,6 +109,8 @@ var metricsAddrRe = regexp.MustCompile(`metrics: ([0-9.:]+)\)`)
 // stderr, names the effective return / log level / bound exporter on the
 // startup line, and serves /metrics while it runs.
 func TestMCP_ObservabilityFlags(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	createTestPulseFile(t, dataDir)
 
@@ -277,6 +247,8 @@ func TestMCP_ObservabilityFlags(t *testing.T) {
 // TestMCP_NoMetricsAddrOpensNoPort: without --metrics-addr the startup
 // line names no exporter and no log level.
 func TestMCP_NoMetricsAddrOpensNoPort(t *testing.T) {
+	t.Parallel()
+
 	_, stderr := runCLIProcess(t, "mcp", "--data-dir", t.TempDir())
 	if !strings.Contains(stderr, ", return: standard)") {
 		t.Errorf("startup line = %q, want it to end at return: standard", stderr)

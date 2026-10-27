@@ -31,6 +31,8 @@ func holdoutSpec(t types.RegressionType) *types.RegressionSpec {
 // PULSE_MODEL_SCORE_INVALID reason no_scorer, at predict and at run
 // with the same message; the built-in REG_OLS beside it fits.
 func TestHoldout_ExtensionWithoutScorerRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, cohort := openE2E(t, regressionExtensions(&regCalls{}))
 	req := regressionRequest(cohort, holdoutSpec(regBufferedName))
@@ -61,6 +63,8 @@ func TestHoldout_ExtensionWithoutScorerRefused(t *testing.T) {
 // block a spec asked for (as `full` does); excluding
 // regressions[*].holdout drops it and nothing else of the fit.
 func TestHoldout_ReturnPresets(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, pulse.Extensions{})
 	for _, tc := range []struct {
 		name string
@@ -95,6 +99,8 @@ func TestHoldout_ReturnPresets(t *testing.T) {
 // field; enabling it runs the fit; enabling it without any REG_* is a
 // dependency fault at pulse.New.
 func TestHoldout_FeatureProfileGate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "e2e.pulse", paritySchema(t), 0, paritySmallRows)

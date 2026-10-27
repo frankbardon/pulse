@@ -90,6 +90,8 @@ func importSavZoned(t *testing.T, src pio.Reader, sourceTZ string) ([]byte, []st
 // `…Z` rendering (naive reads as UTC), and with a source zone the stored
 // instant is the zone's wall clock — the `Z` used to beat the zone.
 func TestSourceZone_SavDateTimeIsNaive(t *testing.T) {
+	t.Parallel()
+
 	data := build(t, sourceZoneSpec())
 
 	r := NewReaderFromBytes(data)

@@ -199,6 +199,8 @@ func hotClose(got, want, tol float64) bool {
 // processor on both execution paths, alternating the member source
 // between inline fields lists and named Request.Vectors entries.
 func TestHotellingT2_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[hotellingOracle](t, "mv_hotelling")
 	if doc.Packages["Hotelling"] == "" {
 		t.Fatal("mv_hotelling.json does not record the Hotelling package version")
@@ -392,6 +394,8 @@ func hotCode(err error) errors.Code {
 // TestHotellingT2_SplitNeedsTwoLevels: a split_by with one level or
 // with three is PULSE_TEST_SPLIT_GROUPS_LT_2 naming the levels.
 func TestHotellingT2_SplitNeedsTwoLevels(t *testing.T) {
+	t.Parallel()
+
 	for _, groups := range [][]string{{"a"}, {"a", "b", "c"}} {
 		schema := hotellingSchema()
 		recs := hotellingRows(schema, 30, groups, nil)
@@ -412,6 +416,8 @@ func TestHotellingT2_SplitNeedsTwoLevels(t *testing.T) {
 // not an error: a PULSE_MATRIX_SINGULAR warning, a null statistic and
 // p-value (JSON null, never 0), on both forms.
 func TestHotellingT2_SingularCovarianceWarns(t *testing.T) {
+	t.Parallel()
+
 	dependent := func(_ int, v map[string]float64) { v["x3"] = v["x1"] + 2*v["x2"] }
 	constant := func(_ int, v map[string]float64) { v["x3"] = 4 }
 	for _, c := range []struct {
@@ -442,6 +448,8 @@ func TestHotellingT2_SingularCovarianceWarns(t *testing.T) {
 // and counted; the result equals the run without that row. A null
 // split key skips the row uncounted.
 func TestHotellingT2_ListwiseDrop(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	clean := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	withNull := append([]*Record(nil), clean...)
@@ -463,6 +471,8 @@ func TestHotellingT2_ListwiseDrop(t *testing.T) {
 // TestHotellingT2_InsufficientN: one-sample needs n > p complete rows,
 // two-sample n₁ + n₂ > p + 1.
 func TestHotellingT2_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		split string
 		n     int
@@ -502,6 +512,8 @@ func TestHotellingT2_InsufficientN(t *testing.T) {
 // equal the unweighted test on the rep()-expanded rows (the one weight
 // rule), and probability weights are scale invariant.
 func TestHotellingT2_FrequencyEqualsExpansion(t *testing.T) {
+	t.Parallel()
+
 	for _, split := range []string{"", "g"} {
 		schema := hotellingSchema()
 		weighted := hotellingRows(schema, 25, []string{"a", "b"}, nil)
@@ -537,6 +549,8 @@ func TestHotellingT2_FrequencyEqualsExpansion(t *testing.T) {
 // reaches the factory as its resolved literal members; the result label
 // stays the caller's spec's, and the caller's spec is not mutated.
 func TestBuildRowTests_StashesResolvedMembers(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	spec := &types.Test{Type: types.TEST_HOTELLING_T2, Vector: "xs", SplitBy: "g"}
@@ -562,6 +576,8 @@ func TestBuildRowTests_StashesResolvedMembers(t *testing.T) {
 // test's members — inline fields (globs expanded) and a named vector's —
 // plus its split_by, and nothing else.
 func TestNeededFields_TestVectorMembers(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	for _, c := range []struct {
 		name string
@@ -586,6 +602,8 @@ func TestNeededFields_TestVectorMembers(t *testing.T) {
 // columns — with variant "paired", members2 and mean_diff (no mean). A
 // null in either set drops the row listwise.
 func TestHotellingT2_PairedEqualsOneSampleOnDifferences(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	schema.Fields = append(schema.Fields,
 		encoding.Field{Name: "d1", Type: encoding.FieldTypeF64}, encoding.Field{Name: "d2", Type: encoding.FieldTypeF64})
@@ -619,6 +637,8 @@ func TestHotellingT2_PairedEqualsOneSampleOnDifferences(t *testing.T) {
 // form is Welch's t-test — T² = t², df2 = Welch df, the same p-value —
 // so the built-in TEST_WELCH is an independent oracle.
 func TestHotellingT2_UnequalAtP1IsWelch(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	// Spread the levels apart so the variances clearly differ.
 	recs := hotellingRows(schema, 41, []string{"a", "b"}, func(i int, v map[string]float64) {
@@ -652,6 +672,8 @@ func TestHotellingT2_UnequalAtP1IsWelch(t *testing.T) {
 // TestHotellingT2_PooledDefaultByteIdentical: an explicit
 // variance "pooled" is byte-identical to the default on every form.
 func TestHotellingT2_PooledDefaultByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	for _, split := range []string{"", "g"} {
 		schema := hotellingSchema()
 		recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
@@ -671,6 +693,8 @@ func TestHotellingT2_PooledDefaultByteIdentical(t *testing.T) {
 // variance "unequal" off the two-sample form, and a paired form with
 // split_by are each a coded refusal before any record folds.
 func TestHotellingT2_PairedUnequalRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name   string
 		mod    func(*types.Test)
@@ -696,6 +720,8 @@ func TestHotellingT2_PairedUnequalRefusals(t *testing.T) {
 // needs n > p complete rows in EACH level (pooled only needs the sum),
 // and a singular V₁ + V₂ warns PULSE_MATRIX_SINGULAR with null figures.
 func TestHotellingT2_UnequalPerLevelFloorAndSingular(t *testing.T) {
+	t.Parallel()
+
 	unequal := func(s *types.Test) { s.SplitBy, s.Params = "g", json.RawMessage(`{"variance":"unequal"}`) }
 	schema := hotellingSchema()
 	// 3 "b" rows for p = 3: pooled runs (n₁ + n₂ > p + 1), unequal refuses.

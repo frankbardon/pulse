@@ -14,6 +14,8 @@ import (
 // landed silently mis-decodes, and a set_u128 read as a decimal128 (the
 // same 16-byte width) would not even mis-align.
 func TestFieldTypeWideSet_TypeBytes(t *testing.T) {
+	t.Parallel()
+
 	if got := byte(FieldTypeSetU128); got != 18 {
 		t.Fatalf("FieldTypeSetU128 type byte = %d, want 18", got)
 	}
@@ -36,6 +38,8 @@ func TestFieldTypeWideSet_TypeBytes(t *testing.T) {
 // both new types in one table, so a future predicate addition that forgets
 // the wide rungs shows up here.
 func TestFieldTypeWideSet_Predicates(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft           FieldType
 		wantBytes    int
@@ -88,6 +92,8 @@ func TestFieldTypeWideSet_Predicates(t *testing.T) {
 // false, or the uint64 value API would start refusing values it can
 // carry perfectly well.
 func TestFieldType_IsWideSet_NarrowRungsExcluded(t *testing.T) {
+	t.Parallel()
+
 	wide := map[FieldType]bool{FieldTypeSetU128: true, FieldTypeSetU256: true}
 	for ft := FieldType(0); ft < fieldTypeCount; ft++ {
 		if got := ft.IsWideSet(); got != wide[ft] {
@@ -100,6 +106,8 @@ func TestFieldType_IsWideSet_NarrowRungsExcluded(t *testing.T) {
 // bijection for the two new names. internal/cli falls back to f64 on an
 // unknown name, so a missing ParseFieldType case fails SILENTLY there.
 func TestFieldTypeWideSet_NameRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft   FieldType
 		name string
@@ -127,8 +135,12 @@ func TestFieldTypeWideSet_NameRoundTrip(t *testing.T) {
 // refuse with ENCODING_TYPE_MISMATCH and point at the wide-set API rather
 // than truncate the mask to 64 bits.
 func TestFieldValue_WideSetRejected(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FieldType{FieldTypeSetU128, FieldTypeSetU256} {
 		t.Run(ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			var buf bytes.Buffer
 			err := WriteFieldValue(&buf, ft, 0xFF)
 			if err == nil {
@@ -175,6 +187,8 @@ func wideSetDict(t *testing.T, n int) *Dictionary {
 // name, type byte, nullable flag, byte offset, description and inline
 // dictionary all intact.
 func TestSchema_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		ft       FieldType
 		typeByte byte
@@ -184,6 +198,8 @@ func TestSchema_WideSetRoundTrip(t *testing.T) {
 		{FieldTypeSetU256, 19, 130},
 	} {
 		t.Run(tc.ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			in := &Schema{Fields: []Field{
 				{Name: "id", Type: FieldTypeU32, ByteOffset: 0},
 				{
@@ -245,6 +261,8 @@ func TestSchema_WideSetRoundTrip(t *testing.T) {
 // of the type byte — a wrong ByteSize() silently corrupts every offset
 // downstream of the column.
 func TestSchema_RecordByteSize_WideSet(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		fields []Field
@@ -314,6 +332,8 @@ func TestSchema_RecordByteSize_WideSet(t *testing.T) {
 // payload bytes stay in place, and an all-zero mask with the bitmap bit
 // clear is a valid "no selection" — distinct from null.
 func TestWideSetNull_RidesBitmapOnly(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		ft    FieldType
 		width int
@@ -322,6 +342,8 @@ func TestWideSetNull_RidesBitmapOnly(t *testing.T) {
 		{FieldTypeSetU256, 32},
 	} {
 		t.Run(tc.ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			s := &Schema{Fields: []Field{
 				{Name: "tags", Type: tc.ft, Nullable: true, Dictionary: wideSetDict(t, 3)},
 				{Name: "id", Type: FieldTypeU8, ByteOffset: tc.width},
@@ -381,6 +403,8 @@ func TestWideSetNull_RidesBitmapOnly(t *testing.T) {
 // byte range from widening by accident: the first byte past the sentinel
 // is still ENCODING_INVALID, not a silently accepted column.
 func TestReadSchema_RejectsTypeByteAboveWideSets(t *testing.T) {
+	t.Parallel()
+
 	for _, b := range []byte{byte(fieldTypeCount), 200, 250} {
 		var buf bytes.Buffer
 		buf.Write([]byte{0x01, 0x00}) // field_count = 1

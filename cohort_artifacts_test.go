@@ -102,6 +102,8 @@ func reportHasCode(report *pio.ExportReport, code perrors.Code) bool {
 // Moving a cohort together with every path CohortArtifacts returns
 // keeps Lookup hitting and SPSS export faithful at the new location.
 func TestCohortArtifacts_MovedWithCohortKeepsLookupAndSPSSExport(t *testing.T) {
+	t.Parallel()
+
 	p, afs := artifactsFixture(t)
 	ctx := context.Background()
 
@@ -188,6 +190,8 @@ func TestCohortArtifacts_MovedWithCohortKeepsLookupAndSPSSExport(t *testing.T) {
 // Every kind is listed, sorted, existing-only, and a file that merely
 // shares the cohort's name as a prefix is not swept up.
 func TestCohortArtifacts_ListsEveryKindSortedAndNothingElse(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: afs})
 	if err != nil {
@@ -252,6 +256,8 @@ func TestCohortArtifacts_ListsEveryKindSortedAndNothingElse(t *testing.T) {
 }
 
 func TestCohortArtifacts_MissingCohortIsCoded(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)

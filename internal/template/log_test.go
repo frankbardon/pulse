@@ -68,6 +68,8 @@ func recsWith(recs []logRec, msg string) []logRec {
 // the walk that first sees it and not again; an automatic rescan that
 // changed nothing logs nothing.
 func TestStore_LogsReloadOutcomes(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 	s := newStore(t, dir)
@@ -131,6 +133,8 @@ func TestStore_LogsReloadOutcomes(t *testing.T) {
 // TestStore_NilLoggerSilent: without SetLogger (or with nil) a reload
 // reaches no handler, the default one included.
 func TestStore_NilLoggerSilent(t *testing.T) {
+	t.Parallel()
+
 	h := &recHandler{}
 	prev := slog.Default()
 	slog.SetDefault(slog.New(h))

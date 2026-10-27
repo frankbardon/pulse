@@ -65,6 +65,8 @@ func floatVector(t *testing.T, m *types.MatrixResult, key string) []float64 {
 // alpha-if-deleted. The test also pins the trend example's planted
 // signal: Mann-Kendall rejects on the weekly revenue lift.
 func TestExamples_BatteryMeasuresOneTrait(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
 	p, err := pulse.New(pulse.Options{FS: osfs})

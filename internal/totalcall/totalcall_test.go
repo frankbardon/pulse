@@ -11,6 +11,8 @@ import (
 // counts — a field named total, a member call and an unparsable source
 // do not.
 func TestContains(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]bool{
 		`x / total(x)`: true,
 		`x * (1 - 1000 / total(w >= 52 ? x : 0))`: true,
@@ -32,6 +34,8 @@ func TestContains(t *testing.T) {
 // TestArgs: distinct one-argument calls, keyed by the printed argument,
 // in walk order.
 func TestArgs(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src  string
 		want []string
@@ -53,6 +57,8 @@ func TestArgs(t *testing.T) {
 // TestRefusal: the site rule, then nesting and arity inside
 // ATTR_FORMULA.
 func TestRefusal(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src, site string
 		want      errors.Code // "" = admitted

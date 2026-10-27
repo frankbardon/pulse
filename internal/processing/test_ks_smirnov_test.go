@@ -12,6 +12,8 @@ import (
 // come from the expansion. Large weights push Σw₁·Σw₂ past 10000 to
 // cover the asymptotic branch.
 func TestKSTwoSampleP_WeightedIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	expand := func(vs, ws []float64) []float64 {
 		var out []float64
 		for i, v := range vs {
@@ -46,6 +48,8 @@ func TestKSTwoSampleP_WeightedIsExpansion(t *testing.T) {
 // TestKSTieBoundaries: z marks the pooled order statistics where the
 // value changes — R's c(0L, diff(sort(c(x, y))) != 0, 1L).
 func TestKSTieBoundaries(t *testing.T) {
+	t.Parallel()
+
 	// pooled sorted: 1 2 2 2 2 3 3 4 → boundaries after positions 1, 5, 7, 8
 	z := ksTieBoundaries([]float64{1, 2, 2}, nil, []float64{2, 3, 4}, []float64{2, 2, 1}, 8)
 	want := []bool{false, true, false, false, false, true, false, true, true}

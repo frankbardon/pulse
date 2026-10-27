@@ -24,6 +24,8 @@ func optimizeComposed(t *testing.T, raw string) *ComposedRequest {
 // every malformed optimize block with the same code, message and
 // details, before any fit or slot runs.
 func TestOptimize_RefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{Extensions: Extensions{ExprFunctions: []ExprFunction{{Name: "boost", Fn: func(x float64) float64 { return 2 * x }}}}})
 	block := func(vars, objective, extra string) string {
@@ -94,6 +96,8 @@ func TestOptimize_RefusalParity(t *testing.T) {
 // field on Compose, ComposeParallel and PredictCompose alike; an
 // instance offering it accepts the same batch.
 func TestOptimize_HiddenParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	control := newParityHostWith(t, fsys, "with-optimize", parityHostConfig{
 		profiles: map[string][]string{"with-optimize": {"capability:compose", "capability:compose_optimize", "capability:params", string(types.AGG_COUNT)}},

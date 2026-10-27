@@ -8,6 +8,8 @@ import "testing"
 // The same function backs TestSkillTokenBudget and the embedder skill
 // validation at pulse.New, so an embedder op skill gets its family's tier.
 func TestBodyBudget_Tiers(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		stem, kind string
 		want       int
@@ -40,6 +42,8 @@ func TestBodyBudget_Tiers(t *testing.T) {
 // TestBodyBudgetTiers_MostSpecificFirst: every tier prefix that extends
 // another sits before it, so the first match is the most specific one.
 func TestBodyBudgetTiers_MostSpecificFirst(t *testing.T) {
+	t.Parallel()
+
 	tiers := BodyBudgetTiers()
 	for i, a := range tiers {
 		for _, b := range tiers[i+1:] {

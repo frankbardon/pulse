@@ -90,6 +90,8 @@ func predictAttr(params string) *types.Attribute {
 // selected features) — on the buffered arm, and the rows with a null
 // predictor are null.
 func TestRegPredict_EqualsRegFittedBitForBit(t *testing.T) {
+	t.Parallel()
+
 	preds := []string{"x1", "x2", "x3"}
 	cases := []struct {
 		name string
@@ -163,6 +165,8 @@ func containsName(names []string, n string) bool {
 // the two-pass drive — and a downstream AGG_AVERAGE skips the row
 // (n_null) rather than folding NaN or 0.
 func TestRegPredict_NullSkippedDownstream(t *testing.T) {
+	t.Parallel()
+
 	set, res := bindFit(t, &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x1", "x2"}})
 	schema := predictSchema()
 	var sum float64
@@ -209,6 +213,8 @@ func TestRegPredict_NullSkippedDownstream(t *testing.T) {
 // then the numeric check) refuses before any record is read, with the
 // codes the field-reference pass raises.
 func TestRegPredict_BindRefusals(t *testing.T) {
+	t.Parallel()
+
 	set, _ := bindFit(t, &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x1", "x2"}})
 	cases := []struct {
 		name    string
@@ -267,6 +273,8 @@ func TestRegPredict_BindRefusals(t *testing.T) {
 // prepass, not in the two-pass set — so a request scoring with it
 // takes the streaming path.
 func TestRegPredict_RowLocal(t *testing.T) {
+	t.Parallel()
+
 	c, err := newRegPredictAttribute(predictAttr(`{"fit":"m"}`), predictSchema())
 	if err != nil {
 		t.Fatal(err)
@@ -300,6 +308,8 @@ func TestRegPredict_RowLocal(t *testing.T) {
 // keeps the bound model's predictor columns, which the request never
 // spells.
 func TestRegPredict_ProjectionReadsBoundPredictors(t *testing.T) {
+	t.Parallel()
+
 	set, _ := bindFit(t, &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x1", "x3"}})
 	req := &types.Request{Attributes: []*types.Attribute{predictAttr(`{"fit":"m"}`)},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p"}}}
@@ -315,6 +325,8 @@ func TestRegPredict_ProjectionReadsBoundPredictors(t *testing.T) {
 // bit for bit, the response scale its inverse logit — and a dropped
 // predictor contributes nothing.
 func TestRegPredict_ScoresPenalizedGLM(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x1", Type: encoding.FieldTypeF64},
 		{Name: "x2", Type: encoding.FieldTypeF64},

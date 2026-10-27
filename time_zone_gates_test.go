@@ -251,6 +251,8 @@ func identityCohort(t *testing.T, fs afero.Fs) string {
 // control per zone-sensitive row proves the fixture would notice a zone
 // being applied.
 func TestUTCZoneIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	cohort := identityCohort(t, fs)
 	newPulse := func(defaultZone string) *pulse.Pulse {
@@ -325,6 +327,8 @@ var utcIdentityExports = []pio.Format{pio.FormatCSV, pio.FormatTSV, pio.FormatND
 // proves the fixture notices an applied zone on every row-stream format
 // (spss refuses a non-UTC zone instead).
 func TestUTCZoneIsIdentity_Export(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	cohort := identityCohort(t, fs)
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -709,6 +713,8 @@ func buildDSTFixture(t *testing.T, p *pulse.Pulse, fs afero.Fs, zc dstZoneCase) 
 // the request. A per-zone UTC control proves the fixture tells the
 // local day from the UTC day.
 func TestDSTBoundaries(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

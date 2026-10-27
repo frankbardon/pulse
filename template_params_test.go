@@ -41,6 +41,8 @@ func buildWaveCohort(t *testing.T, memFs afero.Fs, path string) {
 // rendered with a caller's number it decodes to a typed request whose
 // param stays a number, and Process keeps exactly that wave's row.
 func TestTemplateExprSplice_ParamsAcceptancePath(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	buildWaveCohort(t, memFs, "panel.pulse")
 
@@ -83,6 +85,8 @@ func TestTemplateExprSplice_ParamsAcceptancePath(t *testing.T) {
 // into an expression is an author error, so the store refuses it at
 // pulse.New with its own code.
 func TestTemplateExprSplice_RefusedAtNew(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeTmpl(t, dir, "panel/spliced.json", `{"target": "request",
   "variables": [{"name": "from_wave", "type": "number", "required": true}],

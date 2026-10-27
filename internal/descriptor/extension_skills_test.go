@@ -76,6 +76,8 @@ func extSkillFS(files map[string]string) fstest.MapFS {
 }
 
 func TestLoadExtensionSkills_Valid(t *testing.T) {
+	t.Parallel()
+
 	got, err := LoadExtensionSkills(extSkillFS(map[string]string{
 		"op-agg-acme-trim.md": extSkillAtomic,
 		"ext-acme-guide.md":   extSkillTopical,
@@ -97,6 +99,8 @@ func TestLoadExtensionSkills_Valid(t *testing.T) {
 // TestLoadExtensionSkills_Refusals: every validation failure maps to its
 // code and details["reason"].
 func TestLoadExtensionSkills_Refusals(t *testing.T) {
+	t.Parallel()
+
 	atomic := func(old, new string) string { return strings.Replace(extSkillAtomic, old, new, 1) }
 	topical := func(old, new string) string { return strings.Replace(extSkillTopical, old, new, 1) }
 	cases := []struct {
@@ -158,6 +162,8 @@ func TestLoadExtensionSkills_Refusals(t *testing.T) {
 // operator, that operator's DependsOn (AGG_SUM) and a fenced feature
 // bare; a topical skill its requires.
 func TestLoadExtensionSkills_Guards(t *testing.T) {
+	t.Parallel()
+
 	topical := strings.Replace(extSkillTopical, "type: guide", "type: guide\nrequires: [AGG_ACME_TRIM, capability:crosstab]", 1) +
 		"AGG_ACME_TRIM inside a capability:crosstab cell.\n"
 	if _, err := LoadExtensionSkills(extSkillFS(map[string]string{
@@ -180,6 +186,8 @@ func TestLoadExtensionSkills_Guards(t *testing.T) {
 // node with the edges a built-in of its shape gets, and goes with its
 // operator.
 func TestInstanceOntology_ExtensionSkills(t *testing.T) {
+	t.Parallel()
+
 	sk, err := LoadExtensionSkills(extSkillFS(map[string]string{
 		"op-agg-acme-trim.md": extSkillAtomic, "ext-acme-guide.md": extSkillTopical,
 	}), extSkillSnapshot(), extSkillDeps)
@@ -223,6 +231,8 @@ func TestInstanceOntology_ExtensionSkills(t *testing.T) {
 // skills lists and serves them (rendered, markers stripped) and passes
 // built-ins through byte-identically; the manifest lists them.
 func TestDiscovery_ExtensionSkills(t *testing.T) {
+	t.Parallel()
+
 	sk, err := LoadExtensionSkills(extSkillFS(map[string]string{
 		"op-agg-acme-trim.md": extSkillAtomic, "ext-acme-guide.md": extSkillTopical,
 	}), extSkillSnapshot(), extSkillDeps)
@@ -275,6 +285,8 @@ func featureNames() []string {
 // a body exactly at its tier is admitted, and one byte over is refused
 // with the tier in details.
 func TestLoadExtensionSkills_TieredBudget(t *testing.T) {
+	t.Parallel()
+
 	// padded returns extSkillAtomic with its Gotchas grown so the served
 	// body measures exactly n bytes.
 	padded := func(t *testing.T, n int) string {

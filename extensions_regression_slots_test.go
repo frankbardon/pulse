@@ -85,6 +85,8 @@ func regressionSpecKeys() map[string]int {
 // RegressionSpec field fails here until it has a declare-or-refuse
 // rule.
 func TestExtensions_RegressionSharedSlotsRefused(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	for key, idx := range regressionSpecKeys() {
@@ -150,6 +152,8 @@ const regDeclaredName types.RegressionType = "REG_ACME_SLOPE_DECL"
 // each identically at predict and runtime. The manifest row lists the
 // declared slots and no others.
 func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
+	t.Parallel()
+
 	var seen *types.RegressionSpec
 	ext := pulse.Extensions{Regressions: []pulse.RegressionRegistration{{
 		Name: regDeclaredName, Description: "declares penalty and covariance", Factory: specRecorder(&seen),
@@ -247,6 +251,8 @@ func nilIfEmpty(s string) any {
 // entry outside the covariance types, or listed twice, fails pulse.New
 // with PULSE_EXTENSION_PARAM_INVALID reason invalid_covariance_type.
 func TestExtensions_RegressionCovarianceTypesValidated(t *testing.T) {
+	t.Parallel()
+
 	for _, list := range [][]types.CovarianceType{{"hc9"}, {types.CovarianceHC0, types.CovarianceHC0}} {
 		var seen *types.RegressionSpec
 		_, err := pulse.New(newTestOptions(pulse.Extensions{Regressions: []pulse.RegressionRegistration{{

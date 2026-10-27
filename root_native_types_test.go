@@ -14,6 +14,8 @@ import (
 // are declared in the root package itself — not aliases into the
 // engine — so the public surface never names an engine type for them.
 func TestRootNativeTypes(t *testing.T) {
+	t.Parallel()
+
 	const root = "github.com/frankbardon/pulse"
 	for _, typ := range []reflect.Type{
 		reflect.TypeOf(DateRangeSpec{}),
@@ -42,6 +44,8 @@ func TestRootNativeTypes(t *testing.T) {
 // FilterToFileBySetAndExpr with the same survivors as the equivalent
 // expression filter.
 func TestLoadMemberSet_FilterToFileBySetAndExpr(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys, _ := groupedTwinFS(t)
 	p, err := New(Options{FS: fsys})
@@ -80,6 +84,8 @@ func TestLoadMemberSet_FilterToFileBySetAndExpr(t *testing.T) {
 // DateRangeSpecs is converted into the engine and reported back by
 // RangeTables in root form, bounds intact.
 func TestRangeTables_RoundTripNative(t *testing.T) {
+	t.Parallel()
+
 	s1, e1, s2 := "2024-01-01", "2024-03-31", "2024-04-01"
 	in := []DateRangeSpec{{Label: "Q1", Start: &s1, End: &e1}, {Label: "rest", Start: &s2}}
 	p, err := New(Options{FS: afero.NewMemMapFs(), Extensions: Extensions{RangeTables: map[string]RangeTable{"fy": {Ranges: in}}}})

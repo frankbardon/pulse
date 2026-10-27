@@ -14,6 +14,8 @@ import (
 // accept exactly the argument counts BuiltinArity grants the query
 // side, so a call one environment refuses the other refuses too.
 func TestMathOptions_ArityMatchesStaticPass(t *testing.T) {
+	t.Parallel()
+
 	opts := append([]expr.Option{expr.Env(map[string]any{"x": 1.0})}, exprenv.MathOptions()...)
 	call := func(name string, n int) string {
 		args := make([]string, n)

@@ -52,6 +52,8 @@ func scoreRef(params string) *types.Attribute {
 }
 
 func TestRegPredict_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := scoringParityPulse(t)
 	// "lx" exists only in the fit's frame (its own FEAT_LOG).
 	logFit := facadeFitRequest("0", "90")

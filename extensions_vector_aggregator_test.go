@@ -187,6 +187,8 @@ func closeFloats(a, b []float64) bool {
 // floor n equals the built-in's; the factory sees the literal members
 // with its own params kept.
 func TestExtensions_VectorAggregatorParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := extVecFS(t)
 	data, err := afero.ReadFile(fsys, "single.pulse")
@@ -327,6 +329,8 @@ func TestExtensions_VectorAggregatorParity(t *testing.T) {
 // array-valued hosts, expand on a scalar extension, a vector on a plain
 // extension — and a wrong Rich shape is PROCESSING_INTERNAL at run.
 func TestExtensions_VectorAggregatorRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
@@ -428,6 +432,8 @@ func TestExtensions_VectorAggregatorRefusalParity(t *testing.T) {
 // margin class or without RichAggregator, and a VectorInput
 // registration declaring params.labels / params.expand.
 func TestExtensions_VectorAggregatorRegistrationRefusals(t *testing.T) {
+	t.Parallel()
+
 	scalar := func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) { return &extAnswered{}, nil }
 	rich := func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) { return newExtProfile(nil), nil }
 	cases := []struct {

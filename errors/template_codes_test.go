@@ -32,6 +32,8 @@ var templateFamily = []struct {
 // allCodes, parses back from its string form, and sits in the PULSE
 // domain.
 func TestTemplateCodes_Registered(t *testing.T) {
+	t.Parallel()
+
 	registered := make(map[perr.Code]struct{}, len(perr.AllCodes()))
 	for _, c := range perr.AllCodes() {
 		registered[c] = struct{}{}
@@ -64,8 +66,12 @@ func TestTemplateCodes_Registered(t *testing.T) {
 // FixupNotApplicable shortcut — every template failure is caller-fixable
 // by editing the template document or the supplied variables.
 func TestTemplateCodes_MetadataComplete(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range templateFamily {
 		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+
 			m, ok := perr.MetadataFor(tt.code)
 			if !ok {
 				t.Fatalf("code %s has no codeMetadata entry", tt.code)
@@ -95,8 +101,12 @@ func TestTemplateCodes_MetadataComplete(t *testing.T) {
 // depth-on-demand lookup surface that backs `pulse errors lookup CODE`
 // and the pulse_errors_lookup MCP tool.
 func TestTemplateCodes_Lookup(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range templateFamily {
 		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+
 			res, ok := perr.Lookup(tt.want)
 			if !ok {
 				t.Fatalf("Lookup(%q) returned not-found", tt.want)
@@ -124,6 +134,8 @@ func TestTemplateCodes_Lookup(t *testing.T) {
 // in the PULSE domain listing (the `pulse errors list --domain PULSE`
 // path), not only in single-code lookups.
 func TestTemplateCodes_ByDomainIncludesFamily(t *testing.T) {
+	t.Parallel()
+
 	seen := make(map[string]struct{})
 	for _, r := range perr.ByDomain("PULSE") {
 		seen[r.Code] = struct{}{}
@@ -139,6 +151,8 @@ func TestTemplateCodes_ByDomainIncludesFamily(t *testing.T) {
 // prose for PULSE_TEMPLATE_VAR_MISSING: the hint must name both escape
 // hatches — supply a value, or declare a default.
 func TestTemplateCodes_VarMissingProse(t *testing.T) {
+	t.Parallel()
+
 	res, ok := perr.Lookup("PULSE_TEMPLATE_VAR_MISSING")
 	if !ok {
 		t.Fatal("PULSE_TEMPLATE_VAR_MISSING not found")
@@ -161,6 +175,8 @@ func TestTemplateCodes_VarMissingProse(t *testing.T) {
 // advertising them would send a caller to a target the template layer
 // rejects. The list must stay in lockstep with template.AllTargets().
 func TestTemplateCodes_TargetExamplesAreWireSpellings(t *testing.T) {
+	t.Parallel()
+
 	res, ok := perr.Lookup("PULSE_TEMPLATE_TARGET_UNKNOWN")
 	if !ok {
 		t.Fatal("PULSE_TEMPLATE_TARGET_UNKNOWN not found")
@@ -205,6 +221,8 @@ func TestTemplateCodes_TargetExamplesAreWireSpellings(t *testing.T) {
 // other declaration field. The abstract path is what a caller (or an
 // agent) navigates to apply the remedy.
 func TestTemplateCodes_VariableScopedFixupPaths(t *testing.T) {
+	t.Parallel()
+
 	variableScoped := []perr.Code{
 		perr.PULSE_TEMPLATE_VAR_MISSING,
 		perr.PULSE_TEMPLATE_VAR_UNKNOWN,
@@ -246,6 +264,8 @@ func hints(fs []perr.Fixup) []string {
 // PULSE_TEMPLATE_* family uses. Downstream stories attach context with
 // these constants; renaming one is a wire-shape change.
 func TestTemplateDetailKeys(t *testing.T) {
+	t.Parallel()
+
 	if perr.DetailTemplate != "template" {
 		t.Errorf("DetailTemplate = %q, want \"template\"", perr.DetailTemplate)
 	}

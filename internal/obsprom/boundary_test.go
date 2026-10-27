@@ -13,6 +13,8 @@ import (
 // library and the public observe package — no Prometheus client, no
 // other Pulse package — so the core module stays vendor-free.
 func TestObspromImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

@@ -151,6 +151,8 @@ func assertRecordState(t *testing.T, label string, schema *encoding.Schema, got,
 }
 
 func TestRecordRunSkip_MatchesFreshDecode(t *testing.T) {
+	t.Parallel()
+
 	schema := runSkipTestSchema()
 	rows := runSkipRows(t, schema)
 	rec := NewReusableRecord(schema)
@@ -174,6 +176,8 @@ func TestRecordRunSkip_MatchesFreshDecode(t *testing.T) {
 // make the next row repopulate in full, or a skipped field would carry
 // the mutated value.
 func TestRecordRunSkip_ExternalMutationForcesRepopulate(t *testing.T) {
+	t.Parallel()
+
 	schema := runSkipTestSchema()
 	// "a" is null on this row, so un-marking it is a visible mutation.
 	row := runSkipRow{a: 5, d: 1234, s: 0x3, w: 9, c: 2, b: true, nulls: []int{0}}.encode(t, schema)
@@ -227,6 +231,8 @@ func TestRecordRunSkip_ExternalMutationForcesRepopulate(t *testing.T) {
 // they must NOT withdraw the record from run-skip — otherwise every
 // pipeline with an attribute would silently lose the optimisation.
 func TestRecordRunSkip_OffSchemaWritesKeepRun(t *testing.T) {
+	t.Parallel()
+
 	schema := runSkipTestSchema()
 	row := runSkipRow{a: 5, d: 1234, s: 0x3, w: 9, c: 2, b: true}.encode(t, schema)
 	rec := NewReusableRecord(schema)
@@ -270,6 +276,8 @@ func TestRecordRunSkip_OffSchemaWritesKeepRun(t *testing.T) {
 // duplicated field name both break slot == position, so BeginRunRow
 // must refuse to keep, whatever the owner.
 func TestRecordRunSkip_IdentityLayoutOnly(t *testing.T) {
+	t.Parallel()
+
 	schema := runSkipTestSchema()
 	projected := BindRecords(schema, func(n string) bool { return n == "a" || n == "s" }).NewRecord()
 	projected.BeginRunRow(7, false)
@@ -303,6 +311,8 @@ func TestRecordRunSkip_IdentityLayoutOnly(t *testing.T) {
 // baseline is its own last row, decoded into this record; reader A has
 // written the record since, so B must not trust it.
 func TestRecordRunSkip_TwoReadersAlternate(t *testing.T) {
+	t.Parallel()
+
 	schema := runSkipTestSchema()
 	x := runSkipRow{a: 1, d: 10, s: 1, w: 3, c: 0, b: true}.encode(t, schema)
 	y := runSkipRow{a: 2, d: 20, s: 2, w: 4, c: 1, b: false, nulls: []int{2}}.encode(t, schema)
@@ -322,6 +332,8 @@ func TestRecordRunSkip_TwoReadersAlternate(t *testing.T) {
 
 // TestRecordRunSkip_ClearNullAt clears only the null mark.
 func TestRecordRunSkip_ClearNullAt(t *testing.T) {
+	t.Parallel()
+
 	schema := runSkipTestSchema()
 	rec := NewReusableRecord(schema)
 	rec.SetNumericAt(0, 4)

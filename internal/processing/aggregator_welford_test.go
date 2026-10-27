@@ -37,6 +37,8 @@ func controlWelford(samples []float64) (mean, variance float64, n uint64) {
 }
 
 func TestAggregatorWelford_BufferedMatchesWelfordBucket(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(0xDEADBEEF))
 	samples := make([]float64, 100)
 	records := make([]*Record, 100)
@@ -86,6 +88,8 @@ func TestAggregatorWelford_BufferedMatchesWelfordBucket(t *testing.T) {
 // triple is bit-identical to the buffered Aggregate path. Locks
 // OnlineAggregator parity with the buffered path.
 func TestAggregatorWelford_StreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(0xC0FFEE))
 	samples := make([]float64, 100)
 	records := make([]*Record, 100)
@@ -129,6 +133,8 @@ func TestAggregatorWelford_StreamingMatchesBuffered(t *testing.T) {
 // "rows averaging zero") and Rich() returns (nil, nil) so the
 // orchestrator falls through to the scalar path.
 func TestAggregatorWelford_EmptyInputReturnsNaNAndNil(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{Type: types.AGG_WELFORD, Field: "value"}
 	agg, err := newWelfordAggregator(spec, welfordSchema())
 	if err != nil {
@@ -155,6 +161,8 @@ func TestAggregatorWelford_EmptyInputReturnsNaNAndNil(t *testing.T) {
 // undefined — NaN, JSON null, never 0 (E4-S6; welfordBucket.sampleVariance)
 // — and N = 1.
 func TestAggregatorWelford_SingleRowVarianceIsUndefined(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{Type: types.AGG_WELFORD, Field: "value"}
 	agg, _ := newWelfordAggregator(spec, welfordSchema())
 	_, err := agg.Aggregate([]*Record{welfordRecord(17.0)}, "value")
@@ -179,6 +187,8 @@ func TestAggregatorWelford_SingleRowVarianceIsUndefined(t *testing.T) {
 // pumped with only the three non-null samples. Locks the
 // "non-null rows contribute" denominator semantics.
 func TestAggregatorWelford_NullValuesSkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := welfordSchema()
 	mkNull := func() *Record {
 		return NewRecordWithNulls(schema, map[string]float64{"value": 0}, map[string]bool{"value": true})
@@ -206,6 +216,8 @@ func TestAggregatorWelford_NullValuesSkipped(t *testing.T) {
 }
 
 func TestAggregatorWelford_FactoryRejectsNonNumericFields(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	if _, err := dict.Add("A"); err != nil {
 		t.Fatalf("dict.Add: %v", err)
@@ -247,6 +259,8 @@ func TestAggregatorWelford_FactoryRejectsNonNumericFields(t *testing.T) {
 // happy-path tier: every member of the strict scalar numeric family
 // passes the factory gate.
 func TestAggregatorWelford_FactoryAcceptsAllNumericFields(t *testing.T) {
+	t.Parallel()
+
 	cases := []encoding.FieldType{
 		encoding.FieldTypeU8,
 		encoding.FieldTypeU16,
@@ -270,6 +284,8 @@ func TestAggregatorWelford_FactoryAcceptsAllNumericFields(t *testing.T) {
 // path fires PROCESSING_CONFIG (matches every other registered
 // aggregator's required-field contract).
 func TestAggregatorWelford_FactoryRequiresField(t *testing.T) {
+	t.Parallel()
+
 	_, err := newWelfordAggregator(&types.Aggregation{Type: types.AGG_WELFORD}, welfordSchema())
 	if err == nil {
 		t.Fatal("factory accepted empty Field, want PROCESSING_CONFIG")

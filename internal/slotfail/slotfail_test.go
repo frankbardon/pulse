@@ -14,6 +14,8 @@ import (
 // message and details (wrapped or not); a configuration code, an
 // uncoded error and another kind's code stay fatal.
 func TestFrom_OnlyDataDependentCodesOfTheKind(t *testing.T) {
+	t.Parallel()
+
 	sep := errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_SEPARATION, "separated", map[string]any{"predictors": []string{"x"}})
 	se, ok := From(KindRegressions, fmt.Errorf("fit: %w", sep))
 	if !ok || se.Code != string(errors.PROCESSING_REGRESSION_SEPARATION) || se.Message != "separated" ||
@@ -74,6 +76,8 @@ func failedResponse() (*types.Request, *types.Response) {
 // matrix by name — its label (an unnamed regression's
 // regressions[i]) and a grouped bucket's group key.
 func TestCollect_IndexesAndLabels(t *testing.T) {
+	t.Parallel()
+
 	req, resp := failedResponse()
 	got := Collect(req, resp)
 	want := []struct {
@@ -104,6 +108,8 @@ func TestCollect_IndexesAndLabels(t *testing.T) {
 // it returns the FIRST failed slot's own code with its slot identity in
 // the details and adds no warning.
 func TestApply_WarnsOrStrictFails(t *testing.T) {
+	t.Parallel()
+
 	req, resp := failedResponse()
 	if err := Apply(req, resp, false); err != nil {
 		t.Fatal(err)
@@ -142,6 +148,8 @@ func TestApply_WarnsOrStrictFails(t *testing.T) {
 // TestScope_RewritesEveryFailedSlot: Scope hands each failed slot's
 // error to the instance's refusal scoping and keeps the rewrite.
 func TestScope_RewritesEveryFailedSlot(t *testing.T) {
+	t.Parallel()
+
 	_, resp := failedResponse()
 	Scope(resp, func(err error) error {
 		ce := err.(*errors.CodedError)

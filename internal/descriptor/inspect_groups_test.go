@@ -72,6 +72,8 @@ func inspectGrouped(t *testing.T, data []byte, opts *descriptor.InspectOptions) 
 // numbers are known by construction: 12 rows over 4 parents (ratio 3),
 // a 13-byte entry (u32 + categorical_u8 + u64), one constant entry.
 func TestInspect_GroupFigures(t *testing.T) {
+	t.Parallel()
+
 	data, schema := groupedInspectFixture(t, 12, 3)
 	res := inspectGrouped(t, data, nil)
 
@@ -149,6 +151,8 @@ func TestInspect_GroupFigures(t *testing.T) {
 // header-only: overwriting every record byte with garbage changes no
 // reported figure (the record count comes from the LENGTH).
 func TestInspect_GroupFiguresReadNoRecord(t *testing.T) {
+	t.Parallel()
+
 	data, schema := groupedInspectFixture(t, 12, 3)
 	clean := mustMarshal(t, inspectFromBytes(data, nil))
 
@@ -166,6 +170,8 @@ func TestInspect_GroupFiguresReadNoRecord(t *testing.T) {
 // (ratio 1) is reported low_ratio and grows the file — as a figure,
 // never an envelope warning.
 func TestInspect_GroupLowRatioVerdict(t *testing.T) {
+	t.Parallel()
+
 	data, _ := groupedInspectFixture(t, 8, 1)
 	res := inspectGrouped(t, data, nil)
 	g := res.Groups[0]
@@ -180,6 +186,8 @@ func TestInspect_GroupLowRatioVerdict(t *testing.T) {
 // and the group figures — which never list entries — are identical
 // under every limit.
 func TestInspect_GroupFiguresIgnoreDictionaryLimit(t *testing.T) {
+	t.Parallel()
+
 	regions := make([]string, 150)
 	for i := range regions {
 		regions[i] = "r" + string(rune('A'+i%26)) + string(rune('a'+i/26))
@@ -207,6 +215,8 @@ func TestInspect_GroupFiguresIgnoreDictionaryLimit(t *testing.T) {
 // rather than erroring, and its JSON carries none of the 0x02 keys —
 // the pre-0x02 shape, byte for byte (inspect.json pins the rest).
 func TestInspect_V1CohortHasNoGroupKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
 	}}

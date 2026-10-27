@@ -18,6 +18,8 @@ import (
 // PULSE_VECTOR_UNREFERENCED for it), and the projected run equals the
 // unprojected one.
 func TestProcess_MatricesRefuseLikePredict(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	var rows [][]string
 	for i := 0; i < 30; i++ {

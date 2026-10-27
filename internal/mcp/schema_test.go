@@ -13,6 +13,8 @@ import (
 // non-empty, valid-JSON input and output schema for every registered tool,
 // with no reflection error (and therefore no init panic).
 func TestSchemasReflectForEveryTool(t *testing.T) {
+	t.Parallel()
+
 	if len(reflectErrors) != 0 {
 		for k, err := range reflectErrors {
 			t.Errorf("reflection error for %s: %v", k, err)
@@ -64,6 +66,8 @@ func assertValidNonEmptyObjectSchema(t *testing.T, label string, raw json.RawMes
 // TestSchemasStableOrder asserts the registration order mirrors toolmeta.Names()
 // so documentation and adapter scans stay deterministic.
 func TestSchemasStableOrder(t *testing.T) {
+	t.Parallel()
+
 	want := toolmeta.Names()
 	got := Schemas()
 	if len(got) != len(want) {
@@ -81,6 +85,8 @@ func TestSchemasStableOrder(t *testing.T) {
 // `request`) as the byte array the reflector derives from []byte — the
 // wire carries any JSON value there, so the schema must be any-JSON.
 func TestSchemasNoRawMessageByteArray(t *testing.T) {
+	t.Parallel()
+
 	for _, ts := range Schemas() {
 		for side, raw := range map[string]json.RawMessage{"input": ts.InputSchema, "output": ts.OutputSchema} {
 			var root any
@@ -129,6 +135,8 @@ func byteArrayPaths(node any, path string) []string {
 // OverlayPayload schema without `parts` — the recursive Go type is
 // reflected once, non-nesting, instead of failing on the cycle.
 func TestSchemas_OverlayPartsNeverNest(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{toolmeta.ToolProcess, toolmeta.ToolCompose, toolmeta.ToolProcessChain, toolmeta.ToolFacetSchema} {
 		ts, ok := SchemaFor(name)
 		if !ok {

@@ -43,6 +43,8 @@ func welfordExtEmit(instance extend.Aggregator) (map[string]any, error) {
 // declared ComponentSchema: one declaring mean + variance runs, one
 // without them is refused on both sides.
 func TestPairwiseMoment_CellShapeMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ext := pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{
 		{

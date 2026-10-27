@@ -26,6 +26,8 @@ var guideParts = []string{
 // names the utility intents without a guide; SUMMARY.md lists them all
 // under the Analysis Guide.
 func TestRender_QuestionPages(t *testing.T) {
+	t.Parallel()
+
 	for _, inst := range []*descx.InstanceSnapshot{nil, defaultSnapshot()} {
 		files := tree(docgen.Render(inst, docgen.Options{}))
 		landing, ok := files["questions.md"]
@@ -89,6 +91,8 @@ func TestRender_QuestionPages(t *testing.T) {
 // carries exactly the visible operators serving its intent, each
 // linked to its catalog entry.
 func TestRender_GuidePickListsServingOperators(t *testing.T) {
+	t.Parallel()
+
 	inst := defaultSnapshot()
 	files := tree(docgen.Render(inst, docgen.Options{}))
 	for _, in := range descx.Intents() {
@@ -121,6 +125,8 @@ func TestRender_GuidePickListsServingOperators(t *testing.T) {
 // of its first intent, its result block is the committed golden byte
 // for byte, and its interpretation follows.
 func TestRender_StoryEmbedEqualsGolden(t *testing.T) {
+	t.Parallel()
+
 	files := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
 	stories := examples.Stories()
 	if len(stories) == 0 {
@@ -161,6 +167,8 @@ func TestRender_StoryEmbedEqualsGolden(t *testing.T) {
 // TestRender_QuestionPagesLint: every question page of every instance
 // shape passes the guidance lint's text rules.
 func TestRender_QuestionPagesLint(t *testing.T) {
+	t.Parallel()
+
 	seen := 0
 	for key, inst := range instances(t) {
 		for p, body := range tree(docgen.Render(inst, docgen.Options{})) {

@@ -71,6 +71,8 @@ func sweepOfOps(t *testing.T, explicit int, ops ...string) *ComposedRequest {
 // code and observed count from PredictCompose as from Compose and
 // ComposeParallel. Predict reads the limit off the instance.
 func TestPredictCompose_SlotLimitParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	custom := sweepPulse(t, Options{Limits: Limits{MaxComposeSlots: 4}})
 	defaults := sweepPulse(t, Options{})
@@ -135,6 +137,8 @@ func TestPredictCompose_SlotLimitParity(t *testing.T) {
 // sweep still reports its size (no labels); a sweep-free batch carries
 // no `sweep` key.
 func TestPredictCompose_SweepSummary(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{Limits: Limits{MaxComposeSlots: 4}})
 
@@ -195,6 +199,8 @@ func TestPredictCompose_SweepSummary(t *testing.T) {
 // predicted like a hand-written one — a field fault in the second sweep
 // slot is located at its effective index, with the runtime's code.
 func TestPredictCompose_SweepSlotsPredicted(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	c := decodeComposedJSON(t, `{"requests":[`+sweepSlotBodyWith("AGG_COUNT")+`],
@@ -218,6 +224,8 @@ func TestPredictCompose_SweepSlotsPredicted(t *testing.T) {
 // runtime refuses it — explicit duplicates and an explicit
 // `request_<n>` against another slot's default alike.
 func TestPredictCompose_LabelCollisionSweepFree(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	for name, labels := range map[string][2]string{
@@ -246,6 +254,8 @@ func TestPredictCompose_LabelCollisionSweepFree(t *testing.T) {
 // managed-import TTL of a cohort only a sweep slot names, as it does for
 // an explicit slot's.
 func TestPredictCompose_TouchesSweepSlotCohorts(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	past := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
 	p, fsys := memBuilderEngine(t)

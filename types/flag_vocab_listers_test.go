@@ -6,6 +6,8 @@ import (
 )
 
 func TestAllLookupMultiplicities_OrderFreshAndParsed(t *testing.T) {
+	t.Parallel()
+
 	want := []LookupMultiplicity{LookupMultiplicityAssertUnique, LookupMultiplicityFirst, LookupMultiplicityAll}
 	got := AllLookupMultiplicities()
 	if !slices.Equal(got, want) {
@@ -31,6 +33,8 @@ func TestAllLookupMultiplicities_OrderFreshAndParsed(t *testing.T) {
 }
 
 func TestAllLabelModes_OrderFreshAndParsed(t *testing.T) {
+	t.Parallel()
+
 	want := []LabelMode{LabelModeReplace, LabelModeAugment}
 	got := AllLabelModes()
 	if !slices.Equal(got, want) {

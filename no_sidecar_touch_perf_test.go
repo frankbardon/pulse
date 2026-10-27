@@ -29,6 +29,7 @@ import "testing"
 const sidecarPresencePerfRatio = 1.5
 
 func TestSidecarPresence_PerfGate(t *testing.T) {
+	// serial: wall-clock testing.Benchmark ratio; CPU contention from parallel tests would make it flaky
 	noIndex := testing.Benchmark(func(b *testing.B) {
 		runSidecarPresenceBench(b, false)
 	})

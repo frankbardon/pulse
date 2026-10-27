@@ -77,6 +77,8 @@ func distributionMeta(t *testing.T, name string) (out struct {
 // accepted (not refused as "must be finite") and capped at max_repeat,
 // which the manifest declares with its default of 8.
 func TestDistributionDocs_RegexCapsOpenEndedRepeats(t *testing.T) {
+	t.Parallel()
+
 	meta := distributionMeta(t, synth.DistRegex)
 	if def, ok := meta.params["max_repeat"]; !ok || def != 8 {
 		t.Errorf("regex capability params: max_repeat default = %v (declared %v), want 8", def, ok)
@@ -108,6 +110,8 @@ func TestDistributionDocs_RegexCapsOpenEndedRepeats(t *testing.T) {
 // generated as negative epoch days (the skill no longer says `date`
 // cannot store it).
 func TestDistributionDocs_UniformDateBounds(t *testing.T) {
+	t.Parallel()
+
 	meta := distributionMeta(t, synth.DistUniformDate)
 	if strings.Contains(meta.paramDesc["end"], "exceed") {
 		t.Errorf("uniform_date end param says it must exceed start: %q", meta.paramDesc["end"])
@@ -140,6 +144,8 @@ func TestDistributionDocs_UniformDateBounds(t *testing.T) {
 // field cannot hold is SERVICE_VALIDATION when the spec is compiled, not
 // a write-time cast failure under some other code.
 func TestDistributionDocs_ConstantRefusesWrongShapeAtParse(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{RowCount: 5, Fields: []synth.FieldSpec{{
 		Name: "n", Type: "u8", Distribution: synth.DistConstant,
 		Params: map[string]any{"value": "seven"},
@@ -154,6 +160,8 @@ func TestDistributionDocs_ConstantRefusesWrongShapeAtParse(t *testing.T) {
 // draw to the nearest whole number (never truncates), so uniform [0, 10)
 // stores 10 for draws at or above 9.5 and 0 for draws below 0.5.
 func TestDistributionDocs_IntegerFieldsRoundDraws(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{RowCount: 2000, Fields: []synth.FieldSpec{{
 		Name: "n", Type: "u8", Distribution: synth.DistUniform,
 		Params: map[string]any{"min": 0.0, "max": 10.0},
@@ -171,6 +179,8 @@ func TestDistributionDocs_IntegerFieldsRoundDraws(t *testing.T) {
 // TestDistributionDocs_LognormalSpreadGrowsWithSigma: a LARGER sigma
 // gives the wider spread (the skill once said smaller).
 func TestDistributionDocs_LognormalSpreadGrowsWithSigma(t *testing.T) {
+	t.Parallel()
+
 	spread := func(sigma float64) float64 {
 		spec := &synth.Spec{RowCount: 4000, Fields: []synth.FieldSpec{{
 			Name: "x", Type: "f64", Distribution: synth.DistLogNormal,
@@ -195,6 +205,8 @@ func TestDistributionDocs_LognormalSpreadGrowsWithSigma(t *testing.T) {
 // TestDistributionDocs_SkillsDropRetiredClaims: the op-synth-* skill
 // sentences the tests above disproved stay gone.
 func TestDistributionDocs_SkillsDropRetiredClaims(t *testing.T) {
+	t.Parallel()
+
 	retired := map[string][]string{
 		"op-synth-constant.md":     {"never converts", "PULSE_SYNTH_VALUE_INVALID", "17 `.pulse` field types"},
 		"op-synth-uniform.md":      {"truncation", "max-observed `9`"},

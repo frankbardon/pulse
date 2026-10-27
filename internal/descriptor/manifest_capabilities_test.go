@@ -37,6 +37,8 @@ func testNameSet(ts []descriptor.TestMeta) map[string]descriptor.TestMeta {
 // catches "added an operator to the registry but forgot the
 // Capabilities() entry" drift.
 func TestManifestOperatorsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	tcs := []struct {
@@ -90,6 +92,8 @@ func TestManifestOperatorsComplete(t *testing.T) {
 // per-type streamability declarations enforced by the streamability
 // gates in types/.
 func TestManifestStreamableMatchesTypes(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for _, op := range m.Components.Aggregators {
 		want := types.AggregationType(op.Name).Streamable()
@@ -134,6 +138,8 @@ func TestManifestStreamableMatchesTypes(t *testing.T) {
 // Manifest.PostTests (tier-2) as a Tier=1 / Tier=2 record. TREND and
 // TUKEY_HSD are exclusively tier-2; everything else has a tier-1 entry.
 func TestManifestTestsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	tier1Only := testNameSet(m.Tests)
@@ -184,6 +190,8 @@ func TestManifestTestsComplete(t *testing.T) {
 // post-test variant has a TestMeta entry with Tier=2 and a non-empty
 // Variant and that its Family appears in types.AllTestTypes().
 func TestManifestPostTestsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	families := make(map[string]bool, len(types.AllTestTypes()))
 	for _, tt := range types.AllTestTypes() {
@@ -218,6 +226,8 @@ func TestManifestPostTestsComplete(t *testing.T) {
 // types.AllRegressionTypes() with the required metadata fields
 // populated.
 func TestManifestRegressionsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	set := make(map[string]descriptor.RegressionMeta, len(m.Regressions))
 	for _, r := range m.Regressions {
@@ -263,6 +273,8 @@ func TestManifestRegressionsComplete(t *testing.T) {
 // downgrade is checked separately via RegressionSpec.Streamable in
 // types/streamability_test.go).
 func TestRegressionStreamabilityMatchesTypes(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for _, r := range m.Regressions {
 		want := types.RegressionType(r.Name).Streamable()
@@ -275,6 +287,8 @@ func TestRegressionStreamabilityMatchesTypes(t *testing.T) {
 // TestManifestDistributionsComplete asserts that every entry in
 // synth.AllDistributions() has a DistributionMeta in the manifest.
 func TestManifestDistributionsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	set := make(map[string]descriptor.DistributionMeta, len(m.SynthDistributions))
 	for _, d := range m.SynthDistributions {
@@ -306,6 +320,8 @@ func TestManifestDistributionsComplete(t *testing.T) {
 // accepted. What the samplers actually read is held to the synth list
 // by TestDistributionParamsDeclaredMatchRead (internal/synth).
 func TestDistributionParamsMatchManifest(t *testing.T) {
+	t.Parallel()
+
 	for _, d := range BuildManifest().SynthDistributions {
 		want, ok := synth.DistributionParamKeys(d.Name)
 		if !ok {
@@ -330,6 +346,8 @@ func TestDistributionParamsMatchManifest(t *testing.T) {
 // `pulse_errors_lookup` MCP tool and is enforced by TestCodesHaveFixups
 // in errors/.
 func TestManifestErrorCodesComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	set := make(map[string]struct{}, len(m.ErrorCodes))
 	for _, c := range m.ErrorCodes {
@@ -350,6 +368,8 @@ func TestManifestErrorCodesComplete(t *testing.T) {
 // order, length parity with errors.Codes(), three peer fields
 // (count + domains + names).
 func TestManifest_ErrorCodesSlim(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if m.ErrorCodesCount != len(errors.AllCodes()) {
 		t.Errorf("ErrorCodesCount = %d, want %d", m.ErrorCodesCount, len(errors.AllCodes()))
@@ -379,6 +399,8 @@ func TestManifest_ErrorCodesSlim(t *testing.T) {
 // TestManifestMCPToolsComplete asserts that every name in
 // toolmeta.Names() has an MCPTool entry.
 func TestManifestMCPToolsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	set := make(map[string]descriptor.MCPTool, len(m.MCPTools))
 	for _, mt := range m.MCPTools {
@@ -400,6 +422,8 @@ func TestManifestMCPToolsComplete(t *testing.T) {
 // each CohortFieldType are sorted lexically. Required for golden
 // stability.
 func TestCohortTypeCrossRefsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for _, ct := range m.CohortTypes {
 		checkSorted := func(label string, names []string) {
@@ -431,6 +455,8 @@ func typesToStrings[T ~string](in []T) []string {
 // required metadata populated, alphabetized, and that the Matrix
 // capability block names every encoding and kind the types declare.
 func TestManifestMatrixOpsComplete(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	set := make(map[string]descriptor.MatrixMeta, len(m.Matrices))
 	for _, mm := range m.Matrices {

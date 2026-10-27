@@ -17,6 +17,8 @@ import (
 // processing.applySymmetryAt and validateOverlayLevelWithinRuntime,
 // through the same overlayhost refusals.
 func TestValidateOverlay_Symmetry(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	ok := types.OverlaySpec{Name: "sym", Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeMatrix}
 	with := func(edit func(*types.OverlaySpec)) types.OverlaySpec {

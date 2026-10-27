@@ -15,6 +15,8 @@ import (
 // entries — nil receiver yields nil.
 
 func TestExtensionRegistry_HasAggregator_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
 			"AGG_ACME_SCORE": dummyAggregatorFactory,
@@ -32,6 +34,8 @@ func TestExtensionRegistry_HasAggregator_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasAttribute_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Attributes: map[types.AttributeType]AttributeFactory{
 			"ATTR_ACME_BOOST": fakeBoostFactory,
@@ -49,6 +53,8 @@ func TestExtensionRegistry_HasAttribute_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasFilterer_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Filterers: map[types.FiltererType]FiltererFactory{
 			"FILTER_ACME_HIGH": keepHighFilterFactory,
@@ -66,6 +72,8 @@ func TestExtensionRegistry_HasFilterer_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasGrouper_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Groupers: map[types.GroupType]GrouperFactory{
 			"GROUP_ACME_PARITY": parityGrouperFactory,
@@ -83,6 +91,8 @@ func TestExtensionRegistry_HasGrouper_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasWindow_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Windows: map[types.WindowType]window.WindowFactory{
 			"WIN_ACME_CONST": constWindowFactory,
@@ -100,6 +110,8 @@ func TestExtensionRegistry_HasWindow_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasFeature_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Features: map[types.FeatureType]feature.Factory{
 			"FEAT_ACME_DOUBLE": doubleFeatureFactory,
@@ -117,6 +129,8 @@ func TestExtensionRegistry_HasFeature_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasRowTest_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		RowTests: map[types.TestType]RowTestFactory{
 			"TEST_ACME_CONST": constRowTestFactory,
@@ -134,6 +148,8 @@ func TestExtensionRegistry_HasRowTest_OverlayAndBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_HasPostTest_OverlayAndBuiltin(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		PostTests: map[types.TestType]PostTestFactory{
 			"TEST_ACME_POST": constPostTestFactory,
@@ -153,6 +169,8 @@ func TestExtensionRegistry_HasPostTest_OverlayAndBuiltin(t *testing.T) {
 // Custom*Names cases — nil receiver, empty overlay, and populated.
 
 func TestExtensionRegistry_CustomAttributeNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomAttributeNames(); got != nil {
 		t.Errorf("nil receiver CustomAttributeNames = %v, want nil", got)
@@ -169,6 +187,8 @@ func TestExtensionRegistry_CustomAttributeNames_NilAndPopulated(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomFiltererNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomFiltererNames(); got != nil {
 		t.Errorf("nil receiver CustomFiltererNames = %v, want nil", got)
@@ -185,6 +205,8 @@ func TestExtensionRegistry_CustomFiltererNames_NilAndPopulated(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomGrouperNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomGrouperNames(); got != nil {
 		t.Errorf("nil receiver CustomGrouperNames = %v, want nil", got)
@@ -201,6 +223,8 @@ func TestExtensionRegistry_CustomGrouperNames_NilAndPopulated(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomWindowNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomWindowNames(); got != nil {
 		t.Errorf("nil receiver CustomWindowNames = %v, want nil", got)
@@ -217,6 +241,8 @@ func TestExtensionRegistry_CustomWindowNames_NilAndPopulated(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomFeatureNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomFeatureNames(); got != nil {
 		t.Errorf("nil receiver CustomFeatureNames = %v, want nil", got)
@@ -233,6 +259,8 @@ func TestExtensionRegistry_CustomFeatureNames_NilAndPopulated(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomRowTestNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomRowTestNames(); got != nil {
 		t.Errorf("nil receiver CustomRowTestNames = %v, want nil", got)
@@ -249,6 +277,8 @@ func TestExtensionRegistry_CustomRowTestNames_NilAndPopulated(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomPostTestNames_NilAndPopulated(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomPostTestNames(); got != nil {
 		t.Errorf("nil receiver CustomPostTestNames = %v, want nil", got)
@@ -267,6 +297,8 @@ func TestExtensionRegistry_CustomPostTestNames_NilAndPopulated(t *testing.T) {
 // CustomAggregatorNames nil-receiver — closes the 83.3% gap.
 
 func TestExtensionRegistry_CustomAggregatorNames_NilReceiver(t *testing.T) {
+	t.Parallel()
+
 	var nilR *ExtensionRegistry
 	if got := nilR.CustomAggregatorNames(); got != nil {
 		t.Errorf("nil receiver CustomAggregatorNames = %v, want nil", got)
@@ -277,6 +309,8 @@ func TestExtensionRegistry_CustomAggregatorNames_NilReceiver(t *testing.T) {
 // miss) — covers the "false" branch which was at 50% before.
 
 func TestExtensionRegistry_LookupWindow_Unknown(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{}
 	if _, ok := r.LookupWindow("WIN_ACME_NOTFOUND"); ok {
 		t.Error("LookupWindow on unknown name must return false")
@@ -284,6 +318,8 @@ func TestExtensionRegistry_LookupWindow_Unknown(t *testing.T) {
 }
 
 func TestExtensionRegistry_LookupFeature_Unknown(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{}
 	if _, ok := r.LookupFeature("FEAT_ACME_NOTFOUND"); ok {
 		t.Error("LookupFeature on unknown name must return false")
@@ -294,6 +330,8 @@ func TestExtensionRegistry_LookupFeature_Unknown(t *testing.T) {
 // + per-type Streamable() = false branch on unknown name.
 
 func TestExtensionRegistry_IsStreamable_UnknownNames(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{}
 	cases := []struct{ cat, name string }{
 		{"attribute", "ATTR_ACME_NONE"},

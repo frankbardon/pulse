@@ -249,6 +249,8 @@ func assertMatchesLegacy(t *testing.T, step string, got *Record, want *legacyRec
 // asserts every public accessor, AllValues included (so its cache must
 // be invalidated exactly where it was), agrees after every step.
 func TestRecord_PositionalMatchesLegacyMapSemantics(t *testing.T) {
+	t.Parallel()
+
 	schema := positionalTestSchema()
 	names := []string{"n", "cat", "dec", "s8", "s128", "flag", "u", "attr_label", "feat_out", ""}
 	wides := []any{
@@ -371,6 +373,8 @@ func driveAgainstLegacy(t *testing.T, schema *encoding.Schema, binding *RecordBi
 // every retained field in a slot (no overflow), and the record reads the
 // same as a full-layout record decoded the same way.
 func TestRecord_ProjectedBindingSizedToRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := indexedRecordSchema()
 	retained := []string{"hi", "amount", "tags", "tail"}
 	set := map[string]bool{}
@@ -424,6 +428,8 @@ func TestRecord_ProjectedBindingSizedToRetained(t *testing.T) {
 // maps, schema fields land positionally (no overflow map), off-schema
 // names land in overflow, and the caller's maps are not retained.
 func TestRecord_MapConstructorsConvertOnEntry(t *testing.T) {
+	t.Parallel()
+
 	schema := positionalTestSchema()
 	names := []string{"n", "cat", "dec", "s8", "s128", "flag", "u", "extra"}
 	values := map[string]float64{"n": 2.5, "cat": 3, "dec": 12.34, "s8": 5, "u": 0}
@@ -483,6 +489,8 @@ func TestRecord_MapConstructorsConvertOnEntry(t *testing.T) {
 // IsNull true, missing from AllValues — while the same field written as
 // 0 is present.
 func TestRecord_AbsentDistinctFromZero(t *testing.T) {
+	t.Parallel()
+
 	schema := positionalTestSchema()
 	r := NewReusableRecord(schema)
 	r.SetNumericAt(6, 0) // "u" = 0, present
@@ -511,6 +519,8 @@ func TestRecord_AbsentDistinctFromZero(t *testing.T) {
 // schema carries the same layout pointer (no per-record or per-row
 // index), and a schema whose field list changed length gets a fresh one.
 func TestRecord_LayoutResolvedOncePerSchema(t *testing.T) {
+	t.Parallel()
+
 	schema := positionalTestSchema()
 	a := NewReusableRecord(schema)
 	b := NewRecord(schema, map[string]float64{"n": 1})
@@ -542,6 +552,8 @@ func TestRecord_LayoutResolvedOncePerSchema(t *testing.T) {
 // cache does not pin schemas: once a schema is unreachable its cache
 // entry is dropped.
 func TestRecord_LayoutCacheReleasesCollectedSchemas(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate; resets the package-level processing.lastLayout cache
+
 	count := func() int {
 		n := 0
 		layoutCache.Range(func(_, _ any) bool { n++; return true })
@@ -572,6 +584,8 @@ func TestRecord_LayoutCacheReleasesCollectedSchemas(t *testing.T) {
 // the reuse decoder stores every schema field positionally: no overflow
 // map is allocated on the hot path.
 func TestRecord_ReuseDecodeStaysPositional(t *testing.T) {
+	t.Parallel()
+
 	schema := indexedRecordSchema()
 	raw := encodeIndexedRows(t, schema, 4)
 	rec := NewReusableRecord(schema)
@@ -598,6 +612,8 @@ func TestRecord_ReuseDecodeStaysPositional(t *testing.T) {
 // TestHashJoin_PositionalCopyMatchesNamePath pins the join's positional
 // fast copy against the name-resolved copy it replaces.
 func TestHashJoin_PositionalCopyMatchesNamePath(t *testing.T) {
+	t.Parallel()
+
 	left := positionalTestSchema()
 	right := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeF64, Nullable: true},
@@ -633,6 +649,8 @@ func TestHashJoin_PositionalCopyMatchesNamePath(t *testing.T) {
 // AllValues cache (as FILTER_EXPRESSION does), an injected attribute
 // label must be visible to a later ATTR_FORMULA that reads AllValues.
 func TestApplyAttributes_InjectionInvalidatesAllValuesCache(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"x": 1}),
@@ -668,6 +686,8 @@ func TestApplyAttributes_InjectionInvalidatesAllValuesCache(t *testing.T) {
 // re-Set after ClearForRow — never allocate the overflow side, and the
 // record reads exactly as a record without extras does.
 func TestRecord_ExtraSlotsSkipOverflow(t *testing.T) {
+	t.Parallel()
+
 	schema := positionalTestSchema()
 	labels := []string{"a1", "a2", "a3"}
 	for _, keep := range []encx.FieldFilter{nil, func(n string) bool { return n == "u" }} {
@@ -703,6 +723,8 @@ func TestRecord_ExtraSlotsSkipOverflow(t *testing.T) {
 // null mark as it clears the overflow null marks, keeping its value; and
 // copyStateInto carries extras onto the destination by name.
 func TestRecord_ExtraSlotsRunSkipAndCopy(t *testing.T) {
+	t.Parallel()
+
 	schema := positionalTestSchema()
 	r := BindRecords(schema, nil, "a1", "a2").NewRecord()
 	if r.BeginRunRow(9, true) {

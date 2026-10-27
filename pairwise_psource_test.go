@@ -19,6 +19,8 @@ import (
 // the omitted default stays cell_value_pct, byte-identical. Both
 // proportion kinds, unweighted and frequency-weighted hosts.
 func TestPairwisePSource_NormalisedHost(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	mk := func(kind types.OverlayKind, norm types.CrosstabNormalize, pSource string, w *types.WeightSpec) *types.Request {

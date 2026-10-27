@@ -34,6 +34,8 @@ func recordRegion(t *testing.T, data []byte) []byte {
 // single-file twin imported from the same rows; and a filtered flatten
 // answers exactly as Process over the archive with the same filter.
 func TestFilterToFile_FlattenMatchesSingleFileTwin(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	twin := archiveTwin(t, fs, [2]int{40, 25})
 	ctx := context.Background()
@@ -88,6 +90,8 @@ func TestFilterToFile_FlattenMatchesSingleFileTwin(t *testing.T) {
 // stage schemas as its single-file twin and as its flattened copy — and
 // ProcessChain runs it with the answer of the twin (predict ≡ runtime).
 func TestPredictRoots_ChainAcceptsArchive(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	twin := archiveTwin(t, fs, [2]int{40, 25})
 	ctx := context.Background()

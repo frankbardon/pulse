@@ -9,6 +9,8 @@ import (
 )
 
 func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	makeRecs := func(values []float64) []*Record {
 		return makeRecordsWithNulls(schema, "score", values, nil)
@@ -194,6 +196,8 @@ func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
 // The cohort uses fields with no two-pass attribute / grouper /
 // feature so canStream() returns true.
 func TestMetaAggregator_MapStateOps_StreamingEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	// Mix of distinct + duplicate + nulls. distinct_count=3, mode=10
 	// (smallest among ties at count=2), modal count=2, n=5, n_null=2.

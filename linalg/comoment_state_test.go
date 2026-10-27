@@ -43,6 +43,8 @@ func vecBitsEqual(a, b []float64) bool {
 // NEff, PairM2 — and every later Add / Merge is bit-identical to the
 // original's; the captured state is a copy (later folds never move it).
 func TestCoMomentListwiseStateRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(5, 11))
 	rows := randomRows(r, 400, 4)
 	more := randomRows(r, 50, 4)
@@ -99,6 +101,8 @@ func TestCoMomentListwiseStateRoundTrip(t *testing.T) {
 // single state; a malformed state is refused — every refusal
 // PULSE_MATRIX_SHAPE_MISMATCH.
 func TestCoMomentListwiseStateRefusals(t *testing.T) {
+	t.Parallel()
+
 	code := func(err error) errors.Code {
 		var ce *errors.CodedError
 		if stderrors.As(err, &ce) {

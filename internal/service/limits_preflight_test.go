@@ -19,6 +19,8 @@ import (
 // same request under the defaults reads it (the control that keeps the
 // read assertion from being vacuous).
 func TestLimitsPreflight_MatrixDimRefusesBeforeDecode(t *testing.T) {
+	t.Parallel()
+
 	req := func() *types.Request {
 		return &types.Request{
 			Cohort:       &types.Cohort{Filename: "bench.pulse"},

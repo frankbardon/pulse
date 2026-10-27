@@ -80,6 +80,8 @@ func fitRefAttr(typ types.AttributeType, label, params string) *types.Attribute 
 // tolerance); the fitted value is the ATTR_REG_PREDICT score to the bit
 // and the residual is y minus it exactly.
 func TestRegFitReference_GLMResidual(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: glmResidualFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +125,8 @@ func TestRegFitReference_GLMResidual(t *testing.T) {
 // model's own formula, to the bit); without a Scorer the reference is
 // refused no_scorer — predict exactly as Compose — naming the slot.
 func TestRegFitReference_CustomFit(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	ctx := context.Background()
 	scored := centredInstance(t, fsys, centredRegistration(centredScorerFactory))
@@ -179,6 +183,8 @@ func TestRegFitReference_CustomFit(t *testing.T) {
 // outside a compose nothing is bound, and Predict refuses the name
 // exactly as Process does.
 func TestRegFitReference_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := glmResidualFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -237,6 +243,8 @@ func TestRegFitReference_PredictRuntimeParity(t *testing.T) {
 // the scan, so predict calls it streamable beside a grouper (the refit
 // twin is not), and ProcessStream yields Process's rows.
 func TestRegFitReference_RowLocal(t *testing.T) {
+	t.Parallel()
+
 	fsys := glmResidualFS(t)
 	p, err := New(Options{FS: fsys})
 	if err != nil {
@@ -284,6 +292,8 @@ func TestRegFitReference_RowLocal(t *testing.T) {
 // response, and its default label stays <TYPE>_<target>; with it the
 // default label is <TYPE>_<fit>.
 func TestRegFitReference_AbsentIsRefit(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: glmResidualFS(t)})
 	if err != nil {
 		t.Fatal(err)

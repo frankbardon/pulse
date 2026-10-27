@@ -12,6 +12,8 @@ import (
 // A tag search matching nothing is a dead line served verbatim to the
 // reader.
 func TestSkillSeeExampleTagsResolve(t *testing.T) {
+	t.Parallel()
+
 	lib := examples.All()
 	resolves := func(search seeTagSearch) bool {
 		for _, ex := range lib {

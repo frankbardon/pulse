@@ -51,6 +51,8 @@ func fidCount(t *testing.T, p *pulse.Pulse, filterers []*types.Filterer) int64 {
 // unreferenced table. b writes its own output with its own rows; c and
 // d reuse a's.
 func TestFilterToFile_TableContentKeysDedup(t *testing.T) {
+	t.Parallel()
+
 	rangeParams, _ := json.Marshal(map[string]any{"table": "win"})
 	cases := map[string]struct {
 		ext       func(variant int) pulse.Extensions // 0 = a, 1 = b, 2 = a + unreferenced
@@ -157,6 +159,8 @@ const fidExtFilter = types.FiltererType("FILTER_FID_GREATER_X")
 // registering the same name with different code each get their own
 // rows, and a second call on the same instance re-runs too.
 func TestFilterToFile_EmbedderCodeNeverReused(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]struct {
 		ext       func(min float64) pulse.Extensions
 		filterers []*types.Filterer

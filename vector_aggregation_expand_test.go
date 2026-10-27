@@ -79,6 +79,8 @@ func vaggKeys(row map[string]any) []string {
 // absent, the row key set is exactly the expanded set, and predict
 // names the same columns.
 func TestVecAggExpand_EveryMode(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	all := []int{0, 1, 2}
 	pair := []int{3, 1}
@@ -169,6 +171,8 @@ func TestVecAggExpand_EveryMode(t *testing.T) {
 // TestVecAggExpand_PredictOmitsColumnsWithoutExpand: an array slot
 // (no expand) reports no columns — its one column is the label.
 func TestVecAggExpand_PredictOmitsColumnsWithoutExpand(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
@@ -225,6 +229,8 @@ func vaggCheckRefusals(t *testing.T, p *pulse.Pulse, data []byte, cases []vaggRe
 // element label is refused under expand only. An element column is
 // NOT refused (TestVecAggExpand_ElementColumnsDownstream).
 func TestVecAggExpand_BareLabelRefused(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
 	data, err := afero.ReadFile(fsys, "v.pulse")
@@ -364,6 +370,8 @@ func vaggQtyColumn(t *testing.T, rows []map[string]any, col string) []string {
 // row answered (NaN) is a null there: it sorts last in both directions
 // and a value-bearing window skips it.
 func TestVecAggExpand_ElementColumnsDownstream(t *testing.T) {
+	t.Parallel()
+
 	p, cohorts := vaggElementCohort(t)
 	data := cohorts["e.pulse"]
 	grouped := func(mut func(r *types.Request)) func() *types.Request {
@@ -512,6 +520,8 @@ func sameFloat(a, b float64) bool {
 // list naming the element columns) and a prefix glob keeps every
 // element column.
 func TestVecAggExpand_ReturnPlanning(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
@@ -602,6 +612,8 @@ func TestVecAggExpand_ReturnPlanning(t *testing.T) {
 // predict alike. Scoring an element column runs
 // (TestComposeOverlay_ScoresElementColumn).
 func TestVecAggExpand_ComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)

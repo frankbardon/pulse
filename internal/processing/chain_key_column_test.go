@@ -14,6 +14,8 @@ import (
 // (TestChainPredict_KeyColumnFollowsGroupKeyField) pins the same names,
 // so predict and runtime chain typing agree.
 func TestChainOutputSchema_KeyColumnFollowsGroupKeyField(t *testing.T) {
+	t.Parallel()
+
 	req := chainKeyColumnRequest()
 	schema, err := ChainOutputSchema(req, nil, vectors.AggregationKinds{})
 	if err != nil {

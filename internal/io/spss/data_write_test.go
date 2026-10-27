@@ -180,6 +180,8 @@ func numericSchema() *encoding.Schema {
 // too — a writer defaulting to the rarer encoding would produce files that
 // are correct but unlike every other `.sav` in existence.
 func TestWriterOptions_CompressionDefaultsToBytecode(t *testing.T) {
+	t.Parallel()
+
 	if got := (WriterOptions{}).Compression(); got != compressionBytecode {
 		t.Errorf("WriterOptions{}.Compression() = %d, want %d (bytecode)", got, compressionBytecode)
 	}
@@ -208,6 +210,8 @@ func TestWriterOptions_CompressionDefaultsToBytecode(t *testing.T) {
 
 // TestDataEncoder_RefusesZSAV states the out-of-scope criterion as a check.
 func TestDataEncoder_RefusesZSAV(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	plan := planFor(t, s, WriterOptions{})
 	plan.Compression = compressionZSAV
@@ -247,6 +251,8 @@ func TestDataEncoder_RefusesZSAV(t *testing.T) {
 // where 252 terminates the stream and the six zeros pad the block out. That
 // is 16 bytes for 72 bytes of uncompressed case data.
 func TestDataEncoder_BlockFramingIsHandVerifiable(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	plan := planFor(t, s, WriterOptions{})
 	sav := encodeCases(t, plan, s,
@@ -269,6 +275,8 @@ func TestDataEncoder_BlockFramingIsHandVerifiable(t *testing.T) {
 // writer gets wrong: a verbatim value belongs after ALL eight command bytes,
 // not immediately after the command that named it.
 func TestDataEncoder_PayloadsFollowTheWholeBlock(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	plan := planFor(t, s, WriterOptions{})
 
@@ -298,6 +306,8 @@ func TestDataEncoder_PayloadsFollowTheWholeBlock(t *testing.T) {
 // TestDataEncoder_CommandChoice is the encode side of the E3-S1 command
 // table: which command each kind of value earns.
 func TestDataEncoder_CommandChoice(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	plan := planFor(t, s, WriterOptions{})
 	enc, err := NewDataEncoder(plan, s)
@@ -343,6 +353,8 @@ func TestDataEncoder_CommandChoice(t *testing.T) {
 // with. A command the decoder would reject is a file we wrote and cannot
 // read.
 func TestDataEncoder_NeverEmitsACommandTheDecoderRefuses(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 	sav := exportCohort(t, fs, cohort, WriterOptions{})
 
@@ -395,6 +407,8 @@ func TestDataEncoder_NeverEmitsACommandTheDecoderRefuses(t *testing.T) {
 // and the uncompressed section are not merely equivalent, they expand to the
 // SAME bytes.
 func TestDataEncoder_ModesAreByteIdenticalAfterDecoding(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	packed := exportCohort(t, fs, cohort, WriterOptions{})
@@ -431,6 +445,8 @@ func TestDataEncoder_ModesAreByteIdenticalAfterDecoding(t *testing.T) {
 // TestDataEncoder_ModesReimportToIdenticalCohorts is the same criterion at
 // the level a user meets it.
 func TestDataEncoder_ModesReimportToIdenticalCohorts(t *testing.T) {
+	t.Parallel()
+
 	for name, spec := range map[string]spsstest.Spec{
 		"the rich fixture": richSpec(),
 		"strings, dates and missing values": {
@@ -486,6 +502,8 @@ func TestDataEncoder_ModesReimportToIdenticalCohorts(t *testing.T) {
 // TestDataEncoder_ValuesSurviveTheWriteAndRead reads an emitted file back
 // through this package's own reader and checks the cells.
 func TestDataEncoder_ValuesSurviveTheWriteAndRead(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32},
 		{Name: "income", Type: encoding.FieldTypeF64, Nullable: true},
@@ -527,6 +545,8 @@ func TestDataEncoder_ValuesSurviveTheWriteAndRead(t *testing.T) {
 // TestDataEncoder_NullsBecomeTheRightMissingState pins the two shapes of
 // "missing" a `.sav` has, which are not the same shape.
 func TestDataEncoder_NullsBecomeTheRightMissingState(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeF64, Nullable: true},
 		{Name: "s", Type: encoding.FieldTypeCategoricalU8, Nullable: true,
@@ -566,6 +586,8 @@ func TestDataEncoder_NullsBecomeTheRightMissingState(t *testing.T) {
 // value); an EMPTY mask writes every member 0 (a constituent said "not
 // this one").
 func TestDataEncoder_SetColumnKeepsItsThreeStates(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "media", Type: encoding.FieldTypeSetU8, Nullable: true,
 			Dictionary: dictOf(t, "tv", "web")},
@@ -603,6 +625,8 @@ func TestDataEncoder_SetColumnKeepsItsThreeStates(t *testing.T) {
 // is verified rather than trusted: -0.0 is a whole number in the compressible
 // range whose integer command decodes to +0.0, a different double.
 func TestDataEncoder_NegativeZeroSurvivesCompression(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "v", Type: encoding.FieldTypeF64},
 	}}
@@ -626,6 +650,8 @@ func TestDataEncoder_NegativeZeroSurvivesCompression(t *testing.T) {
 // `.sav` states its case count twice, and patching one leaves a file whose
 // two counts disagree.
 func TestDataEncoder_PatchesBothCaseCounts(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 
 	t.Run("a plan that declared a count carries both", func(t *testing.T) {
@@ -691,6 +717,8 @@ func TestDataEncoder_PatchesBothCaseCounts(t *testing.T) {
 
 // TestSetCaseCount_WritesBothOrRefuses covers the patch helper on its own.
 func TestSetCaseCount_WritesBothOrRefuses(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 
 	plan := emit(t, DictionaryRequest{Schema: s, Cases: 0, Compression: compressionNone})
@@ -722,6 +750,8 @@ func TestSetCaseCount_WritesBothOrRefuses(t *testing.T) {
 // table: every one of these could be written as SOMETHING, and every one of
 // those somethings is a plausible wrong answer.
 func TestDataEncoder_RefusesRatherThanDegrades(t *testing.T) {
+	t.Parallel()
+
 	textSchema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dictOf(t, "north", "south")},
 	}}
@@ -791,6 +821,8 @@ func TestDataEncoder_RefusesRatherThanDegrades(t *testing.T) {
 
 // TestDataEncoder_RefusesAMalformedCase covers the shape faults.
 func TestDataEncoder_RefusesAMalformedCase(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	plan := planFor(t, s, WriterOptions{})
 	enc, err := NewDataEncoder(plan, s)
@@ -815,6 +847,8 @@ func TestDataEncoder_RefusesAMalformedCase(t *testing.T) {
 // TestDataEncoder_RefusesATruncatedCohort keeps a damaged cohort from
 // becoming a short final case.
 func TestDataEncoder_RefusesATruncatedCohort(t *testing.T) {
+	t.Parallel()
+
 	s := numericSchema()
 	plan := planFor(t, s, WriterOptions{})
 	enc, err := NewDataEncoder(plan, s)
@@ -834,6 +868,8 @@ func TestDataEncoder_RefusesATruncatedCohort(t *testing.T) {
 // `.pulse` type the writer can be handed, so the cohort read is exercised on
 // the bit-packed, decimal and set paths rather than only on the numeric one.
 func TestWriteCohort_ReadsEveryStorageType(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "b", Type: encoding.FieldTypePackedBool},
 		{Name: "n4", Type: encoding.FieldTypeU4},

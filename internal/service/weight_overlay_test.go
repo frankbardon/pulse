@@ -174,6 +174,8 @@ func assertWeightedLayers(t *testing.T, kinds []types.OverlayKind, got, want, ra
 // cohort, differs from the unweighted host, and leaves the host payload
 // byte-identical to the same weighted request without overlays.
 func TestWeightShareIndexOverlaysReadWeightedHost(t *testing.T) {
+	t.Parallel()
+
 	weighted := newParityStore(t, "ov_weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "ov_expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
 	run := func(t *testing.T, store *parityStore, req *types.Request) *types.Response {
@@ -220,6 +222,8 @@ func TestWeightShareIndexOverlaysReadWeightedHost(t *testing.T) {
 // index kinds (INDEX_VS_REF, PANEL_INDEX_VS_REF) read the weighted slot
 // payloads; a descriptive kind is never refused by a slot weight.
 func TestWeightComposeIndexOverlaysReadWeightedSlots(t *testing.T) {
+	t.Parallel()
+
 	weighted := newParityStore(t, "cov_weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "cov_expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
 	run := func(t *testing.T, store *parityStore, req *types.ComposedRequest) *types.ComposedResponse {

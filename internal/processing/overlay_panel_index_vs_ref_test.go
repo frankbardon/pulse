@@ -32,6 +32,8 @@ func composeSpecMultiTargetPanelIndex(name string, targets []string, opts *types
 //   - per-target math matches OVERLAY_INDEX_VS_REF for that pair
 //   - layers[i] corresponds to spec.Targets[i] (spec.order preserved)
 func TestApplyPanelIndexVsRef_MultiLayer_3Targets_Matrix(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
 		{40, 50, 60},
@@ -114,6 +116,8 @@ func TestApplyPanelIndexVsRef_MultiLayer_3Targets_Matrix(t *testing.T) {
 // align with the layer Name for renderer-side matrix-cell-header
 // alignment.
 func TestApplyPanelIndexVsRef_LayerNamingConvention(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
 		{4, 5, 6},
@@ -171,6 +175,8 @@ func TestApplyPanelIndexVsRef_LayerNamingConvention(t *testing.T) {
 // target carries a distinct value so the math at any cell identifies the
 // target by its index.
 func TestApplyPanelIndexVsRef_SpecOrderTargetOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 10, 10},
 		{10, 10, 10},
@@ -228,6 +234,8 @@ func TestApplyPanelIndexVsRef_SpecOrderTargetOrderPreserved(t *testing.T) {
 // fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry without
 // producing any layer.
 func TestApplyPanelIndexVsRef_OverCap_17Targets_Rejected(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 10, 10},
 		{10, 10, 10},
@@ -281,6 +289,8 @@ func TestApplyPanelIndexVsRef_OverCap_17Targets_Rejected(t *testing.T) {
 // — the catalog standardises on one cap surface so renderers can budget
 // panel-layout state against a single knob.
 func TestApplyPanelIndexVsRef_DefaultMaxPanelTargets_16(t *testing.T) {
+	t.Parallel()
+
 	// 16 targets succeed (at cap).
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 10, 10},
@@ -320,6 +330,8 @@ func TestApplyPanelIndexVsRef_DefaultMaxPanelTargets_16(t *testing.T) {
 // 3 targets. Mirrors TestApplyPropZPanel_CustomMaxPanelTargets for the
 // PANEL_INDEX_VS_REF kind.
 func TestApplyPanelIndexVsRef_CustomMaxPanelTargets(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 10, 10},
 		{10, 10, 10},
@@ -374,6 +386,8 @@ func TestApplyPanelIndexVsRef_CustomMaxPanelTargets(t *testing.T) {
 // single-target OVERLAY_INDEX_VS_REF SERIES output for that
 // (reference, target[i]) pair.
 func TestApplyPanelIndexVsRef_SeriesShape_3Targets(t *testing.T) {
+	t.Parallel()
+
 	ref := makeSeriesResponse([]string{"north", "south", "east", "west"}, []float64{10, 20, 30, 40})
 	// t0 = 1.5x ref ⇒ index 150; t1 = 2.0x ref ⇒ index 200; t2 = 0.5x ref
 	// ⇒ index 50.
@@ -430,6 +444,8 @@ func TestApplyPanelIndexVsRef_SeriesShape_3Targets(t *testing.T) {
 // applyIndexVsRef call for the same (reference, target[i]) pair. This
 // pins the "math reuse" contract from the kind's catalog row.
 func TestApplyPanelIndexVsRef_LayerMathMatchesSingleTargetIndexVsRef(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
 		{40, 50, 60},

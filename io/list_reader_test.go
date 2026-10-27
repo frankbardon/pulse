@@ -168,6 +168,8 @@ func vectorReason(t *testing.T, err error) string {
 }
 
 func TestListAwareReader_CustomReaderMatchesNDJSON(t *testing.T) {
+	t.Parallel()
+
 	nd, err := pio.NewReaderFromBytes(pio.FormatNDJSON, []byte(listNDJSON), pio.ReaderOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -192,6 +194,8 @@ func TestListAwareReader_CustomReaderMatchesNDJSON(t *testing.T) {
 }
 
 func TestListAwareReader_CustomReaderWithoutInterfaceRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := importVector(t, plainReader{&memListReader{rows: listFixture()}})
 	if got := vectorReason(t, err); got != "no_columns" {
 		t.Fatalf("reason = %q, want no_columns", got)
@@ -199,6 +203,8 @@ func TestListAwareReader_CustomReaderWithoutInterfaceRefused(t *testing.T) {
 }
 
 func TestListAwareReader_ContractRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		fill   func(row int, dst *pio.ListCell)
@@ -272,6 +278,8 @@ func importRefused(t *testing.T, src pio.Reader) error {
 // error stays uncoded (the CLI's placeholder code, as for ReadRows), the
 // cause stays reachable, and the vector, column and row ride the message.
 func TestListAwareReader_RowListPlainErrorAbortsImport(t *testing.T) {
+	t.Parallel()
+
 	src := &memListReader{rows: listFixture(), fail: failAtRow(2, errSourceRead)}
 	err := importRefused(t, src)
 	if !stderrors.Is(err, errSourceRead) {
@@ -303,6 +311,8 @@ func TestListAwareReader_RowListPlainErrorAbortsImport(t *testing.T) {
 // A coded RowList error keeps its own code and details; the vector,
 // column and row are added beside them.
 func TestListAwareReader_RowListCodedErrorKeepsCode(t *testing.T) {
+	t.Parallel()
+
 	coded := perrors.NewCodedErrorWithDetails(perrors.DATA_FILE, "batch 2: checksum mismatch", map[string]any{"batch": 2})
 	err := importRefused(t, &memListReader{rows: listFixture(), fail: failAtRow(2, coded)})
 	var ce *perrors.CodedError
@@ -329,6 +339,8 @@ func TestListAwareReader_RowListCodedErrorKeepsCode(t *testing.T) {
 // A RowList error while the dim is being probed aborts the import there,
 // before the probe rewinds the source.
 func TestListAwareReader_RowListErrorDuringDimProbe(t *testing.T) {
+	t.Parallel()
+
 	src := &memListReader{rows: listFixture(), fail: failAtRow(0, errSourceRead)}
 	err := importRefused(t, src)
 	if !stderrors.Is(err, errSourceRead) {

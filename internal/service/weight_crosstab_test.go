@@ -164,6 +164,8 @@ func runCrosstab(t *testing.T, store *parityStore, req *types.Request, src *pari
 // TestWeightCrosstabUnityParity: unity weights are invisible on both
 // crosstab arms.
 func TestWeightCrosstabUnityParity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertParityCoverage)
 	aware := manifestAware()
 	store := newParityStore(t, "xt_unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
@@ -377,6 +379,8 @@ func crosstabVariants() []crosstabVariant {
 // margin class, auxiliary margin and normalization — while the counts
 // stay raw and the `weight: null` base is the unweighted figure.
 func TestWeightCrosstabFrequencyExpansion(t *testing.T) {
+	t.Parallel()
+
 	weighted := newParityStore(t, "xt_weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "xt_expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
 	src := paritySources()[1] // request_frequency
@@ -536,6 +540,8 @@ func compareJSONClose(t *testing.T, where string, got, want any) {
 // percentile takes its rank, so a crosstab of them — cells and every
 // margin — is byte-identical under any constant weight scale.
 func TestWeightCrosstabProbabilityQuantileScaleInvariance(t *testing.T) {
+	t.Parallel()
+
 	base := newParityStore(t, "xt_base", func(n int) []parityRow { return parityRows(n, fracWeight) })
 	src := paritySources()[0] // request_probability
 	for _, row := range parityOps {
@@ -564,6 +570,8 @@ func TestWeightCrosstabProbabilityQuantileScaleInvariance(t *testing.T) {
 // auxiliary, and a probability-weighted crosstab whose auxiliary reads
 // the column as a frequency weight.
 func TestWeightCrosstabAuxSlotOverride(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "xt_override", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	path := store.paths[paritySingleFile]
 	countRow := parityOp{op: types.AGG_SUM, fields: []string{"x"}}
@@ -621,6 +629,8 @@ func invalidWeight(i int) float64 {
 // whether the cell or only an auxiliary reads the weight, on both arms
 // — the cell floor reports n_weight_invalid, and strict refuses.
 func TestWeightCrosstabInvalidRows(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "xt_invalid", func(n int) []parityRow { return parityRows(n, invalidWeight) })
 	path := store.paths[paritySingleFile]
 	var wantNeg, wantNaN int64
@@ -705,6 +715,8 @@ func TestWeightCrosstabInvalidRows(t *testing.T) {
 // the buffered arm (non-mergeable, as unweighted), and a weighted
 // mergeable cell stays fusable.
 func TestWeightCrosstabFusionDecision(t *testing.T) {
+	t.Parallel()
+
 	ext := New(fs.NewMemMap()).extensions
 	w := &types.WeightSpec{Field: "w"}
 	xt := func(cell *types.Aggregation, aux ...*types.Aggregation) *types.Request {
@@ -793,6 +805,8 @@ var fuseExact = map[types.AggregationType]bool{
 // for the fuseExact sums, 1e-12 relative otherwise. (The non-mergeable
 // moment / quantile cells never fuse.)
 func TestWeightCrosstabFusedMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	stores := map[types.WeightKind]*parityStore{
 		types.WeightKindProbability: newParityStore(t, "xt_mixed", func(n int) []parityRow { return parityRows(n, mixedWeight) }),
 		types.WeightKindFrequency:   newParityStore(t, "xt_mixed_freq", func(n int) []parityRow { return parityRows(n, mixedFreqWeight) }),

@@ -499,10 +499,11 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 
 ```bash
 make build    # Binary at ./bin/pulse
-make test     # go test ./...
+make test     # fast test tier: go test ./...
+make test-heavy  # both tiers: go test -tags heavy ./... (tests >= 1 s live in //go:build heavy files)
 make fmt      # gofmt -w .
 make vet      # go vet
-make lint     # gofmt check (fmt-check) + go vet + staticcheck (auto-installed via go run); CI runs it
+make lint     # gofmt check (fmt-check) + go vet + staticcheck on both test tiers (auto-installed via go run); CI runs it
 make cover    # Coverage report
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
 make dist     # 6-platform release archives (binary + completions/) + checksums.txt in ./dist (VERSION=v1.2.3)
@@ -516,7 +517,8 @@ A `.env` at repo root is auto-loaded by the Makefile.
 ### Run tests
 
 ```bash
-go test ./...
+go test ./...               # fast tier
+go test -tags heavy ./...   # both tiers
 go test ./processing/...
 go test ./internal/service/... -v -run TestProcess
 go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s

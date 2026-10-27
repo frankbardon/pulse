@@ -23,6 +23,8 @@ import (
 // of the embedded zoneinfo.zip: refreshing the file without recording
 // the new release (and its hash) fails here.
 func TestTZDataVersion_MatchesEmbeddedZip(t *testing.T) {
+	t.Parallel()
+
 	if !regexp.MustCompile(`^[0-9]{4}[a-z]$`).MatchString(TZDataVersion) {
 		t.Errorf("TZDataVersion = %q, want an IANA release name such as \"2026c\"", TZDataVersion)
 	}
@@ -38,6 +40,8 @@ func TestTZDataVersion_MatchesEmbeddedZip(t *testing.T) {
 // every entry with an Area/Location shape resolves through LoadZone, and
 // the index carries the names the rest of the suite relies on.
 func TestEmbeddedZones_EveryWellFormedEntryLoads(t *testing.T) {
+	t.Parallel()
+
 	idx, err := embeddedZones()
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +73,8 @@ func TestEmbeddedZones_EveryWellFormedEntryLoads(t *testing.T) {
 // case-folded spelling is refused even where the host filesystem is
 // case-insensitive, because the embedded index is the only source.
 func TestLoadZone_CaseSensitiveOnEveryHost(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"EUROPE/BERLIN", "europe/berlin", "Europe/BERLIN", "America/NEW_YORK"} {
 		_, err := LoadZone(name)
 		var ce *perr.CodedError
@@ -145,6 +151,8 @@ const (
 // doctored zip IS live for time.LoadLocation, so the comparison is never
 // vacuous. The in-process t.Setenv arm covers the same-process case.
 func TestLoadZone_IgnoresHostZoneinfo(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	want := zoneDigest(t)
 
 	doctored := doctoredZip(t)
@@ -187,6 +195,8 @@ func TestLoadZone_IgnoresHostZoneinfo(t *testing.T) {
 // TestLoadZone_IgnoresHostZoneinfo; it does nothing unless that test
 // spawned it.
 func TestLoadZone_IgnoresHostZoneinfoChild(t *testing.T) {
+	t.Parallel()
+
 	mode := os.Getenv(tzChildEnv)
 	if mode == "" {
 		return
@@ -243,6 +253,8 @@ func stubIndex(t *testing.T, build func(zw *zip.Writer)) func() (map[string]*zip
 // unusable is a miss (which LoadZone turns into PULSE_TIMEZONE_UNKNOWN),
 // never a panic or a half-built location.
 func TestLoadLocationFrom_FailureArms(t *testing.T) {
+	t.Parallel()
+
 	const name = "Area/Zone"
 	cases := map[string]func() (map[string]*zip.File, error){
 		"index error": func() (map[string]*zip.File, error) { return nil, stderrors.New("boom") },

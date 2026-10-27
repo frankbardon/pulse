@@ -5,6 +5,8 @@ import "testing"
 // TestDaysToISO pins the epoch-day → ISO rendering used by profile
 // capture, across the sign boundary.
 func TestDaysToISO(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		days int64
 		want string
@@ -19,6 +21,8 @@ func TestDaysToISO(t *testing.T) {
 // including pre-epoch bounds where floor and toward-zero division would
 // diverge on a non-midnight instant.
 func TestUniformDateSampler_DayBounds(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		start, end         string
 		wantStart, wantEnd int64

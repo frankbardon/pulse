@@ -30,6 +30,8 @@ func mixtureFixture(t *testing.T, means, stds, weights []any) mixtureComponents 
 // prediction, shifting its whole conditional structure with no other
 // symptom.
 func TestMixtureMoments_MatchesLawOfTotalVariance(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name                    string
 		means, stds, weights    []any
@@ -74,6 +76,8 @@ func TestMixtureMoments_MatchesLawOfTotalVariance(t *testing.T) {
 // between two well-separated modes (where the density underflows and a
 // Newton step would explode) as well as inside each mode.
 func TestMixtureQuantile_InvertsTheCDF(t *testing.T) {
+	t.Parallel()
+
 	mc := mixtureFixture(t, []any{10.0, 90.0}, []any{1.5, 1.5}, []any{0.5, 0.5})
 	lo, hi := mc.bracket()
 	for _, p := range []float64{
@@ -95,6 +99,8 @@ func TestMixtureQuantile_InvertsTheCDF(t *testing.T) {
 // deliberately not made — and the bracket bound is what lets the
 // bisection run a fixed number of steps with no expansion loop.
 func TestMixtureQuantile_IsMonotoneAndBounded(t *testing.T) {
+	t.Parallel()
+
 	mc := mixtureFixture(t, []any{10.0, 90.0}, []any{1.5, 1.5}, []any{0.3, 0.7})
 	lo, hi := mc.bracket()
 
@@ -131,6 +137,8 @@ func TestMixtureQuantile_IsMonotoneAndBounded(t *testing.T) {
 // Bit equality, never a tolerance — a tolerance here would be asserting
 // the opposite of the property.
 func TestMixtureQuantile_IsBitIdenticalAcrossCalls(t *testing.T) {
+	t.Parallel()
+
 	mc := mixtureFixture(t, []any{10.0, 90.0}, []any{1.5, 1.5}, []any{0.5, 0.5})
 	lo, hi := mc.bracket()
 	for i := 1; i < 200; i++ {
@@ -150,6 +158,8 @@ func TestMixtureQuantile_IsBitIdenticalAcrossCalls(t *testing.T) {
 // outside. If this stopped holding the bisection would silently return
 // a clipped answer rather than failing.
 func TestMixtureBracket_EnclosesTheWholeDistribution(t *testing.T) {
+	t.Parallel()
+
 	// Deliberately lopsided: a tight component beside a wide one, so the
 	// bracket is driven by the widest std rather than by a symmetric fit.
 	mc := mixtureFixture(t, []any{-100.0, 250.0}, []any{0.25, 40.0}, []any{0.9, 0.1})

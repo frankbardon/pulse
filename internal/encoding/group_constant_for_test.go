@@ -12,6 +12,8 @@ import (
 // decides — same fields, retained field, saving and skip reason — over
 // the same rows, across the planner's rules.
 func TestPlanConstantElisionFor_MatchesDetectorPlan(t *testing.T) {
+	t.Parallel()
+
 	s, rows := constantRows(t, 400, "u16_a", "u8_c", "cat_u16")
 	same := make([][]byte, 300)
 	for i := range same {

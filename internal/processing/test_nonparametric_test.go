@@ -11,6 +11,8 @@ import (
 // TestMidRanks_NoTies verifies that unique values receive consecutive
 // 1-based ranks in input order.
 func TestMidRanks_NoTies(t *testing.T) {
+	t.Parallel()
+
 	values := []float64{3.0, 1.0, 4.0, 1.5, 2.0}
 	ranks, ties := midRanks(values)
 	want := []float64{4, 1, 5, 2, 3}
@@ -30,6 +32,8 @@ func TestMidRanks_NoTies(t *testing.T) {
 // TestMidRanks_Ties verifies that runs of equal values receive the
 // average of the positions they would occupy.
 func TestMidRanks_Ties(t *testing.T) {
+	t.Parallel()
+
 	values := []float64{1, 2, 2, 3, 3, 3, 4}
 	ranks, ties := midRanks(values)
 	want := []float64{1, 2.5, 2.5, 5, 5, 5, 7}
@@ -55,6 +59,8 @@ func TestMidRanks_Ties(t *testing.T) {
 // z (with continuity correction toward μ) = (17 − 0.5 − 12.5) / 4.787 ≈ 0.836
 // → p ≈ 0.4034.
 func TestMannWhitney_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, err := newMannWhitneyRow(spec, schema)
@@ -88,6 +94,8 @@ func TestMannWhitney_KnownStatistic(t *testing.T) {
 
 // TestMannWhitney_SplitGroupsLT2 verifies the missing-group guard.
 func TestMannWhitney_SplitGroupsLT2(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, _ := newMannWhitneyRow(spec, schema)
@@ -114,6 +122,8 @@ func TestMannWhitney_SplitGroupsLT2(t *testing.T) {
 //
 // Concretely: scipy returns statistic = min(W⁺, W⁻) = 6, p ≈ 0.4631.
 func TestWilcoxon_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "before", Type: encoding.FieldTypeF64},
@@ -146,6 +156,8 @@ func TestWilcoxon_KnownStatistic(t *testing.T) {
 // TestWilcoxon_DropsZeroDiff verifies that exact-zero diffs are excluded
 // and reported in the result.
 func TestWilcoxon_DropsZeroDiff(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "before", Type: encoding.FieldTypeF64},
@@ -183,6 +195,8 @@ func TestWilcoxon_DropsZeroDiff(t *testing.T) {
 // size 2 (the two 25s, the two 30s) → tie factor 1 − 12/(15³−15) = 0.9964,
 // so H_corrected ≈ 6.34, df=2, p ≈ 0.042.
 func TestKruskalWallis_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{Type: types.TEST_KRUSKAL_WALLIS, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
 	test, err := newKruskalWallisRow(spec, schema)
@@ -217,6 +231,8 @@ func TestKruskalWallis_KnownStatistic(t *testing.T) {
 // p is cor.test's exact (AS 89) figure, 2/6! — R: cor.test(0:5,
 // (0:5)^2, method = "spearman")$p.value.
 func TestSpearman_PerfectRank(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64},
@@ -245,6 +261,8 @@ func TestSpearman_PerfectRank(t *testing.T) {
 // scipy.stats.spearmanr([1,2,2,4,5], [1,3,2,4,5]) returns ρ ≈ 0.9747, p ≈ 0.0048;
 // R cor.test (ties ⇒ the t approximation) p = 0.0048182304681985404.
 func TestSpearman_KnownTies(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64},
@@ -296,6 +314,8 @@ func TestSpearman_KnownTies(t *testing.T) {
 //	(3,4): -1*-2= 2 C
 //	→ C=8, D=2, no ties; τ = (8-2)/10 = 0.6.
 func TestKendallTau_NoTies(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64},

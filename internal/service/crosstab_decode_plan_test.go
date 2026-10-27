@@ -17,6 +17,8 @@ import (
 )
 
 func TestCrosstab_DecodePlanEquivalence_HugeRequestShape(t *testing.T) {
+	// serial: wall-clock bound; CPU contention from parallel tests would make it flaky
+
 	const (
 		fieldCount = 200
 		rowCount   = 10_000
@@ -154,9 +156,6 @@ func TestCrosstab_DecodePlanEquivalence_HugeRequestShape(t *testing.T) {
 			len(m.ColumnKeys))
 	}
 
-	if testing.Short() {
-		return
-	}
 	// Belt-and-braces: also enforce the under-5s wall-clock target
 	// from the story. We give a 2x headroom in case CI is slow; the
 	// real signal is the t.Logf above. Use a soft test bound rather

@@ -34,6 +34,8 @@ func planFor(t *testing.T, include, exclude []string) *returnplan.Plan {
 }
 
 func TestComputePlanFor(t *testing.T) {
+	t.Parallel()
+
 	full := FullComputePlan()
 	none := full.WithoutComponents()
 	cases := []struct {
@@ -112,6 +114,8 @@ func TestComputePlanFor(t *testing.T) {
 }
 
 func TestComputePlan_ComponentsHelpers(t *testing.T) {
+	t.Parallel()
+
 	full := FullComputePlan()
 	off := full.WithoutComponents()
 	if off.AnyComponents() {
@@ -144,6 +148,8 @@ func TestComputePlan_ComponentsHelpers(t *testing.T) {
 // the IsNull scan, which disagrees on a field that carries a wide,
 // non-numeric, non-set value.
 func TestComputePlan_RunNullRecordsIndependentOfAggs(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 0},
 	}}
@@ -188,6 +194,8 @@ func TestComputePlan_RunNullRecordsIndependentOfAggs(t *testing.T) {
 // plain whole slot (still comparable to FullComputePlan), anything
 // between computes exactly the marked layers.
 func TestComputePlan_OverlayLayers(t *testing.T) {
+	t.Parallel()
+
 	full := FullComputePlan()
 	if off := full.WithOverlayLayers(nil); off.Overlays || off.ComputesOverlay(0) {
 		t.Errorf("no layer marked: %+v; want the slot off", off)
@@ -209,6 +217,8 @@ func TestComputePlan_OverlayLayers(t *testing.T) {
 // slot independently, and the realigned results hold nil at a skipped
 // position.
 func TestComputePlan_TestEntries(t *testing.T) {
+	t.Parallel()
+
 	full := FullComputePlan()
 	if all := full.WithTestEntries([]bool{true}).WithPostTestEntries([]bool{true, true}); all != full {
 		t.Errorf("every entry marked: %+v; want FullComputePlan", all)
@@ -227,6 +237,8 @@ func TestComputePlan_TestEntries(t *testing.T) {
 // spec runs no handler (no fold counted) and holds a zero layer, so the
 // result stays index-aligned with the specs.
 func TestApplyOverlaysSeries_SkipsUnmarkedLayers(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	host := newStubSeriesHost([]types.AxisKey{{"jan"}, {"feb"}, {"mar"}}, []float64{10, 20, 30})
 	specs := []types.OverlaySpec{newIndexVsBaselineSpec("a", 0), newDeltaVsBaselineSpec("b", 0)}
 	plan := FullComputePlan().WithOverlayLayers([]bool{false, true})

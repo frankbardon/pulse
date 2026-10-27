@@ -18,6 +18,8 @@ import (
 //
 // scipy.stats.fisher_exact returns p ≈ 0.0027 (two-sided).
 func TestFisherExact_KnownPValue(t *testing.T) {
+	t.Parallel()
+
 	schema := chiSquareFixtureSchema() // reuses kind × outcome fixture
 	spec := &types.Test{
 		Type:  types.TEST_FISHER_EXACT,
@@ -53,6 +55,8 @@ func TestFisherExact_KnownPValue(t *testing.T) {
 
 // TestFisherExact_Rejects4x2 verifies the r>2 guard.
 func TestFisherExact_RejectsLargerTable(t *testing.T) {
+	t.Parallel()
+
 	schema := chiSquareFixtureSchema()
 	spec := &types.Test{
 		Type:  types.TEST_FISHER_EXACT,
@@ -81,6 +85,8 @@ func TestFisherExact_RejectsLargerTable(t *testing.T) {
 // TestShapiroWilk_AcceptsNormal verifies the test does not reject on
 // a clearly normal sample (n=20 from a fixed grid).
 func TestShapiroWilk_AcceptsNormal(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("metric")
 	spec := &types.Test{Type: types.TEST_SHAPIRO_WILK, Field: "metric", Alpha: 0.05}
 	test, err := newShapiroWilkRow(spec, schema)
@@ -106,6 +112,8 @@ func TestShapiroWilk_AcceptsNormal(t *testing.T) {
 // TestShapiroWilk_RejectsSkewed verifies the test rejects a clearly
 // non-normal (heavy right-tail exponential) sample.
 func TestShapiroWilk_RejectsSkewed(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("metric")
 	spec := &types.Test{Type: types.TEST_SHAPIRO_WILK, Field: "metric", Alpha: 0.05}
 	test, _ := newShapiroWilkRow(spec, schema)
@@ -135,6 +143,8 @@ func TestShapiroWilk_RejectsSkewed(t *testing.T) {
 // 10 / 0.632 ≈ 15.81. p_adj should be < 0.001. The middle pair
 // (group_b vs anything) has q = 5 / 0.632 ≈ 7.9 also < 0.001.
 func TestTukeyHSD_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	params, _ := json.Marshal(map[string]any{"ms_within": 4.0, "df_within": 27.0})
 	spec := &types.Test{
 		Type:    types.TEST_TUKEY_HSD,
@@ -172,6 +182,8 @@ func TestTukeyHSD_KnownStatistic(t *testing.T) {
 
 // TestTukeyHSD_RejectsKLT3 verifies the k<3 guard.
 func TestTukeyHSD_RejectsKLT3(t *testing.T) {
+	t.Parallel()
+
 	params, _ := json.Marshal(map[string]any{"ms_within": 4.0, "df_within": 10.0})
 	spec := &types.Test{
 		Type:    types.TEST_TUKEY_HSD,
@@ -195,6 +207,8 @@ func TestTukeyHSD_RejectsKLT3(t *testing.T) {
 // a folded normal scaled by √2. The CDF at t = 1.96·√2 ≈ 2.77 should
 // be close to P(|Z| ≤ 1.96) = 0.95.
 func TestStudentizedRange_NormalRangeCDF(t *testing.T) {
+	t.Parallel()
+
 	got := normalRangeCDF(2.77, 2)
 	if math.Abs(got-0.95) > 0.01 {
 		t.Errorf("normalRangeCDF(2.77, 2) = %g, want ~0.95", got)
@@ -204,6 +218,8 @@ func TestStudentizedRange_NormalRangeCDF(t *testing.T) {
 // TestStudentizedRange_SurvivalMonotone verifies the survival function
 // decreases in q for fixed (k, df).
 func TestStudentizedRange_SurvivalMonotone(t *testing.T) {
+	t.Parallel()
+
 	const k = 4
 	const df = 20.0
 	prev := studentizedRangeSurvival(0.5, k, df)

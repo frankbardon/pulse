@@ -16,6 +16,8 @@ import (
 
 // TestMMMBayes_Quantile7: summaries are R's quantile(type = 7) and sd().
 func TestMMMBayes_Quantile7(t *testing.T) {
+	t.Parallel()
+
 	draws := []float64{7, 1, 10, 3, 5, 2, 9, 4, 8, 6}
 	s := summarize(draws, 0.9)
 	// R: quantile(1:10, c(.05, .5, .95)) = 1.45 5.50 9.55; sd(1:10) = 3.02765.
@@ -42,6 +44,8 @@ func TestMMMBayes_Quantile7(t *testing.T) {
 // rebuilds the curve from the constrained parameters, in both ROI and
 // β mode.
 func TestMMMBayes_ChannelFiguresMatchOracle(t *testing.T) {
+	t.Parallel()
+
 	m := jointModel(t, mixedPriors())
 	rng := rand.New(rand.NewPCG(5, 5^0x9E3779B97F4A7C15))
 	const eps = 1e-6
@@ -83,6 +87,8 @@ func TestMMMBayes_ChannelFiguresMatchOracle(t *testing.T) {
 // row's prediction carries the spend before the cutoff — zeroing the
 // pre-cutoff spend moves it.
 func TestMMMBayes_PredictCarriesHistory(t *testing.T) {
+	t.Parallel()
+
 	y, spend, controls := jointModelData()
 	const nf = 120
 	cut := func(cols [][]float64) [][]float64 {

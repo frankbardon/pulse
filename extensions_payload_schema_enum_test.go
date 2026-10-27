@@ -44,6 +44,8 @@ func payloadEnumWith(t *testing.T, p *pulse.Pulse, anchor string) []string {
 // request naming one validates against the instance's own schema. A
 // feature profile that leaves an extension out drops it from the enum.
 func TestExtensions_PayloadSchemaEnumsCarryExtensions(t *testing.T) {
+	t.Parallel()
+
 	categories := []struct {
 		anchor string
 		names  func(*descriptor.ExtensionsManifest) []descriptor.OperatorMeta

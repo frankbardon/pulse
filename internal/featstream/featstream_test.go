@@ -12,6 +12,8 @@ import (
 // reading a column an earlier feature derives routes buffered; stored
 // columns, row-local operators and level readers stream.
 func TestStreamable(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "g", Type: encoding.FieldTypeCategoricalU8},
 		{Name: "y", Type: encoding.FieldTypeF64},

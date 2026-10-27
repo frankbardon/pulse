@@ -6,6 +6,8 @@ import (
 )
 
 func TestMarkerSection(t *testing.T) {
+	t.Parallel()
+
 	for line, want := range map[string]string{
 		"<!-- generated: use-when -->":            SectionUseWhen,
 		"  <!--generated:reading-the-output-->  ": SectionReadingTheOutput,
@@ -30,6 +32,8 @@ func TestMarkerSection(t *testing.T) {
 // section; an empty render removes the marker and the blank line it
 // would leave doubled; anything else is untouched.
 func TestRenderGenerated(t *testing.T) {
+	t.Parallel()
+
 	render := func(sec string) string {
 		if sec == SectionUseWhen {
 			return "## Use when\n\nRendered.\n"
@@ -59,6 +63,8 @@ func TestRenderGenerated(t *testing.T) {
 // rendered sections satisfy HasHeading's exact-line match and survive
 // StripFrontmatter.
 func TestRenderGenerated_Coexists(t *testing.T) {
+	t.Parallel()
+
 	body := "---\nname: op-x\noperator: X\n---\n\nLead.\n\n<!-- generated: use-when -->\n\n## Params\n\n" +
 		"<!-- feature: TEST_WELCH -->\n<!-- generated: reading-the-output -->\n<!-- /feature -->\n\n## See\n"
 	render := func(sec string) string { return "## " + sec + "\n\nBody." }

@@ -33,6 +33,8 @@ func rowsByKey(data []map[string]any, groupField string) map[string]map[string]a
 // TestGroupedStreaming_CategoryParityWithBuffered runs the same request
 // through both paths and asserts identical per-key aggregates.
 func TestGroupedStreaming_CategoryParityWithBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "score"},
@@ -90,6 +92,8 @@ func TestGroupedStreaming_CategoryParityWithBuffered(t *testing.T) {
 // TestGroupedStreaming_RangeAggMultiple covers GROUP_RANGE × multiple
 // online aggregators for parity with buffered processing.
 func TestGroupedStreaming_RangeAggMultiple(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input value"},
@@ -148,6 +152,8 @@ func TestGroupedStreaming_RangeAggMultiple(t *testing.T) {
 // TestGroupedStreaming_NullKeySkipped: rows with null group values must
 // be excluded from buckets in both paths.
 func TestGroupedStreaming_NullKeySkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input value"},

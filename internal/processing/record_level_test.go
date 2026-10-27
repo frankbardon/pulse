@@ -12,6 +12,8 @@ import (
 // packed_bool row must never read as missing — StringValue alone
 // answers ("", false) for it, the silent drop LevelValue exists for.
 func TestRecord_LevelValue(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	yes, err := dict.Add("yes")
 	if err != nil {

@@ -131,6 +131,8 @@ func u64KeyRequest(m u64Mode, name string, attrs []*types.Attribute, aggs []*typ
 // TestU64ExactKey_KeyFieldReference: the table profiles 2^53 and
 // MaxUint64 only, so the rows keyed 2^53+1, MaxUint64-1 and 7 must miss.
 func TestU64ExactKey_KeyFieldReference(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	profiles := map[string][]float64{
 		strconv.FormatUint(u64Lo, 10): {1, 2},
@@ -177,6 +179,8 @@ func TestU64ExactKey_KeyFieldReference(t *testing.T) {
 // TestU64ExactKey_CentroidBy: one centroid per EXACT key; 2^53 / 2^53+1
 // and MaxUint64 / MaxUint64-1 are four centroids, not two.
 func TestU64ExactKey_CentroidBy(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for name, m := range u64KeyModes(t, pulse.Extensions{}) {
 		t.Run(name, func(t *testing.T) {
@@ -215,6 +219,8 @@ func TestU64ExactKey_CentroidBy(t *testing.T) {
 
 // TestU64ExactKey_CodeIn: a code above 2^53 matches its own value only.
 func TestU64ExactKey_CodeIn(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for name, m := range u64KeyModes(t, pulse.Extensions{}) {
 		t.Run(name, func(t *testing.T) {
@@ -253,6 +259,8 @@ func TestU64ExactKey_CodeIn(t *testing.T) {
 // keeps its exact word through the build copy, so ATTR_CODE_IN on the
 // joined column still tells 2^53+1 from 2^53.
 func TestU64ExactKey_JoinRightSide(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	write := func(path string, s *encoding.Schema, row func(r int) []byte, n int) {
@@ -317,6 +325,8 @@ func TestU64ExactKey_JoinRightSide(t *testing.T) {
 // anchored shard. The right table holds one row per key with weight
 // 10^i, so a collision adds a neighbour's power of ten to the sum.
 func TestU64ExactKey_JoinOnKey(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeU64KeyCohort(t, fsys, "l.pulse", 0, 120)

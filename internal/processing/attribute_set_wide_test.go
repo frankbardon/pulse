@@ -21,6 +21,8 @@ func setAttrRowLocal(t *testing.T, c AttributeComputer) RowLocalAttribute {
 }
 
 func TestAttrSetPopcountWide_CountsAbove64Bits(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	c, err := newSetPopcountAttribute(&types.Attribute{Type: types.ATTR_SET_POPCOUNT, Field: "tags"}, schema)
 	if err != nil {
@@ -73,6 +75,8 @@ func TestAttrSetPopcountWide_CountsAbove64Bits(t *testing.T) {
 }
 
 func TestAttrSetPopcountWide_ComputeMatchesRow(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	c, err := newSetPopcountAttribute(&types.Attribute{Type: types.ATTR_SET_POPCOUNT, Field: "tags"}, schema)
 	if err != nil {
@@ -100,6 +104,8 @@ func TestAttrSetPopcountWide_ComputeMatchesRow(t *testing.T) {
 }
 
 func TestAttrSetHasWide_WordBoundaries(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	for _, bit := range setOpBoundaryBits {
 		c, err := newSetHasAttribute(&types.Attribute{
@@ -133,6 +139,8 @@ func TestAttrSetHasWide_WordBoundaries(t *testing.T) {
 }
 
 func TestAttrSetHasWide_BuildAcceptsLabelAboveBit63(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		ft      encoding.FieldType
 		entries int
@@ -155,6 +163,8 @@ func TestAttrSetHasWide_BuildAcceptsLabelAboveBit63(t *testing.T) {
 }
 
 func TestAttrSetHasWide_RejectsLabelBeyondRungCapacity(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU8, 16)
 	if _, err := newSetHasAttribute(&types.Attribute{
 		Type:   types.ATTR_SET_HAS,
@@ -176,6 +186,8 @@ func TestAttrSetHasWide_RejectsLabelBeyondRungCapacity(t *testing.T) {
 // cannot know which bit the label maps to, so it must report absence
 // rather than silently testing dictionary entry 0.
 func TestAttrSetHasWide_NoSchemaReportsAbsent(t *testing.T) {
+	t.Parallel()
+
 	c, err := newSetHasAttribute(&types.Attribute{
 		Type:   types.ATTR_SET_HAS,
 		Field:  "tags",

@@ -36,6 +36,8 @@ func tableParams(t *testing.T, table string) json.RawMessage {
 // ExtensionAware SetExtensions hook and asserts the resulting buckets match
 // the inline equivalent exactly.
 func TestGrouper_DateRanges_TableSource(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	exts := fiscalTableRegistry()
 
@@ -71,6 +73,8 @@ func TestGrouper_DateRanges_TableSource(t *testing.T) {
 // TestGrouper_DateRanges_InlineVsTableEquivalence proves a table and an
 // equivalent inline set produce identical buckets for the same records.
 func TestGrouper_DateRanges_InlineVsTableEquivalence(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	records := makeRecords(schema, "enrolled", []float64{
 		epochDays(2024, 2, 15),
@@ -109,6 +113,8 @@ func TestGrouper_DateRanges_InlineVsTableEquivalence(t *testing.T) {
 // TestGrouper_DateRanges_SourceAmbiguous covers both-present and
 // neither-present at construction (no registry needed).
 func TestGrouper_DateRanges_SourceAmbiguous(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	cases := map[string]json.RawMessage{
@@ -129,6 +135,8 @@ func TestGrouper_DateRanges_SourceAmbiguous(t *testing.T) {
 // surfaces PULSE_RANGE_TABLE_UNKNOWN. The grouper factory succeeds (the
 // name is only resolved at SetExtensions); the error surfaces at KeyFor.
 func TestGrouper_DateRanges_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	g, err := factory(&types.Group{Type: types.GROUP_DATE_RANGES, Field: "enrolled", Params: tableParams(t, "nope")}, schema)
@@ -147,6 +155,8 @@ func TestGrouper_DateRanges_UnknownTable(t *testing.T) {
 // SetExtensions never fired (or fired with a nil registry) fails cleanly
 // rather than panicking.
 func TestGrouper_DateRanges_TableNilRegistry(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	g, err := factory(&types.Group{Type: types.GROUP_DATE_RANGES, Field: "enrolled", Params: tableParams(t, "fiscal")}, schema)
@@ -165,6 +175,8 @@ func TestGrouper_DateRanges_TableNilRegistry(t *testing.T) {
 // filterer's ExtensionAware hook and asserts keep/drop matches the inline
 // equivalent.
 func TestFilter_DateRanges_TableSource(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := filtererRegistry[types.FILTER_DATE_RANGES]
 
@@ -206,6 +218,8 @@ func TestFilter_DateRanges_TableSource(t *testing.T) {
 // TestFilter_DateRanges_SourceSelectionErrors covers ambiguous-source and
 // unknown-table on the filter (both surface at Build).
 func TestFilter_DateRanges_SourceSelectionErrors(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := filtererRegistry[types.FILTER_DATE_RANGES]
 

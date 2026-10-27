@@ -22,6 +22,8 @@ import (
 )
 
 func TestRecommend_FacadeUnbound(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +140,8 @@ func wideRecommendCohort(t *testing.T, fsys afero.Fs, path string, rows int) int
 // payload — caps the list at the default limit, and every fully bound
 // draft passes the facade's own Predict.
 func TestRecommend_FacadeBoundReadsNoRecord(t *testing.T) {
+	t.Parallel()
+
 	spy := &readSpyFs{Fs: afero.NewMemMapFs(), maxRead: map[string]int64{}}
 	head := wideRecommendCohort(t, spy.Fs, "wide.pulse", 500)
 	p, err := New(Options{FS: spy})
@@ -184,6 +188,8 @@ func TestRecommend_FacadeBoundReadsNoRecord(t *testing.T) {
 // sidecar-fed advisories the facade's Predict raises, and the
 // instance's suppression list drops them.
 func TestRecommend_FacadeBoundSidecarAdvisories(t *testing.T) {
+	t.Parallel()
+
 	codesFor := func(p *Pulse) []string {
 		res, err := p.Recommend(context.Background(), descriptor.RecommendRequest{
 			Intent: "describe", Cohort: &types.Cohort{Filename: suggestCohort}, Fields: []string{"REGION"}, Limit: 1000,
@@ -216,6 +222,8 @@ func TestRecommend_FacadeBoundSidecarAdvisories(t *testing.T) {
 // so a profiled instance never names a hidden operator anywhere in the
 // result.
 func TestRecommend_FacadeProfiled(t *testing.T) {
+	t.Parallel()
+
 	const hidden = "TEST_TUKEY_HSD"
 	p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: &FeatureProfile{Features: allFeaturesBut(hidden)}})
 	if err != nil {
@@ -255,6 +263,8 @@ func TestRecommend_FacadeProfiled(t *testing.T) {
 // keeps both. The facade itself stays callable (facade methods are not
 // gated), but PULSE_RECOMMEND_INTENT_UNKNOWN is no longer listed.
 func TestRecommend_HiddenFeatureSurfaces(t *testing.T) {
+	t.Parallel()
+
 	const feat = "capability:recommend"
 	for _, tc := range []struct {
 		name     string
@@ -265,6 +275,8 @@ func TestRecommend_HiddenFeatureSurfaces(t *testing.T) {
 		{"enabled", allFeaturesBut("capability:synth"), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: &FeatureProfile{Features: tc.features}})
 			if err != nil {
 				t.Fatal(err)
@@ -303,6 +315,8 @@ func TestRecommend_HiddenFeatureSurfaces(t *testing.T) {
 // weight — Inspect's suggested_weight, from the SPSS sidecar — so the
 // draft is fully bound; without a sidecar weight it asks for one.
 func TestRecommend_FacadeBindsSuggestedWeight(t *testing.T) {
+	t.Parallel()
+
 	drafts := func(p *Pulse) []descriptor.Recommendation {
 		res, err := p.Recommend(context.Background(), descriptor.RecommendRequest{
 			Intent: "describe", Cohort: &types.Cohort{Filename: suggestCohort}, Limit: 1000,

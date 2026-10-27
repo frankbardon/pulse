@@ -13,6 +13,8 @@ import (
 // exclude path and selectable by an include one; an excluded key is
 // ABSENT on the wire (never null) and absent from the Go result.
 func TestReturn_RegressionIntervals(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	all := []string{"ci_lower", "ci_upper", "df", "conf_level"}
 	for name, c := range map[string]struct {

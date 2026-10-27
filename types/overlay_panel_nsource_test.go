@@ -13,6 +13,8 @@ import (
 // that reads components must NOT inherit the fallback.
 
 func TestValidPanelNSource(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		in   string
 		want bool
@@ -67,6 +69,8 @@ func TestValidPanelNSource(t *testing.T) {
 // them. Suggesting "" to a caller who mistyped would tell them to
 // delete the key when they meant to fix it.
 func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
+	t.Parallel()
+
 	got := PanelNSources()
 	if len(got) == 0 {
 		t.Fatal("PanelNSources() is empty")
@@ -108,6 +112,8 @@ func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
 // Details["valid_n_sources"] must not be able to redefine the enum for
 // every later request in the process.
 func TestPanelNSources_ReturnsACopy(t *testing.T) {
+	t.Parallel()
+
 	first := PanelNSources()
 	first[0] = "clobbered"
 	second := PanelNSources()
@@ -122,6 +128,8 @@ func TestPanelNSources_ReturnsACopy(t *testing.T) {
 // substitutes a cell VALUE for it would reintroduce exactly the
 // substitution the counted mode exists to remove.
 func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range append([]string{""}, PanelNSources()...) {
 		reads := PanelNSourceReadsComponents(mode)
 		falls := PanelNSourceFallsBackToCellValue(mode)
@@ -168,6 +176,8 @@ func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
 // that decoded on one arm and not the other would refuse at predict
 // and run the default at runtime, or the reverse.
 func TestDecodePanelParams_NSourceBothCarriers(t *testing.T) {
+	t.Parallel()
+
 	raw, err := DecodePanelParams(json.RawMessage(`{"n_source":"cell_n_unweighted"}`))
 	if err != nil {
 		t.Fatalf("DecodePanelParams: %v", err)
@@ -187,6 +197,8 @@ func TestDecodePanelParams_NSourceBothCarriers(t *testing.T) {
 // An absent or empty params blob decodes to the legacy default on both
 // carriers. This is the type-level half of the byte-identity pin.
 func TestDecodePanelParams_AbsentMeansLegacyDefault(t *testing.T) {
+	t.Parallel()
+
 	for name, got := range map[string]PanelOverlayParams{
 		"nil raw":   mustDecodeRaw(t, nil),
 		"empty obj": mustDecodeRaw(t, json.RawMessage(`{}`)),
@@ -208,6 +220,8 @@ func TestDecodePanelParams_AbsentMeansLegacyDefault(t *testing.T) {
 // a key this binary DOES know is a different failure and belongs to
 // ValidPanelNSource, so the diagnostic can name the valid set.
 func TestDecodePanelParams_UnknownValueDecodesAndValidatorRefuses(t *testing.T) {
+	t.Parallel()
+
 	p, err := DecodePanelParamsMap(map[string]any{"n_source": "row_margin_distinct"})
 	if err != nil {
 		t.Fatalf("an unknown n_source VALUE must decode cleanly, got %v", err)
@@ -224,6 +238,8 @@ func TestDecodePanelParams_UnknownValueDecodesAndValidatorRefuses(t *testing.T) 
 // never become a valid mode, so it must not reach the validator as an
 // empty string and silently run the default.
 func TestDecodePanelParams_NonStringNSourceRefused(t *testing.T) {
+	t.Parallel()
+
 	if _, err := DecodePanelParamsMap(map[string]any{"n_source": 7}); err == nil {
 		t.Fatal("a numeric n_source must not decode to the empty default")
 	}
@@ -264,6 +280,8 @@ func mustDecodeMap(t *testing.T, m map[string]any) PanelOverlayParams {
 // point is that the OTHER family's wire value does not work on this
 // one, and hardcoding the string would let a pairwise rename hide that.
 func TestValidPanelNSource_RetiredRowMarginNSpellingRefused(t *testing.T) {
+	t.Parallel()
+
 	if ValidPanelNSource(PairwiseNSourceRowMarginN) {
 		t.Fatalf("ValidPanelNSource(%q) = true; the retired spelling must be unknown on the panel, not an alias",
 			PairwiseNSourceRowMarginN)

@@ -100,6 +100,8 @@ func fieldNames(s *encoding.Schema) []string {
 // order than the source reads each field from the column of its NAME,
 // and the array order is the cohort's field order.
 func TestPulseImport_SchemaMatchesByName(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newSchemaImportPulse(t)
 	out, err := invokeImportOut(t, p, `{"source":"ab.csv","schema":[
 		{"name":"b","type":"u16"},
@@ -128,6 +130,8 @@ func TestPulseImport_SchemaMatchesByName(t *testing.T) {
 // and float-width refusal reaches the agent as the error's OWN code —
 // never a placeholder — and no cohort is written.
 func TestPulseImport_SchemaRefusalsKeepTheirCode(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		args string
@@ -162,6 +166,8 @@ func TestPulseImport_SchemaRefusalsKeepTheirCode(t *testing.T) {
 // TestPulseImport_SchemaRefusedOnPulsePassthrough: a .pulse source is
 // used as-is, so a schema for it would be silently ignored — refused.
 func TestPulseImport_SchemaRefusedOnPulsePassthrough(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newSchemaImportPulse(t)
 	out, err := invokeImportOut(t, p, `{"source":"ab.csv","handle":"src"}`)
 	if err != nil {
@@ -177,6 +183,8 @@ func TestPulseImport_SchemaRefusedOnPulsePassthrough(t *testing.T) {
 // TestPulseImport_IgnoreExtraDropsUnnamedColumns: ignore_extra turns the
 // unmapped-column and late-key refusals into drops.
 func TestPulseImport_IgnoreExtraDropsUnnamedColumns(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newSchemaImportPulse(t)
 	out, err := invokeImportOut(t, p, `{"source":"ab.csv","ignore_extra":true,"schema":[{"name":"b","type":"u16"},{"name":"a","type":"u16"}]}`)
 	if err != nil {
@@ -199,6 +207,8 @@ func TestPulseImport_IgnoreExtraDropsUnnamedColumns(t *testing.T) {
 // TestPulseImport_FloatWidth: inferred floats are f64 by default and f32
 // only on request.
 func TestPulseImport_FloatWidth(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newSchemaImportPulse(t)
 	for _, tc := range []struct {
 		args string
@@ -222,6 +232,8 @@ func TestPulseImport_FloatWidth(t *testing.T) {
 // TestPulseImport_NoSchemaUnchanged: an absent or null schema infers
 // exactly as before the slot existed.
 func TestPulseImport_NoSchemaUnchanged(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newSchemaImportPulse(t)
 	base, err := invokeImportOut(t, p, `{"source":"ab.csv","handle":"base"}`)
 	if err != nil {

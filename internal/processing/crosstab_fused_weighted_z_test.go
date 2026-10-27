@@ -189,6 +189,8 @@ func wfzOverlayCases() []wfzOverlayCase {
 // aggregations. A future exclusion arm naming either the aggregator or
 // the kind fails here, not silently as a perf regression.
 func TestCanFuseCrosstab_WeightedMeanWithWeightedTwoMeansZ(t *testing.T) {
+	t.Parallel()
+
 	schema := wfzSchema(t)
 	for _, oc := range wfzOverlayCases() {
 		for _, withMargin := range []bool{false, true} {
@@ -215,6 +217,8 @@ func TestCanFuseCrosstab_WeightedMeanWithWeightedTwoMeansZ(t *testing.T) {
 // matrix, the full Components block (which carries the four weighted
 // moment keys the overlay reads), the overlay layers and the warnings.
 func TestFusedCrosstab_WeightedTwoMeansZMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := wfzSchema(t)
 	for _, oc := range wfzOverlayCases() {
 		for _, polluted := range []bool{false, true} {
@@ -262,6 +266,8 @@ func TestFusedCrosstab_WeightedTwoMeansZMatchesBuffered(t *testing.T) {
 // on the fused path (every p-value matches the clean fixture). Without
 // the first half the null_zero_weights_true rows above could be a no-op.
 func TestFusedCrosstab_WeightedTwoMeansZIgnoresNullAndZeroWeights(t *testing.T) {
+	t.Parallel()
+
 	schema := wfzSchema(t)
 	for _, oc := range wfzOverlayCases() {
 		t.Run(oc.name, func(t *testing.T) {

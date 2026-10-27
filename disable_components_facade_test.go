@@ -14,6 +14,8 @@ import (
 // Response.Components. Mirrors the SetDisableDefaults precedent in
 // pulse_test.go for opt-out option wiring.
 func TestFacade_DisableComponents_OptionsPropagates(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse",
 		[]string{"id", "score"},
@@ -51,6 +53,8 @@ func TestFacade_DisableComponents_OptionsPropagates(t *testing.T) {
 // TestFacade_DisableComponents_OptionsOffEmits is the round-trip baseline:
 // Options.DisableComponents=false (default) populates Components.
 func TestFacade_DisableComponents_OptionsOffEmits(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse",
 		[]string{"id", "score"},

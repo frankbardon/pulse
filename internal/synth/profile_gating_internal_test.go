@@ -150,6 +150,8 @@ func candidateByGate(cands []RuleSpec, gate string) (RuleSpec, bool) {
 // the gate" and a detector proposing nothing satisfies "no candidate for
 // an ungated pair".
 func TestSuggestRules_KnownGateYieldsTheCorrectTargetList(t *testing.T) {
+	t.Parallel()
+
 	const perception = 40
 	prof := gateFixtureProfile(t, 400, perception)
 	cands := prof.RuleCandidates
@@ -232,6 +234,8 @@ func gateNames(cands []RuleSpec) []string {
 // acceptance criterion 4: a candidate the analyst cannot evaluate is one
 // they will accept blindly.
 func TestSuggestRules_EvidenceCarriesRatesSupportAndRowsAffected(t *testing.T) {
+	t.Parallel()
+
 	prof := gateFixtureProfile(t, 400, 40)
 	got, ok := candidateByGate(prof.RuleCandidates, "aware")
 	if !ok {
@@ -294,6 +298,8 @@ func TestSuggestRules_EvidenceCarriesRatesSupportAndRowsAffected(t *testing.T) {
 // + (1 - gated_share) x P(null|open), and the thresholds bound both
 // conditional rates, so the deviation cannot exceed the wider threshold.
 func TestSuggestRules_DeviationIsImpliedByTheSplitTest(t *testing.T) {
+	t.Parallel()
+
 	prof := gateFixtureProfile(t, 400, 40)
 	if len(prof.RuleCandidates) == 0 {
 		t.Fatal("fixture must produce candidates for this test to mean anything")
@@ -315,6 +321,8 @@ func TestSuggestRules_DeviationIsImpliedByTheSplitTest(t *testing.T) {
 // makes: profileRecords consumes a one-shot io.Reader, so a second pass
 // is unrepresentable without re-reading bytes.
 func TestSuggestRules_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	schema := gateFixtureSchema(t, 40)
 	rows, nulls := gateFixtureRows(t, schema, 400, 40)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -341,6 +349,8 @@ func TestSuggestRules_RidesTheExistingScan(t *testing.T) {
 // criterion 7: a thin candidate is reported WITH its support rather than
 // suppressed, and the warning listing is bounded thinnest-first.
 func TestSuggestRules_ThinSupportShipsWithItsSupport(t *testing.T) {
+	t.Parallel()
+
 	// Twelve rows: three gated, nine open. The gated level's support
 	// (3) is far below minGateLevelSupport.
 	prof := gateFixtureProfile(t, 12, 2)
@@ -382,6 +392,8 @@ func TestSuggestRules_ThinSupportShipsWithItsSupport(t *testing.T) {
 // remainder line lands in the SAME warning group as the lines it
 // summarises, so the cap cannot split one finding across two counts.
 func TestSuggestRules_BoundedThinListingRollsUp(t *testing.T) {
+	t.Parallel()
+
 	var warnings []string
 	thin := make([]gateCandidate, 0, maxThinGateWarnings+5)
 	for i := 0; i < maxThinGateWarnings+5; i++ {
@@ -424,6 +436,8 @@ func TestSuggestRules_BoundedThinListingRollsUp(t *testing.T) {
 // its declaration, and a test asserting `maxGateLevels == 16` would be
 // a tautology. What IS pinned is the behaviour at the boundary.
 func TestSuggestRules_HighCardinalityFieldIsNotAGate(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for i := 0; i < maxGateLevels+4; i++ {
 		if _, err := dict.Add(fmt.Sprintf("v%02d", i)); err != nil {
@@ -521,6 +535,8 @@ func gateCardinalityFixture(t *testing.T, levels int) *Profile {
 // different detector. Every member of an N-field block reports the
 // others this way, so proposing them restates one finding N times.
 func TestSuggestRules_CoMissingGateIsCountedNotProposed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU4, Nullable: true},
 		{Name: "b", Type: encoding.FieldTypeU4, Nullable: true},
@@ -582,6 +598,8 @@ func TestSuggestRules_CoMissingGateIsCountedNotProposed(t *testing.T) {
 // without modification", enforced at the source rather than at the
 // loader the analyst feeds it to.
 func TestSuggestRules_PredicateSurvivesTheRuleCompiler(t *testing.T) {
+	t.Parallel()
+
 	prof := gateFixtureProfile(t, 400, 40)
 	spec := &Spec{}
 	for _, fp := range prof.Fields {
@@ -620,6 +638,8 @@ func TestSuggestRules_PredicateSurvivesTheRuleCompiler(t *testing.T) {
 // rowExprOptions), not a hand-rolled identifier check, so it cannot
 // disagree with the validation the file will later face.
 func TestSuggestRules_UncompilablePredicateIsDroppedNotWritten(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "in", Type: encoding.FieldTypePackedBool},
 		{Name: "ok", Type: encoding.FieldTypePackedBool},

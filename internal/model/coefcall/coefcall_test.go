@@ -13,6 +13,8 @@ import (
 // calls are collected (stat defaulting to point), nested ones included;
 // a computed argument, another callee or a parse failure yields none.
 func TestLiteralCalls(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src  string
 		want []Call
@@ -37,6 +39,8 @@ func TestLiteralCalls(t *testing.T) {
 // TestStaticRefusal: the first failing literal call's CheckCoef
 // refusal, nil when all pass.
 func TestStaticRefusal(t *testing.T) {
+	t.Parallel()
+
 	cat := model.CatalogFromFits([]types.FitSpec{{Name: "m", Request: &types.Request{
 		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}}}}})
 	if err := StaticRefusal(`coef("m", "x", "se") + coef("m", "(intercept)")`, cat); err != nil {
@@ -64,6 +68,8 @@ func TestStaticRefusal(t *testing.T) {
 // naming the fit is a read; a computed name, another fit, another
 // function or an unparsable source is not.
 func TestNamesFit(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src  string
 		want bool
@@ -88,6 +94,8 @@ func TestNamesFit(t *testing.T) {
 // judged beside coef() in walk order; SweepAxisRefusal judges them
 // alone; a computed or wrong-arity call is left to evaluation.
 func TestStaticRefusal_SweepAxis(t *testing.T) {
+	t.Parallel()
+
 	cat := model.FitCatalog{
 		"best":  {Name: "best", Type: types.REG_OLS, Terms: []string{"x"}, SweepBound: true, SweepAxes: []string{"tv"}, SweepAxesKnown: true},
 		"plain": {Name: "plain", Type: types.REG_OLS, Terms: []string{"x"}},

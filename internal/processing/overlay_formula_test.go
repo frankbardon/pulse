@@ -108,6 +108,8 @@ func requireFormulaCoded(t *testing.T, err error, wantCarrierCode errors.Code) *
 // direct assertion is structural: every cell in the grid evaluates
 // against the compiled program with the expected per-cell result.
 func TestOverlay_Formula_CompilesOnce(t *testing.T) {
+	t.Parallel()
+
 	const rows, cols = 5, 5
 
 	host := newFormulaHost(rows, cols, func(r, c int) float64 {
@@ -157,6 +159,8 @@ func TestOverlay_Formula_CompilesOnce(t *testing.T) {
 }
 
 func TestOverlay_Formula_MissingParam(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHost(1, 1, func(_, _ int) float64 { return 1.0 })
 
 	cases := []struct {
@@ -199,6 +203,8 @@ func TestOverlay_Formula_MissingParam(t *testing.T) {
 // string fires PULSE_OVERLAY_FORMULA_PARSE_ERROR at compile time. The
 // handler short-circuits without emitting a layer.
 func TestOverlay_Formula_ParseError(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHost(1, 1, func(_, _ int) float64 { return 1.0 })
 	spec := newFormulaSpec("formula_bad", "cell + ((1 +")
 
@@ -218,6 +224,8 @@ func TestOverlay_Formula_ParseError(t *testing.T) {
 // non-coercible case; bool-returning formulas are accepted (widen to
 // 0.0 / 1.0) per the formulaAttribute parity rule.
 func TestOverlay_Formula_TypeMismatch(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHost(1, 1, func(_, _ int) float64 { return 1.0 })
 	// `string(cell)` calls the expr-lang `string` stdlib builtin to
 	// coerce the cell value to a string — guaranteed non-coercible
@@ -276,6 +284,8 @@ func newFormulaHostWithMargins(rows, cols int, fill func(r, c int) float64) *Cro
 // the resulting cell value asserted byte-for-byte against the
 // expected arithmetic.
 func TestOverlay_Formula_NamespaceMatrix(t *testing.T) {
+	t.Parallel()
+
 	// 2x3 matrix carrying:
 	//   row 0: [1, 2, 3]
 	//   row 1: [4, 5, 6]
@@ -334,6 +344,8 @@ func TestOverlay_Formula_NamespaceMatrix(t *testing.T) {
 // population (N-divisor) Welford variance — mirrors
 // `computeSeriesWelfordPopulation` for the MATRIX axis case.
 func TestOverlay_Formula_NamespaceMatrixSDs(t *testing.T) {
+	t.Parallel()
+
 	// 2x3 matrix:
 	//   row 0: [1, 2, 3]  → mean 2, SD = sqrt(((1-2)^2+(2-2)^2+(3-2)^2)/3) = sqrt(2/3)
 	//   row 1: [4, 5, 6]  → mean 5, SD = sqrt(2/3)
@@ -400,6 +412,8 @@ func TestOverlay_Formula_NamespaceMatrixSDs(t *testing.T) {
 // binder writes as 0 into the env. The test asserts the SD slot is 0
 // when not referenced (a defensible default) and computed when it is.
 func TestOverlay_Formula_SDShortCircuit(t *testing.T) {
+	t.Parallel()
+
 	// Detector test: only `sd_row` referenced → only row SDs computed.
 	needRow, needCol, needGrand := detectFormulaSDIdentifiers("cell + sd_row")
 	if !needRow || needCol || needGrand {
@@ -428,6 +442,8 @@ func TestOverlay_Formula_SDShortCircuit(t *testing.T) {
 // populates `value`, `total`, `prior`, and optional `baseline` per
 // research note § 2.2. `prior` is NaN at the first present entry.
 func TestOverlay_Formula_NamespaceSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"a"}, {"b"}, {"c"},
 	}
@@ -484,6 +500,8 @@ func TestOverlay_Formula_NamespaceSeries(t *testing.T) {
 // resolver scans backwards through absent entries until it finds the
 // first PRESENT entry. Mirrors the research note § 2.2 contract.
 func TestOverlay_Formula_SeriesPriorSkipsAbsent(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"a"}, {"b"}, {"c"}, {"d"},
 	}
@@ -506,6 +524,8 @@ func TestOverlay_Formula_SeriesPriorSkipsAbsent(t *testing.T) {
 // TestOverlay_Formula_NamespaceScalar verifies the SCALAR-host binder
 // populates `value` and optional `ref` per research note § 2.3.
 func TestOverlay_Formula_NamespaceScalar(t *testing.T) {
+	t.Parallel()
+
 	ctx := &FormulaContext{
 		Shape:         types.OverlayShapeScalar,
 		ScalarValue:   42.0,
@@ -546,6 +566,8 @@ func TestOverlay_Formula_NamespaceScalar(t *testing.T) {
 // matrix-shaped slot, a series-shaped slot, and a scalar-shaped slot
 // per research note § 2.4.
 func TestOverlay_Formula_SlotNamespace(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHostWithMargins(2, 2, func(r, c int) float64 {
 		return float64(r*2 + c + 1) // 1, 2, 3, 4
 	})
@@ -660,6 +682,8 @@ func TestOverlay_Formula_SlotNamespace(t *testing.T) {
 // TestOverlay_Formula_BindEnvDispatch verifies the umbrella
 // `bindFormulaEnv(shape, ctx)` returns the correct per-shape prototype.
 func TestOverlay_Formula_BindEnvDispatch(t *testing.T) {
+	t.Parallel()
+
 	ctx := &FormulaContext{}
 	cases := []struct {
 		shape   types.OverlayShape
@@ -705,6 +729,8 @@ func TestOverlay_Formula_BindEnvDispatch(t *testing.T) {
 // TestOverlay_Formula_MatrixRefCell verifies the Compose ref_cell
 // binding works when the FormulaContext carries a RefMatrix.
 func TestOverlay_Formula_MatrixRefCell(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHostWithMargins(2, 2, func(r, c int) float64 {
 		return float64(r*2 + c + 1)
 	})
@@ -735,6 +761,8 @@ func TestOverlay_Formula_MatrixRefCell(t *testing.T) {
 // authors get identical semantics across FORMULA overlay and
 // ATTR_FORMULA attribute surfaces.
 func TestOverlay_Formula_BoolCoercesToFloat(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHost(2, 2, func(r, c int) float64 {
 		// (r, c) = (0, 0) ⇒ 0 → false ⇒ 0.0
 		// (r, c) = (0, 1) ⇒ 1 → true  ⇒ 1.0
@@ -763,6 +791,8 @@ func TestOverlay_Formula_BoolCoercesToFloat(t *testing.T) {
 }
 
 func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
+	t.Parallel()
+
 	// Embedder function: classic percent-change between two values.
 	// Mirrors the AC example pct_change(cell, ref_cell) * 1 — the
 	// embedder hands the FORMULA author a typed helper that lives in
@@ -853,6 +883,8 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 }
 
 func TestOverlay_Formula_Cell_Matrix(t *testing.T) {
+	t.Parallel()
+
 	// 2x3 matrix:
 	//   row 0: [1, 2, 3]
 	//   row 1: [4, 5, 6]
@@ -900,6 +932,8 @@ func TestOverlay_Formula_Cell_Matrix(t *testing.T) {
 }
 
 func TestOverlay_Formula_MarginAccess_RowMargin(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
 		return float64(r*3 + c + 1)
 	})
@@ -925,6 +959,8 @@ func TestOverlay_Formula_MarginAccess_RowMargin(t *testing.T) {
 }
 
 func TestOverlay_Formula_MarginAccess_ColMargin(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
 		return float64(r*3 + c + 1)
 	})
@@ -950,6 +986,8 @@ func TestOverlay_Formula_MarginAccess_ColMargin(t *testing.T) {
 }
 
 func TestOverlay_Formula_MarginAccess_GrandMargin(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHostWithMargins(2, 3, func(r, c int) float64 {
 		return float64(r*3 + c + 1)
 	})
@@ -975,6 +1013,8 @@ func TestOverlay_Formula_MarginAccess_GrandMargin(t *testing.T) {
 }
 
 func TestOverlay_Formula_Series_Prior(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{10, 20, 30, 40}
 	resolver := func(i int) (float64, bool) { return values[i], true }
@@ -1025,6 +1065,8 @@ func TestOverlay_Formula_Series_Prior(t *testing.T) {
 }
 
 func TestOverlay_Formula_SlotAccess_Compose(t *testing.T) {
+	t.Parallel()
+
 	// Host carries cell values 1..4 in a 2x2 grid (used by the formula
 	// only for the iteration coordinate space; the actual formula reads
 	// from the slot namespace so the host's `cell` value is incidental).
@@ -1141,6 +1183,8 @@ func TestOverlay_Formula_SlotAccess_Compose(t *testing.T) {
 // registration mirrors `pulse.Options.Extensions.LookupTables` (the
 // runtime LookupTable mirrors the public one — see internal/processing/extensions.go).
 func TestExtensions_OverlayKinds_FormulaLookupTable(t *testing.T) {
+	t.Parallel()
+
 	exts := &ExtensionRegistry{
 		LookupTables: map[string]LookupTable{
 			"weights": {
@@ -1175,6 +1219,8 @@ func TestExtensions_OverlayKinds_FormulaLookupTable(t *testing.T) {
 // refused with PULSE_OVERLAY_FORMULA_INVALID_IDENT, with and without an
 // extension registry.
 func TestOverlay_Formula_BuiltinSubset(t *testing.T) {
+	t.Parallel()
+
 	host := newFormulaHost(1, 1, func(_, _ int) float64 { return 4.0 })
 	cases := []struct {
 		name      string

@@ -140,6 +140,8 @@ func partitionGateArms(t *testing.T, req *types.Request) []partitionGateArm {
 // refusal: a GROUP_SET_PER_ELEMENT level the slab sums ACROSS, refused
 // identically by the buffered and the fused crosstab.
 func TestCrosstabOverlays_DistinctSlabNotPartitioned_BothArms(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgFlat("segment"), pgFan("brand")},
 		[]*types.Group{pgFlat("wave")},
@@ -177,6 +179,8 @@ func TestCrosstabOverlays_DistinctSlabNotPartitioned_BothArms(t *testing.T) {
 // TestCrosstabOverlays_DistinctSlabNotPartitioned_ColumnScope covers
 // the column axis symmetrically — the gate is not row-only.
 func TestCrosstabOverlays_DistinctSlabNotPartitioned_ColumnScope(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgFlat("wave")},
 		[]*types.Group{pgFlat("segment"), pgFan("brand")},
@@ -205,6 +209,8 @@ func TestCrosstabOverlays_DistinctSlabNotPartitioned_ColumnScope(t *testing.T) {
 // Every case here is a request that runs correctly today; the gate must
 // leave all of them alone on BOTH arms.
 func TestCrosstabOverlays_DistinctSlabAccepts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		rows   []*types.Group
@@ -323,6 +329,8 @@ func TestCrosstabOverlays_DistinctSlabAccepts(t *testing.T) {
 // crosstab with the same offending axis shape and NO overlay is
 // untouched.
 func TestCrosstabOverlays_DistinctSlabGateInertWithoutOverlays(t *testing.T) {
+	t.Parallel()
+
 	req := partitionGateRequest(
 		[]*types.Group{pgFlat("segment"), pgFan("brand")},
 		[]*types.Group{pgFlat("wave")},

@@ -27,6 +27,8 @@ func mathCompile(src string) (func() (any, error), error) {
 }
 
 func TestMathNames_AreReserved(t *testing.T) {
+	t.Parallel()
+
 	names := MathNames()
 	if len(names) != 12 {
 		t.Fatalf("MathNames = %v, want the 12 scalar-maths built-ins", names)
@@ -49,6 +51,8 @@ func TestMathNames_AreReserved(t *testing.T) {
 // query registration's value, i.e. detmath's (the shared-constructor
 // promise).
 func TestMathOptions_SameBitsAsQueryImpl(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src  string
 		want float64
@@ -111,6 +115,8 @@ func TestMathOptions_SameBitsAsQueryImpl(t *testing.T) {
 // TestMathOptions_StaticRefusals: arity and argument type are compile
 // errors, and nothing query-only comes along.
 func TestMathOptions_StaticRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, src := range []string{
 		"sin(x, y)", "pow(x)", "pi(1)", "hill(x, y)", "atan2(x)",
 		"sqrt(c)", "exp(c) > 1",

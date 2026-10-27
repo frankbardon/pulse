@@ -38,6 +38,8 @@ func wantDroppedDetails(t *testing.T, w *perrors.CodedError, dropped, imported, 
 }
 
 func TestImportJob_RowsDropped_Warning(t *testing.T) {
+	t.Parallel()
+
 	src, schema := droppedFixture()
 	job := &ImportJob{Source: src, Target: "p.pulse", Schema: schema, FS: afero.NewMemMapFs()}
 	rep, err := job.Run(context.Background())
@@ -58,6 +60,8 @@ func TestImportJob_RowsDropped_Warning(t *testing.T) {
 }
 
 func TestImportJob_RowsDropped_CleanImportHasNone(t *testing.T) {
+	t.Parallel()
+
 	_, schema := droppedFixture()
 	job := &ImportJob{Source: &stringRowsReader{header: []string{"id", "n"}, rows: [][]string{{"1", "1"}}}, Target: "p.pulse", Schema: schema, FS: afero.NewMemMapFs()}
 	rep, err := job.Run(context.Background())
@@ -70,6 +74,8 @@ func TestImportJob_RowsDropped_CleanImportHasNone(t *testing.T) {
 }
 
 func TestImportJob_RowsDropped_StrictWritesNothing(t *testing.T) {
+	t.Parallel()
+
 	src, schema := droppedFixture()
 	fs := afero.NewMemMapFs()
 	job := &ImportJob{Source: src, Target: "p.pulse", Schema: schema, FS: fs, StrictRows: true}
@@ -87,6 +93,8 @@ func TestImportJob_RowsDropped_StrictWritesNothing(t *testing.T) {
 // Run's verdict on the same rows — the warning, and under StrictRows the
 // same refusal.
 func TestImportJob_RowsDropped_PredictParity(t *testing.T) {
+	t.Parallel()
+
 	for _, strict := range []bool{false, true} {
 		src, schema := droppedFixture()
 		job := &ImportJob{Source: src, Target: "p.pulse", Schema: schema, FS: afero.NewMemMapFs(), ElideConstants: true, StrictRows: strict}
@@ -111,6 +119,8 @@ func TestImportJob_RowsDropped_PredictParity(t *testing.T) {
 }
 
 func TestConvertJob_RowsDropped_TargetStage(t *testing.T) {
+	t.Parallel()
+
 	for _, strict := range []bool{false, true} {
 		job := &ConvertJob{
 			Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}, {"3"}}},

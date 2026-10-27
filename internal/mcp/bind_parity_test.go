@@ -74,6 +74,8 @@ var bindParityExtras = map[string]string{
 // profile against that instance's own payload schema, so a property the
 // profile hides must be absent from both.
 func TestBindForInstance_PayloadSchemaParity(t *testing.T) {
+	t.Parallel()
+
 	used := map[string]bool{}
 	profiled := &pulse.FeatureProfile{Features: append(append([]string(nil), multiplicityFeatures...),
 		descx.FeatureMultiplicity, "capability:labels")}

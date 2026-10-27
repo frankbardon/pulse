@@ -42,6 +42,8 @@ func brandSurvey(s brandfixture.Spec) []byte { return s.OracleCSV() }
 // TestSEM_BrandSurveyRegenerates holds the committed brand-survey CSV
 // to its spec and seed: regenerated, it is the same bytes.
 func TestSEM_BrandSurveyRegenerates(t *testing.T) {
+	t.Parallel()
+
 	got := brandSurvey(loadBrandSpec(t))
 	if *regenBrand {
 		if err := os.WriteFile("testdata/brand_data.csv", got, 0o644); err != nil {
@@ -60,6 +62,8 @@ func TestSEM_BrandSurveyRegenerates(t *testing.T) {
 // TestSEM_BrandSurveyShape sanity-checks the generated data against
 // the spec: ranges, the wave split and the sign of the wave-2 shifts.
 func TestSEM_BrandSurveyShape(t *testing.T) {
+	t.Parallel()
+
 	s := loadBrandSpec(t)
 	cols := []string{"wave", "q1", "v1", "s1", "recommend"}
 	_, rows := readCSVColumns(t, "testdata/brand_data.csv", cols)

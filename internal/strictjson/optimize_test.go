@@ -11,6 +11,8 @@ import (
 // block's variable or constraint is refused at its path, and a bound
 // decodes as a number or a params reference without a key walk.
 func TestOptimize_StrictDecodeNested(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ body, path string }{
 		{`{"requests":[],"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"uper":1}],"objective":"x"}]}`, "optimize[0].variables[0]"},
 		{`{"requests":[],"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","constraints":[{"exp":"x","type":"eq"}]}]}`, "optimize[0].constraints[0]"},

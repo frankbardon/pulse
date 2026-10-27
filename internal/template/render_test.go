@@ -122,6 +122,8 @@ func runRenderRows(t *testing.T, rows []renderRow) {
 // TestRenderJSON_Matrix is the render-walk contract: markers, string
 // sugar, guards, and every fault each can raise, one row apiece.
 func TestRenderJSON_Matrix(t *testing.T) {
+	t.Parallel()
+
 	runRenderRows(t, []renderRow{
 		// ---- marker replacement is type-preserving, per variable type ----
 		{
@@ -392,6 +394,8 @@ func TestRenderJSON_Matrix(t *testing.T) {
 // make a legitimate zero templatable: a variable resolved to "", [], 0, or
 // false is RESOLVED, and a block guarded on it stays.
 func TestRenderJSON_GuardsArePresenceNotTruthiness(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		decl  *template.Variable
@@ -421,6 +425,8 @@ func TestRenderJSON_GuardsArePresenceNotTruthiness(t *testing.T) {
 // `default` resolves the variable, so a guard on it passes even though the
 // caller supplied nothing.
 func TestRenderJSON_GuardsOnDefaultedVariableKeepBlock(t *testing.T) {
+	t.Parallel()
+
 	tm := renderTmpl(
 		decls(&template.Variable{Name: "bucket", Type: template.VarInteger, Default: json.RawMessage(`10`)}),
 		`{"groups":[{"$when":"bucket","interval":{"$var":"bucket"}}]}`)
@@ -439,6 +445,8 @@ func TestRenderJSON_GuardsOnDefaultedVariableKeepBlock(t *testing.T) {
 // rendered request as the literal it was written as — both when it is
 // baked into the body and when it is spliced through a marker.
 func TestRenderJSON_IntegerFidelity(t *testing.T) {
+	t.Parallel()
+
 	const big = "9007199254740993" // 2^53 + 1: not representable as a float64
 
 	t.Run("literal in the body", func(t *testing.T) {
@@ -482,6 +490,8 @@ func TestRenderJSON_IntegerFidelity(t *testing.T) {
 // syntax is DATA — re-walking it would make every caller-supplied value an
 // injection vector into the template grammar.
 func TestRenderJSON_SubstitutedValuesAreNotRewalked(t *testing.T) {
+	t.Parallel()
+
 	tm := renderTmpl(
 		decls(varDecl("metric", template.VarString), varDecl("other", template.VarString)),
 		`{"field":{"$var":"metric"},"label":"{{other}}"}`)
@@ -506,6 +516,8 @@ func TestRenderJSON_SubstitutedValuesAreNotRewalked(t *testing.T) {
 // DECLARED variable that resolves to nothing is a different failure —
 // PULSE_TEMPLATE_UNRESOLVED, and only knowable at render.
 func TestRenderJSON_UndeclaredIsAuthorErrorAtValidation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		body string
@@ -547,6 +559,8 @@ func TestRenderJSON_UndeclaredIsAuthorErrorAtValidation(t *testing.T) {
 // TestRenderJSON_DeclaredButUnresolvedIsRenderError is the other half of
 // that separation: the declaration validates, and only the render fails.
 func TestRenderJSON_DeclaredButUnresolvedIsRenderError(t *testing.T) {
+	t.Parallel()
+
 	tm := renderTmpl(decls(varDecl("metric", template.VarField)), `{"field":{"$var":"metric"}}`)
 
 	if err := template.Validate(tm); err != nil {
@@ -570,6 +584,8 @@ func TestRenderJSON_DeclaredButUnresolvedIsRenderError(t *testing.T) {
 // literal data and fail the post-render strict decode with a far worse
 // message, so they are caught at declaration time.
 func TestValidate_BodySyntaxFaults(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		body string
@@ -606,6 +622,8 @@ func TestValidate_BodySyntaxFaults(t *testing.T) {
 // guarded: the root IS the request, and dropping it would render nothing
 // at all.
 func TestRenderJSON_RootGuardIsRejected(t *testing.T) {
+	t.Parallel()
+
 	tm := renderTmpl(decls(varDecl("metric", template.VarField)),
 		`{"$when":"metric","cohort":{"filename":"sales.pulse"}}`)
 
@@ -621,6 +639,8 @@ func TestRenderJSON_RootGuardIsRejected(t *testing.T) {
 // the resolution stage's faults — a bad caller value still reports its own
 // caller-provenance code rather than an unresolved-marker fault.
 func TestRenderJSON_ResolutionFaultsSurface(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		decl     *template.Variable
@@ -670,6 +690,8 @@ func TestRenderJSON_ResolutionFaultsSurface(t *testing.T) {
 // interpolation, and a guard that drops in one call and survives in the
 // next.
 func TestRenderJSON_Fixture(t *testing.T) {
+	t.Parallel()
+
 	tmpl, err := template.Parse(readFixture(t))
 	if err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)
@@ -724,6 +746,8 @@ func TestRenderJSON_Fixture(t *testing.T) {
 
 // TestRenderJSON_NilTemplate asserts the entry point is nil-safe.
 func TestRenderJSON_NilTemplate(t *testing.T) {
+	t.Parallel()
+
 	got, err := template.RenderJSON(nil, nil)
 	if !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
 		t.Fatalf("RenderJSON(nil) = (%s, %v), want %s", got, err, perr.PULSE_TEMPLATE_INVALID)
@@ -736,6 +760,8 @@ func TestRenderJSON_NilTemplate(t *testing.T) {
 // survive the render, and the rendered sweep then expands into one slot
 // per combination exactly like a hand-written sweep.
 func TestRender_ComposedSweepTemplate(t *testing.T) {
+	t.Parallel()
+
 	data, err := os.ReadFile(filepath.Join("testdata", "channel-sweep.json"))
 	if err != nil {
 		t.Fatalf("reading fixture: %v", err)

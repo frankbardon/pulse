@@ -86,6 +86,8 @@ func tableJudgedSkillOps() []string {
 // refuses. A skill that names no enumeration defers to the generated
 // `## Contract` (same table), which it must then carry.
 func TestAtomicSkillFieldTypesMatchFieldAcceptTable(t *testing.T) {
+	t.Parallel()
+
 	ops := tableJudgedSkillOps()
 	if len(ops) != 16+19 {
 		t.Fatalf("judged %d operators, want 35 (16 tier-1 numeric tests, 19 numeric readers)", len(ops))

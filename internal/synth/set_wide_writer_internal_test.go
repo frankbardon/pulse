@@ -13,6 +13,8 @@ import (
 // from a rung table maintained here. A missing rung is a hard refusal
 // in the writer, so both directions are checked.
 func TestFieldTypeFromName_ResolvesEverySetRung(t *testing.T) {
+	t.Parallel()
+
 	for _, want := range []encoding.FieldType{
 		encoding.FieldTypeSetU8,
 		encoding.FieldTypeSetU16,
@@ -38,6 +40,8 @@ func TestFieldTypeFromName_ResolvesEverySetRung(t *testing.T) {
 // lookup to every encoding name would make a datetime spec reach the
 // encoder. See undeclarableFieldTypes in constraints_internal_test.go.
 func TestFieldTypeFromName_DatetimeStaysUndeclarable(t *testing.T) {
+	t.Parallel()
+
 	if ft, ok := fieldTypeFromName("datetime"); ok {
 		t.Fatalf("datetime became declarable as %v; synth has no write path for it", ft)
 	}
@@ -67,6 +71,8 @@ func optName(i int) string {
 // the wrong width shifts every following column by a fixed offset and
 // the cohort still decodes into plausible values.
 func TestWriteFieldValueForField_SetRungWidths(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8,
 		encoding.FieldTypeSetU16,
@@ -76,6 +82,8 @@ func TestWriteFieldValueForField_SetRungWidths(t *testing.T) {
 		encoding.FieldTypeSetU256,
 	} {
 		t.Run(ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			f := setFieldForTest(t, ft, int(ft.MaxSetEntries()))
 			sel := map[string]bool{optName(0): true, optName(int(ft.MaxSetEntries()) - 1): true}
 			var buf bytes.Buffer
@@ -110,6 +118,8 @@ func TestWriteFieldValueForField_SetRungWidths(t *testing.T) {
 // truncated to its low 64 bits writes the right NUMBER of bytes and
 // reads back as a smaller, entirely plausible selection.
 func TestWriteFieldValueForField_WideSetRoundTripsHighBits(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		ft   encoding.FieldType
 		bits []int
@@ -118,6 +128,8 @@ func TestWriteFieldValueForField_WideSetRoundTripsHighBits(t *testing.T) {
 		{encoding.FieldTypeSetU256, []int{0, 63, 64, 128, 191, 192, 255}},
 	} {
 		t.Run(tc.ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			f := setFieldForTest(t, tc.ft, int(tc.ft.MaxSetEntries()))
 			sel := make(map[string]bool, len(tc.bits))
 			for _, b := range tc.bits {
@@ -147,6 +159,8 @@ func TestWriteFieldValueForField_WideSetRoundTripsHighBits(t *testing.T) {
 // the []string arm — the re-encode path augment.go feeds from decoded
 // rows — at the wide rungs.
 func TestWriteFieldValueForField_SetLabelSliceRoundTripsHighBits(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU256
 	f := setFieldForTest(t, ft, int(ft.MaxSetEntries()))
 	labels := []string{optName(2), optName(70), optName(201)}
@@ -174,6 +188,8 @@ func TestWriteFieldValueForField_SetLabelSliceRoundTripsHighBits(t *testing.T) {
 // truncates to the rung width — the selection simply vanished. Refusing
 // is the only honest outcome.
 func TestWriteFieldValueForField_NarrowSetRefusesOutOfRangeBit(t *testing.T) {
+	t.Parallel()
+
 	f := setFieldForTest(t, encoding.FieldTypeSetU8, 12)
 	var buf bytes.Buffer
 	err := writeFieldValueForField(&buf, f, map[string]bool{optName(10): true}, false)
@@ -191,6 +207,8 @@ func TestWriteFieldValueForField_NarrowSetRefusesOutOfRangeBit(t *testing.T) {
 // assertion yields the zero value and every re-encoded row loses its
 // entire selection while the run reports success.
 func TestDecodedFieldValue_WideSetResolvesSelectedLabels(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU256
 	f := setFieldForTest(t, ft, int(ft.MaxSetEntries()))
 	mask := encoding.SetMask{}.WithBit(1).WithBit(64).WithBit(200)
@@ -222,6 +240,8 @@ func TestDecodedFieldValue_WideSetResolvesSelectedLabels(t *testing.T) {
 // narrow rungs on their existing uint64 wide-map form, so the fix above
 // cannot be "only SetMask works now".
 func TestDecodedFieldValue_NarrowSetStillResolvesFromUint64(t *testing.T) {
+	t.Parallel()
+
 	f := setFieldForTest(t, encoding.FieldTypeSetU8, 4)
 	wide := map[string]any{"features": uint64(0b1010)}
 	val, isNull := decodedFieldValue(f, map[string]float64{}, map[string]bool{}, wide)

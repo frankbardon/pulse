@@ -19,6 +19,8 @@ import (
 // the fused and buffered arms and in a Compose slot. It used to test on
 // the population variance (too small by (n - 1) / n).
 func TestPairwiseMoment_PopulationVarianceCellsMatchWelford(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	buffered, err := pulse.New(pulse.Options{FS: f.fs, DisableCrosstabFusion: true})
 	if err != nil {

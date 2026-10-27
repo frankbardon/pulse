@@ -26,6 +26,8 @@ import (
 // folding them together first does not. Pre-fix, this test fails on
 // essentially every run rather than flakily.
 func TestCollapseCategoricalNumeric_FoldsInSortedKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	const numField = "score"
 	const catField = "region"
 
@@ -81,6 +83,8 @@ func TestCollapseCategoricalNumeric_FoldsInSortedKeyOrder(t *testing.T) {
 // on the buggy tree (one lucky iteration order passes); 500 runs over
 // a 41-key map are not.
 func TestCollapseCategoricalNumeric_RepeatedFoldsAreBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	const numField = "score"
 	const catField = "region"
 

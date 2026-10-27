@@ -17,6 +17,8 @@ import (
 // are processing.applyRetentionAt and validateOverlayLevelWithinRuntime,
 // through the same overlayhost refusals.
 func TestValidateOverlay_Retention(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	ok := types.OverlaySpec{Name: "keep", Kind: types.OverlayKindRetention, Scope: types.OverlayScopeRow}
 	with := func(edit func(*types.OverlaySpec)) types.OverlaySpec {

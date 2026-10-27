@@ -51,6 +51,8 @@ func maskWithBits(bits ...int) encoding.SetMask {
 
 // Narrow rungs keep their uint64 storage; SetMaskValue widens on read.
 func TestRecord_SetMaskValue_WidensNarrowUint64Storage(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU64, 64)
 	cases := []struct {
 		name string
@@ -91,6 +93,8 @@ func TestRecord_SetMaskValue_WidensNarrowUint64Storage(t *testing.T) {
 // come back through the accessor with every bit intact — the old
 // SetValue reported it as (0, false), byte-identical to a null field.
 func TestRecord_SetMaskValue_WideBitsSurviveTheAccessor(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	for _, bit := range []int{0, 63, 64, 127, 128, 255} {
 		t.Run(fmt.Sprintf("bit%d", bit), func(t *testing.T) {
@@ -117,6 +121,8 @@ func TestRecord_SetMaskValue_WideBitsSurviveTheAccessor(t *testing.T) {
 }
 
 func TestRecord_SetMaskValue_NullMissingAndNonSetValues(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 
 	t.Run("null", func(t *testing.T) {
@@ -147,6 +153,8 @@ func TestRecord_SetMaskValue_NullMissingAndNonSetValues(t *testing.T) {
 // The narrow path must not allocate — SetMask is a fixed array value and
 // SetMaskFromUint64 is register work.
 func TestRecord_SetMaskValue_NarrowPathZeroAlloc(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU64, 64)
 	r := NewRecordWithWide(schema, map[string]float64{}, nil,
 		map[string]any{"tags": uint64(0xDEADBEEF)})
@@ -174,6 +182,8 @@ func TestRecord_SetMaskValue_NarrowPathZeroAlloc(t *testing.T) {
 // present wide mask the way it reports a null, and the removed uint64
 // accessor must stay removed.
 func TestRecord_WideSetIsNeverReportedAsNull(t *testing.T) {
+	t.Parallel()
+
 	// The old (uint64, bool) accessor is the whole hazard: it returned
 	// (0, false) both for "null" and for "I could not type-assert this".
 	// It must not exist.
@@ -222,6 +232,8 @@ func TestRecord_WideSetIsNeverReportedAsNull(t *testing.T) {
 // ---------------------------------------------------------------------
 
 func TestRecord_SetLabels_206MemberDictionary(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 206)
 	bits := []int{0, 1, 63, 64, 65, 127, 128, 191, 192, 205}
 	r := makeWideSetRecord(schema, maskWithBits(bits...))
@@ -242,6 +254,8 @@ func TestRecord_SetLabels_206MemberDictionary(t *testing.T) {
 // Bits past the dictionary are a corrupt or mid-remap payload: skipped,
 // never resolved, never fatal.
 func TestRecord_SetLabels_BitsBeyondDictionaryAreSkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 206)
 	r := makeWideSetRecord(schema, maskWithBits(2, 205, 206, 255))
 
@@ -261,6 +275,8 @@ func TestRecord_SetLabels_BitsBeyondDictionaryAreSkipped(t *testing.T) {
 // reallocates log2(n) times, and AllValues pays it once per row per set
 // field under expression evaluation.
 func TestRecord_SetLabels_SingleAllocation(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 206)
 	bits := make([]int, 0, 100)
 	for i := 0; i < 200; i += 2 {
@@ -282,6 +298,8 @@ func TestRecord_SetLabels_SingleAllocation(t *testing.T) {
 }
 
 func TestRecord_SetLabels_NarrowBehaviourUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t) // set_u8, 4 entries: VISA MC AMEX DISC
 
 	t.Run("selection", func(t *testing.T) {
@@ -319,6 +337,8 @@ func r0(schema *encoding.Schema, mask uint64) *Record {
 
 // resolveMaskLabelsWithIndices bounds on dict.Count(), not on 64.
 func TestResolveMaskLabelsWithIndices_PastBit64(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 206)
 	dict := schema.Fields[0].Dictionary
 
@@ -338,6 +358,8 @@ func TestResolveMaskLabelsWithIndices_PastBit64(t *testing.T) {
 // ---------------------------------------------------------------------
 
 func TestRecord_AllValues_SetFieldsStayStringSlices(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	r := r0(schema, 0b0110) // MC, AMEX
 
@@ -355,6 +377,8 @@ func TestRecord_AllValues_SetFieldsStayStringSlices(t *testing.T) {
 }
 
 func TestRecord_AllValues_CacheInvalidatesAfterAttributeInjection(t *testing.T) {
+	t.Parallel()
+
 	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
 	r := makeWideSetRecord(schema, maskWithBits(130))
 

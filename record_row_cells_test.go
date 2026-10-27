@@ -171,6 +171,8 @@ func (w *captureWriter) Close() error { return nil }
 // (`…Z`), the same text export writes (U44 #310; pre-1970 values
 // included, never the unsigned on-wire word).
 func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	sch := everyTypeCohort(t, fs, "all.pulse", true)
 	everyTypeCohort(t, fs, "noVec.pulse", false)
@@ -289,6 +291,8 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 // decimal itself (WIN_LAG) is refused by the accepted-types table
 // (internal/fieldaccept, TODO #199), so it cannot copy the cell.
 func TestRecordRowCells_DecimalWindowCopyRendersAndOrders(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	orderabilityCohort(t, fs, "dec.pulse") // id 1..5, amt 10.50 -3.25 2.50 100.00 null
 	p, err := pulse.New(pulse.Options{FS: fs})

@@ -10,6 +10,8 @@ import (
 )
 
 func TestExtensionsSnapshotHookInstalled(t *testing.T) {
+	t.Parallel()
+
 	if facadebridge.ExtensionsSnapshot == nil {
 		t.Fatal("root package did not install the ExtensionsSnapshot hook")
 	}
@@ -40,6 +42,8 @@ func TestExtensionsSnapshotHookInstalled(t *testing.T) {
 }
 
 func TestCohortScanDisabledHookInstalled(t *testing.T) {
+	t.Parallel()
+
 	if facadebridge.CohortScanDisabled == nil {
 		t.Fatal("root package did not install the CohortScanDisabled hook")
 	}
@@ -67,6 +71,8 @@ func TestCohortScanDisabledHookInstalled(t *testing.T) {
 }
 
 func TestInstanceSnapshotHookInstalled(t *testing.T) {
+	t.Parallel()
+
 	if facadebridge.InstanceSnapshot == nil {
 		t.Fatal("root package did not install the InstanceSnapshot hook")
 	}
@@ -93,6 +99,8 @@ func TestInstanceSnapshotHookInstalled(t *testing.T) {
 }
 
 func TestLoggerHookInstalled(t *testing.T) {
+	t.Parallel()
+
 	if facadebridge.Logger == nil {
 		t.Fatal("root package did not install the Logger hook")
 	}

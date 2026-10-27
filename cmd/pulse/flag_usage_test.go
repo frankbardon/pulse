@@ -14,6 +14,8 @@ import (
 // sees. Command-level Usage strings are not affected (they have no
 // placeholder), so only flags are checked.
 func TestFlagUsageHasNoBackticks(t *testing.T) {
+	t.Parallel()
+
 	var walk func(path string, cmd *cli.Command)
 	walk = func(path string, cmd *cli.Command) {
 		for _, f := range cmd.Flags {

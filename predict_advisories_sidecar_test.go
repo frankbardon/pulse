@@ -68,6 +68,8 @@ var (
 )
 
 func TestSidecarAdvisories_FireOnSPSSCohort(t *testing.T) {
+	t.Parallel()
+
 	p := importSav(t, afero.NewMemMapFs(), measuredSavSpec(), Options{})
 	got := advisoryCodesOf(t, p, measuredRequest(nil))
 	if want := []string{advNominal, advOrdinal, advWeight}; !slices.Equal(got, want) {
@@ -89,6 +91,8 @@ func TestSidecarAdvisories_FireOnSPSSCohort(t *testing.T) {
 // No sidecar (the cohort as any non-SPSS import leaves it), a stale one
 // and a malformed one: the same request fires none of the three.
 func TestSidecarAdvisories_SilentWithoutAUsableSidecar(t *testing.T) {
+	t.Parallel()
+
 	for name, mutate := range map[string]func(t *testing.T, afs afero.Fs){
 		"no sidecar": func(t *testing.T, afs afero.Fs) {
 			if err := afs.Remove(spss.SidecarPath(suggestCohort)); err != nil {
@@ -108,6 +112,8 @@ func TestSidecarAdvisories_SilentWithoutAUsableSidecar(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			afs := afero.NewMemMapFs()
 			p := importSav(t, afs, measuredSavSpec(), Options{})
 			if len(advisoryCodesOf(t, p, measuredRequest(nil))) != 3 {
@@ -124,6 +130,8 @@ func TestSidecarAdvisories_SilentWithoutAUsableSidecar(t *testing.T) {
 // capability:weighting hidden: no weight advisory; the measure-level
 // advisories (which are not weighting) still fire.
 func TestSidecarAdvisories_WeightAdvisoryFollowsWeighting(t *testing.T) {
+	t.Parallel()
+
 	for _, with := range []bool{true, false} {
 		features := append(weightingProfile(with), "AGG_AVERAGE", "TEST_MANN_WHITNEY_U")
 		p := importSav(t, afero.NewMemMapFs(), measuredSavSpec(), Options{

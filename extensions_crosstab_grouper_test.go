@@ -32,6 +32,8 @@ func singleKeyCrosstabRequest(gt types.GroupType) *types.Request {
 // never through the buffered Group, and the matrix — null keys
 // included — is identical to the built-in's.
 func TestExtensions_SingleKeyGrouperFusesCrosstab(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	for _, mode := range parityModes(large) {
 		if mode.decorate != nil {

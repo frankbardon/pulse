@@ -95,6 +95,8 @@ func readHeaderAndRows(t *testing.T, r *Reader) ([]string, [][]string) {
 // criterion: a fixture exercising all three missing-spec shapes reads
 // back with every reason distinguishable.
 func TestMissing_AllThreeShapesReadBackDistinguishable(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()))
 	header, rows := readHeaderAndRows(t, r)
 
@@ -141,6 +143,8 @@ func TestMissing_AllThreeShapesReadBackDistinguishable(t *testing.T) {
 // a categorical whose dictionary IS the reason vocabulary, nullable
 // because a present value has no reason.
 func TestMissing_SiblingSchema(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()))
 	schema, err := r.PulseSchema()
 	if err != nil {
@@ -190,6 +194,8 @@ func TestMissing_SiblingSchema(t *testing.T) {
 // driven by the data, and a range wide enough to be observed at many
 // distinct values pushes the sibling past categorical_u8.
 func TestMissing_RangeWidensToU16(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "Q", LongName: "q",
@@ -230,6 +236,8 @@ func TestMissing_RangeWidensToU16(t *testing.T) {
 // nulls are identical, the sibling columns are gone, and with them the
 // reason.
 func TestMissing_NullModeSuppressesSiblings(t *testing.T) {
+	t.Parallel()
+
 	raw := buildFixture(t, missingFixtureSpec())
 
 	auto := NewReaderFromBytes(raw)
@@ -274,6 +282,8 @@ func TestMissing_NullModeSuppressesSiblings(t *testing.T) {
 
 // TestParseMissingMode covers the flag spellings and the refusal.
 func TestParseMissingMode(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in   string
 		want MissingMode
@@ -319,6 +329,8 @@ func TestParseMissingMode(t *testing.T) {
 // sibling whose name a real variable already holds is a coded error
 // naming BOTH sides.
 func TestMissing_NameCollision(t *testing.T) {
+	t.Parallel()
+
 	base := func(realName string) spsstest.Spec {
 		return spsstest.Spec{
 			Vars: []spsstest.Var{
@@ -374,6 +386,8 @@ func TestMissing_NameCollision(t *testing.T) {
 // a variable named `<other>_missing` is perfectly legal when no sibling
 // would be generated for `<other>`.
 func TestMissing_CollisionIsNotRaisedWithoutASpec(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "INCOME", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8}},
@@ -393,6 +407,8 @@ func TestMissing_CollisionIsNotRaisedWithoutASpec(t *testing.T) {
 // redundancy that doubles the width of an all-categorical survey file.
 // The categorical arm belongs to E4-S3.
 func TestMissing_CategoricalGetsNoSibling(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{
@@ -435,6 +451,8 @@ func TestMissing_CategoricalGetsNoSibling(t *testing.T) {
 // few minutes after the SPSS epoch — not midnight-aligned — and would widen
 // the whole column to datetime for a value that is not a date at all.
 func TestMissing_TemporalUserMissingDoesNotWidenTheColumn(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "DOB", LongName: "dob",
@@ -471,6 +489,8 @@ func TestMissing_TemporalUserMissingDoesNotWidenTheColumn(t *testing.T) {
 // SAME double as the default system-missing sentinel. Testing the range
 // first reports every sysmis datum as a user-missing one.
 func TestMissing_SysmisTestedBeforeAnOpenRange(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "V", LongName: "v",
@@ -505,6 +525,8 @@ func TestMissing_SysmisTestedBeforeAnOpenRange(t *testing.T) {
 // exists to preserve, so the prettier name gives way and the reader says
 // so.
 func TestMissing_ReasonCollisionKeepsTheCodesDistinct(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "Q", LongName: "q",
@@ -546,6 +568,8 @@ func TestMissing_ReasonCollisionKeepsTheCodesDistinct(t *testing.T) {
 // null bitmap bit is what every aggregator's n_null floor counts, and
 // what AGG_SUM and AGG_MEAN skip.
 func TestMissing_EndToEndImportKeepsTheArithmetic(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	src := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()))
 	job := pio.NewImportJob(src, "survey.pulse")
@@ -602,6 +626,8 @@ func TestMissing_EndToEndImportKeepsTheArithmetic(t *testing.T) {
 // contract: the sidecar names every synthesised column, its kind, its
 // source, its cohort position and the SPSS state behind each reason ID.
 func TestMissing_SidecarRegistersTheDerivedColumns(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	src := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()))
 	job := pio.NewImportJob(src, "survey.pulse")
@@ -699,6 +725,8 @@ func TestMissing_SidecarRegistersTheDerivedColumns(t *testing.T) {
 // a function of the dictionary alone, and making the names depend on a
 // scan would turn a cheap call into a whole-file read.
 func TestMissing_HeaderIsDictionaryCheap(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()))
 	if _, err := r.ReadHeader(); err != nil {
 		t.Fatalf("ReadHeader: %v", err)
@@ -712,6 +740,8 @@ func TestMissing_HeaderIsDictionaryCheap(t *testing.T) {
 // PulseSchema derive the layout through one function on purpose; if that
 // ever stops being true, a cell lands under the wrong field name.
 func TestMissing_HeaderMatchesSchema(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []MissingMode{MissingAuto, MissingNull} {
 		r := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()), WithMissingMode(mode))
 		header, err := r.ReadHeader()
@@ -741,6 +771,8 @@ func TestMissing_HeaderMatchesSchema(t *testing.T) {
 // indexing cells by CsvColumnIdx — so a layout the two disagreed about
 // would show up here as a row error on a file that imports cleanly.
 func TestMissing_PredictSeesTheSameSchema(t *testing.T) {
+	t.Parallel()
+
 	src := NewReaderFromBytes(buildFixture(t, missingFixtureSpec()))
 	job := pio.NewImportJob(src, "/dev/null")
 	job.FS = afero.NewMemMapFs()

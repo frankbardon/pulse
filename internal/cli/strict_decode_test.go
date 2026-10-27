@@ -14,6 +14,8 @@ import (
 // suggestion, never a silently dropped slot. predict and process refuse
 // the same request alike.
 func TestAPI_StrictRequestDecode(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	const cohort = `"cohort":{"filename":"c.pulse"}`
 	cases := []struct {

@@ -45,6 +45,8 @@ func validMatrixOp() pulse.MatrixOpRegistration {
 }
 
 func TestExtensions_MatrixOpValidRegistrationPasses(t *testing.T) {
+	t.Parallel()
+
 	floorOnly := validMatrixOp()
 	floorOnly.Name = "MAT_ACME_PLAIN"
 	floorOnly.ComponentSchema = descriptor.ComponentSchema{}
@@ -60,6 +62,8 @@ func TestExtensions_MatrixOpValidRegistrationPasses(t *testing.T) {
 // shared ParamMeta rules, and the matrix-only factory / OutputKeys /
 // ComponentSchema rules — with its code and details.reason.
 func TestExtensions_MatrixOpRegistrationRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		mutate func(*pulse.MatrixOpRegistration)
@@ -132,6 +136,8 @@ func TestExtensions_MatrixOpRegistrationRefusals(t *testing.T) {
 // TestExtensions_MatrixPrefixOnlyInMatrixOps pins the category check in
 // the other direction: a MAT_* name in another slot is refused.
 func TestExtensions_MatrixPrefixOnlyInMatrixOps(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{{
 		Name: "MAT_ACME_SCATTER", Factory: stubAggregatorFactory,
 	}}}

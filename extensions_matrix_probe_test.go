@@ -80,6 +80,8 @@ func matrixProbeError(t *testing.T, err error, code perrors.Code) *perrors.Coded
 // declared key left unfilled included (OutputKeys lists what it MAY
 // fill) — passes on both tiers, weighted and not.
 func TestExtensions_MatrixProbeValidPasses(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name                    string
 		streamable, weightAware bool
@@ -90,6 +92,8 @@ func TestExtensions_MatrixProbeValidPasses(t *testing.T) {
 		{"buffered_weighted", false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			reg := probeMatrixReg(probeScatter)
 			reg.Streamable, reg.WeightAware = tc.streamable, tc.weightAware
 			if err := newWithMatrixOps(t, reg); err != nil {
@@ -105,6 +109,8 @@ func TestExtensions_MatrixProbeValidPasses(t *testing.T) {
 // co-moment of six rows, every part wanted, rows only on the buffered
 // tier — and the weighted probe only for a WeightAware registration.
 func TestExtensions_MatrixProbeInput(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name                    string
 		streamable, weightAware bool
@@ -116,6 +122,8 @@ func TestExtensions_MatrixProbeInput(t *testing.T) {
 		{"buffered_weight_aware", false, true, 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			var specs []types.MatrixSpec
 			var inputs []extend.MatrixInput
 			reg := probeMatrixReg(nil)
@@ -177,6 +185,8 @@ func TestExtensions_MatrixProbeInput(t *testing.T) {
 // TestExtensions_MatrixProbeRefusals: every probe failure with its code,
 // reason / stage and the weighted flag.
 func TestExtensions_MatrixProbeRefusals(t *testing.T) {
+	t.Parallel()
+
 	weightedOnly := func(bad func(*extend.MatrixInput) (extend.MatrixOutput, error)) probeFuncMatrixOp {
 		return func(in *extend.MatrixInput) (extend.MatrixOutput, error) {
 			if in.WeightKind != "" {
@@ -285,6 +295,8 @@ func TestExtensions_MatrixProbeRefusals(t *testing.T) {
 // TestExtensions_MatrixProbeUndeclaredDetails pins the mismatch payload:
 // the undeclared keys and the declared ones of the offending part.
 func TestExtensions_MatrixProbeUndeclaredDetails(t *testing.T) {
+	t.Parallel()
+
 	reg := probeMatrixReg(func(in *extend.MatrixInput) (extend.MatrixOutput, error) {
 		out, err := probeScatter(in)
 		out.Scalars["det"], out.Scalars["cond"] = 1, 2
@@ -303,6 +315,8 @@ func TestExtensions_MatrixProbeUndeclaredDetails(t *testing.T) {
 // operator that fails with AND without rows is a plain finalize
 // failure, not a streamability mismatch.
 func TestExtensions_MatrixProbeStreamableFailsBothWays(t *testing.T) {
+	t.Parallel()
+
 	reg := probeMatrixReg(func(in *extend.MatrixInput) (extend.MatrixOutput, error) {
 		return extend.MatrixOutput{}, fmt.Errorf("always")
 	})
@@ -325,6 +339,8 @@ func TestExtensions_MatrixProbeStreamableFailsBothWays(t *testing.T) {
 // TestExtensions_MatrixPurposeValidated: a matrix registration's
 // Purpose runs the built-in tier's rules at pulse.New.
 func TestExtensions_MatrixPurposeValidated(t *testing.T) {
+	t.Parallel()
+
 	reg := probeMatrixReg(probeScatter)
 	reg.Purpose = validExtPurpose()
 	if err := newWithMatrixOps(t, reg); err != nil {

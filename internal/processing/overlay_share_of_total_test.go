@@ -28,6 +28,8 @@ import (
 // contract — the grand-axis sibling of TestOverlay_ShareOfRow_CellByCell
 // and TestOverlay_ShareOfCol_CellByCell).
 func TestOverlay_ShareOfTotal_CellByCell(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -127,6 +129,8 @@ func TestOverlay_ShareOfTotal_CellByCell(t *testing.T) {
 // leaves the overlay cells absent. Mirrors the SHARE_OF_ROW /
 // SHARE_OF_COL missing-margin defense.
 func TestOverlay_ShareOfTotal_MissingMargin_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	// Simulate "grand total not computed" — Present=false makes
 	// MarginFor(MarginAxisGrand, ...) return (_, false).
@@ -173,6 +177,8 @@ func TestOverlay_ShareOfTotal_MissingMargin_EmitsWarning(t *testing.T) {
 // a zero grand-total denominator surfaces PULSE_OVERLAY_REF_ZERO and
 // emits an absent overlay cell rather than leaking Inf / NaN.
 func TestOverlay_ShareOfTotal_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -222,6 +228,8 @@ func TestOverlay_ShareOfTotal_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
 // overlay cell without emitting a warning. Defends against false
 // positive warnings for cells that genuinely had no observation.
 func TestOverlay_ShareOfTotal_AbsentCellsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	payload.Cells[1][1] = types.MatrixCell{Present: false}
 	host := NewCrosstabHostView(payload)
@@ -254,6 +262,8 @@ func TestOverlay_ShareOfTotal_AbsentCellsStayAbsent(t *testing.T) {
 // surfaces the MarginAxisGrand suffix regardless of any axis value
 // the spec carried.
 func TestOverlay_ShareOfTotal_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{

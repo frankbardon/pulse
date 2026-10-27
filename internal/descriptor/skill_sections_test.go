@@ -107,6 +107,8 @@ func assertWelchSections(t *testing.T, out string) {
 // RenderFull, the renderer registered at init) renders both sections
 // from the full registries, keeps every fence and every See item.
 func TestSkillSections_FullRender(t *testing.T) {
+	t.Parallel()
+
 	out := skills.RenderFull(sectionFixture)
 	assertWelchSections(t, out)
 	// The cap admits the first alternative; the rest overflow.
@@ -126,6 +128,8 @@ func TestSkillSections_FullRender(t *testing.T) {
 // items around the generated text); hiding every target drops the
 // not-for list.
 func TestSkillSections_ProfiledRender(t *testing.T) {
+	t.Parallel()
+
 	d := hidingSnapshot("TEST_PAIRED_T", "capability:multiplicity").Discovery()
 	out := d.renderBody("op-test-welch", sectionFixture)
 	assertWelchSections(t, out)
@@ -163,6 +167,8 @@ func TestSkillSections_ProfiledRender(t *testing.T) {
 // goes through the instance scrub — the sentence (or the whole item) is
 // dropped, the plain line kept.
 func TestSkillSections_ScrubsHiddenNames(t *testing.T) {
+	t.Parallel()
+
 	scrub := NewProseScrub(hidingSnapshot("TEST_KS"))
 	p := descriptor.Purpose{
 		Plain:     "Compares two groups. Pairs with TEST_KS for shape.",
@@ -195,6 +201,8 @@ func TestSkillSections_ScrubsHiddenNames(t *testing.T) {
 // the caps renders within them, keeping the plain line (and the first
 // field), never failing.
 func TestSkillSections_Overflow(t *testing.T) {
+	t.Parallel()
+
 	long := strings.Repeat("very long words ", 12)
 	p := descriptor.Purpose{
 		Plain:     "Short plain line that must survive.",
@@ -241,6 +249,8 @@ func TestSkillSections_Overflow(t *testing.T) {
 // TestSkillSections_Bands: bands render with the convention named and
 // the absolute-value note.
 func TestSkillSections_Bands(t *testing.T) {
+	t.Parallel()
+
 	lo, hi := 0.2, 0.5
 	in := descriptor.Interpretation{
 		Field: "details.effect_size.d", Means: "A gap.", Convention: "Cohen (1988)", Abs: true,
@@ -262,6 +272,8 @@ func TestSkillSections_Bands(t *testing.T) {
 // operator declares no metadata (or names none) loses its markers
 // silently, with no doubled blank line left behind.
 func TestSkillSections_UnknownOperatorRemovesMarkers(t *testing.T) {
+	t.Parallel()
+
 	body := strings.Replace(sectionFixture, "operator: TEST_WELCH", "operator: AGG_NOPE", 1)
 	out := skills.RenderFull(body)
 	if strings.Contains(out, "<!-- generated") || skills.HasHeading(out, "## Use when") || strings.Contains(out, "\n\n\n") {
@@ -286,6 +298,8 @@ func mustFences(t *testing.T, body string) string {
 // trip no prose-lint text rule (the glue text is new prose; the
 // sources are already linted).
 func TestSkillSections_BuiltinsWithinCapsAndLint(t *testing.T) {
+	t.Parallel()
+
 	names := map[string]bool{}
 	for n := range builtinPurposes {
 		names[n] = true
@@ -323,6 +337,8 @@ func TestSkillSections_BuiltinsWithinCapsAndLint(t *testing.T) {
 // a capability (which the prose scrub does not tokenise) is dropped by
 // the pruned-graph check alone.
 func TestSkillSections_HiddenCapabilityTarget(t *testing.T) {
+	t.Parallel()
+
 	body := "---\nname: op-agg-mode-count\noperator: AGG_MODE_COUNT\n---\n\n<!-- generated: use-when -->\n"
 	shown := hidingSnapshot("GROUP_CATEGORY").Discovery().renderGenerated(body)
 	if !strings.Contains(shown, "`capability:facet` when ") {
@@ -346,6 +362,8 @@ var modifierSkills = map[string]bool{"op-reg-mod-resample": true, "op-reg-mod-se
 // families.go RequiredSections is shared with embedder validation, so
 // an embedder op skill without markers still loads.
 func TestSkillPurposeSectionsCurrent(t *testing.T) {
+	t.Parallel()
+
 	ops := 0
 	for _, stem := range skills.Names() {
 		if !strings.HasPrefix(stem, "op-") {

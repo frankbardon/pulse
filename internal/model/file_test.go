@@ -34,6 +34,8 @@ func sameBits(a, b float64) bool {
 // and subnormals included) and both infinities read back with the same
 // bits; NaN is null and reads back NaN (never 0).
 func TestFileFloat_RoundTripBitExact(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range append(edgeFloats, math.NaN()) {
 		b, err := json.Marshal(Float(v))
 		if err != nil {
@@ -156,6 +158,8 @@ func sameBound(t *testing.T, got, want *Bound) {
 // entry bit-identical, and binds to the same Bound the in-request fit
 // binds to.
 func TestModelFile_RoundTripBitExact(t *testing.T) {
+	t.Parallel()
+
 	spec, res := fullFit()
 	prov := Provenance{Cohort: "c.pulse", Fingerprint: "sha256:00", RequestDigest: "abc"}
 	f, err := NewFile("m", spec, res, prov)
@@ -213,6 +217,8 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 // reads it back on the Result and the Bound with every figure
 // bit-identical; a classical fit stays version 1 with no covariance key.
 func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	lags := 3
 	echoes := []*types.RegressionCovarianceResult{
 		{Type: types.CovarianceHC3},
@@ -272,6 +278,8 @@ func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
 // terms, a dropped candidate scoring 0), resample its Wald figures
 // without df, a GLM its family and link.
 func TestModelFile_SelectionResampleGLM(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		spec      *types.RegressionSpec
@@ -349,6 +357,8 @@ func TestModelFile_SelectionResampleGLM(t *testing.T) {
 // version, an unknown version, unknown keys and structural faults are
 // each refused with their code and reason.
 func TestDecodeFile_Refusals(t *testing.T) {
+	t.Parallel()
+
 	spec, res := fullFit()
 	f, _ := NewFile("m", spec, res, Provenance{})
 	good, _ := f.Encode()
@@ -434,6 +444,8 @@ func TestDecodeFile_Refusals(t *testing.T) {
 // TestCheckSavePath: the save-path rule shared by predict and the
 // runtime.
 func TestCheckSavePath(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		path   string
 		reason string
@@ -478,6 +490,8 @@ func TestCheckSavePath(t *testing.T) {
 // TestCheckFits_SavePaths: a fit's own save and its regression's save
 // are judged before any fit runs, located by details.fit.
 func TestCheckFits_SavePaths(t *testing.T) {
+	t.Parallel()
+
 	badReg := olsReq(&types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Save: "m.json"})
 	cases := []struct {
 		name  string

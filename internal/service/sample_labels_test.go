@@ -49,6 +49,8 @@ func attachLabelExtensions(t *testing.T, svc *Service, tables map[string]process
 }
 
 func TestSampleWithRequest_NoBindingsMatchesSample(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	got, _, err := svc.SampleWithRequest(context.Background(), &types.SampleRequest{
 		Cohort: &types.Cohort{Filename: path}, N: 4,
@@ -65,6 +67,8 @@ func TestSampleWithRequest_NoBindingsMatchesSample(t *testing.T) {
 }
 
 func TestSampleWithRequest_Replace(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{
@@ -103,6 +107,8 @@ func TestSampleWithRequest_Replace(t *testing.T) {
 }
 
 func TestSampleWithRequest_Augment(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada"}},
@@ -125,6 +131,8 @@ func TestSampleWithRequest_Augment(t *testing.T) {
 }
 
 func TestSampleWithRequest_MissEmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States"}}, // USA + CA absent
@@ -153,6 +161,8 @@ func TestSampleWithRequest_MissEmitsWarning(t *testing.T) {
 }
 
 func TestSampleWithRequest_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	_, _, err := svc.SampleWithRequest(context.Background(), &types.SampleRequest{
 		Cohort: &types.Cohort{Filename: path}, N: 4,
@@ -167,6 +177,8 @@ func TestSampleWithRequest_UnknownTable(t *testing.T) {
 }
 
 func TestSampleWithRequest_NonCategoricalField(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"x": {Rows: map[string]string{"k": "v"}},

@@ -12,6 +12,8 @@ import (
 // An extension param group declared ExactlyOneOf projects onto the
 // manifest beside the built-in operators' exactly_one_of groups.
 func TestExtensions_ExactlyOneOfProjects(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Windows: []pulse.WindowRegistration{{
 			Name:    "WIN_ACME_SMOOTH",
@@ -43,6 +45,8 @@ func TestExtensions_ExactlyOneOfProjects(t *testing.T) {
 // A malformed group is refused at pulse.New: one member, a Required
 // member, or a defaulted member.
 func TestExtensions_ExactlyOneOfMalformedRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string][]pulse.ParamMeta{
 		"one member": {
 			{Name: "span", JSONType: "number", ExactlyOneOf: "smoothing"},

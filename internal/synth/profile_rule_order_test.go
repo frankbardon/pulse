@@ -134,6 +134,8 @@ func detectorPreferenceOrder(cands []synth.RuleSpec) []synth.RuleSpec {
 // Negative: the SAME candidates in the detector preference order — the
 // order this fix replaced — leave a four-figure count of them.
 func TestSuggestRules_EmittedOrderLeavesNoOrphanRows(t *testing.T) {
+	t.Parallel()
+
 	const rows = 6000
 
 	src, _, err := synth.SynthBytes(orderSourceSpec(rows), synth.Options{Seed: 71})
@@ -275,6 +277,8 @@ func TestSuggestRules_EmittedOrderLeavesNoOrphanRows(t *testing.T) {
 // it did so because something emitted after it depends on it. That is
 // false for every wholesale shuffle and true for a just-in-time hoist.
 func TestSuggestRules_EmittedOrderIsMinimallyPerturbed(t *testing.T) {
+	t.Parallel()
+
 	const rows = 6000
 	src, _, err := synth.SynthBytes(orderSourceSpec(rows), synth.Options{Seed: 71})
 	if err != nil {

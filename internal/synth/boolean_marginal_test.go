@@ -57,6 +57,8 @@ func assertPrevalence(t *testing.T, label string, values []float64, want float64
 // clamped to the observed [0, 1], is the shape that cannot round-trip
 // through one bit.
 func TestSpecFromProfile_BooleanReconstructsAsBernoulli(t *testing.T) {
+	t.Parallel()
+
 	prof := &synth.Profile{
 		RowCount: 40000,
 		Fields: []synth.FieldProfile{{
@@ -96,6 +98,8 @@ func TestSpecFromProfile_BooleanReconstructsAsBernoulli(t *testing.T) {
 // draw. The boolean arm must therefore sit AHEAD of the --fit-shape arm,
 // which a reordering would silently undo.
 func TestSpecFromProfile_BooleanIgnoresCapturedShape(t *testing.T) {
+	t.Parallel()
+
 	prof := &synth.Profile{
 		RowCount: 20000,
 		Fields: []synth.FieldProfile{{
@@ -124,6 +128,8 @@ func TestSpecFromProfile_BooleanIgnoresCapturedShape(t *testing.T) {
 // at its most misleading on the rare end — a 20% boolean came out more
 // likely than not.
 func TestSynth_BooleanMarginalPrevalence(t *testing.T) {
+	t.Parallel()
+
 	const rows = 40000
 	for _, p := range []float64{0.2, 0.5, 0.8} {
 		spec := &synth.Spec{
@@ -148,6 +154,8 @@ func TestSynth_BooleanMarginalPrevalence(t *testing.T) {
 // special case — which is worth a test precisely because a special case
 // is what a future reader will be tempted to add.
 func TestSynth_BooleanDegeneratePrevalence(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ p, want float64 }{{0, 0}, {1, 1}} {
 		spec := &synth.Spec{
 			RowCount: 500,
@@ -220,6 +228,8 @@ func boolPairBernoulliSpec(rows int) *synth.Spec {
 // exactly where the signal is (a 5% cell generated at 41%, destroying the
 // contrast the pair exists to carry).
 func TestSynth_BooleanConditionalPairPrevalence(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60000
 	data, _, err := synth.SynthBytes(boolPairBernoulliSpec(rows), synth.Options{Seed: 910})
 	if err != nil {
@@ -262,6 +272,8 @@ func TestSynth_BooleanConditionalPairPrevalence(t *testing.T) {
 // The premise here survives intact because it never depended on the flag;
 // it depended on the cell draw being continuous.
 func TestSynth_BooleanConditionalPairOnAContinuousMarginalIsBiased(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60000
 	spec := boolPairSpec(rows, synth.DistNormal,
 		map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0}, false)
@@ -302,6 +314,8 @@ func TestSynth_BooleanConditionalPairOnAContinuousMarginalIsBiased(t *testing.T)
 //     marginal is not bernoulli does not get the step, and is WARNED
 //     about rather than silently ignored.
 func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60000
 
 	t.Run("unflagged bernoulli target draws the step", func(t *testing.T) {
@@ -473,6 +487,8 @@ func boolModelSpec(rows int) *synth.Spec {
 // cell prevalences here would be asserting something the construction
 // does not promise.
 func TestSynthModel_BooleanTargetKeepsPrevalenceAndOrdersByPredictor(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60000
 	data, res, err := synth.SynthBytes(boolModelSpec(rows), synth.Options{Seed: 920})
 	if err != nil {
@@ -528,6 +544,8 @@ func TestSynthModel_BooleanTargetKeepsPrevalenceAndOrdersByPredictor(t *testing.
 // own and the drawer's single normal is drawn unconditionally, so the
 // seeded stream is a function of the spec alone.
 func TestSynthModel_BooleanTargetIsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	a, _, err := synth.SynthBytes(boolModelSpec(4000), synth.Options{Seed: 77})
 	if err != nil {
 		t.Fatalf("first run: %v", err)
@@ -553,6 +571,8 @@ func TestSynthModel_BooleanTargetIsDeterministic(t *testing.T) {
 // buildModelDrawers' own guard turns that into a dropped model WITH a
 // warning — visible, rather than an infinite invStd producing NaNs.
 func TestSynthModel_ConstantBooleanTargetDropsItsModel(t *testing.T) {
+	t.Parallel()
+
 	spec := boolModelSpec(2000)
 	spec.Fields[1].Params = map[string]any{"p": 1.0}
 

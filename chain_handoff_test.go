@@ -218,6 +218,8 @@ type chainHandOffDigest struct {
 }
 
 func TestChainHandOff_OutputUnchanged(t *testing.T) {
+	t.Parallel()
+
 	dir := chainHandOffCohort(t)
 	got := map[string]chainHandOffDigest{}
 	for _, v := range chainHandOffVariants {

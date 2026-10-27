@@ -8,6 +8,8 @@ import (
 )
 
 func TestValidateChain_Valid(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -46,6 +48,8 @@ func TestValidateChain_Valid(t *testing.T) {
 }
 
 func TestValidateChain_RejectsWindowStage(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -72,6 +76,8 @@ func TestValidateChain_RejectsWindowStage(t *testing.T) {
 }
 
 func TestValidateChain_UnknownFieldInStage2(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -102,6 +108,8 @@ func TestValidateChain_UnknownFieldInStage2(t *testing.T) {
 }
 
 func TestValidateChain_Empty(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},

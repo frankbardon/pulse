@@ -33,6 +33,8 @@ import (
 // Process shape it does not run on; the valid spec at index 0 makes the
 // refused index 1.
 func TestOverlayWrongShape_ProcessParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := nsFixture(t, pulse.Options{})
 	hosts := []struct {
@@ -181,6 +183,8 @@ func cfSame(a, b float64) bool { return a == b || (math.IsNaN(a) && math.IsNaN(b
 // read the same figures as value / ref, and prior / total follow the
 // target series.
 func TestComposeFormula_ComputesParity(t *testing.T) {
+	t.Parallel()
+
 	p, _ := nsFixture(t, pulse.Options{})
 
 	t.Run("series", func(t *testing.T) {
@@ -282,6 +286,8 @@ func TestComposeFormula_ComputesParity(t *testing.T) {
 // the spec does not name, a slot field of the wrong shape, no formula —
 // is refused with the same code, message and Details on both sides.
 func TestComposeFormula_RefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	slots := []formulaident.Slot{{Label: "a", Shape: types.OverlayShapeSeries}, {Label: "b", Shape: types.OverlayShapeSeries}}

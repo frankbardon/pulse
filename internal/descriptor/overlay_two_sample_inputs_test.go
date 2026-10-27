@@ -14,6 +14,8 @@ import (
 // and TestComposeOverlay_TwoSampleInputsRefused are the predict =
 // runtime parity half.
 func TestComposeOverlayTwoSampleInputsRefusal(t *testing.T) {
+	t.Parallel()
+
 	slot := func(label string, aggs ...types.AggregationType) *types.Request {
 		r := &types.Request{Label: label, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}}
 		for i, a := range aggs {

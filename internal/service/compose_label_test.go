@@ -31,6 +31,8 @@ func labelComposeRequests(labels []string) *types.ComposedRequest {
 // caller's pointers stay zero. The Compose call itself succeeds because no
 // collisions exist after synthesis.
 func TestRequestLabel_AutoDefault_AllEmpty(t *testing.T) {
+	t.Parallel()
+
 	composed := labelComposeRequests([]string{"", "", ""})
 
 	out, err := applyComposeLabelDefaults(composed)
@@ -52,6 +54,8 @@ func TestRequestLabel_AutoDefault_AllEmpty(t *testing.T) {
 // the auto-default fills the empty slot while caller-supplied values pass
 // through verbatim.
 func TestRequestLabel_AutoDefault_MixedFillsHoles(t *testing.T) {
+	t.Parallel()
+
 	composed := labelComposeRequests([]string{"audience_a", "", ""})
 
 	out, err := applyComposeLabelDefaults(composed)
@@ -70,6 +74,8 @@ func TestRequestLabel_AutoDefault_MixedFillsHoles(t *testing.T) {
 // fill contract: the caller's *Request pointer's Label stays empty after
 // Compose runs the auto-default pass.
 func TestRequestLabel_AutoDefault_DoesNotMutateCaller(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -93,6 +99,8 @@ func TestRequestLabel_AutoDefault_DoesNotMutateCaller(t *testing.T) {
 // identical labels are rejected with PULSE_COMPOSE_LABEL_COLLISION before
 // any slot dispatches.
 func TestRequestLabel_CollisionRejected(t *testing.T) {
+	t.Parallel()
+
 	composed := labelComposeRequests([]string{"dup", "dup", "other"})
 
 	_, err := applyComposeLabelDefaults(composed)
@@ -115,6 +123,8 @@ func TestRequestLabel_CollisionRejected(t *testing.T) {
 // collision arm: a caller-supplied label that happens to match the
 // auto-default name an adjacent empty slot would synthesize.
 func TestRequestLabel_CollisionWithAutoDefault(t *testing.T) {
+	t.Parallel()
+
 	// Slot 0 carries "request_2" (caller-supplied), slot 1 is empty and
 	// auto-fills to "request_2" — collision.
 	composed := labelComposeRequests([]string{"request_2", ""})
@@ -138,6 +148,8 @@ func TestRequestLabel_CollisionWithAutoDefault(t *testing.T) {
 // pass byte-identical" acceptance — no caller observes any behaviour
 // difference today.
 func TestRequestLabel_ComposeAcceptsAutoDefault(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -160,6 +172,8 @@ func TestRequestLabel_ComposeAcceptsAutoDefault(t *testing.T) {
 // TestRequestLabel_ComposeParallelHonoursDefault mirrors the Compose path
 // for the parallel orchestrator.
 func TestRequestLabel_ComposeParallelHonoursDefault(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -186,6 +200,8 @@ func TestRequestLabel_ComposeParallelHonoursDefault(t *testing.T) {
 // a representative input and asserts the per-slot Label values match
 // element-for-element.
 func TestRequestLabel_HashNormalizerLockstep(t *testing.T) {
+	t.Parallel()
+
 	composed := labelComposeRequests([]string{"", "audience_a", "", "request_4"})
 
 	// Service-layer normalizer.
@@ -233,6 +249,8 @@ func TestRequestLabel_HashNormalizerLockstep(t *testing.T) {
 // TestRequestLabel_ComposeParallelCollisionRejected verifies the parallel
 // path rejects collisions before launching any worker.
 func TestRequestLabel_ComposeParallelCollisionRejected(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 

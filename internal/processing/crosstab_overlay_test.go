@@ -79,6 +79,8 @@ func crosstabOverlayBaseRequest() *types.Request {
 }
 
 func TestCrosstab_OverlayResponsePopulated(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 	req := crosstabOverlayBaseRequest()
@@ -152,6 +154,8 @@ func TestCrosstab_OverlayResponsePopulated(t *testing.T) {
 // fired). Today the hook short-circuits on len(req.Overlays) == 0, so
 // the baseline and post-hook responses share the same matrix bytes.
 func TestCrosstab_NoOverlaysPreservesByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 
@@ -188,6 +192,8 @@ func TestCrosstab_NoOverlaysPreservesByteIdentity(t *testing.T) {
 }
 
 func TestCrosstab_UnknownOverlayKindReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabOverlaySchema(t)
 	recs := crosstabOverlayRecords(schema)
 	req := crosstabOverlayBaseRequest()

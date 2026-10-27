@@ -44,6 +44,8 @@ func semFamily(res types.MatrixResult) (n, thresholds int) {
 // run meets or exceeds, basis lower_bound; on a packed_bool ordered
 // member (two categories) the exact count, basis dictionary.
 func TestSEM_OrdinalPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name    string
 		wave    encoding.FieldType
@@ -55,6 +57,8 @@ func TestSEM_OrdinalPredictMatchesRuntime(t *testing.T) {
 		{"packed_bool member", encoding.FieldTypePackedBool, "quality =~ q1 + q2 + q3 + wave", []string{"wave"}, descriptor.PValueBasisDictionary},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, fsys := brandGroupCohort{csv: "brand", wave: c.wave}.build(t, pulse.Options{})
 			params, _ := json.Marshal(map[string]any{"model": c.model, "estimator": "wlsmv", "ordered": c.ordered})
 			fields := []string{"q1", "q2", "q3"}
@@ -111,6 +115,8 @@ func TestSEM_OrdinalPredictMatchesRuntime(t *testing.T) {
 // the same entry in predict; an ordinal battery in a Compose fit binds
 // in Compose and PredictCompose alike.
 func TestSEM_OrdinalRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, params := range []map[string]any{

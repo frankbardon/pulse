@@ -25,6 +25,8 @@ import (
 // cohort path → PULSE_COHORT_COMPRESSED, and a file that starts with
 // neither PULSE nor zip magic → ENCODING_INVALID.
 func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
+	t.Parallel()
+
 	fixtures := map[string][]byte{
 		"PULSE_COHORT_COMPRESSED": append(encoding.ZstdMagic[:], []byte("synthetic-not-a-real-frame")...),
 		"ENCODING_INVALID":        []byte("this is not a pulse cohort at all"),

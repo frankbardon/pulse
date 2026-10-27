@@ -61,6 +61,8 @@ func isWordByte(c byte) bool {
 // io_format is in neither format list; and the manifest carries the
 // instance's digest.
 func TestManifest_FixturesNameNoHiddenFeature(t *testing.T) {
+	t.Parallel()
+
 	blockOf := map[string]func(*descriptor.Manifest) bool{
 		"capability:facet":         func(m *descriptor.Manifest) bool { return m.Facet != nil },
 		"capability:process_chain": func(m *descriptor.Manifest) bool { return m.ProcessChain != nil },
@@ -176,6 +178,8 @@ func TestManifest_FixturesNameNoHiddenFeature(t *testing.T) {
 // TestManifest_FixtureKeepsEnabledFeatures guards the filter against
 // over-reach: what survey-crosstab enables is still described.
 func TestManifest_FixtureKeepsEnabledFeatures(t *testing.T) {
+	t.Parallel()
+
 	m := newFixturePulse(t, "survey-crosstab", Options{}).Manifest(context.Background())
 	if m.Crosstab == nil || m.Facet == nil {
 		t.Fatalf("crosstab / facet blocks missing: crosstab=%v facet=%v", m.Crosstab != nil, m.Facet != nil)
@@ -216,6 +220,8 @@ func TestManifest_FixtureKeepsEnabledFeatures(t *testing.T) {
 // the full registry — byte-identical to the CLI's BuildManifest, digest
 // included.
 func TestManifest_DefaultInstanceIsFull(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -241,6 +247,8 @@ func TestManifest_DefaultInstanceIsFull(t *testing.T) {
 // twin (BuildManifestWithExtensions) agrees with a profile-free instance
 // that registers the same operator.
 func TestManifest_HiddenExtensionAbsent(t *testing.T) {
+	t.Parallel()
+
 	ext := Extensions{Aggregators: []AggregatorRegistration{
 		{Name: "AGG_ACME_HIDDEN", Description: "Stub.", Factory: featureSetStubAggFactory},
 		{Name: "AGG_ACME_KEPT", Description: "Stub.", Factory: featureSetStubAggFactory},

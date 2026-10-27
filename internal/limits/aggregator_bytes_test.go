@@ -12,6 +12,8 @@ import (
 // components-on 576 B column even with components off: its value is
 // opaque), and contributes no vector fragments.
 func TestAggregationBytes_ExtensionKeepsCeilings(t *testing.T) {
+	t.Parallel()
+
 	const ext = types.AggregationType("AGG_ACME_TRIMMED")
 	if measured, _ := AggregationMeasured(ext); measured {
 		t.Fatalf("%s has a table entry", ext)
@@ -38,6 +40,8 @@ func TestAggregationBytes_ExtensionKeepsCeilings(t *testing.T) {
 // themselves are pinned against measured heap by internal/service
 // TestGroupMemory_AggregatorStateTable.
 func TestAggregationBytes_TableShape(t *testing.T) {
+	t.Parallel()
+
 	for _, at := range types.AllAggregationTypes() {
 		measured, buffered := AggregationMeasured(at)
 		if !measured {
@@ -74,6 +78,8 @@ func TestAggregationBytes_TableShape(t *testing.T) {
 // nothing with components off. The entries are pinned against measured
 // heap by internal/service TestCrosstabMemory_CellChargeTable.
 func TestCrosstabSlotBytes_TableShape(t *testing.T) {
+	t.Parallel()
+
 	for _, at := range types.AllAggregationTypes() {
 		b := aggregatorBytesTable[at].cell
 		if b.off <= 0 || b.on < b.off || b.onWeighted < b.on || b.onWeighted > crosstabCellOutputCeilingBytes {

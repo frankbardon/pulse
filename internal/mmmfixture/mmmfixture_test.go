@@ -5,6 +5,8 @@ import "testing"
 // TestMMMFixture_RowsShape pins the weekly cohort's shape: one row per
 // market-week in schema field order.
 func TestMMMFixture_RowsShape(t *testing.T) {
+	t.Parallel()
+
 	rows, fields := Rows(), len(Schema().Fields)
 	if len(rows) != len(Markets)*Weeks {
 		t.Fatalf("rows = %d, want %d", len(rows), len(Markets)*Weeks)

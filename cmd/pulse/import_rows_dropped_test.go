@@ -116,6 +116,8 @@ func wantRecords(t *testing.T, afs afero.Fs, path string, n uint64) {
 
 // TestImportRowsDropped_CLI: the CLI leaves, warning then --strict.
 func TestImportRowsDropped_CLI(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	t.Setenv("PULSE_DATA_DIR", dir)
 	t.Setenv("PULSE_IMPORTS_DIR", "imports")
@@ -201,6 +203,8 @@ func newDroppedPulse(t *testing.T, strict bool) (*pulse.Pulse, afero.Fs) {
 // TestImportRowsDropped_Library: Import, ImportFile, Convert and MCP
 // pulse_import, warning then Options.Strict.
 func TestImportRowsDropped_Library(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	defs := []iio.SchemaFileField{{Name: "id", Type: "u8"}, {Name: "picks", Type: "set_u8"}}
 

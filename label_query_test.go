@@ -30,6 +30,8 @@ func newLabelPulse(t *testing.T) *Pulse {
 }
 
 func TestLabelTables_ListsEnumerableFlag(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	got := p.LabelTables()
 	if len(got) != 2 {
@@ -45,6 +47,8 @@ func TestLabelTables_ListsEnumerableFlag(t *testing.T) {
 }
 
 func TestResolveLabel_Ranking(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	// "ne" matches "New Balance" (prefix) and "Nike" (no), and substring
 	// in none else; case-insensitive.
@@ -58,6 +62,8 @@ func TestResolveLabel_Ranking(t *testing.T) {
 }
 
 func TestResolveLabel_ExactBeatsSubstring(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	got, err := p.ResolveLabel("brand", "Nike", 10)
 	if err != nil {
@@ -69,6 +75,8 @@ func TestResolveLabel_ExactBeatsSubstring(t *testing.T) {
 }
 
 func TestResolveLabel_KeyMatch(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	got, err := p.ResolveLabel("brand", "2", 10)
 	if err != nil {
@@ -80,6 +88,8 @@ func TestResolveLabel_KeyMatch(t *testing.T) {
 }
 
 func TestResolveLabel_LimitAndBrowse(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	got, err := p.ResolveLabel("brand", "", 2)
 	if err != nil {
@@ -91,6 +101,8 @@ func TestResolveLabel_LimitAndBrowse(t *testing.T) {
 }
 
 func TestResolveLabel_Misspelling(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	cases := []struct {
 		query string
@@ -117,6 +129,8 @@ func TestResolveLabel_Misspelling(t *testing.T) {
 }
 
 func TestResolveLabel_ExactScoresOne(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	got, err := p.ResolveLabel("brand", "Adidas", 5)
 	if err != nil {
@@ -128,6 +142,8 @@ func TestResolveLabel_ExactScoresOne(t *testing.T) {
 }
 
 func TestResolveLabel_GibberishNoFalsePositive(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	// A query with no real match must never surface a confident hit, and
 	// when it does return weak candidates they are capped at the
@@ -148,6 +164,8 @@ func TestResolveLabel_GibberishNoFalsePositive(t *testing.T) {
 }
 
 func TestResolveLabel_FallbackReturnsClosest(t *testing.T) {
+	t.Parallel()
+
 	// A table + query engineered so the best match sits below the floor:
 	// the fallback must still surface the closest few (capped) with their
 	// low scores, so a caller can offer "did you mean".
@@ -182,6 +200,8 @@ func TestResolveLabel_FallbackReturnsClosest(t *testing.T) {
 }
 
 func TestResolveLabel_ScoresDescending(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	got, err := p.ResolveLabel("brand", "n", 10)
 	if err != nil {
@@ -195,6 +215,8 @@ func TestResolveLabel_ScoresDescending(t *testing.T) {
 }
 
 func TestResolveLabel_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	_, err := p.ResolveLabel("missing", "x", 10)
 	if !errors.HasCode(err, errors.PULSE_LABEL_TABLE_UNKNOWN) {
@@ -203,6 +225,8 @@ func TestResolveLabel_UnknownTable(t *testing.T) {
 }
 
 func TestResolveLabel_NotEnumerable(t *testing.T) {
+	t.Parallel()
+
 	p := newLabelPulse(t)
 	_, err := p.ResolveLabel("live_only", "x", 10)
 	if !errors.HasCode(err, errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE) {

@@ -182,6 +182,8 @@ func commandIndexLeaves(t *testing.T) []string {
 //
 // This is a non-skippable CI gate.
 func TestSkillsCoverAllCliLeaves(t *testing.T) {
+	t.Parallel()
+
 	leaves := cliLeaves()
 	if len(leaves) == 0 {
 		t.Fatal("found no runnable CLI leaves; the command tree walk is broken")

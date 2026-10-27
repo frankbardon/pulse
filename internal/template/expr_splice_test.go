@@ -29,6 +29,8 @@ func spliceDoc(target, body string) string {
 // the file at pulse.New), with the variable, body path and slot in the
 // details.
 func TestTemplateExprSplice_Refused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, target, body, path, slot string
 	}{
@@ -91,6 +93,8 @@ func TestTemplateExprSplice_Refused(t *testing.T) {
 // expansion would splice the axis value's text exactly as a template
 // variable's — naming the axis under details.variable.
 func TestTemplateExprSplice_AxisTokenRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, target, body, path, slot string
 	}{
@@ -131,6 +135,8 @@ func TestTemplateExprSplice_AxisTokenRefused(t *testing.T) {
 // and `{{token}}` outside one (a label, a params entry sharing a slot's
 // key) still interpolates.
 func TestTemplateExprSplice_WholeValueAllowed(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, body string
 		want       map[string]any
@@ -177,6 +183,8 @@ func TestTemplateExprSplice_WholeValueAllowed(t *testing.T) {
 // 2^53 and a fraction. The example on disk (testdata/wave-filter.json)
 // is this template.
 func TestTemplateExprSplice_ParamsMarkerKeepsType(t *testing.T) {
+	t.Parallel()
+
 	data, err := os.ReadFile(filepath.Join("testdata", "wave-filter.json"))
 	if err != nil {
 		t.Fatal(err)

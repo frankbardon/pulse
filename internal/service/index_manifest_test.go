@@ -105,6 +105,8 @@ func manifestService(t *testing.T, noList bool) (*Service, *bucketFs, [][]string
 // candidate orderings is what a caller had to do before this, and it is
 // a diagnostic technique rather than an interface.
 func TestBuildIndex_PublishesTheKeyTupleAtAKeylessPath(t *testing.T) {
+	t.Parallel()
+
 	_, bucket, tuples := manifestService(t, true)
 
 	manifest, present, err := encx.ReadIndexManifest(bucket, "cohort.pulse")
@@ -139,6 +141,8 @@ func TestBuildIndex_PublishesTheKeyTupleAtAKeylessPath(t *testing.T) {
 // load-bearing one: the same enumeration, on a filesystem where
 // afero.ReadDir cannot succeed at all.
 func TestListIndexes_ServedFromTheManifestWithoutADirectoryListing(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, true)
 
 	// Guard the fixture: the old directory-listing path must genuinely
@@ -177,6 +181,8 @@ func TestListIndexes_ServedFromTheManifestWithoutADirectoryListing(t *testing.T)
 // manifest existed has sidecars nobody recorded, and the day a manifest
 // appears beside them they must not vanish from the listing.
 func TestListIndexes_UnionsASidecarTheManifestDoesNotName(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, false)
 
 	// Forget one index in the manifest while leaving its sidecar on
@@ -218,6 +224,8 @@ func TestListIndexes_UnionsASidecarTheManifestDoesNotName(t *testing.T) {
 // not publish a manifest naming only itself, because a manifest-first
 // listing then reports that as the whole truth.
 func TestBuildIndex_SeedsTheManifestFromExistingSidecars(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, false)
 
 	if err := bucket.Remove(encx.IndexManifestPath("cohort.pulse")); err != nil {
@@ -248,6 +256,8 @@ func TestBuildIndex_SeedsTheManifestFromExistingSidecars(t *testing.T) {
 // entry would report two indexes for a manifest claiming three, which
 // is indistinguishable from a correct answer.
 func TestListIndexes_ManifestNamingAMissingSidecarIsStale(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, false)
 
 	gone := encx.SidecarIndexPath("cohort.pulse", tuples[0])
@@ -277,6 +287,8 @@ func TestListIndexes_ManifestNamingAMissingSidecarIsStale(t *testing.T) {
 // PULSE_INDEX_MISSING there, the stale manifest could not be repaired
 // by any command at all.
 func TestDropIndex_PrunesTheOrphanedManifestEntry(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, false)
 
 	if err := bucket.Remove(encx.SidecarIndexPath("cohort.pulse", tuples[0])); err != nil {
@@ -306,6 +318,8 @@ func TestDropIndex_PrunesTheOrphanedManifestEntry(t *testing.T) {
 // must stop being DISCOVERABLE as well as stop being readable, or the
 // next listing reports it and the lookup that follows fails.
 func TestDropIndex_PrunesTheManifestEntryOfALiveIndex(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, true)
 
 	if err := svc.DropIndex(context.Background(), "cohort.pulse", tuples[0]); err != nil {
@@ -334,6 +348,8 @@ func TestDropIndex_PrunesTheManifestEntryOfALiveIndex(t *testing.T) {
 // and answering "no indexes" on the bucket where the manifest is the
 // only source. A caller cannot act on a difference it cannot see.
 func TestListIndexes_MalformedManifestIsRefusedNotDegraded(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, _ := manifestService(t, false)
 
 	if err := afero.WriteFile(bucket, encx.IndexManifestPath("cohort.pulse"), []byte("{oops"), 0644); err != nil {
@@ -353,6 +369,8 @@ func TestListIndexes_MalformedManifestIsRefusedNotDegraded(t *testing.T) {
 // pre-manifest path alive: a corpus Pulse has not rebuilt since the
 // upgrade must enumerate exactly as it did before.
 func TestListIndexes_NoManifestFallsBackToTheDirectoryListing(t *testing.T) {
+	t.Parallel()
+
 	svc, bucket, tuples := manifestService(t, false)
 
 	if err := bucket.Remove(encx.IndexManifestPath("cohort.pulse")); err != nil {

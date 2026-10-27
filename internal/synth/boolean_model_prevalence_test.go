@@ -63,6 +63,8 @@ import (
 // slightly biased" rather than as "a modelled target's marginal is
 // conditional on its latent being standard normal".
 func TestSynthModel_BooleanPrevalenceFollowsTheGeneratedLatentVariance(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60000
 	const p = 0.7473906704010238
 	std := math.Sqrt(p * (1 - p))

@@ -63,6 +63,8 @@ func floatClose(a, b, eps float64) bool {
 }
 
 func TestAggregator_Average_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_AVERAGE, "score", schema)
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
@@ -77,6 +79,8 @@ func TestAggregator_Average_Basic(t *testing.T) {
 }
 
 func TestAggregator_Average_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_AVERAGE, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -91,6 +95,8 @@ func TestAggregator_Average_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Average_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_AVERAGE, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -106,6 +112,8 @@ func TestAggregator_Average_Empty(t *testing.T) {
 }
 
 func TestAggregator_Average_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_AVERAGE, "score", schema)
 	records := makeRecordsWithNulls(schema, "score", []float64{10, 0, 30}, []int{1})
@@ -121,6 +129,8 @@ func TestAggregator_Average_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Sum_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SUM, "score", schema)
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
@@ -135,6 +145,8 @@ func TestAggregator_Sum_Basic(t *testing.T) {
 }
 
 func TestAggregator_Sum_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SUM, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -149,6 +161,8 @@ func TestAggregator_Sum_Empty(t *testing.T) {
 }
 
 func TestAggregator_Sum_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SUM, "score", schema)
 	records := makeRecords(schema, "score", []float64{99})
@@ -163,6 +177,8 @@ func TestAggregator_Sum_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Count_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{10, 20, 30})
@@ -177,6 +193,8 @@ func TestAggregator_Count_Basic(t *testing.T) {
 }
 
 func TestAggregator_Count_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -191,6 +209,8 @@ func TestAggregator_Count_Empty(t *testing.T) {
 }
 
 func TestAggregator_Count_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_COUNT, "score", schema)
 	records := makeRecordsWithNulls(schema, "score", []float64{10, 0, 30}, []int{1})
@@ -206,6 +226,8 @@ func TestAggregator_Count_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_StdDev_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_STDDEV, "score", schema)
 	records := makeRecords(schema, "score", []float64{2, 4, 4, 4, 5, 5, 7, 9})
@@ -221,6 +243,8 @@ func TestAggregator_StdDev_Basic(t *testing.T) {
 }
 
 func TestAggregator_StdDev_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_STDDEV, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -235,6 +259,8 @@ func TestAggregator_StdDev_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_StdDev_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_STDDEV, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -250,6 +276,8 @@ func TestAggregator_StdDev_Empty(t *testing.T) {
 }
 
 func TestAggregator_Min_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MIN, "score", schema)
 	records := makeRecords(schema, "score", []float64{30, 10, 20})
@@ -264,6 +292,8 @@ func TestAggregator_Min_Basic(t *testing.T) {
 }
 
 func TestAggregator_Min_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MIN, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -278,6 +308,8 @@ func TestAggregator_Min_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Min_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MIN, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -293,6 +325,8 @@ func TestAggregator_Min_Empty(t *testing.T) {
 }
 
 func TestAggregator_Max_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MAX, "score", schema)
 	records := makeRecords(schema, "score", []float64{30, 10, 20})
@@ -307,6 +341,8 @@ func TestAggregator_Max_Basic(t *testing.T) {
 }
 
 func TestAggregator_Max_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MAX, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -321,6 +357,8 @@ func TestAggregator_Max_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Max_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MAX, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -336,6 +374,8 @@ func TestAggregator_Max_Empty(t *testing.T) {
 }
 
 func TestAggregator_Range_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_RANGE, "score", schema)
 	records := makeRecords(schema, "score", []float64{10, 30, 20})
@@ -350,6 +390,8 @@ func TestAggregator_Range_Basic(t *testing.T) {
 }
 
 func TestAggregator_Range_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_RANGE, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -364,6 +406,8 @@ func TestAggregator_Range_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Range_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_RANGE, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -379,6 +423,8 @@ func TestAggregator_Range_Empty(t *testing.T) {
 }
 
 func TestAggregator_ZScore_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_ZSCORE, "score", schema)
 	// Mean=5, stddev=~1.58
@@ -395,6 +441,8 @@ func TestAggregator_ZScore_Basic(t *testing.T) {
 }
 
 func TestAggregator_ZScore_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_ZSCORE, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -410,6 +458,8 @@ func TestAggregator_ZScore_Empty(t *testing.T) {
 }
 
 func TestAggregator_Frequency_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 1, 3, 1})
@@ -425,6 +475,8 @@ func TestAggregator_Frequency_Basic(t *testing.T) {
 }
 
 func TestAggregator_Frequency_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -439,6 +491,8 @@ func TestAggregator_Frequency_Empty(t *testing.T) {
 }
 
 func TestAggregator_Median_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MEDIAN, "score", schema)
 	records := makeRecords(schema, "score", []float64{3, 1, 4, 1, 5})
@@ -453,6 +507,8 @@ func TestAggregator_Median_Basic(t *testing.T) {
 }
 
 func TestAggregator_Median_Even(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MEDIAN, "score", schema)
 	records := makeRecords(schema, "score", []float64{3, 1, 4, 2})
@@ -467,6 +523,8 @@ func TestAggregator_Median_Even(t *testing.T) {
 }
 
 func TestAggregator_Median_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MEDIAN, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -481,6 +539,8 @@ func TestAggregator_Median_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Median_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MEDIAN, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -496,6 +556,8 @@ func TestAggregator_Median_Empty(t *testing.T) {
 }
 
 func TestAggregator_Median_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MEDIAN, "score", schema)
 	records := makeRecordsWithNulls(schema, "score", []float64{10, 0, 30}, []int{1})
@@ -511,6 +573,8 @@ func TestAggregator_Median_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Variance_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_VARIANCE, "score", schema)
 	records := makeRecords(schema, "score", []float64{2, 4, 4, 4, 5, 5, 7, 9})
@@ -526,6 +590,8 @@ func TestAggregator_Variance_Basic(t *testing.T) {
 }
 
 func TestAggregator_Variance_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_VARIANCE, "score", schema)
 	records := makeRecords(schema, "score", []float64{5})
@@ -540,6 +606,8 @@ func TestAggregator_Variance_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Variance_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_VARIANCE, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -555,6 +623,8 @@ func TestAggregator_Variance_Empty(t *testing.T) {
 }
 
 func TestAggregator_Variance_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_VARIANCE, "score", schema)
 	records := makeRecordsWithNulls(schema, "score", []float64{10, 0, 30}, []int{1})
@@ -570,6 +640,8 @@ func TestAggregator_Variance_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Variance_MatchesStdDevSquared(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	varianceAgg := makeAggregator(t, types.AGG_VARIANCE, "score", schema)
 	stddevAgg := makeAggregator(t, types.AGG_STDDEV, "score", schema)
@@ -589,6 +661,8 @@ func TestAggregator_Variance_MatchesStdDevSquared(t *testing.T) {
 }
 
 func TestAggregator_Mode_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 2, 3, 3, 3})
@@ -603,6 +677,8 @@ func TestAggregator_Mode_Basic(t *testing.T) {
 }
 
 func TestAggregator_Mode_Tie(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 1, 2, 2})
@@ -618,6 +694,8 @@ func TestAggregator_Mode_Tie(t *testing.T) {
 }
 
 func TestAggregator_Mode_AllUnique(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 3})
@@ -633,6 +711,8 @@ func TestAggregator_Mode_AllUnique(t *testing.T) {
 }
 
 func TestAggregator_Mode_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE, "score", schema)
 	records := makeRecords(schema, "score", []float64{7})
@@ -647,6 +727,8 @@ func TestAggregator_Mode_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Mode_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -662,6 +744,8 @@ func TestAggregator_Mode_Empty(t *testing.T) {
 }
 
 func TestAggregator_Mode_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_MODE, "score", schema)
 	records := makeRecordsWithNulls(schema, "score", []float64{10, 0, 10, 20}, []int{1})
@@ -677,6 +761,8 @@ func TestAggregator_Mode_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Skewness_Symmetric(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 3, 4, 5})
@@ -692,6 +778,8 @@ func TestAggregator_Skewness_Symmetric(t *testing.T) {
 }
 
 func TestAggregator_Skewness_RightSkew(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 1, 1, 1, 10})
@@ -707,6 +795,8 @@ func TestAggregator_Skewness_RightSkew(t *testing.T) {
 }
 
 func TestAggregator_Skewness_LeftSkew(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 10, 10, 10, 10})
@@ -722,6 +812,8 @@ func TestAggregator_Skewness_LeftSkew(t *testing.T) {
 }
 
 func TestAggregator_Skewness_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -737,6 +829,8 @@ func TestAggregator_Skewness_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Skewness_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -752,6 +846,8 @@ func TestAggregator_Skewness_Empty(t *testing.T) {
 }
 
 func TestAggregator_Skewness_AllSame(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	records := makeRecords(schema, "score", []float64{5, 5, 5, 5})
@@ -768,6 +864,8 @@ func TestAggregator_Skewness_AllSame(t *testing.T) {
 }
 
 func TestAggregator_Skewness_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_SKEWNESS, "score", schema)
 	// Values [1, null, 1, 1, 10] -> after null removal [1, 1, 1, 10] -> right skew
@@ -784,6 +882,8 @@ func TestAggregator_Skewness_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Kurtosis_Uniform(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 3, 4, 5})
@@ -803,6 +903,8 @@ func TestAggregator_Kurtosis_Uniform(t *testing.T) {
 }
 
 func TestAggregator_Kurtosis_Peaked(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
 	// Values clustered at center with outliers -> positive excess kurtosis (leptokurtic)
@@ -819,6 +921,8 @@ func TestAggregator_Kurtosis_Peaked(t *testing.T) {
 }
 
 func TestAggregator_Kurtosis_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -834,6 +938,8 @@ func TestAggregator_Kurtosis_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Kurtosis_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -849,6 +955,8 @@ func TestAggregator_Kurtosis_Empty(t *testing.T) {
 }
 
 func TestAggregator_Kurtosis_AllSame(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
 	records := makeRecords(schema, "score", []float64{5, 5, 5, 5})
@@ -865,6 +973,8 @@ func TestAggregator_Kurtosis_AllSame(t *testing.T) {
 }
 
 func TestAggregator_Kurtosis_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_KURTOSIS, "score", schema)
 	// Values [1, null, 2, 3, 4, 5] -> after null removal [1, 2, 3, 4, 5] -> negative kurtosis
@@ -881,6 +991,8 @@ func TestAggregator_Kurtosis_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_DistinctCount_Basic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_DISTINCT_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 3, 2, 1})
@@ -895,6 +1007,8 @@ func TestAggregator_DistinctCount_Basic(t *testing.T) {
 }
 
 func TestAggregator_DistinctCount_AllSame(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_DISTINCT_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{5, 5, 5})
@@ -909,6 +1023,8 @@ func TestAggregator_DistinctCount_AllSame(t *testing.T) {
 }
 
 func TestAggregator_DistinctCount_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_DISTINCT_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{42})
@@ -923,6 +1039,8 @@ func TestAggregator_DistinctCount_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_DistinctCount_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_DISTINCT_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
@@ -937,6 +1055,8 @@ func TestAggregator_DistinctCount_Empty(t *testing.T) {
 }
 
 func TestAggregator_DistinctCount_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makeAggregator(t, types.AGG_DISTINCT_COUNT, "score", schema)
 	records := makeRecordsWithNulls(schema, "score", []float64{1, 0, 2, 1}, []int{1})
@@ -952,6 +1072,8 @@ func TestAggregator_DistinctCount_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Percentile_P50(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makePercentileAggregator(t, "score", schema, 50)
 	records := makeRecords(schema, "score", []float64{3, 1, 4, 1, 5})
@@ -969,6 +1091,8 @@ func TestAggregator_Percentile_P50(t *testing.T) {
 }
 
 func TestAggregator_Percentile_P0(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makePercentileAggregator(t, "score", schema, 0)
 	records := makeRecords(schema, "score", []float64{10, 30, 20})
@@ -983,6 +1107,8 @@ func TestAggregator_Percentile_P0(t *testing.T) {
 }
 
 func TestAggregator_Percentile_P100(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makePercentileAggregator(t, "score", schema, 100)
 	records := makeRecords(schema, "score", []float64{10, 30, 20})
@@ -997,6 +1123,8 @@ func TestAggregator_Percentile_P100(t *testing.T) {
 }
 
 func TestAggregator_Percentile_P25_P75(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	// Values: [1, 2, 3, 4, 5, 6, 7, 8]
 	values := []float64{1, 2, 3, 4, 5, 6, 7, 8}
@@ -1024,6 +1152,8 @@ func TestAggregator_Percentile_P25_P75(t *testing.T) {
 }
 
 func TestAggregator_Percentile_SingleValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makePercentileAggregator(t, "score", schema, 90)
 	records := makeRecords(schema, "score", []float64{42})
@@ -1038,6 +1168,8 @@ func TestAggregator_Percentile_SingleValue(t *testing.T) {
 }
 
 func TestAggregator_Percentile_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makePercentileAggregator(t, "score", schema, 50)
 	records := makeRecords(schema, "score", []float64{})
@@ -1053,6 +1185,8 @@ func TestAggregator_Percentile_Empty(t *testing.T) {
 }
 
 func TestAggregator_Percentile_NullHandling(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	agg := makePercentileAggregator(t, "score", schema, 50)
 	records := makeRecordsWithNulls(schema, "score", []float64{10, 0, 30}, []int{1})
@@ -1068,6 +1202,8 @@ func TestAggregator_Percentile_NullHandling(t *testing.T) {
 }
 
 func TestAggregator_Percentile_InvalidParams(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	// Percentile < 0
 	_, err := newPercentileAggregator(&types.Aggregation{
@@ -1091,6 +1227,8 @@ func TestAggregator_Percentile_InvalidParams(t *testing.T) {
 }
 
 func TestAggregator_Percentile_DefaultParams(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	// nil params should default to p50
 	agg, err := newPercentileAggregator(&types.Aggregation{
@@ -1131,6 +1269,8 @@ func makePercentileAggregator(t *testing.T, field string, schema *encoding.Schem
 // quantity) with the accepted-types table's code, instead of averaging
 // the indexes.
 func TestAggregator_OnCategoricalField(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	_, err := aggregatorRegistry[types.AGG_AVERAGE](&types.Aggregation{Type: types.AGG_AVERAGE, Field: "brand"}, schema)
 	if !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
@@ -1194,6 +1334,8 @@ func newDistinctSum(t *testing.T, distinctBy string) Aggregator {
 }
 
 func TestAggregator_DistinctSum_Buffered(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	// Keys 1,1,1,2,3 carrying a constant value per key: 10,10,10,20,30.
 	// The distinct sum is 10+20+30 = 60, not the 80 a plain AGG_SUM gives.
@@ -1212,6 +1354,8 @@ func TestAggregator_DistinctSum_Buffered(t *testing.T) {
 }
 
 func TestAggregator_DistinctSum_Streaming(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	recs := distinctSumRecords(schema,
 		[]float64{1, 1, 1, 2, 3},
@@ -1240,6 +1384,8 @@ func TestAggregator_DistinctSum_Streaming(t *testing.T) {
 // when one key carries conflicting values, the FIRST value observed is the
 // one summed. Both execution paths must agree.
 func TestAggregator_DistinctSum_FirstValueWins(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	// Key 1 arrives as 10 then 999; key 2 arrives once as 20.
 	recs := distinctSumRecords(schema,
@@ -1275,6 +1421,8 @@ func TestAggregator_DistinctSum_FirstValueWins(t *testing.T) {
 // the aggregation's own field (which would silently degrade the operator
 // into a distinct-value sum).
 func TestAggregator_DistinctSum_MissingDistinctBy(t *testing.T) {
+	t.Parallel()
+
 	factory, ok := aggregatorRegistry[types.AGG_DISTINCT_SUM]
 	if !ok {
 		t.Fatalf("AGG_DISTINCT_SUM not registered in aggregatorRegistry")
@@ -1313,6 +1461,8 @@ func TestAggregator_DistinctSum_MissingDistinctBy(t *testing.T) {
 // contract: the scalar is the distinct sum and Components() carries the
 // distinct count alongside it.
 func TestAggregator_DistinctSum_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	recs := distinctSumRecords(schema,
 		[]float64{1, 1, 1, 2, 3},
@@ -1356,6 +1506,8 @@ func TestAggregator_DistinctSum_Components(t *testing.T) {
 // the (key, value) pair contributes nothing — the key is not registered, so
 // a later row carrying the same key with a real value still counts.
 func TestAggregator_DistinctSum_Nulls(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	recs := []*Record{
 		NewRecordWithNulls(schema, map[string]float64{"age": 1, "score": 10}, map[string]bool{"score": true}),
@@ -1386,6 +1538,8 @@ func TestAggregator_DistinctSum_Nulls(t *testing.T) {
 // present in both — partials merge in deterministic shard order, so
 // receiver-wins IS first-value-wins across the whole input.
 func TestAggregator_DistinctSum_MergeOnline(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	left := newDistinctSum(t, "age").(OnlineAggregator)
 	right := newDistinctSum(t, "age").(OnlineAggregator)
@@ -1421,6 +1575,8 @@ func TestAggregator_DistinctSum_MergeOnline(t *testing.T) {
 // TestAggregator_DistinctSum_EmptyInput asserts Finalize is safe with no
 // UpdateRow calls, per the OnlineAggregator contract.
 func TestAggregator_DistinctSum_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	agg := newDistinctSum(t, "age")
 	got, err := agg.(OnlineAggregator).Finalize()
 	if err != nil {
@@ -1437,6 +1593,8 @@ func TestAggregator_DistinctSum_EmptyInput(t *testing.T) {
 // that forgets to opt in silently loses crosstab fusion — same numbers, no
 // warning, several times the peak heap.
 func TestAggregator_DistinctSum_Classification(t *testing.T) {
+	t.Parallel()
+
 	if !types.AGG_DISTINCT_SUM.Streamable() {
 		t.Error("AGG_DISTINCT_SUM.Streamable() = false, want true (per-key map, online)")
 	}
@@ -1455,6 +1613,8 @@ func TestAggregator_DistinctSum_Classification(t *testing.T) {
 // for [1, 2, 3, 10] computed by hand: mean 4, m2 = 12.5, m3 = 45,
 // m4 = 348.5.
 func TestAggregator_ShapeEstimators_Population(t *testing.T) {
+	t.Parallel()
+
 	vals := []float64{1, 2, 3, 10}
 	const (
 		g1 = 45 / 44.19417382415922 // m3 / m2^1.5, 12.5^1.5 = 44.194...

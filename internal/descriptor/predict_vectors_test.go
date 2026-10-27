@@ -26,6 +26,8 @@ func vectorPredictSchema(t *testing.T) []byte {
 // members (literals in caller order, patterns in schema order) and warns
 // once per vector no slot references, in request order.
 func TestPredict_ResolvedVectors(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}},
 		Vectors: []types.VectorSpec{
@@ -64,6 +66,8 @@ func TestPredict_ResolvedVectors(t *testing.T) {
 // TestPredict_NoVectorsNoEcho: a vector-free request carries no
 // resolved_vectors key and no vector warning.
 func TestPredict_NoVectorsNoEcho(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}}}
 	env := predictFromBytes(vectorPredictSchema(t), req, nil)
 	if res := env.Data.(*descriptor.PredictResult); res.ResolvedVectors != nil {
@@ -80,6 +84,8 @@ func TestPredict_NoVectorsNoEcho(t *testing.T) {
 // error carrying the resolver's code and details, and nothing is echoed.
 // The same refusal reaches the runtime through FieldRefRefusal.
 func TestPredict_VectorRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec types.VectorSpec
@@ -119,6 +125,8 @@ func TestPredict_VectorRefusals(t *testing.T) {
 // TestSlotRefusal_VectorsHidden: without capability:matrices a set
 // `vectors` slot is an unknown field; with it, nothing is refused.
 func TestSlotRefusal_VectorsHidden(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"x"}}}}
 	ce := asCoded(t, SlotRefusal(req, scopedOnly(featProcess)))
 	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || !reflect.DeepEqual(ce.Details["unknown_keys"], []string{"vectors"}) {
@@ -136,6 +144,8 @@ func TestSlotRefusal_VectorsHidden(t *testing.T) {
 // (RegressionResult.vcov / .correlation, the opt-in RegressionSpec
 // vcov param, which rides no feature row).
 func TestPayloadSchema_MatricesHidden(t *testing.T) {
+	t.Parallel()
+
 	base := []string{featProcess}
 	for _, c := range []struct {
 		name string
@@ -170,6 +180,8 @@ func TestPayloadSchema_MatricesHidden(t *testing.T) {
 // argument — raises no PULSE_VECTOR_UNREFERENCED; one nothing reads
 // still warns.
 func TestPredict_ExpressionVectorReferences(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors: []types.VectorSpec{
 			{Name: "bat", Fields: []string{"q_1", "q_2", "q_3"}},
@@ -205,6 +217,8 @@ func TestPredict_ExpressionVectorReferences(t *testing.T) {
 // would read the column, never the vector. A vector name no slot claims
 // passes.
 func TestPredict_VectorLabelCollision(t *testing.T) {
+	t.Parallel()
+
 	vec := func(name string) []types.VectorSpec {
 		return []types.VectorSpec{{Name: name, Fields: []string{"q_1", "q_2"}}}
 	}

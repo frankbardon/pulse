@@ -67,6 +67,8 @@ func runIndexCLI(t *testing.T, buf *bytes.Buffer, args ...string) error {
 }
 
 func TestIndexBuildCLI_SingleKeyWritesSidecar(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -83,6 +85,8 @@ func TestIndexBuildCLI_SingleKeyWritesSidecar(t *testing.T) {
 }
 
 func TestIndexBuildCLI_CompositeKeyWritesSidecar(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -106,6 +110,8 @@ func TestIndexBuildCLI_CompositeKeyWritesSidecar(t *testing.T) {
 }
 
 func TestIndexBuildCLI_JSONEnvelopeShape(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -155,6 +161,8 @@ func TestIndexBuildCLI_JSONEnvelopeShape(t *testing.T) {
 }
 
 func TestIndexBuildCLI_ShardArchiveBuildsPerShardSidecars(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	shard1 := filepath.Join(dir, "shard1.pulse")
 	shard2 := filepath.Join(dir, "shard2.pulse")
@@ -192,6 +200,8 @@ func TestIndexBuildCLI_ShardArchiveBuildsPerShardSidecars(t *testing.T) {
 }
 
 func TestIndexBuildCLI_MissingKeyFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -206,6 +216,8 @@ func TestIndexBuildCLI_MissingKeyFlagErrors(t *testing.T) {
 // ---------- list ----------
 
 func TestIndexListCLI_EmptyWhenNoneBuilt(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -233,6 +245,8 @@ func TestIndexListCLI_EmptyWhenNoneBuilt(t *testing.T) {
 }
 
 func TestIndexListCLI_ShowsBuiltIndexesAndKeys(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -285,6 +299,8 @@ func TestIndexListCLI_ShowsBuiltIndexesAndKeys(t *testing.T) {
 }
 
 func TestIndexListCLI_MissingCohortInputErrors(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	err := runIndexCLI(t, &buf, "list")
 	if err == nil {
@@ -295,6 +311,8 @@ func TestIndexListCLI_MissingCohortInputErrors(t *testing.T) {
 // ---------- verify ----------
 
 func TestIndexVerifyCLI_ReportsFresh(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -334,6 +352,8 @@ func TestIndexVerifyCLI_ReportsFresh(t *testing.T) {
 }
 
 func TestIndexVerifyCLI_ReportsStaleAfterCohortMutation(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -381,6 +401,8 @@ func TestIndexVerifyCLI_ReportsStaleAfterCohortMutation(t *testing.T) {
 }
 
 func TestIndexVerifyCLI_MissingIndexErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -406,6 +428,8 @@ func TestIndexVerifyCLI_MissingIndexErrorEnvelope(t *testing.T) {
 }
 
 func TestIndexVerifyCLI_MissingKeyFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -420,6 +444,8 @@ func TestIndexVerifyCLI_MissingKeyFlagErrors(t *testing.T) {
 // ---------- drop ----------
 
 func TestIndexDropCLI_RemovesSidecar(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -462,6 +488,8 @@ func TestIndexDropCLI_RemovesSidecar(t *testing.T) {
 }
 
 func TestIndexDropCLI_MissingIndexErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -487,6 +515,8 @@ func TestIndexDropCLI_MissingIndexErrorEnvelope(t *testing.T) {
 }
 
 func TestIndexDropCLI_MissingKeyFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)

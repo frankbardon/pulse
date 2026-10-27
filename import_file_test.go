@@ -27,6 +27,8 @@ func newImportTestPulse(t *testing.T) (*Pulse, afero.Fs) {
 }
 
 func TestPulse_ImportFile_CSV(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	writeCSVPulse(t, afs, "data.csv")
 
@@ -46,6 +48,8 @@ func TestPulse_ImportFile_CSV(t *testing.T) {
 }
 
 func TestPulse_ImportFile_PulsePassthrough(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	// Bare native magic header is enough for the passthrough's
 	// readability check; the file is not actually opened here.
@@ -65,6 +69,8 @@ func TestPulse_ImportFile_PulsePassthrough(t *testing.T) {
 }
 
 func TestPulse_ImportFile_DropRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	writeCSVPulse(t, afs, "data.csv")
 	res, err := p.ImportFile(context.Background(), ImportSpec{SourcePath: "data.csv"})
@@ -84,6 +90,8 @@ func TestPulse_ImportFile_DropRoundTrip(t *testing.T) {
 }
 
 func TestPulse_Inspect_TouchesManagedHandle(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	writeCSVPulse(t, afs, "data.csv")
 	res, err := p.ImportFile(context.Background(), ImportSpec{SourcePath: "data.csv", TTL: 1 * time.Hour})

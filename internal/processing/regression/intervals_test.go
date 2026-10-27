@@ -119,6 +119,8 @@ func ciRelNear(got, want, tol float64) bool {
 // the residual df 52, not the normal 1.96 (which would give a lower
 // intercept bound of 90.8384 against R's 90.5586).
 func TestRegressionCI_FixtureLikeMatchesR(t *testing.T) {
+	t.Parallel()
+
 	// R 4.6.1: confint(fit, level = lv); df.residual(fit) = 52.
 	cases := []struct {
 		level        float64
@@ -179,6 +181,8 @@ func sortedKeys(m map[string]float64) []string {
 // conf_level) on a fit with no standard error. Every bound is
 // coefficient ∓ q·SE with one q per fit.
 func TestRegressionCI_PresentExactlyWhereStdErrors(t *testing.T) {
+	t.Parallel()
+
 	recs := mmmLikeRecords()
 	specs := map[string]*types.RegressionSpec{
 		"ols":       {Type: types.REG_OLS, Target: "rev", Predictors: mmmLikePredictors},
@@ -239,6 +243,8 @@ func TestRegressionCI_PresentExactlyWhereStdErrors(t *testing.T) {
 // intervals are coefficient ∓ z·SE on the RESAMPLED standard errors, the
 // basis the resample p-values use; df is absent.
 func TestRegressionCI_ResampleIsWaldOnResampledSE(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "rev", Predictors: mmmLikePredictors, Resample: "jackknife", ConfLevel: 0.9}
 	r := fitOne(t, spec, mmmLikeRecords())
 	if r.DF != 0 || r.ConfLevel != 0.9 {
@@ -259,6 +265,8 @@ func TestRegressionCI_ResampleIsWaldOnResampledSE(t *testing.T) {
 // credible_level when conf_level is unset — and conf_level alone moves
 // them (credible_intervals stay at credible_level). df is 2·a_n.
 func TestRegressionCI_BayesMirrorsCredibleIntervals(t *testing.T) {
+	t.Parallel()
+
 	recs := mmmLikeRecords()
 	for _, s := range []types.RegressionSpec{
 		{Type: types.REG_BAYES_LINEAR, Target: "rev", Predictors: mmmLikePredictors},
@@ -294,6 +302,8 @@ func TestRegressionCI_BayesMirrorsCredibleIntervals(t *testing.T) {
 // TestRegressionCI_ConfLevelValidated: conf_level outside (0, 1) is
 // PROCESSING_CONFIG on every family; zero is the default.
 func TestRegressionCI_ConfLevelValidated(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range types.AllRegressionTypes() {
 		for _, c := range []float64{-0.1, 1, 1.5, math.NaN()} {
 			spec := &types.RegressionSpec{Type: typ, Target: "y", Predictors: []string{"x"}, ConfLevel: c}
@@ -324,6 +334,8 @@ func asCoded(err error) *errors.CodedError {
 // TestRegressionCI_UndefinedIsNull: df ≤ 0 leaves every bound and df
 // undefined, and the wire carries them as null (MarshalFinite), never 0.
 func TestRegressionCI_UndefinedIsNull(t *testing.T) {
+	t.Parallel()
+
 	r := &types.RegressionResult{
 		Type:         types.REG_OLS,
 		Coefficients: map[string]float64{InterceptKey: 2, "x": 1},
@@ -360,6 +372,8 @@ func TestRegressionCI_UndefinedIsNull(t *testing.T) {
 //	step(lm(y ~ x), k = log(12))       # → y ~ 1
 //	t.test(y, conf.level = 0.9)$conf.int
 func TestRegressionCI_InterceptOnlySelection(t *testing.T) {
+	t.Parallel()
+
 	y := []float64{4.1, 5.3, 3.8, 4.9, 5.6, 4.4, 3.9, 5.1, 4.7, 4.2, 5.0, 4.6}
 	x := []float64{1, 7, 3, 9, 2, 8, 4, 6, 5, 11, 10, 12}
 	recs := make([]Record, len(y))
@@ -387,6 +401,8 @@ func TestRegressionCI_InterceptOnlySelection(t *testing.T) {
 // barriered before the add. The inputs are ones where arm64 would fuse
 // coef ∓ q·se into a different last bit.
 func TestRegressionCI_StudentTBoundsBitsPinned(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		i            float64
 		lower, upper uint64

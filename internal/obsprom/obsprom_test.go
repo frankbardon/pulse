@@ -67,6 +67,8 @@ func exposeFixture() *Registry {
 // TestExposition (FR-21) compares the exporter against a hand-written
 // spec rendering and runs the result through a line validator.
 func TestExposition(t *testing.T) {
+	t.Parallel()
+
 	var b bytes.Buffer
 	if err := exposeFixture().WriteText(&b); err != nil {
 		t.Fatal(err)
@@ -161,6 +163,8 @@ func validateExposition(t *testing.T, text string) {
 }
 
 func TestEscapingAndFormatting(t *testing.T) {
+	t.Parallel()
+
 	if got := escapeLabelValue("a\\b\"c\nd"); got != `a\\b\"c\nd` {
 		t.Errorf("escapeLabelValue = %q", got)
 	}
@@ -178,6 +182,8 @@ func TestEscapingAndFormatting(t *testing.T) {
 }
 
 func TestRegistrySemantics(t *testing.T) {
+	t.Parallel()
+
 	r := New()
 	a := r.Counter("x_total", observe.Label{Key: "k", Value: "v"})
 	b := r.Counter("x_total", observe.Label{Key: "k", Value: "v"})
@@ -213,6 +219,8 @@ func TestRegistrySemantics(t *testing.T) {
 }
 
 func TestConcurrentWrites(t *testing.T) {
+	t.Parallel()
+
 	r := New()
 	c := r.Counter("c_total")
 	g := r.UpDownCounter("g")
@@ -244,14 +252,24 @@ func TestConcurrentWrites(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
+	t.Parallel()
+
 	r := exposeFixture()
 	s, err := Listen("127.0.0.1:0", r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = s.Shutdown(context.Background()) }()
+	// A private transport whose idle connections are closed before
+	// Shutdown: a spare connection the client dialed but never used sits in
+	// StateNew, and Shutdown waits up to 5 s for such a connection.
+	tr := &http.Transport{}
+	client := &http.Client{Transport: tr}
+	defer func() {
+		tr.CloseIdleConnections()
+		_ = s.Shutdown(context.Background())
+	}()
 
-	resp, err := http.Get("http://" + s.Addr() + Path)
+	resp, err := client.Get("http://" + s.Addr() + Path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +279,7 @@ func TestServer(t *testing.T) {
 		t.Errorf("GET %s: status %d, type %q, body:\n%s", Path, resp.StatusCode, resp.Header.Get("Content-Type"), body)
 	}
 
-	resp, err = http.Get("http://" + s.Addr() + "/other")
+	resp, err = client.Get("http://" + s.Addr() + "/other")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +288,7 @@ func TestServer(t *testing.T) {
 		t.Errorf("GET /other: status %d, want 404", resp.StatusCode)
 	}
 
-	resp, err = http.Post("http://"+s.Addr()+Path, "text/plain", nil)
+	resp, err = client.Post("http://"+s.Addr()+Path, "text/plain", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,6 +310,8 @@ func TestServer(t *testing.T) {
 // Falsified by allocating histData in Registry.series, or by storing
 // (not CompareAndSwap-ing) it in series.histData.
 func TestLazySeriesStorage(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	r := New()
 	allocs := testing.AllocsPerRun(100, func() {
 		_ = r.Histogram("h_seconds", observe.Label{Key: "op", Value: "process"})

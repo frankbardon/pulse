@@ -74,6 +74,8 @@ func inspectRecordCount(t *testing.T, path string) int64 {
 }
 
 func TestCohortFilterCLI_IncludeOnly_Integer(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n101,10\n102,20\n103,30\n104,40\n105,50\n")
@@ -95,6 +97,8 @@ func TestCohortFilterCLI_IncludeOnly_Integer(t *testing.T) {
 }
 
 func TestCohortFilterCLI_IncludePlusFilter_AND(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n101,10\n102,20\n103,30\n104,40\n105,50\n")
@@ -117,6 +121,8 @@ func TestCohortFilterCLI_IncludePlusFilter_AND(t *testing.T) {
 }
 
 func TestCohortFilterCLI_FilterOnly_RegressionPath(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n101,10\n102,20\n103,30\n104,40\n105,50\n")
@@ -136,6 +142,8 @@ func TestCohortFilterCLI_FilterOnly_RegressionPath(t *testing.T) {
 }
 
 func TestCohortFilterCLI_RequiresAtLeastOnePredicate(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10\n2,20\n")
@@ -151,6 +159,8 @@ func TestCohortFilterCLI_RequiresAtLeastOnePredicate(t *testing.T) {
 }
 
 func TestCohortFilterCLI_IncludeFromWithoutField(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10\n2,20\n")
@@ -168,6 +178,8 @@ func TestCohortFilterCLI_IncludeFromWithoutField(t *testing.T) {
 }
 
 func TestCohortFilterCLI_IncludeFieldWithoutFrom(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10\n2,20\n")
@@ -184,6 +196,8 @@ func TestCohortFilterCLI_IncludeFieldWithoutFrom(t *testing.T) {
 }
 
 func TestCohortFilterCLI_MissingIncludeFile(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10\n2,20\n")
@@ -201,6 +215,8 @@ func TestCohortFilterCLI_MissingIncludeFile(t *testing.T) {
 }
 
 func TestCohortFilterCLI_UnknownIncludeField(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10\n2,20\n")
@@ -219,6 +235,8 @@ func TestCohortFilterCLI_UnknownIncludeField(t *testing.T) {
 }
 
 func TestCohortFilterCLI_FloatFieldRejected(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10.5\n2,20.5\n3,30.5\n")
@@ -237,6 +255,8 @@ func TestCohortFilterCLI_FloatFieldRejected(t *testing.T) {
 }
 
 func TestCohortFilterCLI_EmptyIncludeFileWritesZeroRows(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "ids.csv",
 		"id,score\n1,10\n2,20\n3,30\n")
@@ -281,6 +301,8 @@ func TestCohortFilterCLI_EmptyIncludeFileWritesZeroRows(t *testing.T) {
 // what a future edit would reintroduce — os.Open is one character shorter
 // than the afero form and reads as equivalent.
 func TestCohortFile_ReachesTheFilesystemThroughAferoOnly(t *testing.T) {
+	t.Parallel()
+
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "cohort.go", nil, parser.ImportsOnly)
 	if err != nil {

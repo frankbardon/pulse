@@ -2,22 +2,19 @@ package pulse_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-group aggregator Components (components.aggregations[*].groups)
-// are keyed to the REQUEST, never to the execution arm: the buffered
-// grouped arm, the streaming-grouped terminal flush, the serial and
-// parallel shard-archive arms and the parallel-decode arm all report
-// the same groups[] — and a multi-shard archive the same as its
-// single-file twin.
+// The grouped-components family's slots, groupers and guards: per-group
+// aggregator Components (components.aggregations[*].groups) are keyed
+// to the REQUEST, never to the execution arm — the worker-invariance
+// gate over every arm is grouped_components_invariance_test.go (the
+// shared harness); the stream's terminal-only rule is below.
 
 // gaExtSum is a Streamable + Mergeable extension aggregator, so it
 // rides the streaming and both parallel arms (its merges are probed).
@@ -60,16 +57,6 @@ func gaOpen(t *testing.T, opts pulse.Options, probe *parityProbe) *pulse.Pulse {
 	return p
 }
 
-// gaAnswer is the arm-invariant document: Data plus
-// Components.Aggregations (Run differs by design — shard_count).
-func gaAnswer(t *testing.T, resp *types.Response) string {
-	t.Helper()
-	if resp.Components == nil {
-		t.Fatal("no Components")
-	}
-	return mustJSON(t, resp.Data) + mustJSON(t, resp.Components.Aggregations)
-}
-
 // gaAssertGroups fails unless resp carries a non-degenerate groups[] on
 // every slot — so arm parity is not parity over an empty block.
 func gaAssertGroups(t *testing.T, resp *types.Response) {
@@ -98,103 +85,12 @@ func gaAssertGroups(t *testing.T, resp *types.Response) {
 	}
 }
 
-// TestGroupedComponents_ArmsAgree: buffered ≡ streaming-grouped ≡
-// archive serial ≡ archive ShardWorkers=3, the archive answering like
-// its single-file twin; the extension aggregator is merged on the
-// parallel shard arm.
-func TestGroupedComponents_ArmsAgree(t *testing.T) {
-	fsys := afero.NewMemMapFs()
-	s := paritySchema(t)
-	writeParityCohort(t, fsys, "twin.pulse", s, 0, paritySmallRows)
-	shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}
-	for i, path := range shards {
-		writeParityCohort(t, fsys, path, s, i*paritySmallRows/3, (i+1)*paritySmallRows/3)
-	}
-	probe := &parityProbe{}
-	serial := gaOpen(t, pulse.Options{FS: fsys, ShardWorkers: 1, DecodeWorkers: 1}, probe)
-	parallel := gaOpen(t, pulse.Options{FS: fsys, ShardWorkers: 3}, probe)
-	if _, err := serial.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
-		t.Fatalf("CreateShardArchive: %v", err)
-	}
-	exts := pulse.ServiceForTest(serial).Extensions()
-
-	for name, grp := range gaGroupers() {
-		t.Run(name, func(t *testing.T) {
-			req := func(cohort string) *types.Request {
-				return &types.Request{Cohort: &types.Cohort{Filename: cohort},
-					Groups: []*types.Group{grp}, Aggregations: gaAggregations()}
-			}
-			// ATTR_PERCENTILE is non-streamable and adds no output
-			// column: it forces the buffered grouped arm.
-			buffered := req("twin.pulse")
-			buffered.Attributes = []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "qty", Label: "qty_pct"}}
-			if processing.CanStreamRequestWithExtensions(buffered, s, exts) {
-				t.Fatal("fixture: the buffered arm streams")
-			}
-			if !processing.CanStreamRequestWithExtensions(req("twin.pulse"), s, exts) ||
-				!processing.CanMergeRequestWithExtensions(req("archive.pulse"), s, exts) {
-				t.Fatal("fixture: the request neither streams nor merges; the arms would collapse")
-			}
-
-			base := gcProcess(t, serial, buffered)
-			gaAssertGroups(t, base)
-			want := gaAnswer(t, base)
-
-			arms := []struct {
-				name string
-				p    *pulse.Pulse
-				req  *types.Request
-			}{
-				{"streaming", serial, req("twin.pulse")},
-				{"archive_serial", serial, req("archive.pulse")},
-				{"archive_shard_workers_3", parallel, req("archive.pulse")},
-			}
-			for _, arm := range arms {
-				probe.reset()
-				if got := gaAnswer(t, gcProcess(t, arm.p, arm.req)); got != want {
-					t.Errorf("%s answers differently from the buffered single-file arm\n got  %s\n want %s", arm.name, got, want)
-				}
-				if arm.name == "archive_shard_workers_3" && probe.merges.Load() == 0 {
-					t.Error("the extension aggregator was never merged; the parallel shard arm did not run")
-				}
-			}
-		})
-	}
-}
-
-// TestGroupedComponents_DecodeWorkersAgree: serial ≡ DecodeWorkers=4
-// over a single file above the parallel-decode threshold, extension
-// slot included.
-func TestGroupedComponents_DecodeWorkersAgree(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping the large-cohort decode-worker arm in -short mode")
-	}
-	dir := t.TempDir()
-	writeParityCohort(t, afero.NewOsFs(), filepath.Join(dir, "large.pulse"), paritySchema(t), 0, parityLargeRows)
-	probe := &parityProbe{}
-	serial := gaOpen(t, pulse.Options{DataDir: dir, DecodeWorkers: 1}, probe)
-	parallel := gaOpen(t, pulse.Options{DataDir: dir, DecodeWorkers: 4}, probe)
-	for name, grp := range gaGroupers() {
-		t.Run(name, func(t *testing.T) {
-			req := &types.Request{Cohort: &types.Cohort{Filename: "large.pulse"},
-				Groups: []*types.Group{grp}, Aggregations: gaAggregations()}
-			base := gcProcess(t, serial, req)
-			gaAssertGroups(t, base)
-			probe.reset()
-			if got, want := gaAnswer(t, gcProcess(t, parallel, req)), gaAnswer(t, base); got != want {
-				t.Errorf("DecodeWorkers=4 answers differently from DecodeWorkers=1\n got  %.800s\n want %.800s", got, want)
-			}
-			if probe.merges.Load() == 0 {
-				t.Error("the extension aggregator was never merged; the parallel decode arm did not run")
-			}
-		})
-	}
-}
-
 // TestGroupedComponents_StreamTerminalOnly: a streamed grouped run's
 // chunks carry no per-group state until the terminal chunk, which
 // carries the buffered response's groups[] verbatim.
 func TestGroupedComponents_StreamTerminalOnly(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "twin.pulse", paritySchema(t), 0, paritySmallRows)
 	p := gaOpen(t, pulse.Options{FS: fsys}, &parityProbe{})

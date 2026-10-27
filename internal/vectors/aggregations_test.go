@@ -16,6 +16,8 @@ import (
 // other aggregator — built-in or extension — refusing a vector input,
 // on aggregations, the crosstab cell and its margin aggregations.
 func TestResolveAggregations_Rules(t *testing.T) {
+	t.Parallel()
+
 	vm := func(mut func(*types.Aggregation)) *types.Aggregation {
 		a := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"q_*"}}
 		if mut != nil {
@@ -96,6 +98,8 @@ func extKinds() AggregationKinds {
 // leniently, expand only when ArrayValued; an unknown name is left to
 // the unknown-type refusal.
 func TestResolveAggregations_Extension(t *testing.T) {
+	t.Parallel()
+
 	agg := func(typ, field string, fields []string, params string) *types.Request {
 		a := &types.Aggregation{Type: types.AggregationType(typ), Field: field, Fields: fields}
 		if params != "" {
@@ -143,6 +147,8 @@ func TestResolveAggregations_Extension(t *testing.T) {
 // expand and its output columns, the crosstab refusal — and a hidden
 // name like an unknown one.
 func TestAggregationKinds_Extension(t *testing.T) {
+	t.Parallel()
+
 	k := extKinds()
 	if !k.IsVector("AGG_ACME_V") || k.IsArrayValued("AGG_ACME_V") || !k.IsArrayValued("AGG_ACME_A") || k.IsVector("AGG_ACME_X") {
 		t.Fatal("extension declarations not read")
@@ -174,6 +180,8 @@ func TestAggregationKinds_Extension(t *testing.T) {
 // rich lifts plus the array-valued class plus an extension declared
 // NonScalar; a hidden type is not classed.
 func TestAggregationKinds_NonScalar(t *testing.T) {
+	t.Parallel()
+
 	k := AggregationKinds{Extension: func(name string) ExtensionAggregation {
 		switch name {
 		case "AGG_ACME_N":
@@ -208,6 +216,8 @@ func TestAggregationKinds_NonScalar(t *testing.T) {
 // numeric or date input it is a magnitude, and a figure computed over
 // a categorical (AGG_MODE_COUNT, AGG_DISTINCT_COUNT) is never a code.
 func TestAggregationKinds_Code(t *testing.T) {
+	t.Parallel()
+
 	k := AggregationKinds{Extension: func(name string) ExtensionAggregation {
 		switch name {
 		case "AGG_ACME_PICK":
@@ -247,6 +257,8 @@ func TestAggregationKinds_Code(t *testing.T) {
 // TestAggregationSlotRewrite_ExtensionKeepsParams: an extension's
 // rewritten slot keeps its own params beside the resolved labels.
 func TestAggregationSlotRewrite_ExtensionKeepsParams(t *testing.T) {
+	t.Parallel()
+
 	a := &types.Aggregation{Type: "AGG_ACME_A", Fields: []string{"q_*"}, Params: json.RawMessage(`{"k":3,"expand":true}`)}
 	req := &types.Request{Aggregations: []*types.Aggregation{a}}
 	in, err := ResolveAggregations(req, groupSchema(), nil, extKinds())
@@ -269,6 +281,8 @@ func TestAggregationSlotRewrite_ExtensionKeepsParams(t *testing.T) {
 // TestResolveAggregations_RouteHidesType: a hidden vector aggregator
 // resolves nothing (its unknown-type refusal is elsewhere).
 func TestResolveAggregations_RouteHidesType(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM}}}
 	in, err := ResolveAggregations(req, groupSchema(), nil, AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }})
 	if err != nil || len(in) != 0 {
@@ -280,6 +294,8 @@ func TestResolveAggregations_RouteHidesType(t *testing.T) {
 // members, the default label from the slot as written and the
 // resolved labels in params — a named vector's labels survive.
 func TestAggregationSlotRewrite(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM, Vector: "v"}, {Type: types.AGG_VEC_MEAN, Fields: []string{"q_2", "q_1"}, Label: "m"}},
@@ -306,6 +322,8 @@ func TestAggregationSlotRewrite(t *testing.T) {
 // projection (crosstab slots included); a named vector counts as
 // referenced.
 func TestAggregationInputMembers_AndReferenced(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"q_1"}}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM, Vector: "v"}, {Type: types.AGG_VEC_MEAN, Fields: []string{"q_*"}}},
@@ -326,6 +344,8 @@ func TestAggregationInputMembers_AndReferenced(t *testing.T) {
 // TestArrayValuedCrosstabRefusal: the unconditional crosstab gate —
 // cell or margin aggregation, any normalize — and nothing else.
 func TestArrayValuedCrosstabRefusal(t *testing.T) {
+	t.Parallel()
+
 	vec := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"q_*"}}
 	sum := &types.Aggregation{Type: types.AGG_SUM, Field: "q_1"}
 	for _, c := range []struct {
@@ -372,6 +392,8 @@ func TestArrayValuedCrosstabRefusal(t *testing.T) {
 // keeps expand through the slot rewrite; an unresolvable expanding slot
 // falls back to its label and reports it.
 func TestAggregationOutputColumns(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}}
 	exp := json.RawMessage(`{"expand":true}`)
 	cases := []struct {
@@ -435,6 +457,8 @@ func TestAggregationOutputColumns(t *testing.T) {
 // holds), else unknown. The prepared slot lists exactly the columns
 // predict reads over the schema.
 func TestAggregationColumns(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}}
 	exp := json.RawMessage(`{"expand":true}`)
 	aggs := []*types.Aggregation{
@@ -489,6 +513,8 @@ func TestAggregationColumns(t *testing.T) {
 // built-in element slot as its scalar twin's margin class, and the slot
 // rewrite narrows it to the one selected member (labels too).
 func TestElementSelection(t *testing.T) {
+	t.Parallel()
+
 	mk := func(typ types.AggregationType, params string) *types.Aggregation {
 		return &types.Aggregation{Type: typ, Fields: []string{"q_*"}, Label: "x", Params: json.RawMessage(params)}
 	}

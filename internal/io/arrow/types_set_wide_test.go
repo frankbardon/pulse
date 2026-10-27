@@ -13,6 +13,8 @@ import (
 // default case hands back Float64, and a set_u128 / set_u256 column
 // would export as a float column — no error, just a destroyed column.
 func TestArrow_TypeFromPulseWideSetRungs(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU16,
 		encoding.FieldTypeSetU32, encoding.FieldTypeSetU64,
@@ -38,6 +40,8 @@ func TestArrow_TypeFromPulseWideSetRungs(t *testing.T) {
 // wrapper the exporter actually calls, so the mapping is pinned at the
 // surface as well as at TypeFromPulse.
 func TestArrow_FieldFromPulseWideSetRungs(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,
 	} {
@@ -56,6 +60,8 @@ func TestArrow_FieldFromPulseWideSetRungs(t *testing.T) {
 // inference ladder (internal/io/infer.go) widens it against MaxSetEntries as the
 // dictionary fills, now all the way to set_u256.
 func TestArrow_ListStartsProvisionalAndWidens(t *testing.T) {
+	t.Parallel()
+
 	for _, dt := range []arrow.DataType{
 		arrow.ListOf(arrow.BinaryTypes.String),
 		arrow.LargeListOf(arrow.BinaryTypes.String),

@@ -34,6 +34,8 @@ const strictSpecField = `{"name":"x","type":"f64","distribution":"normal","param
 // suggestion, never ignored (U44 #302). The pre-strict decode dropped
 // every one of these and generated without the intended structure.
 func TestParseSpec_RefusesUnknownKeys(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		body    string
@@ -106,6 +108,8 @@ func TestParseSpec_RefusesUnknownKeys(t *testing.T) {
 // A programmatic Spec never passes through ParseSpec, so the params
 // allowlist is enforced in validateSpec: Synth refuses it too.
 func TestSynth_RefusesUnknownDistributionParam(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{RowCount: 10, Fields: []synth.FieldSpec{
 		{Name: "e", Type: "f64", Distribution: synth.DistExponential, Params: map[string]any{"rate": 5.0}},
 	}}
@@ -120,6 +124,8 @@ func TestSynth_RefusesUnknownDistributionParam(t *testing.T) {
 // keeps the JSON location in details.path and names the file in
 // details.file.
 func TestParseRules_RefusesUnknownKeys(t *testing.T) {
+	t.Parallel()
+
 	_, err := synth.ParseRules([]byte(`[{"when":"x > 0","set_null":["x"]},{"set_nul":["x"]}]`))
 	ce := unknownFieldOf(t, err)
 	if got := ce.Details["path"]; got != "[1].set_nul" {
@@ -145,6 +151,8 @@ func TestParseRules_RefusesUnknownKeys(t *testing.T) {
 
 // ParseProfile (the from-profile document) decodes strictly.
 func TestParseProfile_RefusesUnknownKeys(t *testing.T) {
+	t.Parallel()
+
 	_, err := synth.ParseProfile([]byte(`{"row_count":3,"fields":[{"name":"x","type":"f64","nul_rate":0}]}`))
 	ce := unknownFieldOf(t, err)
 	if got := ce.Details["path"]; got != "fields[0].nul_rate" {
@@ -160,6 +168,8 @@ func TestParseProfile_RefusesUnknownKeys(t *testing.T) {
 // spec written as the skill documented (`rho`) generated with NO
 // correlation and no message.
 func TestSynth_RhoPlantsCorrelation(t *testing.T) {
+	t.Parallel()
+
 	const target, tol = 0.6, 0.03
 	spec, err := synth.ParseSpec([]byte(`{"row_count":20000,"fields":[
 		{"name":"a","type":"f64","distribution":"normal","params":{"mean":0,"std":1}},
@@ -182,6 +192,8 @@ func TestSynth_RhoPlantsCorrelation(t *testing.T) {
 // parses back strictly to the same figure; the profile document itself
 // round-trips through ParseProfile.
 func TestSpecFromProfile_RoundTripsRho(t *testing.T) {
+	t.Parallel()
+
 	src, err := synth.ParseSpec([]byte(`{"row_count":5000,"fields":[
 		{"name":"a","type":"f64","distribution":"normal","params":{"mean":0,"std":1}},
 		{"name":"b","type":"f64","distribution":"normal","params":{"mean":0,"std":1}}],

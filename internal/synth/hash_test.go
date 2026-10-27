@@ -3,6 +3,8 @@ package synth
 import "testing"
 
 func TestSpecHash_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	s := &Spec{
 		RowCount: 100,
 		Fields: []FieldSpec{
@@ -17,6 +19,8 @@ func TestSpecHash_Deterministic(t *testing.T) {
 }
 
 func TestSpecHash_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	var s *Spec
 	if got := s.Hash(); len(got) != 32 {
 		t.Fatalf("nil Spec.Hash must return 32-char hex, got %q", got)
@@ -24,6 +28,8 @@ func TestSpecHash_NilSafe(t *testing.T) {
 }
 
 func TestSpecHash_SemanticEquivalence(t *testing.T) {
+	t.Parallel()
+
 	a := &Spec{RowCount: 10, Fields: []FieldSpec{{Name: "x", Type: "u8", Distribution: "uniform"}}}
 	b := &Spec{RowCount: 10, Fields: []FieldSpec{{Name: "x", Type: "u8", Distribution: "uniform"}}}
 	if a.Hash() != b.Hash() {

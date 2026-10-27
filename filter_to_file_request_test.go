@@ -9,6 +9,8 @@ import (
 )
 
 func TestFilterToFileWithRequest_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "src.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"},
@@ -55,6 +57,8 @@ func TestFilterToFileWithRequest_Deterministic(t *testing.T) {
 }
 
 func TestFilterToFileWithRequest_DistinctPredicates(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "src.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"},
@@ -81,6 +85,8 @@ func TestFilterToFileWithRequest_DistinctPredicates(t *testing.T) {
 }
 
 func TestFilterToFileWithRequest_RejectsMutualExclusion(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("New: %v", err)

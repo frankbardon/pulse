@@ -68,6 +68,8 @@ func panelBaselineSlots() (*types.Response, []*types.Response) {
 // pre-change literal, because "absent" and "{}" must not be
 // distinguishable downstream either.
 func TestApplyPropZPanel_ParamsInertWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		params map[string]any
@@ -187,6 +189,8 @@ func assertPanelBaselineBytes(t *testing.T, got []byte, msg string) {
 // starts reading params cannot quietly migrate MaxPanelTargets onto
 // them: the cap must keep firing from Options with params absent.
 func TestApplyPropZPanel_CapRidesOptionsNotParams(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelBaselineSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, &types.OverlayOptions{MaxPanelTargets: 1})
 	_, _, err := applyPropZPanel(&spec, ref, targets, 0, []int{1, 2})

@@ -57,6 +57,8 @@ func writeProfileFile(t *testing.T, dir, name, body string) string {
 // lets the server come up. The path is cwd-relative even though
 // --data-dir names another directory.
 func TestMCP_FeatureProfileFlag(t *testing.T) {
+	// serial: t.Chdir moves the process working directory; t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	dataDir := t.TempDir()
 	cwd := t.TempDir()
@@ -78,6 +80,8 @@ func TestMCP_FeatureProfileFlag(t *testing.T) {
 // TestMCP_FeatureProfileEnv asserts PULSE_FEATURE_PROFILE reaches the mcp
 // leaf, and that the flag beats it.
 func TestMCP_FeatureProfileEnv(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dataDir := t.TempDir()
 	dir := t.TempDir()
 	broken := writeProfileFile(t, dir, "broken.json", `{"features": [], "limits": {"max_rows": 1}}`)
@@ -99,6 +103,8 @@ func TestMCP_FeatureProfileEnv(t *testing.T) {
 // unprofiled: with PULSE_FEATURE_PROFILE naming an invalid file, leaves
 // that construct a Pulse still succeed.
 func TestNonMCPLeavesIgnoreFeatureProfileEnv(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	broken := writeProfileFile(t, dir, "broken.json", `{"features": [], "limits": {"max_rows": 1}}`)
 	t.Setenv("PULSE_FEATURE_PROFILE", broken)
@@ -119,6 +125,8 @@ func TestNonMCPLeavesIgnoreFeatureProfileEnv(t *testing.T) {
 // profile `pulse features init` prints passes `pulse features check`,
 // with no data directory configured.
 func TestFeatures_InitThenCheck(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_DATA_DIR", "")
 	out, err := runApp(t, "features", "init")
 	if err != nil {

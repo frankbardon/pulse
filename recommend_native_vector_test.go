@@ -81,6 +81,8 @@ func fillNeeds(t *testing.T, op string, v any) any {
 // and with its needs filled otherwise. A hinted native drafts only
 // vector slots, and those run too.
 func TestRecommend_NativeVectorDraftsRun(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, ft := range []encoding.FieldType{encoding.FieldTypeVecF64, encoding.FieldTypeVecF32} {
 		t.Run(ft.String(), func(t *testing.T) {

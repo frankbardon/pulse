@@ -192,6 +192,8 @@ func tableEntryPoints() []parityEntryPoint {
 // exactly as an unregistered one (GROUP_DATE_RANGES / FILTER_DATE_RANGES
 // `table:`), on every entry point.
 func TestHiddenNamedTableParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	writeParityDatesCohort(t, fsys)
 	profiles := tableProfiles()
@@ -214,6 +216,8 @@ func TestHiddenNamedTableParity(t *testing.T) {
 // output equals the same profiled instance configured without
 // AutoLabels. Unprofiled, the default applies.
 func TestHiddenLabelsCapability_AutoLabelsNotInjected(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	ext := Extensions{LabelTables: map[string]LabelTable{"region_names": {Rows: map[string]string{
 		"north": "North", "south": "South", "east": "East", "west": "West",

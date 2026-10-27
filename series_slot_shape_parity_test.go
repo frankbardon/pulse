@@ -29,6 +29,8 @@ import (
 // reference first (SLOT_NOT_CROSSTAB) on both sides, as before any
 // per-target shape check.
 func TestComposeSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	type tc struct {
 		name          string
@@ -109,6 +111,8 @@ func TestComposeSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
 // share the SCALAR shape — predict admits them and the runtime folds
 // them without a refusal, as before.
 func TestComposeSeriesOverlay_UngroupedPairStillRuns(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	build := func() *types.ComposedRequest {
 		req := csCompose(f, csOverlay(types.OverlayKindIndexVsRef, ""), csRegion, csZ)
@@ -140,6 +144,8 @@ func TestComposeSeriesOverlay_UngroupedPairStillRuns(t *testing.T) {
 // MATRIX shape) is refused outright since U30 E7-S4
 // (TestChainStage_CrosstabRefusedBothSides), so no chain pairs it.
 func TestChainSeriesOverlay_GroupedVsUngroupedShapeParity(t *testing.T) {
+	t.Parallel()
+
 	for _, strict := range []bool{false, true} {
 		f := newMGFixture(t, pulse.Options{Strict: strict})
 		for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsStage, types.OverlayKindDeltaVsStage} {

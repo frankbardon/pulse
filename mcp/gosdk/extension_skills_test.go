@@ -52,6 +52,8 @@ func extSkillPulse(t *testing.T, fp *pulse.FeatureProfile) *pulse.Pulse {
 // feature profile hides reads like a name that never existed on every
 // one of those paths.
 func TestExtensionSkills_MCP(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	for _, tc := range []struct {
 		name    string
@@ -113,6 +115,8 @@ func extExampleDoc(name, op string) string {
 // agree with the facade — and one whose operator a feature profile hides
 // reads like a name that never existed.
 func TestExtensionExamples_MCP(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	const never = "acme-never-registered"
 	for _, tc := range []struct {

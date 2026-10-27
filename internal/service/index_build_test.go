@@ -42,6 +42,8 @@ func indexTestRecords() [][]uint64 {
 }
 
 func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -75,6 +77,8 @@ func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
 }
 
 func TestBuildIndex_KeyBytesAreOnWireNotFloat64(t *testing.T) {
+	t.Parallel()
+
 	// A u32 "id" field: on-wire width is 4 bytes, little-endian. If the
 	// build path went through a lossy float64/string round-trip (the
 	// includeFilterer ParseFloat pattern this story explicitly avoids),
@@ -112,6 +116,8 @@ func TestBuildIndex_KeyBytesAreOnWireNotFloat64(t *testing.T) {
 }
 
 func TestBuildIndex_CategoricalKeyIsOnWireDictionaryID(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -153,6 +159,8 @@ func TestBuildIndex_CategoricalKeyIsOnWireDictionaryID(t *testing.T) {
 }
 
 func TestBuildIndex_RowIDsPointAtCorrectRecords(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -198,6 +206,8 @@ func TestBuildIndex_RowIDsPointAtCorrectRecords(t *testing.T) {
 }
 
 func TestBuildIndex_FingerprintMatchesSourceContentHash(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -221,6 +231,8 @@ func TestBuildIndex_FingerprintMatchesSourceContentHash(t *testing.T) {
 }
 
 func TestBuildIndex_Idempotent_ByteIdenticalRebuild(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -249,6 +261,8 @@ func TestBuildIndex_Idempotent_ByteIdenticalRebuild(t *testing.T) {
 }
 
 func TestBuildIndex_NullKeyRowsSkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0, Nullable: true},
@@ -306,6 +320,8 @@ func TestBuildIndex_NullKeyRowsSkipped(t *testing.T) {
 }
 
 func TestBuildIndex_UnknownKeyField(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -320,6 +336,8 @@ func TestBuildIndex_UnknownKeyField(t *testing.T) {
 }
 
 func TestBuildIndex_UnsupportedKeyFieldType(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("VISA")
 	dict.Add("MC")
@@ -384,6 +402,8 @@ func compositeIndexTestRecords() [][]uint64 {
 }
 
 func TestBuildIndex_CompositeTwoColumn_BuildsAndKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := compositeIndexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
 	svc := New(cfg)
@@ -421,6 +441,8 @@ func TestBuildIndex_CompositeTwoColumn_BuildsAndKeys(t *testing.T) {
 }
 
 func TestBuildIndex_CompositeThreeColumn_BuildsAndKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := compositeIndexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
 	svc := New(cfg)
@@ -457,6 +479,8 @@ func TestBuildIndex_CompositeThreeColumn_BuildsAndKeys(t *testing.T) {
 }
 
 func TestBuildIndex_CompositeKeyOrderSignificant(t *testing.T) {
+	t.Parallel()
+
 	schema := compositeIndexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, compositeIndexTestRecords())
 	svc := New(cfg)
@@ -504,6 +528,8 @@ func TestBuildIndex_CompositeKeyOrderSignificant(t *testing.T) {
 }
 
 func TestBuildIndex_EmptyKeyFieldsRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -518,6 +544,8 @@ func TestBuildIndex_EmptyKeyFieldsRejected(t *testing.T) {
 }
 
 func TestBuildIndex_ShardArchiveWritesOneSidecarPerShard(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 

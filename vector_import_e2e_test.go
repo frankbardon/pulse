@@ -28,6 +28,8 @@ import (
 // TestImportCLI_VectorMatchesLibrary: a root test must not import
 // internal/cli (TestRootTestGraphExcludesCLI).
 func TestVectorImport_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var csv strings.Builder
 	csv.WriteString("id,rate_a,rate_b,rate_c,rate_d,rate_e,region\n")

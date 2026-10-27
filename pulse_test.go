@@ -88,6 +88,8 @@ func createTestPulseFile(t *testing.T, memFs afero.Fs, path string, columns []st
 // --- Tests ---
 
 func TestNew_DefaultOptions(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{
 		FS: afero.NewMemMapFs(),
 	})
@@ -100,6 +102,8 @@ func TestNew_DefaultOptions(t *testing.T) {
 }
 
 func TestNew_CustomFS(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	p, err := New(Options{FS: memFs})
 	if err != nil {
@@ -115,6 +119,8 @@ func TestNew_CustomFS(t *testing.T) {
 // the symmetric ShardWorkers contract so callers see consistent
 // guard rails on both worker-pool knobs.
 func TestNew_NegativeDecodeWorkersRejected(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(Options{
 		FS:            afero.NewMemMapFs(),
 		DecodeWorkers: -1,
@@ -125,6 +131,8 @@ func TestNew_NegativeDecodeWorkersRejected(t *testing.T) {
 }
 
 func TestNew_DecodeWorkersPropagatedToService(t *testing.T) {
+	t.Parallel()
+
 	cases := []int{0, 1, 2, 4}
 	for _, want := range cases {
 		p, err := New(Options{
@@ -141,6 +149,8 @@ func TestNew_DecodeWorkersPropagatedToService(t *testing.T) {
 }
 
 func TestNew_CustomDataDir(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{
 		DataDir: "/custom/data",
 		FS:      afero.NewMemMapFs(),
@@ -154,6 +164,8 @@ func TestNew_CustomDataDir(t *testing.T) {
 }
 
 func TestOpen_ValidPulseFile(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -183,6 +195,8 @@ func TestOpen_ValidPulseFile(t *testing.T) {
 }
 
 func TestOpen_InvalidFile(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	_ = afero.WriteFile(memFs, "bad.pulse", []byte("not a pulse file"), 0644)
 
@@ -198,6 +212,8 @@ func TestOpen_InvalidFile(t *testing.T) {
 }
 
 func TestOpen_MissingFile(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	p, err := New(Options{FS: memFs})
 	if err != nil {
@@ -211,6 +227,8 @@ func TestOpen_MissingFile(t *testing.T) {
 }
 
 func TestProcess_SimpleRequest(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"},
@@ -239,6 +257,8 @@ func TestProcess_SimpleRequest(t *testing.T) {
 }
 
 func TestProcess_WithFilter(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
@@ -271,6 +291,8 @@ func TestProcess_WithFilter(t *testing.T) {
 }
 
 func TestProcess_WithGroup(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -317,6 +339,8 @@ func TestProcess_WithGroup(t *testing.T) {
 // if Include either over-filters (drops kept keys) or under-filters
 // (admits rejected keys).
 func TestProcess_WithGroupInclude_FiltersBucketsEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "include.pulse", []string{"region", "amount"}, [][]string{
 		{"north", "10"},
@@ -470,6 +494,8 @@ func numericVal(v any) (float64, bool) {
 // pulse.Process facade. It verifies the WIN_LAG output column lands on the
 // response with one row per record.
 func TestProcess_WithWindow(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"ts", "x"}, [][]string{
 		{"1", "10"},
@@ -525,6 +551,8 @@ func TestProcess_WithWindow(t *testing.T) {
 // pulse.Process facade. Verifies output rows arrive in the requested order
 // regardless of input record order.
 func TestProcess_WithSort(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"ts", "x"}, [][]string{
 		{"3", "30"},
@@ -576,6 +604,8 @@ func TestProcess_WithSort(t *testing.T) {
 func ptrIntFacade(v int) *int { return &v }
 
 func TestProcess_ComposedRequest(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"},
@@ -611,6 +641,8 @@ func TestProcess_ComposedRequest(t *testing.T) {
 }
 
 func TestImport_CsvToPulse(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	p, err := New(Options{FS: memFs})
@@ -640,6 +672,8 @@ func TestImport_CsvToPulse(t *testing.T) {
 }
 
 func TestExport_PulseToCsv(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -667,6 +701,8 @@ func TestExport_PulseToCsv(t *testing.T) {
 }
 
 func TestConvert_CsvToTabular(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	p, err := New(Options{FS: memFs})
@@ -691,6 +727,8 @@ func TestConvert_CsvToTabular(t *testing.T) {
 }
 
 func TestInspect(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -715,6 +753,8 @@ func TestInspect(t *testing.T) {
 }
 
 func TestPredict(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -744,6 +784,8 @@ func TestPredict(t *testing.T) {
 }
 
 func TestPredict_InvalidField(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"},
@@ -769,6 +811,8 @@ func TestPredict_InvalidField(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
@@ -789,6 +833,8 @@ func TestSample(t *testing.T) {
 }
 
 func TestFacet(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -811,6 +857,8 @@ func TestFacet(t *testing.T) {
 }
 
 func TestCohort_Schema(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -834,6 +882,8 @@ func TestCohort_Schema(t *testing.T) {
 }
 
 func TestCohort_Field(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -865,6 +915,8 @@ func TestCohort_Field(t *testing.T) {
 }
 
 func TestCohort_Categorical(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},
@@ -898,6 +950,8 @@ func TestCohort_Categorical(t *testing.T) {
 }
 
 func TestTypeAliases(t *testing.T) {
+	t.Parallel()
+
 	// Verify that type aliases compile and work as expected.
 	var req Request
 	req.Cohort = &types.Cohort{Filename: "test.pulse"}
@@ -919,6 +973,8 @@ func TestTypeAliases(t *testing.T) {
 }
 
 func TestEmbedScenario_CsvToProcessToParquet(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	p, err := New(Options{FS: memFs})
@@ -979,6 +1035,8 @@ func TestEmbedScenario_CsvToProcessToParquet(t *testing.T) {
 }
 
 func TestNoOsExec(t *testing.T) {
+	t.Parallel()
+
 	// Verify that the pulse package and its non-test source files do not import os/exec.
 	// We scan all .go files in the pulse root package directory.
 	fset := token.NewFileSet()
@@ -1018,6 +1076,8 @@ func TestNoOsExec(t *testing.T) {
 }
 
 func TestComposeParallel_FacadeOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
@@ -1055,6 +1115,8 @@ func TestComposeParallel_FacadeOrderPreserved(t *testing.T) {
 }
 
 func TestProcessStream_FacadeReturnsIterator(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"},
@@ -1096,6 +1158,8 @@ func TestProcessStream_FacadeReturnsIterator(t *testing.T) {
 }
 
 func TestCohort_SchemaNotNil(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -1129,6 +1193,8 @@ func TestCohort_SchemaNotNil(t *testing.T) {
 // facade against an in-memory cohort to confirm the type aliases and
 // service wiring are reachable from the public API.
 func TestProcessChain_FacadeRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age"}, [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
@@ -1180,6 +1246,8 @@ func TestProcessChain_FacadeRoundTrip(t *testing.T) {
 // over its own os.ReadFile for exactly these two, and paid for it by
 // losing anchor resolution.
 func TestInspectEnvelope_SurfacesWarningsThroughTheInjectedFS(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
 		{"10", "hello"},

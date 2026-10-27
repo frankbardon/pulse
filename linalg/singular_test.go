@@ -89,8 +89,12 @@ func checkSingularDetails(t *testing.T, c singularDetailCase, err error) {
 // its pivot and adds rank, condition_number and — for a rank-deficient
 // matrix — the dependent axis indices; a non-finite matrix gets none.
 func TestCholesky_SingularDiagnostics(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range singularDetailCases() {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := linalg.Cholesky(mustSym(t, c.rows))
 			checkSingularDetails(t, c, err)
 			var ce *perr.CodedError
@@ -105,8 +109,12 @@ func TestCholesky_SingularDiagnostics(t *testing.T) {
 // TestFactorSPD_SingularDiagnostics: the gonum-backed factor carries the
 // same diagnostics beside its reason and n.
 func TestFactorSPD_SingularDiagnostics(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range singularDetailCases() {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := linalg.FactorSPD(mustSym(t, c.rows))
 			checkSingularDetails(t, c, err)
 			var ce *perr.CodedError

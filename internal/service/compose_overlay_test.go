@@ -48,6 +48,8 @@ func composeOverlayBaseRequest() *types.ComposedRequest {
 // `req.Overlays` is nil — the additive-byte-identity guarantee for
 // callers that have not opted into Compose-only overlays.
 func TestCompose_NoOverlaysByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -76,6 +78,8 @@ func TestCompose_NoOverlaysByteIdentical(t *testing.T) {
 }
 
 func TestCompose_StubOverlayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -101,6 +105,8 @@ func TestCompose_StubOverlayRoundTrip(t *testing.T) {
 }
 
 func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -166,6 +172,8 @@ func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
 // slice when `req.Overlays` is nil. Mirrors the serial-path guarantee
 // across the bounded worker pool.
 func TestComposeParallel_NoOverlaysByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -195,6 +203,8 @@ func TestComposeParallel_NoOverlaysByteIdentical(t *testing.T) {
 // the parallel worker dispatch order (the orchestrator reorders
 // results back into slot-index order before invoking the hook).
 func TestComposeParallel_StubOverlayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -260,6 +270,8 @@ func TestComposeParallel_StubOverlayRoundTrip(t *testing.T) {
 // path's FailFast=true branch which carries the explicit "skip
 // overlays" comment in the source.
 func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -314,6 +326,8 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 }
 
 func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -369,6 +383,8 @@ func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 // the hook with a nil requests / nil responses slice MUST succeed
 // because the hook returns before touching them.
 func TestApplyComposeOverlays_EmptyShortCircuitsNoAlloc(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 

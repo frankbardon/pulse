@@ -130,6 +130,8 @@ func composeBoth(t *testing.T, svc *Service, c *types.ComposedRequest) map[strin
 // compose — serial and parallel — and every one of the seven slots
 // carries the SAME bound set whose coefficients are the fit's own.
 func TestComposeFits_RunOncePerFitAcrossSlotsAndSweep(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	svc := fitsService(t)
 	for _, mode := range []string{"serial", "parallel"} {
 		t.Run(mode, func(t *testing.T) {
@@ -188,6 +190,8 @@ func TestComposeFits_RunOncePerFitAcrossSlotsAndSweep(t *testing.T) {
 // TestComposeFits_SerialParallelByteIdentical: the whole ComposedResponse
 // — slots and fits — marshals to the same bytes serial and parallel.
 func TestComposeFits_SerialParallelByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	got := composeBoth(t, fitsService(t), fitsBatch())
 	sb, err := json.Marshal(got["serial"])
 	if err != nil {
@@ -210,6 +214,8 @@ func TestComposeFits_SerialParallelByteIdentical(t *testing.T) {
 // here), and differs from a fit over every week — so the fit read its
 // own filter, not a slot's.
 func TestComposeFits_FitIndependentOfSlot(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	alone, err := svc.Process(context.Background(), fitRequest("0", "90"))
 	if err != nil {
@@ -244,6 +250,8 @@ func TestComposeFits_FitIndependentOfSlot(t *testing.T) {
 // TestComposeFits_NoFitsBindsNothing: a fit-free batch carries no set
 // into its slots and no fits on the response.
 func TestComposeFits_NoFitsBindsNothing(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	o := observeFits(t)
 	c := &types.ComposedRequest{Requests: []*types.Request{fitsSlot("a", "0", "10")}}
 	for mode, resp := range composeBoth(t, fitsService(t), c) {
@@ -259,6 +267,8 @@ func TestComposeFits_NoFitsBindsNothing(t *testing.T) {
 // TestComposeFits_Refusals: every structural refusal is coded, located
 // by details.fit, raised before any fit runs, serial and parallel alike.
 func TestComposeFits_Refusals(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	twoRegs := fitRequest("0", "90")
 	twoRegs.Regressions = append(twoRegs.Regressions, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"week"}})
 	noRegs := fitRequest("0", "90")
@@ -314,6 +324,8 @@ func TestComposeFits_Refusals(t *testing.T) {
 // refused keeps that refusal's code and gains details.fit; with two
 // failing fits the lower index wins, serial and parallel.
 func TestComposeFits_InnerRefusalKeepsCode(t *testing.T) {
+	t.Parallel()
+
 	bad := func() *types.Request {
 		r := fitRequest("0", "90")
 		r.Regressions[0].Predictors = []string{"nope"}
@@ -360,6 +372,8 @@ func TestComposeFits_InnerRefusalKeepsCode(t *testing.T) {
 // TestComposeFits_CallerRequestUntouched: running fits never mutates the
 // caller's fit request (its `return` is cleared on a clone only).
 func TestComposeFits_CallerRequestUntouched(t *testing.T) {
+	t.Parallel()
+
 	r := fitRequest("0", "90")
 	r.Return = &types.Return{Exclude: []string{"regressions"}}
 	c := &types.ComposedRequest{

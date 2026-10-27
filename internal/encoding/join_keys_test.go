@@ -30,6 +30,8 @@ func joinKeySchemas() (*encoding.Schema, *encoding.Schema) {
 // every refusal, in the runtime's order, with its code, message and
 // details.
 func TestJoinKeysRefusals_OrderCodesAndDetails(t *testing.T) {
+	t.Parallel()
+
 	left, right := joinKeySchemas()
 	spec := &types.JoinSpec{Kind: "left", On: []types.OnPair{
 		{LeftField: "id", RightField: "id"},         // u32 ~ f64: ok
@@ -77,6 +79,8 @@ func TestJoinKeysRefusals_OrderCodesAndDetails(t *testing.T) {
 }
 
 func TestJoinKeysRefusals_EmptyOnAndAccepted(t *testing.T) {
+	t.Parallel()
+
 	left, right := joinKeySchemas()
 	got := JoinKeysRefusals(left, right, &types.JoinSpec{})
 	if len(got) != 1 || got[0].Code != errors.PULSE_JOIN_KEYS_EMPTY || got[0].Details != nil {
@@ -92,6 +96,8 @@ func TestJoinKeysRefusals_EmptyOnAndAccepted(t *testing.T) {
 }
 
 func TestJoinKeyTypesCompatible(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		a, b encoding.FieldType
 		want bool

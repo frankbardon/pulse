@@ -42,6 +42,8 @@ func synthNames(names ...string) (*DictionaryPlan, error) {
 // ASCII or UTF-8 file emits; TestNameLength_IsMeasuredInEmittedBytes covers
 // the case where the two differ.
 func TestNameFault_Rule(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		in   string
@@ -74,6 +76,8 @@ func TestNameFault_Rule(t *testing.T) {
 		{"a NUL", "gross\x00net", false, "a counted string is not NUL-terminated, but a name is not a place for one"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			why := nameFault(tc.in, len(tc.in))
 			if tc.ok && why != "" {
 				t.Errorf("nameFault(%q) = %q, want it accepted: %s", tc.in, why, tc.why)
@@ -92,6 +96,8 @@ func TestNameFault_Rule(t *testing.T) {
 // ASCII and more as UTF-8, so a validator measuring the UTF-8 form would
 // pass names that overflow the file and refuse names that do not.
 func TestNameLength_IsMeasuredInEmittedBytes(t *testing.T) {
+	t.Parallel()
+
 	// 33 two-byte characters: 33 runes, 66 UTF-8 bytes, 33 windows-1252
 	// bytes. The same name overflows in one charset and fits in the other.
 	name := strings.Repeat("ä", 33)
@@ -121,6 +127,8 @@ func TestNameLength_IsMeasuredInEmittedBytes(t *testing.T) {
 // a set expansion the SPSS variable name and the cohort field name are
 // different strings.
 func TestNames_InvalidIsRefusedNamingTheField(t *testing.T) {
+	t.Parallel()
+
 	ce := emitFails(t, DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{numField("household income")}},
 		Cases:  0,
@@ -142,6 +150,8 @@ func TestNames_InvalidIsRefusedNamingTheField(t *testing.T) {
 // dictionary ENTRY, so the illegal name is an entry and the column to rename
 // is the set.
 func TestNames_SetMemberNamesTheCohortFieldItCameFrom(t *testing.T) {
+	t.Parallel()
+
 	ce := emitFails(t, DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{{
 			Name: "media", Type: encoding.FieldTypeSetU8,
@@ -165,6 +175,8 @@ func TestNames_SetMemberNamesTheCohortFieldItCameFrom(t *testing.T) {
 // It is a refusal because the failure is silent: record 7/13 keeps only the
 // first mapping for a name, so the file holds a column no name reaches.
 func TestNames_AreCaseInsensitivelyUnique(t *testing.T) {
+	t.Parallel()
+
 	ce := emitFails(t, DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{numField("Region"), numField("REGION")}},
 		Cases:  0,
@@ -180,6 +192,8 @@ func TestNames_AreCaseInsensitivelyUnique(t *testing.T) {
 // package can CREATE rather than merely receive: a set member is named for
 // its dictionary entry, and the entry can be a name some other column has.
 func TestNames_SetMemberCollidingWithARealColumnIsRefused(t *testing.T) {
+	t.Parallel()
+
 	emitFails(t, DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{
 			numField("tv"),
@@ -196,6 +210,8 @@ func TestNames_SetMemberCollidingWithARealColumnIsRefused(t *testing.T) {
 // why the check has to be on the shared path rather than in dict_synth.go: a
 // document is an editable JSON file and the cohort it names is not.
 func TestNames_SidecarPathIsValidatedToo(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, bothKindsSpec())
 	res, err := LoadSidecar(fs, cohort, WriterOptions{})
 	if err != nil {
@@ -235,6 +251,8 @@ func TestNames_SidecarPathIsValidatedToo(t *testing.T) {
 // admits it as an opening character precisely so set names go through the
 // same validator.
 func TestNames_MultipleResponseSetNamesAreValidated(t *testing.T) {
+	t.Parallel()
+
 	// A legal set column: the set name "$media" passes.
 	plan := emit(t, DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{{
@@ -264,6 +282,8 @@ func TestNames_MultipleResponseSetNamesAreValidated(t *testing.T) {
 // names by construction — so the check is exercised on the model directly,
 // which is also the only shape a sidecar could deliver it in.
 func TestNames_ShortNameCollisionIsRefused(t *testing.T) {
+	t.Parallel()
+
 	f := &outFile{vars: []*outVar{
 		{name: "alpha", utf8Name: "alpha", shortName: "DUP", fieldName: "alpha"},
 		{name: "beta", utf8Name: "beta", shortName: "dup", fieldName: "beta"},
@@ -281,6 +301,8 @@ func TestNames_ShortNameCollisionIsRefused(t *testing.T) {
 // transcode and emission, so a refusal leaves no half-written file and no
 // plan a caller could mistake for a usable one.
 func TestNames_RefusalHappensBeforeAnythingIsEmitted(t *testing.T) {
+	t.Parallel()
+
 	plan, err := synthNames("ok_one", "bad name", "ok_two")
 	if err == nil {
 		t.Fatal("BuildDictionary succeeded on an illegal name")
@@ -314,6 +336,8 @@ func sanitizePlan(t *testing.T, opts WriterOptions, names ...string) *Dictionary
 // TestSanitizeNames_OffIsStillARefusal is the default, and it is the whole
 // reason the flag is opt-in. A silent rename is worse than a stop.
 func TestSanitizeNames_OffIsStillARefusal(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "household income (gross)", Type: encoding.FieldTypeF64},
 	}}
@@ -327,6 +351,8 @@ func TestSanitizeNames_OffIsStillARefusal(t *testing.T) {
 // time: the punctuation map, the leading-digit prefix, the trailing dot,
 // and the 64-byte ceiling.
 func TestSanitizeNames_DerivesLegalNames(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct{ in, want string }{
 		{"household income (gross)", "household_income__gross_"},
 		{"2024 revenue", "V2024_revenue"},
@@ -352,6 +378,8 @@ func TestSanitizeNames_DerivesLegalNames(t *testing.T) {
 // going to need. The column that was correct to begin with is the one that
 // must not move.
 func TestSanitizeNames_CollisionSafe(t *testing.T) {
+	t.Parallel()
+
 	t.Run("two rewrites colliding", func(t *testing.T) {
 		plan := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "q1 x", "q1-x")
 		got := emittedNames(t, plan.Bytes)
@@ -376,6 +404,8 @@ func TestSanitizeNames_CollisionSafe(t *testing.T) {
 // the same file — a rename that moved between runs would break every
 // downstream reference.
 func TestSanitizeNames_IsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	names := []string{"a b", "a-b", "a.b", "1st"}
 	first := emittedNames(t, sanitizePlan(t, WriterOptions{SanitizeNames: true}, names...).Bytes)
 	for i := 0; i < 3; i++ {
@@ -390,6 +420,8 @@ func TestSanitizeNames_IsDeterministic(t *testing.T) {
 // rewrite the caller cannot see is the silent mangling the default refusal
 // exists to prevent, one flag further along.
 func TestSanitizeNames_ReportsEveryRename(t *testing.T) {
+	t.Parallel()
+
 	plan := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "a b", "legal", "c-d")
 
 	if len(plan.Renames) != 2 {
@@ -421,6 +453,8 @@ func TestSanitizeNames_ReportsEveryRename(t *testing.T) {
 // legal must be byte-identical with and without the flag, and must raise no
 // warning — otherwise the flag becomes noise people learn to ignore.
 func TestSanitizeNames_NothingToDoIsSilent(t *testing.T) {
+	t.Parallel()
+
 	with := sanitizePlan(t, WriterOptions{SanitizeNames: true}, "AGE", "REGION")
 	without := sanitizePlan(t, WriterOptions{}, "AGE", "REGION")
 	if string(with.Bytes) != string(without.Bytes) {
@@ -440,6 +474,8 @@ func TestSanitizeNames_NothingToDoIsSilent(t *testing.T) {
 // are legal by construction; rewriting a source's own names would be the
 // fidelity loss the write side exists to avoid.
 func TestSanitizeNames_SidecarPathUnaffected(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, richSpec())
 	req := DictionaryRequest{Schema: schema, Sidecar: res, Cases: -1, Compression: compressionNone}
 

@@ -95,6 +95,8 @@ func nestedColumnAxisPayload() *types.MatrixPayload {
 }
 
 func TestOverlay_ShareOfRow_NestedAxisLevel1(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(nestedRowAxisPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -162,6 +164,8 @@ func TestOverlay_ShareOfRow_NestedAxisLevel1(t *testing.T) {
 }
 
 func TestOverlay_ShareOfRow_Within1_ColumnAxis(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(nestedColumnAxisPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -229,6 +233,8 @@ func TestOverlay_ShareOfRow_Within1_ColumnAxis(t *testing.T) {
 }
 
 func TestOverlay_ShareOfRow_LevelZero_ByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 
 	baselineSpec := types.OverlaySpec{

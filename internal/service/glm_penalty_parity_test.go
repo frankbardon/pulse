@@ -25,6 +25,8 @@ import (
 // the fitted result, never as a warning.
 
 func TestRegPenalty_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -76,6 +78,8 @@ func TestRegPenalty_PredictRuntimeParity(t *testing.T) {
 }
 
 func TestRegPenalty_GLMRunsAndWarns(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}

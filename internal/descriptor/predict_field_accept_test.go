@@ -15,6 +15,8 @@ import (
 // decimal dispatch runs before its constructor) — never a warning, and
 // Strict does not promote a second error beside it.
 func TestPredict_FieldAcceptance_DecimalReportedOnce(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6,
 			Description: "Amount in USD with 6 decimal places of precision."},
@@ -44,6 +46,8 @@ func TestPredict_FieldAcceptance_DecimalReportedOnce(t *testing.T) {
 // on a non-set field predicts like a never-registered name, not with the
 // table's type refusal.
 func TestPredict_FieldAcceptance_HiddenOperatorIsNeverRegistered(t *testing.T) {
+	t.Parallel()
+
 	schema := hiddenPredictSchema(t)
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "tags", Type: encoding.FieldTypeSetU8,
 		Dictionary: makeDictionary(t, "a", "b"), Description: "Multi-select tags for the exam sitting"})
@@ -66,6 +70,8 @@ func TestPredict_FieldAcceptance_HiddenOperatorIsNeverRegistered(t *testing.T) {
 // read only a packed_bool in strict mode; values ["truthy"] coerces any
 // scalar and is never refused on type.
 func TestPredict_FieldAcceptance_FilterTruthyMode(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	for _, c := range []struct {
 		values []string

@@ -25,6 +25,8 @@ import (
 // bit and its element count are where the three states actually live,
 // and a text-level assertion cannot see either.
 func TestArrow_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "arrow", fs, src, parrow.NewWriter(fs, "out.arrow"))

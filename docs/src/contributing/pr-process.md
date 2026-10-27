@@ -53,7 +53,7 @@ use case justifies it; prefer `internal/`.
 - **`TestPublicAPIGolden`** (blocking) fails on any unregenerated change to
   the public surface, including the fields and methods behind a root alias
   into `internal/`. Regenerate with
-  `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` and
+  `go test -tags heavy ./internal/apigolden/ -run TestPublicAPIGolden -update` and
   call the delta out in the PR description.
 - **`apidiff`** (`.github/workflows/api-compat.yml`) compares the PR
   against the latest `v*` tag and writes the report to the job summary.
@@ -71,7 +71,7 @@ use case justifies it; prefer `internal/`.
 ```bash
 make fmt
 make lint
-make test
+make test-heavy   # both test tiers; `make test` is the fast tier only
 make smoke   # when the public surface moved
 make contrib # when contrib/ or a root dependency moved
 ```
@@ -90,7 +90,7 @@ gates locally](testing.md#running-a-subset-of-gates-locally).
 
 ## 6. Review and CI
 
-CI runs the full `go test ./...` plus the non-skippable gates listed in
+CI runs the full suite (both test tiers) plus the non-skippable gates listed in
 [Testing → Non-skippable CI gates](testing.md#non-skippable-ci-gates).
 A failing gate means a structural invariant is broken, not a flaky
 test; fix the root cause rather than retrying.

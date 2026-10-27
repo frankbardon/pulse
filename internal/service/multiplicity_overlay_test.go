@@ -22,6 +22,8 @@ import (
 // one) fails here — and each entry reads a payload shape the kind
 // really emits.
 func TestOverlayPSites_CoverEveryInferentialKind(t *testing.T) {
+	t.Parallel()
+
 	wantShape := map[overlayPSite]types.OverlayShape{
 		pSiteSummaryPValue:   types.OverlayShapeScalar,
 		pSiteSeriesPValue:    types.OverlayShapeSeries,
@@ -97,6 +99,8 @@ func cell(v any) types.MatrixCell { return types.MatrixCell{Value: v, Present: t
 // element), the base payload is byte-identical, the flag reads the
 // resolved alpha and the layer echo carries {method, family, alpha, m}.
 func TestFoldOverlayMultiplicity_PSites(t *testing.T) {
+	t.Parallel()
+
 	bonf, holm := types.MultiplicityMethodBonferroni, types.MultiplicityMethodHolm
 	layer := types.MultiplicityFamilyLayer
 	nan := math.NaN()
@@ -289,6 +293,8 @@ func TestFoldOverlayMultiplicity_PSites(t *testing.T) {
 // `request` pools request-family layers with the tests; a descriptive
 // or non-member layer is never touched.
 func TestFoldOverlayMultiplicity_Families(t *testing.T) {
+	t.Parallel()
+
 	bonf := types.MultiplicityMethodBonferroni
 	chi, fisher := types.OverlayKindChiSqMatrix, types.OverlayKindFisherExactCell
 	build := func() *types.Response {
@@ -417,6 +423,8 @@ func overlayFoldService(t *testing.T) (*Service, *Service) {
 // the additive slots, and the fused and buffered arms answering
 // identically.
 func TestMultiplicityFold_CrosstabOverlays(t *testing.T) {
+	t.Parallel()
+
 	fused, buffered := overlayFoldService(t)
 	ctx := context.Background()
 	if ok, reason := processing.CanFuseCrosstab(overlayCrosstabRequest(false), multSchema(), fused.Extensions()); !ok {
@@ -548,6 +556,8 @@ func TestMultiplicityFold_CrosstabOverlays(t *testing.T) {
 // carries m_per index-aligned with the rows / columns and m = their
 // sum; two row-family layers never pool.
 func TestFoldOverlayMultiplicity_RowColumn(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	pair, panel := types.OverlayKindPairwisePropZ, types.OverlayKindPropZPanel
 	// nil = an absent cell.
@@ -689,6 +699,8 @@ func TestFoldOverlayMultiplicity_RowColumn(t *testing.T) {
 // fixture's 2×2 grid cannot tell a row partition from a column one, so
 // the boundary itself is TestFoldOverlayMultiplicity_RowColumn's.
 func TestMultiplicityFold_CrosstabRowColumn(t *testing.T) {
+	t.Parallel()
+
 	_, buffered := overlayFoldService(t)
 	ctx := context.Background()
 	mk := func(m *types.Multiplicity) *types.Request {

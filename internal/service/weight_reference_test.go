@@ -158,6 +158,8 @@ func weightRefName(c weightRefCase) string {
 
 // TestWeightReferenceValues — see the file comment.
 func TestWeightReferenceValues(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertWeightRefCoverage)
 	t.Run("tests", testWeightRefTests)
 	t.Run("overlays", testWeightRefOverlays)
@@ -357,6 +359,8 @@ var weightRefScale = map[types.AggregationType]string{
 // numbers. The table is held total over the manifest's weight_aware
 // set.
 func TestWeightReferenceKindsAgree(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tests", testWeightRefTestsKindsAgree)
 	t.Run("regressions", testWeightRefRegsKindsAgree)
 	for name := range manifestAware() {

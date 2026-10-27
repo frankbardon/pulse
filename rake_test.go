@@ -98,6 +98,8 @@ func censusRake(cohort, out string) RakeRequest {
 // the record count, and a Process weighted by the new column reproduces
 // the census age shares.
 func TestRake_WritesWeightedCohort(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildRakeSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -165,6 +167,8 @@ func TestRake_WritesWeightedCohort(t *testing.T) {
 // TestRake_ShardArchiveMatchesSingleFile: an archive source is raked
 // over its records in shard order, giving the single-file weights.
 func TestRake_ShardArchiveMatchesSingleFile(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := matPulse(t, Options{})
 	buildRakeSource(t, p, "single.pulse", CohortBuilderOptions{})
@@ -193,6 +197,8 @@ func TestRake_ShardArchiveMatchesSingleFile(t *testing.T) {
 // TestRake_ByAndBaseWeight: `by` rakes each wave on its own from the
 // design weight; every group reports its own fit.
 func TestRake_ByAndBaseWeight(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := matPulse(t, Options{})
 	buildRakeSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -215,6 +221,8 @@ func TestRake_ByAndBaseWeight(t *testing.T) {
 
 // TestRake_RefusalsWriteNothing: every refusal leaves nothing at out.
 func TestRake_RefusalsWriteNothing(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cases := []struct {
 		name string
@@ -249,6 +257,8 @@ func TestRake_RefusalsWriteNothing(t *testing.T) {
 // TestRake_MissingValueRefusedUnlessBase: a null margin value is
 // refused by default; missing "base" keeps the base factor.
 func TestRake_MissingValueRefusedUnlessBase(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	b, err := p.NewCohortBuilder(ctx, "src.pulse", rakeSchema(), CohortBuilderOptions{})
@@ -289,6 +299,8 @@ func TestRake_MissingValueRefusedUnlessBase(t *testing.T) {
 // before any scan, the old cohort untouched); Overwrite also replaces an
 // existing weight column in place.
 func TestRake_OverwriteGuards(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildRakeSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -323,6 +335,8 @@ func TestRake_OverwriteGuards(t *testing.T) {
 // TestRake_ResultJSONUndefinedIsNull: an undefined efficiency figure is
 // null on the wire, never 0, and the result round-trips its keys.
 func TestRake_ResultJSONUndefinedIsNull(t *testing.T) {
+	t.Parallel()
+
 	r := RakeResult{Efficiency: RakeEfficiency{N: 2, WeightRangeRatio: math.NaN(), DeffKish: math.NaN()}, Residual: 0}
 	b, err := json.Marshal(r)
 	if err != nil {

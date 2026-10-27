@@ -38,6 +38,8 @@ func drawersNamed(names ...string) []*modelDrawer {
 // swapped — the same matrix by symmetry, a different serialization — and
 // must produce the same assignment.
 func TestBuildResidualCorrelator_ComponentOrderIsDrawerOrder(t *testing.T) {
+	t.Parallel()
+
 	drawers := drawersNamed("alpha", "beta", "gamma")
 	rc, warnings, err := buildResidualCorrelator([]CorrelationSpec{
 		{A: "gamma", B: "beta", Rho: 0.2},
@@ -66,6 +68,8 @@ func TestBuildResidualCorrelator_ComponentOrderIsDrawerOrder(t *testing.T) {
 // must be dropped WITHOUT claiming a component — an index handed to
 // nothing would silently shift every later participant's draw.
 func TestBuildResidualCorrelator_SkipsUnmodelledEndpoints(t *testing.T) {
+	t.Parallel()
+
 	drawers := drawersNamed("alpha", "beta", "gamma")
 	rc, warnings, err := buildResidualCorrelator([]CorrelationSpec{
 		{A: "alpha", B: "ghost", Rho: 0.5},
@@ -97,6 +101,8 @@ func TestBuildResidualCorrelator_SkipsUnmodelledEndpoints(t *testing.T) {
 // standard normal the drawer would have drawn for itself, which is the
 // difference between "inert" and "byte-identical".
 func TestBuildResidualCorrelator_NilBelowTwoParticipants(t *testing.T) {
+	t.Parallel()
+
 	drawers := drawersNamed("alpha", "beta")
 	rc, _, err := buildResidualCorrelator([]CorrelationSpec{
 		{A: "alpha", B: "ghost", Rho: 0.5},
@@ -125,6 +131,8 @@ func TestBuildResidualCorrelator_NilBelowTwoParticipants(t *testing.T) {
 // residual, which no marginal assertion downstream would notice for a
 // `normal` target).
 func TestResidualCorrelator_DrawRealizesRequestedCorrelation(t *testing.T) {
+	t.Parallel()
+
 	const target = 0.7
 	rc, _, err := buildResidualCorrelator(
 		[]CorrelationSpec{{A: "alpha", B: "beta", Rho: target}},
@@ -204,6 +212,8 @@ func corrOf(a, b []float64) float64 {
 // zero as supplied, so the "completed by assumption" line that is the
 // reader's only remaining signal would fall silent too.
 func TestSpecFromProfile_TranslatesMeasuredResidualPairsOnly(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		IncludeStats:            true,
 		FitModels:               true,
@@ -254,6 +264,8 @@ func TestSpecFromProfile_TranslatesMeasuredResidualPairsOnly(t *testing.T) {
 // structure at all, so generation draws every residual independently
 // exactly as it did.
 func TestSpecFromProfile_NoResidualSectionLeavesSpecUntouched(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		IncludeStats: true,
 		FitModels:    true,
@@ -362,6 +374,8 @@ func modelResiduals(t *testing.T, m FieldModelSpec, nums map[string][]float64, c
 // predictor — and it is recorded here so the next reader meets it as a
 // decision rather than as a surprise.
 func TestResidualCorrelations_CapturedTargetIsRealizedEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	prof := residualFixtureProfile(t, ProfileOptions{
 		IncludeStats:            true,
 		FitModels:               true,

@@ -63,6 +63,8 @@ func manovaReq(fields []string, split string, mod func(*types.Test)) func() *typ
 // inline fields and a named vector. All four statistics with F, df1,
 // df2 and p, the eigenvalues, both df and per-level n / N* must match.
 func TestManova_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[manovaOracle](t, "mv_manova")
 	if len(doc.Cases) == 0 {
 		t.Fatal("mv_manova.json holds no cases")
@@ -156,6 +158,8 @@ func TestManova_MatchesROracle(t *testing.T) {
 // TestManova_SplitNeedsTwoLevels: a single level is
 // PULSE_TEST_SPLIT_GROUPS_LT_2; three levels run.
 func TestManova_SplitNeedsTwoLevels(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	err := processErr(t, schema, hotellingRows(schema, 30, []string{"a"}, nil), manovaReq([]string{"x1", "x2"}, "g", nil)())
 	if hotCode(err) != errors.PULSE_TEST_SPLIT_GROUPS_LT_2 {
@@ -172,6 +176,8 @@ func TestManova_SplitNeedsTwoLevels(t *testing.T) {
 // PULSE_MATRIX_SINGULAR warning with null figures (JSON null), never an
 // error.
 func TestManova_SingularWithinWarns(t *testing.T) {
+	t.Parallel()
+
 	for name, mod := range map[string]func(int, map[string]float64){
 		"dependent": func(_ int, v map[string]float64) { v["x3"] = v["x1"] + 2*v["x2"] },
 		"constant":  func(_ int, v map[string]float64) { v["x3"] = 4 },
@@ -198,6 +204,8 @@ func TestManova_SingularWithinWarns(t *testing.T) {
 // TestManova_InsufficientN: n < p + k complete rows is
 // PULSE_TEST_INSUFFICIENT_N; n = p + k runs.
 func TestManova_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	req := manovaReq([]string{"x1", "x2", "x3"}, "g", nil)
 	if err := processErr(t, schema, hotellingRows(schema, 4, []string{"a", "b"}, nil), req()); hotCode(err) != errors.PULSE_TEST_INSUFFICIENT_N {
@@ -213,6 +221,8 @@ func TestManova_InsufficientN(t *testing.T) {
 // four statistics share one exact F, which is the pooled two-sample
 // Hotelling's T² F and p.
 func TestManova_TwoLevelsEqualsHotelling(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	man, _ := runHotelling(t, schema, recs, manovaReq([]string{"x1", "x2", "x3"}, "g", nil))
@@ -228,6 +238,8 @@ func TestManova_TwoLevelsEqualsHotelling(t *testing.T) {
 // TestManova_ListwiseAndFrequency: a null member drops the row and
 // counts it; integer frequency weights equal the rep() expansion.
 func TestManova_ListwiseAndFrequency(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	groups := []string{"a", "b", "c"}
 	clean := hotellingRows(schema, 30, groups, nil)
@@ -262,6 +274,8 @@ func TestManova_ListwiseAndFrequency(t *testing.T) {
 // TestManova_ResolverRefusals: split_by is required, a second member
 // set and unknown params are refused (SERVICE_VALIDATION reasons).
 func TestManova_ResolverRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	for reason, mod := range map[string]func(*types.Test){

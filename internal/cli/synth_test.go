@@ -191,6 +191,8 @@ func containsSubstring(list []string, substr string) bool {
 // every pre-existing profile document), while one captured with it must
 // carry exactly the numeric-numeric pair this two-field source supports.
 func TestProfileCreateCLI_ConditionalFlagPopulatesConditionalSection(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	synthLibraryCohort(t, source, []synth.FieldSpec{
@@ -227,6 +229,8 @@ func TestProfileCreateCLI_ConditionalFlagPopulatesConditionalSection(t *testing.
 // no run_continuation section; present, it carries one field entry per
 // schema field and the text summary names the overall figure.
 func TestProfileCreateCLI_RunContinuationFlag(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	synthLibraryCohort(t, source, []synth.FieldSpec{
@@ -266,6 +270,8 @@ func TestProfileCreateCLI_RunContinuationFlag(t *testing.T) {
 // plain-normal capture), while profiling the same field with it must
 // populate a genuine 2-component mixture.
 func TestProfileCreateCLI_FitShapeFlagPopulatesShape(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	bimodal := filepath.Join(dir, "bimodal.pulse")
 	synthLibraryCohort(t, bimodal, []synth.FieldSpec{
@@ -314,6 +320,8 @@ func TestProfileCreateCLI_FitShapeFlagPopulatesShape(t *testing.T) {
 // seeds must (overwhelmingly likely, given a reservoir of 10000 draws
 // over a low-cardinality contingency table) diverge.
 func TestProfileCreateCLI_SeedFlagControlsReservoirSampling(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "blockordered.pulse")
 	writeBlockOrderedCategoricalCohort(t, source, 30000, 15000)
@@ -343,6 +351,8 @@ func TestProfileCreateCLI_SeedFlagControlsReservoirSampling(t *testing.T) {
 }
 
 func TestProfileCreateCLI_MissingInputFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out.json")
 	var buf bytes.Buffer
@@ -359,6 +369,8 @@ func TestProfileCreateCLI_MissingInputFlagErrors(t *testing.T) {
 // output cohort's total record count must equal the source's row count
 // PLUS the --rows value, not --rows alone.
 func TestSynthFromProfileCLI_SourceAndRowsFlagsProduceTaggedTopUp(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	const sourceRows = 50
 	source, profile := synthFromProfileFixture(t, dir, sourceRows, 1)
@@ -411,6 +423,8 @@ func TestSynthFromProfileCLI_SourceAndRowsFlagsProduceTaggedTopUp(t *testing.T) 
 // output cohort, different seeds must (for a continuous normal field)
 // diverge.
 func TestSynthFromProfileCLI_SeedFlagControlsGeneratedRows(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source, profile := synthFromProfileFixture(t, dir, 20, 1)
 
@@ -448,6 +462,8 @@ func TestSynthFromProfileCLI_SeedFlagControlsGeneratedRows(t *testing.T) {
 // path whose SourceRows/SyntheticRows figures independently corroborate
 // --source and --rows.
 func TestSynthFromProfileCLI_FidelityReportFlagWritesReport(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	const sourceRows = 60
 	source, profile := synthFromProfileFixture(t, dir, sourceRows, 2)
@@ -518,6 +534,8 @@ func TestSynthFromProfileCLI_FidelityReportFlagWritesReport(t *testing.T) {
 // Warnings slot when --fidelity-report is also set — proving the CLI
 // wires the capture-time warning through rather than dropping it.
 func TestSynthFromProfileCLI_FidelityReportIncludesCaptureTimeWarnings(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	const sourceRows = 10 // below MinPairObservations(30) -> thin numeric pair warning
 	source := filepath.Join(dir, "thin-source.pulse")
@@ -559,6 +577,8 @@ func TestSynthFromProfileCLI_FidelityReportIncludesCaptureTimeWarnings(t *testin
 }
 
 func TestSynthFromProfileCLI_MissingSourceFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	_, profile := synthFromProfileFixture(t, dir, 10, 1)
 	output := filepath.Join(dir, "out.pulse")
@@ -665,6 +685,8 @@ func readCohortRows(t *testing.T, path string) (vals []map[string]any, nulls []m
 // byte comparison directly, on the generated partition alone; this one
 // proves the two CLI leaves are actually wired to those code paths.
 func TestSynthFromProfileCLI_EmitSpecRoundTripsThroughFromSchema(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	const sourceRows = 120
 	const newRows = 60
@@ -742,6 +764,8 @@ func TestSynthFromProfileCLI_EmitSpecRoundTripsThroughFromSchema(t *testing.T) {
 // --emit-spec as a pure diagnostic: the cohort a run produces must be
 // byte-identical whether or not the spec was written out.
 func TestSynthFromProfileCLI_EmitSpecDoesNotChangeTheCohort(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source, profile := richFromProfileFixture(t, dir, 60, 4)
 
@@ -774,6 +798,8 @@ func TestSynthFromProfileCLI_EmitSpecDoesNotChangeTheCohort(t *testing.T) {
 // flag that is parsed and ignored leaves the cohort unchanged, and a
 // cohort that changed proves nothing unless the change is the rule's.
 func TestSynthFromProfileCLI_RulesFileAppliesToGeneratedRows(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	const sourceRows = 80
 	const newRows = 200
@@ -842,6 +868,8 @@ func TestSynthFromProfileCLI_RulesFileAppliesToGeneratedRows(t *testing.T) {
 // own error shape is what gets asserted: the code must be E1-S2's
 // rather than a leaf placeholder, and details must name the file.
 func TestSynthFromProfileCLI_RulesRefusalNamesTheFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source, profile := richFromProfileFixture(t, dir, 40, 6)
 
@@ -902,6 +930,8 @@ func TestSynthFromProfileCLI_RulesRefusalNamesTheFile(t *testing.T) {
 // PULSE_REQUEST_UNKNOWN_FIELD with its JSON location, never a
 // placeholder and never a generated cohort (U44 #302).
 func TestSynthCLI_UnknownKeysRefusedWithTheirOwnCode(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source, profile := richFromProfileFixture(t, dir, 40, 6)
 	profRaw, err := os.ReadFile(profile)
@@ -988,6 +1018,8 @@ func TestSynthCLI_UnknownKeysRefusedWithTheirOwnCode(t *testing.T) {
 // TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope pins that
 // both new flags coexist with --json and move nothing in the envelope.
 func TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source, profile := richFromProfileFixture(t, dir, 40, 7)
 	rulesPath := filepath.Join(dir, "ok-rules.json")
@@ -1069,6 +1101,8 @@ func writeGatedCohort(t *testing.T, path string, rows int, seed int64) {
 // (it parses; it has the right shape) passes against a document whose
 // predicates never fire.
 func TestProfileCreateCLI_SuggestRulesRoundTripsThroughFromProfile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	writeGatedCohort(t, source, 4000, 77)
@@ -1148,6 +1182,8 @@ func TestProfileCreateCLI_SuggestRulesRoundTripsThroughFromProfile(t *testing.T)
 // criterion 8 at the CLI: absent the flag the written profile document
 // is byte-identical, and with it only the warnings key moves.
 func TestProfileCreateCLI_SuggestRulesLeavesTheDocumentAlone(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	writeGatedCohort(t, source, 1500, 77)
@@ -1201,6 +1237,8 @@ func profileDocWithoutWarnings(t *testing.T, path string) []byte {
 // ordinary case rather than a contrived one, so the combined file is
 // what a real run produces.
 func TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	writeGatedCohort(t, source, 4000, 77)
@@ -1287,6 +1325,8 @@ func TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile(t *testing.T
 // in the profile document and a counted ATTENTION kind in the stderr
 // summary, never a silent omission and never on stdout.
 func TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	p, err := newPulse(t.Context())
@@ -1353,6 +1393,8 @@ func derivedCohortFields() []synth.FieldSpec {
 // co-missing ones, the combined file is consumed UNMODIFIED, and the
 // derived flags agree with the score on every generated row.
 func TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.pulse")
 	p, err := newPulse(t.Context())

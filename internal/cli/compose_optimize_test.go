@@ -70,6 +70,8 @@ func optCLIFixture(t *testing.T) (string, *pulse.Pulse, func([]byte) []byte) {
 // serial and --parallel alike — and `--stream` ends with one
 // {"optimizations":[...]} line equal to the library's.
 func TestOptimize_CLIComposeReturnsBlocks(t *testing.T) {
+	// serial: t.Chdir moves the process working directory; t.Setenv mutates the process environment
+
 	dir, p, at := optCLIFixture(t)
 	for name, body := range map[string][]byte{"price": optfixture.Price, "price_model": optfixture.PriceModel, "budget": optfixture.Budget} {
 		t.Run(name, func(t *testing.T) {

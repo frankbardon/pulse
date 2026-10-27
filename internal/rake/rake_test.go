@@ -84,6 +84,8 @@ func relClose(a, b, tol float64) bool {
 // census marginals (age 29/33/38, gender 51/49, region 17/21/38/24),
 // and the observed shares differ from them before raking.
 func TestSolve_ReproducesCensusMarginals(t *testing.T) {
+	t.Parallel()
+
 	sol := run(t, baseReq(), refRows)
 	r := sol.Report
 	if !r.Converged || r.Residual > 1e-13 || r.Iterations < 2 {
@@ -117,6 +119,8 @@ func TestSolve_ReproducesCensusMarginals(t *testing.T) {
 // TestSolve_MatchesSurveyRake pins every record's weight to R
 // survey::rake / postStratify (gen_rake_reference.R) at 1e-9 relative.
 func TestSolve_MatchesSurveyRake(t *testing.T) {
+	t.Parallel()
+
 	cellReq := baseReq()
 	cellReq.Margins = []Margin{{Fields: []string{"age", "gender"}}}
 	for _, c := range refCellShares {
@@ -147,6 +151,8 @@ func TestSolve_MatchesSurveyRake(t *testing.T) {
 // — exact after one sweep from population counts, every record in a cell sharing one weight
 // target·n / cell count.
 func TestSolve_CellWeightingExact(t *testing.T) {
+	t.Parallel()
+
 	// Census COUNTS (targets_as counts): only their proportions matter.
 	req := baseReq()
 	req.Tol = 0
@@ -183,6 +189,8 @@ func TestSolve_CellWeightingExact(t *testing.T) {
 // TestSolve_ByRakesEachGroup: `by` rakes each wave to the same targets
 // and normalises each to its own record count.
 func TestSolve_ByRakesEachGroup(t *testing.T) {
+	t.Parallel()
+
 	req := baseReq()
 	req.By = "wave"
 	sol := run(t, req, refRows)
@@ -230,6 +238,8 @@ func TestSolve_ByRakesEachGroup(t *testing.T) {
 // after the run; a tight cap that cannot meet the margins warns
 // PULSE_RAKE_NOT_CONVERGED and still returns the last sweep.
 func TestSolve_Caps(t *testing.T) {
+	t.Parallel()
+
 	free := run(t, baseReq(), refRows)
 	if free.Report.Efficiency.WeightMax <= 2.0 || free.Report.Efficiency.WeightMin <= 0.3 || free.Report.Efficiency.NCapped != 0 {
 		t.Fatalf("uncapped max %g n_capped %d: cap below would not bind", free.Report.Efficiency.WeightMax, free.Report.Efficiency.NCapped)
@@ -257,6 +267,8 @@ func TestSolve_Caps(t *testing.T) {
 
 // TestSolve_Total scales every weight so they sum to Total.
 func TestSolve_Total(t *testing.T) {
+	t.Parallel()
+
 	req := baseReq()
 	req.Total = 250000
 	sol := run(t, req, refRows)
@@ -271,6 +283,8 @@ func TestSolve_Total(t *testing.T) {
 // TestLoad_MissingPolicy: a null margin value is refused by default;
 // missing "base" keeps the record's base factor for that margin.
 func TestLoad_MissingPolicy(t *testing.T) {
+	t.Parallel()
+
 	rows := append([]refRow(nil), refRows...)
 	rows[3].region = ""
 	rows[7].region = ""
@@ -315,6 +329,8 @@ func TestLoad_MissingPolicy(t *testing.T) {
 }
 
 func TestLoad_Refusals(t *testing.T) {
+	t.Parallel()
+
 	t.Run("untargeted", func(t *testing.T) {
 		req := baseReq()
 		req.Margins[2].Targets = map[string]float64{"NE": 20, "MW": 30, "S": 50}
@@ -379,6 +395,8 @@ func TestLoad_Refusals(t *testing.T) {
 }
 
 func TestCompile_Refusals(t *testing.T) {
+	t.Parallel()
+
 	mut := func(f func(r *Request)) *Request { r := baseReq(); f(r); return r }
 	cases := []struct {
 		name   string
@@ -475,6 +493,8 @@ func detailsOf(err error) map[string]any {
 // TestEfficiency_HandComputed pins the efficiency figures on weights
 // 1, 2, 3 and the null rule for an undefined figure.
 func TestEfficiency_HandComputed(t *testing.T) {
+	t.Parallel()
+
 	w := []float64{1, 2, 3}
 	e := efficiency(w, []int{0, 1, 2}, make([]bool, 3))
 	// Σw = 6, Σw² = 14: n_eff = 36/14, deff = 3·14/36 = 7/6.
@@ -503,6 +523,8 @@ func TestEfficiency_HandComputed(t *testing.T) {
 // TestSolve_BitIdenticalAcrossRuns: the solver is sequential and
 // order-fixed, so two runs give the same bits.
 func TestSolve_BitIdenticalAcrossRuns(t *testing.T) {
+	t.Parallel()
+
 	a := run(t, baseReq(), refRows)
 	b := run(t, baseReq(), refRows)
 	for i := range a.Weights {
@@ -513,6 +535,8 @@ func TestSolve_BitIdenticalAcrossRuns(t *testing.T) {
 }
 
 func TestPlan_Description(t *testing.T) {
+	t.Parallel()
+
 	req := baseReq()
 	req.By = "wave"
 	req.BaseWeight = "dw"

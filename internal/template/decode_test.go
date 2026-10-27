@@ -76,6 +76,8 @@ type decodeRow struct {
 // into its own request type, populates exactly that one pointer, and
 // leaves the other four nil.
 func TestRender_TargetMatrix(t *testing.T) {
+	t.Parallel()
+
 	rows := []decodeRow{
 		{
 			name:   "request",
@@ -210,6 +212,8 @@ func TestRender_TargetMatrix(t *testing.T) {
 // TestRendered_Typed asserts the Typed accessor returns the pointer the
 // Target selects, and nil for the zero value.
 func TestRendered_Typed(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		body string
@@ -260,6 +264,8 @@ func TestRendered_Typed(t *testing.T) {
 // fault is located (details.path, from the body root) and suggests the
 // nearest valid key when one is close — the code stays the template's.
 func TestRender_UnknownFieldNamesTheField(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		target    template.Target
@@ -351,6 +357,8 @@ func TestRender_UnknownFieldNamesTheField(t *testing.T) {
 // TestRender_StructuralMismatch covers the other half of strict decode: a
 // well-formed JSON value of the wrong shape for the slot it landed in.
 func TestRender_StructuralMismatch(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		target   template.Target
@@ -421,6 +429,8 @@ func TestRender_StructuralMismatch(t *testing.T) {
 // plus a caller variable map produces a populated *types.Request with the
 // substituted values sitting in the right slots.
 func TestRender_Fixture(t *testing.T) {
+	t.Parallel()
+
 	tmpl, err := template.Parse(readFixture(t))
 	if err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)
@@ -489,6 +499,8 @@ func TestRender_Fixture(t *testing.T) {
 // re-code the faults RenderJSON raises. Render is a decode step bolted
 // onto the render walk, not a second validation pass.
 func TestRender_ResolutionFaultsSurface(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		vars     []*template.Variable
@@ -545,6 +557,8 @@ func TestRender_ResolutionFaultsSurface(t *testing.T) {
 // TestRender_UnknownTargetIsRejected asserts an unrecognised target never
 // reaches the decode switch as a silent no-op.
 func TestRender_UnknownTargetIsRejected(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		target template.Target
@@ -566,6 +580,8 @@ func TestRender_UnknownTargetIsRejected(t *testing.T) {
 
 // TestRender_NilTemplate asserts the entry point is nil-safe.
 func TestRender_NilTemplate(t *testing.T) {
+	t.Parallel()
+
 	got, err := template.Render(nil, nil)
 	if !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
 		t.Fatalf("Render(nil) = (%+v, %v), want %s", got, err, perr.PULSE_TEMPLATE_INVALID)
@@ -684,6 +700,8 @@ var fsCapableFiles = map[string]bool{
 // operator/type compatibility stay Predict's job — Render checks the
 // document, not the data.
 func TestRender_NoFilesystemAccess(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no filesystem-capable import on the render path", func(t *testing.T) {
 		for file, imports := range packageImportsByFile(t, ".") {
 			if fsCapableFiles[file] {

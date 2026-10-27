@@ -121,6 +121,8 @@ func assertHoldoutRanking(t *testing.T, out *ComposedResponse) []types.RankEntry
 // lag ranks first. Every slot's fit is bit for bit the plain Process of
 // the sweep body with that offset written in.
 func TestComposeSweep_HoldoutRankReachesWindow(t *testing.T) {
+	t.Parallel()
+
 	p := holdoutRankPulse(t)
 	ctx := context.Background()
 	serial, err := p.Compose(ctx, holdoutRankSweep(t, ""))
@@ -154,6 +156,8 @@ func TestComposeSweep_HoldoutRankReachesWindow(t *testing.T) {
 // the rank veto computes the fit and its holdout, then shaping trims
 // the wire — with the very ranking the unshaped request produces.
 func TestComposeSweep_HoldoutRankVetoKeepsHoldout(t *testing.T) {
+	t.Parallel()
+
 	p := holdoutRankPulse(t)
 	ctx := context.Background()
 	canon, err := p.Compose(ctx, holdoutRankSweep(t, ""))
@@ -186,6 +190,8 @@ func TestComposeSweep_HoldoutRankVetoKeepsHoldout(t *testing.T) {
 // TestComposeSweep_HoldoutRankPredict: predict validates the sweep
 // (one expanded slot per offset, no error).
 func TestComposeSweep_HoldoutRankPredict(t *testing.T) {
+	t.Parallel()
+
 	p := holdoutRankPulse(t)
 	env, err := p.PredictCompose(context.Background(), holdoutRankSweep(t, ""))
 	if err != nil || len(env.Errors) != 0 {

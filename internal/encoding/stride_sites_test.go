@@ -55,6 +55,8 @@ func (c *countingReader) Read(p []byte) (int, error) {
 // reader that over- or under-reads by one byte still decodes record 0
 // correctly and every later record from the wrong offset.
 func TestStrideSites_ReaderConsumesOnePhysicalStridePerRecord(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range strideFixtures(t) {
 		flat := flatCohort(t, fx.schema, fx.rows)
 		grouped, gs := groupedTwin(t, flat, fx.specs)
@@ -126,6 +128,8 @@ func TestStrideSites_ReaderConsumesOnePhysicalStridePerRecord(t *testing.T) {
 // without expanding the row — asserted here by the bytes consumed and
 // by GroupIndex reporting the row was never expanded.
 func TestStrideSites_EmptyPlanSkipsTheLogicalStride(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range strideFixtures(t) {
 		t.Run(fx.name, func(t *testing.T) {
 			flat := flatCohort(t, fx.schema, fx.rows)

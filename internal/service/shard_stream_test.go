@@ -88,6 +88,8 @@ func allocDuring(t *testing.T, fn func() error) uint64 {
 // allocates the arriving shard plus fixed buffers at either size.
 // remove and compact are held to the same bound with no arriving shard.
 func TestShardStream_MutationAllocationBoundedByShard(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const recs = 40_000 // 12-byte records: ~480 KB per shard
 	shardBytes := uint64(recs * 12)
 	fixed := uint64(2 << 20) // copy buffers, zip + bufio writers, schema decode
@@ -150,6 +152,8 @@ func TestShardStream_MutationAllocationBoundedByShard(t *testing.T) {
 // entry (its CRC now stale) is carried through verbatim; the decoding
 // rewrite this replaced failed the whole mutation on the checksum.
 func TestShardStream_StoredShardsCopiedRaw(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	verbs := map[string]func(svc *Service) error{
 		"add": func(svc *Service) error {
@@ -229,6 +233,8 @@ func streamEntryBytes(t *testing.T, fsys afero.Fs, archive, entry string) []byte
 // metadata is already current reproduces it byte for byte, and a
 // remove-then-add round trip equals creating the same shards directly.
 func TestShardStream_CompactIsByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
@@ -265,6 +271,8 @@ func TestShardStream_CompactIsByteIdentity(t *testing.T) {
 // through the zip reader and re-stores it, so the rewritten archive is
 // store-only and readable on every record path again.
 func TestShardStream_DeflatedEntryReStored(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
@@ -327,6 +335,8 @@ func (c *crashFs) Remove(name string) error {
 // random-suffix stage an earlier release left, while another archive's
 // stage in the same directory survives.
 func TestShardStream_CrashBeforeRenameLeavesOriginalAndIsSwept(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cases := []struct {
 		name string
@@ -459,6 +469,8 @@ func (d *syncSpyDir) Sync() error {
 // fsyncs the archive's directory AFTER the rename, so the published name
 // itself survives a crash.
 func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	base := afero.NewMemMapFs()
 	schema := adminScoreSchema()
@@ -502,6 +514,8 @@ func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 // creating the same shards together, with exact counts on the
 // MANDATORY warning.
 func TestShardStream_PromotionAcrossManyStoredShards(t *testing.T) {
+	t.Parallel()
+
 	_, a2, aRows := gShardA().build(t, nil)
 	_, b2, bRows := gShardB().build(t, nil)
 	c := gShardB()
@@ -539,6 +553,8 @@ func TestShardStream_PromotionAcrossManyStoredShards(t *testing.T) {
 // into the stage, with the mandatory warning's shards / records exact
 // and the result identical to creating the shards together.
 func TestShardStream_ArchiveWidenStreamsEveryStoredShard(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()

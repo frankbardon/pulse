@@ -162,6 +162,8 @@ func cwWeight(kind types.WeightKind) types.SlotWeight {
 // unadjusted p̂(1 − p̂)/N* exactly), z = diff/SE, the interval
 // diff ± z_{α/2}·SE. Unweighted and under both weight kinds.
 func TestCupedPropZ_EqualsTwoStepOnIndicator(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []types.WeightKind{"", types.WeightKindFrequency, types.WeightKindProbability} {
 		rows := cwFixture(600, kind, 11)
 		if kind == "" {
@@ -230,6 +232,8 @@ func TestCupedPropZ_EqualsTwoStepOnIndicator(t *testing.T) {
 // nothing — the interval is the unadjusted Wald interval and the
 // statistic its Wald z — and theta / variance_reduction are undefined.
 func TestCupedPropZ_ConstantCovariate(t *testing.T) {
+	t.Parallel()
+
 	rows := cwFixture(200, types.WeightKindProbability, 0)
 	for i := range rows {
 		rows[i].x = 4
@@ -256,6 +260,8 @@ func TestCupedPropZ_ConstantCovariate(t *testing.T) {
 // covariate (the adjustment compares two groups); a categorical
 // covariate and the outcome itself are refused like on the mean tests.
 func TestCupedPropZ_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name, split, params, reason string
 	}{
@@ -279,6 +285,8 @@ func TestCupedPropZ_Refusals(t *testing.T) {
 // the probability weights differ between arms, so each arm reads its
 // own Kish scale.
 func TestCuped_WeightedEqualsWeightedTwoStep(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability} {
 		rows := cwFixture(500, kind, 13)
 		yadj, theta, xbar := weightedTwoStep(rows, func(r cwRow) float64 { return r.y })
@@ -347,6 +355,8 @@ func TestCuped_WeightedEqualsWeightedTwoStep(t *testing.T) {
 // up to scale — weights × 0.37 answer the same adjusted test (θ and x̄
 // read the raw weights, which a common scale leaves alone).
 func TestCuped_ProbabilityScaleInvariant(t *testing.T) {
+	t.Parallel()
+
 	rows := cwFixture(300, types.WeightKindProbability, 0)
 	scaled := append([]cwRow(nil), rows...)
 	for i := range scaled {

@@ -89,45 +89,6 @@ func sameBitRotation(t *testing.T, got, want rotationResult) {
 	}
 }
 
-// TestGPFoblq_ObliminBitIdenticalToReference: oblimin on the generic
-// oblique driver reproduces the pre-driver loop bit for bit — the raw
-// fit (loadings, rotation, Φ, iterations, convergence) and the
-// canonicalised result rotateLoadings returns — on every oracle input
-// and the synthetic ones, at γ = 0 (quartimin), 0.5 (biquartimin),
-// −0.5, 1 (covarimin) and 2 (which stops at the iteration cap on
-// most inputs). At least one run must stop at its cap so that path is
-// covered too.
-func TestGPFoblq_ObliminBitIdenticalToReference(t *testing.T) {
-	capped := 0
-	for name, a := range gpaRotationInputs(t) {
-		for _, gamma := range []float64{0, 0.5, -0.5, 1, 2} {
-			t.Run(fmt.Sprintf("%s/g%g", name, gamma), func(t *testing.T) {
-				want, err := obliminRotateReference(a, gamma)
-				if err != nil {
-					t.Fatal(err)
-				}
-				got, err := obliminRotate(a, gamma)
-				if err != nil {
-					t.Fatal(err)
-				}
-				sameBitRotation(t, got, want)
-				if !want.Converged {
-					capped++
-				}
-				canonicalizeRotation(&want)
-				gotPublic, err := rotateLoadings(a, rotationSpec{Method: vectors.RotationOblimin, Gamma: gamma})
-				if err != nil {
-					t.Fatal(err)
-				}
-				sameBitRotation(t, gotPublic, want)
-			})
-		}
-	}
-	if capped == 0 {
-		t.Error("no run stopped at its cap; the non-converged path is uncovered")
-	}
-}
-
 // gpaVarimaxCriterion is GPArotation's vgQ.varimax: QL = L² −
 // colMeans(L²), gradient −L∘QL, value −ΣQL²/4.
 func gpaVarimaxCriterion(l [][]float64) ([][]float64, float64) {
@@ -189,6 +150,8 @@ func gpforthKaiserVarimax(a [][]float64) rotationResult {
 // within rotationOracleTol (the trial-step polar factor is gonum's SVD
 // against LAPACK's, so rounding only), and the same iteration count.
 func TestGPForth_VarimaxMatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rotationCase](t, "mv_rotation")
 	for _, c := range doc.Cases {
 		t.Run(fmt.Sprintf("%s/%s/k%d", c.Fixture, c.Weight, c.K), func(t *testing.T) {
@@ -238,6 +201,8 @@ const gpforthVarimaxTol = 2e-3
 // orthogonality invariants: the two algorithms may legitimately stop
 // in different optima there.
 func TestGPForth_VarimaxCriterionMatchesSVDVarimax(t *testing.T) {
+	t.Parallel()
+
 	for name, a := range gpaRotationInputs(t) {
 		t.Run(name, func(t *testing.T) {
 			got := gpforthKaiserVarimax(a)

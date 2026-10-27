@@ -90,6 +90,8 @@ func holdoutClose(a, b float64) bool { return math.Abs(a-b) <= 1e-9*math.Max(1, 
 // 2x + 1, n_obs 6), t = 8..11 held out — and the held-out figures are
 // the hand fold over t = 8..10 (t = 11's null target drops listwise).
 func TestHoldout_PartitionsFitsAndScores(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := holdoutCohort(t)
 	resp, err := svc.Process(context.Background(), holdoutRequest("t_lag >= 7", nil))
 	if err != nil {
@@ -123,6 +125,8 @@ func TestHoldout_PartitionsFitsAndScores(t *testing.T) {
 // post-window attribute's label (an ATTR_FORMULA over the window label),
 // partitioning the rows exactly as the window label itself does.
 func TestHoldout_ReadsPostWindowAttribute(t *testing.T) {
+	t.Parallel()
+
 	svc, data := holdoutCohort(t)
 	req := holdoutRequest("lag2 >= 14", nil)
 	req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "lag2", Expression: "t_lag == nil ? nil : t_lag * 2"}}
@@ -143,6 +147,8 @@ func TestHoldout_ReadsPostWindowAttribute(t *testing.T) {
 // Σw and r2 reads the weighted mean; the zero-weight held-out row
 // (t = 10) is not scored and n stays a raw count.
 func TestHoldout_Weighted(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := holdoutCohort(t)
 	resp, err := svc.Process(context.Background(), holdoutRequest("t_lag >= 7", func(s *types.RegressionSpec) {
 		s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency})
@@ -164,8 +170,12 @@ func TestHoldout_Weighted(t *testing.T) {
 // the response warns PULSE_SLOT_FAILED — and Strict escalates it with
 // the slot's own code.
 func TestHoldout_EmptyFailsTheSlotAlone(t *testing.T) {
+	t.Parallel()
+
 	for name, holdout := range map[string]string{"true on none": "t > 100", "only an unscorable row": "t == 11"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			svc, _ := holdoutCohort(t)
 			req := holdoutRequest(holdout, nil)
 			req.Regressions = append(req.Regressions, &types.RegressionSpec{Name: "other", Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}})
@@ -204,6 +214,8 @@ func TestHoldout_EmptyFailsTheSlotAlone(t *testing.T) {
 // label no record carries is refused by Process and by predict with the
 // same code and message.
 func TestHoldout_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	svc, data := holdoutCohort(t)
 	aggregated := func(holdout string) *types.Request {
 		return &types.Request{
@@ -256,6 +268,8 @@ func TestHoldout_PredictRuntimeParity(t *testing.T) {
 // else reads (t; no window widens the decode here) still sees it — the
 // projected decode keeps the holdout's names.
 func TestHoldout_ProjectsItsFields(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := holdoutCohort(t)
 	svc.SetProjectBufferedFields(true)
 	req := holdoutRequest("t >= 8", nil)

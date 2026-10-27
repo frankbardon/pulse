@@ -39,6 +39,8 @@ func fakeBoostFactory(*types.Attribute, *encoding.Schema) (AttributeComputer, er
 // record set, and emits its computed values onto the result rows
 // under its label.
 func TestExtensions_AttributeRoundTrip_RowLocal(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -82,6 +84,8 @@ func TestExtensions_AttributeRoundTrip_RowLocal(t *testing.T) {
 // attribute path: a custom AttributeComputer (not RowLocalAttribute)
 // runs over the full record set before aggregation.
 func TestExtensions_AttributeRoundTrip_Buffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}

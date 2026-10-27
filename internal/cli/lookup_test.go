@@ -56,6 +56,8 @@ type lookupErrJSON struct {
 }
 
 func TestAPILookupCLI_HitReturnsSelectedColumns(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 
 	var buf bytes.Buffer
@@ -86,6 +88,8 @@ func TestAPILookupCLI_HitReturnsSelectedColumns(t *testing.T) {
 }
 
 func TestAPILookupCLI_MissErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 
 	var buf bytes.Buffer
@@ -105,6 +109,8 @@ func TestAPILookupCLI_MissErrorEnvelope(t *testing.T) {
 }
 
 func TestAPILookupCLI_AmbiguousDefaultModeErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "region")
 
 	var buf bytes.Buffer
@@ -126,6 +132,8 @@ func TestAPILookupCLI_AmbiguousDefaultModeErrorEnvelope(t *testing.T) {
 }
 
 func TestAPILookupCLI_ModeFirstReturnsLowestRowID(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "region")
 
 	var buf bytes.Buffer
@@ -149,6 +157,8 @@ func TestAPILookupCLI_ModeFirstReturnsLowestRowID(t *testing.T) {
 }
 
 func TestAPILookupCLI_ModeAllReturnsEveryMatch(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "region")
 
 	var buf bytes.Buffer
@@ -175,6 +185,8 @@ func TestAPILookupCLI_ModeAllReturnsEveryMatch(t *testing.T) {
 }
 
 func TestAPILookupCLI_CompositeKeyHit(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "region,id")
 
 	var buf bytes.Buffer
@@ -204,6 +216,8 @@ func TestAPILookupCLI_CompositeKeyHit(t *testing.T) {
 }
 
 func TestAPILookupCLI_MissingIndexErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeIndexTestCohort(t, cohort)
@@ -225,6 +239,8 @@ func TestAPILookupCLI_MissingIndexErrorEnvelope(t *testing.T) {
 }
 
 func TestAPILookupCLI_MissingKeyFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 
 	var buf bytes.Buffer
@@ -246,6 +262,8 @@ func TestAPILookupCLI_MissingKeyFlagErrors(t *testing.T) {
 }
 
 func TestAPILookupCLI_InvalidModeFlagErrors(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 
 	var buf bytes.Buffer
@@ -261,6 +279,8 @@ func TestAPILookupCLI_InvalidModeFlagErrors(t *testing.T) {
 }
 
 func TestAPILookupCLI_EchoRequestIncludesResolvedRequest(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 
 	var buf bytes.Buffer
@@ -288,6 +308,8 @@ func TestAPILookupCLI_EchoRequestIncludesResolvedRequest(t *testing.T) {
 // hold id 1, so on the archive the default assert-unique lookup sees
 // two matches across the union and refuses.
 func TestAPILookupCLI_ShardArchiveAssertsUniqueAcrossShards(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	shard1 := filepath.Join(dir, "shard1.pulse")
 	shard2 := filepath.Join(dir, "shard2.pulse")

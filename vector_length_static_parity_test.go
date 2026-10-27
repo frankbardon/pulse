@@ -19,6 +19,8 @@ import (
 // non-vector identifiers, nested calls, slices and let bindings are
 // unknown or equal and never refused by predict.
 func TestVectorPair_StaticLengthMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	vecs := []types.VectorSpec{

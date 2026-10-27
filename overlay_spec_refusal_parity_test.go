@@ -161,6 +161,8 @@ func sameRefusal(t *testing.T, arm string, pe *descriptor.EnvelopeEntry, runErr 
 }
 
 func TestCrosstabOverlay_SpecRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	buffered, err := pulse.New(pulse.Options{FS: fs, DisableCrosstabFusion: true})
 	if err != nil {

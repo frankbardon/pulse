@@ -81,6 +81,8 @@ func oracleBucket(v float64) string {
 // significant_adjusted is p_adjusted < 0.05; the echo carries the
 // family size.
 func TestMatrixMultiplicity_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []matrixMultOracle `json:"cases"`
 	}
@@ -166,6 +168,8 @@ func findOracleResult(t *testing.T, resp *types.Response, name string, bucket *f
 // full square) nor 20 (both triangles) — Bonferroni multiplies by
 // exactly 10 — and the adjusted figure is mirrored.
 func TestMatrixMultiplicity_FamilySizeIsUpperTriangle(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(60))
 	spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", "")
 	spec.Multiplicity = &types.Multiplicity{Method: types.MultiplicityMethodBonferroni}
@@ -193,6 +197,8 @@ func TestMatrixMultiplicity_FamilySizeIsUpperTriangle(t *testing.T) {
 // upper-shaped (row r holds k - r cells) and carry exactly the full
 // encoding's upper triangle.
 func TestMatrixMultiplicity_UpperEncoding(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(60))
 	run := func(enc types.MatrixEncoding) types.MatrixResult {
 		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", `{"method": "spearman"}`)
@@ -227,6 +233,8 @@ func TestMatrixMultiplicity_UpperEncoding(t *testing.T) {
 // (2 rows) is excluded from m, counted in the echo's excluded and left
 // null in p_adjusted / significant_adjusted.
 func TestMatrixMultiplicity_NullCellsExcluded(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	rows := [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, nan, 3, 1, 1}, {4, nan, 9, 1, 1}, {5, nan, 1, 1, 1}, {6, nan, 7, 1, 1}}
 	spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", `{"missing": "pairwise"}`)
@@ -257,6 +265,8 @@ func TestMatrixMultiplicity_NullCellsExcluded(t *testing.T) {
 // triangles bucket by bucket; the `matrix` family on the same request
 // leaves the tests' family alone.
 func TestMatrixMultiplicity_RequestFamilyPoolsWithTests(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(80))
 	for _, grouped := range []bool{false, true} {
 		t.Run(fmt.Sprintf("grouped=%v", grouped), func(t *testing.T) {
@@ -330,6 +340,8 @@ func TestMatrixMultiplicity_RequestFamilyPoolsWithTests(t *testing.T) {
 // twins and the echo — auxiliary.p, the intervals, the primary and the
 // rest of the result keep their bytes against params.inference alone.
 func TestMatrixMultiplicity_RawPNeverMoves(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(60))
 	run := func(params string, m *types.Multiplicity) types.MatrixResult {
 		spec := missingSpec(types.MAT_PARTIAL_CORRELATION, []string{"x1", "x2", "x3"}, "", params)
@@ -358,6 +370,8 @@ func TestMatrixMultiplicity_RawPNeverMoves(t *testing.T) {
 // to the multiplicity-free run, and a spec without a block marshals
 // without the key.
 func TestMatrixMultiplicity_AbsentIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(60))
 	marshal := func(t *testing.T, params string, own, reqBlock *types.Multiplicity) string {
 		t.Helper()
@@ -403,6 +417,8 @@ func TestMatrixMultiplicity_AbsentIsByteIdentical(t *testing.T) {
 // params.inference false beside a block is refused (bad_params); alpha
 // is accepted under the implied inference.
 func TestMatrixMultiplicity_ImpliedInferenceRefusals(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(30))
 	for _, c := range []struct {
 		params string
@@ -428,6 +444,8 @@ func TestMatrixMultiplicity_ImpliedInferenceRefusals(t *testing.T) {
 // the matrices (or their auxiliaries) still computes a member spec's
 // p-values, so a pooled test's p_adjusted and m equal the full run's.
 func TestMatrixMultiplicity_ReturnVetoKeepsFamily(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(80))
 	run := func(ret *types.Return) *types.TestResult {
 		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", "")
@@ -464,6 +482,8 @@ func TestMatrixMultiplicity_ReturnVetoKeepsFamily(t *testing.T) {
 // slot run alone; a ProcessChain stage 0 carrying a corrected matrix
 // equals the plain Process.
 func TestMatrixMultiplicity_ComposeAndChain(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(80))
 	slot := func() *types.Request {
 		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", `{"method": "kendall"}`)

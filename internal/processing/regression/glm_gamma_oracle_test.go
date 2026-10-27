@@ -71,6 +71,8 @@ func loadGLMGammaReference(t *testing.T) []glmGammaCase {
 // warm-started refit). The fixed-dispersion figures it replaced
 // (summary(dispersion = 1)) differ on every case.
 func TestReferenceOracle_GLMGammaMatchesR(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadGLMGammaReference(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			recs := make([]Record, len(c.Rows))
@@ -152,6 +154,8 @@ func TestReferenceOracle_GLMGammaMatchesR(t *testing.T) {
 // coefficients (an exact fit) and the deviance stay finite. Binomial /
 // poisson fix the dispersion and never read the df.
 func TestRegGLM_GammaZeroResidualDF(t *testing.T) {
+	t.Parallel()
+
 	recs := []Record{
 		mockRecord{values: map[string]float64{"x": 0.5, "y": 1.9}},
 		mockRecord{values: map[string]float64{"x": 1.5, "y": 0.8}},

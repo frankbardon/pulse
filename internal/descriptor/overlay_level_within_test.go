@@ -26,6 +26,8 @@ func nestedCrosstabHostSpec() *types.CrosstabSpec {
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on the envelope. Mirrors the
 // crosstab PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE gate.
 func TestValidateOverlay_LevelOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -56,6 +58,8 @@ func TestValidateOverlay_LevelOutOfRange(t *testing.T) {
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on the envelope. The crosstab
 // host's column axis is 1-deep, so Within=1 is out of range.
 func TestValidateOverlay_WithinOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -87,6 +91,8 @@ func TestValidateOverlay_WithinOutOfRange(t *testing.T) {
 // contract); Level / Within would alter that contract and the
 // statistical semantics would diverge from TEST_CHISQ / TEST_FISHER.
 func TestValidateOverlay_LevelOnChisqRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -113,6 +119,8 @@ func TestValidateOverlay_LevelOnChisqRejected(t *testing.T) {
 // [0, column-axis-depth) passes the predict gate without surfacing
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE.
 func TestValidateOverlay_LevelInRange_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 

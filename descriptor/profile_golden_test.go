@@ -36,6 +36,8 @@ func newProfilePulse(t *testing.T, fixture string) *pulse.Pulse {
 // TestProfileManifestGolden pins each fixture instance's manifest
 // envelope. Regenerate with go test ./descriptor/ -run 'Test.*Golden' -update.
 func TestProfileManifestGolden(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 	for _, fixture := range profileGoldenFixtures {
 		t.Run(fixture, func(t *testing.T) {
@@ -52,6 +54,8 @@ func TestProfileManifestGolden(t *testing.T) {
 // TestProfilePayloadSchemaGolden pins each fixture instance's payload
 // JSON Schema, byte for byte as Pulse.PayloadSchema serves it.
 func TestProfilePayloadSchemaGolden(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 	for _, fixture := range profileGoldenFixtures {
 		t.Run(fixture, func(t *testing.T) {

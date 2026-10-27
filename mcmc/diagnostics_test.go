@@ -81,6 +81,8 @@ func near(t *testing.T, what string, got float64, want *float64) {
 // TestMCMC_OracleGoldensHashed: every committed oracle JSON carries a
 // golden-hash footer matching its body, so a hand edit fails.
 func TestMCMC_OracleGoldensHashed(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob(filepath.Join("testdata", "*.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +109,8 @@ func TestMCMC_OracleGoldensHashed(t *testing.T) {
 
 // TestMCMC_RHatMatchesArviZ holds RHat to arviz_stats rhat(method="rank").
 func TestMCMC_RHatMatchesArviZ(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadDiagnostics(t) {
 		near(t, c.Name+" RHat", mcmc.RHat(c.Chains), c.RHat)
 	}
@@ -115,6 +119,8 @@ func TestMCMC_RHatMatchesArviZ(t *testing.T) {
 // TestMCMC_ESSBulkMatchesArviZ holds ESSBulk to arviz_stats
 // ess(method="bulk").
 func TestMCMC_ESSBulkMatchesArviZ(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadDiagnostics(t) {
 		near(t, c.Name+" ESSBulk", mcmc.ESSBulk(c.Chains), c.ESSBulk)
 	}
@@ -123,6 +129,8 @@ func TestMCMC_ESSBulkMatchesArviZ(t *testing.T) {
 // TestMCMC_ESSTailMatchesArviZ holds ESSTail to arviz_stats
 // ess(method="tail", prob=0.05).
 func TestMCMC_ESSTailMatchesArviZ(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range loadDiagnostics(t) {
 		near(t, c.Name+" ESSTail", mcmc.ESSTail(c.Chains), c.ESSTail)
 	}
@@ -132,6 +140,8 @@ func TestMCMC_ESSTailMatchesArviZ(t *testing.T) {
 // regimes the diagnostics must tell apart, so a degenerate implementation
 // cannot match every reference by accident.
 func TestMCMC_DiagnosticsOracleDiscriminates(t *testing.T) {
+	t.Parallel()
+
 	ref := map[string]diagCase{}
 	for _, c := range loadDiagnostics(t) {
 		ref[c.Name] = c
@@ -161,6 +171,8 @@ func TestMCMC_DiagnosticsOracleDiscriminates(t *testing.T) {
 // TestMCMC_DiagnosticsRefuseBadShape: ragged chains, a non-finite draw,
 // too few draws, or (R̂) a single chain give NaN, never a number.
 func TestMCMC_DiagnosticsRefuseBadShape(t *testing.T) {
+	t.Parallel()
+
 	ok := []float64{0.1, -0.4, 0.9, 0.3, -1.2, 0.7}
 	cases := map[string][][]float64{
 		"ragged":   {ok, ok[:5]},
@@ -190,6 +202,8 @@ func TestMCMC_DiagnosticsRefuseBadShape(t *testing.T) {
 // of their input, invariant to a reorder of the chains (R̂ and ESS pool
 // chains symmetrically) and leave the input untouched.
 func TestMCMC_DiagnosticsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	cs := loadDiagnostics(t)
 	var c diagCase
 	for _, x := range cs {
@@ -216,6 +230,8 @@ func TestMCMC_DiagnosticsDeterministic(t *testing.T) {
 // TestMCMC_ResultParam: Param regroups [chain][param][draw] into one
 // parameter's [chain][draw] without copying.
 func TestMCMC_ResultParam(t *testing.T) {
+	t.Parallel()
+
 	r := mcmc.Result{Draws: [][][]float64{
 		{{1, 2}, {3, 4}},
 		{{5, 6}, {7, 8}},

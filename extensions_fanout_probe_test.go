@@ -60,6 +60,8 @@ func singleKeyGrouperFactory(*types.Group, *encoding.Schema) (extend.Grouper, er
 // declared-false multi-key grouper registers silently and every
 // per-record-denominator gate reads it as single-key.
 func TestExtensions_ProbeGrouper_FanOutClaimVerified(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		regName  types.GroupType
@@ -121,6 +123,8 @@ func TestExtensions_ProbeGrouper_FanOutClaimVerified(t *testing.T) {
 // multi-key factory is REFUSED rather than silently admitted as
 // single-key — the safe direction for the default to fail in.
 func TestExtensions_ProbeGrouper_FanOutOmittedDefaultsFalse(t *testing.T) {
+	t.Parallel()
+
 	t.Run("multi-key factory without the field is refused", func(t *testing.T) {
 		ext := pulse.Extensions{
 			Groupers: []pulse.GrouperRegistration{{
@@ -150,6 +154,8 @@ func TestExtensions_ProbeGrouper_FanOutOmittedDefaultsFalse(t *testing.T) {
 // PULSE_EXTENSION_STREAMABLE_MISMATCH uses. A bare code cannot tell an
 // embedder which half of the disagreement to change.
 func TestExtensions_ProbeGrouper_FanOutMismatchDetails(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		regName      string
@@ -209,6 +215,8 @@ func TestExtensions_ProbeGrouper_FanOutMismatchDetails(t *testing.T) {
 // assertion, so the embedder sees the panic code rather than a
 // mismatch derived from a nil instance.
 func TestExtensions_ProbeGrouper_FanOutPanicStaysFactoryPanic(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		fansOut bool
@@ -217,6 +225,8 @@ func TestExtensions_ProbeGrouper_FanOutPanicStaysFactoryPanic(t *testing.T) {
 		{name: "declared true", fansOut: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			ext := pulse.Extensions{
 				Groupers: []pulse.GrouperRegistration{{
 					Name:    "GROUP_ACME_PANICKY_FANOUT",

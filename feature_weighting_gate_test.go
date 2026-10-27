@@ -106,6 +106,8 @@ func nestedWeightEntryPoints() map[string]func(h *parityHost, req *types.Request
 // the slot path, its valid_keys free of `weight`; the instance that
 // offers weighting refuses none as an unknown field.
 func TestHiddenWeighting_NestedWeightRefusedEverywhere(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	off, on := weightingHost(t, fsys, false), weightingHost(t, fsys, true)
 	on.base = off.base
@@ -158,6 +160,8 @@ func TestHiddenWeighting_NestedWeightRefusedEverywhere(t *testing.T) {
 // with the dependency code, naming the option; with the capability (or
 // without a profile) it is accepted.
 func TestHiddenWeighting_DefaultWeightRefusedAtNew(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	dw := &types.WeightSpec{Field: "w"}
 	if _, err := New(Options{FS: fsys, DefaultWeight: dw}); err != nil {
@@ -195,6 +199,8 @@ func TestHiddenWeighting_DefaultWeightRefusedAtNew(t *testing.T) {
 // params.weight_field is the operator's own parameter, not the weight
 // surface — it runs, and answers, identically with weighting hidden.
 func TestHiddenWeighting_WeightedMeanParamUngated(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	off, on := weightingHost(t, fsys, false), weightingHost(t, fsys, true)
 	req := func() *types.Request {
@@ -222,6 +228,8 @@ func TestHiddenWeighting_WeightedMeanParamUngated(t *testing.T) {
 // extension weight-awareness code nowhere; the two codes
 // AGG_WEIGHTED_MEAN's weight_field reaches stay listed while it is on.
 func TestHiddenWeighting_ErrorCodesFollowOwners(t *testing.T) {
+	t.Parallel()
+
 	newP := func(features []string) *Pulse {
 		p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: &FeatureProfile{Features: features}})
 		if err != nil {

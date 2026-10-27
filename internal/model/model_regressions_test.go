@@ -15,6 +15,8 @@ import (
 // that do not decode or name no channel, and absent for every other
 // type.
 func TestModelRegression_ShapeAndTerms(t *testing.T) {
+	t.Parallel()
+
 	for _, rt := range types.AllRegressionTypes() {
 		if BuiltinRegression(rt) == ModelRegression(rt) {
 			t.Errorf("%s: BuiltinRegression %v, ModelRegression %v — exactly one holds for a built-in type", rt, BuiltinRegression(rt), ModelRegression(rt))
@@ -49,6 +51,8 @@ func TestModelRegression_ShapeAndTerms(t *testing.T) {
 // catalogued one; an entry whose catalog is unknown accepts any term
 // (the runtime judges it).
 func TestCatalogFromFits_ModelRegressionTerms(t *testing.T) {
+	t.Parallel()
+
 	fit := func(params string) types.FitSpec {
 		return types.FitSpec{Name: "mmm", Request: &types.Request{Regressions: []*types.RegressionSpec{{
 			Type: types.REG_MMM_HILL, Target: "y", Predictors: []string{"tv", "price"}, Params: json.RawMessage(params)}}}}
@@ -79,6 +83,8 @@ func TestCatalogFromFits_ModelRegressionTerms(t *testing.T) {
 // (ModelRegressionFieldInputs, the projection's and predict's one
 // source); every other type reads none.
 func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
+	t.Parallel()
+
 	if !ModelRegression(types.REG_MMM_BAYES) || BuiltinRegression(types.REG_MMM_BAYES) {
 		t.Fatal("REG_MMM_BAYES is a model regression")
 	}

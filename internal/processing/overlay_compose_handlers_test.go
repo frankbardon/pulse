@@ -126,6 +126,8 @@ func composeSpecMatrixRef(kind types.OverlayKind, params map[string]any) types.C
 // (target / ref) * scale against hand-computed indices. Scale
 // defaults to 100.
 func TestApplyIndexVsRef_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
 		{40, 50, 60},
@@ -162,6 +164,8 @@ func TestApplyIndexVsRef_KnownAnswer(t *testing.T) {
 // authoring shape — every cell should equal target / ref directly
 // (no ×100 scaling).
 func TestApplyIndexVsRef_ScaleOne(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 4},
 		{1, 1, 1},
@@ -189,6 +193,8 @@ func TestApplyIndexVsRef_ScaleOne(t *testing.T) {
 // reference cell emits PULSE_OVERLAY_REF_ZERO and substitutes NaN on
 // the affected cell. Other cells stay finite.
 func TestApplyIndexVsRef_ZeroRefEmitsWarningAndNaN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{0, 1, 1},
 		{1, 1, 1},
@@ -216,6 +222,8 @@ func TestApplyIndexVsRef_ZeroRefEmitsWarningAndNaN(t *testing.T) {
 
 // TestApplyDeltaVsRef_KnownAnswer pins the per-cell subtraction.
 func TestApplyDeltaVsRef_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
 		{4, 5, 6},
@@ -254,6 +262,8 @@ func TestApplyDeltaVsRef_KnownAnswer(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO — subtraction is well-defined for any finite
 // reference value.
 func TestApplyDeltaVsRef_ZeroRefNoNaN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{0, 1, 2},
 		{3, 4, 5},
@@ -283,6 +293,8 @@ func TestApplyDeltaVsRef_ZeroRefNoNaN(t *testing.T) {
 // 60/100 ref ⇒ z = −1.4213, p = prop.test(c(50, 60), c(100, 100),
 // correct=FALSE)$p.value = 0.15521848968468363.
 func TestApplyPropZCell_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{60, 50, 50},
@@ -320,6 +332,8 @@ func TestApplyPropZCell_KnownAnswer(t *testing.T) {
 // (mean, variance, n) triple. Cell (0,0): target_mean=10, ref_mean=9,
 // var=1, n=2 ⇒ se = sqrt(0.5+0.5)=1, t=1, df=2 ⇒ p ≈ 0.4226.
 func TestApplyTCell_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{9, 9, 9},
 		{9, 9, 9},
@@ -361,6 +375,8 @@ func TestApplyTCell_KnownAnswer(t *testing.T) {
 // total = 120
 // df = 9 - 1 = 8
 func TestApplyChiSqVsRef_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{20, 20, 20},
 		{20, 20, 20},
@@ -405,6 +421,8 @@ func TestApplyChiSqVsRef_KnownAnswer(t *testing.T) {
 // TestApplyChiSqVsRef_EmptyTargetEmitsRefZero asserts the degenerate
 // path: empty target_N ⇒ NaN + PULSE_OVERLAY_REF_ZERO.
 func TestApplyChiSqVsRef_EmptyTargetEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 1, 1},
 		{1, 1, 1},
@@ -434,6 +452,8 @@ func TestApplyChiSqVsRef_EmptyTargetEmitsRefZero(t *testing.T) {
 // average-tie ranks. Target = [[10, 20, 30], [40, 50, 60], [70, 80,
 // 90]]. Descending sort ⇒ 90 is rank 1; 10 is rank 9.
 func TestApplyRank_PopulationMatrix_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 1, 1},
 		{1, 1, 1},
@@ -465,6 +485,8 @@ func TestApplyRank_PopulationMatrix_KnownAnswer(t *testing.T) {
 // TestApplyRank_PopulationRow_KnownAnswer pins per-row ranks. Each
 // row is ranked independently across its 3 columns.
 func TestApplyRank_PopulationRow_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 1, 1},
 		{1, 1, 1},
@@ -497,6 +519,8 @@ func TestApplyRank_PopulationRow_KnownAnswer(t *testing.T) {
 
 // TestApplyRank_PopulationColumn_KnownAnswer pins per-column ranks.
 func TestApplyRank_PopulationColumn_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 1, 1},
 		{1, 1, 1},
@@ -530,6 +554,8 @@ func TestApplyRank_PopulationColumn_KnownAnswer(t *testing.T) {
 // TestApplyRank_PopulationDefaultsToMatrix asserts that missing
 // Params["population"] defaults to "matrix" mode (no warning).
 func TestApplyRank_PopulationDefaultsToMatrix(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 1, 1},
 		{1, 1, 1},
@@ -558,6 +584,8 @@ func TestApplyRank_PopulationDefaultsToMatrix(t *testing.T) {
 // breaking convention: equal values share the average of their would-
 // be ranks. [10, 20, 20, 30] ⇒ [4, 2.5, 2.5, 1].
 func TestApplyRank_TiesAverageRank(t *testing.T) {
+	t.Parallel()
+
 	ranks := computeAverageRanks([]float64{10, 20, 20, 30})
 	want := []float64{4, 2.5, 2.5, 1}
 	for i, got := range ranks {
@@ -566,6 +594,8 @@ func TestApplyRank_TiesAverageRank(t *testing.T) {
 }
 
 func TestApplyComposeOverlays_SixKindsDispatch(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{20, 25, 25},
@@ -675,6 +705,8 @@ func makeMatrixFromTriples(triples [3][3]WelfordTriple) *types.Response {
 //	df_ws  ≈ 18.0 (equal var, equal n closes to 2*(n-1))
 //	p      ≈ 0.2783
 func TestApplyTCell_TripleKnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -714,6 +746,8 @@ func TestApplyTCell_TripleKnownAnswer(t *testing.T) {
 // Params here, if honoured, would shift p toward 1.0; the triple path
 // must produce the same answer as TestApplyTCell_TripleKnownAnswer.
 func TestApplyTCell_TripleBypassesParamsDefaults(t *testing.T) {
+	t.Parallel()
+
 	triple := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	refTriple := WelfordTriple{Mean: 9, Variance: 4, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -748,6 +782,8 @@ func TestApplyTCell_TripleBypassesParamsDefaults(t *testing.T) {
 // of the triple-bearing path. Every cell should surface NaN +
 // PULSE_OVERLAY_REF_ZERO.
 func TestApplyTCell_TripleDegenerateInsufficientN(t *testing.T) {
+	t.Parallel()
+
 	tri := WelfordTriple{Mean: 10, Variance: 4, N: 1}
 	refTri := WelfordTriple{Mean: 9, Variance: 4, N: 1}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -783,6 +819,8 @@ func TestApplyTCell_TripleDegenerateInsufficientN(t *testing.T) {
 // carry Variance=0 ⇒ welchTTest returns NaN/false ⇒ every cell
 // surfaces NaN + PULSE_OVERLAY_REF_ZERO.
 func TestApplyTCell_TripleZeroVarianceBothSides(t *testing.T) {
+	t.Parallel()
+
 	tri := WelfordTriple{Mean: 10, Variance: 0, N: 10}
 	refTri := WelfordTriple{Mean: 9, Variance: 0, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
@@ -809,6 +847,8 @@ func TestApplyTCell_TripleZeroVarianceBothSides(t *testing.T) {
 }
 
 func TestApplyTCell_MixedShapeRejected(t *testing.T) {
+	t.Parallel()
+
 	tri := WelfordTriple{Mean: 10, Variance: 4, N: 10}
 	target := makeMatrixFromTriples([3][3]WelfordTriple{
 		{tri, tri, tri},
@@ -835,6 +875,8 @@ func TestApplyTCell_MixedShapeRejected(t *testing.T) {
 }
 
 func TestApplyTCell_ScalarFallbackByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{9, 9, 9},
 		{9, 9, 9},
@@ -862,6 +904,8 @@ func TestApplyTCell_ScalarFallbackByteIdentical(t *testing.T) {
 }
 
 func TestApplyIndexVsRef_NonMatrixSlotErrors(t *testing.T) {
+	t.Parallel()
+
 	ref := &types.Response{Data: []map[string]any{
 		{"region": "us", "sum": 1.0},
 	}}
@@ -893,6 +937,8 @@ func TestApplyIndexVsRef_NonMatrixSlotErrors(t *testing.T) {
 // cell, exactly like the both-missing case. Row 1 keeps both margins
 // and is unaffected.
 func TestApplyPropZCell_MissingRowMarginIsNaN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{{60, 50, 50}, {60, 50, 50}, {50, 50, 50}},
 		[3]float64{0, 100, 100},
@@ -959,6 +1005,8 @@ func legacyTwoSampleParams(extra map[string]any) map[string]any {
 // unusable — PULSE_OVERLAY_PARAM_MISSING naming the side and its keys —
 // instead of computing from variance 1, n 2 (U46 E4-S16).
 func TestTwoSampleHandlers_ScalarSideRequiresParams(t *testing.T) {
+	t.Parallel()
+
 	matrix := func() (*types.Response, *types.Response) {
 		return makeMatrixFromValues([3][3]float64{{9, 9, 9}, {9, 9, 9}, {9, 9, 9}}),
 			makeMatrixFromValues([3][3]float64{{10, 10, 10}, {10, 10, 10}, {10, 10, 10}})

@@ -160,6 +160,8 @@ func baselinePlan(t *testing.T, schema *encoding.Schema, keep encx.FieldFilter) 
 // and projected (plan path), two passes through the iterator's Reset —
 // the reuse record equals a full repopulate on every row.
 func TestJoinShapeRunSkip_MatchesFullRepopulate(t *testing.T) {
+	t.Parallel()
+
 	fsys, schema, rows, paths := joinShapeOrders(t)
 	for _, order := range []string{"sorted", "scattered"} {
 		for _, tc := range []struct {
@@ -216,6 +218,8 @@ func TestJoinShapeRunSkip_MatchesFullRepopulate(t *testing.T) {
 // Every case must equal a full repopulate of the unsplit cohort, row by
 // row, over two passes through Reset.
 func TestJoinShapeRunSkip_ShardBoundaries(t *testing.T) {
+	t.Parallel()
+
 	fsys, schema, rows, paths := joinShapeOrders(t)
 	stride := schema.RecordByteSize()
 	keyOf := func(payload []byte, row int) []byte {
@@ -325,6 +329,8 @@ func TestJoinShapeRunSkip_ShardBoundaries(t *testing.T) {
 // optimisation (and E2's measurements) depend on: sorted adjacent rows
 // repeat most field bytes, the scattered copy few.
 func TestJoinShapeRunSkip_ContinuationShape(t *testing.T) {
+	t.Parallel()
+
 	fsys, path, schema, rows := loadJoinShapeFixture(t)
 	data, err := afero.ReadFile(fsys, path)
 	if err != nil {

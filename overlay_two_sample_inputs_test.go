@@ -72,6 +72,8 @@ func tsCompose(kind types.OverlayKind, crosstab bool, agg types.AggregationType,
 }
 
 func TestComposeOverlay_TwoSampleInputsRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	seriesKinds := []types.OverlayKind{types.OverlayKindTVsRef, types.OverlayKindZVsRef}
 	cellKinds := []types.OverlayKind{types.OverlayKindTCell, types.OverlayKindZCell}
@@ -151,6 +153,8 @@ func TestComposeOverlay_TwoSampleInputsRefused(t *testing.T) {
 // means (the handler's inputs, read back from the slot responses); the
 // per-side and symmetric keys are interchangeable.
 func TestComposeOverlay_TwoSampleExplicitParams(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	perSide := map[string]any{"variance_target": 3.0, "sample_size_target": 6.0, "variance_ref": 2.0, "sample_size_ref": 5.0}
 	pValue := func(kind types.OverlayKind, mt, mr float64) float64 {
@@ -258,6 +262,8 @@ func TestComposeOverlay_TwoSampleExplicitParams(t *testing.T) {
 // without them — AGG_WELFORD rows, and crosstab cells whose components
 // carry mean and variance (AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV).
 func TestComposeOverlay_TwoSampleComponentsRoutesIgnoreParams(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	params := map[string]any{"variance": 99.0, "sample_size": 3.0}
@@ -305,6 +311,8 @@ func TestComposeOverlay_TwoSampleComponentsRoutesIgnoreParams(t *testing.T) {
 // PULSE_OVERLAY_SLOT_NOT_CROSSTAB on predict and runtime (OVERLAY_Z_CELL
 // was refused only at runtime, by its handler).
 func TestComposeOverlay_CellKindsOverGroupedSlots(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := nsFixture(t, pulse.Options{})
 	params := map[string]any{"variance": 2.0, "sample_size": 5.0}

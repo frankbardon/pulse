@@ -151,6 +151,8 @@ func centredJSON(t *testing.T, v any) string {
 // registration reloads it and scores identically, and predict accepts
 // the load.
 func TestExtensions_RegressionScorerScoresSavesReloads(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	p := centredInstance(t, fsys, centredRegistration(centredScorerFactory))
 	ctx := context.Background()
@@ -216,6 +218,8 @@ func TestExtensions_RegressionScorerScoresSavesReloads(t *testing.T) {
 // refuses it; the regression slot itself still runs without a scorer,
 // and its save is refused at both.
 func TestExtensions_RegressionScoreRefusals(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	ctx := context.Background()
 	plain := centredInstance(t, fsys, centredRegistration(nil))
@@ -286,6 +290,8 @@ func TestExtensions_RegressionScoreRefusals(t *testing.T) {
 // PULSE_MODEL_REGRESSION_UNREGISTERED — by predict exactly as by
 // Process.
 func TestExtensions_RegressionModelUnregistered(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	ctx := context.Background()
 	const save = "models/centred" + model.FileSuffix
@@ -347,6 +353,8 @@ func (panicScorer) Score(extend.ScoreRow) (float64, bool) { panic("score boom") 
 // scorer), a nil scorer or one reading a column outside the predictors
 // PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH.
 func TestExtensions_RegressionScorerProbed(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		scorer extend.RegressionScorerFactory

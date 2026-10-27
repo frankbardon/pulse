@@ -67,6 +67,8 @@ func codeOf(err error) perrors.Code {
 // TestFeaturesInit_WritesStrictProfile: plain init prints a profile that
 // the strict decode accepts and that equals the library's result.
 func TestFeaturesInit_WritesStrictProfile(t *testing.T) {
+	t.Parallel()
+
 	out, err := runFeatures(t, "init")
 	if err != nil {
 		t.Fatalf("init: %v", err)
@@ -97,6 +99,8 @@ func TestFeaturesInit_WritesStrictProfile(t *testing.T) {
 // TestFeaturesInit_UnknownExampleKeepsCode: a fatal error exits non-zero
 // and the envelope carries the library's own code.
 func TestFeaturesInit_UnknownExampleKeepsCode(t *testing.T) {
+	t.Parallel()
+
 	out, err := runFeatures(t, "init", "--from", "no-such-example", "--json")
 	if codeOf(err) != perrors.PULSE_FEATURE_PROFILE_INVALID {
 		t.Fatalf("err = %v, want PULSE_FEATURE_PROFILE_INVALID", err)
@@ -109,6 +113,8 @@ func TestFeaturesInit_UnknownExampleKeepsCode(t *testing.T) {
 
 // TestFeaturesCheck covers the valid, warning and failing paths.
 func TestFeaturesCheck(t *testing.T) {
+	t.Parallel()
+
 	ok := writeFeaturesFile(t, `{"features": ["capability:process", "AGG_COUNT"]}`)
 	out, err := runFeatures(t, "check", ok)
 	if err != nil {
@@ -167,6 +173,8 @@ func TestFeaturesCheck(t *testing.T) {
 // TestFeaturesDiff_ListsNewerFeature: a profile written with an older
 // release sees the running build's features as missing and new.
 func TestFeaturesDiff_ListsNewerFeature(t *testing.T) {
+	t.Parallel()
+
 	path := writeFeaturesFile(t, `{"written_with": "0.9.0", "features": ["capability:process", "AGG_SUMM"]}`)
 	out, err := runFeatures(t, "diff", "--json", path)
 	if err != nil {
@@ -203,6 +211,8 @@ func TestFeaturesDiff_ListsNewerFeature(t *testing.T) {
 
 // TestFeaturesShow describes every listed feature on both paths.
 func TestFeaturesShow(t *testing.T) {
+	t.Parallel()
+
 	path := writeFeaturesFile(t, `{"profile": "p", "features": ["capability:process", "AGG_COUNT"]}`)
 	out, err := runFeatures(t, "show", "--json", path)
 	if err != nil {

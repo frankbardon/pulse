@@ -71,6 +71,8 @@ func roundedGroup() *types.Group {
 }
 
 func TestNumericRanges_SuppliedOrderEveryArm(t *testing.T) {
+	t.Parallel()
+
 	p, _ := nrEngine(t, Options{})
 	ctx := context.Background()
 	for _, tc := range []struct {
@@ -118,6 +120,8 @@ func TestNumericRanges_SuppliedOrderEveryArm(t *testing.T) {
 }
 
 func TestNumericRanges_CrosstabAxesBothArms(t *testing.T) {
+	t.Parallel()
+
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 	for _, disable := range []bool{false, true} {
 		p, _ := nrEngine(t, Options{DisableCrosstabFusion: disable})
@@ -165,6 +169,8 @@ func TestNumericRanges_CrosstabAxesBothArms(t *testing.T) {
 // numeric grouper (and a date-range operator on a numeric table) raises,
 // Process and predict raise under the same code, predict exactly once.
 func TestNumericRanges_RefusalsPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := nrEngine(t, Options{})
 	writeParityDatesCohort(t, fsys)
 	for _, tc := range []struct {
@@ -227,6 +233,8 @@ func TestNumericRanges_RefusalsPredictMatchesRuntime(t *testing.T) {
 }
 
 func TestRangeTables_TypedByBounds(t *testing.T) {
+	t.Parallel()
+
 	// Programmatic: a numeric table registers and reports its kind.
 	p, _ := nrEngine(t, Options{})
 	infos := p.RangeTables()

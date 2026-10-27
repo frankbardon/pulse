@@ -23,6 +23,8 @@ func f64p(v float64) *float64 { return &v }
 // decoded config of each valid slot and the code + reason of each
 // refusal.
 func TestResolveAttributes_ScaleScoreRules(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{
 		{Name: "va", Fields: []string{"a*"}},
 		{Name: "vs", Fields: []string{"b1", "b2", "a1"}, Labels: []string{"x", "y", "z"}, Kind: types.VectorKindScale, ScaleMin: f64p(1), ScaleMax: f64p(5)},
@@ -108,6 +110,8 @@ func TestResolveAttributes_ScaleScoreRules(t *testing.T) {
 
 // TestScaleKey pins the shared range check and flip.
 func TestScaleKey(t *testing.T) {
+	t.Parallel()
+
 	k := ScaleKey{Lo: 1, Hi: 5, Reverse: []int{0, 2}}
 	for _, c := range []struct {
 		v   float64
@@ -133,6 +137,8 @@ func TestScaleKey(t *testing.T) {
 // TestVectorAttributeTypes_ScaleScoreNotFitted: ATTR_SCALE_SCORE is a
 // vector-input attribute but never a fitted one.
 func TestVectorAttributeTypes_ScaleScoreNotFitted(t *testing.T) {
+	t.Parallel()
+
 	if !IsVectorAttribute(types.ATTR_SCALE_SCORE) {
 		t.Error("ATTR_SCALE_SCORE is not a vector-input attribute")
 	}

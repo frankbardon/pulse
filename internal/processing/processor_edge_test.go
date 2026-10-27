@@ -8,6 +8,8 @@ import (
 )
 
 func TestProcessor_EmptyRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10, 20})
@@ -28,6 +30,8 @@ func TestProcessor_EmptyRequest(t *testing.T) {
 }
 
 func TestProcessor_UnknownAggregationType(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10})
@@ -46,6 +50,8 @@ func TestProcessor_UnknownAggregationType(t *testing.T) {
 }
 
 func TestProcessor_UnknownFilterType(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10})
@@ -64,6 +70,8 @@ func TestProcessor_UnknownFilterType(t *testing.T) {
 }
 
 func TestProcessor_UnknownGroupType(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10})
@@ -85,6 +93,8 @@ func TestProcessor_UnknownGroupType(t *testing.T) {
 }
 
 func TestProcessor_UnknownAttributeType(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10})
@@ -103,6 +113,8 @@ func TestProcessor_UnknownAttributeType(t *testing.T) {
 }
 
 func TestProcessor_AggregationWithoutLabel(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10, 20})
@@ -125,6 +137,8 @@ func TestProcessor_AggregationWithoutLabel(t *testing.T) {
 }
 
 func TestProcessor_AttributeWithoutLabel(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10, 20})
@@ -149,6 +163,8 @@ func TestProcessor_AttributeWithoutLabel(t *testing.T) {
 }
 
 func TestProcessor_GroupWithNoAggregations(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "age", []float64{25, 30, 25})
@@ -170,6 +186,8 @@ func TestProcessor_GroupWithNoAggregations(t *testing.T) {
 }
 
 func TestProcessor_FormulaAttributeError(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10})
@@ -188,6 +206,8 @@ func TestProcessor_FormulaAttributeError(t *testing.T) {
 }
 
 func TestProcessor_FilterAllOut(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10, 20, 30})

@@ -98,6 +98,8 @@ func equalFloats(a, b []float64) bool {
 // MarginIndependent: CanFuseCrosstab admits the cell and the fused
 // matrix equals the buffered one.
 func TestCrosstab_ModeCountMarginFromOwnRows(t *testing.T) {
+	t.Parallel()
+
 	schema := modeCountMarginSchema(t)
 	recs := modeCountMarginRecords(schema)
 	req := modeCountMarginRequest(types.AGG_MODE_COUNT, nil)
@@ -120,6 +122,8 @@ func TestCrosstab_ModeCountMarginFromOwnRows(t *testing.T) {
 // equal to one value, so each margin IS the sum of its cells — the
 // MarginSummable class — and the fused arm (admitted) matches buffered.
 func TestCrosstab_FrequencyMarginSumsCells(t *testing.T) {
+	t.Parallel()
+
 	schema := modeCountMarginSchema(t)
 	recs := modeCountMarginRecords(schema)
 	req := modeCountMarginRequest(types.AGG_FREQUENCY, json.RawMessage(`{"value": 3}`))

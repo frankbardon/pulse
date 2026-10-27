@@ -26,6 +26,8 @@ func wantEnvelopeFatal(t *testing.T, err error) {
 // exit; warnings alone, and any non-envelope payload, return nil. The
 // bytes written are the same either way.
 func TestWriteJSON_ExitFollowsTheEnvelope(t *testing.T) {
+	t.Parallel()
+
 	fatal := descriptor.NewEnvelope(nil)
 	fatal.AddError("SERVICE_RESOURCE", "opening cohort file", nil)
 	warnOnly := descriptor.NewEnvelope(map[string]int{"n": 1})
@@ -63,6 +65,8 @@ func TestWriteJSON_ExitFollowsTheEnvelope(t *testing.T) {
 // TestWriteCodedErrorEnvelope_ExitKeepsTheCause: the fatal exit still
 // unwraps to the coded error, so a caller's errors.As reaches the code.
 func TestWriteCodedErrorEnvelope_ExitKeepsTheCause(t *testing.T) {
+	t.Parallel()
+
 	cause := perrors.NewCodedError(perrors.SERVICE_RESOURCE, "opening cohort file")
 	err := writeCodedErrorEnvelope(&bytes.Buffer{}, "PROCESS_ERROR", cause)
 	wantEnvelopeFatal(t, err)
@@ -75,6 +79,8 @@ func TestWriteCodedErrorEnvelope_ExitKeepsTheCause(t *testing.T) {
 // TestExitStatus_Mapping: nil → 0; a plain (text-mode) error → 1 and
 // printed; the envelope-fatal exit → 1 and not printed.
 func TestExitStatus_Mapping(t *testing.T) {
+	t.Parallel()
+
 	if s, p := ExitStatus(nil); s != ExitOK || p {
 		t.Fatalf("nil → (%d, %v)", s, p)
 	}
@@ -88,6 +94,8 @@ func TestExitStatus_Mapping(t *testing.T) {
 // the root, maps a parser refusal to ExitUsage — an undefined flag and a
 // missing required flag alike — and never reaches the Action.
 func TestInstallExitPolicy_UsageIsTwo(t *testing.T) {
+	t.Parallel()
+
 	ran := false
 	for _, args := range [][]string{
 		{"root", "group", "leaf", "--req", "x", "--no-such-flag"},

@@ -87,6 +87,8 @@ func (w *schemaCollectWriter) SetPulseSchema(s *encoding.Schema) { w.schema = s 
 // of a null vector are nil; vec_f32 renders at float32 precision. A
 // label-augment sibling and a projection land on the right columns.
 func TestExport_VectorExpanded(t *testing.T) {
+	t.Parallel()
+
 	fs := writeVecExportCohort(t, vecExportSchema(), vecExportRows())
 
 	w := &collectWriter{}
@@ -134,6 +136,8 @@ func TestExport_VectorExpanded(t *testing.T) {
 // told its position, type, dim and labels — after a label sibling that
 // shifts it.
 func TestExport_VectorListColumns(t *testing.T) {
+	t.Parallel()
+
 	fs := writeVecExportCohort(t, vecExportSchema(), vecExportRows())
 	w := &listCollectWriter{}
 	job := NewExportJob("v.pulse", w)
@@ -172,6 +176,8 @@ func TestExport_VectorListColumns(t *testing.T) {
 // handed the expanded schema, so per-column typing stays aligned; a list
 // writer gets the source schema.
 func TestExport_VectorExpandedSchema(t *testing.T) {
+	t.Parallel()
+
 	fs := writeVecExportCohort(t, vecExportSchema(), vecExportRows())
 	w := &schemaCollectWriter{}
 	job := NewExportJob("v.pulse", w)
@@ -199,6 +205,8 @@ func TestExport_VectorExpandedSchema(t *testing.T) {
 // column has is refused before any header — by Run and by a targeted
 // Predict alike — while a list writer, which does not expand, exports.
 func TestExport_VectorColumnCollision(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "emb_1", Type: encoding.FieldTypeF64},
 		{Name: "emb", Type: encoding.FieldTypeVecF64},
@@ -233,6 +241,8 @@ func TestExport_VectorColumnCollision(t *testing.T) {
 // TestExportPredict_VectorColumns: a targeted predict reports the header
 // the export would write for that target; no target reports none.
 func TestExportPredict_VectorColumns(t *testing.T) {
+	t.Parallel()
+
 	fs := writeVecExportCohort(t, vecExportSchema(), vecExportRows())
 	for _, tc := range []struct {
 		name   string

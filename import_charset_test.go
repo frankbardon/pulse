@@ -56,6 +56,8 @@ func codedImportErr(t *testing.T, err error) *perrors.CodedError {
 // an embedder constructing the reader itself, which neither of those two
 // surfaces does.
 func TestImportSpec_CharsetRescuesUndeclaredSav(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	if err := afero.WriteFile(afs, "legacy.sav", undeclaredCharsetSav(t), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -100,6 +102,8 @@ func TestImportSpec_CharsetRescuesUndeclaredSav(t *testing.T) {
 // opinion about codepages — a CSV import must be byte-identical with and
 // without it, not merely successful.
 func TestImportSpec_CharsetIsInertForNonSPSS(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	body := "id,city\n1,Zurich\n2,Bern\n"
 	if err := afero.WriteFile(afs, "data.csv", []byte(body), 0o644); err != nil {

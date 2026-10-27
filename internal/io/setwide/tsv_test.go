@@ -16,6 +16,8 @@ import (
 // a tab-separated writer that mishandled the pipe-joined form would lose
 // members from the middle of the list while the first and last survived.
 func TestTSV_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "tsv", fs, src, ptsv.NewWriter(fs, "out.tsv"))

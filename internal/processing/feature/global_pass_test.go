@@ -10,6 +10,8 @@ import (
 )
 
 func TestFrequencyEncode_Compute(t *testing.T) {
+	t.Parallel()
+
 	records := []Record{
 		newStringRecord("region", "north"),
 		newStringRecord("region", "north"),
@@ -40,6 +42,8 @@ func TestFrequencyEncode_Compute(t *testing.T) {
 }
 
 func TestFrequencyEncode_NullInput(t *testing.T) {
+	t.Parallel()
+
 	r := newFakeRecord()
 	r.nulls["region"] = true
 	records := []Record{r, newStringRecord("region", "x")}
@@ -56,6 +60,8 @@ func TestFrequencyEncode_NullInput(t *testing.T) {
 }
 
 func TestFrequencyEncode_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	_, err := newFrequencyEncode(&types.Feature{}, nil)
 	if err == nil {
 		t.Error("expected error for missing field")
@@ -63,6 +69,8 @@ func TestFrequencyEncode_RequiresField(t *testing.T) {
 }
 
 func TestTargetEncode_Compute_NoSmoothing(t *testing.T) {
+	t.Parallel()
+
 	// Two categories: north has target values [10, 20] (mean=15);
 	// south has target values [4, 6] (mean=5).
 	mk := func(region string, target float64) Record {
@@ -105,6 +113,8 @@ func TestTargetEncode_Compute_NoSmoothing(t *testing.T) {
 }
 
 func TestTargetEncode_Smoothing(t *testing.T) {
+	t.Parallel()
+
 	mk := func(region string, target float64) Record {
 		r := newStringRecord("region", region)
 		r.num["price"] = target
@@ -133,6 +143,8 @@ func TestTargetEncode_Smoothing(t *testing.T) {
 }
 
 func TestTargetEncode_RequiresParams(t *testing.T) {
+	t.Parallel()
+
 	_, err := newTargetEncode(&types.Feature{Field: "region"}, nil)
 	if err == nil {
 		t.Error("expected error when params missing")
@@ -140,6 +152,8 @@ func TestTargetEncode_RequiresParams(t *testing.T) {
 }
 
 func TestTargetEncode_RequiresTargetInParams(t *testing.T) {
+	t.Parallel()
+
 	_, err := newTargetEncode(&types.Feature{
 		Field:  "region",
 		Params: json.RawMessage(`{}`),
@@ -150,6 +164,8 @@ func TestTargetEncode_RequiresTargetInParams(t *testing.T) {
 }
 
 func TestTargetEncode_RejectsNegativeSmoothing(t *testing.T) {
+	t.Parallel()
+
 	_, err := newTargetEncode(&types.Feature{
 		Field:  "region",
 		Params: json.RawMessage(`{"target":"price","smoothing":-1}`),
@@ -160,6 +176,8 @@ func TestTargetEncode_RejectsNegativeSmoothing(t *testing.T) {
 }
 
 func TestTargetEncode_RejectsCategoricalTarget(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	_, _ = dict.Add("a")
 	schema := &encoding.Schema{
@@ -178,6 +196,8 @@ func TestTargetEncode_RejectsCategoricalTarget(t *testing.T) {
 }
 
 func TestGlobalPassFeatures_Registered(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []types.FeatureType{types.FEAT_FREQUENCY_ENCODE, types.FEAT_TARGET_ENCODE} {
 		if _, ok := Lookup(ft); !ok {
 			t.Errorf("expected %s to be registered", ft)

@@ -15,6 +15,8 @@ import (
 // and their groups; the crosstab form keeps components.crosstab; a
 // payload-only series kind vetoes nothing.
 func TestResolveComputePlan_PriorKindsKeepGroupComponents(t *testing.T) {
+	t.Parallel()
+
 	svc := &Service{}
 	ctx := context.Background()
 	ret := mustResolveReturn(t, &types.Request{Return: &types.Return{Preset: types.ReturnPresetMinimal}})

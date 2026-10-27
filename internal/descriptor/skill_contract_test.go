@@ -56,6 +56,8 @@ var contractPilots = []struct {
 // carries the rendered section in its place, stating the family's
 // facts.
 func TestSkillContract_Pilots(t *testing.T) {
+	t.Parallel()
+
 	families := map[string]bool{}
 	for _, p := range contractPilots {
 		raw, ok := skills.Raw(p.stem)
@@ -96,6 +98,8 @@ func TestSkillContract_Pilots(t *testing.T) {
 // (two renders and two index builds agree), with a lead heading and
 // one fact per line.
 func TestSkillContract_FullRegistryRenders(t *testing.T) {
+	t.Parallel()
+
 	again := buildContractIndex()
 	names := make([]string, 0, len(contractIndex()))
 	for n := range contractIndex() {
@@ -132,18 +136,17 @@ func TestSkillContract_FullRegistryRenders(t *testing.T) {
 }
 
 // renderFacts renders f as renderContractSection would for an indexed
-// name.
+// name. It never writes the shared index: parallel tests read it.
 func renderFacts(f contractFacts, v contractVisibility) string {
-	const probe = "\x00contract-probe"
-	contractIndex()[probe] = f
-	defer delete(contractIndex(), probe)
-	return renderContractSection(probe, nil, v)
+	return renderContractFacts(f, v)
 }
 
 // TestSkillContract_TypesMatchFieldAccept: a tabled slot's line names
 // exactly the codes the shared table raises and admits exactly its
 // accepted types (both sides refuse from internal/fieldaccept).
 func TestSkillContract_TypesMatchFieldAccept(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct{ op, want string }{
 		{"AGG_MEDIAN", "- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`."},
 		{"AGG_SET_UNION", "- Types (`field`): `set_*`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`."},
@@ -177,6 +180,8 @@ func TestSkillContract_TypesMatchFieldAccept(t *testing.T) {
 // vector rule's own set, and every built-in matrix declaration agrees
 // with it.
 func TestSkillContract_MemberTypesMatchVectorRule(t *testing.T) {
+	t.Parallel()
+
 	var rule []string
 	for _, ft := range knownScalarTypes {
 		if vectors.MemberTypeAllowed(ft, types.VectorCoerceBinary) {
@@ -236,6 +241,8 @@ func contractRequest(op, category string) (*types.Request, string, bool) {
 // probability weight and an instance default classes the slot exactly
 // as the rendered contract says.
 func TestSkillContract_WeightMatchesResolver(t *testing.T) {
+	t.Parallel()
+
 	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	outcome := func(req *types.Request, slot string, reqW, def *types.WeightSpec) string {
@@ -299,6 +306,8 @@ func TestSkillContract_WeightMatchesResolver(t *testing.T) {
 // resolver refuses (REG_BAYES_LINEAR) or the operator has no
 // multiplicity slot.
 func TestSkillContract_MultiplicityMatchesResolver(t *testing.T) {
+	t.Parallel()
+
 	def := &types.Multiplicity{Method: types.MultiplicityMethodHolm}
 	for name, f := range contractIndex() {
 		r := RenderContractSection(name)
@@ -349,6 +358,8 @@ func contractBody(op string) string {
 // capability:compose hidden, no hidden weighted twin — while the
 // full-registry render carries each.
 func TestSkillContract_ProfileAware(t *testing.T) {
+	t.Parallel()
+
 	render := func(op string, hide ...string) string {
 		return hidingSnapshot(hide...).Discovery().renderGenerated(contractBody(op))
 	}
@@ -393,6 +404,8 @@ func TestSkillContract_ProfileAware(t *testing.T) {
 // from its registration (accepts, WeightAware, Streamable / Mergeable,
 // ComponentSchema), on the instance's Discovery only.
 func TestSkillContract_ExtensionOperators(t *testing.T) {
+	t.Parallel()
+
 	ext := &ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{
 			{Name: "AGG_ACME_AWARE", Streamable: true, Mergeable: true, WeightAware: true, Accepts: []string{"f64"}},
@@ -446,6 +459,8 @@ func TestSkillContract_ExtensionOperators(t *testing.T) {
 // from its frontmatter operator (E2-S2: no hand-written type, weight,
 // multiplicity, streaming or component boilerplate remains to drift).
 func TestSkillContract_EveryOpSkillCarriesMarker(t *testing.T) {
+	t.Parallel()
+
 	marker := skills.GeneratedMarker(skills.SectionContract)
 	n := 0
 	for _, stem := range skills.Names() {

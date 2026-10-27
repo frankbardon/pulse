@@ -25,6 +25,8 @@ import (
 // optimisation; the behavioural assertion happens in
 // TestCrosstabFused_EquivalenceVsBuffered below.
 func TestCrosstabFused_Dispatch_RoutesEligibleToFused(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -65,6 +67,8 @@ func TestCrosstabFused_Dispatch_RoutesEligibleToFused(t *testing.T) {
 // The fused path can't satisfy median's finalize-time sort, so the
 // gate's rejection is load-bearing.
 func TestCrosstabFused_Dispatch_RoutesIneligibleToBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -103,6 +107,8 @@ func TestCrosstabFused_Dispatch_RoutesIneligibleToBuffered(t *testing.T) {
 // fusion optimisation because byte-equivalence is the load-bearing
 // contract.
 func TestCrosstabFused_EquivalenceVsBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := wideCrosstabSchema(t, 16)
 	records := wideCrosstabRecords(16)
 	cfg := setupTestFS(t, "wide.pulse", schema, records)
@@ -342,6 +348,8 @@ func assertMatrixByteEqual(t *testing.T, buf, fused *types.MatrixPayload) {
 // optimisation: the canonical 1M-row bench numbers depend on this
 // exact shape staying correct.
 func TestCrosstabFused_E2EEquivalence_HugeRequestShape(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	buildReq := func() *types.Request {
 		return &types.Request{
@@ -370,6 +378,8 @@ func TestCrosstabFused_E2EEquivalence_HugeRequestShape(t *testing.T) {
 // summable aggregator — used as the smoke test that the dispatch
 // stays equivalent across cell-aggregator changes.
 func TestCrosstabFused_E2EEquivalence_AggCount(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	buildReq := func() *types.Request {
 		spec := hugeRequestSpec()
@@ -394,6 +404,8 @@ func TestCrosstabFused_E2EEquivalence_AggCount(t *testing.T) {
 // The mirror-axis path is symmetric in code with the canonical path;
 // regressing one path without the other should surface here.
 func TestCrosstabFused_E2EEquivalence_NormalizeColumnWithin0(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	buildReq := func() *types.Request {
 		spec := hugeRequestSpec()
@@ -418,6 +430,8 @@ func TestCrosstabFused_E2EEquivalence_NormalizeColumnWithin0(t *testing.T) {
 // Both paths must emit the same multiset of rows (canonical sort key
 // comparison handles map-iteration nondeterminism).
 func TestCrosstabFused_E2EEquivalence_LongShape(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	buildReq := func() *types.Request {
 		spec := hugeRequestSpec()
@@ -462,6 +476,8 @@ func TestCrosstabFused_E2EEquivalence_LongShape(t *testing.T) {
 // and fused paths historically drifted; covering it here keeps the
 // regression net wide.
 func TestCrosstabFused_E2EEquivalence_NormalizeLevelNestedRow(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	zero := 0
 	buildReq := func() *types.Request {
@@ -498,6 +514,8 @@ func TestCrosstabFused_E2EEquivalence_NormalizeLevelNestedRow(t *testing.T) {
 // declines the right requests AND the buffered fallback keeps
 // working when the gate declines.
 func TestCrosstabFused_E2EEquivalence_NonFusableAggMedian(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	buildReq := func() *types.Request {
 		return &types.Request{
@@ -542,6 +560,8 @@ func TestCrosstabFused_E2EEquivalence_NonFusableAggMedian(t *testing.T) {
 // fused-default execution (which fell back to the same buffered
 // code path).
 func TestCrosstabFused_E2EEquivalence_NonFusableWithTests(t *testing.T) {
+	t.Parallel()
+
 	cfg, schema := setupHugeRequestCohort(t)
 	buildReq := func() *types.Request {
 		return &types.Request{
@@ -618,6 +638,8 @@ func canonicaliseDataRows(t *testing.T, rows []map[string]any) []string {
 // must carry the same Response.Overlays / Response.Warnings the
 // buffered service produces for the identical request.
 func TestCrosstabFused_OverlaysRouteFusedAndMatchBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -745,6 +767,8 @@ func weightedCrosstabRecords() [][]uint64 {
 // load-bearing — without it the two Process calls would both be buffered
 // and the parity check would be vacuous.
 func TestCrosstabFused_PairwisePropZOverWeightedMeanEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedCrosstabSchema()
 	cfg := setupTestFS(t, "wm.pulse", schema, weightedCrosstabRecords())
 	ctx := context.Background()

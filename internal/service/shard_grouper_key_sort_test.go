@@ -16,6 +16,8 @@ import (
 // reducer (the shared FinalizeGroupedStream tail) answers in exactly the
 // order the serial arm does, ascending and descending.
 func TestShardWorkers_SortOnGrouperKeyFollowsKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	shards := parityShards()
 	files := map[string][]byte{}
 	var names []string

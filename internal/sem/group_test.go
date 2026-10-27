@@ -133,6 +133,8 @@ var lavaanGroupCases = []struct{ name, data, model string }{
 // chi-squares and the joint fit measures — under both derivative
 // computations and both solvers.
 func TestSEM_MultiGroupMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range lavaanGroupCases {
 		ref := loadLavaanGroupRef(t, "testdata/"+c.name+"_lavaan.json")
 		desc, err := os.ReadFile("testdata/" + c.model + "_model.txt")
@@ -204,6 +206,8 @@ func TestSEM_MultiGroupMatchesLavaan(t *testing.T) {
 // parameter is one value in every group (lavaan's reading), an
 // unlabelled one is free per group.
 func TestSEM_MultiGroupSharedLabel(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_mgmis_model.txt")
 	if err != nil {
 		t.Fatal(err)

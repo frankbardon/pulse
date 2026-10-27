@@ -11,6 +11,8 @@ import (
 )
 
 func TestShardArchiveSampleGlobalOffsetLimit(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -112,6 +114,8 @@ func TestShardArchiveSampleGlobalOffsetLimit(t *testing.T) {
 // scanIterator dispatch leaves single-file cohorts on the
 // streamingIterator branch.
 func TestShardArchiveSample_SingleFileUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -137,6 +141,8 @@ func TestShardArchiveSample_SingleFileUnchanged(t *testing.T) {
 // (which is the union of every shard's dict thanks to the append-only
 // prefix rule enforced at insert time). No record streaming is needed.
 func TestShardArchiveFacet_CategoricalUsesCanonicalDict(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"red", "green", "blue", "yellow"} {
 		if _, err := dict.Add(v); err != nil {
@@ -195,6 +201,8 @@ func TestShardArchiveFacet_CategoricalUsesCanonicalDict(t *testing.T) {
 // (no dictionary fast path) walks the union of all shards and returns
 // distinct float values across the whole archive.
 func TestShardArchiveFacet_NumericUnion(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -215,6 +223,8 @@ func TestShardArchiveFacet_NumericUnion(t *testing.T) {
 }
 
 func TestShardArchiveFacet_SingleFileUnchanged(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"red", "green", "blue"} {
 		dict.Add(v)
@@ -243,6 +253,8 @@ func TestShardArchiveFacet_SingleFileUnchanged(t *testing.T) {
 }
 
 func TestShardArchiveFacetSchemaMatches(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -371,6 +383,8 @@ func TestShardArchiveFacetSchemaMatches(t *testing.T) {
 // path accumulates discrete value counts across the union of shards
 // identically to the concatenated single-file equivalent.
 func TestShardArchiveFacetSchema_CategoricalCounts(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"red", "green", "blue"} {
 		if _, err := dict.Add(v); err != nil {
@@ -448,6 +462,8 @@ func TestShardArchiveFacetSchema_CategoricalCounts(t *testing.T) {
 // TestShardArchiveFacetSchema_SingleFileUnchanged confirms single-file
 // FacetSchema results are unaffected by the newScanIter dispatch.
 func TestShardArchiveFacetSchema_SingleFileUnchanged(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 
 	req := &types.FacetRequest{

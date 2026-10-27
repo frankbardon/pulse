@@ -87,6 +87,8 @@ func wireTree(t *testing.T, resp *types.Response) map[string]any {
 // figures are written exactly as the unshaped run writes them, while
 // the same constant from an undeclared extension rounds.
 func TestExtensions_CountSemanticExactUnderPrecision(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := cvPulse(t, pulse.Limits{})
 	ctx := context.Background()
 	rows := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}
@@ -156,6 +158,8 @@ func TestExtensions_CountSemanticExactUnderPrecision(t *testing.T) {
 // pulse.New with PULSE_EXTENSION_PARAM_INVALID, reason
 // count_semantic_vector_input; on a single-field aggregator it passes.
 func TestExtensions_CountSemanticVectorRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name               string
 		vector, arrayValue bool
@@ -166,6 +170,8 @@ func TestExtensions_CountSemanticVectorRefused(t *testing.T) {
 		{"single field", false, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := cvRegistration(aggCvCount)
 			r.CountSemantic, r.VectorInput, r.ArrayValued = true, tc.vector, tc.arrayValue
 			_, err := pulse.New(newTestOptions(pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{r}}))
@@ -188,6 +194,8 @@ func TestExtensions_CountSemanticVectorRefused(t *testing.T) {
 // TestExtensions_CountSemanticValueStateInManifest: both declarations
 // project onto the manifest's extensions block (omitted when false).
 func TestExtensions_CountSemanticValueStateInManifest(t *testing.T) {
+	t.Parallel()
+
 	p, _ := cvPulse(t, pulse.Limits{})
 	got := map[string][2]bool{}
 	for _, a := range p.Manifest(context.Background()).Extensions.Aggregators {
@@ -213,6 +221,8 @@ func TestExtensions_CountSemanticValueStateInManifest(t *testing.T) {
 // estimates themselves differ by the bucket state; the value-state
 // share is compared.)
 func TestExtensions_ValueStateMemoryEstimate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	arms := map[string]func(cohort string, at types.AggregationType) *types.Request{
 		"streaming": func(cohort string, at types.AggregationType) *types.Request {

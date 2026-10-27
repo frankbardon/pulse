@@ -28,6 +28,8 @@ import (
 // parses the same versioned block, so it carries the same obligation
 // and is walked alike.
 func TestReadSchemaCallersThreadHeaderVersion(t *testing.T) {
+	t.Parallel()
+
 	schemaReaders := map[string]bool{"ReadSchema": true, "ReadSchemaLayout": true}
 	fset := token.NewFileSet()
 	var offenders []string

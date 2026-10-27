@@ -54,6 +54,8 @@ func rungFixture(t *testing.T, seedRung, addRung encoding.FieldType) (*Service, 
 // cohesion refused it outright and the only way forward was a full
 // re-import of every prior period. Now the archive widens to meet it.
 func TestAddShard_IncomingWiderRungWidensArchive(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := rungFixture(t, encoding.FieldTypeSetU8, encoding.FieldTypeSetU64)
 	ctx := context.Background()
 
@@ -117,6 +119,8 @@ func TestAddShard_IncomingWiderRungWidensArchive(t *testing.T) {
 // A wider incoming rung is an archive-wide rewrite and so carries the
 // same MANDATORY warning a dictionary overflow does.
 func TestAddShard_IncomingWiderRungEmitsMandatoryWarning(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := rungFixture(t, encoding.FieldTypeSetU8, encoding.FieldTypeSetU64)
 
 	res, err := svc.AddShard(context.Background(), "arch.pulse", "add.pulse")
@@ -147,6 +151,8 @@ func TestAddShard_IncomingWiderRungEmitsMandatoryWarning(t *testing.T) {
 // every selection above the target's ceiling, silently. The arriving
 // shard is promoted to the archive's rung instead.
 func TestAddShard_IncomingNarrowerRungNeverNarrowsTheArchive(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := rungFixture(t, encoding.FieldTypeSetU64, encoding.FieldTypeSetU8)
 	ctx := context.Background()
 
@@ -199,6 +205,8 @@ func TestAddShard_IncomingNarrowerRungNeverNarrowsTheArchive(t *testing.T) {
 // compose: the target is the narrowest rung that holds the union, which
 // may be wider than either side declared.
 func TestAddShard_RungDivergencePlusDictOverflowWidensToFit(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -261,6 +269,8 @@ func TestAddShard_RungDivergencePlusDictOverflowWidensToFit(t *testing.T) {
 // Structural cohesion stays strict for everything else. Only the set
 // rung relaxes.
 func TestAddShard_StructuralCohesionStaysStrictOffTheRungDimension(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("a diverging field name is still fatal", func(t *testing.T) {
@@ -313,6 +323,8 @@ func TestAddShard_StructuralCohesionStaysStrictOffTheRungDimension(t *testing.T)
 // A union past set_u256 has nowhere to widen to and stays fatal even
 // when the rungs also diverge.
 func TestAddShard_RungDivergenceAboveWidestRungStaysFatal(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -357,6 +369,8 @@ func TestAddShard_RungDivergenceAboveWidestRungStaysFatal(t *testing.T) {
 // A rung-divergence widen must leave the archive verifiable: every
 // shard at one rung, cohesion clean.
 func TestAddShard_RungWidenedArchiveVerifiesClean(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := rungFixture(t, encoding.FieldTypeSetU8, encoding.FieldTypeSetU64)
 	ctx := context.Background()
 	if _, err := svc.AddShard(ctx, "arch.pulse", "add.pulse"); err != nil {
@@ -451,6 +465,8 @@ func writeOffsetSkewedShard(t *testing.T, ft encoding.FieldType, values []string
 // stored shard decodes under the canonical schema exactly as written.
 // (It used to be refused: a legacy cohort could not join an archive.)
 func TestAddShard_DivergentStoredByteOffsetIsAdmitted(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)

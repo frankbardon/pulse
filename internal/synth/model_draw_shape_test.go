@@ -178,6 +178,8 @@ func assertConditioningApplied(t *testing.T, values []float64, levels []string) 
 // read as a partial failure rather than as the whole feature being
 // gone.
 func TestSynthModel_ShapeFittedTargetKeepsShapeAndGainsConditioning(t *testing.T) {
+	t.Parallel()
+
 	const rows = 8000
 	spec := shapeCondSpec(rows, true)
 
@@ -205,6 +207,8 @@ func TestSynthModel_ShapeFittedTargetKeepsShapeAndGainsConditioning(t *testing.T
 // (--fit-shape)", so a conditional pair naming it is still excluded with
 // that exact wording.
 func TestSynthModel_ShapeFittedWithoutModelIsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	const rows = 8000
 	spec := shapeCondSpec(rows, false)
 	spec.CategoricalNumericPairs = []synth.CategoricalNumericPairSpec{{
@@ -249,6 +253,8 @@ func TestSynthModel_ShapeFittedWithoutModelIsUnchanged(t *testing.T) {
 // tolerance. Seed sensitivity is asserted alongside it, so a construction
 // that became constant would not pass by accident.
 func TestSynthModel_ShapeFittedDrawIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	first, _, err := synth.SynthBytes(shapeCondSpec(2000, true), synth.Options{Seed: 603})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -285,6 +291,8 @@ func TestSynthModel_ShapeFittedDrawIsByteIdentical(t *testing.T) {
 // translation time and the regenerated cohort carried no relationship
 // to `region` at all.
 func TestSynthModel_ShapeFitRoundTripKeepsBothHalves(t *testing.T) {
+	t.Parallel()
+
 	source := &synth.Spec{
 		RowCount: 6000,
 		Fields: []synth.FieldSpec{

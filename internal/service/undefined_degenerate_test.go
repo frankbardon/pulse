@@ -106,6 +106,8 @@ func sameFigure(got, want float64) bool {
 // parallel-decode arms, unweighted and (weight-aware operators) under a
 // request frequency weight.
 func TestUndefinedFigures_DegenerateIsNull(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "degen", degenRows)
 	sources := []*paritySource{nil}
 	for _, s := range paritySources() {
@@ -177,6 +179,8 @@ func TestUndefinedFigures_DegenerateIsNull(t *testing.T) {
 // component is undefined at Σw ≤ 1 too — on every arm the request
 // reaches.
 func TestUndefinedFigures_SampleVarianceIsNull(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "degenvar", degenRows)
 	var freq *paritySource
 	for _, s := range paritySources() {
@@ -257,6 +261,8 @@ func TestUndefinedFigures_SampleVarianceIsNull(t *testing.T) {
 // zero spread and in the row margin of a zero-spread row, while a
 // mixed margin stays a number.
 func TestUndefinedFigures_DegenerateCrosstabCellAndMargin(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "degenct", degenRows)
 	for _, weighted := range []bool{false, true} {
 		t.Run(fmt.Sprint("weighted=", weighted), func(t *testing.T) {
@@ -316,6 +322,8 @@ func TestUndefinedFigures_DegenerateCrosstabCellAndMargin(t *testing.T) {
 // while every other pair scores. Predict accepts the request on both
 // (no new refusal: predict reads no value).
 func TestUndefinedFigures_PairwiseWelfordLegUndefined(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "degenpw", degenRows)
 	for _, kind := range []types.OverlayKind{types.OverlayKindPairwiseWelchT, types.OverlayKindPairwiseTwoMeansZ} {
 		for _, weighted := range []bool{false, true} {

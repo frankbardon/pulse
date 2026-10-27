@@ -48,6 +48,8 @@ func synthesise(t *testing.T, fields ...encoding.Field) *DictionaryPlan {
 // place. SPSS has exactly two storage types, so every row lands on a numeric
 // or a string and the format code is what carries the rest of the meaning.
 func TestSynthesise_TypeMapping(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name      string
 		field     encoding.Field
@@ -80,6 +82,8 @@ func TestSynthesise_TypeMapping(t *testing.T) {
 			0, Format{Code: fmtDATETIME, Width: 20}, measureScale, EncodeDateTimeSeconds},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			plan := synthesise(t, tc.field)
 			col := planColumn(t, plan, tc.field.Name)
 			if col.Width != tc.wantWidth {
@@ -114,6 +118,8 @@ func TestSynthesise_TypeMapping(t *testing.T) {
 // two temporal types: an emitted DATE must come back as a `date` and an
 // emitted DATETIME as a `datetime`, or the type has been quietly widened.
 func TestSynthesise_TemporalFormatsSurviveTheRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t,
 		encoding.Field{Name: "JOINED", Type: encoding.FieldTypeDate},
 		encoding.Field{Name: "SEEN", Type: encoding.FieldTypeDateTime},
@@ -146,6 +152,8 @@ func TestSynthesise_TemporalFormatsSurviveTheRoundTrip(t *testing.T) {
 // addresses values, so `IF region EQ 1` would then mean whatever happened to
 // sort first at import time.
 func TestSynthesise_CategoricalBecomesAStringNeverInventedCodes(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t, encoding.Field{
 		Name: "REGION", Type: encoding.FieldTypeCategoricalU16,
 		Dictionary: dictOf(t, "north", "south", "east-midlands"),
@@ -196,6 +204,8 @@ func TestSynthesise_CategoricalBecomesAStringNeverInventedCodes(t *testing.T) {
 // quiet degradation the fidelity mandate rules out. The ceilings are
 // separate because the format types are.
 func TestSynthesise_StringFormatWidthIsNotTheNumericCeiling(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t, encoding.Field{
 		Name: "NOTE", Type: encoding.FieldTypeCategoricalU8,
 		Dictionary: dictOf(t, strings.Repeat("n", 100)),
@@ -214,6 +224,8 @@ func TestSynthesise_StringFormatWidthIsNotTheNumericCeiling(t *testing.T) {
 // truncated. Truncating a value is the one outcome the fidelity mandate
 // rules out entirely.
 func TestSynthesise_WideDictionaryEntriesSegment(t *testing.T) {
+	t.Parallel()
+
 	long := strings.Repeat("x", 600)
 	plan := synthesise(t, encoding.Field{
 		Name: "NOTES", Type: encoding.FieldTypeCategoricalU8,
@@ -314,6 +326,8 @@ func physicalRecords(t *testing.T, b []byte) []format {
 // from its members' names — so entry order is bit order is member order and
 // the mask round-trips.
 func TestSynthesise_SetExpandsToDichotomyMembers(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t, encoding.Field{
 		Name: "media", Type: encoding.FieldTypeSetU8,
 		Dictionary: dictOf(t, "tv", "radio", "web"), Description: "Media consumed",
@@ -369,6 +383,8 @@ func TestSynthesise_SetExpandsToDichotomyMembers(t *testing.T) {
 // 255-byte variable-label limit loses the set half, never the option, and is
 // cut on a rune boundary.
 func TestSynthesise_SetIndicatorsCarryAVariableLabel(t *testing.T) {
+	t.Parallel()
+
 	long := strings.Repeat("é", 200) // 400 bytes
 	plan := synthesise(t,
 		encoding.Field{Name: "media", Type: encoding.FieldTypeSetU8,
@@ -399,6 +415,8 @@ func TestSynthesise_SetIndicatorsCarryAVariableLabel(t *testing.T) {
 // TestIndicatorLabel_DropsTrailingPeriod: a sentence-style set description
 // does not double its period against the ": " separator.
 func TestIndicatorLabel_DropsTrailingPeriod(t *testing.T) {
+	t.Parallel()
+
 	for in, want := range map[string]string{
 		"Aided-aware respondents.":  "Aided-aware respondents: Good value",
 		"Aided-aware respondents. ": "Aided-aware respondents: Good value",
@@ -414,6 +432,8 @@ func TestIndicatorLabel_DropsTrailingPeriod(t *testing.T) {
 // dictionary has no member for a response set to name, and there is no
 // honest thing to emit.
 func TestSynthesise_SetWithNoDictionaryIsRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := BuildDictionary(DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{
 			{Name: "media", Type: encoding.FieldTypeSetU8, Dictionary: encoding.NewDictionary()},
@@ -438,6 +458,8 @@ func TestSynthesise_SetWithNoDictionaryIsRefused(t *testing.T) {
 // that changes a field's name has broken every request referencing it, so a
 // long name is emitted whenever the two differ at all — case included.
 func TestSynthesise_NamesAreMintedAndTheRealNameSurvives(t *testing.T) {
+	t.Parallel()
+
 	fields := []encoding.Field{
 		{Name: "age", Type: encoding.FieldTypeU8},
 		{Name: "household.income", Type: encoding.FieldTypeF64},
@@ -499,6 +521,8 @@ func TestSynthesise_NamesAreMintedAndTheRealNameSurvives(t *testing.T) {
 // the generic "cannot be expressed" code. dict_names_test.go owns the rule
 // itself; this checks that the synthesis front-end is behind it.
 func TestSynthesise_UnrepresentableNamesAreRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		field string
@@ -510,6 +534,8 @@ func TestSynthesise_UnrepresentableNamesAreRefused(t *testing.T) {
 		{"past the 64-byte SPSS name ceiling", strings.Repeat("a", 65)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := BuildDictionary(DictionaryRequest{
 				Schema: &encoding.Schema{Fields: []encoding.Field{{Name: tc.field, Type: encoding.FieldTypeF64}}},
 				Cases:  0,
@@ -530,6 +556,8 @@ func TestSynthesise_UnrepresentableNamesAreRefused(t *testing.T) {
 // it is a refusal rather than a rename. A silent rename would be the quiet
 // kind of wrong the whole effort exists to avoid.
 func TestSynthesise_CollidingFinalNamesAreRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := BuildDictionary(DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{
 			{Name: "tv", Type: encoding.FieldTypeU8},
@@ -549,6 +577,8 @@ func TestSynthesise_CollidingFinalNamesAreRefused(t *testing.T) {
 // TestSynthesise_MixedCohortOpens is the acceptance criterion in one shot: a
 // cohort that was never SPSS-derived produces a dictionary that parses.
 func TestSynthesise_MixedCohortOpens(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t,
 		encoding.Field{Name: "respondent_id", Type: encoding.FieldTypeU32, Description: "Respondent identifier"},
 		encoding.Field{Name: "age", Type: encoding.FieldTypeU8, Nullable: true},
@@ -581,6 +611,8 @@ func TestSynthesise_MixedCohortOpens(t *testing.T) {
 // occupies several elements, so the variable after it does not have its
 // ordinal position as its index.
 func TestSynthesise_ElementIndicesCountElementsNotVariables(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t,
 		encoding.Field{Name: "ID", Type: encoding.FieldTypeU32},
 		encoding.Field{Name: "NOTE", Type: encoding.FieldTypeCategoricalU8,
@@ -603,6 +635,8 @@ func TestSynthesise_ElementIndicesCountElementsNotVariables(t *testing.T) {
 // field described, so the round trip draws no
 // PULSE_FIELD_DESCRIPTION_LOW_QUALITY finding for the indicators.
 func TestRoundTrip_SetIndicatorsReimportDescribed(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDictionary()
 	for _, e := range []string{"tv", "radio"} {
 		if _, err := d.Add(e); err != nil {

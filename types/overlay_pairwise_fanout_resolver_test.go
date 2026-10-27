@@ -16,6 +16,8 @@ import "testing"
 // fan out and a name nobody registered both read false there, and only
 // the second may fall through to an embedder registration.
 func TestResolveBuiltinGroupFanOut_ThreeWay(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		t         GroupType
@@ -45,6 +47,8 @@ func TestResolveBuiltinGroupFanOut_ThreeWay(t *testing.T) {
 // answer must be exactly GroupType.FansOut(). A built-in that fell out
 // of the set would silently become "resolvable by extension only".
 func TestResolveBuiltinGroupFanOut_CoversEveryBuiltin(t *testing.T) {
+	t.Parallel()
+
 	for _, g := range AllGroupTypes() {
 		fan, known := ResolveBuiltinGroupFanOut(g)
 		if !known {
@@ -66,6 +70,8 @@ func extGroup(name, field string) *Group {
 // resolution order over the offending shape — flat OUTER, custom
 // INNER, n_within_depth=0, so the inner dim is summed across.
 func TestCheckPairwiseSlabPartitionWith_ExtensionResolver(t *testing.T) {
+	t.Parallel()
+
 	const custom = "GROUP_ACME_PANEL_X"
 	rows := []*Group{{Type: GROUP_CATEGORY, Field: "segment"}, extGroup(custom, "panel")}
 	cols := []*Group{{Type: GROUP_CATEGORY, Field: "wave"}}
@@ -120,6 +126,8 @@ func TestCheckPairwiseSlabPartitionWith_ExtensionResolver(t *testing.T) {
 // built-in-first branch an over-broad adapter would silently retune
 // the gate for the whole built-in catalog.
 func TestCheckPairwiseSlabPartitionWith_BuiltinWinsOverResolver(t *testing.T) {
+	t.Parallel()
+
 	params := PairwiseOverlayParams{NSource: PairwiseNSourceNWithinDistinct, NWithinDepth: 0}
 	cols := []*Group{{Type: GROUP_CATEGORY, Field: "wave"}}
 
@@ -143,6 +151,8 @@ func TestCheckPairwiseSlabPartitionWith_BuiltinWinsOverResolver(t *testing.T) {
 // fixed prefix it multiplies slabs, and on the opposite axis the slab
 // never sums across it. Both would be false refusals.
 func TestCheckPairwiseSlabPartitionWith_ExtensionInPrefixRuns(t *testing.T) {
+	t.Parallel()
+
 	const custom = "GROUP_ACME_PANEL_X"
 	fanOut := func(GroupType) (bool, bool) { return true, true }
 	flat := &Group{Type: GROUP_CATEGORY, Field: "segment"}

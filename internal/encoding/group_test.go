@@ -162,6 +162,8 @@ func recordRegion(t *testing.T, data []byte) (*encoding.Schema, []byte) {
 // region — so every decoder that runs over it is running over exactly
 // the bytes it runs over for 0x01.
 func TestGroupedCohort_LogicalStreamIsTheFlatRecordRegion(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range groupFixtures(t) {
 		t.Run(fx.name, func(t *testing.T) {
 			flat := flatCohort(t, fx.schema, fx.rows)
@@ -196,6 +198,8 @@ func TestGroupedCohort_LogicalStreamIsTheFlatRecordRegion(t *testing.T) {
 // the 0x02 cohort, and compares each record with the same path over the
 // 0x01 twin.
 func TestGroupedCohort_EveryDecodePathMatchesFlat(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 32, 0)
 	for _, fx := range groupFixtures(t) {
 		t.Run(fx.name, func(t *testing.T) {
@@ -310,6 +314,8 @@ func TestGroupedCohort_EveryDecodePathMatchesFlat(t *testing.T) {
 // the reduced stride, the narrowed bitmap (absent when every nullable
 // field is a member), and the count derived from file length.
 func TestGroupedSchema_StrideBitmapAndCount(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range groupFixtures(t) {
 		t.Run(fx.name, func(t *testing.T) {
 			flat := flatCohort(t, fx.schema, fx.rows)
@@ -370,6 +376,8 @@ func TestGroupedSchema_StrideBitmapAndCount(t *testing.T) {
 // descriptor field back: kinds, members, key flags, entries, entry
 // widths and counts, and each member's own Dictionary untouched.
 func TestGroupDescriptor_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	flat := flatCohort(t, fx.schema, fx.rows)
 	_, gs := groupedTwin(t, flat, fx.specs)
@@ -410,6 +418,8 @@ func TestGroupDescriptor_RoundTrip(t *testing.T) {
 // TestGroupDescriptor_WireLayout pins the extension bytes of a minimal
 // grouped schema, field by field.
 func TestGroupDescriptor_WireLayout(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},
@@ -489,6 +499,8 @@ func withExtension(prefix []byte, payload []byte) []byte {
 // refused; an unknown optional one is skipped; reserved bits and
 // malformed groups are refused.
 func TestGroupDescriptor_ForwardCompat(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{{Name: "a", Type: encoding.FieldTypeU8}, {Name: "b", Type: encoding.FieldTypeU8}}}
 	prefix := extensionAt(t, s)
 	groups := func(g ...byte) []byte {
@@ -539,6 +551,8 @@ func TestGroupDescriptor_ForwardCompat(t *testing.T) {
 
 // TestGroupShape_Rejected: schema-level validation on write.
 func TestGroupShape_Rejected(t *testing.T) {
+	t.Parallel()
+
 	f := []encoding.Field{{Name: "a", Type: encoding.FieldTypeU8}, {Name: "b", Type: encoding.FieldTypeU8}}
 	cases := map[string][]encoding.Group{
 		"field_in_two_groups":  {{Members: []encoding.GroupMember{{Field: 0}}, Entries: []byte{1}}, {Members: []encoding.GroupMember{{Field: 0}}, Entries: []byte{1}}},
@@ -561,6 +575,8 @@ func TestGroupShape_Rejected(t *testing.T) {
 // dictionary is ENCODING_INVALID on every decode path, never a panic or
 // a silent zero.
 func TestGroupedDecode_IndexOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "a", Type: encoding.FieldTypeU8}, {Name: "c", Type: encoding.FieldTypeU8}},
 		Groups: []encoding.Group{{Members: []encoding.GroupMember{{Field: 0}}, Entries: []byte{7}}},
@@ -582,6 +598,8 @@ func TestGroupedDecode_IndexOutOfRange(t *testing.T) {
 // disagrees, a constant group that changes, and index-space exhaustion
 // are coded errors naming the field and row.
 func TestGroupEncoder_Violations(t *testing.T) {
+	// serial: lowers the process-wide encoding.MaxGroupEntries ceiling
+
 	flat := &encoding.Schema{Fields: []encoding.Field{{Name: "k", Type: encoding.FieldTypeU8}, {Name: "p", Type: encoding.FieldTypeU8}, {Name: "c", Type: encoding.FieldTypeU8}}}
 	rows := [][]byte{{1, 10, 0}, {2, 20, 0}, {1, 11, 0}}
 
@@ -650,6 +668,8 @@ func TestGroupEncoder_Violations(t *testing.T) {
 // — DecodeGroupEntry writes exactly the members' values/nulls, and the
 // reader reports the row's entry index.
 func TestGroupEntryAccessors(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	flat := flatCohort(t, fx.schema, fx.rows)
 	grouped, gs := groupedTwin(t, flat, fx.specs)
@@ -692,6 +712,8 @@ func TestGroupEntryAccessors(t *testing.T) {
 // TestRefuseGroups_ByteLevelRewriters: paths that rewrite physical row
 // bytes by logical offsets refuse a grouped cohort loudly.
 func TestRefuseGroups_ByteLevelRewriters(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	grouped, gs := groupedTwin(t, flatCohort(t, fx.schema, fx.rows), fx.specs)
 	if _, _, err := WidenSetFieldBytes(grouped, "tags_u8", encoding.FieldTypeSetU16); !errors.HasCode(err, errors.ENCODING_INVALID) {

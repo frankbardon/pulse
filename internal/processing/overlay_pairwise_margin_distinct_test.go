@@ -71,6 +71,8 @@ func pairwiseMarginDistinctHost() *CrosstabHostView {
 // respondent base; summing the row's per-cell distinct counts is not,
 // because the fan-out column axis puts respondent 101 in both cells.
 func TestPairwiseMarginDistinctN_ExactWhereCellSumOverCounts(t *testing.T) {
+	t.Parallel()
+
 	host := pairwiseMarginDistinctHost()
 
 	// The naive alternative, computed here rather than borrowed from
@@ -124,6 +126,8 @@ func TestPairwiseMarginDistinctN_ExactWhereCellSumOverCounts(t *testing.T) {
 // bounds-checked posture the record-count twins already have, plus the
 // key probe over BOTH admitted spellings.
 func TestPairwiseMarginDistinctN_Accessors(t *testing.T) {
+	t.Parallel()
+
 	host := pairwiseMarginDistinctHost()
 
 	if n, ok := host.ColumnMarginDistinctN(1); !ok || n != 3 {
@@ -189,6 +193,8 @@ func TestPairwiseMarginDistinctN_Accessors(t *testing.T) {
 // modes through applyOverlays and checks the p-values against an
 // independent pooled two-proportion z on the legs the margins name.
 func TestOverlayPairwise_MarginDistinctLegsReachTheKernel(t *testing.T) {
+	t.Parallel()
+
 	host := pairwiseMarginDistinctHost()
 
 	run := func(nSource string) float64 {
@@ -264,6 +270,8 @@ func TestOverlayPairwise_MarginDistinctLegsReachTheKernel(t *testing.T) {
 // was off, or components were built without margins) must skip every
 // pair with the aggregated warning, never compute against n=0.
 func TestOverlayPairwise_MarginDistinctMissingEntrySkips(t *testing.T) {
+	t.Parallel()
+
 	full := pairwiseMarginDistinctHost()
 	stripped := newCrosstabHostViewWithComponents(full.Payload(), &types.CrosstabComponents{
 		CellCounts:     full.Components().CellCounts,
@@ -317,6 +325,8 @@ func TestOverlayPairwise_MarginDistinctMissingEntrySkips(t *testing.T) {
 // VALUES of the measure field; its MARGIN slot spells it the same way,
 // so a key-presence read would report answer codes as a respondent base.
 func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
+	t.Parallel()
+
 	freq := newCrosstabHostViewWithComponents(
 		&types.MatrixPayload{
 			RowHeader:  types.AxisHeader{Fields: []string{"segment"}},

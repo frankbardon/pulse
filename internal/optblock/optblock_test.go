@@ -54,6 +54,8 @@ func validBlock() types.OptimizeSpec {
 // TestOptimize_RefusalsTable: every rule refuses with its code, reason
 // and the optimize-rooted field, and the first fault wins.
 func TestOptimize_RefusalsTable(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		edit   func(s *types.OptimizeSpec)
@@ -138,6 +140,8 @@ func TestOptimize_RefusalsTable(t *testing.T) {
 // TestOptimize_BlockNames: a missing or repeated block name is refused at
 // the second block, located by its index.
 func TestOptimize_BlockNames(t *testing.T) {
+	t.Parallel()
+
 	a, b := validBlock(), validBlock()
 	cerr := optblock.Check([]types.OptimizeSpec{a, b}, testEnv())
 	if cerr == nil || cerr.Code != errors.PULSE_OPTIMIZE_SPEC_INVALID || cerr.Details["reason"] != optblock.ReasonNameDuplicate || cerr.Details["optimize"] != 1 {
@@ -154,6 +158,8 @@ func TestOptimize_BlockNames(t *testing.T) {
 // TestOptimize_UnknownIdentifierNamesTheVariables: the refusal names the
 // offending identifier and lists the variables in reach.
 func TestOptimize_UnknownIdentifierNamesTheVariables(t *testing.T) {
+	t.Parallel()
+
 	spec := validBlock()
 	spec.Objective = "p + spend"
 	cerr := optblock.Check([]types.OptimizeSpec{spec}, testEnv())
@@ -170,6 +176,8 @@ func TestOptimize_UnknownIdentifierNamesTheVariables(t *testing.T) {
 // lookup() compile when the env declares them, and only then; a variable
 // may not take an embedder function's name.
 func TestOptimize_ExtensionsAndLookupInReach(t *testing.T) {
+	t.Parallel()
+
 	spec := validBlock()
 	spec.Objective = `boost(p) + lookup("t", "k")`
 	if cerr := optblock.Check([]types.OptimizeSpec{spec}, testEnv()); cerr == nil {
@@ -192,6 +200,8 @@ func TestOptimize_ExtensionsAndLookupInReach(t *testing.T) {
 // compiled objective and constraint evaluate per iterate over Vars,
 // the params folded.
 func TestOptimize_CompileResolvesAndEvaluates(t *testing.T) {
+	t.Parallel()
+
 	spec := validBlock()
 	spec.Objective = "p * q + params.budget"
 	env := testEnv()
@@ -227,6 +237,8 @@ func TestOptimize_CompileResolvesAndEvaluates(t *testing.T) {
 // derived from the block alone — stable, independent of rng_seed, moved
 // by any other change.
 func TestOptimize_EffectiveSeed(t *testing.T) {
+	t.Parallel()
+
 	spec := validBlock()
 	derived := optblock.EffectiveSeed(&spec)
 	if derived == 0 || derived != optblock.EffectiveSeed(&spec) {

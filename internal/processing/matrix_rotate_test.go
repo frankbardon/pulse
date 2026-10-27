@@ -153,6 +153,8 @@ func rotNearRowsTol(t *testing.T, tol float64, where string, got, want [][]float
 // and signs still exact. At least half the GPA runs must be insensitive,
 // so the last-digit comparison is the rule, not the exception.
 func TestRotation_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rotationCase](t, "mv_rotation")
 	if len(doc.Cases) == 0 {
 		t.Fatal("oracle has no cases")
@@ -253,6 +255,8 @@ func TestRotation_MatchesROracle(t *testing.T) {
 // non-negative, and, for an orthogonal rotation, unchanged row
 // communalities.
 func TestRotation_Invariants(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rotationCase](t, "mv_rotation")
 	for _, c := range doc.Cases {
 		for _, spec := range []rotationSpec{
@@ -330,6 +334,8 @@ func TestRotation_Invariants(t *testing.T) {
 // refuses), Rotation = Φ = I, variance its sum of squares, no flip even
 // when it sums negative.
 func TestRotation_SingleColumnUnchanged(t *testing.T) {
+	t.Parallel()
+
 	a := [][]float64{{-0.8}, {-0.6}, {0.1}}
 	for _, m := range vectors.FactorRotations()[1:] {
 		res, err := rotateLoadings(a, rotationSpec{Method: m})
@@ -354,6 +360,8 @@ func TestRotation_SingleColumnUnchanged(t *testing.T) {
 // a name outside vectors.FactorRotations, and "none" (the decoder maps
 // it to no rotation; the engine never sees it).
 func TestRotation_UnknownMethodIsInternal(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range [][][]float64{{{1, 0}, {0, 1}}, {{1}, {0.5}}} {
 		for _, m := range []string{"bentler", vectors.RotationNone, ""} {
 			if _, err := rotateLoadings(a, rotationSpec{Method: m}); err == nil {
@@ -367,6 +375,8 @@ func TestRotation_UnknownMethodIsInternal(t *testing.T) {
 // delta = 0.01 (vectors.GeominDefaultEpsilon), bit for bit, and a
 // different ε moves the fit.
 func TestRotation_GeominEpsilonDefault(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rotationCase](t, "mv_rotation")
 	a := doc.Cases[0].Unrotated
 	for _, m := range []string{vectors.RotationGeomin, vectors.RotationGeominOrthogonal} {
@@ -392,6 +402,8 @@ func TestRotation_GeominEpsilonDefault(t *testing.T) {
 // TestSafeInverse_SingularFallsBackToPseudoInverse pins GPArotation's
 // safe_inverse: an exactly singular matrix gets the SVD pseudo-inverse.
 func TestSafeInverse_SingularFallsBackToPseudoInverse(t *testing.T) {
+	t.Parallel()
+
 	m := [][]float64{{1, 2}, {2, 4}}
 	inv := safeInverse(m)
 	// pinv of the rank-1 [[1,2],[2,4]] is m / 25.
@@ -414,6 +426,8 @@ func TestSafeInverse_SingularFallsBackToPseudoInverse(t *testing.T) {
 // MAT_PCA / MAT_FACTOR report it — and nothing when the rotation
 // converged. Both ATTR_PC_SCORE and ATTR_FACTOR_SCORE raise it.
 func TestRotationCapNote_NamesSolver(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[rotationCase](t, "mv_rotation")
 	a := doc.Cases[0].Unrotated
 	for _, m := range vectors.FactorRotations()[1:] {

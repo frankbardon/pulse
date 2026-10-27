@@ -23,6 +23,8 @@ func mustLookup(t *testing.T, name string) metric.Metric {
 // overlap is NaN with no error, a complete pair set is never rescaled,
 // infinities are ordinary values.
 func TestEval_NaNPolicy(t *testing.T) {
+	t.Parallel()
+
 	nan, inf := math.NaN(), math.Inf(1)
 	sd := &metric.Stats{SD: []float64{1, 1}}
 	masses := &metric.Stats{ColumnMasses: []float64{0.5, 0.5}}
@@ -99,6 +101,8 @@ func mustSym(t *testing.T, rows [][]float64) *linalg.Sym {
 // TestEval_CosineDistanceClampedAndOpposite: cosine distance is 1 − cos
 // in [0, 2]; the similarity stays a similarity.
 func TestEval_CosineDistanceClampedAndOpposite(t *testing.T) {
+	t.Parallel()
+
 	m := mustLookup(t, "cosine")
 	cases := []struct {
 		a, b      []float64
@@ -138,6 +142,8 @@ func TestEval_CosineDistanceClampedAndOpposite(t *testing.T) {
 // TestEval_Errors covers every refusal path of Eval: wrong form, length
 // mismatch, domain violations and fitted statistics.
 func TestEval_Errors(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	inv2 := mustSym(t, [][]float64{{1, 0}, {0, 1}})
 	cases := []struct {
@@ -213,6 +219,8 @@ func TestEval_Errors(t *testing.T) {
 // TestEval_WrongFormRefused: Eval in a form the metric lacks is
 // PULSE_VECTOR_METRIC_UNKNOWN, never a converted value.
 func TestEval_WrongFormRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, m := range metric.All() {
 		for _, f := range []metric.Form{sim, dist} {
 			if m.HasForm(f) {
@@ -231,6 +239,8 @@ func TestEval_WrongFormRefused(t *testing.T) {
 
 // TestEvalSets pins the count kernels and their refusals.
 func TestEvalSets(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	cases := []struct {
 		m    string
@@ -274,6 +284,8 @@ func TestEvalSets(t *testing.T) {
 
 // TestObserved counts the complete pairs.
 func TestObserved(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	if n, err := metric.Observed([]float64{1, nan, 3, math.Inf(1)}, []float64{nan, 2, 3, 4}); err != nil || n != 2 {
 		t.Errorf("Observed = %d, %v", n, err)

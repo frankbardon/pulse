@@ -99,6 +99,8 @@ func assertPValuesClose(t *testing.T, where string, got, want []float64, tol flo
 }
 
 func TestWeightMeanOverlays_SlotOnlyHost(t *testing.T) {
+	t.Parallel()
+
 	weighted := newParityStore(t, "mo_weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "mo_expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })
 	scaled := newParityStore(t, "mo_scaled", func(n int) []parityRow {

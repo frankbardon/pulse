@@ -10,6 +10,8 @@ import (
 // one with smaller RSS and the same k. AIC should reward the smaller-
 // RSS model (lower score).
 func TestAICBICFromOLS_BasicShape(t *testing.T) {
+	t.Parallel()
+
 	aicA, bicA, logLA := aicBICFromOLS(100, 50, 2)
 	aicB, bicB, logLB := aicBICFromOLS(50, 50, 2)
 	if aicB >= aicA {
@@ -27,6 +29,8 @@ func TestAICBICFromOLS_BasicShape(t *testing.T) {
 // and increasing k increases both AIC and BIC. BIC's penalty is heavier
 // (log(n) > 2 when n > 7), so BIC's increase should exceed AIC's.
 func TestAICBICFromOLS_ParameterPenalty(t *testing.T) {
+	t.Parallel()
+
 	aic1, bic1, _ := aicBICFromOLS(75, 100, 1)
 	aic2, bic2, _ := aicBICFromOLS(75, 100, 5)
 	if aic2 <= aic1 {
@@ -43,6 +47,8 @@ func TestAICBICFromOLS_ParameterPenalty(t *testing.T) {
 // TestAICBICFromGLM_DevianceShift confirms a higher-deviance model
 // scores higher (worse) on both AIC and BIC.
 func TestAICBICFromGLM_DevianceShift(t *testing.T) {
+	t.Parallel()
+
 	aicA, bicA, _ := aicBICFromGLM(120.0, 200, 2)
 	aicB, bicB, _ := aicBICFromGLM(80.0, 200, 2)
 	if aicB >= aicA {
@@ -57,6 +63,8 @@ func TestAICBICFromGLM_DevianceShift(t *testing.T) {
 // RSS=0 returns large-negative scores so selection treats it as the
 // best candidate.
 func TestAICBICFromOLS_DegenerateRSS(t *testing.T) {
+	t.Parallel()
+
 	aic, bic, logL := aicBICFromOLS(0, 50, 2)
 	if !(aic < -1e10) || !(bic < -1e10) {
 		t.Errorf("RSS=0 did not produce dominant criterion values (aic=%v, bic=%v)", aic, bic)
@@ -69,6 +77,8 @@ func TestAICBICFromOLS_DegenerateRSS(t *testing.T) {
 // TestAICBICFromOLS_NaNGuard asserts the helper does not panic and
 // returns NaN for non-physical inputs.
 func TestAICBICFromOLS_NaNGuard(t *testing.T) {
+	t.Parallel()
+
 	aic, _, _ := aicBICFromOLS(100, 0, 2)
 	if !math.IsNaN(aic) {
 		t.Errorf("aicBICFromOLS(100, 0, 2) = %v, want NaN", aic)

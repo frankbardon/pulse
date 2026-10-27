@@ -26,6 +26,8 @@ func bucketKeyOrder(t *testing.T, comp map[string]any) []string {
 // emits buckets in include order, not alphabetical, when Include is set.
 // Include order ["Google","Apple"] differs from alphabetical ["Apple","Google"].
 func TestGroupCategory_ComponentsIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	g, err := newCategoryGrouper(&types.Group{
 		Type:    types.GROUP_CATEGORY,
@@ -57,6 +59,8 @@ func TestGroupCategory_ComponentsIncludeOrder(t *testing.T) {
 // TestGroupCategory_ComponentsDuplicateIncludeBucketsOnce — a duplicated
 // include value buckets once, at its first occurrence position.
 func TestGroupCategory_ComponentsDuplicateIncludeBucketsOnce(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	g, err := newCategoryGrouper(&types.Group{
 		Type:    types.GROUP_CATEGORY,
@@ -87,6 +91,8 @@ func TestGroupCategory_ComponentsDuplicateIncludeBucketsOnce(t *testing.T) {
 // TestGroupCategory_ComponentsZeroRecordIncludeDropped — an include value
 // with no matching records is dropped, not emitted as an empty bucket.
 func TestGroupCategory_ComponentsZeroRecordIncludeDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	g, err := newCategoryGrouper(&types.Group{
 		Type:    types.GROUP_CATEGORY,
@@ -118,6 +124,8 @@ func TestGroupCategory_ComponentsZeroRecordIncludeDropped(t *testing.T) {
 // TestGroupSetValue_ComponentsIncludeOrder — GROUP_SET_VALUE Components()
 // emits composite-key buckets in include order.
 func TestGroupSetValue_ComponentsIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetValueGrouper(&types.Group{
 		Type:    types.GROUP_SET_VALUE,
@@ -149,6 +157,8 @@ func TestGroupSetValue_ComponentsIncludeOrder(t *testing.T) {
 // TestGroupSetValue_ComponentsDuplicateIncludeBucketsOnce — duplicate
 // composite include value buckets once at first position.
 func TestGroupSetValue_ComponentsDuplicateIncludeBucketsOnce(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetValueGrouper(&types.Group{
 		Type:    types.GROUP_SET_VALUE,
@@ -179,6 +189,8 @@ func TestGroupSetValue_ComponentsDuplicateIncludeBucketsOnce(t *testing.T) {
 // TestGroupSetValue_ComponentsZeroRecordIncludeDropped — include composite
 // with no rows is dropped.
 func TestGroupSetValue_ComponentsZeroRecordIncludeDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetValueGrouper(&types.Group{
 		Type:    types.GROUP_SET_VALUE,
@@ -212,6 +224,8 @@ func TestGroupSetValue_ComponentsZeroRecordIncludeDropped(t *testing.T) {
 // when Include is active. Dict order is VISA(0),MC(1),AMEX(2),DISC(3);
 // include order ["AMEX","VISA"] must win.
 func TestGroupSetPerElement_ComponentsIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{
 		Type:    types.GROUP_SET_PER_ELEMENT,
@@ -243,6 +257,8 @@ func TestGroupSetPerElement_ComponentsIncludeOrder(t *testing.T) {
 // Include list the per-element grouper keeps its dict-index emission
 // order (byte-identity guard for the no-include path).
 func TestGroupSetPerElement_ComponentsDictOrderWhenNoInclude(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{
 		Type:  types.GROUP_SET_PER_ELEMENT,
@@ -271,6 +287,8 @@ func TestGroupSetPerElement_ComponentsDictOrderWhenNoInclude(t *testing.T) {
 // TestGroupSetPerElement_ComponentsDuplicateIncludeBucketsOnce — duplicate
 // include label buckets once at first position.
 func TestGroupSetPerElement_ComponentsDuplicateIncludeBucketsOnce(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{
 		Type:    types.GROUP_SET_PER_ELEMENT,
@@ -300,6 +318,8 @@ func TestGroupSetPerElement_ComponentsDuplicateIncludeBucketsOnce(t *testing.T) 
 // TestGroupSetPerElement_ComponentsZeroRecordIncludeDropped — include label
 // with no rows is dropped.
 func TestGroupSetPerElement_ComponentsZeroRecordIncludeDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{
 		Type:    types.GROUP_SET_PER_ELEMENT,
@@ -329,6 +349,8 @@ func TestGroupSetPerElement_ComponentsZeroRecordIncludeDropped(t *testing.T) {
 // TestOrderKeysByInclude_NilFilterSortsAlphabetical — the shared helper
 // funnels a nil/inactive filter through sort.Strings (byte-identity).
 func TestOrderKeysByInclude_NilFilterSortsAlphabetical(t *testing.T) {
+	t.Parallel()
+
 	got := orderKeysByInclude(nil, []string{"c", "a", "b"})
 	want := []string{"a", "b", "c"}
 	if !sliceEqual(got, want) {
@@ -340,6 +362,8 @@ func TestOrderKeysByInclude_NilFilterSortsAlphabetical(t *testing.T) {
 // filter orders present keys by include index; any non-member straggler
 // funnels to a sort.Strings tail.
 func TestOrderKeysByInclude_ActiveOrdersByIndexWithDefensiveTail(t *testing.T) {
+	t.Parallel()
+
 	f := buildIncludeFilter([]string{"z", "a"})
 	// "m" is a non-member straggler (should never happen post-KeyFor, but
 	// the defensive tail must sort it after the members).
@@ -354,6 +378,8 @@ func TestOrderKeysByInclude_ActiveOrdersByIndexWithDefensiveTail(t *testing.T) {
 // not implement IncludeOrdered yields a nil filter, so orderKeysByInclude
 // sorts alphabetically (extension byte-identity).
 func TestIncludeFilterOf_ExtensionGrouperFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	var g Grouper = extNoIncludeGrouper{}
 	if f := includeFilterOf(g); f != nil {
 		t.Fatalf("includeFilterOf(extension) = %v, want nil", f)

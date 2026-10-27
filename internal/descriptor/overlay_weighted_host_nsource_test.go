@@ -19,6 +19,8 @@ import (
 // TestWeight_PairwiseNSourceMatchesPredict pins the two together). Every
 // other selector keeps the Welford kind's inertness refusal.
 func TestValidateOverlays_WeightedHostNSource(t *testing.T) {
+	t.Parallel()
+
 	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	type host struct {
@@ -83,6 +85,8 @@ func TestValidateOverlays_WeightedHostNSource(t *testing.T) {
 // (processing TestPairwisePropZ_WeightedHost); unweighted hosts and an
 // omitted source predict clean.
 func TestValidateOverlays_ProportionWeightedHostNSource(t *testing.T) {
+	t.Parallel()
+
 	for name, basis := range map[string]weighting.Basis{"unweighted": weighting.Unweighted,
 		"frequency": weighting.Frequency, "probability": weighting.Probability} {
 		for _, mode := range append([]string{""}, pwAllNSources...) {
@@ -123,6 +127,8 @@ func TestValidateOverlays_ProportionWeightedHostNSource(t *testing.T) {
 // clean; a probability REQUEST weight reaching the overlay slot is the
 // resolver's refusal alone, never a second host entry.
 func TestValidateOverlays_FisherProbabilityHost(t *testing.T) {
+	t.Parallel()
+
 	prob := types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	mk := func() *types.Request {
 		return &types.Request{
@@ -174,6 +180,8 @@ func TestValidateOverlays_FisherProbabilityHost(t *testing.T) {
 // PROCESSING_CONFIG with the runtime's message (processing
 // TestPropZPanel_WeightedSlots); the payload-margin modes are clean.
 func TestValidateCompose_PanelWeightedSlotNSource(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{types.PanelNSourceCellNUnweighted, types.PanelNSourceRowMarginDistinctWithin,
 		types.PanelNSourceRowMarginValue, types.PanelNSourceRowMarginValueWithin} {
 		req := composePanelRequest(map[string]any{"n_source": mode})

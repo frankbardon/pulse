@@ -77,6 +77,8 @@ func distanceBetweenReq(between string, weight *types.WeightSpec) *types.Request
 // under a probability weight, and predict reports the spec buffered,
 // serial, with the run's shape bound unknown.
 func TestExtensions_DistanceBetweenMatchesCategory(t *testing.T) {
+	t.Parallel()
+
 	p, data, calls := openDistanceExtension(t)
 	ctx := context.Background()
 	w := &types.WeightSpec{Field: "qty", Kind: types.WeightKindProbability}
@@ -118,6 +120,8 @@ func TestExtensions_DistanceBetweenMatchesCategory(t *testing.T) {
 // between's bad shapes are refused by predict and the run alike, before
 // its factory runs — and an unregistered name stays unknown.
 func TestExtensions_DistanceBetweenRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name, between string
 		code          errors.Code
@@ -131,6 +135,8 @@ func TestExtensions_DistanceBetweenRefusedLikePredict(t *testing.T) {
 		{"unregistered", `{"type": "GROUP_ACME_NOPE", "field": "region"}`, errors.SERVICE_VALIDATION, "unknown_between_type"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, data, calls := openDistanceExtension(t)
 			req := distanceBetweenReq(c.between, nil)
 			env, err := p.PredictBytes(context.Background(), data, req)

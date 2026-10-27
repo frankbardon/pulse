@@ -160,6 +160,8 @@ func runSkipStream(t *testing.T, label string, schema *encoding.Schema, rows [][
 // full-stride path and under every retained set on the plan path, a
 // run-skip record equals a fresh full decode after every row.
 func TestRunSkip_MatchesFullDecode(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 32, 0)
 	for _, e := range indexedDecodeCorpus(t) {
 		rows := spliceRunRows(e.schema, e.records, 120, 0x5C1F)
@@ -180,6 +182,8 @@ func TestRunSkip_MatchesFullDecode(t *testing.T) {
 // bytes held IDENTICAL across each null flip, so only the bitmap
 // distinguishes the rows.
 func TestRunSkip_NullAndEmptyMaskTransitions(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 32, 0)
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeU32, Nullable: true},
@@ -237,6 +241,8 @@ func TestRunSkip_NullAndEmptyMaskTransitions(t *testing.T) {
 // of the ownership contract: a comparison baseline is only ever used for
 // the record, reader and decode shape that produced it.
 func TestRunSkip_InvalidatesOnReaderSinkAndPlanChange(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 32, 0)
 	schema := bigMixedSchema()
 	rows := spliceRunRows(schema, generateBigSchemaRecords(t, schema, 0x1D3CB16), 40, 0xB0B)
@@ -334,6 +340,8 @@ func TestRunSkip_InvalidatesOnReaderSinkAndPlanChange(t *testing.T) {
 // comparing, then probes again — and the record stays equal to a full
 // decode throughout, including across every switch between the modes.
 func TestRunSkip_BackoffOnScatteredRows(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 4, 6)
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0x1D3CB16)
@@ -378,6 +386,8 @@ func TestRunSkip_BackoffOnScatteredRows(t *testing.T) {
 
 // TestRunSkip_SortedRowsNeverBackOff: a repeating shape keeps comparing.
 func TestRunSkip_SortedRowsNeverBackOff(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 4, 6)
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0x1D3CB16)
@@ -403,6 +413,8 @@ func TestRunSkip_SortedRowsNeverBackOff(t *testing.T) {
 // TestRunSkip_LegacySinksUntouched: a record that does not implement
 // RunSkipRecord still gets ClearForRow and a full write every row.
 func TestRunSkip_LegacySinksUntouched(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	rows := spliceRunRows(schema, generateBigSchemaRecords(t, schema, 0x1D3CB16), 12, 0xB0B)
 	rec := &dualRecord{indexedTestRecord: newIndexedTestRecord(schema)}

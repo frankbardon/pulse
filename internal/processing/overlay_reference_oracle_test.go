@@ -86,6 +86,8 @@ func chiSqVsPopOracleCase(t *testing.T, name string) chiSqVsPopOracle {
 // the statistic; a subset value outside C warns PULSE_OVERLAY_REF_ZERO
 // and an expected count below 5 PULSE_OVERLAY_EXPECTED_LOW.
 func TestReferenceOracle_OverlayChiSqVsPop(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[chiSqVsPopOracle](t, "overlay_chisq_vs_pop")
 	c := overlayOracleCheck(t, "OVERLAY_CHISQ_VS_POP")
 	for _, k := range doc.Cases {
@@ -142,6 +144,8 @@ func matrix3(m [][]float64) [3][3]float64 {
 // target renormalised over C, OVERLAY_CHISQ_VS_POP's rule), and warns
 // PULSE_OVERLAY_REF_ZERO when it holds target counts.
 func TestReferenceOracle_OverlayChiSqVsRef(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[chiSqVsRefOracle](t, "overlay_chisq_vs_ref")
 	c := overlayOracleCheck(t, "OVERLAY_CHISQ_VS_REF")
 	spec := types.ComposeOverlaySpec{Name: "cv", Kind: types.OverlayKindChiSqVsRef, Scope: types.OverlayScopeMatrix,
@@ -252,6 +256,8 @@ func ksVsPopOracleCase(t *testing.T, name string) ksVsPopOracle {
 // reason (ks.test's own D rounds an ulp past 1 and reports 0). The
 // golden's r_stephens_p is the pre-U36 figure, history only.
 func TestReferenceOracle_OverlayKSVsPop(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[ksVsPopOracle](t, "overlay_ks_vs_pop")
 	c := overlayOracleCheck(t, "OVERLAY_KS_VS_POP")
 	paths := map[string]int{}
@@ -296,6 +302,8 @@ func TestReferenceOracle_OverlayKSVsPop(t *testing.T) {
 // TEST_KS reports the overlay's D and p, bit for bit, on both the exact
 // and the limiting branch.
 func TestOverlayKSVsPop_HistogramPIsTestKS(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"shifted_small", "moderate", "shifted_large", "disjoint_halves"} {
 		k := ksVsPopOracleCase(t, name)
 		layer := ksVsPopOracleLayer(t, k)
@@ -348,6 +356,8 @@ type probitOracle struct {
 // computes it, through the pairwise overlay on a three-row percentage
 // host (pairs (A,B), (A,C), (B,C)); the cell's direction is sign(t).
 func TestReferenceOracle_OverlayPairwiseProbitT(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[probitOracle](t, "overlay_pairwise_probit_t")
 	c := overlayOracleCheck(t, "OVERLAY_PAIRWISE_PROBIT_T")
 	for _, k := range doc.Cases {
@@ -408,6 +418,8 @@ func fisherCellOracleCase(t *testing.T, name string) fisherCellOracle {
 // against R's fisher.test on that cell's 2 x 2 (the cell against the
 // rest of its row and column), relErr tie rule included.
 func TestReferenceOracle_OverlayFisherExactCell(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[fisherCellOracle](t, "overlay_fisher_exact_cell")
 	c := overlayOracleCheck(t, "OVERLAY_FISHER_EXACT_CELL")
 	for _, k := range doc.Cases {
@@ -469,6 +481,8 @@ func twoSampleOracleCase(t *testing.T, name string) twoSampleOracle {
 // an n_source or a panel reads) may run on their expected legs: those
 // tests verify the routing, this one the kernel.
 func TestReferenceOracle_OverlayTwoSampleLegs(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[twoSampleOracle](t, "overlay_two_sample")
 	c := overlayOracleCheck(t, "overlay two-sample legs")
 	n := 0

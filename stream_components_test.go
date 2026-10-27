@@ -16,6 +16,8 @@ import (
 // "sum" operator key populated, and that Components is byte-equal to
 // the buffered Process call's Response.Components.
 func TestProcessStreamResult_AggSumPerChunkComponents(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse",
 		[]string{"score"},
@@ -78,6 +80,8 @@ func TestProcessStreamResult_AggSumPerChunkComponents(t *testing.T) {
 // map carries Welford state on the terminal chunk and matches the
 // buffered Process Components byte-for-byte.
 func TestProcessStreamResult_AggVariancePerChunkComponents(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse",
 		[]string{"score"},
@@ -131,6 +135,8 @@ func TestProcessStreamResult_AggVariancePerChunkComponents(t *testing.T) {
 // carries the full Operator map with the median / position_low /
 // position_high keys. Mirrors the buffered Process Components.
 func TestProcessStreamResult_AggMedianTerminalCarriesOperator(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse",
 		[]string{"score"},
@@ -192,6 +198,8 @@ func TestProcessStreamResult_AggMedianTerminalCarriesOperator(t *testing.T) {
 // Operator while preserving the universal floor. Terminal projection
 // is a pointer-identity passthrough.
 func TestChunkComponents_NonTerminalRedactsNonMergeable(t *testing.T) {
+	t.Parallel()
+
 	buffered := &types.ResponseComponents{
 		Aggregations: []types.AggregationComponents{
 			{
@@ -255,6 +263,8 @@ func TestChunkComponents_NonTerminalRedactsNonMergeable(t *testing.T) {
 }
 
 func TestChunkComponents_NilBufferedPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	mergeability := []descriptor.ComponentsMergeability{descriptor.Mergeable}
 	if got := chunkComponents(nil, mergeability, nil, false); got != nil {
 		t.Fatalf("non-terminal nil buffered → %+v, want nil", got)
@@ -269,6 +279,8 @@ func TestChunkComponents_NilBufferedPassesThrough(t *testing.T) {
 // Mergeable, AGG_MODE_COUNT is Partial, AGG_MEDIAN is None — the
 // vector must reflect those three classes in slot order.
 func TestAggMergeabilityVector_AlignsWithCapabilityTable(t *testing.T) {
+	t.Parallel()
+
 	req := &Request{
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "x"},
@@ -293,6 +305,8 @@ func TestAggMergeabilityVector_AlignsWithCapabilityTable(t *testing.T) {
 // must reflect both classes in slot order. Mirrors the aggregator-axis
 // gate and exercises the new GroupMergeability helper.
 func TestGrpMergeabilityVector_AlignsWithCapabilityTable(t *testing.T) {
+	t.Parallel()
+
 	req := &Request{
 		Groups: []*types.Group{
 			{Type: types.GROUP_CATEGORY, Field: "region"},
@@ -316,6 +330,8 @@ func TestGrpMergeabilityVector_AlignsWithCapabilityTable(t *testing.T) {
 // universal floor (Field / Label / TotalN / NNull) on every entry.
 // Terminal projection passes the buffered shell through verbatim.
 func TestChunkComponents_NonTerminalRedactsNonMergeableGrouper(t *testing.T) {
+	t.Parallel()
+
 	buffered := &types.ResponseComponents{
 		Groupers: []types.GrouperComponents{
 			{
@@ -389,6 +405,8 @@ func TestChunkComponents_NonTerminalRedactsNonMergeableGrouper(t *testing.T) {
 // cloning. Mid-stream consumers see the same backing array; only the
 // shell wrapper is fresh.
 func TestChunkComponents_AllMergeableGroupersSharesSlice(t *testing.T) {
+	t.Parallel()
+
 	buffered := &types.ResponseComponents{
 		Groupers: []types.GrouperComponents{
 			{
@@ -424,6 +442,8 @@ func TestChunkComponents_AllMergeableGroupersSharesSlice(t *testing.T) {
 // the non-terminal-redaction path for the same shape is unit-tested in
 // TestChunkComponents_NonTerminalRedactsNonMergeable.
 func TestProcessStreamResult_MixedMergeabilityComponents(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse",
 		[]string{"score"},
@@ -502,6 +522,8 @@ func TestProcessStreamResult_MixedMergeabilityComponents(t *testing.T) {
 // that buffers all result rows into a single terminal chunk for
 // ungrouped Process.
 func TestChunkComponents_MixedMergeabilityAggregations(t *testing.T) {
+	t.Parallel()
+
 	buffered := &types.ResponseComponents{
 		Aggregations: []types.AggregationComponents{
 			{
@@ -561,6 +583,8 @@ func TestChunkComponents_MixedMergeabilityAggregations(t *testing.T) {
 // terminal chunk emits the full Operator (n_quantiles / method /
 // edges / buckets) and matches the buffered Process result.
 func TestProcessStreamResult_QuantileGrouperPerChunkComponents(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse",
 		[]string{"score"},
@@ -645,6 +669,8 @@ func TestProcessStreamResult_QuantileGrouperPerChunkComponents(t *testing.T) {
 // hint streaming consumers branch on to budget the per-chunk
 // suppression behaviour without consulting the manifest at runtime.
 func TestPredict_QuantileGroupBufferedComponents(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "rows.pulse",
 		[]string{"score"},
@@ -689,6 +715,8 @@ func TestPredict_QuantileGroupBufferedComponents(t *testing.T) {
 // reflection, so a block added later (Matrices, U16) cannot be dropped
 // from a mid-stream chunk silently.
 func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
+	t.Parallel()
+
 	buffered := &types.ResponseComponents{
 		Aggregations: []types.AggregationComponents{{N: 1}},
 		Groupers:     []types.GrouperComponents{{TotalN: 1}},
@@ -727,6 +755,8 @@ func TestChunkComponents_CarriesEveryBlock(t *testing.T) {
 // request: TestPreviousState_ComponentsStreamTerminalOnly), on a copy —
 // the terminal chunk carries the buffered entries verbatim.
 func TestChunkComponents_AttributeMergeability(t *testing.T) {
+	t.Parallel()
+
 	if want := map[types.AttributeType]bool{types.ATTR_PREVIOUS_STATE: true}; !reflect.DeepEqual(attributeNoneTypes(), want) {
 		t.Fatalf("None attributes %v, want %v: cover a new one with a real request", attributeNoneTypes(), want)
 	}
@@ -755,6 +785,8 @@ func TestChunkComponents_AttributeMergeability(t *testing.T) {
 // Operator is still redacted), without mutating the buffered original;
 // the terminal chunk carries groups[] verbatim.
 func TestChunkComponents_NonTerminalCarriesNoGroups(t *testing.T) {
+	t.Parallel()
+
 	buffered := &types.ResponseComponents{
 		Aggregations: []types.AggregationComponents{
 			{Label: "s", N: 4, Groups: []types.AggregationGroupComponents{

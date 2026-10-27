@@ -150,6 +150,8 @@ func setupShardArchive(t *testing.T, path string, schema *encoding.Schema, shard
 // ops over a concatenated single-file cohort; AGG_MEAN is ULP-tolerant
 // (Welford-Pébaÿ).
 func TestShardArchiveProcessSums(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -212,6 +214,8 @@ func TestShardArchiveProcessSums(t *testing.T) {
 // dict-string counts across shards identically to the concatenated
 // cohort.
 func TestShardArchiveProcess_Frequency(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("red")
 	dict.Add("green")
@@ -272,6 +276,8 @@ func TestShardArchiveProcess_Frequency(t *testing.T) {
 // TestShardArchiveProcess_GroupedSum confirms a grouped aggregation
 // (GROUP_CATEGORY + AGG_SUM) accumulates per-key sums across shards.
 func TestShardArchiveProcess_GroupedSum(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -341,6 +347,8 @@ func TestShardArchiveProcess_GroupedSum(t *testing.T) {
 // TestShardArchiveProcess_FilterInclude confirms FILTER_INCLUDE applies
 // per-row identically across shards.
 func TestShardArchiveProcess_FilterInclude(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -380,6 +388,8 @@ func TestShardArchiveProcess_FilterInclude(t *testing.T) {
 // values consistent with the union mean/variance — the two-pass
 // streaming orchestrator must walk every shard for both passes.
 func TestShardArchiveProcess_TwoPassZScore(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -425,6 +435,8 @@ func TestShardArchiveProcess_TwoPassZScore(t *testing.T) {
 // when the cohort has no shards. Regression guard for the dispatch in
 // Service.newScanIter.
 func TestShardArchive_NewShardIter_SingleFileFallthrough(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "single.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -446,6 +458,8 @@ func TestShardArchive_NewShardIter_SingleFileFallthrough(t *testing.T) {
 // TestShardArchive_NewShardIter_ArchiveDispatch confirms the
 // dispatcher picks shardIter for an archive-backed cohort.
 func TestShardArchive_NewShardIter_ArchiveDispatch(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -467,6 +481,8 @@ func TestShardArchive_NewShardIter_ArchiveDispatch(t *testing.T) {
 // in shard insertion order (central-directory order). Records inside
 // each shard preserve their on-disk order.
 func TestShardArchive_RowIterationOrder(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -500,6 +516,8 @@ func TestShardArchive_RowIterationOrder(t *testing.T) {
 // iterator to shard 0 row 0 — the contract relied on by the two-pass
 // orchestrator.
 func TestShardArchive_RowIterationOrder_Reset(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 

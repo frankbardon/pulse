@@ -36,6 +36,8 @@ var banExempt = []string{
 // DecodeOptional / DecodeStrict / Get (recorded), or Probe (a lenient
 // look at a key another reader records).
 func TestParamsReadThroughParamread(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..")
 	fset := token.NewFileSet()
 	var hits []string

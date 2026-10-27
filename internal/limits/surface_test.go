@@ -8,6 +8,8 @@ import (
 )
 
 func TestUnitAndDefault(t *testing.T) {
+	t.Parallel()
+
 	want := map[Name]string{
 		RequestTimeout:     UnitNanoseconds,
 		MaxEstimatedMemory: UnitBytes,
@@ -34,6 +36,8 @@ func TestUnitAndDefault(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	t.Parallel()
+
 	var l Limits
 	for i, n := range Names() {
 		if !Set(&l, n, int64(i+7)) {
@@ -50,6 +54,8 @@ func TestSet(t *testing.T) {
 }
 
 func TestParseName(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range Names() {
 		if got, err := ParseName(string(n)); err != nil || got != n {
 			t.Errorf("ParseName(%s) = %q, %v", n, got, err)
@@ -61,6 +67,8 @@ func TestParseName(t *testing.T) {
 }
 
 func TestParseValue(t *testing.T) {
+	t.Parallel()
+
 	good := []struct {
 		n    Name
 		in   string
@@ -107,6 +115,8 @@ func TestParseValue(t *testing.T) {
 }
 
 func TestSpell_RoundTrips(t *testing.T) {
+	t.Parallel()
+
 	l := Defaults()
 	l.RequestTimeout = 90 * time.Second
 	for _, n := range Names() {
@@ -128,6 +138,8 @@ func TestSpell_RoundTrips(t *testing.T) {
 // TestDigest: the digest is a function of every effective value — any
 // single-field change moves it, equal limits share it.
 func TestDigest(t *testing.T) {
+	t.Parallel()
+
 	base := Digest(Defaults())
 	if !strings.HasPrefix(base, DigestPrefix) || len(base) != len(DigestPrefix)+64 {
 		t.Fatalf("Digest = %q", base)

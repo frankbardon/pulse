@@ -109,6 +109,8 @@ func shiftTarget(records []Record, k float64) []Record {
 // must produce (intercept', β') = (c·intercept, c·β). Verified for a
 // few representative datasets via testing/quick.
 func TestRegOLS_Property_ScaleInvariance(t *testing.T) {
+	t.Parallel()
+
 	property := func(seed int64, cBits uint32) bool {
 		// Constrain c to a reasonable non-zero range so float64
 		// representability doesn't bias the comparison.
@@ -144,6 +146,8 @@ func TestRegOLS_Property_ScaleInvariance(t *testing.T) {
 // x_j by c must scale β_j by 1/c while leaving the other coefficients
 // and the intercept unchanged.
 func TestRegOLS_Property_PredictorScale(t *testing.T) {
+	t.Parallel()
+
 	property := func(seed int64, cBits uint32) bool {
 		c := float64(int32(cBits%200)+1) / 11.0 // strictly positive non-zero
 		records, _, _, _ := genDataset(seed%1_000_000+1, 80, 1.1, 2.0, -0.6)
@@ -176,6 +180,8 @@ func TestRegOLS_Property_PredictorScale(t *testing.T) {
 // target value shifts the intercept by k and leaves all slopes
 // unchanged.
 func TestRegOLS_Property_InterceptShift(t *testing.T) {
+	t.Parallel()
+
 	property := func(seed int64, kBits uint64) bool {
 		// Constrain k to a reasonable range.
 		k := float64(int64(kBits)%500) / 7.0

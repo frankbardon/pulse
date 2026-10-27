@@ -48,6 +48,8 @@ type overlayReader interface {
 //     overlay-free body and the one PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED
 //     warning covers the parts too.
 func TestExportJob_OverlayParts(t *testing.T) {
+	t.Parallel()
+
 	type format struct {
 		file     string
 		writer   func(fs afero.Fs, path string) pio.Writer

@@ -30,6 +30,8 @@ func utcSec(t *testing.T, s string) int64 {
 // gap + overlap of a northern zone, a southern zone, a zone with no DST and
 // a fixed offset, under every policy.
 func TestParseLocal(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		at   string // RFC 3339 UTC; "" = refused
 		kind LocalKind
@@ -105,6 +107,8 @@ func TestParseLocal(t *testing.T) {
 // TestParseLocal_Pre1970FloorsTowardPast: a fractional pre-epoch second
 // floors toward the past, in UTC and in a zone.
 func TestParseLocal_Pre1970FloorsTowardPast(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		zone string
 		want int64
@@ -123,6 +127,8 @@ func TestParseLocal_Pre1970FloorsTowardPast(t *testing.T) {
 // the instant a naive-UTC parse gives, and a literal matching none is the
 // ENCODING_INVALID refusal.
 func TestParseLocal_UTCMatchesNaiveUTC(t *testing.T) {
+	t.Parallel()
+
 	for _, lit := range []string{
 		"2024-03-04T10:11:12Z", "2024-03-04T10:11:12+02:00", "2024-03-04T10:11:12",
 		"2024-03-04T10:11Z", "2024-03-04T10:11", "2024-03-04 10:11:12", "2024-03-04 10:11",
@@ -158,6 +164,8 @@ func TestParseLocal_UTCMatchesNaiveUTC(t *testing.T) {
 // across two days — and holds ResolveLocal to it under every policy:
 // the exact instant, both overlap occurrences, and both gap readings.
 func TestResolveLocal_MatchesStdlib(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ zone, day string }{
 		{"Europe/Berlin", "2026-03-29"}, {"Europe/Berlin", "2026-10-25"},
 		{"Australia/Sydney", "2026-04-05"}, {"Australia/Sydney", "2026-10-04"},
@@ -167,6 +175,8 @@ func TestResolveLocal_MatchesStdlib(t *testing.T) {
 		{"Europe/London", "1890-06-01"}, {"America/Santiago", "2026-09-06"},
 	} {
 		t.Run(tc.zone+"/"+tc.day, func(t *testing.T) {
+			t.Parallel()
+
 			z := mustImportZone(t, tc.zone)
 			loc := z.Location()
 			off := func(s int64) int64 { _, o := time.Unix(s, 0).In(loc).Zone(); return int64(o) }
@@ -213,6 +223,8 @@ func TestResolveLocal_MatchesStdlib(t *testing.T) {
 }
 
 func TestLoadImportZone(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"+05:30", "-08:00", "+00:00", "-00:00", "+18:00", "-18:00", "UTC", "Europe/Berlin"} {
 		if _, err := LoadImportZone(name); err != nil {
 			t.Errorf("LoadImportZone(%q) = %v", name, err)
@@ -241,6 +253,8 @@ func TestLoadImportZone(t *testing.T) {
 }
 
 func TestParseAmbiguity(t *testing.T) {
+	t.Parallel()
+
 	for s, want := range map[string]Ambiguity{"": AmbiguityError, "error": AmbiguityError, "earlier": AmbiguityEarlier, "later": AmbiguityLater} {
 		got, ok := ParseAmbiguity(s)
 		if !ok || got != want {

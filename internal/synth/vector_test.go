@@ -72,6 +72,8 @@ func pearsonComplete(rows [][]float64, i, j int) float64 {
 // on every generated element, and the written schema's VECTORS entry is
 // exactly the spec's (dim, kind, scale range, labels).
 func TestSynthVector_FromSchemaHonoursKindBounds(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		field FieldSpec
@@ -211,6 +213,8 @@ func TestSynthVector_FromSchemaHonoursKindBounds(t *testing.T) {
 // correlations come back within tolerance, an undeclared pair comes back
 // near zero, and the completion is reported.
 func TestSynthVector_ElementCorrelationIsInduced(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Distribution: DistNormal,
 		Params: map[string]any{"mean": 0.0, "std": 1.0},
 		Vector: &VectorSpec{Dim: 3, Correlations: []VectorCorrelationSpec{
@@ -239,6 +243,8 @@ func TestSynthVector_ElementCorrelationIsInduced(t *testing.T) {
 // TestSynthVector_NullVectorAndNaNElementRates: the null-vector rate and
 // the per-element NaN rate are distinct and both honoured.
 func TestSynthVector_NullVectorAndNaNElementRates(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Nullable: true, NullRate: 0.2,
 		Distribution: DistUniform, Vector: &VectorSpec{Dim: 2, NaNRate: 0.1,
 			Elements: []VectorElementSpec{{}, {NaNRate: fptr(0.5)}}}}
@@ -276,6 +282,8 @@ func TestSynthVector_NullVectorAndNaNElementRates(t *testing.T) {
 // already float32-rounded (so a constraint sees the stored number), and
 // the stride is 4 bytes per element.
 func TestSynthVector_F32ElementsAreStoredPrecision(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f32", Distribution: DistNormal,
 		Params: map[string]any{"mean": 0.1, "std": 1.0}, Vector: &VectorSpec{Dim: 4}}
 	smp, err := newVectorSampler(f)
@@ -304,6 +312,8 @@ func TestSynthVector_F32ElementsAreStoredPrecision(t *testing.T) {
 // TestSynthVector_DeterministicUnderSeed: same spec + seed is
 // byte-identical; another seed is not.
 func TestSynthVector_DeterministicUnderSeed(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Nullable: true, NullRate: 0.1, Distribution: DistNormal,
 		Vector: &VectorSpec{Dim: 3, NaNRate: 0.05, Correlations: []VectorCorrelationSpec{{A: 1, B: 3, Rho: 0.4}}}}
 	a, _, err := SynthBytes(vecSpec(500, f), Options{Seed: 7})
@@ -361,6 +371,8 @@ func levelShares(rows [][]float64, k int) map[float64]float64 {
 // reproduces the marginals per level and the correlation within
 // tolerance.
 func TestProfileVector_CaptureThenRegenerateReproducesStructure(t *testing.T) {
+	t.Parallel()
+
 	src := vectorSourceCohort(t, 20000)
 	_, srcRows := vecRows(t, src, "v")
 
@@ -443,6 +455,8 @@ func TestProfileVector_CaptureThenRegenerateReproducesStructure(t *testing.T) {
 // maxVectorCorrelationDim the correlation is abandoned with a warning,
 // never truncated, and the elements are still captured.
 func TestProfileVector_WideVectorAbandonsCorrelation(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Distribution: DistNormal,
 		Vector: &VectorSpec{Dim: maxVectorCorrelationDim + 1}}
 	src, _, err := SynthBytes(vecSpec(200, f), Options{Seed: 1})
@@ -465,6 +479,8 @@ func TestProfileVector_WideVectorAbandonsCorrelation(t *testing.T) {
 // TestProfileVector_AllNullVectorRegeneratesNull: an all-null vector
 // column keeps its dim in the profile and regenerates as null.
 func TestProfileVector_AllNullVectorRegeneratesNull(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Nullable: true, NullRate: 1, Distribution: DistNormal,
 		Vector: &VectorSpec{Dim: 3, Kind: "measure"}}
 	src, _, err := SynthBytes(vecSpec(50, f), Options{Seed: 1})
@@ -494,6 +510,8 @@ func TestProfileVector_AllNullVectorRegeneratesNull(t *testing.T) {
 // TestSpecVector_EmitSpecRoundTrip: the profile-derived vector spec
 // survives a JSON round trip (`--emit-spec`) to a byte-identical cohort.
 func TestSpecVector_EmitSpecRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	prof, err := ProfileBytes(vectorSourceCohort(t, 2000), ProfileOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -524,6 +542,8 @@ func TestSpecVector_EmitSpecRoundTrip(t *testing.T) {
 // source copies the source vectors verbatim, appends generated ones, and
 // the fidelity report's vector arm compares elements and correlation.
 func TestAugmentVector_TopUpAndFidelity(t *testing.T) {
+	t.Parallel()
+
 	src := vectorSourceCohort(t, 6000)
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "src.pulse", src, 0o644); err != nil {
@@ -586,6 +606,8 @@ func TestAugmentVector_TopUpAndFidelity(t *testing.T) {
 // TestAugmentVector_DimMismatchRefused: a spec whose vector dim differs
 // from the source's is a schema mismatch, never a misaligned re-encode.
 func TestAugmentVector_DimMismatchRefused(t *testing.T) {
+	t.Parallel()
+
 	src := vectorSourceCohort(t, 50)
 	fs := afero.NewMemMapFs()
 	_ = afero.WriteFile(fs, "src.pulse", src, 0o644)
@@ -604,6 +626,8 @@ func TestAugmentVector_DimMismatchRefused(t *testing.T) {
 // TestSpecVector_Refusals: every malformed vector declaration, and every
 // cross-field use of a vector, is refused at spec validation.
 func TestSpecVector_Refusals(t *testing.T) {
+	t.Parallel()
+
 	good := func() FieldSpec {
 		return FieldSpec{Name: "v", Type: "vec_f64", Distribution: DistNormal, Vector: &VectorSpec{Dim: 3}}
 	}
@@ -656,6 +680,8 @@ func TestSpecVector_Refusals(t *testing.T) {
 // TestConstraintsVector_IndexesTheRowSlice: a constraint reads a vector
 // as its []float64, indexed 0-based by expr.
 func TestConstraintsVector_IndexesTheRowSlice(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Distribution: DistUniform, Vector: &VectorSpec{Dim: 2}}
 	s := vecSpec(300, f)
 	s.Constraints = []ConstraintSpec{{Expr: "v[0] > 0.3"}}
@@ -674,6 +700,8 @@ func TestConstraintsVector_IndexesTheRowSlice(t *testing.T) {
 // TestRulesVector_SetNullMasksAndSetIsRefused: a rule can null a vector
 // (set_null writes no value) but cannot assign one.
 func TestRulesVector_SetNullMasksAndSetIsRefused(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "v", Type: "vec_f64", Nullable: true, Distribution: DistNormal, Vector: &VectorSpec{Dim: 2}}
 	s := vecSpec(200, f)
 	s.Rules = []RuleSpec{{When: "id > 100", SetNull: []string{"v"}}}

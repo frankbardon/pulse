@@ -61,6 +61,8 @@ func catalogTriggeredSet(t *testing.T) *model.Set {
 // and the post-window plan is windows-first; the engine, handed the same
 // set, runs it — buffered, the regressions and the matrix fitted.
 func TestWindowsFirst_CatalogTriggeredPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	schema := fieldRefSchema()
 	set := catalogTriggeredSet(t)
 	req := catalogTriggeredRequest()
@@ -108,6 +110,8 @@ func TestWindowsFirst_CatalogTriggeredPredictMatchesRuntime(t *testing.T) {
 // runtime gate, and its regressions run (processing's
 // TestCrosstab_RegressionsFitOnBufferedArm).
 func TestCrosstab_UnreadWindowPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	schema := fieldRefSchema()
 	ct := func() *types.CrosstabSpec {
 		return &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},

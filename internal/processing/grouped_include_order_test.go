@@ -23,6 +23,8 @@ func orderedKeys(data []map[string]any, groupField string) []string {
 // emit Response.Data rows Google then Apple — include order, NOT the
 // alphabetical sort.Strings default (which would give Apple, Google).
 func TestGroupedInclude_CategoryPayloadFollowsIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema() // Apple=0, Samsung=1, Google=2
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"brand": 0, "score": 1}), // Apple
@@ -65,6 +67,8 @@ func TestGroupedInclude_CategoryPayloadFollowsIncludeOrder(t *testing.T) {
 // TestGroupedInclude_StreamingMatchesBufferedOrder: for the same include
 // request, the streaming payload row order must equal the buffered order.
 func TestGroupedInclude_StreamingMatchesBufferedOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"brand": 1, "score": 1}), // Samsung
@@ -105,6 +109,8 @@ func TestGroupedInclude_StreamingMatchesBufferedOrder(t *testing.T) {
 // TestGroupedInclude_ExplicitSortOverridesIncludeOrder: include order is
 // the DEFAULT — an explicit req.Sort still wins.
 func TestGroupedInclude_ExplicitSortOverridesIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"brand": 0, "score": 5}), // Apple
@@ -146,6 +152,8 @@ func TestGroupedInclude_ExplicitSortOverridesIncludeOrder(t *testing.T) {
 // TestGroupedInclude_SetValuePayloadFollowsIncludeOrder covers
 // GROUP_SET_VALUE (composite keys).
 func TestGroupedInclude_SetValuePayloadFollowsIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t) // VISA=0, MC=1, AMEX=2, DISC=3
 	records := []*Record{
 		makeSetRecord(schema, 0b0100), // AMEX
@@ -186,6 +194,8 @@ func TestGroupedInclude_SetValuePayloadFollowsIncludeOrder(t *testing.T) {
 // GROUP_SET_PER_ELEMENT (row fans into multiple element buckets;
 // MultiKeyStreamingGrouper streaming path).
 func TestGroupedInclude_SetPerElementPayloadFollowsIncludeOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t) // VISA=0, MC=1, AMEX=2, DISC=3
 	records := []*Record{
 		makeSetRecord(schema, 0b0111), // VISA + MC + AMEX

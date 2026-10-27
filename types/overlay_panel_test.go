@@ -18,6 +18,8 @@ import (
 // breaks these first.
 
 func TestDecodePanelParams_AbsentFormsAreZeroValue(t *testing.T) {
+	t.Parallel()
+
 	var zero PanelOverlayParams
 	cases := []struct {
 		name string
@@ -45,6 +47,8 @@ func TestDecodePanelParams_AbsentFormsAreZeroValue(t *testing.T) {
 // descriptor.BuildPayloadSchema(), so a blob authored against a newer
 // binary has to decode cleanly against an older one.
 func TestDecodePanelParams_UnknownKeysAccepted(t *testing.T) {
+	t.Parallel()
+
 	var zero PanelOverlayParams
 	got, err := DecodePanelParams(json.RawMessage(`{"not_a_panel_param":42,"nested":{"a":[1,2]}}`))
 	if err != nil {
@@ -58,6 +62,8 @@ func TestDecodePanelParams_UnknownKeysAccepted(t *testing.T) {
 // Malformed or non-object params are refused. The error is wrapped with
 // a stable prefix so a predict envelope message names the surface.
 func TestDecodePanelParams_MalformedRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		raw  json.RawMessage
@@ -84,6 +90,8 @@ func TestDecodePanelParams_MalformedRefused(t *testing.T) {
 // The COMPOSE arm carries map[string]any rather than json.RawMessage.
 // Nil / empty must be the same zero value the raw arm produces.
 func TestDecodePanelParamsMap_AbsentFormsAreZeroValue(t *testing.T) {
+	t.Parallel()
+
 	var zero PanelOverlayParams
 	for _, tc := range []struct {
 		name   string
@@ -105,6 +113,8 @@ func TestDecodePanelParamsMap_AbsentFormsAreZeroValue(t *testing.T) {
 }
 
 func TestDecodePanelParamsMap_UnknownKeysAccepted(t *testing.T) {
+	t.Parallel()
+
 	var zero PanelOverlayParams
 	got, err := DecodePanelParamsMap(map[string]any{"not_a_panel_param": 42})
 	if err != nil {
@@ -120,6 +130,8 @@ func TestDecodePanelParamsMap_UnknownKeysAccepted(t *testing.T) {
 // a JSON decode (or came from a Go literal), so syntax is settled, but
 // an unrepresentable value must not pass silently.
 func TestDecodePanelParamsMap_UnrepresentableValueRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := DecodePanelParamsMap(map[string]any{"n_source": make(chan int)})
 	if err == nil {
 		t.Fatal("expected a decode failure for an unrepresentable params value, got nil")
@@ -133,6 +145,8 @@ func TestDecodePanelParamsMap_UnrepresentableValueRefused(t *testing.T) {
 // drift the moment the struct gains a field. Probed by feeding both
 // arms the same payload and requiring the same answer.
 func TestDecodePanelParams_MapAndRawArmsAgree(t *testing.T) {
+	t.Parallel()
+
 	params := map[string]any{"not_a_panel_param": "x"}
 	raw, err := json.Marshal(params)
 	if err != nil {
@@ -153,6 +167,8 @@ func TestDecodePanelParams_MapAndRawArmsAgree(t *testing.T) {
 // MaxPanelTargets cap but is descriptive, has no sample-size leg, and
 // must not silently inherit the inferential params shape.
 func TestIsPanelOverlayParamsKind(t *testing.T) {
+	t.Parallel()
+
 	if !IsPanelOverlayParamsKind(OverlayKindPropZPanel) {
 		t.Error("OVERLAY_PROP_Z_PANEL should carry the panel params shape")
 	}

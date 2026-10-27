@@ -45,6 +45,8 @@ func decSchema() *encoding.Schema {
 }
 
 func TestMergeRefusal(t *testing.T) {
+	t.Parallel()
+
 	sum := func(f string) []*types.Aggregation {
 		return []*types.Aggregation{{Type: types.AGG_SUM, Field: f}}
 	}
@@ -174,6 +176,8 @@ func TestMergeRefusal(t *testing.T) {
 }
 
 func TestChainRefusal(t *testing.T) {
+	t.Parallel()
+
 	ok := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}}
 	if err := ChainRefusal(ok, decSchema(), nil, 0, "s0"); err != nil {
 		t.Fatalf("refused a mergeable stage: %v", err)
@@ -205,6 +209,8 @@ func TestChainRefusal(t *testing.T) {
 		{"non-mergeable", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}, {Type: types.AGG_MEDIAN, Field: "n"}}}, "aggregator AGG_MEDIAN is not mergeable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ChainRefusal(tc.req, decSchema(), nil, 3, "s3")
 			ce, isCoded := err.(*errors.CodedError)
 			if !isCoded || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE {
@@ -221,6 +227,8 @@ func TestChainRefusal(t *testing.T) {
 }
 
 func TestStageJoinRefusal(t *testing.T) {
+	t.Parallel()
+
 	joined := &types.Request{Joins: []*types.JoinSpec{{}, {}}}
 	if StageJoinRefusal(joined, 0, "s0") != nil {
 		t.Fatal("stage 0 may join")
@@ -253,6 +261,8 @@ func (hidesFormula) Attribute(n string) (bool, bool) {
 // list, so a hidden ATTR_FORMULA is refused with the reason a
 // never-registered attribute gets instead of passing on the list.
 func TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList(t *testing.T) {
+	t.Parallel()
+
 	req := func(attr types.AttributeType) *types.Request {
 		return &types.Request{
 			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}},
@@ -270,6 +280,8 @@ func TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList(t *testing.T) 
 }
 
 func TestMatrixRefusal(t *testing.T) {
+	t.Parallel()
+
 	mats := []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}}
 	xtab := &types.CrosstabSpec{}
 	joins := []*types.JoinSpec{{}}
@@ -307,6 +319,8 @@ func TestMatrixRefusal(t *testing.T) {
 }
 
 func TestStageMatrixRefusal(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}}}
 	if StageMatrixRefusal(req, 0, "s0") != nil {
 		t.Fatal("stage 0 may carry matrices")
@@ -329,6 +343,8 @@ func TestStageMatrixRefusal(t *testing.T) {
 // a matrix-only stage still fails the no-aggregator rule even though
 // the parallel merge gate admits it.
 func TestChainRefusal_IgnoresMatrices(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}},
 		Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"n"}}},
@@ -353,6 +369,8 @@ func TestChainRefusal_IgnoresMatrices(t *testing.T) {
 // once its model is bound, so a chain stage carrying it is admitted
 // exactly as one carrying ATTR_FORMULA is.
 func TestChainRefusal_AdmitsBoundModelScore(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p"}},
 		Attributes:   []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p", Params: []byte(`{"fit":"m"}`)}},
@@ -366,6 +384,8 @@ func TestChainRefusal_AdmitsBoundModelScore(t *testing.T) {
 // bound to a prebuilt fit is row-local, so a chain stage carrying it is
 // admitted; the same slot folding its own fit (fit_on) is refused.
 func TestChainRefusal_AdmitsFitBoundAttribute(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "d"}},
 		Attributes:   []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Label: "d", Fields: []string{"n", "m"}, Params: []byte(`{"fit":"pop"}`)}},
@@ -385,6 +405,8 @@ func TestChainRefusal_AdmitsFitBoundAttribute(t *testing.T) {
 // writes one f64 column per member and feeds the next stage (U30
 // E4-S3). The last stage is never judged.
 func TestStageArrayValuedRefusal(t *testing.T) {
+	t.Parallel()
+
 	expand := []byte(`{"expand": true}`)
 	vec := func(params []byte) *types.Aggregation {
 		return &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"a", "b"}, Label: "m", Params: params}
@@ -425,6 +447,8 @@ func TestStageArrayValuedRefusal(t *testing.T) {
 // under PULSE_CHAIN_NOT_MERGEABLE with CrosstabStageReason — while the
 // merge rule itself still admits a mergeable crosstab-free twin.
 func TestChainRefusal_Crosstab(t *testing.T) {
+	t.Parallel()
+
 	aggs := []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}
 	for name, req := range map[string]*types.Request{
 		"crosstab only":            {Crosstab: &types.CrosstabSpec{}},
@@ -450,6 +474,8 @@ func TestChainRefusal_Crosstab(t *testing.T) {
 // shapes keep the row-local reason, and the chain stage gate refuses
 // every total() formula.
 func TestParallelTotals(t *testing.T) {
+	t.Parallel()
+
 	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}
 	f := func(label, expr string) *types.Attribute {
 		return &types.Attribute{Type: types.ATTR_FORMULA, Expression: expr, Label: label}
@@ -534,6 +560,8 @@ func slicesHasNil(attrs []*types.Attribute) bool {
 // formula over it) is refused; one reading a plain row-local formula —
 // or a total() formula it does not read — still merges.
 func TestMergeRefusal_MatrixTotalMember(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
 	attrs := []*types.Attribute{
 		{Type: types.ATTR_FORMULA, Label: "share", Expression: "x / total(x)"},

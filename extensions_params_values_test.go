@@ -131,6 +131,8 @@ func strictCases() []strictCase {
 // runtime with the identical code, message, details.path and reason;
 // the conforming object runs on both sides.
 func TestExtensions_ParamsTypeAndRequiredEveryCategory(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, strictExtensions())
 	ctx := context.Background()
 	refusals := []struct {
@@ -195,6 +197,8 @@ func TestExtensions_ParamsTypeAndRequiredEveryCategory(t *testing.T) {
 // PULSE_REQUEST_UNKNOWN_FIELD (it wins over a type fault elsewhere in
 // the same object).
 func TestExtensions_ParamsValueCheckLeavesUndeclaredAndBuiltins(t *testing.T) {
+	t.Parallel()
+
 	ext := strictExtensions()
 	ext.Aggregators = append(ext.Aggregators, pulse.AggregatorRegistration{Name: "AGG_ACME_LOOSE", Description: "declares nothing",
 		Factory: stubAggregatorFactory, Streamable: true, Accepts: []encoding.FieldType{encoding.FieldTypeF64}})

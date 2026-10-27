@@ -78,6 +78,8 @@ func pairwiseWelfordP(t *testing.T, kind types.OverlayKind, params types.Pairwis
 // predict-only decision: the runtime arm neither refuses a non-distinct
 // selector nor lets one move the answer.
 func TestOverlayPairwise_WelfordSelectorsInertAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []types.OverlayKind{
 		types.OverlayKindPairwiseWelchT,
 		types.OverlayKindPairwiseTwoMeansZ,
@@ -117,6 +119,8 @@ func TestOverlayPairwise_WelfordSelectorsInertAtRuntime(t *testing.T) {
 // answers — and the runtime one pointed at the cell aggregator, which
 // is not the fixable thing. Both arms now report PARAM_MISSING.
 func TestOverlayPairwise_WelfordDistinctSelectorStillRefusedAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []types.OverlayKind{
 		types.OverlayKindPairwiseWelchT,
 		types.OverlayKindPairwiseTwoMeansZ,

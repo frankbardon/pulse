@@ -250,6 +250,8 @@ var lavaanMeanCases = []struct {
 // meanstructure = TRUE fit of the brand-survey fixture, under both
 // derivative computations and both solvers at a converged setting.
 func TestSEM_MeanStructureMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range lavaanMeanCases {
 		ref := loadLavaanRef(t, "testdata/"+c.name+"_lavaan.json")
 		desc, err := os.ReadFile("testdata/" + c.model + "_model.txt")
@@ -308,6 +310,8 @@ func TestSEM_MeanStructureMatchesLavaan(t *testing.T) {
 // and the rows a mean structure adds (an observed exogenous mean is a
 // hidden fixed.x moment).
 func TestSEM_ParseIntercepts(t *testing.T) {
+	t.Parallel()
+
 	desc := "f =~ x1 + x2 + x3\ny ~ 1 + f + w\nx1 ~ 0*1\nx2 ~ a*1\nx3 ~ a*1\nf ~ 1"
 	if !HasIntercepts(desc) || HasIntercepts("f =~ x1 + x2") || HasIntercepts("f =~") {
 		t.Fatal("HasIntercepts misreads a description")
@@ -377,6 +381,8 @@ func TestSEM_ParseIntercepts(t *testing.T) {
 // engine's one entry point — fits it bit for bit as FitCov, whatever
 // mean it is handed. Numerical semopy parity is TestFit_MatchesSemopy.
 func TestSEM_LegacyConventionsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range parityCases {
 		desc, err := os.ReadFile("testdata/" + tc.name + "_model.txt")
 		if err != nil {

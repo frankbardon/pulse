@@ -13,6 +13,8 @@ import (
 // equivalence suite only proves they agree; this proves they agree on the
 // right answer.
 func TestDecoders_TemporalWordsAreSigned(t *testing.T) {
+	t.Parallel()
+
 	for _, days := range []int32{-25567, -1, 0, 19782} {
 		raw := uint64(uint32(days))
 		buf := make([]byte, 4)

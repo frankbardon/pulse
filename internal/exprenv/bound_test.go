@@ -13,6 +13,8 @@ import (
 // (only when bound), the embedder functions untyped, lookup only when a
 // table is registered.
 func TestBoundOptions(t *testing.T) {
+	t.Parallel()
+
 	env := expr.Env(exprtypes.Map{"x": DerivedType, "v": VectorType})
 	compile := func(b Bound, src string) error {
 		_, err := expr.Compile(src, append([]expr.Option{env}, b.Options()...)...)

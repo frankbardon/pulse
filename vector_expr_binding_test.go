@@ -348,6 +348,8 @@ func vexprFloat(v any) (float64, bool) {
 // computed from the generated rows, and predict accepts the request
 // with the same streamability as before (ATTR_FORMULA stays row-local).
 func TestVectorExpr_BindsUnderProjection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, m := range vexprModes() {
 		t.Run(m.name, func(t *testing.T) {
@@ -407,6 +409,8 @@ func TestVectorExpr_BindsUnderProjection(t *testing.T) {
 // TestVectorExpr_NameCollisionRefused: a vector named like a schema
 // field is refused by Process and predict alike, before any record.
 func TestVectorExpr_NameCollisionRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 20)
@@ -440,6 +444,8 @@ func TestVectorExpr_NameCollisionRefused(t *testing.T) {
 // no PULSE_VECTOR_UNREFERENCED from Process or predict — while a vector
 // nothing reads still warns on both.
 func TestVectorExpr_ExpressionReferenceCounts(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
@@ -508,6 +514,8 @@ func TestVectorExpr_ExpressionReferenceCounts(t *testing.T) {
 // Process and predict alike (PULSE_VECTOR_NAME_COLLISION) — without the
 // rule the formula silently read the column, not the vector.
 func TestVectorExpr_LabelCollisionRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 20)

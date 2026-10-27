@@ -60,6 +60,8 @@ func ftBits(t *testing.T, what string, got any, want float64) {
 // file (parallel decode would fold partition-local totals; the merge
 // gate keeps it serial).
 func TestFormulaTotal_Arms(t *testing.T) {
+	t.Parallel()
+
 	out := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(score / 3)", Label: "out"}
 	arms := tpoArms(t, true)
 	rows := map[string]int{"single_file": paritySmallRows, "shard_archive": 120, "large_decode_workers": parityLargeRows}
@@ -90,6 +92,8 @@ func TestFormulaTotal_Arms(t *testing.T) {
 // unweighted total; the projected buffered decode loads the
 // total()'s argument columns, equal to an unprojected run.
 func TestFormulaTotal_GroupedWeightedProjected(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys})
@@ -173,6 +177,8 @@ func TestFormulaTotal_GroupedWeightedProjected(t *testing.T) {
 // NaN in Go and null on the wire; a zero total used as a divisor is
 // non-finite and null on the wire. Never 0.
 func TestFormulaTotal_UndefinedIsNull(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys})
@@ -211,6 +217,8 @@ func TestFormulaTotal_UndefinedIsNull(t *testing.T) {
 // TestFormulaTotal_Materialize: api materialize writes the total-bearing
 // column with every row's pre-pass total.
 func TestFormulaTotal_Materialize(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys})
@@ -242,6 +250,8 @@ func TestFormulaTotal_Materialize(t *testing.T) {
 // total() misuse with the same code; an embedder may not register an
 // expression function named total.
 func TestFormulaTotal_Refusals(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys})
@@ -308,6 +318,8 @@ func TestFormulaTotal_Refusals(t *testing.T) {
 // scenario factor — 1 - 1000 / (TV spend over the second year) — is
 // 0.80866 to five places, and the scenario column is spend × factor.
 func TestFormulaTotal_MMMSubsetFactor(t *testing.T) {
+	t.Parallel()
+
 	csv, err := os.ReadFile("docs/roadmap/fixtures/mmm-harbor-pine/harbor_pine_mmm.csv")
 	if err != nil {
 		t.Fatal(err)
@@ -361,6 +373,8 @@ func TestFormulaTotal_MMMSubsetFactor(t *testing.T) {
 // Each arm is falsified on its own gate: shard_reduce.go's and
 // parallel_decode.go's CanMergeRequestWithExtensions checks.
 func TestFormulaTotal_PartitionedRouting(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	type arm struct {
 		name     string
@@ -465,6 +479,8 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 // Compose alike (both before reference resolution); the same spec
 // without total() passes both.
 func TestFormulaTotal_ComposeOverlayRefusal(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys})
@@ -509,6 +525,8 @@ func TestFormulaTotal_ComposeOverlayRefusal(t *testing.T) {
 // PULSE_ADVISORY_EXTRA_PASS per total formula — never a warning, never
 // escalated by Strict — and an instance suppressing the code drops it.
 func TestFormulaTotal_ExtraPassAdvisory(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	code := string(errors.PULSE_ADVISORY_EXTRA_PASS)
 	req := ftReq("ft.pulse", &types.Attribute{Type: types.ATTR_FORMULA, Expression: "score / total(score)", Label: "out"})
@@ -558,6 +576,8 @@ func TestFormulaTotal_ExtraPassAdvisory(t *testing.T) {
 // check before); scalar maths, the set helpers and a registered
 // lookup() pass both.
 func TestComposeOverlayFormula_BuiltinParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "ft.pulse", paritySchema(t), 0, paritySmallRows)
 	p, err := pulse.New(pulse.Options{FS: fsys, Extensions: pulse.Extensions{

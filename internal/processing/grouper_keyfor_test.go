@@ -58,6 +58,8 @@ func assertStreamableEquivalence(t *testing.T, g Grouper, field string, records 
 }
 
 func TestGrouper_Category_KeyFor_EquivalentToGroup(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_CATEGORY, "age", 0, schema)
 
@@ -78,6 +80,8 @@ func TestGrouper_Category_KeyFor_EquivalentToGroup(t *testing.T) {
 }
 
 func TestGrouper_Category_KeyFor_CategoricalDict(t *testing.T) {
+	t.Parallel()
+
 	// Categorical field path — KeyFor must resolve dictionary indices to
 	// labels, identical to Group's resolution.
 	schema := categoricalSchema()
@@ -98,6 +102,8 @@ func TestGrouper_Category_KeyFor_CategoricalDict(t *testing.T) {
 }
 
 func TestGrouper_Category_KeyFor_FloatNonCategorical(t *testing.T) {
+	t.Parallel()
+
 	// Non-categorical numeric field with fractional values — exercises
 	// the FormatFloat branch in formatRoundedNumeric.
 	schema := numericSchema()
@@ -120,6 +126,8 @@ func TestGrouper_Category_KeyFor_FloatNonCategorical(t *testing.T) {
 }
 
 func TestGrouper_Rounded_KeyFor_EquivalentToGroup(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_ROUNDED, "age", 10, schema)
 
@@ -138,6 +146,8 @@ func TestGrouper_Rounded_KeyFor_EquivalentToGroup(t *testing.T) {
 }
 
 func TestGrouper_Range_KeyFor_EquivalentToGroup(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	g := makeGrouper(t, types.GROUP_RANGE, "age", 25, schema)
 
@@ -159,6 +169,8 @@ func TestGrouper_Range_KeyFor_EquivalentToGroup(t *testing.T) {
 }
 
 func TestGrouper_Range_KeyFor_FractionalInterval(t *testing.T) {
+	t.Parallel()
+
 	// Fractional Interval — KeyFor's "low-high" output is reconstructed
 	// from formatRoundedNumeric; this asserts it stays byte-equal to
 	// Group's keys even when low/high are non-integer floats.
@@ -186,6 +198,8 @@ func TestGrouper_Range_KeyFor_FractionalInterval(t *testing.T) {
 }
 
 func TestGrouper_Date_KeyFor_EquivalentToGroup(t *testing.T) {
+	t.Parallel()
+
 	// Sweep every component the buffered Group() supports; KeyFor must
 	// match for each one.
 	components := []string{"year", "quarter", "month", "week", "day", "day_of_week"}
@@ -214,6 +228,8 @@ func TestGrouper_Date_KeyFor_EquivalentToGroup(t *testing.T) {
 }
 
 func TestGrouper_Date_KeyFor_FiscalOffset(t *testing.T) {
+	t.Parallel()
+
 	// Fiscal-offset variants — KeyFor must apply the same fiscal-year
 	// translation Group does. Sweep year + quarter at a couple of
 	// offsets to catch both the FY-only and FY-Q paths.
@@ -257,6 +273,8 @@ func TestGrouper_Date_KeyFor_FiscalOffset(t *testing.T) {
 }
 
 func TestGrouper_SetValue_KeyFor_EquivalentToGroup(t *testing.T) {
+	t.Parallel()
+
 	// SET_VALUE atomic-mask path — bound field is "tags"; empty mask is
 	// a legitimate "" bucket key, only null/missing triggers the
 	// sentinel.
@@ -289,6 +307,8 @@ func TestGrouper_SetValue_KeyFor_EquivalentToGroup(t *testing.T) {
 // and DO NOT implement StreamableGrouper. Pins the interface
 // membership so future grouper additions surface in this test.
 func TestGrouper_StreamableInterface_Coverage(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	catSchema := categoricalSchema()
 	dSchema := dateSchema()

@@ -70,6 +70,8 @@ func filterToFileProbes(ctx context.Context, path string) []formatProbe {
 // emits a valid, empty 0x02 cohort. Unreferenced entries are carried,
 // so inspect's ratio is surviving rows ÷ CARRIED entries.
 func TestGroupedCohort_FilterToFile(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cases := []struct{ name, expr string }{
 		{"ChildOnly", "score > 5"},
@@ -198,6 +200,7 @@ func TestGroupedCohort_FilterToFile(t *testing.T) {
 // predicate over one group's members is evaluated once per dictionary
 // entry (30 here), not once per row (360) — with the same output.
 func TestGroupedCohort_FilterToFilePrecompute(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch
 	ctx := context.Background()
 	_, fs2 := groupedTwinFS(t)
 	p, err := New(Options{FS: fs2})

@@ -83,6 +83,8 @@ func symmetryClose(t *testing.T, where string, got float64, want *float64) {
 // case the documented drop rule — with the host columns REVERSED against
 // the rows, so a positional (not by-key) alignment would fail.
 func TestSymmetry_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[symmetryCase](t, "symmetry")
 	if len(doc.Cases) < 7 {
 		t.Fatalf("symmetry.json has %d cases, want at least 7", len(doc.Cases))
@@ -130,6 +132,8 @@ func TestSymmetry_MatchesR(t *testing.T) {
 // TestSymmetry_DefaultCorrects: an omitted params.correct is R's default
 // correct = TRUE — the corrected McNemar on a 2 x 2.
 func TestSymmetry_DefaultCorrects(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{10, 12}, {4, 9}})
 	layer, _, err := applySymmetry(symmetrySpec(""), host)
 	if err != nil {
@@ -158,6 +162,8 @@ func TestSymmetry_DefaultCorrects(t *testing.T) {
 // gap is clamped at 0, so the statistic never exceeds the uncorrected
 // one (R would square −0.5).
 func TestSymmetry_CorrectionClampsAtZero(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{3, 2.5}, {2, 4}})
 	layer, _, err := applySymmetry(symmetrySpec(""), host)
 	if err != nil {
@@ -172,6 +178,8 @@ func TestSymmetry_CorrectionClampsAtZero(t *testing.T) {
 // started there) is a row of zeros, never a refusal — the figures equal
 // the explicit square table.
 func TestSymmetry_OneAxisStateIsZeroRow(t *testing.T) {
+	t.Parallel()
+
 	partial := symmetryHost([]string{"a", "b"}, []string{"c", "b", "a"}, [][]float64{{4, 7, 20}, {6, 30, 2}})
 	full := symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{20, 7, 4}, {2, 30, 6}, {0, 0, 0}})
 	got, _, err := applySymmetry(symmetrySpec(""), partial)
@@ -190,6 +198,8 @@ func TestSymmetry_OneAxisStateIsZeroRow(t *testing.T) {
 // TestSymmetry_UndefinedCellIsAbsent: an undefined (NaN) cell is an
 // absent one (E4-S6) — the figures equal the table with that cell 0.
 func TestSymmetry_UndefinedCellIsAbsent(t *testing.T) {
+	t.Parallel()
+
 	nan := symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{5, math.NaN(), 1}, {2, 5, 3}, {2, 6, 5}})
 	zero := symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{5, 0, 1}, {2, 5, 3}, {2, 6, 5}})
 	got, _, err := applySymmetry(symmetrySpec(""), nan)
@@ -210,6 +220,8 @@ func TestSymmetry_UndefinedCellIsAbsent(t *testing.T) {
 // below 5, the empty ones among them and the minimum; a table with every
 // pair at 5 or more raises none.
 func TestSymmetry_ExpectedLowWarning(t *testing.T) {
+	t.Parallel()
+
 	// Pairs: (a, b) s = 9 (expected 4.5), (a, c) s = 0, (b, c) s = 32.
 	host := symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{9, 4, 0}, {5, 9, 20}, {0, 12, 9}})
 	_, ws, err := applySymmetry(symmetrySpec(""), host)
@@ -232,6 +244,8 @@ func TestSymmetry_ExpectedLowWarning(t *testing.T) {
 // TestSymmetry_Refusals: each runtime refusal carries its own code (and
 // the spec index through applySymmetryAt), never PROCESSING_INTERNAL.
 func TestSymmetry_Refusals(t *testing.T) {
+	t.Parallel()
+
 	square := func() *CrosstabHostView {
 		return symmetryHost([]string{"a", "b"}, []string{"a", "b"}, [][]float64{{1, 2}, {3, 4}})
 	}
@@ -270,6 +284,8 @@ func TestSymmetry_Refusals(t *testing.T) {
 // TestSymmetry_DoesNotMutateHost: the overlay is a read-only sibling —
 // the host payload is byte-identical after the handler runs.
 func TestSymmetry_DoesNotMutateHost(t *testing.T) {
+	t.Parallel()
+
 	host := symmetryHost([]string{"a", "b"}, []string{"b", "a"}, [][]float64{{3, 10}, {9, 2}})
 	before, _ := json.Marshal(host.Payload())
 	if _, _, err := applySymmetry(symmetrySpec(""), host); err != nil {

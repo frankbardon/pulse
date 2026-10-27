@@ -81,6 +81,8 @@ func prevStateKept(t *testing.T, p *pulse.Pulse, what string, req func() *types.
 // panel (the first record of the stream has a null previous state) it
 // keeps the union of the per-wave records.
 func TestPreviousState_ExpressionsReadStateNames(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	const longBit = "2 ** (id + 8 * (seen - 1))"
 	for _, form := range prevStateExprForms {
@@ -118,6 +120,8 @@ func TestPreviousState_ExpressionsReadStateNames(t *testing.T) {
 // column by name too — the per-wave sum of `prev == "paid"` (null
 // coalesced) equals the wide twin's on plan_t(k-1).
 func TestPreviousState_FormulaReadsStateNames(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	mk := func(cohort, col string, attrs []*types.Attribute, filters ...*types.Filterer) *types.Request {
@@ -150,6 +154,8 @@ func TestPreviousState_FormulaReadsStateNames(t *testing.T) {
 // state crosstab equals the wide plan_t1 × plan_t2 crosstab under
 // `plan_t1 == "free"`, cell for cell and label for label.
 func TestPreviousState_UpgradeFromFreeFilter(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	req := transitionCrosstab("waves.pulse", "prev", "plan", prevStateAttr())
@@ -177,6 +183,8 @@ func TestPreviousState_UpgradeFromFreeFilter(t *testing.T) {
 // field refuses (a string in arithmetic) is refused on the previous-state
 // column too, with the same code on predict and at runtime.
 func TestPreviousState_ExpressionRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	p, fs := prevStateWavesLongAndWide(t, pulse.Options{})
 	mk := func() *types.Request {
 		return &types.Request{
@@ -196,6 +204,8 @@ func TestPreviousState_ExpressionRefusalParity(t *testing.T) {
 // Mahalanobis fit on `prev == "paid"` equals the fit on the same rows
 // picked by their row number (x), on predict and at runtime.
 func TestPreviousState_FitOnReadsStateNames(t *testing.T) {
+	t.Parallel()
+
 	p, _ := prevStateWavesLongAndWide(t, pulse.Options{})
 	ctx := context.Background()
 	// The long panel's row i is wave i/8 of subject i%8; its previous

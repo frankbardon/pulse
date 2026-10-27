@@ -137,6 +137,8 @@ func shedWeightKeys(res *types.TestResult) []byte {
 // kind, reproduces the unweighted result byte for byte (statistic, df,
 // p-value, every detail) — the op-order exactness rule.
 func TestWeightedTests_UnityMatchesUnweighted(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range weightedTestCases() {
 		ones := append([]wRow(nil), tc.rows...)
 		for i := range ones {
@@ -189,6 +191,8 @@ func numbers(v any) []float64 {
 // every numeric detail to 1e-12 relative; `n` stays the raw row count
 // and sum_weights is exactly the expanded n.
 func TestWeightedTests_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range weightedTestCases() {
 		var expanded []wRow
 		for _, r := range tc.rows {
@@ -373,6 +377,8 @@ func closedForm(tc weightedTestCase, prob bool) (stat, df, p float64) {
 // formulas — frequency with N* = Σw, probability with N* = Kish n_eff
 // (fractional df) — and report n_eff in the shape of `n`.
 func TestWeightedTests_ClosedForm(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range weightedTestCases() {
 		for _, kind := range []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability} {
 			prob := kind == types.WeightKindProbability
@@ -401,6 +407,8 @@ func TestWeightedTests_ClosedForm(t *testing.T) {
 // figures, since weights constant within a group carry no
 // within-group design effect.
 func TestWeightedTests_ANOVAFPerGroupNEff(t *testing.T) {
+	t.Parallel()
+
 	var rows []wRow
 	for i := 0; i < 10; i++ {
 		rows = append(rows, wRow{x: 3 + 0.4*float64(i%5) + 0.1*float64(i), g: "a", w: 1})
@@ -431,6 +439,8 @@ func TestWeightedTests_ANOVAFPerGroupNEff(t *testing.T) {
 // mean 3.75, s² = 10.7 (inference_test.go), se = √(10.7/(8/3)),
 // df = 5/3. Frequency: s² = 26.75/3, se = √(s²/4), df = 3.
 func TestWeightedTests_HandComputedOneSample(t *testing.T) {
+	t.Parallel()
+
 	rows := []wRow{{x: 1, w: 1}, {x: 3, w: 2}, {x: 8, w: 1}}
 	spec := types.Test{Type: types.TEST_T, Field: "x"}
 	prob := runWeightedRowTest(t, spec, rows, types.WeightKindProbability)
@@ -457,6 +467,8 @@ func TestWeightedTests_HandComputedOneSample(t *testing.T) {
 // row with a null second field is dropped before its (invalid) weight
 // is judged.
 func TestWeightedTests_ExcludeInvalidAndZero(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	for _, tc := range weightedTestCases() {
 		spec := tc.spec
@@ -497,6 +509,8 @@ func TestWeightedTests_ExcludeInvalidAndZero(t *testing.T) {
 // PULSE_WEIGHT_INVALID_ROWS; a post-test of the same family is never
 // stamped.
 func TestWeightedTests_ProcessorStampsAndTallies(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	var recs []*Record
 	for _, r := range weightedTestFixture() {
@@ -556,6 +570,8 @@ func TestWeightedTests_ProcessorStampsAndTallies(t *testing.T) {
 // group's n_eff below the floor — one PULSE_WEIGHT_LOW_NEFF warning
 // naming the group, an error under strict; frequency weights never warn.
 func TestWeightedTests_LowNEff(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	var recs []*Record
 	add := func(x, w float64, g string) {
@@ -635,6 +651,8 @@ func checkLowNEff(t *testing.T, run func(types.WeightKind, bool) (*types.Respons
 // details (mirroring TEST_ANOVA_F's N* ≤ k refusal), never answered
 // with a null t / p. The same rows under kind frequency (N* = Σw) run.
 func TestWeightedTests_PearsonRefusesNonPositiveDF(t *testing.T) {
+	t.Parallel()
+
 	rows := []wRow{{x: 1, y: 2.1, w: 1000}, {x: 2, y: 2.9, w: 1}, {x: 3, y: 4.2, w: 1}, {x: 4, y: 4.8, w: 1}}
 	schema := weightedTestSchema()
 	spec := types.Test{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}

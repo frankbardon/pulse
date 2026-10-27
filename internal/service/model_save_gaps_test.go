@@ -63,6 +63,8 @@ func chainWithStageSave(stage0Save, stage1Path string) *types.ChainRequest {
 // on stage 0 — is refused, never silently dropped, and no model file is
 // written: stage 0's is refused before it runs.
 func TestModelSave_ChainNeverWrites(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	first, later := "chain/row"+model.FileSuffix, "chain/agg"+model.FileSuffix
 	ce := saveCoded(t, ignoreResp(svc.ProcessChain(context.Background(), chainWithStageSave("", later))), perr.PULSE_CHAIN_NOT_MERGEABLE)
@@ -82,6 +84,8 @@ func ignoreResp[T any](_ T, err error) error { return err }
 // regression, so a saving one is refused — never silently dropped —
 // and no file is written.
 func TestModelSave_MaterializeRefusesSave(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	req := saveRequest(&types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}})
 	req.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x", Label: "lx"}}
@@ -96,6 +100,8 @@ func TestModelSave_MaterializeRefusesSave(t *testing.T) {
 // request, or across a Compose batch's fits and slots — are refused
 // before anything runs, naming both sites.
 func TestModelSave_DuplicatePathsRefused(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	ctx := context.Background()
 	other := "models/n" + model.FileSuffix
@@ -135,6 +141,8 @@ func TestModelSave_DuplicatePathsRefused(t *testing.T) {
 // path is refused in the pre-pass — before the fit (whose own save is
 // valid) or any earlier slot runs, so nothing is written.
 func TestModelSave_ComposeSlotPathBeforeAnyRun(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook
+
 	svc := fitsService(t)
 	ctx := context.Background()
 	fitSaved := "models/f" + model.FileSuffix

@@ -14,6 +14,8 @@ import (
 // ordinal, true_adstock is spend + 0.6 * its own previous value (0 before
 // row 1), and the Fourier controls are the portable sin/cos of the week.
 func TestSynthExamples_MMMAdstock(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile(filepath.Join("..", "examples", "synth", "07_mmm_adstock.synth.json"))
 	if err != nil {
 		t.Fatalf("read example: %v", err)

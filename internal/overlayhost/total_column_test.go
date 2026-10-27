@@ -8,6 +8,8 @@ import (
 )
 
 func TestHeaderGrouperCount(t *testing.T) {
+	t.Parallel()
+
 	total := (&types.CrosstabSpec{}).ColumnHeader()
 	if got := HeaderGrouperCount(total); got != 0 {
 		t.Errorf("implicit Total header counts %d groupers, want 0", got)
@@ -19,6 +21,8 @@ func TestHeaderGrouperCount(t *testing.T) {
 }
 
 func TestTotalColumnRefusal(t *testing.T) {
+	t.Parallel()
+
 	for _, k := range []types.OverlayKind{types.OverlayKindChiSqMatrix, types.OverlayKindChiSqRow,
 		types.OverlayKindStdResidual, types.OverlayKindCorrespondence} {
 		cerr := TotalColumnRefusal("OVERLAY_X_ALIAS", k, 2)

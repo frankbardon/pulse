@@ -21,6 +21,8 @@ import (
 // hidden kind through the instance registry: hidden ≡ never-registered
 // after substitution, while the unscoped control computes the layer.
 func TestShardParallel_HiddenSeriesOverlayRoutesAsUnknown(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"red", "green"} {
 		_, _ = dict.Add(v)

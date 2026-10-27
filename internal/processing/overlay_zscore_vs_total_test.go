@@ -57,6 +57,8 @@ func classicalPopulationMeanSD(values []float64) (mean, sd float64) {
 // Welford — the only source of error is floating-point rounding on the
 // recurrence + sqrt.
 func TestOverlay_ZScoreVsTotal_BasicSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{1.0, 2.0, 3.0}
 	host := newStubSeriesHost(keys, values)
@@ -115,6 +117,8 @@ func TestOverlay_ZScoreVsTotal_BasicSeries(t *testing.T) {
 // symmetric around 0 — pin both the magnitude and the symmetry to
 // catch sign-flip regressions.
 func TestOverlay_ZScoreVsTotal_SymmetricDistribution(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -156,6 +160,8 @@ func TestOverlay_ZScoreVsTotal_SymmetricDistribution(t *testing.T) {
 // stay green. Tolerance is loose at 1e-10 rather than ULP-tight because
 // the classical reference itself accumulates rounding across two passes.
 func TestOverlay_ZScoreVsTotal_WelfordULP(t *testing.T) {
+	t.Parallel()
+
 	// A handful of values with disparate but not pathological
 	// magnitudes — large enough to expose any catastrophic cancellation
 	// in the classical formula, small enough that the two formulae
@@ -190,6 +196,8 @@ func TestOverlay_ZScoreVsTotal_WelfordULP(t *testing.T) {
 // SHARE_OF_TOTAL SERIES zero-grand-total emission shape (one warning
 // per layer, not per cell).
 func TestOverlay_ZScoreVsTotal_ZeroVarianceEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{42.0, 42.0, 42.0}
 	host := newStubSeriesHost(keys, values)
@@ -235,6 +243,8 @@ func TestOverlay_ZScoreVsTotal_ZeroVarianceEmitsWarn(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO warning and NaN statistics across present
 // entries.
 func TestOverlay_ZScoreVsTotal_AllZerosEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 0.0, 0.0}
 	host := newStubSeriesHost(keys, values)
@@ -269,6 +279,8 @@ func TestOverlay_ZScoreVsTotal_AllZerosEmitsWarn(t *testing.T) {
 // NaN Statistic. The remaining absent entries stay absent (nil
 // Statistic) under the absent-group contract.
 func TestOverlay_ZScoreVsTotal_SinglePresentGroupEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{42.0, math.NaN(), math.NaN()} // only "a" is present
 	host := newStubSeriesHost(keys, values)
@@ -303,6 +315,8 @@ func TestOverlay_ZScoreVsTotal_SinglePresentGroupEmitsWarn(t *testing.T) {
 }
 
 func TestOverlay_ZScoreVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	// NaN signals absent (newStubSeriesHost's resolver returns
 	// (0, false) for NaN inputs).
@@ -358,6 +372,8 @@ func TestOverlay_ZScoreVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 }
 
 func TestOverlay_ZScoreVsTotal_StreamingBufferedByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"x"}, {"y"}, {"z"}}
 	values := []float64{12.0, 34.0, 56.0}
 
@@ -449,6 +465,8 @@ func TestOverlay_ZScoreVsTotal_StreamingBufferedByteIdentical(t *testing.T) {
 // for the same reason (zero denominator / sd) but the entries slice is
 // empty rather than full-of-NaN.
 func TestOverlay_ZScoreVsTotal_ZeroGroupsClean(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHost(nil, nil)
 	specs := []types.OverlaySpec{newZScoreVsTotalSpec("zscore_total")}
 
@@ -471,6 +489,8 @@ func TestOverlay_ZScoreVsTotal_ZeroGroupsClean(t *testing.T) {
 // lower-case bare-kind string "zscore_vs_total" mirroring the
 // INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES family.
 func TestOverlay_ZScoreVsTotal_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{1.0, 2.0})
 	// No Name on the spec — exercises the synthesiser.
@@ -496,6 +516,8 @@ func TestOverlay_ZScoreVsTotal_DefaultLayerName(t *testing.T) {
 // only when mean is genuinely zero — the BasicSeries test catches the
 // non-zero-mean case).
 func TestOverlay_ZScoreVsTotal_MeanZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{-2.0, -1.0, 0.0, 1.0, 2.0}
 	host := newStubSeriesHost(keys, values)

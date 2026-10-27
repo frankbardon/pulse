@@ -129,6 +129,8 @@ func (c bayesRefCase) spec() *types.RegressionSpec {
 // It replaces the diffuse-limit OLS comparison as the posterior's only
 // external check.
 func TestReferenceOracle_RegBayesLinearMatchesR(t *testing.T) {
+	t.Parallel()
+
 	const tol = 1e-10
 	var sawWeighted, sawPlain, sawPrior bool
 	for _, c := range loadBayesReference(t) {

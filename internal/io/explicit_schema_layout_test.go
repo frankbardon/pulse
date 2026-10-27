@@ -38,6 +38,8 @@ func positions(s *encoding.Schema) []fieldPos {
 // a bit-packed field owns a whole byte at bit 0 — on both the resolved and
 // the empty-source path, and that the caller's schema is left alone.
 func TestResolveExplicitSchema_CanonicalLayout(t *testing.T) {
+	t.Parallel()
+
 	want := []fieldPos{{0, 0}, {1, 0}, {2, 0}, {6, 0}}
 	for _, src := range []struct {
 		name   string
@@ -71,6 +73,8 @@ func TestResolveExplicitSchema_CanonicalLayout(t *testing.T) {
 // engine — while export, which reads the whole byte, still showed the
 // right value.
 func TestImportRun_ExplicitBitPositionIgnored(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := &ImportJob{
 		Source: &stringRowsReader{

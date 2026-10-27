@@ -60,6 +60,8 @@ const variateSpecHash = "234b32db8a16c236cdfa897b5dbc0c3f4e3809059b3e8952e05c2e5
 // TestSynthZiggurat_GenerationBytesPortable pins variateSpec's generated
 // bytes.
 func TestSynthZiggurat_GenerationBytesPortable(t *testing.T) {
+	t.Parallel()
+
 	data, _, err := synth.SynthBytes(variateSpec(), synth.Options{Seed: 4242})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)

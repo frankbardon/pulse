@@ -20,6 +20,8 @@ import (
 // ungrouped and a grouped aggregation, a crosstab cell (both dispatch
 // arms), the prior-period T / Z kinds and the pairwise Welch kinds.
 func TestWelford_AttributeDerivedField(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	const attr = `"attributes":[{"type":"ATTR_FORMULA","field":"x","label":"xs","expression":"x == nil ? nil : x * 1.0"}],`
 	cases := []struct{ name, body string }{
@@ -75,6 +77,8 @@ func TestWelford_AttributeDerivedField(t *testing.T) {
 // and the runtime — the AGG_WELFORD factory no longer judges a name the
 // schema lacks, so the shared field-reference walk owns it.
 func TestWelford_UndefinedFieldRefusedAlike(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -99,6 +103,8 @@ func TestWelford_UndefinedFieldRefusedAlike(t *testing.T) {
 // read an attribute-derived AGG_WELFORD's triple off the slot components
 // exactly as they read a stored field's.
 func TestWelford_AttributeDerivedField_Compose(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

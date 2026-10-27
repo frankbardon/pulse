@@ -14,6 +14,8 @@ import (
 // exclude of regressions[*].vcov drops exactly that matrix (absent on
 // the wire, never null) while its correlation stays.
 func TestReturn_RegressionVcov(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	mk := func(ret *types.Return) *types.Request {
 		return &types.Request{

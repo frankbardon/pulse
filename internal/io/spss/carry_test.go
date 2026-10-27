@@ -48,6 +48,8 @@ func variableNamed(doc *Document, name string) *Variable {
 // not know gets a numeric variable with a unique minted short name; every
 // recorded variable keeps its entry.
 func TestSidecarCarry_AddsAPlainNumericPerNewColumn(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, src := importFixture(t, richSpec())
 	c, warn := PrepareSidecarCarry(fs, cohort)
 	if warn != nil || c == nil {
@@ -79,6 +81,8 @@ func TestSidecarCarry_AddsAPlainNumericPerNewColumn(t *testing.T) {
 // whose values were replaced loses its codes and labels; one the response
 // sets refer to cannot be carried at all.
 func TestSidecarCarry_ReplacedValuesBecomePlainNumeric(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 	c, _ := PrepareSidecarCarry(fs, cohort)
 	s := carrySchema(t, fs, cohort)
@@ -104,6 +108,8 @@ func TestSidecarCarry_ReplacedValuesBecomePlainNumeric(t *testing.T) {
 // TestSidecarCarry_WriteForIsFreshAndExports: the written document is
 // fingerprinted over the derived cohort, so the export honours it.
 func TestSidecarCarry_WriteForIsFreshAndExports(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, plainSpec())
 	c, _ := PrepareSidecarCarry(fs, cohort)
 	raw, err := afero.ReadFile(fs, cohort)
@@ -133,6 +139,8 @@ func TestSidecarCarry_WriteForIsFreshAndExports(t *testing.T) {
 // cannot honour (an unrecorded or replaced source, another type) refuses
 // the carry rather than mis-describing the column.
 func TestSidecarCarry_MirroredColumnCopiesItsSourceVariable(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, src := importFixture(t, richSpec())
 	c, _ := PrepareSidecarCarry(fs, cohort)
 	withPrev := func(typ encoding.FieldType) *encoding.Schema {
@@ -202,6 +210,8 @@ func TestSidecarCarry_MirroredColumnCopiesItsSourceVariable(t *testing.T) {
 // is the column's own — true iff a written record carried its ID — never
 // the source variable's.
 func TestSidecarCarry_MirroredObservedFromTheColumn(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, src := importFixture(t, richSpec())
 	c, _ := PrepareSidecarCarry(fs, cohort)
 	s := carrySchema(t, fs, cohort)

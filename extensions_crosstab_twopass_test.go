@@ -39,6 +39,8 @@ func twoPassCrosstabRequest(at types.AttributeType) *types.Request {
 // parity harness covers (single file, >threshold single file with
 // parallel decode, shard archive).
 func TestExtensions_TwoPassAttributeCrosstabNotFused(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	for _, mode := range parityModes(large) {
 		if mode.decorate != nil {

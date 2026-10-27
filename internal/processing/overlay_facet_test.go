@@ -194,6 +194,8 @@ func facetTestSpec(kind types.OverlayKind) *types.OverlaySpec {
 // categorical fast path. Subset {a: 60, b: 40} vs population {a: 30, b:
 // 70} produces per-value indices of 200 (60/30) and ~57 (40/70).
 func TestOverlay_FacetIndexVsPop_CategoricalFastPath(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 60, "b": 40},
 		map[string]int64{"a": 30, "b": 70},
@@ -246,6 +248,8 @@ func TestOverlay_FacetIndexVsPop_CategoricalFastPath(t *testing.T) {
 // 70} produce per-bin indices of 200 (left-overrepresented) and ~57
 // (right-underrepresented).
 func TestOverlay_FacetIndexVsPop_NumericStreamingPath(t *testing.T) {
+	t.Parallel()
+
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,
 		Histogram: &types.FacetHistogram{Min: 0, Max: 100, Bins: []int64{60, 40}},
@@ -286,6 +290,8 @@ func TestOverlay_FacetIndexVsPop_NumericStreamingPath(t *testing.T) {
 // against a streaming Facet host or a buffered one yields the same
 // output because the input is finalized state).
 func TestOverlay_FacetIndexVsPop_StreamableHotPath(t *testing.T) {
+	t.Parallel()
+
 	streamable, known := types.OverlayStreamable(types.OverlayKindIndexVsPop)
 	if !known {
 		t.Fatal("OverlayKindIndexVsPop missing from OverlayStreamability table")
@@ -322,6 +328,8 @@ func TestOverlay_FacetIndexVsPop_StreamableHotPath(t *testing.T) {
 // with overlays stripped must be byte-equal to the parallel FacetResult
 // that never carried an overlays slot in the first place.
 func TestOverlay_FacetIndexVsPop_AdditiveByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 60, "b": 40},
 		map[string]int64{"a": 30, "b": 70},
@@ -356,6 +364,8 @@ func TestOverlay_FacetIndexVsPop_AdditiveByteIdentity(t *testing.T) {
 // population fires one warning per affected entry and leaves the
 // Statistic unset.
 func TestOverlay_FacetIndexVsPop_ZeroPopFreq_WarnsAndSkips(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 50, "b": 50},
 		// Population only carries "a"; "b" is missing → pop_freq = 0.
@@ -395,6 +405,8 @@ func TestOverlay_FacetIndexVsPop_ZeroPopFreq_WarnsAndSkips(t *testing.T) {
 // frequency SD is analytically known. The test recomputes sd_pop
 // directly and asserts z-values to 1e-12.
 func TestOverlay_FacetZScoreVsPop_KnownSDULP(t *testing.T) {
+	t.Parallel()
+
 	// Population frequencies {0.5, 0.3, 0.2}; sd_pop = sqrt(((0.5-1/3)²
 	// + (0.3-1/3)² + (0.2-1/3)²)/3).
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
@@ -457,6 +469,8 @@ func TestOverlay_FacetZScoreVsPop_KnownSDULP(t *testing.T) {
 // frequency SD recurrence; numeric reads the population Welford
 // summary directly.
 func TestOverlay_FacetZScoreVsPop_CategoricalAndNumeric(t *testing.T) {
+	t.Parallel()
+
 	t.Run("discrete_arm", func(t *testing.T) {
 		// 3-category population so per-category frequency SD is
 		// non-zero. (A 2-category {0.5, 0.5} population has sd_pop = 0
@@ -515,6 +529,8 @@ func TestOverlay_FacetZScoreVsPop_CategoricalAndNumeric(t *testing.T) {
 // INDEX_VS_POP additive byte-identity test — stripping the populated
 // Overlays slot yields the baseline JSON.
 func TestOverlay_FacetZScoreVsPop_AdditiveByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	// 3-category population so per-category frequency SD is non-zero
 	// (every spec-driven entry surfaces a Statistic).
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
@@ -550,6 +566,8 @@ func TestOverlay_FacetZScoreVsPop_AdditiveByteIdentity(t *testing.T) {
 // expected counts {40, 30, 20, 10}; χ² = 100/40 + 0 + 100/20 + 0 = 7.5;
 // df = 3.
 func TestOverlay_FacetChisqVsPop_KnownAnswerFourCategory(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 30, "b": 30, "c": 30, "d": 10},
 		map[string]int64{"a": 40, "b": 30, "c": 20, "d": 10},
@@ -591,6 +609,8 @@ func TestOverlay_FacetChisqVsPop_KnownAnswerFourCategory(t *testing.T) {
 // approximation-reliability warning. Statistic still emitted alongside
 // the warning (the warning is advisory, not a short-circuit).
 func TestOverlay_FacetChisqVsPop_LowExpectedWarning(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 50, "b": 47, "c": 3},
 		// Category "c" has freq 0.04 → expected = 4 for subset_N=100.
@@ -618,6 +638,8 @@ func TestOverlay_FacetChisqVsPop_LowExpectedWarning(t *testing.T) {
 // PROCESSING_INTERNAL error carrying
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestOverlay_FacetChisqVsPop_NumericHostRejected(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestNumericHostPopPair(t, "value",
 		&types.FacetNumeric{Count: 100, Mean: 50, StdDev: 25, Min: 0, Max: 100},
 		&types.FacetNumeric{Count: 100, Mean: 50, StdDev: 25, Min: 0, Max: 100},
@@ -646,6 +668,8 @@ func TestOverlay_FacetChisqVsPop_NumericHostRejected(t *testing.T) {
 // the same finalized state produce byte-identical SCALAR output
 // (documents the "no second pass over records" invariant).
 func TestOverlay_FacetChisqVsPop_BufferedPathEngages(t *testing.T) {
+	t.Parallel()
+
 	streamable, known := types.OverlayStreamable(types.OverlayKindChiSqVsPop)
 	if !known {
 		t.Fatal("OverlayKindChiSqVsPop missing from OverlayStreamability table")
@@ -674,6 +698,8 @@ func TestOverlay_FacetChisqVsPop_BufferedPathEngages(t *testing.T) {
 // TestOverlay_FacetChisqVsPop_AdditiveByteIdentity pins the additive
 // byte-identity contract for the SCALAR-shape χ² layer.
 func TestOverlay_FacetChisqVsPop_AdditiveByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	host, popView := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 30, "b": 30, "c": 30, "d": 10},
 		map[string]int64{"a": 40, "b": 30, "c": 20, "d": 10},
@@ -708,6 +734,8 @@ func TestOverlay_FacetChisqVsPop_AdditiveByteIdentity(t *testing.T) {
 // the bin-4 edge is 1.0 (host_cum = 100/100, pop_cum = 0/100); KS
 // distance D = 1.0 (maximum possible separation).
 func TestOverlay_FacetKsVsPop_NormalVsShiftedNormal(t *testing.T) {
+	t.Parallel()
+
 	hostHist := &types.FacetHistogram{
 		Min: 0, Max: 10,
 		Bins: []int64{20, 20, 20, 20, 20, 0, 0, 0, 0, 0},
@@ -756,6 +784,8 @@ func TestOverlay_FacetKsVsPop_NormalVsShiftedNormal(t *testing.T) {
 // numeric-arm-only contract — a categorical host returns a coded
 // PROCESSING_INTERNAL error carrying PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestOverlay_FacetKsVsPop_CategoricalHostRejected(t *testing.T) {
+	t.Parallel()
+
 	host, _ := facetTestDiscreteHostPopPair(t, "category",
 		map[string]int64{"a": 50, "b": 50},
 		map[string]int64{"a": 60, "b": 40},
@@ -793,6 +823,8 @@ func TestOverlay_FacetKsVsPop_CategoricalHostRejected(t *testing.T) {
 // in one table-driven test so the two CDF-reconstruction modes both
 // hit the public facade.
 func TestOverlay_FacetKsVsPop_HistogramVsPercentileFallback(t *testing.T) {
+	t.Parallel()
+
 	t.Run("histogram_path", func(t *testing.T) {
 		hostHist := &types.FacetHistogram{
 			Min: 0, Max: 10,
@@ -861,6 +893,8 @@ func TestOverlay_FacetKsVsPop_HistogramVsPercentileFallback(t *testing.T) {
 // TestOverlay_FacetKsVsPop_AdditiveByteIdentity pins the additive
 // byte-identity contract for the SCALAR-shape KS layer.
 func TestOverlay_FacetKsVsPop_AdditiveByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	hostHist := &types.FacetHistogram{
 		Min: 0, Max: 10,
 		Bins: []int64{20, 20, 20, 20, 20, 0, 0, 0, 0, 0},
@@ -902,6 +936,8 @@ func TestOverlay_FacetKsVsPop_AdditiveByteIdentity(t *testing.T) {
 // streamable; CHISQ_VS_POP / KS_VS_POP = buffered) does NOT affect the
 // layer ordering because all four run through the same dispatch loop.
 func TestOverlay_FacetMixed_SpecOrderPreservedAcrossKinds(t *testing.T) {
+	t.Parallel()
+
 	// Discrete host for the three discrete-arm kinds (INDEX / ZSCORE /
 	// CHISQ). KS is numeric — exercised in a separate single-spec test
 	// because the per-spec host-field resolution lives at the service

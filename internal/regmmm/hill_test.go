@@ -36,6 +36,8 @@ import (
 // on amd64 and arm64), so a fit is bit-identical across architectures
 // and the curve matches hill().
 func TestMMMHill_DetmathGoldenBits(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		fn   string
 		x, y float64
@@ -89,6 +91,8 @@ func TestMMMHill_DetmathGoldenBits(t *testing.T) {
 // under extensions — as a buffered model with its params and k / s
 // outputs; predict accepts a fit as valid and non-streamable, with vcov.
 func TestMMMHill_RegistersAndSelfDescribes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
@@ -185,6 +189,8 @@ func recoveryViolations(r *types.RegressionResult, tr truth) []string {
 // symmetric with the squared standard errors on its diagonal; the fit is
 // bit-identical across DecodeWorkers.
 func TestMMMHill_RecoversTruth(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	p := instance(t, fsys, nil)
 	rows := cohort(t, p, defaultTruth, 7)
@@ -239,6 +245,8 @@ func TestMMMHill_RecoversTruth(t *testing.T) {
 // deviation near 1 (measured 0.81–1.08; the band [0.6, 1.4] is about 4
 // sampling standard errors of a 64-draw SD wide).
 func TestMMMHill_RecoversAcrossSeeds(t *testing.T) {
+	t.Parallel()
+
 	z := map[string][]float64{}
 	for seed := uint64(1); seed <= 64; seed++ {
 		p := instance(t, afero.NewMemMapFs(), nil)
@@ -270,6 +278,8 @@ func TestMMMHill_RecoversAcrossSeeds(t *testing.T) {
 // generated from a perturbed truth, fitted the same way, fails recovery
 // against the default truth and recovers its own.
 func TestMMMHill_RecoveryFalsified(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		mut  func(*truth)
@@ -280,6 +290,8 @@ func TestMMMHill_RecoveryFalsified(t *testing.T) {
 		{"search half-saturation ×0.7", func(h *truth) { h.srK *= 0.7 }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			tr := defaultTruth
 			tc.mut(&tr)
 			p := instance(t, afero.NewMemMapFs(), nil)
@@ -304,6 +316,8 @@ func TestMMMHill_RecoveryFalsified(t *testing.T) {
 // Under nonnegative: false the same data fits a negative β on the first
 // binding seed — the bound, not the data, made it 0.
 func TestMMMHill_ZeroChannelExactlyZero(t *testing.T) {
+	t.Parallel()
+
 	bound := 0
 	var firstBound uint64
 	for seed := uint64(1); seed <= 16; seed++ {
@@ -404,6 +418,8 @@ func scoreRequest(models ...types.ModelRef) *types.Request {
 // fit's curve coefficients and standard error exactly; predict accepts
 // the batch; an unknown curve name is PULSE_MODEL_TERM_UNKNOWN at run.
 func TestMMMHill_CoefReadsCurveCoefficients(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
@@ -438,6 +454,8 @@ func TestMMMHill_CoefReadsCurveCoefficients(t *testing.T) {
 // holdout predicate scores the held-out weeks (RMSE equal to the
 // scorer's residuals on those rows).
 func TestMMMHill_ScorerHoldoutSaveReload(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	p := instance(t, fsys, nil)
@@ -511,6 +529,8 @@ func (r scoreRow) NumericValue(name string) (float64, bool) { v, ok := r[name]; 
 // estimates stay the full fit's — and the same seed gives the same
 // bytes.
 func TestMMMHill_BootstrapReproducible(t *testing.T) {
+	t.Parallel()
+
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
 	boot := func() *types.RegressionSpec {
@@ -546,6 +566,8 @@ func TestMMMHill_BootstrapReproducible(t *testing.T) {
 // the request's other slot fits; under Strict the run fails with the
 // slot's code.
 func TestMMMHill_SlotFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	p := instance(t, fsys, nil)
 	cohort(t, p, defaultTruth, 7)
@@ -588,6 +610,8 @@ func TestMMMHill_SlotFailsAlone(t *testing.T) {
 // negative channel value are
 // PROCESSING_CONFIG at run — never a silent fit.
 func TestMMMHill_ParamsRefused(t *testing.T) {
+	t.Parallel()
+
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
 	for _, tc := range []struct {
@@ -622,6 +646,8 @@ func fittedOf(r *types.RegressionResult, s *types.RegressionSpec) extend.FittedR
 // table, so the factory refuses it with PROCESSING_CONFIG; a missing
 // channels list is refused the same way.
 func TestMMMHill_FactoryRefusesCurveNameCollision(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		predictors []string
 		params     string
@@ -644,6 +670,8 @@ func TestMMMHill_FactoryRefusesCurveNameCollision(t *testing.T) {
 // cap is PROCESSING_REGRESSION_NO_CONVERGE — the code that fails the slot
 // alone — never a silently unconverged fit.
 func TestMMMHill_IterationCapIsNoConverge(t *testing.T) {
+	t.Parallel()
+
 	y, a, z := generatedColumns(generate(defaultTruth, 7))
 	if _, err := regmmm.SolveColumns(twoChannels[:2], twoChannels[2:], y, a, z, 2); !perr.HasCode(err, perr.PROCESSING_REGRESSION_NO_CONVERGE) {
 		t.Fatalf("a 2-iteration cap: %v, want PROCESSING_REGRESSION_NO_CONVERGE", err)
@@ -675,6 +703,8 @@ func generatedColumns(rows []row) (y []float64, a, z [][]float64) {
 // linux/amd64. (The engine's intervals and WIN_DISTRIBUTED_LAG's kernel
 // weights are outside this pin.)
 func TestMMMHill_FitBitsPinned(t *testing.T) {
+	t.Parallel()
+
 	const want = "bf80809268a6937f174e481096525d856dbaabcdf3d4a0d15ba165957faecf6f"
 	y, a, z := generatedColumns(generate(defaultTruth, 7))
 	out, err := regmmm.SolveColumns(twoChannels[:2], twoChannels[2:], y, a, z, regmmm.MaxIterations)

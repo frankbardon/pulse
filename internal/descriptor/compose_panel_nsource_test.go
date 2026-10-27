@@ -17,6 +17,8 @@ import (
 // spelling of the default. A caller who writes their existing
 // behaviour down must not be told it is wrong.
 func TestValidateCompose_PanelKnownNSourcesAccepted(t *testing.T) {
+	t.Parallel()
+
 	cases := append([]string{""}, types.PanelNSources()...)
 	for _, mode := range cases {
 		name := mode
@@ -41,6 +43,8 @@ func TestValidateCompose_PanelKnownNSourcesAccepted(t *testing.T) {
 // leave the caller guessing at a two-entry enum they cannot see from
 // the payload schema (operator params are an open object).
 func TestValidateCompose_PanelUnknownNSourceRefused(t *testing.T) {
+	t.Parallel()
+
 	const bogus = "row_margin_distinct" // a real mode — on the OTHER family
 	env := ValidateCompose(composePanelRequest(map[string]any{"n_source": bogus}))
 	if !envHasCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
@@ -92,6 +96,8 @@ func TestValidateCompose_PanelUnknownNSourceRefused(t *testing.T) {
 // sit behind the cap too, or an over-cap spec would send the caller to
 // the params when the structural failure is the cap.
 func TestValidateCompose_PanelOverCapFiresBeforeUnknownNSource(t *testing.T) {
+	t.Parallel()
+
 	requests := []*types.Request{matrixCrosstabRequest("ref", "row", "col")}
 	targets := make([]string, 0, 4)
 	for i := 1; i <= 4; i++ {
@@ -127,6 +133,8 @@ func TestValidateCompose_PanelOverCapFiresBeforeUnknownNSource(t *testing.T) {
 // resolution but is descriptive — it has no sample-size leg, so an
 // n_source on it is an unknown KEY (accepted) and not an unknown mode.
 func TestValidateCompose_PanelNSourceGateScopedToPropZPanel(t *testing.T) {
+	t.Parallel()
+
 	req := composePanelRequest(map[string]any{"n_source": "nonsense"})
 	req.Overlays[0].Kind = types.OverlayKindPanelIndexVsRef
 	env := ValidateCompose(req)
@@ -139,6 +147,8 @@ func TestValidateCompose_PanelNSourceGateScopedToPropZPanel(t *testing.T) {
 // that point no mode was read at all, and "unknown n_source: " with an
 // empty value would name a field the caller may never have written.
 func TestValidateCompose_PanelMalformedBeatsUnknownMode(t *testing.T) {
+	t.Parallel()
+
 	env := ValidateCompose(composePanelRequest(map[string]any{"n_source": make(chan int)}))
 	var msgs []string
 	for _, e := range env.Errors {
@@ -167,6 +177,8 @@ func TestValidateCompose_PanelMalformedBeatsUnknownMode(t *testing.T) {
 // likely to arrive at by reading the crosstab docs, and the one an
 // alias would be most tempting to add.
 func TestValidateCompose_PanelRetiredRowMarginNSpellingRefused(t *testing.T) {
+	t.Parallel()
+
 	const retired = types.PairwiseNSourceRowMarginN
 	if retired != "row_margin_n" {
 		t.Fatalf("the pairwise wire value moved to %q; this test pins the panel against the OLD panel spelling", retired)

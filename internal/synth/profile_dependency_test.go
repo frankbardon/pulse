@@ -154,6 +154,8 @@ func bandCoherence(t *testing.T, data []byte) (scored, agree, orphanFlag int) {
 // disagrees", and the negative control is what makes the first half
 // capable of failing at all.
 func TestSuggestDeps_WrittenFileGeneratesUnmodified(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureCandidates(t)
 	if len(depCandidateRules(prof)) == 0 {
 		t.Fatalf("no dependency candidates; warnings = %v", prof.Warnings)
@@ -204,6 +206,8 @@ func TestSuggestDeps_WrittenFileGeneratesUnmodified(t *testing.T) {
 // expression reads the value the FILE holds rather than the sampler's
 // float.
 func TestSuggestDeps_CategoricalDependencyFiresOnEveryWireRow(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureCandidates(t)
 	var found bool
 	for _, c := range depCandidateRules(prof) {
@@ -275,6 +279,8 @@ func TestSuggestDeps_CategoricalDependencyFiresOnEveryWireRow(t *testing.T) {
 // detectors write into ONE file, which `--rules` consumes unmodified,
 // and the emitted order is the applied order.
 func TestSuggestDeps_ComposeWithTheOtherDetectorsInOneFile(t *testing.T) {
+	t.Parallel()
+
 	prof := depFixtureCandidates(t)
 	kinds := map[string]int{}
 	lastDep := -1
@@ -446,6 +452,8 @@ func depWideSourceSpec(rows int) *synth.Spec {
 // round trip; splitting them would double a 4,000-row generation to
 // state one property twice.
 func TestSuggestDeps_ComplementAndEnumerationArmsFireEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	src, _, err := synth.SynthBytes(depWideSourceSpec(4000), synth.Options{Seed: 31})
 	if err != nil {
 		t.Fatalf("SynthBytes(source cohort): %v", err)

@@ -10,6 +10,8 @@ import (
 )
 
 func TestParse(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		params string
 		want   string
@@ -49,6 +51,8 @@ func TestParse(t *testing.T) {
 }
 
 func TestIsWithin(t *testing.T) {
+	t.Parallel()
+
 	within := json.RawMessage(`{"fit":"within"}`)
 	for _, c := range []struct {
 		g    *types.Group

@@ -14,6 +14,8 @@ import (
 // TestExprBuiltins_EveryNameImplemented pins the shared name list to the
 // implementation table in both directions.
 func TestExprBuiltins_EveryNameImplemented(t *testing.T) {
+	t.Parallel()
+
 	names := Names()
 	for _, name := range names {
 		if builtinImpls[name] == nil {
@@ -37,6 +39,8 @@ func TestExprBuiltins_EveryNameImplemented(t *testing.T) {
 // all-NaN vector is NaN, a []float64 argument is accepted as is and not
 // mutated, and the vector transforms return a new slice.
 func TestVectorBuiltins_Edges(t *testing.T) {
+	t.Parallel()
+
 	got, err := builtinImpls["argmax"]([]any{nil, nil})
 	if err != nil || !math.IsNaN(got.(float64)) {
 		t.Errorf("argmax([nil, nil]) = %v, %v; want NaN", got, err)
@@ -91,6 +95,8 @@ func TestVectorBuiltins_Edges(t *testing.T) {
 // implementation Options registers, and no implementation hides
 // outside the list.
 func TestSetHelpers_EveryNameImplemented(t *testing.T) {
+	t.Parallel()
+
 	names := SetHelperNames()
 	for _, name := range names {
 		if setHelperImpls[name] == nil {

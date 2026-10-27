@@ -26,6 +26,8 @@ func vecGuardSchema() *encoding.Schema {
 // the uint64 value API's refusal used to end the loop like a truncated
 // tail and export zero rows with no error.
 func TestExport_VectorFieldExported(t *testing.T) {
+	t.Parallel()
+
 	s := vecGuardSchema()
 	var b bytes.Buffer
 	if err := encx.WritePreamble(&b, s); err != nil {
@@ -61,6 +63,8 @@ func TestExport_VectorFieldExported(t *testing.T) {
 // unknown) — and the prepared schema keeps the vector metadata, so its
 // stride sizes the field at element × dim.
 func TestCohortBuilder_VectorSchema(t *testing.T) {
+	t.Parallel()
+
 	bare := vecGuardSchema()
 	bare.Vectors = nil
 	if _, _, err := prepareBuildSchema(bare, false); !errors.HasCode(err, errors.SERVICE_VALIDATION) {
@@ -80,6 +84,8 @@ func TestCohortBuilder_VectorSchema(t *testing.T) {
 // exactly the field's dim; any other shape is a PULSE_IMPORT_ROW_ERROR
 // that leaves no trace, and the accepted rows round-trip.
 func TestCohortBuilder_VectorCells(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeVecF32, Nullable: true},
@@ -160,6 +166,8 @@ func TestCohortBuilder_VectorCells(t *testing.T) {
 // declaration, so a declared vector field is refused before the target
 // sees a header — never passed through as the source column's raw text.
 func TestConvert_VectorSchemaRefused(t *testing.T) {
+	t.Parallel()
+
 	rd := newMockReader([]string{"id", "v"}, [][]string{{"1", "1|2"}})
 	w := &collectWriter{}
 	job := NewConvertJob(rd, w)

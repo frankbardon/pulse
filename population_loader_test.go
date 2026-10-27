@@ -55,6 +55,8 @@ func popCodedErr(t *testing.T, err error, code perr.Code) *perr.CodedError {
 // own sidecars, a model file) is skipped unread, and the walk is not
 // recursive.
 func TestLoadPopulations_Dir(t *testing.T) {
+	t.Parallel()
+
 	dir := writePopulationDir(t, map[string]string{
 		"brand" + model.PopulationSuffix:       populationFileFixture,
 		"country.json":                         `{"US": "United States"}`,
@@ -82,6 +84,7 @@ func TestLoadPopulations_Dir(t *testing.T) {
 // option is empty; the option beats it; no dir, a missing dir are
 // no-ops; a file is not a directory.
 func TestLoadPopulations_EnvAndPrecedence(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	envDir := writePopulationDir(t, map[string]string{"env" + model.PopulationSuffix: populationFileFixture})
 	optDir := writePopulationDir(t, map[string]string{"opt" + model.PopulationSuffix: populationFileFixture})
 	t.Setenv(envPopulationsDir, envDir)
@@ -119,6 +122,8 @@ func TestLoadPopulations_EnvAndPrecedence(t *testing.T) {
 // programmatically too is PULSE_EXTENSION_DUPLICATE — through
 // pulse.New alike.
 func TestLoadPopulations_Refusals(t *testing.T) {
+	t.Parallel()
+
 	bad := writePopulationDir(t, map[string]string{"bad" + model.PopulationSuffix: "{nope"})
 	opts := Options{PopulationsDir: bad}
 	ce := popCodedErr(t, loadPopulationsFromDir(&opts), perr.PULSE_MODEL_FILE_INVALID)
@@ -144,6 +149,8 @@ func TestLoadPopulations_Refusals(t *testing.T) {
 // blank name, a malformed document and a future version are refused,
 // located by details.registered.
 func TestDecodeRegisteredPopulations(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		pops map[string]Population
@@ -210,6 +217,8 @@ func responseBytes(t *testing.T, resp any) []byte {
 // chain stage; registered from Extensions or from the directory alike;
 // predict is clean.
 func TestRegisteredPopulation_ScoresLikeALoad(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	ctx := context.Background()
 	plain, err := New(Options{FS: fsys})
@@ -302,6 +311,8 @@ func TestRegisteredPopulation_ScoresLikeALoad(t *testing.T) {
 // PULSE_VECTOR_REFERENCE_MISMATCH — predict refusing each exactly as the
 // runtime does.
 func TestRegisteredPopulation_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	p := registeredInstance(t, fsys, false)
 	ctx := context.Background()
@@ -381,6 +392,8 @@ func TestRegisteredPopulation_PredictRuntimeParity(t *testing.T) {
 // any lists none; a feature profile hiding capability:models registers
 // none.
 func TestRegisteredPopulation_Manifest(t *testing.T) {
+	t.Parallel()
+
 	fsys := populationFacadeFS(t)
 	ctx := context.Background()
 	p := registeredInstance(t, fsys, true)

@@ -80,6 +80,8 @@ func retentionWeightLayer(t *testing.T, expand bool, w *types.WeightSpec) types.
 }
 
 func TestRetention_FrequencyWeightEqualsExpandedRows(t *testing.T) {
+	t.Parallel()
+
 	wire := func(l types.OverlayLayer) string {
 		b, err := json.Marshal(l)
 		if err != nil {

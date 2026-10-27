@@ -8,6 +8,8 @@ import (
 )
 
 func TestTsvReader_FromFilesystem(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	afero.WriteFile(fs, "data.tsv", []byte("a\tb\n1\t2\n3\t4\n"), 0644)
 
@@ -35,6 +37,8 @@ func TestTsvReader_FromFilesystem(t *testing.T) {
 }
 
 func TestTsvReader_FromFilesystem_Missing(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	r := NewReader(fs, "missing.tsv")
 	_, err := r.ReadHeader()
@@ -44,6 +48,8 @@ func TestTsvReader_FromFilesystem_Missing(t *testing.T) {
 }
 
 func TestTsvReader_NoDataSource(t *testing.T) {
+	t.Parallel()
+
 	r := &Reader{} // no data, no fs, no path
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -52,6 +58,8 @@ func TestTsvReader_NoDataSource(t *testing.T) {
 }
 
 func TestTsvReader_ReadRows_ContextCancel(t *testing.T) {
+	t.Parallel()
+
 	data := "a\n1\n2\n3\n4\n5\n"
 	r := NewReaderFromBytes([]byte(data))
 	r.ReadHeader()
@@ -68,6 +76,8 @@ func TestTsvReader_ReadRows_ContextCancel(t *testing.T) {
 }
 
 func TestTsvReader_ReadRows_AutoHeader(t *testing.T) {
+	t.Parallel()
+
 	data := "a\tb\n1\t2\n3\t4\n"
 	r := NewReaderFromBytes([]byte(data))
 
@@ -85,6 +95,8 @@ func TestTsvReader_ReadRows_AutoHeader(t *testing.T) {
 }
 
 func TestTsvReader_HeaderCached(t *testing.T) {
+	t.Parallel()
+
 	data := "a\tb\n1\t2\n"
 	r := NewReaderFromBytes([]byte(data))
 
@@ -96,6 +108,8 @@ func TestTsvReader_HeaderCached(t *testing.T) {
 }
 
 func TestTsvWriter_CloseFlush(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"a"})
 	w.WriteRow([]any{"val"})

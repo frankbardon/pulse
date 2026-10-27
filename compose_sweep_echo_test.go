@@ -13,6 +13,8 @@ import (
 // labelled slots with no `sweep` left, a sweep-free request as passed —
 // and never put it on the wire. Off, the field stays nil.
 func TestComposeSweep_EchoRequestCarriesExpandedRequest(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	sweepJSON := `{"requests":[` + sweepSlotBodyWith("AGG_COUNT") + `],
 		"sweep":{"axes":[{"name":"op","values":["AGG_SUM","AGG_MAX"]}],"request":` + sweepSlotBody + `}}`

@@ -16,6 +16,8 @@ import (
 // the empty list ([] on the wire), exactly as an instance with no tables
 // registered; a profile-free instance lists both.
 func TestManifest_NamedTablesFollowTheirCapability(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		features  []string // nil = no profile

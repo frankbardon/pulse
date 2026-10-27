@@ -5,38 +5,43 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"reflect"
-	"slices"
-	"sort"
 	"sync"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testutil/invariance"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
-// extensions_matrix_invariance_test.go: the worker-invariance gate for
-// extension MAT_* operators (U30 E1-S4, roadmap #156) — the
-// public-registration twin of TestCoMomentMergeTree_WorkerInvariant and
-// TestMatrixGrouped_WorkerInvariant. An operator registered through
-// Options.Extensions.MatrixOps only (no engine hook) renders every raw
-// figure of the merged co-moment it is handed; the gate proves those
-// figures carry the same BITS serially, under every DecodeWorkers count
-// over a >100K-record file, and under every ShardWorkers count over a
-// shard archive of uneven shards (a 1-row shard, an empty shard, edges
-// inside merge blocks) — listwise and pairwise, weighted and unweighted,
-// grouped and ungrouped. Every parallel run must take its parallel arm
-// (observe.Hooks), so no knob compares serial against serial. The
-// buffered tier (Streamable: false) runs serially under any knob and
-// lands on the co-moment tier's bits.
+// extensions_matrix_invariance_test.go: the worker-invariance family
+// for extension MAT_* operators (U30 E1-S4, roadmap #156) on the shared
+// harness (internal/testutil/invariance) — the public-registration twin
+// of the service matrix family (TestMatrixInvariance_*). An operator
+// registered through Options.Extensions.MatrixOps only (no engine hook)
+// renders every raw figure of the merged co-moment it is handed; the
+// family proves the whole response (LayoutFree) carries the same BITS
+// serially, under every ShardWorkers count over a shard archive of
+// uneven shards (a 1-row shard, an empty shard, edges inside merge
+// blocks) against its single-file twin, and (heavy tier) under every
+// DecodeWorkers count over a >100K-record file — listwise and pairwise
+// in one request, weighted and unweighted, grouped and ungrouped. Every
+// parallel cell must take its parallel arm (the harness), so no knob
+// compares serial against serial. Two serial cells force the other
+// paths: extInvBufferedPath puts the co-moment tier on the buffered
+// path (an AGG_MEDIAN slot, stripped again) and invariance.Buffered
+// registers the buffered tier (Streamable: false), which runs serially
+// under any knob and lands on the co-moment tier's bits (its
+// row_digest scalar, an order-sensitive digest of the rows it saw,
+// checked present and stripped).
 
 // extInvRows is above the parallel-decode threshold (100,000 records)
-// and ends mid-block, as TestMatrixGrouped_WorkerInvariant's cohort.
+// and ends mid-block, as the service matrix family's BigFile cohort.
 const extInvRows = 25*linalg.MergeBlockSize + 2777
 
 // extInvTwinRows is the archive's single-file twin: shard fan-out has
@@ -174,59 +179,94 @@ func extMomentsReg(streamable bool) MatrixOpRegistration {
 	}
 }
 
-// extInvEngine is one Pulse instance per (tier, knobs), recording the
-// arm of its last run.
-type extInvEngine struct {
-	p   *Pulse
-	mu  sync.Mutex
-	arm observe.Arm
+// extInvBufferedPath forces the co-moment tier onto the buffered path.
+const extInvBufferedPath invariance.Mode = "buffered_path"
+
+// extInvCohort is one layout's cohort.
+type extInvCohort struct {
+	fs   afero.Fs
+	path string
 }
 
-func newExtInvEngine(t *testing.T, fsys afero.Fs, streamable bool, shardWorkers, decodeWorkers int) *extInvEngine {
+// newExtInvFixture writes the twin and the archive on a MemMapFs; heavy
+// adds the decode-threshold file on a real directory (parallel decode
+// needs mmap).
+func newExtInvFixture(t *testing.T, heavy bool) map[invariance.Layout]extInvCohort {
 	t.Helper()
-	e := &extInvEngine{}
+	mem := afero.NewMemMapFs()
+	w, err := New(Options{FS: mem})
+	if err != nil {
+		t.Fatal(err)
+	}
+	extInvWrite(t, w, "twin.pulse", 0, extInvTwinRows)
+	var shards []string
+	for i := 0; i+1 < len(extInvShardBounds); i++ {
+		path := fmt.Sprintf("inv_s%d.pulse", i)
+		extInvWrite(t, w, path, extInvShardBounds[i], extInvShardBounds[i+1])
+		shards = append(shards, path)
+	}
+	if _, err := w.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
+		t.Fatalf("CreateShardArchive: %v", err)
+	}
+	out := map[invariance.Layout]extInvCohort{invariance.File: {mem, "twin.pulse"}, invariance.Archive: {mem, "archive.pulse"}}
+	if heavy {
+		disk := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
+		dw, err := New(Options{FS: disk})
+		if err != nil {
+			t.Fatal(err)
+		}
+		extInvWrite(t, dw, "big.pulse", 0, extInvRows)
+		out[invariance.BigFile] = extInvCohort{disk, "big.pulse"}
+	}
+	return out
+}
+
+// extInvEngine is a Pulse over c under k's knobs with the operator on
+// the tier k.Mode selects, and the arm of its last run.
+func extInvEngine(t *testing.T, c extInvCohort, k invariance.Knobs) (*Pulse, func() observe.Arm) {
+	t.Helper()
+	var mu sync.Mutex
+	var arm observe.Arm
 	p, err := New(Options{
-		FS:            fsys,
-		ShardWorkers:  shardWorkers,
-		DecodeWorkers: decodeWorkers,
-		Extensions:    Extensions{MatrixOps: []MatrixOpRegistration{extMomentsReg(streamable)}},
+		FS:            c.fs,
+		ShardWorkers:  k.ShardWorkers,
+		DecodeWorkers: k.DecodeWorkers,
+		Extensions:    Extensions{MatrixOps: []MatrixOpRegistration{extMomentsReg(k.Mode != invariance.Buffered)}},
 		Hooks: &observe.Hooks{OnOperationEnd: func(_ context.Context, _ observe.OperationInfo, r observe.OperationResult) {
-			e.mu.Lock()
-			e.arm = r.Arm
-			e.mu.Unlock()
+			mu.Lock()
+			arm = r.Arm
+			mu.Unlock()
 		}},
 	})
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("New(%s): %v", k, err)
 	}
-	e.p = p
-	return e
-}
-
-func (e *extInvEngine) run(t *testing.T, req *types.Request) (*types.Response, observe.Arm) {
-	t.Helper()
-	resp, err := e.p.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Process: %v", err)
+	return p, func() observe.Arm {
+		mu.Lock()
+		defer mu.Unlock()
+		return arm
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return resp, e.arm
 }
 
 type extInvVariant struct {
-	missing           string
 	weighted, grouped bool
 }
 
 func (v extInvVariant) String() string {
-	return fmt.Sprintf("%s_weighted=%v_grouped=%v", v.missing, v.weighted, v.grouped)
+	return fmt.Sprintf("weighted=%v_grouped=%v", v.weighted, v.grouped)
 }
 
+func extInvVariants() []extInvVariant {
+	return []extInvVariant{{false, false}, {true, false}, {false, true}, {true, true}}
+}
+
+// extInvRequest is variant v: the operator listwise and pairwise.
 func extInvRequest(cohort string, v extInvVariant) *types.Request {
-	spec := types.MatrixSpec{Type: "MAT_ACME_MOMENTS", Name: "m", Fields: []string{"a", "b", "c"},
-		Params: json.RawMessage(`{"missing":"` + v.missing + `"}`)}
-	req := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Matrices: []types.MatrixSpec{spec}}
+	req := &types.Request{Cohort: &types.Cohort{Filename: cohort}}
+	for _, missing := range []string{"listwise", "pairwise"} {
+		req.Matrices = append(req.Matrices, types.MatrixSpec{Type: "MAT_ACME_MOMENTS", Name: missing, Fields: []string{"a", "b", "c"},
+			Params: json.RawMessage(`{"missing":"` + missing + `"}`)})
+	}
 	if v.grouped {
 		req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 		req.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "region", Label: "n"}}
@@ -237,229 +277,173 @@ func extInvRequest(cohort string, v extInvVariant) *types.Request {
 	return req
 }
 
-// extInvDiff describes the first bitwise difference between two runs'
-// matrix results and matrix components ("" when they agree): group
-// keys, every primary / auxiliary cell, the vectors, the scalars (keys
-// in drop are ignored), the warnings and the components entries
-// (float JSON is shortest round-trip, so equal text is equal bits).
-func extInvDiff(got, want *types.Response, drop ...string) string {
-	if len(got.Matrices) != len(want.Matrices) {
-		return fmt.Sprintf("%d results, want %d", len(got.Matrices), len(want.Matrices))
-	}
-	values := func(where string, g, w *types.MatrixValues) string {
-		if g == nil || w == nil {
-			if g != w {
-				return where + ": present on one side only"
+// extInvStrip removes what only one path adds: the buffered path's
+// AGG_MEDIAN column (a row it alone filled, its Components entry), the
+// buffered tier's
+// row_digest (failing when that tier saw no rows). The median reads
+// the never-null w, so Run.NullRecords keeps the slot-free figure.
+func extInvStrip(t *testing.T, k invariance.Knobs, resp *types.Response) *types.Response {
+	t.Helper()
+	out := invariance.LayoutFree(resp)
+	if k.Mode == extInvBufferedPath {
+		var rows []map[string]any
+		for _, r := range out.Data {
+			if _, ok := r["med"]; !ok {
+				t.Fatalf("%s: buffered-path row lacks med: %v", k, r)
 			}
-			return ""
-		}
-		if !slices.Equal(g.RowKeys, w.RowKeys) || !slices.Equal(g.ColumnKeys, w.ColumnKeys) || len(g.Values) != len(w.Values) {
-			return where + ": shape differs"
-		}
-		for r := range w.Values {
-			if len(g.Values[r]) != len(w.Values[r]) {
-				return fmt.Sprintf("%s row %d: width differs", where, r)
-			}
-			for c := range w.Values[r] {
-				if math.Float64bits(g.Values[r][c]) != math.Float64bits(w.Values[r][c]) {
-					return fmt.Sprintf("%s cell (%d,%d) = %v, want %v", where, r, c, g.Values[r][c], w.Values[r][c])
+			kept := map[string]any{}
+			for key, v := range r {
+				if key != "med" {
+					kept[key] = v
 				}
 			}
-		}
-		return ""
-	}
-	for k := range want.Matrices {
-		g, w := got.Matrices[k], want.Matrices[k]
-		at := fmt.Sprintf("result %d (group %v)", k, w.GroupKey)
-		if g.Name != w.Name || !reflect.DeepEqual(g.GroupKey, w.GroupKey) {
-			return fmt.Sprintf("%s: name/group %q %v", at, g.Name, g.GroupKey)
-		}
-		if d := values(at+" primary", g.Primary, w.Primary); d != "" {
-			return d
-		}
-		keys := func(m map[string]*types.MatrixValues) []string {
-			out := make([]string, 0, len(m))
-			for k := range m {
-				out = append(out, k)
-			}
-			sort.Strings(out)
-			return out
-		}
-		if !slices.Equal(keys(g.Auxiliary), keys(w.Auxiliary)) {
-			return fmt.Sprintf("%s: auxiliary keys %v, want %v", at, keys(g.Auxiliary), keys(w.Auxiliary))
-		}
-		for _, key := range keys(w.Auxiliary) {
-			if d := values(at+" auxiliary."+key, g.Auxiliary[key], w.Auxiliary[key]); d != "" {
-				return d
+			if len(kept) > 0 {
+				rows = append(rows, kept)
 			}
 		}
-		gm, _ := g.Vectors["mean"].([]float64)
-		wm, _ := w.Vectors["mean"].([]float64)
-		if len(gm) != len(wm) {
-			return at + ": vectors.mean shape differs"
-		}
-		for i := range wm {
-			if math.Float64bits(gm[i]) != math.Float64bits(wm[i]) {
-				return fmt.Sprintf("%s vectors.mean[%d] = %v, want %v", at, i, gm[i], wm[i])
+		out.Data = rows
+		if out.Components != nil {
+			c := *out.Components
+			var aggs []types.AggregationComponents
+			for _, a := range c.Aggregations {
+				if a.Label != "med" {
+					aggs = append(aggs, a)
+				}
 			}
+			c.Aggregations = aggs
+			out.Components = &c
 		}
-		for _, sk := range []string{"n", "w", "n_eff", "row_digest"} {
-			if slices.Contains(drop, sk) {
-				continue
+	}
+	if k.Mode == invariance.Buffered {
+		ms := make([]types.MatrixResult, len(out.Matrices))
+		for i, m := range out.Matrices {
+			if _, ok := m.Scalars["row_digest"]; !ok {
+				t.Fatalf("%s: buffered tier result %d: Finalize saw no rows", k, i)
 			}
-			gv, gok := g.Scalars[sk]
-			wv, wok := w.Scalars[sk]
-			if gok != wok || math.Float64bits(gv) != math.Float64bits(wv) {
-				return fmt.Sprintf("%s scalars.%s = %v (%v), want %v (%v)", at, sk, gv, gok, wv, wok)
+			sc := map[string]float64{}
+			for key, v := range m.Scalars {
+				if key != "row_digest" {
+					sc[key] = v
+				}
 			}
+			m.Scalars = sc
+			ms[i] = m
 		}
-		if gc, wc := matrixWarningCodes(g.Warnings), matrixWarningCodes(w.Warnings); !slices.Equal(gc, wc) {
-			return fmt.Sprintf("%s: warnings %v, want %v", at, gc, wc)
-		}
+		out.Matrices = ms
 	}
-	var gc, wc []types.MatrixComponents
-	if got.Components != nil {
-		gc = got.Components.Matrices
-	}
-	if want.Components != nil {
-		wc = want.Components.Matrices
-	}
-	gj, _ := json.Marshal(gc)
-	wj, _ := json.Marshal(wc)
-	if string(gj) != string(wj) {
-		return fmt.Sprintf("components.matrices %s, want %s", gj, wj)
-	}
-	return ""
+	return out
 }
 
-// TestExtensionMatrix_WorkerInvariant is the gate. It also holds
-// predict to the runtime: the co-moment tier is predicted Mergeable and
-// takes every parallel arm; the buffered tier is predicted neither
-// streamable nor mergeable and runs serially under every knob.
-func TestExtensionMatrix_WorkerInvariant(t *testing.T) {
-	dir := t.TempDir()
-	// Parallel decode needs mmap: the cohorts live on a real (temporary)
-	// directory.
-	fsys := afero.NewBasePathFs(afero.NewOsFs(), dir)
-	serial := newExtInvEngine(t, fsys, true, 1, 1)
-	extInvWrite(t, serial.p, "big.pulse", 0, extInvRows)
-	extInvWrite(t, serial.p, "twin.pulse", 0, extInvTwinRows)
-	var shards []string
-	for i := 0; i+1 < len(extInvShardBounds); i++ {
-		path := fmt.Sprintf("inv_s%d.pulse", i)
-		extInvWrite(t, serial.p, path, extInvShardBounds[i], extInvShardBounds[i+1])
-		shards = append(shards, path)
+// extInvFamily is variant v over groups.
+func extInvFamily(cohorts map[invariance.Layout]extInvCohort, v extInvVariant, groups []invariance.Group) invariance.Family[*types.Response] {
+	return invariance.Family[*types.Response]{
+		Name:   v.String(),
+		Groups: groups,
+		Run: func(t *testing.T, k invariance.Knobs) invariance.Result[*types.Response] {
+			c, ok := cohorts[k.Layout]
+			if !ok {
+				t.Fatalf("layout %s not built in this tier", k.Layout)
+			}
+			p, arm := extInvEngine(t, c, k)
+			req := extInvRequest(c.path, v)
+			if k.Mode == extInvBufferedPath {
+				req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_MEDIAN, Field: "w", Label: "med"})
+			}
+			resp, err := p.Process(context.Background(), req)
+			if err != nil {
+				t.Fatalf("%s: Process: %v", k, err)
+			}
+			return invariance.Result[*types.Response]{Answer: extInvStrip(t, k, resp), Arm: arm()}
+		},
+		// The fixture is not degenerate: three buckets when grouped,
+		// nulls thin the listwise N, weights move W.
+		Check: func(t *testing.T, k invariance.Knobs, resp *types.Response) {
+			if n := len(resp.Matrices); (v.grouped && n != 6) || (!v.grouped && n != 2) {
+				t.Fatalf("%d matrix results", n)
+			}
+			s := resp.Matrices[0].Scalars
+			if !v.grouped && s["n"] >= float64(cohortRowsOf(k)) {
+				t.Fatalf("listwise n = %v — the nulls did not thin it", s["n"])
+			}
+			if v.weighted == (s["w"] == s["n"]) {
+				t.Fatalf("weighted=%v but w = %v, n = %v", v.weighted, s["w"], s["n"])
+			}
+		},
 	}
-	if _, err := serial.p.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
-		t.Fatalf("CreateShardArchive: %v", err)
-	}
+}
 
-	decoders := map[int]*extInvEngine{}
-	for _, dw := range []int{2, 3, 7, 8} {
-		decoders[dw] = newExtInvEngine(t, fsys, true, 1, dw)
+// cohortRowsOf is the record count of k's layout.
+func cohortRowsOf(k invariance.Knobs) int {
+	if k.Layout == invariance.BigFile {
+		return extInvRows
 	}
-	sharders := map[[2]int]*extInvEngine{}
-	for _, k := range [][2]int{{1, 1}, {2, 1}, {3, 1}, {8, 1}, {3, 3}, {8, 7}} {
-		sharders[k] = newExtInvEngine(t, fsys, true, k[0], k[1])
-	}
-	bufSerial := newExtInvEngine(t, fsys, false, 1, 1)
-	bufWide := newExtInvEngine(t, fsys, false, 8, 8)
+	return extInvTwinRows
+}
 
+// extInvSerialCell is a serial cell that names its arm.
+func extInvSerialCell(l invariance.Layout, dw, sw int, m invariance.Mode, arm observe.Arm) invariance.Cell {
+	return invariance.Cell{Knobs: invariance.Knobs{Layout: l, DecodeWorkers: dw, ShardWorkers: sw, Mode: m}, Arm: arm}
+}
+
+// extInvArchiveGroup is the archive group (plus ShardWorkers 8 ×
+// DecodeWorkers 7) with the two forced serial paths, on the twin and on
+// the archive under the widest knobs.
+func extInvArchiveGroup() invariance.Group {
+	g := invariance.ArchiveGroup()
+	g.Cells = append(g.Cells,
+		invariance.Cell{Knobs: invariance.Knobs{Layout: invariance.Archive, DecodeWorkers: 7, ShardWorkers: 8}, Arm: observe.ArmShardParallel},
+		extInvSerialCell(invariance.File, 1, 1, extInvBufferedPath, observe.ArmBuffered),
+		extInvSerialCell(invariance.File, 1, 1, invariance.Buffered, observe.ArmBuffered),
+		extInvSerialCell(invariance.Archive, 8, 8, invariance.Buffered, observe.ArmBuffered))
+	return g
+}
+
+// TestExtensionMatrixInvariance_Archive is the fast-tier half of the
+// extension matrix family; TestExtensionMatrixInvariance_Heavy adds the
+// decode group. It also holds predict and the merge gate to the
+// runtime: the co-moment tier is predicted streamable and Mergeable (and
+// admitted by the merge gate), so it takes every parallel arm; the
+// buffered tier is predicted neither (and refused), so it runs serially
+// under every knob.
+func TestExtensionMatrixInvariance_Archive(t *testing.T) {
+	t.Parallel()
+
+	cohorts := newExtInvFixture(t, false)
 	for _, tier := range []struct {
-		name string
-		e    *extInvEngine
+		mode invariance.Mode
 		want bool
-	}{{"co-moment", serial, true}, {"buffered", bufSerial, false}} {
-		res, err := tier.e.p.Predict(context.Background(), extInvRequest("big.pulse", extInvVariant{missing: "pairwise", weighted: true, grouped: true}))
-		if err != nil || !res.Valid || len(res.Matrices) != 1 {
-			t.Fatalf("%s predict: err=%v res=%+v", tier.name, err, res)
+	}{{invariance.Default, true}, {invariance.Buffered, false}} {
+		k := invariance.Knobs{Layout: invariance.File, DecodeWorkers: 1, ShardWorkers: 1, Mode: tier.mode}
+		p, _ := extInvEngine(t, cohorts[invariance.File], k)
+		req := extInvRequest("twin.pulse", extInvVariant{weighted: true, grouped: true})
+		res, err := p.Predict(context.Background(), req)
+		if err != nil || !res.Valid || len(res.Matrices) != 2 {
+			t.Fatalf("%s predict: err=%v res=%+v", k, err, res)
 		}
-		if res.Matrices[0].Mergeable != tier.want || res.Matrices[0].Streamable != tier.want || res.Streamable != tier.want {
-			t.Fatalf("%s predict: matrix streamable=%v mergeable=%v request streamable=%v, want %v",
-				tier.name, res.Matrices[0].Streamable, res.Matrices[0].Mergeable, res.Streamable, tier.want)
-		}
-	}
-
-	for _, missing := range []string{"listwise", "pairwise"} {
-		for _, weighted := range []bool{false, true} {
-			for _, grouped := range []bool{false, true} {
-				v := extInvVariant{missing: missing, weighted: weighted, grouped: grouped}
-				t.Run(v.String(), func(t *testing.T) {
-					want, arm := serial.run(t, extInvRequest("big.pulse", v))
-					if arm == observe.ArmParallelDecode || arm == observe.ArmShardParallel {
-						t.Fatalf("serial run took arm %q", arm)
-					}
-					// The fixture is not degenerate: three buckets when
-					// grouped, nulls thin the listwise N, weights move W.
-					if n := len(want.Matrices); (grouped && n != 3) || (!grouped && n != 1) {
-						t.Fatalf("%d matrix results", n)
-					}
-					s := want.Matrices[0].Scalars
-					if missing == "listwise" && !grouped && s["n"] >= float64(extInvRows) {
-						t.Fatalf("listwise n = %v — the nulls did not thin it", s["n"])
-					}
-					if weighted == (s["w"] == s["n"]) {
-						t.Fatalf("weighted=%v but w = %v, n = %v", weighted, s["w"], s["n"])
-					}
-
-					for _, dw := range []int{2, 3, 7, 8} {
-						got, arm := decoders[dw].run(t, extInvRequest("big.pulse", v))
-						if arm != observe.ArmParallelDecode {
-							t.Fatalf("DecodeWorkers=%d ran on arm %q — the decode reducer did not engage", dw, arm)
-						}
-						if d := extInvDiff(got, want); d != "" {
-							t.Errorf("DecodeWorkers=%d differs from serial: %s", dw, d)
-						}
-					}
-
-					twin, _ := serial.run(t, extInvRequest("twin.pulse", v))
-					for k, e := range sharders {
-						got, arm := e.run(t, extInvRequest("archive.pulse", v))
-						if k[0] > 1 && arm != observe.ArmShardParallel {
-							t.Fatalf("ShardWorkers=%d ran on arm %q — the shard reducer did not engage", k[0], arm)
-						}
-						if d := extInvDiff(got, twin); d != "" {
-							t.Errorf("archive ShardWorkers=%d DecodeWorkers=%d differs from its single-file twin: %s", k[0], k[1], d)
-						}
-					}
-
-					// The buffered tier: serial under every knob, the
-					// same rows in the same order, the co-moment tier's
-					// bits.
-					buf, _ := bufSerial.run(t, extInvRequest("big.pulse", v))
-					if _, ok := buf.Matrices[0].Scalars["row_digest"]; !ok {
-						t.Fatal("buffered tier: Finalize saw no rows")
-					}
-					if d := extInvDiff(buf, want, "row_digest"); d != "" {
-						t.Errorf("buffered tier differs from the co-moment tier: %s", d)
-					}
-					for _, c := range []struct{ cohort, label string }{{"big.pulse", "file"}, {"archive.pulse", "archive"}} {
-						ref := buf
-						if c.cohort == "archive.pulse" {
-							ref, _ = bufSerial.run(t, extInvRequest("archive.pulse", v))
-						}
-						got, arm := bufWide.run(t, extInvRequest(c.cohort, v))
-						if arm == observe.ArmParallelDecode || arm == observe.ArmShardParallel {
-							t.Fatalf("buffered tier %s ran on parallel arm %q", c.label, arm)
-						}
-						if d := extInvDiff(got, ref); d != "" {
-							t.Errorf("buffered tier %s ShardWorkers=8 DecodeWorkers=8 differs from serial: %s", c.label, d)
-						}
-					}
-				})
+		for _, m := range res.Matrices {
+			if m.Mergeable != tier.want || m.Streamable != tier.want || res.Streamable != tier.want {
+				t.Fatalf("%s predict: matrix streamable=%v mergeable=%v request streamable=%v, want %v", k, m.Streamable, m.Mergeable, res.Streamable, tier.want)
 			}
 		}
+		if got := processing.CanMergeRequestWithExtensions(req, nil, p.svc.Extensions()); got != tier.want {
+			t.Fatalf("%s: merge gate admits = %v, want %v", k, got, tier.want)
+		}
+	}
+	for _, v := range extInvVariants() {
+		invariance.Run(t, extInvFamily(cohorts, v, []invariance.Group{extInvArchiveGroup()}))
 	}
 }
 
-// TestExtensionMatrix_WorkerInvariantGateBites is the gate's
+// TestExtensionMatrixInvariance_ComparatorBites is the family's
 // falsification: the same rows folded block by block through the
 // engine's fixed merge tree (linalg.MergeTree) and through a test
-// double that merges the same blocks in another order give results the
-// gate's comparator tells apart — so an engine whose merge order
-// followed the worker partition could not pass
-// TestExtensionMatrix_WorkerInvariant.
-func TestExtensionMatrix_WorkerInvariantGateBites(t *testing.T) {
+// double that merges the same blocks in another order render results
+// the harness's comparator (invariance.BitExact) tells apart — so an
+// engine whose merge order followed the worker partition could not pass
+// TestExtensionMatrixInvariance_{Archive,Heavy}.
+func TestExtensionMatrixInvariance_ComparatorBites(t *testing.T) {
+	t.Parallel()
+
 	const blocks = 25
 	for _, mode := range []linalg.CoMomentMode{linalg.Listwise, linalg.Pairwise} {
 		parts := make([]*linalg.CoMoment, blocks)
@@ -499,7 +483,7 @@ func TestExtensionMatrix_WorkerInvariantGateBites(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if d := extInvDiff(render(again), render(tree)); d != "" {
+		if d := invariance.BitExact(render(again), render(tree)); len(d) > 0 {
 			t.Fatalf("mode %v: the merge tree is not deterministic: %s", mode, d)
 		}
 		// The test double: a left fold from the last block down — the
@@ -511,7 +495,7 @@ func TestExtensionMatrix_WorkerInvariantGateBites(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if d := extInvDiff(render(acc), render(tree)); d == "" {
+		if d := invariance.BitExact(render(acc), render(tree)); len(d) == 0 {
 			t.Fatalf("mode %v: a reordered merge renders the same bits — the gate's comparator cannot see a merge-order break", mode)
 		}
 	}

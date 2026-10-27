@@ -78,6 +78,8 @@ func categoricalFixtureSchema(name string, values ...string) *encoding.Schema {
 // against a hand-computed reference. Sample [1,2,3,4,5] tested against
 // μ₀=3 yields t=0, p=1 (mean equals hypothesis).
 func TestTTest_OneSample_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("x")
 	spec := &types.Test{
 		Type:   types.TEST_T,
@@ -116,6 +118,8 @@ func TestTTest_OneSample_KnownStatistic(t *testing.T) {
 // TestTTest_OneSample_SignificantDifference verifies a clearly non-zero
 // effect rejects the null. Sample [10..14] vs μ₀=0 → very large t.
 func TestTTest_OneSample_SignificantDifference(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("x")
 	spec := &types.Test{
 		Type:   types.TEST_T,
@@ -159,6 +163,8 @@ func TestTTest_OneSample_SignificantDifference(t *testing.T) {
 //	df = 9² / ((100/100) + (1225/100)) = 81 / 13.25 ≈ 6.113
 //	p ≈ 0.230 (two-sided)
 func TestTTest_TwoSample_Welch(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{
 		Type:    types.TEST_WELCH,
@@ -211,6 +217,8 @@ func TestTTest_TwoSample_Welch(t *testing.T) {
 // TestTTest_TwoSample_LargeEffectRejects verifies a clear treatment
 // effect rejects the null.
 func TestTTest_TwoSample_LargeEffectRejects(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{
 		Type:    types.TEST_T,
@@ -254,6 +262,8 @@ func TestTTest_TwoSample_LargeEffectRejects(t *testing.T) {
 // TestTTest_InsufficientN_OneSample rejects with PULSE_TEST_INSUFFICIENT_N
 // when n < 2.
 func TestTTest_InsufficientN_OneSample(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("x")
 	spec := &types.Test{Type: types.TEST_T, Field: "x", Alpha: 0.05}
 	rt, _ := newTTestRow(spec, schema)
@@ -269,6 +279,8 @@ func TestTTest_InsufficientN_OneSample(t *testing.T) {
 
 // TestTTest_VarianceZero rejects when the sample is constant.
 func TestTTest_VarianceZero(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("x")
 	spec := &types.Test{Type: types.TEST_T, Field: "x", Alpha: 0.05}
 	rt, _ := newTTestRow(spec, schema)
@@ -286,6 +298,8 @@ func TestTTest_VarianceZero(t *testing.T) {
 
 // TestTTest_SplitGroupsLT2 rejects when only one split group is observed.
 func TestTTest_SplitGroupsLT2(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	spec := &types.Test{
 		Type:    types.TEST_T,
@@ -309,6 +323,8 @@ func TestTTest_SplitGroupsLT2(t *testing.T) {
 
 // TestTTest_InvalidAlpha rejects alphas outside (0, 1).
 func TestTTest_InvalidAlpha(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("x")
 	for _, alpha := range []float64{-0.1, 1.0, 1.5} {
 		spec := &types.Test{Type: types.TEST_T, Field: "x", Alpha: alpha}
@@ -325,6 +341,8 @@ func TestTTest_InvalidAlpha(t *testing.T) {
 
 // TestTTest_FieldNotNumeric rejects when Field references a categorical.
 func TestTTest_FieldNotNumeric(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalFixtureSchema("category", "a", "b")
 	spec := &types.Test{Type: types.TEST_T, Field: "category", Alpha: 0.05}
 	_, err := newTTestRow(spec, schema)
@@ -338,6 +356,8 @@ func TestTTest_FieldNotNumeric(t *testing.T) {
 
 // TestTTest_NullValuesSkipped verifies null values do not contribute.
 func TestTTest_NullValuesSkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := numericFixtureSchema("x")
 	spec := &types.Test{Type: types.TEST_T, Field: "x", Alpha: 0.05, Params: json.RawMessage(`{"mu": 3.0}`)}
 	rt, _ := newTTestRow(spec, schema)

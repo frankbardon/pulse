@@ -51,6 +51,8 @@ func writeCategoricalShard(t *testing.T, dictValues []string, records [][2]uint3
 // rewritten with remapped indices, and downstream Process resolves
 // every record to the original string value across shards.
 func TestShardArchiveDictUnionMerge(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -126,6 +128,8 @@ func TestShardArchiveDictUnionMerge(t *testing.T) {
 // diverges from canonical: the archive's canonical dict grows to the
 // union and the new shard's records resolve correctly via Process.
 func TestShardArchiveDictUnionAddShard(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)

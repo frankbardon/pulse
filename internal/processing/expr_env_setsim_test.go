@@ -78,6 +78,8 @@ func encodeSetSimRows(t *testing.T, s *encoding.Schema, rows []setSimRow) []byte
 // 256-member boundary, cross-dictionary label matching, mask-only
 // pairs, empty sets and null sets.
 func TestSetSimilarity_DecodePaths(t *testing.T) {
+	t.Parallel()
+
 	s := setSimSchema()
 	nan := math.NaN()
 	rows := []setSimRow{
@@ -142,6 +144,8 @@ func TestSetSimilarity_DecodePaths(t *testing.T) {
 // has no labels, so pairing it with a label set is a coded refusal,
 // never a silent bit-vs-label comparison.
 func TestSetSimilarity_MixedMaskAndLabelsRefused(t *testing.T) {
+	t.Parallel()
+
 	s := setSimSchema()
 	raw := encodeSetSimRows(t, s, []setSimRow{
 		{"a": bitsMask(1), "b": bitsMask(1), "c": bitsMask(0), "ma": bitsMask(1), "mb": bitsMask(1), "mw": bitsMask(1)},
@@ -162,6 +166,8 @@ func TestSetSimilarity_MixedMaskAndLabelsRefused(t *testing.T) {
 // TestSetSimilarity_Impls pins the closures directly: nil (null) → NaN
 // for all four, hamming an int, argument refusals coded.
 func TestSetSimilarity_Impls(t *testing.T) {
+	t.Parallel()
+
 	for _, fn := range []string{"jaccard", "dice", "hamming", "overlap"} {
 		impl := exprenv.Impl(fn)
 		for _, args := range [][]any{{nil, []string{"a"}}, {[]string{}, nil}, {nil, nil}} {
@@ -191,6 +197,8 @@ func TestSetSimilarity_Impls(t *testing.T) {
 // the formula value NaN (undefined, null on the wire) — the same as
 // every undefined vector figure — while an empty set gives a number.
 func TestSetSimilarity_NullSetIsNaN(t *testing.T) {
+	t.Parallel()
+
 	s := setSimSchema()
 	recs := []*Record{
 		NewRecordWithWide(s, map[string]float64{}, nil, map[string]any{"a": *bitsMask(1), "b": *bitsMask(1, 2)}),

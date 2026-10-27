@@ -29,6 +29,8 @@ func findFrequencyRefusal(env *descriptor.Envelope, slot string) *descriptor.Env
 // frequencyValueMissingMessage, held equal by
 // TestAggFrequency_PredictMessageMatchesRuntime at the root).
 func TestPredict_AggFrequencyMissingValue(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	freq := func(params string) *types.Aggregation {
 		a := &types.Aggregation{Type: types.AGG_FREQUENCY, Field: "grade", Label: "hits"}

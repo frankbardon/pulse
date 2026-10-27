@@ -107,6 +107,8 @@ func distinctSumProjectionRecords() [][]uint64 {
 // during the walk and the buffered arm recomputes them from raw rows,
 // but they share one projection, so a hole shows on both.
 func TestCrosstabMarginAgg_ProjectionCoversAuxiliaryFields(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	schema := distinctSumProjectionSchema()
 	cfg := setupTestFS(t, "distinct_sum_proj.pulse", schema, distinctSumProjectionRecords())
@@ -252,6 +254,8 @@ func toInt(v any) int {
 // (the crosstab path installs it unconditionally), so the flag is set
 // here for the same reason the pulse facade sets it by default.
 func TestProcess_ProjectionCoversDistinctByParam(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	schema := distinctSumProjectionSchema()
 	cfg := setupTestFS(t, "distinct_sum_proj.pulse", schema, distinctSumProjectionRecords())

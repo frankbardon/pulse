@@ -63,6 +63,8 @@ func legacyStreamLines(t *testing.T, path string, compose bool) []string {
 // precision — while a request without `return` streams exactly the rows
 // it streamed before (MarshalFinite per row).
 func TestAPI_StreamHonoursReturn(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "cat,n\n"
 	for i := range 21 {

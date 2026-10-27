@@ -310,6 +310,8 @@ func exportThrough(t *testing.T, a adapter, r rung) (afero.Fs, []string) {
 // selection as io.EmptySetCell, and the non-empty selection as its
 // tokens.
 func TestAdapters_ThreeSetStatesAreDistinctOnTheWayOut(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range adapters {
 		for _, r := range rungs {
 			t.Run(a.Name+"/"+r.Type.String(), func(t *testing.T) {
@@ -338,6 +340,8 @@ func TestAdapters_ThreeSetStatesAreDistinctOnTheWayOut(t *testing.T) {
 // itself: cohort -> format -> cohort reproduces the same three storage
 // states, at a narrow rung and a wide rung, through every adapter.
 func TestAdapters_ThreeSetStatesRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range adapters {
 		for _, r := range rungs {
 			t.Run(a.Name+"/"+r.Type.String(), func(t *testing.T) {
@@ -375,8 +379,12 @@ func TestAdapters_ThreeSetStatesRoundTrip(t *testing.T) {
 // producer that does not know the convention and simply emits `[]` must
 // not have its empty selections read as nulls.
 func TestJSONAdapters_NativeEmptyArrayIsAnEmptySelection(t *testing.T) {
+	t.Parallel()
+
 	for _, r := range rungs {
 		t.Run(r.Type.String(), func(t *testing.T) {
+			t.Parallel()
+
 			hi := token(r.Tokens - 1)
 			doc := "" +
 				`{"id":1,"sel":["` + token(0) + `","` + hi + `"]}` + "\n" +
@@ -419,8 +427,12 @@ func TestJSONAdapters_NativeEmptyArrayIsAnEmptySelection(t *testing.T) {
 // is spelled literally rather than derived, so a future formatter
 // change cannot satisfy it by moving with the code.
 func TestAdapters_NonEmptySetCellUnchanged(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range adapters {
 		t.Run(a.Name, func(t *testing.T) {
+			t.Parallel()
+
 			_, cells := exportThrough(t, a, rungs[0])
 			if cells[0] != "TAA|TAD" {
 				t.Errorf("non-empty set cell exported as %q, want %q", cells[0], "TAA|TAD")

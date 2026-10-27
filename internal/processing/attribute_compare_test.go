@@ -211,6 +211,8 @@ func cmpClose(got, want float64) bool {
 // row-local metric, the two-pass drive for a fitted one) and the
 // buffered arm.
 func TestComparison_RowSemantics(t *testing.T) {
+	t.Parallel()
+
 	ref := []float64{2, 3, 1}
 	sd, wsd := cmpSD(false), cmpSD(true)
 	minValid := func(k int, f func(x []float64) float64) func(x []float64) float64 {
@@ -277,6 +279,8 @@ func TestComparison_RowSemantics(t *testing.T) {
 // distance to the fit mean is √D² of ATTR_MAHALANOBIS on the same fit
 // (complete rows; a row missing a member is null under both).
 func TestComparison_MahalanobisMatchesAttrMahalanobis(t *testing.T) {
+	t.Parallel()
+
 	schema := cmpSchema()
 	mean, _ := cmpFit(false)
 	refJSON, _ := json.Marshal(mean)
@@ -314,6 +318,8 @@ func TestComparison_MahalanobisMatchesAttrMahalanobis(t *testing.T) {
 // profile (and a null member row) is null and counted in
 // n_reference_missing, on both arms, with the floor beside it.
 func TestComparison_KeyFieldAndComponents(t *testing.T) {
+	t.Parallel()
+
 	tables := vectors.NewReferenceTables(map[string]types.ReferenceVectorTable{
 		"t": {Labels: []string{"z", "y", "x"}, Profiles: map[string][]float64{"a": {1, 3, 2}, "b": {0, 0, 0}}},
 	})
@@ -369,6 +375,8 @@ func TestComparison_KeyFieldAndComponents(t *testing.T) {
 // an unknown key and labels that are not the vector's refuse the build
 // with the coded error before any record.
 func TestComparison_DomainAndBuildRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := cmpSchema()
 	recs := cmpRecords(schema)
 	req := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Label: "out", Fields: []string{"x", "y", "z"},
@@ -408,6 +416,8 @@ func TestComparison_DomainAndBuildRefusals(t *testing.T) {
 // fitted metric (explicit, or a measure vector's default before the
 // rewrite) takes the two-pass drive; the row-local metrics do not.
 func TestComparison_FittedIsTwoPassPerSlot(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.VectorSpec{{Name: "m", Fields: []string{"x", "y"}, Kind: types.VectorKindMeasure}}
 	for _, c := range []struct {
 		attr *types.Attribute
@@ -434,6 +444,8 @@ func TestComparison_FittedIsTwoPassPerSlot(t *testing.T) {
 // none. An unsigned-integer key_field matches by its base-10 form and
 // scores exactly as its categorical twin.
 func TestComparison_RowWarnings(t *testing.T) {
+	t.Parallel()
+
 	schema := cmpSchema()
 	schema.Fields[3].Nullable = true // g
 	schema.Fields = append(schema.Fields,
@@ -583,6 +595,8 @@ func merge(a, b map[string]any) map[string]any {
 // comparisonUnmatchedKeys smallest distinct unmatched values whatever
 // the row order.
 func TestComparison_UnmatchedKeysSmallestFirst(t *testing.T) {
+	t.Parallel()
+
 	var keys []string
 	for i := 0; i < 25; i++ {
 		keys = append(keys, strconv.Itoa(100+i))

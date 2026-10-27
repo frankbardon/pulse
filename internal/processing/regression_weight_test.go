@@ -44,6 +44,8 @@ func regWeightRecords(schema *encoding.Schema, ws []float64) []*Record {
 }
 
 func TestWeightedRegressions_ProcessorStampsAndTallies(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, []float64{1, 3, 2, 1, 4, 2, 1, 5, 1, 2})
 	recs = append(recs, NewRecord(schema, map[string]float64{"x1": 50, "x2": 1, "y": 1, "w": -1, "g": 0}))
@@ -136,6 +138,8 @@ func equalBools(a, b []bool) bool {
 // regression, an error under strict, on both fit paths; frequency
 // weights never warn.
 func TestWeightedRegressions_LowNEff(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, []float64{1000, 1, 1, 1, 1, 1})
 	for _, grouped := range []bool{false, true} {
@@ -188,6 +192,8 @@ func TestWeightedRegressions_LowNEff(t *testing.T) {
 // df 0, so it warns too (n_eff ≤ p + 1, not just <), naming the
 // undefined figures.
 func TestWeightedRegressions_LowNEffAtFloor(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, []float64{1, 1, 1, 3})
 	req := &types.Request{
@@ -217,6 +223,8 @@ func TestWeightedRegressions_LowNEffAtFloor(t *testing.T) {
 // below the p + 1 floor warns with GLM-specific prose (its Wald z has
 // no residual df), on both fit paths.
 func TestWeightedRegressions_GLMLowNEff(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, []float64{1000, 1, 1, 1, 1, 1, 1})
 	for _, grouped := range []bool{false, true} {
@@ -254,6 +262,8 @@ func TestWeightedRegressions_GLMLowNEff(t *testing.T) {
 // naming the undefined dispersion; a poisson fit on the same rows keeps
 // dispersion 1 and stays silent at the floor.
 func TestWeightedRegressions_GammaLowNEffAtFloor(t *testing.T) {
+	t.Parallel()
+
 	schema := regWeightSchema()
 	recs := regWeightRecords(schema, []float64{1, 1, 1, 3})
 	req := &types.Request{

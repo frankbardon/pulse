@@ -27,6 +27,8 @@ const zoneFilterExpr = "to_day(ts) == d"
 // include-set AND expression). Omitted, the leaf reads UTC exactly as
 // before and writes the same bytes as an explicit UTC.
 func TestCohortFilterCLI_TimeZone(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "zoned.csv", zoneFilterCSV)
 	inc := writeInclude(t, dir, "ids.txt", "1\n2\n4\n")
@@ -77,6 +79,8 @@ func TestCohortFilterCLI_TimeZone(t *testing.T) {
 // PULSE_TIMEZONE_UNKNOWN envelope, exit 1, and nothing is written — on
 // both predicate shapes.
 func TestCohortFilterCLI_TimeZoneUnknown(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := seedCohortViaImport(t, dir, "zoned.csv", zoneFilterCSV)
 	inc := writeInclude(t, dir, "ids.txt", "1\n")

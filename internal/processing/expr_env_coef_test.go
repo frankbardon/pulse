@@ -37,6 +37,8 @@ func processCoef(t *testing.T, set *model.Set, exts *ExtensionRegistry, req *typ
 // fit's own coefficient, bound and standard error — exact float
 // equality with RegressionResult, the intercept addressable.
 func TestCoef_FormulaEqualsRegressionResult(t *testing.T) {
+	t.Parallel()
+
 	set, res := coefFit(t)
 	if res.ConfLevel == 0 || len(res.CILower) == 0 {
 		t.Fatal("the fixture fit reports no intervals")
@@ -92,6 +94,8 @@ func TestCoef_FormulaEqualsRegressionResult(t *testing.T) {
 // TestCoef_FilterExpression: a filter keeps exactly the rows above the
 // bound fit's coefficient.
 func TestCoef_FilterExpression(t *testing.T) {
+	t.Parallel()
+
 	set, res := coefFit(t)
 	schema := predictSchema()
 	want := 0
@@ -119,6 +123,8 @@ func TestCoef_FilterExpression(t *testing.T) {
 // one (a let binding) at evaluation — with the identical coded error,
 // never PROCESSING_RUNTIME — in a formula and in a filter.
 func TestCoef_Refusals(t *testing.T) {
+	t.Parallel()
+
 	set, _ := coefFit(t)
 	cases := []struct {
 		name            string
@@ -177,6 +183,8 @@ func TestCoef_Refusals(t *testing.T) {
 // field is null a filter drops the row for an evaluation error — but a
 // coef() refusal is the request's fault and surfaces under its code.
 func TestCoef_FilterNullRowRefusalSurfaces(t *testing.T) {
+	t.Parallel()
+
 	set, _ := coefFit(t)
 	// Only a null-x2 row reaches coef(): a non-null one short-circuits.
 	recs := predictRecords(predictSchema())
@@ -193,6 +201,8 @@ func TestCoef_FilterNullRowRefusalSurfaces(t *testing.T) {
 // TestCoef_EmbedderFunctionShadows: an embedder ExprFunction named coef
 // owns the name — its value, no static bound-model check.
 func TestCoef_EmbedderFunctionShadows(t *testing.T) {
+	t.Parallel()
+
 	exts := &ExtensionRegistry{ExprFunctions: []ExprFunction{{Name: "coef", Fn: func(args ...any) (any, error) { return 42.0, nil }}}}
 	resp, err := processCoef(t, nil, exts, &types.Request{
 		Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: `coef("nope", "x")`}},
@@ -211,6 +221,8 @@ func TestCoef_EmbedderFunctionShadows(t *testing.T) {
 // bound-model reader's own name, or the static rule and the declared
 // function would judge different calls.
 func TestCoefName_MatchesExprenv(t *testing.T) {
+	t.Parallel()
+
 	if exprenv.CoefFunc != model.CoefFunc {
 		t.Fatalf("exprenv.CoefFunc = %q, model.CoefFunc = %q", exprenv.CoefFunc, model.CoefFunc)
 	}

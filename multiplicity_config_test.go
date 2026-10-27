@@ -104,6 +104,8 @@ func multRefusalCases() map[string]multRefusalCase {
 // message and details PredictBytes (the chain validator for a chain)
 // reports first.
 func TestMultiplicity_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	hosts := map[string]*pulse.Pulse{}
@@ -178,6 +180,8 @@ func TestMultiplicity_RefusalsMatchPredict(t *testing.T) {
 // (serial and parallel), where a cross-slot conflict is refused
 // located by the batch.
 func TestMultiplicity_ComposeFamilyOnlyInsideCompose(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	p := multPulse(t, fs, nil)
@@ -225,6 +229,8 @@ func TestMultiplicity_ComposeFamilyOnlyInsideCompose(t *testing.T) {
 // raised by Compose and ComposeParallel with the code, message and
 // details ValidateCompose reports first.
 func TestMultiplicity_ComposeRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	p := multPulse(t, fs, nil)
@@ -275,6 +281,8 @@ func TestMultiplicity_ComposeRefusalsMatchPredict(t *testing.T) {
 // installed (the conflict case of the parity table proves it reaches
 // predict and the runtime).
 func TestMultiplicity_DefaultValidatedAtNew(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	for _, bad := range []*types.Multiplicity{
 		multBlock("holm-bonferroni", "", 0),
@@ -309,6 +317,8 @@ func multiplicityProfile(with bool) *pulse.FeatureProfile {
 // predict), the payload schema carries none, and
 // Options.DefaultMultiplicity fails pulse.New as a profile dependency.
 func TestHiddenMultiplicity_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	hidden, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: multiplicityProfile(false)})

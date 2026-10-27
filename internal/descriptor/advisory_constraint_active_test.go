@@ -13,6 +13,8 @@ import (
 // lint the predict advisories pass, for one and for several held
 // predictors.
 func TestConstraintActiveAdvisoryPassesProseLint(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"tv", "search"},
 		Bounds: &types.RegressionBounds{Nonnegative: []string{"tv", "search"}}}
 	for _, active := range [][]string{{"tv"}, {"tv", "search"}} {

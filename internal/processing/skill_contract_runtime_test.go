@@ -56,6 +56,8 @@ func paramDefaultFloat(t *testing.T, d any) float64 {
 // to the declared Default — so the param is not Required, and "≤ 0 is
 // treated as the default" is the truth the description must state.
 func TestGrouperIntervalDeclarationMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	entries := manifestOperatorEntries()
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
 	pinned := 0
@@ -113,6 +115,8 @@ func TestGrouperIntervalDeclarationMatchesRuntime(t *testing.T) {
 // the runtime's, and the output is a verbatim copy of the source cell —
 // so the manifest declares no fixed EmitsType.
 func TestWinLagLead_DeclarationMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	entries := manifestOperatorEntries()
 	big := uint64(1)<<53 + 1 // not representable as float64
 	for _, typ := range []types.WindowType{types.WIN_LAG, types.WIN_LEAD} {
@@ -209,6 +213,8 @@ func TestWinLagLead_DeclarationMatchesRuntime(t *testing.T) {
 // the fit rows its leverage exceeds 1, so the declaration must not claim
 // [0, 1]. The in-fit rows stay within [1/n, 1].
 func TestAttrRegLeverage_OutOfFitRowCanExceedOne(t *testing.T) {
+	t.Parallel()
+
 	op := manifestOperatorEntries()[string(types.ATTR_REG_LEVERAGE)]
 	if strings.Contains(op.Description, "[0, 1]") || strings.Contains(op.EmitsTypeNote, "[0, 1]") {
 		t.Errorf("ATTR_REG_LEVERAGE still declares a [0, 1] range: %q / %q", op.Description, op.EmitsTypeNote)

@@ -48,10 +48,13 @@ type brandGroupCohort struct {
 	// dict pre-seeds a categorical wave's dictionary (levels without
 	// rows included), in order.
 	dict []string
+	// fsys is the filesystem to write on (nil: a fresh MemMapFs).
+	fsys afero.Fs
 }
 
-// build writes the cohort as "brand.pulse" on a fresh in-memory
-// filesystem and returns an instance over it with opts.
+// build writes the cohort as "brand.pulse" on c.fsys (a fresh
+// in-memory filesystem when nil) and returns an instance over it with
+// opts.
 func (c brandGroupCohort) build(t *testing.T, opts pulse.Options) (*pulse.Pulse, afero.Fs) {
 	t.Helper()
 	f, err := os.Open(semGroupTestdata + c.csv + "_data.csv")
@@ -83,7 +86,10 @@ func (c brandGroupCohort) build(t *testing.T, opts pulse.Options) (*pulse.Pulse,
 	if c.weight != nil {
 		fields = append(fields, encoding.Field{Name: "w", Type: encoding.FieldTypeF64, Description: "Synthetic frequency weight"})
 	}
-	fsys := afero.NewMemMapFs()
+	fsys := c.fsys
+	if fsys == nil {
+		fsys = afero.NewMemMapFs()
+	}
 	opts.FS = fsys
 	p, err := pulse.New(opts)
 	if err != nil {
@@ -388,11 +394,15 @@ func loadMGLavaan(t *testing.T, name string) mgLavaan {
 // groups) match lavaan's group = "wave" fits through the engine;
 // group_reference picks the primary.
 func TestSEM_MultiGroupProcessMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ ref, csv, model string }{
 		{"brand_mg_configural", "brand", "brand_ms"},
 		{"brand_mg_misfit", "brand_uneq", "brand_mgmis"},
 	} {
 		t.Run(c.ref, func(t *testing.T) {
+			t.Parallel()
+
 			ref := loadMGLavaan(t, c.ref)
 			p, _ := brandGroupCohort{csv: c.csv, wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 			checkMGAgainstLavaan(t, semGroupRun(t, p, semGroupRequest(t, c.model, nil)), ref, 0)
@@ -401,98 +411,42 @@ func TestSEM_MultiGroupProcessMatchesLavaan(t *testing.T) {
 	}
 }
 
-// semResultBits is every figure of a matrix result, in a fixed order.
-func semResultBits(t *testing.T, res types.MatrixResult) []uint64 {
-	t.Helper()
-	b, err := json.Marshal(res)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out []uint64
-	add := func(m *types.MatrixValues) {
-		for _, row := range m.Values {
-			for _, v := range row {
-				out = append(out, math.Float64bits(v))
-			}
-		}
-	}
-	add(res.Primary)
-	keys := make([]string, 0, len(res.Auxiliary))
-	for k := range res.Auxiliary {
-		keys = append(keys, k)
-	}
-	for _, k := range sortedStrings(keys) {
-		add(res.Auxiliary[k])
-	}
-	sk := make([]string, 0, len(res.Scalars))
-	for k := range res.Scalars {
-		sk = append(sk, k)
-	}
-	for _, k := range sortedStrings(sk) {
-		out = append(out, math.Float64bits(res.Scalars[k]))
-	}
-	return append(out, uint64(len(b)))
-}
+// TestSEM_MultiGroupFieldTypesAgree: a grouped fit on every supported
+// group field type gives the same estimates (only the level labels
+// differ). That each is the same bits under every worker knob and over
+// a shard archive is the MAT_SEM invariance family's
+// (TestSEMInvariance_{Archive,Heavy}, multigroup_*).
+func TestSEM_MultiGroupFieldTypesAgree(t *testing.T) {
+	t.Parallel()
 
-func sortedStrings(s []string) []string {
-	out := append([]string(nil), s...)
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j] < out[j-1]; j-- {
-			out[j], out[j-1] = out[j-1], out[j]
-		}
-	}
-	return out
-}
-
-// TestSEM_MultiGroupWorkerAndShardInvariant: the per-level co-moments
-// merge through the fixed tree, so a grouped fit is the same bits
-// serially, under any decode-worker count, and over a shard archive
-// under any shard-worker count — on every supported group field type,
-// whose fits agree with each other (only the level labels differ).
-func TestSEM_MultiGroupWorkerAndShardInvariant(t *testing.T) {
 	var base []float64
 	for _, wave := range []encoding.FieldType{encoding.FieldTypeCategoricalU8, encoding.FieldTypePackedBool, encoding.FieldTypeU8} {
-		t.Run(wave.String(), func(t *testing.T) {
-			req := func() *types.Request { return semGroupRequest(t, "brand_mgmis", nil) }
-			p, _ := brandGroupCohort{csv: "brand_uneq", wave: wave}.build(t, pulse.Options{DecodeWorkers: 1, ShardWorkers: 1})
-			serial := semGroupRun(t, p, req())
-			if serial.Error != nil {
-				t.Fatalf("serial: %+v", serial.Error)
+		p, _ := brandGroupCohort{csv: "brand_uneq", wave: wave}.build(t, pulse.Options{})
+		serial := semGroupRun(t, p, semGroupRequest(t, "brand_mgmis", nil))
+		if serial.Error != nil {
+			t.Fatalf("%s: %+v", wave, serial.Error)
+		}
+		var flat []float64
+		for _, row := range serial.Auxiliary["estimates"].Values {
+			flat = append(flat, row...)
+		}
+		if base == nil {
+			base = flat
+			continue
+		}
+		for i := range flat {
+			if flat[i] != base[i] && !(math.IsNaN(flat[i]) && math.IsNaN(base[i])) {
+				t.Fatalf("estimate figure %d = %g on %s, %g on categorical_u8", i, flat[i], wave, base[i])
 			}
-			want := semResultBits(t, serial)
-			for _, dw := range []int{2, 5} {
-				p, _ := brandGroupCohort{csv: "brand_uneq", wave: wave}.build(t, pulse.Options{DecodeWorkers: dw, ShardWorkers: 1})
-				if got := semResultBits(t, semGroupRun(t, p, req())); !reflect.DeepEqual(got, want) {
-					t.Errorf("DecodeWorkers %d differs from serial", dw)
-				}
-			}
-			for _, sw := range []int{1, 3} {
-				p, _ := brandGroupCohort{csv: "brand_uneq", wave: wave, shards: 230}.build(t, pulse.Options{DecodeWorkers: 1, ShardWorkers: sw})
-				if got := semResultBits(t, semGroupRun(t, p, req())); !reflect.DeepEqual(got, want) {
-					t.Errorf("shard archive, ShardWorkers %d differs from the single file", sw)
-				}
-			}
-			est := serial.Auxiliary["estimates"].Values
-			var flat []float64
-			for _, row := range est {
-				flat = append(flat, row...)
-			}
-			if base == nil {
-				base = flat
-				return
-			}
-			for i := range flat {
-				if flat[i] != base[i] && !(math.IsNaN(flat[i]) && math.IsNaN(base[i])) {
-					t.Fatalf("estimate figure %d = %g on %s, %g on categorical_u8", i, flat[i], wave, base[i])
-				}
-			}
-		})
+		}
 	}
 }
 
 // TestSEM_MultiGroupFrequencyWeight: a frequency weight applies within
 // each group — n_g = Σw — so the fit matches the expanded rows'.
 func TestSEM_MultiGroupFrequencyWeight(t *testing.T) {
+	t.Parallel()
+
 	w := func(r int) int { return 1 + r%3 }
 	pw, _ := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8, weight: w}.build(t, pulse.Options{})
 	pe, _ := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8, repeat: w}.build(t, pulse.Options{})
@@ -534,6 +488,8 @@ func TestSEM_MultiGroupFrequencyWeight(t *testing.T) {
 // two levels with rows, a level thinner than the model, a reference
 // level without rows) fail the slot alone.
 func TestSEM_MultiGroupRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cat, catFS := brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	for _, c := range []struct {
@@ -613,6 +569,8 @@ func TestSEM_MultiGroupRefusals(t *testing.T) {
 		{"reference without rows", brandGroupCohort{csv: "brand_uneq", wave: encoding.FieldTypeU8}, map[string]any{"group_reference": "7"}, errors.PULSE_MATRIX_INSUFFICIENT_N, "reference_absent"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			p, _ := c.cohort.build(t, pulse.Options{})
 			res := semGroupRun(t, p, semGroupRequest(t, "brand_mgmis", c.params))
 			if res.Error == nil || res.Error.Code != string(c.code) || res.Error.Details["reason"] != c.reason {

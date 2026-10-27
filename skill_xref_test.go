@@ -30,6 +30,8 @@ import (
 // and friends; shape (a) resolves through the skills package's embedded FS, so it
 // asserts what skills.Get() actually answers rather than what is on disk.
 func TestSkillsCoverAllCrossReferences(t *testing.T) {
+	t.Parallel()
+
 	t.Run("SkillStems", func(t *testing.T) { checkSkillStemRefs(t) })
 	t.Run("MarkdownPaths", func(t *testing.T) { checkSkillMarkdownPathRefs(t) })
 	t.Run("Sections", func(t *testing.T) { checkSectionQualifiedRefs(t) })

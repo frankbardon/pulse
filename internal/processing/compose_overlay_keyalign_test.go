@@ -105,6 +105,8 @@ func requireKeySetDivergent(t *testing.T, err error, wantMissing, wantExtra []st
 // (present on ref but not target) and extra = [(rowB, colY)]
 // (present on target but not ref).
 func TestValidateOverlay_KeySetDivergent_Matrix(t *testing.T) {
+	t.Parallel()
+
 	ref := composeMatrixSlot(
 		[]types.AxisKey{{"rowA"}},
 		[]types.AxisKey{{"colX"}, {"colY"}},
@@ -130,6 +132,8 @@ func TestValidateOverlay_KeySetDivergent_Matrix(t *testing.T) {
 // target carries a subset. The `missing` list must list the
 // reference-only coordinates, the `extra` list must be empty.
 func TestValidateOverlay_KeySetDivergent_Matrix_RefSuperset(t *testing.T) {
+	t.Parallel()
+
 	ref := composeMatrixSlot(
 		[]types.AxisKey{{"rowA"}, {"rowB"}},
 		[]types.AxisKey{{"colX"}},
@@ -161,6 +165,8 @@ func TestValidateOverlay_KeySetDivergent_Matrix_RefSuperset(t *testing.T) {
 // surface is purely on the group field — two slots carrying the
 // same group keys but different aggregator values must NOT diverge.
 func TestValidateOverlay_KeySetDivergent_Series(t *testing.T) {
+	t.Parallel()
+
 	ref := composeSeriesSlot("region", []string{"us", "eu"})
 	target := composeSeriesSlot("region", []string{"us", "apac"})
 	spec := types.ComposeOverlaySpec{
@@ -176,6 +182,8 @@ func TestValidateOverlay_KeySetDivergent_Series(t *testing.T) {
 }
 
 func TestValidateOverlay_KeySetAlignment_HappyPath_Matrix(t *testing.T) {
+	t.Parallel()
+
 	ref := composeMatrixSlot(
 		[]types.AxisKey{{"rowA"}, {"rowB"}},
 		[]types.AxisKey{{"colX"}, {"colY"}},
@@ -197,6 +205,8 @@ func TestValidateOverlay_KeySetAlignment_HappyPath_Matrix(t *testing.T) {
 // series arm under identical group keys, even when the aggregator
 // values differ — value columns are not part of the key encoding.
 func TestValidateOverlay_KeySetAlignment_HappyPath_Series(t *testing.T) {
+	t.Parallel()
+
 	ref := &types.Response{Data: []map[string]any{
 		{"region": "us", "sum": 1.0},
 		{"region": "eu", "sum": 2.0},
@@ -222,6 +232,8 @@ func TestValidateOverlay_KeySetAlignment_HappyPath_Series(t *testing.T) {
 // failing target; the Details payload identifies that target by its
 // label.
 func TestValidateOverlay_KeySetAlignment_MultiTargetMixedDivergence(t *testing.T) {
+	t.Parallel()
+
 	ref := composeSeriesSlot("region", []string{"us", "eu"})
 	matchingTarget := composeSeriesSlot("region", []string{"us", "eu"})
 	divergingTarget := composeSeriesSlot("region", []string{"us", "apac"})
@@ -265,6 +277,8 @@ func TestValidateOverlay_KeySetAlignment_MultiTargetMixedDivergence(t *testing.T
 // to a structural no-op and the per-kind handler's scalar-arm
 // owns the rest.
 func TestValidateOverlay_KeySetAlignment_ScalarNoOp(t *testing.T) {
+	t.Parallel()
+
 	ref := &types.Response{}
 	target := &types.Response{}
 	spec := types.ComposeOverlaySpec{
@@ -282,6 +296,8 @@ func TestValidateOverlay_KeySetAlignment_ScalarNoOp(t *testing.T) {
 }
 
 func TestValidateOverlay_KeySetAlignment_TargetScalarSkipped(t *testing.T) {
+	t.Parallel()
+
 	ref := composeSeriesSlot("region", []string{"us", "eu"})
 	scalarTarget := &types.Response{}
 	divergingTarget := composeSeriesSlot("region", []string{"us", "apac"})
@@ -310,6 +326,8 @@ func TestValidateOverlay_KeySetAlignment_TargetScalarSkipped(t *testing.T) {
 // it the same way it branches on LookupReference / LookupTarget
 // failures.
 func TestApplyComposeOverlays_KeySetDivergenceFailsLoud(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		composeSeriesSlot("region", []string{"us", "eu"}),
 		composeSeriesSlot("region", []string{"us", "apac"}),

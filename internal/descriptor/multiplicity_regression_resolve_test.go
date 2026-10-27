@@ -28,6 +28,8 @@ func rspec(typ types.RegressionType, m *types.RegressionMultiplicity) *types.Reg
 }
 
 func TestResolveMultiplicity_Regressions(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		method   types.MultiplicityMethod
 		family   types.MultiplicityFamily
@@ -117,6 +119,8 @@ func TestResolveMultiplicity_Regressions(t *testing.T) {
 }
 
 func TestResolveMultiplicity_RegressionRefusals(t *testing.T) {
+	t.Parallel()
+
 	inv := errors.PULSE_MULTIPLICITY_INVALID
 	cases := []struct {
 		name string
@@ -165,6 +169,8 @@ func TestResolveMultiplicity_RegressionRefusals(t *testing.T) {
 // validators refuse it, so the resolver neither refuses it as Bayes nor
 // makes it a member.
 func TestResolveMultiplicity_RegressionHiddenTypeJoinsNoFamily(t *testing.T) {
+	t.Parallel()
+
 	inst := NewInstanceSnapshot(nil, FeatureSet{
 		Enabled: []string{featProcess, featMultiplicity, string(types.REG_OLS)},
 		Hidden:  []string{string(types.REG_BAYES_LINEAR), string(types.REG_GLM)},
@@ -186,6 +192,8 @@ func TestResolveMultiplicity_RegressionHiddenTypeJoinsNoFamily(t *testing.T) {
 }
 
 func TestResolveComposeMultiplicity_RegressionSlots(t *testing.T) {
+	t.Parallel()
+
 	slot := func(m *types.RegressionMultiplicity) *types.Request {
 		return &types.Request{Regressions: []*types.RegressionSpec{rspec(types.REG_OLS, m)}}
 	}
@@ -225,6 +233,8 @@ func TestResolveComposeMultiplicity_RegressionSlots(t *testing.T) {
 // uncorrected unless its own block claims them — and
 // PULSE_ADVISORY_MANY_TESTS sees them; REG_BAYES_LINEAR counts none.
 func TestPredict_RegressionPValues(t *testing.T) {
+	t.Parallel()
+
 	preds := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
 	fields := []encoding.Field{{Name: "y", Type: encoding.FieldTypeF64, Description: "Measured outcome y"}}
 	for _, p := range preds {

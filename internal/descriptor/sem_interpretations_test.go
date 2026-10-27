@@ -19,6 +19,8 @@ var semOrdinalScalars = []string{"chi2_scaled", "scaling_factor", "shift_paramet
 // that capability renders none of it (the reading section skips an
 // entry whose Means scrubs to empty).
 func TestSEM_ScaledFitIndicesInterpreted(t *testing.T) {
+	t.Parallel()
+
 	ins, ok := InterpretationsOf("MAT_SEM")
 	if !ok {
 		t.Fatal("MAT_SEM declares no Interpretation")
@@ -75,6 +77,8 @@ func TestSEM_ScaledFitIndicesInterpreted(t *testing.T) {
 // scale and that an unseen category reads null, in a caveat an instance
 // hiding capability:sem_ordinal drops.
 func TestSEMScore_OrdinalReadingInterpreted(t *testing.T) {
+	t.Parallel()
+
 	ins, _ := InterpretationsOf("ATTR_SEM_SCORE")
 	hidden := proseScrubFor()
 	var found string

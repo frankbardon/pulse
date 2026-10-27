@@ -15,6 +15,8 @@ import (
 // slot, Compose-level, per stage) to the facade; the `--json` data is
 // shaped — `returned` stamped, the excluded key absent.
 func TestAPI_ComposeAndChainPassReturnThrough(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "cat,n\n"
 	for i := range 20 {

@@ -13,6 +13,8 @@ import (
 // TestSeeTags pins every `tags=[…]` form the pack writes: plain, quoted,
 // `a|b` alternatives and several lists in one span.
 func TestSeeTags(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		span string
@@ -42,6 +44,8 @@ func TestSeeTags(t *testing.T) {
 
 // TestSeeTagsMatch: an entry takes any alternative, entries AND, lists OR.
 func TestSeeTagsMatch(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		span string
 		have []string
@@ -68,6 +72,8 @@ func TestSeeTagsMatch(t *testing.T) {
 // example its search answers, and a span holding several lists links
 // the examples of each.
 func TestOntology_TopicalSeeTagEdges(t *testing.T) {
+	t.Parallel()
+
 	g := BaseOntology()
 	cases := []struct {
 		skill string

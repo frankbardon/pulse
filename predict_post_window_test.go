@@ -43,6 +43,8 @@ func postWindowLag() *types.Window {
 // chain and a slot that cannot move (PULSE_ATTRIBUTE_WINDOW_ORDER) is
 // refused, and still reports which attributes run after the windows.
 func TestPredictPostWindow_Predict(t *testing.T) {
+	t.Parallel()
+
 	p, _ := postWindowPulse(t)
 	req := &Request{
 		Cohort:  &types.Cohort{Filename: postWindowCohort},
@@ -72,6 +74,8 @@ func TestPredictPostWindow_Predict(t *testing.T) {
 // windows-first plan on the wire, and no post_window key for a request
 // without a window.
 func TestPredictPostWindow_PredictBytes(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := postWindowPulse(t)
 	data, err := afero.ReadFile(fsys, postWindowCohort)
 	if err != nil {
@@ -115,6 +119,8 @@ func TestPredictPostWindow_PredictBytes(t *testing.T) {
 // predictor is a window label (ATTR_REG_PREDICT) runs that score after
 // the windows — read through the fit's terms, not an expression.
 func TestPredictPostWindow_PredictCompose(t *testing.T) {
+	t.Parallel()
+
 	p, _ := postWindowPulse(t)
 	at := &types.Cohort{Filename: postWindowCohort}
 	c := &ComposedRequest{

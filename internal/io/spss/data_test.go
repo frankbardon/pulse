@@ -60,6 +60,8 @@ func assertRows(t *testing.T, got, want [][]string) {
 // and a string trimmed of the padding that carried it out to its declared
 // width and then to the 8-byte segment boundary.
 func TestReadRows_ReferenceFixture(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 	r := NewReaderFromBytes(raw)
 
@@ -89,6 +91,8 @@ func TestReadRows_ReferenceFixture(t *testing.T) {
 // truncated, upper-cased derivation SPSS retains for backward compatibility,
 // and surfacing it would silently rename every column of a modern file.
 func TestReadHeader_PrefersTheLongName(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ExtensionReferenceSpec())
 	r := NewReaderFromBytes(raw)
 
@@ -133,6 +137,8 @@ func TestReadHeader_PrefersTheLongName(t *testing.T) {
 // rather than rebuilding it, and that Reset drops it so a renamed dictionary
 // could never be served from a stale cache.
 func TestReadHeader_IsMemoised(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(build(t, spsstest.ReferenceSpec()))
 	first, err := r.ReadHeader()
 	if err != nil {
@@ -157,6 +163,8 @@ func TestReadHeader_IsMemoised(t *testing.T) {
 // rows. ReadRows must resolve the dictionary itself rather than assuming a
 // prior ReadHeader left one behind.
 func TestReadRows_WithoutReadHeader(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(build(t, spsstest.ReferenceSpec()))
 	assertRows(t, readAll(t, r), [][]string{
 		{"1", "1", "ALICE"},
@@ -167,6 +175,8 @@ func TestReadRows_WithoutReadHeader(t *testing.T) {
 // TestReadRows_Values is the rendering table: one fixture carrying every
 // numeric and string shape whose canonical string is worth pinning.
 func TestReadRows_Values(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "N", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8}},
@@ -209,6 +219,8 @@ func TestReadRows_Values(t *testing.T) {
 // a finite value of about -1.8e308 and drags the whole column to f64 with a
 // wildly wrong range.
 func TestReadRows_SysmisIsTheHouseNullToken(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "N"}},
 		Cases: [][]spsstest.Value{{spsstest.SysMis()}, {spsstest.Num(7)}},
@@ -233,6 +245,8 @@ func TestReadRows_SysmisIsTheHouseNullToken(t *testing.T) {
 // an override, and a file declaring an unusual sysmis must have it honoured
 // on both sides — its own sentinel reads as null, and -DBL_MAX does not.
 func TestReadRows_SysmisHonoursADeclaredSentinel(t *testing.T) {
+	t.Parallel()
+
 	const declared = -1e100
 
 	// The parser adopts a declared sentinel only from a coherent
@@ -270,6 +284,8 @@ func TestReadRows_SysmisHonoursADeclaredSentinel(t *testing.T) {
 // segments, and the padding between the declared width and the segment
 // boundary never reaches the caller.
 func TestReadRows_StringSegments(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		width int
@@ -313,6 +329,8 @@ func TestReadRows_StringSegments(t *testing.T) {
 // variables by position would read the second variable out of the first
 // one's continuation bytes.
 func TestReadRows_ColumnOrderSurvivesContinuations(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "WIDE", Width: 30}, // 4 elements
@@ -346,6 +364,8 @@ func TestReadRows_ColumnOrderSurvivesContinuations(t *testing.T) {
 // from the record type 2 stream. A file whose header lies must still decode,
 // because the records are what the data section was written against.
 func TestReadRows_TrustsTheCountedStrideNotTheHeader(t *testing.T) {
+	t.Parallel()
+
 	const offNominalCaseSize = 68
 
 	raw := build(t, spsstest.ReferenceSpec())
@@ -372,6 +392,8 @@ func TestReadRows_TrustsTheCountedStrideNotTheHeader(t *testing.T) {
 // TestReadRows_EmptyDataSection covers a dictionary-only file, which is legal
 // and must read as zero cases rather than as an error.
 func TestReadRows_EmptyDataSection(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{Vars: []spsstest.Var{{Name: "A"}, {Name: "S", Width: 4}}}
 	r := NewReaderFromBytes(build(t, spec))
 
@@ -393,6 +415,8 @@ func TestReadRows_EmptyDataSection(t *testing.T) {
 // TestReadRows_Reset is the ResetReader criterion: the infer-then-import
 // sequence reads the same source twice and must see the same rows both times.
 func TestReadRows_Reset(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(build(t, spsstest.ReferenceSpec()))
 
 	first := readAll(t, r)
@@ -417,6 +441,8 @@ func TestReadRows_Reset(t *testing.T) {
 // rather than only as a compile-time var block, so a caller that dispatches on
 // the optional interface is covered.
 func TestReader_SatisfiesResetReader(t *testing.T) {
+	t.Parallel()
+
 	var rd pio.Reader = NewReaderFromBytes(build(t, spsstest.ReferenceSpec()))
 	rr, ok := rd.(pio.ResetReader)
 	if !ok {
@@ -431,6 +457,8 @@ func TestReader_SatisfiesResetReader(t *testing.T) {
 // axes: a context cancelled before the first case, and one cancelled part way
 // through.
 func TestReadRows_ContextCancellation(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{Vars: []spsstest.Var{{Name: "N"}}}
 	for i := 0; i < 64; i++ {
 		spec.Cases = append(spec.Cases, []spsstest.Value{spsstest.Num(float64(i))})
@@ -476,6 +504,8 @@ func TestReadRows_ContextCancellation(t *testing.T) {
 // returns to stop after its sample window. It must end the pass cleanly, not
 // surface as an error.
 func TestReadRows_StopIteration(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{Vars: []spsstest.Var{{Name: "N"}}}
 	for i := 0; i < 20; i++ {
 		spec.Cases = append(spec.Cases, []spsstest.Value{spsstest.Num(float64(i))})
@@ -500,6 +530,8 @@ func TestReadRows_StopIteration(t *testing.T) {
 // TestReadRows_CallbackErrorPropagates asserts a callback fault is surfaced
 // verbatim — the import path relies on its own row errors reaching it.
 func TestReadRows_CallbackErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	want := stderrors.New("boom")
 	err := NewReaderFromBytes(build(t, spsstest.ReferenceSpec())).
 		ReadRows(context.Background(), func([]string) error { return want })
@@ -512,6 +544,8 @@ func TestReadRows_CallbackErrorPropagates(t *testing.T) {
 // package may touch os, so the same fixture must read identically through a
 // MemMapFs.
 func TestReadRows_FromAferoFilesystem(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "survey.sav", raw, 0o644); err != nil {
@@ -540,6 +574,8 @@ func TestReadRows_FromAferoFilesystem(t *testing.T) {
 // The seam E3-S1 left for ZSAV is gone: see zsav_test.go, where a `.zsav`
 // reads as a cohort identical to its uncompressed twin.
 func TestReadRows_UnknownCompressionRefused(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 	binary.LittleEndian.PutUint32(raw[offCompression:offCompression+4], 7)
 
@@ -577,6 +613,8 @@ func TestReadRows_UnknownCompressionRefused(t *testing.T) {
 // the format has, so a short tail cannot be told from a valid case by any
 // other means.
 func TestReadRows_Truncated(t *testing.T) {
+	t.Parallel()
+
 	full := build(t, spsstest.ReferenceSpec())
 	// The reference fixture is 4 elements per case, so 32 bytes.
 	const stride = 32
@@ -602,6 +640,8 @@ func TestReadRows_Truncated(t *testing.T) {
 // The whole cases present are still read: discarding rows the file plainly
 // contains to honour a writer's miscount would lose data.
 func TestReadRows_CaseCountMismatch(t *testing.T) {
+	t.Parallel()
+
 	t.Run("the header over-declares", func(t *testing.T) {
 		raw := build(t, spsstest.ReferenceSpec())
 		binary.LittleEndian.PutUint32(raw[offCaseCount:offCaseCount+4], uint32(9))
@@ -693,6 +733,8 @@ func TestReadRows_CaseCountMismatch(t *testing.T) {
 // both channels rather than only the data section's. Every extension warning
 // E2-S3 raises had no way out of the package before this.
 func TestWarnings_CarriesTheDictionarysOwn(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.RawExtensions = []spsstest.RawExtension{
 		{Subtype: 4242, Size: 1, Payload: []byte("nobody knows what this is")},
@@ -717,6 +759,8 @@ func TestWarnings_CarriesTheDictionarysOwn(t *testing.T) {
 // succeed, and a path-backed reader must still be usable afterwards because
 // its bytes are recoverable; a bytes-backed one is not, and says so.
 func TestReader_CloseIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 
 	t.Run("twice over a bytes-backed reader", func(t *testing.T) {
@@ -762,6 +806,8 @@ func TestReader_CloseIsIdempotent(t *testing.T) {
 // pins that the reader does not materialise a second copy of the file: the
 // row buffer is one slice, reused.
 func TestReadRows_ManyCases(t *testing.T) {
+	t.Parallel()
+
 	const n = 5000
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "I"}, {Name: "S", Width: 10}},
@@ -805,6 +851,8 @@ func TestReadRows_ManyCases(t *testing.T) {
 // same record stream the variable indices come from — but a decode that
 // trusted a hand-mutated dictionary would index past the end of a case.
 func TestBuildDataPlan_RejectsImpossibleGeometry(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		d    *dictionary
@@ -933,6 +981,8 @@ func FuzzReadRows(f *testing.F) {
 // from PULSE_SPSS_DICT_TRUNCATED: a truncated file stopped part way through
 // a record, an empty one never had a first record.
 func TestReadRows_EmptyInputIsCoded(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		make func(t *testing.T) *Reader
@@ -948,6 +998,8 @@ func TestReadRows_EmptyInputIsCoded(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tc.make(t).ReadRows(context.Background(), func([]string) error { return nil })
 			if err == nil {
 				t.Fatal("an empty source read without error")
@@ -966,6 +1018,8 @@ func TestReadRows_EmptyInputIsCoded(t *testing.T) {
 // It is still a coded error, so every failure out of this package is one a
 // caller can switch on.
 func TestNewReader_NoSourceIsCoded(t *testing.T) {
+	t.Parallel()
+
 	err := (&Reader{}).ReadRows(context.Background(), func([]string) error { return nil })
 	if err == nil {
 		t.Fatal("a sourceless reader read without error")

@@ -69,6 +69,8 @@ func oracleClose(got, want float64) bool {
 // partitions with nulls, the rows handed over shuffled so partition_by
 // and order_by do the ordering.
 func TestReferenceOracle_WinDistributedLag(t *testing.T) {
+	t.Parallel()
+
 	doc := loadDistLagOracle(t)
 	for _, c := range doc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -140,6 +142,8 @@ func TestReferenceOracle_WinDistributedLag(t *testing.T) {
 // is bounded by decay^i · max|x| plus decay^61 (truncation); past row 40
 // both are below 1e-9 relative on this series.
 func TestWinDistributedLag_GeometricApproximatesEWMA(t *testing.T) {
+	t.Parallel()
+
 	const n, burnIn = 80, 40
 	const relTol = 1e-9
 	rows := make([]map[string]any, n)
@@ -176,6 +180,8 @@ func TestWinDistributedLag_GeometricApproximatesEWMA(t *testing.T) {
 // across it — unlike WIN_EWMA), a lag never crosses a partition, and the
 // weights are not renormalised over the values present.
 func TestWinDistributedLag_NullsAndPartitions(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"g": "a", "t": 1.0, "x": 10.0},
 		{"g": "a", "t": 2.0, "x": nil},
@@ -200,6 +206,8 @@ func TestWinDistributedLag_NullsAndPartitions(t *testing.T) {
 // TestWinDistributedLag_DeterministicAcrossRuns: the same request twice gives
 // bit-identical columns (the kernel sum order is fixed, lag 0 first).
 func TestWinDistributedLag_DeterministicAcrossRuns(t *testing.T) {
+	t.Parallel()
+
 	run := func() []any {
 		rows := make([]map[string]any, 50)
 		for i := range rows {

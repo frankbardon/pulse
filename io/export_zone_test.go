@@ -122,6 +122,8 @@ func loc(t *testing.T, name string) *time.Location {
 // +01:00 / +02:00 either side of each Berlin transition, the fall-back
 // hour's two readings told apart by offset — and leaves `date` alone.
 func TestExport_TimeZoneRendersLocalOffsets(t *testing.T) {
+	t.Parallel()
+
 	fs, instants := zoneExportCohort(t)
 	baseD := columnOf(t, pio.FormatCSV, exportZone(t, fs, pio.FormatCSV, ""), "d")
 	for _, zone := range []string{"Asia/Kolkata", "Europe/Berlin"} {
@@ -176,6 +178,8 @@ func rowFormats() []pio.Format {
 // honours the offset), and differs from the zone-free export — the
 // control that proves the zone reached the format.
 func TestExport_TimeZoneRoundTripsEveryFormat(t *testing.T) {
+	t.Parallel()
+
 	fs, instants := zoneExportCohort(t)
 	for _, f := range rowFormats() {
 		t.Run(f.String(), func(t *testing.T) {
@@ -210,6 +214,8 @@ func TestExport_TimeZoneRoundTripsEveryFormat(t *testing.T) {
 // "Etc/UTC" leave every format's export byte-identical to a zone-free
 // one (Excel stamps a creation time, so it compares the cells instead).
 func TestExport_UTCTimeZoneIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	fs, _ := zoneExportCohort(t)
 	for _, f := range pio.Formats() {
 		base := exportZone(t, fs, f, "")
@@ -234,6 +240,8 @@ func TestExport_UTCTimeZoneIsByteIdentical(t *testing.T) {
 // into naive wall-clock DATETIMEs with no offset slot, so a non-UTC zone
 // is refused — by Run and by Predict, with the same code.
 func TestExport_SPSSRefusesNonUTCZone(t *testing.T) {
+	t.Parallel()
+
 	fs, _ := zoneExportCohort(t)
 	w, _ := pio.NewWriterToBuffer(pio.FormatSPSS, pio.WriterOptions{})
 	job := pio.NewExportJob("zone.pulse", w)
@@ -256,6 +264,8 @@ func TestExport_SPSSRefusesNonUTCZone(t *testing.T) {
 // path (convert into .sav) re-parses each rendered cell, so offset-
 // bearing literals from a zoned export land as the exact instants.
 func TestExport_SPSSRowPathReparsesLocalLiterals(t *testing.T) {
+	t.Parallel()
+
 	fs, instants := zoneExportCohort(t)
 	csvOut := exportZone(t, fs, pio.FormatCSV, "Europe/Berlin")
 	r, _ := pio.NewReaderFromBytes(pio.FormatCSV, csvOut, pio.ReaderOptions{})
@@ -278,6 +288,8 @@ func TestExport_SPSSRowPathReparsesLocalLiterals(t *testing.T) {
 // an offset string, an abbreviation or "Local" is PULSE_TIMEZONE_UNKNOWN
 // from Run and Predict alike, before any row is written.
 func TestExport_UnknownTimeZoneRefused(t *testing.T) {
+	t.Parallel()
+
 	fs, _ := zoneExportCohort(t)
 	for _, tz := range []string{"Mars/Olympus_Mons", "+05:30", "EST", "Local", "europe/berlin"} {
 		w, _ := pio.NewWriterToBuffer(pio.FormatCSV, pio.WriterOptions{})
@@ -304,6 +316,8 @@ func TestExport_UnknownTimeZoneRefused(t *testing.T) {
 // export: "local_offset" formats read back offset literals, "refused"
 // formats fail the export.
 func TestManifestExportCapability_TimeZone(t *testing.T) {
+	t.Parallel()
+
 	fs, _ := zoneExportCohort(t)
 	m := idescriptor.BuildManifest()
 	if len(m.Export.Formats) != len(pio.Formats()) {

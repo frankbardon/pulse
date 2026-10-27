@@ -3,7 +3,6 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -203,114 +201,10 @@ func prevModeBaseline(t *testing.T) (map[string]string, *pulse.Pulse, afero.Fs) 
 	return want, p, fs
 }
 
-// TestPreviousState_ShardArchiveMatchesSingleFile: a shard archive whose
-// subjects' records span shards — later waves in earlier shards, an
-// empty shard, per-shard dictionaries in different orders — answers
-// every matrix request (the expression filter reading the output by
-// name included) exactly as the single file does, data, crosstab,
-// warnings and Components alike, under ShardWorkers 1, 3 and the
-// NumCPU default. The merge gate refuses the request as not row-local,
-// so no run takes the per-shard reducer (a partition-local previous
-// state would read across the wrong records), and predict reports it
-// non-streamable.
-func TestPreviousState_ShardArchiveMatchesSingleFile(t *testing.T) {
-	want, base, fs := prevModeBaseline(t)
-	var shards []string
-	for i, rows := range prevModeShards() {
-		name := fmt.Sprintf("panel_s%d.pulse", i)
-		panelCohort(t, base, name, rows)
-		shards = append(shards, name)
-	}
-	if _, err := base.CreateShardArchive(context.Background(), "panel_archive.pulse", shards); err != nil {
-		t.Fatal(err)
-	}
-	reqs := prevModeRequests("panel_archive.pulse")
-	for name, mk := range reqs {
-		if mk().Crosstab != nil {
-			continue // the crosstab arms judge the fusion gate instead (TestPreviousState_EveryBufferedArmAgrees)
-		}
-		if why := mergegate.MergeRefusal(mk(), nil, nil); !strings.Contains(why, "attribute ATTR_PREVIOUS_STATE is not row-local") {
-			t.Errorf("%s: merge refusal %q, want the not-row-local attribute", name, why)
-		}
-	}
-	for _, workers := range []int{1, 3, 0} {
-		p, arm := prevModeEngine(t, fs, pulse.Options{ShardWorkers: workers})
-		for name, mk := range reqs {
-			t.Run(fmt.Sprintf("%s/shard_workers_%d", name, workers), func(t *testing.T) {
-				if got := prevModeRun(t, p, mk(), true); got != want[name] {
-					t.Errorf("archive\n%s\nsingle file\n%s", got, want[name])
-				}
-				if a := arm.last(); a != observe.ArmBuffered {
-					t.Errorf("ran on arm %q, want the serial buffered scan", a)
-				}
-				pr, err := p.Predict(context.Background(), mk())
-				if err != nil {
-					t.Fatal(err)
-				}
-				if pr.Streamable {
-					t.Errorf("predict streamable over the archive")
-				}
-			})
-		}
-	}
-}
-
 // prevModeDecodeFiller is above the parallel-decode threshold (100,000
-// records) so DecodeWorkers engages wherever the request admits it.
+// records) so DecodeWorkers engages wherever the request admits it
+// (TestPreviousStateInvariance_Heavy).
 const prevModeDecodeFiller = 102_400
-
-// TestPreviousState_ParallelDecodeMatchesSerial: over an on-disk cohort
-// past the parallel-decode threshold — the panel interleaved with
-// filler subjects prevModeKeep drops — DecodeWorkers 3 answers every
-// matrix request exactly as DecodeWorkers 1 does (Components included),
-// and its data, crosstab and warnings equal the panel's single-file
-// answer. The non-crosstab requests decline the parallel reducer (not
-// mergeable) and run buffered; a crosstab decodes its records in
-// parallel segments, but the attribute still scores the whole decoded
-// set, never a segment.
-func TestPreviousState_ParallelDecodeMatchesSerial(t *testing.T) {
-	want, _, _ := prevModeBaseline(t)
-	fs := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
-	serial, _ := prevModeEngine(t, fs, pulse.Options{DecodeWorkers: 1})
-	rows := make([][3]any, 0, len(prevModeRows)+prevModeDecodeFiller)
-	every := (len(prevModeRows) + prevModeDecodeFiller) / len(prevModeRows)
-	next := 0
-	for i := 0; i < len(prevModeRows)+prevModeDecodeFiller; i++ {
-		if next < len(prevModeRows) && i == next*every {
-			rows = append(rows, prevModeRows[next])
-			next++
-			continue
-		}
-		rows = append(rows, [3]any{uint64(1_000_000 + i), int32(1), "free"})
-	}
-	panelCohort(t, serial, "panel_big.pulse", rows)
-	parallel, arm := prevModeEngine(t, fs, pulse.Options{DecodeWorkers: 3})
-	for name, mk := range prevModeRequests("panel_big.pulse") {
-		t.Run(name, func(t *testing.T) {
-			ser := prevModeRun(t, serial, mk(), true)
-			if got := prevModeRun(t, parallel, mk(), true); got != ser {
-				t.Errorf("DecodeWorkers 3\n%s\nDecodeWorkers 1\n%s", got, ser)
-			}
-			// A crosstab must take the parallel segment decode (the arm
-			// this test exists for); every other request declines the
-			// parallel reducer.
-			wantArm := observe.ArmBuffered
-			if strings.Contains(name, "crosstab") {
-				wantArm = observe.ArmParallelDecode
-			}
-			if a := arm.last(); a != wantArm {
-				t.Errorf("ran on arm %q, want %q", a, wantArm)
-			}
-			var single types.Response
-			if err := json.Unmarshal([]byte(want[name]), &single); err != nil {
-				t.Fatal(err)
-			}
-			if got, w := prevModeRun(t, parallel, mk(), false), prevModeDoc(t, &single, false); got != w {
-				t.Errorf("parallel decode\n%s\nsingle-file panel\n%s", got, w)
-			}
-		})
-	}
-}
 
 // TestPreviousState_EveryBufferedArmAgrees: on the single file, every
 // knob that picks a different arm for other requests gives the same
@@ -319,6 +213,8 @@ func TestPreviousState_ParallelDecodeMatchesSerial(t *testing.T) {
 // false with the buffered-attribute reason) and runs buffered;
 // ProcessStream yields exactly the buffered rows and Components.
 func TestPreviousState_EveryBufferedArmAgrees(t *testing.T) {
+	t.Parallel()
+
 	want, _, fs := prevModeBaseline(t)
 	ctx := context.Background()
 	for _, c := range []struct {
@@ -395,6 +291,8 @@ func TestPreviousState_EveryBufferedArmAgrees(t *testing.T) {
 // included — and the attribute-free slot is untouched by its
 // neighbours.
 func TestPreviousState_ComposeMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	want, p, _ := prevModeBaseline(t)
 	plain := func() *types.Request {
 		return &types.Request{
@@ -430,6 +328,8 @@ func TestPreviousState_ComposeMatchesProcess(t *testing.T) {
 // sets: the 06:10Z record's previous state is the 05:30Z one's, never
 // the reverse a wall-clock order would give.
 func TestPreviousState_OrderIsZoneIndependent(t *testing.T) {
+	t.Parallel()
+
 	at := func(s string) int64 {
 		ts, err := time.Parse(time.RFC3339, s)
 		if err != nil {

@@ -83,6 +83,8 @@ func vecSDClose(got, want, tol float64) bool {
 // ≤ 1 (one row, or none) is NaN, never 0. Buffered and streaming
 // agree bit for bit, and the moment components ride beside the sums.
 func TestVecAgg_SDPerElement(t *testing.T) {
+	t.Parallel()
+
 	rows := vecSDRows(t)
 	// Per member, the contributing (x, w) pairs.
 	unA, unB := []float64{1.5, 3.25, 5, -2, 8}, []float64{10, 20, 30, 12.5}
@@ -161,6 +163,8 @@ func TestVecAgg_SDPerElement(t *testing.T) {
 // under probability (n_eff = 1) — so the element is NaN (null on the
 // wire), never 0.
 func TestVecAgg_SDUndefinedIsNaN(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	for _, c := range []struct {
 		name string
@@ -202,6 +206,8 @@ func TestVecAgg_SDUndefinedIsNaN(t *testing.T) {
 // rule equal the one-pass fold of their rows within rounding — the
 // combine is the right formula, not merely a deterministic one.
 func TestVecAgg_SDMergeMatchesChan(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	rows := vecRandomRows(s, 2*linalg.MergeBlockSize+91, 0, 0, 11)
 	for _, kind := range []types.WeightKind{"", types.WeightKindProbability} {
@@ -250,6 +256,8 @@ func TestVecAgg_SDMergeMatchesChan(t *testing.T) {
 // a*b+c would not be, which is how an arm64-only capture once failed
 // amd64 CI.
 func TestVecAgg_MeanSumBitsFrozen(t *testing.T) {
+	t.Parallel()
+
 	s := vecAggSchema()
 	n := 2*linalg.MergeBlockSize + 333
 	var rows []*Record

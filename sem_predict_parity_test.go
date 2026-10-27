@@ -103,6 +103,8 @@ func runLevels(t *testing.T, res types.MatrixResult) []string {
 // the plan's, the joint fit is one result, and every key a mean
 // structure or grouped fit emits is declared in the manifest.
 func TestSEM_PredictGroupedMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, c := range []struct {
 		name   string
@@ -194,6 +196,8 @@ func semHidingInstance(t *testing.T, means bool) (*pulse.Pulse, func(*types.Requ
 // the name swapped — and so is the owned model syntax; predict says
 // the same. The legacy covariance fit runs unchanged.
 func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	full, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	legacy := semGroupRun(t, full, semGroupRequest(t, "brand_mgmis", map[string]any{"group": nil}))
@@ -299,6 +303,8 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 // bootstrap's weight refusal, which would name the hidden surface —
 // predict ≡ runtime.
 func TestSEM_HiddenBootstrapUnderWeight(t *testing.T) {
+	t.Parallel()
+
 	features := []string{"capability:process", "capability:matrices", "capability:weighting", "MAT_SEM"}
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, weight: func(int) int { return 1 }}.build(t, pulse.Options{FeatureProfile: &pulse.FeatureProfile{Features: features}})
 	req := func() *types.Request {
@@ -322,6 +328,8 @@ func TestSEM_HiddenBootstrapUnderWeight(t *testing.T) {
 // them either way. A profile enabling capability:sem_groups without
 // capability:sem_meanstructure is refused.
 func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entry := func(p *pulse.Pulse) descriptor.MatrixMeta {
 		for _, m := range p.Manifest(ctx).Matrices {

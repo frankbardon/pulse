@@ -27,6 +27,7 @@ func relativeDataDirFixture(t *testing.T) string {
 // Options.DataDir is made absolute at New, so the instance keeps reading
 // the same directory after the process changes its working directory.
 func TestNew_RelativeDataDirSurvivesCwdChange(t *testing.T) {
+	// serial: t.Chdir moves the process working directory
 	relativeDataDirFixture(t)
 	p, err := pulse.New(pulse.Options{DataDir: "data"})
 	if err != nil {
@@ -40,6 +41,7 @@ func TestNew_RelativeDataDirSurvivesCwdChange(t *testing.T) {
 
 // TestNew_RelativeEnvDataDirSurvivesCwdChange is the PULSE_DATA_DIR twin.
 func TestNew_RelativeEnvDataDirSurvivesCwdChange(t *testing.T) {
+	// serial: t.Chdir moves the process working directory; t.Setenv mutates the process environment
 	relativeDataDirFixture(t)
 	t.Setenv("PULSE_DATA_DIR", "data")
 	p, err := pulse.New(pulse.Options{})

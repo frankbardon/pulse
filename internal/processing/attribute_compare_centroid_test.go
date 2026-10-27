@@ -63,6 +63,8 @@ func cmpCentroids(admit func(i int) bool, weighted, byGroup bool) map[string][]f
 // scores every row against the oracle's centroid on the streaming
 // two-pass drive and the buffered arm, the two arms bit-identical.
 func TestComparison_CentroidRows(t *testing.T) {
+	t.Parallel()
+
 	all := func(int) bool { return true }
 	inA := func(i int) bool { return cmpGroups[i] == "a" }
 	notC := func(i int) bool { return cmpGroups[i] != "c" }
@@ -144,8 +146,12 @@ func TestComparison_CentroidRows(t *testing.T) {
 // AGG_VEC_MEAN's figure over the same rows to the bit — unweighted and
 // under frequency and probability weights.
 func TestComparison_CentroidIsAggVecMean(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []types.WeightKind{"", types.WeightKindFrequency, types.WeightKindProbability} {
 		t.Run(string(kind)+"_", func(t *testing.T) {
+			t.Parallel()
+
 			schema := cmpSchema()
 			recs := cmpRecords(schema)
 			var weight types.SlotWeight
@@ -195,6 +201,8 @@ func TestComparison_CentroidIsAggVecMean(t *testing.T) {
 // naming by — never a refusal; a by-less centroid no row reached nulls
 // every row with the same warning.
 func TestComparison_CentroidMissing(t *testing.T) {
+	t.Parallel()
+
 	schema := cmpSchema()
 	schema.Fields[3].Nullable = true // g
 	const nullRow = 5
@@ -251,6 +259,8 @@ func TestComparison_CentroidMissing(t *testing.T) {
 // unbound name is PULSE_VECTOR_REFERENCE_UNKNOWN and a fit over other
 // labels PULSE_VECTOR_REFERENCE_MISMATCH, at build.
 func TestComparison_PopulationReference(t *testing.T) {
+	t.Parallel()
+
 	mean := []float64{2, 3, 1}
 	vf := &model.VectorFit{Name: "pop", Labels: []string{"x", "y", "z"}, Members: []string{"x", "y", "z"}, Basis: model.VectorBasisUnweighted,
 		N: 4, NMass: 4, SumWeights: 4, SumWeightsSq: 4, Mean: mean, M2: [][]float64{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}}
@@ -318,6 +328,8 @@ func TestComparison_PopulationReference(t *testing.T) {
 // two-pass whatever the metric — beside a bound fit too — while a
 // population is row-local for a row-local metric.
 func TestComparison_CentroidTwoPassPerSlot(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		attr *types.Attribute
 		want bool

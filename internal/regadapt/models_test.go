@@ -13,6 +13,8 @@ import (
 // (the one predict reads), and the engine's scorer table resolves it
 // exactly when the declaration says it has a scorer.
 func TestModelRegressions_RegisteredByEngine(t *testing.T) {
+	t.Parallel()
+
 	if len(model.ModelRegressions()) == 0 {
 		t.Fatal("no model regressions")
 	}

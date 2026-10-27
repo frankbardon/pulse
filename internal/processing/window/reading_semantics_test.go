@@ -26,6 +26,8 @@ func applyOne(t *testing.T, rows []map[string]any, w *types.Window) {
 // negative earlier value the sign follows (cur - prev) / prev: a rise from
 // -10 to -5 reads -0.5.
 func TestPctChange_FractionAndNegativeBase(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 100.0},
 		{"ts": 2.0, "x": 150.0},
@@ -47,6 +49,8 @@ func TestPctChange_FractionAndNegativeBase(t *testing.T) {
 // A missing value on either side nulls WIN_PCT_CHANGE and WIN_DELTA; a
 // zero earlier value nulls only WIN_PCT_CHANGE.
 func TestPctChangeDelta_NullAndZeroBase(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typ      types.WindowType
 		wantZero any
@@ -74,6 +78,8 @@ func TestPctChangeDelta_NullAndZeroBase(t *testing.T) {
 // otherwise the mean runs over the values present, so an edge window or a
 // gap averages fewer rows.
 func TestMovingAvg_AllNullFrameIsNullAndGapsShrinkTheMean(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": nil},
 		{"ts": 2.0, "x": nil},
@@ -96,6 +102,8 @@ func TestMovingAvg_AllNullFrameIsNullAndGapsShrinkTheMean(t *testing.T) {
 // WIN_EWMA leaves a missing row null but carries the running state over
 // it: the next value is blended with the state as if the gap were one step.
 func TestEWMA_MidNullCarriesState(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 1.0, "x": 100.0},
 		{"ts": 2.0, "x": nil},
@@ -118,6 +126,8 @@ func TestEWMA_MidNullCarriesState(t *testing.T) {
 // Rows with a missing order_by value sort last and tie with each other,
 // so they share the last rank; rank 1 is the first row in order_by order.
 func TestRank_NullKeysShareTheLastRank(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typ  types.WindowType
 		want map[any]int64
@@ -155,6 +165,8 @@ func TestRank_NullKeysShareTheLastRank(t *testing.T) {
 // rather than tying with every key, and a value-bearing window skips
 // it.
 func TestWindow_NaNCellIsNull(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	for _, desc := range []bool{false, true} {
 		if CompareKey(nan, 1.0, desc) <= 0 || CompareKey(1.0, nan, desc) >= 0 || CompareKey(nan, nil, desc) != 0 {

@@ -136,6 +136,8 @@ func assertPurposeRuleFamily(t *testing.T, family ...PurposeRule) {
 // declares a Purpose or holds a purposeExemptions entry; the full
 // missing list is logged, grouped by category.
 func TestSkillsCoverAllPurposes(t *testing.T) {
+	t.Parallel()
+
 	assertPurposeRuleFamily(t,
 		PurposeRulePlain, PurposeRuleIntents, PurposeRuleQuestions,
 		PurposeRuleNotFor, PurposeRuleUseCases, PurposeRuleLevel)
@@ -196,6 +198,8 @@ func assertExempted(t *testing.T, table string, gaps []string, ledger []guidance
 // TestPurposeRegistry_OrphanKeysDetected: a Purpose keyed by a name no
 // built-in surface registers is reported.
 func TestPurposeRegistry_OrphanKeysDetected(t *testing.T) {
+	t.Parallel()
+
 	reg := map[string]descriptor.Purpose{"AGG_AVERAGE": {}, "AGG_GHOST": {}}
 	if got := orphanPurposes(reg, PurposeSurfaces()); !slices.Equal(got, []string{"AGG_GHOST"}) {
 		t.Errorf("orphanPurposes = %v, want [AGG_GHOST]", got)
@@ -207,6 +211,8 @@ func TestPurposeRegistry_OrphanKeysDetected(t *testing.T) {
 // a "<kind>:<name>" spelling to a feature-table row — and never names
 // the operator itself.
 func TestPurposeAlternativesResolve(t *testing.T) {
+	t.Parallel()
+
 	assertPurposeRuleFamily(t, PurposeRuleAlternative, PurposeRuleFollowUp)
 
 	// FollowUps is optional: dropping it breaks no rule.
@@ -238,6 +244,8 @@ func TestPurposeAlternativesResolve(t *testing.T) {
 // by at least one example's _meta.intents, unless intentDeclarerExemptions
 // / intentExampleExemptions lists the gap.
 func TestPurposeQuestionsResolve(t *testing.T) {
+	t.Parallel()
+
 	assertPurposeRuleFamily(t, PurposeRuleIntentUnknown)
 
 	thin, untagged := intentCoverageGaps(builtinPurposes, examples.Intents())
@@ -288,6 +296,8 @@ func testPurposeGlossaryLinks(t *testing.T) {
 // case-insensitively on word boundaries, and an overlapping shorter
 // form inside a longer match is not counted.
 func TestJargonTermsIn_LongestMatchWordBoundary(t *testing.T) {
+	t.Parallel()
+
 	forms := JargonForms()
 	cases := []struct {
 		text string
@@ -317,6 +327,8 @@ func TestJargonTermsIn_LongestMatchWordBoundary(t *testing.T) {
 // TestPurposeExemplars: the three exemplar purposes are declared, valid
 // under every rule, and their intents ride the manifest entries.
 func TestPurposeExemplars(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]string{
 		"AGG_AVERAGE":    IntentDescribe,
 		"TEST_ANOVA_F":   IntentCompareGroups,
@@ -352,6 +364,8 @@ func TestPurposeExemplars(t *testing.T) {
 // TestPurposeSurfaces_CoverEveryCategory: the eleven categories are
 // present, non-empty and sorted; tests are keyed by family.
 func TestPurposeSurfaces_CoverEveryCategory(t *testing.T) {
+	t.Parallel()
+
 	want := []string{"aggregator", "attribute", "filterer", "grouper", "window", "feature", "test", "regression", "matrix", "overlay", "synth_distribution"}
 	var got []string
 	for _, s := range PurposeSurfaces() {
@@ -379,6 +393,8 @@ func TestPurposeSurfaces_CoverEveryCategory(t *testing.T) {
 // _meta.intents value is an intent-taxonomy ID; the fixture arm proves
 // an unknown value is reported.
 func TestExamples_IntentsFromTaxonomy(t *testing.T) {
+	t.Parallel()
+
 	for _, p := range exampleIntentProblems(examples.Intents()) {
 		t.Error(p)
 	}
@@ -397,6 +413,8 @@ func TestExamples_IntentsFromTaxonomy(t *testing.T) {
 // in exampleIntentExemptions. (Intent values are checked against the
 // taxonomy by TestExamples_IntentsFromTaxonomy.)
 func TestExamples_EveryExampleHasIntent(t *testing.T) {
+	t.Parallel()
+
 	gaps := untaggedExampleCategories(examples.Search("", nil, ""), examples.Intents())
 	assertExempted(t, "example-intent", gaps, exampleIntentExemptions, roadmapUnitStatus())
 
@@ -421,6 +439,8 @@ func TestExamples_EveryExampleHasIntent(t *testing.T) {
 // most tagged examples resolve to a Purpose, and that the mismatch finder
 // flags a fabricated disagreement.
 func TestExamples_IntentPurposeConsistency(t *testing.T) {
+	t.Parallel()
+
 	purposes := BuiltinPurposes()
 	tagged := examples.Intents()
 	mismatches, checked := exampleIntentMismatches(tagged, purposes, func(name string) []string {
@@ -516,6 +536,8 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 // keyed by a TEST_* family, and a name declared by two category maps
 // panics instead of silently shadowing one declaration.
 func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
+	t.Parallel()
+
 	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, matrixPurposes, synthPurposes}
 	total := 0
 	for _, m := range cats {
@@ -571,6 +593,8 @@ func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
 // declares a Purpose (U08 FR-23), so the coverage report lists no
 // overlay. The kind list comes from the registry, never a hardcoded count.
 func TestOverlayPurposes_CoverEveryKind(t *testing.T) {
+	t.Parallel()
+
 	kinds := types.AllOverlayKinds()
 	if len(kinds) == 0 {
 		t.Fatal("no overlay kinds registered")

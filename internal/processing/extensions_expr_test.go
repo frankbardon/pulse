@@ -13,6 +13,8 @@ import (
 // custom expr function registered via ExtensionRegistry.ExprFunctions
 // is callable from an ATTR_FORMULA expression.
 func TestExtensions_ExprFunction_AvailableInFormula(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -50,6 +52,8 @@ func TestExtensions_ExprFunction_AvailableInFormula(t *testing.T) {
 // built-in lookup() function resolves registered table entries from
 // inside ATTR_FORMULA.
 func TestExtensions_LookupTable_AvailableInFormula(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -84,6 +88,8 @@ func TestExtensions_LookupTable_AvailableInFormula(t *testing.T) {
 // TestExtensions_LookupTable_AvailableInFilterExpression asserts the
 // lookup() function is callable from FILTER_EXPRESSION too.
 func TestExtensions_LookupTable_AvailableInFilterExpression(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -119,6 +125,8 @@ func TestExtensions_LookupTable_AvailableInFilterExpression(t *testing.T) {
 // referencing a table that is not registered surfaces
 // PULSE_LOOKUP_TABLE_UNKNOWN at evaluation time.
 func TestExtensions_LookupTable_UnknownReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -149,6 +157,8 @@ func TestExtensions_LookupTable_UnknownReturnsCodedError(t *testing.T) {
 // TestExtensions_LookupTable_MissReturnsCodedError asserts a missing
 // key surfaces PULSE_LOOKUP_MISS at evaluation time.
 func TestExtensions_LookupTable_MissReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
@@ -180,6 +190,8 @@ func TestExtensions_LookupTable_MissReturnsCodedError(t *testing.T) {
 // backed lookup path executes correctly: the embedder's Lookup
 // callback is invoked with the joined key list.
 func TestExtensions_LookupTable_FuncBackedResolves(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}

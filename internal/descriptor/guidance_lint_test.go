@@ -12,6 +12,8 @@ import (
 // TestGuidanceProseLint: built-in guidance carries no misleading
 // statistical phrasing and every required caveat (binding).
 func TestGuidanceProseLint(t *testing.T) {
+	t.Parallel()
+
 	remaining, problems := applyAllowlist(lintGuidance(builtinLintRegistry()), guidanceLintAllowlist)
 	for _, p := range problems {
 		t.Error(p)
@@ -24,6 +26,8 @@ func TestGuidanceProseLint(t *testing.T) {
 // ---- unit cases ------------------------------------------------------
 
 func TestGuidanceProseLint_TextRules(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		rule string
 		bad  []string
@@ -67,6 +71,8 @@ func TestGuidanceProseLint_TextRules(t *testing.T) {
 // packages' tests use runs the same text rules, slot-token rule
 // included.
 func TestLintGuidanceText_RunsTextRules(t *testing.T) {
+	t.Parallel()
+
 	got := LintGuidanceText("A small p proves the hypothesis. Compare the multiplicity of categories.")
 	rules := map[string]bool{}
 	for _, h := range got {
@@ -100,6 +106,8 @@ func violationRules(vs []lintViolation, op string) map[string]bool {
 }
 
 func TestGuidanceProseLint_RegistryRules(t *testing.T) {
+	t.Parallel()
+
 	cohen := conventionCitation(ConventionCohenEta2)
 	bands := conventionBands(ConventionCohenEta2)
 	cases := []struct {
@@ -179,6 +187,8 @@ func TestGuidanceProseLint_RegistryRules(t *testing.T) {
 // guidance is never checked, and an out-of-scope operator is never held
 // to a scoped rule.
 func TestGuidanceProseLint_ScopedToDeclaredGuidance(t *testing.T) {
+	t.Parallel()
+
 	if vs := lintGuidance(lintRegistry{}); len(vs) != 0 {
 		t.Errorf("empty registry produced violations: %v", vs)
 	}
@@ -191,6 +201,8 @@ func TestGuidanceProseLint_ScopedToDeclaredGuidance(t *testing.T) {
 // TestGuidanceProseLint_ReportsLocation: a hit names operator, field,
 // rule and span.
 func TestGuidanceProseLint_ReportsLocation(t *testing.T) {
+	t.Parallel()
+
 	reg := lintRegistry{interps: map[string][]descriptor.Interpretation{
 		"TEST_X": {{Field: "statistic", Means: "m", Caveats: []string{"ok", "Read that as no effect."}}},
 	}}
@@ -206,6 +218,8 @@ func TestGuidanceProseLint_ReportsLocation(t *testing.T) {
 // TestGuidanceProseLint_CoversFollowUps: a FollowUps When is linted like
 // a NotFor When, and reported under its own slot.
 func TestGuidanceProseLint_CoversFollowUps(t *testing.T) {
+	t.Parallel()
+
 	reg := lintRegistry{purposes: map[string]descriptor.Purpose{
 		"TEST_X": {FollowUps: []descriptor.Alternative{{When: "ok", Use: "TEST_T"}, {When: "Read that as no effect.", Use: "TEST_T"}}},
 	}}
@@ -219,6 +233,8 @@ func TestGuidanceProseLint_CoversFollowUps(t *testing.T) {
 }
 
 func TestGuidanceProseLint_Allowlist(t *testing.T) {
+	t.Parallel()
+
 	vs := []lintViolation{{"OP", "f", ruleASANoDiff, "no effect"}}
 	rem, probs := applyAllowlist(vs, []lintAllow{{"OP", "f", ruleASANoDiff, "justified"}})
 	if len(rem) != 0 || len(probs) != 0 {

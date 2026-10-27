@@ -53,6 +53,8 @@ func requireInvalid(t *testing.T, err error, reason, path string) {
 // DataDir set to a different directory, a relative path still resolves
 // against cwd, and the parsed profile reaches the instance.
 func TestNewPulse_FeatureProfileFileIsACwdRelativeOSPath(t *testing.T) {
+	// serial: t.Chdir moves the process working directory; t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	cwd := t.TempDir()
 	writeProfile(t, cwd, "profile.json", scanOffProfile)
@@ -71,6 +73,8 @@ func TestNewPulse_FeatureProfileFileIsACwdRelativeOSPath(t *testing.T) {
 // refuse, an unreadable path and a decode refusal all fail construction
 // with the coded error, path attached.
 func TestNewPulse_InvalidProfileFails(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	dir := t.TempDir()
 
@@ -94,6 +98,8 @@ func TestNewPulse_InvalidProfileFails(t *testing.T) {
 // env var, the env var is the fallback, and a profile already on
 // pulse.Options silences the env var entirely.
 func TestNewPulse_EnvPrecedence(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	scanOff := writeProfile(t, dir, "scan-off.json", scanOffProfile)
 	plain := writeProfile(t, dir, "plain.json", plainProfile)

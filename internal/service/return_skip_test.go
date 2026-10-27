@@ -111,7 +111,7 @@ func skipRequest(path string, grouped, buffered bool) *types.Request {
 // skipArm builds a service and the cohort path one execution arm runs.
 type skipArm struct {
 	name      string
-	long      bool // -short skips it (parallel decode needs >100K rows)
+	long      bool // heavy tier only (parallel decode needs >100K rows)
 	mergeable bool // the arm needs a mergeable request (no AGG_MEDIAN)
 	build     func(t *testing.T) (*Service, string)
 }
@@ -215,11 +215,28 @@ func skipSelections() []skipSelection {
 }
 
 func TestReturnSkipsComputation(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
+	runReturnSkipsComputation(t, false)
+}
+
+// skipArmsOfLength returns the skipArms whose long flag equals long: the
+// fast tier runs the short arms, the heavy tier
+// (TestReturnSkipsComputation_LongArms and its _Matrices twin) the
+// arms that need a cohort above the parallel-decode threshold.
+func skipArmsOfLength(long bool) []skipArm {
+	var out []skipArm
 	for _, arm := range skipArms() {
+		if arm.long == long {
+			out = append(out, arm)
+		}
+	}
+	return out
+}
+
+func runReturnSkipsComputation(t *testing.T, long bool) {
+	for _, arm := range skipArmsOfLength(long) {
 		t.Run(arm.name, func(t *testing.T) {
-			if arm.long && testing.Short() {
-				t.Skip("parallel decode needs a cohort above the decode threshold")
-			}
 			svc, path := arm.build(t)
 			for _, grouped := range []bool{false, true} {
 				for _, buffered := range []bool{false, true} {
@@ -274,6 +291,8 @@ func TestReturnSkipsComputation(t *testing.T) {
 // drops its auxiliary / scalars / vectors); tests, post-tests and
 // regressions follow the selection (minimal keeps them).
 func TestResolveComputePlan_VetoAndGate(t *testing.T) {
+	t.Parallel()
+
 	full := processing.FullComputePlan()
 	svc := &Service{}
 	ctx := context.Background()
@@ -358,6 +377,8 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 // its reference and its targets (no targets: every slot). A kind that
 // is not a weight-aware floor kind keeps every sub-part.
 func TestComposeSlotVetoes(t *testing.T) {
+	t.Parallel()
+
 	svc := &Service{}
 	reqs := []*types.Request{{Label: "a"}, {Label: "b"}, {Label: "c"}, nil}
 	if got := svc.composeSlotVetoes(nil, reqs); got != nil {
@@ -385,6 +406,8 @@ func TestComposeSlotVetoes(t *testing.T) {
 // over the overlays naming a slot wins. The basis is the runtime's:
 // cell weight, request weight, or the instance default alone.
 func TestComposeSlotVetoes_WeightBasis(t *testing.T) {
+	t.Parallel()
+
 	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	slot := func(label string, w *types.WeightSpec) *types.Request {

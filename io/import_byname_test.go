@@ -72,6 +72,8 @@ func hasCode(t *testing.T, err error, code perrors.Code) *perrors.CodedError {
 // imports the right columns, a mismatch is refused, and --ignore-extra
 // drops an unnamed column.
 func TestImport_ReorderedSchemaByName_EveryAdapter(t *testing.T) {
+	t.Parallel()
+
 	header := []string{"a", "b", "z"}
 	rows := [][]string{{"a1", "b1", "z1"}, {"a2", "b2", "z2"}}
 	for _, f := range pio.Formats() {
@@ -129,6 +131,8 @@ func TestImport_ReorderedSchemaByName_EveryAdapter(t *testing.T) {
 // stream emits them) imports correctly under a schema listed in any
 // other order — no "keep the schema sorted" rule.
 func TestImport_NDJSONUnsortedSchema(t *testing.T) {
+	t.Parallel()
+
 	data := []byte(`{"channel":"tv","spend":"x1","week":"w1"}
 {"channel":"radio","spend":"x2","week":"w2"}
 `)
@@ -150,6 +154,8 @@ func TestImport_NDJSONUnsortedSchema(t *testing.T) {
 // schema (it used to be dropped silently), naming the key and the row;
 // --ignore-extra drops it.
 func TestImport_LateKeyRefused(t *testing.T) {
+	t.Parallel()
+
 	sources := map[pio.Format][]byte{
 		pio.FormatNDJSON: []byte(`{"a":"1"}
 {"a":"2"}

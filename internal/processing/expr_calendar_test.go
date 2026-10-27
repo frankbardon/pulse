@@ -14,6 +14,8 @@ import (
 // bare datetime as a day helper's day fails the formula and the filter
 // build with PULSE_FORMULA_COMPILE_ERROR, and to_day() over it builds.
 func TestExprCalendar_BuildRefusesBareDatetime(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "d", Type: encoding.FieldTypeDate},
 		{Name: "ts", Type: encoding.FieldTypeDateTime},
@@ -38,6 +40,8 @@ func TestExprCalendar_BuildRefusesBareDatetime(t *testing.T) {
 // TestExprCalendar_SlotZone: a formula slot carrying `tz` (the zone
 // transport's write) reads to_day in it; none reads UTC.
 func TestExprCalendar_SlotZone(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "ts", Type: encoding.FieldTypeDateTime}}}
 	// 2024-03-10T03:30:00Z: the 10th in UTC, the 9th in New York.
 	rec := NewRecord(schema, map[string]float64{"ts": 1710041400})

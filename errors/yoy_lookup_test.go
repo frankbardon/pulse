@@ -9,6 +9,8 @@ import (
 )
 
 func TestErrorsLookup_YoY_FrequencyMissing_FixupCount(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_FREQUENCY_MISSING))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_YOY_FREQUENCY_MISSING")
@@ -26,6 +28,8 @@ func TestErrorsLookup_YoY_FrequencyMissing_FixupCount(t *testing.T) {
 // and the host `GROUP_DATE` grouper so a reader can locate the slot
 // without cross-referencing the predict path.
 func TestErrorsLookup_YoY_FrequencyMissing_MessageMentionsFrequency(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_FREQUENCY_MISSING))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_YOY_FREQUENCY_MISSING")
@@ -46,6 +50,8 @@ func TestErrorsLookup_YoY_FrequencyMissing_MessageMentionsFrequency(t *testing.T
 // Together they give the caller a complete repair surface regardless
 // of who owns the host GROUP_DATE config.
 func TestErrorsLookup_YoY_FrequencyMissing_FixupsCoverBothAuthoringSlots(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_FREQUENCY_MISSING))
 	if len(r.Fixups) < 2 {
 		t.Skip("not enough fixups to test slot coverage")
@@ -69,6 +75,8 @@ func TestErrorsLookup_YoY_FrequencyMissing_FixupsCoverBothAuthoringSlots(t *test
 }
 
 func TestErrorsLookup_YoY_IncompatibleFrequency_FixupCount(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY")
@@ -87,6 +95,8 @@ func TestErrorsLookup_YoY_IncompatibleFrequency_FixupCount(t *testing.T) {
 // weekly / daily / hourly. A reader hitting this code should see the
 // complete supported set without having to consult the validator.
 func TestErrorsLookup_YoY_IncompatibleFrequency_FixupEnumeratesSupported(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY")
@@ -134,6 +144,8 @@ func TestErrorsLookup_YoY_IncompatibleFrequency_FixupEnumeratesSupported(t *test
 // than the supported catalog. The literal worked example from the
 // story brief is the "hourly raw data ⇒ daily" lift.
 func TestErrorsLookup_YoY_IncompatibleFrequency_MentionsGrouperFallback(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY))
 	sawGrouperHint := false
 	for _, f := range r.Fixups {

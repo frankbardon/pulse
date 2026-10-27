@@ -41,6 +41,8 @@ func assertTinyP(t *testing.T, name string, got, want float64) {
 // TestNormalTwoSidedP_MatchesR pins the shared helpers against R's
 // 2*pnorm(-|z|) and pnorm(-z) across the support, deep tail included.
 func TestNormalTwoSidedP_MatchesR(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		z, two, upper float64
 	}{
@@ -69,6 +71,8 @@ func TestNormalTwoSidedP_MatchesR(t *testing.T) {
 // OVERLAY_PAIRWISE_PROP_Z kernel. 400/500 vs 250/500 ⇒ z ≈ 9.945.
 // R: prop.test(c(400,250), c(500,500), correct=FALSE)$p.value.
 func TestTwoProportionZ_TinyP(t *testing.T) {
+	t.Parallel()
+
 	p, ok := twoProportionZ(400, 500, 250, 500)
 	if !ok {
 		t.Fatal("twoProportionZ undefined")
@@ -79,6 +83,8 @@ func TestTwoProportionZ_TinyP(t *testing.T) {
 // TestWelchZTest_TinyP — OVERLAY_Z_CELL kernel. means 10 vs 0, var 50,
 // n 100 per side ⇒ se = 1, z = 10. R: 2*pnorm(-10).
 func TestWelchZTest_TinyP(t *testing.T) {
+	t.Parallel()
+
 	p, ok := welchZTest(10, 50, 100, 0, 50, 100)
 	if !ok {
 		t.Fatal("welchZTest undefined")
@@ -88,6 +94,8 @@ func TestWelchZTest_TinyP(t *testing.T) {
 
 // TestPropZ_TinyP — TEST_PROP_Z with the same 400/500 vs 250/500 split.
 func TestPropZ_TinyP(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
@@ -125,6 +133,8 @@ func TestPropZ_TinyP(t *testing.T) {
 // z ≈ −10.29. R: z <- (mean(a)-mean(b))/sqrt(var(a)/50+var(b)/50);
 // 2*pnorm(-abs(z)).
 func TestZTwoSample_TinyP(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	rt, err := newZTestRow(&types.Test{Type: types.TEST_Z_TWO_SAMPLE, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}, schema)
 	if err != nil {
@@ -145,6 +155,8 @@ func TestZTwoSample_TinyP(t *testing.T) {
 // 1..70 vs 71..140. R: wilcox.test(1:70, 71:140, exact=FALSE,
 // correct=TRUE)$p.value.
 func TestMannWhitney_TinyP(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	rt, err := newMannWhitneyRow(&types.Test{Type: types.TEST_MANN_WHITNEY_U, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}, schema)
 	if err != nil {
@@ -178,6 +190,8 @@ func wilcoxonTinyPRows() [][2]float64 {
 
 // TestWilcoxonSR_TinyP — TEST_WILCOXON_SR, row tier.
 func TestWilcoxonSR_TinyP(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "before", Type: encoding.FieldTypeF64},
 		{Name: "after", Type: encoding.FieldTypeF64},
@@ -198,6 +212,8 @@ func TestWilcoxonSR_TinyP(t *testing.T) {
 
 // TestWilcoxonSRPost_TinyP — TEST_WILCOXON_SR, post tier.
 func TestWilcoxonSRPost_TinyP(t *testing.T) {
+	t.Parallel()
+
 	var rows []map[string]any
 	for _, p := range wilcoxonTinyPRows() {
 		rows = append(rows, map[string]any{"before": p[0], "after": p[1]})
@@ -224,6 +240,8 @@ const (
 
 // TestKendallTau_TinyP — TEST_KENDALL_TAU, row tier.
 func TestKendallTau_TinyP(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},
@@ -245,6 +263,8 @@ func TestKendallTau_TinyP(t *testing.T) {
 
 // TestKendallTauPost_TinyP — TEST_KENDALL_TAU, post tier.
 func TestKendallTauPost_TinyP(t *testing.T) {
+	t.Parallel()
+
 	var rows []map[string]any
 	for i := 1; i <= kendallTauTinyPN; i++ {
 		x := float64(i)
@@ -257,6 +277,8 @@ func TestKendallTauPost_TinyP(t *testing.T) {
 // TestTrend_TinyP — TEST_TREND (Mann-Kendall) on a strictly rising
 // series of 45 periods.
 func TestTrend_TinyP(t *testing.T) {
+	t.Parallel()
+
 	rows := make([]map[string]any, 45)
 	for i := range rows {
 		x := float64(i + 1)
@@ -277,6 +299,8 @@ func TestTrend_TinyP(t *testing.T) {
 // TestReferenceOracle_ShapiroWilk (case far_tail_exp_n1000); this
 // literal predates that golden and keeps its looser bound.
 func TestShapiroFrancia_TinyP(t *testing.T) {
+	t.Parallel()
+
 	x := make([]float64, 1000)
 	for i := range x {
 		x[i] = math.Exp(float64(i+1) / 50)

@@ -16,6 +16,8 @@ import (
 // that was copied at the same time. The remainder are inline
 // fmt.Sprintf sites; each literal below names its source.
 func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		warning   string
@@ -170,6 +172,8 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 // "+N further …" summaries the thin paths already emit are counted with
 // the lines they continue, not as a kind of their own.
 func TestClassifyWarning_RollupsJoinTheirOwnGroup(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"+69 further thin model level(s) shrunk toward their reference level (below 50 supporting observation(s))": "thin model level",
 		"+12 further thin residual pair(s) below 30 supporting observation(s)":                                     "thin residual pair",
@@ -190,6 +194,8 @@ func TestClassifyWarning_RollupsJoinTheirOwnGroup(t *testing.T) {
 // expected. A benign default is how a mis-serialised predictor kind
 // disabled 80% of --fit-models without a signal anywhere.
 func TestClassifyWarning_UnknownNeedsAttention(t *testing.T) {
+	t.Parallel()
+
 	kind, attention := classifyWarning("a message no rule in warningKinds has ever seen")
 	if kind != otherWarningKind {
 		t.Errorf("kind = %q, want %q", kind, otherWarningKind)
@@ -205,6 +211,8 @@ func TestClassifyWarning_UnknownNeedsAttention(t *testing.T) {
 // those as faults would put the one real finding 50 lines down a list
 // nobody then reads.
 func TestGroupWarnings_ZeroPredictorModelIsNotAFault(t *testing.T) {
+	t.Parallel()
+
 	var ws []string
 	for i := 0; i < 50; i++ {
 		ws = append(ws, modelNoPredictorWarning("field"+string(rune('a'+i%26))))
@@ -230,6 +238,8 @@ func TestGroupWarnings_ZeroPredictorModelIsNotAFault(t *testing.T) {
 // groups must still show every group that needs attention, even when a
 // thousand expected-outcome lines outnumber them.
 func TestGroupWarnings_AttentionFirstThenByCount(t *testing.T) {
+	t.Parallel()
+
 	var ws []string
 	for i := 0; i < 1000; i++ {
 		ws = append(ws, thinPairWarning("categorical", "a", "b", 3, MinPairObservations))
@@ -259,6 +269,8 @@ func TestGroupWarnings_AttentionFirstThenByCount(t *testing.T) {
 
 // TestGroupWarnings_EmptyIsNil lets every caller render unconditionally.
 func TestGroupWarnings_EmptyIsNil(t *testing.T) {
+	t.Parallel()
+
 	if got := GroupWarnings(nil); got != nil {
 		t.Errorf("GroupWarnings(nil) = %v, want nil", got)
 	}
@@ -283,6 +295,8 @@ func TestGroupWarnings_EmptyIsNil(t *testing.T) {
 // thin pairs and the finding is where nobody looks — which is precisely
 // how this package's three prior silent structure-loss defects survived.
 func TestGroupWarnings_NeverFiredRuleLeadsTheSummary(t *testing.T) {
+	t.Parallel()
+
 	var ws []string
 	for i := 0; i < 1000; i++ {
 		ws = append(ws, thinPairWarning("categorical", "a", "b", 3, MinPairObservations))

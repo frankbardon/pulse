@@ -12,6 +12,8 @@ import (
 // field; an omitted or 0 key resolves to the built-in default; -1 and
 // "unlimited" mean no limit.
 func TestFeatureProfile_LimitsResolve(t *testing.T) {
+	t.Parallel()
+
 	body := `{"features": [], "limits": {"max_groups": 5, "max_crosstab_cells": 0,
 		"max_matrix_dim": -1, "request_timeout": "30s"}}`
 
@@ -54,6 +56,8 @@ func TestFeatureProfile_LimitsResolve(t *testing.T) {
 // TestFeatureProfile_LimitsRequestTimeoutForms pins the accepted
 // request_timeout spellings.
 func TestFeatureProfile_LimitsRequestTimeoutForms(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]time.Duration{
 		"":          DefaultRequestTimeout,
 		"0":         DefaultRequestTimeout,
@@ -79,6 +83,8 @@ func TestFeatureProfile_LimitsRequestTimeoutForms(t *testing.T) {
 // request_timeout is PULSE_FEATURE_PROFILE_INVALID reason invalid_limits
 // naming the key, from New and CheckFeatureProfile alike.
 func TestFeatureProfile_LimitsRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		limits    FeatureProfileLimits
@@ -126,6 +132,8 @@ func TestFeatureProfile_LimitsRefused(t *testing.T) {
 // strictly — an unknown key inside it is unknown_key, from the file arm
 // and ParseFeatureProfile alike.
 func TestFeatureProfile_LimitsUnknownKeyRefused(t *testing.T) {
+	t.Parallel()
+
 	body := `{"features": [], "limits": {"max_groups": 5, "max_rows": 1}}`
 	_, err := ParseFeatureProfile([]byte(body))
 	requireProfileInvalid(t, err, featureProfileReasonUnknownKey)
@@ -138,6 +146,8 @@ func TestFeatureProfile_LimitsUnknownKeyRefused(t *testing.T) {
 // stored by New and copied out by FeatureProfile() without aliasing the
 // caller's value.
 func TestFeatureProfile_LimitsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	body := `{"features": [], "limits": {"request_timeout": "45s", "max_groups": 5, "max_join_build_rows": -1, "max_derived_columns": 9}}`
 	fp, err := ParseFeatureProfile([]byte(body))
 	if err != nil {
@@ -180,6 +190,8 @@ func TestFeatureProfile_LimitsRoundTrip(t *testing.T) {
 // TestFeatureProfile_LimitsNotInDigest: limits are behaviour, not
 // features — the feature-set digest ignores them.
 func TestFeatureProfile_LimitsNotInDigest(t *testing.T) {
+	t.Parallel()
+
 	plain, err := New(Options{FS: memFsWith(t, nil), FeatureProfile: &FeatureProfile{Features: []string{}}})
 	if err != nil {
 		t.Fatalf("New: %v", err)

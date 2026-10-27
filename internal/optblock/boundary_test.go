@@ -21,6 +21,8 @@ const modulePrefix = "github.com/frankbardon/pulse"
 // descriptor packages. Direct intra-module imports are pinned to the
 // no-execute leaves it reads.
 func TestOptBlock_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowedDirect := map[string]bool{
 		modulePrefix + "/types":                   true,
 		modulePrefix + "/errors":                  true,

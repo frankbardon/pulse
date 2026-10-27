@@ -104,6 +104,8 @@ func rankStatBitsOf(res *types.TestResult) rankStatBits {
 // uncorrected deviate); ρ, τ, DF, t, S and Var(S) keep their pre-change
 // bits on both variants, unweighted and under frequency weights.
 func TestRankTests_StatisticsUnchangedByCorTestP(t *testing.T) {
+	t.Parallel()
+
 	for _, d := range rankPinData() {
 		for _, typ := range []types.TestType{types.TEST_SPEARMAN_R, types.TEST_KENDALL_TAU} {
 			key := d.name + "/" + string(typ)
@@ -128,6 +130,8 @@ func TestRankTests_StatisticsUnchangedByCorTestP(t *testing.T) {
 // spearmanCorTestP), the row and post variants agree, and Kendall's z
 // is the uncorrected S/√Var(S).
 func TestRankTests_PIsCorTestHelper(t *testing.T) {
+	t.Parallel()
+
 	for _, d := range rankPinData() {
 		var xs, ys, ws []float64
 		for _, r := range d.rows {

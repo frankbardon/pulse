@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -97,115 +96,13 @@ func readWideSetFieldRows(t *testing.T, data []byte, name string) (masks []encod
 	return masks, nullFlags, f.Dictionary
 }
 
-// TestSynth_SetBernoulli_WideRungMarginalFrequencies is the story's
-// central acceptance bar: per-element selection frequency must match
-// the declared Bernoulli probability for members BELOW and ABOVE bit
-// 64. A generator that quietly drops the high words still produces a
-// valid-looking cohort — every high-bit option would simply read as
-// never selected — so the probes straddle the word boundary at 63/64
-// and reach the top rung's last bit.
-func TestSynth_SetBernoulli_WideRungMarginalFrequencies(t *testing.T) {
-	const rowCount = 10000
-	const tolerance = 0.03
-
-	cases := []struct {
-		typeName string
-		options  int
-		probe    map[int]float64
-	}{
-		{
-			typeName: "set_u128",
-			options:  128,
-			probe: map[int]float64{
-				0: 0.9, 3: 0.7, 63: 0.25, 64: 0.8, 65: 0.1, 127: 0.6,
-			},
-		},
-		{
-			typeName: "set_u256",
-			options:  256,
-			probe: map[int]float64{
-				1: 0.85, 63: 0.2, 64: 0.75, 130: 0.35, 200: 0.65, 255: 0.45,
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.typeName, func(t *testing.T) {
-			params, names, freqs := wideSetParams(tc.options, 0.5, tc.probe)
-			spec := &synth.Spec{
-				RowCount: rowCount,
-				Fields: []synth.FieldSpec{
-					{Name: "features", Type: tc.typeName,
-						Distribution: synth.DistSetBernoulli, Params: params},
-				},
-			}
-			data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 7})
-			if err != nil {
-				t.Fatalf("SynthBytes(%s): %v", tc.typeName, err)
-			}
-
-			masks, nullFlags, dict := readWideSetFieldRows(t, data, "features")
-			if len(masks) != rowCount {
-				t.Fatalf("row count = %d, want %d", len(masks), rowCount)
-			}
-			if dict.Count() != tc.options {
-				t.Fatalf("dictionary size = %d, want %d", dict.Count(), tc.options)
-			}
-
-			counts := make([]int, tc.options)
-			highBitSeen := false
-			for i, m := range masks {
-				if nullFlags[i] {
-					t.Fatalf("row %d is null in a non-nullable spec", i)
-				}
-				if hb := m.HighestBit(); hb >= tc.options {
-					t.Fatalf("row %d: mask has bit %d beyond declared option count %d",
-						i, hb, tc.options)
-				}
-				if m.HighestBit() >= 64 {
-					highBitSeen = true
-				}
-				for bit, ok := m.NextBit(0); ok; bit, ok = m.NextBit(bit + 1) {
-					counts[bit]++
-				}
-			}
-			if !highBitSeen {
-				t.Fatalf("%s: no generated row ever set a bit at or above 64 — "+
-					"the high words are being dropped", tc.typeName)
-			}
-
-			// Every probed index is checked, not just the high ones: an
-			// implementation that shifted the whole mask would move the
-			// low frequencies too.
-			for idx := range tc.probe {
-				got := float64(counts[idx]) / float64(rowCount)
-				if math.Abs(got-freqs[idx]) > tolerance {
-					t.Errorf("option %q (bit %d) frequency = %.4f, want within %.2f of declared %.2f",
-						names[idx], idx, got, tolerance, freqs[idx])
-				}
-			}
-			// The unprobed remainder must also sit at its declared base,
-			// so a bug confined to "every bit except the ones the test
-			// names" cannot pass.
-			for idx := range names {
-				if _, probed := tc.probe[idx]; probed {
-					continue
-				}
-				got := float64(counts[idx]) / float64(rowCount)
-				if math.Abs(got-0.5) > tolerance {
-					t.Errorf("option %q (bit %d) frequency = %.4f, want within %.2f of base 0.50",
-						names[idx], idx, got, tolerance)
-				}
-			}
-		})
-	}
-}
-
 // TestSynth_SetBernoulli_WideRungDeterministic extends the determinism
 // contract (skills/synth-determinism.md) to the wide rungs: identical
 // (spec, seed) must produce byte-identical output, including the 16-
 // and 32-byte payloads whose word order is the normative wire contract.
 func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typeName string
 		options  int
@@ -214,6 +111,8 @@ func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {
 		{"set_u256", 256},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
+			t.Parallel()
+
 			params, _, _ := wideSetParams(tc.options, 0.5, map[int]float64{70: 0.3, tc.options - 1: 0.7})
 			spec := &synth.Spec{
 				RowCount: 300,
@@ -255,6 +154,8 @@ func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {
 // reversed pair of words would decode as a different, plausible
 // selection.
 func TestSynth_SetU256_SampleReadsBackExpectedLabels(t *testing.T) {
+	t.Parallel()
+
 	const options = 256
 	selected := []int{0, 64, 130, 200, 255}
 	probe := make(map[int]float64, len(selected))
@@ -314,6 +215,8 @@ func TestSynth_SetU256_SampleReadsBackExpectedLabels(t *testing.T) {
 // with low per-option frequencies must produce all three states —
 // null, non-null-empty and non-null-populated — in one run.
 func TestSynth_SetBernoulli_WideEmptyMaskIsGeneratedAndDistinctFromNull(t *testing.T) {
+	t.Parallel()
+
 	params, _, _ := wideSetParams(128, 0.01, nil)
 	spec := &synth.Spec{
 		RowCount: 800,
@@ -353,6 +256,8 @@ func TestSynth_SetBernoulli_WideEmptyMaskIsGeneratedAndDistinctFromNull(t *testi
 // table spans narrow and wide rungs so the refusal is derived from
 // MaxSetEntries rather than hardcoded at 64.
 func TestSynth_SetSpec_OptionsBeyondRungCapacityRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typeName string
 		capacity int
@@ -363,6 +268,8 @@ func TestSynth_SetSpec_OptionsBeyondRungCapacityRefused(t *testing.T) {
 		{"set_u256", 256},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
+			t.Parallel()
+
 			params, _, _ := wideSetParams(tc.capacity+1, 0.5, nil)
 			spec := &synth.Spec{
 				RowCount: 4,
@@ -403,6 +310,8 @@ func TestSynth_SetSpec_OptionsBeyondRungCapacityRefused(t *testing.T) {
 // width shifts every following column by a fixed offset and still
 // decodes into plausible numbers.
 func TestSynth_SetWideRungStride(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typeName   string
 		options    int
@@ -414,6 +323,8 @@ func TestSynth_SetWideRungStride(t *testing.T) {
 		{"set_u256", 256, 32, 40, 7},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
+			t.Parallel()
+
 			params, _, _ := wideSetParams(tc.options, 0.5, nil)
 			spec := &synth.Spec{
 				RowCount: tc.rowCount,
@@ -472,6 +383,8 @@ func TestSynth_SetWideRungStride(t *testing.T) {
 // only thing that could go wrong is the encode width — which is exactly
 // what a silent truncation looks like.
 func TestSynth_SetU256_ConstantSelectionCoercesAtWideRung(t *testing.T) {
+	t.Parallel()
+
 	const options = 256
 	names := wideSetOptionNames(options)
 	optionsAny := make([]any, options)

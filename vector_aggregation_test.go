@@ -145,6 +145,8 @@ func vaggRequest(cohort string) *types.Request {
 // per-element n, the labels and the floor equal the oracle, and predict
 // accepts the request.
 func TestVecAgg_EveryModeUnderProjection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	all := []int{0, 1, 2}
 	pair := []int{3, 1}
@@ -260,12 +262,12 @@ func writeVaggBitsCohort(t testing.TB, fsys afero.Fs, path string, from, to int)
 	}
 }
 
-// vaggBits runs the request and returns every array element's bits,
-// row by row, weighted and unweighted slots alike, then every
-// covariance entry's bits (the BlockCoMoments arm of the blocked
-// merge; per group on a grouped request).
-func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint64 {
-	t.Helper()
+// vaggBitsRequest is the vector family's aggregation shape
+// (vector_invariance_test.go): every vector aggregate weighted and
+// unweighted (AGG_VEC_SD's Chan-combined moments included) and the
+// covariance matrices (the BlockCoMoments arm of the blocked merge), per
+// group when grouped.
+func vaggBitsRequest(cohort string, grouped bool) *types.Request {
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: cohort},
 		Aggregations: []*types.Aggregation{
@@ -284,89 +286,7 @@ func vaggBits(t *testing.T, p *pulse.Pulse, cohort string, grouped bool) []uint6
 		req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "qty"}}
 		req.Sort = []types.OrderKey{{Field: "qty"}}
 	}
-	resp, err := p.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Process: %v", err)
-	}
-	var out []uint64
-	for _, row := range resp.Data {
-		for _, label := range []string{"m", "s", "wm", "sd", "wsd"} {
-			v, ok := vaggArray(row[label])
-			if !ok {
-				t.Fatalf("%s = %T", label, row[label])
-			}
-			for _, x := range v {
-				out = append(out, math.Float64bits(x))
-			}
-		}
-	}
-	if len(resp.Matrices) == 0 {
-		t.Fatal("no matrix results")
-	}
-	for _, m := range resp.Matrices {
-		for _, r := range m.Primary.Values {
-			for _, x := range r {
-				out = append(out, math.Float64bits(x))
-			}
-		}
-	}
-	return out
-}
-
-// TestVecAgg_BitExactAcrossWorkers: a single file answers the same bits
-// serially and under every DecodeWorkers count, and a shard archive
-// holding the same rows — split unevenly, with shard edges inside merge
-// blocks, 1-row shards and an empty shard — answers THOSE bits under
-// every ShardWorkers × DecodeWorkers count: blocks key by the global
-// record ordinal, so the twin and the archive fold the same blocks in
-// the same tree. Grouped and ungrouped; weighted and unweighted vector
-// aggregates (AGG_VEC_SD's Chan-combined moments included) and
-// covariance matrices.
-func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
-	const rows = 5*4096 + 1234
-	fsys := afero.NewMemMapFs()
-	writeVaggBitsCohort(t, fsys, "single.pulse", 0, rows)
-	bounds := []int{0, 1, 2, 4097, 4097, 9000, 9001, 14000, 14000 + 4096, rows}
-	var shards []string
-	for i := 0; i+1 < len(bounds); i++ {
-		path := fmt.Sprintf("s%d.pulse", i)
-		writeVaggBitsCohort(t, fsys, path, bounds[i], bounds[i+1])
-		shards = append(shards, path)
-	}
-	builder, err := pulse.New(pulse.Options{FS: fsys})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := builder.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
-		t.Fatal(err)
-	}
-	for _, grouped := range []bool{false, true} {
-		t.Run(fmt.Sprintf("grouped=%v", grouped), func(t *testing.T) {
-			serial, err := pulse.New(pulse.Options{FS: fsys})
-			if err != nil {
-				t.Fatal(err)
-			}
-			want := vaggBits(t, serial, "single.pulse", grouped)
-			for _, dw := range []int{1, 2, 3, 7} {
-				p, err := pulse.New(pulse.Options{FS: fsys, DecodeWorkers: dw})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if got := vaggBits(t, p, "single.pulse", grouped); !reflect.DeepEqual(got, want) {
-					t.Errorf("single file DecodeWorkers=%d: bits differ from serial", dw)
-				}
-				for _, sw := range []int{1, 2, 3, 4} {
-					p, err := pulse.New(pulse.Options{FS: fsys, ShardWorkers: sw, DecodeWorkers: dw})
-					if err != nil {
-						t.Fatal(err)
-					}
-					if got := vaggBits(t, p, "archive.pulse", grouped); !reflect.DeepEqual(got, want) {
-						t.Errorf("archive ShardWorkers=%d DecodeWorkers=%d: bits differ from the single-file twin", sw, dw)
-					}
-				}
-			}
-		})
-	}
+	return req
 }
 
 // TestVecAgg_RefusalParity: Process and predict refuse the same
@@ -374,6 +294,8 @@ func TestVecAgg_BitExactAcrossWorkers(t *testing.T) {
 // (crosstab cell / margin, Sort, overlays, a chain feed stage) and the
 // slot shape rules.
 func TestVecAgg_RefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)

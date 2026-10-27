@@ -54,6 +54,8 @@ func breakFile(t *testing.T, path, content string) {
 // the same three things: the name keeps serving its last-good parse, the
 // listing says it is broken, and the reload that discovered it returned nil.
 func TestStore_BreakageAfterStartupIsPerFile(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// content is what "revenue.json" is rewritten to after the store
@@ -161,6 +163,8 @@ func TestStore_BreakageAfterStartupIsPerFile(t *testing.T) {
 // own: an operator who fixes the typo must not have to restart, and the
 // broken marker must clear rather than latch.
 func TestStore_BrokenFileRepairsOnNextReload(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 	writeFile(t, dir, "sibling.json", validTemplate("sibling"))
@@ -228,6 +232,8 @@ func TestStore_BrokenFileRepairsOnNextReload(t *testing.T) {
 // not as PULSE_TEMPLATE_NOT_FOUND, which would send an operator looking for
 // a file they can see sitting in the directory.
 func TestStore_MalformedOnFirstAppearanceHasNoLastGood(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "healthy.json", validTemplate("healthy"))
 
@@ -301,6 +307,8 @@ func TestStore_MalformedOnFirstAppearanceHasNoLastGood(t *testing.T) {
 // file must lose exactly one name's freshness, and the listing must point at
 // exactly one file.
 func TestStore_BreakageIsScopedToOneNameAcrossManySiblings(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	names := []string{
 		"alpha", "beta", "finance/cost", "finance/revenue", "gamma",
@@ -355,6 +363,8 @@ func TestStore_BreakageIsScopedToOneNameAcrossManySiblings(t *testing.T) {
 // actually reach is fine. The reverse — the WINNING file breaking — must
 // mark it, because that is the file being served.
 func TestStore_BrokenFileShadowedByAHealthyOverride(t *testing.T) {
+	t.Parallel()
+
 	high, low := t.TempDir(), t.TempDir()
 	highPath := writeFile(t, high, "shared.json", validTemplate("from high"))
 	lowPath := writeFile(t, low, "shared.json", validTemplate("from low"))
@@ -430,6 +440,8 @@ func TestStore_BrokenFileShadowedByAHealthyOverride(t *testing.T) {
 // that stops existing stops being reported and its name goes back to being
 // genuinely not-found.
 func TestStore_BrokenFileDeletedStopsBeingReported(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "keeper.json", validTemplate("keeper"))
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
@@ -468,6 +480,8 @@ func TestStore_BrokenFileDeletedStopsBeingReported(t *testing.T) {
 // telling an operator their JSON is invalid when the real cause is a
 // permission bit sends them to the wrong place.
 func TestStore_UnreadableFileDegradesLikeABrokenOne(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 	writeFile(t, dir, "sibling.json", validTemplate("sibling"))
@@ -517,6 +531,8 @@ func TestStore_UnreadableFileDegradesLikeABrokenOne(t *testing.T) {
 // panic, and no window in which a good template is missing because a bad one
 // was mid-rewrite.
 func TestStore_ConcurrentRenderDuringBrokenRescan(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "stable.json", validTemplate("stable"))
 	victim := writeFile(t, dir, "victim.json", validTemplate("victim original"))
@@ -607,6 +623,8 @@ func TestStore_ConcurrentRenderDuringBrokenRescan(t *testing.T) {
 // a deploy error, and degrading there would let a process come up quietly
 // serving a catalog its author never finished.
 func TestStore_ConstructionStaysFailFast(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "healthy.json", validTemplate("healthy"))
 	path := writeFile(t, dir, "broken.json", brokenJSON)
@@ -632,6 +650,8 @@ func TestStore_ConstructionStaysFailFast(t *testing.T) {
 // anybody could ever look it up by, so it is skipped like a README rather
 // than being reported under a key that does not exist.
 func TestStore_UnnameableFileIsSkippedAfterStartup(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "revenue.json", validTemplate("original"))
 

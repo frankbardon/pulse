@@ -266,6 +266,8 @@ func vnatWire(t *testing.T, resp *types.Response) string {
 // streaming / buffered, single file and shard archive, vec_f64 and
 // vec_f32 — the native response equals the twin's.
 func TestNativeVector_RequestsMatchTwin(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, ft := range []encoding.FieldType{encoding.FieldTypeVecF64, encoding.FieldTypeVecF32} {
 		for _, sharded := range []bool{false, true} {
@@ -309,6 +311,8 @@ func TestNativeVector_RequestsMatchTwin(t *testing.T) {
 // a native vector field is PULSE_VECTOR_NAME_COLLISION (no shadowing),
 // marked native, from Process and predict alike.
 func TestNativeVector_CollisionRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fsys})

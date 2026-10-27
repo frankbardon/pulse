@@ -14,6 +14,8 @@ import (
 // TestIntentRegistry_ExactIDs: the taxonomy is the closed set of fifteen
 // IDs — twelve analytic, three routing to tooling.
 func TestIntentRegistry_ExactIDs(t *testing.T) {
+	t.Parallel()
+
 	analytic := []string{
 		"benchmark", "change_over_time", "compare_groups", "composition",
 		"data_quality", "describe", "distribution_shape", "drivers",
@@ -55,6 +57,8 @@ func TestIntentRegistry_ExactIDs(t *testing.T) {
 // every intent, and every shape role names ≥1 valid field kind with a
 // coherent cardinality.
 func TestIntentRegistry_WellFormed(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	for _, in := range Intents() {
 		if in.ID == "" {
@@ -113,6 +117,8 @@ func TestIntentRegistry_WellFormed(t *testing.T) {
 // TestIntents_ReturnsCopy: mutating the returned taxonomy never reaches
 // the registry.
 func TestIntents_ReturnsCopy(t *testing.T) {
+	t.Parallel()
+
 	a := Intents()
 	a[0].Sounds[0] = "mutated"
 	a[0].Shapes[0].Roles[0].Kinds[0] = "mutated"
@@ -125,6 +131,8 @@ func TestIntents_ReturnsCopy(t *testing.T) {
 // TestFieldKindOf_Total: every registered field type maps to a valid
 // coarse kind; an unknown type byte does not.
 func TestFieldKindOf_Total(t *testing.T) {
+	t.Parallel()
+
 	n := 0
 	for i := range 256 {
 		ft := encoding.FieldType(i)
@@ -162,6 +170,8 @@ func TestFieldKindOf_Total(t *testing.T) {
 // TestManifestIntents_TopLevel: the manifest lists the sorted taxonomy
 // IDs, and with no purpose declared no entry carries an intents key.
 func TestManifestIntents_TopLevel(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if !slices.Equal(m.Intents, IntentIDs()) {
 		t.Errorf("manifest intents = %v, want %v", m.Intents, IntentIDs())
@@ -185,6 +195,8 @@ func TestManifestIntents_TopLevel(t *testing.T) {
 // serves (lookup, flows, measure_construct) always stays; and the
 // manifest list equals the ontology's surviving intent nodes.
 func TestManifestIntents_PrunedUnderProfile(t *testing.T) {
+	t.Parallel()
+
 	for name, set := range map[string]FeatureSet{
 		"empty":   {},
 		"one-agg": {Enabled: []string{"AGG_SUM"}},
@@ -240,6 +252,8 @@ func injectPurposes(t *testing.T, ps map[string]descriptor.Purpose) {
 // profile hiding the operator drops the entry — and so its intents —
 // through the existing hide path while visible entries keep theirs.
 func TestManifestIntents_EntriesAndHidePath(t *testing.T) {
+	// serial: swaps the package-level descriptor.purposeLookup test hook
+
 	const (
 		agg     = "AGG_SUM"
 		aggKeep = "AGG_COUNT"

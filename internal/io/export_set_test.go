@@ -70,6 +70,8 @@ func exportSetColumn(t *testing.T, tokens, rows int) ([]string, []string, encodi
 // exercise the raw-bytes read path, which the uint64 ReadFieldValue
 // refuses outright.
 func TestExportJob_SetEmitsLabelsAtEveryWidth(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		tokens int
 		want   encoding.FieldType
@@ -102,6 +104,8 @@ func TestExportJob_SetEmitsLabelsAtEveryWidth(t *testing.T) {
 // bitmask ("3" for the first two dictionary entries), which re-imports
 // as a categorical string and destroys the column.
 func TestExportJob_SetNeverEmitsRawMask(t *testing.T) {
+	t.Parallel()
+
 	_, got, field := exportSetColumn(t, 6, 200)
 	if field.Type != encoding.FieldTypeSetU8 {
 		t.Fatalf("inferred %s, want set_u8", field.Type)
@@ -124,6 +128,8 @@ func TestExportJob_SetNeverEmitsRawMask(t *testing.T) {
 // selections. Re-inference sees the same vocabulary and picks the same
 // rung, and each row's selected label set is preserved.
 func TestExportJob_WideSetRoundTripsThroughText(t *testing.T) {
+	t.Parallel()
+
 	const tokens, rows = 206, 480
 	src, exported, field := exportSetColumn(t, tokens, rows)
 	if field.Type != encoding.FieldTypeSetU256 {
@@ -181,6 +187,8 @@ func TestExportJob_WideSetRoundTripsThroughText(t *testing.T) {
 // The empty-mask expectation was "" until the three-state convention
 // landed; see EmptySetCell for why the empty string could not carry it.
 func TestFormatSetMask_BitOrderAndEmpty(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, s := range []string{"alpha", "beta", "gamma"} {
 		if _, err := dict.AddWithLimit(s, 256); err != nil {
@@ -209,6 +217,8 @@ func TestFormatSetMask_BitOrderAndEmpty(t *testing.T) {
 // TestFormatFieldValue_NarrowSetUsesLabels pins that the narrow rungs
 // reach the same formatter through the uint64 value API.
 func TestFormatFieldValue_NarrowSetUsesLabels(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, s := range []string{"VISA", "MC", "AMEX"} {
 		if _, err := dict.AddWithLimit(s, 64); err != nil {

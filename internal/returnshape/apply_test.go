@@ -253,6 +253,8 @@ func planFor(t *testing.T, ret *types.Return) *returnplan.Plan {
 // populated response, and once excluded is ABSENT on the wire (never
 // null) and zero (nil for a nillable slot) in Go.
 func TestReturn_ExcludeEveryFieldAbsent(t *testing.T) {
+	t.Parallel()
+
 	paths := responsePaths()
 	nonOmit := 0
 	for _, rp := range paths {
@@ -314,6 +316,8 @@ func TestReturn_ExcludeEveryFieldAbsent(t *testing.T) {
 // empty block) leave the response untouched and unmarked; a non-identity
 // plan stamps preset, digest and precision.
 func TestReturn_MarkerIffNonIdentity(t *testing.T) {
+	t.Parallel()
+
 	for name, ret := range map[string]*types.Return{
 		"nil block":   nil,
 		"preset full": {Preset: types.ReturnPresetFull},
@@ -354,12 +358,16 @@ func TestReturn_MarkerIffNonIdentity(t *testing.T) {
 // — field order, omitempty, maps, nested marshallers — under the full
 // selection, an exclude and a preset.
 func TestPrecision_WalkMirrorsEncodeFinite(t *testing.T) {
+	t.Parallel()
+
 	for name, ret := range map[string]types.Return{
 		"full":     {},
 		"exclude":  {Exclude: []string{"metadata", "tests[*].p_value"}},
 		"standard": {Preset: types.ReturnPresetStandard},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			base := filledResponse()
 			returnshape.Apply(base, planFor(t, &ret))
 			withP := ret

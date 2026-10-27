@@ -12,6 +12,8 @@ import (
 // Every rule Resolve judges, one case each, with the sentence fragment
 // the refusal must carry.
 func TestResolve_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, params, want string
 	}{
@@ -54,6 +56,8 @@ func TestResolve_Refusals(t *testing.T) {
 
 // The kernels by their closed forms, normalised by default.
 func TestResolve_Kernels(t *testing.T) {
+	t.Parallel()
+
 	sumTo := func(t *testing.T, w []float64, want float64) {
 		t.Helper()
 		s := 0.0

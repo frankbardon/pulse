@@ -46,6 +46,8 @@ func epochSeconds(year int, month time.Month, day, hour, min, sec int) float64 {
 // reads as seconds, and anything else either errors (strict) or falls
 // back to days (non-strict).
 func TestResolveDateFieldSeconds_Classification(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		schema      *encoding.Schema
@@ -93,6 +95,8 @@ func TestResolveDateFieldSeconds_Classification(t *testing.T) {
 // Field naming no schema column resolves without error under either
 // posture, so extension probes and Field-less Group slots still build.
 func TestResolveDateFieldSeconds_AbsentField(t *testing.T) {
+	t.Parallel()
+
 	for _, strict := range []bool{true, false} {
 		seconds, err := resolveDateFieldSeconds("OP", "no_such_column", dateSchema(), strict)
 		if err != nil {
@@ -107,6 +111,8 @@ func TestResolveDateFieldSeconds_AbsentField(t *testing.T) {
 // TestEpochDayFromValue pins the per-record conversion: a days-valued
 // column passes through untouched, a seconds-valued column truncates.
 func TestEpochDayFromValue(t *testing.T) {
+	t.Parallel()
+
 	dayValue := epochDays(2024, time.March, 4)
 	if got := epochDayFromValue(dayValue, false); got != int64(dayValue) {
 		t.Errorf("date value = %d; want %d (pass-through)", got, int64(dayValue))
@@ -124,6 +130,8 @@ func TestEpochDayFromValue(t *testing.T) {
 // produce the exact same bucket key it produces for the equivalent
 // `date` column, because the instant truncates to the same day.
 func TestGrouper_Date_AcceptsDateTime(t *testing.T) {
+	t.Parallel()
+
 	components := []string{"day", "day_of_week", "week", "month", "quarter", "year"}
 
 	for _, component := range components {
@@ -176,6 +184,8 @@ func TestGrouper_Date_AcceptsDateTime(t *testing.T) {
 // Components() period boundaries — derived from the tracked day value —
 // are day-truncated too, not seconds reinterpreted as days.
 func TestGrouper_Date_DateTimeComponentsBoundaries(t *testing.T) {
+	t.Parallel()
+
 	g := makeDateGrouper(t, "month", datetimeSchema())
 	recs := makeRecords(datetimeSchema(), "enrolled", []float64{
 		epochSeconds(2024, time.March, 4, 8, 0, 0),
@@ -204,6 +214,8 @@ func TestGrouper_Date_DateTimeComponentsBoundaries(t *testing.T) {
 // matches the same inline range set — compiled from ISO date literals,
 // i.e. in epoch days — as the equivalent `date` column.
 func TestGrouper_DateRanges_AcceptsDateTime(t *testing.T) {
+	t.Parallel()
+
 	g := makeDateRangesGrouper(t, phaseRangesParams(t, ""), datetimeSchema())
 
 	records := makeRecords(datetimeSchema(), "enrolled", []float64{
@@ -233,6 +245,8 @@ func TestGrouper_DateRanges_AcceptsDateTime(t *testing.T) {
 // regression: widening to `datetime` must not have widened to
 // everything.
 func TestGrouper_DateRanges_RejectsNonTemporal(t *testing.T) {
+	t.Parallel()
+
 	factory, ok := grouperRegistry[types.GROUP_DATE_RANGES]
 	if !ok {
 		t.Fatal("no grouper registered for GROUP_DATE_RANGES")
@@ -258,6 +272,8 @@ func TestGrouper_DateRanges_RejectsNonTemporal(t *testing.T) {
 // keep/drop decision for a `datetime` column, including both inclusive
 // edges and the null drop.
 func TestFilterer_DateRanges_AcceptsDateTime(t *testing.T) {
+	t.Parallel()
+
 	params, err := json.Marshal(map[string]any{
 		"ranges": []map[string]any{
 			{"label": "q1", "start": "2024-01-01", "end": "2024-03-31"},
@@ -318,6 +334,8 @@ func TestFilterer_DateRanges_AcceptsDateTime(t *testing.T) {
 // TestFilterer_DateRanges_RejectsNonTemporal is the "as before"
 // regression for the filterer's strict posture.
 func TestFilterer_DateRanges_RejectsNonTemporal(t *testing.T) {
+	t.Parallel()
+
 	params, err := json.Marshal(map[string]any{
 		"ranges": []map[string]any{{"label": "q1", "start": "2024-01-01", "end": "2024-03-31"}},
 	})
@@ -346,6 +364,8 @@ func TestFilterer_DateRanges_RejectsNonTemporal(t *testing.T) {
 // decision for `datetime`: ALLOW, on the same exact-fixed-width-integer
 // rationale that admits `date` and `u64`.
 func TestIsIndexKeyableFieldType_DateTime(t *testing.T) {
+	t.Parallel()
+
 	if !IsIndexKeyableFieldType(encoding.FieldTypeDateTime) {
 		t.Error("datetime must be an allowed point-lookup index key type")
 	}
@@ -356,6 +376,8 @@ func TestIsIndexKeyableFieldType_DateTime(t *testing.T) {
 // from a decoded record carrying the same instant — the round-trip
 // property the whole sidecar index depends on.
 func TestResolveLookupKeyBytes_DateTime(t *testing.T) {
+	t.Parallel()
+
 	schema := datetimeSchema()
 	field := schema.Field("enrolled")
 
@@ -420,6 +442,8 @@ func asCoded(err error, target **errors.CodedError) bool {
 // 30), while no zone, "UTC", a fixed-zero alias and a `date` column all
 // keep the zone-free path (zone nil) — and an unknown name is refused.
 func TestResolveDateField_Zone(t *testing.T) {
+	t.Parallel()
+
 	mar28 := epochDays(2026, time.March, 28)
 	for _, tc := range []struct {
 		name     string
@@ -461,6 +485,8 @@ func TestResolveDateField_Zone(t *testing.T) {
 // the slot `tz` (the runtime writes the resolved zone there) and keys
 // the instant by its local day.
 func TestGroupDate_SlotZoneBucketsByLocalDay(t *testing.T) {
+	t.Parallel()
+
 	inst := epochSeconds(2026, time.October, 24, 22, 30, 0) // Berlin 00:30 Oct 25 (CEST)
 	for tz, want := range map[string]string{"": "2026-10-24", "Europe/Berlin": "2026-10-25", "America/New_York": "2026-10-24"} {
 		g, err := newDateGrouper(&types.Group{Type: types.GROUP_DATE, Field: "enrolled", Params: json.RawMessage(`{"component":"day"}`), TimeZone: tz}, datetimeSchema())

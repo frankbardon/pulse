@@ -45,6 +45,8 @@ func composeSlotOf(shape types.OverlayShape) *types.Response {
 }
 
 func TestApplyComposeOverlays_EmptySpecsShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{composeSlotOf(types.OverlayShapeScalar)}
 	labels := []string{"request_1"}
 
@@ -69,6 +71,8 @@ func TestApplyComposeOverlays_EmptySpecsShortCircuits(t *testing.T) {
 }
 
 func TestApplyComposeOverlays_MultiLayerDispatch_PanelIndexVsRef(t *testing.T) {
+	t.Parallel()
+
 	// Three slots: baseline (reference) + t0 + t1 + t2 (3 targets).
 	// Every slot carries the same canonical 3×3 matrix shape so the
 	// chassis schema-match + key-alignment gates accept; the per-target
@@ -135,6 +139,8 @@ func TestApplyComposeOverlays_MultiLayerDispatch_PanelIndexVsRef(t *testing.T) {
 // layer per spec; the chassis preserves spec-order emission (FR-A2
 // equivalent for the COMPOSE-host path).
 func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeSeries),
 		composeSlotOf(types.OverlayShapeSeries),
@@ -179,6 +185,8 @@ func TestApplyComposeOverlays_StubLayerOrderPreserved(t *testing.T) {
 }
 
 func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		refShape types.OverlayShape
@@ -214,6 +222,8 @@ func TestApplyComposeOverlays_StubShapeInheritsReference(t *testing.T) {
 }
 
 func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
 		composeSlotOf(types.OverlayShapeScalar),
@@ -234,6 +244,8 @@ func TestApplyComposeOverlays_ReferenceUnknown_CodedError(t *testing.T) {
 }
 
 func TestApplyComposeOverlays_TargetUnknown_CodedError(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
 		composeSlotOf(types.OverlayShapeScalar),
@@ -269,6 +281,8 @@ func requireDetailCode(t *testing.T, err error, want pulseerrors.Code) {
 // whose Targets slice is empty surfaces a coded error — every
 // Compose-only kind requires at least one target slot.
 func TestApplyComposeOverlays_TargetsEmpty_CodedError(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{composeSlotOf(types.OverlayShapeScalar)}
 	labels := []string{"baseline"}
 	specs := []types.ComposeOverlaySpec{{
@@ -290,6 +304,8 @@ func TestApplyComposeOverlays_TargetsEmpty_CodedError(t *testing.T) {
 // nil (the FailFast=false failed-slot hole) surfaces a coded error
 // rather than dereferencing the nil downstream.
 func TestApplyComposeOverlays_NilSlot_CodedError(t *testing.T) {
+	t.Parallel()
+
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
 		nil, // slot 1 failed under FailFast=false

@@ -19,6 +19,8 @@ import (
 // whole parent block one group), sorted and scattered, full and
 // projected.
 func TestGroupedDecode_PositionalRecordParity(t *testing.T) {
+	t.Parallel()
+
 	for _, w := range []int{10, 40} {
 		fs, gs, regions := groupWidthTwins(t, w, 60)
 		rows := joinShapeRows(60)

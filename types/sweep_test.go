@@ -20,6 +20,8 @@ type preSweepComposedRequest struct {
 // TestComposedRequest_SweepFreeByteIdentity: a ComposedRequest without a
 // sweep marshals and hashes exactly as the pre-sweep shape.
 func TestComposedRequest_SweepFreeByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	reqs := []*Request{{
 		Label:        "a",
 		Cohort:       &Cohort{Filename: "a.pulse"},
@@ -60,6 +62,8 @@ func TestComposedRequest_SweepFreeByteIdentity(t *testing.T) {
 // writes no `ranking` key; a ranked one writes it, a NaN value as null,
 // every entry's slot and typed axes always present.
 func TestComposedResponse_RankingFreeByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	b, err := json.Marshal(&ComposedResponse{Responses: []*Response{}})
 	if err != nil {
 		t.Fatal(err)
@@ -85,6 +89,8 @@ func TestComposedResponse_RankingFreeByteIdentity(t *testing.T) {
 // TestSweepSpec_WireShape pins the JSON keys and the as-written number
 // text of axis values through a decode / encode round trip.
 func TestSweepSpec_WireShape(t *testing.T) {
+	t.Parallel()
+
 	in := `{"axes":[{"name":"tv","values":[0.10,70,12345678901234567890,"x",true]}],` +
 		`"mode":"zip","label":"tv{{tv}}","request":{"cohort":{"filename":"{{tv}}"}},` +
 		`"overlays":[{"kind":"OVERLAY_RANK"}],"rank":{"by":"data[0].v","order":"desc","top":3}}`
@@ -111,6 +117,8 @@ func TestSweepSpec_WireShape(t *testing.T) {
 }
 
 func TestSweepVocabularies(t *testing.T) {
+	t.Parallel()
+
 	if got := AllSweepModes(); len(got) != 4 || got[0] != "grid" || got[1] != "zip" || got[2] != "random" || got[3] != "lhs" {
 		t.Errorf("modes %v", got)
 	}

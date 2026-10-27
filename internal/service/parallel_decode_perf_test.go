@@ -16,6 +16,8 @@ import (
 const parallelDecodePerfRatio = 0.67
 
 func TestParallelDecode_PerfGate(t *testing.T) {
+	// serial: wall-clock testing.Benchmark ratio; CPU contention from parallel tests would make it flaky
+
 	numCPU := runtime.NumCPU()
 	if numCPU < 2 {
 		t.Skipf("perf gate requires NumCPU >= 2 (got %d) — NumCPU variant collapses to serial",

@@ -17,6 +17,8 @@ import (
 // drop from the chain capability surface even though it would still be
 // dispatchable on ChainRequest.Overlays.
 func TestProcessChainCapability_OverlaysCoversChainKinds(t *testing.T) {
+	t.Parallel()
+
 	cap := processChainCapability()
 	expected := []types.OverlayKind{
 		types.OverlayKindDeltaVsStage,
@@ -46,6 +48,8 @@ func TestProcessChainCapability_OverlaysCoversChainKinds(t *testing.T) {
 // Overlays sub-block is ordered alphabetically by Kind. Deterministic
 // ordering keeps the manifest golden stable.
 func TestProcessChainCapability_OverlaysAlphabetizedByKind(t *testing.T) {
+	t.Parallel()
+
 	cap := processChainCapability()
 	for i := 1; i < len(cap.Overlays); i++ {
 		if string(cap.Overlays[i-1].Kind) > string(cap.Overlays[i].Kind) {
@@ -62,6 +66,8 @@ func TestProcessChainCapability_OverlaysAlphabetizedByKind(t *testing.T) {
 // finalises); this test guards against capability-surface drift if the
 // streamability table flips.
 func TestProcessChainCapability_OverlaysBufferedMatchesStreamability(t *testing.T) {
+	t.Parallel()
+
 	cap := processChainCapability()
 	for _, c := range cap.Overlays {
 		streamable, known := types.OverlayStreamable(c.Kind)
@@ -82,6 +88,8 @@ func TestProcessChainCapability_OverlaysBufferedMatchesStreamability(t *testing.
 // stage's host shape), Scopes == [total] (whole-result decoration), and
 // RefKinds == [Stage] (the StageRef discriminated reference family).
 func TestProcessChainCapability_OverlaysShape(t *testing.T) {
+	t.Parallel()
+
 	cap := processChainCapability()
 
 	wantShapes := []types.OverlayShape{
@@ -114,6 +122,8 @@ func TestProcessChainCapability_OverlaysShape(t *testing.T) {
 // inner slices are alphabetically sorted. Required for deterministic
 // golden output.
 func TestProcessChainCapability_OverlaysFieldsSorted(t *testing.T) {
+	t.Parallel()
+
 	cap := processChainCapability()
 	for _, c := range cap.Overlays {
 		shapes := make([]string, len(c.Shapes))
@@ -149,6 +159,8 @@ func TestProcessChainCapability_OverlaysFieldsSorted(t *testing.T) {
 // global overlay catalog (the chain rows MUST be the same rows that
 // land on Manifest.Overlays).
 func TestProcessChainCapability_OverlaysMirrorsOverlayCatalog(t *testing.T) {
+	t.Parallel()
+
 	chainCap := processChainCapability()
 	all := OverlayCapabilities()
 
@@ -188,6 +200,8 @@ func TestProcessChainCapability_OverlaysMirrorsOverlayCatalog(t *testing.T) {
 // ATTR_SCALE_SCORE and the reference-form ATTR_PROFILE_SIMILARITY; the
 // #391 row-local reads were missing) — and is sorted. ATTR_VEC_DISTANCE is judged over a row-local metric.
 func TestProcessChainCapability_RowLocalAttributesMatchGate(t *testing.T) {
+	t.Parallel()
+
 	var want []string
 	for _, at := range types.AllAttributeTypes() {
 		req := &types.Request{
@@ -216,6 +230,8 @@ func TestProcessChainCapability_RowLocalAttributesMatchGate(t *testing.T) {
 // with types.GroupType.Mergeable (U51 E3-S3 admitted GROUP_ROUNDED; the
 // list had stopped at CATEGORY / RANGE) — and is sorted.
 func TestProcessChainCapability_MergeableGroupersMatchGate(t *testing.T) {
+	t.Parallel()
+
 	var want []string
 	for _, gt := range types.AllGroupTypes() {
 		req := &types.Request{

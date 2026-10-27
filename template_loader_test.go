@@ -56,6 +56,7 @@ func newPulse(t *testing.T, opts Options) *Pulse {
 // is consulted only when the option is empty, and a multi-root variable
 // splits on the host path-list separator.
 func TestResolveTemplateDirs(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	sep := string(os.PathListSeparator)
 
 	tests := []struct {
@@ -121,6 +122,8 @@ func TestResolveTemplateDirs(t *testing.T) {
 // the resolved list must be the engine's own copy, so a caller mutating the
 // slice it handed to Options cannot retarget a live store.
 func TestResolveTemplateDirs_DoesNotAliasCallerSlice(t *testing.T) {
+	t.Parallel()
+
 	caller := []string{"/a", "/b"}
 	got := resolveTemplateDirs(&Options{TemplateDirs: caller})
 	caller[0] = "/mutated"
@@ -133,6 +136,7 @@ func TestResolveTemplateDirs_DoesNotAliasCallerSlice(t *testing.T) {
 // promise: New succeeds with no store at all, and a lookup against that
 // absent store answers PULSE_TEMPLATE_NOT_FOUND instead of panicking.
 func TestNew_NoTemplateDirsIsSilentNoOp(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	t.Setenv(envTemplatesDir, "")
 
 	p := newPulse(t, Options{})
@@ -159,6 +163,8 @@ func TestNew_NoTemplateDirsIsSilentNoOp(t *testing.T) {
 // TestNew_TemplateDirsFromOption wires the explicit option end to end: the
 // store New builds indexes the files under the configured roots.
 func TestNew_TemplateDirsFromOption(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeTmpl(t, dir, "finance/revenue.json", tmplDoc("from option"))
 
@@ -177,6 +183,7 @@ func TestNew_TemplateDirsFromOption(t *testing.T) {
 // the multi-root form: one variable carrying several roots separated by
 // the host path-list separator, in precedence order.
 func TestNew_TemplateDirsFromEnv(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	first := t.TempDir()
 	second := t.TempDir()
 	writeTmpl(t, first, "a.json", tmplDoc("first root"))
@@ -201,6 +208,7 @@ func TestNew_TemplateDirsFromEnv(t *testing.T) {
 // with the option set, the environment variable is never consulted, so a
 // template that exists only under the env root stays unreachable.
 func TestNew_TemplateDirsOptionShadowsEnv(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	optDir := t.TempDir()
 	envDir := t.TempDir()
 	writeTmpl(t, optDir, "wanted.json", tmplDoc("option root"))
@@ -222,6 +230,7 @@ func TestNew_TemplateDirsOptionShadowsEnv(t *testing.T) {
 // through New rather than through the store alone: the same name in two
 // configured roots resolves to the FIRST root's document.
 func TestNew_TemplateDirsPrecedenceEndToEnd(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	high := t.TempDir()
 	low := t.TempDir()
 	writeTmpl(t, high, "shared.json", tmplDoc("high precedence"))
@@ -267,6 +276,8 @@ func TestNew_TemplateDirsPrecedenceEndToEnd(t *testing.T) {
 // absent root is an absent layer, a root that is a regular file is a
 // misconfiguration.
 func TestNew_TemplateDirShapes(t *testing.T) {
+	t.Parallel()
+
 	present := t.TempDir()
 	writeTmpl(t, present, "ok.json", tmplDoc("present"))
 
@@ -321,6 +332,8 @@ func TestNew_TemplateDirShapes(t *testing.T) {
 // document in a configured directory stops startup, and the error names the
 // offending file so the operator knows which one to open.
 func TestNew_MalformedTemplateFailsNew(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		rel     string

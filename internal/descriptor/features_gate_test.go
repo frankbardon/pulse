@@ -104,6 +104,8 @@ func wantFeatures(t *testing.T) map[string]descx.FeatureKind {
 // without a live registry entry, and every MCP tool is bound to an
 // existing capability or to the always-present core.
 func TestFeaturesHaveSince(t *testing.T) {
+	t.Parallel()
+
 	want := wantFeatures(t)
 
 	seen := map[string]bool{}
@@ -188,6 +190,8 @@ func TestFeaturesHaveSince(t *testing.T) {
 // synth distributions, tier-qualified TEST_X/variant spellings and
 // kind-prefixed operator spellings.
 func TestFeatures_NonFeaturesAbsent(t *testing.T) {
+	t.Parallel()
+
 	for _, d := range synth.AllDistributions() {
 		for _, k := range descx.AllFeatureKinds() {
 			if _, ok := descx.LookupFeature(descx.FeatureName(k, d)); ok {
@@ -211,6 +215,8 @@ func TestFeatures_NonFeaturesAbsent(t *testing.T) {
 // TestFeatures_LookupAPI exercises the lookup surface later stories build
 // on: by name, all names, kind-of, core membership.
 func TestFeatures_LookupAPI(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		kind descx.FeatureKind
@@ -265,6 +271,8 @@ func TestFeatures_LookupAPI(t *testing.T) {
 }
 
 func TestParseSince(t *testing.T) {
+	t.Parallel()
+
 	good := map[string][3]int{"1.0.0": {1, 0, 0}, "10.20.300": {10, 20, 300}}
 	for s, w := range good {
 		a, b, c, ok := descx.ParseSince(s)

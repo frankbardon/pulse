@@ -144,6 +144,8 @@ func slotWarnings(resp *types.Response) []*types.ResponseWarning {
 // failed slot carries {slot_kind, index, label, code}; the run returns
 // no error.
 func TestSlotFailure_PartialSuccessByDefault(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	resp, b := processJSON(t, p, failingSlotsRequest(cohort))
 	if len(resp.Data) != 1 || resp.Data[0]["n"] != int64(40) && resp.Data[0]["n"] != float64(40) {
@@ -206,6 +208,8 @@ func mapKeys(m map[string]json.RawMessage) []string {
 // the same request fails the run with the first failed slot's OWN code
 // (never a generic one), its slot identity in the details.
 func TestSlotFailure_StrictFailsWithTheSlotsOwnCode(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
 	resp, err := p.Process(context.Background(), failingSlotsRequest(cohort))
 	var ce *perr.CodedError
@@ -222,6 +226,8 @@ func TestSlotFailure_StrictFailsWithTheSlotsOwnCode(t *testing.T) {
 // regression — fitted over every filtered row — fails alone too, while
 // the grouped rows survive.
 func TestSlotFailure_Grouped(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	req := failingSlotsRequest(cohort)
 	req.Tests = nil
@@ -263,6 +269,8 @@ func TestSlotFailure_Grouped(t *testing.T) {
 // Compose slot is untouched; under Strict the batch fails with the
 // slot's own code.
 func TestSlotFailure_ComposeHosted(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	mk := func() *types.ComposedRequest {
 		return &types.ComposedRequest{Requests: []*types.Request{
@@ -344,6 +352,8 @@ func asFloat(v any) (float64, bool) {
 // warning naming the fit, and every other aggregation and slot is
 // computed normally — serial and parallel byte-identical.
 func TestSlotFailure_ComposeFitFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	ctx := context.Background()
 	serial, err := p.Compose(ctx, failedFitBatch(cohort))
@@ -423,6 +433,8 @@ func TestSlotFailure_ComposeFitFailsAlone(t *testing.T) {
 // data fails the whole batch with the fit's OWN code, located by
 // details.fit — serial and parallel.
 func TestSlotFailure_ComposeFitStrict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
 	ctx := context.Background()
 	for name, run := range map[string]func() error{
@@ -442,6 +454,8 @@ func TestSlotFailure_ComposeFitStrict(t *testing.T) {
 // TestSlotFailure_ComposeFitSaveSkipped: a failed fit writes no `save`
 // file (there is no model to write).
 func TestSlotFailure_ComposeFitSaveSkipped(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := slotCohort(t, pulse.Options{})
 	batch := failedFitBatch(cohort)
 	batch.Fits[0].Save = "models/m.pulse-model.json"
@@ -522,6 +536,8 @@ func fitUnavailable(resp *types.Response) []map[string]any {
 // the good fit's reader, the good matrix and every other slot compute —
 // serial, parallel and DecodeWorkers 1 / 4 byte-identical.
 func TestSlotFailure_ComposeFitReadersFailAlone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	var ref []byte
 	for _, workers := range []int{1, 4} {
@@ -617,6 +633,8 @@ func TestSlotFailure_ComposeFitReadersFailAlone(t *testing.T) {
 // batch fails with the failed fit's OWN code located by details.fit —
 // the fit fails before any reader runs — serial and parallel alike.
 func TestSlotFailure_ComposeFitReadersStrict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
 	ctx := context.Background()
 	for i, label := range []string{"formula", "vector", "matrix"} {
@@ -645,6 +663,8 @@ func TestSlotFailure_ComposeFitReadersStrict(t *testing.T) {
 // stage reports the LOWEST-index failure, as the serial loop does — a
 // later fit's failure never cancels an earlier one before it finishes.
 func TestSlotFailure_ComposeFitStrictLowestIndexWins(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
 	ctx := context.Background()
 	for range 30 {
@@ -667,6 +687,8 @@ func TestSlotFailure_ComposeFitStrictLowestIndexWins(t *testing.T) {
 // filter) and a coef() whose fit name is not a literal (unknown until
 // a row evaluates it).
 func TestSlotFailure_ComposeFitFatalReaders(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	ctx := context.Background()
 	for name, edit := range map[string]func(*types.Request){
@@ -705,6 +727,8 @@ func TestSlotFailure_ComposeFitFatalReaders(t *testing.T) {
 // is {"vector": {operator, error}}, nothing binds, the other slots run —
 // and fails the batch with its own code under Strict.
 func TestSlotFailure_ComposeVectorFitFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	mk := func(cohort string) *types.ComposedRequest {
 		return &types.ComposedRequest{
 			Fits: []types.FitSpec{{Name: "pop", Request: &types.Request{Cohort: &types.Cohort{Filename: cohort},
@@ -741,6 +765,8 @@ func TestSlotFailure_ComposeVectorFitFailsAlone(t *testing.T) {
 // failing slot is still fatal with its own code — only data-dependent
 // refusals fail alone.
 func TestSlotFailure_ConfigFaultFatal(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	req := failingSlotsRequest(cohort)
 	req.Tests = []*types.Test{{Type: types.TEST_T, Field: "g", Params: json.RawMessage(`{"mu":1}`)}}
@@ -755,6 +781,8 @@ func TestSlotFailure_ConfigFaultFatal(t *testing.T) {
 // KEEP path — no preset or include list shapes it away (minimal keeps
 // the failed regression's error beside its identity).
 func TestSlotFailure_ReturnKeepsTheError(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := slotCohort(t, pulse.Options{})
 	for name, ret := range map[string]*types.Return{
 		"minimal":      {Preset: types.ReturnPresetMinimal},
@@ -782,6 +810,8 @@ func TestSlotFailure_ReturnKeepsTheError(t *testing.T) {
 // failed on its data writes no model file (there is no model); the
 // run succeeds with the slot's warning.
 func TestSlotFailure_SaveSkipsAFailedFit(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := slotCohort(t, pulse.Options{})
 	req := failingSlotsRequest(cohort)
 	req.Regressions[0].Save = "models/default.pulse-model.json"
@@ -807,6 +837,8 @@ func TestSlotFailure_SaveSkipsAFailedFit(t *testing.T) {
 // same request with no error and lists the test (predict ≡ runtime on
 // everything the schema decides).
 func TestSlotFailure_ShapiroBelowFiveFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	req := func(cohort string) *types.Request {
 		return &types.Request{
 			Cohort:       &types.Cohort{Filename: cohort},
@@ -867,6 +899,8 @@ func TestSlotFailure_ShapiroBelowFiveFailsAlone(t *testing.T) {
 // It used to report W' = 1, p = 1 with a warning. Predict reads no
 // record, so it accepts the request without naming the refusal.
 func TestSlotFailure_ShapiroZeroVarianceFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	// x < 10 keeps ten rows on which y is 0: constant.
 	base := func(cohort string) *types.Request {
 		return &types.Request{

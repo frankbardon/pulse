@@ -5,31 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"reflect"
-	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	"gonum.org/v1/gonum/mat"
 )
 
-// matrix_merge_invariance_test.go is the U16 E2 gate: the REAL
-// MAT_COVARIANCE and MAT_CORRELATION registrations (no test vehicle)
-// return the same bits
-// serially and under every DecodeWorkers / ShardWorkers count — the
-// TestCoMomentMergeTree_WorkerInvariant contract carried through the
-// production matrix slot. It reuses that test's cohort fixtures
-// (coMomentSchema / coMomentRows / coMomentArchive).
-//
-// Engagement proof: the "with_vehicle" variant carries the vehicle
-// aggregator beside the matrix, whose instance count shows the parallel
-// arm really ran; the matrix-only variant (no aggregation at all) is
-// asserted admitted by the merge gate and bit-equal to it.
+// matrix_merge_invariance_test.go holds the matrix family's request
+// variants (every built-in operator × listwise / pairwise × weighting)
+// and its straight-fold anchor; the worker-invariance gate that runs
+// them is matrix_invariance_test.go (the shared harness).
 
 // matrixInvarianceVariant is one request shape of the gate.
 // typ is the operator (MAT_COVARIANCE when empty); pairwise selects
@@ -171,239 +159,6 @@ func matrixInvarianceRequest(path string, v matrixInvarianceVariant) *types.Requ
 	return req
 }
 
-// matrixRun is everything a parallel arm could get wrong: the matrix
-// bits (every cell and the determinant), the pairwise N (auxiliary.n),
-// the response and matrix warnings, and the run counters.
-type matrixRun struct {
-	words    []uint64
-	auxN     []uint64
-	pairs    []types.MatrixPair
-	pairBits []uint64
-	// relBits are MAT_RELIABILITY's / MAT_PCA's / MAT_COLLINEARITY's /
-	// MAT_FACTOR's
-	// scalars and vectors (and PCA's eigenvectors, collinearity's
-	// variance decomposition), in a fixed key order.
-	relBits   []uint64
-	warnings  []*types.ResponseWarning
-	matWarns  []*types.ResponseWarning
-	run       types.RunComponents
-	comps     []types.MatrixComponents
-	instances int64
-	// anchorTol is the relative tolerance against the reference anchor:
-	// 1e-9, or 1e-6 for MAT_PARTIAL_CORRELATION, whose inversion of
-	// these near-collinear members (x2 ≈ x1 / 2, cond ≈ 1e8) amplifies
-	// the blocked-vs-straight co-moment rounding.
-	anchorTol float64
-}
-
-func runMatrixInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decodeWorkers, shardWorkers int) matrixRun {
-	t.Helper()
-	stats := &vehicleStats{}
-	svc := New(cfg)
-	svc.SetExtensions(coMomentVehicleRegistry(stats))
-	svc.SetDecodeWorkers(decodeWorkers)
-	svc.SetShardWorkers(shardWorkers)
-	resp, err := svc.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Process(decode=%d, shard=%d): %v", decodeWorkers, shardWorkers, err)
-	}
-	if len(resp.Matrices) != 1 || resp.Matrices[0].Primary == nil {
-		t.Fatalf("Process(decode=%d, shard=%d): %d matrices, want 1", decodeWorkers, shardWorkers, len(resp.Matrices))
-	}
-	m := resp.Matrices[0]
-	var words []uint64
-	for _, row := range m.Primary.Values {
-		for _, v := range row {
-			words = append(words, math.Float64bits(v))
-		}
-	}
-	words = append(words, math.Float64bits(m.Scalars["determinant"]))
-	var auxN []uint64
-	if n := m.Auxiliary["n"]; n != nil {
-		for _, row := range n.Values {
-			for _, v := range row {
-				auxN = append(auxN, math.Float64bits(v))
-			}
-		}
-	}
-	pairwise := strings.Contains(string(req.Matrices[0].Params), "pairwise")
-	if (len(auxN) > 0) != pairwise {
-		t.Fatalf("auxiliary.n present = %v, pairwise = %v", len(auxN) > 0, pairwise)
-	}
-	if !pairwise && findWarning(m, errors.PULSE_MATRIX_LISTWISE_HEAVY_DROP) == nil {
-		t.Fatalf("listwise variant carries no PULSE_MATRIX_LISTWISE_HEAVY_DROP (warnings %v)", matWarningCodes(m))
-	}
-	out := matrixRun{words: words, auxN: auxN, warnings: resp.Warnings, matWarns: m.Warnings, instances: stats.instancesWithRows.Load(), anchorTol: 1e-9}
-	if req.Matrices[0].Type == types.MAT_PARTIAL_CORRELATION {
-		out.anchorTol = 1e-6
-	}
-	if req.Matrices[0].Type == types.MAT_CORRELATION {
-		pairs, ok := m.Vectors["top_pairs"].([]types.MatrixPair)
-		if !ok || len(pairs) != 3 {
-			t.Fatalf("Process(decode=%d, shard=%d): top_pairs = %#v, want 3 pairs", decodeWorkers, shardWorkers, m.Vectors["top_pairs"])
-		}
-		out.pairs = pairs
-		for _, pr := range pairs {
-			out.pairBits = append(out.pairBits, math.Float64bits(pr.R))
-		}
-	} else if req.Matrices[0].Type == types.MAT_RELIABILITY {
-		for _, k := range []string{"alpha", "alpha_standardized", "mean_inter_item_r", "omega"} {
-			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
-		}
-		for _, k := range []string{"item_total_r", "alpha_if_deleted", "item_mean", "item_sd"} {
-			vs, ok := m.Vectors[k].([]float64)
-			if !ok || len(vs) != 3 {
-				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
-			}
-			for _, x := range vs {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-	} else if req.Matrices[0].Type == types.MAT_PCA {
-		for _, k := range []string{"kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "components_retained"} {
-			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
-		}
-		for _, k := range []string{"eigenvalues", "explained_variance", "cumulative", "communalities", "kmo_msa"} {
-			vs, ok := m.Vectors[k].([]float64)
-			if !ok || len(vs) != 3 {
-				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
-			}
-			for _, x := range vs {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-		for _, row := range m.Auxiliary["eigenvectors"].Values {
-			for _, x := range row {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-		if pairwise {
-			vs, ok := m.Vectors["rotated_variance"].([]float64)
-			if !ok || len(vs) != 3 || m.Auxiliary["unrotated"] == nil {
-				t.Fatalf("Process(decode=%d, shard=%d): rotated pairwise PCA lacks rotated_variance / unrotated", decodeWorkers, shardWorkers)
-			}
-			for _, x := range vs {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-	} else if req.Matrices[0].Type == types.MAT_SEM {
-		// The fit is a pure function of the merged covariance and N, so
-		// every estimate and fit index is as worker-invariant as they are.
-		for _, k := range []string{"chi2", "chi2_baseline", "cfi", "rmsea", "objective", "n", "iterations"} {
-			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
-		}
-		est := m.Auxiliary["estimates"]
-		if est == nil || len(est.Values) == 0 {
-			t.Fatalf("Process(decode=%d, shard=%d): MAT_SEM carries no estimates", decodeWorkers, shardWorkers)
-		}
-		for _, row := range est.Values {
-			for _, x := range row {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-	} else if req.Matrices[0].Type == types.MAT_COLLINEARITY {
-		for _, k := range []string{"condition_number", "max_vif"} {
-			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
-		}
-		for k, n := range map[string]int{"vif": 3, "tolerance": 3, "condition_indices": 4} {
-			vs, ok := m.Vectors[k].([]float64)
-			if !ok || len(vs) != n {
-				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
-			}
-		}
-		for _, k := range []string{"vif", "tolerance", "condition_indices"} {
-			for _, x := range m.Vectors[k].([]float64) {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-		for _, row := range m.Auxiliary["variance_decomposition"].Values {
-			for _, x := range row {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-	} else if req.Matrices[0].Type == types.MAT_FACTOR {
-		keys := []string{"rmsr", "empirical_chisq", "df", "empirical_p", "kmo", "bartlett_chisq", "bartlett_df", "bartlett_p", "iterations", "converged", "factors_retained"}
-		if _, ml := m.Scalars["likelihood_chisq"]; ml {
-			keys = append(keys, "likelihood_chisq", "likelihood_p", "tli", "rmsea", "rmsea_lower", "rmsea_upper", "bic")
-		}
-		for _, k := range keys {
-			out.relBits = append(out.relBits, math.Float64bits(m.Scalars[k]))
-		}
-		for k, n := range map[string]int{"communalities": 3, "uniquenesses": 3, "variance_accounted": 1} {
-			vs, ok := m.Vectors[k].([]float64)
-			if !ok || len(vs) != n {
-				t.Fatalf("Process(decode=%d, shard=%d): vectors.%s = %#v", decodeWorkers, shardWorkers, k, m.Vectors[k])
-			}
-		}
-		for _, k := range []string{"communalities", "uniquenesses", "variance_accounted"} {
-			for _, x := range m.Vectors[k].([]float64) {
-				out.relBits = append(out.relBits, math.Float64bits(x))
-			}
-		}
-	} else if req.Matrices[0].Type == types.MAT_DISTANCE {
-		sizes, ok := m.Vectors["sizes"].([]float64)
-		if !ok || len(sizes) != 4 || len(m.Primary.RowKeys) != 4 {
-			t.Fatalf("Process(decode=%d, shard=%d): MAT_DISTANCE buckets %v sizes %#v, want 4", decodeWorkers, shardWorkers, m.Primary.RowKeys, m.Vectors["sizes"])
-		}
-		for _, x := range sizes {
-			out.relBits = append(out.relBits, math.Float64bits(x))
-		}
-		for _, k := range []string{"centroids", "centroids_standardized", "pooled_covariance"} {
-			if a := m.Auxiliary[k]; a != nil {
-				for _, row := range a.Values {
-					for _, x := range row {
-						out.relBits = append(out.relBits, math.Float64bits(x))
-					}
-				}
-			}
-		}
-	} else if m.Vectors != nil {
-		t.Fatalf("%s emitted vectors %v", req.Matrices[0].Type, m.Vectors)
-	}
-	if resp.Components == nil || resp.Components.Run == nil {
-		t.Fatalf("Process(decode=%d, shard=%d): no Components.Run", decodeWorkers, shardWorkers)
-	}
-	out.run = *resp.Components.Run
-	out.comps = resp.Components.Matrices
-	if len(out.comps) != 1 {
-		t.Fatalf("Process(decode=%d, shard=%d): %d Components.Matrices entries, want 1", decodeWorkers, shardWorkers, len(out.comps))
-	}
-	if len(req.Aggregations) == 0 && len(resp.Data) != 0 {
-		t.Fatalf("matrix-only request emitted %d data rows, want 0", len(resp.Data))
-	}
-	return out
-}
-
-// assertMatrixRunsEqual: matrix bits exact, warnings and run counters
-// equal.
-func assertMatrixRunsEqual(t *testing.T, label string, got, want matrixRun) {
-	t.Helper()
-	if i := firstWordDiff(got.words, want.words); i != -1 {
-		t.Errorf("%s: matrix differs from serial at word %d", label, i)
-	}
-	if i := firstWordDiff(got.auxN, want.auxN); i != -1 || len(got.auxN) != len(want.auxN) {
-		t.Errorf("%s: auxiliary.n differs from serial at word %d", label, i)
-	}
-	if i := firstWordDiff(got.pairBits, want.pairBits); i != -1 || len(got.pairBits) != len(want.pairBits) || !reflect.DeepEqual(got.pairs, want.pairs) {
-		t.Errorf("%s: top_pairs %+v, serial %+v", label, got.pairs, want.pairs)
-	}
-	if i := firstWordDiff(got.relBits, want.relBits); i != -1 || len(got.relBits) != len(want.relBits) {
-		t.Errorf("%s: operator scalars / vectors differ from serial at word %d", label, i)
-	}
-	if !reflect.DeepEqual(got.warnings, want.warnings) {
-		t.Errorf("%s: warnings %v, serial %v", label, got.warnings, want.warnings)
-	}
-	if !reflect.DeepEqual(got.matWarns, want.matWarns) {
-		t.Errorf("%s: matrix warnings %v, serial %v", label, got.matWarns, want.matWarns)
-	}
-	if got.run != want.run {
-		t.Errorf("%s: Components.Run %+v, serial %+v", label, got.run, want.run)
-	}
-	if !reflect.DeepEqual(got.comps, want.comps) {
-		t.Errorf("%s: Components.Matrices %s, serial %s", label, mustJSON(t, got.comps), mustJSON(t, want.comps))
-	}
-}
-
 // referenceMatrixWords folds rows 0..n-1 straight into one listwise
 // CoMoment and renders the variant's operator (Cov(1) or Corr) as the
 // gate renders the matrix — the correctness anchor (wrong member, wrong
@@ -490,163 +245,13 @@ func referencePartial(t *testing.T, r *linalg.Sym) *linalg.Sym {
 	return out
 }
 
-func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
-	t.Helper()
-	if ref == nil {
-		return
-	}
-	cells := got.words[:len(got.words)-1] // drop the determinant
-	if len(cells) != len(ref) {
-		t.Fatalf("matrix has %d cells, reference %d", len(cells), len(ref))
-	}
-	for i := range ref {
-		x, y := math.Float64frombits(cells[i]), math.Float64frombits(ref[i])
-		if d := math.Abs(x - y); !(d <= got.anchorTol*math.Max(1, math.Max(math.Abs(x), math.Abs(y)))) {
-			t.Errorf("cell %d: %v, reference %v", i, x, y)
-		}
-	}
-}
-
-// TestMatrixCovariance_WorkerInvariant is the matrix worker-invariance
-// gate, for every built-in operator (MAT_COVARIANCE, MAT_CORRELATION): serial == DecodeWorkers 2/3/7/8 ==
-// ShardWorkers 2/3/8 bitwise (every cell and the determinant), on
-// cohorts ending mid-block and on a block boundary, weighted and
-// unweighted, matrix-only and beside an aggregation; a one-shard
-// archive and a multi-shard one (shard edges inside merge blocks) equal
-// their single-file twin bitwise (blocks key by the global record
-// ordinal — .claude/reference/matrix-and-vectors/linalg.md, Blocked
-// merge-tree contract). Listwise and pairwise (params.missing),
-// the pairwise N (auxiliary.n) and the matrix warnings included.
-func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping the 100K-record matrix worker-invariance gate in -short mode")
-	}
-	schema := coMomentSchema()
-	B := linalg.MergeBlockSize
-
-	for _, v := range matrixInvarianceVariants {
-		if !v.withVehicle && !processing.CanMergeRequest(matrixInvarianceRequest("x.pulse", v), schema) {
-			t.Fatalf("%s: the merge gate refuses a matrix-only request", v)
-		}
-	}
-
-	t.Run("DecodeWorkers", func(t *testing.T) {
-		dir := t.TempDir()
-		osFs := afero.NewOsFs()
-		cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-		if err != nil {
-			t.Fatalf("fs.New: %v", err)
-		}
-		for _, n := range []int{25 * B, 25*B + 2777} {
-			if n < parallelDecodeRecordThreshold {
-				t.Fatalf("cohort of %d records is below the parallel-decode threshold", n)
-			}
-			recs, nullAt := coMomentRows(n, 0)
-			path := fmt.Sprintf("%s/matrix_%d.pulse", dir, n)
-			if err := afero.WriteFile(osFs, path, writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
-				t.Fatalf("WriteFile: %v", err)
-			}
-			for _, v := range matrixInvarianceVariants {
-				t.Run(fmt.Sprintf("n%d_%s", n, v), func(t *testing.T) {
-					req := matrixInvarianceRequest(path, v)
-					serial := runMatrixInvariance(t, cfg, req, 1, 0)
-					assertMatrixCloseToReference(t, serial, referenceMatrixWords(t, n, v))
-					for _, workers := range []int{2, 3, 7, 8} {
-						got := runMatrixInvariance(t, cfg, req, workers, 0)
-						if v.withVehicle && got.instances != int64(workers) {
-							t.Fatalf("DecodeWorkers=%d fed %d instances — the parallel reducer did not engage", workers, got.instances)
-						}
-						assertMatrixRunsEqual(t, fmt.Sprintf("DecodeWorkers=%d", workers), got, serial)
-					}
-				})
-			}
-		}
-	})
-
-	t.Run("ShardWorkers", func(t *testing.T) {
-		shardRows := []int{3 * B, 5000, B, 123, 9000, 2*B + 1, 777, 6000}
-		total := 0
-		for _, n := range shardRows {
-			total += n
-		}
-		cfg := fs.NewMemMap()
-		if err := afero.WriteFile(cfg.Fs(), "archive.pulse", coMomentArchive(t, schema, shardRows), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		recs, nullAt := coMomentRows(total, 0)
-		if err := afero.WriteFile(cfg.Fs(), "single.pulse", writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		for _, v := range matrixInvarianceVariants {
-			t.Run(v.String(), func(t *testing.T) {
-				req := matrixInvarianceRequest("archive.pulse", v)
-				serial := runMatrixInvariance(t, cfg, req, 0, 1)
-				assertMatrixCloseToReference(t, serial, referenceMatrixWords(t, total, v))
-				for _, workers := range []int{2, 3, 8} {
-					got := runMatrixInvariance(t, cfg, req, 0, workers)
-					if v.withVehicle && got.instances != int64(len(shardRows)) {
-						t.Fatalf("ShardWorkers=%d fed %d instances — the shard reducer did not engage", workers, got.instances)
-					}
-					assertMatrixRunsEqual(t, fmt.Sprintf("ShardWorkers=%d", workers), got, serial)
-				}
-
-				// Multi-shard archive vs single-file twin: blocks key by
-				// the global record ordinal, so the same bits.
-				single := runMatrixInvariance(t, cfg, matrixInvarianceRequest("single.pulse", v), 0, 0)
-				if i := firstWordDiff(single.words, serial.words); i != -1 {
-					t.Errorf("archive differs from its single-file twin at word %d", i)
-				}
-			})
-		}
-	})
-
-	t.Run("OneShardArchiveMatchesSingleFile", func(t *testing.T) {
-		n := 3*B + 55
-		cfg := fs.NewMemMap()
-		if err := afero.WriteFile(cfg.Fs(), "one.pulse", coMomentArchive(t, schema, []int{n}), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		recs, nullAt := coMomentRows(n, 0)
-		if err := afero.WriteFile(cfg.Fs(), "twin.pulse", writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		for _, v := range matrixInvarianceVariants {
-			a := runMatrixInvariance(t, cfg, matrixInvarianceRequest("one.pulse", v), 0, 0)
-			b := runMatrixInvariance(t, cfg, matrixInvarianceRequest("twin.pulse", v), 0, 0)
-			if i := firstWordDiff(a.words, b.words); i != -1 {
-				t.Errorf("%s: one-shard archive differs from its single file at word %d", v, i)
-			}
-		}
-	})
-
-	t.Run("MatrixOnlyEqualsBesideAggregation", func(t *testing.T) {
-		// The matrix does not depend on what else the request carries.
-		cfg := fs.NewMemMap()
-		n := 2*B + 9
-		recs, nullAt := coMomentRows(n, 0)
-		if err := afero.WriteFile(cfg.Fs(), "m.pulse", writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		for _, typ := range types.AllMatrixTypes() {
-			for _, weighted := range []bool{false, true} {
-				if weighted && typ == types.MAT_SEM {
-					continue // frequency only; these weights are fractional
-				}
-				alone := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, false, typ, false}), 0, 0)
-				beside := runMatrixInvariance(t, cfg, matrixInvarianceRequest("m.pulse", matrixInvarianceVariant{weighted, true, typ, false}), 0, 0)
-				if i := firstWordDiff(alone.words, beside.words); i != -1 {
-					t.Errorf("%s weighted=%v: matrix-only differs from matrix-beside-aggregation at word %d", typ, weighted, i)
-				}
-			}
-		}
-	})
-}
-
 // TestMatrixOnly_RunComponents: a matrix-only request (no aggregation,
 // no grouper) has no primary null field, so Run.NullRecords is 0 on the
 // serial and both parallel arms alike, and the record counters are the
 // cohort's — the parallel reducers must not assume a first aggregator.
 func TestMatrixOnly_RunComponents(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	shardRows := []int{B + 3, 700, 2 * B}
@@ -661,9 +266,17 @@ func TestMatrixOnly_RunComponents(t *testing.T) {
 	req := matrixInvarianceRequest("archive.pulse", matrixInvarianceVariant{})
 	want := types.RunComponents{TotalRecords: int64(total), FilteredRecords: int64(total), ShardCount: len(shardRows)}
 	for _, workers := range []int{1, 3} {
-		got := runMatrixInvariance(t, cfg, req, 0, workers)
-		if got.run != want {
-			t.Errorf("ShardWorkers=%d: Components.Run %+v, want %+v", workers, got.run, want)
+		svc := New(cfg)
+		svc.SetShardWorkers(workers)
+		resp, err := svc.Process(context.Background(), req)
+		if err != nil {
+			t.Fatalf("ShardWorkers=%d: %v", workers, err)
+		}
+		if resp.Components == nil || resp.Components.Run == nil {
+			t.Fatalf("ShardWorkers=%d: no Components.Run", workers)
+		}
+		if got := *resp.Components.Run; got != want {
+			t.Errorf("ShardWorkers=%d: Components.Run %+v, want %+v", workers, got, want)
 		}
 	}
 }

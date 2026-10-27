@@ -79,6 +79,8 @@ func buildTwoCategoricalNumericConflictCSV(rowsPerCell int, seed int64) string {
 // the before/after: same cohort, same two real relationships, one
 // arbitration warning versus none.
 func TestSynth_FromProfileFidelityReport_NamesConflictingCategoricalNumericPairs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := New(Options{FS: fs})
 	if err != nil {
@@ -218,6 +220,8 @@ func TestSynth_FromProfileFidelityReport_NamesConflictingCategoricalNumericPairs
 // the same channel, so a count would be asserting something about
 // predictor selection rather than about arbitration.
 func TestSynth_FromProfileFidelityReport_FitModelsFoldsBothPredictorsIntoOneModel(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := New(Options{FS: fs})
 	if err != nil {

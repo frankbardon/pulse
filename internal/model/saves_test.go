@@ -23,6 +23,8 @@ func saveReq(paths ...string) *types.Request {
 }
 
 func TestCheckSaveDuplicates(t *testing.T) {
+	t.Parallel()
+
 	a := "m/a" + FileSuffix
 	if cerr := CheckRequestSaves(saveReq(a, "m/b"+FileSuffix)); cerr != nil {
 		t.Fatalf("distinct paths refused: %v", cerr)
@@ -75,6 +77,8 @@ func runBatchCasesWithin(t *testing.T, outer Catalog, cases []batchCase) {
 // TestCheckComposeBatch_Saves: every slot's save path (details.request)
 // and every save's uniqueness across fits, fit requests and slots.
 func TestCheckComposeBatch_Saves(t *testing.T) {
+	t.Parallel()
+
 	a, b := "a"+FileSuffix, "b"+FileSuffix
 	fits := []types.FitSpec{{Name: "f", Request: saveReq(b), Save: a}}
 	slot := func(saves ...string) *types.Request { return saveReq(saves...) }

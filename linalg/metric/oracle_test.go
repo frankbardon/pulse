@@ -36,6 +36,8 @@ var metricOracle = map[string]float64{
 // TestMetricsMatchROracle compares every kernel with R within 1e-14
 // relative (R's C may contract a multiply-add; Pulse never does).
 func TestMetricsMatchROracle(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	x := []float64{1, nan, 3, 4, 7}
 	y := []float64{2, 5, nan, 1, 3}

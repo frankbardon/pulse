@@ -49,6 +49,8 @@ func alwaysNullFixture(t *testing.T) *synth.Profile {
 // nullableSampler nulls every row and the constant is a placeholder that
 // is never visible on the wire. It has to be well TYPED, not meaningful.
 func TestSpecFromProfile_AlwaysNullColumnGeneratesAllNullOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	prof := alwaysNullFixture(t)
 
 	const rows = 200

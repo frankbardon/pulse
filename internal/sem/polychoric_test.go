@@ -47,6 +47,8 @@ func readJSON(t *testing.T, path string, v any) {
 // references across the grid: tails to |h|, |k| = 8, ρ = ±1, and either
 // side of the port's branch edges (|ρ| 0.3, 0.75, 0.925).
 func TestPolychoric_BVNMatchesReference(t *testing.T) {
+	t.Parallel()
+
 	var ref bvnReference
 	readJSON(t, "testdata/bvn_reference.json", &ref)
 	if ref.Pbivnorm == "" || len(ref.Points) < 2000 {
@@ -70,6 +72,8 @@ func TestPolychoric_BVNMatchesReference(t *testing.T) {
 // TestPolychoric_BVNLimits: infinite limits reduce exactly; |ρ| > 1 and
 // NaN are NaN; Φ₂ is symmetric in (h, k) and reduces to Φ(h)Φ(k) at 0.
 func TestPolychoric_BVNLimits(t *testing.T) {
+	t.Parallel()
+
 	inf := math.Inf(1)
 	cases := []struct{ h, k, r, want float64 }{
 		{inf, 0.3, 0.5, stdNormCDF(0.3)},
@@ -101,6 +105,8 @@ func TestPolychoric_BVNLimits(t *testing.T) {
 // TestPolychoric_NormalQuantile holds AS 241 to R's qnorm (R 4.6.1,
 // %.17g) across both rational arms, their edges and the deep tail.
 func TestPolychoric_NormalQuantile(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range [][2]float64{
 		{1e-300, -37.047096299361201},
 		{1e-20, -9.262340089798407},
@@ -264,9 +270,13 @@ func fitTwoStepFixture(t *testing.T, name, data string) (twoStepRef, TwoStepInpu
 // to lavaan within 1e-6 and to the independent derivation within 1e-12,
 // on every fixture (grouped and frequency-weighted ones included).
 func TestPolychoric_MatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	const lavTol, indTol = 1e-6, 1e-12
 	for _, fx := range twoStepFixtures {
 		t.Run(fx.ref, func(t *testing.T) {
+			t.Parallel()
+
 			ref, _, stats := fitTwoStepFixture(t, fx.ref, fx.data)
 			if len(stats) != len(ref.Groups) {
 				t.Fatalf("%d groups, reference %d", len(stats), len(ref.Groups))
@@ -317,6 +327,8 @@ func TestPolychoric_MatchesLavaan(t *testing.T) {
 // TestPolychoric_EdgeCases pins the edge fixtures' structural outcomes:
 // the ±0.999 / ±0.995 bounds, lavaan's 2 × 2 shortcuts and zero cells.
 func TestPolychoric_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	pair := func(s *TwoStepStats, vars []string, a, b string) PairEstimate {
 		i, j := slices.Index(vars, a), slices.Index(vars, b)
 		if i < j {
@@ -374,96 +386,6 @@ func TestPolychoric_EdgeCases(t *testing.T) {
 	}
 }
 
-// TestPolychoric_ScoresMatchLavaan holds the casewise scores (Scores:
-// lavaan's SC rows), their cross-product INNER and, for every
-// ordered × ordered pair, A21 = Σ ρ-score · threshold-score (PairScores)
-// to lavaan's muthen1984. The scores are evaluated AT LAVAAN'S
-// ESTIMATES (its thresholds, moments and correlations swapped into the
-// statistics), so the comparison isolates the score code from lavaan's
-// nlminb stop (~1e-7 off the root, which a 1200-row INNER sum would
-// amplify past 1e-5).
-func TestPolychoric_ScoresMatchLavaan(t *testing.T) {
-	near := func(got, want, tol float64) bool {
-		return math.Abs(got-want) <= tol*math.Max(1, math.Abs(want))
-	}
-	for _, fx := range twoStepFixtures {
-		var ref twoStepRef
-		readJSON(t, "testdata/"+fx.ref+"_lavaan.json", &ref)
-		if ref.Scores == nil {
-			continue
-		}
-		t.Run(fx.ref, func(t *testing.T) {
-			_, in, ss := fitTwoStepFixture(t, fx.ref, fx.data)
-			s := atLavaan(ss[0], ref)
-			l := s.Layout()
-			if l.Size != len(ref.Scores.Rows[0]) {
-				t.Fatalf("layout width %d, lavaan SC %d", l.Size, len(ref.Scores.Rows[0]))
-			}
-			sc := make([]float64, l.Size)
-			for r, want := range ref.Scores.Rows {
-				if err := s.Scores(in.Rows[r], sc); err != nil {
-					t.Fatal(err)
-				}
-				for c := range sc {
-					if !near(sc[c], want[c], 1e-9) {
-						t.Errorf("SC[%d][%d] = %.10g, lavaan %.10g", r, c, sc[c], want[c])
-					}
-				}
-			}
-			inner := make([][]float64, l.Size)
-			for i := range inner {
-				inner[i] = make([]float64, l.Size)
-			}
-			a21 := make([][]float64, len(s.Pairs))
-			for k := range a21 {
-				a21[k] = make([]float64, l.Cor)
-			}
-			for _, row := range in.Rows {
-				if err := s.Scores(row, sc); err != nil {
-					t.Fatal(err)
-				}
-				for i := range sc {
-					for j := range sc {
-						inner[i][j] += sc[i] * sc[j]
-					}
-				}
-				for k, p := range s.Pairs {
-					if p.Kind != PairPolychoric {
-						continue
-					}
-					ps := s.PairScores(k, row)
-					for m, d := range ps.ThI {
-						a21[k][l.Th[p.I]+m] += ps.Rho * d
-					}
-					for m, d := range ps.ThJ {
-						a21[k][l.Th[p.J]+m] += ps.Rho * d
-					}
-				}
-			}
-			for i := range inner {
-				for j := range inner[i] {
-					if !near(inner[i][j], ref.Scores.Inner[i][j], 1e-9) {
-						t.Errorf("INNER[%d][%d] = %.10g, lavaan %.10g", i, j, inner[i][j], ref.Scores.Inner[i][j])
-					}
-				}
-			}
-			checked := 0
-			for k, p := range s.Pairs {
-				if p.Kind != PairPolychoric {
-					continue
-				}
-				for c := range a21[k] {
-					checked++
-					if !near(a21[k][c], ref.Scores.A21[k][c], 1e-9) {
-						t.Errorf("A21[%d][%d] = %.10g, lavaan %.10g", k, c, a21[k][c], ref.Scores.A21[k][c])
-					}
-				}
-			}
-			t.Logf("%d SC rows, INNER %d², %d A21 cells checked", len(ref.Scores.Rows), l.Size, checked)
-		})
-	}
-}
-
 // atLavaan returns a copy of s carrying the reference's (single-group)
 // estimates.
 func atLavaan(s *TwoStepStats, ref twoStepRef) *TwoStepStats {
@@ -488,6 +410,8 @@ func atLavaan(s *TwoStepStats, ref twoStepRef) *TwoStepStats {
 // log-likelihood — the non-polychoric pairs' threshold, mean and
 // variance scores included, which lavaan's A21 does not expose.
 func TestPolychoric_PairScoresAreDerivatives(t *testing.T) {
+	t.Parallel()
+
 	_, in, ss := fitTwoStepFixture(t, "poly_extreme", "poly_extreme")
 	s := ss[0]
 	const h = 1e-6
@@ -596,6 +520,8 @@ func pairCaseLogLik(s *TwoStepStats, p PairEstimate, row []float64, rho float64)
 // summation-order rounding (lavaan's oracle replicates; this ties the
 // Go weights to it directly).
 func TestPolychoric_WeightsAreReplication(t *testing.T) {
+	t.Parallel()
+
 	var ref twoStepRef
 	readJSON(t, "testdata/poly_weighted_lavaan.json", &ref)
 	in, _, _ := twoStepInput(t, ref, "testdata/poly_weighted_data.csv")
@@ -634,6 +560,8 @@ func TestPolychoric_WeightsAreReplication(t *testing.T) {
 // levels a group lacks), a constant numeric column and malformed input
 // are typed OrdinalErrors naming the column, the group and the reason.
 func TestPolychoric_Refusals(t *testing.T) {
+	t.Parallel()
+
 	ord2 := []OrdinalKind{KindOrdered, KindOrdered}
 	rows := [][]float64{{0, 0}, {1, 1}, {2, 1}, {0, 0}, {1, 0}, {2, 1}}
 	cases := []struct {
@@ -686,6 +614,8 @@ func TestPolychoric_Refusals(t *testing.T) {
 // interior maximum — lavaan's 0.687378420067 (lavCor, nlminb from the
 // Pearson start) — instead of the lower edge a global edge test picks.
 func TestPolychoric_LocalAscentFromStart(t *testing.T) {
+	t.Parallel()
+
 	freq := [][]float64{{49, 56, 14, 1, 0}, {59, 166, 114, 18, 0}, {7, 98, 216, 72, 2}, {1, 41, 92, 87, 16}, {0, 0, 23, 31, 37}}
 	in := TwoStepInput{Kinds: []OrdinalKind{KindOrdered, KindOrdered}, Levels: []int{5, 5}}
 	for a, row := range freq {
@@ -713,6 +643,8 @@ func TestPolychoric_LocalAscentFromStart(t *testing.T) {
 // than MaxOrderedCategories categories is refused (ReasonTooManyCategories)
 // before any statistic; one at the ceiling fits.
 func TestPolychoric_TooManyCategories(t *testing.T) {
+	t.Parallel()
+
 	build := func(k int) TwoStepInput {
 		in := TwoStepInput{Kinds: []OrdinalKind{KindOrdered, KindOrdered}, Levels: []int{k, 3}}
 		for i := 0; i < 20*k; i++ {

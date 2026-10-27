@@ -51,6 +51,8 @@ func groupRow(t *testing.T, gf *GroupFit, g int, key string) Estimate {
 // service +0.70·0.75 = +0.525, quality 0 — within two standard errors;
 // the reference wave's stay fixed at 0.
 func TestSEM_ScalarLatentMeansRecoverTruth(t *testing.T) {
+	t.Parallel()
+
 	gf, _ := fitInvariance(t, "brand_mg_scalar", "brand", "brand_ms", 0)
 	for f, truth := range map[string]float64{"value": -0.24, "service": 0.525, "quality": 0} {
 		ref, e := groupRow(t, gf, 0, f+" ~1"), groupRow(t, gf, 1, f+" ~1")
@@ -70,6 +72,8 @@ func TestSEM_ScalarLatentMeansRecoverTruth(t *testing.T) {
 // chi-square, and each wave's freed latent means the negation of the
 // other's.
 func TestSEM_InvarianceReferenceGroup(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_ms_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +110,8 @@ func TestSEM_InvarianceReferenceGroup(t *testing.T) {
 // c(...) lists read per group, NA frees a parameter (a first indicator
 // too, leaving no marker), a labelled first indicator stays the marker.
 func TestSEM_ParseModifiers(t *testing.T) {
+	t.Parallel()
+
 	desc := "f =~ x1 + c(a, b)*x2 + c(0.5, NA)*x3\ng =~ NA*x4 + x5 + x6\nh =~ m*x7 + x8\nx1 ~ c(0, NA)*1"
 	m, err := NewGroupModel(desc, ModelOptions{})
 	if err != nil {
@@ -162,6 +168,8 @@ func TestSEM_ParseModifiers(t *testing.T) {
 // GroupSpecErrors naming the knob and the entry; FitGroups refuses
 // levels the modifiers cannot read and two reference groups.
 func TestSEM_InvarianceRefusals(t *testing.T) {
+	t.Parallel()
+
 	desc := "f =~ x1 + x2 + x3\ny ~ f"
 	for _, c := range []struct {
 		opt          ModelOptions

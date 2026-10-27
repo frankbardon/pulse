@@ -184,78 +184,14 @@ func renameXt(s string, c crosstabCellCase) string {
 	return strings.ReplaceAll(s, `"`+string(c.ext)+`"`, `"`+string(c.builtin)+`"`)
 }
 
-// TestExtensions_DeclaredMarginCellFusesCrosstab pins that an extension
-// cell aggregator declaring a non-recompute MarginReducibility takes
-// the fused crosstab arm (gate admits it; the engine drives it only
-// through UpdateRow, never the buffered Aggregate) and that the matrix,
-// margins, auxiliary margin figures, Components and Metadata equal the
-// built-in twin's in every execution mode.
-func TestExtensions_DeclaredMarginCellFusesCrosstab(t *testing.T) {
-	large := parityLargeCohort(t.TempDir())
-	for _, mode := range parityModes(large) {
-		if mode.decorate != nil {
-			continue
-		}
-		t.Run(mode.name, func(t *testing.T) {
-			probe := &parityProbe{}
-			p, path := mode.open(t, crosstabCellExtensions(probe))
-			ctx := context.Background()
-			schema := paritySchema(t)
-			reg := pulse.ServiceForTest(p).Extensions()
-			for _, c := range crosstabCellCases() {
-				t.Run(c.name, func(t *testing.T) {
-					bReq, eReq := c.request(c.builtin, types.AGG_SUM), c.request(c.ext, aggXtSum)
-					bReq.Cohort.Filename, eReq.Cohort.Filename = path, path
-					if ok, why := processing.CanFuseCrosstab(bReq, schema, reg); ok != c.builtinFuses {
-						t.Fatalf("CanFuseCrosstab(built-in %s) = %v (%s), want %v", c.builtin, ok, why, c.builtinFuses)
-					}
-					if ok, why := processing.CanFuseCrosstab(eReq, schema, reg); !ok {
-						t.Errorf("CanFuseCrosstab(extension %s) = false (%s), want true", c.ext, why)
-					}
-					builtin, err := p.Process(ctx, bReq)
-					if err != nil {
-						t.Fatalf("built-in crosstab: %v", err)
-					}
-					probe.reset()
-					ext, err := p.Process(ctx, eReq)
-					if err != nil {
-						t.Fatalf("extension crosstab: %v", err)
-					}
-					if probe.online.Load() == 0 || probe.buffered.Load() != 0 || probe.merges.Load() != 0 {
-						t.Errorf("extension cell path: online=%d buffered=%d merges=%d, want the fused per-record arm only",
-							probe.online.Load(), probe.buffered.Load(), probe.merges.Load())
-					}
-					if c.field == "amount" && probe.decimalReads.Load() == 0 {
-						t.Error("decimal cell: extension never reached DecimalValue")
-					}
-					b, e := mustJSON(t, builtin.Crosstab), renameXt(mustJSON(t, ext.Crosstab), c)
-					if b != e {
-						t.Errorf("Crosstab differs\nbuiltin:   %s\nextension: %s", b, e)
-					}
-					for _, sub := range c.mustContain {
-						if !strings.Contains(b+mustJSON(t, builtin.Components), sub) {
-							t.Fatalf("built-in crosstab lacks %s; parity over nothing proves nothing: %s", sub, b)
-						}
-					}
-					bc, ec := mustJSON(t, builtin.Components), renameXt(mustJSON(t, ext.Components), c)
-					if bc != ec {
-						t.Errorf("Components differ\nbuiltin:   %s\nextension: %s", bc, ec)
-					}
-					if bm, em := mustJSON(t, builtin.Metadata), mustJSON(t, ext.Metadata); bm != em {
-						t.Errorf("Metadata differs\nbuiltin:   %s\nextension: %s", bm, em)
-					}
-				})
-			}
-		})
-	}
-}
-
 // TestExtensions_UndeclaredMarginCellStaysBuffered pins that an
 // extension cell aggregator declaring no MarginReducibility — or
 // recompute — keeps today's behaviour: the gate declines it, the
 // engine drives it through the buffered Aggregate, and the result
 // still equals the built-in's (which itself fused).
 func TestExtensions_UndeclaredMarginCellStaysBuffered(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "parity.pulse", paritySchema(t), 0, paritySmallRows)
@@ -300,6 +236,8 @@ func TestExtensions_UndeclaredMarginCellStaysBuffered(t *testing.T) {
 // independent in role), and a non-Mergeable one declines fusion rather
 // than being dropped.
 func TestExtensions_ExtensionAuxMarginAggregationFuses(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	ext := crosstabCellExtensions(probe)
 	ext.Aggregators = append(ext.Aggregators, paritySumRegistration(probe, aggXtNoMerge, false))
@@ -355,6 +293,8 @@ func marginMismatch(t *testing.T, reg pulse.AggregatorRegistration, reason strin
 // TestExtensions_ProbeAggregator_MarginReducibilityMismatch covers the
 // probe triggers for a declared MarginReducibility.
 func TestExtensions_ProbeAggregator_MarginReducibilityMismatch(t *testing.T) {
+	t.Parallel()
+
 	probe := &parityProbe{}
 	t.Run("unknown_class", func(t *testing.T) {
 		reg := paritySumRegistration(probe, aggXtSum, true)
@@ -399,6 +339,8 @@ func TestExtensions_ProbeAggregator_MarginReducibilityMismatch(t *testing.T) {
 // projection: the declared class reaches the manifest's extensions
 // block; an undeclared registration omits it.
 func TestExtensions_ManifestProjectsMarginReducibility(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: crosstabCellExtensions(&parityProbe{})})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -426,6 +368,8 @@ func TestExtensions_ManifestProjectsMarginReducibility(t *testing.T) {
 // extension cell's DECLARED class through the snapshot, so a declared
 // summable cell is not flagged while an undeclared one still is.
 func TestExtensions_PredictCrosstabNormalizeReadsDeclaredMargin(t *testing.T) {
+	t.Parallel()
+
 	var buf []byte
 	w := &byteSink{b: &buf}
 	if err := encoding.WriteHeader(w); err != nil {

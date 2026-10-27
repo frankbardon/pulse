@@ -9,6 +9,8 @@ import (
 
 // TestRank_WithGaps: values 10, 20, 20, 30 → ranks 1, 2, 2, 4.
 func TestRank_WithGaps(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": 10.0},
 		{"x": 20.0},
@@ -31,6 +33,8 @@ func TestRank_WithGaps(t *testing.T) {
 
 // TestDenseRank_NoGaps: values 10, 20, 20, 30 → dense ranks 1, 2, 2, 3.
 func TestDenseRank_NoGaps(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": 10.0},
 		{"x": 20.0},
@@ -52,6 +56,8 @@ func TestDenseRank_NoGaps(t *testing.T) {
 }
 
 func TestRank_Partitioned(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"region": "us", "x": 10.0},
 		{"region": "us", "x": 20.0},
@@ -88,6 +94,8 @@ func TestRank_Partitioned(t *testing.T) {
 }
 
 func TestRank_Descending(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"x": 5.0},
 		{"x": 10.0},

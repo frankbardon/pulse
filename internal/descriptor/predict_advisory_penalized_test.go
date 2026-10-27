@@ -31,6 +31,8 @@ func penalizedAdvisories(t *testing.T, regs []*types.RegressionSpec, opts *Predi
 // (shared with RegressionResult.Advisories), and the old
 // PROCESSING_REGRESSION_APPROXIMATE_SE warning is gone.
 func TestPredict_AdvisoryPenalizedInference(t *testing.T) {
+	t.Parallel()
+
 	ols := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
 		r := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1}
 		if mut != nil {
@@ -96,6 +98,8 @@ func TestPredict_AdvisoryPenalizedInference(t *testing.T) {
 // keeps the advisory out of errors and warnings (valid stays true), and
 // Options.SuppressAdvisories drops it.
 func TestPredict_AdvisoryPenalizedInferenceNeverEscalated(t *testing.T) {
+	t.Parallel()
+
 	code := string(errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED)
 	regs := []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Penalty: "l1", Alpha: 0.1}}
 	env, got := penalizedAdvisories(t, regs, &PredictOptions{Strict: true})

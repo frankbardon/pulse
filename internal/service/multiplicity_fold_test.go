@@ -34,6 +34,8 @@ func result(tt types.TestType, p float64) *types.TestResult {
 }
 
 func TestFoldRequestMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	holm, bh := types.MultiplicityMethodHolm, types.MultiplicityMethodBH
 	nan := math.NaN()
 	cases := []struct {
@@ -146,6 +148,8 @@ func TestFoldRequestMultiplicity(t *testing.T) {
 // Compose (E3) builds on: `request` families stay inside their scope,
 // `compose` members pool across scopes.
 func TestMultiplicitySites_ScopeKeysFamilies(t *testing.T) {
+	t.Parallel()
+
 	bonf := types.MultiplicityMethodBonferroni
 	plan := func(family types.MultiplicityFamily) *descx.MultiplicityPlan {
 		return &descx.MultiplicityPlan{Tests: []descx.ResolvedMultiplicity{
@@ -382,7 +386,15 @@ func multArchive(t testing.TB, shardRows []int) []byte {
 	return buf.Bytes()
 }
 
+// TestMultiplicityFold_ProcessArms: the request-level fold corrects
+// every serial Process arm (streaming, buffered, crosstab, join) and
+// ProcessStream. The shard-archive arms (serial fallback with tests, the
+// parallel reducer's identity on a test-free request) and the parallel
+// decode arm are the overlay invariance family's
+// (TestOverlayInvariance_{Archive,Heavy}).
 func TestMultiplicityFold_ProcessArms(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "m.pulse", writeNullablePulse(t, multSchema(), multRows(80, 0), nil), 0o644); err != nil {
 		t.Fatal(err)
@@ -396,9 +408,6 @@ func TestMultiplicityFold_ProcessArms(t *testing.T) {
 		rightRecs[i] = []uint64{uint64(i), math.Float64bits(float64(i%7) + 0.1*math.Sin(float64(i)))}
 	}
 	if err := afero.WriteFile(cfg.Fs(), "r.pulse", writePulseFile(t, right, rightRecs), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", multArchive(t, []int{30, 27, 33}), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	base := func(cohort string) *types.Request {
@@ -449,27 +458,6 @@ func TestMultiplicityFold_ProcessArms(t *testing.T) {
 		}
 		assertProcessFold(t, New(cfg), mk)
 	})
-	t.Run("shard archive", func(t *testing.T) {
-		svc := New(cfg)
-		svc.SetShardWorkers(2)
-		// Tests exclude the per-shard parallel arm, so the serial
-		// shard iterator answers and the post-hook corrects it.
-		mk := func() *types.Request { r := base("arch.pulse"); r.Tests = multTests(false); return r }
-		assertProcessFold(t, svc, mk)
-	})
-	t.Run("shard parallel", func(t *testing.T) {
-		svc := New(cfg)
-		svc.SetShardWorkers(2)
-		mk := func() *types.Request { return base("arch.pulse") }
-		cohort, err := svc.Open(context.Background(), "arch.pulse")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := svc.shouldFanOut(mk(), cohort); !ok {
-			t.Fatal("shouldFanOut refused; the parallel arm would not be exercised")
-		}
-		assertNoTestArmIdentical(t, svc, mk)
-	})
 	t.Run("process stream", func(t *testing.T) {
 		// ProcessStream drains a Process response: same gates, same
 		// fold. Its iterator surfaces rows only, which stay identical.
@@ -486,61 +474,5 @@ func TestMultiplicityFold_ProcessArms(t *testing.T) {
 		if err != nil || !ok || row["n"] == nil {
 			t.Fatalf("stream row = %v ok=%v err=%v", row, ok, err)
 		}
-	})
-}
-
-func TestMultiplicityFold_ParallelDecodeArm(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping parallel-decode multiplicity arm in -short mode")
-	}
-	const rowCount = parallelDecodeRecordThreshold + 4096
-	dir := t.TempDir()
-	osFs := afero.NewOsFs()
-	path := dir + "/m.pulse"
-	if err := afero.WriteFile(osFs, path, writeNullablePulse(t, multSchema(), multRows(rowCount, 0), nil), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc := New(cfg)
-	svc.SetDecodeWorkers(4)
-	mergeable := func() *types.Request {
-		return &types.Request{
-			Cohort:       &types.Cohort{Filename: path},
-			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}},
-		}
-	}
-	cohort, err := svc.Open(context.Background(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, perr := svc.processSingleFileParallelMaybe(context.Background(), mergeable(), cohort, path); perr != nil || !ok {
-		t.Fatalf("parallel decode did not engage (ok=%v err=%v)", ok, perr)
-	}
-	t.Run("test-free parallel identical", func(t *testing.T) {
-		assertNoTestArmIdentical(t, svc, mergeable)
-	})
-	t.Run("tests fall back and are corrected", func(t *testing.T) {
-		// At this n every fixture p is ~0; aim the one-sample tests
-		// just off the observed mean so the family holds moderate
-		// p-values the correction visibly moves.
-		avg := mergeable()
-		avg.Aggregations = []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}}
-		resp, err := svc.Process(context.Background(), avg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		mean := resp.Data[0]["m"].(float64)
-		assertProcessFold(t, svc, func() *types.Request {
-			r := mergeable()
-			r.Tests = []*types.Test{
-				{Type: types.TEST_T, Field: "x", Params: json.RawMessage(fmt.Sprintf(`{"mu":%v}`, mean+0.009)), Label: "a"},
-				{Type: types.TEST_T, Field: "x", Params: json.RawMessage(fmt.Sprintf(`{"mu":%v}`, mean+0.005)), Label: "b"},
-				{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y", Label: "r"},
-			}
-			return r
-		})
 	})
 }

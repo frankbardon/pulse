@@ -15,6 +15,8 @@ import (
 // engine, types, errors) would put processing and regression one import
 // away from a cycle, which is the reason this package exists.
 func TestStatdistImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)

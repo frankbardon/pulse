@@ -8,6 +8,8 @@ import (
 )
 
 func TestSampleVariance(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		pop, m2 float64
 		hasM2   bool
@@ -40,6 +42,8 @@ func TestSampleVariance(t *testing.T) {
 // refused, a count / sum cell, an extension or unknown type, an explicit
 // p_source and a normalised host are not.
 func TestPairwiseMeanCellRefusal(t *testing.T) {
+	t.Parallel()
+
 	k := types.OverlayKindPairwisePropZ
 	cases := []struct {
 		pSource string

@@ -79,6 +79,8 @@ func presetOf(t *testing.T, b []byte) string {
 // `return` block is shaped by `standard` (components absent, marker
 // stamped) on every request-carrying tool; a request `full` is unshaped.
 func TestMCPReturnDefault_StandardByDefault(t *testing.T) {
+	t.Parallel()
+
 	p := returnDefaultPulse(t, pulse.Options{})
 	cfg := Config{}
 
@@ -124,6 +126,8 @@ func TestMCPReturnDefault_StandardByDefault(t *testing.T) {
 // (Options / feature profile) > built-in standard; config `full`
 // restores the library's unshaped output byte for byte.
 func TestMCPReturnDefault_Precedence(t *testing.T) {
+	t.Parallel()
+
 	minimal := &types.Return{Preset: types.ReturnPresetMinimal}
 	profile, err := pulse.ExampleFeatureProfile("minimal")
 	if err != nil {
@@ -183,6 +187,8 @@ func TestMCPReturnDefault_Precedence(t *testing.T) {
 // instance keeps components off under a request `return` (default or
 // explicit full); only a request disable_components:false re-opens them.
 func TestMCPReturnDefault_EngineDisableComponentsSticks(t *testing.T) {
+	t.Parallel()
+
 	p := returnDefaultPulse(t, pulse.Options{DisableComponents: true})
 	for _, cfg := range []Config{{}, {DefaultReturn: types.ReturnPresetFull}} {
 		if b := invokeTool(t, p, cfg, toolmeta.ToolProcess, processBody(`,"return":{"preset":"full"}`)); bytes.Contains(b, []byte(`"components"`)) {
@@ -198,6 +204,8 @@ func TestMCPReturnDefault_EngineDisableComponentsSticks(t *testing.T) {
 // TestMCPReturnDefault_ValidateRefusesUnknownPreset: an unknown config
 // preset is PULSE_RETURN_INVALID; empty and every real preset pass.
 func TestMCPReturnDefault_ValidateRefusesUnknownPreset(t *testing.T) {
+	t.Parallel()
+
 	err := Config{DefaultReturn: "lean"}.Validate(nil)
 	var ce *perr.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_RETURN_INVALID {
@@ -216,6 +224,8 @@ func TestMCPReturnDefault_ValidateRefusesUnknownPreset(t *testing.T) {
 // pulse_process — while a spec without inference in the same request
 // still carries no auxiliary.
 func TestMCPReturnDefault_StandardKeepsMatrixInference(t *testing.T) {
+	t.Parallel()
+
 	p := returnDefaultPulse(t, pulse.Options{})
 	body := `{"cohort":{"filename":"imports/data.pulse"},"matrices":[` +
 		`{"name":"inf","type":"MAT_CORRELATION","fields":["id","amount"],"params":{"inference":true}},` +

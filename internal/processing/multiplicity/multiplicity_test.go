@@ -30,6 +30,8 @@ func closeTo(got, want float64) bool {
 }
 
 func TestMultiplicityReferenceValues(t *testing.T) {
+	t.Parallel()
+
 	if !strings.Contains(padjustRefProvenance, "R 4.6.1") {
 		t.Fatalf("fixture provenance %q, want R 4.6.1", padjustRefProvenance)
 	}
@@ -61,6 +63,8 @@ func TestMultiplicityReferenceValues(t *testing.T) {
 }
 
 func TestMultiplicityFixtureCoverage(t *testing.T) {
+	t.Parallel()
+
 	// The generator must keep the edge shapes the story pins.
 	need := []string{"empty", "single", "all_nan", "ties", "nan_interspersed", "zero_and_one", "large_m"}
 	have := map[string]bool{}
@@ -75,6 +79,8 @@ func TestMultiplicityFixtureCoverage(t *testing.T) {
 }
 
 func TestAdjustDoesNotMutateInput(t *testing.T) {
+	t.Parallel()
+
 	in := []float64{0.04, math.NaN(), 0.01, 0.03, 0.01, 0.9}
 	for _, method := range Methods() {
 		t.Run(string(method), func(t *testing.T) {
@@ -96,6 +102,8 @@ func TestAdjustDoesNotMutateInput(t *testing.T) {
 }
 
 func TestAdjustNoneIsExactCopy(t *testing.T) {
+	t.Parallel()
+
 	in := []float64{0.3, math.NaN(), 0, 1, 1e-300, 0.1 + 0.2}
 	got := None(in)
 	for i := range in {
@@ -115,6 +123,8 @@ func TestAdjustNoneIsExactCopy(t *testing.T) {
 }
 
 func TestAdjustProperties(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		p    []float64
@@ -169,6 +179,8 @@ func TestAdjustProperties(t *testing.T) {
 }
 
 func TestFamilySizeExcludesNaN(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		p    []float64
 		want int
@@ -191,6 +203,8 @@ func TestFamilySizeExcludesNaN(t *testing.T) {
 }
 
 func TestMethodValidity(t *testing.T) {
+	t.Parallel()
+
 	for _, m := range Methods() {
 		if !m.Valid() {
 			t.Errorf("%q not Valid", m)

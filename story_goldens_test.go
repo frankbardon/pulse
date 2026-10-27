@@ -26,6 +26,8 @@ import (
 // return.precision (examples.StoryPrecision), so a golden is identical
 // on every architecture.
 func TestExamples_StoryGoldens(t *testing.T) {
+	t.Parallel()
+
 	stories := examples.Stories()
 	if len(stories) == 0 {
 		t.Fatal("no story examples")

@@ -41,6 +41,8 @@ func detailFloat(t *testing.T, d map[string]any, key string) float64 {
 // TestReferenceOracle_AnovaRM: TEST_ANOVA_RM against summary(aov(y ~
 // cond + Error(subj / cond))) on the complete subjects.
 func TestReferenceOracle_AnovaRM(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Name              string    `json:"name"`
 		Subject           []string  `json:"subject"`
@@ -119,6 +121,8 @@ func TestReferenceOracle_AnovaRM(t *testing.T) {
 // g)), p_adj and q_critical refined beyond stock ptukey / qtukey (the
 // U08 pattern; R's own values ride beside as r_*).
 func TestReferenceOracle_TukeyHSD(t *testing.T) {
+	t.Parallel()
+
 	type pair struct {
 		A      string  `json:"a"`
 		B      string  `json:"b"`
@@ -201,6 +205,8 @@ func TestReferenceOracle_TukeyHSD(t *testing.T) {
 // 10) to an absolute 1e-6: a cross-check that the oracle is the
 // package's statistic, not an oracle of its own.
 func TestReferenceOracle_Trend(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Name      string    `json:"name"`
 		Value     []float64 `json:"value"`
@@ -271,6 +277,8 @@ func TestReferenceOracle_Trend(t *testing.T) {
 // own D rounds one ulp above 1 there and reports 0 (r_p_value), the
 // generator's written reason.
 func TestReferenceOracle_KS(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Name      string    `json:"name"`
 		A         []float64 `json:"a"`
@@ -335,6 +343,8 @@ func runPairedRowTest(t *testing.T, name string, rt RowTest, x, y []float64) *ty
 // TestReferenceOracle_KendallTau: TEST_KENDALL_TAU (tau-b) against
 // cor.test(method = "kendall") at its defaults, mostly with ties.
 func TestReferenceOracle_KendallTau(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Name      string    `json:"name"`
 		X         []float64 `json:"x"`
@@ -370,6 +380,8 @@ func TestReferenceOracle_KendallTau(t *testing.T) {
 // TestReferenceOracle_PearsonR: TEST_PEARSON_R against cor.test(x, y,
 // conf.level = 1 - alpha) — r, t, df, p and the Fisher-z interval.
 func TestReferenceOracle_PearsonR(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[struct {
 		Name      string    `json:"name"`
 		Alpha     float64   `json:"alpha"`

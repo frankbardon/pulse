@@ -44,6 +44,8 @@ const extExampleCompose = `{
 }`
 
 func TestLoadExtensionExamples_Valid(t *testing.T) {
+	t.Parallel()
+
 	got, err := LoadExtensionExamples(extSkillFS(map[string]string{
 		"trim.json": extExampleTrim, "two.json": extExampleCompose,
 	}), extSkillSnapshot())
@@ -77,6 +79,8 @@ func TestLoadExtensionExamples_Valid(t *testing.T) {
 // a digit in the interpretation, no return.precision all load and serve
 // the fields exactly as declared.
 func TestLoadExtensionExamples_StoryRulesNotEnforced(t *testing.T) {
+	t.Parallel()
+
 	sub := func(old, new string) string { return strings.Replace(extExampleTrim, old, new, 1) }
 	cases := []struct {
 		name, file, question, interpretation string
@@ -103,6 +107,8 @@ func TestLoadExtensionExamples_StoryRulesNotEnforced(t *testing.T) {
 }
 
 func TestLoadExtensionExamples_Refusals(t *testing.T) {
+	t.Parallel()
+
 	sub := func(old, new string) string { return strings.Replace(extExampleTrim, old, new, 1) }
 	cases := []struct {
 		name   string
@@ -154,6 +160,8 @@ func TestLoadExtensionExamples_Refusals(t *testing.T) {
 // detector, description mention, a built-in skill's See tags), and is no
 // node once an extension operator it names is hidden.
 func TestInstanceOntology_ExtensionExamples(t *testing.T) {
+	t.Parallel()
+
 	exs, err := LoadExtensionExamples(extSkillFS(map[string]string{
 		"trim.json": extExampleTrim, "two.json": extExampleCompose,
 	}), extSkillSnapshot())
@@ -203,6 +211,8 @@ func TestInstanceOntology_ExtensionExamples(t *testing.T) {
 // a profile hiding a built-in operator an embedder example uses prunes
 // it to the nonexistent answer.
 func TestDiscovery_ExtensionExamples(t *testing.T) {
+	t.Parallel()
+
 	exs, err := LoadExtensionExamples(extSkillFS(map[string]string{
 		"trim.json": extExampleTrim, "two.json": extExampleCompose,
 	}), extSkillSnapshot())

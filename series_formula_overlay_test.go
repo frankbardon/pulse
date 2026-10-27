@@ -62,6 +62,8 @@ func sfxSame(a, b float64) bool {
 // baseline (the value at params.baseline_position). Before, the runtime
 // had no SERIES FORMULA handler and both sides refused the host.
 func TestSeriesFormula_Namespace(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := mgRequest(f, []*types.Group{mgRegion()}, psYSum())
 	req.Overlays = []types.OverlaySpec{
@@ -111,6 +113,8 @@ func TestSeriesFormula_Namespace(t *testing.T) {
 // Compose SERIES FORMULA run over the same grouped request as its
 // reference and target slots, row for row and bit for bit.
 func TestSeriesFormula_MatchesComposeSeries(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	const formula = "(value - prior) / total + value * 2"
 	req := mgRequest(f, []*types.Group{mgRegion()}, psYSum())
@@ -155,6 +159,8 @@ func TestSeriesFormula_MatchesComposeSeries(t *testing.T) {
 // Compose slot. Predict accepts what the runtime runs, an embedder
 // ExprFunction included.
 func TestSeriesFormula_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ext := pulse.Extensions{ExprFunctions: []pulse.ExprFunction{{Name: "boost", Fn: func(x float64) float64 { return 2 * x }}}}
 	withExt, err := pulse.New(pulse.Options{FS: f.fs, Extensions: ext})
@@ -230,6 +236,8 @@ func TestSeriesFormula_RefusalsMatchPredict(t *testing.T) {
 // length is a property of the data); a position inside every partition
 // runs.
 func TestSeriesFormula_BaselineOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := mgRequest(f, []*types.Group{mgRegion()}, psYSum())
 	req.Overlays = []types.OverlaySpec{sfxSpec(t, "value / baseline", map[string]any{"baseline_position": 999})}
@@ -247,6 +255,8 @@ func TestSeriesFormula_BaselineOutOfRange(t *testing.T) {
 // third on). OVERLAY_ZSCORE_VS_ROLLING at window 1 (a one-point sample
 // SD: null at every row) is refused by predict and the runtime alike.
 func TestRollingOverlays_Window1(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 	req := mgRequest(f, []*types.Group{mgRegion()}, psYSum())
@@ -296,6 +306,8 @@ func TestRollingOverlays_Window1(t *testing.T) {
 // actual length); over a data-dependent axis (GROUP_RANGE) predict
 // defers and only the runtime refuses. A position inside the bound runs.
 func TestSeriesFormula_BaselineBoundMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 	host := func(pos int, groups ...*types.Group) *types.Request {

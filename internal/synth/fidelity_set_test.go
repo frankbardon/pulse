@@ -21,6 +21,8 @@ import (
 // SourceFrequency echoing the fixture's exact known rate, and Delta
 // landing close to zero.
 func TestBuildFidelityReport_SetFieldMarginalFrequencyDelta(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.03
 	options := []string{"email", "sms", "push", "chat"}
 	const rowCount = 4000
@@ -96,6 +98,8 @@ func TestBuildFidelityReport_SetFieldMarginalFrequencyDelta(t *testing.T) {
 // in records (nil records — no rows at all) must produce an Error per
 // option rather than a fabricated SyntheticFrequency/Delta.
 func TestBuildFidelityReport_SetFieldErrorWhenNoSyntheticObservations(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"a", "b"} {
 		if _, err := dict.Add(v); err != nil {
@@ -139,6 +143,8 @@ func TestBuildFidelityReport_SetFieldErrorWhenNoSyntheticObservations(t *testing
 // variation distance) must land close to zero for every captured
 // option, Error must be unset, and N must be positive.
 func TestBuildSetCategoricalPairwise_ComputesTVDAgainstSourceCells(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.05
 	featureOpts := []string{"darkmode", "export", "api", "sso"}
 	regionOpts := []string{"us", "eu"}
@@ -215,6 +221,8 @@ func TestBuildSetCategoricalPairwise_ComputesTVDAgainstSourceCells(t *testing.T)
 // does not carry can never produce a co-occurring observation, so the
 // entry must carry an Error rather than a fabricated Delta.
 func TestBuildSetCategoricalPairwise_ErrorWhenOptionUnknown(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"export"}
 	regionOpts := []string{"us", "eu"}
 	const rowCount = 2000
@@ -267,6 +275,8 @@ func TestBuildSetCategoricalPairwise_ErrorWhenOptionUnknown(t *testing.T) {
 // each bucket's realized mean/std must land close to the captured
 // mean/std, Error must be unset, and N must be positive.
 func TestBuildSetNumericPairwise_ComputesMeanStdDeltaAgainstSource(t *testing.T) {
+	t.Parallel()
+
 	const meanTolerance = 2.0
 	const stdTolerance = 1.0
 	const rowCount = 8000
@@ -337,6 +347,8 @@ func TestBuildSetNumericPairwise_ComputesMeanStdDeltaAgainstSource(t *testing.T)
 // acceptance test drives), Delta (total variation distance) must land
 // close to zero, Error must be unset, and N must be positive.
 func TestBuildSetSetPairwise_ComputesTVDAgainstSourceCells(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.05
 	const rowCount = 8000
 	const newRows = 20000

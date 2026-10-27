@@ -53,6 +53,8 @@ func cellCountsForRegionSegment() map[[2]string]int {
 // is non-zero. Drives the buffered path explicitly (fusion disabled) so
 // the buffered code path's wiring is exercised end-to-end.
 func TestCrosstabComponents_SmallFixture_CellCountsMatch(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -152,6 +154,8 @@ func TestCrosstabComponents_SmallFixture_CellCountsMatch(t *testing.T) {
 // paths. Drives the same Request through buffered and fused with
 // SetDisableCrosstabFusion and asserts the matrices are reflect-equal.
 func TestCrosstabComponents_BufferedVsFused_ParityBytEqual(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -212,6 +216,8 @@ func TestCrosstabComponents_BufferedVsFused_ParityBytEqual(t *testing.T) {
 // Components.Crosstab slot is still populated so consumers can rely on
 // the typed sub-struct existing whenever Crosstab ran.
 func TestCrosstabComponents_EmptyCohort_AllZero(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	// Empty records: a well-formed .pulse with header + schema but no
 	// record bytes.
@@ -339,6 +345,8 @@ func writeNullableCrosstabCohort(t *testing.T, path string) *fs.Config {
 // Drives both buffered and fused paths to lock the same null-axis
 // semantics on the new component matrix across paths.
 func TestCrosstabComponents_NullAxisRow_DropsFromCellCounts(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeNullableCrosstabCohort(t, "ct.pulse")
 	ctx := context.Background()
 
@@ -403,6 +411,8 @@ func TestCrosstabComponents_NullAxisRow_DropsFromCellCounts(t *testing.T) {
 // one increments IncludedRecords but skips the matrix slot (or vice
 // versa).
 func TestCrosstabComponents_SumInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -491,6 +501,8 @@ func rowColIndex(matrix *types.MatrixPayload) (map[string]int, map[string]int) {
 // buildCellComponentMap path is exercised end-to-end. Per-cell n and
 // n_null come from the per-bucket walk inside runCellAggregation.
 func TestCrosstabComponents_CellComponents_Scalar_AGG_SUM(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -565,6 +577,8 @@ func TestCrosstabComponents_CellComponents_Scalar_AGG_SUM(t *testing.T) {
 // variance} on each populated cell, plus the floor. Numerical match
 // against the manual Welford pass over the (north, retail) bucket.
 func TestCrosstabComponents_CellComponents_Welford_AGG_VARIANCE(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -622,6 +636,8 @@ func TestCrosstabComponents_CellComponents_Welford_AGG_VARIANCE(t *testing.T) {
 // the floor-only family: AGG_COUNT's Components() returns nil, so the
 // merged cell map carries the universal floor {n, n_null} alone.
 func TestCrosstabComponents_CellComponents_FloorOnly_AGG_COUNT(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -668,6 +684,8 @@ func TestCrosstabComponents_CellComponents_FloorOnly_AGG_COUNT(t *testing.T) {
 // received no records emits nil at CellComponents[r][c]. Distinct from
 // an all-null bucket which still emits a populated map with n_null > 0.
 func TestCrosstabComponents_CellComponents_EmptyCellsNil(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -725,6 +743,8 @@ func TestCrosstabComponents_CellComponents_EmptyCellsNil(t *testing.T) {
 // surfaces as a regression in the orchestrator's per-cell {n, n_null}
 // floor or in the cell aggregator's Components() emission.
 func TestCrosstabComponents_CellComponents_BufferedVsFused_ParityByteEqual(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -788,6 +808,8 @@ func TestCrosstabComponents_CellComponents_BufferedVsFused_ParityByteEqual(t *te
 // fused per-record NumericValue probe in Update both surface their
 // floor counters identically.
 func TestCrosstabComponents_CellComponents_NullInputTracking(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeNullableCrosstabCohort(t, "ct.pulse")
 	ctx := context.Background()
 
@@ -856,6 +878,8 @@ func TestCrosstabComponents_CellComponents_NullInputTracking(t *testing.T) {
 // surface the contract drift TestManifestComponentSchemasComplete is
 // designed to catch — this is the cell-level companion test.
 func TestCrosstabComponents_CellComponents_ManifestParity(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -978,6 +1002,8 @@ func manifestAggOperatorKeysForCT(t *testing.T, name string) []string {
 // Drives the buffered path so the cell builder + recompute helpers are
 // exercised end-to-end.
 func TestCrosstabComponents_MarginsPresent_AllSlotsPopulated(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1033,6 +1059,8 @@ func TestCrosstabComponents_MarginsPresent_AllSlotsPopulated(t *testing.T) {
 // margins produces wire output indistinguishable from the pre-margin-
 // emission baseline.
 func TestCrosstabComponents_MarginsAbsent_AllSlotsEmpty(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1080,6 +1108,8 @@ func TestCrosstabComponents_MarginsAbsent_AllSlotsEmpty(t *testing.T) {
 // displayed. Locks the buffered path's recompute consistency against
 // the orchestrator-tracked grand-total counter.
 func TestCrosstabComponents_MarginSumInvariants(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -1142,6 +1172,8 @@ func TestCrosstabComponents_MarginSumInvariants(t *testing.T) {
 // components map carries the orchestrator's universal floor (n=4,
 // n_null=0) plus the cell aggregator's Welford output.
 func TestCrosstabComponents_MarginComponents_WelfordFamily(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1232,6 +1264,8 @@ func TestCrosstabComponents_MarginComponents_WelfordFamily(t *testing.T) {
 // orchestrator's per-margin (n, n_null) floor matches the recomputed
 // margin's record count byte-for-byte.
 func TestCrosstabComponents_Normalized_MarginsConsistent(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1292,6 +1326,8 @@ func TestCrosstabComponents_Normalized_MarginsConsistent(t *testing.T) {
 // ColumnMarginCounts / ColumnMarginComponents / GrandTotalCount /
 // GrandTotalComponents across the buffered and fused paths.
 func TestCrosstabComponents_MarginCounts_BufferedVsFused_ParityByteEqual(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -1363,6 +1399,8 @@ func TestCrosstabComponents_MarginCounts_BufferedVsFused_ParityByteEqual(t *test
 // MetaGrouper bucket map (carrying {key, label, count} for GROUP_CATEGORY)
 // for the matching row key. Length matches MatrixPayload.RowKeys.
 func TestCrosstabComponents_RowKeyComponents_SingleAxis_BucketLayout(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1442,6 +1480,8 @@ func TestCrosstabComponents_RowKeyComponents_SingleAxis_BucketLayout(t *testing.
 // MatrixPayload.RowKeys[r] across the sorted emission order. Same for
 // columns.
 func TestCrosstabComponents_RowKeyComponents_OrderMatchesRowKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1500,6 +1540,8 @@ func TestCrosstabComponents_RowKeyComponents_OrderMatchesRowKeys(t *testing.T) {
 // bucket directly while multi-axis cases wrap each axis position so
 // consumers can identify the contributing axis field.
 func TestCrosstabComponents_RowKeyComponents_MultiAxis_CompositeLayout(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	svc := New(cfg)
@@ -1596,6 +1638,8 @@ func TestCrosstabComponents_RowKeyComponents_MultiAxis_CompositeLayout(t *testin
 // single-axis case + a multi-axis (composite-layout) case so both shapes
 // are exercised.
 func TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSchema()
 	cfg := setupTestFS(t, "ct.pulse", schema, crosstabRecords())
 	ctx := context.Background()
@@ -1667,6 +1711,8 @@ func TestCrosstabComponents_RowKeyComponents_BufferedVsFused_ParityByteEqual(t *
 }
 
 func TestCrosstabComponents_BufferedVsFused_SweepParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeSweepCohort(t, "ct_sweep.pulse")
 	ctx := context.Background()
 

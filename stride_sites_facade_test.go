@@ -66,6 +66,8 @@ func physicalStride(t *testing.T, fsys afero.Fs, path string) (int, bool) {
 // ENCODING_INVALID truncated-tail warning naming the PHYSICAL stride and
 // stride-1 trailing bytes.
 func TestStrideSites_RecordCountEverywhere(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, tw := range strideTwins(t) {
 		for i, fsys := range []afero.Fs{tw.flat, tw.v2} {
@@ -200,6 +202,8 @@ func TestStrideSites_RecordCountEverywhere(t *testing.T) {
 // (id, never a group member) and, for the parent-grouped cohort, by a
 // group MEMBER (parent_code, fanning out to the parent's 12 children).
 func TestStrideSites_LookupLandsOnTheNamedRecord(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, tw := range strideTwins(t) {
 		for i, fsys := range []afero.Fs{tw.flat, tw.v2} {
@@ -259,6 +263,8 @@ func TestStrideSites_LookupLandsOnTheNamedRecord(t *testing.T) {
 // byte-identical to augmenting the 0x01 twin, with every source row
 // carried.
 func TestStrideSites_SynthAugmentFromDedupedSource(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, tw := range strideTwins(t) {
 		t.Run(tw.name, func(t *testing.T) {
@@ -303,6 +309,8 @@ func TestStrideSites_SynthAugmentFromDedupedSource(t *testing.T) {
 // name, and the rewrite is reported by the mandatory
 // PULSE_SHARD_GROUPS_REWRITTEN warning.
 func TestStrideSites_ArchiveRewritersFlattenDeduped(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, tw := range strideTwins(t) {
 		t.Run(tw.name, func(t *testing.T) {

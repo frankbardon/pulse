@@ -28,6 +28,8 @@ func numericCategoricalSchema(t *testing.T) *encoding.Schema {
 }
 
 func TestFilterer_Range_InvalidValues(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	factory := filtererRegistry[types.FILTER_RANGE]
 	builder := factory()
@@ -44,6 +46,8 @@ func TestFilterer_Range_InvalidValues(t *testing.T) {
 }
 
 func TestFilterer_Range_InvalidMinValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	factory := filtererRegistry[types.FILTER_RANGE]
 	builder := factory()
@@ -59,6 +63,8 @@ func TestFilterer_Range_InvalidMinValue(t *testing.T) {
 }
 
 func TestFilterer_Range_InvalidMaxValue(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	factory := filtererRegistry[types.FILTER_RANGE]
 	builder := factory()
@@ -74,6 +80,8 @@ func TestFilterer_Range_InvalidMaxValue(t *testing.T) {
 }
 
 func TestFilterer_Expression_Empty(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	factory := filtererRegistry[types.FILTER_EXPRESSION]
 	builder := factory()
@@ -88,6 +96,8 @@ func TestFilterer_Expression_Empty(t *testing.T) {
 }
 
 func TestFilterer_Include_InvalidValues(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	factory := filtererRegistry[types.FILTER_INCLUDE]
 	builder := factory()
@@ -103,6 +113,8 @@ func TestFilterer_Include_InvalidValues(t *testing.T) {
 }
 
 func TestFilterer_Exclude_InvalidValues(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	factory := filtererRegistry[types.FILTER_EXCLUDE]
 	builder := factory()
@@ -118,6 +130,8 @@ func TestFilterer_Exclude_InvalidValues(t *testing.T) {
 }
 
 func TestFilterer_Include_CategoricalValues(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	fn := makeFilterFunc(t, types.FILTER_INCLUDE, "brand", []string{"Apple"}, "", schema)
 
@@ -141,6 +155,8 @@ func TestFilterer_Include_CategoricalValues(t *testing.T) {
 }
 
 func TestFilterer_Exclude_CategoricalValues(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	fn := makeFilterFunc(t, types.FILTER_EXCLUDE, "brand", []string{"Apple"}, "", schema)
 
@@ -168,6 +184,8 @@ func TestFilterer_Exclude_CategoricalValues(t *testing.T) {
 // and compared against the encoded dictionary index, which silently never
 // matched.
 func TestFilterer_Include_CategoricalNumericValues(t *testing.T) {
+	t.Parallel()
+
 	schema := numericCategoricalSchema(t)
 	fn := makeFilterFunc(t, types.FILTER_INCLUDE, "brand_code", []string{"2178"}, "", schema)
 
@@ -196,6 +214,8 @@ func TestFilterer_Include_CategoricalNumericValues(t *testing.T) {
 }
 
 func TestFilterer_Exclude_CategoricalNumericValues(t *testing.T) {
+	t.Parallel()
+
 	schema := numericCategoricalSchema(t)
 	fn := makeFilterFunc(t, types.FILTER_EXCLUDE, "brand_code", []string{"2178"}, "", schema)
 
@@ -223,6 +243,8 @@ func TestFilterer_Exclude_CategoricalNumericValues(t *testing.T) {
 }
 
 func TestFilterer_Include_CategoricalValueNotInDictionary(t *testing.T) {
+	t.Parallel()
+
 	schema := numericCategoricalSchema(t)
 	factory := filtererRegistry[types.FILTER_INCLUDE]
 	builder := factory()
@@ -242,6 +264,8 @@ func TestFilterer_Include_CategoricalValueNotInDictionary(t *testing.T) {
 }
 
 func TestFilterer_Exclude_CategoricalValueNotInDictionary(t *testing.T) {
+	t.Parallel()
+
 	schema := numericCategoricalSchema(t)
 	factory := filtererRegistry[types.FILTER_EXCLUDE]
 	builder := factory()

@@ -134,6 +134,8 @@ func brandScoreEmit(instance extend.Aggregator) (map[string]any, error) {
 // AggregationComponents wrapper; the operator-specific keys (sum,
 // weights_applied) ride the Operator map.
 func TestExtensions_AggregatorComponents_EmittedToResponse(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:            "AGG_ACME_BRAND_SCORE",
@@ -185,6 +187,8 @@ func TestExtensions_AggregatorComponents_EmittedToResponse(t *testing.T) {
 // gets the universal floor populated unconditionally by the
 // orchestrator. The Operator map stays nil — the floor-only contract.
 func TestExtensions_AggregatorComponents_FloorOnly(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:       "AGG_ACME_FLOOR",
@@ -221,6 +225,8 @@ func TestExtensions_AggregatorComponents_FloorOnly(t *testing.T) {
 }
 
 func TestExtensions_ComponentsFunc_WithoutSchemaRejected(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:           "AGG_ACME_BRAND_SCORE",
@@ -239,6 +245,8 @@ func TestExtensions_ComponentsFunc_WithoutSchemaRejected(t *testing.T) {
 // ComponentsFunc is rejected — the schema would never be satisfied at
 // runtime.
 func TestExtensions_ComponentSchema_WithoutEmitterRejected(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:            "AGG_ACME_BRAND_SCORE",
@@ -256,6 +264,8 @@ func TestExtensions_ComponentSchema_WithoutEmitterRejected(t *testing.T) {
 // that declaring Keys without a Mergeability classification is
 // rejected — every schema must declare intent.
 func TestExtensions_ComponentSchema_MissingMergeabilityRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := descriptor.ComponentSchema{
 		Keys: []descriptor.ComponentKey{
 			{Name: "sum", Type: "float64", Description: "Running sum."},
@@ -276,6 +286,8 @@ func TestExtensions_ComponentSchema_MissingMergeabilityRejected(t *testing.T) {
 }
 
 func TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected(t *testing.T) {
+	t.Parallel()
+
 	emit := func(extend.Aggregator) (map[string]any, error) {
 		return map[string]any{"undeclared_key": 1.0}, nil
 	}
@@ -304,6 +316,8 @@ func TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected(t *testing.T) {
 // manifest can plan ResponseComponents consumption for extension
 // operators without crawling Components.Aggregators per-entry.
 func TestExtensions_Manifest_CarriesExtensionComponentSchema(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:            "AGG_ACME_BRAND_SCORE",
@@ -349,6 +363,8 @@ func manifestAggKeys(m *descriptor.Manifest) []string {
 // through the ExtensionsSnapshot.ComponentSchemas projection — predict
 // stays no-execute.
 func TestExtensions_Predict_CarriesExtensionComponentSchema(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:            "AGG_ACME_BRAND_SCORE",
@@ -386,6 +402,8 @@ func TestExtensions_Predict_CarriesExtensionComponentSchema(t *testing.T) {
 // a registration with matching ComponentSchema + ComponentsFunc passes
 // pulse.New() and yields a working process.
 func TestExtensions_ComponentSchemaParity(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:            "AGG_ACME_BRAND_SCORE",
@@ -420,6 +438,8 @@ func TestExtensions_ComponentSchemaParity(t *testing.T) {
 // supplies a ComponentsFunc without ComponentSchema.Keys is rejected at
 // pulse.New() time with PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
 func TestExtensions_MissingComponentSchema(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name:           "AGG_ACME_BRAND_SCORE",
@@ -438,6 +458,8 @@ func TestExtensions_MissingComponentSchema(t *testing.T) {
 // Keys is rejected with PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA — the
 // "Mergeability set but no Keys (incoherent)" branch of the contract.
 func TestExtensions_MissingComponentSchema_MergeabilityWithoutKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := descriptor.ComponentSchema{
 		// Keys intentionally empty.
 		Mergeability: descriptor.Mergeable,
@@ -460,6 +482,8 @@ func TestExtensions_MissingComponentSchema_MergeabilityWithoutKeys(t *testing.T)
 // rejected at pulse.New() time with
 // PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
 func TestExtensions_ComponentSchemaMismatch(t *testing.T) {
+	t.Parallel()
+
 	emit := func(extend.Aggregator) (map[string]any, error) {
 		return map[string]any{
 			"sum":         42.0,
@@ -490,6 +514,8 @@ func TestExtensions_ComponentSchemaMismatch(t *testing.T) {
 // during probe-validation. The probe wraps the emitter in a deferred
 // recover, so an embedder bug never crashes pulse.New().
 func TestExtensions_ComponentsFunc_PanicDuringProbe(t *testing.T) {
+	t.Parallel()
+
 	emit := func(extend.Aggregator) (map[string]any, error) {
 		panic("boom")
 	}

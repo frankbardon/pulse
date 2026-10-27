@@ -28,6 +28,8 @@ func newDeltaVsBaselineSpec(name string, position int) types.OverlaySpec {
 // produce deltas [0, 5, 15, 20]. The baseline ordinal lands at exactly
 // 0.0 by construction (self-vs-self under subtraction).
 func TestOverlay_DeltaVsBaseline_BasicBaselineAtZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}, {"apr"}}
 	values := []float64{10.0, 15.0, 25.0, 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -79,6 +81,8 @@ func TestOverlay_DeltaVsBaseline_BasicBaselineAtZero(t *testing.T) {
 // ordinal itself reads `0` (self-vs-self under subtraction) and the
 // surrounding ordinals deviate against it with sign preserved.
 func TestOverlay_DeltaVsBaseline_BaselineAtMiddle(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 40.0}
 	host := newStubSeriesHost(keys, values)
@@ -112,6 +116,8 @@ func TestOverlay_DeltaVsBaseline_BaselineAtMiddle(t *testing.T) {
 // Distinct from the INDEX_VS_BASELINE twin where the same fixture fires
 // ONE PULSE_OVERLAY_REF_ZERO warning and emits NaN throughout.
 func TestOverlay_DeltaVsBaseline_ZeroBaselineEmitsNoWarning(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 5.0, 10.0}
 	host := newStubSeriesHost(keys, values)
@@ -150,6 +156,8 @@ func TestOverlay_DeltaVsBaseline_ZeroBaselineEmitsNoWarning(t *testing.T) {
 // [0, -5, 10]. Renderers branch on sign to drive colour ramps; the
 // handler must NOT clamp or absolute-value.
 func TestOverlay_DeltaVsBaseline_NegativeDeltaPreserved(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 5.0, 20.0}
 	host := newStubSeriesHost(keys, values)
@@ -186,6 +194,8 @@ func TestOverlay_DeltaVsBaseline_NegativeDeltaPreserved(t *testing.T) {
 }
 
 func TestOverlay_DeltaVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, math.NaN(), 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -220,6 +230,8 @@ func TestOverlay_DeltaVsBaseline_AbsentPointEmitsNaN(t *testing.T) {
 // INDEX_VS_BASELINE rejection contract — both kinds share the same
 // resolver pipeline.
 func TestOverlay_DeltaVsBaseline_NegativeBaselineRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -238,6 +250,8 @@ func TestOverlay_DeltaVsBaseline_NegativeBaselineRejected(t *testing.T) {
 // fires PULSE_OVERLAY_REF_UNKNOWN with `series_length: 5` via the
 // resolver. Identical to the INDEX_VS_BASELINE rejection shape.
 func TestOverlay_DeltaVsBaseline_OutOfRangeBaselineRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{1.0, 2.0, 3.0, 4.0, 5.0}
 	host := newStubSeriesHost(keys, values)
@@ -258,6 +272,8 @@ func TestOverlay_DeltaVsBaseline_OutOfRangeBaselineRejected(t *testing.T) {
 // the INDEX_VS_BASELINE / INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES /
 // INDEX_VS_PRIOR convention.
 func TestOverlay_DeltaVsBaseline_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}}
 	host := newStubSeriesHost(keys, []float64{1.0})
 	specs := []types.OverlaySpec{{
@@ -291,6 +307,8 @@ func TestOverlay_DeltaVsBaseline_DefaultLayerName(t *testing.T) {
 //	north (150): 150 - 30 = 120
 //	west  (90):  90 - 30  =  60
 func TestOverlay_DeltaVsBaseline_BufferedPath(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newDeltaVsBaselineSpec("delta_baseline", 0),
 	}, true /*forceBuffered*/)
@@ -318,6 +336,8 @@ func TestOverlay_DeltaVsBaseline_BufferedPath(t *testing.T) {
 // INDEX_VS_BASELINE / INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES /
 // INDEX_VS_PRIOR safety pattern.
 func TestOverlay_DeltaVsBaseline_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newDeltaVsBaselineSpec("delta_baseline", 0)
 	_, _, err := applyDeltaVsBaseline(&spec, nil)
 	if err == nil {

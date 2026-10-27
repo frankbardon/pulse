@@ -104,6 +104,8 @@ func undefNoRowWarning(t *testing.T, v any) {
 
 // TestOverlayHosts_UndefinedValueIsMissing: one rule on the three hosts.
 func TestOverlayHosts_UndefinedValueIsMissing(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := elemComposeFixture(t)
 

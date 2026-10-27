@@ -25,6 +25,8 @@ import (
 //
 // Each row's cells sum to 1.0 exactly (the share-of-row contract).
 func TestOverlay_ShareOfRow_CellByCell(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{
@@ -114,6 +116,8 @@ func TestOverlay_ShareOfRow_CellByCell(t *testing.T) {
 // leaves the overlay cells absent. Mirrors the INDEX_VS_MARGIN
 // missing-margin defense.
 func TestOverlay_ShareOfRow_MissingMargin_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	payload.RowMargins = nil // simulate "row margin not computed"
 	host := NewCrosstabHostView(payload)
@@ -158,6 +162,8 @@ func TestOverlay_ShareOfRow_MissingMargin_EmitsWarning(t *testing.T) {
 // zero row-margin denominator surfaces PULSE_OVERLAY_REF_ZERO and
 // emits an absent overlay cell rather than leaking Inf / NaN.
 func TestOverlay_ShareOfRow_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -206,6 +212,8 @@ func TestOverlay_ShareOfRow_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
 // overlay cell without emitting a warning. Defends against false
 // positive warnings for cells that genuinely had no observation.
 func TestOverlay_ShareOfRow_AbsentCellsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	payload := synthIndexMarginPayload()
 	payload.Cells[1][1] = types.MatrixCell{Present: false}
 	host := NewCrosstabHostView(payload)
@@ -235,6 +243,8 @@ func TestOverlay_ShareOfRow_AbsentCellsStayAbsent(t *testing.T) {
 // TestOverlay_ShareOfRow_DefaultLayerName verifies SHARE_OF_ROW
 // synthesises a deterministic default name when Name is omitted.
 func TestOverlay_ShareOfRow_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(synthIndexMarginPayload())
 	specs := []types.OverlaySpec{
 		{

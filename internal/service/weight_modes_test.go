@@ -174,6 +174,8 @@ func assertWeightedUseful(t *testing.T, resp *types.Response) {
 }
 
 func TestShardWorkers_WeightedParity(t *testing.T) {
+	t.Parallel()
+
 	archive := weightModesArchive(t, []int{90, 77, 101})
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "w.pulse", archive, 0o644); err != nil {
@@ -224,47 +226,6 @@ func TestShardWorkers_WeightedParity(t *testing.T) {
 	noReqWeight := weightModesRequest("w.pulse")
 	noReqWeight.Weight = nil
 	got, err := def.Process(context.Background(), noReqWeight)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertWeightedAgree(t, got, want)
-}
-
-func TestDecodeWorkers_WeightedParity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping decode-worker weighted parity in -short mode")
-	}
-	const rowCount = parallelDecodeRecordThreshold + 4096
-	recs, nullAt := weightModesRows(rowCount, 0)
-	payload := writeNullablePulse(t, weightModesSchema(), recs, nullAt)
-	dir := t.TempDir()
-	osFs := afero.NewOsFs()
-	path := dir + "/weighted.pulse"
-	if err := afero.WriteFile(osFs, path, payload, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	serial := New(cfg)
-	serial.SetDecodeWorkers(1)
-	want, err := serial.Process(context.Background(), weightModesRequest(path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertWeightedUseful(t, want)
-
-	par := New(cfg)
-	par.SetDecodeWorkers(4)
-	cohort, err := par.Open(context.Background(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, perr := par.processSingleFileParallelMaybe(context.Background(), processing.StampWeights(weightModesRequest(path), nil), cohort, path); perr != nil || !ok {
-		t.Fatalf("parallel decode did not engage (ok=%v err=%v); the test would compare serial to serial", ok, perr)
-	}
-	got, err := par.Process(context.Background(), weightModesRequest(path))
 	if err != nil {
 		t.Fatal(err)
 	}

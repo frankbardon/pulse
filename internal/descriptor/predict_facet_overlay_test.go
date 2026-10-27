@@ -41,6 +41,8 @@ func buildFacetOverlayPulseBytes(t *testing.T) []byte {
 }
 
 func TestPredict_FacetOverlaysApplied(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 
 	categoryField := json.RawMessage(`{"field":"category"}`)
@@ -126,6 +128,8 @@ func TestPredict_FacetOverlaysApplied(t *testing.T) {
 // The dispatch reads types.OverlayStreamable(kind) — flipping a kind's
 // streamability automatically flips its cost here.
 func TestPredict_FacetOverlayCost_PerKind(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 
 	categoryField := json.RawMessage(`{"field":"category"}`)
@@ -213,6 +217,8 @@ func TestPredict_FacetOverlayCost_PerKind(t *testing.T) {
 // caller asked for overlays. Mirrors PredictResult's empty-but-not-nil
 // guarantee.
 func TestPredict_FacetOverlaysApplied_EmptyWhenNoOverlays(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 	env := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -243,6 +249,8 @@ func TestPredict_FacetOverlaysApplied_EmptyWhenNoOverlays(t *testing.T) {
 // stays aligned with overlayDescriptorName so renderers can correlate the
 // cost map back to the descriptor entry without re-parsing the spec.
 func TestPredict_FacetOverlaysApplied_SynthesizesDefaultName(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 	req := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
@@ -283,6 +291,8 @@ func TestPredict_FacetOverlaysApplied_SynthesizesDefaultName(t *testing.T) {
 }
 
 func TestValidateOverlay_FacetKsOnCategoricalRejected(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 	categoryField := json.RawMessage(`{"field":"category"}`)
 	req := &types.FacetRequest{
@@ -311,6 +321,8 @@ func TestValidateOverlay_FacetKsOnCategoricalRejected(t *testing.T) {
 }
 
 func TestValidateOverlay_FacetPopulationRefUnknown(t *testing.T) {
+	t.Parallel()
+
 	data := buildFacetOverlayPulseBytes(t)
 	unknownField := json.RawMessage(`{"field":"nope"}`)
 	req := &types.FacetRequest{

@@ -188,6 +188,8 @@ func lowExpectedMin(t *testing.T, ws []types.OverlayWarning) float64 {
 // and expected_min read off the SCALED table; Parameters carry
 // sum_weights (+ n_eff); an unweighted host reports df only.
 func TestChiSqMatrix_WeightedHost(t *testing.T) {
+	t.Parallel()
+
 	ct := tallyCT(ctFixture, 2, 3)
 	spec := &types.OverlaySpec{Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix}
 	run := func(basis weighting.Basis) (types.OverlayLayer, []types.OverlayWarning) {
@@ -241,6 +243,8 @@ func TestChiSqMatrix_WeightedHost(t *testing.T) {
 // cells scaled to that margin's Kish n_eff against the unscaled column
 // (row) distribution; each entry's Parameters carry its margin's floor.
 func TestChiSqRowCol_WeightedHost(t *testing.T) {
+	t.Parallel()
+
 	ct := tallyCT(ctFixture, 2, 3)
 	tab := sigmaWTable(ct)
 	g := ct.table.sw
@@ -307,6 +311,8 @@ func TestChiSqRowCol_WeightedHost(t *testing.T) {
 // own n_eff key is emitted under kind frequency (AGG_WEIGHTED_MEAN's
 // map) is not mistaken for a probability host.
 func TestFisherCell_WeightedHost(t *testing.T) {
+	t.Parallel()
+
 	ct := tallyCT(ctFixture, 2, 3)
 	specs := []types.OverlaySpec{{Kind: types.OverlayKindFisherExactCell, Scope: types.OverlayScopeCell}}
 
@@ -383,6 +389,8 @@ func propHost(bases [][]float64, successes []int, basis weighting.Basis) *Crosst
 // unweighted-count modes are PROCESSING_CONFIG on the weighted host;
 // cell_weight_sum under frequency equals the omitted default.
 func TestPairwisePropZ_WeightedHost(t *testing.T) {
+	t.Parallel()
+
 	bases := [][]float64{{4, 1, 1, 6, 2, 1, 1, 3}, {1, 2, 2, 7, 1, 1}}
 	successes := []int{3, 4}
 	spec := func(nSource string) *types.OverlaySpec {
@@ -472,6 +480,8 @@ var ctRefFixture = []ctRec{
 // the row-margin floor and the cell-union fallback agree; a
 // probability row with no readable floor is a missing margin, never Σw.
 func TestPropZCell_WeightedSlots(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.ComposeOverlaySpec{Kind: types.OverlayKindPropZCell, Scope: types.OverlayScopeCell, Reference: "ref", Targets: []string{"t"}}
 	tc, rc := tallyCT(ctFixture, 2, 3), tallyCT(ctRefFixture, 2, 3)
 	for _, basis := range []weighting.Basis{weighting.Unweighted, weighting.Frequency, weighting.Probability} {
@@ -564,6 +574,8 @@ func TestPropZCell_WeightedSlots(t *testing.T) {
 // slot's value and n by its row base's Kish c under probability; an
 // unweighted-count mode on a weighted slot is PROCESSING_CONFIG.
 func TestPropZPanel_WeightedSlots(t *testing.T) {
+	t.Parallel()
+
 	tc, rc := tallyCT(ctFixture, 2, 3), tallyCT(ctRefFixture, 2, 3)
 	spec := &types.ComposeOverlaySpec{Kind: types.OverlayKindPropZPanel, Scope: types.OverlayScopeCell, Reference: "ref", Targets: []string{"t"}}
 	for _, basis := range []weighting.Basis{weighting.Frequency, weighting.Probability} {
@@ -601,6 +613,8 @@ func TestPropZPanel_WeightedSlots(t *testing.T) {
 // fixed distribution); frequency reads it as is; Parameters carry the
 // target's floor.
 func TestChiSqVsRef_WeightedTarget(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.ComposeOverlaySpec{Kind: types.OverlayKindChiSqVsRef, Scope: types.OverlayScopeMatrix, Reference: "ref", Targets: []string{"t"}}
 	tc := tallyCT(ctFixture, 2, 3)
 	stat := func(basis weighting.Basis) *types.OverlaySummary {

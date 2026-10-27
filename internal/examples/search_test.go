@@ -19,6 +19,8 @@ var searchOpts = Options{
 }
 
 func TestTokenize(t *testing.T) {
+	t.Parallel()
+
 	got := Tokenize("Welch's t-test: TEST_T (2-sample)")
 	want := []string{"welch", "s", "t", "test", "test", "t", "2", "sample"}
 	if !slices.Equal(got, want) {
@@ -27,6 +29,8 @@ func TestTokenize(t *testing.T) {
 }
 
 func TestSearchQuery_Tiers(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		q     Query
@@ -84,6 +88,8 @@ func TestSearchQuery_Tiers(t *testing.T) {
 }
 
 func TestSearchQuery_ScoreThenName(t *testing.T) {
+	t.Parallel()
+
 	lib := []*Example{
 		{Name: "a", Description: "spend", Operators: []string{"AGG_SUM"}},
 		{Name: "b", Description: "spend", Operators: []string{"AGG_SUM"}, Tags: []string{"spend"}, Intents: []string{"spend"}},
@@ -96,6 +102,8 @@ func TestSearchQuery_ScoreThenName(t *testing.T) {
 }
 
 func TestSearchQuery_VisibilityBeforeTiers(t *testing.T) {
+	t.Parallel()
+
 	opts := searchOpts
 	opts.KeepExample = func(n string) bool { return n != "zeta" }
 	// zeta alone matches "comparison" literally; hidden, it must not
@@ -118,6 +126,8 @@ func TestSearchQuery_VisibilityBeforeTiers(t *testing.T) {
 // only, budget by token length (≤3 never, 4–7 one edit, ≥8 two), and
 // never consulted when an earlier tier answers.
 func TestSearchQuery_FuzzyTier(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		q     Query
@@ -156,6 +166,8 @@ func TestSearchQuery_FuzzyTier(t *testing.T) {
 }
 
 func TestFuzzyEdits(t *testing.T) {
+	t.Parallel()
+
 	for n, want := range map[int]int{1: 0, 3: 0, 4: 1, 7: 1, 8: 2, 20: 2} {
 		if got := fuzzyEdits(n); got != want {
 			t.Errorf("fuzzyEdits(%d) = %d, want %d", n, got, want)

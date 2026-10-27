@@ -28,6 +28,8 @@ func indexVsPopSpec() *types.OverlaySpec {
 // emitted layer carries one SeriesEntry per host value with
 // Statistic = subset_freq / pop_freq * 100.
 func TestApplyIndexVsPop_DiscreteBasic(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 		{Value: "b", Count: 40},
@@ -100,6 +102,8 @@ func TestApplyIndexVsPop_DiscreteBasic(t *testing.T) {
 }
 
 func TestApplyIndexVsPop_ZeroPopFreq(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 		{Value: "b", Count: 50},
@@ -149,6 +153,8 @@ func TestApplyIndexVsPop_ZeroPopFreq(t *testing.T) {
 // warning. The layer stays well-formed (Shape=series + Summary
 // populated) — distinct from a missing overlay layer slot.
 func TestApplyIndexVsPop_EmptyHostDiscrete(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{}, 0, 0, 0, 0)
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 100},
@@ -177,6 +183,8 @@ func TestApplyIndexVsPop_EmptyHostDiscrete(t *testing.T) {
 // population's histogram. The handler emits one entry per bin with
 // Statistic = subset_bin_freq / pop_bin_freq * 100.
 func TestApplyIndexVsPop_NumericHistogram(t *testing.T) {
+	t.Parallel()
+
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,
 		Histogram: &types.FacetHistogram{
@@ -231,6 +239,8 @@ func TestApplyIndexVsPop_NumericHistogram(t *testing.T) {
 }
 
 func TestApplyIndexVsPop_NumericNoHistogram(t *testing.T) {
+	t.Parallel()
+
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,
 		// No Histogram populated.
@@ -269,6 +279,8 @@ func TestApplyIndexVsPop_NumericNoHistogram(t *testing.T) {
 // numeric host WITH a histogram but a population WITHOUT one emits a
 // single layer-level PULSE_OVERLAY_REF_ZERO warning and zero entries.
 func TestApplyIndexVsPop_NumericPopulationMissingHistogram(t *testing.T) {
+	t.Parallel()
+
 	hostNum := &types.FacetNumeric{
 		Count: 100, Sum: 5000, Mean: 50, Min: 0, Max: 100,
 		Histogram: &types.FacetHistogram{
@@ -311,6 +323,8 @@ func TestApplyIndexVsPop_NumericPopulationMissingHistogram(t *testing.T) {
 // runtime handler. Spec-order layer emission contract: one layer per
 // spec in matching order.
 func TestApplyOverlaysFacet_DispatchesIndexVsPop(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 	}, 1, 50, 50, 0)
@@ -342,6 +356,8 @@ func TestApplyOverlaysFacet_DispatchesIndexVsPop(t *testing.T) {
 // unconditionally (mirrors the MATRIX applyOverlays / SERIES
 // ApplyOverlaysSeries contract).
 func TestApplyOverlaysFacet_EmptySpecsShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	layers, warnings, err := ApplyOverlaysFacet(nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyOverlaysFacet(nil, nil, nil) returned error: %v", err)
@@ -359,6 +375,8 @@ func TestApplyOverlaysFacet_EmptySpecsShortCircuits(t *testing.T) {
 // PULSE_OVERLAY_KIND_UNKNOWN error. Defense in depth — the predict
 // gate should catch the same mismatch at predict time.
 func TestApplyOverlaysFacet_UnknownKind(t *testing.T) {
+	t.Parallel()
+
 	specs := []types.OverlaySpec{
 		{Kind: types.OverlayKind("OVERLAY_DOES_NOT_EXIST")},
 	}
@@ -376,6 +394,8 @@ func TestApplyOverlaysFacet_UnknownKind(t *testing.T) {
 // handler with a nil host, but the failure mode is a coded
 // PROCESSING_INTERNAL error rather than a panic.
 func TestApplyIndexVsPop_NilHost(t *testing.T) {
+	t.Parallel()
+
 	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 100},
 	}, 1, 100, 100, 0)
@@ -396,6 +416,8 @@ func TestApplyIndexVsPop_NilHost(t *testing.T) {
 // when the field is unknown), but the failure mode is a coded
 // PROCESSING_INTERNAL error rather than a panic.
 func TestApplyIndexVsPop_NilPopulation(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 50},
 	}, 1, 50, 50, 0)
@@ -415,6 +437,8 @@ func TestApplyIndexVsPop_NilPopulation(t *testing.T) {
 // future refactors do not silently introduce a streaming-only side
 // channel.
 func TestApplyIndexVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	host := newFacetResultDiscrete("category", []types.FacetValueCount{
 		{Value: "a", Count: 60},
 		{Value: "b", Count: 40},

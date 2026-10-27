@@ -19,6 +19,8 @@ import (
 // accepted the framing and subtype tags of every other extension record the
 // generator emits.
 func TestParseExtensions_ReferenceFixture(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ExtensionReferenceSpec())
 	d := mustParse(t, raw)
 
@@ -183,6 +185,8 @@ func TestParseExtensions_ReferenceFixture(t *testing.T) {
 // discriminant that E4-S4 and E4-S5 hang off. Getting it wrong would silently
 // turn a positional multiple-category set into an additive set_* column.
 func TestParseExtensions_MultipleResponseSets(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ExtensionReferenceSpec())
 	d := mustParse(t, raw)
 
@@ -267,6 +271,8 @@ func TestParseExtensions_MultipleResponseSets(t *testing.T) {
 // definition at a time, because the generator can only emit definitions it
 // considers legal and the reader has to survive the ones it does not.
 func TestParseExtensions_MRSetGrammar(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		subtype int32
@@ -399,6 +405,8 @@ func TestParseExtensions_MRSetGrammar(t *testing.T) {
 // restates 7/7's sets with the extra label-source field rather than declaring
 // new ones, so a name defined twice resolves to the LATER definition.
 func TestParseExtensions_MRSetsMergeAcrossSubtypes(t *testing.T) {
+	t.Parallel()
+
 	d := parseWithExtensions(t,
 		spsstest.RawExtension{Subtype: extMRSets, Size: 1, Payload: []byte("$s=D1 1 3 Old A\n$only7=C 2 Se A\n")},
 		spsstest.RawExtension{Subtype: extMRSetsExtended, Size: 1, Payload: []byte("$s=E 11 1 1 3 New A\n")},
@@ -424,6 +432,8 @@ func TestParseExtensions_MRSetsMergeAcrossSubtypes(t *testing.T) {
 // specification lists, and rejecting such a file rejects data that is
 // otherwise perfectly readable.
 func TestParseExtensions_UnknownSubtypeWarnsOnce(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, spsstest.ExtensionReferenceSpec())
 	baseDict := mustParse(t, base)
 
@@ -474,6 +484,8 @@ func TestParseExtensions_UnknownSubtypeWarnsOnce(t *testing.T) {
 // payload that does not match its declared shape. The framing was sound, so
 // the walk is fine; only the interpretation is dropped.
 func TestParseExtensions_MalformedPayloadsWarnAndSkip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		ext   spsstest.RawExtension
@@ -618,6 +630,8 @@ func TestParseExtensions_MalformedPayloadsWarnAndSkip(t *testing.T) {
 // is legal and common, and every typed slot must degrade to its documented
 // default rather than to a fault.
 func TestParseExtensions_AbsentIsLegal(t *testing.T) {
+	t.Parallel()
+
 	d := mustParse(t, build(t, spsstest.ReferenceSpec()))
 
 	if len(d.extensions) != 0 {
@@ -652,6 +666,8 @@ func TestParseExtensions_AbsentIsLegal(t *testing.T) {
 // shape, which omits the display width. Which shape is in play is decided by
 // the element count against the variable count; there is no flag.
 func TestParseExtensions_TwoFieldDisplayParams(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ExtensionReferenceSpec()
 	spec.OmitDisplayWidth = true
 	d := mustParse(t, build(t, spec))
@@ -679,6 +695,8 @@ func TestParseExtensions_TwoFieldDisplayParams(t *testing.T) {
 // when the file declares a coherent triple — the other half of the
 // "default when absent" rule.
 func TestParseExtensions_SysmisOverride(t *testing.T) {
+	t.Parallel()
+
 	declared := -1e300
 	spec := spsstest.ReferenceSpec()
 	spec.MachineFloatInfo = &spsstest.MachineFloatInfo{
@@ -703,6 +721,8 @@ func TestParseExtensions_SysmisOverride(t *testing.T) {
 // record-type-6 requirement on its own axis: E4-S1's sidecar needs the text,
 // so it must not be trimmed, re-wrapped or dropped.
 func TestParseExtensions_DocumentsSurviveVerbatim(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Documents = []string{"first", "", "  leading and trailing  ", strings.Repeat("x", 80)}
 	d := mustParse(t, build(t, spec))
@@ -732,6 +752,8 @@ func TestParseExtensions_DocumentsSurviveVerbatim(t *testing.T) {
 // desynchronised offset would produce a plausible-looking dictionary that
 // describes nothing in the file.
 func TestParseExtensions_MalformedFramingIsStillFatal(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, spsstest.ReferenceSpec())
 	baseDict := mustParse(t, base)
 

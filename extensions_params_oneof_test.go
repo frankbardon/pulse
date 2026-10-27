@@ -30,6 +30,8 @@ var oneOfParams = append(append([]pulse.ParamMeta(nil), strictParams...),
 // missing Required param wins over the group fault, an unknown key
 // over all of them; one member (either) runs.
 func TestExtensions_ParamsExactlyOneOfEveryCategory(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, withParams(strictExtensions(), oneOfParams))
 	ctx := context.Background()
 	refusals := []struct {
@@ -103,6 +105,8 @@ func TestExtensions_ParamsExactlyOneOfEveryCategory(t *testing.T) {
 // param, a slot carrying no params object at all is refused
 // exactly_one_of (present empty), at predict and runtime alike.
 func TestExtensions_ParamsExactlyOneOfAbsentParams(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, onlyCategory(withParams(strictExtensions(), oneOfParams[1:]), "aggregator"))
 	ctx := context.Background()
 	req := strictCases()[0].request(cohort, nil)

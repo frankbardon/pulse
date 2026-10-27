@@ -27,6 +27,8 @@ func sampledSweep(t *testing.T, mode string, samples int, extra string) *Compose
 // ComposeParallel — slots, ranking and the echoed sweep_seed — and the
 // seed it echoes is the one predict reports, as are its slot labels.
 func TestSweepRandom_ComposeSerialParallelIdentical(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	for _, mode := range []string{"lhs", "random"} {
@@ -87,6 +89,8 @@ func TestSweepRandom_ComposeSerialParallelIdentical(t *testing.T) {
 // included — from Compose and ComposeParallel, and predict reports
 // that seed.
 func TestSweepRandom_KeyOrderSameDraws(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	shuffled := `{"tests":[{"params":{"mu":{"$var":"mu"}},"label":"t","field":"age","type":"TEST_T"}],
@@ -126,6 +130,8 @@ func TestSweepRandom_KeyOrderSameDraws(t *testing.T) {
 // replays the run byte for byte. A grid sweep echoes no seed (the wire
 // is as before: no sweep_seed key, no predict rng_seed).
 func TestSweepRandom_SeedEchoAndReplay(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	pinned, err := p.Compose(ctx, sampledSweep(t, "random", 4, `,"rng_seed":7`))
@@ -170,6 +176,8 @@ func TestSweepRandom_SeedEchoAndReplay(t *testing.T) {
 // message, details) from PredictCompose, Compose and ComposeParallel,
 // before any slot runs.
 func TestSweepRandom_RefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{Limits: Limits{MaxComposeSlots: 4}})
 	axis := func(a string) string {
@@ -212,6 +220,8 @@ func TestSweepRandom_RefusalParity(t *testing.T) {
 // TestSweepRandom_ForEachNeverSamples: an item for_each refuses the
 // sampling modes on every surface with PULSE_FOR_EACH_INVALID.
 func TestSweepRandom_ForEachNeverSamples(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := sweepPulse(t, Options{})
 	var req types.Request
@@ -238,6 +248,8 @@ func TestSweepRandom_ForEachNeverSamples(t *testing.T) {
 // shapes only the top-level overlays, so the echoed sweep_seed — like
 // `ranking` — is always on the wire.
 func TestSweepRandom_SeedPinnedOutsideReturn(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	c := decodeComposedJSON(t, `{"return":{"preset":"minimal","precision":1},"sweep":{"mode":"random","samples":2,"rng_seed":9,
 		"axes":[{"name":"mu","range":{"min":10,"max":60}}],"request":`+rankSweepBody+`}}`)

@@ -46,6 +46,8 @@ var joinedBodyWrap = map[string]func(string) string{
 // without the target (BindForInstance) the joined name is refused — the
 // pre-fix behaviour.
 func TestBind_JoinTargetWidensFieldEnums(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, nil, pulse.Extensions{})
 	join := func(as, rightField string) string {
 		return fmt.Sprintf(`"joins": [{"right": "r.pulse", "as": %q, "on": [{"left_field": "category", "right_field": %q}]}]`, as, rightField)
@@ -118,6 +120,8 @@ func TestBind_JoinTargetWidensFieldEnums(t *testing.T) {
 // capability:joins never advertises a joined name, whatever target the
 // bind was handed.
 func TestBind_JoinTargetIgnoredWhenJoinsHidden(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, &pulse.FeatureProfile{Features: []string{"capability:process", "AGG_SUM"}}, pulse.Extensions{})
 	bound, err := BindForInstanceWithJoins(makeBindSchema(), []JoinTarget{{Schema: makeJoinRightSchema(), As: "r_"}}, inst)
 	if err != nil {

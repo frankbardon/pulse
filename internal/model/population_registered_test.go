@@ -36,6 +36,8 @@ func registeredFixture(t *testing.T) (*Set, FitCatalog) {
 // predict's RegisteredSignature agree name for name. No files binds
 // nothing.
 func TestRegisteredSet(t *testing.T) {
+	t.Parallel()
+
 	if set, err := RegisteredSet(nil); err != nil || set != nil {
 		t.Fatalf("no files: %v %v", set, err)
 	}
@@ -63,6 +65,8 @@ func TestRegisteredSet(t *testing.T) {
 // TestSetClone: a clone holds the same bindings and is independent —
 // binding into it never reaches the original.
 func TestSetClone(t *testing.T) {
+	t.Parallel()
+
 	set, _ := registeredFixture(t)
 	c := set.Clone()
 	if !reflect.DeepEqual(c.Names(), set.Names()) {
@@ -82,6 +86,8 @@ func TestSetClone(t *testing.T) {
 // TestWithinCatalog: a nil outer is the inner catalog unchanged; else
 // both layers resolve.
 func TestWithinCatalog(t *testing.T) {
+	t.Parallel()
+
 	inner := CatalogFromFits([]types.FitSpec{{Name: "f", Request: olsReq(ols())}})
 	if got := WithinCatalog(nil, inner); !reflect.DeepEqual(got, Catalog(inner)) {
 		t.Fatalf("nil outer: %+v", got)
@@ -99,6 +105,8 @@ var registeredSrc = map[string]any{"slot": SlotRegistered}
 // `models` entry naming a registered population is
 // PULSE_MODEL_NAME_COLLISION naming the registered source first.
 func TestCheckRefs_RegisteredCollision(t *testing.T) {
+	t.Parallel()
+
 	set, cat := registeredFixture(t)
 	ok, mok := "p"+PopulationSuffix, "m"+FileSuffix
 	for _, outer := range []Catalog{set, cat} {
@@ -123,6 +131,8 @@ func TestCheckRefs_RegisteredCollision(t *testing.T) {
 // population, a fit request's entry and a slot's entry rebinding one,
 // are each refused; a batch clear of the registered names passes.
 func TestCheckComposeBatch_Registered(t *testing.T) {
+	t.Parallel()
+
 	_, outer := registeredFixture(t)
 	ok := "p" + PopulationSuffix
 	vecReq := func() *types.Request {
@@ -145,6 +155,8 @@ func TestCheckComposeBatch_Registered(t *testing.T) {
 // TestCheckChainModels_Registered: a stage rebinding a registered name
 // is refused, located by details.stage.
 func TestCheckChainModels_Registered(t *testing.T) {
+	t.Parallel()
+
 	_, outer := registeredFixture(t)
 	r := saveReq()
 	r.Populations = pops("brand", "p"+PopulationSuffix)

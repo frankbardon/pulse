@@ -44,6 +44,8 @@ func readsByLabel(slot *types.Request, fit string) bool {
 // TestCheckFitsIn_FromSweep is the table test of every from_sweep
 // PULSE_FIT_INVALID reason, plus the valid binding.
 func TestCheckFitsIn_FromSweep(t *testing.T) {
+	t.Parallel()
+
 	ranked := func(slots ...*types.Request) SweepScope {
 		return SweepScope{Present: true, Ranked: true, Slots: slots, Reads: readsByLabel}
 	}
@@ -97,6 +99,8 @@ func TestCheckFitsIn_FromSweep(t *testing.T) {
 // TestCheckFitsIn_FromSweepSaveAndCollision: a from_sweep fit's save is
 // judged as a regression fit's, and its name joins the one namespace.
 func TestCheckFitsIn_FromSweepSaveAndCollision(t *testing.T) {
+	t.Parallel()
+
 	scope := SweepScope{Present: true, Ranked: true, Slots: []*types.Request{sweepSlot(namedOLS("m", "x"))}}
 	saved := bound("best", "m")
 	saved.Save = "best.pulse-population.json"
@@ -121,6 +125,8 @@ func TestCheckFitsIn_FromSweepSaveAndCollision(t *testing.T) {
 // named regression alone (save cleared), drops every part a fit refuses,
 // and never mutates the slot.
 func TestSweepFitRequest(t *testing.T) {
+	t.Parallel()
+
 	saved := namedOLS("m", "x")
 	saved.Save = "slot" + FileSuffix
 	slot := sweepSlot(namedOLS("other", "x"), saved)
@@ -152,6 +158,8 @@ func TestSweepFitRequest(t *testing.T) {
 // first slot's regression signature into CatalogFromFits; a list without
 // one comes back as the same slice.
 func TestResolveSweepFits_Catalog(t *testing.T) {
+	t.Parallel()
+
 	scope := SweepScope{Present: true, Ranked: true, Slots: []*types.Request{sweepSlot(namedOLS("m", "x", "w")), sweepSlot(namedOLS("m", "x", "w"))}}
 	plain := []types.FitSpec{{Name: "a", Request: olsReq(ols())}}
 	if got := ResolveSweepFits(plain, scope); &got[0] != &plain[0] {
@@ -179,6 +187,8 @@ func TestResolveSweepFits_Catalog(t *testing.T) {
 // regression's declared term catalog reaches the catalog, and a term
 // catalog that varies by slot is refused.
 func TestResolveSweepFits_ModelRegressionTerms(t *testing.T) {
+	t.Parallel()
+
 	hill := func(channels string) *types.RegressionSpec {
 		return &types.RegressionSpec{Type: types.REG_MMM_HILL, Name: "mmm", Target: "sales", Predictors: []string{"tv"}, Params: []byte(`{"channels":` + channels + `}`)}
 	}

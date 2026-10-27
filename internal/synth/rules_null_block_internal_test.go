@@ -18,6 +18,8 @@ import (
 // subtraction's rounding rather than the rule. What is asserted is the
 // pair either side of it.
 func TestNullTogetherWarnings_DivergenceBoundary(t *testing.T) {
+	t.Parallel()
+
 	const gateRate = 0.5
 	// Large enough to survive the float subtraction at both ends of the
 	// boundary without landing on it by accident.
@@ -80,6 +82,8 @@ func TestNullTogetherWarnings_DivergenceBoundary(t *testing.T) {
 // report every member — including the one that agrees with the gate
 // exactly.
 func TestNullTogetherWarnings_DivergenceIsMeasuredAgainstTheGate(t *testing.T) {
+	t.Parallel()
+
 	byName := map[string]FieldSpec{
 		"gate":   {Name: "gate", Type: "u4", Nullable: true, NullRate: 0.90},
 		"agrees": {Name: "agrees", Type: "u4", Nullable: true, NullRate: 0.90},
@@ -102,6 +106,8 @@ func TestNullTogetherWarnings_DivergenceIsMeasuredAgainstTheGate(t *testing.T) {
 // block order, sharing set_null's message shape so the two land in one
 // warning kind.
 func TestNullTogetherWarnings_NonNullableMemberIsReportedPerField(t *testing.T) {
+	t.Parallel()
+
 	byName := map[string]FieldSpec{
 		"a": {Name: "a", Type: "u4", Nullable: true, NullRate: 0.5},
 		"b": {Name: "b", Type: "u4"},
@@ -134,6 +140,8 @@ func TestNullTogetherWarnings_NonNullableMemberIsReportedPerField(t *testing.T) 
 // members that drew one of their own. Without it the block is only
 // half-shared and the all-present rate stays the product.
 func TestApplyNullTogether_CopiesTheGateBothWays(t *testing.T) {
+	t.Parallel()
+
 	block := []string{"a", "b", "c"}
 
 	nullMask := map[string]bool{"a": true, "c": true}

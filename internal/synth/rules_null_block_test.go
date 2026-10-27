@@ -88,6 +88,8 @@ func blockPresence(t *testing.T, data []byte) (perRow []int, allPresent int) {
 //     so claim 2 is a measurement and not a tautology about a block
 //     that was always present.
 func TestRules_NullTogetherSharesOneDecision(t *testing.T) {
+	t.Parallel()
+
 	const rows = 40000
 	ruled, res, err := synth.SynthBytes(
 		npsBlockSpec(rows, nil, []synth.RuleSpec{{NullTogether: npsBlockFields}}),
@@ -141,6 +143,8 @@ func TestRules_NullTogetherSharesOneDecision(t *testing.T) {
 // reading can call incidental — so the realized all-present rate must be
 // the gate's complement 0.10, NOT the members' 0.90 and not any blend.
 func TestRules_NullTogetherCopiesTheFirstFieldsRateAndSaysSo(t *testing.T) {
+	t.Parallel()
+
 	const rows = 20000
 	rates := map[string]float64{
 		"nps": 0.90, "promoter": 0.10, "passive": 0.10, "detractor": 0.10,
@@ -201,6 +205,8 @@ func TestRules_NullTogetherCopiesTheFirstFieldsRateAndSaysSo(t *testing.T) {
 // boundary itself is pinned against the constant in
 // internal/synth/rules_null_block_internal_test.go.
 func TestRules_NullTogetherAgreeingRatesAreSilent(t *testing.T) {
+	t.Parallel()
+
 	rates := map[string]float64{
 		// A coding difference / partial re-ask: within the threshold.
 		"nps": 0.8260, "promoter": 0.8260, "passive": 0.8300, "detractor": 0.8190,
@@ -222,6 +228,8 @@ func TestRules_NullTogetherAgreeingRatesAreSilent(t *testing.T) {
 // a test that only checked "they differ" would pass on a pass that
 // applied the rules in a fixed order of its own.
 func TestRules_NullTogetherAndSetNullComposeByDeclarationOrder(t *testing.T) {
+	t.Parallel()
+
 	const rows = 4000
 	block := synth.RuleSpec{NullTogether: npsBlockFields}
 
@@ -301,6 +309,8 @@ func TestRules_NullTogetherAndSetNullComposeByDeclarationOrder(t *testing.T) {
 // This is the falsification target for the phase order: moving
 // applyNullTogether ahead of the per-field writes fails both halves.
 func TestRules_NullTogetherIsTheRulesLastWord(t *testing.T) {
+	t.Parallel()
+
 	const rows = 2000
 	block := npsBlockFields
 
@@ -341,6 +351,8 @@ func TestRules_NullTogetherIsTheRulesLastWord(t *testing.T) {
 // draw. `tail` is drawn after every block member on every row, so one
 // stolen draw anywhere shifts every subsequent row's tail.
 func TestRules_NullTogetherConsumesNoRNG(t *testing.T) {
+	t.Parallel()
+
 	const rows = 2000
 	ruled, _, err := synth.SynthBytes(
 		npsBlockSpec(rows, nil, []synth.RuleSpec{{NullTogether: npsBlockFields}}),
@@ -374,6 +386,8 @@ func TestRules_NullTogetherConsumesNoRNG(t *testing.T) {
 // pinned rules-free spec must now generate DIFFERENT bytes, and the
 // `when` of a null_together-only rule must be evaluated.
 func TestRules_NullTogetherIsLive(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleFreeSpec()
 	spec.Rules = []synth.RuleSpec{{NullTogether: []string{"perception", "nps"}}}
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 4242})
@@ -428,6 +442,8 @@ func TestRules_NullTogetherIsLive(t *testing.T) {
 // to a row its `when` did not select — the rows outside the gate must
 // keep the independent per-field nulls they drew.
 func TestRules_NullTogetherRespectsItsGate(t *testing.T) {
+	t.Parallel()
+
 	const rows = 20000
 	data, _, err := synth.SynthBytes(
 		npsBlockSpec(rows, nil, []synth.RuleSpec{{When: "aware == 1", NullTogether: npsBlockFields}}),

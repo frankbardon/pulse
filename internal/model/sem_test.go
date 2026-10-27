@@ -18,6 +18,8 @@ func semFitReq() *types.Request {
 }
 
 func TestSEMFit_FitKindOf(t *testing.T) {
+	t.Parallel()
+
 	if k := FitKindOf(semFitReq()); k != types.FitKindSEM {
 		t.Fatalf("MAT_SEM fit request: kind %q, want sem", k)
 	}
@@ -60,6 +62,8 @@ func TestSEMFit_FitKindOf(t *testing.T) {
 }
 
 func TestSEMFit_SetNamespace(t *testing.T) {
+	t.Parallel()
+
 	set := &Set{}
 	sf := &SEMFit{Name: "s", Labels: []string{"a", "b"}}
 	if err := set.AddSEM(sf); err != nil {
@@ -134,6 +138,8 @@ func TestSEMFit_SetNamespace(t *testing.T) {
 }
 
 func TestSEMFit_ResultCopies(t *testing.T) {
+	t.Parallel()
+
 	sf := &SEMFit{Operator: "MAT_SEM", Model: "F =~ a + b + c", Labels: []string{"a", "b", "c"}, Lavaan: true, NearestPD: true, MinEigenvalue: 1e-3,
 		Groups: []SEMGroup{{Lambda: [][]float64{{1}}, Nu: []float64{2}}}}
 	r := sf.Result()

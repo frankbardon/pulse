@@ -14,6 +14,8 @@ import (
 // and the input name is returned verbatim — OsFs treats names as
 // real filesystem paths.
 func TestResolveRealPath_OsFs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewOsFs()
 	got, ok := resolveRealPath(fs, "/tmp/example.pulse")
 	if !ok {
@@ -30,6 +32,8 @@ func TestResolveRealPath_OsFs(t *testing.T) {
 // motivates the story — the old type-assert against *afero.OsFs missed
 // this case.
 func TestResolveRealPath_BasePathFs(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	fs := afero.NewBasePathFs(afero.NewOsFs(), dir)
 	// File must exist for RealPath to be meaningful, but the probe
@@ -60,6 +64,8 @@ func TestResolveRealPath_BasePathFs(t *testing.T) {
 // resolve to a real path. The iterator MUST fall back to afero.ReadFile
 // on MemMapFs so hermetic tests keep working.
 func TestResolveRealPath_MemMapFs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "/cohort.pulse", []byte("payload"), 0o644); err != nil {
 		t.Fatalf("seed memfs: %v", err)
@@ -77,6 +83,8 @@ func TestResolveRealPath_MemMapFs(t *testing.T) {
 // probe. The capability check happens before the OsFs type-switch so a
 // nil fs would otherwise hit a nil interface comparison and panic.
 func TestResolveRealPath_NilFs(t *testing.T) {
+	t.Parallel()
+
 	got, ok := resolveRealPath(nil, "anything")
 	if ok || got != "" {
 		t.Fatalf("nil fs probe got (%q, %v), want (\"\", false)", got, ok)
@@ -102,6 +110,8 @@ func (o *optInFs) RealPath(_ string) (string, error) {
 // implements RealPather opts into the fast path. This is the external
 // extension contract the story calls out.
 func TestResolveRealPath_ExternalCapability(t *testing.T) {
+	t.Parallel()
+
 	external := &optInFs{
 		Fs:       afero.NewMemMapFs(), // underlying fs irrelevant — probe consults the capability
 		resolved: "/real/disk/path.pulse",
@@ -119,6 +129,8 @@ func TestResolveRealPath_ExternalCapability(t *testing.T) {
 // RealPath declines the fast path (so the caller falls back to
 // afero.ReadFile). Documents the contract.
 func TestResolveRealPath_RealPatherError(t *testing.T) {
+	t.Parallel()
+
 	external := &optInFs{
 		Fs:       afero.NewMemMapFs(),
 		resolved: "ignored",
@@ -139,6 +151,8 @@ func TestResolveRealPath_RealPatherError(t *testing.T) {
 // the first Next() on unix. The acceptance criterion that prompted this
 // story.
 func TestStreamingIterator_MmapEngagesOnBasePathFs(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" && runtime.GOOS != "freebsd" {
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
@@ -172,6 +186,8 @@ func TestStreamingIterator_MmapEngagesOnBasePathFs(t *testing.T) {
 // this, MemMapFs tests could silently start hitting an mmap probe that
 // shouldn't fire.
 func TestStreamingIterator_MmapDoesNotEngageOnMemMapFs(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	schema, err := writeBenchPulseFile(memFs, "bench.pulse", shape1Num, 32)
 	if err != nil {
@@ -199,6 +215,8 @@ func TestStreamingIterator_MmapDoesNotEngageOnMemMapFs(t *testing.T) {
 // afero.ReadFile and surface the ReadFile error path, not the mmap
 // error.
 func TestStreamingIterator_MmapFallbackOnUnreadableRealPath(t *testing.T) {
+	t.Parallel()
+
 	// MemMapFs deliberately. The RealPather wrapper claims the file is
 	// at a non-existent on-disk path so mmapFileBytes fails; the
 	// iterator then asks the underlying MemMapFs for the file, which

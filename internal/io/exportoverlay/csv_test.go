@@ -26,6 +26,8 @@ import (
 //   - the warning's Details carry layer_count, layer_names, and
 //     layer_kinds matching the recorded layer slate
 func TestExportJob_Overlays_CSVWarnAndSkip(t *testing.T) {
+	t.Parallel()
+
 	// Baseline export — no overlays. Used to compare the CSV body
 	// byte-for-byte against the overlay-bearing export.
 	baselineFs := importThreeFieldCohort(t)
@@ -98,6 +100,8 @@ func TestExportJob_Overlays_CSVWarnAndSkip(t *testing.T) {
 // the warn-and-skip warning never fires. The CSV body still equals the
 // baseline.
 func TestExportJob_Overlays_CSVWarnAndSkip_OptOutSuppressesWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 	w := pcsv.NewWriter(fs, "out.csv")
 	job := pio.NewExportJob("test.pulse", w)
@@ -120,6 +124,8 @@ func TestExportJob_Overlays_CSVWarnAndSkip_OptOutSuppressesWarning(t *testing.T)
 // "you asked for overlays but CSV cannot carry them," not "CSV cannot
 // carry overlays in general."
 func TestExportJob_Overlays_CSVWarnAndSkip_NoOverlaysNoWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 	w := pcsv.NewWriter(fs, "out.csv")
 	job := pio.NewExportJob("test.pulse", w)

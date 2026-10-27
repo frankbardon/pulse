@@ -38,6 +38,8 @@ func mgsSpec(name string) types.OverlaySpec {
 }
 
 func TestMatrixGroupSummary_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	edit := func(f func(*types.Request)) *types.Request {
@@ -106,6 +108,8 @@ func TestMatrixGroupSummary_RefusalsMatchPredict(t *testing.T) {
 }
 
 func TestMatrixGroupSummary_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	req := mgsRequest(cohort, "", mgsSpec("r"))
@@ -197,6 +201,8 @@ func TestMatrixGroupSummary_EndToEnd(t *testing.T) {
 // once listed only the crosstab and compose hosts, so this valid profile
 // refused the overlay it enables as PULSE_REQUEST_UNKNOWN_FIELD.
 func TestMatrixGroupSummary_MatricesOnlyInstance(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: &pulse.FeatureProfile{Features: []string{

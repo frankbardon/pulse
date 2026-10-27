@@ -28,6 +28,8 @@ func holdoutPredictSchema() *encoding.Schema {
 // buffers once it carries a holdout — predict says so with the holdout
 // reason and the runtime gate (processing.CanStreamRequest) agrees.
 func TestHoldout_PredictStreamableReason(t *testing.T) {
+	t.Parallel()
+
 	schema := holdoutPredictSchema()
 	data := buildTestPulseFile(t, schema)
 	for _, holdout := range []string{"", "t >= 8"} {
@@ -58,6 +60,8 @@ func TestHoldout_PredictStreamableReason(t *testing.T) {
 // cannot score is PULSE_MODEL_SCORE_INVALID reason no_scorer (the walk's
 // model.HoldoutScorerRefusal); a scorable one passes.
 func TestHoldout_NoScorerRefused(t *testing.T) {
+	t.Parallel()
+
 	if cerr := model.HoldoutScorerRefusal(&types.RegressionSpec{Type: types.REG_OLS, Holdout: "x > 1"}, nil); cerr != nil {
 		t.Fatalf("REG_OLS refused: %v", cerr)
 	}
@@ -78,6 +82,8 @@ func TestHoldout_NoScorerRefused(t *testing.T) {
 // its regression (details.path), and the key is absent from the
 // visible keys; enabled, it passes the gate.
 func TestHoldout_HiddenCapabilityRefused(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Holdout: "t > 1"}}}
 	hidden := scopedOnly(featProcess, "REG_OLS")
 	err := SlotRefusal(req, hidden)

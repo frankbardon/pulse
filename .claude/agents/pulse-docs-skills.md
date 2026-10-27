@@ -15,6 +15,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - **Reference indexes:** `update-demand.md`, `execution-modes.md`, `matrix-and-vectors.md` are INDEX + slices — edit the slice, name every new slice in its index (`TestReferenceDocSplitLayout`), keep every pointer resolving (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).
 - **Sites first:** `make sites ARGS="op <TYPE>"` lists the skill / example / docs sites for an operator change before you grep.
 - **No silent deferral:** a companion you cannot write is an obstacle, not a follow-up.
+- **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget.
 
 ## Context discovery
 
@@ -50,7 +51,7 @@ Read the Update Demand table row for the code change you're paired with. Update 
 go test -count=1 ./internal/skills/... ./internal/examples/...
 go test -count=1 ./descriptor/... ./internal/descriptor/...
 go test -count=1 . -run 'TestClaudeMd|TestSkillsCover|TestUpdateDemand|TestReferenceDoc|TestAgentPersona'
-go test -count=1 ./... -run TestExamples
+go test -tags heavy -count=1 ./... -run TestExamples
 GOTOOLCHAIN=go1.26.1 make lint
 ```
 

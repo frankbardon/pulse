@@ -54,6 +54,8 @@ func showcaseReadout(t *testing.T, family string) *types.ComposedRequest {
 // PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT, and family compose silences it
 // with the runtime pooling the twelve into one family.
 func TestPredictCompose_ShowcaseReadoutFamilies(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {

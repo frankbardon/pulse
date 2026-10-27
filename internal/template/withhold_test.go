@@ -25,6 +25,8 @@ func withholdRequestKeys(keys ...string) template.RenderOptions {
 // TestRenderWith_NoWithheldKeySetIsRender: when the body sets no
 // withheld key, RenderWith is Render — same JSON bytes, same typed value.
 func TestRenderWith_NoWithheldKeySetIsRender(t *testing.T) {
+	t.Parallel()
+
 	body := `{"requests": [{"cohort": {"filename": "c.pulse"}, "aggregations": [{"type": "AGG_COUNT", "field": "x"}]}]}`
 	tmpl := targetTmpl(template.TargetComposed, nil, body)
 	want, err := template.Render(tmpl, nil)
@@ -48,6 +50,8 @@ func TestRenderWith_NoWithheldKeySetIsRender(t *testing.T) {
 // engine that does not offer it: valid_keys never lists it and no
 // suggestion names it.
 func TestRenderWith_WithheldKeyIsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	render := func(key string, opts template.RenderOptions) (*perr.CodedError, string) {
 		tmpl := targetTmpl(template.TargetRequest, nil,
 			`{"cohort": {"filename": "c.pulse"}, "`+key+`": {}}`)

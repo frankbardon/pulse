@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -112,9 +113,16 @@ func vexprListwiseSD(rows int) []float64 {
 	return out
 }
 
-var listwiseSDCache = map[int][]float64{}
+// The oracle caches are shared by every (parallel) test and subtest
+// that reads them, so a mutex guards both.
+var (
+	oracleCacheMu   sync.Mutex
+	listwiseSDCache = map[int][]float64{}
+)
 
 func cachedListwiseSD(rows int) []float64 {
+	oracleCacheMu.Lock()
+	defer oracleCacheMu.Unlock()
 	if sd, ok := listwiseSDCache[rows]; ok {
 		return sd
 	}
@@ -181,6 +189,8 @@ var vexprCentroidCache = map[vexprCentroidKey][]float64{}
 // per (rows, key, whether admit filters) — the cases pass a fixed admit.
 func vexprCentroid(rows int, admit func(int) bool, key int) []float64 {
 	ck := vexprCentroidKey{rows, key, !admit(rows)}
+	oracleCacheMu.Lock()
+	defer oracleCacheMu.Unlock()
 	if c, ok := vexprCentroidCache[ck]; ok {
 		return c
 	}
@@ -228,6 +238,8 @@ func cmpOracleCosine(x, r []float64) float64 {
 }
 
 func TestComparison_EveryModeUnderProjection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, m := range vexprModes() {
 		t.Run(m.name, func(t *testing.T) {
@@ -369,6 +381,8 @@ func refCohortModes(t *testing.T, tables map[string]types.ReferenceVectorTable) 
 // n_reference_missing — on every mode, the key column surviving the
 // projection.
 func TestComparison_KeyFieldEveryMode(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	tables := map[string]types.ReferenceVectorTable{
 		"targets": {Labels: []string{"q", "s"}, Profiles: map[string][]float64{"north": {2, 10}, "south": {6, 30}, "east": {1, 5}}},
@@ -436,6 +450,8 @@ func TestComparison_KeyFieldEveryMode(t *testing.T) {
 // direction split (with its pointer), the metric requirement, the
 // literal / table label checks.
 func TestComparison_RefusalsPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := openReferenceCohort(t, map[string]types.ReferenceVectorTable{
 		"t":     {Labels: []string{"q", "s"}, Profiles: map[string][]float64{"north": {1, 2}}},
@@ -489,6 +505,8 @@ func TestComparison_RefusalsPredictRuntimeParity(t *testing.T) {
 // for a row-local metric and the two-pass decline of a fitted one from
 // crosstab fusion — each as the runtime behaves.
 func TestComparison_PredictReadings(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := vexprModes()[0].open(t)
 	scale := []types.VectorSpec{{Name: "battery", Fields: []string{"b*"}, Kind: types.VectorKindScale}}
@@ -580,6 +598,8 @@ func TestComparison_PredictReadings(t *testing.T) {
 // unsigned-integer key_field (qty, u32) matches the table by its
 // base-10 form; a clean slot warns nothing.
 func TestComparison_RowWarningsEveryMode(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	byQty := map[string][]float64{}
 	for k := 0; k < 10; k++ {

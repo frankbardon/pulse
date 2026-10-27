@@ -24,6 +24,8 @@ func codedOf(t *testing.T, err error) *perr.CodedError {
 // PULSE_REQUEST_UNKNOWN_FIELD, located by details.path (the first
 // offending key) and, inside a nested request, by its location key.
 func TestDecode_UnknownKeyAtEveryDepth(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		decode   func([]byte) error
@@ -127,6 +129,8 @@ func decodeAs[T any](raw []byte) error {
 // A known key decodes exactly as encoding/json does, case-insensitive
 // matching included; a wrong-typed value stays the plain json error.
 func TestDecode_KnownKeysDecode(t *testing.T) {
+	t.Parallel()
+
 	req, err := Decode[types.Request]([]byte(`{"cohort":{"filename":"c"},"Sort":[{"field":"a","desc":true}],"aggregations":[{"type":"AGG_SUM","field":"x","params":{"anything":1},"weight":"w"}]}`), Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -143,6 +147,8 @@ func TestDecode_KnownKeysDecode(t *testing.T) {
 
 // `_meta` is tolerated at the document root only under AllowMeta.
 func TestDecode_MetaTolerance(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"_meta":{"name":"x"},"cohort":{"filename":"c"}}`)
 	if _, err := Decode[types.Request](body, Options{AllowMeta: true}); err != nil {
 		t.Fatalf("root _meta under AllowMeta: %v", err)
@@ -159,6 +165,8 @@ func TestDecode_MetaTolerance(t *testing.T) {
 // A hidden key is refused as unknown and is never a valid key or a
 // suggestion.
 func TestDecode_HiddenKeysRefused(t *testing.T) {
+	t.Parallel()
+
 	hide := func(t reflect.Type) []string {
 		switch t {
 		case reflect.TypeFor[types.Request]():
@@ -189,6 +197,8 @@ func TestDecode_HiddenKeysRefused(t *testing.T) {
 
 // The message says the key is refused, not ignored.
 func TestUnknownFieldError_MessageSaysRefused(t *testing.T) {
+	t.Parallel()
+
 	ce := UnknownFieldError("", []string{"filters"}, []string{"filterers"})
 	for _, banned := range []string{"ignored during decode", "silently dropped."} {
 		if strings.Contains(ce.Message, banned) {
@@ -204,6 +214,8 @@ func TestUnknownFieldError_MessageSaysRefused(t *testing.T) {
 // edit distance would reach; an unaliased key keeps the nearest-key
 // guess; valid_keys is [] (never null) for an object with no keys.
 func TestUnknownFieldErrorAliased_SuggestsAlias(t *testing.T) {
+	t.Parallel()
+
 	ce := UnknownFieldErrorAliased("groups[0].params", []string{"unit", "week_strat"},
 		[]string{"component", "week_start"}, map[string]string{"unit": "component"})
 	sug := ce.Details["suggestions"].(map[string]any)
@@ -224,6 +236,8 @@ func TestUnknownFieldErrorAliased_SuggestsAlias(t *testing.T) {
 // `correlation` → `rho`): the same key elsewhere gets the nearest-key
 // guess only.
 func TestDecode_AliasesSuggestPerType(t *testing.T) {
+	t.Parallel()
+
 	type pair struct {
 		A   string  `json:"a"`
 		Rho float64 `json:"rho"`

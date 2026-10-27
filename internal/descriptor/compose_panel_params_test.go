@@ -43,6 +43,8 @@ func composePanelRequest(params map[string]any) *types.ComposedRequest {
 // spec that names no panel params must be indistinguishable from the
 // pre-params baseline on every surface, envelope included.
 func TestValidateCompose_PanelParamsAbsentAndEmptyAreClean(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		params map[string]any
@@ -51,6 +53,8 @@ func TestValidateCompose_PanelParamsAbsentAndEmptyAreClean(t *testing.T) {
 		{"empty object", map[string]any{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			env := ValidateCompose(composePanelRequest(tc.params))
 			if len(env.Errors) != 0 {
 				t.Fatalf("expected a clean envelope, got %+v", env.Errors)
@@ -68,6 +72,8 @@ func TestValidateCompose_PanelParamsAbsentAndEmptyAreClean(t *testing.T) {
 // The Details shape matches validateOverlayPairwise's so one renderer
 // branch handles both families.
 func TestValidateCompose_PanelParamsMalformedRefused(t *testing.T) {
+	t.Parallel()
+
 	// A channel is the one value a map[string]any params slot can hold
 	// that the JSON encoder cannot represent — the COMPOSE carrier is
 	// already-decoded, so this is the reachable malformed shape while
@@ -104,6 +110,8 @@ func TestValidateCompose_PanelParamsMalformedRefused(t *testing.T) {
 // the caller to the wrong knob. The cap gate returns, so a spec that is
 // both over-cap and malformed reports the cap ALONE.
 func TestValidateCompose_PanelOverCapFiresBeforeParams(t *testing.T) {
+	t.Parallel()
+
 	requests := []*types.Request{matrixCrosstabRequest("ref", "row", "col")}
 	targets := make([]string, 0, 4)
 	for i := 1; i <= 4; i++ {
@@ -139,6 +147,8 @@ func TestValidateCompose_PanelOverCapFiresBeforeParams(t *testing.T) {
 // the cap but not the params type, so a blob that would refuse on the
 // prop-Z panel must not refuse here.
 func TestValidateCompose_PanelParamsGateScopedToPropZPanel(t *testing.T) {
+	t.Parallel()
+
 	req := composePanelRequest(map[string]any{"n_source": make(chan int)})
 	req.Overlays[0].Kind = types.OverlayKindPanelIndexVsRef
 	env := ValidateCompose(req)

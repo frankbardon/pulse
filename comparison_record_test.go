@@ -134,6 +134,8 @@ func respJSON(t *testing.T, r *Response) string {
 // slot, a materialized column — and predict, which never looks up, is
 // clean.
 func TestComparisonRecord_ScoresAsLiteral(t *testing.T) {
+	t.Parallel()
+
 	fsys, _ := recordFacadeFS(t)
 	ctx := context.Background()
 	cohortBytes, err := afero.ReadFile(fsys, vecFacadeCohort)
@@ -224,6 +226,8 @@ func TestComparisonRecord_ScoresAsLiteral(t *testing.T) {
 // Process and Compose alike; predict does static validation only, so
 // it is clean for each.
 func TestComparisonRecord_LookupRefusals(t *testing.T) {
+	t.Parallel()
+
 	fsys, p := recordFacadeFS(t)
 	ctx := context.Background()
 	cohortBytes, err := afero.ReadFile(fsys, vecFacadeCohort)
@@ -276,6 +280,8 @@ func TestComparisonRecord_LookupRefusals(t *testing.T) {
 // TestComparisonRecord_StaticRefusalParity: the static shape refusals
 // predict reports are the runtime's (the shared decode).
 func TestComparisonRecord_StaticRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	fsys, p := recordFacadeFS(t)
 	ctx := context.Background()
 	cohortBytes, err := afero.ReadFile(fsys, vecFacadeCohort)

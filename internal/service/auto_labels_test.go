@@ -12,6 +12,8 @@ import (
 // augments a grouped-aggregation result with the <field>_label sibling
 // without the caller passing any Labels on the request.
 func TestAutoLabels_ProcessAugments(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada", "USA": "USofA"}},
@@ -47,6 +49,8 @@ func TestAutoLabels_ProcessAugments(t *testing.T) {
 // TestAutoLabels_SampleAugments verifies the Sample path injects the
 // default binding too.
 func TestAutoLabels_SampleAugments(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada"}},
@@ -68,6 +72,8 @@ func TestAutoLabels_SampleAugments(t *testing.T) {
 // TestAutoLabels_AbsentFieldSkipped verifies a default for a field that
 // is not in the cohort schema is silently skipped — no error, no column.
 func TestAutoLabels_AbsentFieldSkipped(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"brand_names": {Rows: map[string]string{"1": "Nike"}},
@@ -89,6 +95,8 @@ func TestAutoLabels_AbsentFieldSkipped(t *testing.T) {
 // TestAutoLabels_NonCategoricalSkipped verifies a default targeting a
 // non-categorical field is skipped rather than failing validation.
 func TestAutoLabels_NonCategoricalSkipped(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"x": {Rows: map[string]string{"k": "v"}},
@@ -111,6 +119,8 @@ func TestAutoLabels_NonCategoricalSkipped(t *testing.T) {
 // a table absent from the registry is skipped at request time (the hard
 // error path is pulse.New's validateAutoLabels, not the service layer).
 func TestAutoLabels_UnregisteredTableSkipped(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States"}},
@@ -132,6 +142,8 @@ func TestAutoLabels_UnregisteredTableSkipped(t *testing.T) {
 // TestAutoLabels_CallerBindingWins verifies a caller-supplied binding for
 // a field suppresses the default for that same field (no double binding).
 func TestAutoLabels_CallerBindingWins(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupCategoricalCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada"}},

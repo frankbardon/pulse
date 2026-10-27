@@ -21,6 +21,8 @@ import (
 // instance's ExtensionsSnapshot, so dropping that snapshot from the
 // predict options refuses every extension name the runtime admits.
 func TestPredictChain_ExtensionOperatorsMatchProcessChain(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	const cohort = "chain_ext.pulse"
 	writeParityCohort(t, fsys, cohort, paritySchema(t), 0, paritySmallRows)

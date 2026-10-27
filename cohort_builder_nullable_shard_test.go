@@ -18,6 +18,8 @@ import (
 // is set exactly on its nulls, so the bitmap is really written), and the
 // archive reads every row back exactly under the canonical flags.
 func TestCohortBuilder_NonNullableShardInNullableArchive(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := memBuilderEngine(t)
 	arch := precheckBase()

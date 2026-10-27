@@ -43,6 +43,8 @@ import (
 // folds them (ExtensionRegistry.WithParams); a name the fence does not
 // declare fails (exprenv.ParamsRefusal), never a fixture-wide default.
 func TestExprDocExamples_Compile(t *testing.T) {
+	t.Parallel()
+
 	exprs := harvestDocExpressions(t)
 	if len(exprs) < 6 {
 		t.Fatalf("harvested only %d expression examples; the extractor is broken", len(exprs))
@@ -383,6 +385,8 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 // expression-language skill, so a function added to exprenv
 // without a documented row fails here.
 func TestExprBuiltinsDocumented(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "skills", "expression-language.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -398,6 +402,8 @@ func TestExprBuiltinsDocumented(t *testing.T) {
 // TestExprDocExamples_HarvestsBuiltinCalls guards the harvest itself:
 // the inventory's inline built-in calls must reach the compile check.
 func TestExprDocExamples_HarvestsBuiltinCalls(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]bool{
 		"vmax(vzscore([q1, q2, q3]))": false, "pow(score, 2)": false,
 		// attribute-composition's named-vector worked example.
@@ -419,6 +425,8 @@ func TestExprDocExamples_HarvestsBuiltinCalls(t *testing.T) {
 // request-params' worked example reaches the compile check carrying
 // the params its fence declares.
 func TestExprDocExamples_HarvestsFenceParams(t *testing.T) {
+	t.Parallel()
+
 	const src = "panel == params.from_wave && age >= params.min_age"
 	for _, ex := range harvestDocExpressions(t) {
 		if ex.src != src {
@@ -441,6 +449,8 @@ func TestExprDocExamples_HarvestsFenceParams(t *testing.T) {
 // template variable's declared type — and a `"key": {...}` fragment
 // fence decodes as the object it belongs to, never as its bare key.
 func TestExprDocExamples_FenceParamsResolveMarkers(t *testing.T) {
+	t.Parallel()
+
 	sweep := `"sweep": {
   "axes": [{"name": "w", "values": [2, 3]}],
   "request": {"params": {"w": {"$var": "w"}}}

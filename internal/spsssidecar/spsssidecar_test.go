@@ -3,6 +3,8 @@ package spsssidecar
 import "testing"
 
 func TestPath(t *testing.T) {
+	t.Parallel()
+
 	if got := Path("dir/data.pulse"); got != "dir/data.pulse.spss.json" {
 		t.Fatalf("Path = %q, want dir/data.pulse.spss.json", got)
 	}

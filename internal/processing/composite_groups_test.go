@@ -13,6 +13,8 @@ import (
 // nothing at all when any position is empty (a null key at any
 // position).
 func TestCompositeKeySet_Expand(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		sets   [][]string
@@ -53,6 +55,8 @@ func TestCompositeKeySet_Expand(t *testing.T) {
 // TestCompositeKeySet_ExpandWidthMismatch: a key-set count that is not
 // the grouper count is an internal error, never a silent truncation.
 func TestCompositeKeySet_ExpandWidthMismatch(t *testing.T) {
+	t.Parallel()
+
 	set := NewCompositeKeySet(2)
 	if err := set.Expand([][]string{{"a"}}, func(string) error { return nil }); err == nil {
 		t.Fatal("width mismatch accepted")
@@ -62,6 +66,8 @@ func TestCompositeKeySet_ExpandWidthMismatch(t *testing.T) {
 // TestCompositeKeySet_RepeatAllocatesNothing: a combination already
 // observed is looked up, not rebuilt.
 func TestCompositeKeySet_RepeatAllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	set := NewCompositeKeySet(2)
 	sets := [][]string{{"north"}, {"F"}}
 	emit := func(string) error { return nil }
@@ -75,6 +81,8 @@ func TestCompositeKeySet_RepeatAllocatesNothing(t *testing.T) {
 
 // TestCompositeKeySet_Merge: a partial's keys join with their tuples.
 func TestCompositeKeySet_Merge(t *testing.T) {
+	t.Parallel()
+
 	a, b := NewCompositeKeySet(2), NewCompositeKeySet(2)
 	emit := func(string) error { return nil }
 	_ = a.Expand([][]string{{"n"}, {"F"}}, emit)
@@ -88,6 +96,8 @@ func TestCompositeKeySet_Merge(t *testing.T) {
 // TestOrderCompositeGroupKeys: each position orders by its own grouper's
 // native order (include list first, else alphabetical), outer → inner.
 func TestOrderCompositeGroupKeys(t *testing.T) {
+	t.Parallel()
+
 	outer := &categoryGrouper{include: buildIncludeFilter([]string{"west", "north"})}
 	inner := &categoryGrouper{}
 	set := NewCompositeKeySet(2)
@@ -106,6 +116,8 @@ func TestOrderCompositeGroupKeys(t *testing.T) {
 // TestWriteGroupKeyColumns: each column comes from its tuple element,
 // under the grouper's key column (GROUP_KMEANS → GROUP_KMEANS_<first>).
 func TestWriteGroupKeyColumns(t *testing.T) {
+	t.Parallel()
+
 	row := map[string]any{}
 	WriteGroupKeyColumns(row, []*types.Group{
 		{Type: types.GROUP_CATEGORY, Field: "region"},
@@ -120,6 +132,8 @@ func TestWriteGroupKeyColumns(t *testing.T) {
 // TestPartitionComposite_MaxGroupsObserved: the limit trips on the
 // observed composite count, not on either grouper's count.
 func TestPartitionComposite_MaxGroupsObserved(t *testing.T) {
+	t.Parallel()
+
 	recs := []*Record{
 		NewRecord(nil, map[string]float64{"a": 1, "b": 1}),
 		NewRecord(nil, map[string]float64{"a": 1, "b": 2}),

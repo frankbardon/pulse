@@ -13,6 +13,8 @@ import (
 // through skills.Get as their renderer's output, and listed in the
 // manifest's skills.
 func TestGuidanceSkills_Registered(t *testing.T) {
+	t.Parallel()
+
 	render := map[string]func() string{
 		skills.VirtualGlossary: RenderGlossarySkill,
 		skills.VirtualIntents:  RenderIntentsSkill,
@@ -58,6 +60,8 @@ func headingsAt(body, prefix string) []string {
 // TestRenderGlossarySkill: one section per term, sorted by ID, each
 // carrying its definition and why-it-matters prose; deterministic.
 func TestRenderGlossarySkill(t *testing.T) {
+	t.Parallel()
+
 	body := RenderGlossarySkill()
 	if body != RenderGlossarySkill() {
 		t.Fatal("glossary render is not deterministic")
@@ -78,6 +82,8 @@ func TestRenderGlossarySkill(t *testing.T) {
 // TestRenderIntentsSkill: analytic intents, then tooling intents, each
 // sorted by ID, every phrasing listed; deterministic.
 func TestRenderIntentsSkill(t *testing.T) {
+	t.Parallel()
+
 	body := RenderIntentsSkill()
 	if body != RenderIntentsSkill() {
 		t.Fatal("intents render is not deterministic")
@@ -109,6 +115,8 @@ func TestRenderIntentsSkill(t *testing.T) {
 }
 
 func TestRoleCount(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		min, max int
 		want     string

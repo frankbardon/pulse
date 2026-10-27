@@ -211,6 +211,8 @@ func execArmCases(t *testing.T) []armCase {
 }
 
 func TestObservabilityExecArms(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cases := execArmCases(t)
 
@@ -252,6 +254,8 @@ func TestObservabilityExecArms(t *testing.T) {
 //
 // Falsified by sourcing the counters from Components.Run.
 func TestObservabilityExecRowsIndependentOfComponents(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	on := true
 	variants := []struct {
@@ -294,6 +298,8 @@ func TestObservabilityExecRowsIndependentOfComponents(t *testing.T) {
 // Falsified by dropping the counting wrapper (countReads) or the
 // noteMapped call.
 func TestObservabilityExecBytesRead(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	t.Run("afero_read", func(t *testing.T) {
 		rec := &execRecorder{}

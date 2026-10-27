@@ -58,6 +58,8 @@ func buildCategoricalCohort(t *testing.T) (*Service, string) {
 }
 
 func TestFacetSchema_DiscreteAndNumeric(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 
 	req := &types.FacetRequest{
@@ -99,6 +101,8 @@ func TestFacetSchema_DiscreteAndNumeric(t *testing.T) {
 }
 
 func TestFacetSchema_ValidationUnknownField(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: path},
@@ -110,6 +114,8 @@ func TestFacetSchema_ValidationUnknownField(t *testing.T) {
 }
 
 func TestFacetSchema_ValidationEmptyFields(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{Cohort: &types.Cohort{Filename: path}}
 	if _, err := svc.FacetSchema(context.Background(), req); err == nil {
@@ -118,6 +124,8 @@ func TestFacetSchema_ValidationEmptyFields(t *testing.T) {
 }
 
 func TestFacetSchema_DiscreteTopKTruncation(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort:       &types.Cohort{Filename: path},
@@ -141,6 +149,8 @@ func TestFacetSchema_DiscreteTopKTruncation(t *testing.T) {
 }
 
 func TestFacetSchema_NumericPercentiles(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort:             &types.Cohort{Filename: path},
@@ -167,6 +177,8 @@ func TestFacetSchema_NumericPercentiles(t *testing.T) {
 }
 
 func TestFacetSchema_NumericHistogram(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort:           &types.Cohort{Filename: path},
@@ -196,6 +208,8 @@ func TestFacetSchema_NumericHistogram(t *testing.T) {
 }
 
 func TestFacetSchema_AdditiveStripsScopedField(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	// Filter on region=north only; without additive, region.east should
 	// not appear. Additive on region strips that clause so all four
@@ -228,6 +242,8 @@ func TestFacetSchema_AdditiveStripsScopedField(t *testing.T) {
 }
 
 func TestFacetSchema_AdditiveDifferentFromBase(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: path},
@@ -255,6 +271,8 @@ func TestFacetSchema_AdditiveDifferentFromBase(t *testing.T) {
 }
 
 func TestFacetSchema_CategoricalFastPathDictionaryStrings(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: path},
@@ -274,6 +292,8 @@ func TestFacetSchema_CategoricalFastPathDictionaryStrings(t *testing.T) {
 }
 
 func TestFacetSchema_AdditiveExpressionFilterReferenceRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: path},
@@ -289,6 +309,8 @@ func TestFacetSchema_AdditiveExpressionFilterReferenceRejected(t *testing.T) {
 }
 
 func TestFacetSchema_FilterIncludeReducesCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: path},

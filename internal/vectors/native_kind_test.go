@@ -31,6 +31,8 @@ func kindSchema() *encoding.Schema {
 // expressions) — exactly as a Request.Vectors spec's kind does. With no
 // schema the same request reads no kind.
 func TestNativeKind_DrivesMetricHelpers(t *testing.T) {
+	t.Parallel()
+
 	s := kindSchema()
 	if k := KindIn(nil, s, "m"); k != types.VectorKindMeasure {
 		t.Errorf("KindIn(m) = %q, want measure", k)
@@ -85,6 +87,8 @@ func TestNativeKind_DrivesMetricHelpers(t *testing.T) {
 // judges names a vector no spec defines (the runtime then opens the
 // schema); a spec-only request never needs it.
 func TestNativeKindsMatter(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		req  *types.Request

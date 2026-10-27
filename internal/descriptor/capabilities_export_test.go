@@ -13,6 +13,8 @@ import (
 // MUST be present with their OverlaySupport label so LLM planners can
 // route Response.Overlays without inspecting io/.
 func TestManifestExportCapability(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.Export.Formats) == 0 {
 		t.Fatal("Export.Formats is empty; manifest must enumerate supported export formats")
@@ -49,6 +51,8 @@ func TestManifestExportCapability(t *testing.T) {
 // slice is sorted alphabetically by Name so the golden manifest stays
 // stable.
 func TestManifestExportCapability_AlphabetizedByName(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for i := 1; i < len(m.Export.Formats); i++ {
 		if m.Export.Formats[i].Name < m.Export.Formats[i-1].Name {
@@ -63,6 +67,8 @@ func TestManifestExportCapability_AlphabetizedByName(t *testing.T) {
 // vocabulary declared by ExportFormatCapability's godoc. Catches
 // typos and unintentional new labels.
 func TestManifestExportCapability_OverlaySupportVocabulary(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	allowed := map[string]bool{
 		"sidecar":        true,
@@ -84,6 +90,8 @@ func TestManifestExportCapability_OverlaySupportVocabulary(t *testing.T) {
 // and will the cohort's types be the source's or a guess?" without
 // crawling io/.
 func TestManifestImportCapability(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if len(m.Import.Formats) == 0 {
 		t.Fatal("Import.Formats is empty; manifest must enumerate supported import formats")
@@ -131,6 +139,8 @@ func TestManifestImportCapability(t *testing.T) {
 // TestManifestImportCapability_AlphabetizedByName keeps the golden
 // manifest stable.
 func TestManifestImportCapability_AlphabetizedByName(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	for i := 1; i < len(m.Import.Formats); i++ {
 		if m.Import.Formats[i].Name < m.Import.Formats[i-1].Name {
@@ -145,6 +155,8 @@ func TestManifestImportCapability_AlphabetizedByName(t *testing.T) {
 // entry with no corresponding Export.Formats entry would promise a
 // round trip that does not exist.
 func TestManifestImportCapability_ExportFlagMatchesExportBlock(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	writable := make(map[string]bool, len(m.Export.Formats))
 	for _, f := range m.Export.Formats {
@@ -161,6 +173,8 @@ func TestManifestImportCapability_ExportFlagMatchesExportBlock(t *testing.T) {
 // TestManifestTZDataVersion: the manifest reports the embedded tz
 // database release, on the default and the instance builders alike.
 func TestManifestTZDataVersion(t *testing.T) {
+	t.Parallel()
+
 	if got := BuildManifest().TZDataVersion; got != temporal.TZDataVersion || got == "" {
 		t.Fatalf("manifest tzdata_version = %q, want %q", got, temporal.TZDataVersion)
 	}

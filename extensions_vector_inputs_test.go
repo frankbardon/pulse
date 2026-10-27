@@ -109,6 +109,8 @@ func openVectorExtensions(t *testing.T) (*pulse.Pulse, []byte, *vecSeen) {
 // resolved literal members (Vector cleared); the grouper keeps its
 // authored Field.
 func TestExtensions_VectorInputsResolvedForFactories(t *testing.T) {
+	t.Parallel()
+
 	p, data, seen := openVectorExtensions(t)
 	req := &types.Request{
 		Cohort:       &types.Cohort{Filename: "vec.pulse"},
@@ -154,6 +156,8 @@ func TestExtensions_VectorInputsResolvedForFactories(t *testing.T) {
 // Process with the built-in member rule's code — never reaching the
 // factory.
 func TestExtensions_VectorInputsJudgedAsBuiltins(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "v", Fields: []string{"score", "qty"}}}
 	cases := []struct {
 		name   string

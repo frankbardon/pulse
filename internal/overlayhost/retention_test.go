@@ -14,6 +14,8 @@ import (
 // empty, repeated or unknown key is PULSE_OVERLAY_PARAM_MISSING with the
 // index when given.
 func TestParseRetentionParams(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindRetention}
 	if p, cerr := ParseRetentionParams(spec, -1); cerr != nil || p.Absorbing != nil {
 		t.Fatalf("default %+v %v", p, cerr)

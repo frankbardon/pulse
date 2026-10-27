@@ -80,6 +80,8 @@ func totalColumnCases() map[string]*types.Request {
 // TestCrosstab_TotalColumnFusedMatchesBuffered drives every no-column
 // shape down both arms and diffs the whole wire form.
 func TestCrosstab_TotalColumnFusedMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	for name, req := range totalColumnCases() {
 		t.Run(name, func(t *testing.T) {
 			schema := fanoutCrosstabSchema(t)
@@ -109,6 +111,8 @@ func TestCrosstab_TotalColumnFusedMatchesBuffered(t *testing.T) {
 // resolved, column % summing to 1 down the column, and the row margin
 // equal to the single cell beside it.
 func TestCrosstab_TotalColumnShape(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	recs := fanoutRecords(schema)
 	arms := []struct {
@@ -186,6 +190,8 @@ func TestCrosstab_TotalColumnShape(t *testing.T) {
 // pairwise overlay pairs the row keys within the single Total column:
 // one p per row pair, the column axis echoing "Total".
 func TestCrosstab_TotalColumnPairwiseAlongRows(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	req := totalColumnCases()["pairwise rows within the Total column"]
 	resp, err := runBufferedCrosstabWithComponents(t, schema, req, fanoutRecords(schema), false)
@@ -218,6 +224,8 @@ func TestCrosstab_TotalColumnPairwiseAlongRows(t *testing.T) {
 // depth selectors on a crosstab with no column axis: refused out of range
 // (axis_len 0) rather than read as a depth into nothing.
 func TestCrosstab_TotalColumnNormalizeRefusals(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	schema := fanoutCrosstabSchema(t)
 	level := totalColumnSpec([]*types.Group{catGroup("region")}, totalSum(), types.CrosstabNormalizeColumn)
@@ -267,6 +275,8 @@ func totalColumnHasFigure(resp *types.Response) bool {
 // column — exactly normalize=row at normalize_level 0, which reaches the
 // same denominator through the partial-depth path. Both arms.
 func TestCrosstab_TotalColumnNormalizeWithinOracle(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	schema := fanoutCrosstabSchema(t)
 	recs := fanoutRecords(schema)

@@ -32,6 +32,8 @@ func (r *recordingSink) Row(src int64, _ []any) error {
 // every check passed; a Begin error ends the run before any Row; a
 // refusal never reaches Begin.
 func TestMaterialize_SinkContract(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := New(setupTestFS(t, "wide.pulse", wideSchema(), wideRecords()))
 	req := func() *types.Request {
@@ -74,6 +76,8 @@ func TestMaterialize_SinkContract(t *testing.T) {
 // order (source indices still global), and a sort key naming no
 // pipeline column is refused by the field-reference rule before Begin.
 func TestMaterialize_SortOrdersRows(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := New(setupTestFS(t, "wide.pulse", wideSchema(), wideRecords()))
 	req := &types.Request{

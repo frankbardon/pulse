@@ -555,6 +555,8 @@ func fixtureResults(t *testing.T) map[types.TestType]map[string][]*types.TestRes
 // registered row and post test, and nothing else — the effect-size
 // probe's "emitted ⊆ declared" half is only total if every factory runs.
 func TestTestProbeFixturesCoverRegistries(t *testing.T) {
+	t.Parallel()
+
 	registered := registeredTestTiers()
 	have := map[types.TestType]map[string]bool{}
 	for _, f := range testProbeFixtures {
@@ -579,6 +581,8 @@ func TestTestProbeFixturesCoverRegistries(t *testing.T) {
 // valued) Interpretation field on a test family is really emitted, on
 // every tier the family is registered in.
 func TestInterpretationFieldsHoldAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	declared := map[string]map[string]bool{}
 	for _, d := range descx.DeclaredInterpretationFields() {
 		if !d.Deferred || d.Category == "overlay" {
@@ -660,6 +664,8 @@ func TestInterpretationFieldsHoldAtRuntime(t *testing.T) {
 // union of emitted Details["effect_size"] keys must equal the
 // declaration, and every emitted value must be a finite float64.
 func TestEffectSizeKeysHoldAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	declared := descx.EffectSizeKeysByTest()
 	tiers := registeredTestTiers()
 	for fam := range declared {

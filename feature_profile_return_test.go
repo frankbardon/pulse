@@ -12,6 +12,8 @@ import (
 // through ParseFeatureProfile, is stored by New and copied out by
 // FeatureProfile() without aliasing the caller's slices.
 func TestFeatureProfile_ReturnRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	fp, err := ParseFeatureProfile([]byte(`{"features": ["capability:process", "AGG_COUNT"],
 		"return": {"preset": "standard", "include": ["components"], "exclude": ["metadata"], "precision": 6}}`))
 	if err != nil {
@@ -40,6 +42,8 @@ func TestFeatureProfile_ReturnRoundTrips(t *testing.T) {
 // is PULSE_FEATURE_PROFILE_INVALID reason invalid_return carrying the
 // resolver's code, from New and CheckFeatureProfile alike.
 func TestFeatureProfile_ReturnRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		ret      *types.Return

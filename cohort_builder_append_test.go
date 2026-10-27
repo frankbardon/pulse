@@ -55,6 +55,8 @@ func warningCodes(ws []*errors.CodedError) []errors.Code {
 // exactly the appended rows, a new categorical label union-merges
 // silently, and nothing but the archive is left on the filesystem.
 func TestCohortBuilder_AppendShardReadBack(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	first, drop := rows[:60], append([]CohortRow(nil), rows[60:]...)
 	drop[0] = append(CohortRow(nil), drop[0]...)
@@ -86,6 +88,8 @@ func TestCohortBuilder_AppendShardReadBack(t *testing.T) {
 // malformed / compressed / reserved / taken shard name, and the options
 // an append does not admit — and nothing is created.
 func TestCohortBuilder_AppendShardRefusals(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	p, fsys := memBuilderEngine(t)
 	buildCohort(t, p, "arch.pulse", groupedSchema(), CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 60}}, rows)
@@ -151,6 +155,8 @@ func TestCohortBuilder_AppendShardRefusals(t *testing.T) {
 // authority) — and a failed
 // Close leaves the archive byte-identical with no spool or staging.
 func TestCohortBuilder_AppendShardCloseFailures(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	setup := func(t *testing.T) (*Pulse, afero.Fs, []byte) {
 		p, fsys := memBuilderEngine(t)
@@ -231,6 +237,8 @@ func setSchema(labels ...string) encoding.Schema {
 // with its details intact. Every row reads back, through the archive
 // and through the anchor.
 func TestCohortBuilder_AppendShardWidensSet(t *testing.T) {
+	t.Parallel()
+
 	label := func(c byte) string { return string(rune('a' + c)) }
 	var old, drop []CohortRow
 	for i := range 8 {
@@ -262,6 +270,8 @@ func TestCohortBuilder_AppendShardWidensSet(t *testing.T) {
 // in CohortBuildResult.Warnings. The stored shard carries the archive's
 // group, and every row reads back through the archive and the anchor.
 func TestCohortBuilder_AppendShardToGroupedArchive(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	first, drop := rows[:60], rows[60:]
 	p, fsys := memBuilderEngine(t)

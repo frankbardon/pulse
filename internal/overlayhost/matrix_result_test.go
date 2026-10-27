@@ -16,6 +16,8 @@ const mgs = types.OverlayKindMatrixGroupSummary
 // SCALAR authored shape; a crosstab or no-matrices request keeps its
 // authored shape, and a SERIES kind keeps SERIES on a grouped request.
 func TestJudgedShape(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		authored types.OverlayShape
 		matrices bool
@@ -42,6 +44,8 @@ func TestJudgedShape(t *testing.T) {
 // its kinds; a MATRIX_RESULT kind runs nowhere else — not even on the
 // SCALAR host that accepts every other Process kind.
 func TestAcceptsShape_MatrixResult(t *testing.T) {
+	t.Parallel()
+
 	n := 0
 	for _, k := range types.AllOverlayKinds() {
 		if !Accepts(Request, k) {
@@ -70,6 +74,8 @@ func TestAcceptsShape_MatrixResult(t *testing.T) {
 }
 
 func TestShapeRefusal_MatrixResult(t *testing.T) {
+	t.Parallel()
+
 	ce := ShapeRefusal(types.OverlayShapeScalar, mgs, mgs, 2)
 	want := map[string]any{"index": 2, "kind": string(mgs), "host": "request", "shape": "scalar", "shapes": []string{"matrix_result"}}
 	if ce == nil || ce.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || !reflect.DeepEqual(ce.Details, want) ||
@@ -83,6 +89,8 @@ func TestShapeRefusal_MatrixResult(t *testing.T) {
 }
 
 func TestMatrixResultRefusal(t *testing.T) {
+	t.Parallel()
+
 	ok := func() (*types.Request, *types.OverlaySpec) {
 		req := &types.Request{
 			Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
@@ -141,6 +149,8 @@ func TestMatrixResultRefusal(t *testing.T) {
 }
 
 func TestStageRefusal(t *testing.T) {
+	t.Parallel()
+
 	ce := StageRefusal(mgs, mgs, 1, 2)
 	want := map[string]any{"index": 2, "kind": string(mgs), "host": "chain", "stage": 1}
 	if ce == nil || ce.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || !reflect.DeepEqual(ce.Details, want) {

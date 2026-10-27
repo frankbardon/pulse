@@ -28,6 +28,8 @@ func prevStatePredictSchema() *encoding.Schema {
 // with its own reason, processing.CanStreamRequest agrees — alone,
 // beside a grouper and beside a streamable attribute.
 func TestPredict_PreviousState_StreamableMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	schema := prevStatePredictSchema()
 	prev := &types.Attribute{Type: types.ATTR_PREVIOUS_STATE, Field: "plan", SubjectField: "id", OrderField: "seen", Label: "prev"}
 	for _, c := range []struct {

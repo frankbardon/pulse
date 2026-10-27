@@ -58,6 +58,8 @@ func codeOf(err error) perr.Code {
 // request's window column as an ordinary field of a new cohort under the
 // data dir, and reports what it wrote.
 func TestPulseMaterialize_WritesDerivedColumns(t *testing.T) {
+	t.Parallel()
+
 	p, src := materializeSource(t)
 	res, err := invokeMaterialize(t, p, `{"request":{"cohort":{"filename":"`+src+`"},
 		"windows":[{"type":"WIN_ROW_NUMBER","label":"rn","order_by":[{"field":"id"}]}]},
@@ -96,6 +98,8 @@ func TestPulseMaterialize_WritesDerivedColumns(t *testing.T) {
 // argument), an unknown request slot, an unsupported slot — and a
 // missing argument is refused before the facade runs.
 func TestPulseMaterialize_RefusalsAreCoded(t *testing.T) {
+	t.Parallel()
+
 	p, src := materializeSource(t)
 	cohort := `{"filename":"` + src + `"}`
 	win := `[{"type":"WIN_ROW_NUMBER","label":"rn","order_by":[{"field":"id"}]}]`

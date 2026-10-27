@@ -73,6 +73,8 @@ func explain(t *testing.T, inst *descx.InstanceSnapshot, req descriptor.ExplainR
 }
 
 func TestExplain_ValidatesRootAndDetail(t *testing.T) {
+	t.Parallel()
+
 	r := &types.Request{}
 	for name, req := range map[string]descriptor.ExplainRequest{
 		"no root":    {},
@@ -103,6 +105,8 @@ func TestExplain_ValidatesRootAndDetail(t *testing.T) {
 // text carries the operator's plain purpose; an unchecked request says
 // it was not checked and has no verdict.
 func TestExplain_EverySlotDescribed(t *testing.T) {
+	t.Parallel()
+
 	r := everySlotRequest()
 	res := explain(t, nil, descriptor.ExplainRequest{Request: r}, Checks{})
 	wantSlots := []string{"joins[0]", "filterers[0]", "features[0]", "attributes[0]", "windows[0]", "groups[0]",
@@ -142,6 +146,8 @@ func TestExplain_EverySlotDescribed(t *testing.T) {
 // untyped slots (marked Defaulted, the inference sentence in the
 // text) and its advisories and verdict ride the result.
 func TestExplain_DefaultsAndAdvisories(t *testing.T) {
+	t.Parallel()
+
 	r := &types.Request{
 		Cohort:       fixtureCohort,
 		Groups:       []*types.Group{{Field: "arm"}},
@@ -182,6 +188,8 @@ func TestExplain_DefaultsAndAdvisories(t *testing.T) {
 // TestExplain_RefusedRequest: a request predict refuses is still
 // explained, Valid false and the refusal a caveat naming its code.
 func TestExplain_RefusedRequest(t *testing.T) {
+	t.Parallel()
+
 	r := &types.Request{Cohort: fixtureCohort, Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "nope"}}}
 	res := explain(t, nil, descriptor.ExplainRequest{Request: r}, explainChecks(t, nil))
 	if res.Valid == nil || *res.Valid {
@@ -201,6 +209,8 @@ func TestExplain_RefusedRequest(t *testing.T) {
 // TestExplain_EveryRoot: each of the five roots is explained, its
 // slot paths prefixed by the slot's place in the root.
 func TestExplain_EveryRoot(t *testing.T) {
+	t.Parallel()
+
 	c := explainChecks(t, nil)
 	slotReq := func() *types.Request {
 		return &types.Request{Cohort: fixtureCohort, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
@@ -260,6 +270,8 @@ func TestExplain_EveryRoot(t *testing.T) {
 // glossary terms, the declared follow-ups and the tests' assumptions;
 // terse carries none of them.
 func TestExplain_FullDetail(t *testing.T) {
+	t.Parallel()
+
 	r := everySlotRequest()
 	full := explain(t, nil, descriptor.ExplainRequest{Request: r, Detail: descriptor.ExplainFull}, Checks{})
 	if len(full.Sentences) != len(full.Steps)+1 || full.Sentences[0] != full.Summary {
@@ -288,6 +300,8 @@ func TestExplain_FullDetail(t *testing.T) {
 // name appears anywhere in the result — follow-ups and glossary
 // included.
 func TestExplain_ProfileHidesOperators(t *testing.T) {
+	t.Parallel()
+
 	hidden := []string{"TEST_TUKEY_HSD", "AGG_MEDIAN"}
 	inst := profiled(hidden...)
 	r := everySlotRequest()
@@ -320,6 +334,8 @@ func TestExplain_ProfileHidesOperators(t *testing.T) {
 // TestExplain_ProseLint: every sentence Explain writes, over every
 // root and both details, passes the guidance prose lint.
 func TestExplain_ProseLint(t *testing.T) {
+	t.Parallel()
+
 	c := explainChecks(t, nil)
 	reqs := []descriptor.ExplainRequest{
 		{Request: everySlotRequest()},
@@ -364,6 +380,8 @@ func explainTexts(res *descriptor.ExplainResult) []string {
 // TestExplain_ProseLint_Falsifier: the lint the gate runs bites on a
 // template that overstates a result.
 func TestExplain_ProseLint_Falsifier(t *testing.T) {
+	t.Parallel()
+
 	if len(descx.LintGuidanceText("The test shows no difference between the groups.")) == 0 {
 		t.Fatal("lint passes an ASA-NODIFF sentence")
 	}
@@ -373,6 +391,8 @@ func TestExplain_ProseLint_Falsifier(t *testing.T) {
 // (an aggregation reads a post-window formula label) the formula is
 // described after the windows, as the engine orders it.
 func TestExplain_WindowsFirstAttributeOrder(t *testing.T) {
+	t.Parallel()
+
 	r := &types.Request{
 		Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "score", Label: "prev", OrderBy: []types.OrderKey{{Field: "taken_on"}}}},
 		Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "sat", Expression: "(prev ?? 0) * 2"}},
@@ -396,6 +416,8 @@ func TestExplain_WindowsFirstAttributeOrder(t *testing.T) {
 // reading none stays before them, and a regression naming a window
 // label says so.
 func TestExplain_PostWindowAttributeOrder(t *testing.T) {
+	t.Parallel()
+
 	r := &types.Request{
 		Windows: []*types.Window{{Type: types.WIN_LAG, Field: "score", Label: "prev", OrderBy: []types.OrderKey{{Field: "taken_on"}}}},
 		Attributes: []*types.Attribute{

@@ -22,6 +22,8 @@ import (
 // runs it unweighted, byte-identical to a plain instance; a row-local
 // formula stays skipped under either kind.
 func TestWeight_FormulaTotalMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := &types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}

@@ -96,6 +96,8 @@ var typeOnlyWidthSkipDirs = map[string]bool{
 // site that sizes it from the type byte alone silently misaligns every
 // field after it the day the two differ.
 func TestNoTypeOnlyWidthInStridePaths(t *testing.T) {
+	t.Parallel()
+
 	fset := token.NewFileSet()
 	scanned := 0
 	hit := map[string]map[string]bool{}
@@ -220,6 +222,8 @@ func keysOf(m map[string]bool) []string {
 // planted stride sum over each banned spelling is reported, and the
 // field-aware spelling is not.
 func TestNoTypeOnlyWidthInStridePaths_Detects(t *testing.T) {
+	t.Parallel()
+
 	src := `package x
 func stride(s *Schema) (n int) {
 	for i := range s.Fields {

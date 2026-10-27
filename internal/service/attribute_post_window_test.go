@@ -44,6 +44,8 @@ func postWindowRequest() *types.Request {
 // every record (null where the lag is null), ride the output rows, and
 // feed the regression; predict accepts the same request.
 func TestWindowPredictor_PostWindowAttributesRunAfterWindows(t *testing.T) {
+	t.Parallel()
+
 	svc, _, data := derivedRegCohort(t)
 	req := postWindowRequest()
 	if pred := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{}); len(pred.Errors) != 0 {
@@ -84,6 +86,8 @@ func TestWindowPredictor_PostWindowAttributesRunAfterWindows(t *testing.T) {
 // writes a post-window attribute's column — the same value Process puts
 // on the output row.
 func TestWindowPredictor_PostWindowMaterializeMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := derivedRegCohort(t)
 	req := postWindowRequest()
 	req.Regressions = nil
@@ -117,6 +121,8 @@ func TestWindowPredictor_PostWindowMaterializeMatchesProcess(t *testing.T) {
 // PULSE_ATTRIBUTE_WINDOW_ORDER {attribute, field} — from Process and
 // from predict, with the same message.
 func TestWindowPredictor_AttributeWindowOrderParity(t *testing.T) {
+	t.Parallel()
+
 	svc, _, data := derivedRegCohort(t)
 	cases := map[string]struct {
 		req     *types.Request

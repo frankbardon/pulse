@@ -24,6 +24,8 @@ import (
 // set" is precisely the kind of inheritance-by-resemblance this package
 // exists to stop taking on trust.
 func TestExcel_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "excel", fs, src, pexcel.NewWriter(fs, "out.xlsx"))
@@ -83,6 +85,8 @@ func TestExcel_WideSetRoundTrip(t *testing.T) {
 // failure it would have hidden is a truncated label list that still
 // imports cleanly, one member short.
 func TestExcel_EverySelectedMemberSurvives(t *testing.T) {
+	t.Parallel()
+
 	all := make([]string, 0, members)
 	for i := 0; i < members; i++ {
 		all = append(all, memberName(i))

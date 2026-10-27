@@ -11,6 +11,8 @@ import (
 // types.AllRegressionTypes() has a factory in the local registry. Catches
 // the "added REG_* to types but forgot the init() registration" drift.
 func TestRegistry_AllTypesRegistered(t *testing.T) {
+	t.Parallel()
+
 	registered := map[types.RegressionType]bool{}
 	for _, rt := range RegisteredTypes() {
 		registered[rt] = true
@@ -32,6 +34,8 @@ func TestRegistry_AllTypesRegistered(t *testing.T) {
 // reach the registry but receive no records, and Bayes specs that
 // the validator rejects before construction.
 func TestFit_ModifierContracts(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		spec     *types.RegressionSpec
@@ -59,6 +63,8 @@ func TestFit_ModifierContracts(t *testing.T) {
 // PULSE_REGRESSION_INVALID refusal when a spec references an
 // unregistered RegressionType.
 func TestBuild_UnknownType(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.RegressionType("REG_NOT_A_REAL_TYPE"), Target: "y"}
 	_, err := Build([]*types.RegressionSpec{spec}, nil)
 	if err == nil {
@@ -73,6 +79,8 @@ func TestBuild_UnknownType(t *testing.T) {
 // TestFit_EmptySpecs asserts Fit returns (nil, nil) when no specs are
 // provided — the orchestrator can call Fit unconditionally.
 func TestFit_EmptySpecs(t *testing.T) {
+	t.Parallel()
+
 	out, err := Fit(nil, nil)
 	if err != nil {
 		t.Fatalf("Fit(nil) error: %v", err)

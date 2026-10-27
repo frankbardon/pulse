@@ -12,8 +12,12 @@ import (
 // transition (both the repeated fall-back hour and the skipped spring
 // hour), the half-hour and 45-minute zones, plus random instants.
 func TestLocalHour_MatchesStdlib(t *testing.T) {
+	t.Parallel()
+
 	for i, name := range append(append([]string{"UTC"}, localZones...), midnightZones...) {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			z := UTC
 			if name != "UTC" {
 				z = mustZone(t, name)
@@ -51,6 +55,8 @@ func TestLocalHour_MatchesStdlib(t *testing.T) {
 // `hour` documents: no instant reads 02:xx on 2026-03-29 (skipped), and
 // both 02:xx hours of 2026-10-25 share one local hour (merged).
 func TestLocalHour_BerlinTransitions(t *testing.T) {
+	t.Parallel()
+
 	z := mustZone(t, "Europe/Berlin")
 	seen := map[string]int{}
 	from := time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC).Unix()
@@ -73,6 +79,8 @@ func TestLocalHour_BerlinTransitions(t *testing.T) {
 // TestLocalHour_UTCNegativeFloor: before the epoch the hour truncates
 // toward the past, never toward zero.
 func TestLocalHour_UTCNegativeFloor(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ sec, want int64 }{{-1, -1}, {-3600, -1}, {-3601, -2}, {0, 0}, {3599, 0}, {3600, 1}} {
 		if got := LocalHour(c.sec, UTC); got != c.want {
 			t.Errorf("LocalHour(%d, UTC) = %d, want %d", c.sec, got, c.want)
@@ -87,6 +95,8 @@ func TestLocalHour_UTCNegativeFloor(t *testing.T) {
 // epoch, the result is the latest day on or before day whose weekday is
 // start; Monday is the ISO week's Monday.
 func TestWeekStartDay(t *testing.T) {
+	t.Parallel()
+
 	for start := time.Sunday; start <= time.Saturday; start++ {
 		for day := int64(-800); day <= 800; day++ {
 			got := WeekStartDay(day, start)
@@ -108,6 +118,8 @@ func TestWeekStartDay(t *testing.T) {
 }
 
 func TestParseWeekday(t *testing.T) {
+	t.Parallel()
+
 	for wd := time.Sunday; wd <= time.Saturday; wd++ {
 		name := map[time.Weekday]string{0: "sunday", 1: "monday", 2: "tuesday", 3: "wednesday", 4: "thursday", 5: "friday", 6: "saturday"}[wd]
 		if got, ok := ParseWeekday(name); !ok || got != wd {
@@ -122,6 +134,8 @@ func TestParseWeekday(t *testing.T) {
 }
 
 func TestLocalHour_AllocFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	z := mustZone(t, "Europe/Berlin")
 	s := time.Date(2026, 10, 25, 1, 30, 0, 0, time.UTC).Unix()
 	if n := testing.AllocsPerRun(100, func() { _ = LocalHour(s, z) }); n != 0 {

@@ -50,6 +50,8 @@ func writeReaderCohort(t *testing.T, dir string) string {
 // modes say which fields are nullable, and text mode prints a
 // decimal128 field's precision and scale (JSON already carried them).
 func TestCliCohortInspect_ShowsNullabilityAndDecimalShape(t *testing.T) {
+	t.Parallel()
+
 	path := writeReaderCohort(t, t.TempDir())
 
 	out, err := runApp(t, "cohort", "inspect", "--json", path)
@@ -109,6 +111,8 @@ func TestCliCohortInspect_ShowsNullabilityAndDecimalShape(t *testing.T) {
 // render date as YYYY-MM-DD and datetime as RFC 3339 UTC, never the
 // epoch day / second numbers.
 func TestCliRawRows_RenderCalendarLiterals(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	path := writeReaderCohort(t, dir)
 	t.Setenv("PULSE_DATA_DIR", dir)
@@ -165,6 +169,8 @@ func TestCliRawRows_RenderCalendarLiterals(t *testing.T) {
 // literals in text mode, the --json envelope and every --stream NDJSON
 // row.
 func TestCliProcessRecordRows_RenderCalendarLiterals(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := writeReaderCohort(t, dir)
 	reqPath := filepath.Join(dir, "req.json")

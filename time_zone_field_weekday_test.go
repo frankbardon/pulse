@@ -65,6 +65,8 @@ func weekdayExcludeReq(cohort string, z perRowZoning) *types.Request {
 // keeps a different set, so the fixture proves the zone reached the
 // feature. Each site keeps one row; its local day and hour name it.
 func TestTimeZoneField_ExcludeLocalSaturdayByISODow(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := weekdayRows(t)
 	cohort, archive := importPerRow(t, fs, "weekday", rows)

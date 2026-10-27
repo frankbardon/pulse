@@ -1,7 +1,6 @@
 package detmath
 
 import (
-	"bytes"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -9,8 +8,6 @@ import (
 	"go/types"
 	"math"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -34,7 +31,8 @@ import (
 //  2. TestDetmath_NoFMAContraction — the compiler's own word: the
 //     package is cross-compiled for arm64 with -d=fmahash=vy, which
 //     prints one line per contraction it applied, and must print none.
-//     Also runs on every host architecture (amd64 CI included).
+//     Also runs on every host architecture (amd64 CI included); heavy
+//     tier (fusion_heavy_test.go), through internal/testutil/fmagate.
 //  3. TestDetmath_FusedTwinsDiverge — in the style of
 //     internal/synth/moments_internal_test.go: `//go:noinline` twins
 //     holding the stdlib's pre-barrier source verbatim, compared with
@@ -76,6 +74,8 @@ func parseKernel(t *testing.T) (*token.FileSet, []*ast.File) {
 // every consumer (the expr environment, FEAT_LOG, the synth row env) can
 // import them without an import cycle or an engine dependency.
 func TestDetmath_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	_, files := parseKernel(t)
 	for _, f := range files {
 		for _, imp := range f.Imports {
@@ -91,6 +91,8 @@ func TestDetmath_ImportBoundary(t *testing.T) {
 // multiplication in the kernels, including a `*=` assignment, must be the
 // direct operand of a same-width float64(...) / float32(...) conversion.
 func TestDetmath_NoFusibleProducts(t *testing.T) {
+	t.Parallel()
+
 	fset, files := parseKernel(t)
 	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}}
 	conf := types.Config{Importer: importer.ForCompiler(fset, "source", nil)}
@@ -140,56 +142,6 @@ func TestDetmath_NoFusibleProducts(t *testing.T) {
 		if !barriered[p] {
 			t.Errorf("%s: float product without a same-width float64()/float32() barrier", fset.Position(p.Pos()))
 		}
-	}
-}
-
-// fmahashBuild cross-compiles dir's package for GOARCH=arm64 with the
-// compiler's contraction report on, and returns the report lines.
-func fmahashBuild(t *testing.T, dir, importPath string) []string {
-	t.Helper()
-	cmd := exec.Command("go", "build", "-o", os.DevNull,
-		"-gcflags="+importPath+"=-d=fmahash=vy", ".")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0", "GOFLAGS=")
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("cross-compile for arm64 failed: %v\n%s", err, out.String())
-	}
-	var lines []string
-	for l := range strings.SplitSeq(out.String(), "\n") {
-		if strings.Contains(l, "fmahash triggered") {
-			lines = append(lines, l)
-		}
-	}
-	return lines
-}
-
-// TestDetmath_NoFMAContraction is gate 2. It first proves the probe can
-// see a contraction (a scratch module holding `a + b*c` must report
-// one — otherwise a renamed compiler flag would make this gate silently
-// vacuous), then requires the detmath build to report none.
-func TestDetmath_NoFMAContraction(t *testing.T) {
-	probe := t.TempDir()
-	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	src := "package fmaprobe\n\nfunc F(a, b, c float64) float64 { return a + b*c }\n"
-	if err := os.WriteFile(filepath.Join(probe, "p.go"), []byte(src), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if got := fmahashBuild(t, probe, "fmaprobe"); len(got) == 0 {
-		t.Fatal("the -d=fmahash=vy probe reported no contraction for `a + b*c` on arm64: " +
-			"the compiler flag changed and this gate has gone vacuous")
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := fmahashBuild(t, wd, "github.com/frankbardon/pulse/linalg/detmath"); len(got) > 0 {
-		t.Errorf("the arm64 compiler contracted %d multiply-adds in detmath; wrap each product in "+
-			"float64(...):\n%s", len(got), strings.Join(got, "\n"))
 	}
 }
 
@@ -346,6 +298,8 @@ func fusedSin(x float64) float64 {
 
 // TestDetmath_FusedTwinsDiverge is gate 3 (see the file comment).
 func TestDetmath_FusedTwinsDiverge(t *testing.T) {
+	t.Parallel()
+
 	obs := contractionObservable()
 	t.Logf("GOARCH=%s contracts c+a*b into an FMA: %v", runtime.GOARCH, obs)
 	if !obs {

@@ -24,6 +24,8 @@ func hasConfigError(env *descriptor.Envelope, msg string) bool {
 // spellings, and leaves a GROUP_DATE the instance hides to the
 // unknown-type rule.
 func TestPredict_GroupDateParams(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	g := func(field, params string) *types.Group {
 		return &types.Group{Type: types.GROUP_DATE, Field: field, Params: json.RawMessage(params)}

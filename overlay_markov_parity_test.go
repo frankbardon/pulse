@@ -44,6 +44,8 @@ func markovOverlay(params string) types.OverlaySpec {
 }
 
 func TestMarkov_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	square := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
@@ -80,6 +82,8 @@ func TestMarkov_RefusalsMatchPredict(t *testing.T) {
 }
 
 func TestMarkov_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	square := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
@@ -160,6 +164,8 @@ func churnCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 // it cannot see which keys were observed and accepts both: the key-set
 // judgement stays runtime-only.
 func TestMarkov_ColumnOnlyAbsorbing(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := churnCohort(t)
 	ctx := context.Background()
 	req := func(params string) *types.Request {

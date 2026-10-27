@@ -52,6 +52,8 @@ func envHasErrorContaining(env *descriptor.Envelope, substr string) bool {
 func ptrInt(v int) *int { return &v }
 
 func TestPredictWindow_ValidLag(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -74,6 +76,8 @@ func TestPredictWindow_ValidLag(t *testing.T) {
 }
 
 func TestPredictWindow_UnknownType(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -94,6 +98,8 @@ func TestPredictWindow_UnknownType(t *testing.T) {
 }
 
 func TestPredictWindow_MissingOrderBy(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -110,6 +116,8 @@ func TestPredictWindow_MissingOrderBy(t *testing.T) {
 }
 
 func TestPredictWindow_OrderByUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -126,6 +134,8 @@ func TestPredictWindow_OrderByUnknownField(t *testing.T) {
 }
 
 func TestPredictWindow_OrderByNonOrderable(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -155,6 +165,8 @@ func TestPredictWindow_OrderByNonOrderable(t *testing.T) {
 // packed_bool as 0/1, datetime by signed epoch seconds, decimal128 by
 // value — is accepted by predict (IsOrderableType).
 func TestPredictWindow_OrderByOrderableAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 	for _, field := range []string{"revenue", "ts", "region", "flag", "at", "amt"} {
@@ -173,6 +185,8 @@ func TestPredictWindow_OrderByOrderableAccepted(t *testing.T) {
 // registered field type (type bytes 0..21): only the six set_* rungs
 // and the two vector types are refused.
 func TestIsOrderableType_RefusesExactlySets(t *testing.T) {
+	t.Parallel()
+
 	refused := map[string]bool{"set_u8": true, "set_u16": true, "set_u32": true, "set_u64": true, "set_u128": true, "set_u256": true,
 		"vec_f32": true, "vec_f64": true}
 	n := 0
@@ -192,6 +206,8 @@ func TestIsOrderableType_RefusesExactlySets(t *testing.T) {
 }
 
 func TestPredictWindow_PartitionByUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -212,6 +228,8 @@ func TestPredictWindow_PartitionByUnknownField(t *testing.T) {
 }
 
 func TestPredictWindow_FrameOnNonFrameOp(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -239,6 +257,8 @@ func TestPredictWindow_FrameOnNonFrameOp(t *testing.T) {
 }
 
 func TestPredictWindow_FrameMissingOnFrameOp(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -264,6 +284,8 @@ func TestPredictWindow_FrameMissingOnFrameOp(t *testing.T) {
 }
 
 func TestPredictWindow_FrameModeNotRows(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -284,6 +306,8 @@ func TestPredictWindow_FrameModeNotRows(t *testing.T) {
 }
 
 func TestPredictWindow_MovingAvgUnboundedFrame(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -304,6 +328,8 @@ func TestPredictWindow_MovingAvgUnboundedFrame(t *testing.T) {
 }
 
 func TestPredictWindow_EwmaAlphaBounds(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -344,6 +370,8 @@ func TestPredictWindow_EwmaAlphaBounds(t *testing.T) {
 }
 
 func TestPredictWindow_NonNumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -363,6 +391,8 @@ func TestPredictWindow_NonNumericField(t *testing.T) {
 }
 
 func TestPredictWindow_MissingField(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -382,6 +412,8 @@ func TestPredictWindow_MissingField(t *testing.T) {
 }
 
 func TestPredictWindow_LabelCollisionRefused(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -413,6 +445,8 @@ func TestPredictWindow_LabelCollisionRefused(t *testing.T) {
 }
 
 func TestPredictWindow_RankWithoutFrameValid(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -433,6 +467,8 @@ func TestPredictWindow_RankWithoutFrameValid(t *testing.T) {
 }
 
 func TestPredictWindow_LagWithOffsetParams(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -453,6 +489,8 @@ func TestPredictWindow_LagWithOffsetParams(t *testing.T) {
 }
 
 func TestPredictSort_SchemaField(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -468,6 +506,8 @@ func TestPredictSort_SchemaField(t *testing.T) {
 }
 
 func TestPredictSort_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -481,6 +521,8 @@ func TestPredictSort_UnknownField(t *testing.T) {
 }
 
 func TestPredictSort_AggregationLabel(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -502,6 +544,8 @@ func TestPredictSort_AggregationLabel(t *testing.T) {
 }
 
 func TestPredictSort_WindowLabel(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -520,6 +564,8 @@ func TestPredictSort_WindowLabel(t *testing.T) {
 }
 
 func TestPredictSort_MissingFieldName(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -536,6 +582,8 @@ func TestPredictSort_MissingFieldName(t *testing.T) {
 // request returns a SERVICE_VALIDATION error with replacement=WIN_RANK
 // in the details payload.
 func TestPredictAttrRank_MigrationHint(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -564,6 +612,8 @@ func TestPredictAttrRank_MigrationHint(t *testing.T) {
 }
 
 func TestPredictWindow_PctChangePeriodsParams(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -591,6 +641,8 @@ func TestPredictWindow_PctChangePeriodsParams(t *testing.T) {
 // silent predict gap, not a build failure.
 
 func TestPredictWindow_DeltaFrameRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -611,6 +663,8 @@ func TestPredictWindow_DeltaFrameRejected(t *testing.T) {
 }
 
 func TestPredictWindow_DeltaFieldRequired(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -629,6 +683,8 @@ func TestPredictWindow_DeltaFieldRequired(t *testing.T) {
 }
 
 func TestPredictWindow_DeltaNumericFieldRequired(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -648,6 +704,8 @@ func TestPredictWindow_DeltaNumericFieldRequired(t *testing.T) {
 }
 
 func TestPredictWindow_DeltaPeriodsParams(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -684,6 +742,8 @@ func TestPredictWindow_DeltaPeriodsParams(t *testing.T) {
 }
 
 func TestPredictWindow_DeltaValid(t *testing.T) {
+	t.Parallel()
+
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 

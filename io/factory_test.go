@@ -26,6 +26,8 @@ import (
 // row is present so an edit to the switch cannot quietly drop a mapping
 // while adding one; `.xls → Excel` is the historical mapping and stays.
 func TestFromExt_Matrix(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		path string
 		want pio.Format
@@ -66,6 +68,8 @@ func TestFromExt_Matrix(t *testing.T) {
 // enumerate; a format listed there that a factory cannot build would be a
 // runtime "unsupported" from a list the engine itself published.
 func TestFormats_ListAndDirections(t *testing.T) {
+	t.Parallel()
+
 	want := []pio.Format{
 		pio.FormatCSV, pio.FormatTSV, pio.FormatNDJSON, pio.FormatJSONArray,
 		pio.FormatParquet, pio.FormatArrow, pio.FormatExcel, pio.FormatSPSS,
@@ -96,6 +100,8 @@ func TestFormats_ListAndDirections(t *testing.T) {
 // TestFactory_EveryAdvertisedFormatConstructs closes the loop between
 // CanRead / CanWrite and the four constructors, in every direction.
 func TestFactory_EveryAdvertisedFormatConstructs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	for _, f := range pio.Formats() {
 		if r, err := pio.NewReader(f, fs, "in", pio.ReaderOptions{}); err != nil || r == nil {
@@ -118,6 +124,8 @@ func TestFactory_EveryAdvertisedFormatConstructs(t *testing.T) {
 // format, and an unknown identifier all fail with their OWN coded error —
 // never a plain error a CLI envelope would flatten to a placeholder.
 func TestFactory_UnsupportedFormatIsCoded(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	ctors := map[string]func(pio.Format) (any, error){
 		"NewReader": func(f pio.Format) (any, error) { return pio.NewReader(f, fs, "x", pio.ReaderOptions{}) },
@@ -183,6 +191,8 @@ var interfaceChecks = map[string]func(any) bool{
 // catalogue must answer exactly as the directly-built adapter does, and
 // the load-bearing ones are named outright.
 func TestFactory_ReturnsAdapterUnwrapped(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	type row struct {
 		f            pio.Format
@@ -292,6 +302,8 @@ func readRows(t *testing.T, r pio.Reader) ([]string, [][]string) {
 // MemMapFs. The bytes must agree between the two writers too, so the
 // buffer path is the same encoder, not a second one.
 func TestFactory_RoundTripEveryFormat(t *testing.T) {
+	t.Parallel()
+
 	header := []string{"city", "tier"}
 	rows := [][]string{{"Oslo", "gold"}, {"Lima", "silver"}, {"Pune", "gold"}}
 	for _, f := range pio.Formats() {
@@ -347,6 +359,8 @@ func TestFactory_RoundTripEveryFormat(t *testing.T) {
 // it to whichever format the path resolved to, so an error here would make
 // `--spss-missing` break `pulse import csv`.
 func TestFactory_WrongFormatOptionsIgnored(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	ropts := pio.ReaderOptions{
 		Excel: pio.ExcelReaderOptions{Sheet: "NoSuchSheet"},
@@ -400,6 +414,8 @@ func TestFactory_WrongFormatOptionsIgnored(t *testing.T) {
 // error channel, so this is the last place a typo can fail loudly instead
 // of producing a schema the caller did not ask for.
 func TestFactory_SPSSMissingMode(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	for _, mode := range []pio.SPSSMissingMode{"", pio.SPSSMissingAuto, pio.SPSSMissingNull} {
 		opts := pio.ReaderOptions{SPSS: pio.SPSSReaderOptions{MissingMode: mode}}
@@ -431,6 +447,8 @@ func TestFactory_SPSSMissingMode(t *testing.T) {
 // fails under the strict UTF-8 default and decodes under the override,
 // so the option was consulted, not merely stored.
 func TestFactory_SPSSCharsetReachesReader(t *testing.T) {
+	t.Parallel()
+
 	raw, err := spsstest.Build(spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "A", Label: "cafX"}},
 		Cases: [][]spsstest.Value{{spsstest.Num(1)}},
@@ -465,6 +483,8 @@ func TestFactory_SPSSCharsetReachesReader(t *testing.T) {
 // a workbook whose only sheet is "Data" reads under Sheet "Data" and fails
 // under a sheet it does not have.
 func TestFactory_ExcelSheetReachesReader(t *testing.T) {
+	t.Parallel()
+
 	w := excel.NewWriterToBuffer(excel.WithSheet("Data"))
 	writeRows(t, w, []string{"a"}, [][]string{{"x"}})
 
@@ -490,6 +510,8 @@ func TestFactory_ExcelSheetReachesReader(t *testing.T) {
 // consulted: Uncompressed changes the encoding of the same table, and the
 // result still reads back identically.
 func TestFactory_SPSSWriterOptionsReachWriter(t *testing.T) {
+	t.Parallel()
+
 	header := []string{"n"}
 	rows := [][]string{{"alpha"}, {"beta"}}
 	encode := func(o pio.SPSSWriterOptions) []byte {
@@ -518,6 +540,8 @@ func TestFactory_SPSSWriterOptionsReachWriter(t *testing.T) {
 // is projected onto the writer: the bound categorical goes out as a numeric
 // variable of positional codes, which read back as the codes.
 func TestFactory_SPSSValueLabelsReachWriter(t *testing.T) {
+	t.Parallel()
+
 	w, err := pio.NewWriterToBuffer(pio.FormatSPSS, pio.WriterOptions{SPSS: pio.SPSSWriterOptions{
 		ValueLabels: []pio.SPSSValueLabels{{Field: "n", Labels: map[string]string{"alpha": "Alpha"}}},
 	}})
@@ -538,6 +562,8 @@ func TestFactory_SPSSValueLabelsReachWriter(t *testing.T) {
 // is projected too: with Order [beta alpha] beta is code 1, where sorted
 // dictionary order would make it 2.
 func TestFactory_SPSSValueLabelsOrderReachesWriter(t *testing.T) {
+	t.Parallel()
+
 	w, err := pio.NewWriterToBuffer(pio.FormatSPSS, pio.WriterOptions{SPSS: pio.SPSSWriterOptions{
 		ValueLabels: []pio.SPSSValueLabels{{Field: "n", Order: []string{"beta", "alpha"}}},
 	}})

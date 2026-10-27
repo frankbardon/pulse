@@ -81,6 +81,8 @@ func rollingCheck(t *testing.T, got []*float64, want []float64) {
 //
 // entry 3 under {10, 20}: mean 15, sample SD sqrt(50).
 func TestRollingOverlays_MinPeriods(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	z5 := (40.0 - 100.0/3.0) / math.Sqrt(700.0/3.0)
 	for _, c := range []struct {
@@ -115,6 +117,8 @@ func TestRollingOverlays_MinPeriods(t *testing.T) {
 // param and its bounds (the z-score's floor is 2, the index's 1; the
 // ceiling is the window).
 func TestRollingOverlays_MinPeriodsRefused(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{1, 2})
 	for _, c := range []struct {

@@ -6,6 +6,8 @@ import (
 )
 
 func TestParseTTL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in      string
 		want    time.Duration
@@ -52,6 +54,8 @@ func TestParseTTL(t *testing.T) {
 }
 
 func TestFormatTTL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in   time.Duration
 		want string

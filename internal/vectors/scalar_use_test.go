@@ -17,6 +17,8 @@ import (
 // errors package cannot import vectors, so its aggregation fixup lists
 // the set by hand and this test keeps it in step.
 func TestVectorAggregatorProseNamesFullSet(t *testing.T) {
+	t.Parallel()
+
 	set := VectorAggregationTypes()
 	if len(set) < 3 {
 		t.Fatalf("VectorAggregationTypes = %v; expected at least AGG_VEC_MEAN / SUM / SD", set)

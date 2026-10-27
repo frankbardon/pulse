@@ -12,6 +12,8 @@ import (
 // the question / interpretation pair, the digit-free interpretation and
 // the fixed return.precision.
 func TestStoryProblems(t *testing.T) {
+	t.Parallel()
+
 	const okBody = `{"return":{"precision":4}}`
 	cases := []struct {
 		name string
@@ -48,6 +50,8 @@ func TestStoryProblems(t *testing.T) {
 // TestStories_LibraryHoldsTheRules runs StoryProblems over every
 // embedded example, and requires at least one describe story.
 func TestStories_LibraryHoldsTheRules(t *testing.T) {
+	t.Parallel()
+
 	err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".json") {
 			return err
@@ -83,6 +87,8 @@ func TestStories_LibraryHoldsTheRules(t *testing.T) {
 // (Whether a golden is CURRENT is the root package's
 // TestExamples_StoryGoldens, which executes the requests.)
 func TestStoryGoldens_MatchStories(t *testing.T) {
+	t.Parallel()
+
 	stories, goldens := Stories(), StoryGoldenNames()
 	if len(stories) == 0 {
 		t.Fatal("no story examples")
@@ -104,6 +110,8 @@ func TestStoryGoldens_MatchStories(t *testing.T) {
 // TestStoryFields_RideTheWire: a story's question and interpretation
 // reach Get, All and Search results.
 func TestStoryFields_RideTheWire(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range Stories() {
 		ex, _ := Get(n)
 		if ex.Question == "" || ex.Interpretation == "" {

@@ -48,6 +48,8 @@ func loaded(r *types.Request, path string) *types.Request {
 // (serial: the sum included); predict streams the loaded slot. A second
 // save overwrites with PULSE_MODEL_OVERWRITTEN (details.fit).
 func TestSEMFit_SaveThenLoadScoresBitEqual(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	for _, grouped := range []bool{false, true} {
@@ -114,6 +116,8 @@ func TestSEMFit_SaveThenLoadScoresBitEqual(t *testing.T) {
 // scores row-local, so the chain runs (predict and runtime agree), and
 // its stage figures are the plain request's.
 func TestSEMFit_LoadedChainStage(t *testing.T) {
+	t.Parallel()
+
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 	if _, err := p.Compose(ctx, semSaveCompose(semFitPath, semScoreSlotReq(boundParams(), false))); err != nil {
@@ -150,6 +154,8 @@ func TestSEMFit_LoadedChainStage(t *testing.T) {
 // rebuild its stored orders, a kind mismatch on a loaded fit — refused
 // with predict's exact error.
 func TestSEMFit_SaveAndLoadRefusals(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
 

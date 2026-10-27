@@ -36,6 +36,8 @@ var noDraftIntents = map[string]bool{
 // whose intent is measure_construct, and recommending that intent
 // drafts MAT_RELIABILITY (no longer a routes-only intent).
 func TestRecommend_CronbachAlphaReachesReliability(t *testing.T) {
+	t.Parallel()
+
 	op, ok := descx.BuiltinKnownAs()[descx.FoldAlias("Cronbach's Alpha")]
 	if !ok || op != "MAT_RELIABILITY" {
 		t.Fatalf("alias \"cronbach's alpha\" resolves to %q (%v), want MAT_RELIABILITY", op, ok)
@@ -58,8 +60,12 @@ func TestRecommend_CronbachAlphaReachesReliability(t *testing.T) {
 }
 
 func TestRecommend_UnboundEveryIntent(t *testing.T) {
+	t.Parallel()
+
 	for _, in := range descx.Intents() {
 		t.Run(in.ID, func(t *testing.T) {
+			t.Parallel()
+
 			res := all(t, nil, in.ID)
 			if res.Bound {
 				t.Error("unbound result reports bound")
@@ -106,6 +112,8 @@ func TestRecommend_UnboundEveryIntent(t *testing.T) {
 // draftable category that serves an analytic intent gets a skeleton —
 // a gap in the mapping tables cannot drop one silently.
 func TestRecommend_EveryServingOperatorDrafted(t *testing.T) {
+	t.Parallel()
+
 	cat := catalog(descx.BuildManifestForInstance(nil))
 	g := descx.BaseOntology()
 	for _, in := range descx.Intents() {
@@ -129,6 +137,8 @@ func TestRecommend_EveryServingOperatorDrafted(t *testing.T) {
 // be a JSON tag of the Go struct at that position (types.Request at the
 // root), and each `params` key a param the operator declares.
 func TestRecommend_SkeletonKeysMatchWire(t *testing.T) {
+	t.Parallel()
+
 	m := descx.BuildManifestForInstance(nil)
 	declared := declaredParams(m)
 	n := 0
@@ -152,6 +162,8 @@ func TestRecommend_SkeletonKeysMatchWire(t *testing.T) {
 // TestWireKeyWalker_Falsifiers: the walker the wire test leans on
 // rejects an unknown slot key and an undeclared params key.
 func TestWireKeyWalker_Falsifiers(t *testing.T) {
+	t.Parallel()
+
 	root := reflect.TypeOf(types.Request{})
 	var bad any
 	_ = json.Unmarshal([]byte(`{"tests":[{"type":"TEST_T","splitBy":"<x>"}]}`), &bad)
@@ -265,6 +277,8 @@ func jsonFields(t reflect.Type) map[string]reflect.Type {
 // types.Test's tags, and covers every Requires value the manifest
 // declares on a test or post-test.
 func TestRequireKeysMatchWire(t *testing.T) {
+	t.Parallel()
+
 	tt := reflect.TypeOf(types.Test{})
 	for goName, key := range requireKey {
 		f, ok := tt.FieldByName(goName)
@@ -289,6 +303,8 @@ func TestRequireKeysMatchWire(t *testing.T) {
 // TestSlotKeysMatchWire: every category's slot key is a types.Request
 // JSON tag.
 func TestSlotKeysMatchWire(t *testing.T) {
+	t.Parallel()
+
 	tags := jsonFields(reflect.TypeOf(types.Request{}))
 	for cat, k := range slotKey {
 		if _, ok := tags[k]; !ok {
@@ -312,6 +328,8 @@ func TestSlotKeysMatchWire(t *testing.T) {
 }
 
 func TestRecommend_UnknownIntent(t *testing.T) {
+	t.Parallel()
+
 	for _, id := range []string{"", "compare-groups", "nonsense"} {
 		_, err := Recommend(nil, descriptor.RecommendRequest{Intent: id})
 		var ce *errors.CodedError
@@ -335,6 +353,8 @@ func TestRecommend_UnknownIntent(t *testing.T) {
 }
 
 func TestRecommend_InvalidLevelAndLimit(t *testing.T) {
+	t.Parallel()
+
 	for _, req := range []descriptor.RecommendRequest{
 		{Intent: descx.IntentDescribe, Level: "expert"},
 		{Intent: descx.IntentDescribe, Limit: -1},
@@ -351,6 +371,8 @@ func TestRecommend_InvalidLevelAndLimit(t *testing.T) {
 // route sentence passes the guidance lint; alternatives and follow-ups
 // are exactly the operator's declared ones (never invented).
 func TestRecommend_ProseLintAndProvenance(t *testing.T) {
+	t.Parallel()
+
 	lint := func(where, s string) {
 		for _, h := range descx.LintGuidanceText(s) {
 			t.Errorf("%s: lint %s on %q", where, h.Rule, h.Span)
@@ -390,6 +412,8 @@ func nilIfEmpty(a []descriptor.Alternative) []descriptor.Alternative {
 }
 
 func TestRecommend_LimitAndRanking(t *testing.T) {
+	t.Parallel()
+
 	res, err := Recommend(nil, descriptor.RecommendRequest{Intent: descx.IntentCompareGroups})
 	if err != nil {
 		t.Fatal(err)
@@ -461,6 +485,8 @@ func profiled(hide ...string) *descx.InstanceSnapshot {
 }
 
 func TestRecommend_ProfileHidesOperators(t *testing.T) {
+	t.Parallel()
+
 	hidden := []string{"TEST_TUKEY_HSD", "TEST_PAIRED_T", "TEST_WELCH", "AGG_MEDIAN", "REG_GLM", "capability:lookup", "capability:import"}
 	inst := profiled(hidden...)
 	base := map[string]descriptor.Recommendation{}
@@ -510,6 +536,8 @@ func TestRecommend_ProfileHidesOperators(t *testing.T) {
 // TestRecommend_TestTTwoSampleForGroups: TEST_T requires only field
 // (one-sample); a group comparison drafts the two-sample form.
 func TestRecommend_TestTTwoSampleForGroups(t *testing.T) {
+	t.Parallel()
+
 	find := func(intent string) string {
 		for _, r := range all(t, nil, intent).Recommendations {
 			if r.Operator == "TEST_T" {
@@ -532,6 +560,8 @@ func TestRecommend_TestTTwoSampleForGroups(t *testing.T) {
 // single field (the runtime refuses field_on_vector_attribute) — both
 // the unbound skeleton and the bound draft carry "fields".
 func TestRecommend_VectorAttributeDraftsFields(t *testing.T) {
+	t.Parallel()
+
 	find := func(res *descriptor.RecommendResult) string {
 		for _, r := range res.Recommendations {
 			if r.Operator == string(types.ATTR_MAHALANOBIS) {
@@ -554,6 +584,8 @@ func TestRecommend_VectorAttributeDraftsFields(t *testing.T) {
 // field_on_vector_group) — both the unbound skeleton and the bound
 // draft carry "fields".
 func TestRecommend_VectorGrouperDraftsFields(t *testing.T) {
+	t.Parallel()
+
 	find := func(res *descriptor.RecommendResult) string {
 		for _, r := range res.Recommendations {
 			if r.Operator == string(types.GROUP_KMEANS) {

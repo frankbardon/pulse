@@ -10,6 +10,8 @@ import (
 // TestResolveSibling_KnownFieldAndValue exercises the happy path with
 // the GroupFields slot populated.
 func TestResolveSibling_KnownFieldAndValue(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 200.0, 300.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -27,6 +29,8 @@ func TestResolveSibling_KnownFieldAndValue(t *testing.T) {
 // field list is populated but does not contain the requested field, so
 // the resolver returns (0, false).
 func TestResolveSibling_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}}
 	host := newStubSeriesHostWithField(keys, []float64{42.0}, "region")
 	got, present := resolveSibling(host, "bogus", "US")
@@ -42,6 +46,8 @@ func TestResolveSibling_UnknownField(t *testing.T) {
 // field exists but the requested value is not in any observed axis
 // key.
 func TestResolveSibling_UnknownValue(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}}
 	host := newStubSeriesHostWithField(keys, []float64{1.0, 2.0}, "region")
 	got, present := resolveSibling(host, "region", "MX")
@@ -57,6 +63,8 @@ func TestResolveSibling_UnknownValue(t *testing.T) {
 // path: when the host has no GroupFields slot the resolver matches
 // against every element of every axis key.
 func TestResolveSibling_FallbackScanFindsMatch(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	// newStubSeriesHost — no GroupFields slot.
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0, 30.0})
@@ -74,6 +82,8 @@ func TestResolveSibling_FallbackScanFindsMatch(t *testing.T) {
 // finds the group ordinal but the host's resolver itself reports
 // absent.
 func TestResolveSibling_HostAbsentValueReturnsPresentFalse(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}}
 	// NaN signals absent (newStubSeriesHostWithField stub maps NaN to
 	// (0, false)).
@@ -88,6 +98,8 @@ func TestResolveSibling_HostAbsentValueReturnsPresentFalse(t *testing.T) {
 }
 
 func TestResolveSibling_EmptySeriesReturnsAbsent(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHostWithField(nil, nil, "region")
 	got, present := resolveSibling(host, "region", "US")
 	if present {
@@ -99,6 +111,8 @@ func TestResolveSibling_EmptySeriesReturnsAbsent(t *testing.T) {
 }
 
 func TestResolveSibling_SingleEntrySeriesHits(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}}
 	host := newStubSeriesHostWithField(keys, []float64{42.0}, "region")
 
@@ -125,6 +139,8 @@ func TestResolveSibling_SingleEntrySeriesHits(t *testing.T) {
 // returns: nil host, empty field, empty value all return (0, false)
 // without panicking.
 func TestResolveSibling_NilOrEmptyArgsReturnAbsent(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		host  *SeriesHostView
@@ -137,6 +153,8 @@ func TestResolveSibling_NilOrEmptyArgsReturnAbsent(t *testing.T) {
 		{"zero-group host", newStubSeriesHostWithField(nil, nil, "region"), "region", "US"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, present := resolveSibling(tc.host, tc.field, tc.value)
 			if present {
 				t.Errorf("present=true; want false (%s)", tc.name)

@@ -34,6 +34,8 @@ func writeZoneFieldCSV(t *testing.T, dir string) string {
 var wantZoneFieldInstants = []any{"2026-07-01T16:00:00Z", "2026-07-01T03:00:00Z", "2026-07-01T10:00:00Z"}
 
 func TestImportCSV_SourceTZField(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	in := writeZoneFieldCSV(t, dir)
 	out := filepath.Join(dir, "out.pulse")
@@ -71,6 +73,8 @@ func TestImportCSV_SourceTZField(t *testing.T) {
 }
 
 func TestImportAuto_SourceTZField(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	writeZoneFieldCSV(t, dir)
 	root := ImportCommand()
@@ -94,6 +98,8 @@ func TestImportAuto_SourceTZField(t *testing.T) {
 }
 
 func TestConvert_SourceTZField(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	in := writeZoneFieldCSV(t, dir)
 	out := filepath.Join(dir, "out.csv")

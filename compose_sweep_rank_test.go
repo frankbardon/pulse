@@ -52,6 +52,8 @@ func composeRuns(p *Pulse) map[string]func(*ComposedRequest) (*ComposedResponse,
 // sweep slots (never the explicit `base`) by the wire value, ties in
 // expansion order, 1-based, `top` trimming the ranking but no response.
 func TestComposeSweep_RankOrdersSweepSlots(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	for name, run := range composeRuns(p) {
 		t.Run(name, func(t *testing.T) {
@@ -106,6 +108,8 @@ func TestComposeSweep_RankOrdersSweepSlots(t *testing.T) {
 // fails the batch with PULSE_SWEEP_RANK_PATH naming slot and segment, on
 // both entry points; a malformed path is refused before any slot runs.
 func TestComposeSweep_RankPathRefused(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	for name, run := range composeRuns(p) {
 		t.Run(name, func(t *testing.T) {
@@ -132,6 +136,8 @@ func TestComposeSweep_RankPathRefused(t *testing.T) {
 // rank — the wire still drops it — and a Compose-level `return` keeps
 // `ranking` whole and exact.
 func TestComposeSweep_RankReadsUnshapedSlots(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	body := strings.Replace(rankSweepBody, `"cohort"`, `"return":{"include":["data"]},"cohort"`, 1)
 	c := decodeComposedJSON(t, `{"return":{"preset":"minimal","precision":1},
@@ -172,6 +178,8 @@ func TestComposeSweep_RankReadsUnshapedSlots(t *testing.T) {
 
 // TestComposeSweep_RankFreeByteIdentical: no rank, no `ranking` key.
 func TestComposeSweep_RankFreeByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	c := decodeComposedJSON(t, `{"sweep":{"axes":[{"name":"op","values":["AGG_SUM","AGG_MAX"]}],"request":`+sweepSlotBody+`}}`)
 	resp, err := p.Compose(context.Background(), c)
@@ -191,6 +199,8 @@ func TestComposeSweep_RankFreeByteIdentical(t *testing.T) {
 // same bytes. On the wire a number axis stays a number, string and
 // boolean axes are preserved; nothing is parsed off a label.
 func TestComposeSweep_RankCarriesSlotAndAxes(t *testing.T) {
+	t.Parallel()
+
 	p := sweepPulse(t, Options{})
 	zip := decodeComposedJSON(t, `{"requests":[{"label":"base","cohort":{"filename":"`+parityCohort+`"},
 		"tests":[{"type":"TEST_T","field":"age","label":"t"}]}],

@@ -100,6 +100,8 @@ func undefCellSlot(label, cohort string) *types.Request {
 // TestCrosstabOverlays_UndefinedCellIsMissing: one rule per crosstab
 // kind that reads cell values, on both crosstab arms.
 func TestCrosstabOverlays_UndefinedCellIsMissing(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeUndefCellCohort(t, fsys, "u.pulse", [3]int{0, 1, 1})
@@ -201,6 +203,8 @@ func TestCrosstabOverlays_UndefinedCellIsMissing(t *testing.T) {
 // (0, 1, 1) and slot b's cell (1, 0, 2) are undefined; both
 // directions run.
 func TestComposeMatrixOverlays_UndefinedCellIsMissing(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeUndefCellCohort(t, fsys, "u.pulse", [3]int{0, 1, 1})

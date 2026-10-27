@@ -76,6 +76,8 @@ func archiveFacet(cohort string) *pulse.FacetRequest {
 // error its run refuses with, the archive terms (central directory,
 // largest shard) charged alike.
 func TestPredictRoots_ArchiveMatchesSingleFile(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	twin := archiveTwin(t, fs, [2]int{40, 25})
 	ctx := context.Background()
@@ -141,6 +143,8 @@ func TestPredictRoots_ArchiveMatchesSingleFile(t *testing.T) {
 // directory and that one entry's header. PredictBytes (bytes in hand)
 // still judges the archive.
 func TestArchivePredict_ReadsHeadersOnly(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	archiveTwin(t, mem, [2]int{50_000, 50_000})
 	fi, err := mem.Stat("arch.pulse")

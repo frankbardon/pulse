@@ -8,6 +8,8 @@ import (
 )
 
 func TestParseDate_KnownLayouts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -36,6 +38,8 @@ func TestParseDate_KnownLayouts(t *testing.T) {
 // value is exactly days-since-Unix-epoch, computed independently of
 // ParseDate itself.
 func TestParseDate_MatchesManualEpochDayMath(t *testing.T) {
+	t.Parallel()
+
 	got, err := ParseDate("2024-01-01")
 	if err != nil {
 		t.Fatalf("ParseDate: %v", err)
@@ -47,6 +51,8 @@ func TestParseDate_MatchesManualEpochDayMath(t *testing.T) {
 }
 
 func TestParseDate_UnparseableLiteral(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseDate("not-a-date")
 	if err == nil {
 		t.Fatal("expected error for an unparseable date literal")
@@ -57,6 +63,8 @@ func TestParseDate_UnparseableLiteral(t *testing.T) {
 }
 
 func TestParseDate_EmptyLiteral(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseDate("")
 	if err == nil {
 		t.Fatal("expected error for an empty date literal")

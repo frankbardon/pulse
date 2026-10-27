@@ -24,6 +24,8 @@ import (
 // in io/, so a Writer that quietly stopped satisfying one would not fail
 // to compile — it would take a different, wrong path.
 func TestWriter_SatisfiesTheOptionalInterfaces(t *testing.T) {
+	t.Parallel()
+
 	var w any = NewWriter(afero.NewMemMapFs(), "out.sav", WriterOptions{})
 	for name, ok := range map[string]bool{
 		"pio.Writer":               func() bool { _, ok := w.(pio.Writer); return ok }(),
@@ -51,6 +53,8 @@ func TestWriter_SatisfiesTheOptionalInterfaces(t *testing.T) {
 // DISPATCH — that ExportJob hands the writer the cohort, skips its own row
 // loop, and that Close lands the bytes.
 func TestExportJob_SPSS_RoundTripsThroughTheWholeAdapterPath(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	w := NewWriter(fs, "out.sav", WriterOptions{})
@@ -90,6 +94,8 @@ func TestExportJob_SPSS_RoundTripsThroughTheWholeAdapterPath(t *testing.T) {
 // twice and — worse — hand the writer rendered text it must not encode
 // from.
 func TestExportJob_SPSS_NeverCallsWriteRow(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	w := &countingWriter{Writer: NewWriter(fs, "out.sav", WriterOptions{})}
@@ -147,6 +153,8 @@ func (c *countingWriter) WriteRow(v []any) error {
 // stale split — but the file it produces is a SYNTHESIS, and a user who
 // cannot tell that apart from a faithful re-emission has been misled.
 func TestExportJob_SPSS_SidecarAbsentWarns(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := plainCohort(t)
 
 	w := NewWriter(fs, "out.sav", WriterOptions{})
@@ -164,6 +172,8 @@ func TestExportJob_SPSS_SidecarAbsentWarns(t *testing.T) {
 // TestExportJob_SPSS_IgnoreSidecarWarns is the other half: the flag is an
 // escape hatch, not a silencer.
 func TestExportJob_SPSS_IgnoreSidecarWarns(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, plainSpec())
 
 	w := NewWriter(fs, "out.sav", WriterOptions{IgnoreSidecar: true})
@@ -192,6 +202,8 @@ func TestExportJob_SPSS_IgnoreSidecarWarns(t *testing.T) {
 // The fix is not to make this work: it is to export WITHOUT the flag, so
 // the sidecar's derived registry consumes the column.
 func TestExportJob_SPSS_IgnoreSidecarCannotRoundTripADerivedSet(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	w := NewWriter(fs, "out.sav", WriterOptions{IgnoreSidecar: true})
@@ -217,6 +229,8 @@ func TestExportJob_SPSS_IgnoreSidecarCannotRoundTripADerivedSet(t *testing.T) {
 // the two ExportJob slots a cohort writer cannot honour. Emitting every
 // column in answer to --include would be a silent wrong answer.
 func TestExportJob_SPSS_RefusesProjectionAndUnresolvedLabels(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	t.Run("include", func(t *testing.T) {
@@ -273,6 +287,8 @@ func (nopResolver) Warnings() []pio.LabelWarning                { return nil }
 // TestWriter_Uncompressed pins that the flag reaches the encoder rather
 // than merely existing on the struct.
 func TestWriter_Uncompressed(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	for _, tt := range []struct {
@@ -307,6 +323,8 @@ func TestWriter_Uncompressed(t *testing.T) {
 // the writer level: header, rows, Close, and a readable `.sav` out the
 // other end. There is no cohort behind it, so the writer must build one.
 func TestWriter_RowPathBuildsACohort(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.sav", WriterOptions{})
 	if err := w.WriteHeader([]string{"AGE", "REGION"}); err != nil {
@@ -339,6 +357,8 @@ func TestWriter_RowPathBuildsACohort(t *testing.T) {
 // nothing, so the schema would be invented outright; a `.sav` full of
 // invented variables is worse than no file.
 func TestWriter_RowPathWithNoRowsRefuses(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer(WriterOptions{})
 	if err := w.WriteHeader([]string{"A"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -352,6 +372,8 @@ func TestWriter_RowPathWithNoRowsRefuses(t *testing.T) {
 // TestWriter_CloseIsIdempotent. The CLI calls Close after the job, and a
 // second Close must not re-encode a buffered row set into a second file.
 func TestWriter_CloseIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 	w := NewWriter(fs, "out.sav", WriterOptions{})
 	if _, err := w.WriteCohort(context.Background(), pio.CohortSource{FS: fs, Path: cohort}); err != nil {
@@ -377,6 +399,8 @@ func TestWriter_CloseIsIdempotent(t *testing.T) {
 // TestWriter_OverlaysWarnAndSkip pins the manifest's claim. The capability
 // block says "warn_and_skip" for spss; that must be true of the adapter.
 func TestWriter_OverlaysWarnAndSkip(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer(WriterOptions{})
 	if got := w.OverlayWarnings(); got != nil {
 		t.Errorf("OverlayWarnings() = %v with no layers recorded, want nil", codes(got))

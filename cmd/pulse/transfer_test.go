@@ -16,6 +16,8 @@ import (
 // until --overwrite; and `cohort inspect` on the artifact names
 // PULSE_COHORT_COMPRESSED.
 func TestCliTransfer(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := writeGroupCSV(t, dir)
 	cohort := filepath.Join(dir, "c.pulse")

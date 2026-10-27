@@ -19,6 +19,8 @@ import (
 // validateOverlayLevelWithinRuntime, through the same overlayhost
 // refusals.
 func TestValidateOverlay_Rake(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	const targets = `"row_targets":{"north":0.5,"south":0.5},"col_targets":{"retail":0.6,"wholesale":0.4}`
 	ok := types.OverlaySpec{Name: "fit", Kind: types.OverlayKindRake, Scope: types.OverlayScopeMatrix,
@@ -101,6 +103,8 @@ func TestValidateOverlay_Rake(t *testing.T) {
 // TestValidateOverlay_RakeKeyDetails: the dictionary refusal names the
 // axis and the offending keys, with an empty host_only side.
 func TestValidateOverlay_RakeKeyDetails(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, overlayPredictSchema(t))
 	req := &types.Request{Crosstab: crosstabHostSpec(), Overlays: []types.OverlaySpec{{
 		Name: "fit", Kind: types.OverlayKindRake, Scope: types.OverlayScopeMatrix,
@@ -120,6 +124,8 @@ func TestValidateOverlay_RakeKeyDetails(t *testing.T) {
 // TestOverlayOutputResolver_RakeParts: the factors MATRIX part
 // resolves on cells.value only.
 func TestOverlayOutputResolver_RakeParts(t *testing.T) {
+	t.Parallel()
+
 	r := overlayOutputResolver(types.OverlayKindRake)
 	for field, want := range map[string]FieldCheck{
 		"cells.value":                     FieldStatic,

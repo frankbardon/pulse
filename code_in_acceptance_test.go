@@ -269,6 +269,8 @@ var codeInFieldCases = []struct {
 // same bits; and the fixture is not degenerate (every cell strictly
 // between 0 and 1, so the FILTER_INCLUDE control can differ).
 func TestCodeIn_AcceptanceTopBoxExactAndFused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	codeInFixture(t, fsys)
@@ -317,6 +319,8 @@ func TestCodeIn_AcceptanceTopBoxExactAndFused(t *testing.T) {
 // rows, so every cell reads exactly 1.0 — and every one differs from the
 // whole-base ATTR_CODE_IN share.
 func TestCodeIn_AcceptanceFilterIncludeControl(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	codeInFixture(t, fsys)
@@ -346,6 +350,8 @@ func TestCodeIn_AcceptanceFilterIncludeControl(t *testing.T) {
 // 0` (which declines fusion, so it runs buffered) gives the same cells,
 // bit for bit, as ATTR_CODE_IN on the fused arm.
 func TestCodeIn_AcceptanceFormulaOracle(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	codeInFixture(t, fsys)
@@ -374,6 +380,8 @@ func TestCodeIn_AcceptanceFormulaOracle(t *testing.T) {
 // probability weight) composes over the ATTR_CODE_IN target and yields a
 // finite p-value in every pair cell.
 func TestCodeIn_AcceptanceWeightedTwoMeansZOverlay(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	codeInFixture(t, fsys)
@@ -421,6 +429,8 @@ func TestCodeIn_AcceptanceWeightedTwoMeansZOverlay(t *testing.T) {
 // region (the plain grouped path reads one grouper); all carry the
 // hand-computed shares.
 func TestCodeIn_AcceptanceStreamMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	codeInFixture(t, fsys)

@@ -27,6 +27,8 @@ func derivedTestView(base *encoding.Schema) *encoding.Schema {
 // view or the schema itself — a request without a derived dictionary
 // column binds exactly as before.
 func TestDerivedFields_OnlyTheViewsAdditions(t *testing.T) {
+	t.Parallel()
+
 	base := prototypeTestSchema()
 	view := derivedTestView(base)
 	got := DerivedFields(base, view)
@@ -45,6 +47,8 @@ func TestDerivedFields_OnlyTheViewsAdditions(t *testing.T) {
 // string, a packed_bool → float64); any other derived name stays
 // DerivedType.
 func TestDerivedDecl_TypedAsTheSourceField(t *testing.T) {
+	t.Parallel()
+
 	view := derivedTestView(prototypeTestSchema())
 	for name, want := range map[string]exprtypes.Type{
 		"prev":      exprtypes.TypeOf(""),
@@ -66,6 +70,8 @@ func TestDerivedDecl_TypedAsTheSourceField(t *testing.T) {
 // `cat == "b"`. A label already resolved, and a packed_bool flag, pass
 // through.
 func TestBind_LiftsADictionaryCode(t *testing.T) {
+	t.Parallel()
+
 	view := derivedTestView(prototypeTestSchema())
 	prev := view.Field("prev")
 	if got := Bind(prev, float64(1)); got != "b" {

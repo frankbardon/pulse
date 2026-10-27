@@ -12,6 +12,8 @@ import (
 // TestRegistryListsExactlyTheV1Metrics pins the registry to the 15 v1
 // metrics in canonical order.
 func TestRegistryListsExactlyTheV1Metrics(t *testing.T) {
+	t.Parallel()
+
 	want := []string{
 		"euclidean", "sq_euclidean", "manhattan", "chebyshev", "cosine", "correlation", "hellinger", "aitchison",
 		"jaccard", "dice", "hamming", "overlap",
@@ -91,6 +93,8 @@ var declarations = map[string]decl{
 // TestEveryMetricDeclaresItsContract checks each metric's kinds, poor
 // fits, direction, forms, fitted flag, domain rules and consumers.
 func TestEveryMetricDeclaresItsContract(t *testing.T) {
+	t.Parallel()
+
 	if len(declarations) != len(metric.Names()) {
 		t.Fatalf("declarations cover %d metrics, registry has %d", len(declarations), len(metric.Names()))
 	}
@@ -140,6 +144,8 @@ func TestEveryMetricDeclaresItsContract(t *testing.T) {
 // TestDeclaredSlicesAreCopies proves a caller mutating a returned slice
 // cannot reach the registry.
 func TestDeclaredSlicesAreCopies(t *testing.T) {
+	t.Parallel()
+
 	m, _ := metric.Lookup("cosine")
 	m.Forms()[0] = metric.Distance
 	m.KindsSuited()[0] = metric.Measure
@@ -157,6 +163,8 @@ func TestDeclaredSlicesAreCopies(t *testing.T) {
 // TestConsumerAcceptanceRules pins the per-consumer acceptance rules
 // the lists must obey, independently of the per-metric declarations.
 func TestConsumerAcceptanceRules(t *testing.T) {
+	t.Parallel()
+
 	euclidFamily := []string{"euclidean", "sq_euclidean"}
 	for _, m := range metric.All() {
 		for _, c := range m.Consumers() {
@@ -258,6 +266,8 @@ func codeOf(t *testing.T, err error) *perr.CodedError {
 // TestResolve_DirectionContract: a consumer asks for a form; a metric
 // with no such form is refused, never transformed.
 func TestResolve_DirectionContract(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		form   metric.Form
@@ -312,6 +322,8 @@ func TestResolve_DirectionContract(t *testing.T) {
 // TestResolveFor_PerConsumer: each consumer gets only its accepted
 // metrics in its own forms.
 func TestResolveFor_PerConsumer(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		c      metric.Consumer
 		name   string
@@ -373,6 +385,8 @@ func TestResolveFor_PerConsumer(t *testing.T) {
 // TestZeroMetric: the zero Metric is invalid and answers its accessors
 // with zero values.
 func TestZeroMetric(t *testing.T) {
+	t.Parallel()
+
 	var m metric.Metric
 	if m.Valid() || m.Name() != "" || m.Fitted() || len(m.Forms()) != 0 || m.HasForm(metric.Distance) {
 		t.Fatal("the zero Metric looks registered")

@@ -99,6 +99,8 @@ func wideMemoryArchive(t *testing.T, fs afero.Fs) string {
 // fan-out estimate, the build-side backstop refusing it at the certain
 // one; under the default (Unlimited) there is no finding.
 func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs, cohort := limitsCohort(t)
 	jfs, left, right := joinLimitCohorts(t)
@@ -300,6 +302,8 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 // Window-for-window parity: internal/service
 // TestGroupMemory_MergeWindowFitsBudget.
 func TestLimits_ShardMergeWindowShrinksToBudget(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	afs := afero.NewMemMapFs()
 	wideArch := wideMemoryArchive(t, afs)
@@ -371,6 +375,8 @@ func memoryArchiveAnchor(t *testing.T, fs afero.Fs, arch string, i int) string {
 // Predict and on the pre-flight refusal; Explain's request check grades
 // the same estimate.
 func TestLimits_MaxEstimatedMemory_AnchorChargesShard(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	arch := memoryArchive(t, fs)
@@ -467,6 +473,8 @@ func archiveRanged(arch string) *types.Request {
 // the run fans out — and predict and the run report the same figure
 // under either cap.
 func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	arch := memoryArchive(t, fs)
@@ -510,6 +518,8 @@ func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
 // three — plus the 5 rows shard 1 buffers (columns a, b and the weight:
 // 24 bytes each).
 func TestPredict_MatrixEstimatedBytes_ArchiveBlocks(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	arch := memoryArchive(t, fs)
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -542,6 +552,8 @@ func TestPredict_MatrixEstimatedBytes_ArchiveBlocks(t *testing.T) {
 // Falsified by dropping DecodeWorkers from the facade's predictOptions
 // (predict then charges the serial arm at 4 workers too).
 func TestLimits_MaxEstimatedMemory_DecodeWorkersPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	dir := parityLargeCohort(t.TempDir())(t)
 	req := func() *types.Request {
@@ -590,6 +602,8 @@ func TestLimits_MaxEstimatedMemory_DecodeWorkersPredictMatchesRuntime(t *testing
 // and output 1,024 + 576), plus the one
 // bucket an ungrouped run holds.
 func TestLimits_ValueWidthBoundCoversEveryKey(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	const records = 3_000
@@ -670,6 +684,8 @@ func TestLimits_ValueWidthBoundCoversEveryKey(t *testing.T) {
 // on every combination predict's estimate is the figure the run is
 // refused with, and the off figure is below the on one.
 func TestLimits_MaxEstimatedMemory_ComponentsPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	var b strings.Builder
@@ -750,6 +766,8 @@ func TestLimits_MaxEstimatedMemory_ComponentsPredictMatchesRuntime(t *testing.T)
 // RequestLimitFindings): on every cap and arm predict's estimate is the
 // figure the run is refused with, and a smaller cap charges less.
 func TestLimits_MaxEstimatedMemory_CrosstabGridPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	var b strings.Builder

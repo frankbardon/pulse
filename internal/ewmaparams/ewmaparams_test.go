@@ -13,6 +13,8 @@ import (
 // very double the literal alpha = 1 − decay parses to, never the float64
 // subtraction (1.0 − 0.7 = 0.30000000000000004).
 func TestResolve_DecayIsExactDecimalComplement(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"0":    "1",
 		"0.1":  "0.9",
@@ -42,6 +44,8 @@ func TestResolve_DecayIsExactDecimalComplement(t *testing.T) {
 }
 
 func TestResolve_Alpha(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range []string{"0.3", "1", "1e-3"} {
 		got, ref := Resolve(json.RawMessage(`{"alpha": ` + a + `}`))
 		want, _ := strconv.ParseFloat(a, 64)
@@ -56,6 +60,8 @@ func TestResolve_Alpha(t *testing.T) {
 }
 
 func TestResolve_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		raw, want string
 	}{

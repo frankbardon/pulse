@@ -46,6 +46,8 @@ func continuationRows(t *testing.T, schema *encoding.Schema) []byte {
 }
 
 func TestRunContinuation_PerFieldRatesExact(t *testing.T) {
+	t.Parallel()
+
 	schema := continuationSchema()
 	data := continuationRows(t, schema)
 	// The null-bit half of the rule only means something if a null and
@@ -90,6 +92,8 @@ func TestRunContinuation_PerFieldRatesExact(t *testing.T) {
 }
 
 func TestRunContinuation_OffByDefault(t *testing.T) {
+	t.Parallel()
+
 	schema := continuationSchema()
 	data := continuationRows(t, schema)
 	prof, err := profileRecords(schema, bytes.NewReader(data), ProfileOptions{})
@@ -112,6 +116,8 @@ func TestRunContinuation_OffByDefault(t *testing.T) {
 // extra byte, and every other section of the document is byte-identical
 // to the capture without it.
 func TestRunContinuation_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	schema := continuationSchema()
 	data := continuationRows(t, schema)
 
@@ -137,6 +143,8 @@ func TestRunContinuation_RidesTheExistingScan(t *testing.T) {
 }
 
 func TestRunContinuation_HonoursSampleLimit(t *testing.T) {
+	t.Parallel()
+
 	schema := continuationSchema()
 	data := continuationRows(t, schema)
 	prof, err := profileRecords(schema, bytes.NewReader(data), ProfileOptions{RunContinuation: true, SampleLimit: 3})
@@ -156,6 +164,8 @@ func TestRunContinuation_HonoursSampleLimit(t *testing.T) {
 // in k but different from each other. Within each shard k always
 // repeats; only a pair across the boundary would not.
 func TestRunContinuation_PairsNeverSpanASegment(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "k", Type: encoding.FieldTypeU8}}}
 	shard := func(k float64) []byte {
 		rows := []map[string]any{{"k": k}, {"k": k}, {"k": k}}
@@ -183,6 +193,8 @@ func TestRunContinuation_PairsNeverSpanASegment(t *testing.T) {
 }
 
 func TestRunContinuation_NoPairs(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "k", Type: encoding.FieldTypeU8}}}
 	data := encodeModelRows(t, schema, []map[string]any{{"k": 1.0}}, nil)
 	prof, err := profileRecords(schema, bytes.NewReader(data), ProfileOptions{RunContinuation: true})

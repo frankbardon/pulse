@@ -48,6 +48,8 @@ func rowZoneRecord(ts float64, code int) *Record {
 // named (the forked lookup caches never leak a zone between rows).
 // A null cell, or a code outside the dictionary, has no local value.
 func TestDateField_PerRowZoneDSTNights(t *testing.T) {
+	t.Parallel()
+
 	df, err := resolveDateField("OP", "ts", "", "tz", rowZoneSchema(), true)
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +109,8 @@ func TestDateField_PerRowZoneDSTNights(t *testing.T) {
 // PROCESSING_CONFIG; a dictionary entry that names no zone is
 // PULSE_TIMEZONE_UNKNOWN carrying its code.
 func TestDateField_PerRowZoneConstruction(t *testing.T) {
+	t.Parallel()
+
 	ds := rowZoneSchema()
 	ds.Fields[0].Type = encoding.FieldTypeDate
 	if df, err := resolveDateField("OP", "ts", "", "tz", ds, true); err != nil || df.perRow() {
@@ -133,6 +137,8 @@ func TestDateField_PerRowZoneConstruction(t *testing.T) {
 // lookup is a slice index into a table built once per operator, the
 // offset lookup the zone's transition table.
 func TestPerRowZone_OperatorsAllocationFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	s := rowZoneSchema()
 	ranges := json.RawMessage(`{"ranges":[{"label":"a","start":"2026-03-01","end":"2026-03-31"}]}`)
 	rg, err := newDateRangesGrouper(&types.Group{Type: types.GROUP_DATE_RANGES, Field: "ts", TimeZoneField: "tz", Params: ranges}, s)
@@ -182,6 +188,8 @@ func TestPerRowZone_OperatorsAllocationFree(t *testing.T) {
 // zone field left out decodes as null on every row and silently empties
 // the date operators.
 func TestNeededFields_ZoneFields(t *testing.T) {
+	t.Parallel()
+
 	fields := []encoding.Field{{Name: "ts", Type: encoding.FieldTypeDateTime}, {Name: "n", Type: encoding.FieldTypeU32}, {Name: "other", Type: encoding.FieldTypeF64}}
 	for _, z := range []string{"z_req", "z_filter", "z_feat", "z_attr", "z_group", "z_row", "z_col", "z_between"} {
 		fields = append(fields, encoding.Field{Name: z, Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()})
@@ -226,6 +234,8 @@ func TestNeededFields_ZoneFields(t *testing.T) {
 // per-row zone field has TWO inputs — its verdict depends on the zone
 // cell — so it precomputes only when both sit in one parent group.
 func TestPrecomputeInputs_ZoneField(t *testing.T) {
+	t.Parallel()
+
 	in, ok := precomputeInputs(&types.Filterer{Type: types.FILTER_DATE_RANGES, Field: "ts", TimeZoneField: "tz"}, nil)
 	if !ok || !slices.Equal(in, []string{"ts", "tz"}) {
 		t.Fatalf("inputs = %v ok=%v, want [ts tz]", in, ok)

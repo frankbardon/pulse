@@ -31,6 +31,8 @@ func sphericityReq(fields []string, mod func(*types.Test)) func() *types.Request
 // psych::cortest.bartlett's closed form on the rows' correlation, at
 // N = n unweighted; the determinant rides Details.
 func TestBartlettSphericity_ClosedForm(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	recs := hotellingRows(schema, 50, []string{"a"}, nil)
 	res, _ := runHotelling(t, schema, recs, sphericityReq([]string{"x1", "x2", "x3"}, nil))
@@ -61,6 +63,8 @@ func TestBartlettSphericity_ClosedForm(t *testing.T) {
 // PULSE_MATRIX_INSUFFICIENT_N — each a warning with a null statistic
 // and p (JSON null), never an error.
 func TestBartlettSphericity_NullsWarn(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		code errors.Code
@@ -106,6 +110,8 @@ func TestBartlettSphericity_NullsWarn(t *testing.T) {
 // expansion (N* = Σw); fewer than 2 complete rows is
 // PULSE_TEST_INSUFFICIENT_N.
 func TestBartlettSphericity_ListwiseAndFrequency(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	clean := hotellingRows(schema, 40, []string{"a"}, nil)
 	withNull := append(append([]*Record(nil), clean...), NewRecord(schema, map[string]float64{"x1": 99, "x3": 1, "g": 0}))
@@ -144,6 +150,8 @@ func TestBartlettSphericity_ListwiseAndFrequency(t *testing.T) {
 // the one tree — so past one block the statistic is the tree's, not a
 // single running fold's.
 func TestBartlettSphericity_UnpositionedBlocks(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	n := 2*linalg.MergeBlockSize + 77
 	// Large offsets with small spreads make the fold order reach the
@@ -183,6 +191,8 @@ func TestBartlettSphericity_UnpositionedBlocks(t *testing.T) {
 // unknown params and pairwise missing are SERVICE_VALIDATION reasons; a
 // single member is PROCESSING_CONFIG.
 func TestBartlettSphericity_Refusals(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	for reason, mod := range map[string]func(*types.Test){

@@ -60,6 +60,8 @@ func lavRel(a, b float64) float64 { return math.Abs(a-b) / math.Max(math.Abs(b),
 // The resolved plan (the rule predict sizes from) names exactly the
 // auxiliaries and the estimates shape the run emits.
 func TestMatrixSEM_MeanStructureMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	cfg, cols := semCohort(t, semTestdata+"brand_data.csv", nil, nil)
 	for _, c := range []struct {
 		name, ref, model string

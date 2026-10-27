@@ -127,6 +127,8 @@ func dataBits(t *testing.T, resp *types.Response, key string) uint64 {
 // not the slot's 120 rows: a fit-free twin over the same rows differs),
 // and the batch's `fits` entry is the vector summary.
 func TestComposeVectorFits_OneFoldManyConsumers(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	svc := vecFitsService(t)
 	fitReq := vecWeeks("", "0", "59")
 	fitReq.Matrices = []types.MatrixSpec{vecMatrix(types.MAT_COVARIANCE, "cov", "")}
@@ -202,6 +204,8 @@ func TestComposeVectorFits_OneFoldManyConsumers(t *testing.T) {
 // request run standalone; over different rows it still scores against
 // the fit (a fit_on twin over those rows differs).
 func TestComposeVectorFits_AttributeBattery(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	svc := vecFitsService(t)
 	fitReq := mahalSlot("", "0", "59", `{}`)
 	fitReq.Label = ""
@@ -246,6 +250,8 @@ func TestComposeVectorFits_AttributeBattery(t *testing.T) {
 // (details.fit, located by details.request); an unbound name is
 // PULSE_MODEL_UNKNOWN listing the vector fits only.
 func TestComposeVectorFits_KindMismatch(t *testing.T) {
+	t.Parallel()
+
 	svc := vecFitsService(t)
 	vecFit := vecWeeks("", "0", "59")
 	vecFit.Matrices = []types.MatrixSpec{vecMatrix(types.MAT_COVARIANCE, "cov", "")}

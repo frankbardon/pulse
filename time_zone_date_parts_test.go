@@ -28,6 +28,8 @@ func datePartsOverTS(cohort, slotTZ, reqTZ string) map[string]*types.Request {
 // over a `datetime` run with a non-UTC zone from the slot or the
 // request, and predict echoes the REAL zone (not null) with its source.
 func TestDateParts_DateTimeZoneEcho(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -59,6 +61,8 @@ func TestDateParts_DateTimeZoneEcho(t *testing.T) {
 // FEAT_DATE_FEATURES field on both sides. The explicit-`tz`-on-`date`
 // refusal is TestDateFieldRejectsTZ's.
 func TestDateParts_RefusalsPredictParity(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()

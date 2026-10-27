@@ -27,6 +27,8 @@ func sampleSchema(t *testing.T) *encoding.Schema {
 }
 
 func TestSchemaDoc_WriteRead_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	schema := sampleSchema(t)
 
 	var buf bytes.Buffer
@@ -56,6 +58,8 @@ func TestSchemaDoc_WriteRead_RoundTrip(t *testing.T) {
 }
 
 func TestSchemaDoc_ReadWithoutExtension_ReturnsZeroMetadata(t *testing.T) {
+	t.Parallel()
+
 	schema := sampleSchema(t)
 	var buf bytes.Buffer
 	if err := encoding.WriteHeader(&buf); err != nil {

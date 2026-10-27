@@ -18,6 +18,8 @@ import (
 // details, never a "field … truncated" string; the additive tally of
 // the same field carries its own entry marked additive.
 func TestFacetSchema_TruncationWarningIsCoded(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	for _, tc := range []struct {
 		name     string
@@ -58,6 +60,8 @@ func TestFacetSchema_TruncationWarningIsCoded(t *testing.T) {
 // that cap cuts a value list — PULSE_FACET_VALUES_TRUNCATED — never a
 // field-description code.
 func TestFacet_SmallTopKPredictMatchesRuntimeCode(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildCategoricalCohort(t)
 	req := &types.FacetRequest{Cohort: &types.Cohort{Filename: path}, Fields: []string{"region"}, DiscreteTopK: 2}
 	resp, err := svc.FacetSchema(context.Background(), req)

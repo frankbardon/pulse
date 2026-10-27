@@ -104,6 +104,8 @@ type weightedCountCase struct {
 // TestWeightedCountTests_UnityMatchesUnweighted: every weight 1, under
 // either kind, reproduces the unweighted result byte for byte.
 func TestWeightedCountTests_UnityMatchesUnweighted(t *testing.T) {
+	t.Parallel()
+
 	ones := countFixture()
 	for i := range ones {
 		ones[i].w = 1
@@ -127,6 +129,8 @@ func TestWeightedCountTests_UnityMatchesUnweighted(t *testing.T) {
 // p-value and every numeric detail; `n` stays the raw row count,
 // successes / the contingency become Σw.
 func TestWeightedCountTests_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	rows := countFixture()
 	var expanded []cRow
 	for _, r := range rows {
@@ -192,6 +196,8 @@ func TestWeightedCountTests_FrequencyIsExpansion(t *testing.T) {
 // from the weighted table: χ² = n_eff·Σ(p_ij − p_i·p_j)²/(p_i·p_j)
 // with Cramér's V on n_eff; prop-z with p̂_g = Σw_yes/Σw_g, N*_g.
 func TestWeightedCountTests_ClosedForm(t *testing.T) {
+	t.Parallel()
+
 	rows := countFixture()
 	for _, prob := range []bool{false, true} {
 		kind := map[bool]types.WeightKind{false: types.WeightKindFrequency, true: types.WeightKindProbability}[prob]
@@ -268,6 +274,8 @@ func TestWeightedCountTests_ClosedForm(t *testing.T) {
 // under frequency) but n_eff-scaled expected counts of 2 — the guard
 // reads the scaled table and warns under probability.
 func TestWeightedCountTests_ExpectedGuardOnScaledTable(t *testing.T) {
+	t.Parallel()
+
 	var rows []cRow
 	for _, g := range []string{"a", "b"} {
 		for _, o := range []string{"yes", "no"} {
@@ -302,6 +310,8 @@ func TestWeightedCountTests_ExpectedGuardOnScaledTable(t *testing.T) {
 // +Inf and zero weights drop the row; the result equals the run
 // without them.
 func TestWeightedCountTests_ExcludeInvalidAndZero(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range countCases() {
 		schema := countSchema()
 		spec := tc.spec
@@ -340,6 +350,8 @@ func TestWeightedCountTests_ExcludeInvalidAndZero(t *testing.T) {
 // tests through the processor (streaming path) and streaming equals
 // buffered.
 func TestWeightedCountTests_ProcessorStamps(t *testing.T) {
+	t.Parallel()
+
 	schema := countSchema()
 	var recs []*Record
 	for _, r := range countFixture() {

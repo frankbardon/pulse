@@ -23,6 +23,8 @@ import (
 // the same. The Berlin hour reference has no 2026-03-29T02 bucket and one
 // merged 2026-10-25T02 bucket of both 02:xx hours.
 func TestGroupDate_HourWeekStartEveryArm(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	instants := dstInstants()
 	cohort, archive := importDST(t, fs, instants)
@@ -148,6 +150,8 @@ func TestGroupDate_HourWeekStartEveryArm(t *testing.T) {
 // same message from predict and from the runtime, on Request.Groups and
 // on a crosstab axis.
 func TestGroupDate_CalendarParamRefusalsPredictParity(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	cohort := identityCohort(t, fs)
 	data, err := afero.ReadFile(fs, cohort)

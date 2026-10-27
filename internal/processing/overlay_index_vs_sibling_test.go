@@ -26,6 +26,8 @@ func newIndexVsSiblingSpec(name, field, value string) types.OverlaySpec {
 // US). US emits 100/100 * 100 = 100; CA emits 200/100 * 100 = 200;
 // MX emits 300/100 * 100 = 300.
 func TestOverlay_IndexVsSibling_BasicSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 200.0, 300.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -64,6 +66,8 @@ func TestOverlay_IndexVsSibling_BasicSeries(t *testing.T) {
 // emission: the sibling group's own entry surfaces exactly 100.0
 // (sibling / sibling * 100 = 100).
 func TestOverlay_IndexVsSibling_SelfEmits100(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"baseline"}, {"a"}, {"b"}}
 	values := []float64{50.0, 75.0, 25.0}
 	host := newStubSeriesHostWithField(keys, values, "grp")
@@ -87,6 +91,8 @@ func TestOverlay_IndexVsSibling_SelfEmits100(t *testing.T) {
 // GroupFields slot the handler emits ONE PULSE_OVERLAY_REF_UNKNOWN
 // warning and every present entry's Statistic is NaN.
 func TestOverlay_IndexVsSibling_UnknownFieldEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{1.0, 2.0, 3.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -115,6 +121,8 @@ func TestOverlay_IndexVsSibling_UnknownFieldEmitsWarn(t *testing.T) {
 // handler emits ONE PULSE_OVERLAY_REF_UNKNOWN warning and every
 // present entry's Statistic is NaN.
 func TestOverlay_IndexVsSibling_UnknownValueEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{1.0, 2.0, 3.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -133,6 +141,8 @@ func TestOverlay_IndexVsSibling_UnknownValueEmitsWarn(t *testing.T) {
 // PULSE_OVERLAY_REF_ZERO warning + NaN per present entry.
 // Distinct from the DELTA_VS_SIBLING twin which stays well-defined.
 func TestOverlay_IndexVsSibling_ZeroSiblingEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 7.0, 10.0}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -161,6 +171,8 @@ func TestOverlay_IndexVsSibling_ZeroSiblingEmitsRefZero(t *testing.T) {
 // TestOverlay_IndexVsSibling_AbsentGroupsStayAbsent pins the absent-
 // group contract.
 func TestOverlay_IndexVsSibling_AbsentGroupsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	values := []float64{10.0, math.NaN(), 30.0, math.NaN()}
 	host := newStubSeriesHostWithField(keys, values, "region")
@@ -188,6 +200,8 @@ func TestOverlay_IndexVsSibling_AbsentGroupsStayAbsent(t *testing.T) {
 // TestOverlay_IndexVsSibling_DefaultLayerName pins the synthesised
 // label when the spec omits Name.
 func TestOverlay_IndexVsSibling_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHostWithField(keys, []float64{1.0, 2.0}, "region")
 	specs := []types.OverlaySpec{{

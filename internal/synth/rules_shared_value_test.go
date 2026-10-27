@@ -38,6 +38,8 @@ import (
 // mask that drifts down the file rather than one that is wrong from the
 // start, which is the harder half to see by inspection.
 func TestRules_SetLiteralIsStableAcrossEveryRowItFiresOn(t *testing.T) {
+	t.Parallel()
+
 	const rows = 500
 	spec := &synth.Spec{
 		RowCount: rows,
@@ -129,6 +131,8 @@ func sortedCopy(in []string) []string {
 // mutate, and this test is where that decision gets made explicitly
 // rather than by accident.
 func TestDrawRow_RulePassIsTheLastStatement(t *testing.T) {
+	t.Parallel()
+
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "writer.go", nil, 0)
 	if err != nil {

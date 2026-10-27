@@ -12,6 +12,8 @@ import (
 // TestMarkovStateName: a one-element string key is itself; any other
 // key is its JSON, so numbers and multi-grouper keys stay distinct.
 func TestMarkovStateName(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		key  types.AxisKey
 		want string
@@ -31,6 +33,8 @@ func TestMarkovStateName(t *testing.T) {
 // TestParseMarkovParams_Decoded: the accepted forms decode to the
 // documented values (defaults, given order, raw shares).
 func TestParseMarkovParams_Decoded(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindMarkov}
 	p, cerr := ParseMarkovParams(spec, -1)
 	if cerr != nil || !slices.Equal(p.Steps, MarkovDefaultSteps()) || p.Initial || p.Absorbing != nil {
@@ -56,6 +60,8 @@ func TestParseMarkovParams_Decoded(t *testing.T) {
 // TestMarkovRefusals: each shared refusal is nil on a passing input and
 // carries its code and sorted details otherwise.
 func TestMarkovRefusals(t *testing.T) {
+	t.Parallel()
+
 	k := types.OverlayKindMarkov
 	if MarkovArityRefusal(k, 1, 1, 0) != nil || MarkovKeySetRefusal(k, nil, nil, 0) != nil || MarkovStateRefusal(k, "absorbing", nil, nil, 0) != nil {
 		t.Fatal("a passing input was refused")

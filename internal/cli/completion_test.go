@@ -12,6 +12,8 @@ import (
 // TestCompletionRequest_DetectsTheMarker: only a trailing
 // --generate-shell-completion marks the ctx.
 func TestCompletionRequest_DetectsTheMarker(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		args []string
 		want bool
@@ -35,6 +37,8 @@ func TestCompletionRequest_DetectsTheMarker(t *testing.T) {
 // stdout among the candidates) and swallows the refusal; outside one it
 // still reports and exits 2.
 func TestCompletion_UsageErrorIsQuiet(t *testing.T) {
+	t.Parallel()
+
 	newRoot := func(out, errOut *bytes.Buffer) *cli.Command {
 		root := &cli.Command{Name: "pulse", Writer: out, ErrWriter: errOut}
 		return root
@@ -61,6 +65,8 @@ func TestCompletion_UsageErrorIsQuiet(t *testing.T) {
 // TestCompletion_GlobalBeforeSkipsValidation: a completion request skips
 // the persistent-flag checks a normal run refuses with a usage error.
 func TestCompletion_GlobalBeforeSkipsValidation(t *testing.T) {
+	t.Parallel()
+
 	var got error
 	root := &cli.Command{
 		Name:   "pulse",

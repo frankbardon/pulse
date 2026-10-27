@@ -71,6 +71,8 @@ func itoa(n int) string {
 // empty retained set produces a single SkipBytes covering the entire
 // record stride (including the bitmap when present).
 func TestBuildDecodePlan_EmptyRetainedCoversFullStride(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},
@@ -104,6 +106,8 @@ func TestBuildDecodePlan_EmptyRetainedCoversFullStride(t *testing.T) {
 }
 
 func TestBuildDecodePlan_FullRetainedNoSkips(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},
@@ -143,6 +147,8 @@ func TestBuildDecodePlan_FullRetainedNoSkips(t *testing.T) {
 // coverage): a one-field schema for each field type, retained, produces
 // exactly one DecodeFields segment listing that field and no Skips.
 func TestBuildDecodePlan_PerFieldTypeAlone(t *testing.T) {
+	t.Parallel()
+
 	types := []encoding.FieldType{
 		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
@@ -178,6 +184,8 @@ func TestBuildDecodePlan_PerFieldTypeAlone(t *testing.T) {
 // complementary case: the single field, NOT retained, becomes one
 // SkipBytes whose width matches the on-wire byte size of that field.
 func TestBuildDecodePlan_PerFieldTypeAloneSkipped(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft       encoding.FieldType
 		wantSkip int
@@ -230,6 +238,8 @@ func TestBuildDecodePlan_PerFieldTypeAloneSkipped(t *testing.T) {
 // both members in the retained set produces one DecodeFields covering
 // both, no skips.
 func TestBuildDecodePlan_U4PairFullyRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "lo", Type: encoding.FieldTypeU4, BitPosition: 0},
@@ -250,6 +260,8 @@ func TestBuildDecodePlan_U4PairFullyRetained(t *testing.T) {
 // TestBuildDecodePlan_U4PairFullySkipped covers the u4 pair fully
 // elided: one SkipBytes covering the group's byte size.
 func TestBuildDecodePlan_U4PairFullySkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "lo", Type: encoding.FieldTypeU4, BitPosition: 0},
@@ -275,6 +287,8 @@ func TestBuildDecodePlan_U4PairFullySkipped(t *testing.T) {
 // (bit-packed neighbours stay grouped — the iterator must walk the
 // whole run to stay byte-aligned).
 func TestBuildDecodePlan_U4PairHalfRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "lo", Type: encoding.FieldTypeU4, BitPosition: 0},
@@ -295,6 +309,8 @@ func TestBuildDecodePlan_U4PairHalfRetained(t *testing.T) {
 // TestBuildDecodePlan_PackedBoolRunFullyRetained covers a contiguous
 // packed_bool run with every member in the retained set.
 func TestBuildDecodePlan_PackedBoolRunFullyRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "b0", Type: encoding.FieldTypePackedBool, BitPosition: 0},
@@ -317,6 +333,8 @@ func TestBuildDecodePlan_PackedBoolRunFullyRetained(t *testing.T) {
 // packed_bool run with no member retained: one SkipBytes for the whole
 // group.
 func TestBuildDecodePlan_PackedBoolRunFullySkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32},
@@ -343,6 +361,8 @@ func TestBuildDecodePlan_PackedBoolRunFullySkipped(t *testing.T) {
 // iterator must walk the whole run together; the unretained members'
 // map writes will be filtered downstream).
 func TestBuildDecodePlan_PackedBoolRunPartiallyRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "b0", Type: encoding.FieldTypePackedBool, BitPosition: 0},
@@ -367,6 +387,8 @@ func TestBuildDecodePlan_PackedBoolRunPartiallyRetained(t *testing.T) {
 // because both are bit-packed. The decoder treats them uniformly (1
 // byte per bit-packed field on-wire).
 func TestBuildDecodePlan_BitPackedRunStopsAtTypeBoundary(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "nibble", Type: encoding.FieldTypeU4, BitPosition: 0},
@@ -391,6 +413,8 @@ func TestBuildDecodePlan_BitPackedRunStopsAtTypeBoundary(t *testing.T) {
 // consecutive unprojected non-bit-packed fields coalesce into ONE
 // SkipBytes whose N is the sum of byte sizes.
 func TestBuildDecodePlan_CoalesceContiguousSkips(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},     // skip 1
@@ -415,6 +439,8 @@ func TestBuildDecodePlan_CoalesceContiguousSkips(t *testing.T) {
 // AND at least one nullable field retained ⇒ trailing DecodeFields
 // segment for the bitmap, listing every nullable field.
 func TestBuildDecodePlan_BitmapWholeRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, Nullable: true},
@@ -446,6 +472,8 @@ func TestBuildDecodePlan_BitmapWholeRetained(t *testing.T) {
 // TestBuildDecodePlan_BitmapWholeSkipped covers AC 3: HasBitmap()=true
 // AND no nullable field retained ⇒ trailing SkipBytes for the bitmap.
 func TestBuildDecodePlan_BitmapWholeSkipped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, Nullable: true},
@@ -471,6 +499,8 @@ func TestBuildDecodePlan_BitmapWholeSkipped(t *testing.T) {
 // TestBuildDecodePlan_NoBitmapWhenNoNullable verifies AC 3 negative
 // path: !HasBitmap() ⇒ no bitmap segment appended.
 func TestBuildDecodePlan_NoBitmapWhenNoNullable(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},
@@ -507,6 +537,8 @@ func TestBuildDecodePlan_NoBitmapWhenNoNullable(t *testing.T) {
 // categorical + numeric + decimal128 + set_u8 + nullable) plus AC 1
 // coalescing across heterogeneous types.
 func TestBuildDecodePlan_MixedSchema(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU64},                            // 8 bytes
@@ -569,6 +601,8 @@ func TestBuildDecodePlan_MixedSchema(t *testing.T) {
 // same (schema, retained) inputs return equal plans, and the retained
 // order does not matter.
 func TestBuildDecodePlan_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},
@@ -601,6 +635,8 @@ func TestBuildDecodePlan_Deterministic(t *testing.T) {
 // names not present in the schema and duplicates in retained are
 // silently accepted and have no effect on the plan.
 func TestBuildDecodePlan_UnknownAndDuplicateRetainedIgnored(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8},
@@ -625,6 +661,8 @@ func TestBuildDecodePlan_UnknownAndDuplicateRetainedIgnored(t *testing.T) {
 // permutations of retained sets never reads a record, never opens a
 // file, never inspects field offsets beyond type/nullability.
 func TestBuildDecodePlan_PureFunctionOfSchema(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, ByteOffset: 9999, CsvColumnIdx: 7777},
@@ -649,6 +687,8 @@ func TestBuildDecodePlan_PureFunctionOfSchema(t *testing.T) {
 // unprojected non-bit-packed run and a projected non-bit-packed run,
 // the skip and decode segments must NOT merge across the group.
 func TestBuildDecodePlan_BitPackedFlushSeparatesSkipAndDecode(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "skip_a", Type: encoding.FieldTypeU16},    // 2 bytes skip
@@ -677,6 +717,8 @@ func TestBuildDecodePlan_BitPackedFlushSeparatesSkipAndDecode(t *testing.T) {
 // (well under 50 segments). Uses generated schema entries to keep the
 // test self-contained.
 func TestBuildDecodePlan_SmallPlanForWideSchema(t *testing.T) {
+	t.Parallel()
+
 	const total = 628
 	fields := make([]encoding.Field, total)
 	for i := 0; i < total; i++ {

@@ -30,6 +30,8 @@ import (
 // emits exactly the fit-output keys its applicability row lists (the
 // echoes name and type aside).
 func TestMMMHill_OutputsMatchApplicability(t *testing.T) {
+	t.Parallel()
+
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
 	var keys map[string]json.RawMessage
@@ -55,6 +57,8 @@ func TestMMMHill_OutputsMatchApplicability(t *testing.T) {
 // predict and by the runtime with the same single code, and the
 // declared ones (resample, vcov, conf_level) run.
 func TestMMMHill_SharedSlotsRefusedLikePredict(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
@@ -116,6 +120,8 @@ func TestMMMHill_SharedSlotsRefusedLikePredict(t *testing.T) {
 // field no cohort carries, so the unknown-field rule refuses it first;
 // TestMMMHill_FactoryRefusesCurveNameCollision covers the factory's.)
 func TestMMMHill_SpecRefusalsPredictMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
@@ -163,6 +169,8 @@ func TestMMMHill_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 // own names were unknown to predict and any term passed — and accepts
 // every catalogued one.
 func TestMMMHill_TermCatalogStatic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
@@ -193,6 +201,8 @@ func TestMMMHill_TermCatalogStatic(t *testing.T) {
 // name, so an embedder registration under it (the retired pack's) is
 // refused at pulse.New with PULSE_EXTENSION_NAME_COLLISION.
 func TestMMMHill_EmbedderCannotRegisterName(t *testing.T) {
+	t.Parallel()
+
 	_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: pulse.Extensions{
 		Regressions: []pulse.RegressionRegistration{{Name: regmmm.Name, Factory: regmmm.Factory}},
 	}})

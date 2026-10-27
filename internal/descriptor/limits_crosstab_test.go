@@ -21,6 +21,8 @@ func catAxis(fields ...string) []*types.Group {
 // (not a fan-out axis), and yields nothing when any position's
 // cardinality is unknown.
 func TestEstimateCrosstabCells(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	for _, c := range []struct {
 		name    string
@@ -58,6 +60,8 @@ func TestEstimateCrosstabCells(t *testing.T) {
 }
 
 func TestMulSaturating(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range [][3]int64{
 		{0, math.MaxInt64, 0},
 		{3, 4, 12},
@@ -74,6 +78,8 @@ func TestMulSaturating(t *testing.T) {
 // product above MaxCrosstabCells is a Possible finding — never a
 // pre-flight refusal — and an unknown axis yields none.
 func TestRequestLimitFindings_MaxCrosstabCellsPossible(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	l := limits.Defaults()
 	l.MaxCrosstabCells = 9

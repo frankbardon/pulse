@@ -16,6 +16,8 @@ import (
 // and an aggregation column colliding with an earlier column is
 // PROCESSING_CONFIG with the column listed once.
 func TestChainStageSchema(t *testing.T) {
+	t.Parallel()
+
 	in := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8},
 		{Name: "b1", Type: encoding.FieldTypeF64},
@@ -79,6 +81,8 @@ func TestChainStageSchema(t *testing.T) {
 // stage reads — while the same entry over a schema without that field
 // is still a glob ("m[b1]" matching mb and m1).
 func TestResolveSpec_ExactFieldNameBeatsGlob(t *testing.T) {
+	t.Parallel()
+
 	f64 := func(n string) encoding.Field { return encoding.Field{Name: n, Type: encoding.FieldTypeF64} }
 	spec := types.VectorSpec{Name: "v", Fields: []string{"m[b1]"}}
 	r, cerr := ResolveSpec("vectors[0]", spec, &encoding.Schema{Fields: []encoding.Field{f64("mb"), f64("m[b1]"), f64("m1")}})

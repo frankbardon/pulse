@@ -61,6 +61,8 @@ func buildSetCohort(t *testing.T, tokens, rows int) (afero.Fs, []string, encodin
 // parses as JSON and rejects. Every row became a RowError and the
 // export emitted ZERO rows while reporting success.
 func TestArrow_SetColumnExportsAsList(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		tokens int
 		want   encoding.FieldType
@@ -132,6 +134,8 @@ func TestArrow_SetColumnExportsAsList(t *testing.T) {
 // TestArrow_SetColumnSchemaIsList pins the exported Arrow schema for a
 // wide set column: a LIST<UTF8>, not a stringified scalar.
 func TestArrow_SetColumnSchemaIsList(t *testing.T) {
+	t.Parallel()
+
 	fs, _, ft := buildSetCohort(t, 206, 480)
 	if ft != encoding.FieldTypeSetU256 {
 		t.Fatalf("inferred %s, want set_u256", ft)

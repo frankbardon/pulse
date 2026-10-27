@@ -11,6 +11,8 @@ import (
 )
 
 func TestProcessStream_DrainsRowsInOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -39,6 +41,8 @@ func TestProcessStream_DrainsRowsInOrder(t *testing.T) {
 }
 
 func TestProcessStream_GroupedRowsAvailable(t *testing.T) {
+	t.Parallel()
+
 	// Group by score (numeric, not categorical here, but GROUP_RANGE works
 	// on numeric fields). Five rows × 10..50 → groups by 25.
 	schema := testSchema()
@@ -72,6 +76,8 @@ func TestProcessStream_GroupedRowsAvailable(t *testing.T) {
 }
 
 func TestProcessStream_MetadataAvailableAfterDrain(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -103,6 +109,8 @@ func TestProcessStream_MetadataAvailableAfterDrain(t *testing.T) {
 }
 
 func TestProcessStream_NilCohortReturnsValidationError(t *testing.T) {
+	t.Parallel()
+
 	svc := New(setupTestFS(t, "test.pulse", testSchema(), testRecords()))
 	_, err := svc.ProcessStream(context.Background(), &types.Request{})
 	if err == nil {
@@ -114,6 +122,8 @@ func TestProcessStream_NilCohortReturnsValidationError(t *testing.T) {
 }
 
 func TestProcessStream_CtxCancelledDuringDrain(t *testing.T) {
+	t.Parallel()
+
 	svc := New(setupTestFS(t, "test.pulse", testSchema(), testRecords()))
 	req := &types.Request{
 		Cohort:       &types.Cohort{Filename: "test.pulse"},
@@ -137,6 +147,8 @@ func TestProcessStream_CtxCancelledDuringDrain(t *testing.T) {
 }
 
 func TestProcessStream_CloseIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	svc := New(setupTestFS(t, "test.pulse", testSchema(), testRecords()))
 	req := &types.Request{
 		Cohort:       &types.Cohort{Filename: "test.pulse"},

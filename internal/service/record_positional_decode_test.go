@@ -18,6 +18,8 @@ import (
 // ReadRecordWithWide / ReadRecordWithWidePlan maps — full decode and a
 // projected decode (whose records are sized to the retained set).
 func TestStreamingIterator_BufferedPositionalMatchesMapDecode(t *testing.T) {
+	t.Parallel()
+
 	const rows = 300
 	schema, payload := buildWideCohort(t, 40, rows)
 	var buf bytes.Buffer

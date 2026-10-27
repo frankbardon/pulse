@@ -60,6 +60,8 @@ var slotParityCases = []struct {
 // on both sides, never PULSE_TEST_FIELD_NOT_NUMERIC on one and
 // PROCESSING_CONFIG or SERVICE_VALIDATION on the other).
 func TestFieldTypeSlots_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, c := range slotParityCases {
@@ -117,6 +119,8 @@ func TestFieldTypeSlots_PredictMatchesRuntime(t *testing.T) {
 // "30", "5", … read 0, 1, …), never a quantity, so it is refused by both
 // sides.
 func TestQuantityReaders_TypeVerdicts(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := quantityTwinCohort(t)
 	ctx := context.Background()
 	run := func(body string) (string, error) {

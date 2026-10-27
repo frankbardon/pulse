@@ -159,6 +159,8 @@ func compMarshal(t *testing.T, v any) string {
 // matrix axes as the runtime emits them and reports the runtime's
 // streamability; the runtime routing (stream / merge) is the case's.
 func TestComputedMembers_EqualMaterializeThenFit(t *testing.T) {
+	t.Parallel()
+
 	p, _, data := compPulse(t)
 	ctx := context.Background()
 	for _, c := range compCases() {
@@ -244,6 +246,8 @@ func TestComputedMembers_EqualMaterializeThenFit(t *testing.T) {
 // member — the row is dropped listwise and counted, exactly as the
 // materialized null cell is.
 func TestComputedMembers_NullDropsListwise(t *testing.T) {
+	t.Parallel()
+
 	p, _, _ := compPulse(t)
 	ctx := context.Background()
 	req := &types.Request{
@@ -272,6 +276,8 @@ func TestComputedMembers_NullDropsListwise(t *testing.T) {
 // member decodes the columns its producer reads — not wide, and not the
 // computed name, which no record stores.
 func TestComputedMembers_ProjectionDecodesSources(t *testing.T) {
+	t.Parallel()
+
 	schema := compSchema()
 	req := &types.Request{
 		Cohort:     &types.Cohort{Filename: "src.pulse"},
@@ -302,6 +308,8 @@ func TestComputedMembers_ProjectionDecodesSources(t *testing.T) {
 // is refused with PULSE_VECTOR_INVALID computed_member_unsupported, by
 // Process and Predict alike; a glob never matches a computed column.
 func TestComputedMembers_NonMatrixConsumersRefused(t *testing.T) {
+	t.Parallel()
+
 	p, _, data := compPulse(t)
 	ctx := context.Background()
 	build := func() *types.Request {
@@ -380,6 +388,8 @@ func TestComputedMembers_NonMatrixConsumersRefused(t *testing.T) {
 // it), and a params.fit consumer emits the fit request's own covariance
 // to the bit.
 func TestComputedMembers_ComposeFitCaptures(t *testing.T) {
+	t.Parallel()
+
 	p, _, _ := compPulse(t)
 	ctx := context.Background()
 	fitReq := &types.Request{
@@ -417,6 +427,8 @@ func TestComputedMembers_ComposeFitCaptures(t *testing.T) {
 // matrix over computed members (row-local and two-pass) equals the same
 // grouped matrices over the materialized columns.
 func TestComputedMembers_GroupedEqualsMaterialized(t *testing.T) {
+	t.Parallel()
+
 	p, _, _ := compPulse(t)
 	ctx := context.Background()
 	derived := &types.Request{

@@ -55,6 +55,8 @@ func stepLabel(req types.Request, op string) string {
 // REG_OLS request on the "<out>" cohort reading that label; every step
 // placeholder appears in its request and every why is lint-clean.
 func TestRecommend_MaterializeStepsTrigger(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	for _, in := range descx.Intents() {
 		for _, r := range all(t, nil, in.ID).Recommendations {
@@ -122,6 +124,8 @@ func TestRecommend_MaterializeStepsTrigger(t *testing.T) {
 // emptied every recommendation — triggers included, steps aside — is
 // byte-identical: the field is purely additive.
 func TestRecommend_MaterializeStepsAbsentElsewhere(t *testing.T) {
+	// serial: swaps the package-level guide.materializeSteps test hook
+
 	wire := func(inst *descx.InstanceSnapshot) map[string][]byte {
 		out := map[string][]byte{}
 		for _, in := range descx.Intents() {
@@ -165,6 +169,8 @@ func TestRecommend_MaterializeStepsAbsentElsewhere(t *testing.T) {
 // TestRecommend_MaterializeStepsHidden: a hidden step tool or model
 // operator drops the whole plan; the draft stays.
 func TestRecommend_MaterializeStepsHidden(t *testing.T) {
+	t.Parallel()
+
 	for _, hide := range []string{"capability:materialize", "capability:process", "REG_OLS"} {
 		inst := profiled(hide)
 		recs := recsOf(all(t, inst, descx.IntentMeasureConstruct))
@@ -194,6 +200,8 @@ func TestRecommend_MaterializeStepsHidden(t *testing.T) {
 // and column naming over the schema; a producer whose labelled draft
 // materialize refuses gets no steps.
 func TestRecommendBound_MaterializeStepValidates(t *testing.T) {
+	t.Parallel()
+
 	s := batteryFixture(t)
 	b := bound(t, nil, s, nil)
 	r := draftsOf(t, b, descx.IntentMeasureConstruct, "ATTR_PC_SCORE")[0]
@@ -269,6 +277,8 @@ func TestRecommendBound_MaterializeStepValidates(t *testing.T) {
 // column as a predictor of REG_OLS. A new FEAT_* operator lands on one
 // side of the rule without a table edit going unnoticed.
 func TestMaterializeSteps_FeatureTriggersDecided(t *testing.T) {
+	t.Parallel()
+
 	drafted := map[string]bool{}
 	for _, in := range descx.Intents() {
 		for _, r := range all(t, nil, in.ID).Recommendations {

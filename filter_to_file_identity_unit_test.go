@@ -41,6 +41,8 @@ func fidRegistry() *processing.ExtensionRegistry {
 // FILTER_DATE_RANGES params.table; a non-literal name reads every table
 // of its kind; repeats collapse; unregistered names add nothing.
 func TestPredicateDependencies(t *testing.T) {
+	t.Parallel()
+
 	reg := fidRegistry()
 	reg.Filterers = map[types.FiltererType]processing.FiltererFactory{"FILTER_FID_X": nil}
 	win, _ := json.Marshal(map[string]string{"table": "win"})
@@ -90,6 +92,8 @@ func TestPredicateDependencies(t *testing.T) {
 // registry (fresh map iteration orders) it never moves, and each content
 // change moves it.
 func TestPredicateDependencies_DigestDeterministic(t *testing.T) {
+	t.Parallel()
+
 	win, _ := json.Marshal(map[string]string{"table": "win"})
 	expr := `x > lookup("big", "k") && dot(v, ref("seg", "p")) > 0`
 	direct := []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "d", Params: win}}

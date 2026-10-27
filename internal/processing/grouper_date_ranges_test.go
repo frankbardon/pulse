@@ -46,6 +46,8 @@ func makeDateRangesGrouper(t *testing.T, params json.RawMessage, schema *encodin
 }
 
 func TestGrouper_DateRanges_Labeling(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateRangesGrouper(t, phaseRangesParams(t, ""), schema)
 
@@ -72,6 +74,8 @@ func TestGrouper_DateRanges_Labeling(t *testing.T) {
 }
 
 func TestGrouper_DateRanges_UnmatchedLabelOverride(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateRangesGrouper(t, phaseRangesParams(t, "pre_launch"), schema)
 
@@ -92,6 +96,8 @@ func TestGrouper_DateRanges_UnmatchedLabelOverride(t *testing.T) {
 }
 
 func TestGrouper_DateRanges_ComponentsSuppliedOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateRangesGrouper(t, phaseRangesParams(t, ""), schema)
 
@@ -138,6 +144,8 @@ func TestGrouper_DateRanges_ComponentsSuppliedOrder(t *testing.T) {
 }
 
 func TestGrouper_DateRanges_KeyForMergeableParity(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateRangesGrouper(t, phaseRangesParams(t, ""), schema)
 	sg, ok := g.(StreamableGrouper)
@@ -176,6 +184,8 @@ func TestGrouper_DateRanges_KeyForMergeableParity(t *testing.T) {
 }
 
 func TestGrouper_DateRanges_NullDate(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	g := makeDateRangesGrouper(t, phaseRangesParams(t, ""), schema)
 	sg := g.(StreamableGrouper)
@@ -204,6 +214,8 @@ func TestGrouper_DateRanges_NullDate(t *testing.T) {
 }
 
 func TestGrouper_DateRanges_NonDateField(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema() // "score" is f64, not date
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	_, err := factory(&types.Group{
@@ -221,6 +233,8 @@ func TestGrouper_DateRanges_NonDateField(t *testing.T) {
 // source is required). An explicitly-empty `ranges` array counts as "no
 // inline source" for source selection.
 func TestGrouper_DateRanges_NoSource(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	cases := []json.RawMessage{
@@ -237,6 +251,8 @@ func TestGrouper_DateRanges_NoSource(t *testing.T) {
 }
 
 func TestGrouper_DateRanges_UnmatchedLabelCollision(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	factory := grouperRegistry[types.GROUP_DATE_RANGES]
 	params := json.RawMessage(`{"ranges":[{"label":"launch","start":"2024-01-01"}],"unmatched_label":"launch"}`)
@@ -252,6 +268,8 @@ func TestGrouper_DateRanges_UnmatchedLabelCollision(t *testing.T) {
 // buckets to its members — a zero-count included range still emits —
 // in include order.
 func TestGrouper_DateRanges_KeyRankAndInclude(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	ko := makeDateRangesGrouper(t, phaseRangesParams(t, ""), schema).(keyOrderer)
 	for key, want := range map[string]float64{"launch": 0, "growth": 1, "steady": 2, "unmatched": 3} {
@@ -298,6 +316,8 @@ func TestGrouper_DateRanges_KeyRankAndInclude(t *testing.T) {
 // other component, and a key the component never mints, is unranked
 // (alphabetical, byte-identically).
 func TestGrouper_Date_KeyRank(t *testing.T) {
+	t.Parallel()
+
 	mk := func(component string) keyOrderer {
 		g, err := grouperRegistry[types.GROUP_DATE](&types.Group{Type: types.GROUP_DATE, Field: "enrolled",
 			Params: json.RawMessage(`{"component":"` + component + `"}`)}, nil)

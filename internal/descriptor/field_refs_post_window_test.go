@@ -43,6 +43,8 @@ func windowOrderRefusals(t *testing.T, refusals []*errors.CodedError) []map[stri
 // post-window formula's unknown name is still refused, and a post-window
 // label shadowing a window label is refused.
 func TestWindowPredictor_WalkJudgesPostWindowAttributesAfterWindows(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows: []*types.Window{lagWindow("lag_n")},
 		Attributes: []*types.Attribute{
@@ -83,6 +85,8 @@ func TestWindowPredictor_WalkJudgesPostWindowAttributesAfterWindows(t *testing.T
 // reading a window label outside the record-row shape are
 // PULSE_ATTRIBUTE_WINDOW_ORDER {attribute, field}.
 func TestWindowPredictor_WalkRefusesWindowOrder(t *testing.T) {
+	t.Parallel()
+
 	win := []*types.Window{lagWindow("lag_n")}
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Target: "m", Terms: []string{"lag_n"}, Kind: types.FitKindRegression}}
 	cases := map[string]struct {
@@ -137,6 +141,8 @@ func TestWindowPredictor_WalkRefusesWindowOrder(t *testing.T) {
 // declares that window (post-window), as is coef() in a post-window
 // formula; without the window the term is missing, as before.
 func TestWindowPredictor_WalkScoresWindowTermModel(t *testing.T) {
+	t.Parallel()
+
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Target: "m", Terms: []string{"lag_n"}, Kind: types.FitKindRegression}}
 	attrs := []*types.Attribute{
 		{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"m"}`)},
@@ -165,6 +171,8 @@ func TestWindowPredictor_WalkScoresWindowTermModel(t *testing.T) {
 // cannot move is still PULSE_ATTRIBUTE_WINDOW_ORDER (judged before the
 // open set admits the name).
 func TestWindowPredictor_PostWindowOpenWalk(t *testing.T) {
+	t.Parallel()
+
 	ext := []*types.Feature{{Type: "FEAT_ACME_EMBED", Field: "n"}}
 	base := func() *types.Request {
 		return &types.Request{
@@ -211,6 +219,8 @@ func TestWindowPredictor_PostWindowOpenWalk(t *testing.T) {
 // label) is never row-local here — PULSE_ATTRIBUTE_WINDOW_ORDER, also
 // under an open column set; a schema field it declares stays admitted.
 func TestWindowPredictor_ExtensionAttributeWindowOrder(t *testing.T) {
+	t.Parallel()
+
 	snap := &ExtensionsSnapshot{FieldInputs: map[string]func(json.RawMessage) []string{
 		"attribute|ATTR_ACME_SCORE": func(json.RawMessage) []string { return []string{"n", "lag_n", "sat"} },
 	}}

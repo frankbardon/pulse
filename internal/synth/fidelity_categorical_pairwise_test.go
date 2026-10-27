@@ -19,6 +19,8 @@ import (
 // captured contingency table — N must count exactly the generated
 // partition's co-occurring rows, and Error must be unset.
 func TestBuildCategoricalPairwise_ComputesTVDAgainstSourceCells(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.05
 	// rowsPerA is deliberately kept small enough that the fixture's total
 	// row count (rowsPerA * len(valuesA)) stays under
@@ -100,6 +102,8 @@ func TestBuildCategoricalPairwise_ComputesTVDAgainstSourceCells(t *testing.T) {
 // entry must carry an Error rather than a fabricated Delta — the same
 // non-fatal per-entry discipline every Fidelity section follows.
 func TestBuildCategoricalPairwise_ErrorWhenNoCoOccurrence(t *testing.T) {
+	t.Parallel()
+
 	valuesA := []string{"p", "q"}
 	valuesB := []string{"x", "y"}
 	condProbs := map[string][]float64{
@@ -156,6 +160,8 @@ func TestBuildCategoricalPairwise_ErrorWhenNoCoOccurrence(t *testing.T) {
 // category's realized mean/std must land close to the captured
 // mean/std, Error must be unset, and N must be positive.
 func TestBuildCategoricalNumericPairwise_ComputesMeanStdDeltaAgainstSource(t *testing.T) {
+	t.Parallel()
+
 	const meanTolerance = 2.0
 	const stdTolerance = 1.0
 	const rowsPerCategory = 6000
@@ -233,6 +239,8 @@ func TestBuildCategoricalNumericPairwise_ComputesMeanStdDeltaAgainstSource(t *te
 // rather than a fabricated zero-valued delta — mirroring every other
 // Fidelity section's non-fatal per-entry contract.
 func TestBuildCategoricalNumericPairwise_ErrorWhenCategoryUnobserved(t *testing.T) {
+	t.Parallel()
+
 	srcData, _ := synthCategoricalNumericPair(t, 2000, 63, []string{"east", "west"}, []float64{80.0, 20.0}, 5.0)
 
 	fs := afero.NewMemMapFs()

@@ -13,6 +13,8 @@ import (
 // classified exactly once (a rule key, or a field class, never both),
 // and every rule leads with its own slot key and carries a refusal.
 func TestRegressionSlotRules_KeysAreSpecKeys(t *testing.T) {
+	t.Parallel()
+
 	spec := map[string]bool{}
 	rt := reflect.TypeOf(types.RegressionSpec{})
 	for i := 0; i < rt.NumField(); i++ {
@@ -49,6 +51,8 @@ func TestRegressionSlotRules_KeysAreSpecKeys(t *testing.T) {
 // slot is refused undeclared and passes declared; covariance follows
 // its type list.
 func TestExtensionRegressionSlotRefusal_DeclarationFlips(t *testing.T) {
+	t.Parallel()
+
 	base := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
 		s := &types.RegressionSpec{Type: "REG_ACME_X", Target: "y", Predictors: []string{"x"}}
 		mut(s)
@@ -87,6 +91,8 @@ func TestExtensionRegressionSlotRefusal_DeclarationFlips(t *testing.T) {
 // rng_seed stays accepted either way, and the manifest slot list drops
 // resample exactly when the refusal fires.
 func TestExtensionRegressionSlotRefusal_NoResampleOptOut(t *testing.T) {
+	t.Parallel()
+
 	for _, key := range []string{"resample", "jackknife_groups", "jackknife_by", "bootstrap_iters"} {
 		if class, slot, ok := RegressionFieldClassOf(key); !ok || class != RegressionFieldOptOut || slot != "resample" {
 			t.Errorf("RegressionFieldClassOf(%q) = %q %q %v, want opt_out under resample", key, class, slot, ok)

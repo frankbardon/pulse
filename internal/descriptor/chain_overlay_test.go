@@ -101,6 +101,8 @@ func twoStageMatrixVsSeriesChainRequest(specs []*types.ChainOverlaySpec) *types.
 // stage Request whose Crosstab slot is non-nil resolves to MATRIX even
 // when Aggregations / Groups are also populated.
 func TestInferChainStageShape_Matrix(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "tag"}},
@@ -118,6 +120,8 @@ func TestInferChainStageShape_Matrix(t *testing.T) {
 // TestInferChainStageShape_Series locks in the SERIES branch:
 // Aggregations + Groups (and no Crosstab) resolves to SERIES.
 func TestInferChainStageShape_Series(t *testing.T) {
+	t.Parallel()
+
 	req := makeMergeableSumGroupedRequest("x", "sx", "tag")
 	if got := inferChainStageShape(req); got != types.OverlayShapeSeries {
 		t.Errorf("SERIES branch: got %q, want %q", got, types.OverlayShapeSeries)
@@ -127,6 +131,8 @@ func TestInferChainStageShape_Series(t *testing.T) {
 // TestInferChainStageShape_Scalar locks in the SCALAR branch:
 // Aggregations alone (no Groups, no Crosstab) resolves to SCALAR.
 func TestInferChainStageShape_Scalar(t *testing.T) {
+	t.Parallel()
+
 	req := makeMergeableSumRequest("x", "sx")
 	if got := inferChainStageShape(req); got != types.OverlayShapeScalar {
 		t.Errorf("SCALAR branch: got %q, want %q", got, types.OverlayShapeScalar)
@@ -138,6 +144,8 @@ func TestInferChainStageShape_Scalar(t *testing.T) {
 // passthrough that keeps the helper total over every *types.Request
 // value the chain gate may not have screened.
 func TestInferChainStageShape_NilFallthrough(t *testing.T) {
+	t.Parallel()
+
 	if got := inferChainStageShape(nil); got != types.OverlayShapeScalar {
 		t.Errorf("nil request: got %q, want %q", got, types.OverlayShapeScalar)
 	}
@@ -153,6 +161,8 @@ func TestInferChainStageShape_NilFallthrough(t *testing.T) {
 // slot (here the MATRIX-host OVERLAY_INDEX_VS_MARGIN) gets the shared
 // wrong-slot refusal, PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateChain_OverlayKindUnknown(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	spec := func(kind types.OverlayKind) []*types.ChainOverlaySpec {
 		return []*types.ChainOverlaySpec{{
@@ -176,6 +186,8 @@ func TestValidateChain_OverlayKindUnknown(t *testing.T) {
 // out-of-range Index arm for both Ref and Target. Two specs share the
 // request so we see both arms emit per-spec.
 func TestValidateChain_OverlayStageRefIndexOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -203,6 +215,8 @@ func TestValidateChain_OverlayStageRefIndexOutOfRange(t *testing.T) {
 // TestValidateChain_OverlayStageRefByNameUnknown confirms StageRef.Name
 // resolution: an unmatched Name fires the matching arm's coded error.
 func TestValidateChain_OverlayStageRefByNameUnknown(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -221,6 +235,8 @@ func TestValidateChain_OverlayStageRefByNameUnknown(t *testing.T) {
 // TestValidateChain_OverlayStageRefXORViolated confirms the XOR rule:
 // both Index AND Name populated is rejected.
 func TestValidateChain_OverlayStageRefXORViolated(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -259,6 +275,8 @@ func assertShapeDivergentWarning(t *testing.T, env *descriptor.Envelope) {
 // grouper + aggregator (SERIES). The spec's Ref points to stage 0 and
 // Target defaults to the latest stage (1), forcing the shape mismatch.
 func TestValidateChain_OverlayShapeDivergent(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageMatrixVsSeriesChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -276,6 +294,8 @@ func TestValidateChain_OverlayShapeDivergent(t *testing.T) {
 // SERIES vs SCALAR divergence: stage 0 has groupers, stage 1 is plain
 // aggregations.
 func TestValidateChain_OverlayShapeDivergent_SeriesVsScalar(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageSeriesVsScalarChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -293,6 +313,8 @@ func TestValidateChain_OverlayShapeDivergent_SeriesVsScalar(t *testing.T) {
 // referenced stages share a shape the validator emits no overlay-
 // related error.
 func TestValidateChain_OverlayShapeMatch_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -336,6 +358,8 @@ func TestValidateChain_OverlayShapeMatch_HappyPath(t *testing.T) {
 // ChainValidationResult.OverlaysSchemaDivergence with the resolved
 // indices + shapes, alongside the matching envelope error.
 func TestValidateChain_OverlaysSchemaDivergencePopulated(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageMatrixVsSeriesChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -379,6 +403,8 @@ func TestValidateChain_OverlaysSchemaDivergencePopulated(t *testing.T) {
 // runtime resolver contract: when both Target slots are empty the
 // validator resolves Target to len(stages)-1.
 func TestValidateChain_OverlayTargetDefaultsToLatestStage(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -403,6 +429,8 @@ func TestValidateChain_OverlayTargetDefaultsToLatestStage(t *testing.T) {
 }
 
 func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageMatrixVsSeriesChainRequest([]*types.ChainOverlaySpec{
 		{
@@ -436,6 +464,8 @@ func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
 // an empty Ref (both slots nil/empty) is rejected — only Target carries
 // a "latest stage" default.
 func TestValidateChain_OverlayRefMustBeExplicit(t *testing.T) {
+	t.Parallel()
+
 	data := buildSimplePulseBytes(t)
 	req := twoStageScalarChainRequest([]*types.ChainOverlaySpec{
 		{

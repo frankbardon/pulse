@@ -19,6 +19,8 @@ import (
 // PULSE_SLOT_FAILED warning rides the result's warnings (an MCP result
 // has no envelope) — the shape the CLI and the library return.
 func TestProcessTool_FailedSlotCarriesItsError(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	body := "x,y\n"
 	for i := 0; i < 40; i++ {

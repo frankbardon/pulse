@@ -182,6 +182,8 @@ func windowParityCases(t *testing.T, typ types.WindowType, row windowParityRow) 
 // the order-only ones (row number, rank, dense rank), frame required
 // on running / moving / EWMA aggregates and refused everywhere else.
 func TestWindowRefusals_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range types.AllWindowTypes() {
 		if _, ok := windowParityRows[typ]; !ok {
 			t.Errorf("%s has no windowParityRows entry: add its valid slot and params refusals", typ)
@@ -274,6 +276,8 @@ func (ordinalComputer) Compute(rows []map[string]any, partitions [][]int, label 
 // bounds >= 0 — by predict and by every runtime surface alike, before
 // its factory runs.
 func TestWindowRefusals_ExtensionPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := windowParityCohort(t, pulse.Extensions{Windows: []pulse.WindowRegistration{{
 		Name:        "WIN_ACME_ORDINAL",
 		Description: "Test-only ordinal window.",
@@ -343,6 +347,8 @@ func TestWindowRefusals_ExtensionPredictMatchesRuntime(t *testing.T) {
 // replacement, in the sentence and as details.renamed_to. The same slot
 // under the new name runs everywhere. The refusal is never removed.
 func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	ctx := context.Background()
 	req := func(typ string) *types.Request {
@@ -375,6 +381,8 @@ func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 // and the same details, indexed by the slot's position in the request.
 // Only the retired name carries the rename hint (details.renamed_to).
 func TestWindowUnknownType_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	for _, tc := range []struct {
 		name, typ string
@@ -458,6 +466,8 @@ func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, 
 // a never-registered one), in the manifest's error codes and through
 // ErrorLookup, and a request naming a hidden WIN_* is refused with it.
 func TestWindowUnknownType_HiddenFamilyStillListsCode(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	full, err := pulse.New(pulse.Options{FS: fsys})
 	if err != nil {

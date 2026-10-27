@@ -67,6 +67,8 @@ func (c *noopComputer) Compute(records []Record, _ string) (map[string]Output, e
 }
 
 func TestRegistry_LookupAfterRegister(t *testing.T) {
+	// serial: registers a fake operator in the process-wide feature registry
+
 	const fakeType = types.FeatureType("FEAT_TEST_REGISTRY")
 	defer func() { delete(featureRegistry, fakeType) }()
 
@@ -84,6 +86,8 @@ func TestRegistry_LookupAfterRegister(t *testing.T) {
 }
 
 func TestRegistry_DuplicateRegistrationPanics(t *testing.T) {
+	// serial: registers a fake operator in the process-wide feature registry
+
 	const fakeType = types.FeatureType("FEAT_TEST_DUPLICATE")
 	defer func() { delete(featureRegistry, fakeType) }()
 
@@ -102,6 +106,8 @@ func TestRegistry_DuplicateRegistrationPanics(t *testing.T) {
 }
 
 func TestApply_EmptyFeaturesIsNoop(t *testing.T) {
+	t.Parallel()
+
 	records := []Record{newFakeRecord()}
 	if err := Apply(records, nil, nil); err != nil {
 		t.Errorf("Apply with no features returned %v", err)
@@ -109,6 +115,8 @@ func TestApply_EmptyFeaturesIsNoop(t *testing.T) {
 }
 
 func TestApply_RoutesThroughFactoryAndWritesOutput(t *testing.T) {
+	// serial: registers a fake operator in the process-wide feature registry
+
 	const fakeType = types.FeatureType("FEAT_TEST_APPLY")
 	defer func() { delete(featureRegistry, fakeType) }()
 
@@ -131,6 +139,8 @@ func TestApply_RoutesThroughFactoryAndWritesOutput(t *testing.T) {
 }
 
 func TestApply_UnknownFeatureTypeReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	records := []Record{newFakeRecord()}
 	feats := []*types.Feature{{Type: types.FeatureType("FEAT_DEFINITELY_NOT_REAL")}}
 

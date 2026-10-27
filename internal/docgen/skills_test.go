@@ -6,6 +6,8 @@ import (
 )
 
 func TestLinkSkillStems(t *testing.T) {
+	t.Parallel()
+
 	set := map[string]bool{"op-test-t": true, "op-test-welch": true, "weighting": true}
 	in := strings.Join([]string{
 		"See `op-test-welch` and `weighting`; not `op-unknown`.",
@@ -31,6 +33,8 @@ func TestLinkSkillStems(t *testing.T) {
 }
 
 func TestFenceFrontmatter(t *testing.T) {
+	t.Parallel()
+
 	got := fenceFrontmatter("---\nname: x\nkind: operator\n---\n\nBody.\n")
 	want := "```yaml\nname: x\nkind: operator\n```\n\nBody.\n"
 	if got != want {
@@ -49,6 +53,8 @@ func TestFenceFrontmatter(t *testing.T) {
 // Render then applies one more book-only transform, escaping bare
 // `<word>` placeholders outside code; nothing else changes.
 func TestRenderSkill_ServedBody(t *testing.T) {
+	t.Parallel()
+
 	g := newGen(nil, Options{})
 	rendered := map[string]string{}
 	for _, f := range Render(nil, Options{}) {

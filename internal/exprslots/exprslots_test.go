@@ -12,6 +12,8 @@ import (
 )
 
 func TestMatch(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		keys []string
 		want string // "" = no slot
@@ -45,6 +47,8 @@ func TestMatch(t *testing.T) {
 }
 
 func TestAll_IsACopy(t *testing.T) {
+	t.Parallel()
+
 	a := exprslots.All()
 	a[0].Tail[0] = "mutated"
 	if exprslots.All()[0].Tail[0] == "mutated" {
@@ -122,6 +126,8 @@ func fieldByKey(t reflect.Type, key string) (reflect.StructField, bool) {
 // and no other struct reachable from a root carries an `expression` or
 // `holdout` string the list does not name.
 func TestTemplateExprSplice_SlotsCoverRequestRoots(t *testing.T) {
+	t.Parallel()
+
 	ownerOf := map[string][]exprslots.Slot{}
 	for _, s := range exprslots.All() {
 		for _, o := range s.Owners {

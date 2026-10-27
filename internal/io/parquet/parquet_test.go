@@ -64,6 +64,8 @@ func helperSimpleParquet(t *testing.T) []byte {
 }
 
 func TestParquetReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -81,6 +83,8 @@ func TestParquetReader_ReadHeader(t *testing.T) {
 }
 
 func TestParquetReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -108,6 +112,8 @@ func TestParquetReader_ReadRows(t *testing.T) {
 }
 
 func TestParquetReader_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "x", Type: arrow.PrimitiveTypes.Int32},
@@ -145,6 +151,8 @@ func TestParquetReader_EmptyFile(t *testing.T) {
 }
 
 func TestParquetReader_AllArrowTypes(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "col_uint8", Type: arrow.PrimitiveTypes.Uint8},
@@ -221,6 +229,8 @@ func TestParquetReader_AllArrowTypes(t *testing.T) {
 }
 
 func TestParquetWriter_WriteRows(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "output.parquet")
 
@@ -265,6 +275,8 @@ func TestParquetWriter_WriteRows(t *testing.T) {
 }
 
 func TestParquetImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	// Create a Parquet file with numeric data.
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
@@ -343,6 +355,8 @@ func TestParquetImportExportRoundTrip(t *testing.T) {
 }
 
 func TestParquetImport_SchemaFromParquetMetadata(t *testing.T) {
+	t.Parallel()
+
 	// When importing Parquet, the rich type metadata should inform Pulse type selection.
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
@@ -388,6 +402,8 @@ func TestParquetImport_SchemaFromParquetMetadata(t *testing.T) {
 }
 
 func TestParquetImport_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	// Create Parquet with a string column that should become categorical.
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
@@ -436,6 +452,8 @@ func TestParquetImport_CategoricalColumn(t *testing.T) {
 }
 
 func TestParquetExport_CategoricalAsDictEncoded(t *testing.T) {
+	t.Parallel()
+
 	// Import a categorical column, then export to Parquet and verify dictionary encoding.
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
@@ -500,6 +518,8 @@ func TestParquetExport_CategoricalAsDictEncoded(t *testing.T) {
 }
 
 func TestParquetExport_TypeMapping(t *testing.T) {
+	t.Parallel()
+
 	// Verify that Pulse types map to appropriate Arrow types in the exported Parquet.
 	tests := []struct {
 		pulseType encoding.FieldType
@@ -585,6 +605,8 @@ func TestParquetExport_TypeMapping(t *testing.T) {
 }
 
 func TestParquetImport_RowGroupParallelism(t *testing.T) {
+	t.Parallel()
+
 	// Create a Parquet file with multiple row groups using MaxRowGroupLength.
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
@@ -661,6 +683,8 @@ func TestParquetImport_RowGroupParallelism(t *testing.T) {
 }
 
 func TestConvertJob_CsvToParquet(t *testing.T) {
+	t.Parallel()
+
 	csvData := "age,name\n10,alice\n20,bob\n30,charlie\n"
 	csvReader := csv.NewReaderFromBytes([]byte(csvData))
 	pqWriter := NewWriterToBuffer()
@@ -711,6 +735,8 @@ func TestConvertJob_CsvToParquet(t *testing.T) {
 }
 
 func TestConvertJob_ParquetToCsv(t *testing.T) {
+	t.Parallel()
+
 	pqData := helperSimpleParquet(t)
 	pqReader := NewReaderFromBytes(pqData)
 	csvWriter := csv.NewWriterToBuffer()
@@ -750,6 +776,8 @@ func TestConvertJob_ParquetToCsv(t *testing.T) {
 }
 
 func TestParquetReader_Reset(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -787,6 +815,8 @@ func TestParquetReader_Reset(t *testing.T) {
 }
 
 func TestParquetReader_StopIteration(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -810,6 +840,8 @@ func TestParquetReader_StopIteration(t *testing.T) {
 }
 
 func TestParquetReader_ContextCancel(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -828,6 +860,8 @@ func TestParquetReader_ContextCancel(t *testing.T) {
 }
 
 func TestParquetWriter_Buffer(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"x"})
 	w.WriteRow([]any{"hello"})
@@ -845,6 +879,8 @@ func TestParquetWriter_Buffer(t *testing.T) {
 }
 
 func TestArrowTypeToPulseType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		arrowType arrow.DataType
 		want      encoding.FieldType
@@ -875,6 +911,8 @@ func TestArrowTypeToPulseType(t *testing.T) {
 }
 
 func TestPulseTypeToArrowType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		pulseType encoding.FieldType
 		wantID    arrow.Type
@@ -904,6 +942,8 @@ func TestPulseTypeToArrowType(t *testing.T) {
 }
 
 func TestParquetReader_NullableColumns(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "val", Type: arrow.PrimitiveTypes.Uint8, Nullable: true},
@@ -945,6 +985,8 @@ func TestParquetReader_NullableColumns(t *testing.T) {
 }
 
 func TestParquetReader_DictionaryEncoded(t *testing.T) {
+	t.Parallel()
+
 	// Create a Parquet file with dictionary-encoded string column.
 	alloc := memory.NewGoAllocator()
 	dictType := &arrow.DictionaryType{
@@ -990,6 +1032,8 @@ func TestParquetReader_DictionaryEncoded(t *testing.T) {
 }
 
 func TestParquetReader_FromFilesystem(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	fs := afero.NewMemMapFs()
 	afero.WriteFile(fs, "test.parquet", data, 0644)
@@ -1016,6 +1060,8 @@ func TestParquetReader_FromFilesystem(t *testing.T) {
 }
 
 func TestParquetReader_NoDataSource(t *testing.T) {
+	t.Parallel()
+
 	r := &Reader{}
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -1024,6 +1070,8 @@ func TestParquetReader_NoDataSource(t *testing.T) {
 }
 
 func TestParquetReader_FileNotFound(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	r := NewReader(fs, "nonexistent.parquet")
 	_, err := r.ReadHeader()
@@ -1033,6 +1081,8 @@ func TestParquetReader_FileNotFound(t *testing.T) {
 }
 
 func TestParquetReader_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte("not a parquet file"))
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -1041,6 +1091,8 @@ func TestParquetReader_InvalidData(t *testing.T) {
 }
 
 func TestParquetWriter_FilesystemPath(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "output.parquet")
 	w.WriteHeader([]string{"x"})
@@ -1061,6 +1113,8 @@ func TestParquetWriter_FilesystemPath(t *testing.T) {
 }
 
 func TestParquetWriter_EmptyClose(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	// Close without writing anything.
 	if err := w.Close(); err != nil {
@@ -1072,6 +1126,8 @@ func TestParquetWriter_EmptyClose(t *testing.T) {
 }
 
 func TestParquetReader_ReadRowsCallbackError(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -1088,6 +1144,8 @@ func TestParquetReader_ReadRowsCallbackError(t *testing.T) {
 }
 
 func TestParquetReader_ReadRowsWithoutReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -1107,6 +1165,8 @@ func TestParquetReader_ReadRowsWithoutReadHeader(t *testing.T) {
 }
 
 func TestParquetReader_DoubleReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleParquet(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -1119,6 +1179,8 @@ func TestParquetReader_DoubleReadHeader(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_DefaultCase(t *testing.T) {
+	t.Parallel()
+
 	// Test with an unusual Arrow type that falls through to default.
 	got := arrowTypeToPulse(arrow.FixedWidthTypes.Time32ms, false)
 	if got != encoding.FieldTypeF64 {
@@ -1127,6 +1189,8 @@ func TestArrowTypeToPulse_DefaultCase(t *testing.T) {
 }
 
 func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
+	t.Parallel()
+
 	// Test with an invalid field type.
 	got := pulseTypeToArrow(encoding.FieldType(255))
 	if got.ID() != arrow.FLOAT64 {
@@ -1135,6 +1199,8 @@ func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_NullableIgnored(t *testing.T) {
+	t.Parallel()
+
 	// Nullability is carried separately by encoding.Field.Nullable, so the
 	// nullable flag passed to arrowTypeToPulse should not change the
 	// returned FieldType.
@@ -1156,6 +1222,8 @@ func TestArrowTypeToPulse_NullableIgnored(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_Date64(t *testing.T) {
+	t.Parallel()
+
 	got := arrowTypeToPulse(arrow.FixedWidthTypes.Date64, false)
 	if got != encoding.FieldTypeDate {
 		t.Errorf("date64: got %s, want date", got)
@@ -1163,6 +1231,8 @@ func TestArrowTypeToPulse_Date64(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_LargeString(t *testing.T) {
+	t.Parallel()
+
 	got := arrowTypeToPulse(arrow.BinaryTypes.LargeString, false)
 	if got != encoding.FieldTypeCategoricalU8 {
 		t.Errorf("large_string: got %s, want categorical_u8", got)
@@ -1170,6 +1240,8 @@ func TestArrowTypeToPulse_LargeString(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_Dictionary(t *testing.T) {
+	t.Parallel()
+
 	dt := &arrow.DictionaryType{
 		IndexType: arrow.PrimitiveTypes.Int32,
 		ValueType: arrow.BinaryTypes.String,
@@ -1189,6 +1261,8 @@ var _ = math.MaxFloat32
 // numeric or timestamp arm there would make every datetime row fail to
 // append and vanish from the export.
 func TestParquet_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "ts", Type: encoding.FieldTypeDateTime},
 	}}

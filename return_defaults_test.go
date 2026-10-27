@@ -65,6 +65,8 @@ func requirePredictDigest(t *testing.T, p *pulse.Pulse, req *types.Request, resp
 // Options.DefaultReturn > FeatureProfile.Return > full — at runtime
 // (Process) and in predict (same plan, same digest).
 func TestReturnDefaults_Precedence(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	mk := returnCorpus(cohort)["grouped"]
 	plain := newReturnInstance(t, fs, pulse.Options{})
@@ -131,6 +133,8 @@ func TestReturnDefaults_Precedence(t *testing.T) {
 // the effective selection keeps them; the marker appears iff some
 // layer supplies a block (DisableComponents alone never marks).
 func TestReturnDefaults_DisableComponentsShorthand(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	mk := returnCorpus(cohort)["grouped"]
 	tru, fal := true, false
@@ -207,6 +211,8 @@ func TestReturnDefaults_DisableComponentsShorthand(t *testing.T) {
 // wire form — no marker, components nil — byte for byte against an
 // instance that never heard of `return`.
 func TestReturnDefaults_DisableComponentsAloneByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	mk := returnCorpus(cohort)["grouped"]
 	tru := true
@@ -227,6 +233,8 @@ func TestReturnDefaults_DisableComponentsAloneByteIdentical(t *testing.T) {
 // New with the resolver's own code; a path the profile hides is
 // PULSE_RETURN_PATH_UNKNOWN exactly like a nonexistent one.
 func TestReturnDefaults_OptionsRefusal(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		opts pulse.Options

@@ -44,6 +44,8 @@ func only(v *template.Variable) func(*template.Template) {
 // accepted shape and per rejected shape, each naming the code it must
 // raise. wantCode empty means the declaration must validate.
 func TestValidate_Matrix(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		tmpl     *template.Template
@@ -610,6 +612,8 @@ func hasVariableDetail(ce *perr.CodedError) bool {
 // a contradiction. The default resolves the variable, so a required
 // variable carrying one can never go missing at render.
 func TestValidate_RequiredWithDefaultIsLegal(t *testing.T) {
+	t.Parallel()
+
 	cases := []*template.Variable{
 		{Name: "label", Type: template.VarString, Required: true, Default: json.RawMessage(`"all regions"`)},
 		{Name: "bucket", Type: template.VarInteger, Required: true, Default: json.RawMessage(`10`)},
@@ -630,6 +634,8 @@ func TestValidate_RequiredWithDefaultIsLegal(t *testing.T) {
 // TestValidate_TargetDetailNamesOffendingValue asserts the target error
 // carries the rejected spelling, so a caller sees what they wrote.
 func TestValidate_TargetDetailNamesOffendingValue(t *testing.T) {
+	t.Parallel()
+
 	err := template.Validate(tmpl(func(tm *template.Template) { tm.Target = "Request" }))
 	if err == nil {
 		t.Fatal("Validate() = nil, want PULSE_TEMPLATE_TARGET_UNKNOWN")
@@ -649,6 +655,8 @@ func TestValidate_TargetDetailNamesOffendingValue(t *testing.T) {
 // TestValidate_NilTemplate asserts a nil document is rejected rather than
 // panicking.
 func TestValidate_NilTemplate(t *testing.T) {
+	t.Parallel()
+
 	err := template.Validate(nil)
 	if err == nil {
 		t.Fatal("Validate(nil) = nil, want PULSE_TEMPLATE_INVALID")
@@ -662,6 +670,8 @@ func TestValidate_NilTemplate(t *testing.T) {
 // declaration validation and reports malformed document bytes under
 // PULSE_TEMPLATE_INVALID.
 func TestParse_ValidatesAndRejectsMalformedJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		doc      string
@@ -724,6 +734,8 @@ func TestParse_ValidatesAndRejectsMalformedJSON(t *testing.T) {
 // surface exists to eliminate — so the wrapper and the variable
 // declarations are decoded with DisallowUnknownFields.
 func TestParse_UnknownWrapperKeysRejected(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		doc  string
@@ -767,6 +779,8 @@ func TestParse_UnknownWrapperKeysRejected(t *testing.T) {
 // request and its markers are not request fields, so it stays raw JSON
 // here and is strict-decoded against the target type only after rendering.
 func TestParse_BodyStaysUnstrict(t *testing.T) {
+	t.Parallel()
+
 	doc := `{"target":"request","variables":[{"name":"x","type":"string"}],` +
 		`"body":{"cohort":{"filename":"sales.pulse"},"not_a_request_field":{"$var":"x"}}}`
 	if _, err := template.Parse([]byte(doc)); err != nil {
@@ -777,6 +791,8 @@ func TestParse_BodyStaysUnstrict(t *testing.T) {
 // TestParse_FixtureValidates asserts the on-disk fixture is a valid
 // declaration — it is the shape every later story renders against.
 func TestParse_FixtureValidates(t *testing.T) {
+	t.Parallel()
+
 	if _, err := template.Parse(readFixture(t)); err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)
 	}
@@ -788,6 +804,8 @@ func TestParse_FixtureValidates(t *testing.T) {
 // placeholder naming neither a declared variable nor an axis in scope
 // is still an undeclared reference (PULSE_TEMPLATE_INVALID).
 func TestValidate_SweepScope(t *testing.T) {
+	t.Parallel()
+
 	data, err := os.ReadFile(filepath.Join("testdata", "channel-sweep.json"))
 	if err != nil {
 		t.Fatalf("reading fixture: %v", err)

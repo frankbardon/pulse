@@ -16,6 +16,8 @@ import (
 // unknown or absent zone, or no to_day call, returns req itself; req is
 // never mutated.
 func TestZonedExpressions(t *testing.T) {
+	t.Parallel()
+
 	mk := func() *types.Request {
 		return &types.Request{
 			TimeZone: "America/New_York",
@@ -104,6 +106,8 @@ func TestZonedExpressions(t *testing.T) {
 // TestZonedFacetExpressions: the facet twin writes the inherited zone
 // onto its to_day filterers only.
 func TestZonedFacetExpressions(t *testing.T) {
+	t.Parallel()
+
 	req := &types.FacetRequest{TimeZone: "America/New_York", Filterers: []*types.Filterer{
 		{Type: types.FILTER_EXPRESSION, Expression: "to_day(ts) == d"},
 		{Type: types.FILTER_EXPRESSION, Expression: "x > 0"},
@@ -125,6 +129,8 @@ func TestZonedFacetExpressions(t *testing.T) {
 // request zone, else default — and "" for an expression that never
 // calls to_day or a UTC-equivalent, unknown or absent zone.
 func TestExpressionZone(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		src, req, def, want string
 	}{
@@ -148,6 +154,8 @@ func TestExpressionZone(t *testing.T) {
 // (FEAT_TARGET_ENCODE params.fit_on) inherits the zone; one without
 // to_day, or with an explicit tz, does not.
 func TestZonedExpressions_TargetEncodeFitOn(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		TimeZone: "America/New_York",
 		Features: []*types.Feature{
@@ -176,6 +184,8 @@ func TestZonedExpressions_TargetEncodeFitOn(t *testing.T) {
 // slot order; a null tz, a UTC-equivalent name and a zone field on a
 // calendar date are no entry, and none left is nil.
 func TestAppliedZones(t *testing.T) {
+	t.Parallel()
+
 	name := func(s string) *string { return &s }
 	cases := []struct {
 		name  string

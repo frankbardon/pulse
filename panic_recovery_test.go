@@ -196,6 +196,8 @@ func assertPanicError(t *testing.T, err error, kind observe.OperationKind) {
 // default-instance Process subtest crashes the binary with the
 // panic), and from observe / observedStream likewise.
 func TestPanicRecovery_FacadeOpKinds(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	instances := map[string]func(t *testing.T) *Pulse{
 		"default": func(t *testing.T) *Pulse { return panicFixture(t, Options{}) },
@@ -233,6 +235,8 @@ func TestPanicRecovery_FacadeOpKinds(t *testing.T) {
 // no failure log, no metric) and by dropping endChildren (the Compose
 // child never ends).
 func TestPanicRecovery_ObservedAgree(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	h := &captureHandler{}
 	rec := &hookRecorder{}
@@ -301,6 +305,7 @@ func TestPanicRecovery_ObservedAgree(t *testing.T) {
 // closure's capture moves run to the heap, one allocation per off-path
 // call.
 func TestPanicRecovery_OffPathNoAllocs(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
 	p, _ := obsFixture(t, Options{})
 	ctx := context.Background()
 	req := obsRequest()
@@ -320,6 +325,8 @@ func TestPanicRecovery_OffPathNoAllocs(t *testing.T) {
 // Falsified by moving observedStream's defer below the observing()
 // early return (the off subtest crashes).
 func TestPanicRecovery_HelpersBothPaths(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	boom := func() { panic(panicSecret) }
 	helpers := map[string]func(p *Pulse) error{
@@ -363,6 +370,8 @@ func TestPanicRecovery_HelpersBothPaths(t *testing.T) {
 // Falsified by dropping the `if p.disablePanicRecovery { panic(r) }`
 // line (Process returns an error instead of panicking).
 func TestPanicRecovery_DisableRepanics(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, observed := range []bool{false, true} {
 		name := "default"
@@ -402,6 +411,8 @@ func TestPanicRecovery_DisableRepanics(t *testing.T) {
 // crash), on Process with a FILTER_EXPRESSION, and that the coded
 // error's text does not carry the panic value.
 func TestPanicRecovery_ExprFunctionCoded(t *testing.T) {
+	t.Parallel()
+
 	p := recoveringFixture(t, Options{ShardWorkers: 1, DecodeWorkers: 1, Extensions: Extensions{
 		ExprFunctions: []ExprFunction{{Name: "acme_boom", Fn: func(x float64) float64 {
 			if x > 0 {
@@ -441,6 +452,8 @@ func TestPanicRecovery_ExprFunctionCoded(t *testing.T) {
 // TestMain (the ordinary instance returns an error), and by dropping
 // `|| testForcePanicRecoveryOff` in New likewise.
 func TestPanicRecovery_TestOverrideCrashes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	if !testForcePanicRecoveryOff {
 		t.Fatal("TestMain did not set testForcePanicRecoveryOff")
@@ -486,6 +499,8 @@ func (m panicRegression) Finalize() (extend.RegressionOutput, error) {
 // returns PROCESSING_PANIC from Process like any extension operator,
 // and the adapter adds no recover of its own.
 func TestPanicRecovery_ExtensionRegression(t *testing.T) {
+	t.Parallel()
+
 	factory := func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 		return panicRegression{target: spec.Target}, nil
 	}

@@ -19,6 +19,8 @@ import (
 // the same rows. The third leg is what makes this more than a
 // self-consistency check — the shard split must be invisible.
 func TestCrosstabFused_SetFanOutOverShardArchive(t *testing.T) {
+	t.Parallel()
+
 	schema := setFanoutSchema(t)
 	shardA := [][]uint64{
 		{0, 0b0111, math.Float64bits(10)}, // north, VISA+MC+AMEX

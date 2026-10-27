@@ -21,6 +21,8 @@ func recordsMatrix() *MatrixValues {
 // undefined cell null) and the row's RecordFields; it reads back to the
 // same Go value. Records reads an upper layout through its mirror.
 func TestMatrixRecords_Wire(t *testing.T) {
+	t.Parallel()
+
 	m := recordsMatrix()
 	m.RecordFields = []map[string]any{{"free": true}, nil}
 	b, err := json.Marshal(m)
@@ -51,6 +53,8 @@ func TestMatrixRecords_Wire(t *testing.T) {
 // reaches a column inside them — and an identity-precision plan writes
 // the unshaped bytes.
 func TestMatrixRecords_ReturnPlan(t *testing.T) {
+	t.Parallel()
+
 	resp := func() *Response {
 		return &Response{Matrices: []MatrixResult{{Name: "m", Type: "MAT_CORRELATION", Primary: recordsMatrix()}}}
 	}

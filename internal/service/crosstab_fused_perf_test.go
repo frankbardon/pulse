@@ -14,6 +14,8 @@ import (
 )
 
 func TestFusedCrosstab_PerfGate(t *testing.T) {
+	// serial: wall-clock testing.Benchmark ratio; CPU contention from parallel tests would make it flaky
+
 	const (
 		fieldCount = 200
 		rowCount   = 100_000

@@ -85,6 +85,8 @@ func authoredTokens(t *testing.T, req *types.Request) map[string]bool {
 // schema, errors list / lookup / search — and on predict, byte for byte
 // against the profile-free builders.
 func TestProfileDefaultIsFull(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: parityFS(t)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -163,6 +165,8 @@ func sweepNamedTables() Extensions {
 // lookup and search — nor in any predict refusal or suggestion beyond
 // the names the request itself authored.
 func TestProfileHiddenNameSweep(t *testing.T) {
+	t.Parallel()
+
 	data := parityCohortBytes(t)
 	for _, name := range featureSetFixtures {
 		t.Run(name, func(t *testing.T) {
@@ -291,6 +295,8 @@ func slotTokenLeak(sentence string, tokens map[string]bool) bool {
 // p-value rule set) once its scrub runs, as docgen serves it. The
 // unscrubbed guidance names them (non-vacuous).
 func TestProfileHiddenSlotTokenSweep(t *testing.T) {
+	t.Parallel()
+
 	var features []string
 	for _, n := range descx.FeatureNames() {
 		if n != descx.FeatureMultiplicity {

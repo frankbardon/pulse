@@ -18,6 +18,8 @@ import (
 // (`optimizations` sits outside the Compose `return`, so the MCP
 // standard default never trims it).
 func TestOptimize_MCPComposeReturnsBlocks(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fsys})
 	if err != nil {

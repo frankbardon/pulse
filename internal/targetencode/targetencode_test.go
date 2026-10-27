@@ -12,6 +12,8 @@ func seed(v int64) *int64 { return &v }
 // TestCheck pins the shared params rules in their judged order; the
 // message is the one the constructor and predict both raise.
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		p    Params
@@ -48,6 +50,8 @@ func TestCheck(t *testing.T) {
 // TestStreamable: the pre-pass reads field, target and every fit_on name
 // from the raw record, so each must be a stored field.
 func TestStreamable(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "g", Type: encoding.FieldTypeCategoricalU8},
 		{Name: "y", Type: encoding.FieldTypeF64},

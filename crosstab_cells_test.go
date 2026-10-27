@@ -170,6 +170,8 @@ func cellsRequest(spec *types.CrosstabSpec, weight *types.WeightSpec) *types.Req
 // grand figures on Measures. Run on both dispatch arms, across
 // weighted, normalised, set-axis, nested and long-shape requests.
 func TestCrosstabCells_EachMeasureIsItsSingleCellCrosstab(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -298,6 +300,8 @@ func TestCrosstabCells_EachMeasureIsItsSingleCellCrosstab(t *testing.T) {
 // column, auxiliary margins, long shape and pairwise overlays — and that
 // every case is one the fused arm actually takes.
 func TestCrosstabCells_FusedMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -367,6 +371,8 @@ func cellsSchema(t *testing.T, fs afero.Fs) *encoding.Schema {
 // shared column pairs; ROW scope concatenates each measure's row pairs,
 // labelled by the folded row key, so a pair never crosses measures.
 func TestCrosstabCells_PairwisePerMeasure(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -463,6 +469,8 @@ func TestCrosstabCells_PairwisePerMeasure(t *testing.T) {
 // measure cannot feed, normalize over a map-valued measure — is raised
 // under the same code by both.
 func TestCrosstabCells_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -558,6 +566,8 @@ func TestCrosstabCells_PredictMatchesRuntime(t *testing.T) {
 // recompute-margin aggregator, and the long / no-margin / no-normalize
 // shape streamable like a single-measure one.
 func TestCrosstabCells_PredictFusionAndStreamability(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -604,6 +614,8 @@ func TestCrosstabCells_PredictFusionAndStreamability(t *testing.T) {
 // the aggregation default from its field's schema type — at runtime and
 // in predict's DefaultsApplied, which names the measure's path.
 func TestCrosstabCells_SmartDefaultsPerEntry(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -652,6 +664,8 @@ func TestCrosstabCells_SmartDefaultsPerEntry(t *testing.T) {
 // instance hiding capability:crosstab_cells refuses a set crosstab.cells
 // as an unknown key, predict and runtime alike, and still runs Cell.
 func TestCrosstabCells_HiddenCapabilityRefused(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -682,6 +696,8 @@ func TestCrosstabCells_HiddenCapabilityRefused(t *testing.T) {
 // reading a multi-measure crosstab slot is refused, PredictCompose and
 // Compose under the same code.
 func TestCrosstabCells_ComposeOverlayRefused(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()
@@ -731,6 +747,8 @@ func TestCrosstabCells_ComposeOverlayRefused(t *testing.T) {
 // (measure m of spec row r at r*M+m) so it addresses the payload the
 // layer sits on.
 func TestCrosstabCells_PairwiseSkipWarningsFold(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeCellsCohort(t, fs)
 	ctx := context.Background()

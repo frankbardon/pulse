@@ -42,6 +42,8 @@ func stubWindowFactory(*types.Window, extend.WindowOptions) (extend.WindowComput
 // ---- Validation: tier-2 + tier-empty + tier-unknown variants ---------
 
 func TestExtensions_TestTierPostMissingFactory(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
 			Name: "TEST_ACME_BRAND_POST",
@@ -53,6 +55,8 @@ func TestExtensions_TestTierPostMissingFactory(t *testing.T) {
 }
 
 func TestExtensions_TestTierPostWithRowFactory(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
 			Name:        "TEST_ACME_BRAND_POST",
@@ -66,6 +70,8 @@ func TestExtensions_TestTierPostWithRowFactory(t *testing.T) {
 }
 
 func TestExtensions_TestTierEmpty(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
 			Name:       "TEST_ACME_BRAND_NIL",
@@ -77,6 +83,8 @@ func TestExtensions_TestTierEmpty(t *testing.T) {
 }
 
 func TestExtensions_TestTierUnknown(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Tests: []pulse.TestRegistration{{
 			Name:       "TEST_ACME_BRAND_X",
@@ -91,6 +99,8 @@ func TestExtensions_TestTierUnknown(t *testing.T) {
 // ---- buildRuntimeExtensions: every category populated -----------------
 
 func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{
 			{Name: "AGG_ACME_BRAND_SCORE", Factory: stubAggregatorFactory, Streamable: true},
@@ -203,6 +213,8 @@ func stubPanicAttributeFactory(*types.Attribute, *encoding.Schema) (extend.Attri
 }
 
 func TestExtensions_ProbeAttribute_FactoryPanicCaught(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_BRAND_PANIC",
@@ -220,6 +232,8 @@ func stubNilAttributeFactory(*types.Attribute, *encoding.Schema) (extend.Attribu
 }
 
 func TestExtensions_ProbeAttribute_FactoryReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		Attributes: []pulse.AttributeRegistration{{
 			Name:    "ATTR_ACME_BRAND_NIL",
@@ -236,6 +250,8 @@ func TestExtensions_ProbeAttribute_FactoryReturnsNil(t *testing.T) {
 // ---- LookupTable empty-name path (validateLookupTables 87.5%) --------
 
 func TestExtensions_LookupTableEmptyName(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		LookupTables: map[string]pulse.LookupTable{
 			"   ": {Rows: map[string]float64{"k": 1}},

@@ -288,6 +288,8 @@ func runProcessOnce(t *testing.T, cfg *fs.Config, cohortPath string) *types.Resp
 // This is the contract baseline for hermetic-tests that the iterator
 // engages no mmap on MemMapFs.
 func TestCountingFs_MemMapFs_HeaderOnlyOpenPlusOneFullRead(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	makeSyntheticCohort(t, mem, "bench.pulse")
 	wrapped := newCountingFs(mem)
@@ -345,6 +347,8 @@ func TestCountingFs_MemMapFs_HeaderOnlyOpenPlusOneFullRead(t *testing.T) {
 // without a subsequent iterator drain, the cumulative bytesRead on the
 // cohort path must be strictly less than file size.
 func TestCountingFs_MemMapFs_ServiceOpenIsHeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	makeSyntheticCohort(t, mem, "bench.pulse")
 	wrapped := newCountingFs(mem)
@@ -395,6 +399,8 @@ func TestCountingFs_MemMapFs_ServiceOpenIsHeaderOnly(t *testing.T) {
 // We assert: cohort full-reads == 0 AND the streaming iterator reports
 // mmapBytes != nil after the first Next() — proving the mmap path fired.
 func TestCountingFs_OsFs_MmapEngagesZeroReadFile(t *testing.T) {
+	t.Parallel()
+
 	if !mmapSupportedOS() {
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
@@ -489,6 +495,8 @@ func TestCountingFs_OsFs_MmapEngagesZeroReadFile(t *testing.T) {
 // this catches a regression where a new wrapper layer silently shadows
 // the BasePathFs.RealPath capability.
 func TestCountingFs_BasePathFs_MmapEngagesZeroReadFile(t *testing.T) {
+	t.Parallel()
+
 	if !mmapSupportedOS() {
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
@@ -541,6 +549,8 @@ func TestCountingFs_BasePathFs_MmapEngagesZeroReadFile(t *testing.T) {
 // drive the iterator and assert mmap engaged — even though every other
 // call is recorded by the counter.
 func TestCountingFs_RealPatherStub_MmapEngagesZeroReadFile(t *testing.T) {
+	t.Parallel()
+
 	if !mmapSupportedOS() {
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
@@ -597,6 +607,8 @@ func TestCountingFs_RealPatherStub_MmapEngagesZeroReadFile(t *testing.T) {
 // branches (mmap vs ReadFile vs RealPather) don't subtly diverge — the
 // IO contract change must be invisible to consumers.
 func TestCountingFs_ProcessOutputByteEqualAcrossFsShapes(t *testing.T) {
+	t.Parallel()
+
 	if !mmapSupportedOS() {
 		// MemMapFs always works, but to compare against the OsFs / mmap
 		// shapes we need a kernel that supports mmap. Skip gracefully on

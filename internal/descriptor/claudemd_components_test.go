@@ -28,6 +28,8 @@ func readClaudeMdForComponents(t *testing.T) string {
 }
 
 func TestClaudeMdMentionsComponentsContract(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMdForComponents(t)
 
 	// Response.Components (the struct name; reachable as a section
@@ -69,6 +71,8 @@ func TestClaudeMdMentionsComponentsContract(t *testing.T) {
 }
 
 func TestUpdateDemandTableCoversComponents(t *testing.T) {
+	t.Parallel()
+
 	content := readClaudeMdForComponents(t)
 
 	// Extract the Update Demand section (from "## The Update Demand"

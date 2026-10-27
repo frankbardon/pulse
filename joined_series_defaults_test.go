@@ -39,6 +39,8 @@ func jsRY(typed bool) *types.Aggregation {
 // field scores aggregations[0]) or behind zz_n (field names its default
 // label). Stage 1 re-groups stage 0 by region, reading AGG_SUM_r_y.
 func TestChainSeriesOverlay_JoinedStageDefaultedLabel(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ChainKinds() {
 		for _, named := range []bool{false, true} {
@@ -85,6 +87,8 @@ func TestChainSeriesOverlay_JoinedStageDefaultedLabel(t *testing.T) {
 // defaults reach the slot's aggregations); predict-compose now resolves
 // the label against the joined schema instead of deferring.
 func TestComposeSeriesOverlay_JoinedSlotDefaultedLabel(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ComposeKinds() {
 		for _, named := range []bool{false, true} {
@@ -129,6 +133,8 @@ func TestComposeSeriesOverlay_JoinedSlotDefaultedLabel(t *testing.T) {
 // PULSE_OVERLAY_FIELD_UNKNOWN from predict and runtime alike, Details
 // equal. Joined (r_y) and unjoined (y) for both arms.
 func TestSeriesOverlay_DefaultedLabelUnknownParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, joined := range []bool{false, true} {
 		fieldName := "y"

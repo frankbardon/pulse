@@ -78,6 +78,8 @@ func targetRowsAreSource(t *testing.T, w *collectWriter, rows [][]string) {
 // carries the same final types and the same warnings the import does,
 // and the target receives the source text unchanged.
 func TestConvertWiden_PromotesLikeImport(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := widenFixture()
 	imp, _ := importRaw(t, cols, rows)
 	rep, target, _ := runConvert(t, newMockReader(cols, rows), false)
@@ -98,6 +100,8 @@ func TestConvertWiden_PromotesLikeImport(t *testing.T) {
 // of a promoting convert is byte-for-byte the cohort a plain import of
 // the same source writes.
 func TestConvertWiden_KeepPulseIsTheImport(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := widenFixture()
 	_, want := importRaw(t, cols, rows)
 	_, _, kept := runConvert(t, newMockReader(cols, rows), true)
@@ -111,6 +115,8 @@ func TestConvertWiden_KeepPulseIsTheImport(t *testing.T) {
 // schema, no warnings, the text passed through, and a kept cohort equal
 // to the plain import's.
 func TestConvertWiden_NoOverflowUnchanged(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := widenFixture()
 	rows = rows[:500] // the sample IS the file: nothing can outgrow it
 	inferred, _, err := InferSchema(newMockReader(cols, rows), 500)
@@ -137,6 +143,8 @@ func TestConvertWiden_NoOverflowUnchanged(t *testing.T) {
 // convert still refuses with the fatal overflow. (The explicit
 // ConvertJob.Schema arm is TestConvertJob_CategoricalOverflowIsReported.)
 func TestConvertWiden_DeclaredSchemasStillRefuse(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := overflowRows()
 	src := &authoritativeReader{columns: cols, rows: rows, schema: &encoding.Schema{Fields: []encoding.Field{{Name: "c", Type: encoding.FieldTypeCategoricalU8}}}}
 	job := NewConvertJob(src, &collectWriter{})
@@ -202,6 +210,8 @@ func optF32(j *ImportJob) { j.FloatWidth = FloatWidthF32 }
 // one a whole-file sample writes, and a column whose values f32 merely
 // rounds stays f32.
 func TestImportWiden_F32PromotesToF64(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := f32Fixture()
 	rep, raw, fs, err := runGroupImport(t, newMockReader(cols, rows), nil, optF32)
 	if err != nil {
@@ -245,6 +255,8 @@ func TestImportWiden_F32PromotesToF64(t *testing.T) {
 // ColumnTypeOverrides column cannot hold refuses the import (naming the
 // row) instead of becoming a skipped row.
 func TestImportWiden_F32DeclaredNeverPromotes(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := f32Fixture()
 	_, _, _, err := runGroupImport(t, newMockReader(cols, rows), nil, func(j *ImportJob) {
 		j.ColumnTypeOverrides = map[string]encoding.FieldType{"x": encoding.FieldTypeF32, "z": encoding.FieldTypeF32}
@@ -258,6 +270,8 @@ func TestImportWiden_F32DeclaredNeverPromotes(t *testing.T) {
 // TestImportPredictWiden_F32: the measured import predict reports the
 // f64 the import writes, with the same warning.
 func TestImportPredictWiden_F32(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := f32Fixture()
 	imp, _ := importRaw(t, cols, rows, optF32)
 	if len(imp.WidthWarnings) != 2 {
@@ -276,6 +290,8 @@ func TestImportPredictWiden_F32(t *testing.T) {
 // TestConvertWiden_F32: convert reports the promoted f64 and the
 // warning, and its kept cohort is the import's.
 func TestConvertWiden_F32(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := f32Fixture()
 	imp, want := importRaw(t, cols, rows, optF32)
 	if len(imp.WidthWarnings) != 2 {
@@ -297,6 +313,8 @@ func TestConvertWiden_F32(t *testing.T) {
 // packed_bool column is a row error with no promotion — on import, and
 // convert passes the cell through as text with no warning.
 func TestImportWiden_PackedBoolStaysRowError(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]string
 	for i := 0; i < 600; i++ {
 		rows = append(rows, []string{fmt.Sprint(i%2 == 0)})
@@ -322,6 +340,8 @@ func TestImportWiden_PackedBoolStaysRowError(t *testing.T) {
 // that parse at f32 without error by rounding to an edge (zero, the
 // smallest subnormal, MaxFloat32, Inf) — and on nothing else.
 func TestConvertOrWiden_F32Edges(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		raw     string
 		promote bool

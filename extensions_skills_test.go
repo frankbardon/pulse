@@ -151,6 +151,8 @@ func manifestSkillNames(t *testing.T, p *Pulse) map[string]bool {
 // TestExtensions_SkillsServedLikeBuiltins: a profile-free instance
 // lists, serves and graphs every embedder skill.
 func TestExtensions_SkillsServedLikeBuiltins(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: acmeSkillExtensions()})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -184,6 +186,8 @@ func TestExtensions_SkillsServedLikeBuiltins(t *testing.T) {
 // TestExtensions_SkillsKeepBuiltinsByteIdentical: registering embedder
 // skills changes no built-in skill, listing or body.
 func TestExtensions_SkillsKeepBuiltinsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	plain, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatal(err)
@@ -223,6 +227,8 @@ func TestExtensions_SkillsKeepBuiltinsByteIdentical(t *testing.T) {
 // never existed — and cuts the fenced span of the topical skill that
 // stays.
 func TestExtensions_SkillsPrunedWithOperator(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: acmeSkillExtensions(),
 		FeatureProfile: &FeatureProfile{Features: []string{"capability:process", "AGG_ACME_KEPT"}}})
 	if err != nil {
@@ -260,6 +266,8 @@ func TestExtensions_SkillsPrunedWithOperator(t *testing.T) {
 // profile hides is cut from its line, a line left naming nothing goes —
 // and a profile-free instance serves it unchanged.
 func TestExtensions_TopicalSkillSeeRenderedByEdge(t *testing.T) {
+	t.Parallel()
+
 	const see = "\n## See\n\n`op-agg-acme-kept` · `op-agg-acme-brand` · `ext-acme-brand-guide`.\n\n- `ext-acme-brand-guide` — reading brand share.\n"
 	ext := acmeSkillExtensions()
 	ext.Skills.(fstest.MapFS)["ext-acme-guide.md"] = &fstest.MapFile{Data: []byte(rootExtSkillGuide + see)}
@@ -288,6 +296,8 @@ func TestExtensions_TopicalSkillSeeRenderedByEdge(t *testing.T) {
 // TestExtensions_SkillsRefusedAtNew: pulse.New surfaces the validation
 // code (the full table: internal/descriptor TestLoadExtensionSkills_Refusals).
 func TestExtensions_SkillsRefusedAtNew(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		fs   fstest.MapFS
@@ -313,6 +323,8 @@ func TestExtensions_SkillsRefusedAtNew(t *testing.T) {
 // TestExtensions_SkillsMergedValuesCollide: two merged Extensions values
 // shipping the same stem collide; distinct stems merge.
 func TestExtensions_SkillsMergedValuesCollide(t *testing.T) {
+	t.Parallel()
+
 	base := acmeSkillExtensions()
 	a := Extensions{Aggregators: base.Aggregators, Skills: fstest.MapFS{"ext-acme-guide.md": {Data: []byte(rootExtSkillGuide)}}}
 	b := Extensions{Skills: fstest.MapFS{"ext-acme-guide.md": {Data: []byte(rootExtSkillGuide)}}}

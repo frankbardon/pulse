@@ -20,6 +20,8 @@ import (
 // must build identically either way (it never reads the slot, so quoting
 // it would describe a computation that did not happen).
 func TestOperators_ReadsExpressionMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	m := descx.BuildManifest()
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
 	const expr = "x > 0"

@@ -17,6 +17,8 @@ import (
 // — and a clean binding predicts clean. Without the facade, ExportJob.Predict
 // has no resolver and these bindings would pass unchecked.
 func TestPredictExport_LabelRefusalsMatchExport(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	createTestPulseFile(t, fsys, "c.pulse", []string{"id", "region", "amount"}, [][]string{
 		{"1", "north", "10.5"}, {"2", "south", "20.25"},

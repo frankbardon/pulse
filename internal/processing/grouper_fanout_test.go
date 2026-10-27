@@ -23,6 +23,8 @@ import (
 // build from the registry factory, run ApplyGrouperExtensions (a named
 // range `table:` resolves lazily through that hook), then assert.
 func TestGrouperFanOutMatchesTypes(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allGroupParityFixtures(t)
 
 	for _, groupType := range types.AllGroupTypes() {
@@ -64,6 +66,8 @@ func TestGrouperFanOutMatchesTypes(t *testing.T) {
 // double-counts records. A single-key grouper over the same cohort
 // sums to exactly the record total.
 func TestGrouperFanOutCountsExceedRecords(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allGroupParityFixtures(t)
 
 	fanOut, ok := fixtures[types.GROUP_SET_PER_ELEMENT]

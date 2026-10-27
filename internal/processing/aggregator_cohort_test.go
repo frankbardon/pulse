@@ -36,6 +36,8 @@ func cohortRec(value, weight, num, den float64, nulls map[string]bool) *Record {
 }
 
 func TestAggregator_WeightedMean_Streaming(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{
 		Type:   types.AGG_WEIGHTED_MEAN,
 		Field:  "value",
@@ -70,6 +72,8 @@ func TestAggregator_WeightedMean_Streaming(t *testing.T) {
 }
 
 func TestAggregator_WeightedMean_BufferedMatchesStreaming(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{
 		Type:   types.AGG_WEIGHTED_MEAN,
 		Field:  "value",
@@ -98,6 +102,8 @@ func TestAggregator_WeightedMean_BufferedMatchesStreaming(t *testing.T) {
 }
 
 func TestAggregator_WeightedMean_MergeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{
 		Type:   types.AGG_WEIGHTED_MEAN,
 		Field:  "value",
@@ -136,6 +142,8 @@ func TestAggregator_WeightedMean_MergeMatchesSerial(t *testing.T) {
 }
 
 func TestAggregator_WeightedMean_MissingWeightFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	_, err := newWeightedMeanAggregator(&types.Aggregation{Type: types.AGG_WEIGHTED_MEAN, Field: "value"}, nil)
 	if err == nil || !errors.HasCode(err, errors.PROCESSING_CONFIG) {
 		t.Fatalf("expected PROCESSING_CONFIG, got: %v", err)
@@ -143,6 +151,8 @@ func TestAggregator_WeightedMean_MissingWeightFieldErrors(t *testing.T) {
 }
 
 func TestAggregator_Ratio_Streaming(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{
 		Type:   types.AGG_RATIO,
 		Field:  "value", // ignored
@@ -167,6 +177,8 @@ func TestAggregator_Ratio_Streaming(t *testing.T) {
 }
 
 func TestAggregator_Ratio_NaNWhenDenZero(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.Aggregation{
 		Type:   types.AGG_RATIO,
 		Field:  "value",
@@ -182,6 +194,8 @@ func TestAggregator_Ratio_NaNWhenDenZero(t *testing.T) {
 }
 
 func TestAggregator_CI_NormalBracketsMean(t *testing.T) {
+	t.Parallel()
+
 	specLow := &types.Aggregation{
 		Type:   types.AGG_CI_LOWER,
 		Field:  "value",
@@ -221,6 +235,8 @@ func TestAggregator_CI_NormalBracketsMean(t *testing.T) {
 }
 
 func TestAggregator_CI_BootstrapReserved(t *testing.T) {
+	t.Parallel()
+
 	_, err := newCIAggregator(ciLower)(&types.Aggregation{
 		Type:   types.AGG_CI_LOWER,
 		Field:  "value",
@@ -232,6 +248,8 @@ func TestAggregator_CI_BootstrapReserved(t *testing.T) {
 }
 
 func TestAggregator_CI_InvalidConfidence(t *testing.T) {
+	t.Parallel()
+
 	_, err := newCIAggregator(ciLower)(&types.Aggregation{
 		Type:   types.AGG_CI_LOWER,
 		Field:  "value",
@@ -243,6 +261,8 @@ func TestAggregator_CI_InvalidConfidence(t *testing.T) {
 }
 
 func TestAggregator_CI_NaNUnderTwoSamples(t *testing.T) {
+	t.Parallel()
+
 	low, _ := newCIAggregator(ciLower)(&types.Aggregation{
 		Type:   types.AGG_CI_LOWER,
 		Field:  "value",

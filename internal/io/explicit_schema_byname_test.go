@@ -69,6 +69,8 @@ func wantCode(t *testing.T, err error, code perr.Code, details map[string]any) {
 }
 
 func TestResolveExplicitSchema_ReordersByName(t *testing.T) {
+	t.Parallel()
+
 	in := reorderedSchema()
 	got, err := resolveExplicitSchema(&stringRowsReader{header: byNameHeader}, in, false)
 	if err != nil {
@@ -84,6 +86,8 @@ func TestResolveExplicitSchema_ReordersByName(t *testing.T) {
 }
 
 func TestResolveExplicitSchema_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		header      []string
@@ -116,6 +120,8 @@ func TestResolveExplicitSchema_Refusals(t *testing.T) {
 }
 
 func TestResolveExplicitSchema_IgnoreExtraDropsColumns(t *testing.T) {
+	t.Parallel()
+
 	// An unnamed column — repeated, even — is dropped under ignoreExtra.
 	got, err := resolveExplicitSchema(&stringRowsReader{header: []string{"z", "b", "z", "a"}}, schemaOf("a", "b"), true)
 	if err != nil {
@@ -127,6 +133,8 @@ func TestResolveExplicitSchema_IgnoreExtraDropsColumns(t *testing.T) {
 }
 
 func TestResolveExplicitSchema_EmptySourceUnresolved(t *testing.T) {
+	t.Parallel()
+
 	got, err := resolveExplicitSchema(&stringRowsReader{}, schemaOf("a"), false)
 	if err != nil || len(got.Fields) != 1 {
 		t.Fatalf("empty source: %v %v", got, err)
@@ -136,6 +144,8 @@ func TestResolveExplicitSchema_EmptySourceUnresolved(t *testing.T) {
 // --- every caller ---------------------------------------------------------
 
 func TestImportRun_ReorderedSchemaByName(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := &ImportJob{Source: &stringRowsReader{header: byNameHeader, rows: byNameRows()}, Target: "o.pulse", FS: fs, Schema: reorderedSchema()}
 	if _, err := job.Run(context.Background()); err != nil {
@@ -148,6 +158,8 @@ func TestImportRun_ReorderedSchemaByName(t *testing.T) {
 }
 
 func TestImportRun_RefusesBeforeRows(t *testing.T) {
+	t.Parallel()
+
 	job := &ImportJob{Source: &panicRowsReader{t: t, header: []string{"a", "z"}}, Target: "o.pulse", FS: afero.NewMemMapFs(), Schema: schemaOf("a")}
 	_, err := job.Run(context.Background())
 	wantCode(t, err, perr.PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED, map[string]any{"column": "z"})
@@ -157,6 +169,8 @@ func TestImportRun_RefusesBeforeRows(t *testing.T) {
 }
 
 func TestImportRun_IgnoreExtra(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	src := &stringRowsReader{header: []string{"z", "a", "b"}, rows: [][]string{{"x", "1", "10"}}}
 	job := &ImportJob{Source: src, Target: "o.pulse", FS: fs, Schema: schemaOf("b"), IgnoreExtra: true}
@@ -169,6 +183,8 @@ func TestImportRun_IgnoreExtra(t *testing.T) {
 }
 
 func TestImportPredict_ResolvesByName(t *testing.T) {
+	t.Parallel()
+
 	job := &ImportJob{Source: &stringRowsReader{header: byNameHeader, rows: byNameRows()}, Target: "o.pulse", FS: afero.NewMemMapFs(), Schema: reorderedSchema()}
 	rep, err := job.Predict(context.Background())
 	if err != nil {
@@ -187,6 +203,8 @@ func TestImportPredict_ResolvesByName(t *testing.T) {
 // does; with a reordered schema its constant-elision verdict must name
 // the field that is ACTUALLY constant in the source.
 func TestImportPredictMeasured_ResolvesByName(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]string
 	for i := 0; i < 200; i++ {
 		rows = append(rows, []string{"7", fmt.Sprint(i)})
@@ -207,6 +225,8 @@ func TestImportPredictMeasured_ResolvesByName(t *testing.T) {
 }
 
 func TestConvertRun_ReorderedSchemaByName(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := &collectWriter{}
 	job := NewConvertJob(&stringRowsReader{header: byNameHeader, rows: byNameRows()}, w)
@@ -226,6 +246,8 @@ func TestConvertRun_ReorderedSchemaByName(t *testing.T) {
 }
 
 func TestConvertRun_RefusalAndIgnoreExtra(t *testing.T) {
+	t.Parallel()
+
 	src := func() *stringRowsReader {
 		return &stringRowsReader{header: []string{"a", "z"}, rows: [][]string{{"1", "x"}}}
 	}
@@ -251,6 +273,8 @@ func TestConvertRun_RefusalAndIgnoreExtra(t *testing.T) {
 }
 
 func TestConvertPredict_ResolvesByName(t *testing.T) {
+	t.Parallel()
+
 	job := NewConvertJob(&stringRowsReader{header: byNameHeader, rows: byNameRows()}, &collectWriter{})
 	job.Schema = reorderedSchema()
 	rep, err := job.Predict(context.Background())
@@ -269,6 +293,8 @@ func TestConvertPredict_ResolvesByName(t *testing.T) {
 // The inference path never consults the resolver: a duplicate header
 // still infers as before.
 func TestImportInferred_NoResolver(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := &ImportJob{Source: &stringRowsReader{header: []string{"a", "a"}, rows: [][]string{{"1", "2"}}}, Target: "o.pulse", FS: fs}
 	if _, err := job.Run(context.Background()); err != nil {

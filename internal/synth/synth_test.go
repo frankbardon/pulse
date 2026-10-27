@@ -16,6 +16,8 @@ import (
 // TestSynth_DeterministicByteIdentical asserts the determinism contract:
 // same spec + same seed must produce identical bytes.
 func TestSynth_DeterministicByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := smallSpec(1000)
 
 	a, _, err := synth.SynthBytes(spec, synth.Options{Seed: 42})
@@ -33,6 +35,8 @@ func TestSynth_DeterministicByteIdentical(t *testing.T) {
 
 // TestSynth_SeedSensitivity asserts that different seeds change output.
 func TestSynth_SeedSensitivity(t *testing.T) {
+	t.Parallel()
+
 	spec := smallSpec(500)
 	a, _, err := synth.SynthBytes(spec, synth.Options{Seed: 1})
 	if err != nil {
@@ -50,6 +54,8 @@ func TestSynth_SeedSensitivity(t *testing.T) {
 // TestSynth_MonotonicFromIsDeterministic_AcrossSeeds asserts monotonic_from
 // ignores the RNG (the values follow a fixed sequence regardless of seed).
 func TestSynth_MonotonicFromIsDeterministic_AcrossSeeds(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 16,
 		Fields: []synth.FieldSpec{
@@ -75,6 +81,8 @@ func TestSynth_MonotonicFromIsDeterministic_AcrossSeeds(t *testing.T) {
 // TestSynth_NormalDistributionMeanWithinTolerance checks that 1k samples
 // from a normal distribution have an empirical mean close to the spec.
 func TestSynth_NormalDistributionMeanWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 5000,
 		Fields: []synth.FieldSpec{
@@ -96,6 +104,8 @@ func TestSynth_NormalDistributionMeanWithinTolerance(t *testing.T) {
 // TestSynth_BernoulliApproximatesP draws bernoulli(p=0.7) and checks that
 // the empirical fraction is close to p.
 func TestSynth_BernoulliApproximatesP(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 5000,
 		Fields: []synth.FieldSpec{
@@ -123,6 +133,8 @@ func TestSynth_BernoulliApproximatesP(t *testing.T) {
 // TestSynth_WeightedCategoricalRespectsWeights ensures the weighted sampler
 // produces frequencies near the requested weights.
 func TestSynth_WeightedCategoricalRespectsWeights(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 10000,
 		Fields: []synth.FieldSpec{
@@ -158,6 +170,8 @@ func TestSynth_WeightedCategoricalRespectsWeights(t *testing.T) {
 // normal-shaped hump. This is a real statistical check on the sampled
 // output, not a smoke test that generation merely runs without error.
 func TestSynth_MixtureReproducesBimodalShape(t *testing.T) {
+	t.Parallel()
+
 	const (
 		mean1, std1 = -10.0, 1.5
 		mean2, std2 = 10.0, 1.5
@@ -256,6 +270,8 @@ func TestSynth_MixtureReproducesBimodalShape(t *testing.T) {
 // TestSynth_MixtureValidatesParams asserts malformed mixture params fail
 // spec parsing with SERVICE_VALIDATION rather than silently degenerating.
 func TestSynth_MixtureValidatesParams(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		params map[string]any
@@ -293,6 +309,8 @@ func TestSynth_MixtureValidatesParams(t *testing.T) {
 // is legal and every row lands on that day — not a SERVICE_VALIDATION
 // refusal. Regression for the synth-from-sample path over one-wave data.
 func TestSynth_UniformDateSingleDayRange(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 50,
 		Fields: []synth.FieldSpec{
@@ -319,6 +337,8 @@ func TestSynth_UniformDateSingleDayRange(t *testing.T) {
 // (end strictly before start) still refuses — only the equal-bounds case
 // was wrongly rejected.
 func TestSynth_UniformDateEndBeforeStartRejected(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 10,
 		Fields: []synth.FieldSpec{
@@ -334,6 +354,8 @@ func TestSynth_UniformDateEndBeforeStartRejected(t *testing.T) {
 // TestSynth_ConstraintSatisfiedEveryRow verifies all rows satisfy declared
 // constraints when generation succeeds.
 func TestSynth_ConstraintSatisfiedEveryRow(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 1000,
 		Fields: []synth.FieldSpec{
@@ -364,6 +386,8 @@ func TestSynth_ConstraintSatisfiedEveryRow(t *testing.T) {
 // TestSynth_ConstraintInfeasibleErrorsOut verifies the rejection-rate
 // safety valve fires on a contradictory constraint.
 func TestSynth_ConstraintInfeasibleErrorsOut(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 100,
 		Fields: []synth.FieldSpec{
@@ -381,6 +405,8 @@ func TestSynth_ConstraintInfeasibleErrorsOut(t *testing.T) {
 
 // TestSynth_UnknownDistributionErrors verifies the typed error.
 func TestSynth_UnknownDistributionErrors(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 10,
 		Fields: []synth.FieldSpec{
@@ -396,6 +422,8 @@ func TestSynth_UnknownDistributionErrors(t *testing.T) {
 // TestSynth_RoundTripsThroughPulseFacade verifies pulse.New + Synth +
 // Inspect round-trips and produces a readable .pulse file.
 func TestSynth_RoundTripsThroughPulseFacade(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -430,6 +458,8 @@ func TestSynth_RoundTripsThroughPulseFacade(t *testing.T) {
 // verifies the empirical null rate is close to the requested rate. Null
 // state is carried by the per-record bitmap, not an inline sentinel.
 func TestSynth_NullableU8RespectsNullRate(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 5000,
 		Fields: []synth.FieldSpec{
@@ -454,6 +484,8 @@ func TestSynth_NullableU8RespectsNullRate(t *testing.T) {
 // cohort, profiles it, then synthesizes from the profile and checks that
 // categorical frequencies survive the round trip.
 func TestProfile_ThenSynth_RoundTripsCategoricalShape(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {

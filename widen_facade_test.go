@@ -82,6 +82,8 @@ func newWidenFacadePulse(t *testing.T) (*Pulse, afero.Fs) {
 }
 
 func TestWidenSetField_FacadeWidensByTypeName(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := newWidenFacadePulse(t)
 	before := writeWidenFacadeCohort(t, memFs, "cohort.pulse")
 
@@ -131,6 +133,8 @@ func TestWidenSetField_FacadeWidensByTypeName(t *testing.T) {
 // not a set type" for a typo'd rung, or worse, a rewrite to a type they
 // never asked for.
 func TestWidenSetField_FacadeRejectsUnknownTypeName(t *testing.T) {
+	t.Parallel()
+
 	p, memFs := newWidenFacadePulse(t)
 	before := writeWidenFacadeCohort(t, memFs, "cohort.pulse")
 

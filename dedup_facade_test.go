@@ -49,6 +49,8 @@ var dedupFixtureGroups = []pio.GroupDecl{{Key: []string{"parent_code"}, Members:
 // count — against the original and the converted file: the output is
 // byte-identical. The converted cohort really is grouped and smaller.
 func TestDedup_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	orig := dedupFixtureFS(t)
 	conv := dedupFixtureFS(t)
@@ -89,6 +91,8 @@ func TestDedup_RoundTrip(t *testing.T) {
 // inside one, are refused with SERVICE_VALIDATION before a byte is
 // written — explicit, never a silently wrong archive.
 func TestDedup_ShardArchiveRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := dedupFixtureFS(t)
 	raw, _ := afero.ReadFile(fs, "cohort.pulse")
@@ -123,6 +127,8 @@ func TestDedup_ShardArchiveRefused(t *testing.T) {
 // rebuilds nothing — the index is left stale for the caller. An --out
 // dedup leaves the source (and its sidecars) alone and reports none.
 func TestDedup_ReportsInvalidatedSidecars(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := dedupFixtureFS(t)
 	p, err := New(Options{FS: fs})

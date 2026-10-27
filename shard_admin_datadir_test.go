@@ -15,6 +15,8 @@ import (
 // fail SERVICE_RESOURCE) — and nothing but the inputs and the archive
 // is left behind. AddShard at the root takes the same path.
 func TestCreateShardArchive_DataDirRoot(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	p, err := New(Options{DataDir: dir})
 	if err != nil {

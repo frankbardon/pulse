@@ -101,6 +101,8 @@ func drainExact(t *testing.T, path string, iter processing.RecordIterator) {
 }
 
 func TestExactU64_StreamProjectionWithoutPlan(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "c.pulse", exactU64File(t), 0o644); err != nil {
 		t.Fatal(err)
@@ -160,6 +162,8 @@ func exactU64Archive(t *testing.T) (*Service, *fs.Config, *Cohort) {
 }
 
 func TestExactU64_ShardIterProjectionWithoutPlan(t *testing.T) {
+	t.Parallel()
+
 	_, cfg, cohort := exactU64Archive(t)
 	it := newShardIter(cfg.Fs(), "arch.pulse", cohort.Schema(), cohort.Shards())
 	defer it.Close()
@@ -177,6 +181,8 @@ func TestExactU64_ShardIterProjectionWithoutPlan(t *testing.T) {
 // with it the exact-word capture. Falsified by dropping the
 // exact.ApplyTo call in shardRows.next.
 func TestExactU64_ShardParallelProjectionWithoutPlan(t *testing.T) {
+	t.Parallel()
+
 	_, cfg, cohort := exactU64Archive(t)
 	arch, err := openArchiveFile(cfg.Fs(), "arch.pulse")
 	if err != nil {
@@ -213,6 +219,8 @@ func TestExactU64_ShardParallelProjectionWithoutPlan(t *testing.T) {
 }
 
 func TestExactU64_ParallelDecodeProjectionWithoutPlan(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	path := filepath.Join(dir, "c.pulse")
@@ -252,6 +260,8 @@ func TestExactU64_ParallelDecodeProjectionWithoutPlan(t *testing.T) {
 }
 
 func TestExactU64_LookupRecord(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "c.pulse", exactU64File(t), 0o644); err != nil {
 		t.Fatal(err)
@@ -278,6 +288,8 @@ func TestExactU64_LookupRecord(t *testing.T) {
 }
 
 func TestExactU64_FilterToFileRecord(t *testing.T) {
+	t.Parallel()
+
 	svc := New(fs.NewMemMap())
 	data := exactU64File(t)
 	br := bytes.NewReader(data)

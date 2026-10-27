@@ -13,6 +13,8 @@ import (
 // an ADDITIVE extension appended after set_u64 — if this value ever moves,
 // every .pulse file written since the type landed silently mis-decodes.
 func TestFieldTypeDateTime_TypeByte(t *testing.T) {
+	t.Parallel()
+
 	if got := byte(FieldTypeDateTime); got != 17 {
 		t.Fatalf("FieldTypeDateTime type byte = %d, want 17", got)
 	}
@@ -32,6 +34,8 @@ func TestFieldTypeDateTime_TypeByte(t *testing.T) {
 // the new type in one table so a future predicate addition that forgets
 // datetime shows up here.
 func TestFieldTypeDateTime_Predicates(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		got  bool
@@ -64,6 +68,8 @@ func TestFieldTypeDateTime_Predicates(t *testing.T) {
 
 // TestFieldTypeDateTime_NameRoundTrip covers String/ParseFieldType.
 func TestFieldTypeDateTime_NameRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	if got := FieldTypeDateTime.String(); got != "datetime" {
 		t.Fatalf("String() = %q, want %q", got, "datetime")
 	}
@@ -87,6 +93,8 @@ func TestFieldTypeDateTime_NameRoundTrip(t *testing.T) {
 // WriteFieldValue / ReadFieldValue codec pair across the epoch-seconds
 // range, including the full 64-bit span (no float coercion here).
 func TestFieldTypeDateTime_FieldValueRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		val  uint64
@@ -136,6 +144,8 @@ func datetimeSchema(nullable bool) *Schema {
 // TestFieldTypeDateTime_SchemaRoundTrip asserts the schema block survives
 // a write/read cycle and that stride arithmetic picks up the 8 bytes.
 func TestFieldTypeDateTime_SchemaRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	orig := datetimeSchema(false)
 	if got, want := orig.RecordByteSize(), 4+8+4; got != want {
 		t.Fatalf("RecordByteSize() = %d, want %d", got, want)
@@ -166,6 +176,8 @@ func TestFieldTypeDateTime_SchemaRoundTrip(t *testing.T) {
 // rather than mis-parse the record stream. Byte 18 stands in for what an
 // older binary saw when handed datetime's byte 17.
 func TestReadSchema_RejectsTypeByteAboveDateTime(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := binary.Write(&buf, binary.LittleEndian, uint16(1)); err != nil {
 		t.Fatal(err)
@@ -198,6 +210,8 @@ func TestReadSchema_RejectsTypeByteAboveDateTime(t *testing.T) {
 // appending datetime must not have moved any pre-existing type byte, so a
 // .pulse file written before this change decodes byte-identically.
 func TestPreDateTimeTypeBytesUnchanged(t *testing.T) {
+	t.Parallel()
+
 	legacy := []struct {
 		ft   FieldType
 		byte byte
@@ -235,6 +249,8 @@ func TestPreDateTimeTypeBytesUnchanged(t *testing.T) {
 // pre-datetime types and asserts the encoded bytes match the exact
 // sequence produced before byte 17 existed.
 func TestPreDateTimeCohortBytesIdentical(t *testing.T) {
+	t.Parallel()
+
 	s := &Schema{
 		Fields: []Field{
 			{Name: "id", Type: FieldTypeU32, ByteOffset: 0},

@@ -152,6 +152,8 @@ func vxSame(a, b []float64) bool {
 // cell components are the selected element's; predict accepts it and
 // reports the fused arm exactly as the twin does.
 func TestVecAggCrosstab_ElementCell(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 90)
@@ -275,6 +277,8 @@ func TestVecAggCrosstab_ElementCell(t *testing.T) {
 // raised by Process and predict alike, with the same code and reason;
 // without element the array-valued refusal stands.
 func TestVecAggCrosstab_ElementRefusalParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 40)
@@ -332,90 +336,6 @@ func TestVecAggCrosstab_ElementRefusalParity(t *testing.T) {
 			}
 			if !vaggHasReason(env, c.code, c.reason) {
 				t.Fatalf("predict = %+v, want %s %s", env.Errors, c.code, c.reason)
-			}
-		})
-	}
-}
-
-// TestVecAggCrosstab_ElementBitExactAcrossWorkers: an element cell and
-// auxiliary over non-dyadic members spanning several merge blocks
-// answer the same bits on both crosstab arms, serially and under every
-// DecodeWorkers count, and over a shard archive of the same rows (shard
-// edges inside merge blocks, a 1-row and an empty shard) under every
-// ShardWorkers × DecodeWorkers count — weighted and unweighted.
-func TestVecAggCrosstab_ElementBitExactAcrossWorkers(t *testing.T) {
-	const rows = 2*4096 + 1234
-	ctx := context.Background()
-	fsys := afero.NewMemMapFs()
-	writeVaggBitsCohort(t, fsys, "single.pulse", 0, rows)
-	bounds := []int{0, 1, 2, 4097, 4097, 6000, rows}
-	var shards []string
-	for i := 0; i+1 < len(bounds); i++ {
-		path := fmt.Sprintf("s%d.pulse", i)
-		writeVaggBitsCohort(t, fsys, path, bounds[i], bounds[i+1])
-		shards = append(shards, path)
-	}
-	builder, err := pulse.New(pulse.Options{FS: fsys})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := builder.CreateShardArchive(ctx, "archive.pulse", shards); err != nil {
-		t.Fatal(err)
-	}
-	req := func(cohort string, weighted bool) *types.Request {
-		r := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Crosstab: &types.CrosstabSpec{
-			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "qty"}},
-			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "score"}},
-			Cell:    &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"b*"}, Label: "m", Params: json.RawMessage(`{"element":"b2"}`)},
-			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
-			MarginAggregations: []*types.Aggregation{
-				{Type: types.AGG_VEC_SUM, Fields: []string{"b*"}, Label: "s", Params: json.RawMessage(`{"element":"b3"}`)},
-			},
-		}}
-		if weighted {
-			r.Weight = &types.WeightSpec{Field: "score"}
-		}
-		return r
-	}
-	bits := func(p *pulse.Pulse, cohort string, weighted bool) []uint64 {
-		t.Helper()
-		resp, err := p.Process(ctx, req(cohort, weighted))
-		if err != nil {
-			t.Fatalf("Process: %v", err)
-		}
-		var out []uint64
-		for _, x := range vxCells(t, resp) {
-			out = append(out, math.Float64bits(x))
-		}
-		for _, a := range vxAux(t, resp) {
-			if v, ok := a.([]any)[0].(float64); ok {
-				out = append(out, math.Float64bits(v))
-			}
-		}
-		return out
-	}
-	for _, weighted := range []bool{false, true} {
-		t.Run(fmt.Sprintf("weighted=%v", weighted), func(t *testing.T) {
-			ref := bits(builder, "single.pulse", weighted)
-			for _, fuse := range []bool{true, false} {
-				for _, dw := range []int{1, 3} {
-					p, err := pulse.New(pulse.Options{FS: fsys, DisableCrosstabFusion: !fuse, DecodeWorkers: dw})
-					if err != nil {
-						t.Fatal(err)
-					}
-					if got := bits(p, "single.pulse", weighted); !reflect.DeepEqual(got, ref) {
-						t.Errorf("single fused=%v DecodeWorkers=%d: bits differ", fuse, dw)
-					}
-					for _, sw := range []int{1, 2, 4} {
-						p, err := pulse.New(pulse.Options{FS: fsys, DisableCrosstabFusion: !fuse, DecodeWorkers: dw, ShardWorkers: sw})
-						if err != nil {
-							t.Fatal(err)
-						}
-						if got := bits(p, "archive.pulse", weighted); !reflect.DeepEqual(got, ref) {
-							t.Errorf("archive fused=%v ShardWorkers=%d DecodeWorkers=%d: bits differ from the single-file twin", fuse, sw, dw)
-						}
-					}
-				}
 			}
 		})
 	}

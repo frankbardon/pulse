@@ -30,6 +30,8 @@ func bucketSchema(t *testing.T) *encoding.Schema {
 // TestEstimateBuckets: the schema-only bucket bound predict reports per
 // grouped matrix, per grouper and field type.
 func TestEstimateBuckets(t *testing.T) {
+	t.Parallel()
+
 	schema := bucketSchema(t)
 	cases := []struct {
 		name    string
@@ -82,6 +84,8 @@ func TestEstimateBuckets(t *testing.T) {
 // must opt in, never inherit the catch-all a non-correlation type used
 // to fall into).
 func TestPSDRisk_PerType(t *testing.T) {
+	t.Parallel()
+
 	members := func(p int) Resolved {
 		r := Resolved{}
 		for i := 0; i < p; i++ {
@@ -128,6 +132,8 @@ func TestPSDRisk_PerType(t *testing.T) {
 // the spec-level answers, so the engine's slot builder reads the same
 // rule as the routing gates.
 func TestResolveMatrices_CopiesSpecStreamability(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64},
 		{Name: "b", Type: encoding.FieldTypeF64},
@@ -160,6 +166,8 @@ func TestResolveMatrices_CopiesSpecStreamability(t *testing.T) {
 // packed cell. The pairwise figure undercounted by 2 words a cell
 // (~22%) while the constant still said 7 (TODO #157).
 func TestAccumulatorBytes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		p        int
 		pairwise bool

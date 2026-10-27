@@ -41,6 +41,8 @@ func berlinLocation(t *testing.T) *time.Location {
 // both, and GROUP_DATE_RANGES labels the same two instants the same
 // way.
 func TestTimeZone_DateRangeBoundsAreLocalDays(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	// Row n=0 / cat "a" = 22:30Z, n=1 / cat "b" = 23:30Z.
 	instants := []int64{
@@ -139,6 +141,7 @@ func dstRangeLabel(day string) string {
 // Extensions.RangeTables entry or loaded from PULSE_RANGE_TABLES_DIR,
 // and every execution arm agrees with the time.In reference.
 func TestTimeZone_DateRangesLocalDayEveryArm(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	fs := afero.NewMemMapFs()
 	instants := dstInstants()
 	cohort, archive := importDST(t, fs, instants)
@@ -371,6 +374,8 @@ func yoyEqual(a, b map[string]float64) bool {
 // puts rows at 23:30Z, which is the NEXT Berlin day (and month), so
 // the UTC answer differs.
 func TestTimeZone_YoYFollowsHostZone(t *testing.T) {
+	t.Parallel()
+
 	loc := berlinLocation(t)
 	at := func(y int, m time.Month, d, h, min int) int64 {
 		return time.Date(y, m, d, h, min, 0, 0, time.UTC).Unix()

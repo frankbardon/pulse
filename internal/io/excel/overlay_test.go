@@ -104,6 +104,8 @@ func helperLayers() []*types.OverlayLayer {
 // []*types.OverlayLayer, and that the per-shape payload survives the
 // round-trip (best-effort per § 5.3).
 func TestExcelWriter_OverlayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "overlays.xlsx")
 	w.SetOverlays(helperLayers())
@@ -225,6 +227,8 @@ func stringFromAxisKey(k types.AxisKey) string {
 // raw bytes are equal. Story acceptance: "When IncludeOverlays == false
 // OR no overlays, Excel byte-identical to baseline."
 func TestExcelWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	baseline := buildExcelBuffer(t, nil, false)
 	nilOverlays := buildExcelBuffer(t, nil, true) // SetOverlays(nil)
 	emptyOverlays := buildExcelBuffer(t, []*types.OverlayLayer{}, true)
@@ -284,6 +288,8 @@ func buildExcelBuffer(t *testing.T, overlays []*types.OverlayLayer, callSet bool
 // contract is "no overlays present" rather than "field missing is an
 // error" (mirrors the Arrow / Parquet contract).
 func TestExcelReader_NoOverlaysReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "plain.xlsx", "", []string{"name", "age"}, [][]string{
 		{"alice", "30"},
@@ -304,6 +310,8 @@ func TestExcelReader_NoOverlaysReturnsNil(t *testing.T) {
 // overlay sheet's name starts with the engine-managed double-underscore
 // prefix — readers can filter overlay sheets with HasPrefix.
 func TestExcelWriter_OverlaySheetNamePrefix(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "overlays.xlsx")
 	w.SetOverlays(helperLayers())
@@ -339,6 +347,8 @@ func TestExcelWriter_OverlaySheetNamePrefix(t *testing.T) {
 // honoured for long layer names and that the disambiguation suffix
 // fires on collision.
 func TestBuildOverlaySheetName_Truncation(t *testing.T) {
+	t.Parallel()
+
 	existing := map[string]bool{}
 
 	// Short name — composed name fits the cap.
@@ -376,6 +386,8 @@ func TestBuildOverlaySheetName_Truncation(t *testing.T) {
 // (e.g. the host sheet) so author-supplied names cannot clash with the
 // overlay namespace.
 func TestBuildOverlaySheetName_CollisionWithExisting(t *testing.T) {
+	t.Parallel()
+
 	existing := map[string]bool{
 		"__overlay_chisq": true, // an author-supplied sheet starting with the reserved prefix
 	}
@@ -394,6 +406,8 @@ func TestBuildOverlaySheetName_CollisionWithExisting(t *testing.T) {
 // index. Story acceptance: "Stable spec-order emission (layer N →
 // sheet ordinal N+1 after primary)."
 func TestExcelWriter_OverlaySheetOrderMatchesSpec(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "ordered.xlsx")
 	w.SetOverlays(helperLayers())
@@ -440,6 +454,8 @@ func TestExcelWriter_OverlaySheetOrderMatchesSpec(t *testing.T) {
 // bytes are NOT byte-identical (the new sheets land on the workbook)
 // but the host sheet's rows are.
 func TestExcelWriter_HostSheetUnchanged(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 
 	// Baseline workbook — no overlays.
@@ -520,6 +536,8 @@ func TestExcelWriter_HostSheetUnchanged(t *testing.T) {
 // satisfies pio.OverlayAwareWriter — the optional interface that
 // downstream ExportJob wiring dispatches through. Compile-time check.
 func TestExcelOverlay_OverlayAwareWriterInterface(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriter(afero.NewMemMapFs(), "iface.xlsx")
 	w.SetOverlays(nil)
 	if err := w.WriteHeader([]string{"x"}); err != nil {
@@ -534,6 +552,8 @@ func TestExcelOverlay_OverlayAwareWriterInterface(t *testing.T) {
 // skipped (no sheet emitted) — defensive against caller-side mistakes
 // in the layer slice. The non-nil slots still emit one sheet each.
 func TestExcelWriter_NilLayerSkipped(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "nil_layer.xlsx")
 	layers := helperLayers()

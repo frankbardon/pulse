@@ -15,6 +15,8 @@ import (
 // (int64, then uint64), every other number float64, lists by the one
 // slice type all their elements fit, a Go float as its JSON text.
 func TestParams_NormalizeTypes(t *testing.T) {
+	t.Parallel()
+
 	raw := map[string]any{
 		"i":      json.Number("3"),
 		"big":    json.Number("9007199254740993"),
@@ -56,6 +58,8 @@ func TestParams_NormalizeTypes(t *testing.T) {
 // TestParams_NormalizeRefusals: each invalid shape is PULSE_PARAMS_INVALID
 // with its reason.
 func TestParams_NormalizeRefusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		raw    map[string]any
@@ -92,6 +96,8 @@ func detailsOf(c *errors.CodedError) map[string]any {
 // parameter reads, a bare use is not, a let named params shadows, an
 // undeclared name and a column collision are refused.
 func TestParams_ReadAndRefuse(t *testing.T) {
+	t.Parallel()
+
 	uses, ok := ReadParams(`x * params.k + params["j"] > params.k`)
 	if !ok || !reflect.DeepEqual(uses.Names, []string{"k", "j"}) || uses.Bare {
 		t.Fatalf("ReadParams = %+v %v", uses, ok)
@@ -125,6 +131,8 @@ func TestParams_ReadAndRefuse(t *testing.T) {
 // and an exact large integer — and a different value compiles a
 // different program.
 func TestParams_FoldCompiles(t *testing.T) {
+	t.Parallel()
+
 	p, cerr := NormalizeParams(map[string]any{
 		"from_wave": json.Number("3"),
 		"k":         json.Number("2.5"),

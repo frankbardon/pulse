@@ -15,6 +15,8 @@ import (
 // reason: "missing_factory"}, the matrix shape — instead of letting it
 // reach the probe as a recovered PULSE_EXTENSION_FACTORY_PANIC.
 func TestExtensions_NilFactoryRefusedAtValidation(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		category string
 		name     string

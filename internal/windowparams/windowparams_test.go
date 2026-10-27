@@ -19,6 +19,8 @@ func messages(refs []*Refusal) []string {
 // TestCheck_JudgingOrder: every broken rule is returned, in the order
 // the package documents; First is the head (the engine's refusal).
 func TestCheck_JudgingOrder(t *testing.T) {
+	t.Parallel()
+
 	neg := -1
 	w := &types.Window{Type: types.WIN_MOVING_AVG,
 		Frame:  &types.FrameSpec{Mode: "range", Preceding: &neg},
@@ -55,6 +57,8 @@ func TestCheck_JudgingOrder(t *testing.T) {
 // order_by, its keys and a given frame only — never on field or frame
 // presence.
 func TestCheck_ExtensionTypeNeutralRules(t *testing.T) {
+	t.Parallel()
+
 	ext := types.WindowType("WIN_ACME_X")
 	if refs := Check(&types.Window{Type: ext, OrderBy: []types.OrderKey{{Field: "t"}}}); refs != nil {
 		t.Errorf("valid extension slot refused: %q", messages(refs))
@@ -68,6 +72,8 @@ func TestCheck_ExtensionTypeNeutralRules(t *testing.T) {
 // TestLagAndPeriods: defaults, values and refusals of the two shared
 // params shapes.
 func TestLagAndPeriods(t *testing.T) {
+	t.Parallel()
+
 	lag := func(raw string) *types.Window {
 		return &types.Window{Type: types.WIN_LAG, Params: json.RawMessage(raw)}
 	}
@@ -110,6 +116,8 @@ func TestLagAndPeriods(t *testing.T) {
 // once (required, rejected, or neither only for none), and the field
 // table names the value-bearing operators.
 func TestTables(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range types.AllWindowTypes() {
 		if FrameRequired(typ) == FrameRejected(typ) {
 			t.Errorf("%s: frame required %v, rejected %v — every built-in takes a frame or refuses one", typ, FrameRequired(typ), FrameRejected(typ))
@@ -129,6 +137,8 @@ func TestTables(t *testing.T) {
 // TestUnknownType_RenameHint: only a retired name carries the rename
 // hint, and only when the instance offers its replacement.
 func TestUnknownType_RenameHint(t *testing.T) {
+	t.Parallel()
+
 	msg, d := UnknownType(2, "WIN_ADSTOCK", nil)
 	if msg != "window[2]: unknown window type WIN_ADSTOCK (renamed to WIN_DISTRIBUTED_LAG)" || d["renamed_to"] != "WIN_DISTRIBUTED_LAG" || d["window_index"] != 2 || d["type"] != "WIN_ADSTOCK" {
 		t.Errorf("retired: %q %v", msg, d)

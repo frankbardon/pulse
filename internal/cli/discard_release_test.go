@@ -36,6 +36,8 @@ func runConvertLeaf(t *testing.T, out *bytes.Buffer, args ...string) error {
 // live. That is what makes the assertion bite — a Close on this path has a
 // workbook to serialise and would leave out.xlsx behind.
 func TestConvertCLI_ErrorPathAfterRowsReleasesWithoutEmitting(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	// 300 distinct categories against a categorical_u8 (256 max): the

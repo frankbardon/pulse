@@ -26,6 +26,8 @@ func fp(v float64) *float64 { return &v }
 const splitParams = `{"ranges":[{"label":"train","start":0,"end":91},{"label":"holdout","start":91,"end":104}]}`
 
 func TestGrouper_NumericRanges_HalfOpenKeys(t *testing.T) {
+	t.Parallel()
+
 	g, err := grouperRegistry[types.GROUP_NUMERIC_RANGES](numericRangesGroup(splitParams), numericSchema())
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +67,8 @@ func TestGrouper_NumericRanges_HalfOpenKeys(t *testing.T) {
 }
 
 func TestGrouper_NumericRanges_Refusals(t *testing.T) {
+	t.Parallel()
+
 	factory := grouperRegistry[types.GROUP_NUMERIC_RANGES]
 	for _, tc := range []struct {
 		name   string
@@ -121,6 +125,8 @@ func typedTableRegistry() *ExtensionRegistry {
 }
 
 func TestGrouper_NumericRanges_TableKinds(t *testing.T) {
+	t.Parallel()
+
 	exts := typedTableRegistry()
 	factory := grouperRegistry[types.GROUP_NUMERIC_RANGES]
 
@@ -180,6 +186,8 @@ func TestGrouper_NumericRanges_TableKinds(t *testing.T) {
 }
 
 func TestNumericRangesGrouper_KeyRankAndOrder(t *testing.T) {
+	t.Parallel()
+
 	g, err := grouperRegistry[types.GROUP_NUMERIC_RANGES](numericRangesGroup(
 		`{"ranges":[{"label":"z_first","start":10,"end":20},{"label":"a_second","end":10},{"label":"m_third","start":20}],"unmatched_label":"none"}`), numericSchema())
 	if err != nil {
@@ -205,6 +213,8 @@ func TestNumericRangesGrouper_KeyRankAndOrder(t *testing.T) {
 }
 
 func TestRoundedGrouper_KeyRank(t *testing.T) {
+	t.Parallel()
+
 	g := &roundedGrouper{interval: 0.5}
 	for _, tc := range []struct {
 		key  string

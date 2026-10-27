@@ -75,6 +75,8 @@ func wfAssertFloor(t *testing.T, path string, n, nNull int, op map[string]any) {
 }
 
 func TestWeightedMean_FloorCountsSkippedWeightRows_Process(t *testing.T) {
+	t.Parallel()
+
 	schema := cohortSchema()
 	recs := wfRows(func(v, w float64, nulls map[string]bool) *Record {
 		return cohortRec(v, w, 0, 0, nulls)
@@ -113,6 +115,8 @@ func TestWeightedMean_FloorCountsSkippedWeightRows_Process(t *testing.T) {
 }
 
 func TestWeightedMean_FloorCountsSkippedWeightRows_Crosstab(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabWeightedOverlaySchema(t)
 	// Every row lands in cell (r0, c0) so the cell floor, the row and
 	// column margins and the grand total all see the same five rows.

@@ -55,6 +55,8 @@ func newFacetResultNumeric(field string, num *types.FacetNumeric, totalRecords, 
 // no re-sort, no recomputation). Per-value counts + frequencies match
 // the host payload byte-for-byte.
 func TestFacetPopulationResolver_CategoricalReadsDictCountsDirectly(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 50},
 		{Value: "green", Count: 30},
@@ -118,6 +120,8 @@ func TestFacetPopulationResolver_CategoricalReadsDictCountsDirectly(t *testing.T
 // record total), matching the same denominator the per-value counts
 // were folded against.
 func TestFacetPopulationResolver_CategoricalFrequency(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 50},
 		{Value: "green", Count: 30},
@@ -160,6 +164,8 @@ func TestFacetPopulationResolver_CategoricalFrequency(t *testing.T) {
 // surface kind-specific zero / NaN / warning shapes; the resolver's job
 // is to faithfully report absence.
 func TestFacetPopulationResolver_CategoricalMissingValue(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 50},
 		{Value: "green", Count: 30},
@@ -184,6 +190,8 @@ func TestFacetPopulationResolver_CategoricalMissingValue(t *testing.T) {
 // every value. DiscreteCount still resolves because counts are zero
 // across the board but the slice is well-formed.
 func TestFacetPopulationResolver_CategoricalZeroTotalRecords(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 0},
 	}
@@ -207,6 +215,8 @@ func TestFacetPopulationResolver_CategoricalZeroTotalRecords(t *testing.T) {
 // (no recomputation, no second pass over records). Welford mean / stddev
 // / count / sum / min / max round-trip byte-for-byte.
 func TestFacetPopulationResolver_NumericReadsWelfordDirectly(t *testing.T) {
+	t.Parallel()
+
 	num := &types.FacetNumeric{
 		Min:    1.0,
 		Max:    99.0,
@@ -252,6 +262,8 @@ func TestFacetPopulationResolver_NumericReadsWelfordDirectly(t *testing.T) {
 // pointer, no recomputation. KS_VS_POP reads this surface to build the
 // population CDF baseline.
 func TestFacetPopulationResolver_NumericPercentiles(t *testing.T) {
+	t.Parallel()
+
 	percentiles := map[string]float64{
 		"p50": 50.0,
 		"p90": 90.0,
@@ -287,6 +299,8 @@ func TestFacetPopulationResolver_NumericPercentiles(t *testing.T) {
 // decide whether to fall back to the histogram or surface a
 // "missing population CDF" warning.
 func TestFacetPopulationResolver_NumericPercentilesAbsent(t *testing.T) {
+	t.Parallel()
+
 	num := &types.FacetNumeric{
 		Min:    1.0,
 		Max:    99.0,
@@ -312,6 +326,8 @@ func TestFacetPopulationResolver_NumericPercentilesAbsent(t *testing.T) {
 // recomputation. Handlers can use the histogram as a coarse CDF
 // approximation when percentiles are unavailable.
 func TestFacetPopulationResolver_NumericHistogram(t *testing.T) {
+	t.Parallel()
+
 	hist := &types.FacetHistogram{
 		Min:  0.0,
 		Max:  100.0,
@@ -346,6 +362,8 @@ func TestFacetPopulationResolver_NumericHistogram(t *testing.T) {
 // "no histogram requested" branch: when the FacetRequest did not ask
 // for a histogram, the resolver reports (nil, false).
 func TestFacetPopulationResolver_NumericHistogramAbsent(t *testing.T) {
+	t.Parallel()
+
 	num := &types.FacetNumeric{
 		Min:    1.0,
 		Max:    99.0,
@@ -371,6 +389,8 @@ func TestFacetPopulationResolver_NumericHistogramAbsent(t *testing.T) {
 // story flags explicitly). Details carry the offending field name and
 // the sorted list of legitimate alternates.
 func TestFacetPopulationResolver_UnknownFieldRejected(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 50},
 	}
@@ -396,6 +416,8 @@ func TestFacetPopulationResolver_UnknownFieldRejected(t *testing.T) {
 // error with an empty available_fields slice. The Details map shape is
 // identical; only the available_fields list is empty.
 func TestFacetPopulationResolver_NilFacetResultRejected(t *testing.T) {
+	t.Parallel()
+
 	view, err := ResolveFacetPopulation(nil, "color")
 	if err == nil {
 		t.Fatal("ResolveFacetPopulation(nil) err = nil; want PULSE_OVERLAY_REF_UNKNOWN")
@@ -411,6 +433,8 @@ func TestFacetPopulationResolver_NilFacetResultRejected(t *testing.T) {
 // error with `field: ""` Details (the message renders the empty string
 // as `""` so the failure mode is unambiguous).
 func TestFacetPopulationResolver_EmptyFieldRejected(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 50},
 	}
@@ -431,6 +455,8 @@ func TestFacetPopulationResolver_EmptyFieldRejected(t *testing.T) {
 // map carries a nil *FacetField under the requested key is
 // structurally equivalent to the missing-key case.
 func TestFacetPopulationResolver_NilFieldEntryRejected(t *testing.T) {
+	t.Parallel()
+
 	result := &types.FacetResult{
 		Fields: map[string]*types.FacetField{
 			"color": nil,
@@ -452,6 +478,8 @@ func TestFacetPopulationResolver_NilFieldEntryRejected(t *testing.T) {
 // view + byte-equal error shape on every invocation. Guards against
 // future drift where a caller might fold state into the resolver.
 func TestFacetPopulationResolver_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	values := []types.FacetValueCount{
 		{Value: "red", Count: 50},
 		{Value: "green", Count: 30},
@@ -483,6 +511,8 @@ func TestFacetPopulationResolver_Deterministic(t *testing.T) {
 // a sensible empty value rather than panicking. This guards against the
 // "I got nil + err, then forgot to check err first" callsite pattern.
 func TestFacetPopulationResolver_NilSafeQueries(t *testing.T) {
+	t.Parallel()
+
 	var view *FacetPopulationView
 	if got := view.Field(); got != "" {
 		t.Errorf("nil.Field() = %q; want empty", got)

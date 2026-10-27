@@ -8,6 +8,8 @@ import (
 )
 
 func TestExprLengthIssue(t *testing.T) {
+	t.Parallel()
+
 	lenOf := func(name string) (int, bool) {
 		switch name {
 		case "a":
@@ -53,6 +55,8 @@ func TestExprLengthIssue(t *testing.T) {
 // name shadows it; a native vector field binds although it is a field;
 // an unknown name binds nothing; the order is refs'.
 func TestExprBindings(t *testing.T) {
+	t.Parallel()
+
 	resolved := []Resolved{
 		{Name: "bat", Members: []string{"a", "b"}},
 		{Name: "shadowed", Members: []string{"a"}},

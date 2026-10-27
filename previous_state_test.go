@@ -53,6 +53,8 @@ var previousStateParityCases = []struct {
 // ProcessStream refuse alike, and predict reports the same code,
 // message and details.
 func TestPreviousState_PredictRefusalsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	for _, c := range previousStateParityCases {
 		t.Run(c.name, func(t *testing.T) {
@@ -81,6 +83,8 @@ func TestPreviousState_PredictRefusalsMatchRuntime(t *testing.T) {
 // any other attribute type is refused on both sides (it would be
 // ignored silently).
 func TestPreviousState_ForeignSlotsRefused(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	for _, a := range []types.Attribute{
 		{Type: types.ATTR_ZSCORE, Field: "x", SubjectField: "subj"},
@@ -188,6 +192,8 @@ func prevStateRequest(cohort string) *types.Request {
 // which would null every output), and u64 subjects 2^53 and 2^53 + 1 —
 // one float64 echo — stay two subjects.
 func TestPreviousState_ProjectedDecodeReadsSubjectAndOrder(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -229,6 +235,8 @@ func TestPreviousState_ProjectedDecodeReadsSubjectAndOrder(t *testing.T) {
 // succeeds; under Options.Strict the run fails with the same code and
 // details.
 func TestPreviousState_AmbiguousTieWarnsOrFailsUnderStrict(t *testing.T) {
+	t.Parallel()
+
 	rows := [][3]any{
 		{uint64(1), int32(1), "free"},
 		{uint64(1), int32(1), "paid"}, // tie on differing states

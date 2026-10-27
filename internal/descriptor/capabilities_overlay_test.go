@@ -15,6 +15,8 @@ import (
 // manifest builder iterates the capability slice and a missing entry
 // would silently drop the kind.
 func TestOverlayCapabilities_CoversAllKinds(t *testing.T) {
+	t.Parallel()
+
 	caps := OverlayCapabilities()
 	if got, want := len(caps), len(types.AllOverlayKinds()); got != want {
 		t.Fatalf("OverlayCapabilities length = %d, want %d (parity with AllOverlayKinds)", got, want)
@@ -41,6 +43,8 @@ func TestOverlayCapabilities_CoversAllKinds(t *testing.T) {
 // slice is ordered by Kind. Deterministic ordering keeps the
 // downstream manifest golden stable.
 func TestOverlayCapabilities_AlphabetizedByKind(t *testing.T) {
+	t.Parallel()
+
 	caps := OverlayCapabilities()
 	for i := 1; i < len(caps); i++ {
 		if string(caps[i-1].Kind) > string(caps[i].Kind) {
@@ -54,6 +58,8 @@ func TestOverlayCapabilities_AlphabetizedByKind(t *testing.T) {
 // OVERLAY_INDEX_VS_MARGIN entry emits the contract spelled out in
 // PRD §I-FR-I2.
 func TestOverlayCapabilities_IndexVsMargin(t *testing.T) {
+	t.Parallel()
+
 	caps := OverlayCapabilities()
 
 	var entry *descriptor.OverlayCapability
@@ -107,6 +113,8 @@ func TestOverlayCapabilities_IndexVsMargin(t *testing.T) {
 // is the single source of truth; this gate prevents the capability
 // surface from drifting.
 func TestOverlayCapabilities_BufferedMatchesStreamability(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range OverlayCapabilities() {
 		streamable, known := types.OverlayStreamable(c.Kind)
 		if !known {
@@ -124,6 +132,8 @@ func TestOverlayCapabilities_BufferedMatchesStreamability(t *testing.T) {
 // Scopes, and RefKinds lists are alphabetically sorted. Required for
 // deterministic golden manifest output.
 func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range OverlayCapabilities() {
 		shapes := make([]string, len(c.Shapes))
 		for i, s := range c.Shapes {
@@ -176,6 +186,8 @@ func TestOverlayCapabilities_FieldsSorted(t *testing.T) {
 // (legitimately empty for kinds outside the share / index / delta /
 // zscore family).
 func TestOverlayCapabilities_TupleComplete(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range OverlayCapabilities() {
 		if len(c.Shapes) == 0 {
 			t.Errorf("entry %q: Shapes is empty; every catalog entry MUST declare at least one OverlayShape", c.Kind)
@@ -202,6 +214,8 @@ func TestOverlayCapabilities_TupleComplete(t *testing.T) {
 // regression where BuildManifest stops threading OverlayCapabilities
 // into Manifest.Overlays.
 func TestManifestOverlayCapability_FullCoverage(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 
 	seen := make(map[types.OverlayKind]bool, len(m.Overlays))
@@ -236,6 +250,8 @@ func TestManifestOverlayCapability_FullCoverage(t *testing.T) {
 // here would force every downstream client to re-handshake; this
 // gate prevents accidental version drift via the Overlays surface.
 func TestManifestOverlayCapability_FormatVersionStable(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if m.FormatVersion != "1.0" {
 		t.Errorf("Manifest.FormatVersion = %q, want %q (overlay catalog additions are additive)",

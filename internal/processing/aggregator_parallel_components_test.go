@@ -277,6 +277,15 @@ func sortedStringSlice(v any) []string {
 }
 
 func TestComponents_ParallelMergeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
+	runComponentsParallelMerge(t, []int{1_000, 10_000})
+}
+
+// runComponentsParallelMerge runs the serial-vs-parallel Components
+// parity sweep at each cohort size; the 100K tier is the heavy-tier
+// TestComponents_ParallelMergeMatchesSerial100K.
+func runComponentsParallelMerge(t *testing.T, sizes []int) {
 	schema := parallelMergeSchema(t)
 
 	cases := []parallelComponentsCase{
@@ -371,10 +380,6 @@ func TestComponents_ParallelMergeMatchesSerial(t *testing.T) {
 		},
 	}
 
-	sizes := []int{1_000, 10_000}
-	if !testing.Short() {
-		sizes = append(sizes, 100_000)
-	}
 	shardCounts := []int{1, 2, 4, 8}
 
 	for _, size := range sizes {

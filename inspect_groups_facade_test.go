@@ -17,6 +17,8 @@ import (
 // low-ratio group, plus elided constants — through InspectEnvelope (the
 // only surface that keeps warnings) with a clean envelope.
 func TestInspect_GroupFiguresMatchImportReport(t *testing.T) {
+	t.Parallel()
+
 	cols := []string{"id", "parent_code", "parent_label", "parent_weight", "pair_a", "pair_b", "amount", "source"}
 	var rows [][]string
 	for i := 0; i < 240; i++ {

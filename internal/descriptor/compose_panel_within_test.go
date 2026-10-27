@@ -23,6 +23,8 @@ import (
 // clean. The accept side has to be asserted or the refusals below
 // would pass against a validator that rejects the mode outright.
 func TestValidateCompose_PanelNWithinDepthAccepted(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		params map[string]any
@@ -32,6 +34,8 @@ func TestValidateCompose_PanelNWithinDepthAccepted(t *testing.T) {
 		{"depth 3", map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 3}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			env := ValidateCompose(composePanelRequest(tc.params))
 			if envHasCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 				t.Fatalf("refused at predict: %+v", env.Errors)
@@ -47,6 +51,8 @@ func TestValidateCompose_PanelNWithinDepthAccepted(t *testing.T) {
 // could not tell "written 0" from "never written" and would refuse
 // every params blob that names a non-within mode.
 func TestValidateCompose_PanelNWithinDepthRefusedWithoutAWithinMode(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		params map[string]any
@@ -103,6 +109,8 @@ func TestValidateCompose_PanelNWithinDepthRefusedWithoutAWithinMode(t *testing.T
 // arm's `params.NWithinDepth < 0` guard in validateOverlayPairwise, so
 // one renderer branch handles both families.
 func TestValidateCompose_PanelNegativeNWithinDepthRefused(t *testing.T) {
+	t.Parallel()
+
 	env := ValidateCompose(composePanelRequest(map[string]any{
 		"n_source":       types.PanelNSourceRowMarginValueWithin,
 		"n_within_depth": -1,
@@ -133,6 +141,8 @@ func TestValidateCompose_PanelNegativeNWithinDepthRefused(t *testing.T) {
 // first would tell the caller to fix a key whose verdict depends on
 // the one they mistyped.
 func TestValidateCompose_PanelUnknownNSourceBeatsDepthFault(t *testing.T) {
+	t.Parallel()
+
 	env := ValidateCompose(composePanelRequest(map[string]any{
 		"n_source":       "nonsense",
 		"n_within_depth": -1,

@@ -84,6 +84,8 @@ func warningCodes(ws []*types.ResponseWarning) []string {
 // the streaming, grouped-streaming and buffered arms, with the inline
 // fit's warnings (none).
 func TestSEMScore_BoundMatchesInline(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	desc := brandModel(t, "brand_ms")
 	for _, c := range []struct {
@@ -135,6 +137,8 @@ func TestSEMScore_BoundMatchesInline(t *testing.T) {
 // no longer reproduces the inline scores — the equality reads the
 // stored matrices, never the rows.
 func TestSEMScore_BoundReadsTheFit(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	knobs := map[string]any{"model": brandModel(t, "brand_ms"), "group": "wave", "group_equal": []string{"loadings", "intercepts"}}
 	inline := map[string]any{"latent": "value"}
@@ -165,6 +169,8 @@ func TestSEMScore_BoundReadsTheFit(t *testing.T) {
 // a latent the fit's model lacks is latent_unknown; member labels other
 // than the fit's are PULSE_VECTOR_REFERENCE_MISMATCH.
 func TestSEMScore_BoundRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	sf := captureSEMFit(t, schema, mk, "brand", map[string]any{"model": brandModel(t, "brand_ms"), "meanstructure": true})
 	set := semSetOf(t, sf)
@@ -219,6 +225,8 @@ func TestSEMScore_BoundRefusals(t *testing.T) {
 // PULSE_FIT_UNAVAILABLE warning naming the fit's code; the slot is
 // still row-local (streams).
 func TestSEMScore_BoundFailedFitNulls(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	set := &model.Set{}
 	if err := set.AddFailed(model.Signature{Name: "brand", Kind: types.FitKindSEM}, &types.SlotError{Code: string(errors.PULSE_MATRIX_SINGULAR), Message: "singular"}); err != nil {
@@ -242,6 +250,8 @@ func TestSEMScore_BoundFailedFitNulls(t *testing.T) {
 // as on the fit's own cohort — and a level the fit has no parameters for
 // scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN.
 func TestSEMScore_BoundUnseenLevelByLabel(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	sf := captureSEMFit(t, schema, mk, "brand", map[string]any{"model": brandModel(t, "brand_ms"), "group": "wave"})
 	set := semSetOf(t, sf)
@@ -283,6 +293,8 @@ func TestSEMScore_BoundUnseenLevelByLabel(t *testing.T) {
 // partitions' instances scoring halves of the rows report, merged, the
 // serial instance's warning; resetTally clears it.
 func TestSEMScore_BoundMergeTally(t *testing.T) {
+	t.Parallel()
+
 	schema, mk := brandSEMFixture(t, nil, nil)
 	sf := captureSEMFit(t, schema, mk, "brand", map[string]any{"model": brandModel(t, "brand_ms"), "group": "wave"})
 	set := semSetOf(t, sf)
@@ -332,67 +344,5 @@ func TestSEMScore_BoundMergeTally(t *testing.T) {
 	left.resetTally()
 	if len(left.attributeWarnings()) != 0 {
 		t.Fatal("resetTally kept the unseen tally")
-	}
-}
-
-// TestSEMScore_BoundMatchesInlineAcrossBlocks: past one merge block the
-// inline fit folds MAT_SEM's blocked merge, so a bound fit still scores
-// to the inline fit's bit — 18 copies of the brand rows (21,600, six
-// blocks) with the second block's q1 null: a block that adds no mass
-// still holds its place in the merge tree, as in MAT_SEM's listwise fold
-// (dropping it reshapes the tree and moves the bits). Ungrouped and the
-// joint two-wave fit, both methods.
-func TestSEMScore_BoundMatchesInlineAcrossBlocks(t *testing.T) {
-	schema, base := brandSEMFixture(t, nil, nil)
-	const copies = 18
-	mk := func() []*Record {
-		var out []*Record
-		for range copies {
-			for _, r := range base() {
-				i := len(out)
-				vals, nulls := map[string]float64{}, map[string]bool{}
-				for _, f := range schema.Fields {
-					v, ok := r.NumericValue(f.Name)
-					if !ok || (f.Name == "q1" && i >= 4096 && i < 2*4096) {
-						nulls[f.Name] = true
-						continue
-					}
-					vals[f.Name] = v
-				}
-				out = append(out, NewRecordWithNulls(schema, vals, nulls))
-			}
-		}
-		return out
-	}
-	desc := brandModel(t, "brand_ms")
-	for _, c := range []struct {
-		name  string
-		knobs map[string]any
-	}{
-		{"covariance", map[string]any{}},
-		{"groups", map[string]any{"group": "wave", "group_equal": []string{"loadings", "intercepts"}}},
-	} {
-		knobs := map[string]any{"model": desc}
-		for k, v := range c.knobs {
-			knobs[k] = v
-		}
-		sf := captureSEMFit(t, schema, mk, "brand", knobs)
-		set := semSetOf(t, sf)
-		for _, method := range []string{"regression", "bartlett"} {
-			t.Run(c.name+"/"+method, func(t *testing.T) {
-				inline := map[string]any{"latent": "value", "method": method}
-				for k, v := range knobs {
-					inline[k] = v
-				}
-				want, _, _ := runFittedArms(t, schema, mk, "score", nil, semScoreSlot(t, inline))
-				got, _, _ := runFittedArms(t, schema, mk, "score", set, semScoreSlot(t, map[string]any{"fit": "brand", "latent": "value", "method": method}))
-				if !sameBits(got, want) {
-					t.Fatalf("bound scores differ from the inline fit's\n got %v\nwant %v", got[:3], want[:3])
-				}
-				if math.IsNaN(got[0]) || !math.IsNaN(got[4096]) {
-					t.Fatalf("vacuous: row 0 scored %v, null-q1 row 4096 scored %v", got[0], got[4096])
-				}
-			})
-		}
 	}
 }

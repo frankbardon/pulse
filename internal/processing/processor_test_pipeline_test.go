@@ -13,6 +13,8 @@ import (
 // runs alongside an online aggregator in the streaming path and that
 // the response carries both `data` and `tests` slots.
 func TestProcessor_Tier1Streaming_TTest(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10, 12, 14, 16, 18})
@@ -66,6 +68,8 @@ func TestProcessor_Tier1Streaming_TTest(t *testing.T) {
 // runs when something else in the request forces the buffered path
 // (here: AGG_MEDIAN which is not streamable).
 func TestProcessor_Tier1Buffered_TTest(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{10, 12, 14, 16, 18})
@@ -102,6 +106,8 @@ func TestProcessor_Tier1Buffered_TTest(t *testing.T) {
 // a test references a type without a row-test factory. TEST_TREND is
 // tier-2 only — no row-test factory is registered for it.
 func TestProcessor_UnknownRowTestType(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 3})
@@ -127,6 +133,8 @@ func TestProcessor_UnknownRowTestType(t *testing.T) {
 // PULSE_TEST_UNKNOWN_TYPE for a type with no post-test factory.
 // TEST_T is registered as a tier-1 row test only.
 func TestProcessor_PostTestUnknownType(t *testing.T) {
+	t.Parallel()
+
 	schema := numericSchema()
 	proc := NewProcessor(schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 3})

@@ -22,6 +22,8 @@ import (
 // that does not declare it must give DIFFERENT columns (otherwise the
 // flag is missing and the description echoes a frame nothing read).
 func TestWindows_IgnoresFrameMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	m := descx.BuildManifest()
 	one, two, zero := 1, 2, 0
 	frames := []*types.FrameSpec{

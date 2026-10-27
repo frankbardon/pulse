@@ -172,6 +172,8 @@ func assertFusableCrosstab(t *testing.T, schema *encoding.Schema, req *types.Req
 // byte-equal to the buffered one — cells, margins, normalization
 // denominators and the {n, n_null} universal floor alike.
 func TestFusedCrosstab_FanOutRoutingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	cases := []struct {
 		name string
@@ -332,6 +334,8 @@ func TestFusedCrosstab_FanOutRoutingMatchesBuffered(t *testing.T) {
 // cells, feed 3 row margins and 2 column margins, and hit the grand
 // margin exactly once.
 func TestFusedCrosstab_FanOutSingleRecordProducesFullProduct(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	rec := fanoutRow{region: 0, tags: tagVISA | tagMC | tagAMEX, chans: chWEB | chPOS, value: 5}.build(schema)
 	spec := &types.CrosstabSpec{
@@ -412,6 +416,8 @@ func TestFusedCrosstab_FanOutSingleRecordProducesFullProduct(t *testing.T) {
 // than "fix" it — otherwise the same request returns different numbers
 // depending on which path it took.
 func TestFusedCrosstab_FanOutMarginNonAdditivity(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	recs := []*Record{
 		fanoutRow{region: 0, tags: tagVISA | tagMC | tagAMEX, chans: chWEB, value: 1}.build(schema),
@@ -461,6 +467,8 @@ func TestFusedCrosstab_FanOutMarginNonAdditivity(t *testing.T) {
 // cell-admission rule (U47 #325), in no margin either: every margin slot
 // and the grand total carry no figure on both arms.
 func TestFusedCrosstab_FanOutPerAxisNullityIndependence(t *testing.T) {
+	t.Parallel()
+
 	schema := fanoutCrosstabSchema(t)
 	recs := []*Record{
 		// Row axis fans 2-way, column set is null.
@@ -524,6 +532,8 @@ func TestFusedCrosstab_FanOutPerAxisNullityIndependence(t *testing.T) {
 // Both a single-key axis and a fanning axis are covered: the rule is
 // about depth, not about fan-out.
 func TestFusedCrosstab_PartialDepthMarginFollowsCellAdmission(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	cases := []struct {
 		name string
@@ -588,6 +598,8 @@ func TestFusedCrosstab_PartialDepthMarginFollowsCellAdmission(t *testing.T) {
 // every single-key request must keep matching buffered. Reuses the
 // canonical (region, segment, value) fixture the pre-E2 fused tests use.
 func TestFusedCrosstab_SingleKeyUnaffectedByFanOutRouting(t *testing.T) {
+	t.Parallel()
+
 	schema := fusedCrosstabSchema(t)
 	recs := fusedCrosstabRecords(schema)
 	zero := 0

@@ -35,6 +35,8 @@ func formula(label, expr string) *types.Attribute {
 // (the refusal's to judge); a forward read is not a dependency; the
 // window reads list only what the moved slots read.
 func TestWindowPredictor_PostWindowClassification(t *testing.T) {
+	t.Parallel()
+
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Terms: []string{"x", "lag2"}, Kind: types.FitKindRegression}}
 	req := &types.Request{
 		Windows: []*types.Window{lagOf("x", "lag"), lagOf("x", "lag2"), lagOf("x", "unread")},
@@ -85,6 +87,8 @@ func TestWindowPredictor_PostWindowClassification(t *testing.T) {
 // shape nothing moves (every reader is dependent); a window label equal
 // to a schema field is no window-derived name.
 func TestWindowPredictor_PostWindowShapeAndShadow(t *testing.T) {
+	t.Parallel()
+
 	grouped := &types.Request{
 		Windows:      []*types.Window{lagOf("x", "lag")},
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "x"}},
@@ -112,6 +116,8 @@ func TestWindowPredictor_PostWindowShapeAndShadow(t *testing.T) {
 // no window or no attribute classifies to the zero plan without
 // allocating — the historical path's cost.
 func TestWindowPredictor_PostWindowZeroPlanAllocationFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	s := postWindowSchema()
 	noWindow := &types.Request{Attributes: []*types.Attribute{formula("f", "x * 2")}}
 	noAttr := &types.Request{Windows: []*types.Window{lagOf("x", "lag")}}
@@ -131,6 +137,8 @@ func TestWindowPredictor_PostWindowZeroPlanAllocationFree(t *testing.T) {
 // WindowDerivedLabels lists every window label but a schema-field or
 // vector-named one, in declared order.
 func TestWindowPredictor_PostWindowPerSlotReads(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors: []types.VectorSpec{{Name: "vec", Fields: []string{"t", "x"}}},
 		Windows: []*types.Window{lagOf("x", "lag"), lagOf("x", "x"), lagOf("t", "lag_t"), lagOf("x", "vec")},

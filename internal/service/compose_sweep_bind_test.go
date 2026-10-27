@@ -98,6 +98,8 @@ func (o *bindEvents) count(e string) int {
 // both; responses keep index order; the ranking's first entry is the
 // bound slot — serial and parallel.
 func TestComposeSweepBind_SweepFirstSchedule(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	svc := fitsService(t)
 	sweepSlots := []string{"upto_80", "upto_40", "upto_60"}
 	for _, mode := range []string{"serial", "parallel"} {
@@ -153,6 +155,8 @@ func TestComposeSweepBind_SweepFirstSchedule(t *testing.T) {
 // scoring it reads the same figures; and its `save` writes the same
 // model file.
 func TestComposeSweepBind_EqualsHandWrittenFit(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, fitsCohort, fitsSchema(), fitsRecords())
 	svc := New(cfg)
 	boundBatch := sweepBindBatch()
@@ -194,6 +198,8 @@ func TestComposeSweepBind_EqualsHandWrittenFit(t *testing.T) {
 // TestComposeSweepBind_SerialParallelByteIdentical: a sweep-bound batch
 // marshals to the same bytes on both orchestrators.
 func TestComposeSweepBind_SerialParallelByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	got := composeBoth(t, fitsService(t), sweepBindBatch())
 	sb, _ := json.Marshal(got["serial"])
 	pb, _ := json.Marshal(got["parallel"])
@@ -221,6 +227,8 @@ func emptyRankBatch() *types.ComposedRequest {
 // details.fit, the slot scoring it reads an all-null column with
 // PULSE_FIT_UNAVAILABLE — and Strict fails the batch with that code.
 func TestComposeSweepBind_EmptyRankingBindsFailed(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	for name, out := range composeBoth(t, svc, emptyRankBatch()) {
 		if len(out.Ranking) != 0 {
@@ -269,6 +277,8 @@ func TestComposeSweepBind_EmptyRankingBindsFailed(t *testing.T) {
 // TestComposeSweepBind_NoBindingKeepsSchedule: without a from_sweep
 // entry the fits run before every slot, as always.
 func TestComposeSweepBind_NoBindingKeepsSchedule(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	o := observeBind(t)
 	c := sweepBindBatch()
 	c.Fits = c.Fits[:1]
@@ -288,6 +298,8 @@ func TestComposeSweepBind_NoBindingKeepsSchedule(t *testing.T) {
 // pools slots that have not run, is left to the barrier — its adjusted
 // figure is absent in phase 0, so ranking by it is refused, not misread.
 func TestComposeSweepBind_RankReadsSlotLocalAdjustedP(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	withFamily := func(family string, bind bool) *types.ComposedRequest {
 		c := sweepBindBatch()
@@ -327,6 +339,8 @@ func TestComposeSweepBind_RankReadsSlotLocalAdjustedP(t *testing.T) {
 // failed fit is), and a filter reading it is refused with the fit's own
 // code plus details.fit.
 func TestComposeSweepAxis_FailedFitUnavailable(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	c := emptyRankBatch()
 	c.Requests[0].Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "lo", Expression: `sweep_axis("best", "lo") * 2`}}

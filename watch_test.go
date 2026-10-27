@@ -9,6 +9,8 @@ import (
 )
 
 func TestWatch_CreatedAndModified(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	p, err := New(Options{FS: memFs})
 	if err != nil {
@@ -44,6 +46,8 @@ func TestWatch_CreatedAndModified(t *testing.T) {
 }
 
 func TestWatchDir_OnlyPulseSuffix(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 	_ = memFs.MkdirAll("d", 0o755)
 	p, err := New(Options{FS: memFs})

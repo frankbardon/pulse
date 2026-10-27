@@ -113,6 +113,8 @@ func declarableTypeNames(t *testing.T) []string {
 // from a second hand-written table, so a new field type cannot acquire a
 // wrong env type silently.
 func TestSentinelFor_MatchesDrawnRowValueForEveryDeclarableType(t *testing.T) {
+	t.Parallel()
+
 	specs := representativeFieldSpecs()
 	names := declarableTypeNames(t)
 	if len(names) < 19 {
@@ -146,6 +148,8 @@ func TestSentinelFor_MatchesDrawnRowValueForEveryDeclarableType(t *testing.T) {
 // must not be carrying a special case for them. nullable_bool is the one
 // that mattered — it returned a Go bool.
 func TestSentinelFor_DeadNullableArmsAreGone(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{
 		"nullable_bool", "nullable_u4", "nullable_u8", "nullable_u16", "nullable_decimal128",
 	} {
@@ -162,6 +166,8 @@ func TestSentinelFor_DeadNullableArmsAreGone(t *testing.T) {
 // before the fix both cases failed with
 // PROCESSING_RUNTIME "invalid operation: bool(float64)".
 func TestConstraints_PackedBoolFiltersRows(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		expr string
@@ -212,6 +218,8 @@ func TestConstraints_PackedBoolFiltersRows(t *testing.T) {
 // replaced — before the fix `flag` compiled and then failed on EVERY row
 // with PROCESSING_RUNTIME "invalid operation: bool(float64)".
 func TestConstraints_BarePackedBoolRefusedAtCompileTime(t *testing.T) {
+	t.Parallel()
+
 	spec := &Spec{
 		RowCount: 10,
 		Fields: []FieldSpec{
@@ -239,6 +247,8 @@ func TestConstraints_BarePackedBoolRefusedAtCompileTime(t *testing.T) {
 // the "only nulls" case infeasible, and one that always returned true
 // would make the "no nulls" case infeasible.
 func TestConstraints_IsnullSeesTheRowsActualNullState(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		expr     string
@@ -284,6 +294,8 @@ func TestConstraints_IsnullSeesTheRowsActualNullState(t *testing.T) {
 // mapping was broken, since that is what the rule layer's `when` clauses
 // will test.
 func TestConstraints_IsnullOnPackedBoolCompiles(t *testing.T) {
+	t.Parallel()
+
 	spec := &Spec{
 		RowCount: 60,
 		Fields: []FieldSpec{
@@ -317,6 +329,8 @@ func TestConstraints_IsnullOnPackedBoolCompiles(t *testing.T) {
 // TestConstraints_IsnullRejectsUnknownField pins that a typo'd field name
 // fails loudly instead of answering false forever.
 func TestConstraints_IsnullRejectsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	t.Run("string-literal", func(t *testing.T) {
 		spec := &Spec{
 			RowCount: 5,
@@ -351,6 +365,8 @@ func TestConstraints_IsnullRejectsUnknownField(t *testing.T) {
 // TestConstraints_NonBooleanFieldsUnchanged keeps the pre-existing
 // categorical / numeric env shapes honest.
 func TestConstraints_NonBooleanFieldsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	spec := &Spec{
 		RowCount: 80,
 		Fields: []FieldSpec{

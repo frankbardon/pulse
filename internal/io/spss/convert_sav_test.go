@@ -74,8 +74,12 @@ func convertSav(t *testing.T, fs afero.Fs, src, dst string, opts WriterOptions) 
 // are read out of the `.pulse` bytes on both sides because a mask compared
 // through a rendered cell cannot show a dropped high bit.
 func TestConvert_SavToSav_MultipleDichotomySurvivesAtTwoWidths(t *testing.T) {
+	t.Parallel()
+
 	for _, members := range []int{3, 206} {
 		t.Run(itoa(members), func(t *testing.T) {
+			t.Parallel()
+
 			want, derives := pio.SetTypeFor(members)
 			if !derives {
 				t.Fatalf("%d constituents do not derive a column; the case is not the one being tested", members)
@@ -155,6 +159,8 @@ func TestConvert_SavToSav_MultipleDichotomySurvivesAtTwoWidths(t *testing.T) {
 // default dictionary, which for a `.sav` source means the value codes and
 // the derived registry were thrown away and re-guessed.
 func TestConvert_SavToSav_CarriesTheSidecarRatherThanSynthesising(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "source.sav", build(t, wideSelectionSpec(206)), 0o644); err != nil {
 		t.Fatalf("writing the fixture: %v", err)
@@ -184,6 +190,8 @@ func TestConvert_SavToSav_CarriesTheSidecarRatherThanSynthesising(t *testing.T) 
 // against a re-inferred dictionary would attach every label to the wrong
 // code.
 func TestConvert_SavToSav_ValueLabelledNumericKeepsItsCodes(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "source.sav", build(t, valueLabelledGradeSpec()), 0o644); err != nil {
 		t.Fatalf("writing the fixture: %v", err)
@@ -258,8 +266,12 @@ func valueLabelledGradeSpec() spsstest.Spec {
 // nothing, and asserts it does NOT reach 206 — so the assertion above is
 // the carry's doing rather than the fixture's.
 func TestConvert_RowPath_KeepsTheDeclaredSetRung(t *testing.T) {
+	t.Parallel()
+
 	for _, members := range []int{3, 206} {
 		t.Run(itoa(members), func(t *testing.T) {
+			t.Parallel()
+
 			declared, ok := pio.SetTypeFor(members)
 			if !ok {
 				t.Fatalf("%d members has no set rung", members)
@@ -340,6 +352,8 @@ func TestConvert_RowPath_KeepsTheDeclaredSetRung(t *testing.T) {
 // sidecar — a CSV, in practice — converts exactly as it did before, by
 // inference, and says so with PULSE_SPSS_SIDECAR_ABSENT.
 func TestConvert_SchemalessSource_StillInfers(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	src := &plainRowsReader{
 		columns: []string{"age", "grade"},

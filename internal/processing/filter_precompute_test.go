@@ -284,6 +284,8 @@ func precomputeArm(name string, retained []string) decodeArm {
 // filter evaluates its predicate once per DISTINCT entry reached, an
 // ineligible one once per row.
 func TestFilterPrecompute_ParityEveryFilterer(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch; reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	flat, grouped, rows := precomputeTwins(t)
 	gs, _, err := encx.ReadPreamble(bytes.NewReader(grouped))
 	if err != nil {
@@ -425,6 +427,8 @@ func groupedRecords(t *testing.T) (*encoding.Schema, []*Record) {
 // the wrapper is not installed at all — BuildFilters returns the
 // builder's FilterFunc itself and builds no table.
 func TestFilterPrecompute_UngroupedUnaffected(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	flat, _, _ := precomputeTwins(t)
 	fs, _, err := encx.ReadPreamble(bytes.NewReader(flat))
 	if err != nil {
@@ -458,6 +462,8 @@ func TestFilterPrecompute_UngroupedUnaffected(t *testing.T) {
 // value per row instead of the entry's verdict. So does a record handed
 // another schema's indices.
 func TestFilterPrecompute_StaleIndexFallsBack(t *testing.T) {
+	t.Parallel()
+
 	s, recs := groupedRecords(t)
 	f := &types.Filterer{Type: types.FILTER_INCLUDE, Field: "p_cat", Values: []string{"a"}}
 	fns, err := BuildFilters([]*types.Filterer{f}, s, nil)
@@ -509,6 +515,8 @@ func TestFilterPrecompute_StaleIndexFallsBack(t *testing.T) {
 // per-row path raises it on — and, because entries are evaluated lazily,
 // not at all when an earlier filter keeps every such row away.
 func TestFilterPrecompute_ErrorEntries(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch; reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	s, recs := groupedRecords(t)
 	// The expression returns a non-bool — a PROCESSING_RUNTIME error —
 	// on every entry whose p_num is at most 3. (A null p_num no longer
@@ -571,6 +579,8 @@ func TestFilterPrecompute_ErrorEntries(t *testing.T) {
 // TestExprPureInputs pins FILTER_EXPRESSION eligibility: identifiers
 // are returned for a precompute; an impure or unknown call refuses it.
 func TestExprPureInputs(t *testing.T) {
+	t.Parallel()
+
 	rows := &ExtensionRegistry{LookupTables: map[string]LookupTable{"t": {Rows: map[string]float64{"a": 1}}}}
 	callback := &ExtensionRegistry{LookupTables: map[string]LookupTable{"t": {Lookup: func(...string) (float64, bool, error) { return 0, false, nil }}}}
 	fnReg := &ExtensionRegistry{ExprFunctions: []ExprFunction{{Name: "score", Fn: func(float64) float64 { return 0 }}, {Name: "abs", Fn: func(float64) float64 { return 0 }}}}
@@ -612,6 +622,8 @@ func TestExprPureInputs(t *testing.T) {
 // with the entry's precomputed verdict. Off-schema writes (an attribute
 // label, a feature output column) keep it.
 func TestRecord_GroupIndexWithdrawnByEveryMutator(t *testing.T) {
+	t.Parallel()
+
 	s, recs := groupedRecords(t)
 	for _, tc := range []struct {
 		name   string

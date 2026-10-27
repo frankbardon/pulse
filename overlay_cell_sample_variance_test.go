@@ -32,6 +32,8 @@ import (
 //     round apart in the last bit (different accumulation, not the
 //     conversion), so p-values are compared to 1e-12 relative.
 func TestComposeCellMoment_PopulationVarianceCellsMatchWelford(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	buffered, err := pulse.New(pulse.Options{FS: f.fs, DisableCrosstabFusion: true})
 	if err != nil {

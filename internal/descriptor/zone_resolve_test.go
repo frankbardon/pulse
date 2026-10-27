@@ -30,6 +30,8 @@ func predictZones(t *testing.T, req *types.Request, defaultZone string) *descrip
 // distinct names are all UTC-equivalent so none is refused, and each
 // echo keeps the caller's spelling.
 func TestPredictTimeZones_Precedence(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name                  string
 		slot, request, option string
@@ -69,6 +71,8 @@ func TestPredictTimeZones_Precedence(t *testing.T) {
 // inherited zone on a date field, and an empty array (never null) for
 // a request with no zone-capable slot.
 func TestPredictTimeZones_EchoShape(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		TimeZone:     "Etc/UTC",
 		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}},
@@ -97,6 +101,8 @@ func TestPredictTimeZones_EchoShape(t *testing.T) {
 // TestPredictTimeZones_RefusalsAreErrors: every runtime refusal surfaces
 // as a predict error under the runtime's own code.
 func TestPredictTimeZones_RefusalsAreErrors(t *testing.T) {
+	t.Parallel()
+
 	agg := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}}
 	cases := []struct {
 		name string
@@ -135,6 +141,8 @@ func TestPredictTimeZones_RefusalsAreErrors(t *testing.T) {
 // TestResolveZones_RefusalDetails pins the derived-field refusal's
 // details keys.
 func TestResolveZones_RefusalDetails(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Crosstab: &types.CrosstabSpec{
 		Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}},
 		Columns: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "derived_ts"}},
@@ -173,6 +181,8 @@ func TestResolveZones_RefusalDetails(t *testing.T) {
 // is a type error, not a zone error — the resolver leaves it to type
 // validation even when it carries a `tz`.
 func TestResolveZones_EmptyOperatorSkipped(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Groups:    []*types.Group{{Field: "ts", TimeZone: "Europe/Berlin"}},
 		Filterers: []*types.Filterer{{Field: "d", TimeZone: "UTC"}},
@@ -187,6 +197,8 @@ func TestResolveZones_EmptyOperatorSkipped(t *testing.T) {
 // field-dependent refusals are not decided (a schema-holding runtime
 // may accept), while the field-independent ones still fire.
 func TestResolveZones_NilSchemaFieldIndependentOnly(t *testing.T) {
+	t.Parallel()
+
 	inherited := &types.Request{TimeZone: "Asia/Tokyo", Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "d"}}}
 	if _, err := ResolveZones(inherited, nil, "", nil, nil); err != nil {
 		t.Fatalf("schema-less inherited zone refused: %v", err)
@@ -209,6 +221,8 @@ func TestResolveZones_NilSchemaFieldIndependentOnly(t *testing.T) {
 // TestRefusalAt: the location key joins the copied details; code
 // and message are unchanged and the input is not mutated.
 func TestRefusalAt(t *testing.T) {
+	t.Parallel()
+
 	src := errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, "m", map[string]any{"slot": "groups[0]"})
 	got := RefusalAt(src, "stage", 2)
 	ce, ok := got.(*errors.CodedError)
@@ -229,6 +243,8 @@ func TestRefusalAt(t *testing.T) {
 // DisableDefaults validates the request as written (DefaultsApplied
 // still lists what would apply).
 func TestPredict_EmptyTypeRefused(t *testing.T) {
+	t.Parallel()
+
 	data := buildTestPulseFile(t, zoneSchema())
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}},
 		Groups: []*types.Group{{Field: "ts"}}}
@@ -252,6 +268,8 @@ func TestPredict_EmptyTypeRefused(t *testing.T) {
 // source resolving onto a `datetime` schema field is accepted and
 // echoed — the zone-aware operators apply it.
 func TestResolveZones_NonUTCOnDatetimeAccepted(t *testing.T) {
+	t.Parallel()
+
 	for name, tc := range map[string]struct {
 		req   *types.Request
 		def   string
@@ -262,6 +280,8 @@ func TestResolveZones_NonUTCOnDatetimeAccepted(t *testing.T) {
 		"options": {&types.Request{Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "ts"}}}}, "Europe/Berlin", descriptor.ZoneSourceOptions},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			zs, err := ResolveZones(tc.req, zoneSchema(), tc.def, nil, nil)
 			if err != nil || len(zs) != 1 || zs[0].TZ == nil || *zs[0].TZ != "Europe/Berlin" || zs[0].Source != tc.wantS {
 				t.Fatalf("ResolveZones = %+v, %v", zs, err)
@@ -275,6 +295,8 @@ func TestResolveZones_NonUTCOnDatetimeAccepted(t *testing.T) {
 // slot-sourced and date-field cases return the request itself, and the
 // input is never mutated.
 func TestZonedRequest(t *testing.T) {
+	t.Parallel()
+
 	mk := func(reqTZ string) *types.Request {
 		return &types.Request{
 			TimeZone:  reqTZ,
@@ -338,6 +360,8 @@ func TestZonedRequest(t *testing.T) {
 // key kept; a slot-sourced or date-field between, and every other
 // matrix, is left as is.
 func TestZonedRequest_DistanceBetween(t *testing.T) {
+	t.Parallel()
+
 	spec := func(between string) types.MatrixSpec {
 		return types.MatrixSpec{Type: types.MAT_DISTANCE, Fields: []string{"n"}, Params: json.RawMessage(`{"between": ` + between + `, "metric": "cosine"}`)}
 	}

@@ -106,6 +106,8 @@ func bufferedObsRequest() *Request {
 // never ends) or the Absorb in opRun.finish (the parent's counters stay
 // zero).
 func TestObserveChildOperations(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rec := &hookRecorder{}
 	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
@@ -174,6 +176,8 @@ func TestObserveChildOperations(t *testing.T) {
 // error's code; the parent ends with the operation's code; the failure
 // is logged once (by the parent), not per child.
 func TestObserveChildFailure(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rec := &hookRecorder{}
 	h := &captureHandler{}

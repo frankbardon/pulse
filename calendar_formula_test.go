@@ -195,6 +195,8 @@ func calfSums(t *testing.T, p *pulse.Pulse, zone string, exprs map[string]string
 // options default zone and UTC — and the answer is the same on every
 // decode arm (serial and parallel).
 func TestCalendarFormula_Oracle(t *testing.T) {
+	t.Parallel()
+
 	exprs := map[string]string{
 		"wd":      "weekday(d)",
 		"mi":      "month_index(d)",
@@ -273,6 +275,8 @@ func TestCalendarFormula_Oracle(t *testing.T) {
 // keeps every row under UTC and, under New York, exactly the rows whose
 // local day is their UTC day.
 func TestCalendarFormula_ZoneReachesEveryExpressionSite(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const zone = "America/New_York"
 	sameDay := 0
@@ -364,6 +368,8 @@ func calfJoin(xs []string) string {
 // non-zone-capable — an explicit `tz` is PROCESSING_CONFIG at predict
 // and at the run.
 func TestCalendarFormula_SlotZoneRefused(t *testing.T) {
+	t.Parallel()
+
 	p, data := calfPulse(t, pulse.Options{})
 	mk := func() *types.Request {
 		return calfRequest(t, `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"to_day(ts)","tz":"America/New_York"}],"aggregations":[{"type":"AGG_COUNT","field":"x","label":"n"}]}`)
@@ -379,6 +385,8 @@ func TestCalendarFormula_SlotZoneRefused(t *testing.T) {
 // field that is not one of the four is PROCESSING_CONFIG {function,
 // unit, valid} at the run (predict cannot see row values).
 func TestCalendarFormula_RuntimeUnitRefusal(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	writeCalfCohort(t, fsys, []string{"week", "fortnight"})
 	p, err := pulse.New(pulse.Options{FS: fsys})

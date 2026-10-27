@@ -20,6 +20,8 @@ import (
 // exactly what Process runs, refuses with the same code what Process
 // refuses, and reports the fused verdict the runtime acts on.
 func TestCrosstab_TotalColumnPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	zero := 0
@@ -105,6 +107,8 @@ func TestCrosstab_TotalColumnPredictMatchesRuntime(t *testing.T) {
 // and bucket counts, a zero-grouper axis for the square-host arity rule,
 // and the one known key "Total" for the rake target check.
 func TestCrosstab_TotalColumnOverlaysPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	ctx := context.Background()
 	xtab := func(norm types.CrosstabNormalize, ov types.OverlaySpec) *types.Request {
@@ -207,6 +211,8 @@ func TestCrosstab_TotalColumnOverlaysPredictMatchesRuntime(t *testing.T) {
 // row pair per column, and the one Total column makes that the pair count
 // exactly as the runtime layer emits it.
 func TestCrosstab_TotalColumnPValueCount(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

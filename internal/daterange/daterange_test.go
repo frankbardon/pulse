@@ -10,6 +10,8 @@ import (
 func str(s string) *string { return &s }
 
 func TestCompile_MatchAndValidation(t *testing.T) {
+	t.Parallel()
+
 	set, err := Compile([]Spec{
 		{Label: "Q2", Start: str("2024-04-01"), End: str("2024-06-30")},
 		{Label: "Q1", Start: str("2024-01-01"), End: str("2024-03-31")},
@@ -43,6 +45,8 @@ func TestCompile_MatchAndValidation(t *testing.T) {
 // post-1970 end is a valid range (not start > end), pre-1970 ranges sort
 // before post-1970 ones, and Match resolves negative days.
 func TestCompile_PreEpochBounds(t *testing.T) {
+	t.Parallel()
+
 	set, err := Compile([]Spec{
 		{Label: "post", Start: str("1970-01-02")},
 		{Label: "span", Start: str("1969-12-01"), End: str("1970-01-01")},

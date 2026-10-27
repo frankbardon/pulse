@@ -47,6 +47,8 @@ func decodeFanOutFile(t *testing.T, rows int) []byte {
 // Falsified by dropping the Mappable condition from decodeWorkers
 // (in-memory cases then predict a fan-out the run never takes).
 func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	big := decodeFanOutFile(t, parallelDecodeRecordThreshold+4096)
 	small := decodeFanOutFile(t, 1000)

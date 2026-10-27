@@ -54,6 +54,8 @@ func panelDistinctPartitionFold(t *testing.T, refRows, targetRows []types.GroupT
 // lands one respondent in two summed rows: the denominator comes out
 // too large and every p-value too small, silently.
 func TestApplyComposeOverlays_PanelDistinctWithinFanOutBeyondPrefixRefused(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	layers, err := panelDistinctPartitionFold(t, fanOut, fanOut, map[string]any{
 		"n_source":       types.PanelNSourceRowMarginDistinctWithin,
@@ -69,6 +71,8 @@ func TestApplyComposeOverlays_PanelDistinctWithinFanOutBeyondPrefixRefused(t *te
 // order, so an axis that is clean on the reference and fans out on a
 // target must still refuse — and must name the target.
 func TestApplyComposeOverlays_PanelDistinctWithinFanOutOnTargetRefused(t *testing.T) {
+	t.Parallel()
+
 	clean := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_CATEGORY}
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	_, err := panelDistinctPartitionFold(t, clean, fanOut, map[string]any{
@@ -83,6 +87,8 @@ func TestApplyComposeOverlays_PanelDistinctWithinFanOutOnTargetRefused(t *testin
 // n_within_depth is present — and they must produce DIFFERENT numbers
 // on a clean axis, or a gate that fired on both would be invisible.
 func TestApplyComposeOverlays_PanelDistinctWithinOmittedDepthNotGated(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []types.GroupType{types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT}
 	layers, err := panelDistinctPartitionFold(t, fanOut, fanOut, map[string]any{
 		"n_source": types.PanelNSourceRowMarginDistinctWithin,
@@ -120,6 +126,8 @@ func TestApplyComposeOverlays_PanelDistinctWithinOmittedDepthNotGated(t *testing
 // each slab still partitions its own keys. That is the shape the
 // within-prefix mode exists to serve and it must run.
 func TestApplyComposeOverlays_PanelDistinctWithinFanOutInsidePrefixAccepted(t *testing.T) {
+	t.Parallel()
+
 	inside := []types.GroupType{types.GROUP_SET_PER_ELEMENT, types.GROUP_CATEGORY}
 	layers, err := panelDistinctPartitionFold(t, inside, inside, map[string]any{
 		"n_source":       types.PanelNSourceRowMarginDistinctWithin,

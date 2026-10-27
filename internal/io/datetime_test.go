@@ -29,6 +29,8 @@ func repeatRows(tuples [][]string, n int) [][]string {
 // parses the T-forms, so probing datetime in the wrong order (or with a
 // loose parser) would silently reclassify every existing date column.
 func TestInferColumnType_DateTimeVsDate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		values []string
@@ -97,6 +99,8 @@ func TestInferColumnType_DateTimeVsDate(t *testing.T) {
 // TestInferColumnType_DateTimeNullable confirms null tokens interleaved
 // with datetime literals still classify as datetime and flip nullable.
 func TestInferColumnType_DateTimeNullable(t *testing.T) {
+	t.Parallel()
+
 	values := []string{"2024-03-04T10:11:12Z", "", "2024-03-05T10:11:12Z", "N/A"}
 	got, nullable, _, _, err := inferColumnTypeWithOpts("ts", values, defaultSetInferenceMinPct, encoding.FieldTypeF64)
 	if err != nil {
@@ -114,6 +118,8 @@ func TestInferColumnType_DateTimeNullable(t *testing.T) {
 // inference entry point so column ordering, byte offsets, and the
 // date/datetime split are all checked together.
 func TestInferSchema_DateTimeColumnAlongsideDate(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows([][]string{
 		{"2024-03-04", "2024-03-04T10:11:12Z", "10"},
 		{"2024-03-05", "2024-03-05T23:00:00Z", "20"},
@@ -149,6 +155,8 @@ func TestInferSchema_DateTimeColumnAlongsideDate(t *testing.T) {
 // TestConvertValue_DateTime pins the import-side literal → uint64
 // conversion, including the seconds (not days) representation.
 func TestConvertValue_DateTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		raw     string
@@ -184,6 +192,8 @@ func TestConvertValue_DateTime(t *testing.T) {
 
 // TestFormatFieldValue_DateTime pins the export-side canonical string.
 func TestFormatFieldValue_DateTime(t *testing.T) {
+	t.Parallel()
+
 	if got := formatFieldValue(encoding.FieldTypeDateTime, 1709547072, nil, nil); got != "2024-03-04T10:11:12Z" {
 		t.Errorf("formatFieldValue = %q, want %q", got, "2024-03-04T10:11:12Z")
 	}
@@ -196,6 +206,8 @@ func TestFormatFieldValue_DateTime(t *testing.T) {
 // half of the round-trip guarantee: convert → format → convert must be
 // a fixed point, time-of-day included.
 func TestConvertValue_DateTimeSurvivesFormatRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, lit := range []string{
 		"2024-03-04T10:11:12Z",
 		"2024-03-04 23:59:59",
@@ -222,6 +234,8 @@ func TestConvertValue_DateTimeSurvivesFormatRoundTrip(t *testing.T) {
 // an 8-byte epoch-seconds field and come back out as the canonical
 // literal with its time-of-day intact.
 func TestImportExport_DateTimeEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	tuples := [][]string{
 		{"2024-03-04T10:11:12Z", "10"},
 		{"2024-03-05T23:59:59Z", "20"},
@@ -268,6 +282,8 @@ func TestImportExport_DateTimeEndToEnd(t *testing.T) {
 // (nil or a UTC-equivalent zone) is byte-for-byte encoding.FormatDateTime,
 // so a zone that resolves to UTC can never change an export.
 func TestExportZone_UTCArmMatchesCanonical(t *testing.T) {
+	t.Parallel()
+
 	etc, err := temporal.LoadZone("Etc/UTC")
 	if err != nil {
 		t.Fatal(err)

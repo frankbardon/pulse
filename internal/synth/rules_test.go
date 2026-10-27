@@ -47,6 +47,8 @@ const rulesSpecJSON = `{
 // formats to learn and the loader would have a translation layer to get
 // wrong.
 func TestRules_StandaloneFileShapeIsTheSpecSlot(t *testing.T) {
+	t.Parallel()
+
 	spec, err := synth.ParseSpec([]byte(rulesSpecJSON))
 	if err != nil {
 		t.Fatalf("ParseSpec: %v", err)
@@ -86,6 +88,8 @@ func TestRules_StandaloneFileShapeIsTheSpecSlot(t *testing.T) {
 // additive on the wire: a spec with no `rules` key marshals without one,
 // so an existing document survives a decode/encode round trip unchanged.
 func TestRules_AbsentSlotRoundTripsByteIdentically(t *testing.T) {
+	t.Parallel()
+
 	const noRules = `{"row_count":4,"fields":[{"name":"id","type":"u32","distribution":"monotonic_from","params":{"start":1}}]}`
 	spec, err := synth.ParseSpec([]byte(noRules))
 	if err != nil {
@@ -131,6 +135,8 @@ func TestRules_AbsentSlotRoundTripsByteIdentically(t *testing.T) {
 // sibling runs matters — a sibling comparison passes even when both
 // sides regress together.
 func TestRules_ValidateAndApply(t *testing.T) {
+	t.Parallel()
+
 	withRules, err := synth.ParseSpec([]byte(rulesSpecJSON))
 	if err != nil {
 		t.Fatalf("ParseSpec: %v", err)
@@ -192,6 +198,8 @@ func TestRules_ValidateAndApply(t *testing.T) {
 // PUBLIC entry points — ParseSpec, SynthBytes and Synth all validate — so
 // a malformed rule cannot survive to row time on any path.
 func TestRules_ParseSpecRefusesEagerly(t *testing.T) {
+	t.Parallel()
+
 	const bad = `{
       "row_count": 4,
       "fields": [{"name":"id","type":"u32","distribution":"monotonic_from","params":{"start":1}}],

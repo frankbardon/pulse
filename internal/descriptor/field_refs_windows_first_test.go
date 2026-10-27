@@ -25,6 +25,8 @@ func sumField(field, label string) *types.Aggregation {
 // window label, and an aggregation over a post-window formula label
 // (directly and through a chain), walks clean.
 func TestWindowsFirst_WalkAdmitsWindowLabels(t *testing.T) {
+	t.Parallel()
+
 	win := []*types.Window{lagWindow("lag_n")}
 	cases := map[string]*types.Request{
 		"aggregation": {Windows: win, Aggregations: []*types.Aggregation{sumField("lag_n", "s")}},
@@ -60,6 +62,8 @@ func TestWindowsFirst_WalkAdmitsWindowLabels(t *testing.T) {
 // run after the windows there); on the historical order the same read
 // is a window over the aggregated rows, admitted as before.
 func TestWindowsFirst_WindowReadingAggregate(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows: []*types.Window{
 			lagWindow("lag_n"),
@@ -89,6 +93,8 @@ func TestWindowsFirst_WindowReadingAggregate(t *testing.T) {
 // attribute over a window label is PULSE_ATTRIBUTE_WINDOW_ORDER with the
 // record-row why.
 func TestWindowsFirst_StillRefused(t *testing.T) {
+	t.Parallel()
+
 	base := func() *types.Request {
 		return &types.Request{Windows: []*types.Window{lagWindow("lag_n")}, Aggregations: []*types.Aggregation{sumField("lag_n", "s")}}
 	}
@@ -122,6 +128,8 @@ func TestWindowsFirst_StillRefused(t *testing.T) {
 // windows-first reason, on predict and processing.canStream alike; the
 // historical order keeps its reason.
 func TestWindowsFirst_PredictStreamableMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	schema := fieldRefSchema()
 	win := []*types.Window{lagWindow("lag_n")}
 	cases := []struct {
@@ -176,6 +184,8 @@ func TestWindowsFirst_PredictStreamableMatchesRuntime(t *testing.T) {
 // accepts no categorical field (internal/fieldaccept), so no window
 // yields a category to key by.
 func TestWindowsFirst_CategoricalWindowGroupRefusedByPredict(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "cat", Label: "lag_cat", OrderBy: []types.OrderKey{{Field: "m"}}}},
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_cat"}},

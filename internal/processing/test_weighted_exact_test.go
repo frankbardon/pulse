@@ -88,6 +88,8 @@ func compareDetails(t *testing.T, name string, got, want map[string]any, raw map
 // TestWeightedSpreadTests_UnityMatchesUnweighted: w ≡ 1 under kind
 // frequency is the unweighted result byte for byte, sum_weights = n.
 func TestWeightedSpreadTests_UnityMatchesUnweighted(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range spreadTestCases() {
 		ones := append([]wRow(nil), tc.rows...)
 		for i := range ones {
@@ -124,6 +126,8 @@ func TestWeightedSpreadTests_UnityMatchesUnweighted(t *testing.T) {
 // TestWeightedSpreadTests_FrequencyIsExpansion: integer weights equal
 // the expanded rows run unweighted.
 func TestWeightedSpreadTests_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	raw := map[string]bool{"n": true, "sum_weights": true}
 	for _, tc := range spreadTestCases() {
 		got := runWeightedRowTest(t, tc.spec, tc.rows, types.WeightKindFrequency)
@@ -163,6 +167,8 @@ func TestWeightedSpreadTests_FrequencyIsExpansion(t *testing.T) {
 // TestWeightedSpreadTests_ExcludeInvalidAndZero: a null, negative, NaN,
 // infinite, non-integer or zero weight drops the row.
 func TestWeightedSpreadTests_ExcludeInvalidAndZero(t *testing.T) {
+	t.Parallel()
+
 	schema := weightedTestSchema()
 	for _, tc := range spreadTestCases() {
 		spec := tc.spec
@@ -223,6 +229,8 @@ func TestWeightedSpreadTests_ExcludeInvalidAndZero(t *testing.T) {
 // pre-weighting walk compared inside tie runs: 0.5 here), and a
 // weighted ECDF equals the expanded one.
 func TestKSTwoSampleD_Ties(t *testing.T) {
+	t.Parallel()
+
 	if d := ksTwoSampleD([]float64{1, 1}, []float64{1, 1, 1, 1}); d != 0 {
 		t.Fatalf("D over identical tied samples = %v, want 0", d)
 	}
@@ -250,6 +258,8 @@ func TestKSTwoSampleD_Ties(t *testing.T) {
 // TestWeightedMedianSorted_EqualsExpansion: the frequency median is the
 // median of the expanded rows; unit weights are median() bit for bit.
 func TestWeightedMedianSorted_EqualsExpansion(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ vs, ws []float64 }{
 		{[]float64{1.5, 2.25, 4, 7}, []float64{1, 3, 2, 1}},
 		{[]float64{1.5, 2.25, 4, 7}, []float64{2, 1, 1, 2}},

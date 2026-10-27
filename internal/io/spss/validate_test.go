@@ -66,6 +66,8 @@ func runSav(t *testing.T, fs afero.Fs, cohort string, opts WriterOptions) error 
 // `pulse export predict --format spss` would silently go back to answering
 // from the source schema alone.
 func TestWriter_SatisfiesCohortValidator(t *testing.T) {
+	t.Parallel()
+
 	var w any = NewWriter(afero.NewMemMapFs(), "out.sav", WriterOptions{})
 	if _, ok := w.(pio.CohortValidator); !ok {
 		t.Error("the .sav Writer does not satisfy pio.CohortValidator; export predict would not consult it")
@@ -80,6 +82,8 @@ func TestWriter_SatisfiesCohortValidator(t *testing.T) {
 // cohort whose field names are not legal SPSS variable names must be refused
 // by predict with the code the export itself returns.
 func TestValidateCohort_NameRefusalMatchesTheExport(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := cohortFromRows(t,
 		[]string{"household income", "age"},
 		[][]string{{"10", "1"}, {"20", "2"}})
@@ -111,6 +115,8 @@ func TestValidateCohort_NameRefusalMatchesTheExport(t *testing.T) {
 // moves the verdict. Predict is told about the same options the export will
 // run under, so a --sanitize-names export predicts as a pass.
 func TestValidateCohort_SanitizeNamesTurnsTheRefusalIntoAWarning(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := cohortFromRows(t,
 		[]string{"household income", "age"},
 		[][]string{{"10", "1"}, {"20", "2"}})
@@ -133,6 +139,8 @@ func TestValidateCohort_SanitizeNamesTurnsTheRefusalIntoAWarning(t *testing.T) {
 // an export that fails on its first act. (--labels is no longer a row-stream
 // option on a .sav export: it becomes value labels — value_labels_test.go.)
 func TestValidateCohort_RefusesTheRowStreamOptions(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := cohortFromRows(t, []string{"age"}, [][]string{{"10"}, {"20"}})
 
 	for _, tt := range []struct {
@@ -171,6 +179,8 @@ func TestValidateCohort_RefusesTheRowStreamOptions(t *testing.T) {
 // half of the sidecar policy. An ABSENT sidecar is a warning; a STALE one is
 // a refusal, and predict must report it as one.
 func TestValidateCohort_StaleSidecarRefusalMatchesTheExport(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	// Move the cohort's bytes so the sidecar's size fingerprint no longer
@@ -206,6 +216,8 @@ func TestValidateCohort_StaleSidecarRefusalMatchesTheExport(t *testing.T) {
 // TestValidateCohort_PassPredictsASuccessfulExport is the other side of the
 // acceptance pair, over a cohort carrying a real SPSS metadata sidecar.
 func TestValidateCohort_PassPredictsASuccessfulExport(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	report, err := predictSav(t, fs, cohort, WriterOptions{})
@@ -225,6 +237,8 @@ func TestValidateCohort_PassPredictsASuccessfulExport(t *testing.T) {
 // refusal, and the caveat has to survive into the prediction or the caller
 // cannot tell a faithful re-emission from a reconstruction.
 func TestValidateCohort_WarnsWhereTheExportWarns(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := cohortFromRows(t, []string{"age", "score"}, [][]string{{"10", "1"}, {"20", "2"}})
 
 	report, err := predictSav(t, fs, cohort, WriterOptions{})
@@ -256,6 +270,8 @@ func TestValidateCohort_WarnsWhereTheExportWarns(t *testing.T) {
 // leave none: the filesystem it was handed must carry exactly what it
 // carried before.
 func TestValidateCohort_WritesNothing(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 	before := listFS(t, fs)
 
@@ -274,6 +290,8 @@ func TestValidateCohort_WritesNothing(t *testing.T) {
 // Writer still produces the file it would have produced without the
 // validation.
 func TestValidateCohort_LeavesTheWriterUsable(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, richSpec())
 
 	w := NewWriter(fs, "out.sav", WriterOptions{})

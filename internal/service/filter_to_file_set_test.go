@@ -45,6 +45,8 @@ func loadSet(t *testing.T, svc *Service, path string, field string, raw string) 
 }
 
 func TestFilterToFileBySet_SingleFile_IntegerField(t *testing.T) {
+	t.Parallel()
+
 	schema, records := idScoreSchemaAndRecords()
 	cfg := setupTestFS(t, "src.pulse", schema, records)
 	svc := New(cfg)
@@ -73,6 +75,8 @@ func TestFilterToFileBySet_SingleFile_IntegerField(t *testing.T) {
 }
 
 func TestFilterToFileBySet_SingleFile_CategoricalField(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("red")
 	dict.Add("green")
@@ -106,6 +110,8 @@ func TestFilterToFileBySet_SingleFile_CategoricalField(t *testing.T) {
 }
 
 func TestFilterToFileBySet_CombinedWithFilter(t *testing.T) {
+	t.Parallel()
+
 	schema, records := idScoreSchemaAndRecords()
 	cfg := setupTestFS(t, "src.pulse", schema, records)
 	svc := New(cfg)
@@ -133,6 +139,8 @@ func TestFilterToFileBySet_CombinedWithFilter(t *testing.T) {
 }
 
 func TestFilterToFileBySet_EmptySet_ZeroRows(t *testing.T) {
+	t.Parallel()
+
 	schema, records := idScoreSchemaAndRecords()
 	cfg := setupTestFS(t, "src.pulse", schema, records)
 	svc := New(cfg)
@@ -148,6 +156,8 @@ func TestFilterToFileBySet_EmptySet_ZeroRows(t *testing.T) {
 }
 
 func TestFilterToFileBySet_RequiresAtLeastOnePredicate(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "src.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -161,6 +171,8 @@ func TestFilterToFileBySet_RequiresAtLeastOnePredicate(t *testing.T) {
 }
 
 func TestFilterToFileBySet_RequiresIncludeField(t *testing.T) {
+	t.Parallel()
+
 	schema, records := idScoreSchemaAndRecords()
 	cfg := setupTestFS(t, "src.pulse", schema, records)
 	svc := New(cfg)
@@ -173,6 +185,8 @@ func TestFilterToFileBySet_RequiresIncludeField(t *testing.T) {
 }
 
 func TestFilterToFileBySet_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema, records := idScoreSchemaAndRecords()
 	cfg := setupTestFS(t, "src.pulse", schema, records)
 	svc := New(cfg)
@@ -188,6 +202,8 @@ func TestFilterToFileBySet_UnknownField(t *testing.T) {
 }
 
 func TestFilterToFileBySet_FilterExprOnlyMatchesOldPath(t *testing.T) {
+	t.Parallel()
+
 	// Empty set + non-empty filter expr should behave like the existing
 	// FilterToFile path (regression coverage).
 	schema, records := idScoreSchemaAndRecords()
@@ -204,6 +220,8 @@ func TestFilterToFileBySet_FilterExprOnlyMatchesOldPath(t *testing.T) {
 }
 
 func TestFilterToFileBySet_ShardArchive_IntegerField(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, cfg := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 	_ = cfg
@@ -233,6 +251,8 @@ func TestFilterToFileBySet_ShardArchive_IntegerField(t *testing.T) {
 }
 
 func TestFilterToFileBySet_ShardArchive_CombinedWithFilter(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -250,6 +270,8 @@ func TestFilterToFileBySet_ShardArchive_CombinedWithFilter(t *testing.T) {
 }
 
 func TestFilterToFileBySet_Anchor_SingleShard(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -265,6 +287,8 @@ func TestFilterToFileBySet_Anchor_SingleShard(t *testing.T) {
 }
 
 func TestResolveCanonicalSchema_SingleFile(t *testing.T) {
+	t.Parallel()
+
 	schema, records := idScoreSchemaAndRecords()
 	cfg := setupTestFS(t, "src.pulse", schema, records)
 	svc := New(cfg)
@@ -279,6 +303,8 @@ func TestResolveCanonicalSchema_SingleFile(t *testing.T) {
 }
 
 func TestResolveCanonicalSchema_ShardArchive(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 
@@ -292,6 +318,8 @@ func TestResolveCanonicalSchema_ShardArchive(t *testing.T) {
 }
 
 func TestResolveCanonicalSchema_Anchor(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, concat)
 

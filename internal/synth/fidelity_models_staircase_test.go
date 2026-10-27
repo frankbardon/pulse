@@ -96,6 +96,8 @@ func modelFidelityStaircaseSpec(rows int, models ...synth.FieldModelSpec) *synth
 // 0.073. Weaker coefficients would leave the raw score inside the bar
 // too, and the test would pass with the calibration deleted.
 func TestBuildModelFidelity_DiscreteTargetRecoversItsCapturedCoefficients(t *testing.T) {
+	t.Parallel()
+
 	const recoveryBar = 0.10
 
 	spec := modelFidelityStaircaseSpec(20000, synth.FieldModelSpec{
@@ -199,6 +201,8 @@ func TestBuildModelFidelity_DiscreteTargetRecoversItsCapturedCoefficients(t *tes
 // coefficient into RecoveredCoefficient would pass the recovery test
 // perfectly.
 func TestBuildModelFidelity_DiscreteTargetFlagsBrokenGeneration(t *testing.T) {
+	t.Parallel()
+
 	inert := modelFidelityStaircaseSpec(12000, synth.FieldModelSpec{
 		Field:     "score",
 		Intercept: 4.0,
@@ -263,6 +267,8 @@ func TestBuildModelFidelity_DiscreteTargetFlagsBrokenGeneration(t *testing.T) {
 // therefore the widest standard error. That is reported, not hidden:
 // ScoreRetention is asserted to be the smallest thing on the surface.
 func TestBuildModelFidelity_BooleanTargetRecoversAtKEqualsTwo(t *testing.T) {
+	t.Parallel()
+
 	const recoveryBar = 0.12
 
 	spec := modelFidelityStaircaseSpec(20000, synth.FieldModelSpec{
@@ -326,6 +332,8 @@ func TestBuildModelFidelity_BooleanTargetRecoversAtKEqualsTwo(t *testing.T) {
 // calibration on one side, and this is the assertion that keeps the
 // identity honest.
 func TestBuildModelFidelity_InvertibleTargetKeepsTheLatentScale(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(8000, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,
@@ -375,6 +383,8 @@ func TestBuildModelFidelity_InvertibleTargetKeepsTheLatentScale(t *testing.T) {
 // Those pairs stay in the unmeasured list under no_model_fit, counted
 // rather than silent.
 func TestBuildModelFidelity_StaircaseTargetContributesNoResidualCorrelation(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelityStaircaseSpec(12000,
 		synth.FieldModelSpec{
 			Field: "score", Intercept: 4.0,

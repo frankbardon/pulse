@@ -32,6 +32,8 @@ func nativeSchema() *encoding.Schema {
 }
 
 func TestResolve_NativeNamedDirectly(t *testing.T) {
+	t.Parallel()
+
 	s := nativeSchema()
 	got, err := Resolve(nil, s)
 	if err != nil {
@@ -86,6 +88,8 @@ func TestResolve_NativeNamedDirectly(t *testing.T) {
 }
 
 func TestResolve_NativeCollisionRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := Resolve([]types.VectorSpec{{Name: "emb", Fields: []string{"x"}}}, nativeSchema())
 	if err == nil || err.Code != errors.PULSE_VECTOR_NAME_COLLISION || err.Details["native"] != true || err.Details["field"] != "emb" {
 		t.Fatalf("err = %v, want PULSE_VECTOR_NAME_COLLISION {native: true, field: emb}", err)
@@ -98,6 +102,8 @@ func TestResolve_NativeCollisionRefused(t *testing.T) {
 }
 
 func TestResolveSpec_NativeExpansion(t *testing.T) {
+	t.Parallel()
+
 	s := nativeSchema()
 	cases := []struct {
 		name    string
@@ -166,6 +172,8 @@ func TestResolveSpec_NativeExpansion(t *testing.T) {
 // carries the SPEC's kind and scale; the schema's metadata is never
 // mutated, and the native named directly keeps it.
 func TestResolve_ReKindLeavesSchema(t *testing.T) {
+	t.Parallel()
+
 	s := nativeSchema()
 	before := nativeSchema()
 	lo, hi := 0.0, 10.0
@@ -193,6 +201,8 @@ func TestResolve_ReKindLeavesSchema(t *testing.T) {
 // TestSlots_AcceptNativeName: every vector-name slot resolves a native
 // field named directly, with no Request.Vectors entry.
 func TestSlots_AcceptNativeName(t *testing.T) {
+	t.Parallel()
+
 	s := nativeSchema()
 	want := []string{"emb[1]", "emb[2]", "emb[3]"}
 	t.Run("matrix", func(t *testing.T) {
@@ -260,6 +270,8 @@ func TestSlots_AcceptNativeName(t *testing.T) {
 // vector FIELD an element member reads, and a native field a slot names
 // directly.
 func TestProjection_NativeSourceFields(t *testing.T) {
+	t.Parallel()
+
 	s := nativeSchema()
 	req := &types.Request{
 		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"x", "raw[2]"}}},
@@ -281,6 +293,8 @@ func TestProjection_NativeSourceFields(t *testing.T) {
 }
 
 func TestParseElementMember(t *testing.T) {
+	t.Parallel()
+
 	s := nativeSchema()
 	cases := []struct {
 		in    string

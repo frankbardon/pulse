@@ -49,6 +49,8 @@ func newImportTestPulse(t *testing.T) (*pulse.Pulse, afero.Fs) {
 }
 
 func TestHandleImport_CSV(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	out, err := HandleImport(context.Background(), p, ImportIn{Source: "data.csv", TTL: "24h"})
 	if err != nil {
@@ -66,6 +68,8 @@ func TestHandleImport_CSV(t *testing.T) {
 }
 
 func TestHandleImport_MissingSource(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := HandleImport(context.Background(), p, ImportIn{}); err == nil {
 		t.Fatal("expected error for missing source")
@@ -73,6 +77,8 @@ func TestHandleImport_MissingSource(t *testing.T) {
 }
 
 func TestHandleImport_InvalidTTL(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := HandleImport(context.Background(), p, ImportIn{Source: "data.csv", TTL: "weekly"}); err == nil {
 		t.Fatal("expected error for unparseable TTL")
@@ -80,6 +86,8 @@ func TestHandleImport_InvalidTTL(t *testing.T) {
 }
 
 func TestHandleDrop_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)
@@ -97,6 +105,8 @@ func TestHandleDrop_RoundTrip(t *testing.T) {
 }
 
 func TestHandleDrop_UnknownHandle(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := HandleDrop(context.Background(), p, DropIn{Handle: "ghost"}); err == nil {
 		t.Fatal("expected error for unknown handle")
@@ -104,6 +114,8 @@ func TestHandleDrop_UnknownHandle(t *testing.T) {
 }
 
 func TestHandleImportsList(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)
@@ -118,6 +130,8 @@ func TestHandleImportsList(t *testing.T) {
 }
 
 func TestHandleSkillsList(t *testing.T) {
+	t.Parallel()
+
 	out, err := HandleSkillsList(context.Background(), defaultPulse(t), SkillsListIn{})
 	if err != nil {
 		t.Fatalf("HandleSkillsList: %v", err)
@@ -140,6 +154,8 @@ func TestHandleSkillsList(t *testing.T) {
 }
 
 func TestHandleSkillsGet_BodyIsMarkdown(t *testing.T) {
+	t.Parallel()
+
 	list := skills.List()
 	if len(list) == 0 {
 		t.Fatal("skills.List() returned 0 entries")
@@ -156,6 +172,8 @@ func TestHandleSkillsGet_BodyIsMarkdown(t *testing.T) {
 }
 
 func TestHandleSkillsGet_Missing(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"", "definitely-not-a-real-skill"} {
 		if _, err := HandleSkillsGet(context.Background(), defaultPulse(t), SkillsGetIn{Name: name}); err == nil {
 			t.Errorf("expected error for skill name %q", name)
@@ -166,6 +184,8 @@ func TestHandleSkillsGet_Missing(t *testing.T) {
 // TestHandleErrorsLookup_RoundTrip drives the lookup handler with each of the
 // three axes (code / domain / query) plus intersection paths.
 func TestHandleErrorsLookup_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	call := func(in ErrorsLookupIn) []perr.LookupResult {
 		t.Helper()
@@ -209,6 +229,8 @@ func TestHandleErrorsLookup_RoundTrip(t *testing.T) {
 // facade, so a feature-profiled instance hides the codes of its hidden
 // features on every axis.
 func TestHandleErrorsLookup_InstanceScoped(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: &pulse.FeatureProfile{
 		Features: []string{"capability:process", "AGG_COUNT"},
 	}})
@@ -236,6 +258,8 @@ func TestHandleErrorsLookup_InstanceScoped(t *testing.T) {
 // TestTools_CatalogComplete asserts Tools(cfg) yields one descriptor per
 // registered tool, each carrying schemas and a non-nil Invoke.
 func TestTools_CatalogComplete(t *testing.T) {
+	t.Parallel()
+
 	tools := Tools(Config{Version: "test"})
 	names := toolmeta.Names()
 	if len(tools) != len(names) {
@@ -260,6 +284,8 @@ func TestTools_CatalogComplete(t *testing.T) {
 // TestInvoke_RoundTrip proves the type-erased Invoke unmarshals structured
 // arguments, calls the typed handler, and returns the typed Out.
 func TestInvoke_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	var d ToolDescriptor
 	for _, td := range Tools(Config{}) {
@@ -287,6 +313,8 @@ func TestInvoke_RoundTrip(t *testing.T) {
 // TestInvoke_CodedErrorVerbatim proves strict-decode surfaces the coded error
 // through Invoke without flattening it to a string.
 func TestInvoke_CodedErrorVerbatim(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	var d ToolDescriptor
 	for _, td := range Tools(Config{}) {
@@ -311,6 +339,8 @@ func TestInvoke_CodedErrorVerbatim(t *testing.T) {
 // TestHandleRangeTables_ListsRegistered asserts the discovery tool returns
 // each registered range table's name, range count, and ordered ranges.
 func TestHandleRangeTables_ListsRegistered(t *testing.T) {
+	t.Parallel()
+
 	s := func(v string) *string { return &v }
 	p, err := pulse.New(pulse.Options{
 		FS: afero.NewMemMapFs(),
@@ -351,6 +381,8 @@ func TestHandleRangeTables_ListsRegistered(t *testing.T) {
 // TestHandleRangeTables_EmptyRegistry asserts the empty case returns an
 // empty non-nil list, NOT an error.
 func TestHandleRangeTables_EmptyRegistry(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -395,6 +427,8 @@ func undeclaredCharsetSav(t *testing.T) []byte {
 // (`pulse import spss --charset`) or library-only (`spss.WithCharset`), and
 // pulse_import is the only import path MCP exposes.
 func TestHandleImport_CharsetRescuesUndeclaredSav(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newImportTestPulse(t)
 	if err := afero.WriteFile(afs, "legacy.sav", undeclaredCharsetSav(t), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -423,6 +457,8 @@ func TestHandleImport_CharsetRescuesUndeclaredSav(t *testing.T) {
 // io.ReaderOptions value exactly as sheet does, so a format with no
 // opinion about codepages must ignore it rather than reject it.
 func TestHandleImport_CharsetInertForCSV(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	out, err := HandleImport(context.Background(), p,
 		ImportIn{Source: "data.csv", Charset: "windows-1252"})
@@ -443,6 +479,8 @@ func TestHandleImport_CharsetInertForCSV(t *testing.T) {
 // ask for that is `pulse import spss --spss-missing=null`, not a general
 // import tool.
 func TestImportSchema_CharsetIsSPSSOnlyAndMissingModeIsAbsent(t *testing.T) {
+	t.Parallel()
+
 	ts, ok := SchemaFor(toolmeta.ToolImport)
 	if !ok {
 		t.Fatalf("no reflected schema for %s", toolmeta.ToolImport)
@@ -517,6 +555,8 @@ func inspectCohortBytes(t *testing.T, n int) []byte {
 // satisfies the truncated arm, and one that never attaches any
 // satisfies the clean arm (and is the pre-change behaviour).
 func TestHandleInspect_SurfacesTheTruncatedTailWarning(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	clean := inspectCohortBytes(t, 3)
 	if err := afero.WriteFile(afs, "clean.pulse", clean, 0o644); err != nil {
@@ -577,6 +617,8 @@ func TestHandleInspect_SurfacesTheTruncatedTailWarning(t *testing.T) {
 // an MCP client reads must advertise the slot, or a client that trusts
 // the schema will never look for it.
 func TestInspectSchema_DeclaresTheWarningsSlot(t *testing.T) {
+	t.Parallel()
+
 	ts, ok := SchemaFor(toolmeta.ToolInspect)
 	if !ok {
 		t.Fatalf("no reflected schema for %s", toolmeta.ToolInspect)
@@ -607,6 +649,8 @@ func keysOf(m map[string]json.RawMessage) []string {
 // cohort's layout and per-group figures (it reads the same envelope as
 // the CLI), and the reflected output schema advertises both slots.
 func TestHandleInspect_ReportsParentGroups(t *testing.T) {
+	t.Parallel()
+
 	var grouped bytes.Buffer
 	if _, _, err := encx.DedupCohort(&grouped, bytes.NewReader(inspectCohortBytes(t, 6)),
 		[]encx.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"tier"}}}); err != nil {
@@ -655,6 +699,8 @@ func TestHandleInspect_ReportsParentGroups(t *testing.T) {
 // and intents virtual skills and pulse_skills_get serves their rendered
 // bodies.
 func TestHandleSkills_GuidanceSkills(t *testing.T) {
+	t.Parallel()
+
 	out, err := HandleSkillsList(context.Background(), defaultPulse(t), SkillsListIn{})
 	if err != nil {
 		t.Fatalf("HandleSkillsList: %v", err)
@@ -676,6 +722,8 @@ func TestHandleSkills_GuidanceSkills(t *testing.T) {
 // pulse_predict echoes it); an instance hiding capability:weighting
 // shows neither.
 func TestHandleInspect_SuggestsTheSPSSWeight(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	raw, err := spsstest.Build(spsstest.Spec{
 		Vars: []spsstest.Var{

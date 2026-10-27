@@ -63,6 +63,8 @@ func mdSpec() spsstest.Spec {
 // together, and they belong together: the derived column appears AND every
 // constituent variable is still its own column.
 func TestMRSet_DerivesASetColumnAdditively(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, mdSpec()))
 	header, _ := readHeaderAndRows(t, r)
 
@@ -118,11 +120,15 @@ func TestMRSet_DerivesASetColumnAdditively(t *testing.T) {
 // expr-lang and do not accept a leading sigil. The full name is retained on
 // the sidecar instead.
 func TestMRSet_DropsTheSigilFromTheFieldName(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ set, field string }{
 		{"$media", "media"},
 		{"$Q1_MULTI", "Q1_MULTI"},
 	} {
 		t.Run(tc.set, func(t *testing.T) {
+			t.Parallel()
+
 			spec := mdSpec()
 			spec.MultipleResponseSets[0].Name = tc.set
 			r := NewReaderFromBytes(buildFixture(t, spec))
@@ -149,6 +155,8 @@ func TestMRSet_DropsTheSigilFromTheFieldName(t *testing.T) {
 // the interesting rows are the ones where the counted value is 2 and where
 // it is text: under a guess they would be empty and they are not.
 func TestMRSet_MaskUsesTheDeclaredCountedValue(t *testing.T) {
+	t.Parallel()
+
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
 
 	t.Run("numeric counted value that is not 1", func(t *testing.T) {
@@ -211,6 +219,8 @@ func TestMRSet_MaskUsesTheDeclaredCountedValue(t *testing.T) {
 // answer to a multi-select, so it sets no bit — and it is also not evidence
 // the row was answered, for the same reason.
 func TestMRSet_UserMissingCodeIsNotSelected(t *testing.T) {
+	t.Parallel()
+
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -264,6 +274,8 @@ func TestMRSet_UserMissingCodeIsNotSelected(t *testing.T) {
 // future change collapsed the set destructively, the mask would be identical
 // and this test is the one that would notice.
 func TestMRSet_SysmisDistinctionSurvivesInTheConstituents(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, mdSpec()))
 	header, rows := readHeaderAndRows(t, r)
 	set := indexOfColumn(t, header, "media")
@@ -295,6 +307,8 @@ func TestMRSet_SysmisDistinctionSurvivesInTheConstituents(t *testing.T) {
 // reads an empty cell as null before consulting any dictionary, so the two
 // states cannot share the empty string.
 func TestMRSet_ThreeRowStates(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, mdSpec()))
 	header, rows := readHeaderAndRows(t, r)
 	at := indexOfColumn(t, header, "media")
@@ -326,6 +340,8 @@ func TestMRSet_ThreeRowStates(t *testing.T) {
 // declaration: a file whose every row answered at least one constituent
 // yields a NON-nullable set column.
 func TestMRSet_NullabilityIsScannedNotAssumed(t *testing.T) {
+	t.Parallel()
+
 	t.Run("some row is all-missing", func(t *testing.T) {
 		schema, _ := schemaOf(t, mdSpec())
 		if f := schema.Field("media"); f == nil || !f.Nullable {
@@ -362,6 +378,8 @@ func TestMRSet_NullabilityIsScannedNotAssumed(t *testing.T) {
 // literal expectation, and TestMRSet_WidthLadderIsTheSharedOne walks the
 // same boundaries against pio.SetTypeFor so the two cannot drift.
 func TestMRSet_WidthFollowsTheConstituentCount(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		members int
 		want    encoding.FieldType
@@ -383,6 +401,8 @@ func TestMRSet_WidthFollowsTheConstituentCount(t *testing.T) {
 		{257, 0, false},
 	} {
 		t.Run(tc.want.String()+"/"+itoa(tc.members), func(t *testing.T) {
+			t.Parallel()
+
 			r := NewReaderFromBytes(buildFixture(t, wideMDSpec(tc.members)))
 			header, rows := readHeaderAndRows(t, r)
 
@@ -480,6 +500,8 @@ func itoa(n int) string {
 // derived column is a convenience, so refusing one must never cost data —
 // which is exactly why these are warnings and not errors.
 func TestMRSet_RefusalsWarnAndKeepEveryConstituent(t *testing.T) {
+	t.Parallel()
+
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
 
 	for _, tc := range []struct {
@@ -640,6 +662,8 @@ func twoMemberSpec(num spsstest.Format) spsstest.Spec {
 // N categorical columns and not a set, and it has no counted value to build
 // a mask from. E4-S5 owns it.
 func TestMRSet_CategorySetDerivesNothing(t *testing.T) {
+	t.Parallel()
+
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -683,6 +707,8 @@ func TestMRSet_CategorySetDerivesNothing(t *testing.T) {
 // exactly the same derivation as a subtype-7 one, so a misreading can only
 // mis-derive a convenience column and can never touch a constituent.
 func TestMRSet_ExtendedSubtype19DerivesLikeSubtype7(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name              string
 		subtype           int32
@@ -694,6 +720,8 @@ func TestMRSet_ExtendedSubtype19DerivesLikeSubtype7(t *testing.T) {
 		{name: "subtype 19 E label-source 11", subtype: spsstest.SubtypeMRSetsExtended, extended: true, labelFromVarLabel: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := mdSpec()
 			spec.MultipleResponseSets[0].Subtype = tc.subtype
 			spec.MultipleResponseSets[0].Extended = tc.extended
@@ -721,6 +749,8 @@ func TestMRSet_ExtendedSubtype19DerivesLikeSubtype7(t *testing.T) {
 // TestMRSet_SidecarRecordsTheDerivation checks the registry entry an export
 // reads to know the column is synthesised and needs no reconstruction.
 func TestMRSet_SidecarRecordsTheDerivation(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, mdSpec())
 
 	var found *Derived
@@ -767,6 +797,8 @@ func TestMRSet_SidecarRecordsTheDerivation(t *testing.T) {
 // promise of the new SetName slot: a document over a file with no derivable
 // response set must be exactly what it was before this story.
 func TestMRSet_SidecarStaysByteIdenticalWithoutSets(t *testing.T) {
+	t.Parallel()
+
 	spec := mdSpec()
 	spec.MultipleResponseSets = nil
 	_, _, doc := importFixture(t, spec)

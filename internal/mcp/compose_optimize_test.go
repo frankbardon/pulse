@@ -18,6 +18,8 @@ var optimizeFeatures = []string{"capability:compose", "AGG_SUM", "GROUP_CATEGORY
 // the instance offering it describes the block (name, variables,
 // objective, direction required).
 func TestOptimize_MCPSchemaHidesOptimize(t *testing.T) {
+	t.Parallel()
+
 	_, hidden := instanceFor(t, &pulse.FeatureProfile{Features: optimizeFeatures}, pulse.Extensions{})
 	_, enabled := instanceFor(t, &pulse.FeatureProfile{Features: append(append([]string(nil), optimizeFeatures...), "capability:compose_optimize")}, pulse.Extensions{})
 	props := func(t *testing.T, raw json.RawMessage) map[string]any {
@@ -52,6 +54,8 @@ func TestOptimize_MCPSchemaHidesOptimize(t *testing.T) {
 // `optimize` is refused as PULSE_REQUEST_UNKNOWN_FIELD by pulse_compose
 // and pulse_predict {composed} alike.
 func TestOptimize_MCPRefusesHiddenOptimize(t *testing.T) {
+	t.Parallel()
+
 	fp := &pulse.FeatureProfile{Profile: "no-optimize", WrittenWith: "1.0.0", Features: optimizeFeatures}
 	p, _ := instanceFor(t, fp, pulse.Extensions{})
 	args := `{"requests":[{"cohort":{"filename":"imports/data.pulse"},"aggregations":[{"type":"AGG_SUM","field":"amount","label":"v"}]}],

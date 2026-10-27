@@ -791,7 +791,7 @@ finalizer:
   operator without `PValues` refuses a spec-level block
   (`PULSE_MULTIPLICITY_INVALID`).
 - **Bits.** The bit contract holds through public registration alone:
-  `TestExtensionMatrix_WorkerInvariant` registers an operator rendering
+  `TestExtensionMatrixInvariance_{Archive,Heavy}` registers an operator rendering
   every raw co-moment figure and requires the same bits serially, under
   `DecodeWorkers` 2/3/7/8 over a file above the parallel-decode
   threshold, and under `ShardWorkers` 1/2/3/8 over an uneven shard

@@ -21,6 +21,8 @@ func isoWeekdayOracle(day int64) int64 {
 // too) reads the ISO weekday, month index and period starts the stdlib
 // calendar gives.
 func TestCalendarDay_MatchesStdlib(t *testing.T) {
+	t.Parallel()
+
 	first := TimeToDay(time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC))
 	last := TimeToDay(time.Date(2100, 12, 31, 0, 0, 0, 0, time.UTC))
 	for day := first; day <= last; day++ {
@@ -51,6 +53,8 @@ func TestCalendarDay_MatchesStdlib(t *testing.T) {
 // Thursday, a leap day, year and quarter boundaries, a week straddling
 // New Year.
 func TestCalendarDay_Pins(t *testing.T) {
+	t.Parallel()
+
 	d := func(y int, m time.Month, dd int) int64 { return TimeToDay(time.Date(y, m, dd, 0, 0, 0, 0, time.UTC)) }
 	cases := []struct {
 		name string
@@ -91,6 +95,8 @@ func must(v int64, ok bool) int64 {
 // TestTruncDay_Units: only the four lowercase units are accepted, in the
 // order a refusal lists them.
 func TestTruncDay_Units(t *testing.T) {
+	t.Parallel()
+
 	if got := TruncUnits(); !slices.Equal(got, []string{"week", "month", "quarter", "year"}) {
 		t.Fatalf("TruncUnits = %v", got)
 	}
@@ -114,6 +120,8 @@ func TestTruncDay_Units(t *testing.T) {
 // FEAT_DATE_FEATURES dow emit for a local wall clock — and agrees with
 // ISOWeekday on every day of a week.
 func TestISOWeekdayOf(t *testing.T) {
+	t.Parallel()
+
 	want := map[time.Weekday]int64{
 		time.Monday: 1, time.Tuesday: 2, time.Wednesday: 3, time.Thursday: 4,
 		time.Friday: 5, time.Saturday: 6, time.Sunday: 7,

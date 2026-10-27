@@ -92,6 +92,8 @@ func processJSON(t *testing.T, p *pulse.Pulse, req *types.Request) (*types.Respo
 // the whole corpus, with no `returned` marker; a non-identity block over
 // the same request does change the bytes (the gate is not vacuous).
 func TestReturnFullIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	for name, mk := range returnCorpus(cohort) {
 		t.Run(name, func(t *testing.T) {
@@ -149,6 +151,8 @@ func topKeys(t *testing.T, b []byte) []string {
 // (nil slot, zero leaf, deleted data column) and the wire (absent,
 // never null), and the plain json.Marshal of the response is shaped.
 func TestReturn_ProcessPrunesGoAndWire(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	req := returnCorpus(cohort)["grouped"]()
 	req.Return = &types.Return{Exclude: []string{"components", "metadata.total_rows", "data[*].m"}}
@@ -193,6 +197,8 @@ func TestReturn_ProcessPrunesGoAndWire(t *testing.T) {
 // allowlist; the marker reads "custom" and is emitted though not
 // selected; warnings stay selectable.
 func TestReturn_IncludeOnlyAllowlist(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	req := returnCorpus(cohort)["tests"]()
 	req.Return = &types.Return{Include: []string{"tests[*].p_value"}}
@@ -222,6 +228,8 @@ func TestReturn_IncludeOnlyAllowlist(t *testing.T) {
 // TestReturn_MarkerNotExcludable: naming `returned` in a block is
 // refused by Process and predict alike.
 func TestReturn_MarkerNotExcludable(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	for _, ret := range []*types.Return{{Exclude: []string{"returned"}}, {Include: []string{"returned"}}} {
 		req := returnCorpus(cohort)["grouped"]()
@@ -245,6 +253,8 @@ func TestReturn_MarkerNotExcludable(t *testing.T) {
 // matches nothing raises PULSE_RETURN_PATH_UNMATCHED; a matching one
 // does not.
 func TestReturn_UnmatchedOpenInclude(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	base, _ := processJSON(t, p, returnCorpus(cohort)["tests"]())
 	var real string
@@ -294,6 +304,8 @@ func TestReturn_UnmatchedOpenInclude(t *testing.T) {
 // the request cannot produce is refused by Process with predict's code,
 // before any record is read.
 func TestReturn_RuntimeColumnRefusalMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	req := returnCorpus(cohort)["grouped"]()
 	req.Return = &types.Return{Include: []string{"data[*].nope"}}
@@ -361,6 +373,8 @@ func decodeArr(t *testing.T, b json.RawMessage) []map[string]json.RawMessage {
 // overlays, never components or matrix auxiliaries. Both stamp the
 // marker with their preset name.
 func TestReturn_PresetsPrimaryResult(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	corpus := returnCorpus(cohort)
 	only := func(name string) func() *types.Request {

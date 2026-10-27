@@ -19,6 +19,8 @@ import (
 // it does, and a call through the go-sdk writes the weighted cohort and
 // returns the RakeResult.
 func TestRegister_RakeFollowsItsFeature(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	seed, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

@@ -103,6 +103,8 @@ var u64Values = []uint64{
 // number, NaN and another u64 field is the exact verdict, in either
 // operand order — on the typed program and on the null-row twin.
 func TestU64Expr_ComparisonsExact(t *testing.T) {
+	t.Parallel()
+
 	others := []struct {
 		src    string
 		params Params
@@ -172,6 +174,8 @@ func TestU64Expr_ComparisonsExact(t *testing.T) {
 
 // TestU64Expr_InExact: `id in <list>` matches by exact equality.
 func TestU64Expr_InExact(t *testing.T) {
+	t.Parallel()
+
 	decl := u64TestDecl(false)
 	cases := []struct {
 		src    string
@@ -223,6 +227,8 @@ var u64EchoExprs = []string{
 // give the bound-as-float64 result bit for bit, with the same result
 // types and the same error text.
 func TestU64Expr_EchoEverywhereElse(t *testing.T) {
+	t.Parallel()
+
 	params := Params{"k": int64(3)}
 	dec := Decimal{Value: encoding.NewDecimal128FromInt(1250), Scale: 2}
 	for _, twin := range []bool{false, true} {
@@ -285,6 +291,8 @@ func sameResult(a, b any) bool {
 // carries the float64 echo (no stored word: a rewritten column, an
 // $env read) evaluates exactly as the float64 declaration did.
 func TestU64Expr_EchoValueFallsBack(t *testing.T) {
+	t.Parallel()
+
 	now, was := u64TestDecl(false), u64TestDecl(true)
 	params := Params{"k": int64(9007199254740993)}
 	for _, src := range []string{"id == params.k", "id < params.k", "id in [9007199254740993]", "id + 1", "id == id2"} {
@@ -302,6 +310,8 @@ func TestU64Expr_EchoValueFallsBack(t *testing.T) {
 // TestU64Expr_ValueTypeAndTwin pins the declarations: a u64 field
 // declares U64, its twin the recognisable u64 operand.
 func TestU64Expr_ValueTypeAndTwin(t *testing.T) {
+	t.Parallel()
+
 	f := &encoding.Field{Name: "id", Type: encoding.FieldTypeU64}
 	if got := ValueType(f); got != reflect.TypeOf(U64(0)) {
 		t.Fatalf("ValueType(u64) = %v", got)

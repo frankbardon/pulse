@@ -15,6 +15,8 @@ import (
 // imports the KeepPulseAt intermediate in the same zone — so the kept
 // cohort stores the New York instant, not the naive-UTC reading.
 func TestConvertSourceTZ_TargetAndKeptCohortCarryInstants(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples, 60)
 	rep, target, _ := runConvert(t, newMockReader(zoneColumns, rows), true, func(j *ConvertJob) {
 		j.SourceTZ = "America/New_York"
@@ -53,6 +55,8 @@ func TestConvertSourceTZ_TargetAndKeptCohortCarryInstants(t *testing.T) {
 // TestConvertSourceTZ_DefaultPolicyRefuses: the overlap row stops the
 // convert under the default policy, and no intermediate is written.
 func TestConvertSourceTZ_DefaultPolicyRefuses(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := NewConvertJob(newMockReader(zoneColumns, repeatRows(zoneTuples, minSampleRows)), &collectWriter{})
 	job.FS, job.KeepPulseAt, job.SourceTZ = fs, "kept.pulse", "America/New_York"
@@ -68,6 +72,8 @@ func TestConvertSourceTZ_DefaultPolicyRefuses(t *testing.T) {
 // TestConvertSourceTZ_OptionRefusals: convert judges the options exactly
 // as an import does, before the target sees a header.
 func TestConvertSourceTZ_OptionRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		set  func(*ConvertJob)
@@ -78,6 +84,8 @@ func TestConvertSourceTZ_OptionRefusals(t *testing.T) {
 		{"bad policy", func(j *ConvertJob) { j.DSTPolicy = "sideways" }, errors.SERVICE_VALIDATION},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			w := &collectWriter{}
 			job := NewConvertJob(newMockReader(zoneColumns, repeatRows(zoneTuples[:2], minSampleRows)), w)
 			job.FS = afero.NewMemMapFs()
@@ -96,6 +104,8 @@ func TestConvertSourceTZ_OptionRefusals(t *testing.T) {
 // TestConvertSourceTZ_PredictAgrees: convert predict raises the refusal
 // Run raises and reports the resolved count Run reports.
 func TestConvertSourceTZ_PredictAgrees(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples, 60)
 	job := NewConvertJob(newMockReader(zoneColumns, rows), &collectWriter{})
 	job.SourceTZ = "America/New_York"
@@ -116,6 +126,8 @@ func TestConvertSourceTZ_PredictAgrees(t *testing.T) {
 // TestConvertSourceTZ_NoZoneUnchanged: without a zone (or with UTC) the
 // target text and the kept cohort are byte-identical to today's.
 func TestConvertSourceTZ_NoZoneUnchanged(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples, minSampleRows)
 	_, base, baseKept := runConvert(t, newMockReader(zoneColumns, rows), true)
 	targetRowsAreSource(t, base, rows)

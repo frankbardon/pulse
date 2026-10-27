@@ -16,6 +16,8 @@ import (
 // instance enables capability:explain, and a mounted one answers over
 // the wire with the explain result — a null statistic still null.
 func TestRegister_ExplainFollowsItsFeature(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), &pulse.FeatureProfile{Features: []string{"capability:process"}}, cfg)

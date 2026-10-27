@@ -13,6 +13,8 @@ import (
 // path applies ATTR_FORMULA inline and produces the same aggregate as
 // the buffered path with the same request.
 func TestAttribute_FormulaStreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "input score"},
@@ -54,6 +56,8 @@ func TestAttribute_FormulaStreamingMatchesBuffered(t *testing.T) {
 // TestAttribute_PercentileForcesBuffered: ATTR_PERCENTILE has no
 // streaming algorithm and remains buffered.
 func TestAttribute_PercentileForcesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "input score"},
@@ -85,6 +89,8 @@ func TestAttribute_PercentileForcesBuffered(t *testing.T) {
 // TestAttribute_DatePartStreamingMatchesBuffered: ATTR_DATE_PART is also
 // row-local and should stream.
 func TestAttribute_DatePartStreamingMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "d", Type: encoding.FieldTypeDate, Description: "date as days since epoch"},

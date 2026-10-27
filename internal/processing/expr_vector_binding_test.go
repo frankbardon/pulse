@@ -38,6 +38,8 @@ func vecBindSchemaAndVectors(t *testing.T) ([]vectors.Resolved, func(vals map[st
 // NaN element, a whole-row-null vector as all-NaN (never nil, never a
 // null-input row), and each consumer reading it.
 func TestExprVectors_BindingSemantics(t *testing.T) {
+	t.Parallel()
+
 	vecs, rec := vecBindSchemaAndVectors(t)
 	s := mkSchema("a", "b", "c", "x")
 	full := rec(map[string]float64{"a": 1, "b": 2, "c": 6, "x": 9})
@@ -90,6 +92,8 @@ func sameExprValue(got, want any) bool {
 // TestExprVectors_UnreferencedBindsNothing: no vector named, no binding
 // and no frame work — the no-vector path is the pre-binding program.
 func TestExprVectors_UnreferencedBindsNothing(t *testing.T) {
+	t.Parallel()
+
 	vecs, rec := vecBindSchemaAndVectors(t)
 	prog, err := newExprProgram("a + b", "formula", mkSchema("a", "b", "c", "x"), vecs, nil, exprenv.Options())
 	if err != nil {
@@ -107,6 +111,8 @@ func TestExprVectors_UnreferencedBindsNothing(t *testing.T) {
 // TestExprVectors_FillAllocationFree: after warm-up, binding a row's
 // vectors reuses the pooled frame — no allocation per row.
 func TestExprVectors_FillAllocationFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	vecs, rec := vecBindSchemaAndVectors(t)
 	prog, err := newExprProgram("vsum(v) + vsum(w)", "formula", mkSchema("a", "b", "c", "x"), vecs, nil, exprenv.Options())
 	if err != nil {
@@ -126,6 +132,8 @@ func TestExprVectors_FillAllocationFree(t *testing.T) {
 // TestExprVectors_TopLevelVectorRefused: a vector as the whole
 // expression is refused at build under the vector-result rule.
 func TestExprVectors_TopLevelVectorRefused(t *testing.T) {
+	t.Parallel()
+
 	vecs, _ := vecBindSchemaAndVectors(t)
 	for _, what := range []string{"formula", "filter", "formula total() argument"} {
 		_, err := newExprProgram("v", what, mkSchema("a", "b", "c", "x"), vecs, nil, exprenv.Options())
@@ -140,6 +148,8 @@ func TestExprVectors_TopLevelVectorRefused(t *testing.T) {
 // distinct from an ordinary NaN — which every write arm records as a
 // null; an ordinary NaN stays a value unless the computer EmitsNull.
 func TestFormula_NilResultIsNull(t *testing.T) {
+	t.Parallel()
+
 	s := mkSchema("a", "b")
 	r := NewRecordWithNulls(s, map[string]float64{"b": 0}, map[string]bool{"a": true})
 	for _, tc := range []struct {
@@ -181,6 +191,8 @@ func TestFormula_NilResultIsNull(t *testing.T) {
 // vector projects its members (and only the known ones); a field keeps
 // its own name. Without the expansion the members would decode null.
 func TestAppendExprIdents_ExpandsVectors(t *testing.T) {
+	t.Parallel()
+
 	s := mkSchema("a", "b", "c", "x", "unused")
 	known := schemaFieldSet(s)
 	vecs := map[string][]string{"v": {"c", "a"}, "w": {"b"}}
@@ -208,6 +220,8 @@ func TestAppendExprIdents_ExpandsVectors(t *testing.T) {
 // record whose AllValues map is already built both bind the vector —
 // into a pooled copy, never into the record's shared cache.
 func TestExprVectors_DeferredAndCachedPaths(t *testing.T) {
+	t.Parallel()
+
 	vecs, rec := vecBindSchemaAndVectors(t)
 	prog, err := newExprProgram("vsum(v) + extra", "formula", mkSchema("a", "b", "c", "x"), vecs, nil, exprenv.Options())
 	if err != nil {
@@ -233,6 +247,8 @@ func TestExprVectors_DeferredAndCachedPaths(t *testing.T) {
 // a pure predicate of one group's member fields, so it is never moved
 // onto the per-entry precompute path (which would not bind it).
 func TestExprVectors_FilterNotPrecomputed(t *testing.T) {
+	t.Parallel()
+
 	inputs, ok := exprPureInputs("vmean(battery) > 1", nil)
 	if !ok || len(inputs) != 1 || inputs[0] != "battery" {
 		t.Fatalf("exprPureInputs = %v, %v", inputs, ok)

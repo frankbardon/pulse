@@ -77,6 +77,8 @@ func minresObjective(r [][]float64, lambda []float64) float64 {
 // fit a residual objective no worse than psych's, convergence, and the
 // Heywood members (ψ ≤ 0) psych's own uniquenesses show.
 func TestMinresOneFactor_MatchesPsychFA(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[faMinresCase](t, "mv_fa_minres")
 	seen := map[string]bool{}
 	worst, sweeps := 0.0, 0
@@ -142,6 +144,8 @@ func TestMinresOneFactor_MatchesPsychFA(t *testing.T) {
 // exact fit λ₁ = √(r₁₂·r₁₃ / r₂₃) > 1 — ψ₁ < 0, reported as Heywood
 // member 0 — with a zero residual.
 func TestMinresOneFactor_HeywoodIsExactFit(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[faMinresCase](t, "mv_fa_minres")
 	for _, c := range doc.Cases {
 		if c.Fixture != "heywood" {
@@ -187,6 +191,8 @@ func equalInts(a, b []int) bool {
 // rule makes a sign-flipped start irrelevant (reversed items keep their
 // negative loadings).
 func TestMinresOneFactor_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[faMinresCase](t, "mv_fa_minres")
 	for _, c := range doc.Cases {
 		s := symFrom(t, c.Correlation)
@@ -211,6 +217,8 @@ func TestMinresOneFactor_Deterministic(t *testing.T) {
 // PULSE_MATRIX_NOT_CONVERGED with the cap and tolerance — never a silent
 // best effort.
 func TestMinresOneFactor_NotConvergedWarns(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[faMinresCase](t, "mv_fa_minres")
 	fit, err := minresSolve(symFrom(t, doc.Cases[0].Correlation), 2)
 	if err != nil {
@@ -235,6 +243,8 @@ func TestMinresOneFactor_NotConvergedWarns(t *testing.T) {
 // input reports ψ on its own scale (s_ii − λ²); undefined input is the
 // caller-invariant PROCESSING_INTERNAL.
 func TestMinresOneFactor_EdgeInputs(t *testing.T) {
+	t.Parallel()
+
 	id := symFrom(t, [][]float64{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}})
 	fit, err := minresOneFactor(id)
 	if err != nil || !fit.Converged || fit.Iterations != 1 {

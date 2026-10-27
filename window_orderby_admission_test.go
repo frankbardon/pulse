@@ -23,6 +23,8 @@ import (
 // from the orderability helper the engine uses, so the skill wording and
 // the engine cannot drift together unnoticed.
 func TestWindowOrderBy_AdmitsAllButSetAndVector(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

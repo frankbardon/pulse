@@ -26,6 +26,8 @@ func scoreAttr(params string) *types.Attribute {
 // TestCheckScore: every refusal the scoring rule raises, in its order,
 // with its code and reason, and the valid shapes it accepts.
 func TestCheckScore(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		attr   *types.Attribute
@@ -91,6 +93,8 @@ func TestCheckScore(t *testing.T) {
 // where the bound predictors are a subset but the terms are the
 // candidates the spec wrote — so both sides judge a reference alike.
 func TestSignature_RuntimeMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	for _, sel := range []string{"", "forward"} {
 		spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"a", "b", "c"}, Selection: sel, Criterion: "aic"}
 		res := &types.RegressionResult{Type: types.REG_OLS, SelectedFeatures: []string{"b"},
@@ -124,6 +128,8 @@ func TestSignature_RuntimeMatchesPredict(t *testing.T) {
 
 // TestDefaultScoreLabel: "ATTR_REG_PREDICT_<fit>".
 func TestDefaultScoreLabel(t *testing.T) {
+	t.Parallel()
+
 	if got := DefaultScoreLabel(scoreAttr(`{"fit":"mmm"}`)); got != "ATTR_REG_PREDICT_mmm" {
 		t.Fatalf("label = %q", got)
 	}

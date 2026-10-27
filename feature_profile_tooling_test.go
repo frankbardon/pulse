@@ -42,6 +42,7 @@ func codedOf(t *testing.T, err error) *errors.CodedError {
 }
 
 func TestInitFeatureProfile_ListsEveryOfferedFeature(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version
 	defer buildinfo.SetForTest("1.0.0-alpha.2")()
 	fp, err := InitFeatureProfile("", profileExt("capability:process"))
 	if err != nil {
@@ -70,6 +71,7 @@ func TestInitFeatureProfile_ListsEveryOfferedFeature(t *testing.T) {
 }
 
 func TestInitFeatureProfile_WrittenWithDevelBuild(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version
 	defer buildinfo.SetForTest("devel+0123456789ab")()
 	fp, err := InitFeatureProfile("")
 	if err != nil {
@@ -84,6 +86,8 @@ func TestInitFeatureProfile_WrittenWithDevelBuild(t *testing.T) {
 // decode → check (and pulse.New) succeeds, with and without extensions,
 // seeded or not.
 func TestInitFeatureProfile_RoundTripsThroughCheck(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		from string
@@ -125,6 +129,7 @@ func TestInitFeatureProfile_RoundTripsThroughCheck(t *testing.T) {
 }
 
 func TestInitFeatureProfile_From(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version
 	defer buildinfo.SetForTest("1.0.0")()
 	ex, err := ExampleFeatureProfile("minimal")
 	if err != nil {
@@ -151,6 +156,8 @@ func TestInitFeatureProfile_From(t *testing.T) {
 // TestCheckFeatureProfile_MatchesNew: every class fails with the same
 // coded error, message and details as pulse.New for the same profile.
 func TestCheckFeatureProfile_MatchesNew(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]struct {
 		ext      Extensions
 		features []string
@@ -196,6 +203,8 @@ func TestCheckFeatureProfile_MatchesNew(t *testing.T) {
 }
 
 func TestCheckFeatureProfile_Offline(t *testing.T) {
+	t.Parallel()
+
 	fp := &FeatureProfile{Features: []string{
 		"capability:process", profileExtAgg, "AGG_PULSE_THING", "SYNTH_ACME_DIST", "AGG_NOPE",
 	}}
@@ -250,6 +259,7 @@ func TestCheckFeatureProfile_Offline(t *testing.T) {
 }
 
 func TestCheckFeatureProfile_OfflineKeepsNewerBuiltinAnError(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version; swaps the package-level feature-table hooks
 	const future = "AGG_FUTURE_THING"
 	injectFutureFeature(t, future, "9.0.0")
 	defer buildinfo.SetForTest("1.0.0")()
@@ -265,6 +275,8 @@ func TestCheckFeatureProfile_OfflineKeepsNewerBuiltinAnError(t *testing.T) {
 }
 
 func TestCheckFeatureProfile_NilProfile(t *testing.T) {
+	t.Parallel()
+
 	report, err := CheckFeatureProfile(nil, FeatureProfileCheckOptions{})
 	if report == nil || report.Valid {
 		t.Fatalf("report = %+v; want non-nil, invalid", report)
@@ -275,6 +287,7 @@ func TestCheckFeatureProfile_NilProfile(t *testing.T) {
 }
 
 func TestDiffFeatureProfile(t *testing.T) {
+	// serial: buildinfo.SetForTest overrides the process-wide build version; swaps the package-level feature-table hooks
 	const future = "capability:from_the_future"
 	injectFutureFeature(t, future, "1.2.0")
 	defer buildinfo.SetForTest("devel")()
@@ -337,6 +350,8 @@ func TestDiffFeatureProfile(t *testing.T) {
 }
 
 func TestDescribeFeatureProfile(t *testing.T) {
+	t.Parallel()
+
 	fp := &FeatureProfile{Features: []string{
 		"OVERLAY_T_CELL", profileExtAgg, "capability:process", "AGG_SUM", "BOGUS_NAME",
 	}}
@@ -381,6 +396,8 @@ func TestDescribeFeatureProfile(t *testing.T) {
 // TestFeatureProfileTooling_JSONShape pins the wire keys and the
 // never-null slices the CLI's --json envelopes rely on.
 func TestFeatureProfileTooling_JSONShape(t *testing.T) {
+	t.Parallel()
+
 	fp := &FeatureProfile{Features: []string{}}
 	check, _ := CheckFeatureProfile(fp, FeatureProfileCheckOptions{})
 	diff, _ := DiffFeatureProfile(fp)

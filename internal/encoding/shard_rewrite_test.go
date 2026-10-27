@@ -137,6 +137,8 @@ func decodeShardRecordsWithSet(t *testing.T, b []byte) (*encoding.Schema, [][2]u
 // regresses, since masks would still parse but reference the wrong
 // dictionary labels.
 func TestMergeDictUnion_Divergent_RewritesSetMasks(t *testing.T) {
+	t.Parallel()
+
 	// Canonical dict: Apple=0, Banana=1, Cherry=2.
 	canonical := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -225,6 +227,8 @@ func TestMergeDictUnion_Divergent_RewritesSetMasks(t *testing.T) {
 }
 
 func TestMergeDictUnion_Divergent_RewritesIndices(t *testing.T) {
+	t.Parallel()
+
 	canonical := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -294,6 +298,8 @@ func TestMergeDictUnion_Divergent_RewritesIndices(t *testing.T) {
 }
 
 func TestMergeDictUnion_Prefix_NoRemap(t *testing.T) {
+	t.Parallel()
+
 	canonical := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "country", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0,
@@ -319,6 +325,8 @@ func TestMergeDictUnion_Prefix_NoRemap(t *testing.T) {
 }
 
 func TestMergeDictUnion_WidthOverflow(t *testing.T) {
+	t.Parallel()
+
 	// categorical_u8 capacity is 256. Build canonical with 250 values
 	// and incoming with 50 new values; union exceeds 256.
 	makeDict := func(prefix string, start, count int) *encoding.Dictionary {
@@ -348,6 +356,8 @@ func TestMergeDictUnion_WidthOverflow(t *testing.T) {
 }
 
 func TestRewriteShardCategoricals_EmptyRemap_PreservesRecords(t *testing.T) {
+	t.Parallel()
+
 	target := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -475,6 +485,8 @@ func decodePackedShard(t *testing.T, b []byte) (*encoding.Schema, []packedRec) {
 // non-empty remap path raised PULSE_SHARD_HEADER_INVALID on schemas
 // that mixed byte-aligned and bit-packed fields.
 func TestRewriteShardCategoricals_BitPackedSchema_NonEmptyRemap(t *testing.T) {
+	t.Parallel()
+
 	canonical := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU64, ByteOffset: 0, CsvColumnIdx: 0},
@@ -536,6 +548,8 @@ func TestRewriteShardCategoricals_BitPackedSchema_NonEmptyRemap(t *testing.T) {
 // reports the true wire stride for the schema shape that broke shard
 // rewrite under issue #42.
 func TestSchema_RecordByteSize_MixedPackedAndAligned(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU64, ByteOffset: 0},
@@ -559,6 +573,8 @@ func TestSchema_RecordByteSize_MixedPackedAndAligned(t *testing.T) {
 // remapped), while a BitPosition divergence, which decoders read, is
 // still refused.
 func TestRewriteShardCategoricals_ComparesLayoutNotStoredOffsets(t *testing.T) {
+	t.Parallel()
+
 	shard, _ := buildShard(t, []string{"US", "MX"}, [][2]uint32{{7, 1}, {8, 0}})
 	// Re-stamp the shard's stored offsets to all zero (a legacy
 	// explicit-schema cohort); the records stay where the cursor puts

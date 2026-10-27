@@ -80,6 +80,8 @@ func npsBandRules() []synth.RuleSpec {
 //     rules-free run at the same seed produced — the rule reached no row
 //     its `when` did not select.
 func TestRules_SetExprThreeBandNPS(t *testing.T) {
+	t.Parallel()
+
 	const rows = 4000
 	ruled, res, err := synth.SynthBytes(npsBandSpec(rows, npsBandRules()), synth.Options{Seed: 909})
 	if err != nil {
@@ -215,6 +217,8 @@ func TestRules_SetExprThreeBandNPS(t *testing.T) {
 //     thing an author writes, and it is why refusing intra-rule reads
 //     outright was rejected as the third option.
 func TestRules_SetExprSnapshotMakesIntraRuleOrderUnobservable(t *testing.T) {
+	t.Parallel()
+
 	base := func(rules []synth.RuleSpec) *synth.Spec {
 		return &synth.Spec{
 			RowCount: 200,
@@ -283,6 +287,8 @@ func TestRules_SetExprSnapshotMakesIntraRuleOrderUnobservable(t *testing.T) {
 //
 // b == 5 and a == 9. Correct and surprising, which is why it is pinned.
 func TestRules_SetExprReadsEarlierRuleButNotLater(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 50,
 		Fields: []synth.FieldSpec{
@@ -322,6 +328,8 @@ func TestRules_SetExprReadsEarlierRuleButNotLater(t *testing.T) {
 // string -> categorical_u8, []string -> set_u8 (split(), the shape only
 // an expression can produce).
 func TestRules_SetExprCoercesOnTheWireForEveryTargetClass(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 40,
 		Fields: []synth.FieldSpec{
@@ -384,6 +392,8 @@ func TestRules_SetExprCoercesOnTheWireForEveryTargetClass(t *testing.T) {
 // time on the row that produced it. The alternative — growing the
 // dictionary — adds an entry that is indistinguishable from data.
 func TestRules_SetExprStringOutsideTheDeclaredDomainIsRefused(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 20,
 		Fields: []synth.FieldSpec{
@@ -431,6 +441,8 @@ func TestRules_SetExprStringOutsideTheDeclaredDomainIsRefused(t *testing.T) {
 // 399,999 good rows. Both carry the same code, because both are "the
 // value this rule wants to write cannot be written".
 func TestRules_SetExprTimingSplit(t *testing.T) {
+	t.Parallel()
+
 	build := func(expr string, target string) *synth.Spec {
 		return &synth.Spec{
 			RowCount: 50,
@@ -522,6 +534,8 @@ func TestRules_SetExprTimingSplit(t *testing.T) {
 // the SAME per-row sequence as the same spec without it, asserted on the
 // field no rule names.
 func TestRules_SetExprConsumesNoRNG(t *testing.T) {
+	t.Parallel()
+
 	ruled := mustSynth(t, npsBandSpec(300, npsBandRules()), 55)
 	plain := mustSynth(t, npsBandSpec(300, nil), 55)
 	a := readF64Field(t, ruled, "id")

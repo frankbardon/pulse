@@ -62,6 +62,8 @@ func wireOf(t *testing.T, v any) string {
 // two counts emitted a quoted decimal string ("4") and AGG_NULL_COUNT
 // was refused PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
 func TestDecimalCounts_EmitIntegers(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	decimalCountCohort(t, fs, "dc.pulse")
 	p, err := pulse.New(pulse.Options{FS: fs})

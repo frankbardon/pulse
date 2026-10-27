@@ -51,6 +51,8 @@ func runStreamingAndBuffered(t *testing.T, schema *encoding.Schema, records []*R
 // TestTwoPass_ZScoreParity confirms ATTR_ZSCORE streaming output
 // matches the buffered path on a non-trivial distribution.
 func TestTwoPass_ZScoreParity(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input"},
@@ -80,6 +82,8 @@ func TestTwoPass_ZScoreParity(t *testing.T) {
 
 // TestTwoPass_TScoreParity covers ATTR_TSCORE.
 func TestTwoPass_TScoreParity(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input"},
@@ -106,6 +110,8 @@ func TestTwoPass_TScoreParity(t *testing.T) {
 
 // TestTwoPass_NormalizedParity covers ATTR_NORMALIZED.
 func TestTwoPass_NormalizedParity(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input"},
@@ -137,6 +143,8 @@ func TestTwoPass_NormalizedParity(t *testing.T) {
 // mixing FORMULA (row-local) and ZSCORE (two-pass) takes the two-pass
 // orchestrator and produces correct values for both.
 func TestTwoPass_RowLocalAttributePresentAlsoStreams(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input"},
@@ -170,6 +178,8 @@ func TestTwoPass_RowLocalAttributePresentAlsoStreams(t *testing.T) {
 // stats. Mirrors buffered behavior where Compute receives the filtered
 // slice.
 func TestTwoPass_FilterAppliesToPrePass(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, Description: "input"},

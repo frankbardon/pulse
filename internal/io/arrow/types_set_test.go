@@ -15,6 +15,8 @@ import (
 )
 
 func TestArrow_TypeToPulseListUTF8(t *testing.T) {
+	t.Parallel()
+
 	listType := arrow.ListOf(arrow.BinaryTypes.String)
 	if got := TypeToPulse(listType); got != encoding.FieldTypeSetU8 {
 		t.Errorf("TypeToPulse(LIST<UTF8>) = %s, want set_u8 (provisional)", got)
@@ -22,6 +24,8 @@ func TestArrow_TypeToPulseListUTF8(t *testing.T) {
 }
 
 func TestArrow_TypeFromPulseSetU8(t *testing.T) {
+	t.Parallel()
+
 	dt := TypeFromPulse(encoding.FieldTypeSetU8)
 	if dt.ID() != arrow.LIST {
 		t.Errorf("TypeFromPulse(set_u8) = %v, want LIST", dt)
@@ -35,6 +39,8 @@ func TestArrow_TypeFromPulseSetU8(t *testing.T) {
 // must render as pio.EmptySetCell. Returning "" handed the shared
 // import path a null token and collapsed the two states.
 func TestArrow_FormatValueListUTF8JoinsWithPipe(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "issuers", Type: arrow.ListOf(arrow.BinaryTypes.String)},
@@ -77,6 +83,8 @@ func TestArrow_FormatValueListUTF8JoinsWithPipe(t *testing.T) {
 // LIST<UTF8> column, lets the reader's InferPulseSchema run, and
 // asserts the column lands as set_*.
 func TestArrow_InferPulseSchemaListUTF8(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "issuers", Type: arrow.ListOf(arrow.BinaryTypes.String)},

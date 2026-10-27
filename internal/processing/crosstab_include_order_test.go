@@ -77,6 +77,8 @@ func eqStrings(a, b []string) bool {
 // and the column axis carries no include. Rows must emit in the given
 // include order; columns must stay alphabetical.
 func TestPartitionByAxis_RowIncludeOrder_ColumnAlphabetical(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabBrandSchema(t)
 	p := NewProcessor(schema)
 	recs := brandRecords(schema)
@@ -111,6 +113,8 @@ func TestPartitionByAxis_RowIncludeOrder_ColumnAlphabetical(t *testing.T) {
 // both axes carry an include list, each axis follows its OWN order
 // independently.
 func TestPartitionByAxis_BothAxesInclude_EachHonorsOwn(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabBrandSchema(t)
 	p := NewProcessor(schema)
 	recs := brandRecords(schema)
@@ -150,6 +154,8 @@ func TestPartitionByAxis_BothAxesInclude_EachHonorsOwn(t *testing.T) {
 // carries an include, position 1 does not (alphabetical within each
 // position-0 bucket).
 func TestPartitionByAxis_MultiAxisPerPositionInclude(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabBrandSchema(t)
 	p := NewProcessor(schema)
 	recs := brandRecords(schema)
@@ -183,6 +189,8 @@ func TestPartitionByAxis_MultiAxisPerPositionInclude(t *testing.T) {
 // TestPartitionByAxis_MultiAxisBothPositionsInclude verifies that both
 // positions of a nested axis honor their own include order.
 func TestPartitionByAxis_MultiAxisBothPositionsInclude(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabBrandSchema(t)
 	p := NewProcessor(schema)
 	recs := brandRecords(schema)
@@ -213,6 +221,8 @@ func TestPartitionByAxis_MultiAxisBothPositionsInclude(t *testing.T) {
 // an axis with no include must stay sorted alphabetically, exactly as
 // before the include-order change.
 func TestPartitionByAxis_NoIncludeStaysAlphabetical(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabBrandSchema(t)
 	p := NewProcessor(schema)
 	recs := brandRecords(schema)
@@ -251,6 +261,8 @@ func TestPartitionByAxis_NoIncludeStaysAlphabetical(t *testing.T) {
 // shape the fused path (E2-S2) will decompose into. Position 0 carries an
 // include, position 1 does not.
 func TestOrderCompositeKeysByAxisInclude_FlatReuse(t *testing.T) {
+	t.Parallel()
+
 	axis := []*types.Group{
 		{Type: types.GROUP_CATEGORY, Field: "brand", Include: []string{"452", "451"}},
 		{Type: types.GROUP_CATEGORY, Field: "channel"},

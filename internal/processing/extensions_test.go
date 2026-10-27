@@ -12,6 +12,8 @@ func dummyAggregatorFactory(*types.Aggregation, *encoding.Schema) (Aggregator, e
 }
 
 func TestExtensionRegistry_NilFallsThroughToBuiltin(t *testing.T) {
+	t.Parallel()
+
 	var r *ExtensionRegistry
 	if _, ok := r.LookupAggregator(types.AGG_COUNT); !ok {
 		t.Fatal("nil registry must fall through to built-in aggregator registry")
@@ -40,6 +42,8 @@ func TestExtensionRegistry_NilFallsThroughToBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_OverlayWinsOverBuiltin(t *testing.T) {
+	t.Parallel()
+
 	// Built-in AGG_COUNT exists; overlay shadows it. Lookup must
 	// return the overlay factory, not the built-in.
 	sentinel := AggregatorFactory(func(*types.Aggregation, *encoding.Schema) (Aggregator, error) {
@@ -63,6 +67,8 @@ func TestExtensionRegistry_OverlayWinsOverBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomAggregatorResolves(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
 			"AGG_ACME_BRAND_SCORE": dummyAggregatorFactory,
@@ -77,6 +83,8 @@ func TestExtensionRegistry_CustomAggregatorResolves(t *testing.T) {
 }
 
 func TestExtensionRegistry_IsStreamableOverridesBuiltin(t *testing.T) {
+	t.Parallel()
+
 	// AGG_MEDIAN is built-in non-streamable. An overlay marking it
 	// streamable must be observed by IsStreamable. Useful when an
 	// embedder replaces a buffered operator with a streaming-capable
@@ -92,6 +100,8 @@ func TestExtensionRegistry_IsStreamableOverridesBuiltin(t *testing.T) {
 }
 
 func TestExtensionRegistry_IsStreamableFallsBackToTypeSwitch(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{}
 	if !r.IsStreamable("aggregator", "AGG_COUNT") {
 		t.Error("AGG_COUNT must be streamable via built-in fallback")
@@ -105,6 +115,8 @@ func TestExtensionRegistry_IsStreamableFallsBackToTypeSwitch(t *testing.T) {
 }
 
 func TestExtensionRegistry_IsolationBetweenRegistries(t *testing.T) {
+	t.Parallel()
+
 	// Two registries with different overlays must not leak entries.
 	a := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -125,6 +137,8 @@ func TestExtensionRegistry_IsolationBetweenRegistries(t *testing.T) {
 }
 
 func TestExtensionRegistry_CustomNamesEnumerateOverlayOnly(t *testing.T) {
+	t.Parallel()
+
 	r := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
 			"AGG_ACME_FOO": dummyAggregatorFactory,

@@ -75,6 +75,8 @@ func nullEchoExtensions() pulse.Extensions {
 // EmitsNull false, NaN stays an ordinary value: n_null is 0 and the
 // SUM folds the NaN (the pre-existing, byte-identical behaviour).
 func TestExtensions_NullableAttributeEmitsNull(t *testing.T) {
+	t.Parallel()
+
 	large := parityLargeCohort(t.TempDir())
 	byRegion := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 	for _, mode := range parityModes(large) {

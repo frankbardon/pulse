@@ -14,6 +14,8 @@ import (
 // `sweep` slot on a ComposedRequest is an unknown field, refused before
 // its slot requests; with it, nothing is refused.
 func TestSlotRefusal_SweepHidden(t *testing.T) {
+	t.Parallel()
+
 	req := &types.ComposedRequest{
 		Requests: []*types.Request{{}},
 		Sweep:    &types.SweepSpec{Axes: []types.SweepAxis{{Name: "k", Values: []any{1}}}, Request: json.RawMessage(`{}`)},
@@ -41,6 +43,8 @@ func TestSlotRefusal_SweepHidden(t *testing.T) {
 // absent from the payload schema of an instance without
 // capability:compose_sweep, and present with it.
 func TestPayloadSchema_ComposeSweepHidden(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		inst *InstanceSnapshot
@@ -51,6 +55,8 @@ func TestPayloadSchema_ComposeSweepHidden(t *testing.T) {
 		{"hidden", scopedOnly(featCompose), false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			b, err := PayloadSchemaForInstance(c.inst)
 			if err != nil {
 				t.Fatal(err)
@@ -70,6 +76,8 @@ func TestPayloadSchema_ComposeSweepHidden(t *testing.T) {
 // defs: the open request body, the overlays array, the scalar values
 // list and the two closed vocabularies.
 func TestPayloadSchema_SweepShape(t *testing.T) {
+	t.Parallel()
+
 	var doc struct {
 		Defs map[string]struct {
 			Properties map[string]any `json:"properties"`
@@ -112,6 +120,8 @@ func TestPayloadSchema_SweepShape(t *testing.T) {
 // TestErrorOwners_SweepCodes: both sweep codes ride the capability, so
 // an instance hiding it hides them.
 func TestErrorOwners_SweepCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []errors.Code{errors.PULSE_SWEEP_INVALID, errors.PULSE_SWEEP_RANK_PATH} {
 		if !reflect.DeepEqual(errorOwners[c], []string{featComposeSweep}) {
 			t.Errorf("%s owners %v", c, errorOwners[c])
@@ -126,6 +136,8 @@ func TestErrorOwners_SweepCodes(t *testing.T) {
 // whose `valid` names grid and zip only; grid / zip pass, and the
 // enabled instance refuses nothing.
 func TestSweepRandom_SamplingHiddenRefusal(t *testing.T) {
+	t.Parallel()
+
 	lo, hi := 0.0, 1.0
 	sampled := func(edit func(*types.SweepSpec)) *types.ComposedRequest {
 		spec := &types.SweepSpec{
@@ -187,6 +199,8 @@ func TestSweepRandom_SamplingHiddenRefusal(t *testing.T) {
 // enabled instance carry them all. An item for_each's mode is grid /
 // zip and its axes carry values, never a range, on every instance.
 func TestSweepRandom_SamplingHiddenSchema(t *testing.T) {
+	t.Parallel()
+
 	type def struct {
 		Properties map[string]any `json:"properties"`
 		Enum       []string       `json:"enum"`
@@ -201,6 +215,8 @@ func TestSweepRandom_SamplingHiddenSchema(t *testing.T) {
 		{"hidden", scopedOnly(featCompose, featComposeSweep, featForEach, "ATTR_FORMULA"), false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			b, err := PayloadSchemaForInstance(c.inst)
 			if err != nil {
 				t.Fatal(err)
@@ -247,6 +263,8 @@ func TestSweepRandom_SamplingHiddenSchema(t *testing.T) {
 // TestErrorOwners_SweepSamplingCodes: the codes only a sampled sweep
 // reaches ride capability:compose_sweep_sampling.
 func TestErrorOwners_SweepSamplingCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []errors.Code{errors.PULSE_SWEEP_MODE_MISMATCH, errors.PULSE_SWEEP_RANGE_INVALID, errors.PULSE_SWEEP_SAMPLES_INVALID} {
 		if !reflect.DeepEqual(errorOwners[c], []string{featSweepSampling}) {
 			t.Errorf("%s owners %v", c, errorOwners[c])

@@ -18,6 +18,8 @@ import (
 // and every aware aggregator advertises both kinds. A post-test never
 // carries a kind.
 func TestManifest_WeightAware(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
 	seen := map[string]bool{}
@@ -80,6 +82,8 @@ func TestManifest_WeightAware(t *testing.T) {
 // attribute / grouper advertises ["frequency"] and an aware one both —
 // so a later story's flip cannot leave the manifest stale.
 func TestManifest_WeightKindsFollowClassFlip(t *testing.T) {
+	// serial: weighting.OverrideClassForTest rewrites the process-wide operator weight-class table
+
 	freq := []types.WeightKind{types.WeightKindFrequency}
 	flips := map[string]weighting.Class{
 		string(types.TEST_MANN_WHITNEY_U): weighting.ClassFrequencyOnly,

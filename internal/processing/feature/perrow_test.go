@@ -23,6 +23,8 @@ func makeRecords(values []float64, nulls []bool, field string) []Record {
 }
 
 func TestLog_Compute(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords(
 		[]float64{0, math.E - 1, 99},
 		[]bool{false, false, false},
@@ -51,6 +53,8 @@ func TestLog_Compute(t *testing.T) {
 }
 
 func TestLog_NullPropagation(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{1, 0}, []bool{false, true}, "x")
 
 	c, _ := newLog(&types.Feature{Field: "x"}, nil)
@@ -65,6 +69,8 @@ func TestLog_NullPropagation(t *testing.T) {
 }
 
 func TestLog_NegativeBeyondMinusOneIsNull(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{-2, -1, -0.5}, nil, "x")
 	c, _ := newLog(&types.Feature{Field: "x"}, nil)
 	out, _ := c.Compute(records, "x")
@@ -82,12 +88,16 @@ func TestLog_NegativeBeyondMinusOneIsNull(t *testing.T) {
 }
 
 func TestLog_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	if _, err := newLog(&types.Feature{}, nil); err == nil {
 		t.Error("expected error for missing field")
 	}
 }
 
 func TestSqrt_Compute(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{0, 4, 9}, nil, "x")
 	c, _ := newSqrt(&types.Feature{Field: "x"}, nil)
 	out, _ := c.Compute(records, "x")
@@ -105,6 +115,8 @@ func TestSqrt_Compute(t *testing.T) {
 }
 
 func TestSqrt_NegativeIsNull(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{-1, 4}, nil, "x")
 	c, _ := newSqrt(&types.Feature{Field: "x"}, nil)
 	out, _ := c.Compute(records, "x")
@@ -115,12 +127,16 @@ func TestSqrt_NegativeIsNull(t *testing.T) {
 }
 
 func TestSqrt_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	if _, err := newSqrt(&types.Feature{}, nil); err == nil {
 		t.Error("expected error for missing field")
 	}
 }
 
 func TestBucketize_ExplicitBoundaries(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{5, 15, 25, 35}, nil, "x")
 	c, err := newBucketize(&types.Feature{
 		Field:  "x",
@@ -141,6 +157,8 @@ func TestBucketize_ExplicitBoundaries(t *testing.T) {
 }
 
 func TestBucketize_BoundaryEdge(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{10, 20}, nil, "x")
 	c, _ := newBucketize(&types.Feature{
 		Field:  "x",
@@ -158,6 +176,8 @@ func TestBucketize_BoundaryEdge(t *testing.T) {
 }
 
 func TestBucketize_NullsPropagate(t *testing.T) {
+	t.Parallel()
+
 	records := makeRecords([]float64{5, 0, 25}, []bool{false, true, false}, "x")
 	c, _ := newBucketize(&types.Feature{
 		Field:  "x",
@@ -171,6 +191,8 @@ func TestBucketize_NullsPropagate(t *testing.T) {
 }
 
 func TestBucketize_Quantile(t *testing.T) {
+	t.Parallel()
+
 	vals := []float64{1, 2, 3, 4, 5, 6, 7, 8}
 	records := makeRecords(vals, nil, "x")
 	c, _ := newBucketize(&types.Feature{
@@ -195,6 +217,8 @@ func TestBucketize_Quantile(t *testing.T) {
 }
 
 func TestBucketize_RequiresParams(t *testing.T) {
+	t.Parallel()
+
 	_, err := newBucketize(&types.Feature{Field: "x"}, nil)
 	if err == nil {
 		t.Error("expected error when neither boundaries nor quantiles specified")
@@ -202,6 +226,8 @@ func TestBucketize_RequiresParams(t *testing.T) {
 }
 
 func TestBucketize_RejectsBothParams(t *testing.T) {
+	t.Parallel()
+
 	_, err := newBucketize(&types.Feature{
 		Field:  "x",
 		Params: json.RawMessage(`{"boundaries":[1],"quantiles":2}`),
@@ -212,6 +238,8 @@ func TestBucketize_RejectsBothParams(t *testing.T) {
 }
 
 func TestBucketize_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	_, err := newBucketize(&types.Feature{
 		Params: json.RawMessage(`{"quantiles":4}`),
 	}, nil)
@@ -221,6 +249,8 @@ func TestBucketize_RequiresField(t *testing.T) {
 }
 
 func TestPerRowFeatures_RegisteredViaInit(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []types.FeatureType{types.FEAT_LOG, types.FEAT_SQRT, types.FEAT_BUCKETIZE} {
 		if _, ok := Lookup(ft); !ok {
 			t.Errorf("expected %s to be registered via init()", ft)

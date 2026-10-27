@@ -69,6 +69,8 @@ func outputCollisionRequests(cohort string) map[string]struct {
 // (serial and FailFast parallel) and a chain, where the validators
 // agree.
 func TestOutputNamespace_CollisionRefusedOnEverySide(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	data, err := afero.ReadFile(fs, cohort)
 	if err != nil {
@@ -154,6 +156,8 @@ func TestOutputNamespace_CollisionRefusedOnEverySide(t *testing.T) {
 // sides accept, and the figures all reach the row. (A repeated group
 // field is a collision since U54: outputCollisionRequests.)
 func TestOutputNamespace_DistinctNamesAccepted(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()

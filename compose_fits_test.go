@@ -60,6 +60,8 @@ func facadeFitSlot(label string) *Request {
 // exactly the error Compose and ComposeParallel return: code, message
 // and details (details.fit included).
 func TestComposeFits_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -127,6 +129,8 @@ func TestComposeFits_PredictRuntimeParity(t *testing.T) {
 // each fit statically in declaration order — name, regression type,
 // target, predictors as written and cohort.
 func TestPredictCompose_ListsFits(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +169,8 @@ func TestPredictCompose_ListsFits(t *testing.T) {
 // `fits` slot as PULSE_REQUEST_UNKNOWN_FIELD on Compose, ComposeParallel
 // and PredictCompose; the unprofiled control runs it.
 func TestHiddenComposeFits_RefusedAsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	control, err := New(Options{FS: fsys})
 	if err != nil {
@@ -212,6 +218,8 @@ func TestHiddenComposeFits_RefusedAsUnknownField(t *testing.T) {
 // the top-level overlays only; `fits` is always emitted whole, at full
 // precision, like `ranking`.
 func TestComposeFits_OutsideComposeReturn(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)

@@ -87,6 +87,8 @@ const (
 //	idx 3 = (1,2)  idx 4 = (1,3)
 //	idx 5 = (2,3)
 func TestApplyPropZPanel_PairwiseSig_3Targets(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -157,6 +159,8 @@ func TestApplyPropZPanel_PairwiseSig_3Targets(t *testing.T) {
 // matrix). The test reconstructs the dense M×M matrix from a known
 // flattened slice and asserts symmetry + diagonal.
 func TestApplyPropZPanel_DiagonalIsOneMirroredLower(t *testing.T) {
+	t.Parallel()
+
 	// 3-slot panel (reference + 2 targets) gives a 3-pair flattened
 	// slice: (0,1), (0,2), (1,2).
 	ref := makeMatrixWithRowMargins(
@@ -243,6 +247,8 @@ func TestApplyPropZPanel_DiagonalIsOneMirroredLower(t *testing.T) {
 // cap fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry
 // without producing any layer.
 func TestApplyPropZPanel_OverCap_17Targets_Rejected(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -294,6 +300,8 @@ func TestApplyPropZPanel_OverCap_17Targets_Rejected(t *testing.T) {
 // value of 16 — the maximum allowed target count under default
 // OverlayOptions. 16 targets must NOT trip the cap.
 func TestApplyPropZPanel_DefaultMaxPanelTargets_16(t *testing.T) {
+	t.Parallel()
+
 	if defaultMaxPanelTargets != 16 {
 		t.Fatalf("defaultMaxPanelTargets = %d, want 16 (per interview risk paragraph)", defaultMaxPanelTargets)
 	}
@@ -341,6 +349,8 @@ func TestApplyPropZPanel_DefaultMaxPanelTargets_16(t *testing.T) {
 // surface. A custom cap of 3 must reject the 4-target panel and accept
 // the 3-target panel.
 func TestApplyPropZPanel_CustomMaxPanelTargets(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -398,6 +408,8 @@ func TestApplyPropZPanel_CustomMaxPanelTargets(t *testing.T) {
 // degenerate single-target panel (2 slots: reference + 1 target). One
 // pair is computed; the per-cell []float64 has length 1.
 func TestApplyPropZPanel_SingleTarget_DegenerateCase(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -433,6 +445,8 @@ func TestApplyPropZPanel_SingleTarget_DegenerateCase(t *testing.T) {
 // against its mathematical inverse — every (i, j) pair with i < j in
 // an M-slot panel must land at a unique index in [0, M*(M-1)/2).
 func TestApplyPropZPanel_PairIndexInverse(t *testing.T) {
+	t.Parallel()
+
 	for m := 2; m <= 8; m++ {
 		seen := map[int]struct{}{}
 		total := pairCount(m)
@@ -460,6 +474,8 @@ func TestApplyPropZPanel_PairIndexInverse(t *testing.T) {
 // at handler entry (the schema-match gate normally catches this
 // upstream, but the runtime arm stays observable).
 func TestApplyPropZPanel_NonMatrixSlotErrors(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -489,6 +505,8 @@ func TestApplyPropZPanel_NonMatrixSlotErrors(t *testing.T) {
 // (i, j), the cell stays absent on the overlay and a single
 // PULSE_OVERLAY_REF_ZERO warning carrying ref_missing: true surfaces.
 func TestApplyPropZPanel_AbsentSlotValueEmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -541,6 +559,8 @@ func TestApplyPropZPanel_AbsentSlotValueEmitsWarning(t *testing.T) {
 // reference. Now those pairs are NaN with PULSE_OVERLAY_REF_ZERO, and the
 // target-vs-target pair (both margins present) is still computed.
 func TestApplyPropZPanel_MissingRowMarginIsNaN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{{60, 50, 50}, {50, 50, 50}, {50, 50, 50}},
 		[3]float64{0, 100, 100},

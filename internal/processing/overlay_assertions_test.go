@@ -98,6 +98,8 @@ func assertOverlayLayerStatistic(t *testing.T, layer *types.OverlayLayer, idx in
 }
 
 func TestOverlay_LayerAssertionHelpers_Smoke(t *testing.T) {
+	t.Parallel()
+
 	// assertOverlayLayerNaN: first-point NaN on INDEX_VS_PRIOR.
 	t.Run("nan", func(t *testing.T) {
 		keys := []types.AxisKey{{"jan"}, {"feb"}, {"mar"}}

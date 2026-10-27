@@ -39,6 +39,8 @@ func joinSetKeySchemas(ft encoding.FieldType) (left, right *encoding.Schema) {
 // "does this row's set contain X" is a membership predicate, never a
 // key.
 func TestJoin_RejectsSetTypedKey(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8,
 		encoding.FieldTypeSetU16,
@@ -48,6 +50,8 @@ func TestJoin_RejectsSetTypedKey(t *testing.T) {
 		encoding.FieldTypeSetU256,
 	} {
 		t.Run(ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			leftSchema, rightSchema := joinSetKeySchemas(ft)
 			spec := &types.JoinSpec{
 				Right: "r.pulse",
@@ -75,6 +79,8 @@ func TestJoin_RejectsSetTypedKey(t *testing.T) {
 // merely CARRIED through the join (not a key) still joins fine, and
 // its authoritative mask survives into the joined record.
 func TestJoin_SetColumnOffTheKeyStillJoins(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c"} {
 		_, _ = d.Add(v)
@@ -131,6 +137,8 @@ func TestJoin_SetColumnOffTheKeyStillJoins(t *testing.T) {
 // The two mantissas below differ by 2 at a magnitude where float64's
 // spacing is 256, so both round to the identical float.
 func TestJoinKeyOf_Decimal128DistinguishesBeyondFloat64(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, ByteOffset: 0, CsvColumnIdx: 0, Scale: 0},
 	}}
@@ -167,6 +175,8 @@ func TestJoinKeyOf_Decimal128DistinguishesBeyondFloat64(t *testing.T) {
 // still produce the same key, so the exact-bytes path does not simply
 // make every decimal key unique.
 func TestJoinKeyOf_Decimal128EqualValuesShareAKey(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, ByteOffset: 0, CsvColumnIdx: 0, Scale: 2},
 	}}

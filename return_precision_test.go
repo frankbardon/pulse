@@ -24,6 +24,8 @@ func sigDigits(lit string) int {
 // precision on the marker (alone and with a preset), and leaves the Go
 // values identical to the unshaped run.
 func TestReturn_PrecisionProcess(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	mk := func(ret *types.Return) *types.Request {
 		return &types.Request{
@@ -96,6 +98,8 @@ func TestReturn_PrecisionProcess(t *testing.T) {
 // *Aggregation pointers are the caller's, so the defaulted Type reaches
 // that plan. A deep copy in the join path would round the count.
 func TestReturn_PrecisionJoinedDefaultCount(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

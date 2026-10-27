@@ -91,6 +91,8 @@ func suggestFixtureProfile(t *testing.T) (*synth.Profile, []byte) {
 // fires", and a rule that never fires satisfies "non-gated rows keep
 // their inferred values".
 func TestSuggestRules_WrittenFileGeneratesUnmodified(t *testing.T) {
+	t.Parallel()
+
 	prof, _ := suggestFixtureProfile(t)
 
 	cfg := fs.NewMemMap()
@@ -201,6 +203,8 @@ func roundTripProfile(t *testing.T, prof *synth.Profile) *synth.Profile {
 // document is byte-identical, and WITH the flag the only key that moves
 // is `warnings` — no new section, and RuleCandidates is not on the wire.
 func TestSuggestRules_DocumentMovesOnlyItsWarnings(t *testing.T) {
+	t.Parallel()
+
 	data, _, err := synth.SynthBytes(suggestSourceSpec(3000), synth.Options{Seed: 77})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -270,6 +274,8 @@ func remarshal(t *testing.T, m map[string]any) []byte {
 //  3. the key is `_evidence`, is absent when nil, and survives the round
 //     trip the candidate file depends on.
 func TestRuleEvidence_IsInert(t *testing.T) {
+	t.Parallel()
+
 	base := suggestSourceSpec(500)
 	plain, _, err := synth.SynthBytes(base, synth.Options{Seed: 11})
 	if err != nil {
@@ -337,6 +343,8 @@ func TestRuleEvidence_IsInert(t *testing.T) {
 // answer in place) or `null` (which ParseRules accepts but reads as
 // absence rather than as an answer).
 func TestWriteRuleCandidates_EmptyWritesAnEmptyArray(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if err := synth.WriteRuleCandidates(cfg.Fs(), nil, "/none.json"); err != nil {
 		t.Fatalf("WriteRuleCandidates(nil): %v", err)
@@ -360,6 +368,8 @@ func TestWriteRuleCandidates_EmptyWritesAnEmptyArray(t *testing.T) {
 // TestWriteRuleCandidates_RefusalsNameThePath keeps the coded-error
 // discipline `pulse errors lookup` depends on.
 func TestWriteRuleCandidates_RefusalsNameThePath(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if err := synth.WriteRuleCandidates(nil, nil, "/x.json"); err == nil {
 		t.Error("nil fs accepted")
@@ -397,6 +407,8 @@ func TestWriteRuleCandidates_RefusalsNameThePath(t *testing.T) {
 // between that and a green suite, so it asserts the firing rather than
 // the predicate's spelling.
 func TestSuggestRules_NumericGatePredicateFiresOnEveryWireRow(t *testing.T) {
+	t.Parallel()
+
 	src := &synth.Spec{
 		RowCount: 6000,
 		Fields: []synth.FieldSpec{

@@ -26,6 +26,8 @@ import (
 // a window label over the aggregation row and a window reading an
 // aggregation label are refused by both with one code.
 func TestWindowsFirst_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	svc, _, data := derivedRegCohort(t)
 	sum := func(field, label string) *types.Aggregation {
 		return &types.Aggregation{Type: types.AGG_SUM, Field: field, Label: label}
@@ -90,6 +92,8 @@ func TestWindowsFirst_PredictMatchesRuntime(t *testing.T) {
 // projected buffered decode included) AGG_SUM over WIN_LAG(x) is the sum
 // of every x but the last, with the one null lag counted.
 func TestWindowsFirst_ServiceSumsLaggedColumn(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := derivedRegCohort(t)
 	resp, err := svc.Process(context.Background(), &types.Request{
 		Cohort:       &types.Cohort{Filename: "reg.pulse"},
@@ -117,6 +121,8 @@ func TestWindowsFirst_ServiceSumsLaggedColumn(t *testing.T) {
 // partition the same lag total the ungrouped sum reports; predict admits
 // both, buffered and unfused.
 func TestWindowsFirst_ServiceGroupedAndCrosstab(t *testing.T) {
+	t.Parallel()
+
 	svc, _, data := derivedRegCohort(t)
 	var want float64
 	for i := 0; i < 47; i++ {

@@ -155,6 +155,8 @@ func readAll(t *testing.T, p *Pulse, path string) (*encoding.Schema, []CohortRow
 // exact values in source order; the derived columns follow as nullable
 // f64 in pipeline order.
 func TestMaterialize_SourceRoundTripsAcrossLayouts(t *testing.T) {
+	t.Parallel()
+
 	layouts := []struct {
 		name string
 		opts CohortBuilderOptions
@@ -238,11 +240,15 @@ func TestMaterialize_SourceRoundTripsAcrossLayouts(t *testing.T) {
 // with the right source record. Over a shard archive too, whose records
 // concatenate in shard order.
 func TestMaterialize_DerivedValuesMatchProcess(t *testing.T) {
+	t.Parallel()
+
 	for _, l := range []struct {
 		name string
 		opts CohortBuilderOptions
 	}{{"single", CohortBuilderOptions{}}, {"archive", CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 5}}}} {
 		t.Run(l.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			p, _ := matPulse(t, Options{DisableProjection: true})
 			buildMatSource(t, p, "src.pulse", l.opts)
@@ -296,6 +302,8 @@ func TestMaterialize_DerivedValuesMatchProcess(t *testing.T) {
 // leave source order; the windows keep the values they compute under
 // their own partition / order.
 func TestMaterialize_SortMatchesProcessRowOrder(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := matPulse(t, Options{DisableProjection: true})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 5}})
@@ -376,6 +384,8 @@ func toFloat(v any) (float64, bool) {
 // contributes every output in featureOutputLabels order, and an
 // integer window output is stored as f64.
 func TestMaterialize_OneHotAndRowNumberColumns(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -408,6 +418,8 @@ func TestMaterialize_OneHotAndRowNumberColumns(t *testing.T) {
 // of a window column and its pass under Strict (with described source
 // fields, Strict writes).
 func TestMaterialize_GeneratedDescription(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -431,6 +443,8 @@ func TestMaterialize_GeneratedDescription(t *testing.T) {
 // a weak SOURCE description (as the cohort builder does) before any
 // file is created.
 func TestMaterialize_StrictRefusesWeakSourceDescriptions(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	createTestPulseFile(t, fsys, "plain.pulse", []string{"id", "v"}, [][]string{{"1", "2.5"}, {"2", "3.5"}})
@@ -475,6 +489,8 @@ func assertAbsent(t *testing.T, fsys afero.Fs, path string) {
 // does not produce one value per source record, details.slot naming it,
 // nothing created.
 func TestMaterialize_RefusesUnsupportedSlots(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -517,6 +533,8 @@ func TestMaterialize_RefusesUnsupportedSlots(t *testing.T) {
 // before anything is created; the same request without materialize's
 // gates runs under Process.
 func TestMaterialize_RefusesNoDerivedAndUndeclaredOutputs(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{Extensions: Extensions{
 		Features: []FeatureRegistration{{Name: "FEAT_ACME_DOUBLE", Factory: matStubFeature, Streamable: false}},
@@ -557,6 +575,8 @@ func (matStubComputer) Compute(extend.Rows, string) (map[string]extend.FeatureOu
 // TestMaterialize_PreflightMatchesProcess: a request Process refuses in
 // its pre-flight is refused with the identical error.
 func TestMaterialize_PreflightMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -594,6 +614,8 @@ func TestMaterialize_PreflightMatchesProcess(t *testing.T) {
 // Overwrite (untouched); Overwrite replaces it and reports the
 // invalidated sidecars as a warning; an anchored target is refused.
 func TestMaterialize_TargetRules(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -635,6 +657,8 @@ func TestMaterialize_TargetRules(t *testing.T) {
 // builder opened (a window whose default is a string label, which an
 // f64 column cannot hold) leaves nothing at the target.
 func TestMaterialize_FailureLeavesNoTarget(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, fsys := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
@@ -653,6 +677,8 @@ func TestMaterialize_FailureLeavesNoTarget(t *testing.T) {
 // fails with the same PULSE_LIMIT_EXCEEDED Process raises, before
 // anything is written; at the estimate it runs.
 func TestMaterialize_MemoryLimitRefusesLikeProcess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	var rows [][]string
@@ -695,6 +721,8 @@ func TestMaterialize_MemoryLimitRefusesLikeProcess(t *testing.T) {
 // TestMaterialize_TouchesManagedSource: materializing from a managed
 // import slides its expiry by its TTL, as a Process read does.
 func TestMaterialize_TouchesManagedSource(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	past := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
 	p, fsys := memBuilderEngine(t)
@@ -720,6 +748,8 @@ func TestMaterialize_TouchesManagedSource(t *testing.T) {
 // fit warning (here N* ≤ p: fit_on admits two rows for two members)
 // reaches MaterializeResult.Warnings, and every derived value is null.
 func TestMaterialize_FittedAttributeWarnings(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := matPulse(t, Options{})
 	buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})

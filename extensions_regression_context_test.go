@@ -101,6 +101,8 @@ func openCtxE2E(t *testing.T, calls *ctxCalls, l pulse.Limits) (*pulse.Pulse, *t
 // fit matches the plain buffered model's byte for byte (the plain-Fit
 // path itself unchanged).
 func TestExtensions_RegressionFitContextPreferred(t *testing.T) {
+	t.Parallel()
+
 	calls := &ctxCalls{started: make(chan struct{}, 1)}
 	p, cohort := openCtxE2E(t, calls, pulse.Limits{})
 	if calls.probe.Load() == 0 || calls.fit.Load() != 0 {
@@ -125,6 +127,7 @@ func TestExtensions_RegressionFitContextPreferred(t *testing.T) {
 // request returns the coded PULSE_LIMIT_EXCEEDED (limit
 // request_timeout) promptly — on the plain fit and on a resample refit.
 func TestExtensions_RegressionFitContextRequestTimeout(t *testing.T) {
+	// serial: wall-clock bound; CPU contention from parallel tests would make it flaky
 	const d = 200 * time.Millisecond
 	for _, tc := range []struct {
 		name string
@@ -168,6 +171,8 @@ func TestExtensions_RegressionFitContextRequestTimeout(t *testing.T) {
 // TestExtensions_RegressionFitContextCallerCancel: the caller's cancel
 // reaches a blocked FitContext; the request returns context.Canceled.
 func TestExtensions_RegressionFitContextCallerCancel(t *testing.T) {
+	t.Parallel()
+
 	calls := &ctxCalls{started: make(chan struct{}, 1)}
 	p, cohort := openCtxE2E(t, calls, pulse.Limits{RequestTimeout: time.Hour})
 	calls.block.Store(true)
@@ -216,6 +221,8 @@ func noResampleExtensions(seen **types.RegressionSpec) pulse.Extensions {
 // same request on a registration that does not opt out runs; rng_seed
 // still reaches the factory; the manifest row drops the resample slot.
 func TestExtensions_RegressionNoResampleRefused(t *testing.T) {
+	t.Parallel()
+
 	var seen *types.RegressionSpec
 	p, cohort := openE2E(t, noResampleExtensions(&seen))
 	optOut := 0

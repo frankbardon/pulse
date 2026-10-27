@@ -8,6 +8,8 @@ import (
 )
 
 func TestCategoricalDictionary_AddAndResolve(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 
 	id0, err := d.Add("apple")
@@ -48,6 +50,8 @@ func TestCategoricalDictionary_AddAndResolve(t *testing.T) {
 }
 
 func TestCategoricalDictionary_IDFor(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	d.Add("x")
 	d.Add("y")
@@ -64,6 +68,8 @@ func TestCategoricalDictionary_IDFor(t *testing.T) {
 }
 
 func TestCategoricalDictionary_EmptyDict(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	if d.Count() != 0 {
 		t.Errorf("empty dict Count() = %d", d.Count())
@@ -76,6 +82,8 @@ func TestCategoricalDictionary_EmptyDict(t *testing.T) {
 }
 
 func TestCategoricalDictionary_WriteRead(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	d.Add("hello")
 	d.Add("world")
@@ -102,6 +110,8 @@ func TestCategoricalDictionary_WriteRead(t *testing.T) {
 }
 
 func TestCategoricalDictionary_MaxCapacity_U8(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	for i := 0; i < 256; i++ {
 		if _, err := d.Add(string(rune('A' + i))); err != nil {
@@ -115,6 +125,8 @@ func TestCategoricalDictionary_MaxCapacity_U8(t *testing.T) {
 }
 
 func TestCategoricalDictionary_Overflow_U8(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	for i := 0; i < 256; i++ {
 		if _, err := d.AddWithLimit(uniqueStr(i), 256); err != nil {
@@ -131,6 +143,8 @@ func TestCategoricalDictionary_Overflow_U8(t *testing.T) {
 }
 
 func TestCategoricalDictionary_Overflow_U16(t *testing.T) {
+	t.Parallel()
+
 	// Just test the limit check logic, don't fill 65536 entries.
 	d := NewDictionary()
 	// Manually set count to limit.
@@ -147,6 +161,8 @@ func TestCategoricalDictionary_Overflow_U16(t *testing.T) {
 }
 
 func TestCategoricalDictionaryRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	entries := []string{"alpha", "beta", "gamma", "delta", "epsilon"}
 	for _, s := range entries {
@@ -181,6 +197,8 @@ func TestCategoricalDictionaryRoundTrip(t *testing.T) {
 }
 
 func TestCategoricalDictionary_Values(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	d.Add("a")
 	d.Add("b")

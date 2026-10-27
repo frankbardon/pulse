@@ -51,6 +51,8 @@ func u64ExactHits(rows int) int {
 }
 
 func TestExtendRecord_Uint64ValueExactEveryMode(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for name, m := range u64KeyModes(t, u64ExactExtensions()) {
 		t.Run(name, func(t *testing.T) {

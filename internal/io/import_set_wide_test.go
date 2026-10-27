@@ -32,6 +32,8 @@ func wideSetCohort(t *testing.T, tokens, rows int) (*ImportReport, afero.Fs) {
 // story every row of such a column failed with "unsupported field
 // type: set_u256" and the import "succeeded" with RowsImported == 0.
 func TestImportJob_WideSetImportsEveryRow(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		tokens int
 		want   encoding.FieldType
@@ -62,6 +64,8 @@ func TestImportJob_WideSetImportsEveryRow(t *testing.T) {
 // 64 and 128, and at bit 200 in the top word. A mask assembled with a
 // uint64 shift would silently drop every one of these.
 func TestImportJob_WideSetBitsAboveSixtyFour(t *testing.T) {
+	t.Parallel()
+
 	const tokens, rows = 206, 480
 	rep, fs := wideSetCohort(t, tokens, rows)
 	f := rep.Schema.Field("issuers")
@@ -126,6 +130,8 @@ func TestImportJob_WideSetBitsAboveSixtyFour(t *testing.T) {
 // directly at each word boundary, independent of what inference
 // happened to assign.
 func TestConvertValueWide_SetMaskBits(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,
 	} {
@@ -181,6 +187,8 @@ func TestConvertValueWide_SetMaskBits(t *testing.T) {
 // a present cell carrying no token is an EMPTY selection, not a null,
 // at 128 and 256 bits exactly as at 8. Null rides the record bitmap.
 func TestConvertValueWide_EmptyCellIsEmptyMask(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,
 	} {
@@ -216,6 +224,8 @@ func TestConvertValueWide_EmptyCellIsEmptyMask(t *testing.T) {
 // error: an unseen token is interned exactly as it is at set_u8, and
 // overflowing the rung's capacity is still PULSE_IMPORT_SET_OVERFLOW.
 func TestConvertValueWide_UnknownTokenBehavesAsAtNarrowWidths(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU128
 	dict := encoding.NewDictionary()
 	field := encoding.Field{Name: "s", Type: ft}
@@ -252,6 +262,8 @@ func TestConvertValueWide_UnknownTokenBehavesAsAtNarrowWidths(t *testing.T) {
 // the decimal128 wide path used to hardcode. A short write here shifts
 // every subsequent column of every subsequent record.
 func TestImportJob_WideSetNullCellRidesTheBitmap(t *testing.T) {
+	t.Parallel()
+
 	const tokens, rows = 206, 480
 	cells := widePipeCells(tokens, rows)
 	cells[7] = "" // out-of-sample null promotes the field
@@ -301,6 +313,8 @@ func TestImportJob_WideSetNullCellRidesTheBitmap(t *testing.T) {
 // column sits between the two set columns so a pad on either side of
 // it is visible.
 func TestImportJob_MixedWideFieldWidths(t *testing.T) {
+	t.Parallel()
+
 	setDict := func(n int) *encoding.Dictionary {
 		d := encoding.NewDictionary()
 		for i := 0; i < n; i++ {

@@ -17,6 +17,8 @@ import (
 // Falsified by changing `v < float64(n)` to `v <= float64(n)` (the
 // one-past-the-end case then passes).
 func TestDictionaryIndexFault(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, s := range []string{"north", "", "south"} {
 		_, _ = dict.Add(s)

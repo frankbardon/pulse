@@ -9,6 +9,8 @@ import (
 )
 
 func TestWriteJSON(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	data := map[string]string{"key": "value"}
 	if err := writeJSON(&buf, data); err != nil {
@@ -24,6 +26,8 @@ func TestWriteJSON(t *testing.T) {
 }
 
 func TestWriteEnvelope(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := writeEnvelope(&buf, "test-data"); err != nil {
 		t.Fatalf("writeEnvelope: %v", err)
@@ -38,6 +42,8 @@ func TestWriteEnvelope(t *testing.T) {
 }
 
 func TestWriteErrorEnvelope(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	wantEnvelopeFatal(t, writeErrorEnvelope(&buf, "TEST_ERR", "something failed"))
 	var env descriptor.Envelope

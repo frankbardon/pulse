@@ -19,6 +19,8 @@ import (
 // Falsified by deleting the encx.SetMemberFault check at the end of
 // readCohortCase (the corrupt case then reads).
 func TestCorruptCategorical_SPSSSetMemberRefused(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	_, _ = dict.Add("A")
 	_, _ = dict.Add("B")

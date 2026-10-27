@@ -10,6 +10,8 @@ import (
 // one whole byte for a bit-packed type, ByteSize otherwise — for every
 // registered type, each placed after a one-byte lead field.
 func TestCellWidth(t *testing.T) {
+	t.Parallel()
+
 	for ft := encoding.FieldType(0); ft.IsKnown(); ft++ {
 		want := ft.ByteSize()
 		if ft.IsBitPacked() {
@@ -33,6 +35,8 @@ func TestCellWidth(t *testing.T) {
 // LayoutFields gives each bit-packed field its own byte at bit 0 and
 // agrees with Schema.RecordByteSize on the payload width.
 func TestLayoutFields_BitPacked(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU4, ByteOffset: 9, BitPosition: 5},
 		{Name: "b", Type: encoding.FieldTypePackedBool, BitPosition: 7},

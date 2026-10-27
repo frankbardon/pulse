@@ -33,6 +33,8 @@ func prevAttr(field, label string) *types.Attribute {
 // ATTR_PREVIOUS_STATE slot gets the cohort schema itself back — the
 // same pointer — so every consumer reading the view is byte-identical.
 func TestKeySchema_NoSlotIsTheSameSchema(t *testing.T) {
+	t.Parallel()
+
 	s := keySchemaFixture(t)
 	for name, attrs := range map[string][]*types.Attribute{
 		"none":            nil,
@@ -57,6 +59,8 @@ func TestKeySchema_NoSlotIsTheSameSchema(t *testing.T) {
 // (every index stays put); the default label is TYPE_field; the cohort
 // schema is never mutated.
 func TestKeySchema_InheritsTypeAndDictionary(t *testing.T) {
+	t.Parallel()
+
 	s := keySchemaFixture(t)
 	n := len(s.Fields)
 	view := KeySchema([]*types.Attribute{prevAttr("plan", "prev"), prevAttr("active", ""), prevAttr("plan", "prev")}, s)
@@ -87,6 +91,8 @@ func TestKeySchema_InheritsTypeAndDictionary(t *testing.T) {
 // TestBeforeFilters_OnlyPreviousState: the before-filters property is
 // ATTR_PREVIOUS_STATE's alone, across every built-in attribute type.
 func TestBeforeFilters_OnlyPreviousState(t *testing.T) {
+	t.Parallel()
+
 	for _, at := range types.AllAttributeTypes() {
 		if got, want := BeforeFilters(at), at == types.ATTR_PREVIOUS_STATE; got != want {
 			t.Errorf("BeforeFilters(%s) = %v, want %v", at, got, want)
@@ -99,6 +105,8 @@ func TestBeforeFilters_OnlyPreviousState(t *testing.T) {
 // slot names none), routed — a hidden type contributes nothing — and
 // nil when no slot is.
 func TestBeforeFiltersLabels(t *testing.T) {
+	t.Parallel()
+
 	attrs := []*types.Attribute{
 		{Type: types.ATTR_PREVIOUS_STATE, Field: "plan", Label: "b"},
 		nil,

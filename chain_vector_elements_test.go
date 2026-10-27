@@ -68,6 +68,8 @@ func chainElemPredict(t *testing.T, p *pulse.Pulse, req *pulse.ChainRequest) *pu
 // (n_null counts it), and predict names the element columns as stage
 // 0's output and admits the stage-1 references.
 func TestChain_ElementColumnsFeedNextStage(t *testing.T) {
+	t.Parallel()
+
 	p, _ := vaggElementCohort(t)
 	ctx := context.Background()
 	stage1 := func() *types.Request {
@@ -172,6 +174,8 @@ func TestChain_ElementColumnsFeedNextStage(t *testing.T) {
 // label of an expanding slot (no such column), and an aggregation
 // labelled like a group key column of the stage feeding the next.
 func TestChain_ElementColumnRefusalsParity(t *testing.T) {
+	t.Parallel()
+
 	p, _ := vaggElementCohort(t)
 	ctx := context.Background()
 	sum := func(field string) *types.Request {
@@ -220,6 +224,8 @@ func TestChain_ElementColumnRefusalsParity(t *testing.T) {
 // it reads those columns in turn — each stage's element columns resolve
 // against the schema that stage itself ran over, on both sides.
 func TestChain_ElementColumnsThroughThreeStages(t *testing.T) {
+	t.Parallel()
+
 	p, _ := vaggElementCohort(t)
 	req := func() *pulse.ChainRequest {
 		r := chainElemRequest(chainElemStage0(true), &types.Request{Aggregations: []*types.Aggregation{

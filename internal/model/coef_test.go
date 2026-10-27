@@ -47,6 +47,8 @@ func coefSet(t *testing.T) *Set {
 // bit-equal, never re-derived — NaN (never 0) where the fit reports no
 // figure for the term, and 0 for a selection-dropped candidate's point.
 func TestCoef(t *testing.T) {
+	t.Parallel()
+
 	s := coefSet(t)
 	cases := []struct {
 		fit, term, stat string
@@ -84,6 +86,8 @@ func TestCoef(t *testing.T) {
 // unknown term, unknown stat — and, at runtime only, an interval or
 // standard error read from a fit that reports none.
 func TestCoef_Refusals(t *testing.T) {
+	t.Parallel()
+
 	s := coefSet(t)
 	cases := []struct {
 		name            string
@@ -126,6 +130,8 @@ func TestCoef_Refusals(t *testing.T) {
 // against predict's FitCatalog exactly as against the runtime's Set —
 // the parity the field-reference pass relies on.
 func TestCheckCoef_RuntimeMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"a", "b"}}
 	b, err := Bind("m", spec, &types.RegressionResult{Coefficients: map[string]float64{InterceptKey: 1, "a": 2, "b": 3}})
 	if err != nil {

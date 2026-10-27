@@ -22,6 +22,8 @@ func (emitRuleAttr) Compute(rows extend.Rows, _ string) ([]float64, error) {
 // diverge — a ComponentSchema carrying only a Mergeability class (no
 // keys, no emitter) emits on neither side.
 func TestExtensions_ComponentAttributesRuntimeMatchesSnapshot(t *testing.T) {
+	t.Parallel()
+
 	keys := []descriptor.ComponentKey{{Name: "n_x", Type: "int", Description: "x"}}
 	emit := func(extend.AttributeComputer) (map[string]any, error) { return nil, nil }
 	cases := []struct {

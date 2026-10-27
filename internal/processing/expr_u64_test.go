@@ -74,6 +74,8 @@ func runU64Expr(t *testing.T, src, site string, s *encoding.Schema, params expre
 // value, same Go type, same error text; on the per-input and the cached
 // AllValues path alike.
 func TestU64Expr_ProgramMatchesFloatBinding(t *testing.T) {
+	t.Parallel()
+
 	u64s, f64s := u64ExprSchemas()
 	params := exprenv.Params{"k": int64(7), "ids": []int64{1, 7}}
 	formulas := []string{
@@ -119,6 +121,8 @@ func TestU64Expr_ProgramMatchesFloatBinding(t *testing.T) {
 // null-row twin; a record without the word (a rewritten column) keeps
 // the echo and the historical result.
 func TestU64Expr_ProgramExactPast2p53(t *testing.T) {
+	t.Parallel()
+
 	u64s, _ := u64ExprSchemas()
 	params := exprenv.Params{"k": int64(9007199254740993), "top": uint64(math.MaxUint64 - 1)}
 	cases := []struct {
@@ -156,6 +160,8 @@ func TestU64Expr_ProgramExactPast2p53(t *testing.T) {
 // TestU64Expr_RecordExprU64: the word is bound only beside the value it
 // was decoded for.
 func TestU64Expr_RecordExprU64(t *testing.T) {
+	t.Parallel()
+
 	u64s, _ := u64ExprSchemas()
 	r := u64ExprRecord(u64s, 1<<53+1, false, true)
 	if got := r.exprU64("id", float64(1<<53+1)); got != exprenv.U64(1<<53+1) {

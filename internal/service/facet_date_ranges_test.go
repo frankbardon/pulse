@@ -14,6 +14,8 @@ import (
 // narrows the accumulated record set single-pass. The cohort spans three
 // dates; a launch+growth range set keeps two and drops the third.
 func TestFacet_FilterDateRanges_Integration(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},

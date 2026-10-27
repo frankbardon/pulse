@@ -268,6 +268,8 @@ func gRegroupWarnings(ws []encx.CohesionWarning) []encx.CohesionWarning {
 // reports the group headroom, and every answer — serial and with
 // parallel shard workers — equals the flat archive's.
 func TestShardGroups_CreateUnionMergesGroupDictionaries(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, aRows := gShardA().build(t, nil)
 	b1, b2, bRows := gShardB().build(t, nil)
 	svc, fsys := gEnv(t, map[string][]byte{"a.pulse": a2, "b.pulse": b2, "fa/a.pulse": a1, "fb/b.pulse": b1})
@@ -373,6 +375,8 @@ func TestShardGroups_CreateUnionMergesGroupDictionaries(t *testing.T) {
 // shards at once and creating it from the first then adding the second
 // produce the SAME archive bytes and the same warnings.
 func TestShardGroups_CreateAndAddAgree(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, _ := gShardA().build(t, nil)
 	b1, b2, _ := gShardB().build(t, nil)
 	c := gShardB()
@@ -418,6 +422,8 @@ func TestShardGroups_CreateAndAddAgree(t *testing.T) {
 // false). A grouped arrival declaring DIFFERENT groups is regrouped the
 // same way. Every archive answers exactly as the flat archive does.
 func TestShardGroups_MixedLayouts(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, _ := gShardA().build(t, nil)
 	b1, b2, bRows := gShardB().build(t, nil)
 	_, bOther, _ := gShardB().build(t, []encx.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"parent", "region"}}})
@@ -482,6 +488,8 @@ func TestShardGroups_MixedLayouts(t *testing.T) {
 // (archive_rewritten true, every shard and record counted). The
 // archive stays verifiable and answers exactly as the flat archive.
 func TestShardGroups_ConstantPromotedAcrossArchive(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, aRows := gShardA().build(t, nil)
 	c := gShardB()
 	c.src = "batch-c"
@@ -522,6 +530,8 @@ func TestShardGroups_ConstantPromotedAcrossArchive(t *testing.T) {
 // PULSE_GROUP_MEMBER_NOT_CONSTANT naming the shard — on create and on
 // add — and a refused add leaves the archive byte-identical.
 func TestShardGroups_KeyViolationRefused(t *testing.T) {
+	t.Parallel()
+
 	_, a2, _ := gShardA().build(t, nil)
 	v := gShardB()
 	v.weightShift = 1
@@ -560,6 +570,8 @@ func asCoded(t *testing.T, err error, code errors.Code) *errors.CodedError {
 // leaves the archive byte-identical. MaxGroupEntries is shrunk so the
 // 45-entry union overflows while each 25/30-entry shard fits.
 func TestShardGroups_IndexSpaceOverflow(t *testing.T) {
+	// serial: lowers the process-wide encoding.MaxGroupEntries ceiling
+
 	_, a2, _ := gShardA().build(t, nil)
 	_, b2, _ := gShardB().build(t, nil)
 	prev := encoding.MaxGroupEntries
@@ -596,6 +608,8 @@ func TestShardGroups_IndexSpaceOverflow(t *testing.T) {
 // whole-archive rewrite; a failing rename leaves the original archive
 // byte-identical and still openable at its old layout.
 func TestShardGroups_ArchiveRewriteIsAtomic(t *testing.T) {
+	t.Parallel()
+
 	_, a2, _ := gShardA().build(t, nil)
 	c := gShardB()
 	c.src = "batch-c"
@@ -629,6 +643,8 @@ func TestShardGroups_ArchiveRewriteIsAtomic(t *testing.T) {
 // the archive answers exactly as the flat archive does, set member
 // included.
 func TestShardGroups_SetWidenOfAGroupMember(t *testing.T) {
+	t.Parallel()
+
 	tagsA := []string{"t0", "t1", "t2", "t3", "t4", "t5"}
 	tagsB := []string{"t6", "t7", "t8", "t9", "t10", "t11"}
 	a := gShardA()
@@ -687,6 +703,8 @@ func TestShardGroups_SetWidenOfAGroupMember(t *testing.T) {
 // stride), or a grouped shard whose entries are not a prefix of the
 // canonical dictionary — is refused.
 func TestShardGroups_VerifyRefusesInconsistentArchives(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, _ := gShardA().build(t, nil)
 	// Same member dictionaries as A, so ONLY the group entries diverge
 	// (B's first entry is parent 20, A's is parent 0).
@@ -724,6 +742,8 @@ func TestShardGroups_VerifyRefusesInconsistentArchives(t *testing.T) {
 // one-shard cohort, and filter-to-file over the grouped archive and over
 // an anchored grouped shard answers exactly as over the flat archive.
 func TestShardGroups_AnchorAndFilterToFile(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, _ := gShardA().build(t, nil)
 	b1, b2, _ := gShardB().build(t, nil)
 	svc, _ := gEnv(t, map[string][]byte{"a.pulse": a2, "b.pulse": b2, "f/a.pulse": a1, "f/b.pulse": b1})
@@ -757,6 +777,8 @@ func TestShardGroups_AnchorAndFilterToFile(t *testing.T) {
 // per row — on both arms, and the answer equals the per-row run and the
 // flat archive's.
 func TestShardGroups_FilterPrecomputeEngages(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch; reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	a1, a2, aRows := gShardA().build(t, nil)
 	b1, b2, bRows := gShardB().build(t, nil)
 	svc, _ := gEnv(t, map[string][]byte{"a.pulse": a2, "b.pulse": b2, "f/a.pulse": a1, "f/b.pulse": b1})
@@ -810,6 +832,8 @@ func TestShardGroups_FilterPrecomputeEngages(t *testing.T) {
 // every shard's indices address — against the archive-wide record count,
 // header-only.
 func TestShardGroups_InspectReportsArchiveGroups(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, aRows := gShardA().build(t, nil)
 	b1, b2, bRows := gShardB().build(t, nil)
 	svc, fsys := gEnv(t, map[string][]byte{"a.pulse": a2, "b.pulse": b2, "f/a.pulse": a1, "f/b.pulse": b1})

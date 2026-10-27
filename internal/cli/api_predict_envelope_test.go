@@ -22,6 +22,8 @@ import (
 // "archive.pulse#shard.pulse" does not exist). A missing cohort stays a
 // coded PREDICT_ERROR envelope.
 func TestAPIPredict_ReadsCohortThroughFacadePath(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	c0 := seedCohortViaImport(t, dir, "p0.csv", "n,cat\n1,a\n2,b\n3,c\n")
 	c1 := seedCohortViaImport(t, dir, "p1.csv", "n,cat\n4,a\n5,b\n")

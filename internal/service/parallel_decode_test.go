@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"math"
-	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -19,6 +18,8 @@ import (
 // is the first line of defence against per-worker spawn overhead
 // dominating the parallel win on small inputs.
 func TestShouldFanOutDecode_BelowThreshold(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := shouldFanOutDecode(8, parallelDecodeRecordThreshold-1); ok {
 		t.Fatal("expected fan-out to bail below threshold")
 	}
@@ -32,6 +33,8 @@ func TestShouldFanOutDecode_BelowThreshold(t *testing.T) {
 // cohort size. Mirrors the ShardWorkers==1 semantics so the two knobs
 // stay legible.
 func TestShouldFanOutDecode_WorkersOneForcesSerial(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := shouldFanOutDecode(1, parallelDecodeRecordThreshold*10); ok {
 		t.Fatal("expected DecodeWorkers=1 to force serial")
 	}
@@ -42,6 +45,8 @@ func TestShouldFanOutDecode_WorkersOneForcesSerial(t *testing.T) {
 // floor (>=), not the strictly-greater bar, so equality should engage
 // the parallel path.
 func TestShouldFanOutDecode_AtThresholdAcceptsParallel(t *testing.T) {
+	t.Parallel()
+
 	got, ok := shouldFanOutDecode(4, parallelDecodeRecordThreshold)
 	if !ok {
 		t.Fatalf("expected fan-out to engage at threshold; got ok=false")
@@ -56,6 +61,8 @@ func TestShouldFanOutDecode_AtThresholdAcceptsParallel(t *testing.T) {
 // CPU count (CI varies); just that the resolved worker count is >= 1
 // and that the threshold gate is still enforced atop it.
 func TestShouldFanOutDecode_DefaultZeroResolvesNumCPU(t *testing.T) {
+	t.Parallel()
+
 	resolved, ok := shouldFanOutDecode(0, parallelDecodeRecordThreshold)
 	if !ok {
 		t.Fatalf("expected default workers above threshold to engage")
@@ -71,6 +78,8 @@ func TestShouldFanOutDecode_DefaultZeroResolvesNumCPU(t *testing.T) {
 // nothing but spawn overhead. Even after capping the count must remain
 // >= 2 for the parallel path to be worth taking.
 func TestShouldFanOutDecode_CapsAtRecordCount(t *testing.T) {
+	t.Parallel()
+
 	// 1 record above threshold + workers cap > 1 means the resolved
 	// count clamps to 1 → fails the >=2 check → bails to serial.
 	if _, ok := shouldFanOutDecode(16, 1); ok {
@@ -86,6 +95,8 @@ func TestShouldFanOutDecode_CapsAtRecordCount(t *testing.T) {
 // configured to a parallelism-eligible value; correctness equals the
 // known-good serial output.
 func TestCrosstab_ParallelDecode_BailOnMemMapFs(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 	svc.SetDecodeWorkers(4)
@@ -131,6 +142,8 @@ func TestCrosstab_ParallelDecode_BailOnMemMapFs(t *testing.T) {
 // 100K floor so shouldFanOutDecode rejects. Crosstab still completes
 // via the serial materializeRecords arm.
 func TestCrosstab_ParallelDecode_BailBelowThreshold(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	path := dir + "/below_threshold.pulse"
@@ -166,108 +179,6 @@ func TestCrosstab_ParallelDecode_BailBelowThreshold(t *testing.T) {
 	}
 }
 
-func TestCrosstab_ParallelDecode_ByteEqualToSerial(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping parallel-decode equivalence in -short mode")
-	}
-
-	const rowCount = parallelDecodeRecordThreshold + 1024 // just above floor
-
-	dir := t.TempDir()
-	osFs := afero.NewOsFs()
-	path := dir + "/parallel_eq.pulse"
-
-	schema, payload := buildParallelEquivCohort(t, rowCount)
-	var buf bytes.Buffer
-	if err := encoding.WriteHeader(&buf); err != nil {
-		t.Fatalf("WriteHeader: %v", err)
-	}
-	if err := encoding.WriteSchema(&buf, schema); err != nil {
-		t.Fatalf("WriteSchema: %v", err)
-	}
-	buf.Write(payload)
-	if err := afero.WriteFile(osFs, path, buf.Bytes(), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-	if err != nil {
-		t.Fatalf("fs.New: %v", err)
-	}
-
-	mkReq := func() *types.Request {
-		return &types.Request{
-			Cohort: &types.Cohort{Filename: path},
-			Crosstab: &types.CrosstabSpec{
-				Rows: []*types.Group{
-					{Type: types.GROUP_CATEGORY, Field: "brand"},
-				},
-				Columns: []*types.Group{
-					{Type: types.GROUP_CATEGORY, Field: "region"},
-				},
-				Cell: &types.Aggregation{
-					Type:  types.AGG_SUM,
-					Field: "weight",
-					Label: "sum_weight",
-				},
-				Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
-				Shape:   types.CrosstabShapeMatrix,
-			},
-		}
-	}
-
-	ctx := context.Background()
-
-	svcSerial := New(cfg)
-	svcSerial.SetDecodeWorkers(1)
-	serialResp, err := svcSerial.Process(ctx, mkReq())
-	if err != nil {
-		t.Fatalf("serial Process: %v", err)
-	}
-
-	svcParallel := New(cfg)
-	svcParallel.SetDecodeWorkers(4)
-	parallelResp, err := svcParallel.Process(ctx, mkReq())
-	if err != nil {
-		t.Fatalf("parallel Process: %v", err)
-	}
-
-	if serialResp.Crosstab == nil || serialResp.Crosstab.Matrix == nil {
-		t.Fatal("serial: expected matrix payload")
-	}
-	if parallelResp.Crosstab == nil || parallelResp.Crosstab.Matrix == nil {
-		t.Fatal("parallel: expected matrix payload")
-	}
-
-	// Deep-equal compare the matrix payload. Crosstab matrices use
-	// stable key ordering (groupers emit keys deterministically), so
-	// the per-cell values must match byte-for-byte. Any divergence —
-	// even a single ULP on a Welford-mean cell — is a real
-	// segment-boundary bug.
-	if !reflect.DeepEqual(serialResp.Crosstab.Matrix, parallelResp.Crosstab.Matrix) {
-		t.Errorf("Matrix differs between serial and parallel decode")
-	}
-
-	if !reflect.DeepEqual(serialResp.Crosstab, parallelResp.Crosstab) {
-		t.Errorf("Crosstab top-level differs between serial and parallel decode")
-	}
-
-	// Metadata equivalence: TotalRows and FilteredRows must match
-	// exactly; CohortFile is the same absolute path on both sides.
-	if serialResp.Metadata == nil || parallelResp.Metadata == nil {
-		t.Fatalf("expected metadata on both sides: serial=%v parallel=%v",
-			serialResp.Metadata, parallelResp.Metadata)
-	}
-	if serialResp.Metadata.TotalRows != parallelResp.Metadata.TotalRows {
-		t.Errorf("TotalRows differs: serial=%d parallel=%d",
-			serialResp.Metadata.TotalRows, parallelResp.Metadata.TotalRows)
-	}
-	if serialResp.Metadata.FilteredRows != parallelResp.Metadata.FilteredRows {
-		t.Errorf("FilteredRows differs: serial=%d parallel=%d",
-			serialResp.Metadata.FilteredRows, parallelResp.Metadata.FilteredRows)
-	}
-}
-
 // TestCrosstab_ParallelDecode_BailOnShardArchive covers the shard-
 // archive bail: when the cohort opens as a Zip64 archive (Shards()
 // non-empty), the crosstab orchestrator must NOT engage segment-aware
@@ -283,6 +194,8 @@ func TestCrosstab_ParallelDecode_ByteEqualToSerial(t *testing.T) {
 // branch specifically by detecting cohort.Shards() before falling
 // through to threshold.
 func TestCrosstab_ParallelDecode_BailOnShardArchive(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 	svc := New(cfg)
 	svc.SetDecodeWorkers(4)

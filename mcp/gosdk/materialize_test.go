@@ -19,6 +19,8 @@ import (
 // not mount it, one with it does, and a call through the go-sdk writes
 // the cohort and returns the result object.
 func TestRegister_MaterializeFollowsItsFeature(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	seed, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

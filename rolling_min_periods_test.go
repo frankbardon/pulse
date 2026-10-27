@@ -28,6 +28,8 @@ func rmpRequest(t *testing.T, f *mgFixture, kind types.OverlayKind, params strin
 // and Compose with the same code, message and details (bar predict's
 // slot index); an in-range value is accepted by both.
 func TestRollingOverlays_MinPeriodsPredictParity(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 	for _, c := range []struct {

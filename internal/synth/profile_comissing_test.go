@@ -89,6 +89,8 @@ func blockFixtureCandidates(t *testing.T) (*synth.Profile, []byte) {
 // coherent", and the negative control is what makes the first half
 // capable of failing.
 func TestSuggestBlocks_WrittenFileGeneratesUnmodified(t *testing.T) {
+	t.Parallel()
+
 	prof, _ := blockFixtureCandidates(t)
 
 	cfg := fs.NewMemMap()
@@ -190,6 +192,8 @@ func partialBlockRows(t *testing.T, data []byte, members []string) (partial, row
 // that the block it DOES find is the real one, so the test cannot be
 // satisfied by finding nothing.
 func TestSuggestBlocks_IndependentFieldsSharingARateAreNotABlock(t *testing.T) {
+	t.Parallel()
+
 	prof, _ := blockFixtureCandidates(t)
 	members := blockMemberNames(t, prof)
 	got := strings.Join(members, ",")
@@ -230,6 +234,8 @@ func TestSuggestBlocks_IndependentFieldsSharingARateAreNotABlock(t *testing.T) {
 // and gate-first is the one where the block REPAIRS the edit instead of
 // being broken by it. The fourth clause measures that.
 func TestSuggestBlocks_ComposeWithGatingCandidatesInOneFile(t *testing.T) {
+	t.Parallel()
+
 	src := &synth.Spec{
 		RowCount: 8000,
 		Fields: []synth.FieldSpec{
@@ -370,6 +376,8 @@ func reorderBlocksFirst(rules []synth.RuleSpec) []synth.RuleSpec {
 // RuleCandidates and the profile document's `warnings`, and nowhere
 // else.
 func TestSuggestBlocks_DocumentMovesOnlyItsWarnings(t *testing.T) {
+	t.Parallel()
+
 	data, _, err := synth.SynthBytes(blockSourceSpec(3000), synth.Options{Seed: 31})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -413,6 +421,8 @@ func TestSuggestBlocks_DocumentMovesOnlyItsWarnings(t *testing.T) {
 // generation today fabricates a distribution from a marginal computed
 // over zero observations.
 func TestSuggestBlocks_AlwaysNullColumnIsNamedWithItsType(t *testing.T) {
+	t.Parallel()
+
 	src := blockSourceSpec(2000)
 	src.Fields = append(src.Fields, synth.FieldSpec{
 		Name: "lgbt", Type: "categorical_u8", Nullable: true, NullRate: 1,
@@ -483,6 +493,8 @@ func TestSuggestBlocks_AlwaysNullColumnIsNamedWithItsType(t *testing.T) {
 // satisfiable: the column comes back null on EVERY row, and no rule
 // candidate names it.
 func TestProfileAlwaysNull_ReproducedExactlyWithoutARule(t *testing.T) {
+	t.Parallel()
+
 	const rows = 2000
 	src := &synth.Spec{
 		RowCount: rows,

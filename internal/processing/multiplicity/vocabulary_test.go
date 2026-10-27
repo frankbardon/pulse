@@ -11,6 +11,8 @@ import (
 // (types.AllMultiplicityMethods), so a name the resolver accepts always
 // reaches a core method and vice versa.
 func TestMethodsMatchTypesVocabulary(t *testing.T) {
+	t.Parallel()
+
 	core := Methods()
 	wire := types.AllMultiplicityMethods()
 	if len(core) != len(wire) {

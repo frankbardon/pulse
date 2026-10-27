@@ -68,6 +68,8 @@ func panelCountedSlots() (*types.Response, []*types.Response) {
 // re-derivation — a re-derived expectation would move with the code it
 // is meant to pin.
 func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		params map[string]any
@@ -109,6 +111,8 @@ func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
 // p-value; now the missing margin reads as n = 0 and the pair is NaN
 // with PULSE_OVERLAY_REF_ZERO, on both spellings of the default.
 func TestApplyPropZPanel_DefaultMissingMarginIsNaN(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{{30, 50, 50}, {50, 50, 50}, {50, 50, 50}},
 		[3]float64{0, 100, 100},
@@ -164,6 +168,8 @@ func TestApplyPropZPanel_DefaultMissingMarginIsNaN(t *testing.T) {
 // the one that matters: without it a handler that silently ignored
 // n_source would pass every other check here.
 func TestApplyPropZPanel_CellNUnweightedReadsComponents(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelCountedSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
 	spec.Params = map[string]any{"n_source": types.PanelNSourceCellNUnweighted}
@@ -217,6 +223,8 @@ func TestApplyPropZPanel_CellNUnweightedReadsComponents(t *testing.T) {
 // positional components read would silently answer with a different
 // cell's sample size. The number would be plausible and wrong.
 func TestApplyPropZPanel_CountedModeResolvesSlotCoordinatesByKey(t *testing.T) {
+	t.Parallel()
+
 	ref := withCellN(
 		makeMatrixWithRowMargins(
 			[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
@@ -267,6 +275,8 @@ func TestApplyPropZPanel_CountedModeResolvesSlotCoordinatesByKey(t *testing.T) {
 // proves the fallback was dropped deliberately rather than never
 // reached.
 func TestApplyPropZPanel_CountedModeDoesNotFallBackToCellValue(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelCountedSlots()
 	// Drop the "n" key at (0, 0) on the first target only.
 	nan := math.NaN()
@@ -348,6 +358,8 @@ func TestApplyPropZPanel_CountedModeDoesNotFallBackToCellValue(t *testing.T) {
 // The Details carry the ComposeComponentsState so the diagnostic says
 // WHICH of the three ways the slot has no components.
 func TestApplyPropZPanel_CountedModeRequiresComponents(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name      string
 		breakSlot func(*types.Response)
@@ -365,6 +377,8 @@ func TestApplyPropZPanel_CountedModeRequiresComponents(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			ref, targets := panelCountedSlots()
 			tc.breakSlot(targets[1])
 			spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
@@ -408,6 +422,8 @@ func TestApplyPropZPanel_CountedModeRequiresComponents(t *testing.T) {
 // The components gate covers the REFERENCE slot too, not just targets.
 // The reference is panel index 0 and its n leg is read the same way.
 func TestApplyPropZPanel_CountedModeRequiresComponentsOnReference(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelCountedSlots()
 	ref.Components = nil
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
@@ -433,6 +449,8 @@ func TestApplyPropZPanel_CountedModeRequiresComponentsOnReference(t *testing.T) 
 // the legacy leg and hand back the default number under a mode name
 // the caller chose — the silent no-op this family refuses.
 func TestApplyPropZPanel_UnknownNSourceRefusedAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	// A real mode — on the OTHER family. The most likely typo is not a
 	// nonsense string, it is a crosstab mode name on a panel spec.
 	const bogus = types.PairwiseNSourceRowMarginDistinct
@@ -468,6 +486,8 @@ func TestApplyPropZPanel_UnknownNSourceRefusedAtRuntime(t *testing.T) {
 // A malformed params blob refuses at runtime under the same code the
 // predict arm uses.
 func TestApplyPropZPanel_MalformedParamsRefusedAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelBaselineSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
 	spec.Params = map[string]any{"n_source": make(chan int)}
@@ -484,6 +504,8 @@ func TestApplyPropZPanel_MalformedParamsRefusedAtRuntime(t *testing.T) {
 // reports, or a caller fixing what predict told them to fix would hit
 // a different error at execution.
 func TestApplyPropZPanel_CapFiresBeforeUnknownNSource(t *testing.T) {
+	t.Parallel()
+
 	ref, targets := panelBaselineSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, &types.OverlayOptions{MaxPanelTargets: 1})
 	spec.Params = map[string]any{"n_source": "nonsense"}
@@ -521,6 +543,8 @@ func itoaPanel(i int) string {
 // means a record COUNT. That is the exact silent substitution this
 // effort exists to remove, so the runtime must refuse it too.
 func TestApplyPropZPanel_RetiredRowMarginNSpellingRefusedAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	const retired = types.PairwiseNSourceRowMarginN
 	if retired != "row_margin_n" {
 		t.Fatalf("the pairwise wire value moved to %q; this test pins the panel against the OLD panel spelling", retired)

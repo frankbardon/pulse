@@ -23,6 +23,8 @@ import (
 // and a native list column alike — and serves the tool-import skill
 // with its vector lines.
 func TestImportVectors_NotGatedByMatrices(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "wide.csv", []byte("id,q_a,q_b,q_c\n1,1,2,3\n2,4,,6\n"), 0o644); err != nil {
 		t.Fatal(err)

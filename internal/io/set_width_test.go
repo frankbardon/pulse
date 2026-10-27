@@ -16,6 +16,8 @@ import (
 // asserted here, against the exported entry point every other package
 // reaches, rather than only against the inference-private wrapper.
 func TestSetTypeFor_IsTheOneLadder(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		elements int
 		want     encoding.FieldType
@@ -61,6 +63,8 @@ func TestSetTypeFor_IsTheOneLadder(t *testing.T) {
 // of it. Every value either resolves to the same rung or is past the
 // ceiling on both.
 func TestSetTypeFor_AgreesWithSetWidth(t *testing.T) {
+	t.Parallel()
+
 	for n := 1; n <= 300; n++ {
 		ft, ok := SetTypeFor(n)
 		w := setWidth(n)
@@ -78,6 +82,8 @@ func TestSetTypeFor_AgreesWithSetWidth(t *testing.T) {
 // ladder it summarises. A caller that reports the ceiling in an error
 // message must not be able to name a number the ladder does not honour.
 func TestMaxSetElements_IsTheTopRung(t *testing.T) {
+	t.Parallel()
+
 	max := MaxSetElements()
 	if max != int(encoding.FieldTypeSetU256.MaxSetEntries()) {
 		t.Errorf("MaxSetElements() = %d, want %d", max, encoding.FieldTypeSetU256.MaxSetEntries())

@@ -34,6 +34,8 @@ func filterArchiveFixture(t *testing.T, archivePath string) (svc *Service, cfg *
 //   - return the matching shards in central-directory (insertion) order,
 //   - re-open through Service.Open + RecordCount cleanly.
 func TestFilterToFile_ShardArchive_PreservesPerShardStructure(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 
 	written, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score > 50.0")
@@ -110,6 +112,8 @@ func TestFilterToFile_ShardArchive_PreservesPerShardStructure(t *testing.T) {
 // shards. The output archive remains valid and re-openable; aggregate
 // is zero.
 func TestFilterToFile_ShardArchive_ZeroMatches(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 
 	written, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score > 999.0")
@@ -173,6 +177,8 @@ func TestFilterToFile_ShardArchive_ZeroMatches(t *testing.T) {
 // already byte-equal under our fixture because the aggregate is the
 // same).
 func TestFilterToFile_ShardArchive_AllMatch(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 
 	written, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "id >= 1")
@@ -213,6 +219,8 @@ func TestFilterToFile_ShardArchive_AllMatch(t *testing.T) {
 // updates aggregate_record_count to the surviving total and leaves
 // shard_count unchanged.
 func TestFilterToFile_ShardArchive_TrailerRefreshed(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 
 	if _, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score >= 60.0"); err != nil {
@@ -238,6 +246,8 @@ func TestFilterToFile_ShardArchive_TrailerRefreshed(t *testing.T) {
 // the source shard. This is the byte-for-byte payload guarantee that
 // matches single-file FilterToFile semantics, extended per-shard.
 func TestFilterToFile_ShardArchive_PerShardRecordRanges(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, schema := filterArchiveFixture(t, "src.pulse")
 
 	if _, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score > 50.0"); err != nil {
@@ -281,6 +291,8 @@ func TestFilterToFile_ShardArchive_PerShardRecordRanges(t *testing.T) {
 // filter, open the output, process it, confirm parity with the
 // in-place filter applied at process time.
 func TestFilterToFile_ShardArchive_OpenableThroughOpen(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := filterArchiveFixture(t, "src.pulse")
 
 	if _, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score < 75.0"); err != nil {
@@ -319,6 +331,8 @@ func TestFilterToFile_ShardArchive_OpenableThroughOpen(t *testing.T) {
 // a single-file output containing only matching rows from the anchored
 // shard.
 func TestFilterToFile_AnchorSyntax(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "arch.pulse")
 
 	written, err := svc.FilterToFile(context.Background(), "arch.pulse#b.pulse", "dst.pulse", "score > 60.0")
@@ -351,6 +365,8 @@ func TestFilterToFile_AnchorSyntax(t *testing.T) {
 // TestFilterToFile_AnchorSyntax_ReservedRejected — anchoring on the
 // reserved `_schema.pulse` entry must surface PULSE_SHARD_RESERVED_NAME.
 func TestFilterToFile_AnchorSyntax_ReservedRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := filterArchiveFixture(t, "arch.pulse")
 	_, err := svc.FilterToFile(context.Background(),
 		"arch.pulse#"+encx.ReservedSchemaName, "dst.pulse", "id > 0")
@@ -365,6 +381,8 @@ func TestFilterToFile_AnchorSyntax_ReservedRejected(t *testing.T) {
 // TestFilterToFile_AnchorSyntax_MissingShard — anchoring on a
 // non-existent shard name surfaces PULSE_SHARD_MISSING.
 func TestFilterToFile_AnchorSyntax_MissingShard(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := filterArchiveFixture(t, "arch.pulse")
 	_, err := svc.FilterToFile(context.Background(),
 		"arch.pulse#nope.pulse", "dst.pulse", "id > 0")
@@ -382,6 +400,8 @@ func TestFilterToFile_AnchorSyntax_MissingShard(t *testing.T) {
 // the operation has no hidden state on the canonical schema or
 // record bytes.
 func TestFilterToFile_ShardArchive_RoundTripIdempotent(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 
 	if _, err := svc.FilterToFile(context.Background(), "src.pulse", "mid.pulse", "score > 30.0"); err != nil {
@@ -400,6 +420,8 @@ func TestFilterToFile_ShardArchive_RoundTripIdempotent(t *testing.T) {
 // TestFilterToFile_ShardArchive_BadExpressionFailsBeforeWrite —
 // invalid filter expression returns an error and leaves dst untouched.
 func TestFilterToFile_ShardArchive_BadExpressionFailsBeforeWrite(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 
 	_, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score + 1")

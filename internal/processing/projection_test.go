@@ -29,6 +29,8 @@ func sortedFields(s FieldSet) []string {
 }
 
 func TestNeededFields_AggregationOnly(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b", "c")
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
@@ -46,6 +48,8 @@ func TestNeededFields_AggregationOnly(t *testing.T) {
 }
 
 func TestNeededFields_GroupAndFilter(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b", "c", "d")
 	req := &types.Request{
 		Filterers: []*types.Filterer{
@@ -68,6 +72,8 @@ func TestNeededFields_GroupAndFilter(t *testing.T) {
 // A window over grouped rows still projects: it reads its own field,
 // partition and order keys beside the grouper's field.
 func TestNeededFields_WindowReferencesPartitionAndOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b", "ts", "cat", "v")
 	req := &types.Request{
 		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}},
@@ -88,6 +94,8 @@ func TestNeededFields_WindowReferencesPartitionAndOrder(t *testing.T) {
 // WIN_LIFT's params.base names a column like its field does, so it
 // decodes beside the field (the mirror of addKnown(w.Field)).
 func TestNeededFields_WindowLiftBase(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "ts", "v", "b", "unused")
 	req := &types.Request{
 		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}},
@@ -110,6 +118,8 @@ func TestNeededFields_WindowLiftBase(t *testing.T) {
 // beside an aggregation, a group or a crosstab rides aggregated rows
 // and keeps its narrow set.
 func TestNeededFields_WindowRecordRowsWiden(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b", "ts", "v")
 	win := func() []*types.Window {
 		return []*types.Window{{Type: types.WIN_LAG, Field: "v", OrderBy: []types.OrderKey{{Field: "ts"}}}}
@@ -138,6 +148,8 @@ func TestNeededFields_WindowRecordRowsWiden(t *testing.T) {
 }
 
 func TestNeededFields_AttributeFormulaExtractsIdents(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b", "c", "d")
 	req := &types.Request{
 		Attributes: []*types.Attribute{{
@@ -157,6 +169,8 @@ func TestNeededFields_AttributeFormulaExtractsIdents(t *testing.T) {
 }
 
 func TestNeededFields_FilterExpressionExtractsIdents(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("price", "qty", "name", "unused")
 	req := &types.Request{
 		Filterers: []*types.Filterer{{
@@ -175,6 +189,8 @@ func TestNeededFields_FilterExpressionExtractsIdents(t *testing.T) {
 }
 
 func TestNeededFields_MalformedExpressionWidens(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b")
 	req := &types.Request{
 		Attributes: []*types.Attribute{{
@@ -190,6 +206,8 @@ func TestNeededFields_MalformedExpressionWidens(t *testing.T) {
 }
 
 func TestNeededFields_TestFieldsCaptured(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("score", "group", "subject", "unused")
 	req := &types.Request{
 		Tests: []*types.Test{{
@@ -207,6 +225,8 @@ func TestNeededFields_TestFieldsCaptured(t *testing.T) {
 }
 
 func TestNeededFields_RegressionTargetAndPredictors(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("y", "x1", "x2", "x3", "unused")
 	req := &types.Request{
 		Regressions: []*types.RegressionSpec{{
@@ -226,6 +246,8 @@ func TestNeededFields_RegressionTargetAndPredictors(t *testing.T) {
 // cluster and order_by fields are decoded — projected out, every row
 // would read them null and drop from the fit.
 func TestNeededFields_RegressionCovarianceKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("y", "x1", "region", "week", "unused")
 	for _, c := range []struct {
 		cov  *types.RegressionCovariance
@@ -246,6 +268,8 @@ func TestNeededFields_RegressionCovarianceKeys(t *testing.T) {
 // TestNeededFields_RegressionJackknifeBy: a jackknife_by field is
 // decoded — its values are the delete groups.
 func TestNeededFields_RegressionJackknifeBy(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("y", "x1", "region", "unused")
 	req := &types.Request{Regressions: []*types.RegressionSpec{{
 		Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife", JackknifeBy: "region",
@@ -256,6 +280,8 @@ func TestNeededFields_RegressionJackknifeBy(t *testing.T) {
 }
 
 func TestNeededFields_FeatureStratifyFromParams(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "label", "unused")
 	req := &types.Request{
 		Features: []*types.Feature{{
@@ -271,6 +297,8 @@ func TestNeededFields_FeatureStratifyFromParams(t *testing.T) {
 }
 
 func TestNeededFields_FeatureTargetEncodeFromParams(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("category", "outcome", "unused")
 	req := &types.Request{
 		Features: []*types.Feature{{
@@ -290,6 +318,8 @@ func TestNeededFields_FeatureTargetEncodeFromParams(t *testing.T) {
 // params.fit_on reads decodes (a derived name is no schema field and
 // adds nothing); an unparsable fit_on widens.
 func TestNeededFields_FeatureTargetEncodeFitOn(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("category", "outcome", "flag", "cohort", "unused")
 	te := func(params string) *types.Request {
 		return &types.Request{Features: []*types.Feature{{
@@ -306,6 +336,8 @@ func TestNeededFields_FeatureTargetEncodeFitOn(t *testing.T) {
 }
 
 func TestNeededFields_UnknownExtensionWidens(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b")
 	ext := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -325,6 +357,8 @@ func TestNeededFields_UnknownExtensionWidens(t *testing.T) {
 }
 
 func TestNeededFields_ExtensionWithFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b", "c", "d")
 	ext := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -352,6 +386,8 @@ func TestNeededFields_ExtensionWithFieldInputs(t *testing.T) {
 }
 
 func TestNeededFields_UnknownNamesDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("a", "b")
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
@@ -367,6 +403,8 @@ func TestNeededFields_UnknownNamesDropped(t *testing.T) {
 }
 
 func TestNeededFields_CrosstabAxesAndCell(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("region", "segment", "value", "unused", "noise")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -386,6 +424,8 @@ func TestNeededFields_CrosstabAxesAndCell(t *testing.T) {
 }
 
 func TestNeededFields_CrosstabNestedAxes(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("r1", "r2", "r3", "c1", "v", "unused")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -406,6 +446,8 @@ func TestNeededFields_CrosstabNestedAxes(t *testing.T) {
 }
 
 func TestNeededFields_CrosstabCellParamsWeightedMean(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("region", "segment", "value", "weight", "unused")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -426,6 +468,8 @@ func TestNeededFields_CrosstabCellParamsWeightedMean(t *testing.T) {
 }
 
 func TestNeededFields_CrosstabCellParamsRatio(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("region", "segment", "num", "den", "unused")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -446,6 +490,8 @@ func TestNeededFields_CrosstabCellParamsRatio(t *testing.T) {
 }
 
 func TestNeededFields_LabelBindingField(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("region", "value", "unused")
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
@@ -463,6 +509,8 @@ func TestNeededFields_LabelBindingField(t *testing.T) {
 }
 
 func TestNeededFields_TopLevelAggregationWeightedMean(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("v", "w", "unused")
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{
@@ -479,6 +527,8 @@ func TestNeededFields_TopLevelAggregationWeightedMean(t *testing.T) {
 }
 
 func TestNeededFields_CrosstabFilterExpressionBailsOut(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("region", "segment", "value", "unused")
 	req := &types.Request{
 		Filterers: []*types.Filterer{{
@@ -498,6 +548,8 @@ func TestNeededFields_CrosstabFilterExpressionBailsOut(t *testing.T) {
 }
 
 func TestNeededFields_NilInputsWiden(t *testing.T) {
+	t.Parallel()
+
 	if !NeededFields(nil, mkSchema("a"), nil).IsWide() {
 		t.Errorf("nil request must widen")
 	}
@@ -507,6 +559,8 @@ func TestNeededFields_NilInputsWiden(t *testing.T) {
 }
 
 func TestFieldSet_HasAndWiden(t *testing.T) {
+	t.Parallel()
+
 	s := NewFieldSet(2)
 	s.Add("a")
 	if !s.Has("a") {
@@ -547,6 +601,8 @@ func equalStrings(a, b []string) bool {
 // when only the MarginAggregations walk is reverted, so the two halves of
 // the fix are independently mutation-proved.
 func TestNeededFields_AggregationParamsDistinctBy(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("weight", "respondent", "unused")
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{
@@ -569,6 +625,8 @@ func TestNeededFields_AggregationParamsDistinctBy(t *testing.T) {
 // through Crosstab.Cell, which already calls addAggParamFields — so this
 // arm too only reddens when the distinct_by lookup itself is missing.
 func TestNeededFields_CrosstabCellParamsDistinctBy(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("region", "segment", "weight", "respondent", "unused")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -598,6 +656,8 @@ func TestNeededFields_CrosstabCellParamsDistinctBy(t *testing.T) {
 // ONLY through the MarginAggregations walk, which is what makes this arm
 // red for the walk alone and green for the distinct_by lookup alone.
 func TestNeededFields_CrosstabMarginAggregations(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("brand", "audience", "respondent", "weight", "unused")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -627,6 +687,8 @@ func TestNeededFields_CrosstabMarginAggregations(t *testing.T) {
 // nil-skip every other slot loop performs. Validation refuses a nil entry
 // later; the projection must not panic on the way there.
 func TestNeededFields_CrosstabMarginAggregationsNilEntryTolerated(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("brand", "audience", "respondent", "weight")
 	req := &types.Request{
 		Crosstab: &types.CrosstabSpec{
@@ -650,6 +712,8 @@ func TestNeededFields_CrosstabMarginAggregationsNilEntryTolerated(t *testing.T) 
 // this the fused path would run on a projection that provably cannot
 // cover what the operator reads.
 func TestNeededFields_CrosstabMarginAggregationUnknownExtensionWidens(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("brand", "audience", "respondent", "weight")
 	ext := &ExtensionRegistry{
 		Aggregators: map[types.AggregationType]AggregatorFactory{
@@ -676,6 +740,8 @@ func TestNeededFields_CrosstabMarginAggregationUnknownExtensionWidens(t *testing
 // own weight field are projected (a `null` slot names none, and a name
 // the schema lacks is dropped like any unknown name).
 func TestNeededFields_WeightFields(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("x", "rw", "aw", "cw", "mw", "tw", "pw", "gw", "atw", "ow", "qw", "unused")
 	req := &types.Request{
 		Weight: &types.WeightSpec{Field: "rw"},
@@ -708,6 +774,8 @@ func TestNeededFields_WeightFields(t *testing.T) {
 // literal, a glob and a pattern vector alike — and nothing else; an
 // unresolvable vector widens rather than guessing.
 func TestNeededFields_VectorMembers(t *testing.T) {
+	t.Parallel()
+
 	schema := mkSchema("q_1", "q_2", "q_3", "score", "w_a", "w_b", "unused")
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},

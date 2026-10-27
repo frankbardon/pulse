@@ -38,6 +38,8 @@ func floorCrosstab(cohort string, reqW *types.WeightSpec, cellW types.SlotWeight
 func boolp(b bool) *bool { return &b }
 
 func TestWeight_ComponentsDisabledFloorRefusalMatchesPredict(t *testing.T) {
+	t.Parallel()
+
 	_, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	prob := types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}

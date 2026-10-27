@@ -22,6 +22,8 @@ func paramNames(op opInfo) []string {
 // drafts its first member (the others ride as alternatives), for a
 // built-in and for an extension registration alike.
 func TestCatalog_ExactlyOneOfDraftsFirstMember(t *testing.T) {
+	t.Parallel()
+
 	cat := catalog(descx.BuildManifestForInstance(nil))
 	for op, want := range map[string]struct {
 		param string
@@ -62,6 +64,8 @@ func TestCatalog_ExactlyOneOfDraftsFirstMember(t *testing.T) {
 // TestRecommendBound_OneOfNeedNamesAlternatives: a need drafted from an
 // exactly_one_of group says the caller may give another member instead.
 func TestRecommendBound_OneOfNeedNamesAlternatives(t *testing.T) {
+	t.Parallel()
+
 	found := false
 	for _, r := range boundAll(t, nil, descx.IntentChangeOverTime).Recommendations {
 		if r.Operator != "WIN_EWMA" {
@@ -90,6 +94,8 @@ func TestRecommendBound_OneOfNeedNamesAlternatives(t *testing.T) {
 // drafted with an inline fields list, never a field, bound (plan) and
 // unbound (skeleton) alike; a plain extension aggregator keeps field.
 func TestCatalog_VectorAggregatorDraftsFields(t *testing.T) {
+	t.Parallel()
+
 	m := descx.BuildManifestForInstance(nil)
 	m.Extensions.Aggregators = []descriptor.OperatorMeta{
 		{Name: "AGG_ACME_PROFILE", VectorInput: true, ArrayValued: true},
@@ -135,6 +141,8 @@ func TestCatalog_VectorAggregatorDraftsFields(t *testing.T) {
 // manifest lists under extensions.matrix_ops drafts like a built-in
 // matrix operator — category matrix, required params from its Params.
 func TestCatalog_ExtensionMatrixOp(t *testing.T) {
+	t.Parallel()
+
 	m := &descriptor.Manifest{Extensions: descriptor.ExtensionsManifest{MatrixOps: []descriptor.MatrixMeta{{
 		Name:   "MAT_ACME_COV",
 		Params: []descriptor.Param{{Name: "missing", Type: "enum"}, {Name: "scale", Type: "float", Required: true}},

@@ -7,6 +7,8 @@ import (
 )
 
 func TestResolveFrame(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		rowIdx    int

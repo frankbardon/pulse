@@ -286,6 +286,8 @@ func fusionParityCorpus() []fusionCase {
 // without FieldInputs — on an unprofiled instance and on one whose
 // feature profile hides most of the corpus.
 func TestStreamability_CrosstabFusionPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	schema := paritySchema(t)
 	instances := []struct {
 		name    string
@@ -345,6 +347,8 @@ func TestStreamability_CrosstabFusionPredictMatchesRuntime(t *testing.T) {
 // no-execute answer is eligibility only: Options.DisableCrosstabFusion is
 // a dispatch-time override and changes neither arm's rule.
 func TestStreamability_CrosstabFusionIgnoresDisableOption(t *testing.T) {
+	t.Parallel()
+
 	schema := paritySchema(t)
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), DisableCrosstabFusion: true})
 	if err != nil {
@@ -371,6 +375,8 @@ func TestStreamability_CrosstabFusionIgnoresDisableOption(t *testing.T) {
 // request over the cohort schema. Nil exactly when the request has no
 // crosstab or the instance refuses one of its slots before dispatch.
 func TestPredict_CrosstabFusableMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	schema := paritySchema(t)
 	profiled := &pulse.FeatureProfile{Features: []string{
@@ -511,6 +517,8 @@ func cloneFusionRequest(t *testing.T, r *types.Request) *types.Request {
 // used to take it and fail PROCESSING_INTERNAL ("does not implement
 // RowLocalAttribute") while predict promised a fused run.
 func TestCrosstab_BufferedAttributeRunsBuffered(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	schema := paritySchema(t)
 	fsys := afero.NewMemMapFs()

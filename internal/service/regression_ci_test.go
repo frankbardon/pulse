@@ -142,6 +142,8 @@ func ciSpec(c ciOracle) *types.RegressionSpec {
 // coefficients, df (fractional under probability weights) and conf_level
 // as R has them.
 func TestRegressionCI_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	dir := filepath.Join("..", "processing", "testdata", "reference", "fixtures")
 	cfg := fixtureFS(t, dir)
 	if len(ciOracles) != 24 {
@@ -180,6 +182,8 @@ func TestRegressionCI_MatchesROracle(t *testing.T) {
 // TestRegressionCI_ConfLevelRefusedByPredictAndRuntime: an out-of-range
 // conf_level is PROCESSING_CONFIG from Process and from Predict alike.
 func TestRegressionCI_ConfLevelRefusedByPredictAndRuntime(t *testing.T) {
+	t.Parallel()
+
 	dir := filepath.Join("..", "processing", "testdata", "reference", "fixtures")
 	cfg := fixtureFS(t, dir)
 	data, err := os.ReadFile(filepath.Join(dir, "mtcars.pulse"))

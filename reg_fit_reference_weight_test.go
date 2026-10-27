@@ -18,6 +18,8 @@ import (
 // unweighted run). The refit path (no params.fit) stays applied.
 
 func TestRegFitReference_WeightSkipped(t *testing.T) {
+	t.Parallel()
+
 	fsys := fitsFacadeFS(t)
 	writeCoefModel(t, fsys, facadeModel, 2)
 	p, err := New(Options{FS: fsys})

@@ -118,14 +118,16 @@ func primaryNullFieldName(req *types.Request) string {
 	return ""
 }
 
-// countAbsentBuffered counts records whose named field has no value by
-// the aggregation-floor rule (FieldPresent): an ungrouped buffered run's
+// countAbsentBuffered counts records absent from agg's slot by the
+// aggregation-floor rule (AggregationPresent — a vector aggregator's row
+// is absent when every member is null): an ungrouped buffered run's
 // Run.NullRecords when the plan skipped the aggregation components that
-// carry the same figure.
-func countAbsentBuffered(records []*Record, field string) int64 {
+// carry the same figure. It once asked FieldPresent on agg.Field, which
+// a vector aggregator leaves empty, so every record counted as null.
+func countAbsentBuffered(records []*Record, agg *types.Aggregation) int64 {
 	var n int64
 	for _, r := range records {
-		if !FieldPresent(r, field) {
+		if !AggregationPresent(r, agg) {
 			n++
 		}
 	}

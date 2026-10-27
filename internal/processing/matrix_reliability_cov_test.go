@@ -52,6 +52,8 @@ func relCovFold(t *testing.T, mode linalg.CoMomentMode) *linalg.CoMoment {
 // bit, and at least one entry's n differs from the slot-wide NEff (so
 // the slot-wide factor would move it).
 func TestReliabilityCov_PairwisePerEntryNEff(t *testing.T) {
+	t.Parallel()
+
 	cm := relCovFold(t, linalg.Pairwise)
 	c, raw := reliabilityCov(cm, probWeight), cm.Cov(0)
 	differs := false
@@ -76,6 +78,8 @@ func TestReliabilityCov_PairwisePerEntryNEff(t *testing.T) {
 // slot's NEff for every entry, so the result is bit-identical to the
 // slot-wide factor the operator always applied there.
 func TestReliabilityCov_ListwiseKeepsSlotWideBits(t *testing.T) {
+	t.Parallel()
+
 	cm := relCovFold(t, linalg.Listwise)
 	c, raw := reliabilityCov(cm, probWeight), cm.Cov(0)
 	f := cm.NEff() / (cm.NEff() - 1)
@@ -92,6 +96,8 @@ func TestReliabilityCov_ListwiseKeepsSlotWideBits(t *testing.T) {
 // TestReliabilityCov_UnweightedAndFrequencyUntouched: the Cov(1) branch
 // (already per pair: PairW − 1) is unchanged.
 func TestReliabilityCov_UnweightedAndFrequencyUntouched(t *testing.T) {
+	t.Parallel()
+
 	cm := relCovFold(t, linalg.Pairwise)
 	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
 	want := cm.Cov(1)
@@ -112,6 +118,8 @@ func TestReliabilityCov_UnweightedAndFrequencyUntouched(t *testing.T) {
 // alpha and the item-total r it reaches are NaN (JSON null), never ±Inf,
 // while an item's own variance over its own rows stays defined.
 func TestReliabilityCov_ThinPairIsNaN(t *testing.T) {
+	t.Parallel()
+
 	cm, err := linalg.NewCoMoment(3, linalg.Pairwise)
 	if err != nil {
 		t.Fatal(err)

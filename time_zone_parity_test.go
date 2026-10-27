@@ -99,6 +99,8 @@ func joinedGroupDate(cohort, field, reqTZ string) *types.Request {
 // in neither schema (a derived column) both refuse with the same code
 // and details.
 func TestTimeZone_JoinPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -145,6 +147,8 @@ func TestTimeZone_JoinPredictMatchesRuntime(t *testing.T) {
 // runtime and predict report the runtime's own "unknown … type"
 // PROCESSING_CONFIG whether or not the slot carries a `tz`.
 func TestTimeZone_DisableDefaultsSameErrorBothSides(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs, DisableDefaults: true})
 	if err != nil {
@@ -197,6 +201,8 @@ func TestTimeZone_DisableDefaultsSameErrorBothSides(t *testing.T) {
 // message and details (location included) the runtime returns, and
 // accepts one on a datetime field as the runtime does.
 func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()
@@ -268,6 +274,8 @@ func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
 // (0-based chain stage, stage 0 included) — beside {slot, operator, tz},
 // with the code still reachable through errors.As.
 func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := zoneCohort(t)
 	p := zonePulse(t, fs, "")
 	ctx := context.Background()

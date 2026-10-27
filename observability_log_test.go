@@ -77,6 +77,8 @@ func only(recs []logRecord, msg string) []logRecord {
 
 // TestLogNewEmitsOnceAtInfo: pulse.New logs one Info lifecycle record.
 func TestLogNewEmitsOnceAtInfo(t *testing.T) {
+	t.Parallel()
+
 	h := &captureHandler{}
 	_, _ = obsFixture(t, Options{Logger: h.logger()})
 	recs := only(h.take(), logMsgNew)
@@ -96,6 +98,8 @@ func TestLogNewEmitsOnceAtInfo(t *testing.T) {
 // record carrying the code and the stable attrs — never the error
 // message, which here echoes a request value.
 func TestLogFailedOperationCodeOnly(t *testing.T) {
+	t.Parallel()
+
 	h := &captureHandler{}
 	p, _ := obsFixture(t, Options{Logger: h.logger()})
 	h.take()
@@ -132,6 +136,8 @@ func TestLogFailedOperationCodeOnly(t *testing.T) {
 // the limit / configured / observed triple (and nothing else from the
 // details), then the Error by code.
 func TestLogLimitTripWarn(t *testing.T) {
+	t.Parallel()
+
 	h := &captureHandler{}
 	p, _ := obsFixture(t, Options{Logger: h.logger(), Limits: Limits{MaxGroups: 1}})
 	h.take()
@@ -165,6 +171,8 @@ func TestLogLimitTripWarn(t *testing.T) {
 // TestLogResponseWarningsByCode: each warning on an operation's result
 // logs one Warn with its code — never its message or details.
 func TestLogResponseWarningsByCode(t *testing.T) {
+	t.Parallel()
+
 	h := &captureHandler{}
 	p := &Pulse{logger: h.logger()}
 	const sentinel = "zz_warning_value_sentinel"
@@ -194,6 +202,8 @@ func TestLogResponseWarningsByCode(t *testing.T) {
 
 // TestResultWarningCodes covers every warning carrier the logger reads.
 func TestResultWarningCodes(t *testing.T) {
+	t.Parallel()
+
 	coded := func(c errors.Code) *errors.CodedError { return errors.NewCodedError(c, "msg") }
 	resp := &types.Response{
 		Warnings: []*types.ResponseWarning{{Code: "A"}, nil, {Code: ""}},
@@ -230,6 +240,8 @@ func TestResultWarningCodes(t *testing.T) {
 // TestLogLifecycleOperations: index build/drop and shard-archive
 // rewrites each log one Info lifecycle record; read operations do not.
 func TestLogLifecycleOperations(t *testing.T) {
+	t.Parallel()
+
 	h := &captureHandler{}
 	p, _ := obsFixture(t, Options{Logger: h.logger()})
 	h.take()
@@ -264,6 +276,8 @@ func TestLogLifecycleOperations(t *testing.T) {
 // TestLogImportsSweep: an explicit TTL sweep logs one Info record with
 // the removed count, through the imports manager the Logger reaches.
 func TestLogImportsSweep(t *testing.T) {
+	t.Parallel()
+
 	h := &captureHandler{}
 	p, _ := obsFixture(t, Options{Logger: h.logger()})
 	h.take()
@@ -285,6 +299,8 @@ func TestLogImportsSweep(t *testing.T) {
 //
 // Falsified by removing the p.logPlan call in observeOn.
 func TestLogPlanDecisionDebug(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	h := &captureHandler{}
 	p, _ := obsFixture(t, Options{Logger: h.logger()})
@@ -341,6 +357,8 @@ func (g levelGate) Enabled(_ context.Context, l slog.Level) bool { return l >= g
 // Falsified by passing 0 for the projected count in
 // processShardArchiveParallel's setPlan.
 func TestLogPlanDecisionDebug_ShardParallelProjected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}

@@ -74,6 +74,8 @@ const calendarRowsWant = `[` +
 // ts-ordered row number follows time, and a WIN_LAG copy of the date
 // renders as a date.
 func TestProcessRecordRows_RenderCalendarLiterals(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	calendarCohort(t, fs, "cal.pulse")
 	p, err := pulse.New(pulse.Options{FS: fs})
@@ -133,6 +135,8 @@ func TestProcessRecordRows_RenderCalendarLiterals(t *testing.T) {
 // fields and a WIN_LAG / WIN_LEAD copy of one (a lag of a lead too —
 // value windows accept date, not datetime); a rank stays a number.
 func TestProcessRecordRows_TemporalColumnRules(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	calendarCohort(t, fs, "cal.pulse")
 	p, err := pulse.New(pulse.Options{FS: fs})

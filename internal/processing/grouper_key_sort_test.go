@@ -58,6 +58,8 @@ func checkSortedKeys(t *testing.T, schema *encoding.Schema, groups []*types.Grou
 // day_of_week key column is Monday -> Sunday ascending, Sunday ->
 // Monday descending, on the buffered and streaming arms alike.
 func TestRequestSort_DayOfWeekKeyFollowsGrouperOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	groups := []*types.Group{{Type: types.GROUP_DATE, Field: "enrolled",
 		Params: json.RawMessage(`{"component":"day_of_week"}`)}}
@@ -68,6 +70,8 @@ func TestRequestSort_DayOfWeekKeyFollowsGrouperOrder(t *testing.T) {
 // a named range table sort in supplied order (launch, growth, steady),
 // not alphabetically.
 func TestRequestSort_DateRangesKeyFollowsSuppliedOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	records := []*Record{
 		NewRecord(schema, map[string]float64{"enrolled": epochDays(2024, 12, 1), "score": 3}), // steady
@@ -88,6 +92,8 @@ func TestRequestSort_DateRangesKeyFollowsSuppliedOrder(t *testing.T) {
 // TestRequestSort_NumericBucketKeyFollowsValue: GROUP_ROUNDED keys sort
 // by value ("5", "9.5"... "10"), not as strings ("10" before "5").
 func TestRequestSort_NumericBucketKeyFollowsValue(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	var records []*Record
 	for _, v := range []float64{10, 5, 15} {
@@ -100,6 +106,8 @@ func TestRequestSort_NumericBucketKeyFollowsValue(t *testing.T) {
 // TestRequestSort_ISODateKeyUnchanged: an ISO day key (the grouper
 // ranks none) sorts byte-wise — chronologically — exactly as before.
 func TestRequestSort_ISODateKeyUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	groups := []*types.Group{{Type: types.GROUP_DATE, Field: "enrolled", Params: json.RawMessage(`{"component":"day"}`)}}
 	want := []string{"2024-01-15", "2024-01-16", "2024-01-17", "2024-01-18", "2024-01-19", "2024-01-20", "2024-01-21"}
@@ -151,6 +159,8 @@ func asF(v any) float64 {
 // WIN_RUNNING_SUM, WIN_RANK and WIN_DENSE_RANK ordered by a day_of_week
 // key walk Monday -> Sunday (descending reverses), never Friday-first.
 func TestWindowOrderBy_DayOfWeekKeyFollowsGrouperOrder(t *testing.T) {
+	t.Parallel()
+
 	asc := []types.OrderKey{{Field: "enrolled"}}
 	desc := []types.OrderKey{{Field: "enrolled", Desc: true}}
 
@@ -194,6 +204,8 @@ func TestWindowOrderBy_DayOfWeekKeyFollowsGrouperOrder(t *testing.T) {
 // two sites' same weekday and rank weekdays Monday-first: RANK
 // 1,1,3,3,... and DENSE_RANK 1,1,2,2,...
 func TestWindowRank_GrouperKeyTiesFollowComparator(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "site", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "enrolled", Type: encoding.FieldTypeDate},
@@ -248,6 +260,8 @@ func TestWindowRank_GrouperKeyTiesFollowComparator(t *testing.T) {
 // GROUP_ROUNDED keys "5", "10", "15" rank by
 // value (1, 2, 3), not as strings ("10" first).
 func TestWindowOrderBy_NumericBucketKeyFollowsValue(t *testing.T) {
+	t.Parallel()
+
 	schema := dateSchema()
 	var records []*Record
 	for _, v := range []float64{10, 5, 15} {
@@ -276,6 +290,8 @@ func TestWindowOrderBy_NumericBucketKeyFollowsValue(t *testing.T) {
 // (sortGroupedRows), so a sort on a GROUP_ROUNDED key orders them by
 // bucket value on the buffered and streaming arms alike.
 func TestRequestSort_GroupedMatricesFollowGrouperKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 0},
 		{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 8},

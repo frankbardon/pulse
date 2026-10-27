@@ -6,6 +6,8 @@ import "testing"
 // caller-facing row (Sample, Lookup): ISO 8601 YYYY-MM-DD, pre-epoch
 // days included.
 func TestFormatDay(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		day  int64
 		want string
@@ -26,6 +28,8 @@ func TestFormatDay(t *testing.T) {
 // as in a caller-facing row: always the `…Z` form, whatever zone a
 // request declares.
 func TestFormatUTC(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		sec  int64
 		want string

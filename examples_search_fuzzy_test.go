@@ -15,6 +15,8 @@ import (
 // misspelt word — "regon" finds the region examples an intent keeps —
 // while a correctly spelt one keeps its exact answer.
 func TestExamplesSearchWith_FuzzyTier(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)

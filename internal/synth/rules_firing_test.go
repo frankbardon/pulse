@@ -19,6 +19,8 @@ import (
 //  2. A rule firing on SOME rows is not reported.
 //  3. A rule firing on EVERY row is not reported.
 func TestRules_ZeroFiringRuleIsReportedAndOthersAreNot(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(400, []synth.RuleSpec{
 		// Fires on roughly half the rows: `aware` is bernoulli(0.5).
 		{When: "aware == 0", SetNull: []string{"spend"}},
@@ -65,6 +67,8 @@ func TestRules_ZeroFiringRuleIsReportedAndOthersAreNot(t *testing.T) {
 // stronger statement than "two runs of the same spec agree" and the one
 // that fails if the counter ever reaches the row.
 func TestRules_FiringCountDoesNotMoveAGeneratedByte(t *testing.T) {
+	t.Parallel()
+
 	withRule, res, err := synth.SynthBytes(
 		ruleModelSpec(300, []synth.RuleSpec{{When: "aware == 2", SetNull: []string{"spend"}}}),
 		synth.Options{Seed: 17})
@@ -95,6 +99,8 @@ func TestRules_FiringCountDoesNotMoveAGeneratedByte(t *testing.T) {
 // counter incrementing in apply() would report it as applied while the
 // cohort contains no row it ever touched.
 func TestRules_ConstraintRejectedRowsAreNotFirings(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(200, []synth.RuleSpec{{
 		When: "region == \"west\"", Set: map[string]any{"score": 3.0},
 	}})

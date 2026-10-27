@@ -82,6 +82,8 @@ func runOLSSelection(t *testing.T, selection, criterion string, records []Record
 // threshold (a well-known limitation of greedy forward AIC at moderate
 // n). BIC's log(n) penalty rejects them reliably here.
 func TestRegOLS_ForwardSelection_RecoversTrueFeatures(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 500, 23)
 	res := runOLSSelection(t, "forward", "bic", records)
 	if res.Selection != "forward" {
@@ -99,6 +101,8 @@ func TestRegOLS_ForwardSelection_RecoversTrueFeatures(t *testing.T) {
 // elimination starts at the full 5-predictor model and should converge
 // to {x1, x3} under BIC.
 func TestRegOLS_BackwardSelection_RecoversTrueFeatures(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 500, 29)
 	res := runOLSSelection(t, "backward", "bic", records)
 	if !setEq(res.SelectedFeatures, []string{"x1", "x3"}) {
@@ -109,6 +113,8 @@ func TestRegOLS_BackwardSelection_RecoversTrueFeatures(t *testing.T) {
 // TestRegOLS_Stepwise_RecoversTrueFeatures: bidirectional stepwise on
 // the same fixture should converge to {x1, x3} under BIC.
 func TestRegOLS_Stepwise_RecoversTrueFeatures(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 500, 31)
 	res := runOLSSelection(t, "stepwise", "bic", records)
 	if !setEq(res.SelectedFeatures, []string{"x1", "x3"}) {
@@ -122,6 +128,8 @@ func TestRegOLS_Stepwise_RecoversTrueFeatures(t *testing.T) {
 // (x1 and x3 are always selected) rather than equality, so the AIC
 // path is still covered by selection's contract.
 func TestRegOLS_Selection_AICIncludesSignalPredictors(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 200, 37)
 	res := runOLSSelection(t, "forward", "aic", records)
 	hasX1, hasX3 := false, false
@@ -142,6 +150,8 @@ func TestRegOLS_Selection_AICIncludesSignalPredictors(t *testing.T) {
 // coefficient map contains entries only for the selected predictors
 // plus the intercept.
 func TestRegOLS_Selection_PreservesCoefficients(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 200, 41)
 	res := runOLSSelection(t, "forward", "aic", records)
 
@@ -174,6 +184,8 @@ func TestRegOLS_Selection_PreservesCoefficients(t *testing.T) {
 // run end-to-end; SE / p-values come from the resample, SelectedFeatures
 // from the selection step.
 func TestRegOLS_Selection_ResampleCompose(t *testing.T) {
+	t.Parallel()
+
 	records := makeSelectionFixture(t, 500, 43)
 	spec := &types.RegressionSpec{
 		Type:           types.REG_OLS,

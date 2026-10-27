@@ -37,6 +37,8 @@ func buildFilter(t *testing.T, ft types.FiltererType, field string, values []str
 }
 
 func TestFilterer_True_Strict_PackedBool(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	fn, err := buildFilter(t, types.FILTER_TRUE, "flag", nil, schema)
 	if err != nil {
@@ -67,6 +69,8 @@ func TestFilterer_True_Strict_PackedBool(t *testing.T) {
 }
 
 func TestFilterer_False_Strict_PackedBool(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	fn, err := buildFilter(t, types.FILTER_FALSE, "flag", nil, schema)
 	if err != nil {
@@ -97,6 +101,8 @@ func TestFilterer_False_Strict_PackedBool(t *testing.T) {
 }
 
 func TestFilterer_True_Strict_RejectsNonBool(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	_, err := buildFilter(t, types.FILTER_TRUE, "score", nil, schema)
 	if err == nil {
@@ -108,6 +114,8 @@ func TestFilterer_True_Strict_RejectsNonBool(t *testing.T) {
 }
 
 func TestFilterer_True_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	_, err := buildFilter(t, types.FILTER_TRUE, "", nil, schema)
 	if err == nil {
@@ -116,6 +124,8 @@ func TestFilterer_True_RequiresField(t *testing.T) {
 }
 
 func TestFilterer_True_MissingFieldInSchema(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	_, err := buildFilter(t, types.FILTER_TRUE, "ghost", nil, schema)
 	if err == nil {
@@ -124,6 +134,8 @@ func TestFilterer_True_MissingFieldInSchema(t *testing.T) {
 }
 
 func TestFilterer_True_RejectsUnknownValuesToken(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	_, err := buildFilter(t, types.FILTER_TRUE, "flag", []string{"loose"}, schema)
 	if err == nil {
@@ -132,6 +144,8 @@ func TestFilterer_True_RejectsUnknownValuesToken(t *testing.T) {
 }
 
 func TestFilterer_True_RejectsTooManyValues(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	_, err := buildFilter(t, types.FILTER_TRUE, "flag", []string{"truthy", "extra"}, schema)
 	if err == nil {
@@ -140,6 +154,8 @@ func TestFilterer_True_RejectsTooManyValues(t *testing.T) {
 }
 
 func TestFilterer_True_StrictExplicit(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	if _, err := buildFilter(t, types.FILTER_TRUE, "flag", []string{"strict"}, schema); err != nil {
 		t.Fatalf("explicit strict should build: %v", err)
@@ -147,6 +163,8 @@ func TestFilterer_True_StrictExplicit(t *testing.T) {
 }
 
 func TestFilterer_True_Truthy_Numeric(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	fn, err := buildFilter(t, types.FILTER_TRUE, "score", []string{"truthy"}, schema)
 	if err != nil {
@@ -178,6 +196,8 @@ func TestFilterer_True_Truthy_Numeric(t *testing.T) {
 }
 
 func TestFilterer_False_Truthy_Numeric_KeepsNullAndZero(t *testing.T) {
+	t.Parallel()
+
 	schema := boolSchema()
 	fn, err := buildFilter(t, types.FILTER_FALSE, "score", []string{"truthy"}, schema)
 	if err != nil {
@@ -208,6 +228,8 @@ func TestFilterer_False_Truthy_Numeric_KeepsNullAndZero(t *testing.T) {
 }
 
 func TestFilterer_True_Truthy_Categorical(t *testing.T) {
+	t.Parallel()
+
 	schema := mixedSchema()
 	fn, err := buildFilter(t, types.FILTER_TRUE, "notes", []string{"truthy"}, schema)
 	if err != nil {
@@ -240,6 +262,8 @@ func TestFilterer_True_Truthy_Categorical(t *testing.T) {
 }
 
 func TestJSTruthy_TableMatchesJS(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   any

@@ -82,6 +82,8 @@ func mustDecl(t *testing.T, s string) VectorDecl {
 }
 
 func TestParseVectorDecl(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in   string
 		want VectorDecl
@@ -122,6 +124,8 @@ func vecReason(err error) string {
 }
 
 func TestApplyVectorKinds(t *testing.T) {
+	t.Parallel()
+
 	decls := []VectorDecl{{Name: "v", Columns: []string{"a", "b"}}, {Name: "w", Columns: []string{"c", "d"}}}
 	if err := ApplyVectorKinds(decls, []string{"v:scale:1:7", "w:composition"}); err != nil {
 		t.Fatal(err)
@@ -154,6 +158,8 @@ func TestApplyVectorKinds(t *testing.T) {
 // capture group, the kind as declared; all-empty is a null vector (the
 // inferred field promoted to nullable), some-empty NaN elements.
 func TestImportJob_VectorFoldRegex(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	decl := mustDecl(t, "brand_rating:/^rate_(.*)$/")
 	decls := []VectorDecl{decl}
@@ -209,6 +215,8 @@ func TestImportJob_VectorFoldRegex(t *testing.T) {
 // LISTED order (labels are the full column names), the vector sits at
 // its earliest member's source position, and f32 stores vec_f32.
 func TestImportJob_VectorFoldListedOrder(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	_, fs, err := runVecImport(t, cols, rows[:2], func(j *ImportJob) {
 		j.Vectors = []VectorDecl{mustDecl(t, "pair:f32:rate_c,rate_a")}
@@ -240,6 +248,8 @@ func TestImportJob_VectorFoldListedOrder(t *testing.T) {
 // fails its row under the ordinary PULSE_IMPORT_ROW_ERROR rule; the
 // other rows import.
 func TestImportJob_VectorNonNumericCellIsRowError(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	rows[1][3] = "high"
 	rep, _, err := runVecImport(t, cols, rows, func(j *ImportJob) {
@@ -258,6 +268,8 @@ func TestImportJob_VectorNonNumericCellIsRowError(t *testing.T) {
 // TestImportJob_VectorRefusals: every import-time refusal carries
 // PULSE_IMPORT_VECTOR_INVALID and its reason, before a row is read.
 func TestImportJob_VectorRefusals(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	cases := []struct {
 		name   string
@@ -335,6 +347,8 @@ func (c *countingRowsReader) ReadRows(ctx context.Context, fn func([]string) err
 // row — 256 times the wideFieldBytes scratch — and imports without
 // truncation.
 func TestImportJob_VectorAtMaxDim(t *testing.T) {
+	t.Parallel()
+
 	cols := []string{"id"}
 	for i := 0; i < encoding.MaxVectorDim; i++ {
 		cols = append(cols, fmt.Sprintf("e%04d", i))
@@ -370,6 +384,8 @@ func TestImportJob_VectorAtMaxDim(t *testing.T) {
 // from the fold, a declared kind wins. A vec field nobody folds, a dim
 // mismatch and a folded name typed as a scalar are refused.
 func TestImportJob_VectorExplicitSchema(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	schema, err := ParseSchemaJSON([]byte(`[
 		{"name":"id","type":"u8"},
@@ -427,6 +443,8 @@ func TestImportJob_VectorExplicitSchema(t *testing.T) {
 // type has no dim to give the column — refused before any row, on Run
 // and Predict.
 func TestImportJob_VectorOverrideRefused(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	for _, verb := range []string{"run", "predict"} {
 		job := NewImportJob(newMockReader(cols, rows), "out.pulse")
@@ -447,6 +465,8 @@ func TestImportJob_VectorOverrideRefused(t *testing.T) {
 // TestImportJob_VectorPredict: plain and measured predict report the
 // schema Run writes, the vector's null promotion included.
 func TestImportJob_VectorPredict(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	_, fs, err := runVecImport(t, cols, rows, func(j *ImportJob) { j.Vectors = []VectorDecl{{Name: "r", Pattern: "^rate_"}} })
 	if err != nil {
@@ -507,6 +527,8 @@ func (m *nullAwareMock) RowNulls() []bool { return m.cur }
 // null vector — and the scalar columns keep their own declared nulls
 // at their folded positions.
 func TestImportJob_VectorDeclaredNulls(t *testing.T) {
+	t.Parallel()
+
 	cols := []string{"x", "a", "b", "label"}
 	rows := [][]string{
 		{"1", "1", "2", "p"},
@@ -538,6 +560,8 @@ func TestImportJob_VectorDeclaredNulls(t *testing.T) {
 // hands over a dictionary of the unfolded columns; folding it is
 // refused.
 func TestImportJob_VectorAuthoritativeSourceRefused(t *testing.T) {
+	t.Parallel()
+
 	src := &authoritativeReader{
 		columns: []string{"a", "b"},
 		rows:    [][]string{{"1", "2"}},
@@ -557,6 +581,8 @@ func TestImportJob_VectorAuthoritativeSourceRefused(t *testing.T) {
 // TestImportJob_NoVectorsUnchanged: without declarations the fold is
 // not installed and the cohort bytes are the plain import's.
 func TestImportJob_NoVectorsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := vecFixture()
 	_, a, err := runVecImport(t, cols, rows, func(*ImportJob) {})
 	if err != nil {

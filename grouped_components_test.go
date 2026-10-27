@@ -91,6 +91,8 @@ func asSlotEntry(g types.AggregationGroupComponents) types.AggregationComponents
 // byte-identical to an ungrouped run filtered to that bucket's records;
 // the slot-level floor is the cohort-wide total.
 func TestGroupedComponents_PerGroupMatchesFilteredUngrouped(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openGroupedComponents(t, false)
 	grouped := gcProcess(t, p, &types.Request{
 		Cohort:       cohort,
@@ -150,6 +152,8 @@ func TestGroupedComponents_PerGroupMatchesFilteredUngrouped(t *testing.T) {
 // TestGroupedComponents_FollowDataOrder pins groups[i] ↔ Data[i], with
 // the default (alphabetical) order and under Request.Sort.
 func TestGroupedComponents_FollowDataOrder(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openGroupedComponents(t, false)
 	for _, tc := range []struct {
 		name string
@@ -192,6 +196,8 @@ func TestGroupedComponents_FollowDataOrder(t *testing.T) {
 // TestGroupedComponents_OptOut: both opt-out knobs leave the buffered
 // grouped response with no Components at all.
 func TestGroupedComponents_OptOut(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openGroupedComponents(t, false)
 	off := true
 	resp := gcProcess(t, p, &types.Request{

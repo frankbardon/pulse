@@ -12,6 +12,8 @@ import (
 // formula or a holdout, and a params.fit on an attribute or a matrix —
 // while another fit's name, a computed name or no reference is not.
 func TestSweepSlotReadsFit(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		slot *types.Request
@@ -38,6 +40,8 @@ func TestSweepSlotReadsFit(t *testing.T) {
 // rank presence and exactly the expanded sweep slots (explicit slots
 // before them, banner slots after them excluded).
 func TestSweepFitScope(t *testing.T) {
+	t.Parallel()
+
 	if s := SweepFitScope(&types.ComposedRequest{}, nil, 0, 0); s.Present || s.Slots != nil {
 		t.Fatalf("sweep-free scope %+v", s)
 	}

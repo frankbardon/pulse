@@ -48,6 +48,8 @@ func sameFloats(a, b []float64) bool {
 // is a value); a native element reads the stored element, a NaN element
 // is a null member and a null vector makes every element null.
 func TestMemberFill_NullAndNaN(t *testing.T) {
+	t.Parallel()
+
 	s := fillSchema()
 	nan := math.NaN()
 	f := fillOf(t, "raw[2]", "x", "emb")
@@ -107,6 +109,8 @@ func TestMemberFill_NullAndNaN(t *testing.T) {
 // reads element members — a row is present when any element answered,
 // absent when the vector is null or every element is NaN.
 func TestAggregationPresent_NativeElements(t *testing.T) {
+	t.Parallel()
+
 	s := fillSchema()
 	nan := math.NaN()
 	agg := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"emb[1]", "emb[3]"}}
@@ -128,6 +132,8 @@ func TestAggregationPresent_NativeElements(t *testing.T) {
 // TestMemberFill_DecodedRecordAllocatesNothing: the fill reads a
 // reused decoded record's vector storage in place.
 func TestMemberFill_DecodedRecordAllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	s := fillSchema()
 	var buf bytes.Buffer
 	const rows = 32
@@ -159,6 +165,8 @@ func TestMemberFill_DecodedRecordAllocatesNothing(t *testing.T) {
 // non-canonical "f[k]" spelling never an element — and, with no schema,
 // still reads element members by name (the MemberValue fallback).
 func TestMemberFillOf_LiteralMembers(t *testing.T) {
+	t.Parallel()
+
 	s := fillSchema()
 	nan := math.NaN()
 	rec := NewRecordWithWide(s, map[string]float64{"x": 1.5}, nil,
@@ -189,6 +197,8 @@ func TestMemberFillOf_LiteralMembers(t *testing.T) {
 // TestMemberValue_AllocatesNothing: the name-only reader parses an
 // element member without allocating, at any element index.
 func TestMemberValue_AllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	s := &encoding.Schema{
 		Fields:  []encoding.Field{{Name: "big", Type: encoding.FieldTypeVecF64}},
 		Vectors: []encoding.VectorField{{FieldIndex: 0, Dim: 200}},

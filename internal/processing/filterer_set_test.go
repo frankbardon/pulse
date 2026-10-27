@@ -9,6 +9,8 @@ import (
 // Reuses makeSetTestSchema + makeSetRecord from aggregator_set_test.go.
 
 func TestFilterSetContainsAny(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	builder := newSetContainsAnyFilterer()
 	fn, err := builder.Build(&types.Filterer{
@@ -40,6 +42,8 @@ func TestFilterSetContainsAny(t *testing.T) {
 }
 
 func TestFilterSetContainsAll(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	builder := newSetContainsAllFilterer()
 	fn, _ := builder.Build(&types.Filterer{
@@ -65,6 +69,8 @@ func TestFilterSetContainsAll(t *testing.T) {
 }
 
 func TestFilterSetContainsNone(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	builder := newSetContainsNoneFilterer()
 	fn, _ := builder.Build(&types.Filterer{
@@ -89,6 +95,8 @@ func TestFilterSetContainsNone(t *testing.T) {
 }
 
 func TestFilterSetEquals(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	builder := newSetEqualsFilterer()
 	fn, _ := builder.Build(&types.Filterer{
@@ -113,6 +121,8 @@ func TestFilterSetEquals(t *testing.T) {
 }
 
 func TestFilterSet_UnknownLabelRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	builder := newSetContainsAnyFilterer()
 	_, err := builder.Build(&types.Filterer{

@@ -14,6 +14,8 @@ import (
 // FMA-free left-to-right sum it computed before the registry — so the
 // determinism contract and every pinned partition are unchanged.
 func TestKMeans_SqDistIsRegistrySqEuclidean(t *testing.T) {
+	t.Parallel()
+
 	if kmeansMetric.Name() != "sq_euclidean" || !metric.Accepts(metric.ConsumerKMeans, kmeansMetric.Name()) {
 		t.Fatalf("k-means metric %q", kmeansMetric.Name())
 	}

@@ -9,6 +9,8 @@ import (
 )
 
 func TestAllFeatureTypes_AlphabeticalAndComplete(t *testing.T) {
+	t.Parallel()
+
 	got := types.AllFeatureTypes()
 	want := []types.FeatureType{
 		types.FEAT_BUCKETIZE,
@@ -33,6 +35,8 @@ func TestAllFeatureTypes_AlphabeticalAndComplete(t *testing.T) {
 }
 
 func TestRequest_FeaturesRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "demo.pulse"},
 		Features: []*types.Feature{
@@ -62,6 +66,8 @@ func TestRequest_FeaturesRoundTrip(t *testing.T) {
 }
 
 func TestRequest_OmitsEmptyFeatures(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{Cohort: &types.Cohort{Filename: "x"}}
 	body, err := json.Marshal(req)
 	if err != nil {

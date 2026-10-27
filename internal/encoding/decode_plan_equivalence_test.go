@@ -767,6 +767,8 @@ func generateBigSchemaRecords(t *testing.T, schema *encoding.Schema, seed int64)
 // projection subset produces byte-equal decode results between the two
 // paths. Schemas are kept to ≤ 12 fields so the subset sweep is feasible.
 func TestDecodePlan_Equivalence_PerType(t *testing.T) {
+	t.Parallel()
+
 	fixtures := perTypeFixtures()
 	for _, f := range fixtures {
 		f := f
@@ -805,6 +807,8 @@ func TestDecodePlan_Equivalence_PerType(t *testing.T) {
 // and the all-bitmap-null variant. This keeps the test runtime sub-30s
 // while still exercising every record at the load-bearing extremes.
 func TestDecodePlan_Equivalence_PerTypeAllRecords(t *testing.T) {
+	t.Parallel()
+
 	fixtures := perTypeFixtures()
 	for _, f := range fixtures {
 		f := f
@@ -835,6 +839,8 @@ func TestDecodePlan_Equivalence_PerTypeAllRecords(t *testing.T) {
 // subset of a 10-field mixed schema across a single representative
 // record per subset. Records span a sub-sample of the synth corpus.
 func TestDecodePlan_Equivalence_SmallMixed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32},
 		{Name: "u4_lo", Type: encoding.FieldTypeU4, BitPosition: 0},
@@ -895,124 +901,6 @@ func TestDecodePlan_Equivalence_SmallMixed(t *testing.T) {
 	}
 }
 
-// TestDecodePlan_Equivalence_BigSchemaSampled exercises a 26-field schema
-// across ~200 deterministically sampled projection subsets covering every
-// shape the plan builder distinguishes: empty, full, only nullable, only
-// bit-packed, leading skip + trailing decode, mid retention with leading
-// AND trailing skips, every-other-field, plus uniformly random subsets.
-func TestDecodePlan_Equivalence_BigSchemaSampled(t *testing.T) {
-	schema := bigMixedSchema()
-	records := generateBigSchemaRecords(t, schema, 0xB16D15CE)
-	all := allFieldNames(schema)
-	nullable := nullableFieldNames(schema)
-	bitPacked := bitPackedFieldNames(schema)
-
-	type sample struct {
-		label    string
-		retained []string
-	}
-	samples := []sample{
-		{"empty", nil},
-		{"full", all},
-		{"only_nullable", nullable},
-		{"only_bit_packed", bitPacked},
-	}
-	// Leading skip + trailing decode: retain only the last field.
-	samples = append(samples, sample{
-		label:    "trailing_only",
-		retained: []string{all[len(all)-1]},
-	})
-	// Leading retain + trailing skip: retain only the first field.
-	samples = append(samples, sample{
-		label:    "leading_only",
-		retained: []string{all[0]},
-	})
-	// Mid retention only: retain a single mid-schema field so the plan
-	// emits a leading skip, a tiny decode segment, and a trailing skip
-	// (plus the bitmap segment).
-	samples = append(samples, sample{
-		label:    "mid_only",
-		retained: []string{all[len(all)/2]},
-	})
-	// Two mid-only retains, far apart, so the plan emits ≥ 3 skip
-	// segments (leading, between-retains, trailing).
-	samples = append(samples, sample{
-		label:    "two_mid_apart",
-		retained: []string{all[6], all[18]},
-	})
-	// Every-other-field retain: alternating skip:decode pattern.
-	{
-		var pat []string
-		for i := 0; i < len(all); i += 2 {
-			pat = append(pat, all[i])
-		}
-		samples = append(samples, sample{label: "every_other", retained: pat})
-	}
-	// Odd-indexed retain to complement every_other.
-	{
-		var pat []string
-		for i := 1; i < len(all); i += 2 {
-			pat = append(pat, all[i])
-		}
-		samples = append(samples, sample{label: "every_other_odd", retained: pat})
-	}
-	// All - one (each field, in turn — but we cap to avoid blowing the
-	// sample budget; tested for every field via PerType already).
-	for i := 0; i < len(all); i++ {
-		except := make([]string, 0, len(all)-1)
-		for j, n := range all {
-			if j == i {
-				continue
-			}
-			except = append(except, n)
-		}
-		samples = append(samples, sample{
-			label:    fmt.Sprintf("all_except_%s", all[i]),
-			retained: except,
-		})
-	}
-
-	// Random uniform samples to push toward ~200 total. We deduplicate
-	// by sorted-name signature so the budget covers distinct subsets.
-	seen := make(map[string]struct{}, len(samples))
-	for _, s := range samples {
-		seen[signature(s.retained)] = struct{}{}
-	}
-	r := rand.New(rand.NewSource(0xBA5E5EED))
-	for len(samples) < 200 {
-		// Build a random subset of expected size ~|schema|/2.
-		var pat []string
-		for _, n := range all {
-			if r.Intn(2) == 0 {
-				pat = append(pat, n)
-			}
-		}
-		sig := signature(pat)
-		if _, ok := seen[sig]; ok {
-			continue
-		}
-		seen[sig] = struct{}{}
-		samples = append(samples, sample{
-			label:    fmt.Sprintf("random_%d", len(samples)),
-			retained: pat,
-		})
-	}
-
-	// For each sampled subset, walk the entire 1000-record corpus.
-	// 200 * 1000 = 200K compareDecodeResults invocations; each is cheap
-	// (one plan build, two record decodes against an in-memory slice).
-	for _, s := range samples {
-		for ri, raw := range records {
-			label := fmt.Sprintf("big/%s/rec=%d", s.label, ri)
-			compareDecodeResults(t, schema, raw, s.retained, label)
-			if t.Failed() {
-				t.Logf("first failure at %s; retained=%v", label, s.retained)
-				return
-			}
-		}
-	}
-}
-
 // signature returns a stable string for a retained-field list (sorted
 // names, |-separated) so the random sampler can deduplicate without
 // caring about input order.
@@ -1033,6 +921,8 @@ func signature(retained []string) string {
 // will not grow a map without a Set call, so this is observationally
 // equivalent to "no allocations beyond a zero-size map".
 func TestDecodePlan_Equivalence_EmptyRetainedNoAllocs(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xE0091D0A)
 	for ri, raw := range records {
@@ -1073,6 +963,8 @@ func TestDecodePlan_Equivalence_EmptyRetainedNoAllocs(t *testing.T) {
 // plan). This is the strictest contract — anything that breaks
 // projection-free decode breaks every consumer.
 func TestDecodePlan_Equivalence_FullRetainedMatchesUnprojected(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xF011BAD5)
 	all := allFieldNames(schema)

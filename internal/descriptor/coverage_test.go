@@ -11,6 +11,8 @@ import (
 )
 
 func TestPredict_InvalidHeader(t *testing.T) {
+	t.Parallel()
+
 	env := predictFromBytes([]byte("not a pulse file"), &types.Request{}, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for invalid header")
@@ -22,6 +24,8 @@ func TestPredict_InvalidHeader(t *testing.T) {
 }
 
 func TestPredict_InvalidSchema(t *testing.T) {
+	t.Parallel()
+
 	// Valid header but truncated schema.
 	var buf bytes.Buffer
 	encoding.WriteHeader(&buf)
@@ -38,6 +42,8 @@ func TestPredict_InvalidSchema(t *testing.T) {
 }
 
 func TestPredict_FilterUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -58,6 +64,8 @@ func TestPredict_FilterUnknownField(t *testing.T) {
 }
 
 func TestPredict_FilterExpressionNoField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -78,6 +86,8 @@ func TestPredict_FilterExpressionNoField(t *testing.T) {
 }
 
 func TestPredict_GroupUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -98,6 +108,8 @@ func TestPredict_GroupUnknownField(t *testing.T) {
 }
 
 func TestPredict_AttributeUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
@@ -118,6 +130,8 @@ func TestPredict_AttributeUnknownField(t *testing.T) {
 }
 
 func TestPredict_DescriptionQuality_Strict(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: ""},
@@ -145,6 +159,8 @@ func TestPredict_DescriptionQuality_Strict(t *testing.T) {
 }
 
 func TestPredict_LowQualityDescriptionCases(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		desc    string
 		lowQual bool
@@ -168,6 +184,8 @@ func TestPredict_LowQualityDescriptionCases(t *testing.T) {
 }
 
 func TestInspect_InvalidHeader(t *testing.T) {
+	t.Parallel()
+
 	env := inspectFromBytes([]byte("not a pulse file"), nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for invalid header")
@@ -175,6 +193,8 @@ func TestInspect_InvalidHeader(t *testing.T) {
 }
 
 func TestInspect_InvalidSchema(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	encoding.WriteHeader(&buf)
 	buf.Write([]byte{0xFF})
@@ -186,6 +206,8 @@ func TestInspect_InvalidSchema(t *testing.T) {
 }
 
 func TestInspect_CustomDictionaryLimit(t *testing.T) {
+	t.Parallel()
+
 	values := make([]string, 50)
 	for i := range values {
 		values[i] = "v" + string(rune('A'+i%26))
@@ -210,6 +232,8 @@ func TestInspect_CustomDictionaryLimit(t *testing.T) {
 }
 
 func TestPredict_FilterWithFieldSet(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},

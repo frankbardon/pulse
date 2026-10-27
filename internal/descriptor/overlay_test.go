@@ -44,6 +44,8 @@ func crosstabHostSpec() *types.CrosstabSpec {
 }
 
 func TestValidateOverlay_KindUnknown(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -80,6 +82,8 @@ func TestValidateOverlay_KindUnknown(t *testing.T) {
 }
 
 func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -149,6 +153,8 @@ func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
 }
 
 func TestValidateOverlay_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -191,6 +197,8 @@ func TestValidateOverlay_ScopeUnsupported(t *testing.T) {
 // errors. Streamability still goes to false because crosstab Shape=
 // matrix forces buffered — but no overlay code lands on the envelope.
 func TestValidateOverlay_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -222,6 +230,8 @@ func TestValidateOverlay_HappyPath(t *testing.T) {
 }
 
 func TestValidateOverlay_ShareOfRow_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -257,6 +267,8 @@ func TestValidateOverlay_ShareOfRow_HappyPath(t *testing.T) {
 // INDEX_VS_MARGIN scope check — SHARE_OF_ROW is CELL-only by
 // construction.
 func TestValidateOverlay_ShareOfRow_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -294,6 +306,8 @@ func TestValidateOverlay_ShareOfRow_ScopeUnsupported(t *testing.T) {
 }
 
 func TestValidateOverlay_ShareOfCol_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -329,6 +343,8 @@ func TestValidateOverlay_ShareOfCol_HappyPath(t *testing.T) {
 // SHARE_OF_ROW scope check — SHARE_OF_COL is CELL-only by
 // construction.
 func TestValidateOverlay_ShareOfCol_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -366,6 +382,8 @@ func TestValidateOverlay_ShareOfCol_ScopeUnsupported(t *testing.T) {
 }
 
 func TestValidateOverlay_ShareOfTotal_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -401,6 +419,8 @@ func TestValidateOverlay_ShareOfTotal_HappyPath(t *testing.T) {
 // Mirrors the SHARE_OF_ROW / SHARE_OF_COL scope checks —
 // SHARE_OF_TOTAL is CELL-only by construction.
 func TestValidateOverlay_ShareOfTotal_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -445,6 +465,8 @@ func TestValidateOverlay_ShareOfTotal_ScopeUnsupported(t *testing.T) {
 // axes — the validator therefore runs the happy-path check for each
 // axis to guard against an accidental axis-lock regression.
 func TestValidateOverlay_ZScoreVsMargin_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -489,6 +511,8 @@ func TestValidateOverlay_ZScoreVsMargin_HappyPath(t *testing.T) {
 // the INDEX_VS_MARGIN / SHARE_OF_* scope check — ZSCORE_VS_MARGIN is
 // CELL-only by construction.
 func TestValidateOverlay_ZScoreVsMargin_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -532,6 +556,8 @@ func TestValidateOverlay_ZScoreVsMargin_ScopeUnsupported(t *testing.T) {
 // the validator runs the happy-path check for each axis to guard
 // against an accidental axis-lock regression.
 func TestValidateOverlay_DeltaVsMargin_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -576,6 +602,8 @@ func TestValidateOverlay_DeltaVsMargin_HappyPath(t *testing.T) {
 // Matches the INDEX_VS_MARGIN / SHARE_OF_* / ZSCORE_VS_MARGIN scope
 // check — DELTA_VS_MARGIN is CELL-only by construction.
 func TestValidateOverlay_DeltaVsMargin_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -618,6 +646,8 @@ func TestValidateOverlay_DeltaVsMargin_ScopeUnsupported(t *testing.T) {
 // errors. CHISQ_MATRIX is the first inferential / SCALAR-shape Crosstab
 // overlay: Scope=MATRIX, Ref=empty (implicit-margin).
 func TestValidateOverlay_ChiSqMatrix_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -652,6 +682,8 @@ func TestValidateOverlay_ChiSqMatrix_HappyPath(t *testing.T) {
 // COLUMN / TOTAL / GROUP scopes are all rejected with
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestValidateOverlay_ChiSqMatrix_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -692,6 +724,8 @@ func TestValidateOverlay_ChiSqMatrix_ScopeUnsupported(t *testing.T) {
 // grand margins inline) — any Ref pointer is a shape mismatch and
 // must fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_ChiSqMatrix_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -725,6 +759,8 @@ func TestValidateOverlay_ChiSqMatrix_RefRejected(t *testing.T) {
 // from the host crosstab, and without one there is no MATRIX host to
 // test against.
 func TestValidateOverlay_ChiSqMatrix_NoCrosstabHostRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -758,6 +794,8 @@ func TestValidateOverlay_ChiSqMatrix_NoCrosstabHostRejected(t *testing.T) {
 // CHISQ_ROW is the first SERIES-shape Crosstab overlay: Scope=ROW,
 // Ref=empty (implicit-margin).
 func TestValidateOverlay_ChiSqRow_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -791,6 +829,8 @@ func TestValidateOverlay_ChiSqRow_HappyPath(t *testing.T) {
 // one statistic per row tuple — CELL / COLUMN / MATRIX / TOTAL / GROUP
 // scopes are all rejected with PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestValidateOverlay_ChiSqRow_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -831,6 +871,8 @@ func TestValidateOverlay_ChiSqRow_ScopeUnsupported(t *testing.T) {
 // pointer is a shape mismatch and must fire
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_ChiSqRow_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -864,6 +906,8 @@ func TestValidateOverlay_ChiSqRow_RefRejected(t *testing.T) {
 // sourced from the host crosstab, and without one there is no MATRIX
 // host to test against.
 func TestValidateOverlay_ChiSqRow_NoCrosstabHostRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -897,6 +941,8 @@ func TestValidateOverlay_ChiSqRow_NoCrosstabHostRejected(t *testing.T) {
 // CHISQ_COL is the mechanical column-axis twin of CHISQ_ROW:
 // Scope=COLUMN, Ref=empty (implicit-margin).
 func TestValidateOverlay_ChiSqCol_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -930,6 +976,8 @@ func TestValidateOverlay_ChiSqCol_HappyPath(t *testing.T) {
 // emits one statistic per column tuple — CELL / ROW / MATRIX / TOTAL /
 // GROUP scopes are all rejected with PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestValidateOverlay_ChiSqCol_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -970,6 +1018,8 @@ func TestValidateOverlay_ChiSqCol_ScopeUnsupported(t *testing.T) {
 // any Ref pointer is a shape mismatch and must fire
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_ChiSqCol_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -998,6 +1048,8 @@ func TestValidateOverlay_ChiSqCol_RefRejected(t *testing.T) {
 }
 
 func TestValidateOverlay_FisherExactCell_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1032,6 +1084,8 @@ func TestValidateOverlay_FisherExactCell_HappyPath(t *testing.T) {
 // COLUMN / MATRIX / TOTAL / GROUP scopes are all rejected with
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestValidateOverlay_FisherExactCell_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1072,6 +1126,8 @@ func TestValidateOverlay_FisherExactCell_ScopeUnsupported(t *testing.T) {
 // / CHISQ_ROW / CHISQ_COL) — any Ref pointer is a shape mismatch and
 // must fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_FisherExactCell_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1105,6 +1161,8 @@ func TestValidateOverlay_FisherExactCell_RefRejected(t *testing.T) {
 // table sourced from the host crosstab, and without one there is no
 // MATRIX host to test against.
 func TestValidateOverlay_FisherExactCell_NoCrosstabHostRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1133,6 +1191,8 @@ func TestValidateOverlay_FisherExactCell_NoCrosstabHostRejected(t *testing.T) {
 }
 
 func TestValidateOverlay_ExpectedLowWarn(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1258,6 +1318,8 @@ func indexVsTotalSeriesHostReq() *types.Request {
 // specific errors. INDEX_VS_TOTAL is implicit-grand-total: Scope=GROUP,
 // Ref=empty.
 func TestValidateOverlay_IndexVsTotal_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1291,6 +1353,8 @@ func TestValidateOverlay_IndexVsTotal_HappyPath(t *testing.T) {
 // MATRIX / TOTAL scopes are all rejected with
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 func TestValidateOverlay_IndexVsTotal_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1330,6 +1394,8 @@ func TestValidateOverlay_IndexVsTotal_ScopeUnsupported(t *testing.T) {
 // mismatch and must fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 // (mirrors the CHISQ_* / FISHER_EXACT_CELL implicit-margin contract).
 func TestValidateOverlay_IndexVsTotal_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1362,6 +1428,8 @@ func TestValidateOverlay_IndexVsTotal_RefRejected(t *testing.T) {
 // that predicate are exercised: no groupers, and the crosstab-active
 // case.
 func TestValidateOverlay_IndexVsTotal_NoSeriesHostRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1419,6 +1487,8 @@ func TestValidateOverlay_IndexVsTotal_NoSeriesHostRejected(t *testing.T) {
 // total contract (mirrors the χ² / Fisher inferential family's
 // non-zero rejection).
 func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1456,6 +1526,8 @@ func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
 }
 
 func TestValidateOverlay_ShareOfTotal_Series_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1490,6 +1562,8 @@ func TestValidateOverlay_ShareOfTotal_Series_HappyPath(t *testing.T) {
 // rejected with PULSE_OVERLAY_SCOPE_UNSUPPORTED. Mirrors
 // TestValidateOverlay_IndexVsTotal_ScopeUnsupported.
 func TestValidateOverlay_ShareOfTotal_Series_ScopeUnsupported(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1528,6 +1602,8 @@ func TestValidateOverlay_ShareOfTotal_Series_ScopeUnsupported(t *testing.T) {
 // (mirrors INDEX_VS_TOTAL) — any Ref pointer is a shape mismatch and
 // must fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
 func TestValidateOverlay_ShareOfTotal_Series_RefRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1561,6 +1637,8 @@ func TestValidateOverlay_ShareOfTotal_Series_RefRejected(t *testing.T) {
 // implicit-grand-total contract. Mirrors
 // TestValidateOverlay_IndexVsTotal_LevelWithinRejected.
 func TestValidateOverlay_ShareOfTotal_Series_LevelWithinRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -1601,6 +1679,8 @@ func TestValidateOverlay_ShareOfTotal_Series_LevelWithinRejected(t *testing.T) {
 // for requests without overlays — predict still runs every other gate
 // untouched.
 func TestValidateOverlay_EmptySliceNoop(t *testing.T) {
+	t.Parallel()
+
 	schema := overlayPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 

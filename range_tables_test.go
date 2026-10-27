@@ -17,6 +17,8 @@ func strptr(s string) *string { return &s }
 // references it — registration is the only contract) and projects into
 // the manifest extensions block.
 func TestRangeTables_ProgrammaticRegistrationValid(t *testing.T) {
+	t.Parallel()
+
 	ext := pulse.Extensions{
 		RangeTables: map[string]pulse.RangeTable{
 			"quarters": {
@@ -45,6 +47,8 @@ func TestRangeTables_ProgrammaticRegistrationValid(t *testing.T) {
 // TestRangeTables_ManifestEmptyWhenNoneRegistered asserts the manifest's
 // range_tables slice is present and empty (never nil) with no tables.
 func TestRangeTables_ManifestEmptyWhenNoneRegistered(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -59,6 +63,8 @@ func TestRangeTables_ManifestEmptyWhenNoneRegistered(t *testing.T) {
 // invalid table (overlapping ranges) fails pulse.New with the matching
 // PULSE_RANGE_* coded error surfaced by the shared compilation pass.
 func TestRangeTables_InvalidRejectedAtNew(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		table pulse.RangeTable
@@ -111,6 +117,8 @@ func TestRangeTables_InvalidRejectedAtNew(t *testing.T) {
 // TestRangeTables_EmptyNameRejected asserts an empty table name is a
 // param-invalid error at New.
 func TestRangeTables_EmptyNameRejected(t *testing.T) {
+	t.Parallel()
+
 	_, err := pulse.New(pulse.Options{
 		FS:         afero.NewMemMapFs(),
 		Extensions: pulse.Extensions{RangeTables: map[string]pulse.RangeTable{"": {Ranges: []pulse.DateRangeSpec{{Label: "a"}}}}},

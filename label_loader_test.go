@@ -18,6 +18,8 @@ import (
 )
 
 func TestLoadLabelTables_FlatMap(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "country.json"),
 		[]byte(`{"US": "United States", "CA": "Canada"}`), 0644); err != nil {
@@ -37,6 +39,8 @@ func TestLoadLabelTables_FlatMap(t *testing.T) {
 }
 
 func TestLoadLabelTables_Wrapped(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "region.json"),
 		[]byte(`{"description": "ISO regions", "rows": {"NA": "North America"}}`), 0644); err != nil {
@@ -56,6 +60,8 @@ func TestLoadLabelTables_Wrapped(t *testing.T) {
 // rows' key order as LabelTable.Order — the code order of a `.sav` export
 // bound to the table — and a repeated key keeps its first position.
 func TestLoadLabelTables_KeepTheFileKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	files := map[string]string{
 		"flat.json":    `{"NE": "Northeast", "MW": "Midwest", "SO": "South", "WE": "West"}`,
@@ -83,6 +89,7 @@ func TestLoadLabelTables_KeepTheFileKeyOrder(t *testing.T) {
 }
 
 func TestLoadLabelTables_EnvVar(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "x.json"),
 		[]byte(`{"a": "A"}`), 0644); err != nil {
@@ -99,6 +106,8 @@ func TestLoadLabelTables_EnvVar(t *testing.T) {
 }
 
 func TestLoadLabelTables_CollisionWithProgrammatic(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "country.json"),
 		[]byte(`{"US": "United States"}`), 0644); err != nil {
@@ -131,6 +140,8 @@ func assertDirCollision(t *testing.T, err error, category, name, path string) {
 }
 
 func TestLoadLabelTables_NoDirNoOp(t *testing.T) {
+	t.Parallel()
+
 	opts := Options{}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatalf("no-op should not error: %v", err)
@@ -141,6 +152,8 @@ func TestLoadLabelTables_NoDirNoOp(t *testing.T) {
 }
 
 func TestLoadLabelTables_NonexistentDir(t *testing.T) {
+	t.Parallel()
+
 	opts := Options{LabelTablesDir: "/path/that/should/not/exist/__pulse__"}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatalf("nonexistent dir should be tolerated: %v", err)
@@ -231,6 +244,8 @@ const semFitFileFixture = `{
 // The fixture is a real SEM fit file whose model rebuilds, not a
 // stand-in.
 func TestSEMFitFileFixture_Decodes(t *testing.T) {
+	t.Parallel()
+
 	f, err := model.DecodeSEMFile("fixture", []byte(semFitFileFixture))
 	if err != nil {
 		t.Fatalf("fixture is not a valid SEM fit file: %v", err)
@@ -242,6 +257,8 @@ func TestSEMFitFileFixture_Decodes(t *testing.T) {
 
 // The fixture is a real population file, not a stand-in.
 func TestPopulationFileFixture_Decodes(t *testing.T) {
+	t.Parallel()
+
 	if _, err := model.DecodePopulationFile("fixture", []byte(populationFileFixture)); err != nil {
 		t.Fatalf("fixture is not a valid population file: %v", err)
 	}
@@ -249,12 +266,16 @@ func TestPopulationFileFixture_Decodes(t *testing.T) {
 
 // The fixture is a real model file, not a stand-in.
 func TestModelFileFixture_Decodes(t *testing.T) {
+	t.Parallel()
+
 	if _, err := model.DecodeFile("fixture", []byte(modelFileFixture)); err != nil {
 		t.Fatalf("fixture is not a valid model file: %v", err)
 	}
 }
 
 func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		filename string
@@ -318,6 +339,8 @@ func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 // A skipped sidecar must not become a licence to swallow real breakage:
 // a malformed label table still hard-fails, naming its path.
 func TestLoadLabelTables_MalformedStillHardFails(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		body string
@@ -352,6 +375,8 @@ func TestLoadLabelTables_MalformedStillHardFails(t *testing.T) {
 }
 
 func TestIsPulseSidecarName(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		want bool

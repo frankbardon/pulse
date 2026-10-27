@@ -34,6 +34,8 @@ func makeNullableRecord(schema *encoding.Schema, value float64, isNull bool) *Re
 // TestAGG_NULL_COUNT_Buffered verifies the records-shaped (buffered)
 // path returns the count of records whose field is null.
 func TestAGG_NULL_COUNT_Buffered(t *testing.T) {
+	t.Parallel()
+
 	schema := nullTestSchema(t)
 	records := []*Record{
 		makeNullableRecord(schema, 10, false),
@@ -62,6 +64,8 @@ func TestAGG_NULL_COUNT_Buffered(t *testing.T) {
 // TestAGG_NULL_COUNT_Streaming exercises the OnlineAggregator path —
 // the streaming orchestrator drives UpdateRow / Finalize directly.
 func TestAGG_NULL_COUNT_Streaming(t *testing.T) {
+	t.Parallel()
+
 	schema := nullTestSchema(t)
 	records := []*Record{
 		makeNullableRecord(schema, 1, false),
@@ -95,6 +99,8 @@ func TestAGG_NULL_COUNT_Streaming(t *testing.T) {
 // TestFILTER_NULL_IsNull keeps records with a null field; non-null rows
 // are dropped.
 func TestFILTER_NULL_IsNull(t *testing.T) {
+	t.Parallel()
+
 	schema := nullTestSchema(t)
 	builder := newNullFilterer()
 	fn, err := builder.Build(&types.Filterer{
@@ -127,6 +133,8 @@ func TestFILTER_NULL_IsNull(t *testing.T) {
 
 // TestFILTER_NULL_IsNotNull mirrors the inverse mode.
 func TestFILTER_NULL_IsNotNull(t *testing.T) {
+	t.Parallel()
+
 	schema := nullTestSchema(t)
 	fn, err := newNullFilterer().Build(&types.Filterer{
 		Type:   types.FILTER_NULL,
@@ -149,6 +157,8 @@ func TestFILTER_NULL_IsNotNull(t *testing.T) {
 // TestFILTER_NULL_RejectsInvalidMode confirms invalid Values surface a
 // PROCESSING_CONFIG error rather than silently passing every row.
 func TestFILTER_NULL_RejectsInvalidMode(t *testing.T) {
+	t.Parallel()
+
 	schema := nullTestSchema(t)
 	_, err := newNullFilterer().Build(&types.Filterer{
 		Type:   types.FILTER_NULL,

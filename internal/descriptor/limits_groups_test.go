@@ -49,6 +49,8 @@ func dateRangesGroup(t *testing.T, params any) *types.Group {
 // GROUP_SET_PER_ELEMENT) and yields nothing for an ungrouped request or
 // an unknown-cardinality grouper.
 func TestEstimateGroups(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	inst := UnscopedInstanceSnapshot(&ExtensionsSnapshot{
 		RangeTables: []descriptor.RangeTableMeta{{Name: "fiscal", RangeCount: 4}},
@@ -106,6 +108,8 @@ func TestEstimateGroups(t *testing.T) {
 // grouper's own bound — clamped by records unless a grouper fans out,
 // unknown when any grouper is (never Groups[0] alone).
 func TestEstimateGroups_MultiGrouperProduct(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	inst := UnscopedInstanceSnapshot(&ExtensionsSnapshot{
 		RangeTables: []descriptor.RangeTableMeta{{Name: "fiscal", RangeCount: 4}},
@@ -156,6 +160,8 @@ func TestEstimateGroups_MultiGrouperProduct(t *testing.T) {
 // fans out; a set field without a dictionary falls back to the type's
 // member ceiling.
 func TestFanOutMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	schema.Fields = append(schema.Fields,
 		encoding.Field{Name: "more", Type: encoding.FieldTypeSetU8, Dictionary: func() *encoding.Dictionary {
@@ -195,6 +201,8 @@ func TestFanOutMultiplicity(t *testing.T) {
 // dictionary exceeds MaxGroups is a Possible finding — never a
 // pre-flight refusal — and the record count clamps it away.
 func TestRequestLimitFindings_MaxGroupsPossible(t *testing.T) {
+	t.Parallel()
+
 	schema := groupsSchema(t)
 	l := limits.Defaults()
 	l.MaxGroups = 4
@@ -221,6 +229,8 @@ func TestRequestLimitFindings_MaxGroupsPossible(t *testing.T) {
 // over 2 records is at most 2 buckets, so MaxGroups=3 has no finding,
 // while MaxGroups=1 is a possible one estimated at 2.
 func TestPredict_MaxGroupsClampedByHeaderCount(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c", "d", "e"} {
 		if _, err := d.Add(v); err != nil {

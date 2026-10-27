@@ -3,6 +3,8 @@ package docgen
 import "testing"
 
 func TestEscapePlaceholders(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct{ in, want string }{
 		{"named <prefix>_<k> by default", "named &lt;prefix&gt;_&lt;k&gt; by default"},
 		{"code `<field>_poly` stays", "code `<field>_poly` stays"},

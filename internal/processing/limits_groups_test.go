@@ -58,6 +58,8 @@ func maxGroups(n int64) limits.Limits {
 // the buffered grouped path each refuse a fourth bucket under
 // MaxGroups=3 with no partial result, and run at the limit.
 func TestMaxGroups_ProcessorPaths(t *testing.T) {
+	t.Parallel()
+
 	schema, recs := limitGroupsFixture(t)
 	grp := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}
 	for _, c := range []struct {
@@ -104,6 +106,8 @@ func TestMaxGroups_ProcessorPaths(t *testing.T) {
 // partitions and the buffered fold reach it independently of the
 // aggregator bucket map.
 func TestMaxGroups_GroupedMatricesMint(t *testing.T) {
+	t.Parallel()
+
 	schema, recs := limitGroupsFixture(t)
 	req := &types.Request{
 		Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},

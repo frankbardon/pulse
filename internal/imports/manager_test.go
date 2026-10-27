@@ -48,6 +48,8 @@ func writeCSV(t *testing.T, afs afero.Fs, p string) {
 }
 
 func TestManager_Open_CSV_CreatesManagedHandle(t *testing.T) {
+	t.Parallel()
+
 	m, afs, clk := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 
@@ -85,6 +87,8 @@ func TestManager_Open_CSV_CreatesManagedHandle(t *testing.T) {
 }
 
 func TestManager_Open_PulsePassthrough_NoSidecar(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	// Stub native pulse file with no schema; we only check sidecar
 	// absence, never read it back.
@@ -111,6 +115,8 @@ func TestManager_Open_PulsePassthrough_NoSidecar(t *testing.T) {
 }
 
 func TestManager_Open_HandleCollision_Errors(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
@@ -127,6 +133,8 @@ func TestManager_Open_HandleCollision_Errors(t *testing.T) {
 }
 
 func TestManager_Open_Overwrite_Succeeds(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
@@ -146,6 +154,8 @@ func TestManager_Open_Overwrite_Succeeds(t *testing.T) {
 // factory's own coded error, not a plain string a tool envelope would
 // flatten to a placeholder code.
 func TestManager_Open_ExplicitUnsupportedFormat_IsCoded(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 	_, err := m.Open(context.Background(), Spec{SourcePath: "data.csv", Format: "xml"})
@@ -156,6 +166,8 @@ func TestManager_Open_ExplicitUnsupportedFormat_IsCoded(t *testing.T) {
 }
 
 func TestManager_Open_UnknownFormat_Errors(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	if err := afero.WriteFile(afs, "data.bogus", []byte("foo"), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -171,6 +183,8 @@ func TestManager_Open_UnknownFormat_Errors(t *testing.T) {
 }
 
 func TestManager_Open_SourceMissing_Errors(t *testing.T) {
+	t.Parallel()
+
 	m, _, _ := newTestManager(t)
 	_, err := m.Open(context.Background(), Spec{SourcePath: "ghost.csv"})
 	if err == nil {
@@ -183,6 +197,8 @@ func TestManager_Open_SourceMissing_Errors(t *testing.T) {
 }
 
 func TestManager_Touch_SlidesExpiry(t *testing.T) {
+	t.Parallel()
+
 	m, _, clk := newTestManager(t)
 	afs := m.afs
 	writeCSV(t, afs, "data.csv")
@@ -210,6 +226,8 @@ func TestManager_Touch_SlidesExpiry(t *testing.T) {
 }
 
 func TestManager_Touch_NoOpForUnmanagedPath(t *testing.T) {
+	t.Parallel()
+
 	m, _, _ := newTestManager(t)
 	// Touch with an arbitrary path outside the imports dir should not
 	// error — it is a no-op hook the facade can fire unconditionally.
@@ -219,6 +237,8 @@ func TestManager_Touch_NoOpForUnmanagedPath(t *testing.T) {
 }
 
 func TestManager_Sweep_RemovesExpired(t *testing.T) {
+	t.Parallel()
+
 	m, afs, clk := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 	res, err := m.Open(context.Background(), Spec{SourcePath: "data.csv", TTL: 1 * time.Hour})
@@ -244,6 +264,8 @@ func TestManager_Sweep_RemovesExpired(t *testing.T) {
 }
 
 func TestManager_Sweep_PinnedHandlesSurvive(t *testing.T) {
+	t.Parallel()
+
 	m, afs, clk := newTestManager(t)
 	writeCSV(t, afs, "pinned.csv")
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "pinned.csv", TTL: -1}); err != nil {
@@ -265,6 +287,8 @@ func TestManager_Sweep_PinnedHandlesSurvive(t *testing.T) {
 }
 
 func TestManager_Drop_RemovesHandle(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
@@ -282,6 +306,8 @@ func TestManager_Drop_RemovesHandle(t *testing.T) {
 }
 
 func TestManager_Drop_UnknownHandle_Errors(t *testing.T) {
+	t.Parallel()
+
 	m, _, _ := newTestManager(t)
 	err := m.Drop(context.Background(), "ghost")
 	if err == nil {
@@ -294,6 +320,8 @@ func TestManager_Drop_UnknownHandle_Errors(t *testing.T) {
 }
 
 func TestManager_List_SortedByHandle(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	for _, name := range []string{"charlie", "alpha", "bravo"} {
 		p := name + ".csv"
@@ -317,6 +345,8 @@ func TestManager_List_SortedByHandle(t *testing.T) {
 }
 
 func TestManager_Open_CustomHandle(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "src.csv")
 	res, err := m.Open(context.Background(), Spec{SourcePath: "src.csv", Handle: "mydata"})
@@ -332,6 +362,8 @@ func TestManager_Open_CustomHandle(t *testing.T) {
 }
 
 func TestManager_Open_InvalidHandle_Rejected(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "src.csv")
 	cases := []string{"../escape", "sub/path", ".hidden"}
@@ -344,6 +376,8 @@ func TestManager_Open_InvalidHandle_Rejected(t *testing.T) {
 }
 
 func TestManager_Resolve_ReturnsManagedPath(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeCSV(t, afs, "data.csv")
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "data.csv"}); err != nil {
@@ -359,6 +393,8 @@ func TestManager_Resolve_ReturnsManagedPath(t *testing.T) {
 }
 
 func TestManager_IsManagedPath(t *testing.T) {
+	t.Parallel()
+
 	m, _, _ := newTestManager(t)
 	if !m.IsManagedPath("imports/foo.pulse") {
 		t.Errorf("imports/foo.pulse not flagged as managed")
@@ -374,6 +410,8 @@ func TestManager_IsManagedPath(t *testing.T) {
 // Manager routes absolute reads through srcFs while writing the
 // managed copy into the dst (rooted) fs.
 func TestManager_Open_AbsoluteCSV_FromExternalSource(t *testing.T) {
+	t.Parallel()
+
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs()
 	body := "id,name,amount\n1,Alice,10.5\n2,Bob,20.0\n"
@@ -412,6 +450,8 @@ func TestManager_Open_AbsoluteCSV_FromExternalSource(t *testing.T) {
 // (the rooted fs cannot address external absolute paths via the normal
 // inspect / process tools).
 func TestManager_Open_AbsolutePulse_CopiesIntoPool(t *testing.T) {
+	t.Parallel()
+
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs()
 	header := []byte("PULSE\x00\x00\x00\x01")
@@ -447,6 +487,8 @@ func TestManager_Open_AbsolutePulse_CopiesIntoPool(t *testing.T) {
 // the absolute path's source fs cannot find the file. Surfaces
 // PULSE_IMPORT_SOURCE_MISSING just like the relative-path branch.
 func TestManager_Open_AbsoluteMissingSource_Errors(t *testing.T) {
+	t.Parallel()
+
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs() // empty
 	m, err := New(dst, Options{SourceFS: src})
@@ -467,6 +509,8 @@ func TestManager_Open_AbsoluteMissingSource_Errors(t *testing.T) {
 // unset the Manager establishes a jail at the process working
 // directory. The jail accessor reports the cleaned absolute root.
 func TestManager_Jail_DefaultsToCWD(t *testing.T) {
+	// serial: t.Chdir moves the process working directory
+
 	tmp := t.TempDir()
 	t.Chdir(tmp)
 
@@ -488,6 +532,8 @@ func TestManager_Jail_DefaultsToCWD(t *testing.T) {
 // TestManager_Jail_AcceptsPathInside verifies that an absolute path
 // under the configured jail succeeds normally.
 func TestManager_Jail_AcceptsPathInside(t *testing.T) {
+	t.Parallel()
+
 	tmp := t.TempDir()
 	src := filepath.Join(tmp, "data.csv")
 	if err := os.WriteFile(src, []byte("id,name\n1,Alice\n"), 0o644); err != nil {
@@ -512,6 +558,8 @@ func TestManager_Jail_AcceptsPathInside(t *testing.T) {
 // outside the jail returns PULSE_IMPORT_SOURCE_FORBIDDEN — no read,
 // no copy, no managed handle created.
 func TestManager_Jail_RejectsPathOutside(t *testing.T) {
+	t.Parallel()
+
 	jail := t.TempDir()
 	outside := t.TempDir() // distinct tree
 	src := filepath.Join(outside, "secret.csv")
@@ -543,6 +591,8 @@ func TestManager_Jail_RejectsPathOutside(t *testing.T) {
 // check, so "/jail/../etc/passwd" resolves to "/etc/passwd" and is
 // blocked.
 func TestManager_Jail_RejectsTraversal(t *testing.T) {
+	t.Parallel()
+
 	jail := t.TempDir()
 	dst := afero.NewMemMapFs()
 	m, err := New(dst, Options{SourceJailRoot: jail})
@@ -564,6 +614,8 @@ func TestManager_Jail_RejectsTraversal(t *testing.T) {
 // passing an explicit SourceFS opt out of the jail entirely (they are
 // asserting they manage access boundaries themselves).
 func TestManager_Jail_DisabledWhenSourceFSExplicit(t *testing.T) {
+	t.Parallel()
+
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs()
 	if err := afero.WriteFile(src, "/anywhere/data.csv", []byte("id,name\n1,A\n"), 0o644); err != nil {
@@ -599,6 +651,8 @@ func writeSetCSV(t *testing.T, afs afero.Fs, p string) {
 // resulting Sidecar JSON round-trips the override map so a later
 // session can re-open with the same intent.
 func TestManager_Open_CSV_ColumnTypeOverridesPersist(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeSetCSV(t, afs, "issuers.csv")
 	res, err := m.Open(context.Background(), Spec{
@@ -635,6 +689,8 @@ func TestManager_Open_CSV_ColumnTypeOverridesPersist(t *testing.T) {
 // string — parseColumnTypeOverrides should fail fast with
 // SERVICE_VALIDATION rather than passing through to ImportJob.
 func TestManager_Open_CSV_ColumnTypeOverridesUnknownRejected(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeSetCSV(t, afs, "issuers.csv")
 	_, err := m.Open(context.Background(), Spec{

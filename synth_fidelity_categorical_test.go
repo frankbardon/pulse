@@ -99,6 +99,8 @@ func importCSVTextFixture(t *testing.T, p *Pulse, fs afero.Fs, csvText, path str
 // build-failing assertion on the actual numbers, not a smoke test that
 // the report merely renders the new "categorical_pairwise" key.
 func TestSynth_FidelityReportCategoricalPairwiseWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.05
 	const rowsPerA = 3000
 	const newRows = 20000
@@ -179,6 +181,8 @@ func TestSynth_FidelityReportCategoricalPairwiseWithinTolerance(t *testing.T) {
 // per-category conditional-mean/std deltas land within a defined
 // tolerance.
 func TestSynth_FidelityReportCategoricalNumericPairwiseWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const meanTolerance = 2.0
 	const stdTolerance = 1.0
 	const rowsPerCategory = 6000
@@ -271,6 +275,8 @@ func TestSynth_FidelityReportCategoricalNumericPairwiseWithinTolerance(t *testin
 // TestSynth_FidelityReportOmitsPairwiseKey's own contract for the
 // numeric-numeric section.
 func TestSynth_FidelityReportOmitsCategoricalPairwiseKeysWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupFidelityFixture(t, fs)
 
@@ -305,6 +311,8 @@ func TestSynth_FidelityReportOmitsCategoricalPairwiseKeysWhenEmpty(t *testing.T)
 // TestSynth_FidelityReportSurfacesThinPairWarning already locks in for
 // the numeric-numeric kind (no new mechanism for this pair kind).
 func TestSynth_FidelityReportSurfacesCategoricalThinPairWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := New(Options{FS: fs})
 	if err != nil {

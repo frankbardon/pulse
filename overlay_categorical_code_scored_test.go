@@ -144,6 +144,8 @@ var ccLayouts = []struct {
 
 // TestProcessOverlay_CategoricalCodeScoredRefused: the Process host.
 func TestProcessOverlay_CategoricalCodeScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, data := ccFixture(t, pulse.Options{})
 	for _, kind := range []types.OverlayKind{types.OverlayKindDeltaVsPrior, types.OverlayKindIndexVsTotal, types.OverlayKindShareOfTotal} {
@@ -233,6 +235,8 @@ func ccCompose(typ types.AggregationType, field string, kind types.OverlayKind, 
 // TestComposeOverlay_CategoricalCodeScoredRefused: every Compose series
 // kind, the slot's cohort schema deciding.
 func TestComposeOverlay_CategoricalCodeScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, _ := ccFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ComposeKinds() {
@@ -360,6 +364,8 @@ func ccChainRuns(t *testing.T, p *pulse.Pulse, req func() *pulse.ChainRequest) *
 // aggregation output column is f64 — AGG_MODE over it scores, unless a
 // code-emitting aggregation wrote it (still a code, refused: E4-S17).
 func TestChainOverlay_CategoricalCodeScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	p, _ := ccFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ChainKinds() {
 		for _, c := range ccCodes() {
@@ -438,6 +444,8 @@ func ccPickRegistration(declared bool) pulse.AggregatorRegistration {
 // runtime from the registry) and scores over a numeric one; the
 // manifest carries emits_input_value; undeclared, it scores.
 func TestExtensionAggregator_CategoricalCodeScoredRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	kind := types.OverlayKindDeltaVsPrior
 	const typ = types.AggregationType("AGG_CCTEST_PICK")

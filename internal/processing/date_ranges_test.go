@@ -36,6 +36,8 @@ func codeOf(t *testing.T, err error) errors.Code {
 }
 
 func TestCompileDateRanges_Match(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		specs []DateRangeSpec
@@ -152,6 +154,8 @@ func TestCompileDateRanges_Match(t *testing.T) {
 }
 
 func TestCompileDateRanges_Validation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		specs []DateRangeSpec
@@ -236,6 +240,8 @@ func TestCompileDateRanges_Validation(t *testing.T) {
 }
 
 func TestCompileDateRanges_ValidDisjointSets(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		specs []DateRangeSpec

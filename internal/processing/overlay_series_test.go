@@ -94,6 +94,8 @@ func newStubSeriesHost(keys []types.AxisKey, values []float64) *SeriesHostView {
 // warnings / nil error, even when host is nil. Grouped Process
 // orchestrators can call ApplyOverlaysSeries unconditionally.
 func TestApplyOverlaysSeries_EmptySpecsShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	layers, warnings, err := ApplyOverlaysSeries(nil, nil)
 	if err != nil || layers != nil || warnings != nil {
 		t.Fatalf("empty specs must short-circuit: layers=%v warnings=%v err=%v",
@@ -107,6 +109,8 @@ func TestApplyOverlaysSeries_EmptySpecsShortCircuits(t *testing.T) {
 // still runs and the stub emits a SeriesPayload with an empty Entries
 // slice — handlers never panic on an empty host.
 func TestApplyOverlaysSeries_ZeroGroups(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	installSeriesStubHandler(t, stubSeriesHandler)
 	host := newStubSeriesHost(nil, nil)
 	specs := []types.OverlaySpec{
@@ -143,6 +147,8 @@ func TestApplyOverlaysSeries_ZeroGroups(t *testing.T) {
 // on the SeriesPayload's only entry. Key copy is byte-equal to the
 // host's GroupKey(0) (FR-A2 parallel-slice alignment).
 func TestApplyOverlaysSeries_OneGroup(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	installSeriesStubHandler(t, stubSeriesHandler)
 	keys := []types.AxisKey{{"only"}}
 	host := newStubSeriesHost(keys, []float64{42.0})
@@ -185,6 +191,8 @@ func TestApplyOverlaysSeries_OneGroup(t *testing.T) {
 // through, (b) key copy alignment (Entries[i].Key element-equal to
 // host.GroupKey(i)), and (c) order preservation.
 func TestApplyOverlaysSeries_NGroups(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	installSeriesStubHandler(t, stubSeriesHandler)
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}, {"BR"}}
 	values := []float64{1.0, 2.0, 3.0, 4.0}
@@ -230,6 +238,8 @@ func TestApplyOverlaysSeries_NGroups(t *testing.T) {
 // Summary with a nil Statistic — the canonical "present slot, empty
 // summary" shape the story acceptance asks for.
 func TestApplyOverlaysSeries_NullGroupValuesSurfaceWithoutCrash(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	installSeriesStubHandler(t, stubSeriesHandler)
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	// math.NaN signals absent (resolver returns (0, false)).
@@ -287,6 +297,8 @@ func TestApplyOverlaysSeries_NullGroupValuesSurfaceWithoutCrash(t *testing.T) {
 // computation). Every group surfaces (0, false) and entries carry a
 // nil-Statistic Summary. The dispatch never panics.
 func TestApplyOverlaysSeries_NilResolverTreatsEveryGroupAbsent(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	installSeriesStubHandler(t, stubSeriesHandler)
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	host := NewSeriesHostView(keys, nil)
@@ -318,6 +330,8 @@ func TestApplyOverlaysSeries_NilResolverTreatsEveryGroupAbsent(t *testing.T) {
 // stub kind tagged with distinct Name fields so the assertion can
 // distinguish them.
 func TestApplyOverlaysSeries_SpecOrderPreserved(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	installSeriesStubHandler(t, stubSeriesHandler)
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{1.0, 2.0})
@@ -370,6 +384,8 @@ func TestApplyOverlaysSeries_SpecOrderPreserved(t *testing.T) {
 // 4 host groups) and Entries[*].Key still aligns element-for-element
 // with the corresponding host ordinal.
 func TestApplyOverlaysSeries_LooseAlignmentSubset(t *testing.T) {
+	// serial: swaps the package-level processing.seriesOverlayHandlers test hook
+
 	subsetHandler := func(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 		n := host.GroupCount()
 		entries := make([]types.SeriesEntry, 0, n/2+1)
@@ -433,6 +449,8 @@ func TestApplyOverlaysSeries_LooseAlignmentSubset(t *testing.T) {
 // PULSE_OVERLAY_KIND_UNKNOWN. Mirrors the MATRIX path's unknown-
 // kind defense (TestApplyOverlays_UnknownKind_StubCoded in overlay_test.go).
 func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHost([]types.AxisKey{{"a"}}, []float64{1.0})
 	specs := []types.OverlaySpec{
 		{
@@ -457,6 +475,8 @@ func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 }
 
 func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
+	t.Parallel()
+
 	expected := map[types.OverlayKind]bool{
 		types.OverlayKindIndexVsTotal:       true,
 		types.OverlayKindShareOfTotal:       true,
@@ -502,6 +522,8 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 // behind a shared interface, this test pins the MATRIX surface against
 // regression.
 func TestApplyOverlaysSeries_MatrixPathUnchanged(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(indexUniformPayload())
 	specs := []types.OverlaySpec{
 		{

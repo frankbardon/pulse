@@ -14,6 +14,8 @@ import (
 // SET field and not fall through to the numeric bucket. A misclassified
 // set_u256 column would be offered to the LLM as a valid AGG_SUM target.
 func TestClassifyFields_WideSetsLandInTheSetBucket(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for i := range 206 {
 		if _, err := dict.Add("m" + strconv.Itoa(i)); err != nil {

@@ -42,6 +42,8 @@ func invokeRecommend(t *testing.T, p *pulse.Pulse, args string) (map[string]any,
 // fields with it (fields / level / limit forwarded), and every refusal
 // a coded error with its own code.
 func TestPulseRecommend(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 
 	out, err := invokeRecommend(t, p, `{"intent":"compare_groups"}`)
@@ -82,6 +84,8 @@ func TestPulseRecommend(t *testing.T) {
 // TestPulseRecommend_InputSchema: the input contract names exactly the
 // recommend request's slots, with cohort a path string.
 func TestPulseRecommend_InputSchema(t *testing.T) {
+	t.Parallel()
+
 	ts, ok := SchemaFor(toolmeta.ToolRecommend)
 	if !ok {
 		t.Fatal("no schema for pulse_recommend")

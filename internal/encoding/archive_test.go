@@ -67,6 +67,8 @@ func buildArchive(t *testing.T, schemaPayload []byte, entries map[string][]byte,
 }
 
 func TestArchive_IsArchive_DetectsZipMagic(t *testing.T) {
+	t.Parallel()
+
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"a.pulse": buildSinglePulse(t),
 	}, []string{"a.pulse"})
@@ -82,6 +84,8 @@ func TestArchive_IsArchive_DetectsZipMagic(t *testing.T) {
 }
 
 func TestArchive_IsArchive_DetectsSingleFilePulse(t *testing.T) {
+	t.Parallel()
+
 	data := buildSinglePulse(t)
 	r := bytes.NewReader(data)
 	ok, err := encx.IsArchive(r, int64(len(data)))
@@ -94,6 +98,8 @@ func TestArchive_IsArchive_DetectsSingleFilePulse(t *testing.T) {
 }
 
 func TestArchive_IsArchive_ShortFile(t *testing.T) {
+	t.Parallel()
+
 	data := []byte{0x50, 0x4b}
 	ok, err := encx.IsArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -105,6 +111,8 @@ func TestArchive_IsArchive_ShortFile(t *testing.T) {
 }
 
 func TestArchive_IsArchive_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	ok, err := encx.IsArchive(bytes.NewReader(nil), 0)
 	if err != nil {
 		t.Fatalf("IsArchive: %v", err)
@@ -115,6 +123,8 @@ func TestArchive_IsArchive_EmptyFile(t *testing.T) {
 }
 
 func TestArchive_OpenArchive_ParsesCentralDirectory(t *testing.T) {
+	t.Parallel()
+
 	schema := buildSinglePulse(t)
 	shard1 := buildSinglePulse(t)
 	shard2 := buildSinglePulse(t)
@@ -153,6 +163,8 @@ func TestArchive_OpenArchive_ParsesCentralDirectory(t *testing.T) {
 }
 
 func TestArchive_OpenArchive_MagicInvalid(t *testing.T) {
+	t.Parallel()
+
 	data := []byte("not a zip and not a pulse file at all here")
 	_, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err == nil {
@@ -164,6 +176,8 @@ func TestArchive_OpenArchive_MagicInvalid(t *testing.T) {
 }
 
 func TestArchive_OpenArchive_CorruptEOCD(t *testing.T) {
+	t.Parallel()
+
 	// Start with a valid archive, then truncate to destroy the EOCD.
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"a.pulse": buildSinglePulse(t),
@@ -184,6 +198,8 @@ func TestArchive_OpenArchive_CorruptEOCD(t *testing.T) {
 }
 
 func TestArchive_Open_MissingEntry(t *testing.T) {
+	t.Parallel()
+
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"a.pulse": buildSinglePulse(t),
 	}, []string{"a.pulse"})
@@ -200,6 +216,8 @@ func TestArchive_Open_MissingEntry(t *testing.T) {
 }
 
 func TestArchive_Open_ReadsPayload(t *testing.T) {
+	t.Parallel()
+
 	payload := buildSinglePulse(t)
 	data := buildArchive(t, payload, map[string][]byte{
 		"a.pulse": payload,
@@ -224,6 +242,8 @@ func TestArchive_Open_ReadsPayload(t *testing.T) {
 }
 
 func TestArchive_OpenAt_SectionReader(t *testing.T) {
+	t.Parallel()
+
 	payload := buildSinglePulse(t)
 	data := buildArchive(t, payload, map[string][]byte{
 		"a.pulse": payload,
@@ -250,6 +270,8 @@ func TestArchive_OpenAt_SectionReader(t *testing.T) {
 }
 
 func TestArchive_OpenAt_MissingEntry(t *testing.T) {
+	t.Parallel()
+
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"a.pulse": buildSinglePulse(t),
 	}, []string{"a.pulse"})
@@ -266,6 +288,8 @@ func TestArchive_OpenAt_MissingEntry(t *testing.T) {
 }
 
 func TestArchive_PeekShardHeader_Valid(t *testing.T) {
+	t.Parallel()
+
 	payload := buildSinglePulse(t)
 	data := buildArchive(t, payload, map[string][]byte{
 		"a.pulse": payload,
@@ -281,6 +305,8 @@ func TestArchive_PeekShardHeader_Valid(t *testing.T) {
 }
 
 func TestArchive_PeekShardHeader_InvalidMagic(t *testing.T) {
+	t.Parallel()
+
 	badPayload := bytes.Repeat([]byte{0xAA}, 32)
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"bad.pulse": badPayload,
@@ -300,6 +326,8 @@ func TestArchive_PeekShardHeader_InvalidMagic(t *testing.T) {
 }
 
 func TestArchive_PeekShardRecordCount_ZeroRecords(t *testing.T) {
+	t.Parallel()
+
 	single := buildSinglePulse(t)
 	data := buildArchive(t, single, map[string][]byte{
 		"a.pulse": single,
@@ -319,6 +347,8 @@ func TestArchive_PeekShardRecordCount_ZeroRecords(t *testing.T) {
 }
 
 func TestArchive_PeekShardRecordCount_WithRecords(t *testing.T) {
+	t.Parallel()
+
 	// Build a single-file cohort with 3 records (4 bytes/record for u32).
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -358,6 +388,8 @@ func TestArchive_PeekShardRecordCount_WithRecords(t *testing.T) {
 }
 
 func TestArchive_PeekShardRecordCount_InvalidHeader(t *testing.T) {
+	t.Parallel()
+
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"bad.pulse": []byte("garbage"),
 	}, []string{"bad.pulse"})
@@ -372,6 +404,8 @@ func TestArchive_PeekShardRecordCount_InvalidHeader(t *testing.T) {
 }
 
 func TestArchive_Open_PopulatesRecordCounts(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -423,6 +457,8 @@ func TestArchive_Open_PopulatesRecordCounts(t *testing.T) {
 }
 
 func TestArchive_ReservedSchemaName(t *testing.T) {
+	t.Parallel()
+
 	if encx.ReservedSchemaName != "_schema.pulse" {
 		t.Errorf("ReservedSchemaName = %q, want %q",
 			encx.ReservedSchemaName, "_schema.pulse")
@@ -437,6 +473,8 @@ func TestArchive_ReservedSchemaName(t *testing.T) {
 // from the central directory (excluding the reserved _schema.pulse
 // entry).
 func TestShardArchiveMagicDispatch(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 
 	// Single-file cohort path.
@@ -507,6 +545,8 @@ func TestShardArchiveMagicDispatch(t *testing.T) {
 // but a hand-truncated or otherwise corrupted archive can present this
 // shape; the gate freezes the error code so embedders can rely on it.
 func TestShardArchiveMissingEntry(t *testing.T) {
+	t.Parallel()
+
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"present.pulse": buildSinglePulse(t),
 	}, []string{"present.pulse"})
@@ -553,6 +593,8 @@ func TestShardArchiveMissingEntry(t *testing.T) {
 // absent). The byte preamble retains the zip magic; tail bytes are
 // destroyed.
 func TestShardArchiveCorruptEOCD(t *testing.T) {
+	t.Parallel()
+
 	// Build a valid archive first so we have a known-good byte layout.
 	data := buildArchive(t, buildSinglePulse(t), map[string][]byte{
 		"a.pulse": buildSinglePulse(t),
@@ -591,6 +633,8 @@ func TestShardArchiveCorruptEOCD(t *testing.T) {
 
 // TestShardArchiveBackwardsCompat is a non-skippable CI gate.
 func TestShardArchiveBackwardsCompat(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 
 	// A minimal single-file cohort (header + schema, zero records).
@@ -641,6 +685,8 @@ func TestShardArchiveBackwardsCompat(t *testing.T) {
 // count, never the payload (the memory estimate's archive directory
 // term).
 func TestArchive_DirectoryBytes(t *testing.T) {
+	t.Parallel()
+
 	schema := buildSinglePulse(t)
 	build := func(shards, payload int) []byte {
 		entries := map[string][]byte{}

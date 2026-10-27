@@ -62,6 +62,8 @@ func labelsOf(reqs []*types.Request) []string {
 // TestExpand_GridOrderAndDefaultLabel: grid is row-major with the FIRST
 // axis slowest, and the default label is `<axis>=<value>` joined by `_`.
 func TestExpand_GridOrderAndDefaultLabel(t *testing.T) {
+	t.Parallel()
+
 	c := decodeComposed(t, `{"requests":[],"sweep":{
 		"axes":[{"name":"a","values":[1,2]},{"name":"b","values":["x","y","z"]}],
 		"request":{"cohort":{"filename":"{{b}}.pulse"},"return":{"precision":{"$var":"a"}}}}}`)
@@ -83,6 +85,8 @@ func TestExpand_GridOrderAndDefaultLabel(t *testing.T) {
 
 // TestExpand_ZipLockstep: zip pairs the i-th value of every axis.
 func TestExpand_ZipLockstep(t *testing.T) {
+	t.Parallel()
+
 	c := decodeComposed(t, `{"requests":[],"sweep":{"mode":"zip","label":"{{f}}-{{n}}",
 		"axes":[{"name":"f","values":["p","q","r"]},{"name":"n","values":[10,20,30]}],
 		"request":{"cohort":{"filename":"{{f}}"},"return":{"precision":{"$var":"n"}}}}}`)
@@ -104,6 +108,8 @@ func TestExpand_ZipLockstep(t *testing.T) {
 // and booleans/strings as text; `$var` keeps the JSON type; a
 // placeholder may sit inside a field-name value.
 func TestExpand_ScalarRendering(t *testing.T) {
+	t.Parallel()
+
 	c := decodeComposed(t, `{"requests":[],"sweep":{
 		"label":"tv{{tv}}_{{flag}}_{{tag}}",
 		"axes":[{"name":"tv","values":[10,0.1,1.50]},{"name":"flag","values":[true]},{"name":"tag","values":["s"]}],
@@ -133,6 +139,8 @@ func TestExpand_ScalarRendering(t *testing.T) {
 // TestExpand_GoValues: a Go-built sweep (ints, floats, strings, bools,
 // mixed kinds on one axis) renders like its wire twin.
 func TestExpand_GoValues(t *testing.T) {
+	t.Parallel()
+
 	c := &types.ComposedRequest{Sweep: &types.SweepSpec{
 		Axes:    []types.SweepAxis{{Name: "v", Values: []any{3, 0.25, "x", false}}},
 		Request: json.RawMessage(`{"cohort":{"filename":"c{{v}}.pulse"}}`),
@@ -154,6 +162,8 @@ func TestExpand_GoValues(t *testing.T) {
 // slot and appended after the explicit specs; the input is untouched
 // and the effective request is sweep-free.
 func TestExpand_ExplicitFirstAndOverlays(t *testing.T) {
+	t.Parallel()
+
 	base := &types.Request{Label: "base", Cohort: &types.Cohort{Filename: "c.pulse"}}
 	explicitOverlay := types.ComposeOverlaySpec{Kind: types.OverlayKind("OVERLAY_INDEX_VS_REF"), Reference: "base", Targets: []string{"base"}}
 	c := &types.ComposedRequest{
@@ -196,6 +206,8 @@ func TestExpand_ExplicitFirstAndOverlays(t *testing.T) {
 // TestExpand_SweepFree: no sweep → the input pointer, preflight with the
 // explicit count.
 func TestExpand_SweepFree(t *testing.T) {
+	t.Parallel()
+
 	c := &types.ComposedRequest{Requests: []*types.Request{{}, {}}}
 	var seen []int
 	exp, err := Expand(c, func(n int) error { seen = append(seen, n); return nil })
@@ -214,6 +226,8 @@ func TestExpand_SweepFree(t *testing.T) {
 // slots, and its refusal returns before any slot is rendered — a body
 // that could never decode is never reached.
 func TestExpand_PreflightBeforeRender(t *testing.T) {
+	t.Parallel()
+
 	c := &types.ComposedRequest{
 		Requests: []*types.Request{{}},
 		Sweep: &types.SweepSpec{
@@ -247,6 +261,8 @@ func TestExpand_PreflightBeforeRender(t *testing.T) {
 // TestExpand_448UnderDefaultLimit: a 7x4x4x4 sweep (448 slots) expands
 // under the default MaxComposeSlots.
 func TestExpand_448UnderDefaultLimit(t *testing.T) {
+	t.Parallel()
+
 	axis := func(name string, n int) types.SweepAxis {
 		ax := types.SweepAxis{Name: name}
 		for i := range n {
@@ -282,6 +298,8 @@ func TestExpand_448UnderDefaultLimit(t *testing.T) {
 }
 
 func TestCount_Saturates(t *testing.T) {
+	t.Parallel()
+
 	big := make([]any, 1<<20)
 	for i := range big {
 		big[i] = i
@@ -298,6 +316,8 @@ func TestCount_Saturates(t *testing.T) {
 // TestExpand_References drives FR-3: every axis referenced by the body,
 // the AUTHORED label or the overlays; every placeholder names an axis.
 func TestExpand_References(t *testing.T) {
+	t.Parallel()
+
 	const body = `{"cohort":{"filename":"c.pulse"},"return":{"precision":{"$var":"a"}}}`
 	cases := []struct {
 		name    string
@@ -353,6 +373,8 @@ func TestExpand_References(t *testing.T) {
 // (#397), located by details.path with a suggestion and the sweep slot;
 // a mistyped value stays PULSE_SWEEP_INVALID request_decode.
 func TestExpand_StrictDecode(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]struct {
 		body    string
 		unknown string
@@ -398,6 +420,8 @@ func TestExpand_StrictDecode(t *testing.T) {
 // TestExpand_LabelFaults: the body may not set `label`, and a pattern
 // rendering to "" is refused.
 func TestExpand_LabelFaults(t *testing.T) {
+	t.Parallel()
+
 	c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"a","values":[1]}],"request":{"label":"x","return":{"precision":{"$var":"a"}}}}}`)
 	_, err := Expand(c, nil)
 	requireSweepInvalid(t, err, ReasonRequestLabelSet)
@@ -410,6 +434,8 @@ func TestExpand_LabelFaults(t *testing.T) {
 // TestExpand_ValidateFirst: a structurally invalid sweep is refused by
 // Validate's rules before the reference scan or preflight runs.
 func TestExpand_ValidateFirst(t *testing.T) {
+	t.Parallel()
+
 	c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[],"request":{"x":"{{zz}}"}}}`)
 	called := false
 	_, err := Expand(c, func(int) error { called = true; return nil })
@@ -424,6 +450,8 @@ func TestExpand_ValidateFirst(t *testing.T) {
 // `request_<i+1>` label default the expansion leaves them (sweep slots
 // are appended, so explicit indices never shift).
 func TestExpand_HashAsWritten(t *testing.T) {
+	t.Parallel()
+
 	build := func(label string) *types.ComposedRequest {
 		return decodeComposed(t, `{"requests":[{"label":"`+label+`","cohort":{"filename":"c"}}],
 			"sweep":{"axes":[{"name":"a","values":[1,2]}],"request":{"cohort":{"filename":"c"},"return":{"precision":{"$var":"a"}}}}}`)
@@ -455,6 +483,8 @@ func TestExpand_HashAsWritten(t *testing.T) {
 // the text its label renders), strings and booleans are preserved —
 // and is nil without a sweep.
 func TestExpand_AxesPerSlot(t *testing.T) {
+	t.Parallel()
+
 	grid := mustExpand(t, decodeComposed(t, `{"requests":[],"sweep":{
 		"axes":[{"name":"tv","values":[10,1.50]},{"name":"flag","values":[true]},{"name":"tag","values":["s","t"]}],
 		"request":{"cohort":{"filename":"c{{tv}}{{flag}}{{tag}}.pulse"}}}}`))

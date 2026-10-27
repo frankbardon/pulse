@@ -16,6 +16,8 @@ import (
 // read back off the emitter, which is the only way this test can catch the
 // emitter being wrong.
 func TestExtensionFixture_ByteLayout(t *testing.T) {
+	t.Parallel()
+
 	got, err := Build(ExtensionReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -141,6 +143,8 @@ func TestExtensionFixture_ByteLayout(t *testing.T) {
 // rests on still holds with extension records in play. Their emission order
 // is fixed rather than caller-controlled precisely so it can.
 func TestExtensionFixture_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	first, err := Build(ExtensionReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -163,6 +167,8 @@ func TestExtensionFixture_Deterministic(t *testing.T) {
 // TestReferenceFixture_Pinned pins the reference bytes by hash; this asserts
 // the reason that hash did not move.
 func TestExtensions_AbsentByDefault(t *testing.T) {
+	t.Parallel()
+
 	got, err := Build(ReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -179,6 +185,8 @@ func TestExtensions_AbsentByDefault(t *testing.T) {
 
 // TestExtensions_TwoFieldDisplayParams covers the older record 7/11 shape.
 func TestExtensions_TwoFieldDisplayParams(t *testing.T) {
+	t.Parallel()
+
 	spec := ExtensionReferenceSpec()
 	spec.OmitDisplayWidth = true
 	got, err := Build(spec)
@@ -199,6 +207,8 @@ func TestExtensions_TwoFieldDisplayParams(t *testing.T) {
 // TestExtensions_DisplayWidthDefaultsToFormatWidth checks the one derived
 // value in the 7/11 payload.
 func TestExtensions_DisplayWidthDefaultsToFormatWidth(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		DisplayParams: true,
 		Vars: []Var{
@@ -222,6 +232,8 @@ func TestExtensions_DisplayWidthDefaultsToFormatWidth(t *testing.T) {
 // The grammar is the load-bearing part: a reader built against a wrong
 // rendering here would be wrong against every real file.
 func TestExtensions_MRSetGrammar(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		set  MRSet
@@ -286,6 +298,8 @@ func TestExtensions_MRSetGrammar(t *testing.T) {
 // TestExtensions_SetsShareOneRecordPerSubtype checks the grouping rule: sets
 // with the same subtype ride one record, in slice order.
 func TestExtensions_SetsShareOneRecordPerSubtype(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Vars: []Var{{Name: "A"}},
 		MultipleResponseSets: []MRSet{
@@ -312,6 +326,8 @@ func TestExtensions_SetsShareOneRecordPerSubtype(t *testing.T) {
 // differs from what its author declared is how a reader bug becomes
 // invisible.
 func TestExtensions_Rejects(t *testing.T) {
+	t.Parallel()
+
 	one := func(vs ...Var) []Var {
 		if len(vs) == 0 {
 			return []Var{{Name: "A"}}
@@ -462,6 +478,8 @@ func TestExtensions_Rejects(t *testing.T) {
 // byte rejection: the attribute records are line-structured, so a newline is
 // content, not a fault.
 func TestExtensions_AttributeNewlinesAreLegal(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{Vars: []Var{{Name: "A"}}, FileAttributes: "k('v1'\n'v2'\n)\n"}
 	got, err := Build(spec)
 	if err != nil {
@@ -475,6 +493,8 @@ func TestExtensions_AttributeNewlinesAreLegal(t *testing.T) {
 // TestExtensions_Stringers covers the two new enums' String methods,
 // including their out-of-range arms.
 func TestExtensions_Stringers(t *testing.T) {
+	t.Parallel()
+
 	checks := []struct{ got, want string }{
 		{MeasureUnset.String(), "unset"},
 		{MeasureNominal.String(), "nominal"},
@@ -499,6 +519,8 @@ func TestExtensions_Stringers(t *testing.T) {
 // TestExtensions_DefaultsAreConforming checks the two default payload helpers
 // against the values the format defines.
 func TestExtensions_DefaultsAreConforming(t *testing.T) {
+	t.Parallel()
+
 	mi := DefaultMachineIntegerInfo()
 	if mi.FloatingPointRep != 1 {
 		t.Errorf("FloatingPointRep = %d, want 1 (IEEE 754)", mi.FloatingPointRep)

@@ -89,9 +89,13 @@ func compareReusedAgainstReference(t *testing.T, schema *encoding.Schema, raw []
 // categorical_*, set_*, nullable variants) through both decode paths and
 // asserts byte-equal output for every record.
 func TestReadRecordReused_MatchesReferencePerType(t *testing.T) {
+	t.Parallel()
+
 	for _, f := range perTypeFixtures() {
 		f := f
 		t.Run(f.name, func(t *testing.T) {
+			t.Parallel()
+
 			records := generatePerTypeRecords(t, f, 0x2EC0DE00+int64(len(f.name)))
 			for ri, raw := range records {
 				compareReusedAgainstReference(t, f.schema, raw, f.name+"/rec="+itoa(ri))
@@ -107,6 +111,8 @@ func TestReadRecordReused_MatchesReferencePerType(t *testing.T) {
 // schema (every field type, nullable variants, rotating null patterns,
 // bit-packed runs, decimal128, every set width) through both paths.
 func TestReadRecordReused_MatchesReferenceBigMixed(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xB16B0FFE)
 	for ri, raw := range records {
@@ -122,6 +128,8 @@ func TestReadRecordReused_MatchesReferenceBigMixed(t *testing.T) {
 // surfaces as io.EOF as well (io.ReadFull maps a nonzero short read to
 // io.ErrUnexpectedEOF, which mapEOF normalizes to io.EOF).
 func TestReadRecordReused_EOFOnExhaustion(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xE0FE0F00)
 	const n = 5

@@ -24,6 +24,8 @@ func distanceMatrixSpec(params string) types.MatrixSpec {
 // into Fields — with the metric (euclidean by default) and standardize;
 // every malformed shape is refused with its reason.
 func TestResolveMatrices_Distance(t *testing.T) {
+	t.Parallel()
+
 	vec := []types.VectorSpec{{Name: "seg", Fields: []string{"score", "mid"}}}
 	t.Run("resolves", func(t *testing.T) {
 		req := &types.Request{Vectors: vec, Matrices: []types.MatrixSpec{
@@ -196,6 +198,8 @@ func detailsOf(err error) map[string]any {
 // TestMatrixSpec_DistanceStreamability: a MAT_DISTANCE spec streams when
 // its between grouper does and merges when that grouper also merges.
 func TestMatrixSpec_DistanceStreamability(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		between           string
 		stream, mergeable bool

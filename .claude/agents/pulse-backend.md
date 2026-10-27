@@ -15,6 +15,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - **Predict/runtime parity:** every new refusal, execution arm or streamability verdict gets a predict ≡ runtime test.
 - **Falsify:** revert one production line per key new test, see it fail, restore.
 - **Bit-exact across workers:** results identical across `DecodeWorkers` / `ShardWorkers`; FMA-free kernels write `float64(a*b)`; never pin gonum-decomposition bits in a fixture.
+- **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget.
 
 ## Context discovery (read in this order)
 

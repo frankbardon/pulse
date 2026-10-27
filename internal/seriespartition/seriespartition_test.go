@@ -30,6 +30,8 @@ func spec(params string) *types.OverlaySpec {
 // Absent / null / unparseable partition_by partitions by every key but
 // the last; an explicit leading prefix gives its length; [] gives 0.
 func TestDepth(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		groups int
 		params string
@@ -59,6 +61,8 @@ func TestDepth(t *testing.T) {
 // A vector-input grouper's key column is <TYPE>_<first field>, and
 // partition_by names it by that column.
 func TestDepth_VectorGroupKeyColumn(t *testing.T) {
+	t.Parallel()
+
 	gs := []*types.Group{
 		{Type: types.GROUP_KMEANS, Fields: []string{"x", "y"}},
 		{Type: types.GROUP_CATEGORY, Field: "store"},
@@ -74,6 +78,8 @@ func TestDepth_VectorGroupKeyColumn(t *testing.T) {
 // Anything but a leading prefix is refused PULSE_OVERLAY_PARTITION_INVALID
 // with {index, kind, partition_by, groups, reason[, field]}.
 func TestDepth_Refused(t *testing.T) {
+	t.Parallel()
+
 	cols := []string{"region", "store", "day"}
 	for _, c := range []struct {
 		params string
@@ -114,6 +120,8 @@ func TestDepth_Refused(t *testing.T) {
 // first-appearance order with ordinals ascending; string "1" and number
 // 1, and nil and "", are distinct keys.
 func TestPartition(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{
 		{"east", "a", 1}, {"west", "a", 1}, {"east", "b", 2}, {"west", "a", 2},
 		{nil, "a", 1}, {"", "a", 1}, {"1", "a", 1}, {1, "a", 1}, {"east", "a", 3},
@@ -138,6 +146,8 @@ func TestPartition(t *testing.T) {
 }
 
 func TestRowKeys(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"region": "east", "day": "d1", "n": 3}, {"day": "d2"}}
 	want := []types.AxisKey{{"east", "d1"}, {nil, "d2"}}
 	if got := RowKeys(rows, []string{"region", "day"}); !reflect.DeepEqual(got, want) {
@@ -146,6 +156,8 @@ func TestRowKeys(t *testing.T) {
 }
 
 func TestKinds(t *testing.T) {
+	t.Parallel()
+
 	ks := Kinds()
 	if len(ks) != 15 {
 		t.Fatalf("Kinds() = %v, want the 12 ordered kinds (OVERLAY_FORMULA and the 3 inferential _VS_PRIOR kinds included) and the 3 _TOTAL kinds", ks)
@@ -173,6 +185,8 @@ func TestKinds(t *testing.T) {
 }
 
 func TestExplicit(t *testing.T) {
+	t.Parallel()
+
 	for params, want := range map[string]bool{
 		"":                             false,
 		`{"window": 2}`:                false,
@@ -204,6 +218,8 @@ func yoySpec(params string) *types.OverlaySpec {
 // PartitionOn splits by key equality on the named elements wherever they
 // sit; Partition(depth) is PartitionOn over the leading depth indices.
 func TestPartitionOn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"m1", "east"}, {"m1", "west"}, {"m2", "east"}, {"m2", "west"}, {"m3", "east"}}
 	for _, c := range []struct {
 		on   []int
@@ -227,6 +243,8 @@ func TestPartitionOn(t *testing.T) {
 // every other key, in group order; an explicit partition_by naming
 // exactly those keys (any order) is the same.
 func TestYoY(t *testing.T) {
+	t.Parallel()
+
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 	store := &types.Group{Type: types.GROUP_CATEGORY, Field: "store"}
 	day := &types.Group{Type: types.GROUP_DATE, Field: "day"}
@@ -261,6 +279,8 @@ func TestYoY(t *testing.T) {
 // exactly the non-date keys, with the Details predict and the runtime
 // both echo.
 func TestYoY_Refused(t *testing.T) {
+	t.Parallel()
+
 	region := &types.Group{Type: types.GROUP_CATEGORY, Field: "region"}
 	store := &types.Group{Type: types.GROUP_CATEGORY, Field: "store"}
 	day := &types.Group{Type: types.GROUP_DATE, Field: "day"}

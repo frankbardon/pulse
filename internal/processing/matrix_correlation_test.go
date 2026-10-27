@@ -16,6 +16,8 @@ import (
 // both add no mass for those rows, so r agrees to the parity
 // tolerance. Frequency and probability weights alike.
 func TestMatrixCorrelation_ZeroWeightRowsCountTowardN(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 0},
 		{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 8},

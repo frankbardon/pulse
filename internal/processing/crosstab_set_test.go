@@ -66,6 +66,8 @@ func runMapCellCrosstab(t *testing.T, recs []*Record, normalize types.CrosstabNo
 // in a Crosstab Cell populates MatrixCell.Value with the per-label
 // row-count map (not the scalar fallback).
 func TestCrosstab_SetFrequencyCellEmitsMap(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetSchema(t)
 	// 3 north records: 2× {VISA,MC}, 1× {AMEX}. Diagonal (north,north)
 	// cell carries all north records.
@@ -110,6 +112,8 @@ func TestCrosstab_SetFrequencyCellEmitsMap(t *testing.T) {
 // margins recomputed for AGG_SET_FREQUENCY also surface the map payload
 // (per the margin path running the same aggregator over a wider bucket).
 func TestCrosstab_SetFrequencyMarginEmitsMap(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetSchema(t)
 	recs := []*Record{
 		crosstabSetRecord(schema, 0, 0b0011), // north: VISA + MC
@@ -215,6 +219,8 @@ func runWelfordCellCrosstab(t *testing.T, recs []*Record, normalize types.Crosst
 // runtime gate at internal/processing/crosstab.go validateCrosstabSpec must reject
 // every normalize axis for either aggregator.
 func TestCrosstab_MapValuedCellRejectsNormalize(t *testing.T) {
+	t.Parallel()
+
 	normalizeModes := []types.CrosstabNormalize{
 		types.CrosstabNormalizeRow,
 		types.CrosstabNormalizeColumn,
@@ -259,6 +265,8 @@ func TestCrosstab_MapValuedCellRejectsNormalize(t *testing.T) {
 }
 
 func TestCrosstab_WelfordCellNormalizeNoneEmitsRich(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabWelfordSchema(t)
 	// 3 north records on the (north,north) diagonal: samples {2, 4, 6}
 	// → mean = 4, sample variance = 4 (M2 = 8, n-1 = 2), n = 3.
@@ -310,6 +318,8 @@ func TestCrosstab_WelfordCellNormalizeNoneEmitsRich(t *testing.T) {
 }
 
 func TestCrosstab_WelfordCellValueIsScalarNotTriple(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabWelfordSchema(t)
 	// Two cohort buckets — diagonal cells (0,0) and (1,1) populated so
 	// row / column / grand margins all have non-empty input. Samples
@@ -404,6 +414,8 @@ func TestCrosstab_WelfordCellValueIsScalarNotTriple(t *testing.T) {
 // a scalar cell aggregator round-trips through the widened MatrixCell
 // shape with the same float64 value (cell.Value asserts to float64).
 func TestCrosstab_ScalarCellPathUnchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetSchema(t)
 	recs := []*Record{
 		crosstabSetRecord(schema, 0, 0b0011),
@@ -449,6 +461,8 @@ func TestCrosstab_ScalarCellPathUnchanged(t *testing.T) {
 // processor bucket loop cannot silently regress per-element fan-out on
 // axes.
 func TestCrosstab_SetPerElementOnRowAxis(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetSchema(t)
 	// 4 records varying region and tag mask.
 	//
@@ -552,6 +566,8 @@ func TestCrosstab_SetPerElementOnRowAxis(t *testing.T) {
 // doesn't hold both a and b must be absent — the per-axis fan-out is
 // independent, not cartesian-over-the-source-mask.
 func TestCrosstab_SetPerElementOnBothAxes(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetSchema(t)
 	// R1: {VISA, MC}  → contributes to (VISA,VISA) (VISA,MC) (MC,VISA) (MC,MC) → 4 cells
 	// R2: {AMEX}      → contributes to (AMEX,AMEX)                           → 1 cell
@@ -677,6 +693,8 @@ func axisKeyIndex(keys []types.AxisKey) map[string]int {
 // process). AGG_SET_UNION returns []string from Rich(); the response
 // row's "union" column must carry the slice, not a float64 scalar.
 func TestCrosstab_RichDispatchInBufferedAggregate(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabSetSchema(t)
 	recs := []*Record{
 		crosstabSetRecord(schema, 0, 0b0001), // VISA

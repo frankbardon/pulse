@@ -61,6 +61,8 @@ func fieldByName(s *encoding.Schema, name string) *encoding.Field {
 // and a second column's first null lands past the inference sample window. The
 // second column must be promoted in-loop, reported, and decode correctly.
 func TestImportJob_Promote_OutOfSampleNull_BitmapPresent(t *testing.T) {
+	t.Parallel()
+
 	// 60 rows > sample floor (50). Column "clean" is null only at the last
 	// row (out of sample). Column "early" is null within the sample so a
 	// bitmap is already written for every record.
@@ -125,6 +127,8 @@ func TestImportJob_Promote_OutOfSampleNull_BitmapPresent(t *testing.T) {
 // buffer must still promote the field and interleave a valid bitmap so earlier
 // records decode as non-null and the promoted record decodes as null.
 func TestImportJob_Promote_OutOfSampleNull_CleanSample(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]string
 	for i := range 60 {
 		v := "7"
@@ -169,6 +173,8 @@ func TestImportJob_Promote_OutOfSampleNull_CleanSample(t *testing.T) {
 // user schema is a contract: a null in a declared non-nullable field remains a
 // PULSE_IMPORT_ROW_ERROR (row skipped), never a silent promotion.
 func TestImportJob_ExplicitSchema_NonNullable_StillErrors(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "a"},
 		{"", "b"}, // null in non-nullable "n"
@@ -213,6 +219,8 @@ func TestImportJob_ExplicitSchema_NonNullable_StillErrors(t *testing.T) {
 // schema-file loader fix: an explicit schema that declares a field nullable
 // must accept null cells without error and persist the flag.
 func TestImportJob_ExplicitSchema_NullableHonored(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "a"},
 		{"", "b"},
@@ -254,6 +262,8 @@ func TestImportJob_ExplicitSchema_NullableHonored(t *testing.T) {
 // inside the sample is picked up by inference, so the field is already nullable
 // and nothing is promoted.
 func TestImportJob_WithinSampleNull_NoPromotion(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "7"},
 		{"20", ""},
@@ -280,6 +290,8 @@ func TestImportJob_WithinSampleNull_NoPromotion(t *testing.T) {
 // pass finalizes nullability so schema-template / predict report the accurate
 // flag for a null past the sample window.
 func TestImportJob_Predict_PromotesOutOfSampleNull(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]string
 	for i := range 60 {
 		v := "7"

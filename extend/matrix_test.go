@@ -17,6 +17,8 @@ func cell(r, c int) float64 { return float64(10*r + c) }
 // empty Encoding means full, labels ride along only when present, and
 // the result never aliases the input's member or label slices.
 func TestMatrixInputSquare(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		in       extend.MatrixInput
@@ -74,6 +76,8 @@ func TestMatrixInputSquare(t *testing.T) {
 // when the input asks for upper), one row per member, the given column
 // keys copied.
 func TestMatrixInputRect(t *testing.T) {
+	t.Parallel()
+
 	in := extend.MatrixInput{Members: []string{"a", "b"}, Labels: []string{"A", "B"}, Encoding: types.MatrixEncodingUpper}
 	cols := []string{"F1", "F2", "F3"}
 	got := in.Rect(cols, cell)
@@ -98,6 +102,8 @@ func TestMatrixInputRect(t *testing.T) {
 // against: a factory returning a finalize-only operator that reads the
 // co-moment (PairM2 included) and fills every MatrixOutput part.
 func TestMatrixOperatorContract(t *testing.T) {
+	t.Parallel()
+
 	var factory extend.MatrixFactory = func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
 		return scatterOp{}, nil
 	}

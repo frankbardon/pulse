@@ -39,6 +39,8 @@ func extVecRecord() (*processing.Record, *processing.Record) {
 // element and a null vector are a null member (the shared fill's rule);
 // every other name keeps the plain lookup.
 func TestExtRecord_NativeElementMembers(t *testing.T) {
+	t.Parallel()
+
 	rec, nullCol := extVecRecord()
 	var r extend.Record = extRecord{Record: rec}
 	cases := []struct {
@@ -88,6 +90,7 @@ func TestExtRecord_NativeElementMembers(t *testing.T) {
 // the extend view — including wrapping the row into the interface — is
 // zero-alloc on the per-row hot path.
 func TestExtRecord_ElementReadAllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
 	rec, _ := extVecRecord()
 	rows := recordRows{rec}
 	var x float64
@@ -160,6 +163,8 @@ func (t extVecTestProbe) Finalize() (*types.TestResult, error) {
 // AND an invalid weight), row tests and features — passes the extRecord
 // view, so a native element member reads present on every one.
 func TestExtRecord_EveryHandoffResolvesElements(t *testing.T) {
+	t.Parallel()
+
 	rec, _ := extVecRecord()
 	records := []*processing.Record{rec}
 	// x = 1.5: a valid probability weight, an invalid frequency one.

@@ -20,6 +20,8 @@ func floatFixture() ([]string, [][]string) {
 // TestInfer_FloatDefaultsF64: an all-float column infers f64 by default
 // (empty and "f64" alike) and f32 only on the "f32" opt-in.
 func TestInfer_FloatDefaultsF64(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := floatFixture()
 	for width, want := range map[string]encoding.FieldType{
 		"":            encoding.FieldTypeF64,
@@ -48,6 +50,8 @@ func TestInfer_FloatDefaultsF64(t *testing.T) {
 // 123456.789012 import as f64 and decode to exactly the float64 the
 // source text parses to.
 func TestImport_FloatRoundTripsExactly(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := floatFixture()
 	rep, _, fs, err := runGroupImport(t, newMockReader(cols, rows), nil)
 	if err != nil {
@@ -91,6 +95,8 @@ func moneySum(t *testing.T, width string) (got, ref float64) {
 // imported cohort is the f64 reference sum — bit for bit — under the
 // default; the f32 opt-in drifts, which is why it is not the default.
 func TestImport_MoneySumMatchesF64Reference(t *testing.T) {
+	t.Parallel()
+
 	got, ref := moneySum(t, "")
 	if got != ref {
 		t.Errorf("default sum = %v, want the f64 reference %v", got, ref)
@@ -115,6 +121,8 @@ func requireFloatWidthRefusal(t *testing.T, err error, value string) {
 // coded refusal on Run and Predict of both jobs and on inference itself,
 // even when an explicit Schema means inference would never consult it.
 func TestImport_FloatWidthInvalidRefused(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := floatFixture()
 	for _, bad := range []string{"f16", "F64", "double"} {
 		_, err := InferSchemaWithOptions(newMockReader(cols, rows), InferOptions{FloatWidth: bad})
@@ -148,6 +156,8 @@ func TestImport_FloatWidthInvalidRefused(t *testing.T) {
 // TestImportPredict_FloatWidthMatchesRun: import Predict (and convert
 // Predict) infer the width Run writes, under the default and the opt-in.
 func TestImportPredict_FloatWidthMatchesRun(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := floatFixture()
 	for _, width := range []string{"", FloatWidthF32} {
 		rep, _, _, err := runGroupImport(t, newMockReader(cols, rows), nil, func(j *ImportJob) { j.FloatWidth = width })
@@ -175,6 +185,8 @@ func TestImportPredict_FloatWidthMatchesRun(t *testing.T) {
 // (the managed-import force_type) still forces f32 under the f64
 // default, and f64 under the f32 opt-in.
 func TestImport_FloatOverrideWinsOverDefault(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := floatFixture()
 	for width, forced := range map[string]encoding.FieldType{"": encoding.FieldTypeF32, FloatWidthF32: encoding.FieldTypeF64} {
 		rep, _, _, err := runGroupImport(t, newMockReader(cols, rows), nil, func(j *ImportJob) {

@@ -16,6 +16,8 @@ import (
 )
 
 func TestIndexHeader_WriteRead(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := WriteIndexHeader(&buf); err != nil {
 		t.Fatalf("WriteIndexHeader: %v", err)
@@ -38,6 +40,8 @@ func TestIndexHeader_WriteRead(t *testing.T) {
 }
 
 func TestIndexHeader_DistinctFromPulseMagic(t *testing.T) {
+	t.Parallel()
+
 	// The sidecar magic must never collide with the .pulse envelope
 	// magic — a reader dispatching on the first bytes must be able to
 	// tell the two formats apart.
@@ -50,6 +54,8 @@ func TestIndexHeader_DistinctFromPulseMagic(t *testing.T) {
 }
 
 func TestIndexHeader_CorruptOrShort(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		data []byte
@@ -93,6 +99,8 @@ func sampleFingerprint(seed byte) Fingerprint {
 }
 
 func TestIndex_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		idx  *Index
@@ -214,6 +222,8 @@ func normalizeIndex(idx *Index) {
 }
 
 func TestIndex_Read_UnknownKeyFieldType(t *testing.T) {
+	t.Parallel()
+
 	idx := &Index{
 		Fingerprint: sampleFingerprint(0x01),
 		Keys: []IndexKeySpec{
@@ -241,6 +251,8 @@ func TestIndex_Read_UnknownKeyFieldType(t *testing.T) {
 }
 
 func TestIndex_Read_TruncatedBody(t *testing.T) {
+	t.Parallel()
+
 	idx := &Index{
 		Fingerprint: sampleFingerprint(0x02),
 		Keys: []IndexKeySpec{
@@ -273,6 +285,8 @@ func TestIndex_Read_TruncatedBody(t *testing.T) {
 }
 
 func TestComputeFingerprint_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	content := []byte("some pulse cohort bytes, header + schema + records")
 
 	fp1, err := ComputeFingerprint(bytes.NewReader(content))
@@ -302,6 +316,8 @@ func TestComputeFingerprint_Deterministic(t *testing.T) {
 }
 
 func TestHashKey_BucketIndex_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	key := []byte{1, 2, 3, 4}
 	h1 := HashKey(key)
 	h2 := HashKey(key)
@@ -327,6 +343,8 @@ func TestHashKey_BucketIndex_Deterministic(t *testing.T) {
 }
 
 func TestIndex_AferoRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 
 	idx := &Index{
@@ -367,6 +385,8 @@ func TestIndex_AferoRoundTrip(t *testing.T) {
 }
 
 func TestIndex_AferoRoundTrip_MissingFile(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	_, err := ReadIndexFile(cfg.Fs(), "does-not-exist.idx")
 	if err == nil {
@@ -382,6 +402,8 @@ func TestIndex_AferoRoundTrip_MissingFile(t *testing.T) {
 // ---------------------------------------------------------------------
 
 func TestIndex_FormatVersionIsV3(t *testing.T) {
+	t.Parallel()
+
 	if IndexFormatVersion != 0x03 {
 		t.Fatalf("IndexFormatVersion = 0x%02x, want 0x03", IndexFormatVersion)
 	}
@@ -392,6 +414,8 @@ func TestIndex_FormatVersionIsV3(t *testing.T) {
 // misparsed — a hand-crafted header with version byte 0x02 (the actual
 // prior IndexFormatVersion, not an arbitrary "wrong version" probe).
 func TestIndexHeader_RejectsOldV2Sidecar(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := WriteIndexHeader(&buf); err != nil {
 		t.Fatalf("WriteIndexHeader: %v", err)
@@ -469,6 +493,8 @@ func bucketsDeepEqual(a, b IndexBucket) bool {
 }
 
 func TestReadIndexMeta_MatchesFullIndexFields(t *testing.T) {
+	t.Parallel()
+
 	idx, _ := buildManyBucketIndexFixture(37, 50)
 	var buf bytes.Buffer
 	if err := WriteIndex(&buf, idx); err != nil {
@@ -516,6 +542,8 @@ func TestReadIndexMeta_MatchesFullIndexFields(t *testing.T) {
 // — proving the offset table + seek math resolve to the right bucket,
 // not just "a" bucket.
 func TestReadBucketByKey_MatchesFullReadForEveryBucket(t *testing.T) {
+	t.Parallel()
+
 	idx, keys := buildManyBucketIndexFixture(37, 150)
 	var buf bytes.Buffer
 	if err := WriteIndex(&buf, idx); err != nil {
@@ -554,6 +582,8 @@ func TestReadBucketByKey_MatchesFullReadForEveryBucket(t *testing.T) {
 //     key into the same single bucket — a trivially deterministic way
 //     to construct a guaranteed collision without hunting for one.
 func TestReadBucketByKey_SingleMultiEmptyBuckets(t *testing.T) {
+	t.Parallel()
+
 	t.Run("single_entry_bucket", func(t *testing.T) {
 		const bucketCount = 997 // prime, keeps collisions rare with 1 key
 		keyX := keyForN(42)
@@ -680,6 +710,8 @@ func TestReadBucketByKey_SingleMultiEmptyBuckets(t *testing.T) {
 // not an error — mirrors internal/service/lookup.go's existing
 // len(idx.Buckets) == 0 short-circuit.
 func TestReadBucketByKey_EmptyIndex(t *testing.T) {
+	t.Parallel()
+
 	idx := &Index{
 		Fingerprint: sampleFingerprint(0x04),
 		Keys:        []IndexKeySpec{{Name: "id", Type: encoding.FieldTypeU64}},
@@ -736,6 +768,8 @@ func (c *countingReadSeeker) Seek(offset int64, whence int) (int64, error) {
 // stay a tiny, bounded fraction of the whole sidecar file, regardless
 // of how many OTHER buckets/entries the file holds.
 func TestReadBucketByKey_ReadsOnlyTargetBucket(t *testing.T) {
+	t.Parallel()
+
 	const bucketCount = 5000
 	idx, keys := buildManyBucketIndexFixture(bucketCount, 3000)
 
@@ -792,6 +826,8 @@ func TestReadBucketByKey_ReadsOnlyTargetBucket(t *testing.T) {
 // space: a tampered or truncated bucket-offset table entry must fail
 // with a coded error, never a silent misread or a panic.
 func TestReadBucketByKey_CorruptOrTruncatedOffset(t *testing.T) {
+	t.Parallel()
+
 	idx, keys := buildManyBucketIndexFixture(37, 20)
 	var buf bytes.Buffer
 	if err := WriteIndex(&buf, idx); err != nil {
@@ -861,6 +897,8 @@ func TestReadBucketByKey_CorruptOrTruncatedOffset(t *testing.T) {
 }
 
 func TestReadIndexMetaFile_AferoRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	idx, _ := buildManyBucketIndexFixture(11, 5)
 
@@ -886,6 +924,8 @@ func TestReadIndexMetaFile_AferoRoundTrip(t *testing.T) {
 }
 
 func TestReadIndexMetaFile_MissingFile(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	_, err := ReadIndexMetaFile(cfg.Fs(), "does-not-exist.idx")
 	if err == nil {
@@ -901,6 +941,8 @@ func TestReadIndexMetaFile_MissingFile(t *testing.T) {
 // realistically-shaped many-bucket fixture — belt-and-suspenders on top
 // of the smaller hand-written cases already covered there.
 func TestIndex_V3RoundTrip_ByteStable_ManyBuckets(t *testing.T) {
+	t.Parallel()
+
 	idx, _ := buildManyBucketIndexFixture(101, 250)
 
 	var buf bytes.Buffer

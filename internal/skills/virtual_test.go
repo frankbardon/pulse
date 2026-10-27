@@ -10,6 +10,8 @@ import (
 // embedded *.md file may claim a reserved virtual skill stem
 // (glossary, intents). Adding internal/skills/glossary.md fails it.
 func TestVirtualSkillStemsNotEmbedded(t *testing.T) {
+	t.Parallel()
+
 	names := embeddedMarkdownNames(t)
 	if !embedded("request-envelope") {
 		t.Fatal("embedded() misses a real skill file: the gate would be vacuous")
@@ -33,6 +35,8 @@ func withVirtual(t *testing.T, v Virtual) {
 }
 
 func TestRegisterVirtual_JoinsListAndGet(t *testing.T) {
+	// serial: registers a virtual skill in the process-wide skills registry
+
 	if IsVirtual(VirtualGlossary) {
 		t.Skip("glossary registered by a linked package")
 	}
@@ -60,6 +64,8 @@ func TestRegisterVirtual_JoinsListAndGet(t *testing.T) {
 }
 
 func TestRegisterVirtual_Refuses(t *testing.T) {
+	// serial: registers a virtual skill in the process-wide skills registry
+
 	render := func() string { return "" }
 	for name, v := range map[string]Virtual{
 		"unreserved stem": {Metadata: Metadata{Name: "not-reserved"}, Render: render},

@@ -55,6 +55,8 @@ func ruleSpecFixture(rules ...RuleSpec) *Spec {
 // run succeeds and generates rows with the gate silently missing — so a
 // refusal that arrives at row 400,000, or not at all, is the defect.
 func TestValidateRules_Matrix(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		rule RuleSpec
@@ -216,6 +218,8 @@ func TestValidateRules_Matrix(t *testing.T) {
 // document an author wrote — and the standalone rules file (E2-S1) and
 // the per-rule firing counts use the same one.
 func TestValidateRules_ErrorNamesRuleIndexAndField(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(
 		RuleSpec{SetNull: []string{"score"}},
 		RuleSpec{When: "aware == 1", Set: map[string]any{"nope": 1.0}},
@@ -249,6 +253,8 @@ func TestValidateRules_ErrorNamesRuleIndexAndField(t *testing.T) {
 // binary on the same document. Sorted-key iteration is the fix and this
 // is its gate.
 func TestValidateRules_FaultChoiceIsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(RuleSpec{Set: map[string]any{
 		"aaa_unknown": 1.0,
 		"mmm_unknown": 1.0,
@@ -293,6 +299,8 @@ func TestValidateRules_FaultChoiceIsDeterministic(t *testing.T) {
 // fail, and correctly — the two surfaces share an environment and must
 // share its verdicts.
 func TestValidateRules_ExprEnvIsTheConstraintEnv(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		expr     string
 		accepted bool
@@ -341,6 +349,8 @@ func TestValidateRules_ExprEnvIsTheConstraintEnv(t *testing.T) {
 // reported as a rule fault. buildSchema refuses that field on its own
 // terms; pointing an author at their rule would point at the wrong line.
 func TestValidateRules_UnknownFieldTypeBlamesTheField(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(RuleSpec{Set: map[string]any{"weird": 1.0}})
 	spec.Fields = append(spec.Fields, FieldSpec{
 		Name: "weird", Type: "datetime", Distribution: DistConstant,

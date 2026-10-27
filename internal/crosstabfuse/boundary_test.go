@@ -23,6 +23,8 @@ const modulePrefix = "github.com/frankbardon/pulse"
 // an allow-list; the transitive graph is checked against the execution
 // and descriptor packages.
 func TestCrosstabFuse_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowedDirect := map[string]bool{
 		modulePrefix + "/types":    true,
 		modulePrefix + "/encoding": true,

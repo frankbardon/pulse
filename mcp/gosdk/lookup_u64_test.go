@@ -20,6 +20,8 @@ import (
 // go-sdk returns a u64 cell as its exact integer — 2^53+1 and MaxUint64
 // keep their own digits — on a single file and a shard archive.
 func TestLookupTool_U64RowsExact(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	seed, err := pulse.New(pulse.Options{FS: fs})

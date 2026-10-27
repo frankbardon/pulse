@@ -83,6 +83,8 @@ func profileOptionMatrix() []struct {
 // so --conditional's categorical reservoir cannot shift underneath it,
 // and that is the property most likely to regress silently.
 func TestProfile_FitModels_LeavesExistingCaptureUntouched(t *testing.T) {
+	t.Parallel()
+
 	data := modelFlagFixture(t, 900, 11)
 	opts := synth.ProfileOptions{
 		IncludeStats:        true,
@@ -155,6 +157,8 @@ func TestProfile_FitModels_LeavesExistingCaptureUntouched(t *testing.T) {
 // reservoir is randomised, so without this the section would be free to
 // drift run to run and nothing downstream could be golden-tested.
 func TestProfile_FitModels_DeterministicAcrossRuns(t *testing.T) {
+	t.Parallel()
+
 	data := modelFlagFixture(t, 400, 3)
 	opts := synth.ProfileOptions{FitModels: true, Seed: 9}
 

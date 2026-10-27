@@ -10,6 +10,8 @@ import (
 )
 
 func TestCovariateRefusal(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	if _, err := dict.Add("a"); err != nil {
 		t.Fatal(err)
@@ -54,6 +56,8 @@ func TestCovariateRefusal(t *testing.T) {
 }
 
 func TestTakesCovariate(t *testing.T) {
+	t.Parallel()
+
 	var got []string
 	for _, op := range types.AllTestTypes() {
 		if TakesCovariate(op) {
@@ -71,6 +75,8 @@ func TestTakesCovariate(t *testing.T) {
 }
 
 func TestCovariateParam(t *testing.T) {
+	t.Parallel()
+
 	for raw, want := range map[string]string{
 		``:                                  "",
 		`{}`:                                "",

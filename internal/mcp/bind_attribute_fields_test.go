@@ -59,6 +59,8 @@ func predictAcceptsAttributeField(op string, slot fieldaccept.Slot, ft encoding.
 // ATTR_DATE_PART, a set on ATTR_SET_HAS, while ATTR_ZSCORE stays
 // numeric-only. Checked with a real draft 2020-12 validator.
 func TestBind_AttributeFieldsFollowAcceptedTypes(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, nil, pulse.Extensions{})
 	schema := everyTypeSchema()
 	bound, err := BindForInstance(schema, inst)
@@ -95,6 +97,8 @@ func TestBind_AttributeFieldsFollowAcceptedTypes(t *testing.T) {
 // the same item without for_each may not, and a literal field the type
 // refuses is refused either way.
 func TestBind_AttributeFieldsUnderForEach(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, nil, pulse.Extensions{})
 	bound, err := BindForInstance(makeBindSchema(), inst)
 	if err != nil {
@@ -137,6 +141,8 @@ func (zeroAttribute) Row(extend.Record, string) (float64, error) { return 0, nil
 // declaring Accepts binds `field` to exactly the schema fields of those
 // types; one declaring none keeps the numeric class.
 func TestBind_ExtensionAttributeFieldFollowsAccepts(t *testing.T) {
+	t.Parallel()
+
 	stub := func(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 		return zeroAttribute{}, nil
 	}

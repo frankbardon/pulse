@@ -80,6 +80,8 @@ func nonFiniteSchema() *encoding.Schema {
 // fits with a null in the same cell (n excludes the row), result for
 // result, bit for bit on the wire.
 func TestNonFiniteInput_DropsListwiseLikeNull(t *testing.T) {
+	t.Parallel()
+
 	dirty := map[int][]string{3: {"y", "k"}, 7: {"x1"}, 11: {"x2"}, 15: {"c"}, 19: {"t"}}
 	specs := nonFiniteSpecs()
 	schema := nonFiniteSchema()
@@ -130,6 +132,8 @@ func TestNonFiniteInput_DropsListwiseLikeNull(t *testing.T) {
 // TestNonFiniteInput_AttributeRefitDropsLikeNull: the ATTR_REG_* refit
 // (FitForAttribute) treats a non-finite target or predictor as null.
 func TestNonFiniteInput_AttributeRefitDropsLikeNull(t *testing.T) {
+	t.Parallel()
+
 	dirty := map[int][]string{3: {"y"}, 7: {"x1"}, 11: {"x2"}}
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}}
 	want, err := FitForAttribute(spec, nonFiniteRows(dirty, nil), true)
@@ -155,6 +159,8 @@ func TestNonFiniteInput_AttributeRefitDropsLikeNull(t *testing.T) {
 // TestNonFiniteInput_ScoresNull: a bound model scores a row with a
 // non-finite column as a null score, exactly like a null column.
 func TestNonFiniteInput_ScoresNull(t *testing.T) {
+	t.Parallel()
+
 	recs := scoreGLMRecords()
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "c", Predictors: []string{"x1", "x2"}}
 	res, err := newOLS(t, spec).FitBuffered(recs)
@@ -177,6 +183,8 @@ func TestNonFiniteInput_ScoresNull(t *testing.T) {
 // invalid weight, weighting.Classify). A new raw read would let a NaN
 // reach a fit again.
 func TestNonFiniteInput_ReadsGoThroughInputValue(t *testing.T) {
+	t.Parallel()
+
 	raw := regexp.MustCompile(`\.NumericValue\(`)
 	allowed := map[string]bool{"record.go": true, "weight.go": true}
 	files, err := filepath.Glob("*.go")

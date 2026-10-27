@@ -108,6 +108,8 @@ func fourSlotMatrix3x3(ref, t0, t1, t2 *types.Response) func() ([]*types.Respons
 }
 
 func TestOverlay_ComposeIndexVsRef_Matrix(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
 		{40, 50, 60},
@@ -154,6 +156,8 @@ func TestOverlay_ComposeIndexVsRef_Matrix(t *testing.T) {
 }
 
 func TestOverlay_ComposeChisqVsRef(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{20, 20, 20},
 		{20, 20, 20},
@@ -206,6 +210,8 @@ func TestOverlay_ComposeChisqVsRef(t *testing.T) {
 // same fixture through the shared chassis helper so the acceptance
 // list maps 1:1.
 func TestOverlay_PropZCell_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{60, 50, 50},
@@ -251,6 +257,8 @@ func TestOverlay_PropZCell_KnownAnswer(t *testing.T) {
 // `TestApplyTCell_KnownAnswer`; integration boundary is the chassis
 // helper so the surface graph stays consistent across the helper.
 func TestOverlay_TCell_KnownAnswer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{9, 9, 9},
 		{9, 9, 9},
@@ -285,6 +293,8 @@ func TestOverlay_TCell_KnownAnswer(t *testing.T) {
 }
 
 func TestOverlay_PropZPanel_PairwiseSig(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
 			{50, 50, 50},
@@ -346,6 +356,8 @@ func TestOverlay_PropZPanel_PairwiseSig(t *testing.T) {
 }
 
 func TestOverlay_PanelIndexVsRef_MultiLayer(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
 		{40, 50, 60},
@@ -403,6 +415,8 @@ func TestOverlay_PanelIndexVsRef_MultiLayer(t *testing.T) {
 }
 
 func TestValidateOverlay_KeySetDivergent(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
 		{4, 5, 6},
@@ -440,6 +454,8 @@ func TestValidateOverlay_KeySetDivergent(t *testing.T) {
 // row grouper is declared as GROUP_RANGE — the schema-match gate
 // surfaces PULSE_OVERLAY_SCHEMA_DIVERGENT.
 func TestValidateOverlay_SchemaDivergent(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
 		{4, 5, 6},
@@ -468,6 +484,8 @@ func TestValidateOverlay_SchemaDivergent(t *testing.T) {
 }
 
 func TestValidateOverlay_SlotNotCrosstab(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{1, 2, 3},
 		{4, 5, 6},
@@ -493,6 +511,8 @@ func TestValidateOverlay_SlotNotCrosstab(t *testing.T) {
 }
 
 func TestOverlay_DictDrift_PrefixFastOpt(t *testing.T) {
+	t.Parallel()
+
 	ref := makeMatrixFromValues([3][3]float64{
 		{10, 20, 30},
 		{40, 50, 60},
@@ -531,6 +551,8 @@ func TestOverlay_DictDrift_PrefixFastOpt(t *testing.T) {
 }
 
 func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
+	t.Parallel()
+
 	// Shared base fixture: every MATRIX-host row uses these payloads as
 	// the canonical ref + target. The values are chosen so each per-
 	// kind arithmetic resolves to round, hand-verifiable numbers.
@@ -784,6 +806,8 @@ func TestComposeOverlayIntegration_AllKinds_Smoke(t *testing.T) {
 }
 
 func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("z_cell_matrix_dispatches", func(t *testing.T) {
 		ref := makeMatrixFromValues([3][3]float64{
 			{9, 9, 9},

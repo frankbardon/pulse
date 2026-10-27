@@ -63,6 +63,8 @@ func compactJSON(t *testing.T, v any) []byte {
 // manifest is at most 15% of the full slim manifest (compact JSON, the
 // form pulse_manifest serves).
 func TestManifestForIntent_SizeGate(t *testing.T) {
+	t.Parallel()
+
 	inst := hidingSnapshot()
 	full := len(compactJSON(t, SlimManifest(BuildManifestForInstance(inst))))
 	for _, in := range Intents() {
@@ -97,6 +99,8 @@ func TestManifestForIntent_SizeGate(t *testing.T) {
 // is SkillsForIntent's list, scope carries the record, and every elided
 // key is absent on the wire while the kept ones stay.
 func TestManifestForIntent_Contents(t *testing.T) {
+	t.Parallel()
+
 	inst := hidingSnapshot()
 	for _, intent := range []string{IntentCompareGroups, IntentRelationship, IntentDescribe, IntentLookup} {
 		t.Run(intent, func(t *testing.T) {
@@ -202,6 +206,8 @@ func TestManifestForIntent_Contents(t *testing.T) {
 // for an intent with crosstab-cell aggregators and dropped (and listed
 // in elided) for one without any aggregator.
 func TestManifestForIntent_CrosstabFollowsAggregators(t *testing.T) {
+	t.Parallel()
+
 	inst := hidingSnapshot()
 	withAgg, err := BuildManifestForIntent(inst, IntentDescribe)
 	if err != nil {
@@ -227,6 +233,8 @@ func TestManifestForIntent_CrosstabFollowsAggregators(t *testing.T) {
 // TestManifestForIntent_Refusals: an unknown intent, and one a feature
 // profile hides, are PULSE_RECOMMEND_INTENT_UNKNOWN with details.valid.
 func TestManifestForIntent_Refusals(t *testing.T) {
+	t.Parallel()
+
 	want := func(inst *InstanceSnapshot, intent string) map[string]any {
 		t.Helper()
 		_, err := BuildManifestForIntent(inst, intent)
@@ -250,6 +258,8 @@ func TestManifestForIntent_Refusals(t *testing.T) {
 // and drops only what scoping drops (a block the profile already hid is
 // not listed as elided).
 func TestManifestForIntent_ComposesWithProfile(t *testing.T) {
+	t.Parallel()
+
 	hide := []string{"TEST_T", featCrosstab}
 	inst := hidingSnapshot(hide...)
 	m, err := BuildManifestForIntent(inst, IntentCompareGroups)
@@ -279,6 +289,8 @@ func TestManifestForIntent_ComposesWithProfile(t *testing.T) {
 // TestManifestForIntent_UnscopedUnchanged: scoping never touches the
 // unscoped manifest's wire form (no scope / elided keys).
 func TestManifestForIntent_UnscopedUnchanged(t *testing.T) {
+	t.Parallel()
+
 	var wire map[string]json.RawMessage
 	if err := json.Unmarshal(compactJSON(t, BuildManifest()), &wire); err != nil {
 		t.Fatal(err)

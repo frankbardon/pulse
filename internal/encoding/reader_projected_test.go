@@ -13,6 +13,8 @@ import (
 // still consumes their on-wire bytes, so the byte cursor stays aligned
 // for fields that follow.
 func TestReadRecordProjected_SkipsMapWritesButAdvancesBytes(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -62,6 +64,8 @@ func TestReadRecordProjected_SkipsMapWritesButAdvancesBytes(t *testing.T) {
 // projects out. The fixed-width neighbour AFTER the packed field must
 // still decode correctly.
 func TestReadRecordProjected_PackedBoolNeighborAlignment(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -119,6 +123,8 @@ func TestReadRecordProjected_PackedBoolNeighborAlignment(t *testing.T) {
 // neither covers set fields, leaving the mask-byte-advance contract
 // untested.
 func TestReadRecordProjected_SetFieldAlignment(t *testing.T) {
+	t.Parallel()
+
 	// 3-field schema: id (u32, offset 0), issuers (set_u8, offset 4),
 	// age (u8, offset 5). Total record stride: 6 bytes.
 	schema := &encoding.Schema{
@@ -197,6 +203,8 @@ func TestReadRecordProjected_SetFieldAlignment(t *testing.T) {
 // nil FieldFilter populates every field — identical behaviour to
 // ReadRecordWithWide.
 func TestReadRecordProjected_NilFilterFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},

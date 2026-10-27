@@ -15,6 +15,8 @@ import (
 // data.advisories under --json and prints one "Advisory [CODE]" line in
 // text mode — a TEST_T split by a three-group categorical.
 func TestAPIPredict_ShowsAdvisories(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "n,cat\n"
 	for i := range 30 {

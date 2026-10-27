@@ -14,6 +14,8 @@ import (
 // malformed shape refused PULSE_OVERLAY_PARAM_MISSING with the index
 // only when one is known.
 func TestParseCorrespondenceParams(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name, raw string
 		dims      int
@@ -36,6 +38,8 @@ func TestParseCorrespondenceParams(t *testing.T) {
 		{"array", `[1]`, 0, "", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := &types.OverlaySpec{Kind: types.OverlayKindCorrespondence, Params: json.RawMessage(c.raw)}
 			for _, index := range []int{-1, 4} {
 				p, cerr := ParseCorrespondenceParams(spec, index)
@@ -60,6 +64,8 @@ func TestParseCorrespondenceParams(t *testing.T) {
 // capped at K, an explicit value above K is refused, and a table below
 // 2 × 2 is left to the shape refusal.
 func TestCorrespondenceDimensions(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name               string
 		explicit, rows, cs int
@@ -74,6 +80,8 @@ func TestCorrespondenceDimensions(t *testing.T) {
 		{"below 2x2 not judged", 3, 1, 4, 0, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			p := CorrespondenceParams{Dimensions: c.explicit, Normalization: CorrespondenceSymmetric}
 			cerr := CorrespondenceDimensionsRefusal(types.OverlayKindCorrespondence, p, c.rows, c.cs, 0)
 			if (cerr != nil) != c.refused {
@@ -98,6 +106,8 @@ func TestCorrespondenceDimensions(t *testing.T) {
 // unknown type) pass; only finite non-negative values pass; both raise
 // PULSE_OVERLAY_NONNEGATIVE_REQUIRED with their own details.
 func TestNonnegativeRefusals(t *testing.T) {
+	t.Parallel()
+
 	k := types.OverlayKindCorrespondence
 	for typ, refused := range map[types.AggregationType]bool{
 		"": false, types.AGG_COUNT: false, types.AGG_SUM: false,

@@ -14,6 +14,8 @@ import (
 // ComposedResponse without an optimize block marshals and hashes exactly
 // as the shape before the slot existed; a set block moves both.
 func TestOptimize_ComposedOptimizeFreeByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	type preOptimizeComposedRequest struct {
 		Requests []*Request `json:"requests"`
 		Fits     []FitSpec  `json:"fits,omitempty"`
@@ -53,6 +55,8 @@ func TestOptimize_ComposedOptimizeFreeByteIdentity(t *testing.T) {
 // it round-trips, an absent start is omitted, and any other shape is a
 // decode error.
 func TestOptimize_BoundWire(t *testing.T) {
+	t.Parallel()
+
 	var v OptimizeVariable
 	if err := json.Unmarshal([]byte(`{"name":"tv","lower":"params.tv_lo","upper":250.5}`), &v); err != nil {
 		t.Fatal(err)
@@ -87,6 +91,8 @@ func TestOptimize_BoundWire(t *testing.T) {
 // one as null; a failed block writes {name, direction, error} only; a
 // starts count is the default when unset.
 func TestOptimize_ResultWire(t *testing.T) {
+	t.Parallel()
+
 	r := OptimizeResult{
 		Name: "o", Direction: OptimizeMaximize, Objective: math.NaN(),
 		Variables: []OptimizeVariableResult{{Name: "x", Value: 1, Marginal: 0.5, Active: OptimizeActiveUpper}},
@@ -120,6 +126,8 @@ func TestOptimize_ResultWire(t *testing.T) {
 // selecting only the overlays at precision 1 still writes the
 // optimizations, whole and unrounded — like `fits`.
 func TestOptimize_PinnedOutsideComposeReturn(t *testing.T) {
+	t.Parallel()
+
 	r := ComposedResponse{
 		Responses: []*Response{},
 		Optimizations: []OptimizeResult{{Name: "o", Direction: OptimizeMinimize, Objective: 1.23456789,

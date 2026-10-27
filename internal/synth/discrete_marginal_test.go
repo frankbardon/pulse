@@ -98,8 +98,12 @@ func assertLevelShares(t *testing.T, label string, values []float64, want map[fl
 // the document's raw COUNTS — a frequency round trip would be the only
 // lossy step in an otherwise exact reconstruction.
 func TestSpecFromProfile_IntegerReconstructsAsDiscrete(t *testing.T) {
+	t.Parallel()
+
 	for _, typeName := range []string{"u4", "u8", "u16", "u32", "u64"} {
 		t.Run(typeName, func(t *testing.T) {
+			t.Parallel()
+
 			prof := &synth.Profile{
 				RowCount: 40000,
 				Fields: []synth.FieldProfile{{
@@ -152,6 +156,8 @@ func TestSpecFromProfile_IntegerReconstructsAsDiscrete(t *testing.T) {
 // costing a bisection per draw. The discrete arm must sit AHEAD of the
 // --fit-shape arm, which a reordering would silently undo.
 func TestSpecFromProfile_IntegerIgnoresCapturedShape(t *testing.T) {
+	t.Parallel()
+
 	prof := &synth.Profile{
 		RowCount: 20000,
 		Fields: []synth.FieldProfile{{
@@ -184,6 +190,8 @@ func TestSpecFromProfile_IntegerIgnoresCapturedShape(t *testing.T) {
 // clamped-normal reconstruction verbatim. Same silent-fallback shape
 // `shape` and `conditional.numeric_pairs` already use.
 func TestSpecFromProfile_PreDiscreteDocumentReconstructsAsNormal(t *testing.T) {
+	t.Parallel()
+
 	prof := &synth.Profile{
 		RowCount: 100,
 		Fields: []synth.FieldProfile{{
@@ -208,6 +216,8 @@ func TestSpecFromProfile_PreDiscreteDocumentReconstructsAsNormal(t *testing.T) {
 // conditioning at all rather than with a latent-scale one. The motivating
 // cohort's most-discussed model target (`nps`, a u4) is exactly this case.
 func TestSpecFromProfile_DiscreteTargetKeepsItsModel(t *testing.T) {
+	t.Parallel()
+
 	prof := &synth.Profile{
 		RowCount: 5000,
 		Fields: []synth.FieldProfile{
@@ -255,6 +265,8 @@ func TestSpecFromProfile_DiscreteTargetKeepsItsModel(t *testing.T) {
 // DistDiscrete or the captured relationship is dropped, silently, for
 // exactly the fields this work is about.
 func TestSpecFromProfile_DiscreteTargetKeepsItsConditionalPair(t *testing.T) {
+	t.Parallel()
+
 	prof := &synth.Profile{
 		RowCount: 5000,
 		Fields: []synth.FieldProfile{
@@ -328,6 +340,8 @@ func TestSpecFromProfile_DiscreteTargetKeepsItsConditionalPair(t *testing.T) {
 // matched to the same moments reproduces this fixture's mean to three
 // digits (see TestSynth_DiscreteBeatsTheClampedNormalItReplaced).
 func TestSynth_DiscreteMarginalPerLevel(t *testing.T) {
+	t.Parallel()
+
 	params, want := discreteParams(npsLevels)
 	spec := &synth.Spec{
 		RowCount: 60000,
@@ -349,6 +363,8 @@ func TestSynth_DiscreteMarginalPerLevel(t *testing.T) {
 // observed range, rounded by the writer — matches the MEAN and misses
 // levels by double digits.
 func TestSynth_DiscreteBeatsTheClampedNormalItReplaced(t *testing.T) {
+	t.Parallel()
+
 	params, want := discreteParams(npsLevels)
 	var mean, variance float64
 	for level, share := range want {
@@ -512,6 +528,8 @@ func identityCellPairSpec(rows int, targetDiscrete bool) *synth.Spec {
 // draws each cell's normal carries the contrast and destroys the scale
 // (which is the defect, once per cell).
 func TestSynth_DiscretePairKeepsTheScaleAndCarriesTheContrast(t *testing.T) {
+	t.Parallel()
+
 	const rows = 80000
 	_, want := discreteParams(npsLevels)
 
@@ -573,6 +591,8 @@ func TestSynth_DiscretePairKeepsTheScaleAndCarriesTheContrast(t *testing.T) {
 // valid choice, and so a future attempt to unify the two has to confront
 // the number.
 func TestSynth_DiscretePairOnANormalTargetFlattensTheScale(t *testing.T) {
+	t.Parallel()
+
 	const rows = 80000
 	_, want := discreteParams(npsLevels)
 	data, _, err := synth.SynthBytes(identityCellPairSpec(rows, false), synth.Options{Seed: 3102})
@@ -646,6 +666,8 @@ func identityModelSpec(rows int) *synth.Spec {
 // orders nothing, and a model that overwrites the value with a continuous
 // draw carries the ordering and destroys the marginal.
 func TestSynthModel_DiscreteTargetKeepsItsLevelsAndOrdersByPredictor(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60000
 	_, want := discreteParams(npsLevels)
 
@@ -689,6 +711,8 @@ func TestSynthModel_DiscreteTargetKeepsItsLevelsAndOrdersByPredictor(t *testing.
 // TestSynthModel_DiscreteTargetIsDeterministic pins the byte-identity
 // contract on the path that consumes the most RNG state.
 func TestSynthModel_DiscreteTargetIsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	a, _, err := synth.SynthBytes(discreteModelSpec(5000), synth.Options{Seed: 77})
 	if err != nil {
 		t.Fatalf("SynthBytes(a): %v", err)
@@ -711,6 +735,8 @@ func TestSynthModel_DiscreteTargetIsDeterministic(t *testing.T) {
 // draw rounds to is a declared level there — so the gap is what makes the
 // support assertion able to fail at all.
 func TestSynthDiscrete_GappedSupportStaysOnItsLevels(t *testing.T) {
+	t.Parallel()
+
 	gapped := map[float64]float64{1: 30, 5: 50, 9: 20}
 	params, want := discreteParams(gapped)
 

@@ -23,6 +23,8 @@ func skillFamily(name string) string {
 }
 
 func TestFenceCoverage_Scan(t *testing.T) {
+	t.Parallel()
+
 	list := fenceScanList()
 	fm := func(body string) string { return "---\nname: x\n---\n" + body }
 	cases := []struct {
@@ -85,6 +87,8 @@ func TestFenceCoverage_Scan(t *testing.T) {
 }
 
 func TestFenceCoverage_MalformedFails(t *testing.T) {
+	t.Parallel()
+
 	for _, body := range []string{
 		"<!-- feature: AGG_SUM -->\nopen\n",
 		"<!-- /feature -->\n",
@@ -100,6 +104,8 @@ func TestFenceCoverage_MalformedFails(t *testing.T) {
 }
 
 func TestFenceCoverage_Guards(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		skill string
 		want  []string
@@ -134,6 +140,8 @@ func TestFenceCoverage_Guards(t *testing.T) {
 //
 //	go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 func TestSkillsCoverFeatureFences(t *testing.T) {
+	t.Parallel()
+
 	list := fenceScanList()
 	type row struct {
 		skill, family string

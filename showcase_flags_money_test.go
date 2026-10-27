@@ -184,6 +184,8 @@ func near(got, want, tol float64) bool { return math.Abs(got-want) <= tol }
 // √(1/a + 1/b) from the 2×2 counts — and an exp-based ATTR_FORMULA
 // score at those coefficients sums to the observed default count.
 func TestShowcase_CreditLogisticOnFlag(t *testing.T) {
+	t.Parallel()
+
 	p, rows := showcasePulse(t, nil)
 	req, resp := showcaseRun(t, p, "regression/18_logistic_flag_score.json")
 
@@ -258,6 +260,8 @@ func TestShowcase_CreditLogisticOnFlag(t *testing.T) {
 // flag with success "1", split by arm. Oracle: the pooled two-proportion
 // z and its two-sided normal p (math.Erfc).
 func TestShowcase_ABPropZOnFlag(t *testing.T) {
+	t.Parallel()
+
 	p, rows := showcasePulse(t, nil)
 	_, resp := showcaseRun(t, p, "tests/35_prop_z_on_flag.json")
 
@@ -315,6 +319,8 @@ func TestShowcase_ABPropZOnFlag(t *testing.T) {
 // flag directly as its columns. Oracle: Pearson χ² over the hand-counted
 // plan × churned table, df 2, p = exp(−χ²/2) (the df-2 survival).
 func TestShowcase_PrivacyChiSqOnFlag(t *testing.T) {
+	t.Parallel()
+
 	p, rows := showcasePulse(t, nil)
 	_, resp := showcaseRun(t, p, "tests/36_chisq_on_flag.json")
 
@@ -408,6 +414,8 @@ func TestShowcase_PrivacyChiSqOnFlag(t *testing.T) {
 // month_index differences. Oracle: (year·12 + month − 1) from
 // time.Time.Date over the parsed CSV days.
 func TestShowcase_RetentionMonthIndex(t *testing.T) {
+	t.Parallel()
+
 	p, rows := showcasePulse(t, nil)
 	_, resp := showcaseRun(t, p, "attributes/21_retention_month_index.json")
 
@@ -456,6 +464,8 @@ func TestShowcase_RetentionMonthIndex(t *testing.T) {
 // integer cents — keep revenue > 2·cost; margin (r − c)/r rounded
 // half-to-even at 4 places in integer arithmetic, then summed.
 func TestShowcase_DecimalMargin(t *testing.T) {
+	t.Parallel()
+
 	p, rows := showcasePulse(t, nil)
 	_, resp := showcaseRun(t, p, "attributes/22_decimal_margin.json")
 

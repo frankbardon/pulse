@@ -114,6 +114,8 @@ func (c scaleScoreCase) componentsEntry(rows int) types.AttributeComponents {
 }
 
 func TestScaleScore_EveryModeUnderProjection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, m := range vexprModes() {
 		t.Run(m.name, func(t *testing.T) {
@@ -188,6 +190,8 @@ func TestScaleScore_EveryModeUnderProjection(t *testing.T) {
 // TestScaleScore_RefusalsPredictRuntimeParity: a slot predict refuses
 // is refused by Process with the same code, before any record.
 func TestScaleScore_RefusalsPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 20)
@@ -228,6 +232,8 @@ func TestScaleScore_RefusalsPredictRuntimeParity(t *testing.T) {
 // kind "scale" vector, MAT_RELIABILITY refuses the out-of-range battery
 // while ATTR_SCALE_SCORE scores it with a warning.
 func TestScaleScore_ReliabilityContrastFacade(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p, cohort := vexprModes()[0].open(t)
 	lo, hi := 0.0, 10.0
@@ -267,6 +273,8 @@ func TestScaleScore_ReliabilityContrastFacade(t *testing.T) {
 // include of it alone, the Compose per-slot surface (serial and
 // parallel), and the wire (one "attributes" array, absent when off).
 func TestScaleScore_ComponentsSurface(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	writeVexprCohort(t, fsys, "v.pulse", 0, 96)

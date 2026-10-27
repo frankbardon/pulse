@@ -30,6 +30,8 @@ func groupedGoldenSpecs() []GroupSpec {
 // golden still emits the checked-in grouped bytes, and those bytes still
 // decode to the 0x01 golden's rows.
 func TestFormatV2GroupedGolden_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	v1, err := os.ReadFile(formatV1GoldenPath)
 	if err != nil {
 		t.Fatal(err)
@@ -124,6 +126,8 @@ func vecCohortFile(t *testing.T, s *encoding.Schema) []byte {
 // reads back with its metadata, and its fixed stride (2 + 8 + 24 + 1 +
 // 1 bitmap = 36) locates every record and every vector cell.
 func TestVectorCohort_StoreAndRead(t *testing.T) {
+	t.Parallel()
+
 	s := vecCohortSchema()
 	data := vecCohortFile(t, s)
 	if data[encoding.HeaderSize-1] != encoding.FormatVersionV2 {
@@ -253,6 +257,8 @@ func joinExtension(pre []byte, secs []extSection, recs []byte) []byte {
 // what a pre-vector binary does with the real tag 2; an optional
 // unknown tag is skipped, so the file still fails on (a)'s rule.
 func TestVectorCohort_Compat(t *testing.T) {
+	t.Parallel()
+
 	s := vecCohortSchema()
 	data := vecCohortFile(t, s)
 	pre, secs, recs := splitExtension(t, data, s)
@@ -323,6 +329,8 @@ func groupedVecSchema() *encoding.Schema {
 // sections in either disk order with an identical result, and still
 // refuses a declared entry width that disagrees with the dim.
 func TestVectorCohort_SectionOrder(t *testing.T) {
+	t.Parallel()
+
 	s := groupedVecSchema()
 	var b bytes.Buffer
 	if err := WritePreamble(&b, s); err != nil {
@@ -366,6 +374,8 @@ func TestVectorCohort_SectionOrder(t *testing.T) {
 // no VECTORS entry cannot be written at any version — it would carry a
 // field of unknown width.
 func TestVectorCohort_WriteRefusesUncovered(t *testing.T) {
+	t.Parallel()
+
 	s := vecCohortSchema()
 	s.Vectors = nil
 	if s.RequiredFormatVersion() != encoding.FormatVersionV1 {
@@ -386,6 +396,8 @@ func TestVectorCohort_WriteRefusesUncovered(t *testing.T) {
 // TestSchemaCopies_CarryVectors: every schema copy a downstream path
 // takes keeps the vec fields' dims, so no copy can size a vec field at 0.
 func TestSchemaCopies_CarryVectors(t *testing.T) {
+	t.Parallel()
+
 	s := vecCohortSchema()
 	want := s.RecordByteSize()
 	enc, err := NewGroupEncoder(s, nil)

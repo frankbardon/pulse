@@ -11,6 +11,8 @@ import (
 
 // TestCodedError_Error verifies the Error() string formatting.
 func TestCodedError_Error(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      *perr.CodedError
@@ -56,6 +58,8 @@ func TestCodedError_Error(t *testing.T) {
 
 // TestCodedError_MarshalJSON verifies JSON serialization.
 func TestCodedError_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	t.Run("basic marshaling", func(t *testing.T) {
 		err := &perr.CodedError{
 			Code:    perr.ENCODING_INVALID,
@@ -152,6 +156,8 @@ func TestCodedError_MarshalJSON(t *testing.T) {
 
 // TestCodedError_Unwrap verifies error chain compatibility.
 func TestCodedError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	t.Run("without cause returns nil", func(t *testing.T) {
 		err := &perr.CodedError{
 			Code:    perr.ENCODING_INVALID,
@@ -189,6 +195,8 @@ func TestCodedError_Unwrap(t *testing.T) {
 
 // TestNewCodedError verifies the constructor.
 func TestNewCodedError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("basic construction", func(t *testing.T) {
 		err := perr.NewCodedError(perr.ENCODING_INVALID, "test message")
 		if err.Code != perr.ENCODING_INVALID {
@@ -208,6 +216,8 @@ func TestNewCodedError(t *testing.T) {
 
 // TestNewCodedErrorWithDetails verifies construction with details.
 func TestNewCodedErrorWithDetails(t *testing.T) {
+	t.Parallel()
+
 	details := map[string]any{"row": 42}
 	err := perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_ROW_ERROR, "row failed", details)
 
@@ -227,6 +237,8 @@ func TestNewCodedErrorWithDetails(t *testing.T) {
 
 // TestWrapCodedError verifies wrapping an existing error.
 func TestWrapCodedError(t *testing.T) {
+	t.Parallel()
+
 	cause := errors.New("underlying")
 	err := perr.WrapCodedError(cause, perr.DATA_FILE, "file operation failed")
 
@@ -247,6 +259,8 @@ func TestWrapCodedError(t *testing.T) {
 
 // TestHasCode checks code detection through error chains.
 func TestHasCode(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil error returns false", func(t *testing.T) {
 		if perr.HasCode(nil, perr.ENCODING_INVALID) {
 			t.Error("HasCode should return false for nil error")
@@ -289,6 +303,8 @@ func TestHasCode(t *testing.T) {
 
 // TestCodedError_ErrorsAs verifies errors.As compatibility.
 func TestCodedError_ErrorsAs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("extracts CodedError", func(t *testing.T) {
 		err := perr.NewCodedError(perr.ENCODING_INVALID, "test")
 		var target *perr.CodedError
@@ -317,6 +333,8 @@ func TestCodedError_ErrorsAs(t *testing.T) {
 
 // TestCodedError_JSON_Envelope verifies the --json envelope shape.
 func TestCodedError_JSON_Envelope(t *testing.T) {
+	t.Parallel()
+
 	err := &perr.CodedError{
 		Code:    perr.PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 		Message: "column 'status' type ambiguous",

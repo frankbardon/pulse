@@ -12,6 +12,8 @@ import (
 // field it replaced) and anything else — a null entry included — is
 // refused.
 func TestPriorPrecision_JSON(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in      string
 		vector  []float64

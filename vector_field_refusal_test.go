@@ -48,6 +48,8 @@ func vnatRequest(t *testing.T, body string) *types.Request {
 // orderability rule shared with the runtime window sort), a sort key, a
 // crosstab axis, an aggregation param. Predict reports nothing else.
 func TestVectorField_ScalarRefusalsPredictMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := vnatPulse(t)
 	ctx := context.Background()
 	cases := []struct {
@@ -103,6 +105,8 @@ func TestVectorField_ScalarRefusalsPredictMatchRuntime(t *testing.T) {
 // buffered, grouped; single file and shard archive), and AGG_RATIO's
 // ignored field may name one.
 func TestVectorField_PresenceSlotsCountVectors(t *testing.T) {
+	t.Parallel()
+
 	nulls := 0
 	for r := 0; r < vnatRows; r++ {
 		if vnatNull(r) {
@@ -166,6 +170,8 @@ func TestVectorField_PresenceSlotsCountVectors(t *testing.T) {
 // PULSE_JOIN_TYPE_MISMATCH, details.reason "vector_key", from the
 // runtime and predict alike.
 func TestVectorField_JoinKeyRefused(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := vnatPulse(t)
 	body := `{"joins":[{"right":"native.pulse","on":[{"left_field":"emb","right_field":"emb"}]}],"aggregations":[{"type":"AGG_COUNT","field":"s"}]}`
 	_, err := p.Process(context.Background(), vnatRequest(t, body))
@@ -184,6 +190,8 @@ func TestVectorField_JoinKeyRefused(t *testing.T) {
 // TestVectorField_IndexKeyRefused: a point-lookup index cannot key on
 // a vector field.
 func TestVectorField_IndexKeyRefused(t *testing.T) {
+	t.Parallel()
+
 	p, _ := vnatPulse(t)
 	_, err := p.BuildIndex(context.Background(), "native.pulse", []string{"emb"})
 	var ce *perr.CodedError
@@ -197,6 +205,8 @@ func TestVectorField_IndexKeyRefused(t *testing.T) {
 // returns for a native vector named directly, listed inline, re-kinded
 // by a spec and re-scoped to single elements.
 func TestNativeVector_PredictMatrixEchoMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fsys := vnatPulse(t)
 	cases := []string{
 		`{"matrices":[{"type":"MAT_CORRELATION","name":"m","vector":"emb"}]}`,
@@ -235,8 +245,12 @@ func TestNativeVector_PredictMatrixEchoMatchesRuntime(t *testing.T) {
 // CLI's path) and pulse_inspect report a vector field's dim, kind,
 // scale range and labels, single file and shard archive alike.
 func TestVectorField_InspectSurfaces(t *testing.T) {
+	t.Parallel()
+
 	for _, sharded := range []bool{false, true} {
 		t.Run(fmt.Sprintf("sharded=%v", sharded), func(t *testing.T) {
+			t.Parallel()
+
 			p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 			if err != nil {
 				t.Fatal(err)
@@ -276,6 +290,8 @@ func TestVectorField_InspectSurfaces(t *testing.T) {
 // vector field counts the non-null vectors (the cell-admission gate's
 // presence question).
 func TestVectorField_CrosstabCountCell(t *testing.T) {
+	t.Parallel()
+
 	p, _ := vnatPulse(t)
 	resp, err := p.Process(context.Background(), vnatRequest(t, `{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"g"}],"columns":[{"type":"GROUP_CATEGORY","field":"g"}],"cell":{"type":"AGG_COUNT","field":"emb"}}}`))
 	if err != nil {

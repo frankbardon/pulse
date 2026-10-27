@@ -153,6 +153,8 @@ func decodeOneFull(t *testing.T, schema *encoding.Schema, raw []byte) decodedRow
 // 18"; nothing but an explicit cross-check keeps them in step as each
 // gains its own arm.
 func TestWideSetDecode_FourSurfacesAgree(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSetDecodeSchema()
 	records, _ := generateWideSetRecords(t, schema, 200, 0x51DE5E70)
 	all := allFieldNames(schema)
@@ -214,6 +216,8 @@ func TestWideSetDecode_FourSurfacesAgree(t *testing.T) {
 // 64 bits of a 128- or 256-bit selection and every consumer would read a
 // plausible, wrong answer.
 func TestWideSetDecode_WideValueIsSetMask(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "narrow", Type: encoding.FieldTypeSetU64, Dictionary: buildSetDict(64)},
 		{Name: "wide", Type: encoding.FieldTypeSetU128, Dictionary: buildSetDict(128)},
@@ -248,6 +252,8 @@ func TestWideSetDecode_WideValueIsSetMask(t *testing.T) {
 // and this is the assertion that fails rather than a cohort silently
 // decoding as a different, plausible selection.
 func TestWideSetDecode_LowWordIsByteIdenticalToSetU64(t *testing.T) {
+	t.Parallel()
+
 	const low = uint64(0x0123456789ABCDEF)
 
 	narrowSchema := &encoding.Schema{Fields: []encoding.Field{
@@ -303,6 +309,8 @@ func TestWideSetDecode_LowWordIsByteIdenticalToSetU64(t *testing.T) {
 // Divergence here is a bug, not a tradeoff: projection is output
 // transparent by contract.
 func TestWideSetDecode_ProjectionIsOutputTransparent(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSetDecodeSchema()
 	records, _ := generateWideSetRecords(t, schema, 120, 0x9401EC7)
 	all := allFieldNames(schema)
@@ -389,6 +397,8 @@ func TestWideSetDecode_ProjectionIsOutputTransparent(t *testing.T) {
 // from Schema.RecordByteSize, so a wrong wide-set ByteSize would put
 // every record past the first at the wrong offset.
 func TestWideSetDecode_RecordAtRandomAccess(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSetDecodeSchema()
 	records, _ := generateWideSetRecords(t, schema, 64, 0xA7A7A7)
 	payload, _ := wideSetPayload(t, schema, records)
@@ -470,6 +480,8 @@ func decodeRegionSegment(t *testing.T, schema *encoding.Schema, region []byte, s
 // the same indices. A wrong wide-set stride would put worker 2 onto a
 // mid-record byte and decode garbage that still parses.
 func TestWideSetDecode_ParallelSegmentsMatchSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSetDecodeSchema()
 	records, truth := generateWideSetRecords(t, schema, 512, 0xDECA1F)
 	payload, prefix := wideSetPayload(t, schema, records)
@@ -542,6 +554,8 @@ func TestWideSetDecode_ParallelSegmentsMatchSerial(t *testing.T) {
 // value type (SetMask never allocates and no method aliases the
 // receiver's array), so nothing here may be shared across workers.
 func TestWideSetDecode_ParallelShardsMatchSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSetDecodeSchema()
 	const shardCount = 6
 	shards := make([][]byte, shardCount)
@@ -621,6 +635,8 @@ func TestWideSetDecode_ParallelShardsMatchSerial(t *testing.T) {
 // all-zero mask on a NON-null row stays a valid empty selection rather
 // than being reported as null.
 func TestWideSetDecode_NullRidesBitmapAlone(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "tags", Type: encoding.FieldTypeSetU128, Dictionary: buildSetDict(128), Nullable: true},
 		{Name: "tail", Type: encoding.FieldTypeU64},
@@ -678,6 +694,8 @@ func TestWideSetDecode_NullRidesBitmapAlone(t *testing.T) {
 // segment totals are asserted directly so the failure names the plan
 // rather than a downstream value.
 func TestWideSetDecode_PlanStrideAccounting(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32},
 		{Name: "tags128", Type: encoding.FieldTypeSetU128, Dictionary: buildSetDict(128)},

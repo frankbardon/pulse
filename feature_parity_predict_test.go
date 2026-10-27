@@ -126,6 +126,8 @@ var predictFacetVacuous = map[string]string{
 // refuses a hidden name exactly as a never-registered one at the
 // shared rule's own site (not later, at the operator's).
 func TestHiddenOperatorSharedRuleParity(t *testing.T) {
+	t.Parallel()
+
 	fsys := parityFS(t)
 	raw, err := os.ReadFile(featureSetFixtureDir + "minimal.json")
 	if err != nil {

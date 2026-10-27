@@ -373,6 +373,8 @@ func pairwiseSurveyServiceSetup(t *testing.T) *Service {
 // Mirrors the fixture-02 shape from
 // .planning/stat-test-overlay-parity/research/pairwise-test-examples.md.
 func TestPairwiseSurveyOverlay_WelchEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	svc := pairwiseSurveyServiceSetup(t)
 
 	// Pairs to exercise — drawn from the 4-segment column_designator
@@ -422,6 +424,8 @@ func TestPairwiseSurveyOverlay_WelchEndToEnd(t *testing.T) {
 // byte-equal with the native TEST_Z_TWO_SAMPLE row test over the same
 // row set. Mirrors the fixture-03 shape.
 func TestPairwiseSurveyOverlay_ZEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	svc := pairwiseSurveyServiceSetup(t)
 
 	pairs := [][2]string{
@@ -474,6 +478,8 @@ func TestPairwiseSurveyOverlay_ZEndToEnd(t *testing.T) {
 // surface as a label mismatch downstream. The test exercises both the
 // serial (Compose) and parallel (ComposeParallel) facades.
 func TestPairwiseSurveyOverlay_MultiSlotOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	svc := pairwiseSurveyServiceSetup(t)
 
 	const (

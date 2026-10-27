@@ -19,6 +19,8 @@ var sweepSamplingFeatures = []string{"capability:compose", "capability:compose_s
 // only, with no samples, rng_seed or axis range; the full instance
 // offers all four modes and the sampling keys.
 func TestSweepRandom_MCPSchemaHidesSampling(t *testing.T) {
+	t.Parallel()
+
 	_, hidden := instanceFor(t, &pulse.FeatureProfile{Features: sweepSamplingFeatures}, pulse.Extensions{})
 	_, enabled := instanceFor(t, &pulse.FeatureProfile{Features: append(append([]string(nil), sweepSamplingFeatures...),
 		"capability:compose_sweep_sampling")}, pulse.Extensions{})
@@ -51,6 +53,8 @@ func TestSweepRandom_MCPSchemaHidesSampling(t *testing.T) {
 // bare lhs mode as PULSE_SWEEP_INVALID, by pulse_compose and
 // pulse_predict {composed} alike.
 func TestSweepRandom_MCPRefusesHiddenSampling(t *testing.T) {
+	t.Parallel()
+
 	fp := &pulse.FeatureProfile{Profile: "sweep-no-sampling", WrittenWith: "1.0.0", Features: sweepSamplingFeatures}
 	p, _ := instanceFor(t, fp, pulse.Extensions{})
 	body := `{"cohort":{"filename":"imports/data.pulse"},"aggregations":[{"type":"AGG_SUM","field":"amount","label":"v{{k}}"}]}`

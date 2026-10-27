@@ -46,6 +46,8 @@ func wantCells(t *testing.T, rows []map[string]any, label string, want []any) {
 // Non-cumulative: x / Σx per partition, no order_by needed; the hand
 // computation divides in the same order the kernel does.
 func TestShare_RowShareOfPartitionTotal(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"g": "a", "x": 10.0},
 		{"g": "a", "x": 30.0},
@@ -60,6 +62,8 @@ func TestShare_RowShareOfPartitionTotal(t *testing.T) {
 // Cumulative: running Σx in order_by order over Σx; rows are not
 // reordered and the last share of each partition is exactly 1.
 func TestShare_Cumulative(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{
 		{"ts": 3.0, "x": 30.0},
 		{"ts": 1.0, "x": 10.0},
@@ -84,6 +88,8 @@ func TestShare_Cumulative(t *testing.T) {
 // Nulls add nothing: the own-row share is null, the cumulative share
 // carries the running figure (null before the first present value).
 func TestShare_NullsSkipped(t *testing.T) {
+	t.Parallel()
+
 	mk := func() []map[string]any {
 		return []map[string]any{
 			{"ts": 1.0, "x": nil},
@@ -108,6 +114,8 @@ func TestShare_NullsSkipped(t *testing.T) {
 // A zero total (all zeros, or values cancelling) and an all-null
 // partition read null on every row — never 0, never NaN / Inf.
 func TestShare_ZeroTotalIsNull(t *testing.T) {
+	t.Parallel()
+
 	for name, xs := range map[string][]any{
 		"zeros":      {0.0, 0.0, 0.0},
 		"cancelling": {5.0, -5.0, 0.0},
@@ -134,6 +142,8 @@ func TestShare_ZeroTotalIsNull(t *testing.T) {
 // WIN_LIFT is WIN_SHARE(field) / WIN_SHARE(base), bit for bit, on both
 // forms; a zero base share and a missing side read null.
 func TestLift_IsShareOverShare(t *testing.T) {
+	t.Parallel()
+
 	mk := func() []map[string]any {
 		return []map[string]any{
 			{"g": "a", "ts": 1.0, "d": 7.0, "n": 10.0},
@@ -185,6 +195,8 @@ func TestLift_IsShareOverShare(t *testing.T) {
 // descending, the cumulative share of defaults, of loans and the
 // cumulative lift — the second row reads 978/2149 ÷ 3600/18000.
 func TestShare_DecileGainsTable(t *testing.T) {
+	t.Parallel()
+
 	defaults := []float64{610, 368, 308, 261, 176, 142, 123, 92, 46, 23}
 	var rows []map[string]any
 	for i := len(defaults) - 1; i >= 0; i-- { // input in ascending risk
@@ -214,6 +226,8 @@ func TestShare_DecileGainsTable(t *testing.T) {
 
 // Every factory refusal is PULSE_WINDOW_INVALID with the rule sentence.
 func TestShare_FactoryRefusals(t *testing.T) {
+	t.Parallel()
+
 	order := []types.OrderKey{{Field: "ts"}}
 	cases := []struct {
 		name string

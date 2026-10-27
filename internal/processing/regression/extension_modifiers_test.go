@@ -43,6 +43,8 @@ func tableFit(dev map[string]float64, report bool) ExtensionFit {
 // the missing-deviance refusal; a data-dependent candidate refusal only
 // drops the candidate.
 func TestRunExtensionModifiers_SelectionCriterion(t *testing.T) {
+	t.Parallel()
+
 	dev := map[string]float64{"": 100, "a": 97.5, "b": 90, "a,b": 87.9}
 	recs := []Record{mockRecord{values: map[string]float64{"y": 1}}}
 	for _, sel := range []string{"forward", "backward", "stepwise"} {

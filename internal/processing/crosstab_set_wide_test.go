@@ -125,6 +125,8 @@ func ctwRequest(rows, cols *types.Group) *types.Request {
 // the answer is identical at every rung. If a width gate is ever added
 // this test is the thing that must change first, with a stated reason.
 func TestCanFuseCrosstab_WideSetAxesAreEligible(t *testing.T) {
+	t.Parallel()
+
 	schema := ctwSchema(t)
 	for _, gt := range []types.GroupType{types.GROUP_SET_VALUE, types.GROUP_SET_PER_ELEMENT} {
 		for _, field := range []string{"tags", "chans"} { // set_u256, set_u128
@@ -154,6 +156,8 @@ func TestCanFuseCrosstab_WideSetAxesAreEligible(t *testing.T) {
 // fusion gate FIRST, so the comparison can never degrade into two
 // buffered runs agreeing with each other.
 func TestCrosstabWide_SetAxesFusedMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	schema := ctwSchema(t)
 	recs := ctwRecords(schema)
 	cases := []struct {
@@ -181,6 +185,8 @@ func TestCrosstabWide_SetAxesFusedMatchesBuffered(t *testing.T) {
 // they have in common, so the cell figures here are computed by hand
 // from ctwRows and asserted on BOTH arms independently.
 func TestCrosstabWide_PerElementRowAxisHitsGeneratedTruth(t *testing.T) {
+	t.Parallel()
+
 	schema := ctwSchema(t)
 	recs := ctwRecords(schema)
 	req := ctwRequest(ctwGroup(types.GROUP_SET_PER_ELEMENT, "tags"), ctwGroup(types.GROUP_CATEGORY, "region"))
@@ -278,6 +284,8 @@ func TestCrosstabWide_PerElementRowAxisHitsGeneratedTruth(t *testing.T) {
 // axis: two records whose chans masks differ ONLY above bit 64 must land
 // on two different axis keys, on both arms.
 func TestCrosstabWide_SetValueAxisKeysCarryEveryWord(t *testing.T) {
+	t.Parallel()
+
 	schema := ctwSchema(t)
 	recs := []*Record{
 		ctwRow{region: 0, chans: []int{3, 100}, value: 1}.build(schema),

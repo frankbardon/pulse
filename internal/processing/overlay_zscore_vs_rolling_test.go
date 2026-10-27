@@ -58,6 +58,8 @@ func newZScoreVsRollingSpecMinPeriods(name string, window, minPeriods int) types
 // 1.8973666 — same z-score because the rolling window has shifted but
 // the distribution shape is identical.
 func TestOverlay_ZScoreVsRolling_Basic_Window5(t *testing.T) {
+	t.Parallel()
+
 	keys := make([]types.AxisKey, 20)
 	values := make([]float64, 20)
 	for i := 0; i < 20; i++ {
@@ -139,6 +141,8 @@ func TestOverlay_ZScoreVsRolling_Basic_Window5(t *testing.T) {
 // the default (min_periods = window = 20) every entry here would be
 // null, like INDEX_VS_ROLLING_MEAN's default.
 func TestOverlay_ZScoreVsRolling_WindowExceedsSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"},
 		{"f"}, {"g"}, {"h"}, {"i"}, {"j"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0, 50.0,
@@ -189,6 +193,8 @@ func TestOverlay_ZScoreVsRolling_WindowExceedsSeries(t *testing.T) {
 // comparison available" is structurally distinct from "denominator was
 // zero".
 func TestOverlay_ZScoreVsRolling_CountLessThanTwoEmitsNaN(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)
@@ -227,6 +233,8 @@ func TestOverlay_ZScoreVsRolling_CountLessThanTwoEmitsNaN(t *testing.T) {
 // the zero-SD path because the ring rolls but the values stay constant;
 // the layer still emits ONE warning per layer (not per entry).
 func TestOverlay_ZScoreVsRolling_ZeroRollingSDEmitsRefZero(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{5.0, 5.0, 5.0, 5.0, 5.0}
 	host := newStubSeriesHost(keys, values)
@@ -271,6 +279,8 @@ func TestOverlay_ZScoreVsRolling_ZeroRollingSDEmitsRefZero(t *testing.T) {
 // math.NaN signals absent (newStubSeriesHost's resolver returns
 // (0, false) for NaN inputs).
 func TestOverlay_ZScoreVsRolling_AbsentPointDoesNotAdvanceCarrier(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}, {"f"}}
 	values := []float64{10.0, 20.0, 30.0, math.NaN(), 40.0, 50.0}
 	host := newStubSeriesHost(keys, values)
@@ -322,6 +332,8 @@ func TestOverlay_ZScoreVsRolling_AbsentPointDoesNotAdvanceCarrier(t *testing.T) 
 // Reuses the shared rolling-family helper (extractWindowParam) so the
 // failure shape is identical to OVERLAY_INDEX_VS_ROLLING_MEAN.
 func TestOverlay_ZScoreVsRolling_MissingWindowParamRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0})
 
@@ -375,6 +387,8 @@ func TestOverlay_ZScoreVsRolling_MissingWindowParamRejected(t *testing.T) {
 // coded error carrying PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Mirrors the
 // OVERLAY_INDEX_VS_ROLLING_MEAN sibling test.
 func TestOverlay_ZScoreVsRolling_NonPositiveWindowRejected(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}}
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0})
 
@@ -448,6 +462,8 @@ func TestOverlay_ZScoreVsRolling_NonPositiveWindowRejected(t *testing.T) {
 // 1.414. The KIND CHOOSES sample SD; this is the distinguishing fact
 // from OVERLAY_ZSCORE_VS_TOTAL (population SD).
 func TestOverlay_ZScoreVsRolling_SampleSDDocumentedContrast(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{1.0, 2.0, 3.0, 4.0, 5.0}
 	host := newStubSeriesHost(keys, values)
@@ -497,6 +513,8 @@ func TestOverlay_ZScoreVsRolling_SampleSDDocumentedContrast(t *testing.T) {
 // bare-kind string "zscore_vs_rolling" mirroring the
 // INDEX_VS_ROLLING_MEAN / ZSCORE_VS_TOTAL convention.
 func TestOverlay_ZScoreVsRolling_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	host := newStubSeriesHost(keys, []float64{10.0, 20.0, 30.0})
 	params, _ := json.Marshal(map[string]any{"window": 2})
@@ -532,6 +550,8 @@ func TestOverlay_ZScoreVsRolling_DefaultLayerName(t *testing.T) {
 //	        sample SD=sqrt(7200/1)=sqrt(7200)≈84.853,
 //	        z=(90-90)/84.853 = 0.
 func TestOverlay_ZScoreVsRolling_BufferedPath(t *testing.T) {
+	t.Parallel()
+
 	resp, path := runOverlayE2E(t, []types.OverlaySpec{
 		newZScoreVsRollingSpec("zscore_rolling", 3),
 	}, true /*forceBuffered*/)
@@ -557,6 +577,8 @@ func TestOverlay_ZScoreVsRolling_BufferedPath(t *testing.T) {
 // INDEX_VS_ROLLING_MEAN / INDEX_VS_PRIOR / INDEX_VS_TOTAL safety
 // pattern.
 func TestOverlay_ZScoreVsRolling_NilHostReturnsCoded(t *testing.T) {
+	t.Parallel()
+
 	spec := newZScoreVsRollingSpec("zscore_rolling", 3)
 	_, _, err := applyZScoreVsRolling(&spec, nil)
 	if err == nil {

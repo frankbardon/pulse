@@ -22,6 +22,8 @@ const modulePrefix = "github.com/frankbardon/pulse"
 // pinned to types / errors and the sweep rules; the transitive graph is
 // checked against the execution and descriptor packages.
 func TestBanner_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowedDirect := map[string]bool{
 		modulePrefix + "/types":  true,
 		modulePrefix + "/errors": true,

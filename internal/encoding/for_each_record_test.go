@@ -12,6 +12,8 @@ import (
 // ENCODING_INVALID naming the trailing bytes, never silently dropped;
 // a non-positive stride is refused.
 func TestForEachRecord(t *testing.T) {
+	t.Parallel()
+
 	var seen []byte
 	n, err := ForEachRecord(bytes.NewReader([]byte{1, 2, 3, 4, 5, 6}), 2, func(rec []byte) error {
 		seen = append(seen, rec[0])

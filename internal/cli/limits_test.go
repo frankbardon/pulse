@@ -18,6 +18,8 @@ import (
 // slice on the root, and no leaf redeclares it (a local twin would
 // shadow the persistent flag).
 func TestLimitFlag_IsRootPersistent(t *testing.T) {
+	t.Parallel()
+
 	flags := LimitFlags()
 	if len(flags) != 1 || !slices.Contains(flags[0].Names(), "limit") {
 		t.Fatalf("LimitFlags() = %v, want the one --limit flag", flags)
@@ -41,6 +43,8 @@ func TestLimitFlag_IsRootPersistent(t *testing.T) {
 //
 // Falsified by dropping withLimits from withGlobals.
 func TestLimitFlags_ThreadIntoOptions(t *testing.T) {
+	t.Parallel()
+
 	ctx, err := runWorkersBefore(t, "--limit", "max_compose_slots=2000", "--limit", "request_timeout=5s")
 	if err != nil {
 		t.Fatal(err)
@@ -71,6 +75,8 @@ func TestLimitFlags_ThreadIntoOptions(t *testing.T) {
 //
 // Falsified by returning err unwrapped (no usageExit) from limitsBefore.
 func TestLimitFlags_BadIsUsageError(t *testing.T) {
+	t.Parallel()
+
 	for spec, limit := range map[string]string{"max_widgets=5": "", "max_groups=lots": "max_groups"} {
 		_, err := runWorkersBefore(t, "--limit", spec)
 		if status, _ := ExitStatus(err); status != ExitUsage {
@@ -90,6 +96,8 @@ func TestLimitFlags_BadIsUsageError(t *testing.T) {
 // instance — Options.Limits wins over a profile per key, and an unset
 // key still resolves to the default.
 func TestMCPPulseOptions_CarriesLimits(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	ctx, err := runWorkersBefore(t, "--limit", "max_groups=42", "--limit", "request_timeout=5s")
 	if err != nil {
@@ -108,6 +116,8 @@ func TestMCPPulseOptions_CarriesLimits(t *testing.T) {
 // TestParseLimitFlags_Good: every accepted spelling lands on its field;
 // unset names stay 0 (default / profile layer); a later flag wins.
 func TestParseLimitFlags_Good(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseLimitFlags([]string{
 		"max_groups=1000000",
 		"request_timeout=30s",
@@ -143,6 +153,8 @@ func TestParseLimitFlags_Good(t *testing.T) {
 // TestParseLimitFlags_Refused: an unknown name, a malformed pair or a
 // bad value is CLI_INPUT naming the flag.
 func TestParseLimitFlags_Refused(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"max_widgets=5":            "",
 		"MaxGroups=5":              "",

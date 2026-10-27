@@ -15,6 +15,8 @@ func boolPtr(b bool) *bool { return &b }
 // SetDisableComponents(true) suppresses Response.Components on every
 // Process call that does not override via Request.DisableComponents.
 func TestDisableComponents_OptionsLevel(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -43,6 +45,8 @@ func TestDisableComponents_OptionsLevel(t *testing.T) {
 // and no request override, Response.Components MUST populate. Guards
 // against accidental "always disabled" drift.
 func TestDisableComponents_DefaultEmits(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -72,6 +76,8 @@ func TestDisableComponents_DefaultEmits(t *testing.T) {
 // TestDisableComponents_RequestOverrideTrue covers the per-request opt-out:
 // engine default off, request explicitly *true ⇒ Components suppressed.
 func TestDisableComponents_RequestOverrideTrue(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -98,6 +104,8 @@ func TestDisableComponents_RequestOverrideTrue(t *testing.T) {
 // engine default on (DisableComponents=true), request explicitly *false ⇒
 // Components MUST populate for this request only.
 func TestDisableComponents_RequestOverrideFalse(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -127,6 +135,8 @@ func TestDisableComponents_RequestOverrideFalse(t *testing.T) {
 // the ComputePlan directly (no `return` on ctx: the gate alone) so the
 // per-request override semantics stay regression-safe.
 func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		engine      bool
@@ -175,6 +185,8 @@ func TestEffectiveDisableComponents_TableDriven(t *testing.T) {
 // call, so streaming consumers that read .Components() on terminal
 // flush get nil instead of an empty payload.
 func TestProcessStream_DisableComponents(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -212,6 +224,8 @@ func TestProcessStream_DisableComponents(t *testing.T) {
 // GrouperComponents lazily and processGrouped early-returns nil when
 // disabled, so Response.Components.Groupers must be empty.
 func TestDisableComponents_GroupedPath(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)

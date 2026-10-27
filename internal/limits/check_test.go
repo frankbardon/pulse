@@ -7,6 +7,8 @@ import (
 )
 
 func TestEvaluate(t *testing.T) {
+	t.Parallel()
+
 	l := Defaults()
 	l.MaxMatrixDim = 2
 	if _, ok := Evaluate(l, MaxMatrixDim, 2, Certain); ok {
@@ -30,6 +32,8 @@ func TestEvaluate(t *testing.T) {
 }
 
 func TestChecks(t *testing.T) {
+	t.Parallel()
+
 	l := Defaults()
 	l.MaxMatrixDim, l.MaxComposeSlots, l.MaxChainStages, l.MaxJoinBuildRows, l.MaxDerivedColumns = 2, 3, 4, 999, 6
 	for _, c := range []struct {
@@ -61,6 +65,8 @@ func TestChecks(t *testing.T) {
 }
 
 func TestFirstCertain(t *testing.T) {
+	t.Parallel()
+
 	possible := Finding{Limit: MaxGroups, Configured: 1, Estimated: 2, Grade: Possible}
 	certain := Finding{Limit: MaxMatrixDim, Configured: 2, Estimated: 3, Grade: Certain}
 	if err := FirstCertain([]Finding{possible}); err != nil {

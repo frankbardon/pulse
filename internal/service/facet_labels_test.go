@@ -10,6 +10,8 @@ import (
 )
 
 func TestFacetSchema_Labels_Replace(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{
@@ -51,6 +53,8 @@ func TestFacetSchema_Labels_Replace(t *testing.T) {
 }
 
 func TestFacetSchema_Labels_Augment(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada"}},
@@ -82,6 +86,8 @@ func TestFacetSchema_Labels_Augment(t *testing.T) {
 }
 
 func TestFacetSchema_Labels_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	_, err := svc.FacetSchema(context.Background(), &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: path},

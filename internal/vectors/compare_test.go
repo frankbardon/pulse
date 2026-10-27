@@ -32,6 +32,8 @@ func cmpVecs() []types.VectorSpec {
 // metric / reference of each valid slot and the code + reason (or
 // pointer) of each refusal.
 func TestComparisonParams_Rules(t *testing.T) {
+	t.Parallel()
+
 	sim, dist := types.ATTR_PROFILE_SIMILARITY, types.ATTR_VEC_DISTANCE
 	vec := func(n string) func(*types.Attribute) { return func(a *types.Attribute) { a.Vector = n } }
 	inline := func(a *types.Attribute) { a.Fields = []string{"b1", "b2"} }
@@ -168,6 +170,8 @@ func TestComparisonParams_Rules(t *testing.T) {
 // runtime bind share: an unregistered table or key, labels that are
 // not the vector's, and the by-label alignment of a good one.
 func TestComparisonTableIssue(t *testing.T) {
+	t.Parallel()
+
 	tables := NewReferenceTables(map[string]types.ReferenceVectorTable{
 		"t":     {Labels: []string{"y", "x"}, Profiles: map[string][]float64{"k": {5, 7}, "j": {1, 2}}},
 		"other": {Labels: []string{"x", "z"}, Profiles: map[string][]float64{"k": {1, 2}}},
@@ -243,6 +247,8 @@ func TestComparisonTableIssue(t *testing.T) {
 // explicit metric), the unsuited warning on an explicit poor fit, the
 // per-slot two-pass predicate and the projection's key_field.
 func TestComparisonKindReadings(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors: cmpVecs(),
 		Attributes: []*types.Attribute{
@@ -295,6 +301,8 @@ func TestComparisonKindReadings(t *testing.T) {
 // accepted (the integers matched by their base-10 form), everything
 // else refused — and the refusal names exactly the accepted list.
 func TestComparisonKeyFieldAccepts(t *testing.T) {
+	t.Parallel()
+
 	want := map[encoding.FieldType]bool{
 		encoding.FieldTypeCategoricalU8: false, encoding.FieldTypeCategoricalU16: false, encoding.FieldTypeCategoricalU32: false,
 		encoding.FieldTypeU4: true, encoding.FieldTypeU8: true, encoding.FieldTypeU16: true, encoding.FieldTypeU32: true, encoding.FieldTypeU64: true,

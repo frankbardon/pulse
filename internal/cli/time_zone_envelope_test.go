@@ -19,6 +19,8 @@ import (
 // Compose and chain refusals keep their location (details.request /
 // details.stage) through the envelope.
 func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "ts,cat,n\n"
 	for i := range 40 {

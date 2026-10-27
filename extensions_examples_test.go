@@ -69,6 +69,8 @@ func exampleNameSet(sums []ExampleSummary) map[string]bool {
 // TestExtensions_ExamplesServedLikeBuiltins: a profile-free instance
 // searches, gets, counts and graphs every embedder example.
 func TestExtensions_ExamplesServedLikeBuiltins(t *testing.T) {
+	t.Parallel()
+
 	plain, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +108,8 @@ func TestExtensions_ExamplesServedLikeBuiltins(t *testing.T) {
 // TestExtensions_ExamplesKeepBuiltinsByteIdentical: registering embedder
 // examples changes no built-in example's listing or body.
 func TestExtensions_ExamplesKeepBuiltinsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	plain, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatal(err)
@@ -144,6 +148,8 @@ func TestExtensions_ExamplesKeepBuiltinsByteIdentical(t *testing.T) {
 // AGG_ACME_BRAND hides its example — absent from search, manifest count
 // and ontology, and an exact get answers like a name that never existed.
 func TestExtensions_ExamplesPrunedWithOperator(t *testing.T) {
+	t.Parallel()
+
 	p, err := New(Options{FS: memFsWith(t, nil), Extensions: acmeExampleExtensions(),
 		FeatureProfile: &FeatureProfile{Features: []string{"capability:process", "AGG_ACME_KEPT", "GROUP_CATEGORY"}}})
 	if err != nil {
@@ -183,6 +189,8 @@ func TestExtensions_ExamplesPrunedWithOperator(t *testing.T) {
 // TestExtensions_ExamplesRefusedAtNew: pulse.New (and CheckFeatureProfile,
 // via the shared universe validation) surfaces the validation code.
 func TestExtensions_ExamplesRefusedAtNew(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		fs   fstest.MapFS
@@ -212,6 +220,8 @@ func TestExtensions_ExamplesRefusedAtNew(t *testing.T) {
 // TestExtensions_ExamplesMergedValuesCollide: two merged Extensions
 // values shipping the same example name collide; distinct names merge.
 func TestExtensions_ExamplesMergedValuesCollide(t *testing.T) {
+	t.Parallel()
+
 	base := acmeExampleExtensions()
 	a := Extensions{Aggregators: base.Aggregators, Examples: fstest.MapFS{"kept.json": {Data: []byte(rootExtExampleKept)}}}
 	b := Extensions{Examples: fstest.MapFS{"other.json": {Data: []byte(rootExtExampleKept)}}}

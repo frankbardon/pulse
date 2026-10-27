@@ -61,6 +61,8 @@ func boxMReq(fields []string, split string, mod func(*types.Test)) func() *types
 // named vector: χ², df, p, M, the F approximation and the
 // log-determinants.
 func TestBoxM_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	doc := loadReference[boxMOracle](t, "mv_box_m")
 	if doc.Packages["biotools"] == "" {
 		t.Fatal("mv_box_m.json does not record the biotools package version")
@@ -133,6 +135,8 @@ func TestBoxM_MatchesROracle(t *testing.T) {
 // PULSE_TEST_SPLIT_GROUPS_LT_2; a level with one complete row is
 // PULSE_TEST_INSUFFICIENT_N.
 func TestBoxM_SplitNeedsTwoLevels(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	err := processErr(t, schema, hotellingRows(schema, 30, []string{"a"}, nil), boxMReq([]string{"x1", "x2"}, "g", nil)())
 	if hotCode(err) != errors.PULSE_TEST_SPLIT_GROUPS_LT_2 {
@@ -151,6 +155,8 @@ func TestBoxM_SplitNeedsTwoLevels(t *testing.T) {
 // dependency leaves a covariance singular — a PULSE_MATRIX_SINGULAR
 // warning with null figures (JSON null), never an error.
 func TestBoxM_SingularCovarianceWarns(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]struct {
 		n   int
 		mod func(int, map[string]float64)
@@ -183,6 +189,8 @@ func TestBoxM_SingularCovarianceWarns(t *testing.T) {
 // it; integer frequency weights equal the rep() expansion; equal
 // covariances (the same rows in every level) give M = 0.
 func TestBoxM_ListwiseAndFrequency(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	groups := []string{"a", "b", "c"}
 	clean := hotellingRows(schema, 45, groups, nil)
@@ -238,6 +246,8 @@ func TestBoxM_ListwiseAndFrequency(t *testing.T) {
 // TestBoxM_ResolverRefusals: split_by is required, a second member set
 // and unknown params are refused (SERVICE_VALIDATION reasons).
 func TestBoxM_ResolverRefusals(t *testing.T) {
+	t.Parallel()
+
 	schema := hotellingSchema()
 	recs := hotellingRows(schema, 30, []string{"a", "b"}, nil)
 	for reason, mod := range map[string]func(*types.Test){

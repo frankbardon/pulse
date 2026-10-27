@@ -43,6 +43,8 @@ func readingPages(files map[string]string) map[string]string {
 // Interpretations has an entry, with a block per declared field, on its
 // family's page.
 func TestRender_ReadingPagesDefault(t *testing.T) {
+	t.Parallel()
+
 	for key, inst := range map[string]*descx.InstanceSnapshot{"unscoped": nil, "default": defaultSnapshot()} {
 		files := tree(docgen.Render(inst, docgen.Options{}))
 		pages := readingPages(files)
@@ -90,6 +92,8 @@ func TestRender_ReadingPagesDefault(t *testing.T) {
 // once across the whole tree, on the Test page, and every p-value
 // field on every reading page links there.
 func TestRender_PValueRuleOnce(t *testing.T) {
+	t.Parallel()
+
 	rule, ok := descx.SharedInterpretation(descx.SharedPValue)
 	if !ok {
 		t.Fatal("no shared p-value rule")
@@ -131,6 +135,8 @@ func TestRender_PValueRuleOnce(t *testing.T) {
 // reading page names a hidden operator; the default instance carries
 // the page, so the check is not vacuous.
 func TestRender_ReadingProfiledOmits(t *testing.T) {
+	t.Parallel()
+
 	var regs []string
 	for _, s := range descx.PurposeSurfaces() {
 		if s.Category == "regression" {
@@ -196,6 +202,8 @@ func TestRender_ReadingProfiledOmits(t *testing.T) {
 // leaves no multiplicity slot token on any reading page, while the
 // default Test page names p_adjusted.
 func TestRender_MultiplicityHiddenNoPAdjusted(t *testing.T) {
+	t.Parallel()
+
 	tokens, ok := descx.SlotTokensOf(descx.FeatureMultiplicity)
 	if !ok || !slices.Contains(tokens, "p_adjusted") {
 		t.Fatalf("multiplicity slot tokens = %v", tokens)
@@ -227,6 +235,8 @@ func TestRender_MultiplicityHiddenNoPAdjusted(t *testing.T) {
 // floor keys (only when the instance offers weighting) and each
 // visible operator's own keys with its mergeability.
 func TestRender_ComponentsPage(t *testing.T) {
+	t.Parallel()
+
 	page := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))[componentsPage]
 	for _, f := range descx.ComponentFloors() {
 		for _, k := range f.Keys {
@@ -295,6 +305,8 @@ func preservedSpan(t *testing.T, body string) string {
 // byte, on every instance shape, and a regeneration over an existing
 // export reproduces it unchanged.
 func TestRender_ComponentsIntroPreserved(t *testing.T) {
+	t.Parallel()
+
 	src, err := os.ReadFile("components_intro.md")
 	if err != nil {
 		t.Fatal(err)
@@ -379,6 +391,8 @@ func lintPage(body string) []string {
 // shape passes the guidance lint's text rules; a synthetic violation
 // is caught, so the lint is live.
 func TestRender_ReadingPagesLint(t *testing.T) {
+	t.Parallel()
+
 	seen := 0
 	for key, inst := range instances(t) {
 		for p, body := range readingPages(tree(docgen.Render(inst, docgen.Options{}))) {
@@ -409,6 +423,8 @@ func TestRender_ReadingPagesLint(t *testing.T) {
 // TestRender_ReadingHidesSlotTokens: hiding any slot-owning capability
 // leaves none of its wire tokens on a reading page.
 func TestRender_ReadingHidesSlotTokens(t *testing.T) {
+	t.Parallel()
+
 	checked := 0
 	for _, c := range descx.SlotTokenCapabilities() {
 		tokens, _ := descx.SlotTokensOf(c)

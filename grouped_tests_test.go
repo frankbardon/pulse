@@ -143,6 +143,8 @@ func gtWarnings(t *testing.T, ws []*types.ResponseWarning, code perr.Code) map[s
 }
 
 func TestGroupedTests_EqualFilteredSingleGroupRuns(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	for _, c := range gtCases() {
 		for _, mode := range gtModes() {
@@ -262,6 +264,8 @@ func perrAs(err error, target **perr.CodedError) bool {
 // (TEST_CHISQ refuses PULSE_TEST_CONTINGENCY_DEGENERATE), and the
 // probability-weighted TEST_T is short of n_eff in some group.
 func TestGroupedTests_SparseGroupsAndLowNEff(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	run := func(tests string, groups ...*types.Group) *types.Response {
 		t.Helper()
@@ -334,6 +338,8 @@ func TestGroupedTests_SparseGroupsAndLowNEff(t *testing.T) {
 // TestGroupedTests_UngroupedByteIdentical: an ungrouped request's tests
 // carry no group_key and one result per slot.
 func TestGroupedTests_UngroupedByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := &types.Request{Cohort: &types.Cohort{Filename: f.cohort},
 		Tests: gtDecodeTests(t, `[{"type":"TEST_T","field":"score","split_by":"sex"},{"type":"TEST_CHISQ","rows":"sex","cols":"region"}]`)}
@@ -363,6 +369,8 @@ func TestGroupedTests_UngroupedByteIdentical(t *testing.T) {
 // also a grouper is refused by predict and the runtime with the same
 // code and Details.
 func TestGroupedTests_SplitIsGrouperRefused(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	cases := []struct {
 		name   string
@@ -413,6 +421,8 @@ func TestGroupedTests_SplitIsGrouperRefused(t *testing.T) {
 // it buffered with a reason, and grades tests x groups against
 // MaxGroups — the product the runtime refuses.
 func TestGroupedTests_PredictCostAndPath(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	tests := `[{"type":"TEST_T","field":"score","split_by":"tier"},{"type":"TEST_MANN_WHITNEY_U","field":"y","split_by":"tier"}]`
 	grouped := mgRequest(f, []*types.Group{mgRegion(), mgSex()})
@@ -469,6 +479,8 @@ func TestGroupedTests_PredictCostAndPath(t *testing.T) {
 }
 
 func TestGroupedTests_LimitsCountTestsTimesGroups(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{Limits: pulse.Limits{MaxGroups: 10}})
 	req := mgRequest(f, []*types.Group{mgRegion(), mgSex()})
 	if _, err := f.p.Process(context.Background(), req); err != nil {
@@ -500,6 +512,8 @@ func TestGroupedTests_LimitsCountTestsTimesGroups(t *testing.T) {
 // pools every (test x group) p-value, the sparse group's undefined p
 // left out of m and counted in `excluded`.
 func TestGroupedTests_MultiplicityPoolsEveryGroup(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	req := mgRequest(f, []*types.Group{mgRegion(), mgTier()})
 	req.Tests = gtDecodeTests(t, `[{"type":"TEST_T","field":"score","split_by":"sex"},{"type":"TEST_MANN_WHITNEY_U","field":"score","split_by":"sex"}]`)

@@ -24,6 +24,8 @@ func symmetryOverlay(params string) types.OverlaySpec {
 }
 
 func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	square := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
@@ -62,6 +64,8 @@ func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
 // run. g x subj (one grouper per axis, different keys) runs too: a
 // one-axis state is a zero row / column, never a refusal.
 func TestSymmetry_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	for _, cols := range [][]*types.Group{

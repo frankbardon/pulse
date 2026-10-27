@@ -14,6 +14,8 @@ import (
 // sorted retained-set key, so re-calling SetProjection with a filter
 // that resolves to the same set reuses the same plan reference.
 func TestStreamingIterator_PlanCacheReusedForSameRetainedSet(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
 
@@ -55,6 +57,8 @@ func TestStreamingIterator_PlanCacheReusedForSameRetainedSet(t *testing.T) {
 // SetProjection(nil, 0) clears any cached plan and reverts to the
 // full-decode path used today.
 func TestStreamingIterator_NilProjectionClearsPlan(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
 
@@ -79,6 +83,8 @@ func TestStreamingIterator_NilProjectionClearsPlan(t *testing.T) {
 }
 
 func TestStreamingIterator_PlanDrivenDecodeMatchesFullDecode(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	cfg := setupTestFS(t, "wide.pulse", schema, wideRecords())
 
@@ -114,6 +120,8 @@ func TestStreamingIterator_PlanDrivenDecodeMatchesFullDecode(t *testing.T) {
 // layer never installs an empty retained set (size==0 short-circuits
 // in installProjection), but the iterator API allows it.
 func TestStreamingIterator_PlanReadsTrueOnEmptyRetained(t *testing.T) {
+	t.Parallel()
+
 	schema := wideSchema()
 	plan, err := encx.BuildDecodePlan(schema, nil)
 	if err != nil {

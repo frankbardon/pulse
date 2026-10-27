@@ -158,6 +158,8 @@ func auxAdmissionSlots() []auxAdmissionSlot {
 // sees, and reading it through RunCrosstab / RunCrosstabFused end to end
 // proves both arms apply the same rule to the cell's own margins.
 func TestCrosstabAuxMargin_NullCellFieldStaysInTheCellsOwnMargins(t *testing.T) {
+	t.Parallel()
+
 	slots := auxAdmissionSlots()
 
 	// The cell aggregator's own margins, read off the response. Asserted
@@ -312,6 +314,8 @@ func assertAuxBases(t *testing.T, path string, slots []auxAdmissionSlot, got map
 // fixture cannot lose one half of its discriminating power while the
 // other half masks it.
 func TestCrosstabAuxMargin_FixtureDiscriminatesTheAdmissionRule(t *testing.T) {
+	t.Parallel()
+
 	spec := auxMarginSpec()
 	schema := auxMarginSchema(t)
 	records := auxMarginRecords(schema)

@@ -39,6 +39,8 @@ func flagUsages(root *cli.Command, name string) []string {
 // help line names every value its library lister returns, on every leaf
 // mounting it — so a value added to the library cannot go unadvertised.
 func TestFlagVocab_UsageNamesEveryLibraryValue(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		root   *cli.Command
 		flag   string
@@ -87,6 +89,8 @@ func TestFlagVocab_UsageNamesEveryLibraryValue(t *testing.T) {
 // exactly the library's request-mode roots, and only sample lacks a
 // response slot.
 func TestFlagVocab_ExplainRootPairsMatchLister(t *testing.T) {
+	t.Parallel()
+
 	roots := descriptor.ExplainRequestRoots()
 	if len(explainRootPairs) != len(roots) {
 		t.Fatalf("explainRootPairs has %d roots, lister %d", len(explainRootPairs), len(roots))
@@ -106,6 +110,8 @@ func TestFlagVocab_ExplainRootPairsMatchLister(t *testing.T) {
 // TestFlagVocab_LogVocabularyIsOneSet: the CLI-owned log spellings feed
 // both the level map and the validator.
 func TestFlagVocab_LogVocabularyIsOneSet(t *testing.T) {
+	t.Parallel()
+
 	if logLevelNames[0] != logLevelOff || len(logLevels) != len(logLevelNames)-1 {
 		t.Fatalf("logLevelNames %v vs logLevels %v", logLevelNames, logLevels)
 	}

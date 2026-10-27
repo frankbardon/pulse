@@ -48,6 +48,8 @@ func runSetAggregateForComponents(t *testing.T, aggType types.AggregationType,
 // the bit count; labels must be the dictionary-decoded slice (ascending
 // bit order, matches encoding.SetMask.Labels semantics).
 func TestMetaAggregator_SetUnion_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	tests := []struct {
 		name string
@@ -100,6 +102,8 @@ func TestMetaAggregator_SetUnion_Components(t *testing.T) {
 // across multi-row, single-row, and empty input. mask_intersection must
 // be the bitwise AND of every contributing row's set mask.
 func TestMetaAggregator_SetIntersection_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	tests := []struct {
 		name string
@@ -166,6 +170,8 @@ func TestMetaAggregator_SetIntersection_Components(t *testing.T) {
 // Verifies per_label_count map keyed by decoded label, plus the
 // aggregate counters total_label_observations and distinct_labels.
 func TestMetaAggregator_SetFrequency_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	tests := []struct {
 		name string
@@ -229,6 +235,8 @@ func TestMetaAggregator_SetFrequency_Components(t *testing.T) {
 // AGG_SET_CARDINALITY_SUM. sum_cardinality is the sum of popcounts
 // across contributing rows.
 func TestMetaAggregator_SetCardinalitySum_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	tests := []struct {
 		name string
@@ -270,6 +278,8 @@ func TestMetaAggregator_SetCardinalitySum_Components(t *testing.T) {
 // AGG_SET_CARDINALITY_AVG. avg_cardinality == sum_cardinality /
 // n_contributing_rows; empty input collapses to {0, 0.0}.
 func TestMetaAggregator_SetCardinalityAvg_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	tests := []struct {
 		name string
@@ -323,6 +333,8 @@ func TestMetaAggregator_SetCardinalityAvg_Components(t *testing.T) {
 // distinct exact masks; Components() carries the union mask + popcount
 // + decoded labels per internal/descriptor/capabilities_aggregators.go.
 func TestMetaAggregator_SetDistinctValues_Components(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	tests := []struct {
 		name string
@@ -380,6 +392,8 @@ func TestMetaAggregator_SetDistinctValues_Components(t *testing.T) {
 // inverse drift (an embedder casting an aggregator returned from the
 // factory must succeed).
 func TestMetaAggregator_SetOps_InterfaceLock(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	for _, aggType := range []types.AggregationType{
 		types.AGG_SET_UNION,
@@ -419,6 +433,8 @@ func TestMetaAggregator_SetOps_InterfaceLock(t *testing.T) {
 // of dictionary shape; this is the runtime-safety contract the story
 // names.
 func TestMetaAggregator_SetOps_DictWidthOverflowGuard(t *testing.T) {
+	t.Parallel()
+
 	// Build a schema where the dictionary holds 9 entries but the
 	// declared field type is set_u8 (8-bit max). The aggregator should
 	// still construct cleanly (per the existing setAggDict path); Rich()

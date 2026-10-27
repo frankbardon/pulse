@@ -37,6 +37,8 @@ func deriveRecords(s *encoding.Schema) []*Record {
 // feature value and an integer window value (row number) come back as
 // float64 / nil in column order.
 func TestDeriveRecords_SourceIndexAndValues(t *testing.T) {
+	t.Parallel()
+
 	s := deriveSchema()
 	req := &types.Request{
 		Features:  []*types.Feature{{Type: types.FEAT_SQRT, Field: "v"}},
@@ -76,6 +78,8 @@ func TestDeriveRecords_SourceIndexAndValues(t *testing.T) {
 // copying a string is PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC; an emit
 // error stops the walk and is returned unchanged.
 func TestDeriveRecords_RefusesNonNumericAndStopsOnEmitError(t *testing.T) {
+	t.Parallel()
+
 	s := deriveSchema()
 	lag := &types.Request{Windows: []*types.Window{{Type: types.WIN_LAG, Field: "v",
 		OrderBy: []types.OrderKey{{Field: "id"}}, Params: []byte(`{"default":"none"}`)}}}
@@ -152,6 +156,8 @@ func derivedRun(t *testing.T, req *types.Request, cols []DerivedColumn) ([]int64
 // every derived value, the running sum ordered by id included, stays
 // the value of the unsorted run.
 func TestDeriveRecords_SortMovesRowsNotValues(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	base := func(sort ...types.OrderKey) *types.Request {
 		return &types.Request{

@@ -12,6 +12,8 @@ import (
 // runs and echoes (bootstrap_requested), beside the replicates that
 // refit (bootstrap_succeeded), on the wire.
 func TestProcess_BootstrapItersEchoed(t *testing.T) {
+	t.Parallel()
+
 	p, _, cohort := acceptanceCohort(t)
 	for _, tc := range []struct {
 		iters, want int

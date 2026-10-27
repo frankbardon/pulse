@@ -106,6 +106,8 @@ func overlayZFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (float64
 }
 
 func TestOverlayZCell_ParityWithTestZTwoSample(t *testing.T) {
+	t.Parallel()
+
 	tuples := parityTuples()
 	if len(tuples) < 10 {
 		t.Fatalf("parityTuples returned %d, want >= 10", len(tuples))
@@ -143,6 +145,8 @@ func TestOverlayZCell_ParityWithTestZTwoSample(t *testing.T) {
 }
 
 func TestOverlayZVsRef_ParityWithTestZTwoSample(t *testing.T) {
+	t.Parallel()
+
 	tuples := parityTuples()
 	for _, tc := range tuples {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,6 +183,8 @@ func TestOverlayZVsRef_ParityWithTestZTwoSample(t *testing.T) {
 // bit-equal: where the row test fails, the overlay also fails (no
 // spurious finite p-value emitted).
 func TestOverlayZCell_DegenerateNaNParity(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		targetStream []float64
@@ -234,6 +240,8 @@ func TestOverlayZCell_DegenerateNaNParity(t *testing.T) {
 // recurrence (instead of reusing the canonical helper) breaks here
 // first.
 func TestOverlayZCell_HelpersReused(t *testing.T) {
+	t.Parallel()
+
 	stream := makeParityStream(10.0, 2.0, 50)
 	refStream := makeParityStream(9.5, 2.0, 50)
 	targetBucket := bucketFromStream(stream)

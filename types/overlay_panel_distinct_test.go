@@ -18,6 +18,8 @@ import "testing"
 // ROW margins — all columns. The two differ by roughly the column
 // count, silently.
 func TestPanelNSourceRowMarginDistinctWithin_DoesNotCollideWithPairwise(t *testing.T) {
+	t.Parallel()
+
 	if PanelNSourceRowMarginDistinctWithin == PairwiseNSourceNWithinDistinct {
 		t.Fatalf("panel and pairwise distinct modes share the wire name %q;"+
 			" they read different carriers over different geometries and must not collide",
@@ -44,6 +46,8 @@ func TestPanelNSourceRowMarginDistinctWithin_DoesNotCollideWithPairwise(t *testi
 // cell-aggregator admission gate applies to it). Each predicate is a
 // separate contract with a separate call site.
 func TestPanelNSourceRowMarginDistinctWithin_JoinsThePredicates(t *testing.T) {
+	t.Parallel()
+
 	m := PanelNSourceRowMarginDistinctWithin
 	if !PanelNSourceUsesWithinDepth(m) {
 		t.Error("PanelNSourceUsesWithinDepth is false; n_within_depth would be refused as inert and the slab gate would never fire")
@@ -77,6 +81,8 @@ func TestPanelNSourceRowMarginDistinctWithin_JoinsThePredicates(t *testing.T) {
 // refusal. It is derived from the enum through the predicate itself,
 // so a mode added to one cannot go missing from the other.
 func TestPanelNSourcesUsingWithinDepth_MatchesThePredicate(t *testing.T) {
+	t.Parallel()
+
 	got := PanelNSourcesUsingWithinDepth()
 	want := []string{PanelNSourceRowMarginValueWithin, PanelNSourceRowMarginDistinctWithin}
 	if len(got) != len(want) {
@@ -108,6 +114,8 @@ func TestPanelNSourcesUsingWithinDepth_MatchesThePredicate(t *testing.T) {
 // it: the SAME fan-out axis that refuses the value leg must refuse the
 // distinct leg, and the omitted-depth form of both must stay ungated.
 func TestCheckPanelSlabPartition_InheritsForDistinctWithin(t *testing.T) {
+	t.Parallel()
+
 	fanOut := []PanelSlabPartitionSlot{{
 		Rows: []*Group{
 			{Type: GROUP_CATEGORY, Field: "region"},

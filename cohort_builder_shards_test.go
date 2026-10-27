@@ -76,6 +76,8 @@ func shardPreamble(t *testing.T, p *Pulse, archive, shard string) ([]byte, *enco
 // Process over the single-file build of the same rows. Every field type
 // round-trips through the split.
 func TestCohortBuilder_ShardedReadBack(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	for _, tc := range []struct {
 		max    int
@@ -184,6 +186,8 @@ func TestCohortBuilder_ShardedReadBack(t *testing.T) {
 // layout), so the archive merge reports no PULSE_SHARD_* rewrite. The
 // archive reads back as the appended rows.
 func TestCohortBuilder_ShardedGroupsDecidedOnce(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	for i := range rows {
 		// version is 3 on the first 60 rows and 4 after: constant within
@@ -262,6 +266,8 @@ func (f shardStageFailFs) Create(name string) (afero.File, error) {
 // leaves no archive, no spool, no staged shard and no staging
 // directory; an existing archive being overwritten stays as it was.
 func TestCohortBuilder_ShardedFailedCloseLeavesNothing(t *testing.T) {
+	t.Parallel()
+
 	rows, _ := groupedData()
 	for _, tc := range []struct {
 		name string
@@ -315,6 +321,8 @@ func TestCohortBuilder_ShardedFailedCloseLeavesNothing(t *testing.T) {
 // SERVICE_VALIDATION at NewCohortBuilder, before anything is written;
 // an existing archive without Overwrite is refused like a single file.
 func TestCohortBuilder_ShardSplitRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{0, -5} {
 		p, fsys := memBuilderEngine(t)
 		_, err := p.NewCohortBuilder(context.Background(), "a.pulse", groupedSchema(), CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: n}})
@@ -345,6 +353,8 @@ func TestCohortBuilder_ShardSplitRefusals(t *testing.T) {
 // write stages beside it, inside the data dir) and leaves only the
 // archive.
 func TestCohortBuilder_ShardedDataDirRoot(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	p, err := New(Options{DataDir: dir})
 	if err != nil {
@@ -371,6 +381,8 @@ func TestCohortBuilder_ShardedDataDirRoot(t *testing.T) {
 // TestCohesionFindings: shard-archive warnings become coded findings
 // with code, message and details intact.
 func TestCohesionFindings(t *testing.T) {
+	t.Parallel()
+
 	if got := cohesionFindings(nil); got != nil {
 		t.Fatalf("nil warnings = %v", got)
 	}

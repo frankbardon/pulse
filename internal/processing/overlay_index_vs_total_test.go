@@ -27,6 +27,8 @@ func newIndexVsTotalSpec(name string) types.OverlaySpec {
 // because the math is plain f64 division — the only source of error is
 // floating-point rounding on the divide step.
 func TestOverlay_IndexVsTotal_BasicSeries(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"US"}, {"CA"}, {"MX"}}
 	values := []float64{100.0, 100.0, 100.0}
 	host := newStubSeriesHost(keys, values)
@@ -68,6 +70,8 @@ func TestOverlay_IndexVsTotal_BasicSeries(t *testing.T) {
 // group indices are exactly 50% / 30% / 20%. Verifies the per-entry
 // math without divisor-induced rounding.
 func TestOverlay_IndexVsTotal_UnequalGroups(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{50.0, 30.0, 20.0}
 	host := newStubSeriesHost(keys, values)
@@ -92,6 +96,8 @@ func TestOverlay_IndexVsTotal_UnequalGroups(t *testing.T) {
 // family's missing-margin emission shape (one warning per layer, not
 // per cell).
 func TestOverlay_IndexVsTotal_ZeroGrandTotalEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{0.0, 0.0, 0.0}
 	host := newStubSeriesHost(keys, values)
@@ -134,6 +140,8 @@ func TestOverlay_IndexVsTotal_ZeroGrandTotalEmitsWarn(t *testing.T) {
 }
 
 func TestOverlay_IndexVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}}
 	// math.NaN signals absent (newStubSeriesHost's resolver returns
 	// (0, false) for NaN inputs).
@@ -185,6 +193,8 @@ func TestOverlay_IndexVsTotal_AbsentGroupsStayAbsent(t *testing.T) {
 }
 
 func TestOverlay_IndexVsTotal_StreamingBufferedByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"x"}, {"y"}, {"z"}}
 	values := []float64{12.0, 34.0, 56.0}
 
@@ -276,6 +286,8 @@ func TestOverlay_IndexVsTotal_StreamingBufferedByteIdentical(t *testing.T) {
 // for the same reason (zero denominator) but the entries slice is
 // empty rather than full-of-NaN.
 func TestOverlay_IndexVsTotal_ZeroGroupsClean(t *testing.T) {
+	t.Parallel()
+
 	host := newStubSeriesHost(nil, nil)
 	specs := []types.OverlaySpec{newIndexVsTotalSpec("idx_total")}
 
@@ -298,6 +310,8 @@ func TestOverlay_IndexVsTotal_ZeroGroupsClean(t *testing.T) {
 // lower-case bare-kind string "index_vs_total" mirroring the
 // CHISQ_* / FISHER_EXACT_CELL family.
 func TestOverlay_IndexVsTotal_DefaultLayerName(t *testing.T) {
+	t.Parallel()
+
 	keys := []types.AxisKey{{"a"}}
 	host := newStubSeriesHost(keys, []float64{1.0})
 	// No Name on the spec — exercises the synthesiser.

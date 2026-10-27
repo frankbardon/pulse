@@ -14,6 +14,8 @@ import (
 // dispatching by the request's grouping); the MATRIX_RESULT kind is
 // refused earlier by ShapeRefusal and has none.
 func TestScalarSpecRefusal_CoversProcessKinds(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range types.AllOverlayKinds() {
 		var matrix, series bool
 		for _, s := range Shapes(kind) {
@@ -86,6 +88,8 @@ func goodScalarSpec(kind types.OverlayKind, grouped bool) *types.OverlaySpec {
 // without a rule (a Compose kind, the empty route of a hidden kind) is
 // never refused here.
 func TestScalarSpecRefusal_Rules(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range ScalarSpecKinds() {
 		for _, grouped := range []bool{false, true} {
 			good := goodScalarSpec(kind, grouped)

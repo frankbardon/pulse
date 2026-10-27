@@ -101,6 +101,8 @@ func gswPerElementGrouper(t testing.TB, schema *encoding.Schema, include ...stri
 // collision test. Each pair differs ONLY in a bit at or above 64, 128
 // or 192 — exactly the bits a uint64 group key cannot see.
 func TestGroupSetValueWide_KeyDistinguishesEveryWord(t *testing.T) {
+	t.Parallel()
+
 	schema := gswSchema(t, encoding.FieldTypeSetU256, 206)
 	g := gswSetValueGrouper(t, schema)
 
@@ -147,6 +149,8 @@ func TestGroupSetValueWide_KeyDistinguishesEveryWord(t *testing.T) {
 // dictionary members. A key derivation truncated at any word boundary
 // collapses the bits past it onto the empty-mask key.
 func TestGroupSetValueWide_EverySingleBitKeyIsUnique(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 	schema := gswSchema(t, encoding.FieldTypeSetU256, members)
 	g := gswSetValueGrouper(t, schema)
@@ -174,6 +178,8 @@ func TestGroupSetValueWide_EverySingleBitKeyIsUnique(t *testing.T) {
 // Group() path. Expected bucket keys are derived from the bit lists, not
 // from a second execution of the grouper.
 func TestGroupSetValueWide_GroupPartitionsByFullMask(t *testing.T) {
+	t.Parallel()
+
 	schema := gswSchema(t, encoding.FieldTypeSetU256, 206)
 	g := gswSetValueGrouper(t, schema)
 
@@ -223,6 +229,8 @@ func TestGroupSetValueWide_GroupPartitionsByFullMask(t *testing.T) {
 // "mask_words" INSTEAD — never a truncated low word dressed up as the
 // whole selection.
 func TestGroupSetValueWide_ComponentsCarryEveryWord(t *testing.T) {
+	t.Parallel()
+
 	schema := gswSchema(t, encoding.FieldTypeSetU256, 206)
 	g := gswSetValueGrouper(t, schema)
 
@@ -308,6 +316,8 @@ func TestGroupSetValueWide_ComponentsCarryEveryWord(t *testing.T) {
 // compares BOTH to an independently derived key→count map. Comparing
 // the two paths to each other would share any decode bug.
 func TestGroupSetValueWide_StreamingAndBufferedBothMatchTruth(t *testing.T) {
+	t.Parallel()
+
 	schema := gswSchema(t, encoding.FieldTypeSetU128, 120)
 	bitsPerRecord := [][]int{{2, 65}, {2, 65}, {2, 66}, {119}, {}}
 
@@ -361,6 +371,8 @@ func TestGroupSetValueWide_StreamingAndBufferedBothMatchTruth(t *testing.T) {
 // one bucket per selected member across all four words of a set_u256
 // column, and pins each bucket's dict_index to the bit it came from.
 func TestGroupSetPerElementWide_206MemberDictionary(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 	schema := gswSchema(t, encoding.FieldTypeSetU256, members)
 	g := gswPerElementGrouper(t, schema)
@@ -411,6 +423,8 @@ func TestGroupSetPerElementWide_206MemberDictionary(t *testing.T) {
 // TestGroupSetPerElementWide_KeysForRowMatchesTruth pins the streaming
 // fan-out key set per record against labels derived from the bit list.
 func TestGroupSetPerElementWide_KeysForRowMatchesTruth(t *testing.T) {
+	t.Parallel()
+
 	schema := gswSchema(t, encoding.FieldTypeSetU256, 206)
 	g := gswPerElementGrouper(t, schema)
 
@@ -448,6 +462,8 @@ func TestGroupSetPerElementWide_KeysForRowMatchesTruth(t *testing.T) {
 // every rung so widening the group key did not move a narrow cohort's
 // bucket strings.
 func TestGroupSetWide_NarrowRungsAreUnchanged(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		ft      encoding.FieldType
 		members int
@@ -461,6 +477,8 @@ func TestGroupSetWide_NarrowRungsAreUnchanged(t *testing.T) {
 		{encoding.FieldTypeSetU256, 206, []int{3, 205}},
 	} {
 		t.Run(tc.ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			schema := gswSchema(t, tc.ft, tc.members)
 			g := gswSetValueGrouper(t, schema)
 			key, err := g.KeyFor(gswRecord(schema, gswMask(tc.bits...)))
@@ -483,6 +501,8 @@ func TestGroupSetWide_NarrowRungsAreUnchanged(t *testing.T) {
 // fieldaccept quantity row), so the mismatch is refused at
 // construction rather than answered at run time.
 func TestGrouperNumeric_RejectsSetField(t *testing.T) {
+	t.Parallel()
+
 	rungs := []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU16,
 		encoding.FieldTypeSetU32, encoding.FieldTypeSetU64,
@@ -520,6 +540,8 @@ func TestGrouperNumeric_RejectsSetField(t *testing.T) {
 // of a decimal128-style streamability gate on the wide rungs: a wide-set
 // grouper streams exactly as a narrow one does.
 func TestCanStreamRequest_WideSetGroupersHaveNoWidthGate(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU64,
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,
@@ -545,8 +567,12 @@ func TestCanStreamRequest_WideSetGroupersHaveNoWidthGate(t *testing.T) {
 // and the same key derivation — so the generated truth is the anchor and
 // the arm-to-arm diff is the extra.
 func TestGroupSetWide_StreamingRunMatchesBufferedRunRowForRow(t *testing.T) {
+	t.Parallel()
+
 	for _, gt := range []types.GroupType{types.GROUP_SET_VALUE, types.GROUP_SET_PER_ELEMENT} {
 		t.Run(string(gt), func(t *testing.T) {
+			t.Parallel()
+
 			schema := gswSchema(t, encoding.FieldTypeSetU256, 206)
 			schema.Fields = append(schema.Fields, encoding.Field{
 				Name: "value", Type: encoding.FieldTypeF64, CsvColumnIdx: 1, Nullable: true,

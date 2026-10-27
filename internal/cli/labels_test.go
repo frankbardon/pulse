@@ -8,6 +8,8 @@ import (
 )
 
 func TestParseLabelBindings_Replace(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseLabelBindings([]string{"country=country_names"})
 	if err != nil {
 		t.Fatal(err)
@@ -18,6 +20,8 @@ func TestParseLabelBindings_Replace(t *testing.T) {
 }
 
 func TestParseLabelBindings_Augment(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseLabelBindings([]string{"country=country_names:augment"})
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +32,8 @@ func TestParseLabelBindings_Augment(t *testing.T) {
 }
 
 func TestParseLabelBindings_InvalidMode(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseLabelBindings([]string{"country=country_names:highlight"})
 	if err == nil || !strings.Contains(err.Error(), "unknown mode") {
 		t.Fatalf("expected unknown mode error, got %v", err)
@@ -35,6 +41,8 @@ func TestParseLabelBindings_InvalidMode(t *testing.T) {
 }
 
 func TestParseLabelBindings_Multiple(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseLabelBindings([]string{
 		"country=country_names",
 		"region=region_names:augment",
@@ -51,6 +59,8 @@ func TestParseLabelBindings_Multiple(t *testing.T) {
 }
 
 func TestParseLabelBindings_Duplicate(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseLabelBindings([]string{
 		"country=names",
 		"country=other:augment",
@@ -61,6 +71,8 @@ func TestParseLabelBindings_Duplicate(t *testing.T) {
 }
 
 func TestParseLabelBindings_BadFormat(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseLabelBindings([]string{"justname"})
 	if err == nil {
 		t.Fatal("expected error for missing '='")
@@ -68,6 +80,8 @@ func TestParseLabelBindings_BadFormat(t *testing.T) {
 }
 
 func TestParseLabelBindings_Empty(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseLabelBindings([]string{""})
 	if err == nil {
 		t.Fatal("expected error for empty binding")

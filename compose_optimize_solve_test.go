@@ -88,6 +88,8 @@ func oneOptimum(t *testing.T, name string, resp *ComposedResponse) types.Optimiz
 // marginal, every start agreeing, the pinned seed echoed — on both
 // orchestrators.
 func TestOptimize_PriceOnFittedDemand(t *testing.T) {
+	t.Parallel()
+
 	p := optPulse(t, Options{})
 	for name, run := range composeRuns(p) {
 		resp, err := run(decodeOpt(t, optfixture.Price, nil))
@@ -120,6 +122,8 @@ func TestOptimize_PriceOnFittedDemand(t *testing.T) {
 // the response — and lands on the model's analytic optimum; predict
 // accepts it.
 func TestOptimize_PriceFromSavedModel(t *testing.T) {
+	t.Parallel()
+
 	p := optPulse(t, Options{})
 	for name, run := range composeRuns(p) {
 		resp, err := run(decodeOpt(t, optfixture.PriceModel, nil))
@@ -146,6 +150,8 @@ func TestOptimize_PriceFromSavedModel(t *testing.T) {
 // message, details incl. details.optimize / field), before any fit or
 // slot runs.
 func TestOptimize_ModelsParity(t *testing.T) {
+	t.Parallel()
+
 	p := optPulse(t, Options{})
 	ctx := context.Background()
 	cases := []struct {
@@ -183,6 +189,8 @@ func TestOptimize_ModelsParity(t *testing.T) {
 // refuses a block's `models` as an unknown field (details.optimize) on
 // predict and both orchestrators alike.
 func TestOptimize_HiddenModelsParity(t *testing.T) {
+	t.Parallel()
+
 	h := newParityHostWith(t, optFixtureFS(t), "no-models", parityHostConfig{
 		profiles: map[string][]string{"no-models": {"capability:compose", "capability:compose_optimize", "capability:params", string(types.AGG_COUNT)}},
 	})
@@ -222,6 +230,8 @@ const allocationTol = 1e-4
 // channel capped at its upper bound returns more than the multiplier
 // and one at zero less — on both orchestrators.
 func TestOptimize_BudgetEqualisesMarginals(t *testing.T) {
+	t.Parallel()
+
 	p := optPulse(t, Options{})
 	for name, run := range composeRuns(p) {
 		resp, err := run(decodeOpt(t, optfixture.Budget, nil))
@@ -269,6 +279,8 @@ func TestOptimize_BudgetEqualisesMarginals(t *testing.T) {
 // after run and on both orchestrators; the derived seed is echoed and a
 // pinned one replays it.
 func TestOptimize_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	p := optPulse(t, Options{})
 	enc := func(run func(*ComposedRequest) (*ComposedResponse, error), raw []byte, edit func(*ComposedRequest)) []byte {
 		resp, err := run(decodeOpt(t, raw, edit))
@@ -324,6 +336,8 @@ func failingBlocks(t *testing.T) func(*ComposedRequest) {
 // name), and leaves the other blocks and the slots whole; under Strict
 // the batch fails with the first failing block's own code.
 func TestOptimize_FailsAlone(t *testing.T) {
+	t.Parallel()
+
 	p := optPulse(t, Options{})
 	for name, run := range composeRuns(p) {
 		resp, err := run(decodeOpt(t, optfixture.Budget, failingBlocks(t)))
@@ -374,6 +388,8 @@ func TestOptimize_FailsAlone(t *testing.T) {
 // Compose fit that failed on its data fails alone with the fit's own
 // code (the fit's failure warns too); Strict fails the batch at the fit.
 func TestOptimize_FailedFitBlockFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	empty := func(c *ComposedRequest) {
 		c.Fits[0].Request.Filterers = []*types.Filterer{{Type: types.FILTER_RANGE, Field: "week", Values: []string{"1000", "2000"}}}
 	}

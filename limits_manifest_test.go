@@ -22,6 +22,8 @@ func manifestLimitValues(t *testing.T, p *Pulse) (map[string]int64, string, stri
 // the effective values; limits_digest moves with them and
 // feature_set_digest does not.
 func TestManifest_LimitsBlock(t *testing.T) {
+	t.Parallel()
+
 	plain, err := New(Options{FS: memFsWith(t, nil)})
 	if err != nil {
 		t.Fatalf("New: %v", err)

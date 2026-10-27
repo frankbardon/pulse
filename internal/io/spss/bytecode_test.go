@@ -72,6 +72,8 @@ func everyCommandSpec() spsstest.Spec {
 // hide (a mis-sized categorical dictionary, a nullability that a shifted
 // sentinel invented).
 func TestBytecode_MatchesUncompressed(t *testing.T) {
+	t.Parallel()
+
 	specs := []struct {
 		name string
 		spec spsstest.Spec
@@ -139,6 +141,8 @@ func dictValues(f encoding.Field) []string {
 // expansion is consistent; this proves it is correct, which is the thing a
 // fixture generator sharing a misreading with the reader could not tell us.
 func TestBytecode_EveryCommandDecodes(t *testing.T) {
+	t.Parallel()
+
 	_, packed := bothEncodings(t, everyCommandSpec())
 	rows := readAll(t, NewReaderFromBytes(packed))
 
@@ -164,6 +168,8 @@ func TestBytecode_EveryCommandDecodes(t *testing.T) {
 // rather than assuming), so the expectation here is corroborated outside this
 // module.
 func TestBytecode_HonoursTheDeclaredBias(t *testing.T) {
+	t.Parallel()
+
 	for _, bias := range []float64{100, 50, 1, 251, -20, 1000} {
 		spec := spsstest.ReferenceSpec()
 		spec.Compression = spsstest.CompressionBytecode
@@ -183,6 +189,8 @@ func TestBytecode_HonoursTheDeclaredBias(t *testing.T) {
 // does not, the bias in the decode arithmetic came from somewhere other than
 // the header.
 func TestBytecode_BiasIsReadFromTheHeaderNotAssumed(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	raw := build(t, spec)
@@ -204,6 +212,8 @@ func TestBytecode_BiasIsReadFromTheHeaderNotAssumed(t *testing.T) {
 // arithmetic can use. Every integer command would decode to NaN, which is
 // data this reader has no basis for emitting, so it is refused.
 func TestBytecode_UnusableBias(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		bias float64
@@ -213,6 +223,8 @@ func TestBytecode_UnusableBias(t *testing.T) {
 		{"-Inf", math.Inf(-1)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := spsstest.ReferenceSpec()
 			spec.Compression = spsstest.CompressionBytecode
 			raw := build(t, spec)
@@ -244,6 +256,8 @@ func TestBytecode_UnusableBias(t *testing.T) {
 // the assertion is "an error or a clean short read", never a panic and never
 // a silently-invented case.
 func TestBytecode_Truncated(t *testing.T) {
+	t.Parallel()
+
 	spec := everyCommandSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	full := build(t, spec)
@@ -302,6 +316,8 @@ func dataSectionLen(t *testing.T, spec spsstest.Spec) int {
 // eight bytes never arrived. It cannot be caught by a stride check, because
 // the command byte itself is present and well-formed.
 func TestBytecode_MissingPayload(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:        []spsstest.Var{{Name: "N", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8}}},
 		Cases:       [][]spsstest.Value{{spsstest.Num(0.5)}}, // not whole: takes the escape
@@ -337,6 +353,8 @@ func TestBytecode_MissingPayload(t *testing.T) {
 // Accepting either would put invented numbers in a cohort, which is the
 // failure mode this whole reader is built to refuse.
 func TestBytecode_CommandKindMismatch(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		// elem is the element position within a case to corrupt, and
@@ -384,6 +402,8 @@ func TestBytecode_CommandKindMismatch(t *testing.T) {
 // check too far would reject files SPSS writes routinely, since every string
 // segment holding text uses it.
 func TestBytecode_VerbatimIsLegalEverywhere(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	if !plan(t, build(t, spec)).elemKinds[0].allows(cmdRaw) {
@@ -410,6 +430,8 @@ func plan(t *testing.T, raw []byte) *dataPlan {
 // string segment in its own right — getting it wrong would let the check pass
 // a system-missing command into the middle of a name.
 func TestBytecode_ElementKinds(t *testing.T) {
+	t.Parallel()
+
 	// ID numeric, SEX numeric, NAME width 10 → two string elements.
 	p := plan(t, build(t, spsstest.ReferenceSpec()))
 	want := []elementKind{elemNumeric, elemNumeric, elemString, elemString}
@@ -428,6 +450,8 @@ func TestBytecode_ElementKinds(t *testing.T) {
 // and a decoder that treated it as an element would shift every case after it
 // by one.
 func TestBytecode_PaddingIsIgnored(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	raw := build(t, spec)
@@ -453,6 +477,8 @@ func TestBytecode_PaddingIsIgnored(t *testing.T) {
 // out of command bytes exactly on a case boundary has told us everything, and
 // refusing it would reject data the file plainly contains.
 func TestBytecode_StreamWithoutEndOfFile(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	raw := build(t, spec)
@@ -471,6 +497,8 @@ func TestBytecode_StreamWithoutEndOfFile(t *testing.T) {
 // a trailing block must read as though it were not there rather than as extra
 // cases.
 func TestBytecode_TrailingBytesAfterEndOfFile(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	raw := build(t, spec)
@@ -487,6 +515,8 @@ func TestBytecode_TrailingBytesAfterEndOfFile(t *testing.T) {
 // the second pass must produce the same rows without re-decoding — and above
 // all must not resume from wherever the first pass left the stream.
 func TestBytecode_Reset(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	r := NewReaderFromBytes(build(t, spec))
@@ -509,6 +539,8 @@ func TestBytecode_Reset(t *testing.T) {
 // with each other. So the inverse property is asserted here, against the
 // arithmetic rather than against an encoder that does not exist yet.
 func TestValueCommand_InvertsCommandValue(t *testing.T) {
+	t.Parallel()
+
 	for _, bias := range []float64{100, 0, 1, 251, -20, 1000} {
 		// Every value the encoder accepts must decode back to itself.
 		for v := -500.0; v <= 500.0; v++ {
@@ -542,6 +574,8 @@ func TestValueCommand_InvertsCommandValue(t *testing.T) {
 // refusals as a table, so E5-S3 inherits them rather than rediscovering them.
 // Each is a value that MUST take the verbatim escape.
 func TestValueCommand_RefusesWhatCannotRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		value float64
@@ -570,6 +604,8 @@ func TestValueCommand_RefusesWhatCannotRoundTrip(t *testing.T) {
 // compares against, so a decoder that produced the right rows but the wrong
 // count would warn on every clean compressed file.
 func TestBytecode_CountRecordsAgrees(t *testing.T) {
+	t.Parallel()
+
 	spec := everyCommandSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	r := NewReaderFromBytes(build(t, spec))
@@ -587,6 +623,8 @@ func TestBytecode_CountRecordsAgrees(t *testing.T) {
 // buffer has to grow, and where a per-block bug that a four-case fixture
 // tolerates would compound into visible drift.
 func TestBytecode_ManyCases(t *testing.T) {
+	t.Parallel()
+
 	const n = 5000
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -610,6 +648,8 @@ func TestBytecode_ManyCases(t *testing.T) {
 // data section is replaced with bytes that are not a valid stream at all, and
 // every one of them must produce a value or a coded error.
 func TestBytecode_DoesNotPanicOnArbitraryBytes(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionBytecode
 	base := build(t, spec)

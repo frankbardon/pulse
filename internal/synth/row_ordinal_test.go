@@ -30,6 +30,8 @@ func rejectingSpec(rows int) *synth.Spec {
 // written column is exactly 0..row_count-1 — a rejected attempt redraws
 // at the same ordinal rather than consuming one.
 func TestSynthRow_AcceptedOrdinal(t *testing.T) {
+	t.Parallel()
+
 	spec := rejectingSpec(200)
 	spec.Rules = []synth.RuleSpec{{SetExpr: map[string]string{"r": "row()"}}}
 	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 11})
@@ -56,6 +58,8 @@ func TestSynthRow_AcceptedOrdinal(t *testing.T) {
 // lands there must satisfy it — an attempt-counted row() would apply the
 // tightening to whichever attempt happened to be the fourth.
 func TestSynthRow_WhenAndConstraintSeeTheAcceptedOrdinal(t *testing.T) {
+	t.Parallel()
+
 	spec := rejectingSpec(60)
 	spec.Rules = []synth.RuleSpec{{When: "row() >= 10", Set: map[string]any{"r": 1.0}}}
 	spec.Constraints = append(spec.Constraints, synth.ConstraintSpec{Expr: "row() != 3 || x < 0.05"})
@@ -93,6 +97,8 @@ func TestSynthRow_WhenAndConstraintSeeTheAcceptedOrdinal(t *testing.T) {
 // TestSynthRow_ConsumesNoRNG: writing row() instead of a literal moves
 // no other field's bytes — row() reads a counter, never the stream.
 func TestSynthRow_ConsumesNoRNG(t *testing.T) {
+	t.Parallel()
+
 	withRow := rejectingSpec(150)
 	withRow.Rules = []synth.RuleSpec{{When: "row() % 2 == 0", SetExpr: map[string]string{"r": "row() * 3"}}}
 	literal := rejectingSpec(150)
@@ -117,6 +123,8 @@ func TestSynthRow_ConsumesNoRNG(t *testing.T) {
 // period-start branch of a weekly panel — picks `a` exactly on ordinals
 // 0, 52, 104 and `b` everywhere else, under rejection.
 func TestSynthRow_PanelResetIdiom(t *testing.T) {
+	t.Parallel()
+
 	spec := rejectingSpec(130)
 	spec.Fields = append(spec.Fields,
 		synth.FieldSpec{Name: "a", Type: "f64", Distribution: synth.DistUniform,
@@ -154,6 +162,8 @@ func TestSynthRow_PanelResetIdiom(t *testing.T) {
 // name is refused like every other built-in name (the field-named case
 // is TestSynthExprMath_FieldNamedLikeABuiltinStillReadsTheField).
 func TestSynthRow_ArityAndBareNameRefused(t *testing.T) {
+	t.Parallel()
+
 	expectCode(t, specDoc(`"rules": [{"set_expr": {"y": "row(1)"}}]`), errors.PULSE_SYNTH_RULE_EXPR_INVALID)
 	expectCode(t, specDoc(`"rules": [{"set_expr": {"y": "row + 1"}}]`), errors.PULSE_SYNTH_RULE_EXPR_INVALID, "bare row")
 	// Constraints compile at generation, not at parse.
@@ -173,6 +183,8 @@ func TestSynthRow_ArityAndBareNameRefused(t *testing.T) {
 // ACCEPTED row, so under a rejecting constraint the column is
 // start + i*step with no gaps.
 func TestSynthMonotonic_SkipsRejected(t *testing.T) {
+	t.Parallel()
+
 	spec := rejectingSpec(120)
 	spec.Fields = append(spec.Fields, synth.FieldSpec{Name: "id", Type: "u32",
 		Distribution: synth.DistMonotonicFrom, Params: map[string]any{"start": 100, "step": 5}})
@@ -212,6 +224,8 @@ func TestSynthMonotonic_SkipsRejected(t *testing.T) {
 // it generated BEFORE the counter became accept-only, so the change
 // moves nothing for a spec it does not affect.
 func TestSynthMonotonic_WithoutRejectionIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 300,
 		Fields: []synth.FieldSpec{

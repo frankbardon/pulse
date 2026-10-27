@@ -21,6 +21,8 @@ import (
 //	t    = 2.4 / 0.5099 ≈ 4.707
 //	df   = 4, p ≈ 0.0093
 func TestPairedT_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64},
 		{Name: "b", Type: encoding.FieldTypeF64},
@@ -65,6 +67,8 @@ func TestPairedT_KnownStatistic(t *testing.T) {
 
 // TestPairedT_NullPairDropped verifies rows with either field null are skipped.
 func TestPairedT_NullPairDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeF64},
 		{Name: "b", Type: encoding.FieldTypeF64},
@@ -103,6 +107,8 @@ func TestPairedT_NullPairDropped(t *testing.T) {
 //	z       = (0.75 − 0.85) / 0.040 = -2.5
 //	p       = erfc(2.5/√2) ≈ 0.01242
 func TestPropZ_KnownStatistic(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
@@ -155,6 +161,8 @@ func TestPropZ_KnownStatistic(t *testing.T) {
 
 // TestPropZ_RequiresSuccessParam rejects when params.success is missing.
 func TestPropZ_RequiresSuccessParam(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
 		{Name: "converted", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
@@ -171,6 +179,8 @@ func TestPropZ_RequiresSuccessParam(t *testing.T) {
 
 // TestPearsonR_PerfectPositive: r = 1 on y = 2x + 3.
 func TestPearsonR_PerfectPositive(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},
@@ -207,6 +217,8 @@ func TestPearsonR_PerfectPositive(t *testing.T) {
 
 // TestPearsonR_PerfectNegative: r = -1 on y = -x + 10.
 func TestPearsonR_PerfectNegative(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},
@@ -230,6 +242,8 @@ func TestPearsonR_PerfectNegative(t *testing.T) {
 // TestPearsonR_NoCorrelation: x and y independent → r near 0.
 // Use a deterministic pair so the test isn't flaky.
 func TestPearsonR_NoCorrelation(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},
@@ -256,6 +270,8 @@ func TestPearsonR_NoCorrelation(t *testing.T) {
 
 // TestPearsonR_ZeroVarianceRejects: y constant → CORRELATION_UNDEFINED.
 func TestPearsonR_ZeroVarianceRejects(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},
@@ -277,6 +293,8 @@ func TestPearsonR_ZeroVarianceRejects(t *testing.T) {
 
 // TestPearsonR_InsufficientN rejects when n < 3.
 func TestPearsonR_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64},
 		{Name: "y", Type: encoding.FieldTypeF64},

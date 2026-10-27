@@ -46,6 +46,8 @@ func exactWordsFixture(t *testing.T) (*encoding.Schema, []byte) {
 // capture the exact word of every retained non-null u64 field — never a
 // projected-out or null one — and reset per record.
 func TestExactU64Words_MapDecoders(t *testing.T) {
+	t.Parallel()
+
 	s, data := exactWordsFixture(t)
 	want := []map[int]uint64{
 		{1: 1<<53 + 1, 2: math.MaxUint64 - 1},
@@ -111,6 +113,8 @@ func TestExactU64Words_MapDecoders(t *testing.T) {
 
 // TestExactU64Words_ReadRecordAtExact: the point-read variant captures too.
 func TestExactU64Words_ReadRecordAtExact(t *testing.T) {
+	t.Parallel()
+
 	s, data := exactWordsFixture(t)
 	loc := &encoding.RecordLocator{Schema: s, Stride: int64(s.RecordByteSize()), TotalRecords: 2}
 	words := NewExactU64Words(s)
@@ -128,6 +132,8 @@ func TestExactU64Words_ReadRecordAtExact(t *testing.T) {
 // TestNewExactU64Words_NilWithoutU64: no u64 field, no capture (and a
 // nil capture's ApplyTo is a no-op).
 func TestNewExactU64Words_NilWithoutU64(t *testing.T) {
+	t.Parallel()
+
 	s := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeU32}}}
 	if w := NewExactU64Words(s); w != nil {
 		t.Fatalf("NewExactU64Words = %v, want nil", w)

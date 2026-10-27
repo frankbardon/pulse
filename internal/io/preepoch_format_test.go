@@ -10,6 +10,8 @@ import (
 // read of the date and datetime words: a literal converted by
 // convertValue must format back to itself on both sides of the epoch.
 func TestFormatFieldValue_PreEpochRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft  encoding.FieldType
 		lit string

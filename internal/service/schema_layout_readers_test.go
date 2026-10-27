@@ -61,6 +61,8 @@ func dictDecodeBytes(t *testing.T, schema *encoding.Schema) uint64 {
 // handle per call to measure where the record region starts; it must
 // not decode the cohort's dictionaries to do so.
 func TestOpenRecordLocator_SkipsDictionaries(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	data, schema := dictCohortBytes(t, 16)
 	decode := dictDecodeBytes(t, schema)
 	mem := afero.NewMemMapFs()
@@ -89,6 +91,8 @@ func TestOpenRecordLocator_SkipsDictionaries(t *testing.T) {
 // remove / compact count every shard's records; the shard's own schema
 // block is only read past (the canonical schema gives the stride).
 func TestRecordCountFromBytes_SkipsDictionaries(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	data, schema := dictCohortBytes(t, 16)
 	decode := dictDecodeBytes(t, schema)
 	var n int64
@@ -111,6 +115,8 @@ func TestRecordCountFromBytes_SkipsDictionaries(t *testing.T) {
 // block's end offset (skipShardPreamble), so no shard schema is decoded
 // with its dictionary. The end offset must equal a full decode's.
 func TestSkipShardPreamble_SkipsDictionaries(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	data, schema := dictCohortBytes(t, 16)
 	decode := dictDecodeBytes(t, schema)
 	var end int64
@@ -135,6 +141,8 @@ func TestSkipShardPreamble_SkipsDictionaries(t *testing.T) {
 // preamble skip keeps the filter's output a valid archive whose shards
 // carry exactly the kept rows behind their verbatim header + schema.
 func TestFilterToFile_ShardArchiveLayoutOnlyRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	const shards = 4
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "dict.pulse", shards, 64, 1_000)

@@ -16,6 +16,8 @@ import (
 // PULSE_CHAIN_NOT_MERGEABLE) — and stage 0 answers exactly what the
 // same request answers through Process.
 func TestChain_RowLocalReadAttributesAdmitted(t *testing.T) {
+	t.Parallel()
+
 	f := newMGFixture(t, pulse.Options{})
 	ctx := context.Background()
 	stage0 := func() *types.Request {

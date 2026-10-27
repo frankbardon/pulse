@@ -114,6 +114,8 @@ func captureCollapsedProfile(t *testing.T) *Profile {
 // its default arm answered ModelPredictorNumeric, so the promise was
 // false for every collapsing field.
 func TestProfileModels_CatchAllSerialisesAsACategoricalLevel(t *testing.T) {
+	t.Parallel()
+
 	prof := captureCollapsedProfile(t)
 	m, ok := modelByField(prof.Models, "spend")
 	if !ok {
@@ -151,6 +153,8 @@ func TestProfileModels_CatchAllSerialisesAsACategoricalLevel(t *testing.T) {
 // exists — so a mistyped catch-all silently deleted the entire fitted
 // relationship for every categorical wide enough to collapse.
 func TestSpecFromProfile_CollapsedModelIsApplied(t *testing.T) {
+	t.Parallel()
+
 	prof := captureCollapsedProfile(t)
 	spec, warnings := SpecFromProfile(prof, 500)
 
@@ -185,6 +189,8 @@ func TestSpecFromProfile_CollapsedModelIsApplied(t *testing.T) {
 // that WERE taught. Enumerating the kinds here means the next member
 // added to dummyColumnKind fails this test instead of shipping.
 func TestModelPredictorKind_CoversEveryDummyColumnKind(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		kind dummyColumnKind
 		want string

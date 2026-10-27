@@ -181,6 +181,8 @@ func slopeSpec(t types.RegressionType) *types.RegressionSpec {
 // coefficient table is rectangular — the intercept's absent standard
 // error, statistic and p-value are null on the wire, key kept.
 func TestExtensions_RegressionRunsThroughProcess(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	ols := processE2E(t, p, regressionRequest(cohort, slopeSpec(types.REG_OLS))).Regressions[0]
@@ -266,6 +268,8 @@ func TestExtensions_RegressionRunsThroughProcess(t *testing.T) {
 // Streamable model row by row — UpdateRow, then Finalize, never Fit —
 // and returns the same coefficients as the streaming arm.
 func TestExtensions_RegressionStreamingModelRoutedBuffered(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	streamed := processE2E(t, p, regressionRequest(cohort, slopeSpec(regStreamName))).Regressions[0]
@@ -292,6 +296,8 @@ func TestExtensions_RegressionStreamingModelRoutedBuffered(t *testing.T) {
 // streaming model to buffered on both sides
 // (types.RegressionSpec.StreamableAs).
 func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	robust := slopeSpec(regVcovName)
@@ -332,6 +338,8 @@ func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
 // p-value — the slope and the model-named rho — so neither the
 // intercept nor sigma (no p-value, null on the wire) is a member: m = 2.
 func TestExtensions_RegressionMultiplicityOnlyPValuedJoin(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	spec := slopeSpec(regStreamName)
@@ -360,6 +368,8 @@ func TestExtensions_RegressionMultiplicityOnlyPValuedJoin(t *testing.T) {
 // identically at predict and at runtime; a declaring one returns the
 // covariance and its correlation keyed by its coefficients.
 func TestExtensions_RegressionVcov(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	refused := slopeSpec(regStreamName)
@@ -403,6 +413,8 @@ func TestExtensions_RegressionVcov(t *testing.T) {
 // model that does not declare WeightAware is refused under a weight
 // with PULSE_EXTENSION_NOT_WEIGHT_AWARE at predict and at runtime.
 func TestExtensions_RegressionWeights(t *testing.T) {
+	t.Parallel()
+
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	weight := &types.WeightSpec{Field: "qty", Kind: types.WeightKindProbability}
@@ -448,6 +460,8 @@ func (m leakyModel) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 // TestExtensions_RegressionRuntimeOutputMismatch: an undeclared output
 // key filled on a real run is refused with the probe's code.
 func TestExtensions_RegressionRuntimeOutputMismatch(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, pulse.Extensions{Regressions: []pulse.RegressionRegistration{{
 		Name: "REG_ACME_LEAKY",
 		Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
@@ -464,6 +478,8 @@ func TestExtensions_RegressionRuntimeOutputMismatch(t *testing.T) {
 // TestExtensions_RegressionUnregisteredUnknown: an unregistered REG_*
 // name stays an unknown type at predict and at runtime.
 func TestExtensions_RegressionUnregisteredUnknown(t *testing.T) {
+	t.Parallel()
+
 	p, cohort := openE2E(t, regressionExtensions(&regCalls{}))
 	req := regressionRequest(cohort, slopeSpec("REG_ACME_NOPE"))
 	if _, err := p.Process(context.Background(), req); err == nil {
@@ -516,6 +532,8 @@ func (noMerge) Finalize() (extend.RegressionOutput, error) { return okOutput(), 
 // the REG_ prefix reserved to Regressions, the nil factory and the
 // OutputSchema shape, each refused at pulse.New.
 func TestExtensions_RegressionRegistrationRefusals(t *testing.T) {
+	t.Parallel()
+
 	good := modelFactory(probeModel{out: okOutput()})
 	aggFactory := func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) { return &stubAggregator{}, nil }
 	for _, tc := range []struct {
@@ -560,6 +578,8 @@ func TestExtensions_RegressionRegistrationRefusals(t *testing.T) {
 // allow, and a factory or fit panic / error; a data-dependent refusal
 // on the synthetic rows is tolerated.
 func TestExtensions_RegressionProbeRefusals(t *testing.T) {
+	t.Parallel()
+
 	undeclared := okOutput()
 	undeclared.Outputs = map[string]any{"leak": 1.0}
 	dup := extend.RegressionOutput{Coefficients: []extend.RegressionCoefficient{{Name: "b"}, {Name: "b"}}}

@@ -64,6 +64,8 @@ func warningContaining(warnings []string, substr string) (string, bool) {
 // A one-sided test would pass against a change that dropped every model
 // whenever any rule existed.
 func TestRuleClaim_UnconditionalValueRuleRetiresTheModel(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		rule synth.RuleSpec
@@ -84,6 +86,8 @@ func TestRuleClaim_UnconditionalValueRuleRetiresTheModel(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := ruleModelSpec(300, []synth.RuleSpec{tc.rule})
 			data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 11})
 			if err != nil {
@@ -134,6 +138,8 @@ func TestRuleClaim_UnconditionalValueRuleRetiresTheModel(t *testing.T) {
 // Both halves again: the claimed model must be ABSENT and the unclaimed
 // one PRESENT, so a change that emptied the section entirely fails.
 func TestRuleClaim_ExcludedModelDisappearsFromTheFidelityReport(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(1200,
 		synth.FieldModelSpec{
 			Field: "spend", Intercept: 100, ResidualStd: 10, Min: 0, Max: 400,
@@ -175,6 +181,8 @@ func TestRuleClaim_ExcludedModelDisappearsFromTheFidelityReport(t *testing.T) {
 // the matrix is a scalar and simply does not build, which is the
 // documented nil case, not a failure.
 func TestRuleClaim_ExcludedFieldLeavesTheResidualCorrelation(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(400,
 		synth.FieldModelSpec{
 			Field: "spend", Intercept: 100, ResidualStd: 10, Min: 0, Max: 400,
@@ -217,6 +225,8 @@ func TestRuleClaim_ExcludedFieldLeavesTheResidualCorrelation(t *testing.T) {
 // the rule never touches — and those rows would still carry a plausible
 // value (the bare marginal) with nothing reporting the loss.
 func TestRuleClaim_ConditionalRuleDoesNotClaim(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(400, []synth.RuleSpec{{
 		When:    "aware == 0",
 		SetExpr: map[string]string{"score": "99"},
@@ -274,6 +284,8 @@ func TestRuleClaim_ConditionalRuleDoesNotClaim(t *testing.T) {
 //     bit-equal to the rules-free run. Drop the model and every later
 //     row shifts.
 func TestRuleClaim_SetNullNeverClaims(t *testing.T) {
+	t.Parallel()
+
 	plain, _, err := synth.SynthBytes(ruleModelSpec(300, nil), synth.Options{Seed: 64})
 	if err != nil {
 		t.Fatalf("rules-free SynthBytes: %v", err)
@@ -354,6 +366,8 @@ func TestRuleClaim_SetNullNeverClaims(t *testing.T) {
 // DECISION across its members and supplies no value, so it claims
 // nothing — the same answer as set_null, for the same reason.
 func TestRuleClaim_NullTogetherDoesNotClaim(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(300, []synth.RuleSpec{{
 		NullTogether: []string{"spend", "score"},
 	}})
@@ -394,6 +408,8 @@ func TestRuleClaim_NullTogetherDoesNotClaim(t *testing.T) {
 // the model ran. A claimed field would carry a normal(10, 2) draw plus
 // one and would essentially never land on either.
 func TestRuleClaim_SelfReferentialSetExprDoesNotClaim(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(300, []synth.RuleSpec{{
 		SetExpr: map[string]string{"score": "score + 1"},
 	}})
@@ -422,6 +438,8 @@ func TestRuleClaim_SelfReferentialSetExprDoesNotClaim(t *testing.T) {
 // second phrasing would split one finding across two shapes a reader
 // (and warning_summary.go's taxonomy) has to learn separately.
 func TestRuleClaim_ClaimedFieldDropsAConditionalPair(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(200, []synth.RuleSpec{{
 		Set: map[string]any{"spend": 5.0},
 	}})
@@ -464,6 +482,8 @@ func TestRuleClaim_ClaimedFieldDropsAConditionalPair(t *testing.T) {
 // Both halves in one test: a non-claiming rule must still leave the
 // stream bit-identical, or the "no RNG" property has quietly gone.
 func TestRuleClaim_ClaimingRuleShiftsTheStreamNonClaimingDoesNot(t *testing.T) {
+	t.Parallel()
+
 	const seed = 55
 	plain, _, err := synth.SynthBytes(ruleModelSpec(200, nil), synth.Options{Seed: seed})
 	if err != nil {
@@ -523,6 +543,8 @@ func TestRuleClaim_ClaimingRuleShiftsTheStreamNonClaimingDoesNot(t *testing.T) {
 // fold each model's own predictor variance into the denominator and
 // report an attenuated number that no threshold could be set against.
 func TestRuleClaim_ThreeParticipantMatrixKeepsTheSurvivorsCorrelated(t *testing.T) {
+	t.Parallel()
+
 	const (
 		rows       = 4000
 		wantRho    = 0.7

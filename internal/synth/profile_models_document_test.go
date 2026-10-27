@@ -178,6 +178,8 @@ func jsonKeys(t *testing.T, v any) map[string]json.RawMessage {
 // flag carries no `models` key at all, so a reader of such a document
 // cannot tell this story ever happened.
 func TestProfile_ModelsSection_IsPurelyAdditive(t *testing.T) {
+	t.Parallel()
+
 	data := modelsCohort(t)
 
 	for _, tc := range profileOptionMatrix() {
@@ -253,6 +255,8 @@ func sortedKeys(m map[string]json.RawMessage) []string {
 // serialise, so a re-read Profile carries coefficients and nothing that
 // would let a caller re-derive per-row residuals.
 func TestProfile_ModelsSection_RoundTripFullFidelity(t *testing.T) {
+	t.Parallel()
+
 	data := modelsCohort(t)
 	captured, err := synth.ProfileBytes(data, synth.ProfileOptions{
 		IncludeStats: true, FitModels: true, Seed: 5,
@@ -341,6 +345,8 @@ func TestProfile_ModelsSection_RoundTripFullFidelity(t *testing.T) {
 // --conditional-only capture produces — that second half is what makes
 // this a targeted retirement rather than a blunt "ignore conditional".
 func TestSpecFromProfile_ModelsRetireNumericTargetArms(t *testing.T) {
+	t.Parallel()
+
 	data := modelsCohort(t)
 	condOpts := synth.ProfileOptions{IncludeStats: true, IncludeConditional: true, CorrelationTopK: 8, Seed: 5}
 	condOnly, err := synth.ProfileBytes(data, condOpts)
@@ -426,6 +432,8 @@ func countWarnings(ws []string, substr string) int {
 // (field, level) with no design-column name anywhere in sight, and the
 // numeric field's observed bounds ride along.
 func TestSpecFromProfile_ModelPredictorsMatchDocument(t *testing.T) {
+	t.Parallel()
+
 	data := modelsCohort(t)
 	prof, err := synth.ProfileBytes(data, synth.ProfileOptions{IncludeStats: true, FitModels: true, Seed: 5})
 	if err != nil {
@@ -500,6 +508,8 @@ func TestSpecFromProfile_ModelPredictorsMatchDocument(t *testing.T) {
 // the direct consequence of the retirement being a per-DOCUMENT
 // decision, not a per-field one.
 func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	baseProfile := func() *synth.Profile {
 		return &synth.Profile{
 			RowCount: 100,
@@ -650,6 +660,8 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 // must keep its own, or the field ends up reconstructed from nothing at
 // all — strictly worse than before --fit-models existed.
 func TestSpecFromProfile_MixedModelledAndUnmodelledTargets(t *testing.T) {
+	t.Parallel()
+
 	p := &synth.Profile{
 		RowCount: 100,
 		Fields: []synth.FieldProfile{
@@ -731,6 +743,8 @@ func TestSpecFromProfile_MixedModelledAndUnmodelledTargets(t *testing.T) {
 // TestSynthModel_ShapeFittedTargetKeepsShapeAndGainsConditioning in
 // model_draw_shape_test.go; this one only pins the translation.
 func TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel(t *testing.T) {
+	t.Parallel()
+
 	p := &synth.Profile{
 		RowCount: 100,
 		Fields: []synth.FieldProfile{
@@ -863,6 +877,8 @@ var preModelsCaptureOptions = synth.ProfileOptions{
 // document and never re-captures. The pre-E6-S4 fixture's content is
 // recoverable from git history if a future reader needs the old bytes.
 func TestProfile_PreModelsCaptureIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	prof, err := synth.ProfileBytes(modelsCohort(t), preModelsCaptureOptions)
 	if err != nil {
 		t.Fatalf("ProfileBytes: %v", err)
@@ -896,6 +912,8 @@ func TestProfile_PreModelsCaptureIsByteIdentical(t *testing.T) {
 // must parse, carry no models key, populate all five conditional arms
 // exactly as it always did, and translate to a byte-stable Spec.
 func TestSpecFromProfile_PreModelsDocumentUnchanged(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile("testdata/profile_pre_models.json")
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)

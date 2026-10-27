@@ -59,6 +59,8 @@ func frequencyRequest(file string) *types.Request {
 }
 
 func TestAggFrequency_ShardArchiveEqualsSingleFile(t *testing.T) {
+	t.Parallel()
+
 	schema, shards := frequencyShardFixture()
 	var flat [][]uint64
 	for _, sh := range shards {
@@ -97,6 +99,8 @@ func TestAggFrequency_ShardArchiveEqualsSingleFile(t *testing.T) {
 }
 
 func TestProcessChain_FrequencyAggregatorAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema, shards := frequencyShardFixture()
 	cfg := setupTestFS(t, "unused.pulse", schema, nil)
 	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", buildShardArchive(t, schema, shards), 0o644); err != nil {

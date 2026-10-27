@@ -142,6 +142,8 @@ func assertPanelShapeRefusal(t *testing.T, err error) *pulseerrors.CodedError {
 // which is what makes the two numbers directly comparable — and they
 // MUST differ, or the mode bought nothing.
 func TestApplyPropZPanel_DistinctWithinGivesRespondentsNotRecords(t *testing.T) {
+	t.Parallel()
+
 	// 100 respondents × 2 records = 200 rows on the reference;
 	// 80 × 2 = 160 on the target.
 	build := func() (*types.Response, *types.Response) {
@@ -217,6 +219,8 @@ func TestApplyPropZPanel_DistinctWithinGivesRespondentsNotRecords(t *testing.T) 
 // unsummed margin — an implementation that summed the whole axis would
 // pass the first assertion and fail the second.
 func TestApplyPropZPanel_DistinctWithinDepthSumsOnlyThePrefixSlab(t *testing.T) {
+	t.Parallel()
+
 	build := func() (*types.Response, *types.Response) {
 		ref := withPanelMarginComponents(
 			withRowKeys(makeMatrixWithRowMargins(
@@ -292,8 +296,12 @@ func TestApplyPropZPanel_DistinctWithinDepthSumsOnlyThePrefixSlab(t *testing.T) 
 // FRONT, naming the observed aggregator and the admitted set — never
 // silently read as a zero, and never per coordinate.
 func TestApplyPropZPanel_DistinctWithinRefusesNonDistinctAggregator(t *testing.T) {
+	t.Parallel()
+
 	for _, agg := range []types.AggregationType{types.AGG_SUM, types.AGG_MODE_COUNT} {
 		t.Run(string(agg), func(t *testing.T) {
+			t.Parallel()
+
 			ref := withPanelMarginComponents(
 				makeMatrixWithRowMargins(
 					[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
@@ -343,6 +351,8 @@ func TestApplyPropZPanel_DistinctWithinRefusesNonDistinctAggregator(t *testing.T
 // vector: the caller would get a shorter vector with no way to tell
 // which slot left.
 func TestApplyPropZPanel_DistinctWithinRefusesWholesaleOnDivergentSlots(t *testing.T) {
+	t.Parallel()
+
 	ref := withPanelMarginComponents(
 		makeMatrixWithRowMargins(
 			[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
@@ -385,6 +395,8 @@ func TestApplyPropZPanel_DistinctWithinRefusesWholesaleOnDivergentSlots(t *testi
 // test in different units, which is the silent wrong number this
 // effort exists to remove. Refused wholesale, same code.
 func TestApplyPropZPanel_DistinctWithinRefusesMixedAdmittedAggregators(t *testing.T) {
+	t.Parallel()
+
 	ref := withPanelMarginComponents(
 		makeMatrixWithRowMargins(
 			[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
@@ -440,6 +452,8 @@ func TestApplyPropZPanel_DistinctWithinRefusesMixedAdmittedAggregators(t *testin
 // must refuse with the configuration code, not read a zero — the
 // figure exists, the run was told not to emit it.
 func TestApplyPropZPanel_DistinctWithinRefusesComponentsDisabledSlot(t *testing.T) {
+	t.Parallel()
+
 	ref := withPanelMarginComponents(
 		makeMatrixWithRowMargins(
 			[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
@@ -477,6 +491,8 @@ func TestApplyPropZPanel_DistinctWithinRefusesComponentsDisabledSlot(t *testing.
 // zero-sized margin. The coordinate skips with an n_missing warning,
 // and the skip does not leak to the rows whose margins are present.
 func TestApplyPropZPanel_DistinctWithinUnemittedMarginSkips(t *testing.T) {
+	t.Parallel()
+
 	ref := withPanelMarginComponents(
 		makeMatrixWithRowMargins(
 			[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},

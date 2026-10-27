@@ -17,6 +17,8 @@ const publicDir = "../../descriptor/"
 // and schema-only. It covers the predict implementation here and the
 // public predict result types in descriptor/.
 func TestPredictNoExecutionImports(t *testing.T) {
+	t.Parallel()
+
 	files := []string{
 		"predict.go",
 		"predict_window.go",
@@ -54,6 +56,8 @@ func TestPredictNoExecutionImports(t *testing.T) {
 // packages (this twin and the public descriptor/) uses fmt.Sprintf to
 // construct JSON or output strings.
 func TestDescriptorNoFmtSprintf(t *testing.T) {
+	t.Parallel()
+
 	files := []string{
 		publicDir + "envelope.go",
 		publicDir + "manifest.go",

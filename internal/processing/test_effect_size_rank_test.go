@@ -29,6 +29,8 @@ var insectSprays = []anovaGroup{
 }
 
 func TestKruskalWallis_EpsilonSquared(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		groups []anovaGroup
@@ -75,6 +77,8 @@ func TestKruskalWallis_EpsilonSquared(t *testing.T) {
 // TestKruskalWallis_EpsilonSquared_AllTiedOmitted: when every value is
 // tied the tie correction is undefined, so ε² is omitted.
 func TestKruskalWallis_EpsilonSquared_AllTiedOmitted(t *testing.T) {
+	t.Parallel()
+
 	schema := twoSampleFixtureSchema()
 	rt, err := newKruskalWallisRow(&types.Test{Type: types.TEST_KRUSKAL_WALLIS, Field: "revenue", SplitBy: "treatment"}, schema)
 	if err != nil {
@@ -87,6 +91,8 @@ func TestKruskalWallis_EpsilonSquared_AllTiedOmitted(t *testing.T) {
 }
 
 func TestMannWhitney_RankBiserial(t *testing.T) {
+	t.Parallel()
+
 	rWilcoxX := []float64{0.80, 0.83, 1.89, 1.04, 1.45, 1.38, 1.91, 1.64, 0.73, 1.46}
 	rWilcoxY := []float64{1.15, 0.88, 0.90, 0.74, 1.21}
 	sleep1 := []float64{0.7, -1.6, -0.2, -1.2, -0.1, 3.4, 3.7, 0.8, 0.0, 2.0}
@@ -161,6 +167,8 @@ func wilcoxonPairs(after, before []float64) []wilcoxonPair {
 }
 
 func TestWilcoxonSR_RankBiserial(t *testing.T) {
+	t.Parallel()
+
 	hwX := []float64{1.83, 0.50, 1.62, 2.48, 1.68, 1.88, 1.55, 3.06, 1.30}
 	hwY := []float64{0.878, 0.647, 0.598, 2.05, 1.06, 1.29, 1.06, 3.14, 1.29}
 	tieA := []float64{5, 7, 3, 9, 4, 6, 8, 2, 10, 6}
@@ -217,6 +225,8 @@ func TestWilcoxonSR_RankBiserial(t *testing.T) {
 // TestRankEffectSizes_Undefined pins the NaN contract of the rank
 // helpers; setEffectSize drops NaN, so each one omits the key.
 func TestRankEffectSizes_Undefined(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		v    float64

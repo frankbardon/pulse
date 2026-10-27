@@ -9,6 +9,8 @@ import (
 )
 
 func TestGroupSetValue_AtomicMaskKeys(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetValueGrouper(&types.Group{Type: types.GROUP_SET_VALUE, Field: "tags"}, schema)
 	if err != nil {
@@ -40,6 +42,8 @@ func TestGroupSetValue_AtomicMaskKeys(t *testing.T) {
 }
 
 func TestGroupSetPerElement_RowFansIntoMultipleBuckets(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}, schema)
 	if err != nil {
@@ -66,6 +70,8 @@ func TestGroupSetPerElement_RowFansIntoMultipleBuckets(t *testing.T) {
 }
 
 func TestGroupSetPerElement_KeysForRow(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, _ := newSetPerElementGrouper(&types.Group{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}, schema)
 	mg, ok := g.(MultiKeyStreamingGrouper)
@@ -92,6 +98,8 @@ func TestGroupSetPerElement_KeysForRow(t *testing.T) {
 }
 
 func TestGroupSetPerElement_IncludeFilters(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetPerElementGrouper(&types.Group{
 		Type:    types.GROUP_SET_PER_ELEMENT,
@@ -134,6 +142,8 @@ func TestGroupSetPerElement_IncludeFilters(t *testing.T) {
 }
 
 func TestGroupSetValue_IncludeFiltersCompositeKey(t *testing.T) {
+	t.Parallel()
+
 	schema := makeSetTestSchema(t)
 	g, err := newSetValueGrouper(&types.Group{
 		Type:    types.GROUP_SET_VALUE,
@@ -164,6 +174,8 @@ func TestGroupSetValue_IncludeFiltersCompositeKey(t *testing.T) {
 }
 
 func TestGroupCategory_IncludeFiltersLabels(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	g, err := newCategoryGrouper(&types.Group{
 		Type:    types.GROUP_CATEGORY,
@@ -204,6 +216,8 @@ func TestGroupCategory_IncludeFiltersLabels(t *testing.T) {
 }
 
 func TestGroupCategory_EmptyIncludeIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	schema := categoricalSchema()
 	gBaseline := makeGrouper(t, types.GROUP_CATEGORY, "brand", 0, schema)
 	gInclude, err := newCategoryGrouper(&types.Group{

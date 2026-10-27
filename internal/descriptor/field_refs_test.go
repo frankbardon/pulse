@@ -53,6 +53,8 @@ func sameNames(t *testing.T, got []string, want ...string) {
 // what the stages before it produce, and the refusals come back in
 // pipeline order.
 func TestFieldRefRefusals_PipelineOrderAndVisibility(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Features: []*types.Feature{
 			{Type: types.FEAT_LOG, Field: "f_unknown"},
@@ -76,6 +78,8 @@ func TestFieldRefRefusals_PipelineOrderAndVisibility(t *testing.T) {
 }
 
 func TestFieldRefRefusals_OutputColumns(t *testing.T) {
+	t.Parallel()
+
 	t.Run("windows see earlier windows; sort and post-tests see all", func(t *testing.T) {
 		req := &types.Request{
 			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
@@ -135,6 +139,8 @@ func TestFieldRefRefusals_OutputColumns(t *testing.T) {
 }
 
 func TestFieldRefRefusals_SlotShapes(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty names where a slot requires one", func(t *testing.T) {
 		req := &types.Request{
 			Attributes: []*types.Attribute{
@@ -206,6 +212,8 @@ func TestFieldRefRefusals_SlotShapes(t *testing.T) {
 // (a feature's before it opens the set, a filterer's before attribute
 // labels exist, a window's against the output columns).
 func TestFieldRefRefusals_ParamsAndFieldInputs(t *testing.T) {
+	t.Parallel()
+
 	declares := func(names ...string) func(json.RawMessage) []string {
 		return func(json.RawMessage) []string { return names }
 	}
@@ -268,6 +276,8 @@ func TestFieldRefRefusals_ParamsAndFieldInputs(t *testing.T) {
 // (PROCESSING_CONFIG array_valued) and an element the slot does not
 // write is an unknown column (the slot's generic unknown-field refusal).
 func TestFieldRefRefusals_ExpandedElementColumns(t *testing.T) {
+	t.Parallel()
+
 	mk := func(expand bool, mut func(r *types.Request)) *types.Request {
 		agg := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"n", "m"}, Label: "v"}
 		if expand {

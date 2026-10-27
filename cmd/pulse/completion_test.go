@@ -134,6 +134,8 @@ func persistentFlags(root *cli.Command) []cli.Flag {
 // TestCompletion_Scripts: the completion leaf prints a script for bash,
 // zsh and fish, offers no pwsh leaf, and is listed in root help.
 func TestCompletion_Scripts(t *testing.T) {
+	t.Parallel()
+
 	for _, sh := range []string{"bash", "zsh", "fish"} {
 		var stdout, stderr bytes.Buffer
 		if st := run(context.Background(), []string{"pulse", "completion", sh}, &stdout, &stderr); st != 0 {
@@ -175,6 +177,8 @@ func TestCompletion_Scripts(t *testing.T) {
 // TestCompletion_SubcommandsAndFlags: a partial subcommand completes
 // from its parent, and a leaf completes its flags on a "-" word.
 func TestCompletion_SubcommandsAndFlags(t *testing.T) {
+	// serial: swaps os.Args
+
 	out, stderr, st := completeWords(t, "pulse", "api", "pro")
 	if st != 0 || stderr != "" {
 		t.Fatalf("status %d stderr %q", st, stderr)
@@ -197,6 +201,8 @@ func TestCompletion_SubcommandsAndFlags(t *testing.T) {
 // Without the quiet mode a bad --log-level is a usage error (exit 2,
 // stderr) raised by the root Before before any candidate is printed.
 func TestCompletion_QuietOnBadInput(t *testing.T) {
+	// serial: swaps os.Args; t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_DATA_DIR", "/nonexistent/pulse-completion-data-dir")
 	for _, tc := range []struct {
 		name  string
@@ -236,6 +242,8 @@ func TestCompletion_QuietOnBadInput(t *testing.T) {
 // suggested on a "-" word. A command or flag that completion cannot
 // reach fails here.
 func TestCompletion_TreeCoverage(t *testing.T) {
+	// serial: swaps os.Args
+
 	root := completionTree()
 	persistent := persistentFlags(root)
 
@@ -382,6 +390,8 @@ func scopeHasFlag(c *cli.Command, name string) bool {
 // completes from the library's own vocabulary, sorted; the lookup alias
 // assert-unique is accepted but never offered.
 func TestCompletion_FlagValues(t *testing.T) {
+	// serial: swaps os.Args
+
 	for _, tc := range []struct {
 		words []string
 		want  []string
@@ -437,6 +447,8 @@ func TestCompletion_FlagValues(t *testing.T) {
 // TestCompletion_Positionals: named positionals complete from the
 // library (error codes, skills, examples, an archive's shards).
 func TestCompletion_Positionals(t *testing.T) {
+	// serial: swaps os.Args; t.Setenv mutates the process environment
+
 	out, stderr, st := completeWords(t, "pulse", "errors", "lookup")
 	if st != 0 || stderr != "" {
 		t.Fatalf("errors lookup: status %d stderr %q", st, stderr)
@@ -506,6 +518,8 @@ func TestCompletion_Positionals(t *testing.T) {
 // (missing archive, unbuildable Pulse) prints nothing, exits 0 and
 // writes nothing to stderr.
 func TestCompletion_ProviderFailureIsQuiet(t *testing.T) {
+	// serial: swaps os.Args; t.Setenv mutates the process environment
+
 	bad := t.TempDir()
 	if err := os.WriteFile(filepath.Join(bad, "broken.json"), []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
@@ -602,6 +616,8 @@ func cohortDataDir(t *testing.T) (single, archive string) {
 // cohorts under PULSE_DATA_DIR — single files and shard archives, never
 // a .pulse.zst — as paths the leaf opens.
 func TestCompletion_Cohorts(t *testing.T) {
+	// serial: swaps os.Args; t.Setenv mutates the process environment
+
 	single, archive := cohortDataDir(t)
 	want := sortedCopy([]string{single, archive})
 	for _, words := range [][]string{
@@ -637,6 +653,8 @@ func TestCompletion_Cohorts(t *testing.T) {
 // TestCompletion_Fields: a field-taking flag lists the schema fields of
 // the cohort the leaf names, single file or shard archive.
 func TestCompletion_Fields(t *testing.T) {
+	// serial: swaps os.Args; t.Setenv mutates the process environment
+
 	single, archive := cohortDataDir(t)
 	want := []string{"age", "name"}
 	for _, words := range [][]string{
@@ -673,6 +691,8 @@ func TestCompletion_Fields(t *testing.T) {
 // nothing, write nothing to stderr and exit 0 — the shell falls back to
 // its file completion.
 func TestCompletion_CohortFailuresAreQuiet(t *testing.T) {
+	// serial: swaps os.Args; t.Chdir moves the process working directory; t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	corrupt := filepath.Join(dir, "corrupt.pulse")
 	if err := os.WriteFile(corrupt, []byte("PULSE\x00\x00\x00\x09garbage"), 0o644); err != nil {

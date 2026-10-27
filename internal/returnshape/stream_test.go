@@ -35,6 +35,8 @@ func (f *fakeSource) Components() *types.ResponseComponents { return f.comp }
 // accumulating) and Metadata are untouched by the prune, while the
 // shaped views drop what the plan excludes.
 func TestRowIter_NeverMutatesInner(t *testing.T) {
+	t.Parallel()
+
 	src := &fakeSource{
 		rows: []map[string]any{
 			{"g": "a", "m": 1.25, "nested": map[string]any{"keep": 1.0, "drop": 2.0}},
@@ -112,6 +114,8 @@ func (w *warnSource) Warnings() []*types.ResponseWarning { return w.ws }
 // response would keep `warnings` — kept by default under any
 // selection, dropped only when excluded.
 func TestRowIter_ForwardsWarnings(t *testing.T) {
+	t.Parallel()
+
 	ws := []*types.ResponseWarning{{Code: "PULSE_FEAT_TARGET_LEAKAGE_RISK", Message: "m"}}
 	for _, tc := range []struct {
 		name string

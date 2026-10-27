@@ -50,6 +50,8 @@ func chiSqColPayloadKnown() *types.MatrixPayload {
 // (the per-column statistics ride on the entries, not the layer slot —
 // mirrors the CHISQ_ROW per-entry summary policy).
 func TestOverlay_ChiSqCol_PerColStat(t *testing.T) {
+	t.Parallel()
+
 	host := NewCrosstabHostView(chiSqColPayloadKnown())
 	specs := []types.OverlaySpec{
 		{
@@ -145,6 +147,8 @@ func TestOverlay_ChiSqCol_PerColStat(t *testing.T) {
 // where column 0 has small counts (every expected < 5) and column 1
 // has large counts (every expected ≥ 5) so exactly one warning fires.
 func TestOverlay_ChiSqCol_ExpectedLowEmitsWarn(t *testing.T) {
+	t.Parallel()
+
 	// 3×2. Col 0 sums to 6 (small); col 1 sums to 100 (large).
 	// row_margins = [10, 35, 51], grand = 106.
 	//
@@ -227,6 +231,8 @@ func TestOverlay_ChiSqCol_ExpectedLowEmitsWarn(t *testing.T) {
 // this to lay the SERIES overlay alongside the host axis without
 // re-keying.
 func TestOverlay_ChiSqCol_SeriesEntryOrderMatchesColumnKeys(t *testing.T) {
+	t.Parallel()
+
 	payload := chiSqColPayloadKnown()
 	host := NewCrosstabHostView(payload)
 	specs := []types.OverlaySpec{
@@ -282,6 +288,8 @@ func TestOverlay_ChiSqCol_SeriesEntryOrderMatchesColumnKeys(t *testing.T) {
 // Verifies the handler does NOT crash on an absent cell and the
 // column's statistic correctly absorbs the zero observation.
 func TestOverlay_ChiSqCol_AbsentCellsHandled(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowHeader:    types.AxisHeader{Fields: []string{"r"}, Types: []string{"GROUP_CATEGORY"}},
 		ColumnHeader: types.AxisHeader{Fields: []string{"c"}, Types: []string{"GROUP_CATEGORY"}},
@@ -343,6 +351,8 @@ func TestOverlay_ChiSqCol_AbsentCellsHandled(t *testing.T) {
 // surfaces the failure the same way predict would have flagged it
 // (defense in depth — validator catches this at predict time too).
 func TestOverlay_ChiSqCol_DegenerateShapeRejected(t *testing.T) {
+	t.Parallel()
+
 	payload := &types.MatrixPayload{
 		RowKeys:    []types.AxisKey{{"r0"}},
 		ColumnKeys: []types.AxisKey{{"c0"}, {"c1"}},

@@ -22,6 +22,8 @@ const modulePrefix = "github.com/frankbardon/pulse"
 // pinned to types / encoding / errors; the transitive graph is checked
 // against the execution and descriptor packages.
 func TestLimits_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowedDirect := map[string]bool{
 		modulePrefix + "/types":    true,
 		modulePrefix + "/encoding": true,

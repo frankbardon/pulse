@@ -19,6 +19,8 @@ import (
 // non-literal mode and a vector built-in nested inside a reduction are
 // unknown or legal and never refused.
 func TestVectorBuiltin_StaticRefusalsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	vecs := []types.VectorSpec{{Name: "xy", Fields: []string{"x", "y"}}}

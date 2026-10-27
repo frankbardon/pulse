@@ -10,6 +10,8 @@ import (
 )
 
 func TestFilterToFile_WritesMatchingRecords(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -69,6 +71,8 @@ func TestFilterToFile_WritesMatchingRecords(t *testing.T) {
 }
 
 func TestFilterToFile_ZeroMatches(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -91,6 +95,8 @@ func TestFilterToFile_ZeroMatches(t *testing.T) {
 }
 
 func TestFilterToFile_AllMatch(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -117,6 +123,8 @@ func TestFilterToFile_AllMatch(t *testing.T) {
 }
 
 func TestFilterToFile_RejectsEmptyPaths(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "src.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -132,6 +140,8 @@ func TestFilterToFile_RejectsEmptyPaths(t *testing.T) {
 }
 
 func TestFilterToFile_BadExpression(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "src.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -143,6 +153,8 @@ func TestFilterToFile_BadExpression(t *testing.T) {
 }
 
 func TestFilterToFile_PreservesNumericPrecision(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},

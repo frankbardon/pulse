@@ -15,6 +15,8 @@ import (
 )
 
 func TestSkillsCoverAllMCPTools(t *testing.T) {
+	t.Parallel()
+
 	// Build the membership set from skills.List() — the loader is the
 	// canonical embed surface and avoids re-embedding here.
 	skillSet := make(map[string]bool, len(skills.List()))
@@ -38,6 +40,8 @@ func TestSkillsCoverAllMCPTools(t *testing.T) {
 // internal sentence break (it is one sentence, so "first sentence" is
 // unambiguous).
 func TestToolDescriptionsLeadWithWhenToUse(t *testing.T) {
+	t.Parallel()
+
 	for _, m := range toolmeta.Meta() {
 		stem := "tool-" + strings.ReplaceAll(strings.TrimPrefix(m.Name, "pulse_"), "_", "-")
 		lead, err := whenToUseLead(stem)
@@ -100,6 +104,8 @@ func firstChars(s string, n int) string {
 // docs once pointed agents at `pulse_profile`, `pulse_profile_create` and
 // `pulse_synth_from_*` — tools that never existed.
 func TestMCPToolMentionsAreRegistered(t *testing.T) {
+	t.Parallel()
+
 	registered := map[string]bool{}
 	for _, name := range toolmeta.Names() {
 		registered[name] = true

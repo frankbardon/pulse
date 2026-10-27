@@ -52,6 +52,8 @@ func orderLabels(cands []RuleSpec) []string {
 // the rule. A test that only checked the constraint would pass a walk
 // that shuffled the whole file.
 func TestRuleCandidateOrder_WriterPrecedesReader(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		in      []RuleSpec
@@ -202,6 +204,8 @@ func TestRuleCandidateOrder_WriterPrecedesReader(t *testing.T) {
 // above pins case by case, asserted once over every row: after the walk,
 // no candidate writes a field an EARLIER candidate reads.
 func TestRuleCandidateOrder_NoViolationSurvives(t *testing.T) {
+	t.Parallel()
+
 	in := []RuleSpec{
 		gateCand("aware", "regard"),
 		gateCand("peopleAware", "people"),
@@ -248,6 +252,8 @@ func TestRuleCandidateOrder_NoViolationSurvives(t *testing.T) {
 // exact is the intersection against the written set, which is what drops
 // the builtins without enumerating them.
 func TestExprIdentifiers_ReadsOnlyFieldsAnotherCandidateWrites(t *testing.T) {
+	t.Parallel()
+
 	r := RuleSpec{
 		When:    "round(aware) == 0 || isnull(peopleAware)",
 		SetExpr: map[string]string{"flag": "round(nps) >= 9 && !isnull(nps)"},

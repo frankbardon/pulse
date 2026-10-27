@@ -94,6 +94,8 @@ func assertEffectParity(t *testing.T, row, post *types.TestResult) {
 }
 
 func TestAnovaF_OmegaSquared(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		groups []anovaGroup
@@ -156,6 +158,8 @@ func TestAnovaF_OmegaSquared(t *testing.T) {
 }
 
 func TestAnovaWelch_OmegaSquared(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		groups []anovaGroup
@@ -215,6 +219,8 @@ func TestAnovaWelch_OmegaSquared(t *testing.T) {
 // summary(aov(y ~ c + Error(s/c))) gives SS_c = 86.8, SS_error = 41.2,
 // F = 8.42718 on (2, 8), so partial η² = 86.8 / 128 = 0.678125.
 func TestAnovaRM_PartialEtaSquared(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "metric", Type: encoding.FieldTypeF64},
@@ -258,6 +264,8 @@ func TestAnovaRM_PartialEtaSquared(t *testing.T) {
 // degenerate denominator (so setEffectSize omits the key) and clamp a
 // negative ω² estimate to 0.
 func TestAnovaEffectSizes_Undefined(t *testing.T) {
+	t.Parallel()
+
 	nan := []struct {
 		name string
 		v    float64

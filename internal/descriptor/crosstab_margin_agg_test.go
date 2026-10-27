@@ -33,6 +33,8 @@ func marginAggPredictReq(mut func(*types.CrosstabSpec)) *types.Request {
 // service tests assert at runtime — the point being that an agent gets
 // the refusal before paying for a scan.
 func TestPredict_Crosstab_MarginAggregationsMalformed(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -88,6 +90,8 @@ func TestPredict_Crosstab_MarginAggregationsMalformed(t *testing.T) {
 // auxiliary naming a field the cohort does not carry would otherwise
 // fail deep inside an accumulator with no field name attached.
 func TestPredict_Crosstab_MarginAggregationsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -124,6 +128,8 @@ func TestPredict_Crosstab_MarginAggregationsUnknownField(t *testing.T) {
 // shape and then emit none of it — the one case where "declared with
 // nowhere to land" was silent AND paid for.
 func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -192,6 +198,8 @@ func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 // non-vacuity control for every refusal above: a well-formed auxiliary
 // set raises none of the slot's codes.
 func TestPredict_Crosstab_MarginAggregationsWellFormedClean(t *testing.T) {
+	t.Parallel()
+
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -220,6 +228,8 @@ func TestPredict_Crosstab_MarginAggregationsWellFormedClean(t *testing.T) {
 // manifest advertises the slot and names the codes that refuse it, so an
 // agent can discover the surface without reading Go source.
 func TestManifest_CrosstabCapabilityMarginAggregations(t *testing.T) {
+	t.Parallel()
+
 	m := BuildManifest()
 	if !m.Crosstab.SupportsMarginAggregations {
 		t.Error("manifest.Crosstab.SupportsMarginAggregations should be true")

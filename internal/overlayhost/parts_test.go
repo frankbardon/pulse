@@ -16,6 +16,8 @@ func scalarPart(v float64) *types.OverlayPayload {
 // part, a nil part, an unnamed part and a shapeless part are each
 // refused as PROCESSING_INTERNAL with the offending part named.
 func TestPartsRefusal(t *testing.T) {
+	t.Parallel()
+
 	nested := scalarPart(1)
 	nested.Parts = map[string]*types.OverlayPayload{"inner": scalarPart(2)}
 	cases := []struct {
@@ -71,6 +73,8 @@ func TestPartsRefusal(t *testing.T) {
 // TestDimAxisKeys pins the synthetic dimension-key convention: one
 // single-element key per dimension, 1-based, "dim_" prefixed.
 func TestDimAxisKeys(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		n    int
 		want string

@@ -43,6 +43,8 @@ func invokePredict(t *testing.T, p *pulse.Pulse, cfg Config, args string) ([]byt
 // additive; each omitted when empty), so a `valid: false` names its
 // reason.
 func TestPulsePredict_BareRequestUnchanged(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 	for _, tc := range []struct {
 		name, field string
@@ -138,6 +140,8 @@ func TestPulsePredict_BareRequestUnchanged(t *testing.T) {
 // by its own facade method and answers under the key it was sent under;
 // a refused root carries its coded errors beside valid false.
 func TestPulsePredict_AlternativeRoots(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 	cohort := `{"filename":"` + path + `"}`
 	agg := `"aggregations":[{"type":"AGG_SUM","field":"amount","label":"total"}]`
@@ -188,6 +192,8 @@ func TestPulsePredict_AlternativeRoots(t *testing.T) {
 // TestPulsePredict_MixingRootsRefused: an alternative beside a bare
 // request key or beside another alternative is SERVICE_VALIDATION.
 func TestPulsePredict_MixingRootsRefused(t *testing.T) {
+	t.Parallel()
+
 	p := defaultPulse(t)
 	for _, args := range []string{
 		`{"composed":{"requests":[]},"cohort":{"filename":"x.pulse"}}`,
@@ -206,6 +212,8 @@ func TestPulsePredict_MixingRootsRefused(t *testing.T) {
 // alternative root (a missing cohort, an unknown key inside a composed
 // slot) comes back with its own code.
 func TestPulsePredict_RootFaultsKeepTheirCodes(t *testing.T) {
+	t.Parallel()
+
 	p := defaultPulse(t)
 	for _, tc := range []struct {
 		args string
@@ -226,6 +234,8 @@ func TestPulsePredict_RootFaultsKeepTheirCodes(t *testing.T) {
 // hides compose / facet / process_chain, each alternative key is refused
 // exactly as a misspelled request slot.
 func TestPulsePredict_HiddenRootIsUnknownKey(t *testing.T) {
+	t.Parallel()
+
 	p, _ := instanceFor(t, fixtureProfile(t, "minimal"), pulse.Extensions{})
 	for _, args := range []string{
 		`{"composed":{"requests":[]}}`,
@@ -243,6 +253,8 @@ func TestPulsePredict_HiddenRootIsUnknownKey(t *testing.T) {
 // `return` default lands on each composed slot and chain stage, as
 // pulse_compose / pulse_process_chain apply it.
 func TestPulsePredict_ReturnDefaultReachesAlternativeRoots(t *testing.T) {
+	t.Parallel()
+
 	def := &types.Return{Preset: types.ReturnPresetStandard}
 	in := PredictIn{
 		Composed: &types.ComposedRequest{Requests: []*types.Request{{}}},
@@ -268,6 +280,8 @@ func TestPulsePredict_ReturnDefaultReachesAlternativeRoots(t *testing.T) {
 // each carrying its execution tool's bound body; it requires no root
 // key, and a profile hiding a root's capability drops that property.
 func TestBindForInstance_PredictAdvertisesRoots(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	doc := func(raw json.RawMessage) map[string]any {
 		var m map[string]any
@@ -327,6 +341,8 @@ func TestBindForInstance_PredictAdvertisesRoots(t *testing.T) {
 // their p-values in separate request families (5 + 5, at the
 // threshold); family compose on both silences it.
 func TestPulsePredict_ComposedSlotsAndSplitFamilies(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 	slot := func(family string) string {
 		var tests []string

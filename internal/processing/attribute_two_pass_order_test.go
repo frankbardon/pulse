@@ -101,6 +101,8 @@ func outAggs(label string) []*types.Aggregation {
 // row-local attribute kind feeding it. The two-pass PrePass must see the
 // row-local output exactly as the buffered arm's Compute does.
 func TestTwoPass_DeclaredOrder_UpstreamRowLocalFeedsTwoPass(t *testing.T) {
+	t.Parallel()
+
 	upstreams := map[string]*types.Attribute{
 		"formula":      {Type: types.ATTR_FORMULA, Expression: "x * x + y", Label: "u"},
 		"date_part":    {Type: types.ATTR_DATE_PART, Field: "d", Params: []byte(`{"part":"month"}`), Label: "u"},
@@ -136,6 +138,8 @@ func TestTwoPass_DeclaredOrder_UpstreamRowLocalFeedsTwoPass(t *testing.T) {
 // attribute reads (directly or through a row-local) another two-pass
 // attribute's output, plus the unrelated-attribute and filter mixes.
 func TestTwoPass_DeclaredOrder_Layers(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]*types.Request{
 		// row-local → two-pass → row-local → two-pass.
 		"rl_tp_rl_tp": {
@@ -200,6 +204,8 @@ func TestTwoPass_DeclaredOrder_Layers(t *testing.T) {
 // source fields) keeps the historical two scans; each dependent two-pass
 // layer adds exactly one.
 func TestTwoPass_DeclaredOrder_PassCount(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		attrs []*types.Attribute

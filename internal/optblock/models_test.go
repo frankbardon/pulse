@@ -46,6 +46,8 @@ func fileLoader(files map[string][]byte, reads *int) optblock.Loader {
 // location: a malformed entry, a name a fit already binds, a missing
 // file, a term the loaded model lacks.
 func TestOptimize_BlockModels(t *testing.T) {
+	t.Parallel()
+
 	files := map[string][]byte{"models/saved" + model.FileSuffix: savedDemand(t)}
 	block := func(models []types.ModelRef, objective string) []types.OptimizeSpec {
 		s := validBlock()

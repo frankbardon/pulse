@@ -36,6 +36,8 @@ func seedSav(t *testing.T, afs afero.Fs, path string, spec spsstest.Spec) []byte
 // those was individually testable before this story and the file was
 // still unreachable from a command.
 func TestSPSS_ImportProducesQueryableCohort(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
@@ -124,6 +126,8 @@ func TestSPSS_ImportProducesQueryableCohort(t *testing.T) {
 // misreading of the specification would have to be made twice, identically,
 // in two places, to pass.
 func TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts(t *testing.T) {
+	t.Parallel()
+
 	specs := []struct {
 		name string
 		spec spsstest.Spec
@@ -220,6 +224,8 @@ func TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts(t *testing.T) {
 // The E3-S1 seam is what this replaces: until now a `.zsav` reached the
 // reader, parsed its dictionary and then failed at the data section.
 func TestSPSS_ZsavExtensionImportsThroughTheFacade(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	spec := spsstest.ReferenceSpec()
 	spec.Compression = spsstest.CompressionZSAV
@@ -277,6 +283,8 @@ func TestSPSS_ZsavExtensionImportsThroughTheFacade(t *testing.T) {
 // dictionary therefore holds the numeric CODES and labels are an
 // output-time LabelTable concern.
 func TestSPSS_ImportKeepsDictionaryCodesNotLabels(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
@@ -320,6 +328,8 @@ func TestSPSS_ImportKeepsDictionaryCodesNotLabels(t *testing.T) {
 // warnings channel has to be threaded twice or an LLM calling
 // pulse_import sees nothing.
 func TestSPSS_ManagedImportSurfacesSourceWarnings(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	spec := spsstest.ReferenceSpec()
 	spec.RawExtensions = []spsstest.RawExtension{
@@ -348,6 +358,8 @@ func TestSPSS_ManagedImportSurfacesSourceWarnings(t *testing.T) {
 // from before the channel existed — and every non-SPSS format reaches
 // this same code.
 func TestSPSS_ManagedImportCleanFileHasNoWarnings(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
@@ -371,6 +383,8 @@ func TestSPSS_ManagedImportCleanFileHasNoWarnings(t *testing.T) {
 // rendered — throwing the dictionary away through a command the
 // registration itself created.
 func TestSPSS_ConvertUsesSourceDictionary(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
@@ -404,6 +418,8 @@ func TestSPSS_ConvertUsesSourceDictionary(t *testing.T) {
 // half. A predict that disagreed with its own run would be worse than
 // no predict at all.
 func TestSPSS_ConvertPredictUsesSourceDictionary(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
@@ -431,6 +447,8 @@ func TestSPSS_ConvertPredictUsesSourceDictionary(t *testing.T) {
 // record type 7 subtype, which the parser tolerates by design — and
 // which, before this story, no caller could ever have learned about.
 func TestSPSS_ImportSurfacesSourceWarnings(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	spec := spsstest.ReferenceSpec()
 	spec.RawExtensions = []spsstest.RawExtension{
@@ -491,6 +509,8 @@ var _ pio.Writer = (*discardWriter)(nil)
 // "Refused" — the thing they can read — is PROCESSING_CONFIG, which is
 // the right failure: loud, not a filter that quietly matches nothing.
 func TestSPSS_CategoricalMissingCodesAreExcludable(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
@@ -595,6 +615,8 @@ func TestSPSS_CategoricalMissingCodesAreExcludable(t *testing.T) {
 // selected" from "not asked", which a bitmask cannot do and which a
 // destructive collapse would have silently thrown away.
 func TestSPSS_MultipleDichotomySetIsQueryableAndAdditive(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
 	spec := spsstest.Spec{

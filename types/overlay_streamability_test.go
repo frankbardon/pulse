@@ -13,6 +13,8 @@ import "testing"
 // "Non-Skippable CI Gates". A missing row, a stale row, or a divergent
 // value all fail the gate so the table cannot silently drift.
 func TestStreamability_OverlaysKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[OverlayKind]bool{
 		// CHISQ_COL is inferential — mechanical column-axis twin of
 		// CHISQ_ROW; each per-column goodness-of-fit test reads the
@@ -163,6 +165,8 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 // predict gate) rely on to surface PULSE_OVERLAY_UNKNOWN-style
 // diagnostics rather than silently streaming.
 func TestOverlayStreamable_UnknownKind(t *testing.T) {
+	t.Parallel()
+
 	streamable, known := OverlayStreamable("OVERLAY_DOES_NOT_EXIST")
 	if known {
 		t.Errorf("OverlayStreamable(unknown) known = true, want false")
@@ -173,6 +177,8 @@ func TestOverlayStreamable_UnknownKind(t *testing.T) {
 }
 
 func TestOverlayStreamable_KnownIndexVsMargin(t *testing.T) {
+	t.Parallel()
+
 	streamable, known := OverlayStreamable(OverlayKindIndexVsMargin)
 	if !known {
 		t.Errorf("OverlayStreamable(OVERLAY_INDEX_VS_MARGIN) known = false, want true")

@@ -46,6 +46,8 @@ func spec() *types.BannerSpec {
 // every slot a deep copy (mutating one touches neither the spec nor a
 // sibling).
 func TestExpandCompose_SlotsAndOverrides(t *testing.T) {
+	t.Parallel()
+
 	explicit := &types.Request{Label: "x", Cohort: &types.Cohort{Filename: "c.pulse"}}
 	sp := spec()
 	before, _ := json.Marshal(sp)
@@ -95,6 +97,8 @@ func TestExpandCompose_SlotsAndOverrides(t *testing.T) {
 // TestExpandCompose_PreflightCountsBannerSlots: the slot limit sees
 // explicit + sweep + banner slots before any banner slot is built.
 func TestExpandCompose_PreflightCountsBannerSlots(t *testing.T) {
+	t.Parallel()
+
 	var seen int
 	_, err := banner.ExpandCompose(&types.ComposedRequest{
 		Requests: []*types.Request{{Cohort: &types.Cohort{Filename: "c.pulse"}}},
@@ -109,6 +113,8 @@ func TestExpandCompose_PreflightCountsBannerSlots(t *testing.T) {
 
 // TestValidate_FirstFault pins the rule order and the details.
 func TestValidate_FirstFault(t *testing.T) {
+	t.Parallel()
+
 	sp := spec()
 	sp.Groups[1].Label = "Gender"
 	sp.Sections[0].Label = ""
@@ -129,6 +135,8 @@ func TestValidate_FirstFault(t *testing.T) {
 
 // TestCount pins sections × (groups + Total).
 func TestCount(t *testing.T) {
+	t.Parallel()
+
 	sp := spec()
 	if got := banner.Count(sp); got != 6 {
 		t.Fatalf("Count = %d, want 6", got)
@@ -148,6 +156,8 @@ func TestCount(t *testing.T) {
 // no banner slot groups by stays on every slot (and warns there, as on a
 // hand-written slot).
 func TestExpandCompose_ScopesLabels(t *testing.T) {
+	t.Parallel()
+
 	sp := spec()
 	sp.Request.Labels = []*types.LabelBinding{
 		{Field: "gender", Table: "g"},
@@ -205,6 +215,8 @@ func TestExpandCompose_ScopesLabels(t *testing.T) {
 // base request's overlays still lead every slot, the Total slot still
 // receives neither), and the layout records each section's overlay list.
 func TestExpandCompose_SectionOverlaysReplace(t *testing.T) {
+	t.Parallel()
+
 	sp := spec()
 	sp.Sections[1].Overlays = []types.OverlaySpec{
 		{Name: "mean", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},

@@ -11,6 +11,8 @@ import (
 // TestDedupGate_Floor: an unset, negative or non-finite floor is the
 // default; any positive finite value is honoured as given.
 func TestDedupGate_Floor(t *testing.T) {
+	t.Parallel()
+
 	for in, want := range map[float64]float64{0: 2, -1: 2, math.Inf(1): 2, 1: 1, 1.5: 1.5, 3: 3} {
 		if got := (DedupGate{RatioFloor: in}).Floor(); got != want {
 			t.Fatalf("Floor(%v) = %v, want %v", in, got, want)
@@ -26,6 +28,8 @@ func TestDedupGate_Floor(t *testing.T) {
 // unjudged, surviving specs keep their declared ordinal, and strict
 // turns the first narrow group into an error.
 func TestDedupGate_ScreenWidths(t *testing.T) {
+	t.Parallel()
+
 	flat := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU16}, {Name: "b", Type: encoding.FieldTypeU16}, // a+b = 4: narrow
 		{Name: "c", Type: encoding.FieldTypeU32}, {Name: "d", Type: encoding.FieldTypeU8, Nullable: true}, // 5: wide enough

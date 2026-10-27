@@ -177,6 +177,8 @@ func priorNear(a, b float64) bool {
 // the next wave tests against the one before the gap. The series and
 // crosstab hosts agree entry for entry, on both crosstab arms.
 func TestVsPrior_OracleAndFirstPeriod(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	x1, y1, n1 := priorWave("w1")
 	x2, y2, n2 := priorWave("w2")
@@ -262,6 +264,8 @@ func TestVsPrior_OracleAndFirstPeriod(t *testing.T) {
 // exactly the tested periods (the first period and a gap are not family
 // members), and predict counts the same p-values the layer emits.
 func TestVsPrior_Multiplicity(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -309,6 +313,8 @@ func TestVsPrior_Multiplicity(t *testing.T) {
 // hosts and both crosstab dispatch arms; accepted requests are accepted
 // by both.
 func TestVsPrior_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	ov := func(spec string) string { return `,"overlays":[` + spec + `]` }
 	const xtCols = `"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"wave"}],"columns":[{"type":"GROUP_CATEGORY","field":"h"}],` +
@@ -387,6 +393,8 @@ func TestVsPrior_PredictMatchesRuntime(t *testing.T) {
 // is read from — the layer is the full run's, and Components stay off
 // the wire.
 func TestVsPrior_ReturnExcludingComponents(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
@@ -420,6 +428,8 @@ func TestVsPrior_ReturnExcludingComponents(t *testing.T) {
 // crosstab's leading row keys): one untested first period per
 // partition, and the two hosts' layers agree.
 func TestVsPrior_Partitions(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := priorCohort(t)
 	p, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {

@@ -109,6 +109,8 @@ func paramsFloat(t *testing.T, resp *types.Response, key string) float64 {
 // TestParams_FilterExpression: `wave == params.from_wave` keeps exactly
 // the rows of that wave — buffered, streamed and across decode workers.
 func TestParams_FilterExpression(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, workers := range []int{1, 4} {
 		p := openParams(t, pulse.Options{DecodeWorkers: workers})
@@ -133,6 +135,8 @@ func TestParams_FilterExpression(t *testing.T) {
 // TestParams_FormulaInListAndTotal: `x * params.k` in ATTR_FORMULA, a
 // list param behind `in`, and a total() argument reading a param.
 func TestParams_FormulaInListAndTotal(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	req := &types.Request{
@@ -174,6 +178,8 @@ func TestParams_FormulaInListAndTotal(t *testing.T) {
 // TestParams_LargeIntegerExact: a u64 param beyond 2^53 survives the
 // wire decode and compares exactly — 2^53+1 is not 2^53.
 func TestParams_LargeIntegerExact(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	var req types.Request
@@ -204,6 +210,8 @@ func TestParams_LargeIntegerExact(t *testing.T) {
 // value — sequentially and concurrently on one instance — always reads
 // its own value, never a program compiled for another run.
 func TestParams_NoStaleProgram(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	for w := 1; w <= 5; w++ {
@@ -242,6 +250,8 @@ func TestParams_NoStaleProgram(t *testing.T) {
 // TestParams_OverlayFormula: OVERLAY_FORMULA reads a param on a
 // crosstab host.
 func TestParams_OverlayFormula(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	req := &types.Request{
@@ -286,6 +296,8 @@ func toF(v any) float64 {
 // a cohort carrying a field named params — is the same code and
 // message at predict and at run.
 func TestParams_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	formula := func(expr string, params types.Params) *types.Request {
@@ -351,6 +363,8 @@ func TestParams_PredictMatchesRuntime(t *testing.T) {
 // as a bare identifier (and through $env) — only a params.<name> read
 // collides.
 func TestParams_FieldNamedParams(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := openParams(t, pulse.Options{})
 	for _, expr := range []string{"params * 2", `$env["params"] * 2`} {
@@ -376,6 +390,8 @@ func TestParams_FieldNamedParams(t *testing.T) {
 // refuses a set params as an unknown field, and its payload schema has
 // no Request params key; enabling the feature runs it.
 func TestParams_FeatureProfileGate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	openParams(t, pulse.Options{FS: fsys})

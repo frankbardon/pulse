@@ -25,6 +25,8 @@ func holdoutRow(y, yhat float64) Record {
 // NaN / ±Inf score or a null target is not scored; constant held-out
 // targets leave r2 undefined (NaN); no scored row is holdout_empty.
 func TestHoldoutFigures_Fold(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Holdout: "h"}
 	rows := []Record{
 		holdoutRow(18, 17), holdoutRow(17, 19), holdoutRow(24, 21),

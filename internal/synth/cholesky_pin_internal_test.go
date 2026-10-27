@@ -250,6 +250,8 @@ func cholPinDigest(L [][]float64) string {
 // matrix no ridge repairs is refused as SERVICE_VALIDATION with the
 // established message and no details.
 func TestCholeskyPin_FactorAndRidgeBits(t *testing.T) {
+	t.Parallel()
+
 	corpus := cholPinCorpus()
 	if len(corpus) != len(cholPinWants) {
 		t.Errorf("corpus has %d cases, pin table has %d", len(corpus), len(cholPinWants))
@@ -351,6 +353,8 @@ var cholPinDrawWants = map[string]cholPinDrawWant{
 // scale shares factorCorrelations and correlatedNormals, so the factor
 // and the L·z step it rides are the ones pinned here.
 func TestCholeskyPin_CorrelatedDrawBits(t *testing.T) {
+	t.Parallel()
+
 	normal := func(name string, mean, std float64, extra map[string]any) FieldSpec {
 		p := map[string]any{"mean": mean, "std": std}
 		for k, v := range extra {

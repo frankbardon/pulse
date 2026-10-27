@@ -13,6 +13,8 @@ import (
 )
 
 func TestApply_NoWindowsNoOp(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"x": 1.0}, {"x": 2.0}}
 	if err := Apply(context.Background(), rows, nil); err != nil {
 		t.Fatalf("Apply with no windows returned error: %v", err)
@@ -23,6 +25,8 @@ func TestApply_NoWindowsNoOp(t *testing.T) {
 }
 
 func TestApply_EmptyRowsNoOp(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{}
 	w := []*types.Window{
 		{Type: types.WIN_LAG, Field: "x", OrderBy: []types.OrderKey{{Field: "x"}}},
@@ -33,6 +37,8 @@ func TestApply_EmptyRowsNoOp(t *testing.T) {
 }
 
 func TestApply_UnknownTypeError(t *testing.T) {
+	t.Parallel()
+
 	rows := []map[string]any{{"x": 1.0}}
 	w := []*types.Window{
 		{Type: types.WindowType("WIN_NOPE"), Field: "x", OrderBy: []types.OrderKey{{Field: "x"}}},
@@ -51,6 +57,8 @@ func TestApply_UnknownTypeError(t *testing.T) {
 }
 
 func TestWindowLabel(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		w    *types.Window
@@ -83,6 +91,8 @@ func TestWindowLabel(t *testing.T) {
 // construction with PULSE_WINDOW_INVALID and the "TYPE: rule" sentence,
 // whatever the caller skipped.
 func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
+	t.Parallel()
+
 	params := map[types.WindowType]json.RawMessage{
 		types.WIN_EWMA:            json.RawMessage(`{"alpha": 0.5}`),
 		types.WIN_DISTRIBUTED_LAG: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 3}`),

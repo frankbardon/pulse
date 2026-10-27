@@ -48,6 +48,8 @@ func extRecordsReg(col string) MatrixOpRegistration {
 // too — with MAT_COVARIANCE's full bits; a column the operator names
 // "key" fails the slot alone.
 func TestExtensionMatrix_Records(t *testing.T) {
+	t.Parallel()
+
 	fsys := extMatrixCohort(t)
 	ctx := context.Background()
 	p := extMatrixPulse(t, fsys, Options{}, extRecordsReg("variance"))

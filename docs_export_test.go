@@ -4,7 +4,6 @@ import (
 	stderrors "errors"
 	"io/fs"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -56,73 +55,11 @@ func codeOf(err error) errors.Code {
 	return ""
 }
 
-// TestExportReference_DefaultDeterministic (FR-33): the default instance
-// exports to a MemMap fs, the tree carries the marker listing every
-// other file, and a second export — in place, or into a fresh fs — is
-// byte-identical.
-func TestExportReference_DefaultDeterministic(t *testing.T) {
-	p := exportPulse(t)
-	fsys := afero.NewMemMapFs()
-	if err := p.ExportReference(fsys, "out/ref", ExportReferenceOptions{}); err != nil {
-		t.Fatalf("ExportReference: %v", err)
-	}
-	first := exportTree(t, fsys, "out/ref")
-	for _, want := range []string{"SUMMARY.md", "index.md", "catalog.md", "glossary.md", "reading.md", "skills.md", docsExportMarker} {
-		if _, ok := first[want]; !ok {
-			t.Errorf("export lacks %s", want)
-		}
-	}
-	nSkills := 0
-	for path := range first {
-		if strings.HasPrefix(path, "skills/") {
-			nSkills++
-		}
-	}
-	if nSkills == 0 {
-		t.Error("export carries no skill page")
-	}
-	var listed []string
-	for _, line := range strings.Split(first[docsExportMarker], "\n") {
-		if line != "" && !strings.HasPrefix(line, "#") {
-			listed = append(listed, line)
-		}
-	}
-	var files []string
-	for path := range first {
-		if path != docsExportMarker {
-			files = append(files, path)
-		}
-	}
-	slices.Sort(files)
-	if !slices.Equal(listed, files) {
-		t.Errorf("marker lists %d paths, export wrote %d other files", len(listed), len(files))
-	}
-
-	if err := p.ExportReference(fsys, "out/ref", ExportReferenceOptions{}); err != nil {
-		t.Fatalf("re-export: %v", err)
-	}
-	other := afero.NewMemMapFs()
-	if err := p.ExportReference(other, "elsewhere", ExportReferenceOptions{}); err != nil {
-		t.Fatalf("fresh export: %v", err)
-	}
-	for name, got := range map[string]map[string]string{
-		"in place": exportTree(t, fsys, "out/ref"),
-		"fresh fs": exportTree(t, other, "elsewhere"),
-	} {
-		if len(got) != len(first) {
-			t.Errorf("%s: %d files, first export %d", name, len(got), len(first))
-		}
-		for path, body := range first {
-			if got[path] != body {
-				t.Errorf("%s: %s differs from the first export", name, path)
-			}
-		}
-	}
-}
-
 // TestExportReference_OmitSkills (FR-17): the zero value includes the
 // skills; OmitSkills drops skills.md and the skills/ tree.
 func TestExportReference_OmitSkills(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	if err := exportPulse(t).ExportReference(fsys, "out", ExportReferenceOptions{OmitSkills: true}); err != nil {
 		t.Fatal(err)
@@ -140,6 +77,8 @@ func TestExportReference_OmitSkills(t *testing.T) {
 // a file the marker never listed alone. A marker line escaping the
 // export root is ignored.
 func TestExportReference_RemovesStaleFiles(t *testing.T) {
+	t.Parallel()
+
 	p := exportPulse(t)
 	fsys := afero.NewMemMapFs()
 	if err := p.ExportReference(fsys, "out", ExportReferenceOptions{}); err != nil {
@@ -190,6 +129,8 @@ func TestExportReference_RemovesStaleFiles(t *testing.T) {
 // reachable through errors.As, and nothing is written. An empty
 // existing dir is accepted.
 func TestExportReference_RefusesUnmarkedDir(t *testing.T) {
+	t.Parallel()
+
 	p := exportPulse(t)
 	fsys := afero.NewMemMapFs()
 	if err := afero.WriteFile(fsys, "out/keep.txt", []byte("mine"), 0o644); err != nil {
@@ -220,6 +161,8 @@ func TestExportReference_RefusesUnmarkedDir(t *testing.T) {
 // failure and a dir path naming a file both surface as DATA_FILE with
 // the path in details.
 func TestExportReference_FilesystemErrorsAreDataFile(t *testing.T) {
+	t.Parallel()
+
 	p := exportPulse(t)
 	ro := afero.NewReadOnlyFs(afero.NewMemMapFs())
 	err := p.ExportReference(ro, "out", ExportReferenceOptions{})
@@ -245,6 +188,8 @@ func TestExportReference_FilesystemErrorsAreDataFile(t *testing.T) {
 // TestExportReference_NilFsUsesInstanceFs: a nil fs writes through the
 // instance filesystem.
 func TestExportReference_NilFsUsesInstanceFs(t *testing.T) {
+	t.Parallel()
+
 	p := exportPulse(t)
 	if err := p.ExportReference(nil, "ref", ExportReferenceOptions{}); err != nil {
 		t.Fatal(err)

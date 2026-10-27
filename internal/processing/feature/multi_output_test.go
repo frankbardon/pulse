@@ -36,6 +36,8 @@ func newStringRecord(field, value string) *stringRecord {
 }
 
 func TestOneHot_Compute(t *testing.T) {
+	t.Parallel()
+
 	schema := makeCategoricalSchema(t, "region", "north", "south", "east")
 
 	records := []Record{
@@ -75,6 +77,8 @@ func TestOneHot_Compute(t *testing.T) {
 }
 
 func TestOneHot_LabelPrefix(t *testing.T) {
+	t.Parallel()
+
 	schema := makeCategoricalSchema(t, "color", "red", "blue")
 	records := []Record{newStringRecord("color", "red")}
 
@@ -92,6 +96,8 @@ func TestOneHot_LabelPrefix(t *testing.T) {
 }
 
 func TestOneHot_RequiresCategoricalField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "score", Type: encoding.FieldTypeF64},
@@ -104,12 +110,16 @@ func TestOneHot_RequiresCategoricalField(t *testing.T) {
 }
 
 func TestOneHot_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	if _, err := newOneHot(&types.Feature{}, nil); err == nil {
 		t.Error("expected error for missing field")
 	}
 }
 
 func TestOneHot_FieldNotInSchema(t *testing.T) {
+	t.Parallel()
+
 	schema := makeCategoricalSchema(t, "region", "n", "s")
 	_, err := newOneHot(&types.Feature{Field: "missing"}, schema)
 	if err == nil {
@@ -118,6 +128,8 @@ func TestOneHot_FieldNotInSchema(t *testing.T) {
 }
 
 func TestDateFeatures_Compute(t *testing.T) {
+	t.Parallel()
+
 	// 2024-03-15 in UTC = 19797 days since Unix epoch.
 	d := time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)
 	days := d.Unix() / 86400
@@ -160,6 +172,8 @@ func TestDateFeatures_Compute(t *testing.T) {
 }
 
 func TestDateFeatures_NullPropagation(t *testing.T) {
+	t.Parallel()
+
 	r := newFakeRecord()
 	r.nulls["dt"] = true
 	records := []Record{r}
@@ -178,6 +192,8 @@ func TestDateFeatures_NullPropagation(t *testing.T) {
 }
 
 func TestDateFeatures_RequiresDateType(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}},
 	}
@@ -188,12 +204,16 @@ func TestDateFeatures_RequiresDateType(t *testing.T) {
 }
 
 func TestDateFeatures_RequiresField(t *testing.T) {
+	t.Parallel()
+
 	if _, err := newDateFeatures(&types.Feature{}, nil); err == nil {
 		t.Error("expected error for missing field")
 	}
 }
 
 func TestMultiOutputFeatures_Registered(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []types.FeatureType{types.FEAT_ONE_HOT, types.FEAT_DATE_FEATURES} {
 		if _, ok := Lookup(ft); !ok {
 			t.Errorf("expected %s to be registered", ft)

@@ -21,6 +21,8 @@ import (
 // integer — 2^53+1 and MaxUint64 keep their own digits — on a single
 // file and a shard archive, in today's (float64-echo) sort order.
 func TestProcessTool_U64RecordRowsExact(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	seed, err := pulse.New(pulse.Options{FS: fs})

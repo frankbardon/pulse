@@ -76,6 +76,8 @@ func categoricalMissingSpec() spsstest.Spec {
 // This is the whole reason the categorical arm needs no sibling: nothing
 // was removed, so nothing has to be reconstructed.
 func TestMissingCategorical_CodesStayOrdinaryDictionaryEntries(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, categoricalMissingSpec()))
 	schema, err := r.PulseSchema()
 	if err != nil {
@@ -119,6 +121,8 @@ func TestMissingCategorical_CodesStayOrdinaryDictionaryEntries(t *testing.T) {
 // about — a whole questionnaire, where per-variable siblings would double
 // the schema to carry nothing new.
 func TestMissingCategorical_AllCategoricalSurveyHasNoSiblings(t *testing.T) {
+	t.Parallel()
+
 	spec := allCategoricalSurveySpec(12)
 	r := NewReaderFromBytes(buildFixture(t, spec))
 	header, rows := readHeaderAndRows(t, r)
@@ -176,6 +180,8 @@ func allCategoricalSurveySpec(n int) spsstest.Spec {
 // half of the discoverability answer: which dictionary entries are
 // missing-coded, per variable, exactly.
 func TestMissingCategorical_SidecarFlagsTheMissingEntries(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, categoricalMissingSpec())
 
 	for _, tc := range []struct {
@@ -214,6 +220,8 @@ func TestMissingCategorical_SidecarFlagsTheMissingEntries(t *testing.T) {
 // label and its Pulse ID, so a consumer can render "Refused" while
 // excluding "9".
 func TestMissingCategorical_FlagRidesAlongsideTheLabel(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, categoricalMissingSpec())
 	v := varOf(t, doc, "q1")
 
@@ -253,6 +261,8 @@ func TestMissingCategorical_FlagRidesAlongsideTheLabel(t *testing.T) {
 // document byte-identical to the pre-flag shape, because Missing is
 // omitempty — which is why SidecarFormatVersion does not move.
 func TestMissingCategorical_NoFlagIsWireIdentical(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := importFixtureNoSidecar(t, spsstest.ReferenceSpec())
 	raw, err := afero.ReadFile(fs, SidecarPath(cohort))
 	if err != nil {
@@ -278,6 +288,8 @@ func TestMissingCategorical_NoFlagIsWireIdentical(t *testing.T) {
 //
 // If that binding ever changes, this test is what says so.
 func TestMissing_LongStringCodesAreFlagged(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "COMMENT", LongName: "comment", Width: 40}},
 		Cases: [][]spsstest.Value{
@@ -325,6 +337,8 @@ func TestMissing_LongStringCodesAreFlagged(t *testing.T) {
 // twelve-variable all-categorical survey raises exactly ONE diagnostic,
 // not twelve.
 func TestMissingCategorical_ImportWarnsOnce(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, allCategoricalSurveySpec(12)))
 	if _, err := r.PulseSchema(); err != nil {
 		t.Fatalf("PulseSchema: %v", err)
@@ -373,6 +387,8 @@ func TestMissingCategorical_ImportWarnsOnce(t *testing.T) {
 // value an analyst types into FILTER_EXCLUDE is "9". A message that said
 // "Refused" would send them to a value that is not in the cohort.
 func TestMissingCategorical_WarningNamesTheEntryNotTheLabel(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, categoricalMissingSpec()))
 	if _, err := r.PulseSchema(); err != nil {
 		t.Fatalf("PulseSchema: %v", err)
@@ -394,6 +410,8 @@ func TestMissingCategorical_WarningNamesTheEntryNotTheLabel(t *testing.T) {
 // file with no categorical user-missing codes must raise nothing, or the
 // diagnostic becomes background noise and stops being read.
 func TestMissingCategorical_CleanFileIsSilent(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, spsstest.ReferenceSpec()))
 	if _, err := r.PulseSchema(); err != nil {
 		t.Fatalf("PulseSchema: %v", err)
@@ -413,6 +431,8 @@ func TestMissingCategorical_CleanFileIsSilent(t *testing.T) {
 // unchanged: the rule is the line between "a sibling is the only home for
 // the reason" and "the dictionary already is".
 func TestMissingCategorical_NumericSiblingArmDoesNotWarn(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "INCOME", LongName: "income",
@@ -447,6 +467,8 @@ func TestMissingCategorical_NumericSiblingArmDoesNotWarn(t *testing.T) {
 // dictionary, its flags and its summary are all identical under both
 // modes. Two imports of one file must not disagree about what a field IS.
 func TestMissingCategorical_MissingModeDoesNotChangeTheCategoricalArm(t *testing.T) {
+	t.Parallel()
+
 	raw := buildFixture(t, categoricalMissingSpec())
 
 	for _, mode := range []MissingMode{MissingAuto, MissingNull} {
