@@ -50,6 +50,8 @@ func boundCrosstabProps(t *testing.T, inst *descx.InstanceSnapshot) map[string]a
 // capability:crosstab_cells and drops it on one hiding it — the property
 // the payload schema drops and the request-slot gate refuses.
 func TestBindForInstance_CrosstabCells(t *testing.T) {
+	t.Parallel()
+
 	_, on := crosstabCellsInstance(t, true)
 	_, off := crosstabCellsInstance(t, false)
 	if _, ok := boundCrosstabProps(t, on)["cells"]; !ok {
@@ -68,6 +70,8 @@ func TestBindForInstance_CrosstabCells(t *testing.T) {
 // capability is refused exactly as the library refuses the typed
 // request.
 func TestCheckUnknownKeys_HiddenCrosstabCellsRefusedLikeLibrary(t *testing.T) {
+	t.Parallel()
+
 	_, off := crosstabCellsInstance(t, false)
 	body := []byte(`{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"region"}],"cells":[{"type":"AGG_COUNT","field":"score"}]}}`)
 	typed := &types.Request{Crosstab: &types.CrosstabSpec{

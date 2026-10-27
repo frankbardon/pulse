@@ -136,6 +136,8 @@ func withSampler(t *testing.T, c *countingSampler) {
 // unknown key and a missing time are the engine's own refusals, at
 // predict and at runtime alike.
 func TestMMMBayes_ParamsRefused(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	p := bayesInstance(t, nil)
@@ -226,6 +228,8 @@ var sharedSlotValues = map[string]string{
 // carries, and never samples. Every such RegressionSpec key is covered,
 // so a new one fails here until it is.
 func TestMMMBayes_SharedSlotsRefusedLikePredict(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	p := bayesInstance(t, nil)
@@ -286,6 +290,8 @@ func TestMMMBayes_SharedSlotsRefusedLikePredict(t *testing.T) {
 // inside (0, 1), and the small cohort's truth recovered within a few
 // posterior SDs.
 func TestMMMBayes_FitPosterior(t *testing.T) {
+	t.Parallel()
+
 	p := bayesInstance(t, nil)
 	s := regmmm.BayesSpec(regmmm.FastParams)
 	s.Vcov = true
@@ -334,6 +340,8 @@ func TestMMMBayes_FitPosterior(t *testing.T) {
 // a long sampler run promptly with PULSE_LIMIT_EXCEEDED
 // (request_timeout).
 func TestMMMBayes_RequestTimeoutStopsSampling(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler); wall-clock bound; CPU contention from parallel tests would make it flaky
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	const d = 300 * time.Millisecond
@@ -362,6 +370,8 @@ func TestMMMBayes_RequestTimeoutStopsSampling(t *testing.T) {
 // (TestMMMBayes_SamplerErrorPassThrough: any other sampler error passes
 // through).
 func TestMMMBayes_SamplerFailureFailsSlotAlone(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	for _, fail := range []error{
 		perr.NewCodedErrorWithDetails(perr.PULSE_MCMC_FAILED, "mcmc: no start", map[string]any{"reason": "init_not_found", "chain": 0}),
 		perr.NewCodedErrorWithDetails(perr.PULSE_MCMC_INVALID, "mcmc: init", map[string]any{"reason": "init_density_not_finite", "chain": 1}),
@@ -469,6 +479,8 @@ func warningReasons(t *testing.T, ws []*types.ResponseWarning) []string {
 // WIN_DISTRIBUTED_LAG geometric with max_lag 13 and normalize false, run
 // by the engine over the same cohort.
 func TestMMMBayes_AdstockMatchesDistributedLag(t *testing.T) {
+	t.Parallel()
+
 	p := instance(t, afero.NewMemMapFs(), nil)
 	d := mmmfixture.Joint()
 	b, err := p.NewCohortBuilder(context.Background(), mmmfixture.JointCohortFile, mmmfixture.JointSchema(), pulse.CohortBuilderOptions{})

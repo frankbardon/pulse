@@ -15,6 +15,8 @@ import (
 // kind for an undeclared vector and a vec schema entry without dim are
 // each refused with their own code.
 func TestPulseImport_Vectors(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newSchemaImportPulse(t)
 	if err := afero.WriteFile(afs, "wide.csv", []byte("id,q_a,q_b,q_c\n1,1,2,3\n2,4,,6\n3,,,\n"), 0o644); err != nil {
 		t.Fatal(err)

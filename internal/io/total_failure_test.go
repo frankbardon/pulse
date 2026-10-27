@@ -82,6 +82,8 @@ func codedFrom(t *testing.T, err error) *perrors.CodedError {
 // total failure, not partial success, and Run must say so in the error
 // return every caller already checks.
 func TestImportJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	// A set_u256 column whose cells carry more distinct tokens than the
 	// rung can hold: the row pass cannot convert the column on ANY row,
 	// which is exactly the wide-set shape that imported 0 of 480 rows
@@ -162,6 +164,8 @@ func TestImportJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
 // and the accident is gone, but the shape is still legitimate for any
 // source whose header is out-of-band (a CSV with only a header line).
 func TestImportJob_EmptySource_StaysLegitimate(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		rows [][]string
@@ -170,6 +174,8 @@ func TestImportJob_EmptySource_StaysLegitimate(t *testing.T) {
 		{"header declared, no rows yielded", [][]string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			fs := afero.NewMemMapFs()
 			job := &ImportJob{
 				Source: &stringRowsReader{header: []string{"n"}, rows: tc.rows},
@@ -200,6 +206,8 @@ func TestImportJob_EmptySource_StaysLegitimate(t *testing.T) {
 // rows in, some errored, is still report-plus-nil. This story changes only
 // the total-failure case.
 func TestImportJob_PartialFailure_Unchanged(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := &ImportJob{
 		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"abc"}, {"3"}}},
@@ -226,6 +234,8 @@ func TestImportJob_PartialFailure_Unchanged(t *testing.T) {
 // and a nil error; `pulse export parquet` wrote a zero-row file and
 // reported success.
 func TestExportJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
 	}}
@@ -269,6 +279,8 @@ func (w *codedFailingWriter) Close() error { return nil }
 // PULSE_EXPORT_ROW_ERROR when the row error already carried a specific
 // code would bury the diagnosis one level down in the message text.
 func TestExportJob_EveryRowFailed_PrefersTheRowErrorsOwnCode(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
 	}}
@@ -294,6 +306,8 @@ func TestExportJob_EveryRowFailed_PrefersTheRowErrorsOwnCode(t *testing.T) {
 // a cohort with no records exports zero rows and that is not a failure,
 // even through a writer that would refuse every row.
 func TestExportJob_EmptyCohort_StaysLegitimate(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
 	}}
@@ -314,6 +328,8 @@ func TestExportJob_EmptyCohort_StaysLegitimate(t *testing.T) {
 
 // TestExportJob_PartialFailure_Unchanged pins the export partial arm.
 func TestExportJob_PartialFailure_Unchanged(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
 	}}
@@ -341,6 +357,8 @@ func TestExportJob_PartialFailure_Unchanged(t *testing.T) {
 // to PULSE_EXPORT_ROW_ERROR, by provenance — PULSE_IMPORT_ROW_ERROR would
 // point the caller at a source that never objected.
 func TestConvertJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
+	t.Parallel()
+
 	job := &ConvertJob{
 		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}, {"3"}}},
 		Target: &failingWriter{},
@@ -371,6 +389,8 @@ func TestConvertJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
 // TestConvertJob_EveryRowFailed_PrefersTheRowErrorsOwnCode mirrors the
 // export arm: a target that knows why it refused keeps its own code.
 func TestConvertJob_EveryRowFailed_PrefersTheRowErrorsOwnCode(t *testing.T) {
+	t.Parallel()
+
 	job := &ConvertJob{
 		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}}},
 		Target: &codedFailingWriter{code: perrors.PULSE_SPSS_EXPORT_UNSUPPORTED},
@@ -392,6 +412,8 @@ func TestConvertJob_EveryRowFailed_PrefersTheRowErrorsOwnCode(t *testing.T) {
 // leave a perfectly good cohort on disk under a command that errored —
 // the same trap the import arm avoids by refusing before its write.
 func TestConvertJob_EveryRowFailed_WritesNoIntermediatePulse(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := &ConvertJob{
 		Source:      &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}}},
@@ -412,6 +434,8 @@ func TestConvertJob_EveryRowFailed_WritesNoIntermediatePulse(t *testing.T) {
 
 // TestConvertJob_PartialFailure_Unchanged pins the convert partial arm.
 func TestConvertJob_PartialFailure_Unchanged(t *testing.T) {
+	t.Parallel()
+
 	job := &ConvertJob{
 		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}, {"3"}}},
 		Target: &failingWriter{failOn: map[int]bool{2: true}},
@@ -436,6 +460,8 @@ func TestConvertJob_PartialFailure_Unchanged(t *testing.T) {
 // source with no data rows converts to an empty target, through a writer
 // that would have refused every row.
 func TestConvertJob_EmptySource_StaysLegitimate(t *testing.T) {
+	t.Parallel()
+
 	job := &ConvertJob{
 		Source: &stringRowsReader{header: []string{"n"}},
 		Target: &failingWriter{},

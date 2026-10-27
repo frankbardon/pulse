@@ -9,6 +9,8 @@ import (
 )
 
 func TestImportJob_Run_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "hello", "true"},
 		{"20", "world", "false"},
@@ -42,6 +44,8 @@ func TestImportJob_Run_EndToEnd(t *testing.T) {
 }
 
 func TestImportJob_WithExplicitSchema(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10", "hello"},
 		{"20", "world"},
@@ -72,6 +76,8 @@ func TestImportJob_WithExplicitSchema(t *testing.T) {
 }
 
 func TestImportJob_Predict(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"10"}, {"20"}, {"30"}, {"40"}, {"50"},
 	}
@@ -99,6 +105,8 @@ func TestImportJob_Predict(t *testing.T) {
 }
 
 func TestImportJob_StreamingMemory(t *testing.T) {
+	t.Parallel()
+
 	// Verify that even with many rows, the import completes without error.
 	// This is a basic smoke test for streaming behavior.
 	rows := make([][]string, 10000)

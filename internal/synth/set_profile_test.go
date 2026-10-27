@@ -58,6 +58,8 @@ func buildSetFieldCohort(t *testing.T, options []string, counts []int, rowCount 
 // per-option frequencies matching the fixture's known ground truth
 // exactly — not a smoke test that capture merely doesn't crash.
 func TestProfile_SetFieldMarginalFrequencies(t *testing.T) {
+	t.Parallel()
+
 	options := []string{"email", "sms", "push", "mail", "phone", "survey"}
 	// Deliberately uneven: some options selected far more often than
 	// others, per the story's fixture requirement.
@@ -115,6 +117,8 @@ func TestProfile_SetFieldMarginalFrequencies(t *testing.T) {
 // every option's Frequency denominator — mirroring how Numeric and
 // Categorical marginal profiling already treat nulls.
 func TestProfile_SetFieldNullRowsExcludedFromFrequencyDenominator(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c"} {
 		if _, err := dict.Add(v); err != nil {
@@ -180,6 +184,8 @@ func TestProfile_SetFieldNullRowsExcludedFromFrequencyDenominator(t *testing.T) 
 // any pair the set field's name accidentally sorted into. With the
 // fix, a set_* field must never appear in Conditional.NumericPairs.
 func TestProfile_SetFieldExcludedFromConditionalNumericPairs(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"x", "y", "z"} {
 		if _, err := dict.Add(v); err != nil {

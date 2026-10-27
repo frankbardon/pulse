@@ -17,6 +17,8 @@ import (
 // one factor over every member, the solver options decode, and every
 // refusal names its param.
 func TestResolveMatrices_SEM(t *testing.T) {
+	t.Parallel()
+
 	resolve := func(spec types.MatrixSpec, vecs ...types.VectorSpec) (Matrix, *errors.CodedError) {
 		t.Helper()
 		got, err := ResolveMatrices(&types.Request{Vectors: vecs, Matrices: []types.MatrixSpec{spec}}, testSchema(), nil)

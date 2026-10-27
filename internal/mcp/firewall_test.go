@@ -80,6 +80,8 @@ func listDeps(t *testing.T, pkg string) []string {
 // MCP SDK module. If a future edit pulls an SDK into the core, this fails with
 // the exact offending dependency line so the regression is unambiguous.
 func TestMCPCore_NoSDKImport(t *testing.T) {
+	t.Parallel()
+
 	for _, pkg := range firewallCorePackages {
 		deps := listDeps(t, pkg)
 		for _, dep := range deps {
@@ -97,6 +99,8 @@ func TestMCPCore_NoSDKImport(t *testing.T) {
 // is reachable from the core. A broken go-list invocation (or an accidental
 // gutting of the core) would otherwise let TestMCPCore_NoSDKImport pass vacuously.
 func TestMCPCore_AllowedDepsReachable(t *testing.T) {
+	t.Parallel()
+
 	deps := listDeps(t, "github.com/frankbardon/pulse/internal/mcp")
 	have := make(map[string]bool, len(deps))
 	for _, d := range deps {

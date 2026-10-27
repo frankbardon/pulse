@@ -38,6 +38,8 @@ func mustSampler(t *testing.T, fs FieldSpec) sampler {
 // draw's underlying variate, so the expected value is the detmath formula
 // over the identical input.
 func TestSynthGeneration_DrawsRunOnDetmath(t *testing.T) {
+	t.Parallel()
+
 	t.Run("lognormal", func(t *testing.T) {
 		const mu, sigma = 0.3, 0.7
 		s := mustSampler(t, FieldSpec{Name: "x", Type: "f64", Distribution: DistLogNormal,
@@ -81,6 +83,8 @@ func TestSynthGeneration_DrawsRunOnDetmath(t *testing.T) {
 // exponential quantile and latent arms, and the lognormal moments every
 // copula, model and vector draw standardises by.
 func TestSynthCopula_MarginalsRunOnDetmath(t *testing.T) {
+	t.Parallel()
+
 	const mu, sigma, lambda = 0.3, 0.7, 1.7
 	logn := FieldSpec{Name: "x", Type: "f64", Distribution: DistLogNormal, Params: map[string]any{"mu": mu, "sigma": sigma}}
 	expo := FieldSpec{Name: "y", Type: "f64", Distribution: DistExponential, Params: map[string]any{"lambda": lambda}}

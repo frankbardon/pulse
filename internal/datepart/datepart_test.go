@@ -9,6 +9,8 @@ import (
 )
 
 func TestParse(t *testing.T) {
+	t.Parallel()
+
 	for _, part := range []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "hour", "iso_weekday"} {
 		got, err := Parse(json.RawMessage(`{"part":"` + part + `"}`))
 		if err != nil || got != part {
@@ -32,6 +34,8 @@ func TestParse(t *testing.T) {
 }
 
 func TestCheckField(t *testing.T) {
+	t.Parallel()
+
 	date := &encoding.Field{Name: "d", Type: encoding.FieldTypeDate}
 	dt := &encoding.Field{Name: "ts", Type: encoding.FieldTypeDateTime}
 	num := &encoding.Field{Name: "x", Type: encoding.FieldTypeF64}

@@ -12,6 +12,8 @@ import (
 // TestTimeZoneSlots_RoundTrip: every new zone slot survives a JSON
 // round trip under its wire key.
 func TestTimeZoneSlots_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   any
@@ -67,6 +69,8 @@ func TestTimeZoneSlots_RoundTrip(t *testing.T) {
 // TestTimeZoneSlots_AbsentByteIdentical: an unset zone slot never
 // reaches the wire, so pre-zone payloads serialize exactly as before.
 func TestTimeZoneSlots_AbsentByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   any
@@ -97,6 +101,8 @@ func TestTimeZoneSlots_AbsentByteIdentical(t *testing.T) {
 // SampleRequest roots (Compose / Chain inherit per inner Request). Checked
 // on the struct tags, since an omitempty slot is invisible on a zero value.
 func TestTimeZoneSlots_NotOnExcludedRoots(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range []any{
 		types.Window{}, types.OverlaySpec{}, types.ComposedRequest{},
 		types.ChainRequest{}, types.SampleRequest{},

@@ -28,6 +28,8 @@ import (
 // (constantRowValue), so a diagnostic and a row cannot disagree about
 // what the field holds.
 func TestDistributionIsExactValued_ConstantDependsOnTheLiteral(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		typeName string
@@ -73,6 +75,8 @@ func TestDistributionIsExactValued_ConstantDependsOnTheLiteral(t *testing.T) {
 // see; every FALSE row is either genuinely non-integral or outside what
 // the source alone demonstrates.
 func TestExprIsIntegral_Matrix(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src  string
 		want bool
@@ -120,6 +124,8 @@ func TestExprIsIntegral_Matrix(t *testing.T) {
 // ways lands in both maps (where fieldIsPreRounded gives inexact the
 // verdict).
 func TestRuleRewriteIndex_SplitsIntegralFromInexactWrites(t *testing.T) {
+	t.Parallel()
+
 	rw := ruleRewriteIndex([]RuleSpec{
 		{SetExpr: map[string]string{"score": "nps * 1.5"}},
 		{SetExpr: map[string]string{"nps": "round(nps)"}},
@@ -148,6 +154,8 @@ func TestRuleRewriteIndex_SplitsIntegralFromInexactWrites(t *testing.T) {
 // a u4 on a continuous `uniform` — genuinely pre-rounding — and the
 // documented remedy sits at rule 0.
 func TestFieldIsPreRounded_EarlierIntegralNormalisationClearsTheHazard(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(
 		RuleSpec{When: `!isnull("nps")`, SetExpr: map[string]string{"nps": "round(nps)"}},
 		RuleSpec{When: "nps >= 9", SetNull: []string{"score"}},
@@ -185,6 +193,8 @@ func TestFieldIsPreRounded_EarlierIntegralNormalisationClearsTheHazard(t *testin
 // end-to-end half: the classifier only matters through the message it
 // builds, and the message is what an author reads.
 func TestNeverFiredWarning_DoesNotSendANormalisedGateBackToRound(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(
 		RuleSpec{When: `!isnull("nps")`, SetExpr: map[string]string{"nps": "round(nps)"}},
 		// Unsatisfiable: nps is uniform over [0, 11) so round(nps) never
@@ -238,6 +248,8 @@ func TestNeverFiredWarning_DoesNotSendANormalisedGateBackToRound(t *testing.T) {
 // refusing, which is exactly the "must not weaken the eager-validation
 // contract" condition — asserted rather than promised.
 func TestCompileRules_RefusesIndependentlyOfValidateRules(t *testing.T) {
+	t.Parallel()
+
 	// Reaches compileRules WITHOUT validateSpec, the SpecFromProfile
 	// shape. `nps * ` does not parse, so both compile sites must refuse.
 	spec := ruleSpecFixture(

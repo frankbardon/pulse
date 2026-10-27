@@ -78,6 +78,8 @@ func buildFiniteFixture(f float64) *finiteFixture {
 // TestMarshalFinite_FastPathIsJSONMarshal: with no non-finite float the
 // bytes are json.Marshal's exactly.
 func TestMarshalFinite_FastPathIsJSONMarshal(t *testing.T) {
+	t.Parallel()
+
 	v := buildFiniteFixture(1.5)
 	want, err := json.Marshal(v)
 	if err != nil {
@@ -98,6 +100,8 @@ func TestMarshalFinite_FastPathIsJSONMarshal(t *testing.T) {
 // key order, same omitempty / omitzero / "-" / embedding /
 // marshaller-receiver / HTML-escape behaviour.
 func TestMarshalFinite_SlowPathMatchesJSONMarshal(t *testing.T) {
+	t.Parallel()
+
 	ref, err := json.Marshal(buildFiniteFixture(finiteSentinel))
 	if err != nil {
 		t.Fatal(err)
@@ -129,6 +133,8 @@ func TestMarshalFinite_SlowPathMatchesJSONMarshal(t *testing.T) {
 // json.Marshal — the embedder's spelling — with the undefined figure
 // null in place and the key kept.
 func TestMarshalFinite_PublicResultTypes(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	inf := math.Inf(1)
 	summary := OverlaySummary{Statistic: &nan, Parameters: map[string]float64{"df": inf}}
@@ -196,6 +202,8 @@ func TestMarshalFinite_PublicResultTypes(t *testing.T) {
 // TestMarshalFinite_Untyped covers the untyped fragments the CLI and MCP
 // hand over directly (a streamed Row, a {"index","row"} wrapper).
 func TestMarshalFinite_Untyped(t *testing.T) {
+	t.Parallel()
+
 	row := map[string]any{"g": 1, "r": math.NaN(), "list": []any{math.Inf(-1), 2.5}}
 	body, err := MarshalFinite(map[string]any{"index": 0, "row": row})
 	if err != nil {

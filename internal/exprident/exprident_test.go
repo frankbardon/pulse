@@ -6,6 +6,8 @@ import (
 )
 
 func TestFree(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src     string
 		want    []string
@@ -28,6 +30,8 @@ func TestFree(t *testing.T) {
 }
 
 func TestCallees(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src    string
 		want   []string
@@ -47,6 +51,8 @@ func TestCallees(t *testing.T) {
 }
 
 func TestFirstCallee(t *testing.T) {
+	t.Parallel()
+
 	isV := func(n string) bool { return n == "vmean" || n == "vsd" }
 	cases := []struct{ src, want string }{
 		{`sqrt(cell) + vsd(x) + vmean(y)`, "vsd"},
@@ -61,6 +67,8 @@ func TestFirstCallee(t *testing.T) {
 }
 
 func TestCalls(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src    string
 		want   []Call
@@ -83,6 +91,8 @@ func TestCalls(t *testing.T) {
 }
 
 func TestStringArgs(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		src     string
 		lits    []string

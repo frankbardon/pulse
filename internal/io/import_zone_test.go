@@ -58,6 +58,8 @@ func codedErr(t *testing.T, err error) *errors.CodedError {
 // policy the first ambiguous wall clock refuses the import, naming row,
 // column, value and zone, and no cohort is written.
 func TestImportSourceTZ_DefaultPolicyRefusesAmbiguousRow(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	j := zoneJob(fs, repeatRows(zoneTuples, minSampleRows))
 	j.SourceTZ = "America/New_York"
@@ -80,6 +82,8 @@ func TestImportSourceTZ_DefaultPolicyRefusesAmbiguousRow(t *testing.T) {
 // TestImportSourceTZ_GapRefused: a spring-forward wall clock is
 // PULSE_IMPORT_DST_NONEXISTENT under the default policy.
 func TestImportSourceTZ_GapRefused(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples[:2], minSampleRows)
 	rows[9][1] = "2026-03-08 02:30"
 	j := zoneJob(afero.NewMemMapFs(), rows)
@@ -96,6 +100,8 @@ func TestImportSourceTZ_GapRefused(t *testing.T) {
 // at its second occurrence), leaves Z / offset literals and the date
 // column untouched, and reports the resolved count once.
 func TestImportSourceTZ_LaterPolicyStoresInstantsAndWarns(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := repeatRows(zoneTuples, 60) // 20 overlap rows in each naive column
 	j := zoneJob(fs, rows)
@@ -140,6 +146,8 @@ func TestImportSourceTZ_LaterPolicyStoresInstantsAndWarns(t *testing.T) {
 // TestImportSourceTZ_PerColumnWins: a ColumnSourceTZ entry beats the
 // global zone for its column only; a fixed offset is accepted.
 func TestImportSourceTZ_PerColumnWins(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := repeatRows(zoneTuples[:2], minSampleRows)
 	j := zoneJob(fs, rows)
@@ -159,6 +167,8 @@ func TestImportSourceTZ_PerColumnWins(t *testing.T) {
 
 // TestImportSourceTZ_Refusals: option errors fail before the row pass.
 func TestImportSourceTZ_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		set    func(*ImportJob)
@@ -173,6 +183,8 @@ func TestImportSourceTZ_Refusals(t *testing.T) {
 		{"bad policy", func(j *ImportJob) { j.DSTPolicy = "first" }, errors.SERVICE_VALIDATION, "dst_policy"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			for _, predict := range []bool{false, true} {
 				j := zoneJob(afero.NewMemMapFs(), repeatRows(zoneTuples[:2], minSampleRows))
 				tc.set(j)
@@ -198,6 +210,8 @@ func TestImportSourceTZ_Refusals(t *testing.T) {
 // "Etc/UTC" and "+00:00" write the same bytes as a job that never heard
 // of source zones.
 func TestImportSourceTZ_UTCEquivalentIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples, minSampleRows)
 	run := func(set func(*ImportJob)) []byte {
 		fs := afero.NewMemMapFs()
@@ -220,6 +234,8 @@ func TestImportSourceTZ_UTCEquivalentIsByteIdentical(t *testing.T) {
 // TestImportSourceTZ_ExplicitSchema: the zone applies to a caller-authored
 // schema's datetime fields too.
 func TestImportSourceTZ_ExplicitSchema(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "local", Type: encoding.FieldTypeDateTime, CsvColumnIdx: 1},
@@ -242,6 +258,8 @@ func TestImportSourceTZ_ExplicitSchema(t *testing.T) {
 // measured predict refuse at the same row with the same code, and report
 // the same resolved counts, as Run.
 func TestImportSourceTZ_PredictAgreesWithRun(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples, 60)
 	for _, measured := range []bool{false, true} {
 		j := zoneJob(afero.NewMemMapFs(), rows)
@@ -271,6 +289,8 @@ func TestImportSourceTZ_PredictAgreesWithRun(t *testing.T) {
 // is zone-free, so a sampled gap value does not demote the column; the row
 // pass refuses it loudly instead.
 func TestImportSourceTZ_GapInSampleStillInfersDatetime(t *testing.T) {
+	t.Parallel()
+
 	rows := repeatRows(zoneTuples[:2], minSampleRows)
 	rows[0][1] = "2026-03-29 02:30"
 	j := zoneJob(afero.NewMemMapFs(), rows)

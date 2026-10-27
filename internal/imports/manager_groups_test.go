@@ -52,6 +52,8 @@ func versionByte(t *testing.T, afs afero.Fs, p string) byte {
 // reaches the import job — the managed cohort is 0x02 and the result
 // reports the admitted group.
 func TestManager_Open_Groups_WritesGroupedCohort(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeJoinCSV(t, afs, "orders.csv", 200, 10)
 	res, err := m.Open(context.Background(), Spec{SourcePath: "orders.csv", Groups: []pio.GroupDecl{custGroup}})
@@ -75,6 +77,8 @@ func TestManager_Open_Groups_WritesGroupedCohort(t *testing.T) {
 // TestManager_Open_Groups_LowRatioWarnsAtDefaultFloor: the managed path
 // applies the default 2.0 floor — a 1.67x group is written and warned.
 func TestManager_Open_Groups_LowRatioWarnsAtDefaultFloor(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeJoinCSV(t, afs, "orders.csv", 20, 12)
 	res, err := m.Open(context.Background(), Spec{SourcePath: "orders.csv", Groups: []pio.GroupDecl{custGroup}})
@@ -92,6 +96,8 @@ func TestManager_Open_Groups_LowRatioWarnsAtDefaultFloor(t *testing.T) {
 // TestManager_Open_NoGroups_ByteIdentical: omitting groups writes exactly
 // the cohort a plain ImportJob writes over the same source.
 func TestManager_Open_NoGroups_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeJoinCSV(t, afs, "orders.csv", 200, 10)
 	res, err := m.Open(context.Background(), Spec{SourcePath: "orders.csv"})
@@ -123,6 +129,8 @@ func TestManager_Open_NoGroups_ByteIdentical(t *testing.T) {
 // imported flat is not silently reused (or replaced) by a grouped
 // re-import — it collides like any other, and overwrite re-encodes it.
 func TestManager_Open_Groups_ReimportNeedsOverwrite(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeJoinCSV(t, afs, "orders.csv", 200, 10)
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "orders.csv"}); err != nil {
@@ -150,6 +158,8 @@ func TestManager_Open_Groups_ReimportNeedsOverwrite(t *testing.T) {
 // TestManager_Open_SuggestGroups: detection runs on the managed path and
 // suggests the fixture's customer group, without declaring it.
 func TestManager_Open_SuggestGroups(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeJoinCSV(t, afs, "orders.csv", 200, 10)
 	res, err := m.Open(context.Background(), Spec{SourcePath: "orders.csv", SuggestGroups: true})
@@ -177,6 +187,8 @@ func TestManager_Open_SuggestGroups(t *testing.T) {
 // the declaration, so no candidate re-proposes a field already grouped —
 // every candidate is an ADDITION to the current Groups.
 func TestManager_Open_SuggestGroups_ComplementsDeclared(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeJoinCSV(t, afs, "orders.csv", 200, 10)
 	res, err := m.Open(context.Background(), Spec{SourcePath: "orders.csv", SuggestGroups: true, Groups: []pio.GroupDecl{custGroup}})
@@ -200,6 +212,8 @@ func TestManager_Open_SuggestGroups_ComplementsDeclared(t *testing.T) {
 // never re-encoded, so a group declaration on one is refused rather than
 // silently ignored.
 func TestManager_Open_Groups_PulsePassthroughRejected(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	if err := afero.WriteFile(afs, "curated.pulse", []byte("PULSE\x00\x00\x00\x01"), 0o644); err != nil {
 		t.Fatal(err)

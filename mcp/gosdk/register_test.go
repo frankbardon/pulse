@@ -98,6 +98,8 @@ func newPulse(t *testing.T, fs afero.Fs) *pulse.Pulse {
 }
 
 func TestRegister_NilGuards(t *testing.T) {
+	t.Parallel()
+
 	p := newPulse(t, afero.NewMemMapFs())
 	if err := gosdk.Register(nil, p, gosdk.Config{}); err == nil {
 		t.Error("Register(nil server) should error")
@@ -111,6 +113,8 @@ func TestRegister_NilGuards(t *testing.T) {
 // both resource schemes + the static schema resource, and both prompts onto a
 // caller-supplied bare server.
 func TestRegister_MountsAllSurfaces(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeTestCohort(t, fs, "demo.pulse")
 	p := newPulse(t, fs)
@@ -251,6 +255,8 @@ func TestRegister_MountsAllSurfaces(t *testing.T) {
 // TestRegister_ToolCallWorks exercises one round-trip tool call through the
 // mounted catalog.
 func TestRegister_ToolCallWorks(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeTestCohort(t, fs, "demo.pulse")
 	p := newPulse(t, fs)
@@ -306,6 +312,8 @@ func processToolBound(t *testing.T, c *mcpsdk.ClientSession) bool {
 // TestRegister_BindOnInspect asserts a successful pulse_inspect re-registers
 // the action tools with schema-bound variants when BindOnInspect is true.
 func TestRegister_BindOnInspect(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeTestCohort(t, fs, "demo.pulse")
 	p := newPulse(t, fs)
@@ -341,6 +349,8 @@ func TestRegister_BindOnInspect(t *testing.T) {
 // TestRegister_BindDisabled asserts BindOnInspect=false leaves the unbound
 // global tools in place even after a successful inspect.
 func TestRegister_BindDisabled(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeTestCohort(t, fs, "demo.pulse")
 	p := newPulse(t, fs)
@@ -427,6 +437,8 @@ func enumAt(schema map[string]any, arrayKey, innerKey string) []string {
 // if / then branches — ATTR_ZSCORE numeric-only, ATTR_PREVIOUS_STATE a
 // categorical state), and pulse_facet's field to all fields.
 func TestRegister_BindOnInspect_EnumPayload(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeRichCohort(t, fs, "rich.pulse")
 	p := newPulse(t, fs)
@@ -513,6 +525,8 @@ func promptText(t *testing.T, c *mcpsdk.ClientSession, name string, args map[str
 // TestRegister_BootstrapPromptContent asserts the bootstrap prompt body itself
 // (not just its presence) references the canonical discovery tools.
 func TestRegister_BootstrapPromptContent(t *testing.T) {
+	t.Parallel()
+
 	p := newPulse(t, afero.NewMemMapFs())
 	srv := newServer()
 	if err := gosdk.Register(srv, p, gosdk.Config{Version: "1.0.0"}); err != nil {
@@ -536,6 +550,8 @@ func TestRegister_BootstrapPromptContent(t *testing.T) {
 // interpolates its `question` argument into the message body and still surfaces
 // the discovery flow.
 func TestRegister_AuthorRequestPromptContent(t *testing.T) {
+	t.Parallel()
+
 	p := newPulse(t, afero.NewMemMapFs())
 	srv := newServer()
 	if err := gosdk.Register(srv, p, gosdk.Config{Version: "1.0.0"}); err != nil {
@@ -589,6 +605,8 @@ func (c *countingFs) reset() {
 // It is the enabled arm of
 // TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable.
 func TestRegister_CohortScanWalksTheDataDirByDefault(t *testing.T) {
+	t.Parallel()
+
 	fs := &countingFs{Fs: afero.NewMemMapFs()}
 	writeTestCohort(t, fs, "demo.pulse")
 	p := newPulse(t, fs)
@@ -606,6 +624,8 @@ func TestRegister_CohortScanWalksTheDataDirByDefault(t *testing.T) {
 // knob's whole contract: no startup filesystem walk, no enumerated cohort
 // resources, and every cohort still READABLE through the pulse:// template.
 func TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable(t *testing.T) {
+	t.Parallel()
+
 	fs := &countingFs{Fs: afero.NewMemMapFs()}
 	writeTestCohort(t, fs, "demo.pulse")
 	p := newPulse(t, fs)
@@ -672,6 +692,8 @@ func TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable(t *testin
 // profile-free arm runs alongside so a scan that stopped running cannot
 // make the profiled arm pass vacuously.
 func TestRegister_FeatureProfileDisablesCohortScan(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name      string
 		behaviour *pulse.FeatureProfileBehaviour
@@ -682,6 +704,8 @@ func TestRegister_FeatureProfileDisablesCohortScan(t *testing.T) {
 		{name: "disable_cohort_scan", behaviour: &pulse.FeatureProfileBehaviour{DisableCohortScan: true}, wantWalk: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			fs := &countingFs{Fs: afero.NewMemMapFs()}
 			writeTestCohort(t, fs, "demo.pulse")
 			// mcp_extra:cohort_resources is enabled so only the behaviour

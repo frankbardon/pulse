@@ -12,6 +12,8 @@ import (
 // AGG_AVERAGE; an empty or extension type is never judged here; every
 // other kind is untouched.
 func TestPriorMeasureRefusal(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		route   types.OverlayKind
 		measure types.AggregationType
@@ -49,6 +51,8 @@ func TestPriorMeasureRefusal(t *testing.T) {
 // fire only for their kinds, and index -1 (a runtime call that does not
 // know the slot index) omits the index detail.
 func TestPriorShapeRefusals(t *testing.T) {
+	t.Parallel()
+
 	if PriorColumnsRefusal(types.OverlayKindPairwisePropZ, types.OverlayKindPairwisePropZ, 0) != nil {
 		t.Error("PriorColumnsRefusal refused a pairwise kind")
 	}

@@ -20,6 +20,8 @@ import (
 // float64(...) conversion, the only construct the Go specification
 // forbids the compiler to contract into a fused multiply-add.
 func TestPolychoric_NoFusibleProducts(t *testing.T) {
+	t.Parallel()
+
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)

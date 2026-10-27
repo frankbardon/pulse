@@ -25,6 +25,8 @@ func discreteFixture() FieldSpec {
 }
 
 func TestParseDiscreteLevels_MomentsAreExact(t *testing.T) {
+	t.Parallel()
+
 	d, err := parseDiscreteLevels(discreteFixture())
 	if err != nil {
 		t.Fatalf("parseDiscreteLevels: %v", err)
@@ -57,6 +59,8 @@ func TestParseDiscreteLevels_MomentsAreExact(t *testing.T) {
 }
 
 func TestParseDiscreteLevels_RefusesNonAscendingValues(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		values []any
@@ -65,6 +69,8 @@ func TestParseDiscreteLevels_RefusesNonAscendingValues(t *testing.T) {
 		{"duplicate", []any{1.0, 1.0, 2.0}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			fs := FieldSpec{Name: "f", Distribution: DistDiscrete,
 				Params: map[string]any{"values": tc.values}}
 			if _, err := parseDiscreteLevels(fs); err == nil {
@@ -79,6 +85,8 @@ func TestParseDiscreteLevels_RefusesNonAscendingValues(t *testing.T) {
 // TestDiscreteQuantile_IsTheExactStaircase pins Q: the value whose
 // cumulative band contains p, for p at and around every band boundary.
 func TestDiscreteQuantile_IsTheExactStaircase(t *testing.T) {
+	t.Parallel()
+
 	d, err := parseDiscreteLevels(discreteFixture())
 	if err != nil {
 		t.Fatalf("parseDiscreteLevels: %v", err)
@@ -111,6 +119,8 @@ func TestDiscreteQuantile_IsTheExactStaircase(t *testing.T) {
 // and gets every interior level wrong, which is exactly how the defect
 // this distribution removes survived review.
 func TestDiscreteSampler_ReproducesEveryLevel(t *testing.T) {
+	t.Parallel()
+
 	fs := discreteFixture()
 	smp, err := buildSampler(fs)
 	if err != nil {
@@ -154,6 +164,8 @@ func TestDiscreteSampler_ReproducesEveryLevel(t *testing.T) {
 // against the staircase. Both match the mean; only one matches the
 // levels.
 func TestDiscrete_ClampedNormalCannotDoThis(t *testing.T) {
+	t.Parallel()
+
 	fs := discreteFixture()
 	d, err := parseDiscreteLevels(fs)
 	if err != nil {
@@ -246,6 +258,8 @@ func capturedDiscrete(t *testing.T, ft encoding.FieldType, levels []int64) *Prof
 // TestProfileDiscrete_CapturesTheExactHistogram pins the capture: every
 // observed level, its exact count, and its share of the NON-NULL count.
 func TestProfileDiscrete_CapturesTheExactHistogram(t *testing.T) {
+	t.Parallel()
+
 	var rows []int64
 	counts := map[int64]int{1: 40, 2: 10, 5: 50}
 	for _, lv := range []int64{1, 2, 5} {
@@ -287,6 +301,8 @@ func TestProfileDiscrete_CapturesTheExactHistogram(t *testing.T) {
 // against the one thing that justifies it: writeFieldValueForField's
 // Floor(f+0.5) arms.
 func TestProfileDiscrete_EveryIntegerTypeClaimsTheArm(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		ft   encoding.FieldType
@@ -304,6 +320,8 @@ func TestProfileDiscrete_EveryIntegerTypeClaimsTheArm(t *testing.T) {
 		{"date", encoding.FieldTypeDate, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := isIntegerQuantizedFieldType(tc.ft.String()); got != tc.want {
 				t.Errorf("isIntegerQuantizedFieldType(%q) = %v, want %v", tc.ft.String(), got, tc.want)
 			}
@@ -320,6 +338,8 @@ func TestProfileDiscrete_EveryIntegerTypeClaimsTheArm(t *testing.T) {
 // subset, and SpecFromProfile would reconstruct a scale the column does
 // not have.
 func TestProfileDiscrete_AbandonsAboveTheLevelCap(t *testing.T) {
+	t.Parallel()
+
 	rowsFor := func(distinct int) []int64 {
 		var out []int64
 		for rep := 0; rep < 3; rep++ {
@@ -360,6 +380,8 @@ func TestProfileDiscrete_AbandonsAboveTheLevelCap(t *testing.T) {
 // the same size whose only integer column is an f64 instead, which takes
 // the same bytes off the wire and builds no histogram.
 func TestProfileDiscrete_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	var levels []int64
 	for i := 0; i < 600; i++ {
 		levels = append(levels, int64(i%7))
@@ -408,6 +430,8 @@ func TestProfileDiscrete_RidesTheExistingScan(t *testing.T) {
 // resolved from its own FieldSpec, so a pair and the marginal it
 // overwrites cannot disagree about what the field is.
 func TestBuildDiscreteConditionals_DerivesFromTheFieldNotAFlag(t *testing.T) {
+	t.Parallel()
+
 	specs := []FieldSpec{
 		{Name: "nps", Type: "u4", Distribution: DistDiscrete, Params: map[string]any{
 			"values": []any{1.0, 2.0, 3.0}, "weights": []any{1.0, 2.0, 1.0}}},

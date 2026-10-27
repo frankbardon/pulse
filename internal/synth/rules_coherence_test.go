@@ -421,6 +421,8 @@ func withoutCapturedHistogram(prof *synth.Profile, field string) *synth.Profile 
 // is trivially satisfiable by a fixture whose block is never present, so
 // the test also requires the block to be present on a real share of rows.
 func TestRulesCoherence_DiscreteScoreNeedsNoPreRoundingNormalisation(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 
 	spec, _ := synth.SpecFromProfile(prof, coherenceFixtureRows)
@@ -464,6 +466,8 @@ func TestRulesCoherence_DiscreteScoreNeedsNoPreRoundingNormalisation(t *testing.
 // the unruled baseline must be measured and asserted BROKEN first, and
 // the same four counters are then asserted repaired.
 func TestRulesCoherence_ProfileDerivedBlockBecomesCoherent(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 
 	baseRows, baseSpec, _ := generateCoherence(t, prof, "")
@@ -541,6 +545,8 @@ func TestRulesCoherence_ProfileDerivedBlockBecomesCoherent(t *testing.T) {
 // because set_null never claims (E2-S2) — no model is retired, so the
 // RNG stream does not move and any difference is the rule's doing.
 func TestRulesCoherence_GateNullsGatedRowsAndLeavesInferredValues(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 	baseRows, baseSpec, _ := generateCoherence(t, prof, "")
 	requireFixtureExercisesEveryCoherenceSlot(t, prof, baseSpec)
@@ -601,6 +607,8 @@ func TestRulesCoherence_GateNullsGatedRowsAndLeavesInferredValues(t *testing.T) 
 // Both halves in one test: a claim loop that claimed everything would
 // satisfy the first half and fail the second.
 func TestRulesCoherence_BandRuleRetiresTheFlagsCapturedRelationships(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 	_, spec, warnings := generateCoherence(t, prof, canonicalCoherenceRules)
 	requireFixtureExercisesEveryCoherenceSlot(t, prof, spec)
@@ -665,6 +673,8 @@ func TestRulesCoherence_BandRuleRetiresTheFlagsCapturedRelationships(t *testing.
 // is worth nothing unless the same test proves the line can appear. So
 // the dead-rule positive control rides here rather than in its own case.
 func TestRulesCoherence_EveryCanonicalRuleFires(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 
 	_, _, warnings := generateCoherence(t, prof, canonicalCoherenceRules)
@@ -703,6 +713,8 @@ func TestRulesCoherence_EveryCanonicalRuleFires(t *testing.T) {
 // the whole block goes with it. Nothing refuses it: the file generates
 // cleanly with a question block that is suddenly universal.
 func TestRulesCoherence_UnguardedNormalisationUnNullsTheBlock(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 
 	guarded, _, _ := generateCoherence(t, prof, canonicalCoherenceRules)
@@ -740,6 +752,8 @@ func TestRulesCoherence_UnguardedNormalisationUnNullsTheBlock(t *testing.T) {
 //     moves down instead, so agreement is bought by corrupting the
 //     marginal the profile captured.
 func TestRulesCoherence_RoundNormalisesTheBandIntMovesTheScore(t *testing.T) {
+	t.Parallel()
+
 	// The gotcha this test measures is a property of a CONTINUOUS
 	// reconstruction: the row holds the sampler's float while the wire
 	// holds floor(v+0.5), so a band read off the row disagrees with the
@@ -843,6 +857,8 @@ func columnsMoved(a, b []coherenceRow) (score, flags int) {
 // the score is missing from, which is the whole population the block
 // exists to exclude.
 func TestRulesCoherence_BlockRuleOrderingIsLoadBearing(t *testing.T) {
+	t.Parallel()
+
 	prof := coherenceFixtureProfile(t)
 	const wrongOrder = `[
       {"when": "!isnull(score)", "set_expr": {"score": "round(score)"}},

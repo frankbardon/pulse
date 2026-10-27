@@ -29,6 +29,8 @@ import (
 // Same forcing shape as TestLatentFor_EveryDistributionIsClassified, on
 // the type axis instead of the distribution axis.
 func TestFieldTypePredicates_ClassifyEveryDeclarableType(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		numeric, boolean, integerQuantized bool
 	}
@@ -112,6 +114,8 @@ func TestFieldTypePredicates_ClassifyEveryDeclarableType(t *testing.T) {
 // isNumericFieldType and sentinelFor really carried; they are pinned
 // here so neither can come back.
 func TestFieldTypePredicates_RefuseUndeclarableNames(t *testing.T) {
+	t.Parallel()
+
 	names := make([]string, 0, len(undeclarableFieldTypes)+9)
 	for name := range undeclarableFieldTypes {
 		names = append(names, name)

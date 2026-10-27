@@ -74,6 +74,8 @@ func randomPoint(m *bayesModel, rng *rand.Rand, spread float64) []float64 {
 // relative 1e-6, under the default (all-ROI) priors and the mixed set
 // (a β channel and every prior family).
 func TestMMMBayes_GradientMatchesFiniteDifferences(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		pr   bayesPriors
@@ -82,6 +84,8 @@ func TestMMMBayes_GradientMatchesFiniteDifferences(t *testing.T) {
 		{"mixed", mixedPriors()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			m := jointModel(t, tc.pr)
 			dim := m.Dim()
 			rng := rand.New(rand.NewPCG(7, 7^0x9E3779B97F4A7C15))
@@ -225,6 +229,8 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 // under both prior sets — so the Jacobians, the derived
 // ROI β, the scaling and every family's density are what the doc says.
 func TestMMMBayes_DensityMatchesOracle(t *testing.T) {
+	t.Parallel()
+
 	y, spend, controls := jointModelData()
 	for _, pr := range []bayesPriors{defaultBayesPriors(len(spend)), mixedPriors()} {
 		m := jointModel(t, pr)
@@ -245,6 +251,8 @@ func TestMMMBayes_DensityMatchesOracle(t *testing.T) {
 // and channelEffects' ROI and β agree with each other and, in ROI mode,
 // return the sampled ROI.
 func TestMMMBayes_BackTransforms(t *testing.T) {
+	t.Parallel()
+
 	y, spend, controls := jointModelData()
 	m := jointModel(t, mixedPriors())
 	rng := rand.New(rand.NewPCG(3, 3^0x9E3779B97F4A7C15))
@@ -321,6 +329,8 @@ func TestMMMBayes_BackTransforms(t *testing.T) {
 // closed form, and the support rule (a family whose support is not
 // inside the parameter's is refused).
 func TestMMMBayes_PriorFamilies(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		p    prior
 		s    support
@@ -365,6 +375,8 @@ func TestMMMBayes_PriorFamilies(t *testing.T) {
 
 // TestMMMBayes_Refusals: the constructor's coded refusals.
 func TestMMMBayes_Refusals(t *testing.T) {
+	t.Parallel()
+
 	y, spend, controls := jointModelData()
 	pr := defaultBayesPriors(len(spend))
 	neg := slices.Clone(spend[0])
@@ -400,6 +412,8 @@ func TestMMMBayes_Refusals(t *testing.T) {
 // beats the default start's density, and is the same bits on a second
 // run; a search that cannot finish falls back to the default start.
 func TestMMMBayes_MAPStart(t *testing.T) {
+	t.Parallel()
+
 	m := jointModel(t, defaultBayesPriors(len(mmmfixture.JointChannels)))
 	theta, ok := m.mapStart(mapMaxIter)
 	if !ok {
@@ -434,6 +448,8 @@ func TestMMMBayes_MAPStart(t *testing.T) {
 // TestMMMBayes_ConcurrentSafe: LogDensityGrad from many goroutines at
 // once gives the serial bits (the model keeps no shared scratch).
 func TestMMMBayes_ConcurrentSafe(t *testing.T) {
+	t.Parallel()
+
 	m := jointModel(t, mixedPriors())
 	rng := rand.New(rand.NewPCG(5, 5^0x9E3779B97F4A7C15))
 	points := make([][]float64, 16)

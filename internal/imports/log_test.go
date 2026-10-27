@@ -15,6 +15,8 @@ import (
 // quiet, one that removed a handle logs Info, and an explicit Sweep
 // always logs — counts only, never handle names.
 func TestManager_SweepLogs(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	afs := afero.NewMemMapFs()
 	clk := &fixedClock{t: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)}

@@ -22,6 +22,8 @@ func groupSchema() *encoding.Schema {
 // every other grouper refusing a vector input — on groups and both
 // crosstab axes.
 func TestResolveGroups_Rules(t *testing.T) {
+	t.Parallel()
+
 	km := func(mut func(*types.Group)) *types.Group {
 		g := &types.Group{Type: types.GROUP_KMEANS, Fields: []string{"q_*"}, Params: json.RawMessage(`{"k":2}`)}
 		if mut != nil {
@@ -70,6 +72,8 @@ func TestResolveGroups_Rules(t *testing.T) {
 // TestKMeansParams_Defaults: seed 0 resolves to the fixed default, the
 // documented defaults apply, and an explicit seed is kept.
 func TestKMeansParams_Defaults(t *testing.T) {
+	t.Parallel()
+
 	cfg, err := KMeansParams("groups[0]", json.RawMessage(`{"k":4,"seed":0}`))
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +90,8 @@ func TestKMeansParams_Defaults(t *testing.T) {
 // TestGroupKeyField_ReferencedAndBuckets: the key column rule, the
 // vector reference set and the bucket estimate (params.k).
 func TestGroupKeyField_ReferencedAndBuckets(t *testing.T) {
+	t.Parallel()
+
 	g := &types.Group{Type: types.GROUP_KMEANS, Vector: "v", Params: json.RawMessage(`{"k":5}`)}
 	if got := GroupKeyField(types.GROUP_KMEANS, g); got != "GROUP_KMEANS_v" {
 		t.Fatalf("key %q", got)

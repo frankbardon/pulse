@@ -11,6 +11,8 @@ import (
 // TestErrorsLookup_ByCode asserts Lookup returns the expected metadata
 // for a known code.
 func TestErrorsLookup_ByCode(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for a known code")
@@ -32,6 +34,8 @@ func TestErrorsLookup_ByCode(t *testing.T) {
 // TestErrorsLookup_UnknownCodeReturnsFalse asserts an unknown code
 // returns ok=false with no panic.
 func TestErrorsLookup_UnknownCodeReturnsFalse(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup("NOT_A_REAL_CODE")
 	if ok {
 		t.Errorf("Lookup returned ok=true for unknown code")
@@ -44,6 +48,8 @@ func TestErrorsLookup_UnknownCodeReturnsFalse(t *testing.T) {
 // TestErrorsLookup_FixupNotApplicable asserts that internal codes
 // surface FixupNotApplicable=true with no Fixups slice.
 func TestErrorsLookup_FixupNotApplicable(t *testing.T) {
+	t.Parallel()
+
 	r, ok := perr.Lookup(string(perr.ENCODING_INTERNAL))
 	if !ok {
 		t.Fatal("Lookup returned ok=false for ENCODING_INTERNAL")
@@ -59,6 +65,8 @@ func TestErrorsLookup_FixupNotApplicable(t *testing.T) {
 // TestErrorsLookup_FixupSliceIsCopy asserts the returned Fixups slice
 // is a defensive copy.
 func TestErrorsLookup_FixupSliceIsCopy(t *testing.T) {
+	t.Parallel()
+
 	r, _ := perr.Lookup(string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL))
 	if len(r.Fixups) == 0 {
 		t.Skip("no fixups to test against")
@@ -75,6 +83,8 @@ func TestErrorsLookup_FixupSliceIsCopy(t *testing.T) {
 // TestErrorsByDomain_ReturnsAll asserts ByDomain returns every code in
 // the named domain.
 func TestErrorsByDomain_ReturnsAll(t *testing.T) {
+	t.Parallel()
+
 	got := perr.ByDomain("PULSE")
 	if len(got) == 0 {
 		t.Fatal("ByDomain(PULSE) returned empty slice")
@@ -106,6 +116,8 @@ func TestErrorsByDomain_ReturnsAll(t *testing.T) {
 // TestErrorsByDomain_CaseInsensitive asserts the domain argument is
 // matched case-insensitively.
 func TestErrorsByDomain_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	upper := perr.ByDomain("PULSE")
 	lower := perr.ByDomain("pulse")
 	mixed := perr.ByDomain("Pulse")
@@ -118,6 +130,8 @@ func TestErrorsByDomain_CaseInsensitive(t *testing.T) {
 // TestErrorsByDomain_Empty asserts an unknown domain returns a
 // non-nil empty slice.
 func TestErrorsByDomain_Empty(t *testing.T) {
+	t.Parallel()
+
 	got := perr.ByDomain("NOSUCHDOMAIN")
 	if got == nil {
 		t.Errorf("ByDomain returned nil for unknown domain")
@@ -130,6 +144,8 @@ func TestErrorsByDomain_Empty(t *testing.T) {
 // TestErrorsSearch_DescriptionMatch asserts a substring known to live
 // in one code's Message returns at least that code.
 func TestErrorsSearch_DescriptionMatch(t *testing.T) {
+	t.Parallel()
+
 	// "categorical aggregation" appears in PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL's message.
 	got := perr.Search("numeric aggregation")
 	if len(got) == 0 {
@@ -150,6 +166,8 @@ func TestErrorsSearch_DescriptionMatch(t *testing.T) {
 // TestErrorsSearch_FixupMatch asserts a substring known to live in a
 // fixup hint is matched.
 func TestErrorsSearch_FixupMatch(t *testing.T) {
+	t.Parallel()
+
 	// "Tukey HSD" appears in the PULSE_TEST_TUKEY_REQUIRES_K_GE_3 message
 	// and "two-proportion z" lives in the fixup hint.
 	got := perr.Search("two-proportion z")
@@ -172,6 +190,8 @@ func TestErrorsSearch_FixupMatch(t *testing.T) {
 // matches one code's Message and a different code's Fixup ranks the
 // Message hit first.
 func TestErrorsSearch_RanksMessageAboveFixup(t *testing.T) {
+	t.Parallel()
+
 	// "predict" appears in SERVICE_VALIDATION's fixup hint ("Call pulse
 	// predict --json") and is also a Pulse vocabulary word. Look for a
 	// search term that hits Message in one place and Fixup in another.
@@ -202,6 +222,8 @@ func TestErrorsSearch_RanksMessageAboveFixup(t *testing.T) {
 // TestErrorsSearch_EmptyReturnsEmpty asserts an empty query returns
 // non-nil empty.
 func TestErrorsSearch_EmptyReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	got := perr.Search("")
 	if got == nil {
 		t.Errorf("Search returned nil for empty query")
@@ -214,6 +236,8 @@ func TestErrorsSearch_EmptyReturnsEmpty(t *testing.T) {
 // TestErrorsSearch_NoMatch asserts a query with no hits returns a
 // non-nil empty slice.
 func TestErrorsSearch_NoMatch(t *testing.T) {
+	t.Parallel()
+
 	got := perr.Search("xxxnotappearinganywherexxx")
 	if got == nil {
 		t.Errorf("Search returned nil instead of empty slice")
@@ -226,6 +250,8 @@ func TestErrorsSearch_NoMatch(t *testing.T) {
 // TestAllDomains_ReturnsSixSorted asserts AllDomains returns the six
 // known domain prefixes, alphabetized.
 func TestAllDomains_ReturnsSixSorted(t *testing.T) {
+	t.Parallel()
+
 	got := perr.AllDomains()
 	want := []string{"CLI", "DATA", "ENCODING", "PROCESSING", "PULSE", "SERVICE"}
 	if len(got) != len(want) {
@@ -241,6 +267,8 @@ func TestAllDomains_ReturnsSixSorted(t *testing.T) {
 // TestSortedCodeNames_AlphabetizedAndComplete asserts every registered
 // code appears in SortedCodeNames, alphabetized.
 func TestSortedCodeNames_AlphabetizedAndComplete(t *testing.T) {
+	t.Parallel()
+
 	got := perr.SortedCodeNames()
 	if len(got) != len(perr.AllCodes()) {
 		t.Errorf("SortedCodeNames length = %d, want %d", len(got), len(perr.AllCodes()))

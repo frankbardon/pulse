@@ -30,6 +30,8 @@ func catOf(field string) *types.Group {
 // (transitively); never in the record-row shape; never through a
 // non-row-local reader, a shadowed label or an unbound model.
 func TestWindowsFirst_Classification(t *testing.T) {
+	t.Parallel()
+
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Terms: []string{"x", "lag"}, Kind: types.FitKindRegression}}
 	lag := []*types.Window{lagOf("x", "lag")}
 	ct := func(mut func(*types.CrosstabSpec)) *types.CrosstabSpec {
@@ -93,6 +95,8 @@ func TestWindowsFirst_Classification(t *testing.T) {
 // without the catalog that binds the model it is the historical order
 // everywhere.
 func TestWindowsFirst_WindowsOverRecords(t *testing.T) {
+	t.Parallel()
+
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Terms: []string{"lag"}, Kind: types.FitKindRegression}}
 	lag := []*types.Window{lagOf("x", "lag")}
 	s := postWindowSchema()
@@ -151,6 +155,8 @@ func TestWindowsFirst_WindowsOverRecords(t *testing.T) {
 // windows-first is refused at its first window (crosstab_window_unread);
 // a windows-first crosstab and every other shape are not.
 func TestCrosstabWindowRefusal(t *testing.T) {
+	t.Parallel()
+
 	ct := &types.CrosstabSpec{Rows: []*types.Group{catOf("t")}, Cell: sumOf("x")}
 	req := &types.Request{Windows: []*types.Window{nil, lagOf("x", "lag")}, Crosstab: ct}
 	ce := CrosstabWindowRefusal(req, false)
@@ -174,6 +180,8 @@ func TestCrosstabWindowRefusal(t *testing.T) {
 // refused with the record-row why, and a request with no attribute
 // still carries the mode.
 func TestWindowsFirst_PostWindowPlan(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Windows: []*types.Window{lagOf("x", "lag")},
 		Attributes: []*types.Attribute{
@@ -201,6 +209,8 @@ func TestWindowsFirst_PostWindowPlan(t *testing.T) {
 // windows-first route and materialize-first, with the historical why on
 // the historical order.
 func TestWindowsFirst_WindowOrderTextNamesRoutes(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Windows: []*types.Window{lagOf("x", "lag")}, Aggregations: []*types.Aggregation{sumOf("x")}}
 	ce := AttributeWindowOrderRefusal(req, false, &types.Attribute{Type: types.ATTR_ZSCORE}, "lag")
 	for _, want := range []string{"grouped or aggregated output rows", "aggregate, group or cross-tabulate that label", "materialize the window first"} {
@@ -216,6 +226,8 @@ func TestWindowsFirst_WindowOrderTextNamesRoutes(t *testing.T) {
 // TestAggregationColumnReads: Field, then each set built-in column
 // param in key order; malformed params read Field alone.
 func TestAggregationColumnReads(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		agg  *types.Aggregation
 		want []string
@@ -240,6 +252,8 @@ func TestAggregationColumnReads(t *testing.T) {
 // first-read order, once each; never a schema field, a post-window
 // attribute label, or anything in the record-row shape.
 func TestWindowsFirstReads(t *testing.T) {
+	t.Parallel()
+
 	wins := []*types.Window{lagOf("x", "lag"), lagOf("t", "lag_t"), lagOf("x", "x")}
 	cases := []struct {
 		name string

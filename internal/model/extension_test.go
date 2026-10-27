@@ -36,6 +36,8 @@ func extResult() (*types.RegressionSpec, *types.RegressionResult) {
 // without an intercept or per-predictor coefficients (NaN where absent),
 // keeping its whole result for its scorer; a built-in's still refuses.
 func TestBind_ExtensionRegression(t *testing.T) {
+	t.Parallel()
+
 	spec, res := extResult()
 	b, err := Bind("m", spec, res)
 	if err != nil {
@@ -60,6 +62,8 @@ func TestBind_ExtensionRegression(t *testing.T) {
 // and re-encodes to the same bytes. A built-in fit stays version 1 with
 // no outputs key.
 func TestModelFile_ExtensionRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec, res := extResult()
 	f, err := NewFile("m", spec, res, Provenance{})
 	if err != nil {
@@ -117,6 +121,8 @@ func TestModelFile_ExtensionRoundTrip(t *testing.T) {
 // fit with a scorer, which scores the whole model only; without one the
 // fit is refused no_scorer. Built-ins judge as CheckScore does.
 func TestCheckScoreFor(t *testing.T) {
+	t.Parallel()
+
 	cat := scoreCatalog()
 	withScorer := func(t types.RegressionType) bool { return ScorableType(t) || t == "REG_X_CUSTOM" }
 	cases := []struct {
@@ -157,6 +163,8 @@ func TestCheckScoreFor(t *testing.T) {
 // PULSE_MODEL_REGRESSION_UNREGISTERED unless the instance registers its
 // type; a built-in's always passes.
 func TestCheckModelTypes(t *testing.T) {
+	t.Parallel()
+
 	spec, res := extResult()
 	ext, err := NewFile("m", spec, res, Provenance{})
 	if err != nil {

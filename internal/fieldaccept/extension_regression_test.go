@@ -13,6 +13,8 @@ import (
 // declared Accepts is exactly the set; the refusal names the model and
 // lists what it accepts.
 func TestExtensionRegression_Rule(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "y", Type: encoding.FieldTypeF64},
 		{Name: "n", Type: encoding.FieldTypeU32},

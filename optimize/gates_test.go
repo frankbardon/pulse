@@ -29,6 +29,8 @@ func optimizeAllowed(path string) bool {
 // TestOptimize_ImportBoundary fails when a non-test file in optimize
 // imports anything outside the standard library and the allowlist.
 func TestOptimize_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +89,8 @@ func fmahashReport(t *testing.T, dir, importPath string) []string {
 // report no contraction, so the solver's bits are the same on every
 // architecture. A probe first proves the flag still reports one.
 func TestOptimize_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	probe := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)

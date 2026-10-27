@@ -13,6 +13,8 @@ import (
 // projected path, preserving behaviour for callers that haven't built
 // a plan yet.
 func TestReadRecordPlan_NilPlanFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -45,6 +47,8 @@ func TestReadRecordPlan_NilPlanFallsThrough(t *testing.T) {
 // decodes the trailing field. Mirrors the original projection test but
 // against the plan-driven entry point.
 func TestReadRecordPlan_SkipsUnprojectedScalars(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -99,6 +103,8 @@ func TestReadRecordPlan_SkipsUnprojectedScalars(t *testing.T) {
 // on-wire byte is consumed even when only one neighbour is retained,
 // so the field after the group decodes correctly.
 func TestReadRecordPlan_BitPackedNeighborAlignment(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "a", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -143,6 +149,8 @@ func TestReadRecordPlan_BitPackedNeighborAlignment(t *testing.T) {
 // the per-field readRecord loop. Also verifies that null surfacing is
 // suppressed for nullable fields the caller did NOT retain.
 func TestReadRecordPlan_BitmapSegmentSurfacesNulls(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0, Nullable: false},
@@ -222,6 +230,8 @@ func TestReadRecordPlan_BitmapSegmentSurfacesNulls(t *testing.T) {
 }
 
 func TestReadRecordPlan_MatchesPerFieldOutput(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},

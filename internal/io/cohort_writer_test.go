@@ -41,6 +41,8 @@ func (w *cohortOnlyWriter) Warnings() []*errors.CodedError { return w.warns }
 // contract. A dispatcher that ran both would decode the cohort twice and
 // hand the writer rendered text it exists precisely not to encode from.
 func TestExportJob_CohortWriter_ReplacesTheRowLoop(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	w := &cohortOnlyWriter{rows: 3}
@@ -70,6 +72,8 @@ func TestExportJob_CohortWriter_ReplacesTheRowLoop(t *testing.T) {
 // lives, and Includes / Labelled are the row-stream transformations a
 // cohort writer must refuse rather than silently ignore.
 func TestExportJob_CohortWriter_CarriesTheSourceAndTheRefusables(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	w := &cohortOnlyWriter{}
@@ -96,6 +100,8 @@ func TestExportJob_CohortWriter_CarriesTheSourceAndTheRefusables(t *testing.T) {
 
 // TestExportJob_TargetWarnings_Lifted covers the reporting channel.
 func TestExportJob_TargetWarnings_Lifted(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	want := errors.NewCodedError(errors.PULSE_SPSS_SIDECAR_ABSENT, "synthesised")
@@ -116,6 +122,8 @@ func TestExportJob_TargetWarnings_Lifted(t *testing.T) {
 // the additions safe. Every adapter that shipped before these interfaces
 // existed must take the same path and report the same shape.
 func TestExportJob_NoCohortWriter_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 
 	w := &collectWriter{}
@@ -138,6 +146,8 @@ func TestExportJob_NoCohortWriter_ByteIdentical(t *testing.T) {
 // other verb. Convert has no cohort, so a CohortWriter target takes the
 // ordinary row path there — only the warning channel is shared.
 func TestConvertJob_TargetWarnings_Lifted(t *testing.T) {
+	t.Parallel()
+
 	want := errors.NewCodedError(errors.PULSE_SPSS_SIDECAR_ABSENT, "synthesised")
 	w := &cohortOnlyWriter{warns: []*errors.CodedError{want}}
 

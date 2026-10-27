@@ -65,6 +65,8 @@ func gatedBlockSpec(rows int) *synth.Spec {
 //     present exactly when the gate is 1 and absent exactly when it is
 //     0, never a mixture.
 func TestRules_GatedBlockIdiomValidatesAndRaisesNoNullabilityWarning(t *testing.T) {
+	t.Parallel()
+
 	const rows = 400
 	data, res, err := synth.SynthBytes(gatedBlockSpec(rows), synth.Options{Seed: 91})
 	if err != nil {
@@ -111,6 +113,8 @@ func TestRules_GatedBlockIdiomValidatesAndRaisesNoNullabilityWarning(t *testing.
 // FU-08's narrowing: the diagnostic must survive for a member the copy
 // can actually null. It is the negative control the test above cannot be.
 func TestRules_NullTogetherStillWarnsForANonGateMember(t *testing.T) {
+	t.Parallel()
+
 	spec := gatedBlockSpec(50)
 	// p1 stops being able to record a null; the block will still try.
 	for i := range spec.Fields {
@@ -155,6 +159,8 @@ func TestRules_NullTogetherStillWarnsForANonGateMember(t *testing.T) {
 // expr evaluation fault with nothing to do with isnull at all. The second
 // is why the backstop would survive even a stricter isnull pass.
 func TestRules_WhenRuntimeFaultIsStillReachable(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		when string

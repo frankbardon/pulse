@@ -44,6 +44,8 @@ func fmahashRun(t *testing.T, dir, verb, importPath string) []string {
 // fit's bits are the same on every architecture. A probe first proves
 // the flag still reports one.
 func TestMMMHill_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	probe := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)

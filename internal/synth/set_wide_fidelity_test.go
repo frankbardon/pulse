@@ -25,6 +25,8 @@ import (
 // below, and deltas that are small because they were measured rather
 // than because both sides were zero.
 func TestBuildFidelityReport_WideSetFieldCoverage(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 	const sourceRows = 1000
 	const newRows = 20000
@@ -140,6 +142,8 @@ func wideSetModelFidelitySpec(rows int, models ...synth.FieldModelSpec) *synth.S
 // that describes a degenerate GENERATION, not a broken reader — so a
 // uint64 assertion here misattributes its own defect to the cohort.
 func TestBuildModelFidelity_WideSetPredictorRecovers(t *testing.T) {
+	t.Parallel()
+
 	const recoveryBar = 0.05
 	const marginalStd = 25.0
 	const lowMember = "opt003"
@@ -210,6 +214,8 @@ func TestBuildModelFidelity_WideSetPredictorRecovers(t *testing.T) {
 // on its merits — and a test that cannot tell arbitration from a broken
 // mask reader is not a test of the mask reader.
 func TestBuildPairwise_WideSetOptionsAreMeasured(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 2400
 	const newRows = 20000
 	srcData, gt := buildWideSetPairCohort(t, rowCount, true)

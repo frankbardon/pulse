@@ -33,6 +33,8 @@ func (z *zoneRowSink) Close() error { return nil }
 // instant, zone_warnings carries the resolved count — and the refusals
 // keep their codes.
 func TestPulseImport_SourceTZ(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	if err := afero.WriteFile(afs, "z.csv", []byte(zoneImportCSV), 0o644); err != nil {
 		t.Fatal(err)
@@ -94,6 +96,8 @@ func mustJSON(t *testing.T, v any) string {
 // empty cell in the source_tz fallback — the sidecar records it, and a
 // zone column the source lacks is SERVICE_VALIDATION.
 func TestPulseImport_SourceTZField(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	csv := "local,zone\n2026-07-01 12:00,America/New_York\n2026-07-01 12:00,Asia/Tokyo\n2026-07-01 12:00,\n"
 	if err := afero.WriteFile(afs, "zf.csv", []byte(csv), 0o644); err != nil {

@@ -15,6 +15,8 @@ type errWriter struct{}
 func (errWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
 func TestWriteBit(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := WriteBit(&buf, 0, true); err != nil {
 		t.Fatalf("WriteBit: %v", err)
@@ -41,6 +43,8 @@ func TestWriteBit(t *testing.T) {
 }
 
 func TestWriteNibble(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := WriteNibble(&buf, false, 0x0A); err != nil {
 		t.Fatalf("WriteNibble low: %v", err)
@@ -59,6 +63,8 @@ func TestWriteNibble(t *testing.T) {
 }
 
 func TestWriteFieldValue_PackedBool(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	err := WriteFieldValue(&buf, FieldTypePackedBool, 0)
 	if err == nil {
@@ -70,6 +76,8 @@ func TestWriteFieldValue_PackedBool(t *testing.T) {
 }
 
 func TestWriteFieldValue_U4(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	err := WriteFieldValue(&buf, FieldTypeU4, 0)
 	if err == nil {
@@ -78,6 +86,8 @@ func TestWriteFieldValue_U4(t *testing.T) {
 }
 
 func TestReadFieldValue_PackedBool(t *testing.T) {
+	t.Parallel()
+
 	r := bytes.NewReader([]byte{0})
 	_, err := ReadFieldValue(r, FieldTypePackedBool)
 	if err == nil {
@@ -86,6 +96,8 @@ func TestReadFieldValue_PackedBool(t *testing.T) {
 }
 
 func TestReadFieldValue_U4(t *testing.T) {
+	t.Parallel()
+
 	r := bytes.NewReader([]byte{0})
 	_, err := ReadFieldValue(r, FieldTypeU4)
 	if err == nil {
@@ -94,6 +106,8 @@ func TestReadFieldValue_U4(t *testing.T) {
 }
 
 func TestWriteHeader_IOError(t *testing.T) {
+	t.Parallel()
+
 	err := WriteHeader(errWriter{})
 	if err == nil {
 		t.Fatal("expected IO error")
@@ -104,6 +118,8 @@ func TestWriteHeader_IOError(t *testing.T) {
 }
 
 func TestWriteDescription_IOError(t *testing.T) {
+	t.Parallel()
+
 	err := WriteDescription(errWriter{}, "test")
 	if err == nil {
 		t.Fatal("expected IO error")
@@ -111,6 +127,8 @@ func TestWriteDescription_IOError(t *testing.T) {
 }
 
 func TestReadDescription_Truncated(t *testing.T) {
+	t.Parallel()
+
 	// Write a length that promises bytes, then truncate.
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(100))
@@ -124,6 +142,8 @@ func TestReadDescription_Truncated(t *testing.T) {
 }
 
 func TestReadDescription_TruncatedLength(t *testing.T) {
+	t.Parallel()
+
 	_, err := ReadDescription(bytes.NewReader([]byte{0x01})) // only 1 byte for u16
 	if err == nil {
 		t.Fatal("expected error for truncated length")
@@ -131,6 +151,8 @@ func TestReadDescription_TruncatedLength(t *testing.T) {
 }
 
 func TestDictionary_WriteTo_IOError(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	d.Add("test")
 	_, err := d.WriteTo(errWriter{})
@@ -140,6 +162,8 @@ func TestDictionary_WriteTo_IOError(t *testing.T) {
 }
 
 func TestDictionary_ReadFrom_Truncated(t *testing.T) {
+	t.Parallel()
+
 	// Truncated count.
 	d := NewDictionary()
 	_, err := d.ReadFrom(bytes.NewReader([]byte{0x01}))
@@ -149,6 +173,8 @@ func TestDictionary_ReadFrom_Truncated(t *testing.T) {
 }
 
 func TestDictionary_ReadFrom_TruncatedString(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint32(1))   // 1 entry
 	binary.Write(&buf, binary.LittleEndian, uint16(100)) // string of 100 bytes
@@ -162,6 +188,8 @@ func TestDictionary_ReadFrom_TruncatedString(t *testing.T) {
 }
 
 func TestDictionary_ReadFrom_TruncatedStringLen(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint32(1)) // 1 entry
 	buf.Write([]byte{0x01})                            // only 1 byte for u16 strlen
@@ -174,6 +202,8 @@ func TestDictionary_ReadFrom_TruncatedStringLen(t *testing.T) {
 }
 
 func TestWriteSchema_IOError(t *testing.T) {
+	t.Parallel()
+
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(errWriter{}, s)
 	if err == nil {
@@ -182,6 +212,8 @@ func TestWriteSchema_IOError(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedFieldCount(t *testing.T) {
+	t.Parallel()
+
 	_, err := ReadSchema(bytes.NewReader([]byte{0x01}), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated field count")
@@ -189,6 +221,8 @@ func TestReadSchema_TruncatedFieldCount(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedFieldType(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	// no more data
@@ -200,6 +234,8 @@ func TestReadSchema_TruncatedFieldType(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedFieldName(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1))   // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))    // type U8
@@ -213,6 +249,8 @@ func TestReadSchema_TruncatedFieldName(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedNameLen(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
@@ -225,6 +263,8 @@ func TestReadSchema_TruncatedNameLen(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedByteOffset(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
@@ -239,6 +279,8 @@ func TestReadSchema_TruncatedByteOffset(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedBitPos(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
@@ -254,6 +296,8 @@ func TestReadSchema_TruncatedBitPos(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedCsvIdx(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
@@ -270,6 +314,8 @@ func TestReadSchema_TruncatedCsvIdx(t *testing.T) {
 }
 
 func TestWriteSchema_CategoricalNilDict(t *testing.T) {
+	t.Parallel()
+
 	s := &Schema{
 		Fields: []Field{
 			{Name: "cat", Type: FieldTypeCategoricalU8, Dictionary: nil},
@@ -294,6 +340,8 @@ func TestWriteSchema_CategoricalNilDict(t *testing.T) {
 }
 
 func TestReadBit_Empty(t *testing.T) {
+	t.Parallel()
+
 	_, err := ReadBit(bytes.NewReader(nil), 0)
 	if err == nil {
 		t.Fatal("expected error on empty reader")
@@ -301,6 +349,8 @@ func TestReadBit_Empty(t *testing.T) {
 }
 
 func TestReadNibble_Empty(t *testing.T) {
+	t.Parallel()
+
 	_, err := ReadNibble(bytes.NewReader(nil), false)
 	if err == nil {
 		t.Fatal("expected error on empty reader")
@@ -327,6 +377,8 @@ func (lw *limitWriter) Write(p []byte) (int, error) {
 }
 
 func TestDictionary_WriteTo_StringLenIOError(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	d.Add("test")
 	// Allow count (4 bytes) then fail on string length write.
@@ -338,6 +390,8 @@ func TestDictionary_WriteTo_StringLenIOError(t *testing.T) {
 }
 
 func TestDictionary_WriteTo_StringBodyIOError(t *testing.T) {
+	t.Parallel()
+
 	d := NewDictionary()
 	d.Add("test")
 	// Allow count (4) + strlen (2) = 6 bytes, then fail on string body.
@@ -349,6 +403,8 @@ func TestDictionary_WriteTo_StringBodyIOError(t *testing.T) {
 }
 
 func TestWriteDescription_LengthIOError(t *testing.T) {
+	t.Parallel()
+
 	// errWriter fails immediately, so the u16 length write fails.
 	err := WriteDescription(errWriter{}, "")
 	if err == nil {
@@ -357,6 +413,8 @@ func TestWriteDescription_LengthIOError(t *testing.T) {
 }
 
 func TestWriteDescription_BodyIOError(t *testing.T) {
+	t.Parallel()
+
 	// Allow u16 length (2 bytes) then fail on body.
 	lw := &limitWriter{n: 2}
 	err := WriteDescription(lw, "hello")
@@ -366,6 +424,8 @@ func TestWriteDescription_BodyIOError(t *testing.T) {
 }
 
 func TestWriteSchema_FieldCountIOError(t *testing.T) {
+	t.Parallel()
+
 	err := WriteSchema(errWriter{}, &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}})
 	if err == nil {
 		t.Fatal("expected IO error on field count")
@@ -373,6 +433,8 @@ func TestWriteSchema_FieldCountIOError(t *testing.T) {
 }
 
 func TestWriteSchema_TypeByteIOError(t *testing.T) {
+	t.Parallel()
+
 	lw := &limitWriter{n: 2} // allow field count u16, fail on type byte
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(lw, s)
@@ -382,6 +444,8 @@ func TestWriteSchema_TypeByteIOError(t *testing.T) {
 }
 
 func TestWriteSchema_NameLenIOError(t *testing.T) {
+	t.Parallel()
+
 	lw := &limitWriter{n: 3} // u16 count + u8 type = 3, fail on name len
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(lw, s)
@@ -391,6 +455,8 @@ func TestWriteSchema_NameLenIOError(t *testing.T) {
 }
 
 func TestWriteSchema_NameIOError(t *testing.T) {
+	t.Parallel()
+
 	lw := &limitWriter{n: 5} // u16 count + u8 type + u16 namelen = 5, fail on name bytes
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(lw, s)
@@ -400,6 +466,8 @@ func TestWriteSchema_NameIOError(t *testing.T) {
 }
 
 func TestWriteSchema_ByteOffsetIOError(t *testing.T) {
+	t.Parallel()
+
 	lw := &limitWriter{n: 6} // count(2) + type(1) + namelen(2) + name(1) = 6, fail on offset
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(lw, s)
@@ -409,6 +477,8 @@ func TestWriteSchema_ByteOffsetIOError(t *testing.T) {
 }
 
 func TestWriteSchema_BitPosIOError(t *testing.T) {
+	t.Parallel()
+
 	lw := &limitWriter{n: 10} // count(2)+type(1)+namelen(2)+name(1)+offset(4) = 10
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(lw, s)
@@ -418,6 +488,8 @@ func TestWriteSchema_BitPosIOError(t *testing.T) {
 }
 
 func TestWriteSchema_CsvIdxIOError(t *testing.T) {
+	t.Parallel()
+
 	lw := &limitWriter{n: 11} // +bitpos(1) = 11
 	s := &Schema{Fields: []Field{{Name: "x", Type: FieldTypeU8}}}
 	err := WriteSchema(lw, s)
@@ -427,6 +499,8 @@ func TestWriteSchema_CsvIdxIOError(t *testing.T) {
 }
 
 func TestWriteSchema_CategoricalEmptyDictIOError(t *testing.T) {
+	t.Parallel()
+
 	// Allow everything up to the empty dict write, then fail.
 	// count(2)+type(1)+namelen(2)+name(3)+offset(4)+bitpos(1)+csvidx(2)+desclen(2) = 17
 	lw := &limitWriter{n: 17}

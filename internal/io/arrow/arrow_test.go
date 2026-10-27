@@ -61,6 +61,8 @@ func helperSimpleArrow(t *testing.T) []byte {
 }
 
 func TestArrowReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -78,6 +80,8 @@ func TestArrowReader_ReadHeader(t *testing.T) {
 }
 
 func TestArrowReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -106,6 +110,8 @@ func TestArrowReader_ReadRows(t *testing.T) {
 }
 
 func TestArrowReader_AllPrimitiveTypes(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "col_uint8", Type: arrow.PrimitiveTypes.Uint8},
@@ -175,6 +181,8 @@ func TestArrowReader_AllPrimitiveTypes(t *testing.T) {
 }
 
 func TestArrowReader_NullableColumns(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "val", Type: arrow.PrimitiveTypes.Uint8, Nullable: true},
@@ -215,6 +223,8 @@ func TestArrowReader_NullableColumns(t *testing.T) {
 }
 
 func TestArrowReader_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "x", Type: arrow.PrimitiveTypes.Int32},
@@ -251,6 +261,8 @@ func TestArrowReader_EmptyFile(t *testing.T) {
 }
 
 func TestArrowReader_Reset(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -285,6 +297,8 @@ func TestArrowReader_Reset(t *testing.T) {
 }
 
 func TestArrowReader_StopIteration(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -307,6 +321,8 @@ func TestArrowReader_StopIteration(t *testing.T) {
 }
 
 func TestArrowReader_ContextCancel(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -322,6 +338,8 @@ func TestArrowReader_ContextCancel(t *testing.T) {
 }
 
 func TestArrowReader_ReadRowsWithoutReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -340,6 +358,8 @@ func TestArrowReader_ReadRowsWithoutReadHeader(t *testing.T) {
 }
 
 func TestArrowReader_ReadRowsCallbackError(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -355,6 +375,8 @@ func TestArrowReader_ReadRowsCallbackError(t *testing.T) {
 }
 
 func TestArrowReader_FromFilesystem(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	fs := afero.NewMemMapFs()
 	afero.WriteFile(fs, "test.arrow", data, 0644)
@@ -372,6 +394,8 @@ func TestArrowReader_FromFilesystem(t *testing.T) {
 }
 
 func TestArrowReader_NoDataSource(t *testing.T) {
+	t.Parallel()
+
 	r := &Reader{}
 	if _, err := r.ReadHeader(); err == nil {
 		t.Fatal("expected error for no data source")
@@ -379,6 +403,8 @@ func TestArrowReader_NoDataSource(t *testing.T) {
 }
 
 func TestArrowReader_FileNotFound(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	r := NewReader(fs, "nonexistent.arrow")
 	if _, err := r.ReadHeader(); err == nil {
@@ -387,6 +413,8 @@ func TestArrowReader_FileNotFound(t *testing.T) {
 }
 
 func TestArrowReader_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte("not an arrow file"))
 	if _, err := r.ReadHeader(); err == nil {
 		t.Fatal("expected error for invalid data")
@@ -394,6 +422,8 @@ func TestArrowReader_InvalidData(t *testing.T) {
 }
 
 func TestArrowReader_InferPulseSchema(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "small_int", Type: arrow.PrimitiveTypes.Uint8},
@@ -440,6 +470,8 @@ func TestArrowReader_InferPulseSchema(t *testing.T) {
 }
 
 func TestArrowWriter_WriteRows(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "output.arrow")
 	if err := w.WriteHeader([]string{"name", "value"}); err != nil {
@@ -481,6 +513,8 @@ func TestArrowWriter_WriteRows(t *testing.T) {
 }
 
 func TestArrowWriter_Buffer(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"x"})
 	w.WriteRow([]any{"hello"})
@@ -497,6 +531,8 @@ func TestArrowWriter_Buffer(t *testing.T) {
 }
 
 func TestArrowWriter_HeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteHeader([]string{"a", "b"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -525,6 +561,8 @@ func TestArrowWriter_HeaderOnly(t *testing.T) {
 }
 
 func TestArrowWriter_EmptyClose(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -535,6 +573,8 @@ func TestArrowWriter_EmptyClose(t *testing.T) {
 }
 
 func TestArrowWriter_WriteRowBeforeHeader(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteRow([]any{"x"}); err == nil {
 		t.Fatal("expected error: WriteRow before WriteHeader")
@@ -544,6 +584,8 @@ func TestArrowWriter_WriteRowBeforeHeader(t *testing.T) {
 // TestArrowWriter_BatchBoundaries writes more than defaultRecordBatchSize rows
 // to verify the writer flushes intermediate batches without splitting rows.
 func TestArrowWriter_BatchBoundaries(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"id"})
 
@@ -574,6 +616,8 @@ func TestArrowWriter_BatchBoundaries(t *testing.T) {
 }
 
 func TestArrowImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
 		{Name: "age", Type: arrow.PrimitiveTypes.Uint8},
@@ -643,6 +687,8 @@ func TestArrowImportExportRoundTrip(t *testing.T) {
 }
 
 func TestConvertJob_CsvToArrow(t *testing.T) {
+	t.Parallel()
+
 	csvData := "age,name\n10,alice\n20,bob\n30,charlie\n"
 	csvReader := csv.NewReaderFromBytes([]byte(csvData))
 	arrWriter := NewWriterToBuffer()
@@ -686,6 +732,8 @@ func TestConvertJob_CsvToArrow(t *testing.T) {
 }
 
 func TestConvertJob_ArrowToCsv(t *testing.T) {
+	t.Parallel()
+
 	arrData := helperSimpleArrow(t)
 	arrReader := NewReaderFromBytes(arrData)
 	csvWriter := csv.NewWriterToBuffer()
@@ -724,6 +772,8 @@ func TestConvertJob_ArrowToCsv(t *testing.T) {
 }
 
 func TestArrowTypeToPulseType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		arrowType arrow.DataType
 		want      encoding.FieldType
@@ -756,6 +806,8 @@ func TestArrowTypeToPulseType(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_DefaultCase(t *testing.T) {
+	t.Parallel()
+
 	got := TypeToPulse(arrow.FixedWidthTypes.Time32ms)
 	if got != encoding.FieldTypeF64 {
 		t.Errorf("default: got %s, want f64", got)
@@ -763,6 +815,8 @@ func TestArrowTypeToPulse_DefaultCase(t *testing.T) {
 }
 
 func TestArrowTypeToPulse_Dictionary(t *testing.T) {
+	t.Parallel()
+
 	dt := &arrow.DictionaryType{
 		IndexType: arrow.PrimitiveTypes.Int32,
 		ValueType: arrow.BinaryTypes.String,
@@ -774,6 +828,8 @@ func TestArrowTypeToPulse_Dictionary(t *testing.T) {
 }
 
 func TestPulseTypeToArrowType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		pulseType encoding.FieldType
 		wantID    arrow.Type
@@ -807,6 +863,8 @@ func TestPulseTypeToArrowType(t *testing.T) {
 }
 
 func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
+	t.Parallel()
+
 	got := TypeFromPulse(encoding.FieldType(255))
 	if got.ID() != arrow.FLOAT64 {
 		t.Errorf("default: %v", got)
@@ -822,6 +880,8 @@ func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
 // would record a RowError for EVERY row — the rows would vanish, not
 // merely be mistyped. Assert the literal survives verbatim.
 func TestArrow_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "ts", Type: encoding.FieldTypeDateTime},
 		{Name: "d", Type: encoding.FieldTypeDate},

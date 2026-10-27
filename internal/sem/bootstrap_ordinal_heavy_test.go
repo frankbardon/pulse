@@ -15,6 +15,8 @@ import (
 // tolerances: every replicate refits the two-step statistics from its
 // own rows at the full fit's coding.
 func TestSEM_BootstrapOrdinalMatchesLavaanSampling(t *testing.T) {
+	t.Parallel()
+
 	b, err := os.ReadFile("testdata/brand_boot_ord_lavaan.json")
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +59,8 @@ func TestSEM_BootstrapOrdinalMatchesLavaanSampling(t *testing.T) {
 // (rows drawn within each wave) — gives the same bits for the same
 // seed and other draws for another.
 func TestSEM_BootstrapOrdinalDeterministic(t *testing.T) {
+	t.Parallel()
+
 	var ref wlsGroupRef
 	readJSON(t, "testdata/brand_ordmg_thload_lavaan.json", &ref)
 	gm, err := NewGroupModel(readModel(t, "testdata/brand_ord_model.txt"), ModelOptions{Ordered: ref.Options.Ordered, GroupEqual: ref.Options.GroupEqual})

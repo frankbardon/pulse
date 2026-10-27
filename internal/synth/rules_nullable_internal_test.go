@@ -19,6 +19,8 @@ import (
 // exists, and the warning it replaces was capped at three examples per
 // kind in the terminal summary.
 func TestValidateRules_SetNullNonNullableIsRefused(t *testing.T) {
+	t.Parallel()
+
 	err := validateSpec(ruleSpecFixture(
 		RuleSpec{Set: map[string]any{"score": 1.0}},
 		RuleSpec{When: "nps > 1", SetNull: []string{"aware"}},
@@ -64,6 +66,8 @@ func TestValidateRules_SetNullNonNullableIsRefused(t *testing.T) {
 // other: the gate must stop being reported AND a non-gate member the
 // block can actually reach must still be.
 func TestNullTogetherWarnings_GateIsNotReported(t *testing.T) {
+	t.Parallel()
+
 	byName := map[string]FieldSpec{
 		"gate": {Name: "gate", Type: "packed_bool"},
 		"a":    {Name: "a", Type: "u4", Nullable: true},
@@ -106,6 +110,8 @@ func TestNullTogetherWarnings_GateIsNotReported(t *testing.T) {
 // then `synth from-profile --rules`) stops at a refusal, and the
 // preceding tests build their specs by hand and cannot see it.
 func TestSuggestRules_CandidatesSurviveTheNullabilityRefusal(t *testing.T) {
+	t.Parallel()
+
 	prof := gateFixtureProfile(t, 400, 40)
 	if len(prof.RuleCandidates) == 0 {
 		t.Fatalf("fixture must produce candidates; warnings = %v", prof.Warnings)

@@ -14,6 +14,8 @@ import (
 // grouped payload ending mid-record is ENCODING_INVALID rather than a
 // silently shorter twin.
 func TestFlattenCohortBytes_ReproducesTheFlatSource(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range groupFixtures(t) {
 		t.Run(fx.name, func(t *testing.T) {
 			flat := flatCohort(t, fx.schema, fx.rows)
@@ -45,6 +47,8 @@ func TestFlattenCohortBytes_ReproducesTheFlatSource(t *testing.T) {
 // the canonical-first union a shard archive relies on. Seeding a
 // different layout, after a row, or past the index space is refused.
 func TestGroupEncoder_SeedKeepsIndices(t *testing.T) {
+	// serial: lowers the process-wide encoding.MaxGroupEntries ceiling
+
 	fx := groupFixtures(t)[0]
 	flat := flatCohort(t, fx.schema, fx.rows)
 	grouped, gs := groupedTwin(t, flat, fx.specs)
@@ -109,6 +113,8 @@ func TestGroupEncoder_SeedKeepsIndices(t *testing.T) {
 // layout with DIFFERENT dictionaries passes (dictionaries follow the
 // prefix rule).
 func TestValidateGroupCohesion_EveryDimension(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	_, gs := groupedTwin(t, flatCohort(t, fx.schema, fx.rows), fx.specs)
 	mutate := func(f func(s *encoding.Schema)) *encoding.Schema {
@@ -144,6 +150,8 @@ func TestValidateGroupCohesion_EveryDimension(t *testing.T) {
 // with no change, a longer extension is adopted (a deep copy), and a
 // reordered dictionary is PULSE_SHARD_DICT_DIVERGENCE.
 func TestValidateDictPrefixRule_GroupEntries(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	_, gs := groupedTwin(t, flatCohort(t, fx.schema, fx.rows), fx.specs)
 	w := gs.GroupEntryWidth(0)
@@ -170,6 +178,8 @@ func TestValidateDictPrefixRule_GroupEntries(t *testing.T) {
 // TestGroupIndexHeadroomFor reports entries against the u32 index space
 // for an indexed group and zero headroom for a constant group.
 func TestGroupIndexHeadroomFor(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	_, gs := groupedTwin(t, flatCohort(t, fx.schema, fx.rows), fx.specs)
 	h := GroupIndexHeadroomFor(gs)
@@ -193,6 +203,8 @@ func TestGroupIndexHeadroomFor(t *testing.T) {
 // of a group entry's identity), while a present value is remapped by
 // both variants.
 func TestRewriteShardCategoricalsKeepNulls(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c"} {
 		_, _ = dict.Add(v)

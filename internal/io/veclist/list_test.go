@@ -281,6 +281,8 @@ func errorsAs(err error, target **errors.CodedError) bool {
 // labels; a null list and a list of nulls only are null vectors, a null
 // element is NaN; --vector-kind applies.
 func TestListColumn_ImportsAsVector(t *testing.T) {
+	t.Parallel()
+
 	for _, src := range sources() {
 		for _, target := range []struct {
 			decl string
@@ -338,8 +340,12 @@ func (s *stripLists) RowNulls() []bool { return s.inner.(pio.NullAwareReader).Ro
 // column still imports through the set_* ladder, byte-identically to
 // the same source with its list channel hidden.
 func TestListColumn_WithoutFlagUnchanged(t *testing.T) {
+	t.Parallel()
+
 	for _, src := range sources() {
 		t.Run(src.name, func(t *testing.T) {
+			t.Parallel()
+
 			plain, _, err := importRows(t, src.make(t, fixture()), nil, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -366,6 +372,8 @@ func TestListColumn_WithoutFlagUnchanged(t *testing.T) {
 // the probe (first non-null list) or the row pass (a later row) meets
 // it.
 func TestListColumn_Refusals(t *testing.T) {
+	t.Parallel()
+
 	long := make([]any, encoding.MaxVectorDim+1)
 	for i := range long {
 		long[i] = float64(i)
@@ -411,6 +419,8 @@ func TestListColumn_Refusals(t *testing.T) {
 // TestListColumn_ArrowRefusals: the Arrow side of the refusals — a
 // LIST<utf8> column is non-numeric, a variable-length LIST varies.
 func TestListColumn_ArrowRefusals(t *testing.T) {
+	t.Parallel()
+
 	str := []row{{id: 1, list: []any{"a", "b"}}}
 	var rd pio.Reader = parrow.NewReaderFromBytes(arrowBytes(t, str, false, arrow.BinaryTypes.String))
 	if _, _, err := importRows(t, rd, []string{"v"}, nil); reason(err) != "element_not_numeric" {
@@ -440,6 +450,8 @@ func TestListColumn_ArrowRefusals(t *testing.T) {
 // TestListColumn_TextSourceRefused: a source with no typed lists keeps
 // the no_columns refusal.
 func TestListColumn_TextSourceRefused(t *testing.T) {
+	t.Parallel()
+
 	rd := pcsv.NewReaderFromBytes([]byte("id,v\n1,1|2|3\n"))
 	_, _, err := importRows(t, rd, []string{"v"}, nil)
 	if !errors.HasCode(err, errors.PULSE_IMPORT_VECTOR_INVALID) || reason(err) != "no_columns" {
@@ -450,6 +462,8 @@ func TestListColumn_TextSourceRefused(t *testing.T) {
 // TestListColumn_PredictMatchesRun: the predicted schema of a list
 // import is the written one.
 func TestListColumn_PredictMatchesRun(t *testing.T) {
+	t.Parallel()
+
 	src := sources()[0]
 	got, _, err := importRows(t, src.make(t, fixture()), []string{"v"}, nil)
 	if err != nil {

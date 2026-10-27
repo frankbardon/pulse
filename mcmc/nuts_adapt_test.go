@@ -32,6 +32,8 @@ func windowEnds(warmup int) (ends []int, used int) {
 // terminal buffer); short warmups use 15% / 75% / 10%; below 20 there is
 // no metric window at all.
 func TestNUTS_WarmupWindows(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		warmup int
 		ends   []int
@@ -57,6 +59,8 @@ func TestNUTS_WarmupWindows(t *testing.T) {
 // Stan's (n/(n+5))·var + 1e-3·5/(n+5) of the window's draws, and the
 // next window starts from an empty estimate.
 func TestNUTS_RegularisedVariance(t *testing.T) {
+	t.Parallel()
+
 	va := newVarAdaptation(20, 2) // one window: iterations 3..17, n = 15
 	m := []float64{1, 1}
 	var xs, ys []float64
@@ -95,6 +99,8 @@ func TestNUTS_RegularisedVariance(t *testing.T) {
 // constants, checked against the formulas step by step; restart forgets
 // the history and re-centres μ on log(10·ε).
 func TestNUTS_DualAveraging(t *testing.T) {
+	t.Parallel()
+
 	const delta, eps0 = 0.8, 0.5
 	da := newDualAveraging(delta, eps0)
 	mu := detmath.Log(10 * eps0)
@@ -127,6 +133,8 @@ func TestNUTS_DualAveraging(t *testing.T) {
 // TestNUTS_ChainSeedsDistinct: neighbouring seeds and chains never share
 // a PCG seed.
 func TestNUTS_ChainSeedsDistinct(t *testing.T) {
+	t.Parallel()
+
 	seen := map[uint64]bool{}
 	for seed := range uint64(64) {
 		for c := range 16 {

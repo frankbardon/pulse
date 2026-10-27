@@ -37,9 +37,13 @@ func partsFreeLayers() map[string]types.OverlayLayer {
 // writes the same bytes as a nil one. The scalar case is pinned to its
 // literal pre-Parts wire form.
 func TestOverlayPayload_PartsFreeByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	const pinnedScalar = `{"name":"chi","kind":"OVERLAY_CHISQ_MATRIX","scope":"matrix","ref":{},"payload":{"shape":"scalar","scalar":117.5},"summary":{"statistic":6.5,"p_value":0.01,"parameters":{"df":1}}}`
 	for name, layer := range partsFreeLayers() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			nilParts, err := json.Marshal(layer)
 			if err != nil {
 				t.Fatal(err)
@@ -66,6 +70,8 @@ func TestOverlayPayload_PartsFreeByteIdentical(t *testing.T) {
 // every part shape survives a JSON round trip, and an undefined figure
 // inside a part is null on the wire (never 0).
 func TestOverlayPayload_PartsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	primary, total := 2.0, 9.0
 	stat := 1.25
 	layer := types.OverlayLayer{
@@ -118,6 +124,8 @@ func TestOverlayPayload_PartsRoundTrip(t *testing.T) {
 // carries a top-level layer's parts byte-for-byte as the layer alone
 // writes them.
 func TestComposedResponse_PartsCarriedUnchanged(t *testing.T) {
+	t.Parallel()
+
 	v, e := 1.0, 4.0
 	layer := types.OverlayLayer{Name: "m", Kind: types.OverlayKindChiSqMatrix, Scope: types.OverlayScopeMatrix,
 		Payload: types.OverlayPayload{Shape: types.OverlayShapeScalar, Scalar: &v,

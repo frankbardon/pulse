@@ -20,6 +20,8 @@ func bounded(mut func(*types.RegressionSpec)) *types.RegressionSpec {
 }
 
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		spec  *types.RegressionSpec
@@ -62,6 +64,8 @@ func TestCheck(t *testing.T) {
 }
 
 func TestMask(t *testing.T) {
+	t.Parallel()
+
 	spec := bounded(nil)
 	if got := Mask(spec, []string{"a", "b"}); !reflect.DeepEqual(got, []bool{true, false}) {
 		t.Errorf("mask = %v", got)
@@ -80,6 +84,8 @@ func TestMask(t *testing.T) {
 }
 
 func TestInferenceUndefinedAndAdvisory(t *testing.T) {
+	t.Parallel()
+
 	spec := bounded(nil)
 	if InferenceUndefined(spec, nil) {
 		t.Error("no active bound: inference is the plain fit's")

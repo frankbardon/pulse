@@ -37,6 +37,8 @@ import (
 // and the re-import that mis-splits is one told the wrong thing about a
 // Pulse-produced file. Inference on such a file picks "|" and round-trips.
 func TestExport_SetDelimiterIsCanonicalNotPerColumn(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 
 	// Source cells use ";" — deliberately NOT the default.

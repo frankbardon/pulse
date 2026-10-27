@@ -11,6 +11,8 @@ import (
 // TestEncodingBridgeHooksInstalled: importing the public package installs
 // every hook this package reaches through internal/encodingbridge.
 func TestEncodingBridgeHooksInstalled(t *testing.T) {
+	t.Parallel()
+
 	if encodingbridge.WriteHeaderVersion == nil || encodingbridge.WriteSchemaVersion == nil ||
 		encodingbridge.ValidateGroupShape == nil || encodingbridge.MemberSets == nil ||
 		encodingbridge.GroupEntryGeometry == nil || encodingbridge.GroupDescriptorBytes == nil {
@@ -33,6 +35,8 @@ func TestEncodingBridgeHooksInstalled(t *testing.T) {
 // walks can never disagree. The duplicate onWireWidth tables this test
 // used to pin together are gone; every stride site calls FieldWidth.
 func TestOnWireWidthMatchesByteSize(t *testing.T) {
+	t.Parallel()
+
 	for b := 0; b < 256; b++ {
 		ft := encoding.FieldType(b)
 		s := &encoding.Schema{Fields: []encoding.Field{{Name: "a", Type: encoding.FieldTypeU8}, {Name: "b", Type: ft}}}

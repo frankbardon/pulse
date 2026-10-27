@@ -12,6 +12,8 @@ import (
 )
 
 func TestFloatWidths_ResolvedByTheJob(t *testing.T) {
+	t.Parallel()
+
 	got := pio.FloatWidths()
 	if !slices.Equal(got, []string{"f64", "f32"}) {
 		t.Fatalf("FloatWidths() = %v", got)
@@ -35,6 +37,8 @@ func TestFloatWidths_ResolvedByTheJob(t *testing.T) {
 }
 
 func TestDSTPolicies_ParsedByTheLibrary(t *testing.T) {
+	t.Parallel()
+
 	want := []pio.DSTPolicy{pio.DSTPolicyError, pio.DSTPolicyEarlier, pio.DSTPolicyLater}
 	got := pio.DSTPolicies()
 	if !slices.Equal(got, want) {
@@ -63,6 +67,8 @@ func TestDSTPolicies_ParsedByTheLibrary(t *testing.T) {
 }
 
 func TestSPSSMissingModes_ParsedByTheReader(t *testing.T) {
+	t.Parallel()
+
 	got := pio.SPSSMissingModes()
 	if !slices.Equal(got, []pio.SPSSMissingMode{pio.SPSSMissingAuto, pio.SPSSMissingNull}) {
 		t.Fatalf("SPSSMissingModes() = %v", got)

@@ -25,6 +25,8 @@ import (
 // letting it infer is what proves the width survived the file rather
 // than having been supplied by the test.
 func TestSPSS_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "spss", fs, src, pspss.NewWriter(fs, "out.sav", pspss.WriterOptions{}))

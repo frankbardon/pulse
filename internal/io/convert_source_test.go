@@ -101,6 +101,8 @@ func runCarry(t *testing.T, mutate func(*ConvertJob)) (*sourceAwareCollector, *s
 // source that declares a schema and emits a sidecar hands BOTH to a target
 // that rebuilds a cohort, before the header is written.
 func TestConvertSource_DeclaredSchemaAndSidecarAreCarried(t *testing.T) {
+	t.Parallel()
+
 	target, src := runCarry(t, nil)
 
 	if target.calls != 1 {
@@ -134,6 +136,8 @@ func TestConvertSource_DeclaredSchemaAndSidecarAreCarried(t *testing.T) {
 // and vice versa: two well-formed columns holding each other's values, with
 // nothing downstream able to notice.
 func TestConvertSource_ColumnIndexIsReBasedOnTheEmittedRow(t *testing.T) {
+	t.Parallel()
+
 	target, _ := runCarry(t, nil)
 
 	if target.got.Schema == nil {
@@ -159,6 +163,8 @@ func TestConvertSource_ColumnIndexIsReBasedOnTheEmittedRow(t *testing.T) {
 // guess over the same values. The sidecar arm is independent and still
 // carried when the source emits one.
 func TestConvertSource_InferredSchemaIsNotCarried(t *testing.T) {
+	t.Parallel()
+
 	src := newMockReader([]string{"score"}, [][]string{{"1"}, {"2"}})
 	target := &sourceAwareCollector{}
 	job := NewConvertJob(src, target)
@@ -176,6 +182,8 @@ func TestConvertSource_InferredSchemaIsNotCarried(t *testing.T) {
 // TestConvertSource_ExplicitJobSchemaIsCarried: the caller's own
 // ConvertJob.Schema is a declaration too — the most specific one there is.
 func TestConvertSource_ExplicitJobSchemaIsCarried(t *testing.T) {
+	t.Parallel()
+
 	src := newMockReader([]string{"score"}, [][]string{{"1"}, {"2"}})
 	target := &sourceAwareCollector{}
 	job := NewConvertJob(src, target)
@@ -203,6 +211,8 @@ func TestConvertSource_ExplicitJobSchemaIsCarried(t *testing.T) {
 // describe the stream is the silent wrong answer; carrying none leaves the
 // target on its unchanged inference path.
 func TestConvertSource_ProjectionCarriesNothing(t *testing.T) {
+	t.Parallel()
+
 	target, _ := runCarry(t, func(j *ConvertJob) { j.Includes = []string{"grade"} })
 
 	if target.calls != 0 {
@@ -214,6 +224,8 @@ func TestConvertSource_ProjectionCarriesNothing(t *testing.T) {
 // TestConvertSource_LabelAugmentCarriesNothing: an augmenting binding
 // INSERTS a "<field>_label" cell, so every field after it shifts.
 func TestConvertSource_LabelAugmentCarriesNothing(t *testing.T) {
+	t.Parallel()
+
 	target, _ := runCarry(t, func(j *ConvertJob) {
 		j.LabelResolver = newFakeResolver("grade", types.LabelModeAugment, map[string]string{"A": "Alpha"})
 	})
@@ -227,6 +239,8 @@ func TestConvertSource_LabelAugmentCarriesNothing(t *testing.T) {
 // the row's shape and rewrites its CELLS, so a categorical's carried
 // dictionary no longer describes what a rebuilt cohort would read.
 func TestConvertSource_LabelReplaceCarriesNothing(t *testing.T) {
+	t.Parallel()
+
 	target, _ := runCarry(t, func(j *ConvertJob) {
 		j.LabelResolver = newFakeResolver("grade", types.LabelModeReplace, map[string]string{"A": "Alpha"})
 	})
@@ -240,6 +254,8 @@ func TestConvertSource_LabelReplaceCarriesNothing(t *testing.T) {
 // claim for every other adapter: a target that does not implement
 // SourceAwareWriter is not consulted, and its output is what it always was.
 func TestConvertSource_PlainWriterIsUntouched(t *testing.T) {
+	t.Parallel()
+
 	src := newSidecarReader(
 		[]string{"grade", "score"},
 		[][]string{{"A", "1"}, {"B", "2"}},

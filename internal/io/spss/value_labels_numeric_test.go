@@ -35,6 +35,8 @@ func codedCohort(t *testing.T, ft encoding.FieldType) (afero.Fs, string) {
 // back. The data column is the stored values, untouched. A key no row
 // holds (7) is still labelled: the table, not the data, lists the codes.
 func TestValueLabels_IntegerFieldRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	week := map[string]string{"1": "Monday", "2": "Tuesday", "3": "Wednesday", "7": "Sunday"}
 	for _, ft := range []encoding.FieldType{encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32} {
 		t.Run(ft.String(), func(t *testing.T) {
@@ -77,8 +79,12 @@ func (r *entriesResolver) Entries(f string) ([]string, bool) {
 // TABLE (there is no dictionary to walk) and writes its entries as value
 // labels, in either mode.
 func TestValueLabels_ExportJobBindingLabelsAnIntegerField(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []types.LabelMode{types.LabelModeReplace, types.LabelModeAugment} {
 		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
 			r := &entriesResolver{resolverFor{field: "id", mode: mode, table: map[string]string{"1": "One", "4": "Four", "9": "Nine"}}}
 			sav, _, fs, err := exportLabelled(t, WriterOptions{}, func(j *pio.ExportJob) {
 				j.Labels = []*types.LabelBinding{{Field: "id", Table: "ids", Mode: mode}}
@@ -101,6 +107,8 @@ func TestValueLabels_ExportJobBindingLabelsAnIntegerField(t *testing.T) {
 // TestValueLabels_IntegerFieldRefusalsMatchPredict pins every refusal an
 // integer-coded binding can draw to one code on predict and on the export.
 func TestValueLabels_IntegerFieldRefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	u64 := func(t *testing.T) (afero.Fs, string) { return codedCohort(t, encoding.FieldTypeU64) }
 	u4 := func(t *testing.T) (afero.Fs, string) { return codedCohort(t, encoding.FieldTypeU4) }
 	u8 := func(t *testing.T) (afero.Fs, string) { return codedCohort(t, encoding.FieldTypeU8) }

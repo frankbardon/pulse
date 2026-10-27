@@ -13,6 +13,8 @@ import (
 // spec referencing the row margin) survives JSON marshal/unmarshal
 // structurally intact.
 func TestOverlaySpec_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec := types.OverlaySpec{
 		Name:  "i_row",
 		Kind:  types.OverlayKindIndexVsMargin,
@@ -52,6 +54,8 @@ func TestOverlaySpec_RoundTrip(t *testing.T) {
 // marshals/unmarshals through the existing Request envelope without
 // disturbing the other slots — additive contract.
 func TestOverlaySpec_OnRequest(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "test.pulse"},
 		Crosstab: &types.CrosstabSpec{
@@ -105,6 +109,8 @@ func TestOverlaySpec_OnRequest(t *testing.T) {
 // omitted from the marshaled JSON entirely — additive byte-identity
 // contract.
 func TestOverlaySpec_EmptyOmitted(t *testing.T) {
+	t.Parallel()
+
 	req := types.Request{
 		Cohort: &types.Cohort{Filename: "test.pulse"},
 	}
@@ -121,6 +127,8 @@ func TestOverlaySpec_EmptyOmitted(t *testing.T) {
 // trips through JSON. Uses a scalar-shape payload because it exercises
 // the OverlayPayload discriminated union most concisely.
 func TestOverlayLayer_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	value := 117.5
 	layer := types.OverlayLayer{
 		Name:  "i_row",
@@ -159,6 +167,8 @@ func TestOverlayLayer_RoundTrip(t *testing.T) {
 }
 
 func TestOverlayLayer_WarningsFreeByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	value := 1.0
 	base := types.OverlayLayer{
 		Name:  "i_row",

@@ -43,6 +43,8 @@ func byteOrderSpec(bo ByteOrder, c Compression) Spec {
 // is the point: the parser is the code under test elsewhere, and letting it
 // verify the emitter would make one shared misreading invisible.
 func TestBuild_BigEndianHeaderFields(t *testing.T) {
+	t.Parallel()
+
 	b, err := Build(byteOrderSpec(BigEndian, CompressionNone))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -87,6 +89,8 @@ func TestBuild_BigEndianHeaderFields(t *testing.T) {
 // TestBuild_ByteOrderIsDeterministic keeps the emitter's central promise on
 // the new axis: same spec, same bytes, every time.
 func TestBuild_ByteOrderIsDeterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []Compression{CompressionNone, CompressionBytecode, CompressionZSAV} {
 		for _, bo := range []ByteOrder{LittleEndian, BigEndian} {
 			first, err := Build(byteOrderSpec(bo, c))
@@ -112,6 +116,8 @@ func TestBuild_ByteOrderIsDeterministic(t *testing.T) {
 // wrong numbers, so the two orders must differ in each section separately —
 // not merely somewhere.
 func TestBuild_ByteOrderChangesEverySection(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []Compression{CompressionNone, CompressionBytecode, CompressionZSAV} {
 		le, err := Build(byteOrderSpec(LittleEndian, c))
 		if err != nil {
@@ -198,6 +204,8 @@ func dataStart(t *testing.T, b []byte, bo binary.ByteOrder) int {
 // self-contradiction the reader's cross-check rejects, and one an author
 // reaching for "the ordinary defaults" would not have meant.
 func TestDefaultMachineIntegerInfoFor(t *testing.T) {
+	t.Parallel()
+
 	if got := DefaultMachineIntegerInfoFor(LittleEndian).Endianness; got != EndiannessLittle {
 		t.Errorf("little-endian Endianness = %d, want %d", got, EndiannessLittle)
 	}
@@ -214,6 +222,8 @@ func TestDefaultMachineIntegerInfoFor(t *testing.T) {
 // field that contradicts Spec.ByteOrder, because a fixture that carries that
 // contradiction is the only way to test that a reader notices it.
 func TestBuild_EndiannessFieldIsEmittedVerbatim(t *testing.T) {
+	t.Parallel()
+
 	spec := byteOrderSpec(BigEndian, CompressionNone)
 	mi := *spec.MachineIntegerInfo
 	mi.Endianness = EndiannessLittle // a lie, on purpose

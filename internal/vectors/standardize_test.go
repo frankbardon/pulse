@@ -12,6 +12,8 @@ import (
 // resolved vector, an unknown one is PULSE_VECTOR_INVALID
 // unknown_standardize listing the valid names.
 func TestResolve_Standardize(t *testing.T) {
+	t.Parallel()
+
 	got, err := Resolve([]types.VectorSpec{
 		{Name: "z", Fields: []string{"q_1", "q_2"}, Standardize: types.VectorStandardizeZScore},
 		{Name: "raw", Fields: []string{"q_1", "q_2"}},
@@ -39,6 +41,8 @@ func TestResolve_Standardize(t *testing.T) {
 // PULSE_VECTOR_INVALID standardize_unsupported naming the slot, even
 // on a request with no matrix.
 func TestResolveMatrices_StandardizeConsumers(t *testing.T) {
+	t.Parallel()
+
 	vec := []types.VectorSpec{
 		{Name: "raw", Fields: []string{"q_1", "q_2"}},
 		{Name: "z", Fields: []string{"q_1", "q_2", "q_3"}, Standardize: types.VectorStandardizeZScore},

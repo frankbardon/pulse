@@ -18,6 +18,8 @@ import (
 // reduction and the one every other integer arm in the writer already
 // uses.
 func TestToBool_ThresholdsAtHalf(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in   float64
 		want bool
@@ -55,6 +57,8 @@ func TestToBool_ThresholdsAtHalf(t *testing.T) {
 // prevalence, mom.std is unused, and the output is exactly 0 or 1 — never
 // an intermediate the writer would then have to threshold.
 func TestConditionalNumericDraw_BernoulliUsesPrevalence(t *testing.T) {
+	t.Parallel()
+
 	const n = 40000
 	rng := mrand.New(mrand.NewPCG(1, 2))
 	mom := categoryMoments{mean: 0.05, std: 999} // std deliberately absurd
@@ -133,6 +137,8 @@ const (
 // wrong one and disabled roughly 80% of a shipped feature with every test
 // green.
 func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
+	t.Parallel()
+
 	// params supplies a minimally valid declaration per distribution.
 	// Only the admitted ones need usable values; the refused ones are
 	// probed for refusal, which happens before any param is read.
@@ -268,6 +274,8 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 // about it; flooring it here would hide a constant column behind a
 // plausible-looking model.
 func TestFieldMoments_Bernoulli(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ p, mean, std float64 }{
 		{0.5, 0.5, 0.5},
 		{0.2, 0.2, 0.4},

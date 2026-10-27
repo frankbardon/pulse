@@ -84,8 +84,12 @@ const zigParityDraws = 1_000_000
 // for bit on every draw that took one Uint64 (the fast path), and differ
 // at most by a few ulps — only ever on a multi-pull draw.
 func TestDetmath_ZigguratStreamParity(t *testing.T) {
+	t.Parallel()
+
 	for _, d := range zigDraws {
 		t.Run(d.name, func(t *testing.T) {
+			t.Parallel()
+
 			ps, ss := newCounting(7), newCounting(7)
 			pr, sr := rand.New(ps), rand.New(ss)
 			var multi, tail, differ int
@@ -177,8 +181,12 @@ func zigFor(name string) zigDraw {
 // exactly the stdlib's Uint64s, and the source is in the same state
 // afterwards.
 func TestDetmath_ZigguratConsumption(t *testing.T) {
+	t.Parallel()
+
 	for _, sc := range zigScripts {
 		t.Run(sc.name, func(t *testing.T) {
+			t.Parallel()
+
 			d := zigFor(sc.draw)
 			ps, ss := newCounting(3, sc.script...), newCounting(3, sc.script...)
 			got, want := d.port(rand.New(ps)), d.stdlib(rand.New(ss))
@@ -228,6 +236,8 @@ func zigStreamHash(d zigDraw, n int) uint64 {
 // TestDetmath_ZigguratGoldenBits holds the port to exact bits on every
 // architecture, tail draws included.
 func TestDetmath_ZigguratGoldenBits(t *testing.T) {
+	t.Parallel()
+
 	for _, sc := range zigScripts {
 		got := math.Float64bits(zigFor(sc.draw).port(rand.New(newCounting(3, sc.script...))))
 		if got != zigGolden[sc.name] {
@@ -253,6 +263,8 @@ const zigTailSweep = 50_000
 // still agrees with the stdlib's to within math.Log's spread and pulls
 // what it pulls.
 func TestDetmath_ZigguratTailSweep(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]uint64{"NormFloat64": 0xae34d5afd185526e, "ExpFloat64": 0x2ae47dd37cf9bcb1}
 	for _, d := range zigDraws {
 		h := fnv.New64a()
@@ -293,6 +305,8 @@ func TestDetmath_ZigguratTailSweep(t *testing.T) {
 // difference almost never survives the rounding, so no value sweep can
 // see it reverted to math.Exp; this source check can.
 func TestDetmath_ZigguratCallsPortableKernels(t *testing.T) {
+	t.Parallel()
+
 	f, err := parser.ParseFile(token.NewFileSet(), "ziggurat.go", nil, parser.ImportsOnly)
 	if err != nil {
 		t.Fatal(err)
@@ -372,6 +386,8 @@ func stdlibTable(t *testing.T, file, name string) []uint64 {
 // stdlib's, value for value, re-read from the toolchain's own source, and
 // their bytes match the pinned digest.
 func TestDetmath_ZigguratTablesMatchStdlib(t *testing.T) {
+	t.Parallel()
+
 	u32 := func(a []uint32) []uint64 {
 		w := make([]uint64, len(a))
 		for i, v := range a {
@@ -416,6 +432,8 @@ func TestDetmath_ZigguratTablesMatchStdlib(t *testing.T) {
 // port's barriered bits on some draw, or the parity run could no longer
 // see a dropped barrier.
 func TestDetmath_ZigguratStdlibFusesTail(t *testing.T) {
+	t.Parallel()
+
 	differ := 0
 	pr, sr := rand.New(newCounting(7)), rand.New(newCounting(7))
 	for range zigParityDraws {

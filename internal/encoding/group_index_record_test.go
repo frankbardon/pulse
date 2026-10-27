@@ -46,6 +46,8 @@ type runSkipGroupIndexSink struct {
 // GROUPED schema (whose dictionaries the entries index, not the
 // reader's Logical view); a plan that decodes nothing hands it nil.
 func TestGroupedDecode_ReportsGroupIndices(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range groupFixtures(t) {
 		rows := scatterRows(fx.rows, 0x1D)
 		_, gs, _, phys := twinRegions(t, fx, rows)
@@ -130,6 +132,8 @@ func TestGroupedDecode_ReportsGroupIndices(t *testing.T) {
 // DecodeGroupEntry writes for them — on every entry of every group,
 // nulls, decimals and sets included — and nothing else.
 func TestGroupEntryDecoder_MatchesDecodeGroupEntry(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range groupFixtures(t) {
 		_, gs, _, _ := twinRegions(t, fx, fx.rows)
 		for g := range gs.Groups {

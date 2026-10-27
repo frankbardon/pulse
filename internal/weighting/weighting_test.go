@@ -11,6 +11,8 @@ import (
 // TestClassify_Complete: every built-in aggregator carries a weight
 // class, so a new aggregator cannot ship without deciding one.
 func TestClassify_Complete(t *testing.T) {
+	t.Parallel()
+
 	for _, at := range types.AllAggregationTypes() {
 		if ClassOf(string(at)) == ClassNone {
 			t.Errorf("%s has no weight class", at)
@@ -33,6 +35,8 @@ func TestClassify_Complete(t *testing.T) {
 // feature is untouched (ClassNone). The tests whose weighted computation
 // exists (testClasses: the seven moment tests) are ClassAware.
 func TestClassify_NonAggregatorFamilies(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]Class{}
 	for _, tt := range types.AllTestTypes() {
 		want[string(tt)] = ClassRefuse
@@ -104,6 +108,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 // both kinds (frequency first) for ClassAware, frequency alone for
 // ClassFrequencyOnly, none otherwise — and IsAware agrees with it.
 func TestKindsOf(t *testing.T) {
+	// serial: weighting.OverrideClassForTest rewrites the process-wide operator weight-class table
+
 	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
 	freq := []types.WeightKind{types.WeightKindFrequency}
 	for _, at := range types.AllAggregationTypes() {
@@ -147,6 +153,8 @@ func TestKindsOf(t *testing.T) {
 // reason belongs only to a frequency-only operator, and GROUP_KMEANS
 // carries one.
 func TestKindRefusalReasons_AreFrequencyOnly(t *testing.T) {
+	t.Parallel()
+
 	for op := range kindRefusalReasons {
 		if ClassOf(op) != ClassFrequencyOnly {
 			t.Errorf("%s has a kind refusal reason but class %v", op, ClassOf(op))
@@ -161,6 +169,8 @@ func TestKindRefusalReasons_AreFrequencyOnly(t *testing.T) {
 }
 
 func TestRefusalReasons_AreRefused(t *testing.T) {
+	t.Parallel()
+
 	for op := range refusalReasons {
 		if ClassOf(op) != ClassRefuse {
 			t.Errorf("%s has a refusal reason but class %v", op, ClassOf(op))
@@ -177,6 +187,8 @@ func TestRefusalReasons_AreRefused(t *testing.T) {
 }
 
 func TestClassifyWeight(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		w       float64
 		present bool
@@ -215,6 +227,8 @@ func TestClassifyWeight(t *testing.T) {
 // TestClassify_MomentTestsAware pins the E1-S2 / E1-S3 flips: the seven
 // moment tests, prop-z and χ² compute weighted under both kinds.
 func TestClassify_MomentTestsAware(t *testing.T) {
+	t.Parallel()
+
 	both := []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
 	for _, op := range []types.TestType{types.TEST_T, types.TEST_WELCH, types.TEST_PAIRED_T,
 		types.TEST_Z_TWO_SAMPLE, types.TEST_ANOVA_F, types.TEST_ANOVA_WELCH, types.TEST_PEARSON_R,
@@ -231,6 +245,8 @@ func TestClassify_MomentTestsAware(t *testing.T) {
 // TestMatrixClassOf: a MAT_CORRELATION rank method is frequency-only;
 // Pearson and MAT_COVARIANCE keep their type's class.
 func TestMatrixClassOf(t *testing.T) {
+	t.Parallel()
+
 	if got := MatrixClassOf(types.MAT_CORRELATION, true); got != ClassFrequencyOnly {
 		t.Errorf("rank MAT_CORRELATION class = %v, want ClassFrequencyOnly", got)
 	}
@@ -245,6 +261,8 @@ func TestMatrixClassOf(t *testing.T) {
 // TestDistanceClassOf: MAT_DISTANCE is ClassAware, and a GROUP_KMEANS
 // between (w coincident points) makes the spec frequency-only.
 func TestDistanceClassOf(t *testing.T) {
+	t.Parallel()
+
 	if got := ClassOf(string(types.MAT_DISTANCE)); got != ClassAware {
 		t.Errorf("MAT_DISTANCE class = %v, want ClassAware", got)
 	}
@@ -262,6 +280,8 @@ func TestDistanceClassOf(t *testing.T) {
 // frequency-only (#398); a row-local formula and every other attribute
 // keep their type's class.
 func TestAttributeClassOf(t *testing.T) {
+	t.Parallel()
+
 	for expr, want := range map[string]Class{
 		"x / total(x)":     ClassFrequencyOnly,
 		"total(x * y) + 1": ClassFrequencyOnly,

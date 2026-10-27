@@ -96,6 +96,8 @@ func collectEnums(t *testing.T, raw json.RawMessage) []string {
 // fixed literal, or a name the instance enables — never a hidden one.
 // The enabled operators of the fixture do appear (non-vacuous).
 func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	literals := map[string]bool{}
 	for _, f := range schema.Fields {
@@ -156,6 +158,8 @@ func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
 // TestBindForInstance_MinimalAggregatorEnum pins the exact filtered
 // enum, and that an extension operator the profile keeps is merged in.
 func TestBindForInstance_MinimalAggregatorEnum(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, fixtureProfile(t, "minimal"), pulse.Extensions{})
 	bound, err := BindForInstance(makeBindSchema(), inst)
 	if err != nil {
@@ -173,6 +177,8 @@ func TestBindForInstance_MinimalAggregatorEnum(t *testing.T) {
 // TestBindForInstance_HiddenSlotsDropped: a request slot the instance
 // hides is absent from every bound root; an enabled one stays.
 func TestBindForInstance_HiddenSlotsDropped(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	props := func(raw json.RawMessage) map[string]any {
 		var doc map[string]any
@@ -216,6 +222,8 @@ func TestBindForInstance_HiddenSlotsDropped(t *testing.T) {
 // hidden, the bound labels slot is byte-identical to an instance that
 // registered no label table; enabled, it lists the table.
 func TestBindForInstance_LabelsFollowCapability(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	features := []string{"capability:process", "AGG_COUNT"}
 
@@ -248,6 +256,8 @@ func TestBindForInstance_LabelsFollowCapability(t *testing.T) {
 // TestBindForInstance_ProfileFreeByteIdentical: a profile-free Pulse
 // binds byte-identically to the unscoped binder over its extensions.
 func TestBindForInstance_ProfileFreeByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	_, inst := instanceFor(t, nil, labelExt)
 	got, err := BindForInstance(schema, inst)
@@ -308,6 +318,8 @@ func sameRefusal(t *testing.T, label string, got, want *perr.CodedError) {
 // over MCP is refused exactly as the library's request-slot gate refuses
 // it, at the root and nested in compose / chain.
 func TestCheckUnknownKeys_HiddenSlotRefusedLikeLibrary(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, fixtureProfile(t, "minimal"), pulse.Extensions{})
 	crosstab := &types.CrosstabSpec{}
 
@@ -342,6 +354,8 @@ func TestCheckUnknownKeys_HiddenSlotRefusedLikeLibrary(t *testing.T) {
 // hidden slot neither suggests it nor lists it in valid_keys — the
 // refusal is the one an instance without that slot would give.
 func TestCheckUnknownKeys_HiddenSlotNeverSuggested(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, fixtureProfile(t, "minimal"), pulse.Extensions{})
 	ce := checkUnknownRequestKeys([]byte(`{"crosstabb":{}}`), inst)
 	if ce == nil {
@@ -377,6 +391,8 @@ func TestCheckUnknownKeys_HiddenSlotNeverSuggested(t *testing.T) {
 // Pulse refuses a misspelt key against the instance's visible slots
 // (an unscoped decode would list and suggest the hidden crosstab).
 func TestTools_InvokeScopesStrictDecodeToInstance(t *testing.T) {
+	t.Parallel()
+
 	p, inst := instanceFor(t, fixtureProfile(t, "minimal"), pulse.Extensions{})
 	var invoke InvokeFunc
 	for _, d := range Tools(Config{}) {

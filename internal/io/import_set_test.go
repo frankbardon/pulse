@@ -12,6 +12,8 @@ import (
 // through the inference + import path and asserts the on-wire mask
 // matches the expected dictionary-bit assignment.
 func TestImportJob_SetEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 0, minSampleRows)
 	pairs := []string{"VISA|MC", "AMEX|DISC", "VISA|AMEX", "MC|DISC"}
 	regions := []string{"north", "south", "east", "west"}
@@ -45,6 +47,8 @@ func TestImportJob_SetEndToEnd(t *testing.T) {
 // TestImportJob_SetForceTypeOverride supplies ColumnTypeOverrides on
 // the job and confirms a single-token column is forced to set_u8.
 func TestImportJob_SetForceTypeOverride(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 0, minSampleRows)
 	regions := []string{"north", "south"}
 	for i := 0; i < minSampleRows; i++ {
@@ -75,6 +79,8 @@ func TestImportJob_SetForceTypeOverride(t *testing.T) {
 // pipe column is misclassified as categorical at default 30%, and
 // reclassified as set when the threshold drops.
 func TestImportJob_SetInferenceMinPctRespected(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 0, 60)
 	regions := []string{"north", "south"}
 	for i := 0; i < 10; i++ {

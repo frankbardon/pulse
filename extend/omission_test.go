@@ -33,6 +33,8 @@ var engineOnlyPrefixes = []string{"Meta"}
 // extend declares an exported identifier naming an engine-only
 // capability.
 func TestExtendOmitsEngineOnlyCapabilities(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -99,6 +101,8 @@ func exportedNames(d ast.Decl) []string {
 // engine-resolved row weight through — and that Record offers no other
 // weight method (no setter, no validity judge: those are the engine's).
 func TestRecordExposesWeight(t *testing.T) {
+	t.Parallel()
+
 	_ = func(r extend.Record) (float64, bool) { return r.Weight() }
 	fset := token.NewFileSet()
 	af, err := parser.ParseFile(fset, "record.go", nil, parser.SkipObjectResolution)

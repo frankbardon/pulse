@@ -7,6 +7,8 @@ import (
 )
 
 func TestCanonicalHash_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	r := &Request{
 		Cohort: &Cohort{Filename: "a.pulse"},
 		Aggregations: []*Aggregation{
@@ -21,6 +23,8 @@ func TestCanonicalHash_Deterministic(t *testing.T) {
 }
 
 func TestCanonicalHash_RoundTripJSON(t *testing.T) {
+	t.Parallel()
+
 	r := &Request{
 		Cohort: &Cohort{Filename: "x.pulse"},
 		Aggregations: []*Aggregation{
@@ -47,6 +51,8 @@ func TestCanonicalHash_RoundTripJSON(t *testing.T) {
 }
 
 func TestCanonicalHash_DefaultNormalization(t *testing.T) {
+	t.Parallel()
+
 	a := &Aggregation{Type: AGG_SUM, Field: "x"}
 	b := &Aggregation{Type: AGG_SUM, Field: "x", Label: ""}
 	if CanonicalHash("agg", a) != CanonicalHash("agg", b) {
@@ -55,6 +61,8 @@ func TestCanonicalHash_DefaultNormalization(t *testing.T) {
 }
 
 func TestCanonicalHash_FieldOrderInvariant(t *testing.T) {
+	t.Parallel()
+
 	// Two semantically identical aggregations differing only in
 	// struct-field ordering at construction time.
 	first := &Aggregation{Type: AGG_SUM, Field: "x", Label: "s"}
@@ -65,6 +73,8 @@ func TestCanonicalHash_FieldOrderInvariant(t *testing.T) {
 }
 
 func TestCanonicalHash_TypeNamespaceSeparates(t *testing.T) {
+	t.Parallel()
+
 	r := &Request{Cohort: &Cohort{Filename: "a.pulse"}}
 	c := &ComposedRequest{Requests: []*Request{r}}
 	if r.Hash() == c.Hash() {
@@ -73,6 +83,8 @@ func TestCanonicalHash_TypeNamespaceSeparates(t *testing.T) {
 }
 
 func TestCanonicalHash_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	var r *Request
 	if got := r.Hash(); len(got) != 32 {
 		t.Fatalf("nil Request.Hash() must still return 32-char hex, got %q", got)
@@ -84,6 +96,8 @@ func TestCanonicalHash_NilSafe(t *testing.T) {
 }
 
 func TestCanonicalHash_NumberNormalization(t *testing.T) {
+	t.Parallel()
+
 	type holder struct {
 		V float64 `json:"v"`
 	}
@@ -95,6 +109,8 @@ func TestCanonicalHash_NumberNormalization(t *testing.T) {
 }
 
 func TestCanonicalHash_SynthSpec_StableShape(t *testing.T) {
+	t.Parallel()
+
 	// Two structurally identical FacetRequests must share a hash.
 	a := &FacetRequest{Fields: []string{"a", "b"}}
 	b := &FacetRequest{Fields: []string{"a", "b"}}
@@ -104,6 +120,8 @@ func TestCanonicalHash_SynthSpec_StableShape(t *testing.T) {
 }
 
 func TestLookupRequest_Hash_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	a := &LookupRequest{
 		Cohort:        &Cohort{Filename: "cohort.pulse"},
 		Field:         "id",
@@ -138,6 +156,8 @@ func TestLookupRequest_Hash_Deterministic(t *testing.T) {
 }
 
 func TestLookupRequest_Hash_CompositeKeysDeterministicAndOrderSignificant(t *testing.T) {
+	t.Parallel()
+
 	a := &LookupRequest{
 		Cohort: &Cohort{Filename: "cohort.pulse"},
 		Keys: []LookupKey{
@@ -169,6 +189,8 @@ func TestLookupRequest_Hash_CompositeKeysDeterministicAndOrderSignificant(t *tes
 }
 
 func TestCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	r := &Request{
 		Cohort: &Cohort{Filename: "a.pulse"},
@@ -208,6 +230,8 @@ func TestCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
 //     Response.Overlays entry in matching order)
 //   - populating a different OverlayRef family arm → different hash
 func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
+	t.Parallel()
+
 	base := func() *Request {
 		return &Request{
 			Cohort: &Cohort{Filename: "a.pulse"},
@@ -289,6 +313,8 @@ func TestCanonicalHash_OverlaysIncluded(t *testing.T) {
 }
 
 func TestCanonicalHash_RequestLabelEmptyByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	noLabel := &Request{
 		Cohort: &Cohort{Filename: "a.pulse"},
@@ -312,6 +338,8 @@ func TestCanonicalHash_RequestLabelEmptyByteIdentical(t *testing.T) {
 }
 
 func TestComposedRequest_OverlayFreeByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	base := func() *ComposedRequest {
 		return &ComposedRequest{
 			Requests: []*Request{
@@ -347,6 +375,8 @@ func TestComposedRequest_OverlayFreeByteIdentity(t *testing.T) {
 }
 
 func TestCanonicalHash_ComposedRequest_LabelStability(t *testing.T) {
+	t.Parallel()
+
 	base := func() *ComposedRequest {
 		return &ComposedRequest{
 			Requests: []*Request{
@@ -418,6 +448,8 @@ func TestCanonicalHash_ComposedRequest_LabelStability(t *testing.T) {
 //     ComposedResponse.Overlays entry in matching order)
 //   - Level / Within / Params each fold into the canonical hash
 func TestCanonicalHash_ComposedRequest_Overlays(t *testing.T) {
+	t.Parallel()
+
 	base := func() *ComposedRequest {
 		return &ComposedRequest{
 			Requests: []*Request{
@@ -534,6 +566,8 @@ func TestCanonicalHash_ComposedRequest_Overlays(t *testing.T) {
 }
 
 func TestCanonicalHash_Request_LabelOmitemptyMatchesDefault(t *testing.T) {
+	t.Parallel()
+
 	// Bare Request — empty Label and explicit `Label: ""` must hash
 	// identically (the structural baseline locked by
 	// TestCanonicalHash_RequestLabelEmptyByteIdentical above).
@@ -603,6 +637,8 @@ func TestCanonicalHash_Request_LabelOmitemptyMatchesDefault(t *testing.T) {
 // callers can safely use ComposedRequest.Hash() inside dedup-cache
 // lookups without worrying about silent state mutation.
 func TestComposedRequest_AutoDefaultDoesNotMutateCaller(t *testing.T) {
+	t.Parallel()
+
 	r1 := &Request{Cohort: &Cohort{Filename: "a.pulse"}}
 	r2 := &Request{Cohort: &Cohort{Filename: "a.pulse"}}
 	composed := &ComposedRequest{Requests: []*Request{r1, r2}}
@@ -628,6 +664,8 @@ func TestComposedRequest_AutoDefaultDoesNotMutateCaller(t *testing.T) {
 }
 
 func TestCanonicalHash_OverlayLevelDistinct(t *testing.T) {
+	t.Parallel()
+
 	base := func() *Request {
 		return &Request{
 			Cohort: &Cohort{Filename: "a.pulse"},
@@ -675,6 +713,8 @@ func TestCanonicalHash_OverlayLevelDistinct(t *testing.T) {
 }
 
 func TestCanonicalHash_ResponseComponentsByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	implicit := Response{}
 	explicit := Response{Components: nil}
 
@@ -691,6 +731,8 @@ func TestCanonicalHash_ResponseComponentsByteIdentity(t *testing.T) {
 // service-layer emitters that populate the map in their own iteration
 // order.
 func TestCanonicalHash_ResponseComponentsOperatorKeyOrderInvariant(t *testing.T) {
+	t.Parallel()
+
 	a := Response{
 		Components: &ResponseComponents{
 			Aggregations: []AggregationComponents{

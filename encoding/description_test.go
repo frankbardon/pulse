@@ -9,6 +9,8 @@ import (
 )
 
 func TestFieldDescription_WriteRead(t *testing.T) {
+	t.Parallel()
+
 	desc := "Patient age in years at enrollment"
 	var buf bytes.Buffer
 	if err := WriteDescription(&buf, desc); err != nil {
@@ -25,6 +27,8 @@ func TestFieldDescription_WriteRead(t *testing.T) {
 }
 
 func TestFieldDescription_Empty(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := WriteDescription(&buf, ""); err != nil {
 		t.Fatalf("WriteDescription empty: %v", err)
@@ -40,6 +44,8 @@ func TestFieldDescription_Empty(t *testing.T) {
 }
 
 func TestFieldDescription_MaxLength(t *testing.T) {
+	t.Parallel()
+
 	desc := strings.Repeat("a", MaxDescriptionBytes)
 	var buf bytes.Buffer
 	if err := WriteDescription(&buf, desc); err != nil {
@@ -56,6 +62,8 @@ func TestFieldDescription_MaxLength(t *testing.T) {
 }
 
 func TestFieldDescription_TooLong(t *testing.T) {
+	t.Parallel()
+
 	desc := strings.Repeat("x", MaxDescriptionBytes+1)
 	var buf bytes.Buffer
 	err := WriteDescription(&buf, desc)
@@ -68,6 +76,8 @@ func TestFieldDescription_TooLong(t *testing.T) {
 }
 
 func TestFieldDescription_UTF8(t *testing.T) {
+	t.Parallel()
+
 	// Multi-byte UTF-8: "日本語" is 9 bytes.
 	desc := "日本語テスト"
 	var buf bytes.Buffer
@@ -85,6 +95,8 @@ func TestFieldDescription_UTF8(t *testing.T) {
 }
 
 func TestFieldDescription_UTF8_ExactlyAtLimit(t *testing.T) {
+	t.Parallel()
+
 	// Create a string that is exactly MaxDescriptionBytes in UTF-8.
 	desc := strings.Repeat("é", MaxDescriptionBytes/2) // é is 2 bytes in UTF-8
 	if len(desc) != MaxDescriptionBytes {

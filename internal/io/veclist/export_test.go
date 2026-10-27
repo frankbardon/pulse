@@ -79,6 +79,8 @@ func siblingCSV(sep string) string {
 // as empty cells — and re-importing that export with the same declaration
 // writes a byte-identical cohort.
 func TestVectorExport_SiblingColumnsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		sep    string
@@ -89,6 +91,8 @@ func TestVectorExport_SiblingColumnsRoundTrip(t *testing.T) {
 		{"tsv", "\t", func(b []byte) pio.Reader { return ptsv.NewReaderFromBytes(b) }, func() bufWriter { return ptsv.NewWriterToBuffer() }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			src := siblingCSV(tc.sep)
 			decl := []string{"rate:/^rate_(.*)$/"}
 			first := importNamed(t, tc.reader([]byte(src)), decl, "rate")
@@ -141,6 +145,8 @@ func importNamed(t *testing.T, rd pio.Reader, decls []string, name string) *deco
 // TestVectorExport_ExcelExpands: an Excel export expands like CSV and
 // re-imports, folded the same way, to the same vectors.
 func TestVectorExport_ExcelExpands(t *testing.T) {
+	t.Parallel()
+
 	first := importNamed(t, pcsv.NewReaderFromBytes([]byte(siblingCSV(","))), []string{"rate:/^rate_(.*)$/"}, "rate")
 	out := exportCohort(t, first.raw, pexcel.NewWriterToBuffer(), 4)
 	rd := pexcel.NewReaderFromBytes(out)
@@ -183,6 +189,8 @@ func sameVectors(t *testing.T, got, want *decoded) {
 // FixedSizeList<float32|float64, dim> — and re-importing that export
 // under the same declaration writes a byte-identical cohort.
 func TestVectorExport_NativeListsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	src := sources()[0] // Arrow FixedSizeList<float64>
 	for _, decl := range []string{"v", "v:f32"} {
 		first, _, err := importRows(t, src.make(t, fixture()), []string{decl}, nil)
@@ -291,6 +299,8 @@ func checkVectorList(t *testing.T, sc *arrow.Schema, decl string, fixed bool) {
 // Parquet as FixedSizeList<elem, dim> (a nullable one is a LIST — pqarrow
 // cannot write a null fixed-size list) and re-imports byte-identically.
 func TestVectorExport_ParquetFixedSizeList(t *testing.T) {
+	t.Parallel()
+
 	rows := []row{
 		{id: 1, list: []any{1.0, 2.0, 3.0}},
 		{id: 2, list: []any{4.5, 0.1, 6.0}},

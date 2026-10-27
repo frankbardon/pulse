@@ -47,6 +47,8 @@ func analyticIntents() []string {
 // instance mounts every registered prompt: the two hand-written ones
 // plus one per analytic intent.
 func TestRegister_IntentPromptsMountProfileFree(t *testing.T) {
+	t.Parallel()
+
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), nil, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	want := gosdk.RegisteredPrompts()
@@ -62,6 +64,8 @@ func TestRegister_IntentPromptsMountProfileFree(t *testing.T) {
 // TestRegister_IntentPromptFeatureHidesPrompt pins that a profile
 // omitting one intent prompt's feature unmounts exactly that prompt.
 func TestRegister_IntentPromptFeatureHidesPrompt(t *testing.T) {
+	t.Parallel()
+
 	fp, err := pulse.ExampleFeatureProfile("read-only-analyst")
 	if err != nil {
 		t.Fatal(err)
@@ -85,6 +89,8 @@ func TestRegister_IntentPromptFeatureHidesPrompt(t *testing.T) {
 // edges: an intent prompt without any one of the tools its script
 // calls is refused at pulse.New.
 func TestFeatureProfile_IntentPromptNeedsItsTools(t *testing.T) {
+	t.Parallel()
+
 	for _, missing := range intentPromptToolFeatures {
 		t.Run(missing, func(t *testing.T) {
 			features := []string{"mcp_extra:prompt_describe", "AGG_SUM"}
@@ -114,6 +120,8 @@ func TestFeatureProfile_IntentPromptNeedsItsTools(t *testing.T) {
 // whose every serving operator is hidden mounts no prompt, even with
 // the prompt's feature enabled, and that the surviving intents do.
 func TestRegister_IntentPromptFollowsOntologyPrune(t *testing.T) {
+	t.Parallel()
+
 	minimal, err := pulse.ExampleFeatureProfile("minimal")
 	if err != nil {
 		t.Fatal(err)
@@ -158,6 +166,8 @@ func TestRegister_IntentPromptFollowsOntologyPrune(t *testing.T) {
 // values are spliced verbatim, and the script runs inspect → recommend
 // → explain(request) → process → explain(response) in that order.
 func TestRegister_IntentPromptContent(t *testing.T) {
+	t.Parallel()
+
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), nil, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	ctx := context.Background()
@@ -212,6 +222,8 @@ func TestRegister_IntentPromptContent(t *testing.T) {
 // concrete intent prompt: a served body must not name a prompt the
 // instance may hide.
 func TestSkillsCoverAllMCPPrompts(t *testing.T) {
+	t.Parallel()
+
 	// Intent ↔ prompt bijection over the analytic intents.
 	byPrompt := map[string]string{}
 	for _, ip := range descx.MCPIntentPrompts() {
@@ -274,6 +286,8 @@ func TestSkillsCoverAllMCPPrompts(t *testing.T) {
 // hands off to its own mounted prompt with its label and phrasings,
 // and each tooling intent points straight at its mounted route tools.
 func TestRegister_AuthorRequestRoutesByIntent(t *testing.T) {
+	t.Parallel()
+
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), nil, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	text := promptText(t, c, gosdk.PromptAuthorRequest, map[string]string{"question": "Do regions differ in revenue?"})
@@ -313,6 +327,8 @@ func TestRegister_AuthorRequestRoutesByIntent(t *testing.T) {
 // the author-request body, keeps every other mounted one, and routes no
 // tooling intent to a hidden tool.
 func TestRegister_AuthorRequestNamesOnlyMountedPrompts(t *testing.T) {
+	t.Parallel()
+
 	fp, err := pulse.ExampleFeatureProfile("read-only-analyst")
 	if err != nil {
 		t.Fatal(err)

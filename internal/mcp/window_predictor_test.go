@@ -16,6 +16,8 @@ import (
 // a same-request WIN_LAG label under the default (standard) return and
 // returns the fit — no error, each leading null lag dropped listwise.
 func TestWindowPredictor_ParityMCPProcessSmoke(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +67,8 @@ func TestWindowPredictor_ParityMCPProcessSmoke(t *testing.T) {
 // return — one fitted slot per decay, each slope different, each bit
 // for bit the slot the library's Compose fits for the same batch.
 func TestWindowPredictor_ParityMCPComposeSweep(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)

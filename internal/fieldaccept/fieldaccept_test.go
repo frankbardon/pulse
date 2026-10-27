@@ -10,6 +10,8 @@ import (
 )
 
 func TestTypeNames_ValueWindow(t *testing.T) {
+	t.Parallel()
+
 	want := []string{"date", "f32", "f64", "u16", "u32", "u4", "u64", "u8"}
 	if got := TypeNames("WIN_LAG", SlotField); !reflect.DeepEqual(got, want) {
 		t.Fatalf("WIN_LAG field: %v, want %v", got, want)
@@ -23,6 +25,8 @@ func TestTypeNames_ValueWindow(t *testing.T) {
 }
 
 func TestTypeNames_NeverListsVectorOrRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range Operators() {
 		for _, slot := range []Slot{SlotField, SlotField2, SlotTarget, SlotPredictor} {
 			for _, n := range TypeNames(op, slot) {
@@ -40,6 +44,8 @@ func TestTypeNames_NeverListsVectorOrRefused(t *testing.T) {
 // on the value matchers (the decimal rule), no categorical on a
 // quantity reader, the Welford six.
 func TestTypeNames_ValueReaders(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range []string{"AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE", "AGG_MODE_COUNT", "AGG_WELFORD",
 		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE", "GROUP_CATEGORY", "GROUP_QUANTILE",
 		"GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE", "FILTER_RANGE"} {
@@ -87,6 +93,8 @@ func TestTypeNames_ValueReaders(t *testing.T) {
 }
 
 func TestRefusal(t *testing.T) {
+	t.Parallel()
+
 	if r := Refusal("WIN_LAG", SlotField, "f", encoding.FieldTypeF64); r != nil {
 		t.Fatalf("accepted type refused: %v", r)
 	}
@@ -115,6 +123,8 @@ func TestRefusal(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "c", Type: encoding.FieldTypeCategoricalU8},
 		{Name: "x", Type: encoding.FieldTypeF64},
@@ -137,6 +147,8 @@ func TestCheck(t *testing.T) {
 }
 
 func TestOperatorsRaising(t *testing.T) {
+	t.Parallel()
+
 	got := OperatorsRaising(errors.PULSE_FIELD_TYPE_UNSUPPORTED)
 	for _, want := range []string{"FEAT_POLY", "REG_OLS", "WIN_DELTA"} {
 		found := false
@@ -169,6 +181,8 @@ func TestOperatorsRaising(t *testing.T) {
 }
 
 func TestTypeNames_SetOperators(t *testing.T) {
+	t.Parallel()
+
 	want := []string{"set_u128", "set_u16", "set_u256", "set_u32", "set_u64", "set_u8"}
 	for _, op := range []string{"AGG_SET_UNION", "ATTR_SET_HAS", "FILTER_SET_EQUALS", "GROUP_SET_VALUE"} {
 		if got := TypeNames(op, SlotField); !reflect.DeepEqual(got, want) {
@@ -185,6 +199,8 @@ func TestTypeNames_SetOperators(t *testing.T) {
 }
 
 func TestTypeNames_DateRanges(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range []string{"GROUP_DATE", "GROUP_DATE_RANGES", "FILTER_DATE_RANGES"} {
 		if got, want := TypeNames(op, SlotField), []string{"date", "datetime"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: %v, want %v", op, got, want)
@@ -197,6 +213,8 @@ func TestTypeNames_DateRanges(t *testing.T) {
 // tabled row or not; a decimal-arm aggregator, a non-field slot and an
 // extension (unknown) aggregator are not judged by it.
 func TestDecimalRule(t *testing.T) {
+	t.Parallel()
+
 	d := encoding.FieldTypeDecimal128
 	for _, op := range []string{"AGG_MEDIAN", "AGG_PERCENTILE", "AGG_MODE", "AGG_WELFORD", "AGG_SET_UNION"} {
 		r := Refusal(op, SlotField, "amt", d)
@@ -239,6 +257,8 @@ func TestDecimalRule(t *testing.T) {
 // PULSE_TEST_FIELD2_NOT_NUMERIC and the decimal rule's
 // PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
 func TestTableCodes(t *testing.T) {
+	t.Parallel()
+
 	allowed := map[errors.Code]bool{
 		errors.PULSE_FIELD_TYPE_UNSUPPORTED:         true,
 		errors.PULSE_TEST_FIELD_NOT_NUMERIC:         true,
@@ -274,6 +294,8 @@ func TestTableCodes(t *testing.T) {
 // a categorical or a set; the counting aggregators are not tabled for
 // a categorical refusal.
 func TestTypeNames_NumericReaders(t *testing.T) {
+	t.Parallel()
+
 	all := []string{"date", "datetime", "decimal128", "f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
 	noDecimal := []string{"date", "datetime", "f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
 	for op, want := range map[string][]string{
@@ -305,6 +327,8 @@ func TestTypeNames_NumericReaders(t *testing.T) {
 // included — while TEST_ANOVA_RM's subject (a two-level subject id
 // identifies no subject) stays categorical-only.
 func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
+	t.Parallel()
+
 	level := []string{"categorical_u16", "categorical_u32", "categorical_u8", "packed_bool"}
 	categorical := level[:3]
 	for _, tc := range []struct {
@@ -337,6 +361,8 @@ func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
 // both sides: a categorical's dictionary labels in dictionary order, a
 // packed_bool's "0" / "1", nil for anything else.
 func TestLevels(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("b")
 	dict.Add("a")
@@ -363,6 +389,8 @@ func TestLevels(t *testing.T) {
 // not hold (a derived column) or a categorical without a dictionary is
 // never judged here.
 func TestSuccessLevelRefusal(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"no", "yes"} {
 		if _, err := dict.Add(v); err != nil {

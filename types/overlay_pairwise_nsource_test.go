@@ -7,6 +7,8 @@ import "testing"
 // predicate does not know, so a mode missing here is unreachable
 // through predict even though the runtime would honour it.
 func TestValidPairwiseNSource_NWithinDistinct(t *testing.T) {
+	t.Parallel()
+
 	if !ValidPairwiseNSource(PairwiseNSourceNWithinDistinct) {
 		t.Fatalf("ValidPairwiseNSource(%q) = false, want true", PairwiseNSourceNWithinDistinct)
 	}
@@ -23,6 +25,8 @@ func TestValidPairwiseNSource_NWithinDistinct(t *testing.T) {
 // n_source outright (descriptor.validateOverlayPairwise), so a constant
 // that never reaches ValidPairwiseNSource is a mode no request can name.
 func TestValidPairwiseNSource_MarginDistinct(t *testing.T) {
+	t.Parallel()
+
 	for constant, want := range map[string]string{
 		PairwiseNSourceRowMarginDistinct:    "row_margin_distinct",
 		PairwiseNSourceColumnMarginDistinct: "column_margin_distinct",
@@ -43,6 +47,8 @@ func TestValidPairwiseNSource_MarginDistinct(t *testing.T) {
 // n_within_depth range guard keys off — both slab modes in, every
 // non-slab mode out.
 func TestPairwiseNSourceUsesWithinDepth(t *testing.T) {
+	t.Parallel()
+
 	in := []string{PairwiseNSourceNWithin, PairwiseNSourceNWithinDistinct}
 	for _, s := range in {
 		if !PairwiseNSourceUsesWithinDepth(s) {

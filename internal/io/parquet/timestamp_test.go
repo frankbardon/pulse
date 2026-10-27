@@ -104,6 +104,8 @@ func truncated(rep *pio.ImportReport) []*perr.CodedError {
 // ignored) and false (a wall clock: it applies), plus legacy INT96, which
 // pqarrow surfaces as a UTC-zoned type but Pulse reads as naive.
 func TestParquetTimestamp_AdjustedNaiveAndInt96(t *testing.T) {
+	t.Parallel()
+
 	summer := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	frac := summer.Add(1500 * time.Millisecond)
 	cases := []struct {
@@ -155,6 +157,8 @@ func TestParquetTimestamp_AdjustedNaiveAndInt96(t *testing.T) {
 // TestParquetTimestamp_WholeSecondsAndPreEpoch: no warning without a
 // fraction; a pre-1970 fraction floors toward the past.
 func TestParquetTimestamp_WholeSecondsAndPreEpoch(t *testing.T) {
+	t.Parallel()
+
 	data := tsParquet(t, &arrow.TimestampType{Unit: arrow.Microsecond, TimeZone: "UTC"},
 		[]arrow.Timestamp{0, -1_000_000}, false)
 	rep, got, err := tsImport(t, data, "", "")
@@ -182,6 +186,8 @@ func TestParquetTimestamp_WholeSecondsAndPreEpoch(t *testing.T) {
 // TestParquetTimestamp_Int96RespectsDSTPolicy: INT96 is a naive wall
 // clock, so a Berlin spring-forward gap is refused naming the row.
 func TestParquetTimestamp_Int96RespectsDSTPolicy(t *testing.T) {
+	t.Parallel()
+
 	gap := time.Date(2026, 3, 29, 2, 30, 0, 0, time.UTC) // Berlin skips 02:30
 	data := tsParquet(t, arrow.FixedWidthTypes.Timestamp_ns.(*arrow.TimestampType),
 		[]arrow.Timestamp{unitTicks(gap.Add(-2*time.Hour), arrow.Nanosecond), unitTicks(gap, arrow.Nanosecond)}, true)

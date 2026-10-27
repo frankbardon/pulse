@@ -76,6 +76,8 @@ func parseKernel(t *testing.T) (*token.FileSet, []*ast.File) {
 // every consumer (the expr environment, FEAT_LOG, the synth row env) can
 // import them without an import cycle or an engine dependency.
 func TestDetmath_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	_, files := parseKernel(t)
 	for _, f := range files {
 		for _, imp := range f.Imports {
@@ -91,6 +93,8 @@ func TestDetmath_ImportBoundary(t *testing.T) {
 // multiplication in the kernels, including a `*=` assignment, must be the
 // direct operand of a same-width float64(...) / float32(...) conversion.
 func TestDetmath_NoFusibleProducts(t *testing.T) {
+	t.Parallel()
+
 	fset, files := parseKernel(t)
 	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}}
 	conf := types.Config{Importer: importer.ForCompiler(fset, "source", nil)}
@@ -170,6 +174,8 @@ func fmahashBuild(t *testing.T, dir, importPath string) []string {
 // one — otherwise a renamed compiler flag would make this gate silently
 // vacuous), then requires the detmath build to report none.
 func TestDetmath_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	probe := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -346,6 +352,8 @@ func fusedSin(x float64) float64 {
 
 // TestDetmath_FusedTwinsDiverge is gate 3 (see the file comment).
 func TestDetmath_FusedTwinsDiverge(t *testing.T) {
+	t.Parallel()
+
 	obs := contractionObservable()
 	t.Logf("GOARCH=%s contracts c+a*b into an FMA: %v", runtime.GOARCH, obs)
 	if !obs {

@@ -15,6 +15,8 @@ import (
 // in details.compile_error, the source in details.expression, and the
 // compile error kept as the cause.
 func TestCompileError(t *testing.T) {
+	t.Parallel()
+
 	schema := prototypeTestSchema()
 	for _, c := range []struct {
 		src, what, reason string
@@ -52,6 +54,8 @@ func TestCompileError(t *testing.T) {
 // bool, `any` nor a vector is refused with the compile error's code and
 // expr-lang's AsBool sentence; a formula is never judged.
 func TestResultRefusal(t *testing.T) {
+	t.Parallel()
+
 	decl := map[string]any{"x": 0.0, "s": "", "v": []float64(nil), "f": func(any) any { return nil }}
 	for _, c := range []struct {
 		src, site string

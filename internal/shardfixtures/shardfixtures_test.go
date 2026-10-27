@@ -23,6 +23,8 @@ var repoDir = filepath.Join("..", "..", Dir)
 // (ENCODING_INVALID reading the canonical schema). Any codec change that
 // moves these bytes now fails here until the fixtures are regenerated.
 func TestShardFixtures_MatchGenerator(t *testing.T) {
+	t.Parallel()
+
 	files, err := Build()
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -52,6 +54,8 @@ func TestShardFixtures_MatchGenerator(t *testing.T) {
 // generator is only half the contract — the committed archives must
 // also OPEN, and say what the README says they hold.
 func TestShardFixtures_OpenUnderCurrentCodec(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]struct {
 		shards  int
 		records uint64

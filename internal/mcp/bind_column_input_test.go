@@ -15,6 +15,8 @@ import (
 // pulse_process, a pulse_compose slot and a pulse_process_chain stage,
 // plus the crosstab cell / margin / axis items.
 func TestBind_ColumnInputItems(t *testing.T) {
+	t.Parallel()
+
 	_, inst := instanceFor(t, nil, pulse.Extensions{})
 	bound, err := BindForInstance(makeBindSchema(), inst)
 	if err != nil {

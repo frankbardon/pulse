@@ -36,6 +36,8 @@ func luResidualOK(a [][]float64, x, b []float64) (float64, float64, bool) {
 }
 
 func TestSolve_KnownSolutions(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		a    [][]float64
@@ -70,6 +72,8 @@ func TestSolve_KnownSolutions(t *testing.T) {
 }
 
 func TestSolve_RoundTripRandomNonSymmetric(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(7))
 	for _, n := range []int{1, 2, 3, 5, 8, 13, 21, 40} {
 		for trial := 0; trial < 20; trial++ {
@@ -105,6 +109,8 @@ func TestSolve_RoundTripRandomNonSymmetric(t *testing.T) {
 // must hold on arm64 AND amd64 (CI); a drift here means a product lost
 // its float64(...) guard or the operation order changed.
 func TestSolve_BitPinned(t *testing.T) {
+	t.Parallel()
+
 	a := mustMatrix(t, [][]float64{
 		{0.3, -1.7, 2.9, 0.11},
 		{4.1, 0.2, -0.6, 1.3},
@@ -124,6 +130,8 @@ func TestSolve_BitPinned(t *testing.T) {
 }
 
 func TestFactorLU_SingularIsTypedError(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		a        [][]float64
@@ -167,6 +175,8 @@ func TestFactorLU_SingularIsTypedError(t *testing.T) {
 // rank tolerance calls the matrix rank-deficient (ConditionNumber = +Inf),
 // and solves — within the round-trip tolerance — where it does not.
 func TestFactorLU_NearSingularFollowsRankTolerance(t *testing.T) {
+	t.Parallel()
+
 	for _, delta := range []float64{0, linalg.Epsilon, 2 * linalg.Epsilon, 3 * linalg.Epsilon, 4 * linalg.Epsilon, 5 * linalg.Epsilon, 6 * linalg.Epsilon,
 		8 * linalg.Epsilon, 16 * linalg.Epsilon, 1e-14, 1e-12, 1e-8} {
 		rows := [][]float64{{1, 1}, {1, 1 + delta}}
@@ -197,6 +207,8 @@ func TestFactorLU_NearSingularFollowsRankTolerance(t *testing.T) {
 // solves: the policy refuses singularity, not poor conditioning, and the
 // backward error still meets the round-trip tolerance.
 func TestSolve_IllConditionedFullRankSolves(t *testing.T) {
+	t.Parallel()
+
 	const n = 10
 	rows := make([][]float64, n)
 	b := make([]float64, n)
@@ -222,6 +234,8 @@ func TestSolve_IllConditionedFullRankSolves(t *testing.T) {
 }
 
 func TestLUFactor_ShapeErrors(t *testing.T) {
+	t.Parallel()
+
 	sq := mustMatrix(t, [][]float64{{1, 2}, {3, 4}})
 	rect := mustMatrix(t, [][]float64{{1, 2, 3}, {4, 5, 6}})
 	tall := mustMatrix(t, [][]float64{{1}, {2}, {3}})
@@ -252,6 +266,8 @@ func TestLUFactor_ShapeErrors(t *testing.T) {
 }
 
 func TestLUFactor_MultipleRHSAndInverse(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(11))
 	const n = 6
 	rows := randRows(rng, n, n)
@@ -337,6 +353,8 @@ func TestLUFactor_MultipleRHSAndInverse(t *testing.T) {
 }
 
 func TestLUFactor_Empty(t *testing.T) {
+	t.Parallel()
+
 	empty := mustMatrix(t, nil)
 	x, err := linalg.Solve(empty, linalg.NewVec(nil))
 	if err != nil || x.Len() != 0 {

@@ -74,6 +74,8 @@ func sameVectorFit(t *testing.T, got, want *VectorFit) {
 // zero and subnormals exact), bound under the loading name; re-encoding
 // the decoded file reproduces the bytes.
 func TestPopulationFile_RoundTripBitExact(t *testing.T) {
+	t.Parallel()
+
 	want := edgeVectorFit()
 	data := encodedPopulation(t, want)
 	for _, frag := range []string{`"population_format_version": 1`, `"basis": "probability"`, `null`, `"+Inf"`, `-0`, `"m2"`, `"provenance"`} {
@@ -105,6 +107,8 @@ func TestPopulationFile_RoundTripBitExact(t *testing.T) {
 // TestNewPopulationFile_RefusesMalformed: a state the decode would
 // refuse is never written (an engine invariant, PROCESSING_INTERNAL).
 func TestNewPopulationFile_RefusesMalformed(t *testing.T) {
+	t.Parallel()
+
 	v := vectorFit("v")
 	v.M2[0][1] = 5 // not symmetric
 	if _, err := NewPopulationFile("v", v, Provenance{}); coded(t, err).Code != errors.PROCESSING_INTERNAL {
@@ -116,6 +120,8 @@ func TestNewPopulationFile_RefusesMalformed(t *testing.T) {
 }
 
 func TestDecodePopulationFile_Refusals(t *testing.T) {
+	t.Parallel()
+
 	good := string(encodedPopulation(t, vectorFit("v")))
 	edit := func(old, new string) string {
 		if !strings.Contains(good, old) {
@@ -203,6 +209,8 @@ func TestDecodePopulationFile_Refusals(t *testing.T) {
 }
 
 func TestCheckPopulationSavePath(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"p" + PopulationSuffix:         "",
 		"d/e/p" + PopulationSuffix:     "",
@@ -236,6 +244,8 @@ func pops(pairs ...string) []types.PopulationRef {
 }
 
 func TestCheckRefs_Populations(t *testing.T) {
+	t.Parallel()
+
 	ok, mok := "p"+PopulationSuffix, "m"+FileSuffix
 	fits := CatalogFromFits([]types.FitSpec{{Name: "f", Request: olsReq(ols())}})
 	cases := []struct {
@@ -284,6 +294,8 @@ func TestCheckRefs_Populations(t *testing.T) {
 }
 
 func TestLoadFiles_Populations(t *testing.T) {
+	t.Parallel()
+
 	ok := "p" + PopulationSuffix
 	files := map[string][]byte{
 		ok:                        encodedPopulation(t, vectorFit("v")),
@@ -338,6 +350,8 @@ func TestLoadFiles_Populations(t *testing.T) {
 // the loaded models' names; the outer set is untouched; the predict
 // catalog sees the same names, kinds and members.
 func TestSetWithLoaded(t *testing.T) {
+	t.Parallel()
+
 	ok, mok := "p"+PopulationSuffix, "m"+FileSuffix
 	read := memRead(map[string][]byte{ok: encodedPopulation(t, edgeVectorFit()), mok: encodedFullFit(t)})
 	outer := &Set{}
@@ -396,6 +410,8 @@ func TestSetWithLoaded(t *testing.T) {
 // names), and a vector fit's population save takes part in the
 // duplicate-path rule.
 func TestCheckComposeBatch_Populations(t *testing.T) {
+	t.Parallel()
+
 	ok := "p" + PopulationSuffix
 	vecReq := func() *types.Request {
 		return &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}}}
@@ -415,6 +431,8 @@ func TestCheckComposeBatch_Populations(t *testing.T) {
 }
 
 func TestCheckChainModels_Populations(t *testing.T) {
+	t.Parallel()
+
 	stage := func(r *types.Request) *types.ChainStage { return &types.ChainStage{Request: r} }
 	r := saveReq()
 	r.Populations = pops("p", "p"+FileSuffix)

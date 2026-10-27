@@ -195,6 +195,8 @@ func assertWidenRowsEqual(t *testing.T, want, got []widenRow) {
 // ---------------------------------------------------------------------------
 
 func TestWidenSetFieldBytes_RestridesEveryRung(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		from, to encoding.FieldType
@@ -339,6 +341,8 @@ func TestWidenSetFieldBytes_RestridesEveryRung(t *testing.T) {
 // directly on the wire rather than through a decoder: the bytes of every
 // non-widened field are lifted out of both payloads and compared.
 func TestWidenSetFieldBytes_NeighbourBytesAreByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := []widenRow{
 		{id: 0xDEADBEEF, mask: widenMaskOf(0, 63), score: 1.25, nullScor: true},
 		{id: 0x01020304, mask: widenMaskOf(17), score: -1e300},
@@ -382,6 +386,8 @@ func TestWidenSetFieldBytes_NeighbourBytesAreByteIdentical(t *testing.T) {
 }
 
 func TestWidenSetFieldBytes_ZeroRecords(t *testing.T) {
+	t.Parallel()
+
 	srcSchema := widenSchema(t, encoding.FieldTypeSetU64, false, 64)
 	src := buildWidenCohort(t, srcSchema, nil)
 
@@ -402,6 +408,8 @@ func TestWidenSetFieldBytes_ZeroRecords(t *testing.T) {
 }
 
 func TestWidenSetFieldBytes_TruncatedTailRefused(t *testing.T) {
+	t.Parallel()
+
 	srcSchema := widenSchema(t, encoding.FieldTypeSetU64, false, 64)
 	src := buildWidenCohort(t, srcSchema, []widenRow{{id: 1, mask: widenMaskOf(63), score: 1}})
 	truncated := src[:len(src)-3]
@@ -421,6 +429,8 @@ func TestWidenSetFieldBytes_TruncatedTailRefused(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestWidenSetFieldBytes_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		from     encoding.FieldType
@@ -471,6 +481,8 @@ func TestWidenSetFieldBytes_Refusals(t *testing.T) {
 }
 
 func TestCheckSetWiden(t *testing.T) {
+	t.Parallel()
+
 	if err := encx.CheckSetWiden(encoding.FieldTypeSetU8, encoding.FieldTypeSetU256); err != nil {
 		t.Errorf("set_u8 -> set_u256 should be allowed: %v", err)
 	}
@@ -554,6 +566,8 @@ func widenDirEntries(t *testing.T, fsys afero.Fs, dir string) []string {
 }
 
 func TestWidenSetFieldFile_AtomicSyncThenRename(t *testing.T) {
+	t.Parallel()
+
 	rows := []widenRow{
 		{id: 1, mask: widenMaskOf(0, 63), score: 1.5, nullScor: true},
 		{id: 2, mask: widenMaskOf(31), score: 2.5},
@@ -617,6 +631,8 @@ func TestWidenSetFieldFile_AtomicSyncThenRename(t *testing.T) {
 }
 
 func TestWidenSetFieldFile_MidWriteFailureLeavesOriginalByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	rows := make([]widenRow, 0, 200)
 	for i := 0; i < 200; i++ {
 		rows = append(rows, widenRow{id: uint32(i), mask: widenMaskOf(i%64, 63), score: float64(i)})
@@ -663,6 +679,8 @@ func TestWidenSetFieldFile_MidWriteFailureLeavesOriginalByteIdentical(t *testing
 }
 
 func TestWidenSetFieldFile_RefusalLeavesFileUntouched(t *testing.T) {
+	t.Parallel()
+
 	srcSchema := widenSchema(t, encoding.FieldTypeSetU64, false, 64)
 	src := buildWidenCohort(t, srcSchema, []widenRow{{id: 1, mask: widenMaskOf(63), score: 1}})
 
@@ -688,6 +706,8 @@ func TestWidenSetFieldFile_RefusalLeavesFileUntouched(t *testing.T) {
 }
 
 func TestWidenSetFieldFile_MissingCohort(t *testing.T) {
+	t.Parallel()
+
 	fsys := pfs.NewMemMap().Fs()
 	_, err := encx.WidenSetFieldFile(fsys, "/data/nope.pulse", "picks", encoding.FieldTypeSetU128)
 	if err == nil {
@@ -706,6 +726,8 @@ func TestWidenSetFieldFile_MissingCohort(t *testing.T) {
 // bit-packed neighbour one byte too early on BOTH sides and produce a
 // cohort that still opens.
 func TestWidenSetFieldBytes_BitPackedNeighboursKeepTheirByte(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "flag", Type: encoding.FieldTypePackedBool, ByteOffset: 0, CsvColumnIdx: 0},

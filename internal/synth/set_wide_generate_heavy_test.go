@@ -17,6 +17,8 @@ import (
 // never selected — so the probes straddle the word boundary at 63/64
 // and reach the top rung's last bit.
 func TestSynth_SetBernoulli_WideRungMarginalFrequencies(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 10000
 	const tolerance = 0.03
 

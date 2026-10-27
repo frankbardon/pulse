@@ -252,6 +252,8 @@ func stdlibAsmDefect(name string, x, std float64) bool {
 // remove; inputs where the stdlib assembly is outright wrong are counted
 // and logged, never compared.
 func TestDetmath_MatchesStdlibWithinULP(t *testing.T) {
+	t.Parallel()
+
 	type outcome struct {
 		exact, defects int
 		worstArgs      string
@@ -318,6 +320,8 @@ func isSpecial(v float64) bool {
 // infinity's sign and the zero's sign — except where the stdlib
 // assembly is known wrong (stdlibAsmDefect).
 func TestDetmath_SpecialCasesMatchStdlib(t *testing.T) {
+	t.Parallel()
+
 	std := map[string]func(x, y float64) float64{
 		"Exp":    func(x, _ float64) float64 { return math.Exp(x) },
 		"Log":    func(x, _ float64) float64 { return math.Log(x) },
@@ -378,6 +382,8 @@ func twoArg(fn string) bool { return fn == "Atan2" || fn == "Pow" }
 // bound is absolute in the operands' scale instead: 4 ulp of
 // max(1, |nadj|, |lgamma(|x|)|) ≥ |result|.
 func TestDetmath_LgammaReflectionMatchesStdlib(t *testing.T) {
+	t.Parallel()
+
 	r := &sweepRand{s: 3000}
 	worst := 0.0
 	for range sweepN {

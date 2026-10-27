@@ -13,6 +13,8 @@ import (
 )
 
 func TestReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"name":"alice","age":30,"score":95.5},{"name":"bob","age":25,"score":88.0}]`
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -33,6 +35,8 @@ func TestReader_ReadHeader(t *testing.T) {
 }
 
 func TestReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"name":"alice","age":30},{"name":"bob","age":25},{"name":"charlie","age":35}]`
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -58,6 +62,8 @@ func TestReader_ReadRows(t *testing.T) {
 }
 
 func TestReader_EmptyArray(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(`[]`))
 	defer r.Close()
 
@@ -82,6 +88,8 @@ func TestReader_EmptyArray(t *testing.T) {
 }
 
 func TestReader_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(``))
 	defer r.Close()
 
@@ -95,6 +103,8 @@ func TestReader_EmptyInput(t *testing.T) {
 }
 
 func TestReader_NotAnArray(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(`{"name":"alice"}`))
 	defer r.Close()
 	_, err := r.ReadHeader()
@@ -104,6 +114,8 @@ func TestReader_NotAnArray(t *testing.T) {
 }
 
 func TestReader_MalformedElement(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"name":"alice"},{bad}]`
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -121,6 +133,8 @@ func TestReader_MalformedElement(t *testing.T) {
 }
 
 func TestReader_NestedObject(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(`[{"name":"a","meta":{"x":1}}]`))
 	defer r.Close()
 	_, err := r.ReadHeader()
@@ -135,6 +149,8 @@ func TestReader_NestedObject(t *testing.T) {
 // inference heuristic can detect them; (2) nested objects / arrays
 // still raise a typed parse error.
 func TestReader_ArrayValue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ScalarArrayAccepted", func(t *testing.T) {
 		r := NewReaderFromBytes([]byte(`[{"name":"a","tags":["x","y"]}]`))
 		defer r.Close()
@@ -168,6 +184,8 @@ func TestReader_ArrayValue(t *testing.T) {
 }
 
 func TestReader_MixedKeys(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"name":"alice","age":30},{"name":"bob","score":88.0},{"name":"charlie","age":35}]`
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -197,6 +215,8 @@ func TestReader_MixedKeys(t *testing.T) {
 }
 
 func TestReader_PrettyPrintedInput(t *testing.T) {
+	t.Parallel()
+
 	data := `[
   {
     "name": "alice",
@@ -226,6 +246,8 @@ func TestReader_PrettyPrintedInput(t *testing.T) {
 }
 
 func TestReader_NumberAndBoolAndNull(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"i":42,"f":3.14,"b":true,"n":null}]`
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -260,6 +282,8 @@ func TestReader_NumberAndBoolAndNull(t *testing.T) {
 }
 
 func TestReader_Reset(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"a":"1"},{"a":"2"}]`
 	r := NewReaderFromBytes([]byte(data))
 
@@ -286,6 +310,8 @@ func TestReader_Reset(t *testing.T) {
 }
 
 func TestReader_StopIteration(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(`[{"a":"1"},{"a":"2"},{"a":"3"}]`))
 	defer r.Close()
 	r.ReadHeader()
@@ -303,6 +329,8 @@ func TestReader_StopIteration(t *testing.T) {
 }
 
 func TestReader_Cancellation(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(`[{"a":"1"},{"a":"2"},{"a":"3"}]`))
 	defer r.Close()
 	r.ReadHeader()
@@ -315,6 +343,8 @@ func TestReader_Cancellation(t *testing.T) {
 }
 
 func TestReader_FromFS(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	afero.WriteFile(fs, "input.json", []byte(`[{"name":"alice","age":30},{"name":"bob","age":25}]`), 0644)
 
@@ -336,6 +366,8 @@ func TestReader_FromFS(t *testing.T) {
 }
 
 func TestReader_NoDataSource(t *testing.T) {
+	t.Parallel()
+
 	r := &Reader{}
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -344,6 +376,8 @@ func TestReader_NoDataSource(t *testing.T) {
 }
 
 func TestReader_FileNotFound(t *testing.T) {
+	t.Parallel()
+
 	r := NewReader(afero.NewMemMapFs(), "missing.json")
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -352,6 +386,8 @@ func TestReader_FileNotFound(t *testing.T) {
 }
 
 func TestWriter_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteHeader([]string{"name", "age"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -376,6 +412,8 @@ func TestWriter_RoundTrip(t *testing.T) {
 }
 
 func TestWriter_EmptyArray(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"a"})
 	w.Close()
@@ -386,6 +424,8 @@ func TestWriter_EmptyArray(t *testing.T) {
 }
 
 func TestWriter_NoHeader(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	err := w.WriteRow([]any{"x"})
 	if err == nil {
@@ -394,6 +434,8 @@ func TestWriter_NoHeader(t *testing.T) {
 }
 
 func TestWriter_WriteRowFewerValues(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"a", "b", "c"})
 	w.WriteRow([]any{"x"})
@@ -405,6 +447,8 @@ func TestWriter_WriteRowFewerValues(t *testing.T) {
 }
 
 func TestWriter_FilePath(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.json")
 	w.WriteHeader([]string{"a", "b"})
@@ -424,6 +468,8 @@ func TestWriter_FilePath(t *testing.T) {
 }
 
 func TestImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	src := `[{"age":10,"name":"alice","score":95.5},{"age":20,"name":"bob","score":88.0},{"age":30,"name":"charlie","score":72.3}]`
 
 	reader := NewReaderFromBytes([]byte(src))
@@ -460,6 +506,8 @@ func TestImportExportRoundTrip(t *testing.T) {
 }
 
 func TestImport_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	colors := []string{"red", "green", "blue"}
 	objs := make([]string, 0, 100)
 	for i := 0; i < 100; i++ {
@@ -490,6 +538,8 @@ func TestImport_CategoricalColumn(t *testing.T) {
 }
 
 func TestConvert_CsvToJsonArray(t *testing.T) {
+	t.Parallel()
+
 	csvData := "name,age\nalice,30\nbob,25\ncharlie,35\n"
 	csvReader := csv.NewReaderFromBytes([]byte(csvData))
 	jw := NewWriterToBuffer()
@@ -522,6 +572,8 @@ func TestConvert_CsvToJsonArray(t *testing.T) {
 // array is the sharpest form: there is nothing after the header source,
 // so a reader that forgot to replay would import nothing at all.
 func TestReader_FirstElementReachesTheRowPass(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		data string
@@ -532,6 +584,8 @@ func TestReader_FirstElementReachesTheRowPass(t *testing.T) {
 			[][]string{{"alice", "30"}, {"bob", "25"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := NewReaderFromBytes([]byte(tc.data))
 			defer r.Close()
 

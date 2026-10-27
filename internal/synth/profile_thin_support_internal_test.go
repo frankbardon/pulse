@@ -42,6 +42,8 @@ var thinSupportDetectorFiles = []string{
 // only cover the boundary each fixture happened to reach; the scan covers
 // every decision each detector can make.
 func TestThinLevelSupport_EveryDetectorAsksTheSameQuestion(t *testing.T) {
+	t.Parallel()
+
 	fset := token.NewFileSet()
 	total := 0
 	for _, name := range thinSupportDetectorFiles {
@@ -105,6 +107,8 @@ func TestThinLevelSupport_EveryDetectorAsksTheSameQuestion(t *testing.T) {
 // agree and not what they agree ON. Exactly minGateLevelSupport rows is
 // ENOUGH; one fewer is thin.
 func TestThinLevelSupport_BoundaryIsStrictlyBelow(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		support int
 		want    bool

@@ -46,6 +46,8 @@ func wantTransferReason(t *testing.T, err error, reason string) {
 // stream — a stock decoder (no Pulse code) reproduces the cohort bytes
 // exactly, for a single-file cohort and a shard archive.
 func TestTransfer_ArtifactIsStandardZstd(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := transferFS(t)
 	for _, src := range []string{"c.pulse", "arch.pulse"} {
@@ -72,6 +74,8 @@ func TestTransfer_ArtifactIsStandardZstd(t *testing.T) {
 // TestTransfer_ExportRefusals: an out-of-range level, a non-cohort source
 // and an already-compressed source are refused before Output is created.
 func TestTransfer_ExportRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := transferFS(t)
 	_ = afero.WriteFile(fs, "rows.csv", []byte("a,b\n1,2\n"), 0o644)
@@ -106,6 +110,8 @@ func TestTransfer_ExportRefusals(t *testing.T) {
 // stream of non-cohort bytes, and an existing output are all refused —
 // and none leaves a staging file or a partial cohort behind.
 func TestTransfer_ImportRefusals(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := transferFS(t)
 	if _, err := (&TransferExportJob{FS: fs, Source: "c.pulse", Output: "c.zst"}).Run(ctx); err != nil {
@@ -160,6 +166,8 @@ func TestTransfer_ImportRefusals(t *testing.T) {
 // encoder classes (level 19 is strictly smaller than level 1 here) and every level
 // round-trips to the same cohort.
 func TestTransfer_LevelChangesBytesNotContent(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fs := transferFS(t)
 	orig, _ := afero.ReadFile(fs, "c.pulse")

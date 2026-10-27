@@ -16,6 +16,8 @@ import (
 // are what a template file writes, what PULSE_TEMPLATE_TARGET_UNKNOWN's
 // fixup examples advertise, and what selects the strict-decode type.
 func TestTarget_ClosedEnum(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		target template.Target
 		want   bool
@@ -44,6 +46,8 @@ func TestTarget_ClosedEnum(t *testing.T) {
 // TestAllTargets_SpellingsAndCopy asserts the exact wire spellings, their
 // order, and that the accessor hands back a defensive copy.
 func TestAllTargets_SpellingsAndCopy(t *testing.T) {
+	t.Parallel()
+
 	want := []template.Target{"request", "composed", "chain", "facet", "sample"}
 	got := template.AllTargets()
 	if !reflect.DeepEqual(got, want) {
@@ -60,6 +64,8 @@ func TestAllTargets_SpellingsAndCopy(t *testing.T) {
 
 // TestVarType_ClosedEnum pins the nine variable-type spellings.
 func TestVarType_ClosedEnum(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		vt   template.VarType
 		want bool
@@ -92,6 +98,8 @@ func TestVarType_ClosedEnum(t *testing.T) {
 // TestAllVarTypes_SpellingsAndCopy asserts the exact wire spellings, their
 // order, and the defensive copy.
 func TestAllVarTypes_SpellingsAndCopy(t *testing.T) {
+	t.Parallel()
+
 	want := []template.VarType{
 		"string", "number", "integer", "boolean",
 		"field", "enum", "list", "date", "period",
@@ -113,6 +121,8 @@ func TestAllVarTypes_SpellingsAndCopy(t *testing.T) {
 // list's element type. list nests, period is an object, and enum draws its
 // membership from a variable-level slot a list cannot express per element.
 func TestVarType_IsScalar(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		vt   template.VarType
 		want bool
@@ -165,6 +175,8 @@ func compactBody(t *testing.T, tmpl *template.Template) {
 // deep-equal Template. Every declared slot on the fixture participates, so
 // a dropped or renamed json tag fails here.
 func TestTemplate_JSONRoundTripIsLossless(t *testing.T) {
+	t.Parallel()
+
 	data := readFixture(t)
 
 	var first template.Template
@@ -204,6 +216,8 @@ func TestTemplate_JSONRoundTripIsLossless(t *testing.T) {
 // interpolation token, and a `$when` guard are never mangled or resolved
 // in transit.
 func TestTemplate_RoundTripPreservesBodyMarkers(t *testing.T) {
+	t.Parallel()
+
 	data := readFixture(t)
 
 	var tmpl template.Template
@@ -240,6 +254,8 @@ func TestTemplate_RoundTripPreservesBodyMarkers(t *testing.T) {
 // TestTemplate_FixtureFieldsDecode asserts the fixture decodes into the
 // declared model slot by slot — the model is the file's contract.
 func TestTemplate_FixtureFieldsDecode(t *testing.T) {
+	t.Parallel()
+
 	tmpl, err := template.Parse(readFixture(t))
 	if err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)
@@ -303,6 +319,8 @@ func TestTemplate_FixtureFieldsDecode(t *testing.T) {
 // TestTemplate_VariableNames asserts author order is preserved and the
 // accessor is nil-safe.
 func TestTemplate_VariableNames(t *testing.T) {
+	t.Parallel()
+
 	tmpl, err := template.Parse(readFixture(t))
 	if err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)
@@ -344,6 +362,8 @@ func TestTemplate_VariableNames(t *testing.T) {
 // description, target, variable names, source path, and shadowing info,
 // and that it copies the shadow slice defensively.
 func TestTemplate_Summarize(t *testing.T) {
+	t.Parallel()
+
 	tmpl := &template.Template{
 		Name:        "finance/revenue",
 		Description: "Revenue by region",
@@ -389,6 +409,8 @@ func TestTemplate_Summarize(t *testing.T) {
 // TestSummary_JSONShape pins the Summary wire tags, including that the
 // optional slots omit rather than emit null.
 func TestSummary_JSONShape(t *testing.T) {
+	t.Parallel()
+
 	minimal, err := json.Marshal(template.Summary{
 		Name:   "revenue",
 		Target: template.TargetFacet,

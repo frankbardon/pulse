@@ -7,6 +7,8 @@ import (
 )
 
 func TestUnknownRegressionType_Shape(t *testing.T) {
+	t.Parallel()
+
 	cerr := UnknownRegressionType(2, "REG_NOPE")
 	if cerr.Code != errors.PULSE_REGRESSION_INVALID ||
 		cerr.Message != "regression[2]: unknown regression type REG_NOPE" ||

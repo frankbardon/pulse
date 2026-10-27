@@ -227,6 +227,8 @@ const referenceSize = 436
 // Total: 176 header + 32 (ID) + 40 (SEX) + 32 (NAME) + 32 (continuation)
 // + 40 (record 3) + 12 (record 4) + 8 (record 999) + 64 (data) = 436 bytes.
 func TestReferenceFixture_HandVerified(t *testing.T) {
+	t.Parallel()
+
 	got, err := Build(ReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build(ReferenceSpec()): %v", err)
@@ -362,6 +364,8 @@ func TestReferenceFixture_HandVerified(t *testing.T) {
 // TestReferenceFixture_Pinned locks the reference fixture's bytes. See the note
 // on referenceSHA256 before changing it.
 func TestReferenceFixture_Pinned(t *testing.T) {
+	t.Parallel()
+
 	got, err := Build(ReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -380,6 +384,8 @@ func TestReferenceFixture_Pinned(t *testing.T) {
 // same spec, and builds of independently-constructed equal specs, are
 // byte-identical.
 func TestBuild_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	specs := map[string]func() Spec{
 		"reference": ReferenceSpec,
 		"multi value-label sets and a weight variable": func() Spec {
@@ -433,6 +439,8 @@ func TestBuild_Deterministic(t *testing.T) {
 // continuation records shift positions, the shared value-label set, string
 // value labels, and the header count fields.
 func TestBuild_Structure(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nominal_case_size counts elements, not variables", func(t *testing.T) {
 		widths := []struct {
 			name  string
@@ -654,6 +662,8 @@ func TestBuild_Structure(t *testing.T) {
 // generator refuses anything it cannot justify from the spec, rather than
 // coercing it into something that would teach the reader a wrong lesson.
 func TestBuild_Rejects(t *testing.T) {
+	t.Parallel()
+
 	base := func(vars ...Var) Spec { return Spec{Vars: vars} }
 
 	cases := []struct {
@@ -880,6 +890,8 @@ func TestBuild_Rejects(t *testing.T) {
 // TestFormat_Pack covers the 0x00TTWWDD packing in isolation, including the
 // requirement that the most significant byte stays zero.
 func TestFormat_Pack(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		f    Format
@@ -907,6 +919,8 @@ func TestFormat_Pack(t *testing.T) {
 // TestVar_Segments checks the ceil(width/8) rule that drives continuation
 // records, dictionary indices and nominal_case_size.
 func TestVar_Segments(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		width int
 		want  int
@@ -925,6 +939,8 @@ func TestVar_Segments(t *testing.T) {
 // 0xFFEFFFFFFFFFFFFF; getting this wrong would make every missing numeric in
 // every fixture silently wrong.
 func TestSysMisDouble(t *testing.T) {
+	t.Parallel()
+
 	if bits := math.Float64bits(SysMisDouble); bits != 0xFFEFFFFFFFFFFFFF {
 		t.Errorf("SysMisDouble bits = 0x%016X, want 0xFFEFFFFFFFFFFFFF (-DBL_MAX)", bits)
 	}
@@ -933,6 +949,8 @@ func TestSysMisDouble(t *testing.T) {
 // TestHeaderSize checks the header field arithmetic against the spec's stated
 // 176-byte header.
 func TestHeaderSize(t *testing.T) {
+	t.Parallel()
+
 	if HeaderSize != 176 {
 		t.Errorf("HeaderSize = %d, want 176", HeaderSize)
 	}
@@ -1043,6 +1061,8 @@ func countVariableRecords(t *testing.T, b []byte) int {
 // their own test: they are the backstop for a future emitter change that adds
 // a field validation does not yet police, and an untested backstop is not one.
 func TestEnc_Defensive(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ascii refuses to truncate an overlong field", func(t *testing.T) {
 		e := &enc{bo: binary.LittleEndian}
 		e.ascii("toolong", 4)
@@ -1086,6 +1106,8 @@ func TestEnc_Defensive(t *testing.T) {
 // axes that are declared but not yet implemented, since their names appear in
 // the "not implemented" errors callers will actually see.
 func TestStringers(t *testing.T) {
+	t.Parallel()
+
 	if got := LittleEndian.String(); got != "little-endian" {
 		t.Errorf("LittleEndian = %q", got)
 	}

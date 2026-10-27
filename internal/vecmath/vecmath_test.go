@@ -52,6 +52,8 @@ func sameSlice(a, b []float64) bool {
 }
 
 func TestReductions(t *testing.T) {
+	t.Parallel()
+
 	type fn struct {
 		name string
 		f    func([]float64) float64
@@ -90,6 +92,8 @@ func TestReductions(t *testing.T) {
 }
 
 func TestCount(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in   []float64
 		want int
@@ -110,6 +114,8 @@ func TestCount(t *testing.T) {
 // moved to the linalg/metric registry (TestExprMetrics_* in
 // internal/processing pins them through the expression layer).
 func TestPairwise(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		a, b []float64
@@ -134,6 +140,8 @@ func TestPairwise(t *testing.T) {
 }
 
 func TestPairwiseLengthMismatch(t *testing.T) {
+	t.Parallel()
+
 	pairs := []struct{ a, b []float64 }{
 		{[]float64{1, 2}, []float64{1}},
 		{nil, []float64{nan}},
@@ -161,6 +169,8 @@ func TestPairwiseLengthMismatch(t *testing.T) {
 }
 
 func TestArgMaxArgMin(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		in       []float64
@@ -189,6 +199,8 @@ func TestArgMaxArgMin(t *testing.T) {
 }
 
 func TestCenterZScore(t *testing.T) {
+	t.Parallel()
+
 	sd := math.Sqrt(2) // sd of {1, 3}
 	cases := []struct {
 		name           string
@@ -220,6 +232,8 @@ func TestCenterZScore(t *testing.T) {
 }
 
 func TestNormalize(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		in     []float64
@@ -249,6 +263,8 @@ func TestNormalize(t *testing.T) {
 }
 
 func TestNormalizeInvalidMode(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{"", "L2", "max", "l3"} {
 		got, err := Normalize([]float64{1, 2}, mode)
 		if got != nil || !errors.Is(err, ErrInvalidNormalizeMode) {
@@ -267,6 +283,8 @@ func TestNormalizeInvalidMode(t *testing.T) {
 // TestVectorResultsAreFresh pins that vector-returning kernels never
 // alias the input: callers bind reused per-worker buffers.
 func TestVectorResultsAreFresh(t *testing.T) {
+	t.Parallel()
+
 	in := []float64{1, 2, 3}
 	l2, _ := Normalize(in, NormL2)
 	for name, out := range map[string][]float64{"Center": Center(in), "ZScore": ZScore(in), "Normalize": l2} {
@@ -278,6 +296,8 @@ func TestVectorResultsAreFresh(t *testing.T) {
 }
 
 func TestScalar(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		got, want float64
@@ -317,6 +337,8 @@ func TestScalar(t *testing.T) {
 // math.Log reads the smallest subnormal as about -709.09 — so reverting
 // either kernel to math.* fails here on that architecture.
 func TestScalar_TranscendentalsAreDetmath(t *testing.T) {
+	t.Parallel()
+
 	if got := Exp(-745.1); got != 5e-324 {
 		t.Errorf("Exp(-745.1) = %v, want 5e-324 (the smallest subnormal)", got)
 	}
@@ -354,6 +376,8 @@ func TestScalar_TranscendentalsAreDetmath(t *testing.T) {
 // TestFMAFreeOrder pins the documented left-to-right summation: a
 // reordered or compensated sum would give a different answer here.
 func TestFMAFreeOrder(t *testing.T) {
+	t.Parallel()
+
 	v := []float64{1e16, 1, -1e16}
 	if got := Sum(v); got != 0 {
 		t.Fatalf("Sum(%v) = %v, want 0 (left-to-right)", v, got)
@@ -368,6 +392,8 @@ func TestFMAFreeOrder(t *testing.T) {
 // library plus linalg/detmath, itself stdlib-only — so
 // internal/processing and internal/descriptor can both import it.
 func TestVecmathImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowed := map[string]bool{"errors": true, "fmt": true, "math": true,
 		"github.com/frankbardon/pulse/linalg/detmath": true}
 	files, err := filepath.Glob("*.go")

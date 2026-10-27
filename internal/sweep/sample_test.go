@@ -49,6 +49,8 @@ func requireCode(t *testing.T, err error, code errors.Code, reason string) *erro
 // reason and located field — and that each fires at Expand (the entry
 // every surface shares) exactly as at Validate.
 func TestSweepRandom_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		mutate func(s *types.SweepSpec)
@@ -131,6 +133,8 @@ func TestSweepRandom_Refusals(t *testing.T) {
 // axis rules but not the sampling modes — random / lhs are an unknown
 // mode there and a range axis is refused.
 func TestSweepRandom_ForEachRefusesSampling(t *testing.T) {
+	t.Parallel()
+
 	rules := itemRules("windows[0]")
 	ce := rules.validateAxes([]types.SweepAxis{{Name: "d", Range: &types.SweepRange{Min: fp(0), Max: fp(1)}}}, types.SweepModeLHS)
 	if ce == nil || ce.Code != errors.PULSE_FOR_EACH_INVALID || ce.Details["reason"] != ReasonModeUnknown ||
@@ -188,6 +192,8 @@ func stratum(rg *types.SweepRange, v float64, n int) int {
 // is cut into `samples` strata and each stratum is drawn exactly once;
 // every draw stays inside its range.
 func TestSweepRandom_LHSStratifies(t *testing.T) {
+	t.Parallel()
+
 	const n = 64
 	spec := sampledSpec(types.SweepModeLHS, n)
 	spec.RNGSeed = 11
@@ -217,6 +223,8 @@ func TestSweepRandom_LHSStratifies(t *testing.T) {
 // [1e-3, 1e3] fall below the geometric midpoint 1, against ~0.1% of
 // linear draws.
 func TestSweepRandom_UniformAndLogUniform(t *testing.T) {
+	t.Parallel()
+
 	const n = 4000
 	spec := sampledSpec(types.SweepModeRandom, n)
 	spec.RNGSeed = 5
@@ -256,6 +264,8 @@ func TestSweepRandom_UniformAndLogUniform(t *testing.T) {
 // arithmetic and linalg/detmath, so these words hold on every
 // architecture (CI runs amd64) — a drift here breaks replay by seed.
 func TestSweepRandom_FrozenDraws(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		mode types.SweepMode
 		want []string
@@ -293,6 +303,8 @@ var (
 // derived from the spec (rng_seed excluded) — the same on every call and
 // echoed on Expansion.Seed — and moves when the spec does.
 func TestSweepRandom_SeedReproducible(t *testing.T) {
+	t.Parallel()
+
 	enc := func(exp *Expansion) string {
 		b, err := json.Marshal(exp.Composed.Requests)
 		if err != nil {
@@ -341,6 +353,8 @@ func TestSweepRandom_SeedReproducible(t *testing.T) {
 // `sample=<ordinal>_` then the `<axis>=<value>` pairs — unique, and
 // stable for a seed; an authored pattern is used as written.
 func TestSweepRandom_LabelsUniqueStable(t *testing.T) {
+	t.Parallel()
+
 	spec := sampledSpec(types.SweepModeRandom, 50)
 	spec.RNGSeed = 3
 	_, exp := drawn(t, spec)
@@ -372,6 +386,8 @@ func TestSweepRandom_LabelsUniqueStable(t *testing.T) {
 // MaxComposeSlots preflight sees explicit + samples before any slot is
 // drawn or rendered.
 func TestSweepRandom_CountAndPreflight(t *testing.T) {
+	t.Parallel()
+
 	spec := sampledSpec(types.SweepModeLHS, 7)
 	if got := Count(spec); got != 7 {
 		t.Fatalf("Count %d, want 7", got)
@@ -390,6 +406,8 @@ func TestSweepRandom_CountAndPreflight(t *testing.T) {
 // without any sampling key, so its wire form (and CanonicalHash) is
 // what it was before the sampling modes.
 func TestSweepRandom_EnumerationWireUnchanged(t *testing.T) {
+	t.Parallel()
+
 	spec := validSpec()
 	spec.Mode = types.SweepModeZip
 	b, err := json.Marshal(spec)
@@ -415,6 +433,8 @@ func TestSweepRandom_EnumerationWireUnchanged(t *testing.T) {
 // its points exactly — and every stratum of every dimension holds one
 // point; nothing is drawn for n or dims below 1.
 func TestSweepRandom_LatinHypercubeIsTheLHSDraw(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.SweepSpec{Mode: types.SweepModeLHS, Samples: 7, Axes: []types.SweepAxis{
 		{Name: "a", Range: &types.SweepRange{Min: fp(0), Max: fp(1)}},
 		{Name: "b", Range: &types.SweepRange{Min: fp(0), Max: fp(1)}},
@@ -449,6 +469,8 @@ func TestSweepRandom_LatinHypercubeIsTheLHSDraw(t *testing.T) {
 // a body already in sorted key order keeps the seed it derived before
 // canonicalisation (the json.Marshal of the spec as written).
 func TestSweepRandom_DerivedSeedIgnoresKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	sorted := `{"cohort":{"filename":"c.pulse"},"params":{"d":{"$var":"decay"},"l":{"$var":"lambda"}}}`
 	shuffled := `{ "params" : {"l":{"$var":"lambda"},
 		"d":{"$var":"decay"}}, "cohort":{"filename":"c.pulse"} }`

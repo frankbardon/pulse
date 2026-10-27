@@ -16,6 +16,8 @@ import (
 // nlminb stop (~1e-7 off the root, which a 1200-row INNER sum would
 // amplify past 1e-5).
 func TestPolychoric_ScoresMatchLavaan(t *testing.T) {
+	t.Parallel()
+
 	near := func(got, want, tol float64) bool {
 		return math.Abs(got-want) <= tol*math.Max(1, math.Abs(want))
 	}

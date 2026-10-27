@@ -22,6 +22,8 @@ import (
 //   - the layer slate round-trips via the reader's ReadOverlays
 //   - layer spec order is preserved
 func TestExportJob_Overlays_NDJSON_TrailingBlock(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := pndjson.NewWriter(fs, "out.ndjson")
@@ -95,6 +97,8 @@ func TestExportJob_Overlays_NDJSON_TrailingBlock(t *testing.T) {
 // until the trailer line. The trailer is the LAST line; the bytes
 // before it match a baseline export with no overlays.
 func TestExportJob_Overlays_NDJSON_BodyByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	fsBaseline := importThreeFieldCohort(t)
 	wBaseline := pndjson.NewWriter(fsBaseline, "out.ndjson")
 	baselineJob := pio.NewExportJob("test.pulse", wBaseline)
@@ -142,6 +146,8 @@ func TestExportJob_Overlays_NDJSON_BodyByteIdenticalToBaseline(t *testing.T) {
 // TestExportJob_Overlays_NDJSON_OptOutSuppressesTrailer mirrors the
 // Arrow opt-out test on the NDJSON adapter.
 func TestExportJob_Overlays_NDJSON_OptOutSuppressesTrailer(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 	w := pndjson.NewWriter(fs, "out.ndjson")
 	job := pio.NewExportJob("test.pulse", w)

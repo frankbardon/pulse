@@ -87,6 +87,8 @@ func warningText(warnings []*errors.CodedError) string {
 // width. Only a 252-byte content stride reproduces a 256-byte value, which is
 // why the divisor is 252 and never the 255 a segment declares.
 func TestVLS_SegmentMath(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		width    int
 		count    int
@@ -139,6 +141,8 @@ func TestVLS_SegmentMath(t *testing.T) {
 // 252 content bytes — while the last segment is exact, because it is the only
 // one that says where the value ends.
 func TestVLS_SegmentWidthTolerance(t *testing.T) {
+	t.Parallel()
+
 	for _, declared := range []int{251, 252, 253, 255, 256} {
 		want := declared >= 252 && declared <= 255
 		if got := vlsSegmentWidthOK(600, 0, declared); got != want {
@@ -160,6 +164,8 @@ func TestVLS_SegmentWidthTolerance(t *testing.T) {
 // TestVLS_RoundTrip is the story's headline criterion: a long-string fixture
 // reads back with the value intact and no segment boundaries visible.
 func TestVLS_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	values := []string{
 		strings.Repeat("abcdefghij", 60), // exactly the full 600 bytes
 		"short",                          // far under one segment
@@ -194,8 +200,12 @@ func TestVLS_RoundTrip(t *testing.T) {
 // shape: the first width that needs two segments, the last that needs two,
 // the first that needs three, and the widest string SPSS supports.
 func TestVLS_RoundTripWidths(t *testing.T) {
+	t.Parallel()
+
 	for _, width := range []int{256, 300, 504, 505, 756, 1000, 32767} {
 		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
 			// A value whose every byte is distinguishable by position, so a
 			// shifted or duplicated segment cannot pass.
 			var b strings.Builder
@@ -231,6 +241,8 @@ func TestVLS_RoundTripWidths(t *testing.T) {
 // segment two, and would either fail or substitute U+FFFD. Joining raw bytes
 // first makes the character whole again.
 func TestVLS_MultibyteStraddlesSegmentBoundary(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		lead  int
@@ -269,6 +281,8 @@ func TestVLS_MultibyteStraddlesSegmentBoundary(t *testing.T) {
 // single-byte codepage, where the boundary can never split a character, and
 // through UTF-8, where it can. Both must read back verbatim.
 func TestVLS_MultibyteAcrossCodepages(t *testing.T) {
+	t.Parallel()
+
 	value := strings.Repeat("x", 251) + "üé" + strings.Repeat("y", 40)
 	for _, charset := range []string{"UTF-8", "windows-1252"} {
 		t.Run(charset, func(t *testing.T) {
@@ -286,6 +300,8 @@ func TestVLS_MultibyteAcrossCodepages(t *testing.T) {
 // encoding: the same logical content produces the same cohort whether the
 // case bytes arrived uncompressed, bytecode-compressed or through ZSAV.
 func TestVLS_Compression(t *testing.T) {
+	t.Parallel()
+
 	value := strings.Repeat("abcdefghij", 40) + "é" + strings.Repeat("k", 100)
 	var want [][]string
 	for _, c := range []spsstest.Compression{
@@ -323,6 +339,8 @@ func TestVLS_Compression(t *testing.T) {
 // TestVLS_LayoutRetained is the "retained for re-segmentation on write"
 // criterion. E5-S4 reads exactly these fields.
 func TestVLS_LayoutRetained(t *testing.T) {
+	t.Parallel()
+
 	b := buildFixture(t, longStringSpec(600, "hello"))
 	r := NewReaderFromBytes(b)
 	m, err := r.loadMapping()
@@ -375,6 +393,8 @@ func TestVLS_LayoutRetained(t *testing.T) {
 // TestVLS_SchemaIsOneField checks the folded variable reaches the .pulse
 // schema as one field with one dictionary, not as N segment fields.
 func TestVLS_SchemaIsOneField(t *testing.T) {
+	t.Parallel()
+
 	b := buildFixture(t, longStringSpec(600, strings.Repeat("q", 400), "short"))
 	r := NewReaderFromBytes(b)
 	schema, err := r.PulseSchema()
@@ -411,6 +431,8 @@ func TestVLS_SchemaIsOneField(t *testing.T) {
 // exact case the warning exists for, and it would be easy for the fold to
 // bypass the mapping's stats pass without anyone noticing.
 func TestVLS_CardinalityWarningFires(t *testing.T) {
+	t.Parallel()
+
 	values := make([]string, 120)
 	for i := range values {
 		values[i] = "response " + strconv.Itoa(i) + " " + strings.Repeat("z", 300)
@@ -429,8 +451,12 @@ func TestVLS_CardinalityWarningFires(t *testing.T) {
 // labels parse and bind to the right variable, in the right order, whether
 // the entry names the variable by its long name or its short one.
 func TestLongStringValueLabels_Bound(t *testing.T) {
+	t.Parallel()
+
 	for _, ref := range []string{"Comments", "COMMENT", "comments"} {
 		t.Run(ref, func(t *testing.T) {
+			t.Parallel()
+
 			spec := longStringSpec(600, strings.Repeat("a", 300), "declined")
 			spec.LongStringValueLabels = []spsstest.LongStringValueLabels{{
 				Var: ref,
@@ -487,6 +513,8 @@ func TestLongStringValueLabels_Bound(t *testing.T) {
 // the VALUE does not — a value is a datum and is trimmed on raw bytes first,
 // so that it can still compare equal to the cell that carries it.
 func TestLongStringValueLabels_LabelsAreCharsetDecoded(t *testing.T) {
+	t.Parallel()
+
 	spec := longStringSpec(600, "café")
 	spec.CharacterEncoding = "windows-1252"
 	spec.LongStringValueLabels = []spsstest.LongStringValueLabels{{
@@ -516,6 +544,8 @@ func TestLongStringValueLabels_LabelsAreCharsetDecoded(t *testing.T) {
 // its 7/21 labels. Record 7/21 is not a very-long-string feature; it applies
 // to every string wider than the eight-byte value slot.
 func TestLongStringValueLabels_ShortStringUnaffected(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "NOTE", Width: 20, LongName: "Note"}},
 		Cases: [][]spsstest.Value{
@@ -542,6 +572,8 @@ func TestLongStringValueLabels_ShortStringUnaffected(t *testing.T) {
 
 // TestLongStringMissingValues_Parsed is the 7/22 acceptance criterion.
 func TestLongStringMissingValues_Parsed(t *testing.T) {
+	t.Parallel()
+
 	spec := longStringSpec(600, "REFUSED", "DK")
 	spec.LongStringMissingValues = []spsstest.LongStringMissingValues{{
 		Var: "Comments", Values: []string{"REFUSED", "DK", "NA"},
@@ -577,6 +609,8 @@ func TestLongStringMissingValues_Parsed(t *testing.T) {
 // TestLongStringMissingValues_CharsetDecoded checks a 7/22 value goes through
 // the dictionary-wide charset pass, like every other missing-value slot.
 func TestLongStringMissingValues_CharsetDecoded(t *testing.T) {
+	t.Parallel()
+
 	spec := longStringSpec(600, "x")
 	spec.CharacterEncoding = "windows-1252"
 	spec.LongStringMissingValues = []spsstest.LongStringMissingValues{{
@@ -605,6 +639,8 @@ func TestLongStringMissingValues_CharsetDecoded(t *testing.T) {
 // dictionary can only prove that bindLongStringMissingValues does the
 // right thing with a shape, never that the shape survives a parse.
 func TestLongStringMissingValues_RecordTypeTwoConflict(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "NOTE", Width: 20,
@@ -632,6 +668,8 @@ func TestLongStringMissingValues_RecordTypeTwoConflict(t *testing.T) {
 // well-formed half of the pair: a string narrow enough for its missing
 // values to ride its own record type 2, with no 7/22 anywhere.
 func TestRecordTypeTwoMissingValues_ShortStringParsed(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{{
 			Name: "CODE", Width: 4,
@@ -669,6 +707,8 @@ func TestRecordTypeTwoMissingValues_ShortStringParsed(t *testing.T) {
 // the whole reason a fold failure is not fatal: the record only says how to
 // JOIN columns that are already there, so declining to join loses no bytes.
 func TestVLS_MalformedRecords(t *testing.T) {
+	t.Parallel()
+
 	// A fixture with the physical shape of a very long string but no record
 	// 7/14 of its own, so a hand-written one can be injected.
 	segmented := func(payload string) []byte {
@@ -737,6 +777,8 @@ func TestVLS_MalformedRecords(t *testing.T) {
 // not take a good one down with it: a record 7/14 naming two variables, one
 // resolvable and one not, folds the one it can.
 func TestVLS_MalformedRecords_PartialFoldStillApplies(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
 			{Name: "A", Width: 255},
@@ -764,6 +806,8 @@ func TestVLS_MalformedRecords_PartialFoldStillApplies(t *testing.T) {
 // TestLongStringRecords_TruncationSweep cuts every record 7/21 and 7/22
 // payload at every byte and requires a coded diagnostic and no panic.
 func TestLongStringRecords_TruncationSweep(t *testing.T) {
+	t.Parallel()
+
 	// The payloads are built here rather than sliced out of a fixture so the
 	// sweep covers the shape, not one file's offsets.
 	label := concatBytes(
@@ -818,6 +862,8 @@ func TestLongStringRecords_TruncationSweep(t *testing.T) {
 // TestLongStringRecords_BindingFaults covers the 7/21 and 7/22 entries that
 // parse but cannot be bound.
 func TestLongStringRecords_BindingFaults(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		subtype int32
@@ -909,6 +955,8 @@ func TestLongStringRecords_BindingFaults(t *testing.T) {
 // says nothing is wrong, it says which entry to leave out of a base, so
 // it is expected here rather than excluded.
 func TestVLS_SubtypesNoLongerUnknown(t *testing.T) {
+	t.Parallel()
+
 	spec := longStringSpec(600, "hello", "declined")
 	spec.LongStringValueLabels = []spsstest.LongStringValueLabels{{
 		Var: "Comments", Labels: []spsstest.LongStringValueLabel{{Value: "declined", Label: "Declined"}},

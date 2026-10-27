@@ -31,6 +31,8 @@ func stateWords(t *testing.T, typ reflect.Type) int64 {
 // to either fails here rather than drifting the estimate silently (it
 // sat at 7 pair words against 9 real ones — TODO #157).
 func TestAccumulatorBytesMatchesCoMomentLayout(t *testing.T) {
+	t.Parallel()
+
 	co := reflect.TypeFor[linalg.CoMoment]()
 	header := 8 * stateWords(t, co)
 	pairs, ok := co.FieldByName("pairs")

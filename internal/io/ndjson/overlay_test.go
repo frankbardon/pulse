@@ -126,6 +126,8 @@ func buildNdjsonBuffer(t *testing.T, overlays []*types.OverlayLayer, callSet boo
 // []*types.OverlayLayer, and that the per-shape payload survives the
 // round-trip byte-equivalently per § 6.4.
 func TestNdjsonWriter_OverlayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays(helperLayers())
 	if err := w.WriteHeader([]string{"name", "value"}); err != nil {
@@ -257,6 +259,8 @@ func stringFromAxisKey(k types.AxisKey) string {
 // acceptance: "When IncludeOverlays == false OR no overlays, byte-
 // identical to baseline."
 func TestNdjsonWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	baseline := buildNdjsonBuffer(t, nil, false)
 	nilOverlays := buildNdjsonBuffer(t, nil, true)
 	emptyOverlays := buildNdjsonBuffer(t, []*types.OverlayLayer{}, true)
@@ -283,6 +287,8 @@ func TestNdjsonWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
 // extra bytes) when overlays are absent. The output must be exactly the
 // host record stream.
 func TestNdjsonWriter_OverlayTrailerOmittedWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteHeader([]string{"x"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -309,6 +315,8 @@ func TestNdjsonWriter_OverlayTrailerOmittedWhenEmpty(t *testing.T) {
 // emitted exactly once per § 6.2 — repeat Close() calls do not
 // duplicate the trailer line.
 func TestNdjsonWriter_OverlayTrailerExactlyOnce(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays(helperLayers())
 	if err := w.WriteHeader([]string{"x"}); err != nil {
@@ -339,6 +347,8 @@ func TestNdjsonWriter_OverlayTrailerExactlyOnce(t *testing.T) {
 // every host-record line, with layer N at index N of the trailing
 // `_overlays` array.
 func TestNdjsonWriter_OverlayTrailerIsLastLine(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays(helperLayers())
 	if err := w.WriteHeader([]string{"x"}); err != nil {
@@ -384,6 +394,8 @@ func TestNdjsonWriter_OverlayTrailerIsLastLine(t *testing.T) {
 // same export with `IncludeOverlays=false` — overlays land sidecar,
 // never inside the host stream.
 func TestNdjsonWriter_HostStreamUnaffected(t *testing.T) {
+	t.Parallel()
+
 	baseline := buildNdjsonBuffer(t, nil, false)
 	withOverlays := buildNdjsonBuffer(t, helperLayers(), true)
 
@@ -402,6 +414,8 @@ func TestNdjsonWriter_HostStreamUnaffected(t *testing.T) {
 // "absent means nil" contract per § 6.4 — a file with no trailer
 // returns nil, not error.
 func TestNdjsonReader_ReadOverlays_AbsentReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	data := buildNdjsonBuffer(t, nil, false)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -419,6 +433,8 @@ func TestNdjsonReader_ReadOverlays_AbsentReturnsNil(t *testing.T) {
 // read the trailer from a fs-backed file (parallel to the byte-source
 // path).
 func TestNdjsonReader_ReadOverlays_FromFS(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.ndjson")
 	w.SetOverlays(helperLayers())
@@ -450,6 +466,8 @@ func TestNdjsonReader_ReadOverlays_FromFS(t *testing.T) {
 // edge case where the file carries no content — ReadOverlays returns
 // nil without erroring.
 func TestNdjsonReader_ReadOverlays_EmptyFileReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(""))
 	defer r.Close()
 
@@ -467,6 +485,8 @@ func TestNdjsonReader_ReadOverlays_EmptyFileReturnsNil(t *testing.T) {
 // skipped — only lines whose FIRST key matches OverlayTrailerKey are
 // treated as the trailer.
 func TestNdjsonReader_ReadOverlays_HostRecordsIgnored(t *testing.T) {
+	t.Parallel()
+
 	// Host lines contain "_overlay" substring but NOT the exact
 	// trailer key as their first key — the reader skips them.
 	data := `{"name":"alice","_overlay_hint":"unused"}
@@ -485,6 +505,8 @@ func TestNdjsonReader_ReadOverlays_HostRecordsIgnored(t *testing.T) {
 }
 
 func TestNdjsonWriter_SatisfiesOverlayAwareWriter(t *testing.T) {
+	t.Parallel()
+
 	var _ pio.OverlayAwareWriter = (*Writer)(nil)
 	w := NewWriterToBuffer()
 	w.SetOverlays(nil)

@@ -21,6 +21,8 @@ import (
 // numeric VALUE is not pinned here, which is correct — it is a tuning
 // documented at its declaration.
 func TestSuggestBlocks_WideCohortIsAbandonedNotTruncated(t *testing.T) {
+	t.Parallel()
+
 	build := func(nullable int) *Profile {
 		t.Helper()
 		var fields []encoding.Field

@@ -15,6 +15,8 @@ import (
 // reason of each refusal, and the canonical round trip the factory
 // decodes back.
 func TestComparisonParams_CentroidPopulation(t *testing.T) {
+	t.Parallel()
+
 	members := Resolved{Name: "vb", Members: []string{"b1", "b2"}, Labels: []string{"x", "y"}}
 	cases := []struct {
 		name   string
@@ -100,6 +102,8 @@ func TestComparisonParams_CentroidPopulation(t *testing.T) {
 // rides AttributeFitOn after fit_on and its by is the projected key
 // column; a population is neither two-pass nor a key column.
 func TestComparisonCentroid_Routing(t *testing.T) {
+	t.Parallel()
+
 	filter := `[{"type":"FILTER_RANGE","field":"a1","params":{"min":0}}]`
 	cases := []struct {
 		name     string
@@ -175,6 +179,8 @@ func TestComparisonCentroid_Routing(t *testing.T) {
 // code; labels that are not the slot's are _MISMATCH naming the
 // population; a good population aligns by label.
 func TestPopulationRefusal(t *testing.T) {
+	t.Parallel()
+
 	unknown := errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_UNKNOWN, "no fit", map[string]any{"name": "p", "available": []string{"a", "b"}})
 	ce := PopulationRefusal("s", "p", unknown)
 	if ce.Code != errors.PULSE_VECTOR_REFERENCE_UNKNOWN || ce.Details["reason"] != ReferenceReasonPopulationUnknown ||

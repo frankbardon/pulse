@@ -86,6 +86,8 @@ func wantAdmitted(ft encoding.FieldType, kind string) bool {
 
 // TestRuleCoercion_MatrixCoversEveryDeclarableTargetType is the matrix.
 func TestRuleCoercion_MatrixCoversEveryDeclarableTargetType(t *testing.T) {
+	t.Parallel()
+
 	specs := representativeFieldSpecs()
 	names := declarableTypeNames(t)
 	if len(names) < 17 {
@@ -131,6 +133,8 @@ func TestRuleCoercion_MatrixCoversEveryDeclarableTargetType(t *testing.T) {
 // as the NUMBER 1 or 0, never as a formatted string and never as a Go
 // bool the encoder's toFloat64 would have to rescue.
 func TestRuleCoercion_BoolIsOneOrZeroOnEveryScalarTarget(t *testing.T) {
+	t.Parallel()
+
 	specs := representativeFieldSpecs()
 	for _, typeName := range declarableTypeNames(t) {
 		ft, _ := fieldTypeFromName(typeName)
@@ -168,6 +172,8 @@ func TestRuleCoercion_BoolIsOneOrZeroOnEveryScalarTarget(t *testing.T) {
 // Both halves are driven through the SAME function the literal path
 // uses (ruleValueFault), so the two cannot drift.
 func TestRuleCoercion_NumberObeysTheSameRangeRulesAsALiteral(t *testing.T) {
+	t.Parallel()
+
 	specs := representativeFieldSpecs()
 	cases := []struct {
 		typeName string
@@ -217,6 +223,8 @@ func TestRuleCoercion_NumberObeysTheSameRangeRulesAsALiteral(t *testing.T) {
 // on an unsigned target, which is a real value and indistinguishable
 // from a measured 0.
 func TestRuleCoercion_NonFiniteIsRefused(t *testing.T) {
+	t.Parallel()
+
 	specs := representativeFieldSpecs()
 	for _, typeName := range []string{"u8", "f64", "decimal128"} {
 		ft, _ := fieldTypeFromName(typeName)
@@ -235,6 +243,8 @@ func TestRuleCoercion_NonFiniteIsRefused(t *testing.T) {
 // A regex categorical's domain is a language, so it is unbounded and any
 // string is accepted — the same split the `set` literal path makes.
 func TestRuleCoercion_StringMustBeInTheTargetsDeclaredDomain(t *testing.T) {
+	t.Parallel()
+
 	bounded := FieldSpec{Name: "region", Type: "categorical_u8",
 		Distribution: DistWeightedCategorical,
 		Params:       map[string]any{"values": []any{"east", "west"}}}
@@ -261,6 +271,8 @@ func TestRuleCoercion_StringMustBeInTheTargetsDeclaredDomain(t *testing.T) {
 // asymmetry between a `set` literal and a `set_expr` result, which is a
 // DECISION and not an oversight. See ruleValueFault's decimal arm.
 func TestRuleCoercion_DecimalStringIsRefusedFromAnExpression(t *testing.T) {
+	t.Parallel()
+
 	f := representativeFieldSpecs()["decimal128"]
 	ft, _ := fieldTypeFromName("decimal128")
 
@@ -295,6 +307,8 @@ func TestRuleCoercion_DecimalStringIsRefusedFromAnExpression(t *testing.T) {
 // — which this test makes impossible by deriving the expectation from
 // the runtime side.
 func TestRuleCoercion_StaticRefusalAgreesWithTheRuntimeMatrix(t *testing.T) {
+	t.Parallel()
+
 	specs := representativeFieldSpecs()
 	for _, typeName := range declarableTypeNames(t) {
 		fs := specs[typeName]
@@ -327,6 +341,8 @@ func TestRuleCoercion_StaticRefusalAgreesWithTheRuntimeMatrix(t *testing.T) {
 // whose branches disagree, and a parse-time refusal there would refuse
 // a rule that is correct on every row it actually fires on.
 func TestRuleCoercion_UnknowableReturnTypeDefersToRunTime(t *testing.T) {
+	t.Parallel()
+
 	fs := representativeFieldSpecs()["u8"]
 	ft, _ := fieldTypeFromName("u8")
 	var iface any

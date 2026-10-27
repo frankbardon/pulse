@@ -75,6 +75,8 @@ func modelPredictorLevels(m FieldModel) map[string]float64 {
 //   - a well-supported level in the same design keeps essentially all of
 //     its coefficient, so the penalty is not a blanket flattening.
 func TestProfileModels_ThinLevelShrinkageScalesWithThinness(t *testing.T) {
+	t.Parallel()
+
 	levels := []string{"base", "big", "rare40", "rare5"}
 	counts := []int{3055, 900, 40, 5}
 	effects := []float64{0, 10, 40, 40}
@@ -143,6 +145,8 @@ func TestProfileModels_ThinLevelShrinkageScalesWithThinness(t *testing.T) {
 // coefficients come back exactly. Shrinkage responds to a measured
 // condition; it is not a tax on every model.
 func TestProfileModels_NoThinLevelLeavesTheFitUnpenalized(t *testing.T) {
+	t.Parallel()
+
 	levels := []string{"base", "mid", "high"}
 	// Multiples of the ramp period, so every level's within-group ramp
 	// has the same mean and the generating effects ARE the group-mean
@@ -186,6 +190,8 @@ func TestProfileModels_NoThinLevelLeavesTheFitUnpenalized(t *testing.T) {
 // posture — a thin level is warned about and SHIPPED, never refused and
 // never silently dropped.
 func TestProfileModels_ThinLevelWarningNamesFieldAndLevel(t *testing.T) {
+	t.Parallel()
+
 	levels := []string{"base", "big", "rare5"}
 	counts := []int{600, 400, 5}
 	effects := []float64{0, 10, 40}
@@ -235,6 +241,8 @@ func TestProfileModels_ThinLevelWarningNamesFieldAndLevel(t *testing.T) {
 // hold: aggregation across targets (one line per distinct level, however
 // many models it was shrunk in) and the hard cap with a counted summary.
 func TestProfileModels_ThinLevelWarningsBounded(t *testing.T) {
+	t.Parallel()
+
 	const nLevels = 32
 	levels := make([]string, nLevels)
 	counts := make([]int, nLevels)
@@ -302,6 +310,8 @@ func TestProfileModels_ThinLevelWarningsBounded(t *testing.T) {
 // TestProfileModels_CollinearCandidatesResolvedByRefit for the same
 // fixture above the threshold, where the refit still narrows.
 func TestProfileModels_ShrinkageAbsorbsCollinearityInsteadOfRefitting(t *testing.T) {
+	t.Parallel()
+
 	coarse := encoding.NewDictionary()
 	for _, v := range []string{"a", "b"} {
 		if _, err := coarse.Add(v); err != nil {
@@ -341,6 +351,8 @@ func TestProfileModels_ShrinkageAbsorbsCollinearityInsteadOfRefitting(t *testing
 // any fit: which column kinds count toward thinness, what alpha comes
 // out, and the guards that leave a fit unpenalized.
 func TestPlanShrinkage_Matrix(t *testing.T) {
+	t.Parallel()
+
 	col := func(kind dummyColumnKind, field, level string) dummyColumn {
 		return dummyColumn{Kind: kind, Field: field, Level: level}
 	}
@@ -423,6 +435,8 @@ func TestPlanShrinkage_Matrix(t *testing.T) {
 // occurred in, thinnest-first ordering so a truncated list keeps the
 // worst offenders, and a counted summary for the tail.
 func TestThinLevelWarnings_AggregateOrderAndCap(t *testing.T) {
+	t.Parallel()
+
 	fits := []*fieldFit{
 		{target: "spend", thin: []thinLevel{{field: "seg", level: "a", n: 20}, {field: "seg", level: "b", n: 3}}},
 		{target: "revenue", thin: []thinLevel{{field: "seg", level: "a", n: 8}}},

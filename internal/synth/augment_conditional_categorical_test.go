@@ -23,6 +23,8 @@ import (
 // independently), not the independent fixture conditional_categorical_test.go
 // uses for its own capture-only assertions.
 func TestAugmentFromProfile_ReconstructsCategoricalContingencyWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const rowsPerA = 6000
 	const newRows = 20000
 	const tolerance = 0.03
@@ -98,6 +100,8 @@ func TestAugmentFromProfile_ReconstructsCategoricalContingencyWithinTolerance(t 
 // AugmentFromProfile must reproduce the source's captured per-category
 // numeric mean/std shift in the newly GENERATED partition.
 func TestAugmentFromProfile_ReconstructsCategoricalNumericMeanWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const rowsPerCategory = 6000
 	const newRows = 20000
 	const tolerance = 2.0 // well under the fixture's ~60-unit east/west separation
@@ -172,6 +176,8 @@ func TestAugmentFromProfile_ReconstructsCategoricalNumericMeanWithinTolerance(t 
 // flag activates the feature, and its absence from the profile document
 // is what keeps behavior unchanged.
 func TestAugmentFromProfile_WithoutCategoricalConditional_GeneratesIndependentMarginals(t *testing.T) {
+	t.Parallel()
+
 	const rowsPerA = 6000
 	const newRows = 20000
 	// The source's own dependence is large (0.8 rate split, 60-unit mean

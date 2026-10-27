@@ -25,6 +25,8 @@ import (
 // against a streamable Response) lift the response's Overlays slot onto
 // the convert input before dispatch.
 func TestConvertJob_Overlays_PreservedAcrossFormats(t *testing.T) {
+	t.Parallel()
+
 	// Step 1: build an Arrow source file with three host rows. The
 	// source Reader carries no embedded overlays — ConvertJob.Overlays
 	// is the engine input, not the source.
@@ -88,6 +90,8 @@ func TestConvertJob_Overlays_PreservedAcrossFormats(t *testing.T) {
 // suppresses the SetOverlays call so the destination carries no
 // overlays.
 func TestConvertJob_Overlays_OptOutDropsOverlays(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 
 	srcW := parrow.NewWriter(fs, "src.arrow")

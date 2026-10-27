@@ -13,6 +13,8 @@ import (
 // FixupNotApplicable. Absence of a fixup IS a bug — the tag is the
 // honest "this code has no mechanical repair" signal.
 func TestCodesHaveFixups(t *testing.T) {
+	t.Parallel()
+
 	for _, code := range perr.AllCodes() {
 		m, ok := perr.MetadataFor(code)
 		if !ok {
@@ -61,6 +63,8 @@ func validAction(a perr.FixupAction) bool {
 // templates verbatim for codes that have them, and nil for codes tagged
 // FixupNotApplicable.
 func TestCodeFixupReturnsTemplates(t *testing.T) {
+	t.Parallel()
+
 	// Code with mechanical fixups.
 	got := perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL.Fixup(nil)
 	if len(got) == 0 {
@@ -87,6 +91,8 @@ func TestCodeFixupReturnsTemplates(t *testing.T) {
 // internal template list — callers must not be able to mutate the
 // registry by mutating the returned slice.
 func TestCodeFixupIsCopy(t *testing.T) {
+	t.Parallel()
+
 	got := perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL.Fixup(nil)
 	if len(got) == 0 {
 		t.Skip("no fixups to test mutation against")

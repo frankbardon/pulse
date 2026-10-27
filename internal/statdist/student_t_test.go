@@ -16,6 +16,8 @@ func sameBits(a, b float64) bool {
 // paired forms must agree BIT FOR BIT over the R grids — exact
 // math.Float64bits equality, never a tolerance.
 func TestStudentTFormsAgree(t *testing.T) {
+	t.Parallel()
+
 	r := &failReporter{t: t}
 	pCases := loadReference[struct {
 		T  float64 `json:"t"`
@@ -48,6 +50,8 @@ func TestStudentTFormsAgree(t *testing.T) {
 // Handbook). Tolerance 1e-3 — a table-transcription guard, not an
 // accuracy claim (that is the R oracle's job).
 func TestStudentTQuantile_SanityValues(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct{ df, p, want float64 }{
 		{1, 0.975, 12.7062},
 		{10, 0.975, 2.2281},
@@ -67,6 +71,8 @@ func TestStudentTQuantile_SanityValues(t *testing.T) {
 
 // TestStudentT_DegenerateInputs pins the documented edge returns.
 func TestStudentT_DegenerateInputs(t *testing.T) {
+	t.Parallel()
+
 	nan, inf := math.NaN(), math.Inf(1)
 	cases := []struct {
 		name      string
@@ -106,6 +112,8 @@ func TestStudentT_DegenerateInputs(t *testing.T) {
 // closed forms on both sides of the continued-fraction switch point:
 // I_x(a, 1) = x^a and I_x(1, b) = 1 − (1 − x)^b.
 func TestRegularizedIncompleteBetaXY_ClosedForms(t *testing.T) {
+	t.Parallel()
+
 	for _, x := range []float64{1e-6, 0.1, 0.3, 0.5, 0.7, 0.9, 0.999} {
 		y := 1 - x
 		for _, a := range []float64{0.5, 2, 7.5, 30} {
@@ -122,6 +130,8 @@ func TestRegularizedIncompleteBetaXY_ClosedForms(t *testing.T) {
 // TestLgammaCorrection matches the Stirling remainder against
 // math.Lgamma where the subtraction is still well conditioned.
 func TestLgammaCorrection(t *testing.T) {
+	t.Parallel()
+
 	for _, x := range []float64{10, 12.5, 20, 50, 100} {
 		lg, _ := math.Lgamma(x)
 		want := lg - ((x-0.5)*math.Log(x) - x + 0.918938533204672741780329736406)

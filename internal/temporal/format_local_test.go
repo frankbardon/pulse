@@ -8,6 +8,8 @@ import (
 // TestFormatLocal_Literals pins the rendered literal for the acceptance
 // zones, across Berlin's 2026 spring-forward and fall-back.
 func TestFormatLocal_Literals(t *testing.T) {
+	t.Parallel()
+
 	at := func(s string) int64 {
 		tm, err := time.Parse(time.RFC3339, s)
 		if err != nil {
@@ -51,6 +53,8 @@ func TestFormatLocal_Literals(t *testing.T) {
 // of 2026 in zones with DST, half-hour and negative offsets: the literal
 // equals time.In's RFC 3339 rendering and re-parses to the same instant.
 func TestFormatLocal_MatchesStdlibAndRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"Europe/Berlin", "Asia/Kolkata", "Australia/Sydney", "America/Santiago", "America/St_Johns", "Australia/Lord_Howe"} {
 		z := mustZone(t, name)
 		from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Unix()

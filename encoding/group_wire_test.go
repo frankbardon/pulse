@@ -9,6 +9,8 @@ import (
 // cost is exactly what writeGroupsSection emits beyond the entries and
 // the section's u16 group_count, for any member count.
 func TestGroupDescriptorBytes(t *testing.T) {
+	t.Parallel()
+
 	s := &Schema{}
 	for i := 0; i < 9; i++ {
 		s.Fields = append(s.Fields, Field{Name: string(rune('a' + i)), Type: FieldTypeU16})

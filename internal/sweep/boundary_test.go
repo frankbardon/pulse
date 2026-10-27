@@ -23,6 +23,8 @@ const modulePrefix = "github.com/frankbardon/pulse"
 // (internal/template, itself import-fenced); the transitive graph is
 // checked against the execution and descriptor packages.
 func TestSweep_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowedDirect := map[string]bool{
 		modulePrefix + "/types":             true,
 		modulePrefix + "/errors":            true,

@@ -28,6 +28,8 @@ func manifestTestIndex(keys ...IndexKeySpec) *Index {
 // tuple a caller is trying to discover. A caller holding only the
 // cohort path can open one and not the other.
 func TestIndexManifestPath_IsDerivableWithoutTheKeyTuple(t *testing.T) {
+	t.Parallel()
+
 	const cohort = "brandscape.pulse"
 
 	got := IndexManifestPath(cohort)
@@ -53,6 +55,8 @@ func TestIndexManifestPath_IsDerivableWithoutTheKeyTuple(t *testing.T) {
 // existed has none, and that is an ordinary state Service.ListIndexes
 // answers from the directory listing — not a fault.
 func TestReadIndexManifest_AbsentIsNotAnError(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	m, present, err := ReadIndexManifest(fsys, "cohort.pulse")
 	if err != nil {
@@ -72,6 +76,8 @@ func TestReadIndexManifest_AbsentIsNotAnError(t *testing.T) {
 // is a plausible-looking answer that sends a caller to rebuild data
 // that is already there.
 func TestReadIndexManifest_UntrustworthyDocumentIsRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		body string
@@ -113,6 +119,8 @@ func TestReadIndexManifest_UntrustworthyDocumentIsRefused(t *testing.T) {
 // filename that tuple derives are in hand, so a reader can confirm the
 // file it is about to open is the one the tuple describes.
 func TestIndexManifestEntryFor_CarriesTheOrderedTupleAndItsOwnHash(t *testing.T) {
+	t.Parallel()
+
 	keys := []IndexKeySpec{
 		{Name: "category_id", Type: encoding.FieldTypeU16},
 		{Name: "brand_id", Type: encoding.FieldTypeU32},
@@ -151,6 +159,8 @@ func TestIndexManifestEntryFor_CarriesTheOrderedTupleAndItsOwnHash(t *testing.T)
 // with the same indexes built in different orders must produce the same
 // bytes.
 func TestIndexManifest_IsByteStableRegardlessOfBuildOrder(t *testing.T) {
+	t.Parallel()
+
 	entryA := IndexManifestEntryFor(SidecarIndexPath("c.pulse", []string{"a"}), manifestTestIndex(IndexKeySpec{Name: "a", Type: encoding.FieldTypeU32}))
 	entryB := IndexManifestEntryFor(SidecarIndexPath("c.pulse", []string{"b"}), manifestTestIndex(IndexKeySpec{Name: "b", Type: encoding.FieldTypeU32}))
 
@@ -193,6 +203,8 @@ func TestIndexManifest_IsByteStableRegardlessOfBuildOrder(t *testing.T) {
 // last index was dropped keeps a readable manifest saying so, rather
 // than a null that a consumer has to special-case.
 func TestWriteIndexManifest_EmptyCatalogIsAnEmptyArray(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	if err := WriteIndexManifest(fsys, "c.pulse", &IndexManifest{}); err != nil {
 		t.Fatalf("WriteIndexManifest: %v", err)
@@ -226,6 +238,8 @@ func TestWriteIndexManifest_EmptyCatalogIsAnEmptyArray(t *testing.T) {
 // counts) survives write → read in archive order, and a single-file
 // entry carries no shards key at all (byte-identical to before).
 func TestIndexManifest_ArchiveEntryRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	keys := []string{"id"}
 	m := NewIndexManifest("arch.pulse")

@@ -9,6 +9,8 @@ import (
 // every default answers in its form, suits its kind and is never a
 // poor fit for it.
 func TestDefault_KindTable(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		k          Kind
 		f          Form
@@ -45,6 +47,8 @@ func TestDefault_KindTable(t *testing.T) {
 // suiting the kind (never a poor fit); admit narrows the choice; none
 // qualifying is false.
 func TestDefaultFor_ConsumerFallback(t *testing.T) {
+	t.Parallel()
+
 	nonNeg := func(m Metric) bool { return m.Domain() != DomainNonNegative }
 	cases := []struct {
 		c     Consumer

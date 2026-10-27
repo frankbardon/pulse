@@ -33,6 +33,8 @@ import (
 // weight or multiplicity slot; its factory builds a buffered,
 // context-aware model.
 func TestMMMBayes_Registration(t *testing.T) {
+	t.Parallel()
+
 	p := instance(t, afero.NewMemMapFs(), nil)
 	m := p.Manifest(context.Background())
 	for _, row := range m.Extensions.Regressions {
@@ -101,6 +103,8 @@ func TestMMMBayes_Registration(t *testing.T) {
 // and by the runtime with the same code, message and details, before
 // any sampling.
 func TestMMMBayes_TimeFieldProjected(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	ctx := context.Background()
@@ -139,6 +143,8 @@ func TestMMMBayes_TimeFieldProjected(t *testing.T) {
 // (a gap, a negative spend), which only the rows show, stays
 // runtime-only.
 func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	ctx := context.Background()
@@ -198,6 +204,8 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 // echoes name and type aside, and the coded warnings a short fit
 // carries).
 func TestMMMBayes_OutputsMatchApplicability(t *testing.T) {
+	t.Parallel()
+
 	p := bayesInstance(t, nil)
 	r := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(regmmm.FastParams))).Regressions[0]
 	var keys map[string]json.RawMessage
@@ -222,6 +230,8 @@ func TestMMMBayes_OutputsMatchApplicability(t *testing.T) {
 // reading (the applicability row's map pattern), which names every
 // declared output key.
 func TestMMMBayes_OutputSchemaInterpreted(t *testing.T) {
+	t.Parallel()
+
 	var outputs, coefs bool
 	for _, in := range descx.BuiltinInterpretations()[string(regmmm.BayesName)] {
 		switch in.Field {
@@ -245,6 +255,8 @@ func TestMMMBayes_OutputSchemaInterpreted(t *testing.T) {
 // name, so an embedder registration under it (the retired pack's) is
 // refused at pulse.New with PULSE_EXTENSION_NAME_COLLISION.
 func TestMMMBayes_EmbedderCannotRegisterName(t *testing.T) {
+	t.Parallel()
+
 	_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: pulse.Extensions{
 		Regressions: []pulse.RegressionRegistration{{Name: regmmm.BayesName, Factory: regmmm.BayesFactory}},
 	}})

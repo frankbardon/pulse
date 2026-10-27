@@ -34,6 +34,8 @@ func testSchema() *encoding.Schema {
 }
 
 func TestResolve_Ordering(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec types.VectorSpec
@@ -65,6 +67,8 @@ func TestResolve_Ordering(t *testing.T) {
 }
 
 func TestResolve_LabelsKept(t *testing.T) {
+	t.Parallel()
+
 	got, err := Resolve([]types.VectorSpec{{Name: "v", Pattern: `^q_`, Labels: []string{"A", "B", "C"}}}, testSchema())
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +79,8 @@ func TestResolve_LabelsKept(t *testing.T) {
 }
 
 func TestResolve_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		specs  []types.VectorSpec
@@ -149,6 +155,8 @@ func equalDetail(got, want any) bool {
 }
 
 func TestResolve_EmptyAndFind(t *testing.T) {
+	t.Parallel()
+
 	if got, err := Resolve(nil, testSchema()); got != nil || err != nil {
 		t.Fatalf("nil specs: %v %v", got, err)
 	}
@@ -165,6 +173,8 @@ func TestResolve_EmptyAndFind(t *testing.T) {
 }
 
 func TestUnreferenced(t *testing.T) {
+	t.Parallel()
+
 	if got := Unreferenced(nil); got != nil {
 		t.Errorf("nil request: %v", got)
 	}
@@ -179,6 +189,8 @@ func TestUnreferenced(t *testing.T) {
 }
 
 func TestMembers(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Vectors: []types.VectorSpec{
 		{Name: "a", Fields: []string{"score", "q_1"}},
 		{Name: "b", Pattern: "^q_[23]$"},
@@ -201,6 +213,8 @@ func TestMembers(t *testing.T) {
 // normalized, the caller's request is untouched, and a vector-free
 // request is returned as is.
 func TestNormalize_HashesResolvedMembers(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	byPattern := &types.Request{Vectors: []types.VectorSpec{{Name: "v", Pattern: `^q_\d$`}}}
 	byGlob := &types.Request{Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}}}}
@@ -238,6 +252,8 @@ func TestNormalize_HashesResolvedMembers(t *testing.T) {
 // slot is omitempty, so an empty slice and a nil one hash like the
 // pre-Vectors request.
 func TestRequestHash_VectorFreeByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	base := &types.Request{
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "q_1", Label: "s"}},
 	}
@@ -260,6 +276,8 @@ func TestRequestHash_VectorFreeByteIdentical(t *testing.T) {
 }
 
 func TestMemberTypeAllowed(t *testing.T) {
+	t.Parallel()
+
 	for ft := encoding.FieldTypeU8; ft <= encoding.FieldTypeSetU256; ft++ {
 		want := false
 		switch ft {
@@ -282,6 +300,8 @@ func TestMemberTypeAllowed(t *testing.T) {
 // raises no PULSE_VECTOR_UNREFERENCED; a callee, a field, a string
 // literal or a let binding of the same spelling is not a reference.
 func TestReferenced_CountsExpressionReads(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "battery"}, {Name: "other"}}
 	cases := []struct {
 		name string
@@ -319,6 +339,8 @@ func f64(v float64) *float64 { return &v }
 // and scale bounds; a kind-free spec carries neither, and every kind
 // in types.AllVectorKinds is a linalg/metric kind.
 func TestResolve_KindAndScaleBounds(t *testing.T) {
+	t.Parallel()
+
 	got, err := Resolve([]types.VectorSpec{
 		{Name: "a", Fields: []string{"q_1", "q_2"}, Kind: types.VectorKindScale, ScaleMin: f64(1), ScaleMax: f64(7)},
 		{Name: "b", Fields: []string{"q_1"}, Kind: types.VectorKindComposition},

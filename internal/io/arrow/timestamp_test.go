@@ -104,6 +104,8 @@ func truncationWarnings(rep *pio.ImportReport) []*perr.CodedError {
 // (a wall clock — the source zone applies), each inferred as datetime,
 // with the truncation warning firing exactly once iff a fraction existed.
 func TestTimestamp_UnitsZonesAndTruncation(t *testing.T) {
+	t.Parallel()
+
 	summer := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	frac := summer.Add(250 * time.Millisecond)
 	for _, unit := range []arrow.TimeUnit{arrow.Second, arrow.Millisecond, arrow.Microsecond, arrow.Nanosecond} {
@@ -152,6 +154,8 @@ func TestTimestamp_UnitsZonesAndTruncation(t *testing.T) {
 // TestTimestamp_WholeSecondsNeverWarn: a fractional unit holding only
 // whole seconds raises no truncation warning.
 func TestTimestamp_WholeSecondsNeverWarn(t *testing.T) {
+	t.Parallel()
+
 	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	data := tsArrow(t, &arrow.TimestampType{Unit: arrow.Nanosecond},
 		[]*arrow.Timestamp{ptr(ticks(at, arrow.Nanosecond)), ptr(ticks(at.Add(time.Hour), arrow.Nanosecond))})
@@ -170,6 +174,8 @@ func TestTimestamp_WholeSecondsNeverWarn(t *testing.T) {
 // TestTimestamp_PreEpochFloorsTowardThePast: Go's integer division
 // truncates toward zero, which would move -1.5 s to -1 s.
 func TestTimestamp_PreEpochFloorsTowardThePast(t *testing.T) {
+	t.Parallel()
+
 	data := tsArrow(t, &arrow.TimestampType{Unit: arrow.Millisecond, TimeZone: "UTC"},
 		[]*arrow.Timestamp{ptr(-1500), ptr(-1000), ptr(-1)})
 	rep, got, err := tsImport(t, NewReaderFromBytes(data), "", "")
@@ -191,6 +197,8 @@ func TestTimestamp_PreEpochFloorsTowardThePast(t *testing.T) {
 // DST overlap is refused under the default policy, naming the row, and
 // resolved (with the count-bearing warning) under "earlier".
 func TestTimestamp_NaiveRespectsDSTPolicy(t *testing.T) {
+	t.Parallel()
+
 	ok := time.Date(2026, 10, 25, 1, 0, 0, 0, time.UTC)
 	overlap := time.Date(2026, 10, 25, 2, 30, 0, 0, time.UTC) // Berlin shows 02:30 twice
 	data := tsArrow(t, &arrow.TimestampType{Unit: arrow.Microsecond},
@@ -218,6 +226,8 @@ func TestTimestamp_NaiveRespectsDSTPolicy(t *testing.T) {
 }
 
 func TestTypeToPulse_TimestampIsDateTime(t *testing.T) {
+	t.Parallel()
+
 	for _, dt := range []arrow.DataType{
 		&arrow.TimestampType{Unit: arrow.Second},
 		arrow.FixedWidthTypes.Timestamp_ns,

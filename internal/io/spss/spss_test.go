@@ -12,6 +12,8 @@ import (
 // TestReader_Sources covers both constructors over the same fixture bytes, and
 // asserts the filesystem path really does go through afero rather than os.
 func TestReader_Sources(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 
 	t.Run("from bytes", func(t *testing.T) {
@@ -72,6 +74,8 @@ func TestReader_Sources(t *testing.T) {
 // TestReader_SourceErrors covers the two ways a reader can fail before it ever
 // sees a dictionary byte.
 func TestReader_SourceErrors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no source at all", func(t *testing.T) {
 		_, err := (&Reader{}).loadDictionary()
 		if err == nil || !strings.Contains(err.Error(), "no data source") {

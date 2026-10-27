@@ -17,6 +17,8 @@ import (
 // one — the covariance-only description switches to lavaan conventions
 // once it defines a parameter.
 func TestSEM_DefinedMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		opt  ModelOptions
@@ -25,6 +27,8 @@ func TestSEM_DefinedMatchesLavaan(t *testing.T) {
 		{"brand_def_cov", ModelOptions{}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			ref := loadLavaanRef(t, "testdata/"+c.name+"_lavaan.json")
 			desc, err := os.ReadFile("testdata/brand_def_model.txt")
 			if err != nil {
@@ -72,6 +76,8 @@ func TestSEM_DefinedMatchesLavaan(t *testing.T) {
 // mean change, per-wave labels (c(bs1, bs2)), a defined name read by a
 // later line and a ratio — every SE from the joint covariance.
 func TestSEM_DefinedMultiGroupMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	ref := loadLavaanGroupRef(t, "testdata/brand_mg_defined_lavaan.json")
 	desc, err := os.ReadFile("testdata/brand_mgdef_model.txt")
 	if err != nil {
@@ -133,6 +139,8 @@ func TestSEM_DefinedMultiGroupMatchesLavaan(t *testing.T) {
 // grammar form against a central difference, and the evaluation order
 // rules R gives the operators (-a^2 = -(a^2), a^b^c = a^(b^c), a^-1).
 func TestSEM_DefinedGradientExact(t *testing.T) {
+	t.Parallel()
+
 	x := []float64{0.7, 1.3, -0.4}
 	labels := map[string]labelValue{"a": {free: 0}, "b": {free: 1}, "c": {free: 2}, "k": {free: -1, value: 2.5}}
 	cases := map[string]float64{
@@ -202,6 +210,8 @@ func TestSEM_DefinedGradientExact(t *testing.T) {
 // nulls every figure of its row — and of every row reading it — while
 // the others keep theirs.
 func TestSEM_DefinedUndefinedAtEstimate(t *testing.T) {
+	t.Parallel()
+
 	x := []float64{0.7, 0}
 	labels := map[string]labelValue{"a": {free: 0, std: 0.5}, "b": {free: 1, std: 0}}
 	var defs []*definedParam
@@ -231,6 +241,8 @@ func TestSEM_DefinedUndefinedAtEstimate(t *testing.T) {
 // expressions and unsupported functions, and lavaan's constraint lines
 // (==, <, >), refused as out of scope.
 func TestSEM_DefinedRefusals(t *testing.T) {
+	t.Parallel()
+
 	base := "f =~ x1 + a*x2 + b*x3\n"
 	for desc, reason := range map[string]string{
 		base + "d := a*z":                 DefinedReasonUnknownLabel,
@@ -292,6 +304,8 @@ func TestSEM_DefinedRefusals(t *testing.T) {
 // description is lavaan's fit (no mean structure, Fisher scoring, Wald
 // intervals), and SpecifiedDefined lists its rows with NaN figures.
 func TestSEM_DefinedSwitchesConventions(t *testing.T) {
+	t.Parallel()
+
 	m, err := NewModel("f =~ x1 + a*x2 + b*x3\nd := a*b", false)
 	if err != nil {
 		t.Fatal(err)
@@ -311,6 +325,8 @@ func TestSEM_DefinedSwitchesConventions(t *testing.T) {
 // estimates, SEs, z and p unchanged — and a 0.95 level keeps the
 // default's bits.
 func TestSEM_WaldLevelMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	ref := loadLavaanRef(t, "testdata/brand_def_l90_lavaan.json")
 	desc, err := os.ReadFile("testdata/brand_def_model.txt")
 	if err != nil {

@@ -139,8 +139,12 @@ func wlsGroupKey(k string) (string, string) {
 // numeric outcome's variance), 1e-6 on SEs, 1e-4 on fit measures; the
 // observed maxima are logged.
 func TestWLSMV_GroupsMatchLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range wlsGroupFixtures {
 		t.Run(fx.ref, func(t *testing.T) {
+			t.Parallel()
+
 			var ref wlsGroupRef
 			readJSON(t, "testdata/"+fx.ref+"_lavaan.json", &ref)
 			if ref.Lavaan == "" || !ref.Converged || len(ref.Groups) < 2 {
@@ -360,6 +364,8 @@ func brandOrdinalGroups(t *testing.T, geq, partial []string) (*Model, []OrdinalG
 // reference group (lavaan's ov_names_ord_notbinary), every other
 // ordered variable's is free there and fixed in the reference.
 func TestWLSMV_GroupBinaryScaleFixed(t *testing.T) {
+	t.Parallel()
+
 	m, groups := brandOrdinalGroups(t, []string{"thresholds", "loadings"}, nil)
 	q1 := slices.Index(m.Observed, "q1")
 	for g := range groups {
@@ -398,6 +404,8 @@ func TestWLSMV_GroupBinaryScaleFixed(t *testing.T) {
 // specification, and group_equal thresholds without ordered variables
 // is refused.
 func TestWLSMV_GroupPartialThresholds(t *testing.T) {
+	t.Parallel()
+
 	_, groups := brandOrdinalGroups(t, nil, nil)
 	m, _ := brandOrdinalGroups(t, []string{"thresholds", "loadings"}, []string{"q1 | t2"})
 	fit, err := FitOrdinalGroups(m, groups, EstimatorDWLS, Options{})
@@ -440,6 +448,8 @@ func TestWLSMV_GroupPartialThresholds(t *testing.T) {
 // refusal (lavaan's "some categories are empty in group g"), naming the
 // group.
 func TestWLSMV_GroupEmptyCategory(t *testing.T) {
+	t.Parallel()
+
 	m, groups := brandOrdinalGroups(t, nil, nil)
 	v2 := slices.Index(m.Observed, "v2")
 	for _, r := range groups[1].In.Rows {

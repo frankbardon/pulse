@@ -34,6 +34,8 @@ func requireSplice(t *testing.T, err error, code errors.Code, field, placeholder
 // is substituted (the preflight never runs) — the slot list is
 // internal/exprslots, the one the template renderer refuses by.
 func TestSweepExprSplice_Refused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, sweep, field, slot string
 	}{
@@ -85,6 +87,8 @@ func TestSweepExprSplice_Refused(t *testing.T) {
 // escape inside an expression, and a request params entry sharing an
 // expression slot's key.
 func TestSweepExprSplice_Allowed(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"label and cohort": `"label":"w{{w}}","request":{"cohort":{"filename":"c{{w}}.pulse"}}`,
 		"request params marker": `"request":{"params":{"w":{"$var":"w"}},` +
@@ -126,6 +130,8 @@ func TestSweepExprSplice_Allowed(t *testing.T) {
 // expression slot kind a window, feature or attribute item can carry is
 // PULSE_FOR_EACH_EXPR_SPLICE, request-rooted, before the preflight.
 func TestForEachExprSplice_Refused(t *testing.T) {
+	t.Parallel()
+
 	const fe = `"for_each":{"axes":[{"name":"k","values":[2,3]}]}`
 	cases := []struct {
 		name, req, field, slot string
@@ -166,6 +172,8 @@ func TestForEachExprSplice_Refused(t *testing.T) {
 // cannot supply it: there the alternative is a Compose sweep reading
 // params.<name>.)
 func TestForEachExprSplice_Allowed(t *testing.T) {
+	t.Parallel()
+
 	r := decodeRequest(t, `{
 		"windows": [{"for_each": {"axes": [{"name": "d", "values": [0.3, 0.5]}]}, "type": "WIN_EWMA", "field": "x",
 			"label": "x_{{d}}", "order_by": [{"field": "t"}], "params": {"decay": {"$var": "d"}}}],

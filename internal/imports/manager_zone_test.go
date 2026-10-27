@@ -50,6 +50,8 @@ func (z *zoneSink) Close() error { return nil }
 // the naive-UTC reading), reports the resolved count, and persists zone,
 // per-column map and policy onto the sidecar.
 func TestManager_Open_SourceTZStoredAndPersisted(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	if err := afero.WriteFile(afs, "src.csv", []byte(zoneFixtureCSV), 0o644); err != nil {
 		t.Fatal(err)
@@ -96,6 +98,8 @@ func TestManager_Open_SourceTZStoredAndPersisted(t *testing.T) {
 // refused, with it the cohort is re-read in the new zone and the sidecar
 // follows.
 func TestManager_Open_SourceTZNeverServedStale(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	if err := afero.WriteFile(afs, "src.csv", []byte(zoneFixtureCSV), 0o644); err != nil {
 		t.Fatal(err)
@@ -128,6 +132,8 @@ func TestManager_Open_SourceTZNeverServedStale(t *testing.T) {
 // TestManager_Open_NoSourceTZSidecarUnchanged: a UTC import's sidecar
 // carries no zone key, and its refusals pass through with their codes.
 func TestManager_Open_NoSourceTZSidecarUnchanged(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	if err := afero.WriteFile(afs, "src.csv", []byte(zoneFixtureCSV), 0o644); err != nil {
 		t.Fatal(err)
@@ -164,6 +170,8 @@ func TestManager_Open_NoSourceTZSidecarUnchanged(t *testing.T) {
 // back to SourceTZ on an empty cell), and the sidecar round-trips
 // source_tz_field beside source_tz.
 func TestManager_Open_SourceTZFieldStoredAndPersisted(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	csv := "local,zone\n" +
 		"2026-07-01 12:00,America/New_York\n" +
@@ -204,6 +212,8 @@ func TestManager_Open_SourceTZFieldStoredAndPersisted(t *testing.T) {
 // TestSidecar_SourceTZFieldOmittedWhenUnset: a sidecar without a zone
 // column marshals exactly as before the field existed.
 func TestSidecar_SourceTZFieldOmittedWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	sc := Sidecar{Handle: "h", Format: "pulse", SourceTZ: "UTC", DSTPolicy: "later"}
 	b, err := json.Marshal(sc)
 	if err != nil {

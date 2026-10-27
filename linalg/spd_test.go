@@ -56,6 +56,8 @@ func wantCode(t *testing.T, err error, code perr.Code) *perr.CodedError {
 }
 
 func TestFactorSPD_MatchesGonumBitwise(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(41))
 	for _, n := range []int{1, 2, 3, 5, 8, 13} {
 		for trial := 0; trial < 6; trial++ {
@@ -112,6 +114,8 @@ func TestFactorSPD_MatchesGonumBitwise(t *testing.T) {
 
 // TestFactorSPD_DoesNotAliasInput: the factor owns its storage.
 func TestFactorSPD_DoesNotAliasInput(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]float64{{4, 2}, {2, 3}}
 	s := mustSym(t, rows)
 	f, err := linalg.FactorSPD(s)
@@ -127,6 +131,8 @@ func TestFactorSPD_DoesNotAliasInput(t *testing.T) {
 }
 
 func TestFactorSPD_NotPositiveDefinite(t *testing.T) {
+	t.Parallel()
+
 	for name, rows := range map[string][][]float64{
 		"rank_deficient": {{1, 2}, {2, 4}},
 		"indefinite":     {{1, 3}, {3, 1}},
@@ -148,6 +154,8 @@ func TestFactorSPD_NotPositiveDefinite(t *testing.T) {
 // PULSE_MATRIX_SINGULAR with gonum's condition estimate in
 // details.condition_number, bit-equal to gonum's own Condition error.
 func TestSPDFactor_IllConditioned(t *testing.T) {
+	t.Parallel()
+
 	// The smallest representable bump over 1 keeps the matrix PD with a
 	// condition number near 4/Epsilon ≈ 1.8e16.
 	rows := [][]float64{{1, 1}, {1, 1 + linalg.Epsilon}}
@@ -182,6 +190,8 @@ func TestSPDFactor_IllConditioned(t *testing.T) {
 }
 
 func TestSPDFactor_Shapes(t *testing.T) {
+	t.Parallel()
+
 	f, err := linalg.FactorSPD(mustSym(t, [][]float64{{2, 0}, {0, 2}}))
 	if err != nil {
 		t.Fatal(err)
@@ -204,6 +214,8 @@ func TestSPDFactor_Shapes(t *testing.T) {
 }
 
 func TestMul_MatchesGonumBitwise(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(43))
 	for _, d := range [][3]int{{1, 1, 1}, {2, 3, 4}, {5, 5, 5}, {7, 3, 9}, {13, 13, 13}} {
 		a := randRows(rng, d[0], d[1])
@@ -229,6 +241,8 @@ func TestMul_MatchesGonumBitwise(t *testing.T) {
 }
 
 func TestMul_Shapes(t *testing.T) {
+	t.Parallel()
+
 	a := mustMatrix(t, [][]float64{{1, 2}})
 	_, err := linalg.Mul(a, a)
 	wantCode(t, err, perr.PULSE_MATRIX_SHAPE_MISMATCH)

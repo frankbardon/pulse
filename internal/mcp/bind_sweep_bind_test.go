@@ -25,6 +25,8 @@ func sweepBindInstance(t *testing.T, with bool) *descx.InstanceSnapshot {
 // (and requires only `name`) when capability:compose_sweep_bind is
 // enabled, and keeps the request-only shape when it is hidden.
 func TestFitsSchema_FromSweep(t *testing.T) {
+	t.Parallel()
+
 	item := func(inst *descx.InstanceSnapshot) map[string]any {
 		return fitsSchema(map[string]any{"type": "object"}, inst)["items"].(map[string]any)
 	}
@@ -50,6 +52,8 @@ func TestFitsSchema_FromSweep(t *testing.T) {
 // is refused exactly as the library refuses the typed request; an
 // enabling instance accepts the key.
 func TestCheckUnknownKeysComposed_HiddenFromSweepRefusedLikeLibrary(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"requests":[{"cohort":{"filename":"x.pulse"}}],"fits":[{"name":"best","from_sweep":{"regression":"m"}}]}`)
 	typed := &types.ComposedRequest{Requests: []*types.Request{{Cohort: &types.Cohort{Filename: "x.pulse"}}},
 		Fits: []types.FitSpec{{Name: "best", FromSweep: &types.FitFromSweep{Regression: "m"}}}}

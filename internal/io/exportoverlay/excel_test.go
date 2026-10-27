@@ -17,6 +17,8 @@ import (
 // reader can reconstruct the embedded layers, and the overlay payload
 // shapes round-trip.
 func TestExportJob_Overlays_Excel_Sheets(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := pexcel.NewWriter(fs, "out.xlsx")
@@ -66,6 +68,8 @@ func TestExportJob_Overlays_Excel_Sheets(t *testing.T) {
 // from the story — every sheet emitted for an overlay layer carries
 // the OverlaySheetPrefix and includes the layer name.
 func TestExportJob_Overlays_Excel_SheetNamePattern(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := pexcel.NewWriter(fs, "out.xlsx")
@@ -112,6 +116,8 @@ func TestExportJob_Overlays_Excel_SheetNamePattern(t *testing.T) {
 // tri-state IncludeOverlays gate on Excel: *false suppresses the
 // SetOverlays call so no overlay sheets land on the workbook.
 func TestExportJob_Overlays_Excel_OptOutNoOverlaySheets(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := pexcel.NewWriter(fs, "out.xlsx")

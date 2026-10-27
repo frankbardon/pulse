@@ -12,6 +12,8 @@ import (
 // and whitespace never move it, a value change does, a pinned seed is
 // used as given.
 func TestBayesEffectiveSeed_ParamsKeyOrder(t *testing.T) {
+	t.Parallel()
+
 	spec := func(params string) *types.RegressionSpec {
 		return &types.RegressionSpec{Type: "REG_MMM_BAYES", Target: "y", Predictors: []string{"tv"}, Params: json.RawMessage(params)}
 	}

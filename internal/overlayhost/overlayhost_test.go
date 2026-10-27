@@ -11,6 +11,8 @@ import (
 // TestHostsCoverCatalog: every catalog kind runs on at least one slot,
 // and the table names no kind outside the catalog.
 func TestHostsCoverCatalog(t *testing.T) {
+	t.Parallel()
+
 	catalog := map[types.OverlayKind]bool{}
 	for _, k := range types.AllOverlayKinds() {
 		catalog[k] = true
@@ -26,6 +28,8 @@ func TestHostsCoverCatalog(t *testing.T) {
 }
 
 func TestRefusal(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		host        Host
@@ -72,6 +76,8 @@ func TestRefusal(t *testing.T) {
 // TestRefusal_Accepted: a kind on its own slot, a kind outside the
 // catalog and the empty route of a hidden kind are never refused.
 func TestRefusal_Accepted(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		host Host
 		kind types.OverlayKind
@@ -97,6 +103,8 @@ func TestRefusal_Accepted(t *testing.T) {
 }
 
 func TestSlotAndHostsCopy(t *testing.T) {
+	t.Parallel()
+
 	for h, want := range map[Host]string{
 		Request: "Request.Overlays", Compose: "ComposedRequest.Overlays",
 		Chain: "ChainRequest.Overlays", Facet: "FacetRequest.Overlays", "other": "other",
@@ -115,6 +123,8 @@ func TestSlotAndHostsCopy(t *testing.T) {
 // TestShapesCoverRequestKinds: a kind declares Process shapes iff it
 // runs on Request.Overlays.
 func TestShapesCoverRequestKinds(t *testing.T) {
+	t.Parallel()
+
 	for _, k := range types.AllOverlayKinds() {
 		if got, want := len(Shapes(k)) > 0, Accepts(Request, k); got != want {
 			t.Errorf("%s: declares shapes %v, runs on Request.Overlays %v", k, got, want)
@@ -128,6 +138,8 @@ func TestShapesCoverRequestKinds(t *testing.T) {
 }
 
 func TestShapeRefusal(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		shape       types.OverlayShape
@@ -182,6 +194,8 @@ func TestShapeRefusal(t *testing.T) {
 // does (processing's TestOverlayReadsCellValue_MatchesHandlers pins the
 // MATRIX half to the handlers).
 func TestReadsCellValue(t *testing.T) {
+	t.Parallel()
+
 	moments := map[types.OverlayKind]bool{
 		types.OverlayKindPairwiseWelchT:            true,
 		types.OverlayKindPairwiseTwoMeansZ:         true,
@@ -214,6 +228,8 @@ func TestReadsCellValue(t *testing.T) {
 }
 
 func TestPairwisePSourceResolution(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		p    string
 		mode types.CrosstabNormalize

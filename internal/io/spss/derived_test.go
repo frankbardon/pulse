@@ -32,6 +32,8 @@ import (
 // coherent as kinds are added: a kind that reaches Derived.Kind without
 // reaching DerivedKinds / DerivedFoldFor is a column an export cannot fold.
 func TestDerivedRegistry_VocabularyIsClosed(t *testing.T) {
+	t.Parallel()
+
 	kinds := DerivedKinds()
 	if len(kinds) == 0 {
 		t.Fatal("DerivedKinds is empty")
@@ -142,6 +144,8 @@ func declaredDerivedKindConstants(t *testing.T) []string {
 // TestDerivedFold_String keeps the diagnostic spellings stable — they appear
 // in fold-time refusals, where "unknown" is the one a reader must recognise.
 func TestDerivedFold_String(t *testing.T) {
+	t.Parallel()
+
 	for fold, want := range map[DerivedFold]string{
 		DerivedFoldUnknown: "unknown",
 		DerivedFoldDrop:    "drop",
@@ -158,6 +162,8 @@ func TestDerivedFold_String(t *testing.T) {
 // the property that lets an export refuse a bad document BEFORE it has
 // written half an output file.
 func TestDerived_Complete(t *testing.T) {
+	t.Parallel()
+
 	code := Float(9)
 	full := Derived{
 		Name: "income_missing", Kind: DerivedKindNumericMissing,
@@ -249,6 +255,8 @@ func bothKindsSpec() spsstest.Spec {
 // document: one import, both derived kinds, each self-sufficient for its own
 // fold.
 func TestDerivedRegistry_CoversBothKinds(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, bothKindsSpec())
 	derived := doc.Payload.Derived
 
@@ -311,6 +319,8 @@ func TestDerivedRegistry_CoversBothKinds(t *testing.T) {
 // answers: an export proceeds on the first and must refuse on the second, so
 // they cannot share a spelling on the wire.
 func TestDerivedRegistry_EmptyIsAnArrayNotAMissingKey(t *testing.T) {
+	t.Parallel()
+
 	// A file with no missing specifications and no response sets derives
 	// nothing at all.
 	spec := spsstest.Spec{
@@ -402,6 +412,8 @@ func mcSpec() spsstest.Spec {
 // because a mask is idempotent. So it maps to exactly what it is: N ordinary
 // categorical columns, one per slot.
 func TestMRSet_CategorySetStaysNCategoricalColumns(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(buildFixture(t, mcSpec()))
 	header, rows := readHeaderAndRows(t, r)
 
@@ -444,6 +456,8 @@ func TestMRSet_CategorySetStaysNCategoricalColumns(t *testing.T) {
 // data is intact and whose "select up to three" question has silently become
 // three unrelated variables.
 func TestSidecar_MultipleCategorySetIsRecordedForWriteBack(t *testing.T) {
+	t.Parallel()
+
 	_, _, doc := importFixture(t, mcSpec())
 	p := doc.Payload
 
@@ -492,6 +506,8 @@ func TestSidecar_MultipleCategorySetIsRecordedForWriteBack(t *testing.T) {
 // consumer matching the two up itself is doing the lookup this slot records —
 // and doing it against a document where the answer is already known.
 func TestSidecar_MRSetFieldsResolveShortNames(t *testing.T) {
+	t.Parallel()
+
 	num := spsstest.Format{Type: spsstest.FormatF, Width: 1}
 	spec := spsstest.Spec{
 		Vars: []spsstest.Var{
@@ -540,6 +556,8 @@ func TestSidecar_MRSetFieldsResolveShortNames(t *testing.T) {
 // damage rather than a dialect — and the resolver must say so with "" rather
 // than guessing a name or shortening the parallel array.
 func TestSetFieldResolver_UndeclaredMemberResolvesToEmpty(t *testing.T) {
+	t.Parallel()
+
 	d := &dictionary{vars: []variable{{name: "R1"}, {name: "R2"}}}
 	resolve := setFieldResolver(d, nil)
 
@@ -570,6 +588,8 @@ func TestSetFieldResolver_UndeclaredMemberResolvesToEmpty(t *testing.T) {
 // So the assertion is made where the distinction physically lives: the stored
 // bitmask and the null bitmap bit of the written `.pulse` file.
 func TestSetEmptyMask_SurvivesImportEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	src := NewReaderFromBytes(buildFixture(t, mdSpec()))
 	job := pio.NewImportJob(src, "survey.pulse")

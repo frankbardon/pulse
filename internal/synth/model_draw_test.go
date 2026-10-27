@@ -109,6 +109,8 @@ func setOption(field, option string, coef float64) synth.ModelPredictorSpec {
 // or because generation drew a level the fit never saw at all
 // ("north") — contributes zero and lands on the intercept.
 func TestSynthModel_SinglePredictorAndUnseenLevel(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(600, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -148,6 +150,8 @@ func TestSynthModel_SinglePredictorAndUnseenLevel(t *testing.T) {
 // different fields plus a set-option indicator, all live on the same
 // row, must add.
 func TestSynthModel_PredictorsSum(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(800, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,
@@ -206,6 +210,8 @@ func TestSynthModel_PredictorsSum(t *testing.T) {
 // [Min, Max] AND both bounds must actually be hit — a clamp that never
 // engages proves nothing.
 func TestSynthModel_ClampsAtBothBounds(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(600, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,
@@ -257,6 +263,8 @@ func TestSynthModel_ClampsAtBothBounds(t *testing.T) {
 // so a modelled field and a correlated field cannot disagree about the
 // field's admissible range.
 func TestSynthModel_MarginalClampAppliesWhenModelDeclaresNone(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(400, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -296,6 +304,8 @@ func TestSynthModel_MarginalClampAppliesWhenModelDeclaresNone(t *testing.T) {
 // reading: the fit never saw a row with a null in this predictor, so its
 // coefficient says nothing about such a row and the term does not fire.
 func TestSynthModel_NullPredictorContributesZero(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(300, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -331,6 +341,8 @@ func TestSynthModel_NullPredictorContributesZero(t *testing.T) {
 // deviation on ResidualStd — NOT on the field's own marginal std of 25,
 // which is what a construction that forgot to standardise would produce.
 func TestSynthModel_NormalTargetReducesToPredictionPlusResidual(t *testing.T) {
+	t.Parallel()
+
 	const rows = 60_000
 	spec := modelDrawSpec(rows, synth.FieldModelSpec{
 		Field:       "spend",
@@ -375,6 +387,8 @@ func TestSynthModel_NormalTargetReducesToPredictionPlusResidual(t *testing.T) {
 // for the new stage: same spec + same seed, byte-identical file; a
 // different seed, a different file.
 func TestSynthModel_DeterministicByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(500, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,
@@ -414,6 +428,8 @@ func TestSynthModel_DeterministicByteIdentical(t *testing.T) {
 // one a map-derived construction would leak, must not move a single
 // byte.
 func TestSynthModel_DrawOrderIsSchemaOrderNotSliceOrder(t *testing.T) {
+	t.Parallel()
+
 	build := func(order []int) *synth.Spec {
 		models := []synth.FieldModelSpec{
 			{
@@ -466,6 +482,8 @@ func TestSynthModel_DrawOrderIsSchemaOrderNotSliceOrder(t *testing.T) {
 // target now compiles a drawer like any other and is no longer a route
 // to zero.
 func TestSynthModel_StageInertWithoutDrawers(t *testing.T) {
+	t.Parallel()
+
 	build := func(withModel bool) *synth.Spec {
 		s := modelDrawSpec(300, synth.FieldModelSpec{
 			Field:      "spend",
@@ -503,6 +521,8 @@ func TestSynthModel_StageInertWithoutDrawers(t *testing.T) {
 // dropped with a warning, and every row must carry the model's own
 // value rather than either pair's conditional draw.
 func TestSynthModel_RetiresNumericTargetPairStages(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(400, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -568,6 +588,8 @@ func TestSynthModel_RetiresNumericTargetPairStages(t *testing.T) {
 // TestSpecFromProfile_ModelDrivenProfileRaisesNoNumericTargetConflicts,
 // which reads that prefix to classify arbitration losses.
 func TestSynthModel_ValueCorrelationNamingModelledFieldIsRefusedPermanently(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(400, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -625,6 +647,8 @@ func TestSynthModel_ValueCorrelationNamingModelledFieldIsRefusedPermanently(t *t
 // evaluate a numeric predictor term, and contributing zero for it would
 // publish a cohort carrying a relationship nothing applied.
 func TestSynthModel_UnsupportedPredictorKindRefuses(t *testing.T) {
+	t.Parallel()
+
 	spec := modelDrawSpec(50, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,
@@ -675,6 +699,8 @@ func warningsContain(warnings []string, substr string) bool {
 // The fixture is built to prove exactly that: `brand`'s marginal has no
 // "other" in it, so any row carrying one arrived through the pair stage.
 func TestSynthModel_CatchAllLevelTermFires(t *testing.T) {
+	t.Parallel()
+
 	const catchAll = "other"
 	spec := &synth.Spec{
 		RowCount: 800,

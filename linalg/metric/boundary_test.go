@@ -23,6 +23,8 @@ func metricAllowed(path string) bool {
 // imports anything outside the standard library, pulse/errors and
 // pulse/linalg.
 func TestMetricImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

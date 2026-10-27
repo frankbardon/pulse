@@ -40,6 +40,8 @@ func codeOf(err error) errors.Code {
 // other kind with PULSE_MODEL_KIND_MISMATCH, and a second binding of
 // the name collides.
 func TestSet_FailedFit(t *testing.T) {
+	t.Parallel()
+
 	base := failedSet(t)
 	derived := map[string]*Set{
 		"base":    base,
@@ -110,6 +112,8 @@ func must(s *Set, err error) *Set {
 // Lookup / LookupVector), and FailedFitSlotError carries the fit's own
 // code, message and details plus details.fit — a fresh map each call.
 func TestSet_FailedOfKind(t *testing.T) {
+	t.Parallel()
+
 	s := failedSet(t)
 	if se, ok := s.FailedOfKind("pop", types.FitKindVector); !ok || se.Code != string(errors.PULSE_MATRIX_SINGULAR) {
 		t.Errorf("FailedOfKind(pop, vector) %+v %v", se, ok)

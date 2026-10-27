@@ -40,6 +40,8 @@ func datetimeCSV(tuples [][3]string, rows int) []byte {
 // purpose: it must stay `date` across both imports, proving the
 // datetime probe did not shadow date classification.
 func TestCSV_DateTimeRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tuples := [][3]string{
 		{"2024-03-04T10:11:12Z", "2024-03-04", "10"},
 		{"2024-03-05T23:59:59Z", "2024-03-05", "20"},
@@ -149,6 +151,8 @@ func assertRoundTripSchema(t *testing.T, schema *encoding.Schema, stage string) 
 // to end: an offset-bearing literal imports to the same instant and
 // exports as its UTC rendering, never as the original local wall clock.
 func TestCSV_DateTimeOffsetNormalisedToUTC(t *testing.T) {
+	t.Parallel()
+
 	tuples := [][3]string{
 		{"2024-03-04T12:11:12+02:00", "2024-03-04", "10"},
 		{"2024-03-04T05:11:12-05:00", "2024-03-04", "20"},

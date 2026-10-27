@@ -78,6 +78,8 @@ func nullRateOf(t *testing.T, data []byte, name string) float64 {
 //     flag reproduces the double count, so claim 2 is a measurement and
 //     not a tautology about a field that was never doubly nulled.
 func TestOwnsNulls_KeepsTheGateExactAndTheMarginalCaptured(t *testing.T) {
+	t.Parallel()
+
 	const (
 		rows    = 20000
 		awareP  = 0.75 // so P(aware == 0) = 0.25
@@ -151,6 +153,8 @@ func TestOwnsNulls_KeepsTheGateExactAndTheMarginalCaptured(t *testing.T) {
 // later draw; `tail` and `wave` are drawn after `regard` precisely so
 // that shift is visible here.
 func TestOwnsNulls_MovesTheNullMaskAndNothingElse(t *testing.T) {
+	t.Parallel()
+
 	const rows = 5000
 	rules := func(owns bool) []synth.RuleSpec {
 		return []synth.RuleSpec{gateRule(owns, "aware == 0", "regard")}
@@ -200,6 +204,8 @@ func TestOwnsNulls_MovesTheNullMaskAndNothingElse(t *testing.T) {
 // exactly as a rules-free spec built it, so the whole file matches a run
 // with the rule removed apart from the nulls the rule itself adds.
 func TestOwnsNulls_AbsentFlagIsTheUnchangedPath(t *testing.T) {
+	t.Parallel()
+
 	const rows = 4000
 	ruled, _, err := synth.SynthBytes(
 		ownershipSpec(rows, 0.75, 0.25, []synth.RuleSpec{gateRule(false, "aware == 0", "regard")}),
@@ -234,6 +240,8 @@ func TestOwnsNulls_AbsentFlagIsTheUnchangedPath(t *testing.T) {
 // the fields keep the double count and nothing says the flag did
 // nothing.
 func TestOwnsNulls_RefusedWithNoSetNull(t *testing.T) {
+	t.Parallel()
+
 	spec := ownershipSpec(100, 0.75, 0.25, []synth.RuleSpec{
 		{When: "aware == 0", Set: map[string]any{"wave": 1.0}, OwnsNulls: true},
 	})
@@ -269,6 +277,8 @@ func TestOwnsNulls_RefusedWithNoSetNull(t *testing.T) {
 // without it the test passes for an implementation that warns on
 // everything, which is the same as not warning at all.
 func TestOwnsNulls_ReportsAClaimTheRunDidNotBearOut(t *testing.T) {
+	t.Parallel()
+
 	const rows = 20000
 	cases := []struct {
 		name     string
@@ -352,6 +362,8 @@ func TestOwnsNulls_ReportsAClaimTheRunDidNotBearOut(t *testing.T) {
 // it) and the run stays silent — a warning would mean the union was not
 // applied.
 func TestOwnsNulls_TwoRulesMayOwnOneField(t *testing.T) {
+	t.Parallel()
+
 	const rows = 20000
 	// aware=0 on 0.25 of rows; wave=0 on 0.5 of rows, independently.
 	// P(aware == 0 or (aware == 1 and wave == 0)) = 0.25 + 0.75*0.5 = 0.625.
@@ -420,6 +432,8 @@ func TestOwnsNulls_TwoRulesMayOwnOneField(t *testing.T) {
 // cannot pass by accident: at least one of these seeds has a gap the
 // absolute threshold alone WOULD have reported, and none of them warns.
 func TestOwnsNulls_SilentOnSamplingNoise(t *testing.T) {
+	t.Parallel()
+
 	const (
 		rows    = 100
 		capture = 0.25
@@ -459,6 +473,8 @@ func TestOwnsNulls_SilentOnSamplingNoise(t *testing.T) {
 //     rate, rather than the double count.
 //  3. The gate is still exact on the same file.
 func TestSuggestRules_GatingCandidatesOwnTheirNulls(t *testing.T) {
+	t.Parallel()
+
 	prof, _ := suggestFixtureProfile(t)
 
 	gating, other := 0, 0

@@ -96,6 +96,8 @@ func codedErr(t *testing.T, err error) *perr.CodedError {
 // near-miss. "1250" must not reach windows-1252 no matter how the name is
 // punctuated.
 func TestCharset_LookupSpellings(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in   string
 		want string // "" ⇒ must not resolve
@@ -161,6 +163,8 @@ func TestCharset_LookupSpellings(t *testing.T) {
 // but has no decoder for, and a caller treating that nil as "no
 // transformation needed" would read the file as UTF-8.
 func TestCharset_IANAUnsupportedIsNotUTF8(t *testing.T) {
+	t.Parallel()
+
 	// IBM037 is EBCDIC: IANA-registered, and x/text ships no codec.
 	for _, name := range []string{"IBM037", "IBM273", "IBM500"} {
 		if dec, err := lookupCharset(name); err == nil {
@@ -171,6 +175,8 @@ func TestCharset_IANAUnsupportedIsNotUTF8(t *testing.T) {
 
 // TestCharset_ForCode pins the record 7/3 numeric mapping.
 func TestCharset_ForCode(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		code int32
 		name string
@@ -200,6 +206,8 @@ func TestCharset_ForCode(t *testing.T) {
 // non-UTF-8 fixture whose labels and values come back as the text that was
 // written, not as mojibake.
 func TestCharset_Windows1252RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, latin1Spec())
 
 	// The fixture really is windows-1252 on the wire, not UTF-8 — a test
@@ -272,6 +280,8 @@ func TestCharset_Windows1252RoundTrip(t *testing.T) {
 // declaring UTF-8 reads identically, so the windows-1252 result above is the
 // decoder working and not a coincidence of the fixture.
 func TestCharset_UTF8FixtureUnchanged(t *testing.T) {
+	t.Parallel()
+
 	spec := latin1Spec()
 	spec.CharacterEncoding = "UTF-8"
 	r := NewReaderFromBytes(build(t, spec))
@@ -286,6 +296,8 @@ func TestCharset_UTF8FixtureUnchanged(t *testing.T) {
 // this existed, whatever it declares — every supported charset is an ASCII
 // superset, so the decode is a no-op on such a file.
 func TestCharset_ASCIIFixtureIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	base := readAll(t, NewReaderFromBytes(build(t, spsstest.ReferenceSpec())))
 
 	for _, name := range []string{"", "UTF-8", "US-ASCII", "windows-1252", "ISO-8859-1", "cp850"} {
@@ -305,6 +317,8 @@ func TestCharset_ASCIIFixtureIsByteIdentical(t *testing.T) {
 // undefined into a string datum. x/text would decode it to U+FFFD and report
 // no error at all; this reader must refuse.
 func TestCharset_UndecodableDatumIsAnError(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "CITY", Width: 6}},
@@ -345,6 +359,8 @@ func TestCharset_UndecodableDatumIsAnError(t *testing.T) {
 // TestCharset_UndecodableLabelIsAnError is the same rule on the metadata
 // side, where the fault stops the dictionary parse rather than the row pass.
 func TestCharset_UndecodableLabelIsAnError(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "SEX", Label: "Genre"}},
@@ -371,6 +387,8 @@ func TestCharset_UndecodableLabelIsAnError(t *testing.T) {
 // U+FFFD-in-output test, because U+FFFD is a legal UTF-8 character: a file
 // declaring UTF-8 and holding a broken sequence.
 func TestCharset_InvalidUTF8IsAnError(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "UTF-8",
 		Vars:              []spsstest.Var{{Name: "CITY", Width: 7}},
@@ -398,6 +416,8 @@ func TestCharset_InvalidUTF8IsAnError(t *testing.T) {
 // assuming windows-1252 because it almost never fails, is the silent
 // degradation this reader exists to prevent.
 func TestCharset_UndeclaredHighByteIsAnError(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		Vars:  []spsstest.Var{{Name: "CITY", Width: 6}},
 		Cases: [][]spsstest.Value{{spsstest.Text("Zurich")}},
@@ -426,6 +446,8 @@ func TestCharset_UndeclaredHighByteIsAnError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCharset_UnsupportedNameIsCodedError(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		declare string
@@ -463,6 +485,8 @@ func TestCharset_UnsupportedNameIsCodedError(t *testing.T) {
 // TestCharset_UnsupportedCodeIsCodedError is the same refusal reached
 // through record 7/3 rather than 7/20.
 func TestCharset_UnsupportedCodeIsCodedError(t *testing.T) {
+	t.Parallel()
+
 	mi := spsstest.DefaultMachineIntegerInfo()
 	mi.CharacterCode = 1 // EBCDIC
 	spec := spsstest.ReferenceSpec()
@@ -479,6 +503,8 @@ func TestCharset_UnsupportedCodeIsCodedError(t *testing.T) {
 }
 
 func TestCharset_UnsupportedOverrideIsCodedError(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes(build(t, spsstest.ReferenceSpec()), WithCharset("Klingon-1"))
 	_, err := r.PulseSchema()
 	ce := codedErr(t, err)
@@ -495,6 +521,8 @@ func TestCharset_UnsupportedOverrideIsCodedError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCharset_CrossCheck(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		code    int32
@@ -568,6 +596,8 @@ func TestCharset_CrossCheck(t *testing.T) {
 // TestCharset_CodeOnlyNoName is the 7/3-only path proper, built by stripping
 // the 7/20 name out of a windows-1252 fixture's bytes.
 func TestCharset_CodeOnlyNoName(t *testing.T) {
+	t.Parallel()
+
 	mi := spsstest.DefaultMachineIntegerInfo()
 	mi.CharacterCode = 1252
 	spec := latin1Spec()
@@ -615,6 +645,8 @@ func stripExtensionSubtype(t *testing.T, raw []byte, subtype int32) []byte {
 // spelling survives the read, so an export can re-encode into the charset
 // the source declared rather than into this package's canonical name for it.
 func TestCharset_DeclarationRetained(t *testing.T) {
+	t.Parallel()
+
 	mi := spsstest.DefaultMachineIntegerInfo()
 	mi.CharacterCode = 1252
 	spec := latin1Spec()
@@ -653,6 +685,8 @@ func TestCharset_DeclarationRetained(t *testing.T) {
 // to read with — otherwise every override would silently rewrite the
 // dictionary of the file it round-trips.
 func TestCharset_OverrideRetainsTheDeclaration(t *testing.T) {
+	t.Parallel()
+
 	spec := latin1Spec()
 	spec.CharacterEncoding = "windows-1252"
 
@@ -676,6 +710,8 @@ func TestCharset_OverrideRetainsTheDeclaration(t *testing.T) {
 // distinguishable from one that said UTF-8, because the write path may not
 // invent a record 7/20 the source did not carry.
 func TestCharset_UndeclaredIsVisible(t *testing.T) {
+	t.Parallel()
+
 	d := mustParse(t, build(t, spsstest.ReferenceSpec()))
 	if d.charset.declared() {
 		t.Error("declared() is true on a file carrying neither a 7/20 nor a 7/3")
@@ -695,6 +731,8 @@ func TestCharset_UndeclaredIsVisible(t *testing.T) {
 // reproduces the width the source declared. The declared byte width must
 // therefore be carried alongside, which is what E5-S4 re-pads against.
 func TestCharset_DeclaredWidthStaysAByteCount(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "CITY", Width: 6}},
@@ -729,6 +767,8 @@ func TestCharset_DeclaredWidthStaysAByteCount(t *testing.T) {
 // a value that exactly fills its declared BYTE width in the source charset
 // is accepted and read whole, even though its UTF-8 form overflows it.
 func TestCharset_WidthIsMeasuredOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "S", Width: 4}},
@@ -746,6 +786,8 @@ func TestCharset_WidthIsMeasuredOnTheWire(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCharsetDecoder_Decode(t *testing.T) {
+	t.Parallel()
+
 	w1252, err := lookupCharset("windows-1252")
 	if err != nil {
 		t.Fatalf("lookupCharset: %v", err)
@@ -813,6 +855,8 @@ func TestCharsetDecoder_Decode(t *testing.T) {
 // This is the systematic form of rule 1. A per-charset spot check would miss
 // exactly the codepage whose undefined positions the table got wrong.
 func TestCharsetDecoder_NoSubstitutionAnywhere(t *testing.T) {
+	t.Parallel()
+
 	for i := range charsetTable {
 		e := &charsetTable[i]
 		cm, ok := e.enc.(*charmap.Charmap)
@@ -844,6 +888,8 @@ func TestCharsetDecoder_NoSubstitutionAnywhere(t *testing.T) {
 // path in this file relies on: a 7-bit datum needs no decoding whatever the
 // declared charset is.
 func TestCharset_TableEntriesAreASCIISupersets(t *testing.T) {
+	t.Parallel()
+
 	for i := range charsetTable {
 		e := &charsetTable[i]
 		if e.enc == nil {
@@ -856,6 +902,8 @@ func TestCharset_TableEntriesAreASCIISupersets(t *testing.T) {
 }
 
 func TestCharset_NormaliseName(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"windows-1252": "WINDOWS1252",
 		"Windows_1252": "WINDOWS1252",

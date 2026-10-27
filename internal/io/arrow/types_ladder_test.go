@@ -21,6 +21,8 @@ import (
 // added there is covered the day it lands, with no edit in this
 // package.
 func TestTypeFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
+	t.Parallel()
+
 	want := arrow.ListOf(arrow.BinaryTypes.String)
 	ladder := encx.SetLadder()
 	if len(ladder) == 0 {
@@ -40,6 +42,8 @@ func TestTypeFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 // decimal arm must not swallow a set rung and the default arm must keep
 // delegating to TypeFromPulse.
 func TestFieldFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
+	t.Parallel()
+
 	want := arrow.ListOf(arrow.BinaryTypes.String)
 	for _, ft := range encx.SetLadder() {
 		af := FieldFromPulse(encoding.Field{Name: "sel", Type: ft, Nullable: true})
@@ -63,6 +67,8 @@ func TestFieldFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 // narrowest rung as a starting point, and naming it locally is how a
 // third width table gets born.
 func TestTypeToPulse_ListSeedsTheLaddersNarrowestRung(t *testing.T) {
+	t.Parallel()
+
 	ladder := encx.SetLadder()
 	if len(ladder) == 0 {
 		t.Fatal("encoding.SetLadder() is empty")
@@ -95,6 +101,8 @@ func TestTypeToPulse_ListSeedsTheLaddersNarrowestRung(t *testing.T) {
 // behind it. encoding.SetTypeFor is the single selector; a rung that
 // fits N elements must be the rung Arrow would land on after inference.
 func TestSetLadder_ArrowHasNoWidthTableOfItsOwn(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range encx.SetLadder() {
 		n := int(ft.MaxSetEntries())
 		fitted, ok := encx.SetTypeFor(n)
@@ -123,6 +131,8 @@ func TestSetLadder_ArrowHasNoWidthTableOfItsOwn(t *testing.T) {
 // package asks it rather than restating it, so `IsSet()` and
 // `SetLadder()` are the only two spellings here.
 func TestTypes_NamesNoIndividualSetRung(t *testing.T) {
+	t.Parallel()
+
 	src, err := os.ReadFile("types.go")
 	if err != nil {
 		t.Fatalf("reading types.go: %v", err)

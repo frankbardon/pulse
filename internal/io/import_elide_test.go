@@ -65,6 +65,8 @@ func runElideImport(t *testing.T, cols []string, rows [][]string, elide bool, sc
 // inference sample stay in the row. The cohort decodes to exactly the
 // values and nulls of the un-elided import.
 func TestImportJob_ElideConstants(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := elideFixture(600)
 	flatRep, flatRaw, flatFS := runElideImport(t, cols, rows, false)
 	rep, raw, fs := runElideImport(t, cols, rows, true)
@@ -117,6 +119,8 @@ func payloadLen(t *testing.T, raw []byte) int {
 // constant field all fall through to the 0x01 cohort, byte-identical to
 // the import with elision off.
 func TestImportJob_ElideConstants_NothingToElide(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := elideFixture(600)
 	var varying [][]string
 	for i, r := range rows {

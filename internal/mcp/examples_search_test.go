@@ -16,6 +16,8 @@ import (
 // TestExamplesSearch_IntentArg: the intent argument filters, and an
 // unknown one is the coded recommend error, not a stringified one.
 func TestExamplesSearch_IntentArg(t *testing.T) {
+	t.Parallel()
+
 	p := defaultPulse(t)
 	out, err := HandleExamplesSearch(context.Background(), p, ExamplesSearchIn{Intent: "relationship"})
 	if err != nil || len(out.Results) == 0 {
@@ -37,6 +39,8 @@ func TestExamplesSearch_IntentArg(t *testing.T) {
 // and the tool description name every library category, so the enum
 // cannot drift from the embedded directories again.
 func TestExamplesSearch_CategoryEnumCurrent(t *testing.T) {
+	t.Parallel()
+
 	f, _ := reflect.TypeOf(ExamplesSearchIn{}).FieldByName("Category")
 	schema := f.Tag.Get("jsonschema")
 	for _, c := range examples.AllCategories() {

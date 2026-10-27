@@ -19,6 +19,8 @@ var grid = []float64{-30, -12, -4, -1.5, -0.3, 0, 0.2, 1, 2.5, 7, 15, 30}
 // TestMCMC_TransformRoundTrip: Inverse(Forward(x).Y) recovers x and
 // Forward(Inverse(y)) recovers y, and Y stays inside the support.
 func TestMCMC_TransformRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for name, tr := range transforms {
 		for _, x := range grid {
 			if name != "positive" && math.Abs(x) > 15 {
@@ -58,6 +60,8 @@ func TestMCMC_TransformRoundTrip(t *testing.T) {
 // TestMCMC_TransformJacobianMatchesFiniteDifference: DyDx, LogJac and
 // DLogJac agree with central differences of Y and LogJac.
 func TestMCMC_TransformJacobianMatchesFiniteDifference(t *testing.T) {
+	t.Parallel()
+
 	const h = 1e-5
 	for name, tr := range transforms {
 		for _, x := range []float64{-6, -2, -0.7, 0, 0.4, 1.3, 3, 6} {
@@ -80,6 +84,8 @@ func TestMCMC_TransformJacobianMatchesFiniteDifference(t *testing.T) {
 // TestMCMC_TransformTailsStayFinite: the logistic log-Jacobian holds in
 // both tails where the naive log(y) + log(1 − y) would be −Inf.
 func TestMCMC_TransformTailsStayFinite(t *testing.T) {
+	t.Parallel()
+
 	for _, x := range []float64{-800, 800} {
 		m := mcmc.Unit{}.Forward(x)
 		if math.Abs(m.LogJac-(-800)) > 1e-12 {
@@ -98,6 +104,8 @@ func TestMCMC_TransformTailsStayFinite(t *testing.T) {
 
 // TestMCMC_BoundedRefusesBadBounds: unordered or infinite bounds give NaN.
 func TestMCMC_BoundedRefusesBadBounds(t *testing.T) {
+	t.Parallel()
+
 	for _, b := range []mcmc.Bounded{{Lo: 1, Hi: 1}, {Lo: 2, Hi: 1}, {Lo: 0, Hi: math.Inf(1)}, {Lo: math.NaN(), Hi: 1}} {
 		m := b.Forward(0.3)
 		if !math.IsNaN(m.Y) || !math.IsNaN(m.LogJac) || !math.IsNaN(b.Inverse(0.5)) {

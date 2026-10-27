@@ -85,6 +85,8 @@ func f64bytes(v float64) []byte {
 // a count disagreeing with its slots would be a fixture generator that
 // emits files no reader should trust.
 func TestMissingValues_AllThreeShapesOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Vars: []Var{
 			{
@@ -155,6 +157,8 @@ func TestMissingValues_AllThreeShapesOnTheWire(t *testing.T) {
 // the same spec always yields byte-identical output, missing values
 // included.
 func TestMissingValues_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Vars: []Var{{
 			Name: "Q", Print: Format{Type: FormatF, Width: 8},
@@ -184,6 +188,8 @@ func TestMissingValues_Deterministic(t *testing.T) {
 // built before the slot existed — the reference fixture's pinned hash is
 // the other half of this, and this is the direct statement.
 func TestMissingValues_AbsentSlotIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	withNil, err := Build(ReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -206,6 +212,8 @@ func TestMissingValues_AbsentSlotIsByteIdentical(t *testing.T) {
 // from what its author declared is worse than no fixture, because it is
 // the ground truth a reader is checked against.
 func TestMissingValues_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		v    Var
@@ -302,6 +310,8 @@ func TestMissingValues_Refusals(t *testing.T) {
 // the same thing. A generator that refused the pair could not produce
 // the file the resolution exists for.
 func TestMissingValues_WideStringIsEmitted(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Vars: []Var{{
 			Name: "NOTE", Width: 20,
@@ -327,6 +337,8 @@ func TestMissingValues_WideStringIsEmitted(t *testing.T) {
 // left in UTF-8 inside a windows-1252 file would never match a datum of
 // the same variable.
 func TestMissingValues_Transcoded(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		CharacterEncoding: "windows-1252",
 		Vars: []Var{{
@@ -357,6 +369,8 @@ func TestMissingValues_Transcoded(t *testing.T) {
 // TestMissingValues_CodeAndSlots covers the derived count field directly,
 // including the zero-value nil receiver every non-missing variable uses.
 func TestMissingValues_CodeAndSlots(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		m     *MissingValues

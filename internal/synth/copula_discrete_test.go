@@ -22,6 +22,8 @@ import (
 // (nps x detractor); leaving it out would have reproduced the bug one
 // type over.
 func TestSpecFromProfile_SmallIntegerPairsReachTheCorrelationMatrix(t *testing.T) {
+	t.Parallel()
+
 	num := func(name, typ string, mean, std, min, max float64) synth.FieldProfile {
 		return synth.FieldProfile{
 			Name: name, Type: typ,
@@ -96,6 +98,8 @@ func TestSpecFromProfile_SmallIntegerPairsReachTheCorrelationMatrix(t *testing.T
 // enough that "no correlation applied" — the pre-fix behaviour, a
 // realised rho of ~0 — fails.
 func TestSynthCorrelation_DiscreteMarginsHoldAndCorrelate(t *testing.T) {
+	t.Parallel()
+
 	const rows = 20000
 	const rho = 0.84
 	levels := []float64{1, 2, 3, 4, 5, 6, 7}

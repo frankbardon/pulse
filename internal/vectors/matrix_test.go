@@ -12,6 +12,8 @@ import (
 )
 
 func TestResolveMatrices_Resolves(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors: []types.VectorSpec{{Name: "qs", Fields: []string{"q_*"}, Labels: []string{"Three", "One", "Two"}}},
 		Matrices: []types.MatrixSpec{
@@ -46,6 +48,8 @@ func TestResolveMatrices_Resolves(t *testing.T) {
 }
 
 func TestResolveMatrices_Refusals(t *testing.T) {
+	t.Parallel()
+
 	vec := []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "q_2"}}}
 	cov := types.MAT_COVARIANCE
 	cases := []struct {
@@ -106,6 +110,8 @@ func TestResolveMatrices_Refusals(t *testing.T) {
 // params.max_drop_share decode on both operators; listwise is the
 // default and max_drop_share has none.
 func TestResolveMatrices_MissingParams(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		typ      types.MatrixType
 		params   string
@@ -144,6 +150,8 @@ func TestResolveMatrices_MissingParams(t *testing.T) {
 // TestReferenced_CountsMatrixVectors: a vector a matrix spec names is
 // referenced; any other is reported unreferenced.
 func TestReferenced_CountsMatrixVectors(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors:  []types.VectorSpec{{Name: "a", Fields: []string{"q_1"}}, {Name: "b", Fields: []string{"q_2"}}},
 		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "b"}},
@@ -159,6 +167,8 @@ func TestReferenced_CountsMatrixVectors(t *testing.T) {
 // TestMatrixMembers_InlineFields: projection sees an inline spec's
 // resolved members (a vector spec's ride Members).
 func TestMatrixMembers_InlineFields(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Matrices: []types.MatrixSpec{
 		{Type: types.MAT_COVARIANCE, Fields: []string{"q_*"}},
 		{Type: types.MAT_COVARIANCE, Vector: "v"},
@@ -177,6 +187,8 @@ func TestMatrixMembers_InlineFields(t *testing.T) {
 // MAT_CORRELATION's plan; absent (or a null summary on either operator)
 // leaves it 0.
 func TestResolveMatrices_TopPairs(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		typ    types.MatrixType
 		params string
@@ -207,6 +219,8 @@ func TestResolveMatrices_TopPairs(t *testing.T) {
 // not mergeable — the spec-level MatrixSpec answers copied through);
 // SpecMethod reads the same value off the raw spec.
 func TestResolveMatrices_Method(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		params    string
 		method    string
@@ -249,6 +263,8 @@ func TestResolveMatrices_Method(t *testing.T) {
 // fields (they join the fold after the members, as Extra), each
 // resolved by the vector rules; params.repair accepts "nearest" only.
 func TestResolveMatrices_PartialControls(t *testing.T) {
+	t.Parallel()
+
 	resolve := func(params string) (Matrix, error) {
 		spec := types.MatrixSpec{Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_1", "q_2", "q_3"}}
 		if params != "" {
@@ -336,6 +352,8 @@ func TestResolveMatrices_PartialControls(t *testing.T) {
 // battery with bad_params; it is a decomposition operator whose PSD
 // risk starts at 3 pairwise items.
 func TestResolveMatrices_Reliability(t *testing.T) {
+	t.Parallel()
+
 	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
 		spec := types.MatrixSpec{Type: types.MAT_RELIABILITY, Fields: fields}
 		if params != "" {
@@ -389,6 +407,8 @@ func TestResolveMatrices_Reliability(t *testing.T) {
 // declared bounds (so a reverse list needs no params range); explicit
 // params win; inline fields and a bound-free vector have none.
 func TestResolveMatrices_ReliabilityVectorBounds(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{
 		{Name: "sat", Fields: []string{"q_1", "q_2", "q_3"}, Kind: types.VectorKindScale, ScaleMin: f64(1), ScaleMax: f64(5)},
 		{Name: "plain", Fields: []string{"q_1", "q_2", "q_3"}, Kind: types.VectorKindScale},
@@ -443,6 +463,8 @@ func TestResolveMatrices_ReliabilityVectorBounds(t *testing.T) {
 // decomposition operator: pairwise PSD risk from 3 members on a
 // correlation, from 2 on a covariance.
 func TestResolveMatrices_PCA(t *testing.T) {
+	t.Parallel()
+
 	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
 		spec := types.MatrixSpec{Type: types.MAT_PCA, Fields: fields}
 		if params != "" {
@@ -516,6 +538,8 @@ func TestResolveMatrices_PCA(t *testing.T) {
 // decomposition operator: pairwise PSD risk from 3 members, the
 // correlation rule.
 func TestResolveMatrices_Collinearity(t *testing.T) {
+	t.Parallel()
+
 	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
 		spec := types.MatrixSpec{Type: types.MAT_COLLINEARITY, Fields: fields}
 		if params != "" {
@@ -566,6 +590,8 @@ func TestResolveMatrices_Collinearity(t *testing.T) {
 // rotation_oblique_unsupported reason (components are uncorrelated by
 // construction) and anything else bad_params.
 func TestResolveMatrices_PCARotation(t *testing.T) {
+	t.Parallel()
+
 	items := []string{"q_1", "q_2", "q_3"}
 	resolve := func(params string) (Matrix, *errors.CodedError) {
 		spec := types.MatrixSpec{Type: types.MAT_PCA, Fields: items, Params: json.RawMessage(params)}
@@ -626,6 +652,8 @@ func TestResolveMatrices_PCARotation(t *testing.T) {
 // Every FactorRotations value is classified, and PCARotations ∪
 // ObliqueRotations is FactorRotations.
 func TestRotationOblique_FollowsGPArotation(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]bool{
 		RotationNone: false, RotationVarimax: false, RotationQuartimax: false, RotationEntropy: false, RotationGeominOrthogonal: false,
 		RotationPromax: true, RotationOblimin: true, RotationGeomin: true,
@@ -663,6 +691,8 @@ func TestRotationOblique_FollowsGPArotation(t *testing.T) {
 // bad_params. A decomposition operator: pairwise PSD risk from 3
 // members.
 func TestResolveMatrices_Factor(t *testing.T) {
+	t.Parallel()
+
 	items := []string{"q_1", "q_2", "q_3", "score", "mid"}
 	resolve := func(fields []string, params string) (Matrix, *errors.CodedError) {
 		spec := types.MatrixSpec{Type: types.MAT_FACTOR, Fields: fields}
@@ -782,6 +812,8 @@ func TestResolveMatrices_Factor(t *testing.T) {
 // TestFactorIdentified: (p − k)² ≥ p + k, the non-negative model
 // degrees of freedom; one factor needs 3 members, two need 5, three 6.
 func TestFactorIdentified(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		p, k int
 		want bool
@@ -805,6 +837,8 @@ func TestFactorIdentified(t *testing.T) {
 // 0.05 unless set; alpha without inference, alpha outside (0, 1) and
 // either key on another operator are bad_params (param named).
 func TestResolveMatrices_Inference(t *testing.T) {
+	t.Parallel()
+
 	ok := []struct {
 		typ       types.MatrixType
 		params    string

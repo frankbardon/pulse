@@ -31,6 +31,8 @@ func hot(mod func(*types.Test)) *types.Test {
 // TestResolveTests_Rules pins every vector-input rule: the members a
 // valid slot resolves to, and the code + details.reason of each refusal.
 func TestResolveTests_Rules(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{
 		{Name: "va", Fields: []string{"a*"}},
 		{Name: "vb", Fields: []string{"b1", "b2"}},
@@ -175,6 +177,8 @@ func TestResolveTests_Rules(t *testing.T) {
 // TestResolveTests_SecondSetOnlyOnPairedTypes: a second set on a
 // vector test outside SecondVectorTypes is vector2_not_accepted.
 func TestResolveTests_SecondSetOnlyOnPairedTypes(t *testing.T) {
+	// serial: swaps the package-level vectors.secondVectorTypes test hook
+
 	old := secondVectorTypes
 	secondVectorTypes = nil
 	defer func() { secondVectorTypes = old }()
@@ -192,6 +196,8 @@ func TestResolveTests_SecondSetOnlyOnPairedTypes(t *testing.T) {
 // zeros (nil on two-sample, which ignores it), variance to pooled, and
 // unequal survives only on the two-sample form.
 func TestHotellingParams(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		form     HotellingForm
 		raw      string
@@ -229,6 +235,8 @@ func TestHotellingParams(t *testing.T) {
 // TEST_HOTELLING_T2: same length resolves, a different length is
 // vector2_length_mismatch.
 func TestResolveTests_SecondSet(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
 		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},
@@ -251,6 +259,8 @@ func TestResolveTests_SecondSet(t *testing.T) {
 // routes to an unknown name, whose slots this leaf leaves to the
 // unknown-type refusal.
 func TestResolveTests_HiddenRoutesUnjudged(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: []*types.Test{hot(func(t *types.Test) {})}}
 	if _, err := ResolveTests(req, testInputSchema(), nil, nil, nil); err == nil {
 		t.Fatal("visible type: want no_vector_or_fields")
@@ -264,6 +274,8 @@ func TestResolveTests_HiddenRoutesUnjudged(t *testing.T) {
 // TestReferenced_CountsTestVectors: a vector a tier-1 test names (vector
 // or vector2) is referenced, so it raises no unreferenced warning.
 func TestReferenced_CountsTestVectors(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors: []types.VectorSpec{{Name: "va", Fields: []string{"a1"}}, {Name: "vb", Fields: []string{"b1"}}, {Name: "vc", Fields: []string{"b2"}}},
 		Tests:   []*types.Test{nil, {Type: types.TEST_HOTELLING_T2, Vector: "va", Vector2: "vb"}},
@@ -277,6 +289,8 @@ func TestReferenced_CountsTestVectors(t *testing.T) {
 // member (globs expanded); a member list that fails to resolve reports
 // ok == false so projection decodes wide.
 func TestTestInputMembers(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Tests: []*types.Test{
 		{Type: types.TEST_HOTELLING_T2, Fields: []string{"a[12]"}, Fields2: []string{"b1", "b2"}},
 		{Type: types.TEST_HOTELLING_T2, Vector: "named"},
@@ -299,6 +313,8 @@ func TestTestInputMembers(t *testing.T) {
 // slots (field beside a vector, params, split_by, unequal pair lengths)
 // are never judged.
 func TestResolve_ExtensionVectorInputs(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{{Name: "va", Fields: []string{"a*"}}, {Name: "vb", Fields: []string{"b1", "b2"}}}
 	ext := func(name string) bool {
 		return name == "TEST_ACME_X" || name == "ATTR_ACME_X" || name == "GROUP_ACME_X"

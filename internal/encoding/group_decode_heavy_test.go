@@ -17,6 +17,8 @@ import (
 // the backoff both off and tripping every few rows — leaves exactly the
 // state the 0x01 twin's decode leaves.
 func TestGroupedDecode_CacheModesMatchFlat(t *testing.T) {
+	// serial: swaps the package-level encoding.groupEntryCacheBudget test hook; swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	for _, budget := range []struct {
 		name string
 		b    int

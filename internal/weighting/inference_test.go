@@ -28,6 +28,8 @@ func (b *unweightedWelford) add(v float64) {
 // unweighted and frequency bases (and probability, whose n_eff is then
 // n exactly).
 func TestWelford_UnityBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	var u unweightedWelford
 	var w Welford
 	x := 0.1
@@ -56,6 +58,8 @@ func TestWelford_UnityBitIdentical(t *testing.T) {
 // TestWelford_FrequencyIsExpansion: integer weights equal physically
 // repeated rows (N* = Σw, variance m2/(Σw−1)).
 func TestWelford_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	xs := []float64{2, 5, 9, 4}
 	ws := []float64{3, 1, 2, 4}
 	var w, e Welford
@@ -78,6 +82,8 @@ func TestWelford_FrequencyIsExpansion(t *testing.T) {
 // M2 = 1·(2.75)² + 2·(0.75)² + 1·(4.25)² = 26.75, c = n_eff/Σw = 2/3,
 // s² = c·M2/(n_eff−1) = (53.5/3)/(5/3) = 10.7.
 func TestWelford_ProbabilityKish(t *testing.T) {
+	t.Parallel()
+
 	var w Welford
 	for i, x := range []float64{1, 3, 8} {
 		w.Add(x, []float64{1, 2, 1}[i])
@@ -108,6 +114,8 @@ func TestWelford_ProbabilityKish(t *testing.T) {
 }
 
 func TestBasisOf(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		spec *types.WeightSpec
 		want Basis
@@ -135,6 +143,8 @@ func approxEq(a, b float64) bool {
 // reads off a host cell's {m2, sum_weights, n_eff} — is the bucket's
 // Variance under every basis, and c·M2/(N* − 1) in closed form.
 func TestScaledVariance(t *testing.T) {
+	t.Parallel()
+
 	var w Welford
 	for i, x := range []float64{3, 7, 4, 9, 12} {
 		w.Add(x, []float64{1, 3, 2, 1, 4}[i])
@@ -160,6 +170,8 @@ func TestScaledVariance(t *testing.T) {
 // source, for the margin modes (they read the margin floor's N* on a
 // weighted host, U47 #324) or for the panel's payload-margin modes.
 func TestNSourceRefusal(t *testing.T) {
+	t.Parallel()
+
 	unweightedCounts := []string{"cell_n_unweighted", "n_within",
 		"n_within_distinct", "row_margin_distinct", "column_margin_distinct", "row_margin_distinct_within"}
 	refused := map[Basis][]string{
@@ -186,6 +198,8 @@ func TestNSourceRefusal(t *testing.T) {
 // weight-sum refusal says Σw is scale-arbitrary — it can overstate OR
 // understate the sample size — never that it always overstates.
 func TestNSourceRefusal_WeightSumReason(t *testing.T) {
+	t.Parallel()
+
 	for _, s := range []string{"cell_weight_sum", "cell_value_weighted"} {
 		got := NSourceRefusal(s, Probability)
 		for _, want := range []string{"arbitrary in scale", "overstate or understate", "omit n_source to read Kish n_eff"} {
@@ -200,6 +214,8 @@ func TestNSourceRefusal_WeightSumReason(t *testing.T) {
 // a probability host only, with NSourceRefusal's weight-sum reason; kish
 // and every frequency / unweighted host stand.
 func TestNBasisRefusal(t *testing.T) {
+	t.Parallel()
+
 	for _, basis := range []Basis{Unweighted, Frequency, Probability} {
 		for _, nb := range []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish, ""} {
 			got := NBasisRefusal(nb, basis)
@@ -218,6 +234,8 @@ func TestNBasisRefusal(t *testing.T) {
 // permanent Shapiro-Wilk refusal names the practical obstacle to a
 // frequency form instead of claiming W' is undefined for weighted data.
 func TestRefusalReasons_ShapiroWilkStatesObstacle(t *testing.T) {
+	t.Parallel()
+
 	got := RefusalReason(string(types.TEST_SHAPIRO_WILK))
 	for _, want := range []string{"order statistics", "calibration", "no probability-weighted form"} {
 		if !strings.Contains(got, want) {
@@ -235,6 +253,8 @@ func TestRefusalReasons_ShapiroWilkStatesObstacle(t *testing.T) {
 // mean kinds read their own legs), and the refusal names the overlay
 // slot, the kind and the host.
 func TestHiddenFloorRefusal(t *testing.T) {
+	t.Parallel()
+
 	want := map[types.OverlayKind]bool{
 		types.OverlayKindChiSqRow: true, types.OverlayKindChiSqCol: true, types.OverlayKindChiSqMatrix: true,
 		types.OverlayKindChiSqVsRef: true, types.OverlayKindPropZCell: true, types.OverlayKindPropZPanel: true,
@@ -261,6 +281,8 @@ func TestHiddenFloorRefusal(t *testing.T) {
 // frequency (the expansion's count) and the raw row count unweighted and
 // under probability, where Σw is no count.
 func TestBasisFloorN(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		basis Basis
 		want  float64

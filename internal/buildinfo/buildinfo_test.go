@@ -26,6 +26,8 @@ func withSettings(mainVersion string, kv ...string) *debug.BuildInfo {
 }
 
 func TestVersionChain(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	cases := []struct {
 		name    string
 		ldflags string
@@ -65,6 +67,8 @@ func embedderInfo(embedderVersion string, deps ...*debug.Module) *debug.BuildInf
 }
 
 func TestVersionResolvesPulseModuleNotEmbedder(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	other := &debug.Module{Path: "example.com/other", Version: "v5.0.0"}
 	cases := []struct {
 		name string
@@ -94,6 +98,8 @@ func TestVersionResolvesPulseModuleNotEmbedder(t *testing.T) {
 }
 
 func TestCommitAndCommitTime(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	stubBuildInfo(t, withSettings("(devel)", "vcs.revision", fullRev, "vcs.time", "2026-10-01T12:00:00Z"), true)
 	if got := Commit(); got != fullRev {
 		t.Errorf("Commit() = %q, want %q", got, fullRev)
@@ -114,6 +120,8 @@ func TestCommitAndCommitTime(t *testing.T) {
 }
 
 func TestGoVersion(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	stubBuildInfo(t, withSettings("(devel)"), true)
 	if got := GoVersion(); got != "go1.99.0" {
 		t.Errorf("GoVersion() = %q, want BuildInfo.GoVersion", got)
@@ -125,6 +133,8 @@ func TestGoVersion(t *testing.T) {
 }
 
 func TestSetForTestRestores(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	stubBuildInfo(t, nil, false)
 	restore := SetForTest("v7.7.7")
 	if got := Version(); got != "v7.7.7" {
@@ -139,6 +149,8 @@ func TestSetForTestRestores(t *testing.T) {
 // TestStdlibOnlyImports keeps buildinfo a leaf so descriptor/ can import it
 // without breaking TestPredictNoExecutionImports.
 func TestStdlibOnlyImports(t *testing.T) {
+	t.Parallel()
+
 	pkg, err := build.ImportDir(".", 0)
 	if err != nil {
 		t.Fatal(err)

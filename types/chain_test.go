@@ -6,6 +6,8 @@ import (
 )
 
 func TestChainRequest_ZeroOverlayByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	const captured = `{"cohort":{"filename":"a.pulse"},"stages":[{"name":"stage_zero","request":{"aggregations":[{"type":"AGG_SUM","field":"x"}]}}]}`
 
 	base := func() *ChainRequest {
@@ -55,6 +57,8 @@ func TestChainRequest_ZeroOverlayByteIdentical(t *testing.T) {
 }
 
 func TestChainCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	const captured = "c6e6a6f5d28dc6e4eb3bd712cc1f3b10"
 	base := func() *ChainRequest {
 		return &ChainRequest{
@@ -99,6 +103,8 @@ func TestChainCanonicalHash_OverlayFreeByteIdentity(t *testing.T) {
 //     (spec order is load-bearing because each spec produces one
 //     ChainResponse.Overlays entry in matching order)
 func TestChainCanonicalHash_OverlaysIncluded(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	two := 2
 	base := func() *ChainRequest {
@@ -219,6 +225,8 @@ func TestChainCanonicalHash_OverlaysIncluded(t *testing.T) {
 }
 
 func TestCanonicalHash_ChainOverlaysIncluded(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	two := 2
 	build := func() *ChainRequest {
@@ -270,6 +278,8 @@ func TestCanonicalHash_ChainOverlaysIncluded(t *testing.T) {
 }
 
 func TestStageRef_IndexNamedXOR(t *testing.T) {
+	t.Parallel()
+
 	zero := 0
 	indexForm := StageRef{Index: &zero}
 	bs, err := json.Marshal(indexForm)

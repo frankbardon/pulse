@@ -24,6 +24,8 @@ import (
 // plain `defer Close` instead would have written a zero-row workbook next
 // to a hard error, which is the trap this whole family exists to avoid.
 func TestWriter_DiscardReleasesWithoutEmitting(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	const path = "out.xlsx"
 	w := NewWriter(fs, path)
@@ -61,6 +63,8 @@ func TestWriter_DiscardReleasesWithoutEmitting(t *testing.T) {
 // TestWriter_SatisfiesDiscardableWriter pins the optional interface so the
 // CLI's type assertion keeps reaching the excel adapter.
 func TestWriter_SatisfiesDiscardableWriter(t *testing.T) {
+	t.Parallel()
+
 	var w pio.Writer = NewWriter(afero.NewMemMapFs(), "out.xlsx")
 	if _, ok := w.(pio.DiscardableWriter); !ok {
 		t.Error("excel.Writer no longer satisfies pio.DiscardableWriter; the export leaves' error path stops releasing its temp files")

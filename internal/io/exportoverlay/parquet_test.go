@@ -15,6 +15,8 @@ import (
 // Parquet shares the Arrow schema"); the round-trip claim mirrors the
 // Arrow test exactly, swapping the writer/reader pair.
 func TestExportJob_Overlays_Parquet_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := pparquet.NewWriter(fs, "out.parquet")
@@ -58,6 +60,8 @@ func TestExportJob_Overlays_Parquet_RoundTrip(t *testing.T) {
 // TestExportJob_Overlays_Parquet_OptOutDropsOverlays mirrors the Arrow
 // opt-out test on the Parquet adapter.
 func TestExportJob_Overlays_Parquet_OptOutDropsOverlays(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldCohort(t)
 
 	w := pparquet.NewWriter(fs, "out.parquet")

@@ -28,6 +28,8 @@ const (
 // The internal/ path element additionally makes it unimportable from outside
 // the module, but that is enforced by the toolchain and needs no test.
 func TestSPSSTest_NotInLibraryBuild(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no non-test file imports it", func(t *testing.T) {
 		out := goList(t, "-f", "{{.ImportPath}}\t{{join .Imports \" \"}}", modulePrefix+"/...")
 		checked := 0
@@ -55,6 +57,8 @@ func TestSPSSTest_NotInLibraryBuild(t *testing.T) {
 
 	for _, target := range []string{modulePrefix, modulePrefix + "/cmd/pulse"} {
 		t.Run("absent from the build graph of "+target, func(t *testing.T) {
+			t.Parallel()
+
 			deps := goList(t, "-deps", target)
 			if len(deps) == 0 {
 				t.Fatalf("go list -deps %s returned nothing", target)

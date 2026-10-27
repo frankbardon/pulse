@@ -56,6 +56,8 @@ func setNull(s *encoding.Schema, row []byte, fi int, null bool) {
 // the first 650 rows (longer than the default 500-row inference sample)
 // and changes after it.
 func TestConstantDetector_FullPass(t *testing.T) {
+	t.Parallel()
+
 	want := []string{"u16_a", "pb_1", "cat_u16", "amount", "tags_u64", "u8_c"}
 	s, rows := constantRows(t, 700, append(want, "u32_b")...)
 	// u32_b is constant for 650 rows, then varies.
@@ -82,6 +84,8 @@ func TestConstantDetector_FullPass(t *testing.T) {
 // are distinct; a value constant except for some nulls, or a null
 // except for one value, is NOT constant.
 func TestConstantDetector_NullSemantics(t *testing.T) {
+	t.Parallel()
+
 	s, rows := constantRows(t, 60, "u8_b", "u32_a", "f64_a", "tags_u16")
 	u8b, u32a, f64a, tags16 := fieldIdx(t, s, "u8_b")[0], fieldIdx(t, s, "u32_a")[0], fieldIdx(t, s, "f64_a")[0], fieldIdx(t, s, "tags_u16")[0]
 	for _, r := range rows {
@@ -108,6 +112,8 @@ func TestConstantDetector_NullSemantics(t *testing.T) {
 // its lowest-index field in the row, a cohort too small to repay the
 // descriptor elides nothing, and reserved fields are never elided.
 func TestPlanConstantElision_Rules(t *testing.T) {
+	t.Parallel()
+
 	s, rows := constantRows(t, 400, "u16_a", "u8_c", "cat_u16")
 
 	for _, n := range []int{0, 1} {
@@ -161,6 +167,8 @@ func TestPlanConstantElision_Rules(t *testing.T) {
 // dictionaries, and whose logical stream is byte-for-byte the flat
 // record region — null constants included.
 func TestPlanConstantElision_EncodesIndistinguishably(t *testing.T) {
+	t.Parallel()
+
 	s, rows := constantRows(t, 500, "u8_b", "u16_a", "cat_u8", "tags_u128", "amount", "u8_c")
 	u8b := fieldIdx(t, s, "u8_b")[0]
 	for _, r := range rows {

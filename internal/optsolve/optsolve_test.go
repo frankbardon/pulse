@@ -62,6 +62,8 @@ func near(a, b, tol float64) bool { return math.Abs(a-b) <= tol }
 // the bound, reports it active and reads the one-sided marginal there
 // (2·(0 + 1) for (x + 1)² at x = 0).
 func TestOptimize_SolveQuadraticBoundAndMarginal(t *testing.T) {
+	t.Parallel()
+
 	r := mustSolve(t, block(t, `{"name":"q","direction":"minimize","variables":[{"name":"x","lower":-10,"upper":10},{"name":"y","lower":0,"upper":5}],
 		"objective":"(x - 3) * (x - 3) + (y + 1) * (y + 1)","starts":3,"rng_seed":5}`), nil)
 	x, y := r.Variables[0], r.Variables[1]
@@ -82,6 +84,8 @@ func TestOptimize_SolveQuadraticBoundAndMarginal(t *testing.T) {
 // marginal, and a binding ineq is ≥ 0 under minimize, ≤ 0 under
 // maximize.
 func TestOptimize_MultiplierDirection(t *testing.T) {
+	t.Parallel()
+
 	// max 4·sqrt(x) + 2·sqrt(y), x + y = 10: x* = 8, y* = 2, μ = 2/sqrt(8).
 	r := mustSolve(t, block(t, `{"name":"b","direction":"maximize","variables":[{"name":"x","lower":0,"upper":10},{"name":"y","lower":0,"upper":10}],
 		"objective":"4 * sqrt(x) + 2 * sqrt(y)","constraints":[{"expr":"x + y - params.budget","type":"eq"}],"starts":2,"tolerance":1e-12}`),
@@ -122,6 +126,8 @@ func TestOptimize_MultiplierDirection(t *testing.T) {
 // starts reports every start, and only the ones that found the deeper
 // well agree; the best is the deeper well.
 func TestOptimize_StartsAgreeing(t *testing.T) {
+	t.Parallel()
+
 	// (x² - 1)² + 0.3·x: wells near -1 (deeper) and +1.
 	r := mustSolve(t, block(t, `{"name":"w","direction":"minimize","variables":[{"name":"x","lower":-2,"upper":2,"start":1}],
 		"objective":"(x * x - 1) * (x * x - 1) + 0.3 * x","starts":12,"rng_seed":3}`), nil)
@@ -143,6 +149,8 @@ func TestOptimize_StartsAgreeing(t *testing.T) {
 // another seed draws other starts (the iterate path differs) yet the
 // same optimum.
 func TestOptimize_SeedDeterminism(t *testing.T) {
+	t.Parallel()
+
 	raw := `{"name":"w","direction":"minimize","variables":[{"name":"x","lower":-2,"upper":2},{"name":"y","lower":-2,"upper":2}],
 		"objective":"(x * x - 1) * (x * x - 1) + (y - 0.5) * (y - 0.5) + 0.3 * x","starts":6,"rng_seed":SEED}`
 	enc := func(seed string) []byte {
@@ -166,6 +174,8 @@ func TestOptimize_SeedDeterminism(t *testing.T) {
 // start (else the midpoint); the drawn starts lie inside the bounds and
 // cover each dimension's strata once; a fixed variable stays fixed.
 func TestOptimize_StartPointsInBounds(t *testing.T) {
+	t.Parallel()
+
 	c := compiled(t, `{"name":"s","direction":"minimize","variables":[{"name":"x","lower":2,"upper":6},{"name":"y","lower":-1,"upper":-1},{"name":"z","lower":0,"upper":10,"start":7}],"objective":"x + y + z"}`)
 	pts := startPoints(9, c, 4)
 	if len(pts) != 9 || !reflect.DeepEqual(pts[0], []float64{4, -1, 7}) {
@@ -187,6 +197,8 @@ func TestOptimize_StartPointsInBounds(t *testing.T) {
 // iteration count fail the block alone — Failed, the solver's own
 // code, the block and start located, every figure absent on the wire.
 func TestOptimize_FailsOnItsNumbers(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, raw string
 		code      errors.Code
@@ -223,6 +235,8 @@ func TestOptimize_FailsOnItsNumbers(t *testing.T) {
 // failed on its data fails alone with the fit's own code; any other
 // evaluation fault is fatal, located at the block.
 func TestOptimize_FailedFitFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	set := &model.Set{}
 	se := &types.SlotError{Code: string(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA), Message: "too few rows"}
 	if err := set.AddFailed(model.Signature{Name: "m", Kind: types.FitKindRegression, Type: types.REG_OLS, Terms: []string{"x"}}, se); err != nil {

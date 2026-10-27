@@ -402,6 +402,8 @@ func eval(c goldenCase) float64 {
 // on a contracting architecture (arm64 locally); a
 // flipped constant or a mis-ported branch moves them everywhere.
 func TestDetmath_GoldenBits(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	for _, c := range goldenCases {
 		seen[c.fn] = true
@@ -428,6 +430,8 @@ func TestDetmath_GoldenBits(t *testing.T) {
 // table (values only) cannot see: Gamma is negative on (-1, 0),
 // (-3, -2), …, and math.Lgamma's sign is the reference.
 func TestDetmath_LgammaSign(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		x    float64
 		want int

@@ -124,8 +124,12 @@ func codedRows(cols map[string][]float64, m *Model) [][]float64 {
 // every latent, per group, to lavaan's mode (1e-5) and to lavPredict's
 // own output (1e-3: its BFGS stop).
 func TestSEMScore_EBMMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range ebmCases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			var ref ebmRef
 			readJSON(t, "testdata/"+c.name+"_lavaan.json", &ref)
 			if ref.Lavaan == "" || len(ref.Options.Ordered) == 0 || len(ref.Groups) == 0 {
@@ -177,6 +181,8 @@ func TestSEMScore_EBMMatchesLavaan(t *testing.T) {
 // vanishes and every coordinate is a minimum (a step either way raises
 // the objective) — the scorer solves the problem it states.
 func TestSEMScore_EBMIsTheMode(t *testing.T) {
+	t.Parallel()
+
 	var ref ebmRef
 	readJSON(t, "testdata/brand_score_ordmx_lavaan.json", &ref)
 	models, fits, rows, _ := ebmFits(t, ref, "brand_ms")
@@ -217,6 +223,8 @@ func TestSEMScore_EBMIsTheMode(t *testing.T) {
 // refused, never scored; an observed mediator alone scores (a dummy
 // latent, no coordinate of the solve).
 func TestSEMScore_EBMRefusals(t *testing.T) {
+	t.Parallel()
+
 	q := []string{"q1", "q2", "q3"}
 	m, err := NewModelWithOptions("quality =~ q1 + q2 + q3\nrecommend ~ quality\ns1 ~ recommend", ModelOptions{Ordered: append(q, "s1")})
 	if err != nil {

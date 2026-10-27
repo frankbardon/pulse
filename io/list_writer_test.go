@@ -52,6 +52,8 @@ func (p plainWriter) Close() error                    { return p.inner.Close() }
 // into its JSON arrays; without the interface the same writer gets the
 // expanded v_1..v_3 text columns.
 func TestListAwareWriter_CustomWriterMatchesNDJSON(t *testing.T) {
+	t.Parallel()
+
 	nd, err := pio.NewReaderFromBytes(pio.FormatNDJSON, []byte(listNDJSON), pio.ReaderOptions{})
 	if err != nil {
 		t.Fatal(err)

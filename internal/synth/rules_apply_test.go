@@ -107,6 +107,8 @@ func readFieldRows(t *testing.T, data []byte, name string) (values []float64, nu
 //     and it is what fails if the rule pass is moved ahead of the model
 //     stage in drawRow.
 func TestRules_GateMasksAndReplacesWhileTheInferredValueSurvives(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(400, []synth.RuleSpec{{
 		When:    "aware == 0",
 		SetNull: []string{"spend"},
@@ -168,6 +170,8 @@ func TestRules_GateMasksAndReplacesWhileTheInferredValueSurvives(t *testing.T) {
 // default: an ABSENT `when` means EVERY ROW, not "never". A rule
 // computing a derived field normally carries no predicate at all.
 func TestRules_NoWhenAppliesToEveryRow(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(120, []synth.RuleSpec{{
 		Set:     map[string]any{"score": 3.0},
 		SetNull: []string{"spend"},
@@ -197,6 +201,8 @@ func TestRules_NoWhenAppliesToEveryRow(t *testing.T) {
 // Declaration order rather than any sort is what an author can read off
 // the document, so it has to be the applied order.
 func TestRules_DeclarationOrderLastWriteWins(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		rules    []synth.RuleSpec
@@ -270,6 +276,8 @@ func TestRules_DeclarationOrderLastWriteWins(t *testing.T) {
 // TestRuleClaim_ClaimingRuleShiftsTheStreamNonClaimingDoesNot pins both
 // halves of that distinction.
 func TestRules_ConsumeNoRNG(t *testing.T) {
+	t.Parallel()
+
 	rules := []synth.RuleSpec{
 		{When: "aware == 0", SetNull: []string{"spend"}},
 		{When: "aware == 1", Set: map[string]any{"score": 7.0}},
@@ -360,6 +368,8 @@ func ruleFreeSpec() *synth.Spec {
 // declares no rule at all, and pinned to the pre-story bytes rather than
 // to a sibling run (which would pass even if both sides regressed).
 func TestRules_RulesFreeSpecIsByteIdenticalToPreStory(t *testing.T) {
+	t.Parallel()
+
 	data, _, err := synth.SynthBytes(ruleFreeSpec(), synth.Options{Seed: 4242})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -376,6 +386,8 @@ func TestRules_RulesFreeSpecIsByteIdenticalToPreStory(t *testing.T) {
 // output. The pass consumes no RNG and walks fixed slices rather than
 // the `set` map, so a Go map seed cannot reach the file.
 func TestRules_DeterministicAcrossRuns(t *testing.T) {
+	t.Parallel()
+
 	build := func() *synth.Spec {
 		return ruleModelSpec(200, []synth.RuleSpec{{
 			When:    "aware == 0",
@@ -407,6 +419,8 @@ func TestRules_DeterministicAcrossRuns(t *testing.T) {
 // Asserted against the decoded FILE: a categorical resolves through the
 // dictionary, a set_* through its bitmask.
 func TestRules_SetLiteralTakesTheRowShapeForEveryValueClass(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 50,
 		Fields: []synth.FieldSpec{
@@ -469,6 +483,8 @@ func TestRules_SetLiteralTakesTheRowShapeForEveryValueClass(t *testing.T) {
 // produces a real null bit — so the refusal is a redirection rather than
 // a dead end.
 func TestRules_SetNullOnNonNullableFieldIsRefused(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleModelSpec(20, []synth.RuleSpec{{SetNull: []string{"score"}}})
 	if _, _, err := synth.SynthBytes(spec, synth.Options{Seed: 17}); err == nil {
 		t.Fatal("want a refusal for a set_null over a non-nullable field")
@@ -509,6 +525,8 @@ func TestRules_SetNullOnNonNullableFieldIsRefused(t *testing.T) {
 // structural — this pins it through the real facade path so a future
 // refactor cannot quietly route the source rows past drawRow.
 func TestRules_AppliedOnlyToTheGeneratedPartition(t *testing.T) {
+	t.Parallel()
+
 	base := &synth.Spec{
 		RowCount: 60,
 		Fields: []synth.FieldSpec{
@@ -584,6 +602,8 @@ func TestRules_AppliedOnlyToTheGeneratedPartition(t *testing.T) {
 // in exactly this shape ("the perception block is not asked of ..."), so
 // a gate over a null is not an edge case.
 func TestRules_WhenReadsNullStateViaIsnull(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 300,
 		Fields: []synth.FieldSpec{
@@ -647,6 +667,8 @@ func TestRules_WhenReadsNullStateViaIsnull(t *testing.T) {
 // normal, is the clamp's point mass) and not on the whole wire-value-1
 // bucket. Comparisons (`>= 9`) are the well-behaved numeric form.
 func TestRules_GateComposesWithTheFieldsOwnNullRate(t *testing.T) {
+	t.Parallel()
+
 	const rows = 4000
 	build := func(rules []synth.RuleSpec) *synth.Spec {
 		return &synth.Spec{

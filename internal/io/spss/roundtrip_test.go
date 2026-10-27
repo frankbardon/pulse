@@ -496,6 +496,8 @@ func exportSav(t *testing.T, fs afero.Fs, cohort, sav string, opts WriterOptions
 // gate whose failure message cannot be acted on gets weakened rather than
 // fixed.
 func TestRoundTrip_CohortIsIdentical(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range roundTripMatrix() {
 		for _, mode := range []struct {
 			name string
@@ -542,6 +544,8 @@ func TestRoundTrip_CohortIsIdentical(t *testing.T) {
 // dropped to make a failure go away and nothing would say the claim had
 // narrowed.
 func TestRoundTrip_MatrixCoversFR62(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]int{}
 	known := map[string]bool{}
 	for _, a := range fr62Axes {
@@ -584,6 +588,8 @@ func TestRoundTrip_MatrixCoversFR62(t *testing.T) {
 // 900..999 is a code the specification never lists, so the ONLY record of it
 // is the datum itself.
 func TestRoundTrip_OriginalNumericCodesSurvive(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []struct {
 		name string
 		opts WriterOptions
@@ -592,6 +598,8 @@ func TestRoundTrip_OriginalNumericCodesSurvive(t *testing.T) {
 		{"uncompressed-out", WriterOptions{Uncompressed: true}},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := runCycle(t, kitchenSinkSpec(), mode.opts)
 
 			// Per column, per case: the exact double the fixture declared.
@@ -660,6 +668,8 @@ func TestRoundTrip_OriginalNumericCodesSurvive(t *testing.T) {
 // missing — which is precisely what a values-only assertion over a
 // little-endian fixture cannot see.
 func TestRoundTrip_MissingSpecShapesSurvive(t *testing.T) {
+	t.Parallel()
+
 	for _, order := range []struct {
 		name string
 		spec spsstest.Spec
@@ -668,6 +678,8 @@ func TestRoundTrip_MissingSpecShapesSurvive(t *testing.T) {
 		{"big-endian", bigEndian(kitchenSinkSpec())},
 	} {
 		t.Run(order.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := runCycle(t, order.spec, WriterOptions{})
 
 			src, err := parseDictionary(c.source)
@@ -720,6 +732,8 @@ func TestRoundTrip_MissingSpecShapesSurvive(t *testing.T) {
 // The cohort-identity gate catches that, but only as a dictionary diff. This
 // states it where it can be read.
 func TestRoundTrip_UserMissingLabelsSurvive(t *testing.T) {
+	t.Parallel()
+
 	c := runCycle(t, kitchenSinkSpec(), WriterOptions{})
 
 	out, err := parseDictionary(c.out)
@@ -775,6 +789,8 @@ func TestRoundTrip_UserMissingLabelsSurvive(t *testing.T) {
 // the SAME derived registry the first import wrote, or the columns are being
 // regenerated from something other than what generated them the first time.
 func TestRoundTrip_DerivedColumnsAreNotEmittedAndDoNotPerturb(t *testing.T) {
+	t.Parallel()
+
 	c := runCycle(t, kitchenSinkSpec(), WriterOptions{})
 
 	// The first import really does synthesise both kinds — otherwise this
@@ -842,6 +858,8 @@ func TestRoundTrip_DerivedColumnsAreNotEmittedAndDoNotPerturb(t *testing.T) {
 // still export cleanly WITHOUT the flag, which is what makes the refusal a
 // property of the flag and not of the cohort.
 func TestRoundTrip_IgnoreSidecarRefusesRatherThanLosingTheSet(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "source.sav", build(t, kitchenSinkSpec()), 0o644); err != nil {
 		t.Fatalf("writing the fixture: %v", err)
@@ -874,6 +892,8 @@ func TestRoundTrip_IgnoreSidecarRefusesRatherThanLosingTheSet(t *testing.T) {
 // reverts one fails a test that explains what it was for, rather than
 // quietly restoring a defect the divergence was chosen to route around.
 func TestRoundTrip_KnownDivergencesAreTheExpectedBehaviour(t *testing.T) {
+	t.Parallel()
+
 	c := runCycle(t, kitchenSinkSpec(), WriterOptions{})
 	first := cohortSchema(t, c.fs, "first.pulse")
 	second := cohortSchema(t, c.fs, "second.pulse")

@@ -12,6 +12,8 @@ import (
 )
 
 func TestCsvReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := "name,age,score\nalice,30,95.5\nbob,25,88.0\n"
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -29,6 +31,8 @@ func TestCsvReader_ReadHeader(t *testing.T) {
 }
 
 func TestCsvReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	data := "name,age\nalice,30\nbob,25\ncharlie,35\n"
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -53,6 +57,8 @@ func TestCsvReader_ReadRows(t *testing.T) {
 }
 
 func TestCsvReader_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(""))
 	defer r.Close()
 
@@ -66,6 +72,8 @@ func TestCsvReader_EmptyFile(t *testing.T) {
 }
 
 func TestCsvReader_MalformedRow(t *testing.T) {
+	t.Parallel()
+
 	// Bare quotes in non-quoted field cause parse errors.
 	data := "name,age\nalice,30\n\"unterminated\n"
 	r := NewReaderFromBytes([]byte(data))
@@ -84,6 +92,8 @@ func TestCsvReader_MalformedRow(t *testing.T) {
 }
 
 func TestCsvReader_MalformedRow_BareQuote(t *testing.T) {
+	t.Parallel()
+
 	// CSV with wrong number of fields when FieldsPerRecord is strict.
 	// Since we use FieldsPerRecord=-1, this won't error. Instead test
 	// that the error code is correct when we do get a parse error.
@@ -104,6 +114,8 @@ func TestCsvReader_MalformedRow_BareQuote(t *testing.T) {
 }
 
 func TestCsvWriter_WriteHeader(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteHeader([]string{"name", "age"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -117,6 +129,8 @@ func TestCsvWriter_WriteHeader(t *testing.T) {
 }
 
 func TestCsvWriter_WriteRows(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"name", "age"})
 	w.WriteRow([]any{"alice", 30})
@@ -137,6 +151,8 @@ func TestCsvWriter_WriteRows(t *testing.T) {
 }
 
 func TestCsvImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	csvData := "age,name,score\n10,alice,95.5\n20,bob,88.0\n30,charlie,72.3\n"
 	reader := NewReaderFromBytes([]byte(csvData))
 	fs := afero.NewMemMapFs()
@@ -187,6 +203,8 @@ func TestCsvImportExportRoundTrip(t *testing.T) {
 }
 
 func TestCsvImport_WithInferredSchema(t *testing.T) {
+	t.Parallel()
+
 	csvData := "val\n10\n20\n30\n40\n50\n"
 	reader := NewReaderFromBytes([]byte(csvData))
 	fs := afero.NewMemMapFs()
@@ -213,6 +231,8 @@ func TestCsvImport_WithInferredSchema(t *testing.T) {
 }
 
 func TestCsvImport_WithExplicitSchema(t *testing.T) {
+	t.Parallel()
+
 	csvData := "val\n10\n20\n30\n"
 	reader := NewReaderFromBytes([]byte(csvData))
 	fs := afero.NewMemMapFs()
@@ -237,6 +257,8 @@ func TestCsvImport_WithExplicitSchema(t *testing.T) {
 }
 
 func TestCsvImport_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	lines := []string{"color"}
 	colors := []string{"red", "green", "blue", "red", "green"}
 	lines = append(lines, colors...)
@@ -272,6 +294,8 @@ func TestCsvImport_CategoricalColumn(t *testing.T) {
 }
 
 func TestCsvImport_FieldDescriptions(t *testing.T) {
+	t.Parallel()
+
 	csvData := "val\n10\n20\n"
 	reader := NewReaderFromBytes([]byte(csvData))
 	fs := afero.NewMemMapFs()
@@ -302,6 +326,8 @@ func TestCsvImport_FieldDescriptions(t *testing.T) {
 }
 
 func TestCsvExport_CategoricalResolved(t *testing.T) {
+	t.Parallel()
+
 	// Import with categorical column.
 	lines := []string{"color"}
 	colors := []string{"red", "green", "blue"}
@@ -365,6 +391,8 @@ func FuzzCsvHeaderParse(f *testing.F) {
 }
 
 func TestCsvReader_ResetReader(t *testing.T) {
+	t.Parallel()
+
 	data := "name,age\nalice,30\nbob,25\n"
 	r := NewReaderFromBytes([]byte(data))
 
@@ -399,6 +427,8 @@ func TestCsvReader_ResetReader(t *testing.T) {
 }
 
 func TestCsvWriter_FilePath(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "output.csv")
 	w.WriteHeader([]string{"a", "b"})

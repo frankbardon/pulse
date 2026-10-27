@@ -54,6 +54,8 @@ const zigTailDraws = 50_000
 // exponential sampler's every draw is the port's variate, bit for bit,
 // on draws forced onto the tail.
 func TestSynthGeneration_VariatesRunOnZigguratPort(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		fs     FieldSpec
@@ -105,6 +107,8 @@ func TestSynthGeneration_VariatesRunOnZigguratPort(t *testing.T) {
 // on anything but the detmath package in non-test synth code, so the
 // machine-sensitive stdlib variates cannot come back at a new site.
 func TestSynthZiggurat_NoStdlibVariates(t *testing.T) {
+	t.Parallel()
+
 	checked := 0
 	for _, dir := range []string{".", filepath.Join("..", "..", "synth")} {
 		entries, err := os.ReadDir(dir)

@@ -3,6 +3,8 @@ package encoding
 import "testing"
 
 func TestSidecarIndexPath_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	p1 := SidecarIndexPath("cohort.pulse", []string{"user_id"})
 	p2 := SidecarIndexPath("cohort.pulse", []string{"user_id"})
 	if p1 != p2 {
@@ -14,6 +16,8 @@ func TestSidecarIndexPath_Deterministic(t *testing.T) {
 }
 
 func TestSidecarIndexPath_FollowsNamingConvention(t *testing.T) {
+	t.Parallel()
+
 	path := SidecarIndexPath("cohort.pulse", []string{"user_id"})
 	// cohort.pulse.<keyhash>.idx
 	if len(path) < len("cohort.pulse.") || path[:len("cohort.pulse.")] != "cohort.pulse." {
@@ -25,6 +29,8 @@ func TestSidecarIndexPath_FollowsNamingConvention(t *testing.T) {
 }
 
 func TestSidecarIndexPath_DistinctForDistinctKeySets(t *testing.T) {
+	t.Parallel()
+
 	pUserID := SidecarIndexPath("cohort.pulse", []string{"user_id"})
 	pRegion := SidecarIndexPath("cohort.pulse", []string{"region"})
 	if pUserID == pRegion {
@@ -33,6 +39,8 @@ func TestSidecarIndexPath_DistinctForDistinctKeySets(t *testing.T) {
 }
 
 func TestSidecarIndexPath_KeyColumnOrderSignificant(t *testing.T) {
+	t.Parallel()
+
 	pAB := SidecarIndexPath("cohort.pulse", []string{"a", "b"})
 	pBA := SidecarIndexPath("cohort.pulse", []string{"b", "a"})
 	if pAB == pBA {
@@ -41,6 +49,8 @@ func TestSidecarIndexPath_KeyColumnOrderSignificant(t *testing.T) {
 }
 
 func TestSidecarIndexPath_NoNaiveConcatenationCollision(t *testing.T) {
+	t.Parallel()
+
 	// ["ab", "c"] and ["a", "bc"] must not collide under naive
 	// (no-separator) string concatenation.
 	p1 := SidecarIndexPath("cohort.pulse", []string{"ab", "c"})
@@ -51,6 +61,8 @@ func TestSidecarIndexPath_NoNaiveConcatenationCollision(t *testing.T) {
 }
 
 func TestSidecarIndexPath_DistinctForDistinctCohorts(t *testing.T) {
+	t.Parallel()
+
 	p1 := SidecarIndexPath("cohort_a.pulse", []string{"user_id"})
 	p2 := SidecarIndexPath("cohort_b.pulse", []string{"user_id"})
 	if p1 == p2 {

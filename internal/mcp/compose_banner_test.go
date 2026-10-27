@@ -15,6 +15,8 @@ import (
 // default exactly as an explicit slot sent without a `return` is (the
 // default lands on the banner's base request).
 func TestPulseCompose_RunsBanner(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)

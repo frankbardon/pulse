@@ -65,6 +65,8 @@ func invokeImport(t *testing.T, p *pulse.Pulse, args string) (map[string]any, er
 // TestPulseImport_GroupsReachTheCohort: a structured groups entry is
 // applied and the group report rides the result.
 func TestPulseImport_GroupsReachTheCohort(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newGroupImportPulse(t, 200, 10)
 	out, err := invokeImport(t, p, `{"source":"orders.csv","groups":[{"key":["cust_id"],"members":["cust_lat","cust_lon"]}]}`)
 	if err != nil {
@@ -85,6 +87,8 @@ func TestPulseImport_GroupsReachTheCohort(t *testing.T) {
 // TestPulseImport_GroupWarningIsCoded: a gate finding surfaces as a coded
 // {code, message, details} entry an agent can look up.
 func TestPulseImport_GroupWarningIsCoded(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newGroupImportPulse(t, 20, 12)
 	out, err := invokeImport(t, p, `{"source":"orders.csv","groups":[{"key":["cust_id"],"members":["cust_lat","cust_lon"]}]}`)
 	if err != nil {
@@ -103,6 +107,8 @@ func TestPulseImport_GroupWarningIsCoded(t *testing.T) {
 // TestPulseImport_GroupsStrictDecode: a misspelled key inside a group
 // entry is refused, not decoded as a keyless tuple group.
 func TestPulseImport_GroupsStrictDecode(t *testing.T) {
+	t.Parallel()
+
 	p, afs := newGroupImportPulse(t, 200, 10)
 	_, err := invokeImport(t, p, `{"source":"orders.csv","groups":[{"keys":["cust_id"],"members":["cust_lat","cust_lon"]}]}`)
 	var ce *perr.CodedError
@@ -117,6 +123,8 @@ func TestPulseImport_GroupsStrictDecode(t *testing.T) {
 // TestPulseImport_SuggestGroups: suggest_groups returns candidates whose
 // key/members are a ready-to-use groups entry.
 func TestPulseImport_SuggestGroups(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newGroupImportPulse(t, 200, 10)
 	out, err := invokeImport(t, p, `{"source":"orders.csv","suggest_groups":true}`)
 	if err != nil {

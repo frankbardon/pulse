@@ -37,6 +37,8 @@ func ols() *types.RegressionSpec {
 }
 
 func TestCheckFits(t *testing.T) {
+	t.Parallel()
+
 	grouped := olsReq(ols())
 	grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}}
 	crosstab := olsReq(ols())
@@ -133,6 +135,8 @@ func TestCheckFits(t *testing.T) {
 }
 
 func TestFitRequest_ClearsReturnOnAClone(t *testing.T) {
+	t.Parallel()
+
 	r := olsReq(ols())
 	r.Return = &types.Return{Preset: "minimal"}
 	got := FitRequest(types.FitSpec{Name: "a", Request: r})
@@ -148,6 +152,8 @@ func TestFitRequest_ClearsReturnOnAClone(t *testing.T) {
 }
 
 func TestBind(t *testing.T) {
+	t.Parallel()
+
 	res := &types.RegressionResult{
 		Type:         types.REG_OLS,
 		Coefficients: map[string]float64{InterceptKey: 1.5, "x": 2.25, "z": -0.125},
@@ -202,6 +208,8 @@ func TestBind(t *testing.T) {
 // with Predictors at full precision (the result's own float64s), NaN
 // where the result has none, and the result's conf_level.
 func TestBind_Intervals(t *testing.T) {
+	t.Parallel()
+
 	res := &types.RegressionResult{
 		Type:         types.REG_OLS,
 		Coefficients: map[string]float64{InterceptKey: 1.5, "x": 2.25, "z": -0.125},
@@ -233,6 +241,8 @@ func TestBind_Intervals(t *testing.T) {
 func ignoreBound(_ *Bound, err error) error { return err }
 
 func TestSet(t *testing.T) {
+	t.Parallel()
+
 	var nilSet *Set
 	if nilSet.Len() != 0 || nilSet.Names() != nil {
 		t.Fatal("nil set is not empty")
@@ -279,6 +289,8 @@ const modulePrefix = "github.com/frankbardon/pulse"
 // read recorder internal/paramread — never the engine, the service or
 // the descriptor packages.
 func TestModel_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	allowed := map[string]bool{modulePrefix + "/types": true, modulePrefix + "/errors": true, modulePrefix + "/internal/paramread": true}
 	entries, err := os.ReadDir(".")
 	if err != nil {

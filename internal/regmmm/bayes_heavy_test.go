@@ -13,6 +13,8 @@ import (
 // TestMMMBayes_FitMatchesFitContext: Fit is FitContext under a
 // background context, byte for byte.
 func TestMMMBayes_FitMatchesFitContext(t *testing.T) {
+	t.Parallel()
+
 	model, err := BayesFactory(BayesSpec(FastParams), nil)
 	if err != nil {
 		t.Fatal(err)

@@ -60,6 +60,8 @@ func flatManagedCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 // straight back as groups; declaring it with out writes a grouped
 // cohort beside the untouched original.
 func TestPulseDedup_SuggestThenDeclare(t *testing.T) {
+	t.Parallel()
+
 	p, afs, path := flatManagedCohort(t)
 	before, _ := afero.ReadFile(afs, path)
 
@@ -105,6 +107,8 @@ func TestPulseDedup_SuggestThenDeclare(t *testing.T) {
 // entry is PULSE_GROUP_DECLARATION_INVALID, never a keyless tuple group;
 // a missing path is refused.
 func TestPulseDedup_StrictGroupsShape(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 	_, err := invokeDedup(t, p, `{"path":"`+path+`","groups":[{"keys":["cust_id"],"members":["cust_lat","cust_lon"]}]}`)
 	if !perr.HasCode(err, perr.PULSE_GROUP_DECLARATION_INVALID) || !strings.Contains(err.Error(), "pulse_dedup") {
@@ -119,6 +123,8 @@ func TestPulseDedup_StrictGroupsShape(t *testing.T) {
 // carries the report's fields at the top level (the embedded
 // pio.DedupReport is inlined, as its JSON is).
 func TestPulseDedup_OutputSchemaInlinesReport(t *testing.T) {
+	t.Parallel()
+
 	ts, ok := SchemaFor(toolmeta.ToolDedup)
 	if !ok {
 		t.Fatal("no schema for pulse_dedup")

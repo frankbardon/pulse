@@ -41,6 +41,8 @@ func invokeExplain(t *testing.T, p *pulse.Pulse, args string) (map[string]any, e
 // request with a null (undefined) statistic kept undefined rather than
 // read as 0, and every refusal a coded error with its own code.
 func TestPulseExplain(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 	req := `{"cohort":{"filename":"` + path + `"},"aggregations":[{"type":"AGG_SUM","field":"amount","label":"total"}]}`
 
@@ -107,6 +109,8 @@ func TestPulseExplain(t *testing.T) {
 // TestPulseExplain_InputSchema: the input contract names exactly the
 // explain roots plus detail, each root an open object.
 func TestPulseExplain_InputSchema(t *testing.T) {
+	t.Parallel()
+
 	ts, ok := SchemaFor(toolmeta.ToolExplain)
 	if !ok {
 		t.Fatal("no schema for pulse_explain")
@@ -136,6 +140,8 @@ func TestPulseExplain_InputSchema(t *testing.T) {
 // explain slot named by details.field — never silently described
 // without it.
 func TestPulseExplain_RequestSlotsDecodeStrictly(t *testing.T) {
+	t.Parallel()
+
 	p, _, path := flatManagedCohort(t)
 	_, err := invokeExplain(t, p, `{"request":{"cohort":{"filename":"`+path+`"},"sort":[{"field":"amount","direction":"desc"}]}}`)
 	ce, ok := err.(*perr.CodedError)

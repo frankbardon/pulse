@@ -9,6 +9,8 @@ import (
 )
 
 func TestCache_LoadReturnsSamePointer(t *testing.T) {
+	t.Parallel()
+
 	var c Cache
 	a, err := c.Load("Europe/Berlin")
 	if err != nil {
@@ -27,6 +29,8 @@ func TestCache_LoadReturnsSamePointer(t *testing.T) {
 }
 
 func TestCache_UTCIsSentinel(t *testing.T) {
+	t.Parallel()
+
 	var c Cache
 	z, err := c.Load("UTC")
 	if err != nil {
@@ -38,6 +42,8 @@ func TestCache_UTCIsSentinel(t *testing.T) {
 }
 
 func TestCache_UnknownIsCodedAndNotCached(t *testing.T) {
+	t.Parallel()
+
 	var c Cache
 	for i := 0; i < 2; i++ {
 		_, err := c.Load("EST")
@@ -52,6 +58,8 @@ func TestCache_UnknownIsCodedAndNotCached(t *testing.T) {
 }
 
 func TestCache_ConcurrentLoadsAgree(t *testing.T) {
+	t.Parallel()
+
 	var c Cache
 	const n = 16
 	got := make([]*Zone, n)

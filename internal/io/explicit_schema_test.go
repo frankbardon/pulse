@@ -11,6 +11,8 @@ import (
 )
 
 func TestCheckSchemaDescriptions(t *testing.T) {
+	t.Parallel()
+
 	ok := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "a", Type: encoding.FieldTypeU8, Description: strings.Repeat("x", encoding.MaxDescriptionBytes)},
 	}}
@@ -46,6 +48,8 @@ func (r *panicRowsReader) Close() error { return nil }
 // An over-long description on a user-authored schema is refused before
 // the row pass, with the schema writer's own code, and writes nothing.
 func TestImport_ExplicitDescriptionTooLong_RefusedBeforeRows(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := &ImportJob{
 		Source: &panicRowsReader{t: t, header: []string{"a"}},

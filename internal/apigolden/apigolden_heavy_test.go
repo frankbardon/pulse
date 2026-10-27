@@ -18,6 +18,8 @@ import (
 // ONLY when you intentionally change the public surface; the diff is the
 // surface delta reviewers read.
 func TestPublicAPIGolden(t *testing.T) {
+	t.Parallel()
+
 	pkgs, err := Load(filepath.Join("..", ".."), modulePath)
 	if err != nil {
 		t.Fatalf("loading public packages: %v", err)
@@ -60,6 +62,8 @@ func TestPublicAPIGolden(t *testing.T) {
 // subpackages (public before U02b moved them). Extension authors
 // reach every operator contract through the public extend package.
 func TestRootSurfaceNamesNoProcessing(t *testing.T) {
+	t.Parallel()
+
 	pkgs, err := Load(filepath.Join("..", ".."), modulePath)
 	if err != nil {
 		t.Fatalf("loading public packages: %v", err)

@@ -12,6 +12,8 @@ import (
 // slot and types it float64 — the result type-checks, whatever the
 // argument's type, and reads slot i at run time.
 func TestOptions(t *testing.T) {
+	t.Parallel()
+
 	env := exprtypes.Map{"qty": exprtypes.TypeOf(float64(0))}
 	src := `qty / total(qty) + total(qty * 2)`
 	keys := Args(src)

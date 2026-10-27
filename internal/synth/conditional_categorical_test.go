@@ -19,6 +19,8 @@ import (
 // reflect the actual observed combinations — well under
 // synth.ContingencyCellCap, so no collapse should occur here.
 func TestProfile_ConditionalCapturesCategoricalPair(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -71,6 +73,8 @@ func TestProfile_ConditionalCapturesCategoricalPair(t *testing.T) {
 // numeric-pairs regression test: no "categorical_pairs" key at all
 // unless --conditional was requested.
 func TestProfile_WithoutConditional_OmitsCategoricalPairs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -101,6 +105,8 @@ func TestProfile_WithoutConditional_OmitsCategoricalPairs(t *testing.T) {
 // the remaining mass — a build-failing assertion on the actual shape,
 // not a smoke test that capture merely completes without error.
 func TestProfile_ConditionalCategoricalHighCardinality_StaysWithinCap(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -170,6 +176,8 @@ func TestProfile_ConditionalCategoricalHighCardinality_StaysWithinCap(t *testing
 // {top-K values, "other"} — never a raw value the per-field cap would
 // have excluded from FieldProfile.Categorical.Top.
 func TestProfile_ConditionalCategoricalRespectsPerFieldTopK(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -236,6 +244,8 @@ func TestProfile_ConditionalCategoricalRespectsPerFieldTopK(t *testing.T) {
 // pairs — no separate/divergent warning mechanism for the categorical
 // case.
 func TestProfile_ConditionalCategoricalThinCellWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {

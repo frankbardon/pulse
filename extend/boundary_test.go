@@ -29,6 +29,8 @@ var allowedModuleImports = map[string]bool{
 // a module package outside allowedModuleImports or any third-party
 // package. Standard-library imports are always allowed.
 func TestExtendImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +83,8 @@ var enginePackages = []string{
 // reachable, so an allowed import (encoding, types, errors, linalg) cannot
 // smuggle the engine in.
 func TestExtendImportBoundary_NoTransitiveEngine(t *testing.T) {
+	t.Parallel()
+
 	cmd := exec.Command("go", "list", "-deps", ".")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

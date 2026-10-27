@@ -26,6 +26,8 @@ func computedRequest() *types.Request {
 // equal to a schema field is the field's; an ATTR_PREVIOUS_STATE over
 // a categorical keeps the state field's type.
 func TestComputedColumns(t *testing.T) {
+	t.Parallel()
+
 	s := testSchema()
 	got := ComputedColumns(computedRequest(), s, nil)
 	want := Computed{
@@ -61,6 +63,8 @@ func TestComputedColumns(t *testing.T) {
 // computed column is PULSE_VECTOR_MEMBER_TYPE; the computed-free shape
 // is unchanged.
 func TestResolveRequest_ComputedMembers(t *testing.T) {
+	t.Parallel()
+
 	s := testSchema()
 	req := computedRequest()
 	req.Vectors = []types.VectorSpec{
@@ -111,6 +115,8 @@ func TestResolveRequest_ComputedMembers(t *testing.T) {
 // by vector, inline fields and params.control; MatrixComputedMembers
 // lists them in first-read order.
 func TestResolveMatrices_ComputedMembers(t *testing.T) {
+	t.Parallel()
+
 	s := testSchema()
 	req := computedRequest()
 	req.Vectors = []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "imp", "q_2"}}}
@@ -139,6 +145,8 @@ func TestResolveMatrices_ComputedMembers(t *testing.T) {
 // computed member is PULSE_VECTOR_INVALID computed_member_unsupported
 // naming the slot and the member, judged even on a matrix-free request.
 func TestComputedRefusal(t *testing.T) {
+	t.Parallel()
+
 	s := testSchema()
 	for _, c := range []struct {
 		edit func(*types.Request)
@@ -180,6 +188,8 @@ func TestComputedRefusal(t *testing.T) {
 // TestFeatureOutputLabels: the shared naming (singles, the date and
 // polynomial families).
 func TestFeatureOutputLabels(t *testing.T) {
+	t.Parallel()
+
 	if got := FeatureOutputLabels(&types.Feature{Type: types.FEAT_SQRT, Field: "x"}, nil); !slices.Equal(got, []string{"SQRT_x"}) {
 		t.Errorf("sqrt: %v", got)
 	}

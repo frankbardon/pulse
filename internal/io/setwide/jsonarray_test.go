@@ -19,6 +19,8 @@ import (
 // two different values that a `%v` formatter renders identically, and
 // only a decode can tell them apart.
 func TestJSONArray_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "jsonarray", fs, src, pjsonarray.NewWriter(fs, "out.json"))

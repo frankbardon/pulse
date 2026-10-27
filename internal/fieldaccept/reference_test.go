@@ -9,6 +9,8 @@ import (
 )
 
 func TestReferenceRefusal(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"control", "variant"} {
 		if _, err := dict.Add(v); err != nil {
@@ -52,6 +54,8 @@ func TestReferenceRefusal(t *testing.T) {
 }
 
 func TestTakesReference(t *testing.T) {
+	t.Parallel()
+
 	var got []types.TestType
 	for _, op := range types.AllTestTypes() {
 		if TakesReference(op) {

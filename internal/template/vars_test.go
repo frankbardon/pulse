@@ -86,6 +86,8 @@ func runResolveRows(t *testing.T, rows []resolveRow) {
 // least one reject row for every one of the nine declared variable types,
 // exercised through a caller-supplied value.
 func TestResolve_AcceptanceMatrix(t *testing.T) {
+	t.Parallel()
+
 	runResolveRows(t, []resolveRow{
 		// ---- string ----
 		{
@@ -411,6 +413,8 @@ func TestResolve_AcceptanceMatrix(t *testing.T) {
 // presence semantics, not truthiness. An empty string, an empty list, a
 // zero, and a false are all real supplied values.
 func TestResolve_FalsyValuesAreResolved(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		decl     *template.Variable
@@ -453,6 +457,8 @@ func TestResolve_FalsyValuesAreResolved(t *testing.T) {
 // is not nil, it is not any JSON value, and it is what All reports for an
 // unresolved variable.
 func TestResolve_UnresolvedSentinelIsDistinct(t *testing.T) {
+	t.Parallel()
+
 	if template.Unresolved == nil {
 		t.Fatal("Unresolved is nil; a supplied JSON null would be indistinguishable from it")
 	}
@@ -493,6 +499,8 @@ func TestResolve_UnresolvedSentinelIsDistinct(t *testing.T) {
 // TestResolve_Order pins the resolution order: caller-supplied, then the
 // declared default, then unresolved.
 func TestResolve_Order(t *testing.T) {
+	t.Parallel()
+
 	decl := &template.Variable{
 		Name: "bucket", Type: template.VarInteger, Default: json.RawMessage(`10`),
 	}
@@ -528,6 +536,8 @@ func TestResolve_Order(t *testing.T) {
 // caller passing nil has supplied nothing, so resolution falls through to
 // the default and then to unresolved.
 func TestResolve_SuppliedNullMeansSuppliedNothing(t *testing.T) {
+	t.Parallel()
+
 	withDefault := &template.Variable{
 		Name: "bucket", Type: template.VarInteger, Default: json.RawMessage(`10`),
 	}
@@ -561,6 +571,8 @@ func TestResolve_SuppliedNullMeansSuppliedNothing(t *testing.T) {
 // TestResolve_UnknownSuppliedName asserts an undeclared name is rejected
 // rather than ignored, and that the error names it.
 func TestResolve_UnknownSuppliedName(t *testing.T) {
+	t.Parallel()
+
 	tm := tmpl(nil) // declares only "metric"
 	_, err := template.Resolve(tm, map[string]any{"metric": "revenue", "buckets": 10})
 	if err == nil {
@@ -599,6 +611,8 @@ func TestResolve_UnknownSuppliedName(t *testing.T) {
 // TestResolve_RequiredMissing asserts a required variable that resolves to
 // nothing fails, and that a required variable carrying a default never can.
 func TestResolve_RequiredMissing(t *testing.T) {
+	t.Parallel()
+
 	tm := tmpl(only(&template.Variable{Name: "metric", Type: template.VarField, Required: true}))
 	_, err := template.Resolve(tm, nil)
 	if err == nil {
@@ -639,6 +653,8 @@ func TestResolve_RequiredMissing(t *testing.T) {
 // supplied it and PULSE_TEMPLATE_INVALID when the template author wrote it
 // as a default. The fault is the same; the party at fault is not.
 func TestResolve_ProvenanceSelectsTheCode(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		decl       template.Variable // Default is filled per sub-case
@@ -739,6 +755,8 @@ func TestResolve_ProvenanceSelectsTheCode(t *testing.T) {
 // would round-trip through float64 and reach the rendered request with its
 // low bits rewritten — a u64 key silently becoming a different key.
 func TestResolve_IntegerFidelity(t *testing.T) {
+	t.Parallel()
+
 	const huge = uint64(math.MaxUint64) // 18446744073709551615
 	decl := &template.Variable{Name: "id", Type: template.VarInteger}
 
@@ -777,6 +795,8 @@ func TestResolve_IntegerFidelity(t *testing.T) {
 // TestResolve_UnrepresentableSuppliedValue asserts a Go value that cannot
 // be expressed as JSON is a caller type fault rather than a panic.
 func TestResolve_UnrepresentableSuppliedValue(t *testing.T) {
+	t.Parallel()
+
 	decl := &template.Variable{Name: "rate", Type: template.VarNumber}
 	for _, bad := range []any{math.NaN(), math.Inf(1), make(chan int)} {
 		_, err := template.Resolve(tmpl(only(decl)), map[string]any{"rate": bad})
@@ -790,6 +810,8 @@ func TestResolve_UnrepresentableSuppliedValue(t *testing.T) {
 // unvalidated document: a declaration fault is reported rather than
 // producing a half-resolved set or a panic.
 func TestResolve_DeclarationFaultsSurface(t *testing.T) {
+	t.Parallel()
+
 	if _, err := template.Resolve(nil, nil); !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
 		t.Errorf("Resolve(nil template) = %v, want PULSE_TEMPLATE_INVALID", err)
 	}
@@ -811,6 +833,8 @@ func TestResolve_DeclarationFaultsSurface(t *testing.T) {
 // TestResolution_Accessors pins the ordering, copy, and nil-safety
 // contracts of the resolved set.
 func TestResolution_Accessors(t *testing.T) {
+	t.Parallel()
+
 	tm, err := template.Parse(readFixture(t))
 	if err != nil {
 		t.Fatalf("Parse(fixture) = %v, want nil", err)

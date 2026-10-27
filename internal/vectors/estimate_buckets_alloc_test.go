@@ -16,6 +16,8 @@ import (
 //
 // Falsified by restoring the Values() copy (one allocation per call).
 func TestEstimateBuckets_DictionaryNotCopied(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	dict := encoding.NewDictionary()
 	for i := range 100_000 {
 		if _, err := dict.Add(fmt.Sprintf("k%06d", i)); err != nil {

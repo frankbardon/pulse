@@ -13,6 +13,8 @@ import (
 // caller via the per-record bitmap, so this function is never invoked on
 // a null cell. Tests cover only the value-bearing branches.
 func TestConvertValue_AllTypes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		raw     string
@@ -48,6 +50,8 @@ func TestConvertValue_AllTypes(t *testing.T) {
 }
 
 func TestConvertValue_Categorical(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 
 	val, err := convertValue("apple", encoding.FieldTypeCategoricalU8, dict, "")
@@ -77,6 +81,8 @@ func TestConvertValue_Categorical(t *testing.T) {
 }
 
 func TestConvertValue_CategoricalNilDict(t *testing.T) {
+	t.Parallel()
+
 	_, err := convertValue("val", encoding.FieldTypeCategoricalU8, nil, "")
 	if err == nil {
 		t.Error("expected error for nil dictionary")
@@ -84,6 +90,8 @@ func TestConvertValue_CategoricalNilDict(t *testing.T) {
 }
 
 func TestConvertValue_F32_Bits(t *testing.T) {
+	t.Parallel()
+
 	val, err := convertValue("3.14", encoding.FieldTypeF32, nil, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
@@ -95,6 +103,8 @@ func TestConvertValue_F32_Bits(t *testing.T) {
 }
 
 func TestConvertValue_F64_Bits(t *testing.T) {
+	t.Parallel()
+
 	val, err := convertValue("3.14159265358979", encoding.FieldTypeF64, nil, "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
@@ -106,6 +116,8 @@ func TestConvertValue_F64_Bits(t *testing.T) {
 }
 
 func TestConvertValue_BoolValues(t *testing.T) {
+	t.Parallel()
+
 	boolTrue := []string{"true", "yes", "1", "t", "y", "True", "YES", "T", "Y"}
 	boolFalse := []string{"false", "no", "0", "f", "n", "False", "NO", "F", "N"}
 
@@ -131,6 +143,8 @@ func TestConvertValue_BoolValues(t *testing.T) {
 }
 
 func TestConvertValue_DateFormats(t *testing.T) {
+	t.Parallel()
+
 	dates := []string{
 		"2024-01-15",
 		"01/15/2024",
@@ -149,6 +163,8 @@ func TestConvertValue_DateFormats(t *testing.T) {
 }
 
 func TestConvertValue_UnsupportedType(t *testing.T) {
+	t.Parallel()
+
 	_, err := convertValue("x", encoding.FieldType(200), nil, "")
 	if err == nil {
 		t.Error("expected error for unsupported type")
@@ -158,6 +174,8 @@ func TestConvertValue_UnsupportedType(t *testing.T) {
 // formatFieldValue is also pure — nulls are applied separately by the
 // export loop via the per-record bitmap and never reach this function.
 func TestFormatFieldValue_AllTypes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ft   encoding.FieldType
@@ -183,6 +201,8 @@ func TestFormatFieldValue_AllTypes(t *testing.T) {
 }
 
 func TestFormatFieldValue_Categorical(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("red")
 	dict.Add("green")
@@ -209,6 +229,8 @@ func TestFormatFieldValue_Categorical(t *testing.T) {
 }
 
 func TestFormatFieldValue_Date(t *testing.T) {
+	t.Parallel()
+
 	// Round-trip: convert a date string to raw, then format it back.
 	raw, err := convertValue("2024-01-15", encoding.FieldTypeDate, nil, "")
 	if err != nil {
@@ -221,6 +243,8 @@ func TestFormatFieldValue_Date(t *testing.T) {
 }
 
 func TestFormatPackedValue_AllTypes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		ft     encoding.FieldType

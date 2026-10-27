@@ -11,6 +11,8 @@ import (
 // a null argument answers nil, an out-of-domain one NaN (null on the
 // wire).
 func TestHill_Values(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	cases := []struct {
 		name    string
@@ -77,6 +79,8 @@ func TestHill_Values(t *testing.T) {
 // TestHill_InExpression: the reserved built-in is registered in the
 // shared environment, so a formula calls it on fields.
 func TestHill_InExpression(t *testing.T) {
+	t.Parallel()
+
 	opts := append([]expr.Option{expr.Env(map[string]any{"spend": 0.0, "k": 0.0})}, Bound{}.Options()...)
 	prog, err := expr.Compile("hill(spend, k, 2) * 10", opts...)
 	if err != nil {

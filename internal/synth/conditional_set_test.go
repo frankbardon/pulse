@@ -84,6 +84,8 @@ func buildSetCategoricalCohort(t *testing.T, featureOpts, regionOpts []string, f
 // approximate/statistical tolerance — a build-failing test on the
 // actual numbers, not a smoke test that capture merely completes.
 func TestProfile_ConditionalCapturesSetCategoricalAssociation(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"darkmode", "export", "api", "sso"}
 	regionOpts := []string{"us", "eu"}
 	const rowsPerRegion = 500
@@ -190,6 +192,8 @@ func TestProfile_ConditionalCapturesSetCategoricalAssociation(t *testing.T) {
 // regression tests: no "set_categorical_pairs" key at all unless
 // --conditional was requested.
 func TestProfile_WithoutConditional_OmitsSetCategoricalPairs(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"a", "b"}
 	regionOpts := []string{"us", "eu"}
 	data := buildSetCategoricalCohort(t, featureOpts, regionOpts,
@@ -212,6 +216,8 @@ func TestProfile_WithoutConditional_OmitsSetCategoricalPairs(t *testing.T) {
 // is drawn from {top-K values, "other"}, and the option's own cell
 // count never exceeds ContingencyCellCap.
 func TestProfile_SetCategoricalRespectsTopKAndCellCap(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"only"}
 	const numRegions = 300 // far above the default top-K (32)
 	regionOpts := make([]string, numRegions)
@@ -261,6 +267,8 @@ func TestProfile_SetCategoricalRespectsTopKAndCellCap(t *testing.T) {
 // emits the same warning shape every other pair kind already uses — no
 // separate, divergent warning mechanism for this fourth pair kind.
 func TestProfile_SetCategoricalThinCellWarning(t *testing.T) {
+	t.Parallel()
+
 	featureOpts := []string{"rare_feature"}
 	regionOpts := []string{"common", "rare"}
 	const rowCount = 500
@@ -312,6 +320,8 @@ func TestProfile_SetCategoricalThinCellWarning(t *testing.T) {
 // set option's selected/not_selected rows, and that difference must be
 // captured exactly against the fixture's own ground truth.
 func TestProfile_ConditionalCapturesSetNumericAssociation(t *testing.T) {
+	t.Parallel()
+
 	featureDict := encoding.NewDictionary()
 	for _, v := range []string{"premium"} {
 		if _, err := featureDict.Add(v); err != nil {
@@ -405,6 +415,8 @@ func TestProfile_ConditionalCapturesSetNumericAssociation(t *testing.T) {
 // exactly against the fixture's own ground truth, and no pair is ever
 // captured between two options of the SAME field.
 func TestProfile_ConditionalCapturesSetSetAssociation(t *testing.T) {
+	t.Parallel()
+
 	dictA := encoding.NewDictionary()
 	for _, v := range []string{"x"} {
 		if _, err := dictA.Add(v); err != nil {
@@ -500,6 +512,8 @@ func TestProfile_ConditionalCapturesSetSetAssociation(t *testing.T) {
 // TestProfile_WithoutConditional_OmitsSetNumericAndSetSetPairs mirrors
 // the additive regression checks every other pair kind already has.
 func TestProfile_WithoutConditional_OmitsSetNumericAndSetSetPairs(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"a"} {
 		if _, err := dict.Add(v); err != nil {

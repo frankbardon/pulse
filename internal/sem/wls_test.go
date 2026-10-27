@@ -154,8 +154,12 @@ func refFloat(p *float64) float64 {
 // measures — so a slip of the (N − 1)/N factors bites; the observed
 // maxima (≤ 2.3e-6 on estimates, 2.2e-5 on fit measures) are logged.
 func TestWLSMV_MatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range wlsFixtures {
 		t.Run(fx.ref, func(t *testing.T) {
+			t.Parallel()
+
 			var ref wlsRef
 			readJSON(t, "testdata/"+fx.ref+"_lavaan.json", &ref)
 			if ref.Lavaan == "" || !ref.Converged {
@@ -357,6 +361,8 @@ func readModel(t *testing.T, path string) string {
 // residual-variance line on an ordered variable are each a typed
 // *OrdinalSpecError naming the variable.
 func TestWLSMV_OrdinalSpecRefusals(t *testing.T) {
+	t.Parallel()
+
 	base := "f =~ x1 + x2 + x3\n"
 	for _, c := range []struct {
 		desc    string
@@ -402,6 +408,8 @@ func TestWLSMV_OrdinalSpecRefusals(t *testing.T) {
 // that disagrees with the model's ordered set or a non-ordinal
 // estimator.
 func TestWLSMV_TwoStepRefusalPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	m, err := NewModelWithOptions("f =~ x1 + x2 + x3", ModelOptions{Ordered: []string{"x1", "x2", "x3"}})
 	if err != nil {
 		t.Fatal(err)

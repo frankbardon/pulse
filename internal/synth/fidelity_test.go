@@ -27,6 +27,8 @@ func fidelitySchema() *encoding.Schema {
 // nor categorical type (packed_bool "flag") is skipped rather than
 // guessed at.
 func TestBuildFidelityReport_ClassifiesFieldsAndSkipsSynthetic(t *testing.T) {
+	t.Parallel()
+
 	var seen []*types.Test
 	run := func(physical, presented *encoding.Schema, records []byte, test *types.Test) (*types.TestResult, error) {
 		seen = append(seen, test)
@@ -63,6 +65,8 @@ func TestBuildFidelityReport_ClassifiesFieldsAndSkipsSynthetic(t *testing.T) {
 // single field's failing test surfaces as FieldFidelity.Error (Result
 // nil) without preventing every other field's entry from appearing.
 func TestBuildFidelityReport_PerFieldErrorDoesNotAbortReport(t *testing.T) {
+	t.Parallel()
+
 	run := func(physical, presented *encoding.Schema, records []byte, test *types.Test) (*types.TestResult, error) {
 		if test.Type == types.TEST_KS {
 			return nil, errors.New("boom")
@@ -91,6 +95,8 @@ func TestBuildFidelityReport_PerFieldErrorDoesNotAbortReport(t *testing.T) {
 // _synthetic to categorical_u8 with a {false:0, true:1} dictionary
 // matching packed_bool's own 0/1 on-wire values.
 func TestSyntheticAsCategoricalSchema_PreservesShapeMapsSyntheticOnly(t *testing.T) {
+	t.Parallel()
+
 	base := fidelitySchema()
 	presented := synth.SyntheticAsCategoricalSchema(base)
 

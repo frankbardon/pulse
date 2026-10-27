@@ -19,6 +19,8 @@ import (
 // refuse. The `_meta` sidecar is tolerated at the root, as a request
 // file's is. Synth specs (`*.synth.json`) are not requests.
 func TestExamples_DecodeStrictly(t *testing.T) {
+	t.Parallel()
+
 	err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -64,6 +66,8 @@ func exampleRoot(t *testing.T, p string, data []byte) any {
 // TestExamples_UniqueNames verifies every _meta.name is unique across
 // the whole embedded library.
 func TestExamples_UniqueNames(t *testing.T) {
+	t.Parallel()
+
 	idx := loadIndex()
 	if len(idx.byName) == 0 {
 		t.Fatal("library indexed zero examples")
@@ -82,6 +86,8 @@ func TestExamples_UniqueNames(t *testing.T) {
 // TestExamples_TagsFromTaxonomy verifies every tag carried by an
 // indexed example is in the canonical allowlist.
 func TestExamples_TagsFromTaxonomy(t *testing.T) {
+	t.Parallel()
+
 	idx := loadIndex()
 	canon := make(map[string]struct{}, len(CanonicalTags))
 	for _, c := range CanonicalTags {
@@ -101,6 +107,8 @@ func TestExamples_TagsFromTaxonomy(t *testing.T) {
 // body. Drift between the two surfaces is a sign that an example was
 // edited without re-running the annotation tool.
 func TestExamples_OperatorsMatchBody(t *testing.T) {
+	t.Parallel()
+
 	idx := loadIndex()
 	for name, ex := range idx.byName {
 		got := DeriveOperators(ex.Body)
@@ -127,6 +135,8 @@ func equalStrings(a, b []string) bool {
 // TestExamples_CategoryMatchesDirectory verifies every _meta.category
 // matches the file's parent directory.
 func TestExamples_CategoryMatchesDirectory(t *testing.T) {
+	t.Parallel()
+
 	err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -164,6 +174,8 @@ func TestExamples_CategoryMatchesDirectory(t *testing.T) {
 // TestExamplesSearch_QueryMatchesDescription verifies substring search
 // on the description field returns the expected hits.
 func TestExamplesSearch_QueryMatchesDescription(t *testing.T) {
+	t.Parallel()
+
 	hits := Search("Welch", nil, "")
 	if len(hits) == 0 {
 		t.Fatal("expected at least one hit for 'Welch'")
@@ -182,6 +194,8 @@ func TestExamplesSearch_QueryMatchesDescription(t *testing.T) {
 // TestExamplesSearch_TagsAreANDed verifies combining tags narrows the
 // result set rather than widening it.
 func TestExamplesSearch_TagsAreANDed(t *testing.T) {
+	t.Parallel()
+
 	one := Search("", []string{"tier-1-test"}, "")
 	two := Search("", []string{"tier-1-test", "parametric"}, "")
 	if len(two) == 0 {
@@ -209,6 +223,8 @@ func TestExamplesSearch_TagsAreANDed(t *testing.T) {
 
 // TestExamplesSearch_CategoryExact verifies category filter is exact.
 func TestExamplesSearch_CategoryExact(t *testing.T) {
+	t.Parallel()
+
 	hits := Search("", nil, "windows")
 	if len(hits) == 0 {
 		t.Fatal("expected hits for category=windows")
@@ -224,6 +240,8 @@ func TestExamplesSearch_CategoryExact(t *testing.T) {
 // the _meta key — so callers can hand the JSON straight to
 // pulse_process / pulse_predict.
 func TestExamplesGet_StripsMeta(t *testing.T) {
+	t.Parallel()
+
 	ex, ok := Get("t_test_one_sample")
 	if !ok {
 		t.Fatal("missing canonical example")
@@ -245,6 +263,8 @@ func TestExamplesGet_StripsMeta(t *testing.T) {
 // real types.Request — i.e. our strip-on-output is not corrupting
 // anything load-bearing.
 func TestExamplesGet_BodyExecutes(t *testing.T) {
+	t.Parallel()
+
 	ex, ok := Get("t_test_one_sample")
 	if !ok {
 		t.Fatal("missing canonical example")
@@ -260,6 +280,8 @@ func TestExamplesGet_BodyExecutes(t *testing.T) {
 
 // TestAllCategories_Sorted verifies the category list is alphabetical.
 func TestAllCategories_Sorted(t *testing.T) {
+	t.Parallel()
+
 	cats := AllCategories()
 	if len(cats) == 0 {
 		t.Fatal("AllCategories returned empty")
@@ -274,6 +296,8 @@ func TestAllCategories_Sorted(t *testing.T) {
 // TestAllTags_Sorted verifies the tag list is alphabetical and only
 // returns tags that are actually in use somewhere.
 func TestAllTags_Sorted(t *testing.T) {
+	t.Parallel()
+
 	tags := AllTags()
 	if len(tags) == 0 {
 		t.Fatal("AllTags returned empty")
@@ -288,6 +312,8 @@ func TestAllTags_Sorted(t *testing.T) {
 // TestCount verifies the indexed example count is non-zero (a smoke
 // test more than a contract).
 func TestCount(t *testing.T) {
+	t.Parallel()
+
 	if Count() == 0 {
 		t.Fatal("Count returned 0")
 	}
@@ -300,6 +326,8 @@ func TestCount(t *testing.T) {
 // surface relies on internal/examples/fixtures/build.sh producing customers.pulse
 // at runtime.
 func TestEcologicalRegressionExample(t *testing.T) {
+	t.Parallel()
+
 	ex, ok := Get("ecological_fallacy")
 	if !ok {
 		t.Fatal("ecological_fallacy example not registered in the embedded library")
@@ -361,6 +389,8 @@ func names(hits []ExampleSummary) []string {
 // TestExamples_MetaIntentsParsed: the optional _meta.intents key decodes
 // into meta.Intents, and Intents() surfaces a tagged shipped example.
 func TestExamples_MetaIntentsParsed(t *testing.T) {
+	t.Parallel()
+
 	var m Meta
 	if err := json.Unmarshal([]byte(`{"name":"x","intents":["describe","compare_groups"]}`), &m); err != nil {
 		t.Fatal(err)
@@ -377,6 +407,8 @@ func TestExamples_MetaIntentsParsed(t *testing.T) {
 // key decodes into meta.Capabilities, and Capabilities() surfaces the
 // facet-host examples that declare it (their bodies name no operator).
 func TestExamples_MetaCapabilitiesParsed(t *testing.T) {
+	t.Parallel()
+
 	var m Meta
 	if err := json.Unmarshal([]byte(`{"name":"x","capabilities":["capability:stream"]}`), &m); err != nil {
 		t.Fatal(err)
@@ -399,6 +431,8 @@ func TestExamples_MetaCapabilitiesParsed(t *testing.T) {
 // a missing _meta block, and refuses an unknown _meta key only in strict
 // mode (embedder examples).
 func TestParse(t *testing.T) {
+	t.Parallel()
+
 	ex, m, err := Parse([]byte(`{"_meta":{"name":"x","category":"c"},"b":1,"a":2}`), true)
 	if err != nil || m.Name != "x" || ex.Category != "c" || string(ex.Body) != `{"a":2,"b":1}` {
 		t.Fatalf("Parse = %v %+v %v", ex, m, err)
@@ -418,6 +452,8 @@ func TestParse(t *testing.T) {
 // TestSearchIn_MatchesSearch: Search is SearchIn over the embedded
 // library, so a merged library ranks by the same rules.
 func TestSearchIn_MatchesSearch(t *testing.T) {
+	t.Parallel()
+
 	for _, q := range []string{"", "Welch", "AGG_SUM"} {
 		a, b := Search(q, nil, ""), SearchIn(All(), q, nil, "")
 		if len(a) != len(b) {

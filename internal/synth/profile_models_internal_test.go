@@ -141,6 +141,8 @@ func coefficientFor(m FieldModel, field, level string) (float64, bool) {
 // BOTH set options retained (a set is not a partition, so nothing is
 // dropped from it).
 func TestProfileModels_CleanMultiPredictorFit(t *testing.T) {
+	t.Parallel()
+
 	schema := modelFixtureSchema(t)
 	rows, nulls := modelFixtureRows(20)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -198,6 +200,8 @@ func TestProfileModels_CleanMultiPredictorFit(t *testing.T) {
 // numeric field, are row-aligned across fields, and are the fit's own
 // observed − predicted rather than a raw value.
 func TestProfileModels_ResidualsAreFitted(t *testing.T) {
+	t.Parallel()
+
 	schema := modelFixtureSchema(t)
 	rows, nulls := modelFixtureRows(20)
 	// Perturb one row so its residual is a known non-zero number: an
@@ -258,6 +262,8 @@ func TestProfileModels_ResidualsAreFitted(t *testing.T) {
 // between them would silently correlate residuals over a different row
 // set than the one the coefficients were fitted on.
 func TestProfileModels_NullsListwiseDeleted(t *testing.T) {
+	t.Parallel()
+
 	schema := modelFixtureSchema(t)
 	rows, nulls := modelFixtureRows(20)
 	// Three distinct missingness shapes: null target, null categorical
@@ -311,6 +317,8 @@ func TestProfileModels_NullsListwiseDeleted(t *testing.T) {
 // the document should carry. Neither may fail the run, and both must say
 // so in Warnings.
 func TestProfileModels_DegenerateAndNoCandidateFieldsSkip(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no candidates", func(t *testing.T) {
 		schema := &encoding.Schema{Fields: []encoding.Field{
 			{Name: "spend", Type: encoding.FieldTypeF64, Nullable: true},
@@ -409,6 +417,8 @@ func TestProfileModels_DegenerateAndNoCandidateFieldsSkip(t *testing.T) {
 // on a rank failure. Narrowing on merit is what prevents the unsolvable
 // design; the solver never sees it.
 func TestProfileModels_TooFewObservationsSkips(t *testing.T) {
+	t.Parallel()
+
 	region := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c", "d", "e", "f"} {
 		if _, err := region.Add(v); err != nil {
@@ -472,6 +482,8 @@ func TestProfileModels_TooFewObservationsSkips(t *testing.T) {
 // TestProfileModels_ShrinkageAbsorbsCollinearityInsteadOfRefitting for
 // the other side of that boundary.
 func TestProfileModels_CollinearCandidatesResolvedByRefit(t *testing.T) {
+	t.Parallel()
+
 	coarse := encoding.NewDictionary()
 	for _, v := range []string{"a", "b"} {
 		if _, err := coarse.Add(v); err != nil {
@@ -547,6 +559,8 @@ func nestedCategoricalRows(n int) ([]map[string]any, []map[string]bool) {
 // gives up the lowest-scoring predictor, breaks ties on the later field,
 // and refuses to narrow a design that has nothing left to give.
 func TestDropWeakestChoice(t *testing.T) {
+	t.Parallel()
+
 	names := func(cs []predictorChoice) []string {
 		out := make([]string, len(cs))
 		for i := range cs {
@@ -622,6 +636,8 @@ func (c *countingReader) Read(p []byte) (int, error) {
 // measurement: fitting must pull EXACTLY the same byte count as not
 // fitting.
 func TestProfileModels_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	schema := modelFixtureSchema(t)
 	rows, nulls := modelFixtureRows(20)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -658,6 +674,8 @@ func TestProfileModels_RidesTheExistingScan(t *testing.T) {
 // which is thin-level shrinkage working, not row-count dependence, and
 // asserting it here would conflate the two properties.
 func TestProfileModels_FitStateIndependentOfRowCount(t *testing.T) {
+	t.Parallel()
+
 	schema := modelFixtureSchema(t)
 	small, smallNulls := modelFixtureRows(20)
 	profSmall, err := profileRecords(schema, bytes.NewReader(encodeModelRows(t, schema, small, smallNulls)),

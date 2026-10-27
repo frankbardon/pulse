@@ -35,6 +35,8 @@ func blocksFromSegments(t *testing.T, p int, mode linalg.CoMomentMode, rows []wr
 // (in blocks), a single serial segment, and a many-way split all give the
 // same bits, including a ragged final block.
 func TestMergeTreeGroupingInvariantBitwise(t *testing.T) {
+	t.Parallel()
+
 	const blocks = 10
 	B := linalg.MergeBlockSize
 	r := rand.New(rand.NewPCG(11, 13))
@@ -70,6 +72,8 @@ func TestMergeTreeGroupingInvariantBitwise(t *testing.T) {
 // index, an odd tail carried up unmerged. Five blocks are
 // ((b0·b1)·(b2·b3))·b4 exactly, which a left fold b0·b1·b2·b3·b4 is not.
 func TestMergeTreeFixedShape(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(17, 19))
 	for _, mode := range bothModes {
 		p := 3
@@ -106,6 +110,8 @@ func TestMergeTreeFixedShape(t *testing.T) {
 // TestMergeTreeDoesNotMutateInputs: every block is read, never written,
 // and a single block comes back as an independent copy.
 func TestMergeTreeDoesNotMutateInputs(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(23, 29))
 	for _, mode := range bothModes {
 		var bs []*linalg.CoMoment
@@ -144,6 +150,8 @@ func TestMergeTreeDoesNotMutateInputs(t *testing.T) {
 // TestMergeTreeErrors: an empty sequence, a nil block and a shape or
 // mode mismatch are PULSE_MATRIX_SHAPE_MISMATCH.
 func TestMergeTreeErrors(t *testing.T) {
+	t.Parallel()
+
 	a := mustCoMoment(t, 2, linalg.Listwise)
 	cases := map[string][]*linalg.CoMoment{
 		"empty":         nil,
@@ -164,6 +172,8 @@ func TestMergeTreeErrors(t *testing.T) {
 }
 
 func TestMergeBlockSize(t *testing.T) {
+	t.Parallel()
+
 	if linalg.MergeBlockSize != 4096 {
 		t.Fatalf("MergeBlockSize = %d, want 4096 (the blocked-merge contract)", linalg.MergeBlockSize)
 	}

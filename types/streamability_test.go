@@ -6,6 +6,8 @@ import "testing"
 // the documented streamability value. Adding a new aggregation requires
 // extending the switch in streamability.go AND this table.
 func TestStreamability_AggregationsKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[AggregationType]bool{
 		AGG_COUNT:          true,
 		AGG_SUM:            true,
@@ -75,6 +77,8 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 // the peak heap. A wrong entry here is therefore silent in every
 // observable output.
 func TestStreamability_MarginReducibilityKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[AggregationType]MarginReducibility{
 		AGG_COUNT:      MarginSummable,
 		AGG_SUM:        MarginSummable,
@@ -141,6 +145,8 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 // (crosstab.{summable,mean_reducible,independent,recompute}_aggregators),
 // so a rename is a wire break for every manifest consumer.
 func TestMarginReducibility_ClassSpellings(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		class MarginReducibility
 		want  string
@@ -164,6 +170,8 @@ func TestMarginReducibility_ClassSpellings(t *testing.T) {
 // AGG_MEDIAN / AGG_SET_FREQUENCY parametric rows for the variance-class
 // and rich-payload-class checks respectively.
 func TestAggregationClassification_Welford(t *testing.T) {
+	t.Parallel()
+
 	if !AGG_WELFORD.Streamable() {
 		t.Errorf("AGG_WELFORD.Streamable() = false, want true (online Welford-Pébaÿ algorithm)")
 	}
@@ -176,6 +184,8 @@ func TestAggregationClassification_Welford(t *testing.T) {
 }
 
 func TestStreamability_AttributesKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[AttributeType]bool{
 		ATTR_ZSCORE:     true,
 		ATTR_TSCORE:     true,
@@ -218,6 +228,8 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 }
 
 func TestStreamability_FilterersKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[FiltererType]bool{
 		FILTER_INCLUDE:     true,
 		FILTER_EXCLUDE:     true,
@@ -248,6 +260,8 @@ func TestStreamability_FilterersKnown(t *testing.T) {
 }
 
 func TestStreamability_GroupsKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[GroupType]bool{
 		GROUP_CATEGORY:    true,
 		GROUP_ROUNDED:     true,
@@ -282,6 +296,8 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 // grouper implement processing.MultiKeyStreamingGrouper?) is asserted
 // by TestGrouperFanOutMatchesTypes in internal/processing/.
 func TestGroupFanOutKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[GroupType]bool{
 		GROUP_CATEGORY:    false,
 		GROUP_DATE:        false,
@@ -315,6 +331,8 @@ func TestGroupFanOutKnown(t *testing.T) {
 // through to false rather than panicking — the safe answer, since a
 // caller gating on FansOut() treats false as "one bucket per record".
 func TestGroupFanOutUnknownType(t *testing.T) {
+	t.Parallel()
+
 	for _, g := range []GroupType{"", "GROUP_NOT_A_THING", "AGG_COUNT", "group_set_per_element"} {
 		if got := g.FansOut(); got {
 			t.Errorf("GroupType(%q).FansOut() = true, want false for an unregistered type", g)
@@ -323,6 +341,8 @@ func TestGroupFanOutUnknownType(t *testing.T) {
 }
 
 func TestStreamability_WindowsKnown(t *testing.T) {
+	t.Parallel()
+
 	for _, w := range AllWindowTypes() {
 		if w.Streamable() {
 			t.Errorf("%s.Streamable() = true, want false (no window operator streams today)", w)
@@ -334,6 +354,8 @@ func TestStreamability_WindowsKnown(t *testing.T) {
 // the documented tier-1 streamability value. Adding a new test type
 // requires extending the switch in streamability.go AND this table.
 func TestStreamability_TestsKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[TestType]bool{
 		TEST_T:                   true,
 		TEST_WELCH:               true,
@@ -381,6 +403,8 @@ func TestStreamability_TestsKnown(t *testing.T) {
 // Adding a new RegressionType requires extending the switch in
 // regression.go AND this table.
 func TestRegressionTypesKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[RegressionType]bool{
 		REG_OLS:          true,
 		REG_GLM:          false,
@@ -410,6 +434,8 @@ func TestRegressionTypesKnown(t *testing.T) {
 // streaming Gram without re-reading rows); Bayes (Phase 4) remains
 // buffered even though its type-level Streamable() returns true.
 func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec RegressionSpec
@@ -481,6 +507,8 @@ func TestRegressionSpec_StreamableModifierDowngrade(t *testing.T) {
 }
 
 func TestStreamability_FeaturesKnown(t *testing.T) {
+	t.Parallel()
+
 	expected := map[FeatureType]bool{
 		FEAT_LOG:              true,
 		FEAT_SQRT:             true,
@@ -514,6 +542,8 @@ func TestStreamability_FeaturesKnown(t *testing.T) {
 // distinct counters. AGG_FREQUENCY counts rows equal to one value, so
 // its margin is the sum of the cells'.
 func TestMarginReducibility_ModeCountIndependentFrequencySums(t *testing.T) {
+	t.Parallel()
+
 	if got := AGG_MODE_COUNT.MarginReducibility(); got != MarginIndependent {
 		t.Errorf("AGG_MODE_COUNT = %q, want %q", got, MarginIndependent)
 	}
@@ -528,6 +558,8 @@ func TestMarginReducibility_ModeCountIndependentFrequencySums(t *testing.T) {
 // crosstab / Sort / overlay / chain refusals reach exactly these three
 // (AGG_VEC_SD since U30 E5-S1).
 func TestAggregationClassification_ArrayValued(t *testing.T) {
+	t.Parallel()
+
 	want := map[AggregationType]bool{AGG_VEC_MEAN: true, AGG_VEC_SUM: true, AGG_VEC_SD: true}
 	for _, agg := range AllAggregationTypes() {
 		if got := agg.ArrayValued(); got != want[agg] {
@@ -547,6 +579,8 @@ func TestAggregationClassification_ArrayValued(t *testing.T) {
 // TestAggregationLabelOf_Vector: a vector aggregator's default label
 // names its vector, else its first inline fields entry as written.
 func TestAggregationLabelOf_Vector(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		agg  Aggregation
 		want string

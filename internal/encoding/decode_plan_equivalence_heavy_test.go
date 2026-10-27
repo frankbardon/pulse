@@ -14,6 +14,8 @@ import (
 // bit-packed, leading skip + trailing decode, mid retention with leading
 // AND trailing skips, every-other-field, plus uniformly random subsets.
 func TestDecodePlan_Equivalence_BigSchemaSampled(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xB16D15CE)
 	all := allFieldNames(schema)

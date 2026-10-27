@@ -14,6 +14,8 @@ import (
 // as datetime under one path and fail, or resolve differently, under the
 // other.
 func TestDateTimeFormats_MatchTemporalLayouts(t *testing.T) {
+	t.Parallel()
+
 	if got := temporal.DateTimeLayouts(); !slices.Equal(got, DateTimeFormats) {
 		t.Fatalf("temporal.DateTimeLayouts() = %q, encoding.DateTimeFormats = %q", got, DateTimeFormats)
 	}

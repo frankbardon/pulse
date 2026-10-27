@@ -8,6 +8,8 @@ import (
 )
 
 func TestRecordCodec_AllTypes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		ft   FieldType
@@ -44,6 +46,8 @@ func TestRecordCodec_AllTypes(t *testing.T) {
 }
 
 func TestRecordCodec_PackedBool(t *testing.T) {
+	t.Parallel()
+
 	// PackedBool: single bit. Write a byte with bit set, read back.
 	var buf bytes.Buffer
 	buf.WriteByte(0b00000101) // bits 0 and 2 set
@@ -74,6 +78,8 @@ func TestRecordCodec_PackedBool(t *testing.T) {
 }
 
 func TestRecordCodec_U4Nibble(t *testing.T) {
+	t.Parallel()
+
 	// U4 is packed as a nibble (4 bits per value); null state is carried
 	// by the per-record bitmap, not by an inline sentinel.
 	var buf bytes.Buffer
@@ -99,6 +105,8 @@ func TestRecordCodec_U4Nibble(t *testing.T) {
 }
 
 func TestRecordCodec_CategoricalField(t *testing.T) {
+	t.Parallel()
+
 	// Encode a categorical ID and verify it reads back correctly.
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(42))
@@ -113,6 +121,8 @@ func TestRecordCodec_CategoricalField(t *testing.T) {
 }
 
 func TestRecordCodec_WriteFieldValue_InvalidType(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	err := WriteFieldValue(&buf, FieldType(200), 0)
 	if err == nil {
@@ -121,6 +131,8 @@ func TestRecordCodec_WriteFieldValue_InvalidType(t *testing.T) {
 }
 
 func TestRecordCodec_ReadFieldValue_InvalidType(t *testing.T) {
+	t.Parallel()
+
 	r := bytes.NewReader([]byte{0, 0, 0, 0, 0, 0, 0, 0})
 	_, err := ReadFieldValue(r, FieldType(200))
 	if err == nil {
@@ -129,6 +141,8 @@ func TestRecordCodec_ReadFieldValue_InvalidType(t *testing.T) {
 }
 
 func TestPulseFileRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	// Build a schema with mixed types.
 	dict := NewDictionary()
 	dict.Add("red")
@@ -232,6 +246,8 @@ func TestPulseFileRoundTrip(t *testing.T) {
 }
 
 func TestPulseFileRoundTrip_EmptySchema(t *testing.T) {
+	t.Parallel()
+
 	schema := &Schema{Fields: nil}
 
 	var buf bytes.Buffer

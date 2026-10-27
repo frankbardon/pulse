@@ -16,6 +16,8 @@ import (
 // bits its members stand for — and "for free" is a claim, so it is
 // asserted rather than assumed.
 func TestCSV_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "csv", fs, src, pcsv.NewWriter(fs, "out.csv"))

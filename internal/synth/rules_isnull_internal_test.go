@@ -20,6 +20,8 @@ import (
 // A substring probe answers the first two wrong, which is exactly why
 // E2-S2's exprReadsIdentifier parses too.
 func TestIsnullUnknownField_ParsesRatherThanMatchesText(t *testing.T) {
+	t.Parallel()
+
 	declared := map[string]bool{"score": true, "region": true, "isnull_reason": true}
 	cases := []struct {
 		name string
@@ -73,6 +75,8 @@ func TestIsnullUnknownField_ParsesRatherThanMatchesText(t *testing.T) {
 // names a field the spec does not declare" — already describes it
 // exactly and carries the name on details["field"].
 func TestValidateRules_IsnullStringFormRefusedAtParse(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		rule      RuleSpec
@@ -114,6 +118,8 @@ func TestValidateRules_IsnullStringFormRefusedAtParse(t *testing.T) {
 // be resolved at parse, so it stays a run-time failure and the
 // PROCESSING_RUNTIME backstop is NOT dead code.
 func TestValidateRules_IsnullDynamicArgumentIsStillDeferred(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture(RuleSpec{When: `isnull(region + "!")`, SetNull: []string{"score"}})
 	if err := validateSpec(spec); err != nil {
 		t.Fatalf("a dynamic isnull argument is not statically knowable and must not be refused: %v", err)
@@ -127,6 +133,8 @@ func TestValidateRules_IsnullDynamicArgumentIsStillDeferred(t *testing.T) {
 // and the constraint case is the worse of the two, since it aborted
 // generation part-way through a run instead of before it.
 func TestConstraints_IsnullStringFormRefusedBeforeAnyRow(t *testing.T) {
+	t.Parallel()
+
 	base := ruleSpecFixture()
 	_, wfs, err := buildSchema(base)
 	if err != nil {

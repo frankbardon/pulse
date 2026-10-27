@@ -12,6 +12,8 @@ import (
 // the default first, the slice fresh; an unlisted spelling is refused
 // with the message naming every listed one.
 func TestMissingPolicies_ListerMatchesCompile(t *testing.T) {
+	t.Parallel()
+
 	got := MissingPolicies()
 	if !slices.Equal(got, []string{MissingRefuse, MissingBase}) {
 		t.Fatalf("MissingPolicies() = %v", got)

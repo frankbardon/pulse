@@ -102,8 +102,12 @@ func overrideDetails(t *testing.T, err error) map[string]any {
 // value the forced type cannot hold refuses the import naming column,
 // value and type, and an unknown column is refused.
 func TestManager_Open_OverrideHonouredEveryAdapter(t *testing.T) {
+	t.Parallel()
+
 	for _, a := range overrideAdapters {
 		t.Run(string(a.format), func(t *testing.T) {
+			t.Parallel()
+
 			m, afs, _ := newTestManager(t)
 			src := "src." + a.ext
 			writeOverrideSource(t, afs, a.format, src)
@@ -147,6 +151,8 @@ func TestManager_Open_OverrideHonouredEveryAdapter(t *testing.T) {
 // authoritative schema, so an override is refused rather than silently
 // ignored.
 func TestManager_Open_OverrideRefusedForSPSS(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	writeOverrideSource(t, afs, pio.FormatSPSS, "src.sav")
 	if _, err := m.Open(context.Background(), Spec{SourcePath: "src.sav", Handle: "plain"}); err != nil {

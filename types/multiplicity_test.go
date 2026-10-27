@@ -34,6 +34,8 @@ func multiplicityFreeRequests() (*Request, *ComposedRequest, *FacetRequest) {
 // and hashes to the baseline captured before the slots existed
 // (commit e740a323), on every root that reaches a slot.
 func TestMultiplicityAbsentIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	req, composed, facet := multiplicityFreeRequests()
 	cases := []struct {
 		name     string
@@ -64,6 +66,8 @@ func TestMultiplicityAbsentIsByteIdentical(t *testing.T) {
 // TestMultiplicityRoundTrip: a set block survives JSON on every slot,
 // and an explicit opt-out is distinguishable from absent.
 func TestMultiplicityRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	req, composed, facet := multiplicityFreeRequests()
 	holm := &Multiplicity{Method: MultiplicityMethodHolm, Family: MultiplicityFamilyRow, Alpha: 0.01}
 	req.Multiplicity = &Multiplicity{Method: MultiplicityMethodNone}
@@ -106,6 +110,8 @@ func TestMultiplicityRoundTrip(t *testing.T) {
 // TestAllMultiplicityVocabularies pins the closed method and family
 // sets (R p.adjust names; the five U13 families plus U28's matrix).
 func TestAllMultiplicityVocabularies(t *testing.T) {
+	t.Parallel()
+
 	methods := []string{}
 	for _, m := range AllMultiplicityMethods() {
 		methods = append(methods, string(m))
@@ -127,6 +133,8 @@ func TestAllMultiplicityVocabularies(t *testing.T) {
 // survives JSON with its coefficients, and Block() hands the resolver
 // its {method, family, alpha} half (nil for an absent block).
 func TestRegressionMultiplicityRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec := &RegressionSpec{Type: REG_OLS, Target: "y", Predictors: []string{"x"}}
 	res := &RegressionResult{Type: REG_OLS, PValues: map[string]float64{"x": 0.2}}
 	for name, v := range map[string]any{"spec": spec, "result": res} {

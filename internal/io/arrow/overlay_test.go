@@ -93,6 +93,8 @@ func helperLayers() []*types.OverlayLayer {
 // byte-equivalent (modulo float64 JSON normalisation, which round-trips
 // here because every fixture value has an exact float64 representation).
 func TestArrowWriter_OverlayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays(helperLayers())
 	if err := w.WriteHeader([]string{"name", "value"}); err != nil {
@@ -222,6 +224,8 @@ func stringFromAxisKey(k types.AxisKey) string {
 // OR no overlays present, Arrow output byte-identical to pre-overlay
 // baseline."
 func TestArrowWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
+	t.Parallel()
+
 	// Baseline writer — no SetOverlays call at all.
 	baseline := NewWriterToBuffer()
 	if err := baseline.WriteHeader([]string{"name", "value"}); err != nil {
@@ -287,6 +291,8 @@ func TestArrowWriter_NoOverlaysByteIdenticalToBaseline(t *testing.T) {
 // no overlays sidecar — the contract is "no overlays present" rather
 // than "field missing is an error."
 func TestArrowReader_ReadOverlays_AbsentReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	data := helperSimpleArrow(t)
 	r := NewReaderFromBytes(data)
 	defer r.Close()
@@ -307,6 +313,8 @@ func TestArrowReader_ReadOverlays_AbsentReturnsNil(t *testing.T) {
 // and returns the first non-empty list it sees. The reader does NOT
 // see duplicated layers across batches.
 func TestArrowWriter_OverlaysAcrossMultipleBatches(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.SetOverlays(helperLayers())
 	if err := w.WriteHeader([]string{"id"}); err != nil {
@@ -364,6 +372,8 @@ func TestArrowWriter_OverlaysAcrossMultipleBatches(t *testing.T) {
 // downstream ExportJob wiring will dispatch through. Compile-time
 // assertion guards against accidental signature drift.
 func TestArrowOverlay_OverlayAwareWriterInterface(t *testing.T) {
+	t.Parallel()
+
 	// Compile-time check via the package's existing interface assertion
 	// at the bottom of arrow.go. This test exists so a grep for the
 	// interface name lands on a guarded use site.

@@ -105,6 +105,8 @@ func (m *memberWriteSink) ClearNullAt(idx int) { m.note(idx); m.runSkipTestRecor
 //     but each dictionary entry is DECODED once (cache fills == distinct
 //     entries touched), never once per row.
 func TestGroupedDecode_MemberWriteCounts(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 32, 1024) // production backoff: groups must ignore it
 	fx := groupFixtures(t)[0]
 	for _, order := range []string{"sorted", "scattered"} {
@@ -189,6 +191,8 @@ func TestGroupedDecode_MemberWriteCounts(t *testing.T) {
 // no member of a group never populates it (no member write, no cache
 // fill); retaining one member populates only its group.
 func TestGroupedDecode_ProjectionSkipsUnretainedGroups(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	fs, gs, flatRegion, phys := twinRegions(t, fx, fx.rows)
 	for _, tc := range []struct {
@@ -248,6 +252,8 @@ func TestGroupedDecode_ProjectionSkipsUnretainedGroups(t *testing.T) {
 // plain record between two run-skip rows does not disturb the run-skip
 // baseline, and GroupIndex reports the row whichever path decoded it.
 func TestGroupedDecode_InterleavedPaths(t *testing.T) {
+	t.Parallel()
+
 	fx := groupFixtures(t)[0]
 	fs, gs, _, phys := twinRegions(t, fx, fx.rows)
 	idx := groupIndexStream(gs, phys)
@@ -296,6 +302,8 @@ func TestGroupedDecode_InterleavedPaths(t *testing.T) {
 // byte-compared, groups index-compared), and the record still equals a
 // full decode.
 func TestGroupedDecode_RunSkipRowFields(t *testing.T) {
+	// serial: swaps the package-level encoding.runBackoffRows test hook; swaps the package-level encoding.runProbeRows test hook
+
 	setBackoff(t, 32, 0)
 	for _, fx := range groupFixtures(t) {
 		t.Run(fx.name, func(t *testing.T) {

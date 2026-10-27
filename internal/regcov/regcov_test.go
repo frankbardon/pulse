@@ -12,6 +12,8 @@ import (
 // PROCESSING_REGRESSION_VCOV_UNSUPPORTED naming the blocking setting,
 // and a classical block passes beside anything.
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	ols := func(c *types.RegressionCovariance) *types.RegressionSpec {
 		return &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Covariance: c}
 	}
@@ -78,6 +80,8 @@ func TestCheck(t *testing.T) {
 // TestDataRefusals: the engine's two data-dependent refusals carry the
 // shared code, their reason and what tripped them.
 func TestDataRefusals(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Covariance: &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", OrderBy: "t"}}
 	if e := TooFewClusters(spec, 1); e.Code != errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED || e.Details["reason"] != ReasonClusters || e.Details["clusters"] != 1 {
 		t.Errorf("TooFewClusters = %+v", e)

@@ -17,6 +17,8 @@ import (
 // threaded into gosdk.Config, so an unknown preset fails Serve before
 // any transport is read (PULSE_RETURN_INVALID).
 func TestServe_DefaultReturnReachesRegister(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatal(err)

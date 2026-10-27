@@ -103,6 +103,8 @@ func relNear(t *testing.T, what string, got, want float64) {
 // TestOptimize_OracleGoldensHashed: every committed oracle JSON carries
 // a golden-hash footer matching its body, so a hand edit fails.
 func TestOptimize_OracleGoldensHashed(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob(filepath.Join("testdata", "*.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -209,6 +211,8 @@ func (c *lsOracleCase) model(t *testing.T) {
 // clamped run, which stalls short of the bound-constrained optimum —
 // the script's oracle there is nlsLM on the reduced problem.
 func TestOptimize_LeastSquaresMatchesNLSLM(t *testing.T) {
+	t.Parallel()
+
 	var doc struct {
 		Cases []*lsOracleCase `json:"cases"`
 	}
@@ -333,6 +337,8 @@ func minOracleProblem() (func([]float64) float64, func([]float64) []float64, []o
 // (like SciPy) stops ~4e-6 relative short in x. Measured agreement on
 // arm64 at 1e-12: ≤ 7e-15 relative on every figure.
 func TestOptimize_MinimizeMatchesNLoptrSLSQP(t *testing.T) {
+	t.Parallel()
+
 	var doc struct {
 		Cases []minOracleCase `json:"cases"`
 	}

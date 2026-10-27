@@ -16,6 +16,8 @@ import (
 // the Service and the engine derive, and the loose reader the Service
 // scans with.
 func TestComparisonParams_Record(t *testing.T) {
+	t.Parallel()
+
 	members := Resolved{Name: "vb", Members: []string{"b1", "b2"}, Labels: []string{"x", "y"}}
 	cases := []struct {
 		name   string
@@ -102,6 +104,8 @@ func TestComparisonParams_Record(t *testing.T) {
 
 // TestRecordRefusals pins the record member refusal's shape.
 func TestRecordRefusals(t *testing.T) {
+	t.Parallel()
+
 	ce := RecordMembersAbsent("s", "ref.pulse", []string{"b2"})
 	if ce.Code != errors.PULSE_VECTOR_REFERENCE_MISMATCH || ce.Details["reason"] != ReferenceReasonRecordMembersAbsent ||
 		!reflect.DeepEqual(ce.Details["missing"], []string{"b2"}) || ce.Details["cohort"] != "ref.pulse" || ce.Details["slot"] != "s.params.reference" {

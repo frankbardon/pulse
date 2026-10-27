@@ -113,6 +113,8 @@ func encodedSEM(t *testing.T, f *SEMFit) []byte {
 }
 
 func TestSEMFile_RoundTripBitExact(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		fixture func() *SEMFit
 		version string
@@ -177,6 +179,8 @@ func TestSEMFile_RoundTripBitExact(t *testing.T) {
 }
 
 func TestSEMFile_DecodeRefusals(t *testing.T) {
+	t.Parallel()
+
 	base := func() map[string]any {
 		var m map[string]any
 		if err := json.Unmarshal(encodedSEM(t, semFileFixture()), &m); err != nil {
@@ -280,6 +284,8 @@ func TestSEMFile_DecodeRefusals(t *testing.T) {
 // file; any other suffix is refused naming both, and the SEM path rule
 // (stem, root) holds.
 func TestSEMFile_ModelsEntryDispatch(t *testing.T) {
+	t.Parallel()
+
 	sem := "fits/brand" + SEMSuffix
 	files := map[string][]byte{
 		sem:                 encodedSEM(t, semFileFixture()),
@@ -378,6 +384,8 @@ func TestSEMFile_ModelsEntryDispatch(t *testing.T) {
 }
 
 func TestSEMFile_CheckLoadedSEM(t *testing.T) {
+	t.Parallel()
+
 	sem := "s" + SEMSuffix
 	rs := refs("m", "m"+FileSuffix, "s", sem)
 	loaded, cerr := LoadFiles(Refs{Models: rs}, memRead(map[string][]byte{"m" + FileSuffix: encodedFullFit(t), sem: encodedSEM(t, semFileFixture())}))

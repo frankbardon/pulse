@@ -15,6 +15,8 @@ import (
 // fixture and confirms HandleLookup delegates to Pulse.Lookup and returns
 // the matched row.
 func TestHandleLookup_Hit(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	ctx := context.Background()
 
@@ -45,6 +47,8 @@ func TestHandleLookup_Hit(t *testing.T) {
 // with no sidecar index surfaces PULSE_INDEX_MISSING verbatim, not
 // flattened to a plain error.
 func TestHandleLookup_CodedErrorVerbatim(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	ctx := context.Background()
 
@@ -68,6 +72,8 @@ func TestHandleLookup_CodedErrorVerbatim(t *testing.T) {
 // TestTools_LookupRegistered confirms pulse_lookup appears in the type-
 // erased catalog with schemas and a working Invoke round-trip.
 func TestTools_LookupRegistered(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	ctx := context.Background()
 

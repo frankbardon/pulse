@@ -87,6 +87,8 @@ func listDeps(t *testing.T, pkg string) []string {
 // must be absent. A future edit that reaches for the processing registry
 // or the service orchestrator to "just check one thing" fails here.
 func TestTemplatePackage_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	deps := listDeps(t, modulePrefix+"/internal/template")
 
 	have := make(map[string]bool, len(deps))

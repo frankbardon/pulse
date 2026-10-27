@@ -23,6 +23,8 @@ import (
 // exactly the generated partition (no nulls in this fixture), and the
 // supplied warnings must be copied onto the report verbatim.
 func TestBuildPairwise_ComputesDeltaAgainstSourceRho(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.03
 	const sourceRows = 8000
 	const newRows = 20000
@@ -96,6 +98,8 @@ func TestBuildPairwise_ComputesDeltaAgainstSourceRho(t *testing.T) {
 // reliable, deterministic way to hit the degenerate case without
 // needing a hand-crafted record buffer.
 func TestBuildPairwise_ErrorWhenSyntheticPartitionDegenerate(t *testing.T) {
+	t.Parallel()
+
 	srcData, sourceRho := synthCorrelatedPair(t, 0.8, 100, 63)
 
 	fs := afero.NewMemMapFs()

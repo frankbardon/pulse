@@ -45,6 +45,8 @@ func digest(b []byte) string {
 // path (an SPSS-origin cohort) and the synthesised path (a native cohort,
 // categoricals as STRING variables).
 func TestValueLabels_UnboundExportsAreByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	c := runCycle(t, kitchenSinkSpec(), WriterOptions{})
 	if got := digest(c.out); got != "19d88918abc619b618b2e10f47ca6f9843181fcf283fe4ad1a0d843c739bf660" {
 		t.Errorf("sidecar-path export digest = %s, changed", got)
@@ -143,6 +145,8 @@ func readBackLabels(t *testing.T, fs afero.Fs, sav []byte, name string) (map[flo
 // region's are text, so its codes are positions + 1 and an entry the table
 // misses keeps its text as the label.
 func TestValueLabels_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	sav, _, fs, err := exportLabelled(t, WriterOptions{ValueLabels: []ValueLabels{
 		{Field: "region", Labels: map[string]string{"NE": "Northeast"}},
 		{Field: "grade", Labels: map[string]string{"1": "Poor", "3": "Good"}},
@@ -181,6 +185,8 @@ func TestValueLabels_RoundTrip(t *testing.T) {
 // TestValueLabels_NilLabelsUseTheDictionaryText: a binding with no table
 // labels each positional code with the entry it stands for.
 func TestValueLabels_NilLabelsUseTheDictionaryText(t *testing.T) {
+	t.Parallel()
+
 	sav, _, fs, err := exportLabelled(t, WriterOptions{ValueLabels: []ValueLabels{{Field: "region"}}}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -192,6 +198,8 @@ func TestValueLabels_NilLabelsUseTheDictionaryText(t *testing.T) {
 }
 
 func TestCategoryCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		entries []string
 		order   []string
@@ -230,6 +238,8 @@ func TestCategoryCodes(t *testing.T) {
 // codes and labels back. Without an order the codes are the sorted
 // dictionary order.
 func TestValueLabels_CodesFollowTheTableOrder(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8},
 	}}
@@ -294,8 +304,12 @@ func (r *resolverFor) Apply(f, raw string) (string, string, bool) {
 // refused on a .sav export — it is resolved onto the dictionary and written
 // as value labels, in either mode, and the misses reach the resolver.
 func TestValueLabels_ExportJobBindingBecomesValueLabels(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []types.LabelMode{types.LabelModeReplace, types.LabelModeAugment} {
 		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
 			r := &resolverFor{field: "region", mode: mode, table: map[string]string{"NE": "Northeast", "SO": "South"}}
 			sav, _, fs, err := exportLabelled(t, WriterOptions{}, func(j *pio.ExportJob) {
 				j.Labels = []*types.LabelBinding{{Field: "region", Table: "regions", Mode: mode}}
@@ -316,6 +330,8 @@ func TestValueLabels_ExportJobBindingBecomesValueLabels(t *testing.T) {
 // the same code on `pulse export predict` (ExportJob.Predict ->
 // ValidateCohort) and on the export itself (ExportJob.Run -> WriteCohort).
 func TestValueLabels_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		opts WriterOptions
@@ -340,6 +356,8 @@ func TestValueLabels_RefusalsMatchPredict(t *testing.T) {
 			}, want: perr.PULSE_SPSS_EXPORT_UNSUPPORTED},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			var fs afero.Fs
 			var cohort string
 			if tc.fix != nil {
@@ -371,6 +389,8 @@ func TestValueLabels_RefusalsMatchPredict(t *testing.T) {
 // the beside-a-sidecar refusal, and the binding labels the synthesised
 // variable.
 func TestValueLabels_IgnoreSidecarLabelsAnSPSSCohort(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, plainSpec())
 	w := NewWriter(fs, "out.sav", WriterOptions{IgnoreSidecar: true,
 		ValueLabels: []ValueLabels{{Field: "REGION", Labels: map[string]string{"North": "Northern"}}}})

@@ -13,6 +13,8 @@ import (
 // produce exactly the ReadRecordWithWide reference maps, through the
 // index-keyed methods whenever the record implements them.
 func TestReadRecordReused_IndexedKinds(t *testing.T) {
+	t.Parallel()
+
 	corpus := indexedDecodeCorpus(t)
 	for _, kind := range recordKinds() {
 		t.Run(kind.name, func(t *testing.T) {
@@ -48,6 +50,8 @@ func TestReadRecordReused_IndexedKinds(t *testing.T) {
 // index-keyed write must stay correct across SkipBytes segments, so the
 // expected output is the full reference restricted to the retained set.
 func TestReadRecordReusedWithPlan_IndexedKinds(t *testing.T) {
+	t.Parallel()
+
 	corpus := indexedDecodeCorpus(t)
 	for _, kind := range recordKinds() {
 		t.Run(kind.name, func(t *testing.T) {

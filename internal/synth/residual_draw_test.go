@@ -119,6 +119,8 @@ func residualsOf(values []float64, levels []string, intercept, eastCoef float64)
 // ~0 with the first passing exactly as it does now, which is the
 // regression this test exists to catch.
 func TestSynthResidual_ConditionedAndCorrelatedAtOnce(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.75
 	data, res, err := synth.SynthBytes(residualCondSpec(20000, targetRho), synth.Options{Seed: 11})
 	if err != nil {
@@ -162,6 +164,8 @@ func TestSynthResidual_ConditionedAndCorrelatedAtOnce(t *testing.T) {
 // capture side (internal/synth/residual_corr.go) went to some length to keep
 // distinguishable from a gap.
 func TestSynthResidual_ReconstructionWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	for _, targetRho := range []float64{-0.85, -0.4, 0, 0.4, 0.85} {
 		data, _, err := synth.SynthBytes(residualCondSpec(20000, targetRho), synth.Options{Seed: 19})
 		if err != nil {
@@ -186,6 +190,8 @@ func TestSynthResidual_ReconstructionWithinTolerance(t *testing.T) {
 // the component assignment would hand a non-participant somebody else's
 // correlated draw, and every marginal would still look perfect.
 func TestSynthResidual_NonParticipantsDrawIndependently(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.8
 	spec := residualCondSpec(20000, targetRho)
 	spec.Fields = append(spec.Fields, synth.FieldSpec{
@@ -231,6 +237,8 @@ func TestSynthResidual_NonParticipantsDrawIndependently(t *testing.T) {
 // 0.25 for the same reason and the rank correlation is checked as the
 // quantity the copula actually targets.
 func TestSynthResidual_PreservesLognormalMarginal(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.8
 	const mu, sigma = 0.0, 0.25
 	lnMean := math.Exp(mu + sigma*sigma/2)
@@ -291,6 +299,8 @@ func TestSynthResidual_PreservesLognormalMarginal(t *testing.T) {
 // bimodal marginal is dominated by which mode each row landed in and
 // says less than it looks like it does.
 func TestSynthResidual_PreservesMixtureMarginal(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.8
 	mean, std := shapeMixtureMoments()
 
@@ -344,6 +354,8 @@ func TestSynthResidual_PreservesMixtureMarginal(t *testing.T) {
 // participant's value depend on the order components are assigned, so
 // byte identity is asserted rather than a tolerance.
 func TestSynthResidual_DeterministicByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := residualCondSpec(500, 0.7)
 	first, _, err := synth.SynthBytes(spec, synth.Options{Seed: 41})
 	if err != nil {
@@ -370,6 +382,8 @@ func TestSynthResidual_DeterministicByteIdentical(t *testing.T) {
 // pair's endpoints, which is the same matrix by symmetry) must therefore
 // leave the output byte-identical.
 func TestSynthResidual_ComponentOrderIsSchemaNotListOrder(t *testing.T) {
+	t.Parallel()
+
 	build := func(pairs []synth.CorrelationSpec) *synth.Spec {
 		s := residualCondSpec(400, 0)
 		s.Fields = append(s.Fields, synth.FieldSpec{
@@ -419,6 +433,8 @@ func TestSynthResidual_ComponentOrderIsSchemaNotListOrder(t *testing.T) {
 // correlation names two modelled fields, validateSpec passes it, and one
 // of them then compiles to nothing.
 func TestSynthResidual_InertWhenNothingParticipates(t *testing.T) {
+	t.Parallel()
+
 	build := func(withResidual bool) *synth.Spec {
 		s := residualCondSpec(300, 0)
 		for i := range s.Fields {
@@ -459,6 +475,8 @@ func TestSynthResidual_InertWhenNothingParticipates(t *testing.T) {
 // residual_correlations.unmeasured into nothing — so this warning is the
 // only place a reader learns the matrix was finished by assumption.
 func TestSynthResidual_UnsuppliedPairsAreCompletedAndReported(t *testing.T) {
+	t.Parallel()
+
 	s := residualCondSpec(300, 0)
 	s.Fields = append(s.Fields, synth.FieldSpec{
 		Name: "tenure", Type: "f64",

@@ -6,6 +6,8 @@ import (
 )
 
 func TestDateDays_SignedRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		lit  string
 		want int32
@@ -35,6 +37,8 @@ func TestDateDays_SignedRoundTrip(t *testing.T) {
 }
 
 func TestDateTimeSeconds_Signed(t *testing.T) {
+	t.Parallel()
+
 	raw, err := ParseDateTime("1969-12-31T23:59:59Z")
 	if err != nil {
 		t.Fatal(err)

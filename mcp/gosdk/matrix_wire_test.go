@@ -17,6 +17,8 @@ import (
 // p − r cells) and MAT_CORRELATION's params.summary.top_pairs arrives
 // as vectors.top_pairs [{row, col, r, n}] whose r is the upper cell.
 func TestProcessTool_MatrixUpperAndTopPairs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	body := "a,b,c\n"
 	for i := 0; i < 30; i++ {

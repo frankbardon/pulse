@@ -13,6 +13,8 @@ import (
 // Pulse's own pack — served on a stock instance with nothing registered
 // (they moved here with the models when the contrib pack was retired).
 func TestMMMSkills_ServedOnStockInstance(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)

@@ -20,6 +20,8 @@ import (
 // ±5%·std blend — a build-failing assertion on the actual number, not a
 // smoke test that generation merely runs without error.
 func TestSynth_CorrelationReconstructionWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.8
 	const tolerance = 0.03
 
@@ -51,6 +53,8 @@ func TestSynth_CorrelationReconstructionWithinTolerance(t *testing.T) {
 // with a correlation matching the source's own measured correlation and
 // an accurate co-occurrence N (no nulls here, so N == the row count).
 func TestProfile_ConditionalCapturesNumericPairs(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -88,6 +92,8 @@ func TestProfile_ConditionalCapturesNumericPairs(t *testing.T) {
 // ProfileOptions.IncludeConditional was set, so a document captured
 // without --conditional is byte-for-byte the pre-existing shape.
 func TestProfile_WithoutConditional_OmitsSection(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -122,6 +128,8 @@ func TestProfile_WithoutConditional_OmitsSection(t *testing.T) {
 // generic thin-pair mechanism this story introduces for reuse by later
 // categorical / set_* pair captures.
 func TestProfile_ConditionalThinPairWarning(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -168,6 +176,8 @@ func TestProfile_ConditionalThinPairWarning(t *testing.T) {
 // captured source, end to end through profile -> SpecFromProfile ->
 // generation).
 func TestProfile_ConditionalThenSynth_ReconstructsCorrelationWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.03
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
@@ -214,6 +224,8 @@ func TestProfile_ConditionalThenSynth_ReconstructsCorrelationWithinTolerance(t *
 // backward-compatibility half of the acceptance bar: adding the new
 // section must not be a breaking change to the JSON shape.
 func TestProfile_LegacyDocumentWithoutConditional_StillValidInput(t *testing.T) {
+	t.Parallel()
+
 	const legacyJSON = `{
 		"row_count": 100,
 		"fields": [

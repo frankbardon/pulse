@@ -161,6 +161,8 @@ func checkAgainstSemopy(t *testing.T, fit *Fit, ref semopyRef, tol float64) {
 // TestRank2MatchesDense pins the rank-2 derivatives to the dense ones:
 // gradient and information agree to rounding off the starting values.
 func TestRank2MatchesDense(t *testing.T) {
+	t.Parallel()
+
 	desc, _ := os.ReadFile("testdata/hz_ext_model.txt")
 	m, err := NewModel(string(desc), false)
 	if err != nil {
@@ -206,6 +208,8 @@ func TestRank2MatchesDense(t *testing.T) {
 }
 
 func TestParse_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for desc, want := range map[string]string{
 		"":                     "no statements",
 		"# only a comment":     "no statements",

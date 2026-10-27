@@ -143,6 +143,8 @@ func assertCoMomentClose(t *testing.T, label string, got, want *linalg.CoMoment)
 // patterns and split points, merging the pieces (left fold and binary
 // tree) equals one serial pass within coMomentTol, in both modes.
 func TestCoMomentMergeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(7, 11))
 	for _, mode := range bothModes {
 		for trial := 0; trial < 200; trial++ {
@@ -204,6 +206,8 @@ func mergeTree(t *testing.T, parts []*linalg.CoMoment) *linalg.CoMoment {
 
 // TestCoMomentMergeAssociative: (a·b)·c equals a·(b·c) within tolerance.
 func TestCoMomentMergeAssociative(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(3, 5))
 	for _, mode := range bothModes {
 		for trial := 0; trial < 100; trial++ {
@@ -262,6 +266,8 @@ func sameWords(a, b []uint64) bool {
 // holds only zero-weight rows (N > 0, W = 0) carries no mass either: it
 // adds its N and changes no moment bit.
 func TestCoMomentMergeIdentityBitwise(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(1, 2))
 	for _, mode := range bothModes {
 		for trial := 0; trial < 50; trial++ {
@@ -314,6 +320,8 @@ func TestCoMomentMergeIdentityBitwise(t *testing.T) {
 
 // TestCoMomentMergeDoesNotMutateOther: Merge mutates only its receiver.
 func TestCoMomentMergeDoesNotMutateOther(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(9, 9))
 	for _, mode := range bothModes {
 		a := feed(t, 3, mode, randomRows(r, 50, 3))
@@ -339,6 +347,8 @@ func TestCoMomentMergeDoesNotMutateOther(t *testing.T) {
 // TestCoMomentWeightSemantics pins the U11 weight rules: invalid weights
 // are counted and skipped, w = 0 raises N but not W, NEff is Kish.
 func TestCoMomentWeightSemantics(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range bothModes {
 		c := mustCoMoment(t, 2, mode)
 		c.Add([]float64{1, 2}, 2)
@@ -404,6 +414,8 @@ func TestCoMomentWeightSemantics(t *testing.T) {
 // TestCoMomentPairwiseMissing: pairwise keeps per-pair N, W and moments;
 // listwise drops the whole row.
 func TestCoMomentPairwiseMissing(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	rows := []wrow{
 		{[]float64{1, 10, nan}, 1},
@@ -454,6 +466,8 @@ func TestCoMomentPairwiseMissing(t *testing.T) {
 // against hand-computed figures, per pair under Pairwise and as the
 // global NEff for every pair under Listwise.
 func TestCoMomentPairNEffHandComputed(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	rows := []wrow{
 		{[]float64{1, 4}, 1},
@@ -516,6 +530,8 @@ func TestCoMomentPairNEffHandComputed(t *testing.T) {
 // TestCoMomentPairAccessorsPanicOutOfRange: every per-pair read panics on
 // an out-of-range index, like PairN.
 func TestCoMomentPairAccessorsPanicOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	c := mustCoMoment(t, 2, linalg.Pairwise)
 	reads := map[string]func(){
 		"PairN":     func() { c.PairN(0, 2) },
@@ -619,6 +635,8 @@ func twoPassW2(rows []wrow, p int, mode linalg.CoMomentMode) [][]float64 {
 // TestCoMomentMatchesTwoPass: Cov and Corr equal the naive two-pass
 // reference within tolerance, in both modes and for ddof 0 and 1.
 func TestCoMomentMatchesTwoPass(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(42, 43))
 	for _, mode := range bothModes {
 		for trial := 0; trial < 100; trial++ {
@@ -668,6 +686,8 @@ func TestCoMomentMatchesTwoPass(t *testing.T) {
 // spread, so every correlation touching it — its own diagonal included —
 // is NaN; a varying column's diagonal is exactly 1.
 func TestCoMomentConstantColumnCorrIsNaN(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range bothModes {
 		c := mustCoMoment(t, 2, mode)
 		for i, w := range []float64{0.1, 0.7, 3, 0.3} {
@@ -690,6 +710,8 @@ func TestCoMomentConstantColumnCorrIsNaN(t *testing.T) {
 // (anti-)correlated columns y = ±3x under fractional weights land a
 // rounding step above 1 unclamped for many of these seeds.
 func TestCoMomentCorrClamped(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range bothModes {
 		for seed := uint64(0); seed < 200; seed++ {
 			r := rand.New(rand.NewPCG(seed, 1))
@@ -713,6 +735,8 @@ func TestCoMomentCorrClamped(t *testing.T) {
 // exactly 1 (not a rounded ratio), and a spread too large to square
 // still yields a finite correlation.
 func TestCoMomentCorrDiagonalAndScale(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(21, 4))
 	for _, mode := range bothModes {
 		for trial := 0; trial < 50; trial++ {
@@ -738,6 +762,8 @@ func TestCoMomentCorrDiagonalAndScale(t *testing.T) {
 // TestCoMomentCovFewerThanDdof: W − ddof ≤ 0 is NaN, including a
 // fractional W below ddof.
 func TestCoMomentCovFewerThanDdof(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range bothModes {
 		c := feed(t, 1, mode, []wrow{{[]float64{2}, 0.25}, {[]float64{4}, 0.25}})
 		if v := c.Cov(1).At(0, 0); !math.IsNaN(v) {
@@ -752,6 +778,8 @@ func TestCoMomentCovFewerThanDdof(t *testing.T) {
 // TestCoMomentShapeMismatch: p or mode mismatch, a nil operand and a bad
 // constructor argument are all PULSE_MATRIX_SHAPE_MISMATCH.
 func TestCoMomentShapeMismatch(t *testing.T) {
+	t.Parallel()
+
 	a := mustCoMoment(t, 2, linalg.Listwise)
 	a.Add([]float64{1, 2}, 1)
 	before := coMomentBits(a)
@@ -779,6 +807,8 @@ func TestCoMomentShapeMismatch(t *testing.T) {
 // TestCoMomentAddPanicsOnLength: a row of the wrong length is a
 // programming error, like an out-of-range index.
 func TestCoMomentAddPanicsOnLength(t *testing.T) {
+	t.Parallel()
+
 	c := mustCoMoment(t, 2, linalg.Listwise)
 	defer func() {
 		if r := recover(); r == nil || !strings.Contains(r.(string), "length") {
@@ -791,6 +821,8 @@ func TestCoMomentAddPanicsOnLength(t *testing.T) {
 // TestCoMomentDefaultsAndAccessors pins the zero mode (Listwise), the
 // mode names and Clone independence.
 func TestCoMomentDefaultsAndAccessors(t *testing.T) {
+	t.Parallel()
+
 	var zero linalg.CoMomentMode
 	if zero != linalg.Listwise || linalg.Listwise.String() != "listwise" ||
 		linalg.Pairwise.String() != "pairwise" || linalg.CoMomentMode(9).String() != "unknown" {
@@ -823,6 +855,8 @@ func TestCoMomentDefaultsAndAccessors(t *testing.T) {
 // and a spread too small to square (the product underflows) still
 // correlates through the two-root fallback.
 func TestCoMomentCorrOneRootForm(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewPCG(5, 77))
 	for trial := 0; trial < 200; trial++ {
 		c := mustCoMoment(t, 2, linalg.Listwise)

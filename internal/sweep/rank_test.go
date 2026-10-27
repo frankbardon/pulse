@@ -33,6 +33,8 @@ func rankCode(t *testing.T, err error) *perr.CodedError {
 }
 
 func TestRank_OrdersTiesTopAndRank(t *testing.T) {
+	t.Parallel()
+
 	labels := []string{"a", "b", "c", "d"}
 	mk := func() []*types.Response {
 		return []*types.Response{rankResp(3), rankResp(1), rankResp(3), rankResp(2)}
@@ -70,6 +72,8 @@ func TestRank_OrdersTiesTopAndRank(t *testing.T) {
 // on the wire) is left out — never ranked last — and its slot carries
 // the warning naming it.
 func TestRank_NullSlotExcludedWithWarning(t *testing.T) {
+	t.Parallel()
+
 	resps := []*types.Response{rankResp(2), rankResp(math.NaN()), rankResp(1)}
 	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, nil, resps)
 	if err != nil {
@@ -94,6 +98,8 @@ func TestRank_NullSlotExcludedWithWarning(t *testing.T) {
 // TestRank_MissingInSomeSlotsWarns: a path missing in one slot but
 // resolved in another excludes that slot with a warning.
 func TestRank_MissingInSomeSlotsWarns(t *testing.T) {
+	t.Parallel()
+
 	resps := []*types.Response{rankResp(2), {Regressions: []*types.RegressionResult{{Name: "other"}}}}
 	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, nil, resps)
 	if err != nil {
@@ -109,6 +115,8 @@ func TestRank_MissingInSomeSlotsWarns(t *testing.T) {
 }
 
 func TestRank_Refusals(t *testing.T) {
+	t.Parallel()
+
 	ambiguousRows := &types.Response{Data: []map[string]any{{"name": "north", "v": 1.0}, {"label": "north", "v": 2.0}}}
 	nameLabel := &types.Response{Data: []map[string]any{{"name": "north", "label": "n", "v": 1.0}}}
 	cases := []struct {
@@ -145,6 +153,8 @@ func TestRank_Refusals(t *testing.T) {
 }
 
 func TestParseRankPath(t *testing.T) {
+	t.Parallel()
+
 	for _, by := range []string{".a", "a.", "a..b", "."} {
 		if _, err := ParseRankPath(by); err == nil || err.Details["reason"] != RankReasonSyntax {
 			t.Fatalf("%q: %v", by, err)
@@ -159,6 +169,8 @@ func TestParseRankPath(t *testing.T) {
 // TestValidate_RankPathSyntax: a malformed non-empty `by` is refused by
 // the structural check every surface (predict included) runs.
 func TestValidate_RankPathSyntax(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.SweepSpec{
 		Axes:    []types.SweepAxis{{Name: "x", Values: []any{1}}},
 		Request: []byte(`{"label":"{{x}}"}`),
@@ -182,6 +194,8 @@ func olsResp(se float64) *types.Response {
 // excluded as missing. The wire itself is unchanged: the key stays
 // absent from the marshalled response.
 func TestRank_ExactZeroFigureRanks(t *testing.T) {
+	t.Parallel()
+
 	resps := []*types.Response{olsResp(2), olsResp(0), olsResp(1)}
 	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, nil, resps)
 	if err != nil {
@@ -217,6 +231,8 @@ func TestRank_ExactZeroFigureRanks(t *testing.T) {
 // REG_GLM, an untyped result), a figure with no applicability rule (df),
 // and a nil entry all still rank as missing, with the slot's warning.
 func TestRank_UncomputedZeroStaysMissing(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name, by, segment string
 		slot              *types.Response
@@ -254,6 +270,8 @@ func TestRank_UncomputedZeroStaysMissing(t *testing.T) {
 // model that does not compute r2) stays missing, as does a reported
 // figure's absent sibling.
 func TestRank_ExtensionReportedZeroRanks(t *testing.T) {
+	t.Parallel()
+
 	ext := func(reported ...string) *types.Response {
 		return &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: "REG_ACME_HILL", ReportedFigures: reported}}}
 	}
@@ -281,6 +299,8 @@ func TestRank_ExtensionReportedZeroRanks(t *testing.T) {
 // shifts nothing, and mutating the expansion's map after the rank
 // leaves the entry untouched.
 func TestRank_CarriesSlotAndAxes(t *testing.T) {
+	t.Parallel()
+
 	axes := []map[string]any{
 		{"d": json.Number("0.5"), "ch": "tv"},
 		{"d": json.Number("0.25"), "ch": "tv"},

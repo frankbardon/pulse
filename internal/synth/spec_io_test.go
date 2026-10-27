@@ -57,6 +57,8 @@ func loadTestProfile(t *testing.T, name string) *synth.Profile {
 // additionally carries the source rows and the appended `_synthetic`
 // column, so its records are re-encoded into a merged schema.
 func TestEmitSpec_RoundTripsToByteIdenticalCohort(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		profile func(*testing.T) *synth.Profile
@@ -252,6 +254,8 @@ func capturedModelsProfile(t *testing.T) *synth.Profile {
 // workflow is emit -> read -> write rules -> apply, so readability is
 // functional) and it carries the slots an analyst emits it to see.
 func TestWriteSpec_IsIndentedAndCarriesEverySlot(t *testing.T) {
+	t.Parallel()
+
 	prof := loadTestProfile(t, "profile_pre_models.json")
 	spec, _ := synth.SpecFromProfile(prof, 50)
 
@@ -305,6 +309,8 @@ func rulesTargetSpec() *synth.Spec {
 // inert, and a hard-coded rule set fires without the file having been
 // read at all.
 func TestApplyRulesFile_LoadsMergesAndFires(t *testing.T) {
+	t.Parallel()
+
 	memfs := fs.NewMemMap().Fs()
 	const path = "/rules.json"
 	if err := afero.WriteFile(memfs, path, []byte(rulesFileJSON), 0o644); err != nil {
@@ -346,6 +352,8 @@ func TestApplyRulesFile_LoadsMergesAndFires(t *testing.T) {
 // append to and an append mode would only create an ordering question
 // nobody asked.
 func TestApplyRulesFile_ReplacesRatherThanAppends(t *testing.T) {
+	t.Parallel()
+
 	memfs := fs.NewMemMap().Fs()
 	if err := afero.WriteFile(memfs, "/rules.json", []byte(rulesFileJSON), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -370,6 +378,8 @@ func TestApplyRulesFile_ReplacesRatherThanAppends(t *testing.T) {
 // wrong — and the field-unknown case must additionally keep E1-S2's own
 // coded error rather than degrading to a bare parse failure.
 func TestApplyRulesFile_RefusalsNameThePath(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		body     string
@@ -440,6 +450,8 @@ func TestApplyRulesFile_RefusalsNameThePath(t *testing.T) {
 // DATA_FILE fault rather than a rule fault: the document is not wrong,
 // it is absent.
 func TestApplyRulesFile_MissingFileNamesThePath(t *testing.T) {
+	t.Parallel()
+
 	memfs := fs.NewMemMap().Fs()
 	err := synth.ApplyRulesFile(memfs, rulesTargetSpec(), "/nope.json")
 	if err == nil {
@@ -462,6 +474,8 @@ func TestApplyRulesFile_MissingFileNamesThePath(t *testing.T) {
 // ("no rules"), not a malformed file, and must leave output
 // byte-identical to no --rules at all.
 func TestApplyRulesFile_EmptyArrayIsAcceptedAndInert(t *testing.T) {
+	t.Parallel()
+
 	memfs := fs.NewMemMap().Fs()
 	if err := afero.WriteFile(memfs, "/empty.json", []byte(`[]`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -488,6 +502,8 @@ func TestApplyRulesFile_EmptyArrayIsAcceptedAndInert(t *testing.T) {
 // document must therefore be the spec AFTER the --rules merge, and the
 // re-run must reproduce the ruled cohort — not the pre-rules one.
 func TestWriteSpec_CarriesMergedRules(t *testing.T) {
+	t.Parallel()
+
 	memfs := fs.NewMemMap().Fs()
 	if err := afero.WriteFile(memfs, "/rules.json", []byte(rulesFileJSON), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -552,6 +568,8 @@ const setConstantSpecJSON = `{
 // means, and a false-valued key must mean "not selected" rather than
 // "selected".
 func TestParseSpec_SetConstantAcceptsTheJSONObjectForm(t *testing.T) {
+	t.Parallel()
+
 	gen := func(t *testing.T, value string) []byte {
 		t.Helper()
 		spec, err := synth.ParseSpec(fmt.Appendf(nil, setConstantSpecJSON, value))

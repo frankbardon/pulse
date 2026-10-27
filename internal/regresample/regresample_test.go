@@ -8,6 +8,8 @@ import (
 )
 
 func TestCheck(t *testing.T) {
+	t.Parallel()
+
 	base := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
 		s := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Resample: "jackknife"}
 		if mut != nil {
@@ -51,6 +53,8 @@ func TestCheck(t *testing.T) {
 }
 
 func TestLeaveOneOut(t *testing.T) {
+	t.Parallel()
+
 	loo := &types.RegressionSpec{Resample: "jackknife"}
 	if !LeaveOneOut(loo) || Grouped(loo) {
 		t.Fatal("plain jackknife is leave-one-out")

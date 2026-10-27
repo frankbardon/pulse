@@ -40,6 +40,8 @@ func parseKernel(t *testing.T) (*token.FileSet, []*ast.File) {
 
 // TestReproSum_ImportBoundary keeps the kernel a stdlib-only leaf.
 func TestReproSum_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	_, files := parseKernel(t)
 	for _, f := range files {
 		for _, imp := range f.Imports {
@@ -58,6 +60,8 @@ func TestReproSum_ImportBoundary(t *testing.T) {
 // float multiplication in the kernel must be the direct operand of a
 // float64(...) conversion, and the architectures can never disagree.
 func TestReproSum_NoFusibleProducts(t *testing.T) {
+	t.Parallel()
+
 	fset, files := parseKernel(t)
 	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}}
 	conf := types.Config{Importer: importer.ForCompiler(fset, "source", nil)}

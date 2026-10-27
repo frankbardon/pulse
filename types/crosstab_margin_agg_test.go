@@ -25,6 +25,8 @@ func baseSpec() *CrosstabSpec {
 // crosstab request on the wire — fails here rather than silently
 // widening the payload for every existing consumer.
 func TestCrosstabSpec_MarginAggregationsAbsentByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	const want = `{"rows":[{"type":"GROUP_CATEGORY","field":"brand"}],` +
 		`"columns":[{"type":"GROUP_CATEGORY","field":"audience"}],` +
 		`"cell":{"type":"AGG_COUNT","field":"respondent"},` +
@@ -47,6 +49,8 @@ func TestCrosstabSpec_MarginAggregationsAbsentByteIdentical(t *testing.T) {
 		}()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := json.Marshal(tc.spec)
 			if err != nil {
 				t.Fatalf("Marshal: %v", err)
@@ -62,6 +66,8 @@ func TestCrosstabSpec_MarginAggregationsAbsentByteIdentical(t *testing.T) {
 // wire field once declared — it survives an encode/decode cycle under
 // the documented JSON name.
 func TestCrosstabSpec_MarginAggregationsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	spec := baseSpec()
 	spec.MarginAggregations = []*Aggregation{
 		{Type: AGG_DISTINCT_COUNT, Field: "respondent", Label: "base"},
@@ -92,6 +98,8 @@ func TestCrosstabSpec_MarginAggregationsRoundTrip(t *testing.T) {
 // components surface will key on: an explicit Label wins, otherwise
 // TYPE_field — the same rule CellLabel already applies.
 func TestCrosstabSpec_MarginAggregationLabels(t *testing.T) {
+	t.Parallel()
+
 	spec := baseSpec()
 	spec.MarginAggregations = []*Aggregation{
 		{Type: AGG_DISTINCT_COUNT, Field: "respondent", Label: "base"},
@@ -122,6 +130,8 @@ func TestCrosstabSpec_MarginAggregationLabels(t *testing.T) {
 // surface; sharing the DETECTION is what stops the two validators
 // drifting on which specs they refuse.
 func TestCrosstabSpec_MarginAggregationFaults(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		aux  []*Aggregation
@@ -213,6 +223,8 @@ func TestCrosstabSpec_MarginAggregationFaults(t *testing.T) {
 // execution paths still accumulate it. Answering "is a margin computed"
 // here would leave the one genuinely unobservable shape unwarned.
 func TestCrosstabSpec_MarginAggregationsObserved(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		mut  func(*CrosstabSpec)
@@ -232,6 +244,8 @@ func TestCrosstabSpec_MarginAggregationsObserved(t *testing.T) {
 		}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := baseSpec()
 			tc.mut(spec)
 			if got := spec.MarginAggregationsObserved(); got != tc.want {

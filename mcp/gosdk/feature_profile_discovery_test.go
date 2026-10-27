@@ -117,6 +117,8 @@ func readResourceRaw(c *mcpsdk.ClientSession, uri string) string {
 // byte-identical (after name substitution) to a name that never existed.
 // The manifest's skills list and examples count agree with the tools.
 func TestRegister_DiscoveryHonoursFeatureProfile(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	full, cancelFull := profiledServer(t, afero.NewMemMapFs(), nil, cfg)
 	defer cancelFull()
@@ -204,6 +206,8 @@ func TestRegister_DiscoveryHonoursFeatureProfile(t *testing.T) {
 // instance and a profile that hides nothing serve the full skill pack and
 // example library.
 func TestRegister_DiscoveryProfileFreeUnchanged(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	full, cancel := profiledServer(t, afero.NewMemMapFs(), nil, cfg)
 	defer cancel()

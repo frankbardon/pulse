@@ -9,6 +9,8 @@ import (
 // absence read as auto, anything else is refused; it re-encodes as it
 // came and an absent lag is omitted.
 func TestCovarianceLags_JSON(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in      string
 		auto    bool
@@ -53,6 +55,8 @@ func TestCovarianceLags_JSON(t *testing.T) {
 
 // TestAutoHACLags pins the rule ⌊4·(n/100)^(2/9)⌋ at a few sizes.
 func TestAutoHACLags(t *testing.T) {
+	t.Parallel()
+
 	for n, want := range map[int]int{0: 0, 1: 1, 48: 3, 60: 3, 100: 4, 1000: 6, 10000: 11} {
 		if got := AutoHACLags(n); got != want {
 			t.Errorf("AutoHACLags(%d) = %d, want %d", n, got, want)
@@ -64,6 +68,8 @@ func TestAutoHACLags(t *testing.T) {
 // classical stream and are not robust; every other type is robust and
 // forces the buffered path.
 func TestRegressionCovariance_StreamableAndRobust(t *testing.T) {
+	t.Parallel()
+
 	base := RegressionSpec{Type: REG_OLS, Target: "y", Predictors: []string{"x"}}
 	if !base.Streamable() || base.Covariance.Robust() || base.Covariance.EffectiveType() != CovarianceClassical {
 		t.Fatal("absent covariance must stream and be classical")

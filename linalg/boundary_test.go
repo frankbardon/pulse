@@ -24,6 +24,8 @@ func linalgAllowed(path string) bool {
 // TestLinalgImportBoundary fails when a non-test file in linalg imports
 // anything outside the standard library, gonum and pulse/errors.
 func TestLinalgImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

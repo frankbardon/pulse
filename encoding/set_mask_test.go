@@ -18,8 +18,12 @@ var boundaryBits = []int{0, 63, 64, 127, 128, 191, 192, 255}
 // boundary and asserts the bit lands in the word the little-endian word
 // order promises — words[0] is the LOW 64 bits.
 func TestSetMask_BitBoundaries(t *testing.T) {
+	t.Parallel()
+
 	for _, bit := range boundaryBits {
 		t.Run("bit"+strconv.Itoa(bit), func(t *testing.T) {
+			t.Parallel()
+
 			var zero SetMask
 			m := zero.WithBit(bit)
 
@@ -67,6 +71,8 @@ func TestSetMask_BitBoundaries(t *testing.T) {
 // neighbouring word (the classic [4]uint64 index-out-of-range panic) or
 // silently wrapping to bit 0.
 func TestSetMask_OutOfRangeBitsAreNoOps(t *testing.T) {
+	t.Parallel()
+
 	base := SetMask{}.WithBit(7)
 	for _, bit := range []int{-1, -64, SetMaskBits, SetMaskBits + 1, 1 << 20} {
 		if base.Has(bit) {
@@ -86,6 +92,8 @@ func TestSetMask_OutOfRangeBitsAreNoOps(t *testing.T) {
 // back a view that aliases the receiver's backing array. A slice-backed
 // implementation would fail every assertion here.
 func TestSetMask_ValueSemantics(t *testing.T) {
+	t.Parallel()
+
 	original := SetMask{}.WithBit(3).WithBit(200)
 
 	// Assignment copy, then mutate the copy's value.
@@ -123,6 +131,8 @@ func TestSetMask_ValueSemantics(t *testing.T) {
 // boundaries, where a loop that stops at one word passes a single-word
 // test and fails here.
 func TestSetMask_SetOps(t *testing.T) {
+	t.Parallel()
+
 	a := SetMask{}.WithBit(0).WithBit(64).WithBit(191)
 	b := SetMask{}.WithBit(64).WithBit(192).WithBit(255)
 
@@ -161,6 +171,8 @@ func TestSetMask_SetOps(t *testing.T) {
 // TestSetMask_AscendingIterator asserts the iterator visits set bits in
 // ascending order across all four words and that NextBit agrees with it.
 func TestSetMask_AscendingIterator(t *testing.T) {
+	t.Parallel()
+
 	want := []int{0, 5, 63, 64, 127, 128, 191, 192, 255}
 	m := SetMask{}
 	for _, bit := range want {
@@ -214,6 +226,8 @@ func TestSetMask_AscendingIterator(t *testing.T) {
 // rather than to the type's bit width. A mask carrying a bit past the
 // dictionary is a corrupt or mid-remap payload, not a panic.
 func TestSetMask_LabelsAreDictionaryBounded(t *testing.T) {
+	t.Parallel()
+
 	dict := NewDictionary()
 	for _, v := range []string{"alpha", "beta", "gamma"} {
 		if _, err := dict.Add(v); err != nil {
@@ -270,6 +284,8 @@ func TestSetMask_LabelsAreDictionaryBounded(t *testing.T) {
 // originated in a uint64 converts back losslessly, and one carrying a bit
 // above 64 reports ok=false instead of handing back a truncated value.
 func TestSetMask_Uint64Bridge(t *testing.T) {
+	t.Parallel()
+
 	narrow := SetMaskFromUint64(^uint64(0))
 	if got := narrow.PopCount(); got != 64 {
 		t.Errorf("PopCount() = %d, want 64", got)
@@ -300,6 +316,8 @@ func TestSetMask_Uint64Bridge(t *testing.T) {
 // bit the declared rung cannot store, because the excess would be dropped
 // silently on the wire.
 func TestSetMask_FitsFieldType(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft   FieldType
 		bit  int
@@ -329,6 +347,8 @@ func TestSetMask_FitsFieldType(t *testing.T) {
 // the low 64 bits and the words are laid down low-word-first. Swap the
 // word order in PutSetMask and every expectation here moves.
 func TestSetMask_WireWordOrder(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		bit      int
 		wantByte int
@@ -364,6 +384,8 @@ func TestSetMask_WireWordOrder(t *testing.T) {
 // TestSetMask_WireRoundTrip round-trips both wide rungs byte-identically,
 // including the all-zero and all-ones masks at each width.
 func TestSetMask_WireRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	allOnes128 := SetMaskFromWords([SetMaskWords]uint64{^uint64(0), ^uint64(0), 0, 0})
 	allOnes256 := SetMaskFromWords([SetMaskWords]uint64{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)})
 
@@ -422,11 +444,15 @@ func TestSetMask_WireRoundTrip(t *testing.T) {
 // TestSetMask_WireRejectsNonWideTypes keeps the narrow rungs (which keep
 // their uint64 wire layout) and every non-set type out of the wide API.
 func TestSetMask_WireRejectsNonWideTypes(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FieldType{
 		FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
 		FieldTypeU64, FieldTypeDecimal128, FieldTypeCategoricalU32, FieldTypePackedBool,
 	} {
 		t.Run(ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			buf := make([]byte, 32)
 			if err := PutSetMask(buf, ft, SetMask{}); !errors.HasCode(err, errors.ENCODING_TYPE_MISMATCH) {
 				t.Errorf("PutSetMask err = %v, want ENCODING_TYPE_MISMATCH", err)
@@ -447,6 +473,8 @@ func TestSetMask_WireRejectsNonWideTypes(t *testing.T) {
 // TestSetMask_WriteRejectsOverWidthMask is the anti-silent-truncation
 // gate: storing a 129th selection in a set_u128 must fail loudly.
 func TestSetMask_WriteRejectsOverWidthMask(t *testing.T) {
+	t.Parallel()
+
 	tooWide := SetMask{}.WithBit(128)
 	buf := make([]byte, 16)
 	err := PutSetMask(buf, FieldTypeSetU128, tooWide)
@@ -464,6 +492,8 @@ func TestSetMask_WriteRejectsOverWidthMask(t *testing.T) {
 // TestSetMask_ShortBufferRejected keeps a truncated destination or source
 // from being half-written or read out of a neighbouring field.
 func TestSetMask_ShortBufferRejected(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FieldType{FieldTypeSetU128, FieldTypeSetU256} {
 		short := make([]byte, ft.ByteSize()-1)
 		if err := PutSetMask(short, ft, SetMask{}.WithBit(0)); !errors.HasCode(err, errors.ENCODING_INVALID) {
@@ -482,6 +512,8 @@ func TestSetMask_ShortBufferRejected(t *testing.T) {
 // sitting between a u64 and a u32 reads and writes exactly its own 16
 // bytes. An off-by-one width silently corrupts the column next door.
 func TestSetMask_NeighbourFieldsUntouched(t *testing.T) {
+	t.Parallel()
+
 	schema := &Schema{Fields: []Field{
 		{Name: "before", Type: FieldTypeU64, ByteOffset: 0},
 		{Name: "tags", Type: FieldTypeSetU128, ByteOffset: 8},
@@ -541,6 +573,8 @@ func TestSetMask_NeighbourFieldsUntouched(t *testing.T) {
 // TestSetMask_WideTypesStillRejectedByScalarAPI keeps E1-S1's branch point
 // honest: the scalar uint64 API must keep pointing at this one.
 func TestSetMask_WideTypesStillRejectedByScalarAPI(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FieldType{FieldTypeSetU128, FieldTypeSetU256} {
 		_, err := ReadFieldValue(bytes.NewReader(make([]byte, 32)), ft)
 		if !errors.HasCode(err, errors.ENCODING_TYPE_MISMATCH) {
@@ -556,6 +590,8 @@ func TestSetMask_WideTypesStillRejectedByScalarAPI(t *testing.T) {
 // narrow-origin mask must not allocate, which is the whole reason the
 // value type is a fixed array rather than a slice.
 func TestSetMask_ZeroAllocation(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	m := SetMaskFromUint64(0xDEADBEEFCAFEF00D).WithBit(200)
 	if got := testing.AllocsPerRun(100, func() {
 		sinkBool = m.Has(63)

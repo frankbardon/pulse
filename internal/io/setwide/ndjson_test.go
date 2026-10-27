@@ -25,6 +25,8 @@ import (
 // below are together the regression test for that fix: if the header
 // record is dropped again, the selection is what goes missing.
 func TestNDJSON_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "ndjson", fs, src, pndjson.NewWriter(fs, "out.ndjson"))

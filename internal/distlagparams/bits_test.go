@@ -20,6 +20,8 @@ import (
 // darwin/arm64 and checked identical on linux/amd64 (docker); CI
 // re-runs it on linux/amd64.
 func TestDistLag_WeightBitsPinned(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		params string
 		want   []uint64
@@ -97,6 +99,8 @@ func fmahashReport(t *testing.T, dir, importPath string) []string {
 // report no contraction, so the kernel's bits are the same on every
 // architecture. A probe first proves the flag still reports one.
 func TestDistLag_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	probe := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)

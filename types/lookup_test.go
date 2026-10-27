@@ -3,6 +3,8 @@ package types
 import "testing"
 
 func TestLookupRequest_KeyComponents_NilRequest(t *testing.T) {
+	t.Parallel()
+
 	var r *LookupRequest
 	if got := r.KeyComponents(); got != nil {
 		t.Errorf("KeyComponents() on nil request = %v, want nil", got)
@@ -10,6 +12,8 @@ func TestLookupRequest_KeyComponents_NilRequest(t *testing.T) {
 }
 
 func TestLookupRequest_KeyComponents_EmptyRequestReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	r := &LookupRequest{}
 	if got := r.KeyComponents(); got != nil {
 		t.Errorf("KeyComponents() on empty request = %v, want nil", got)
@@ -17,6 +21,8 @@ func TestLookupRequest_KeyComponents_EmptyRequestReturnsNil(t *testing.T) {
 }
 
 func TestLookupRequest_KeyComponents_SingleKeyPath(t *testing.T) {
+	t.Parallel()
+
 	r := &LookupRequest{Field: "id", Value: "3"}
 	got := r.KeyComponents()
 	want := []LookupKey{{Field: "id", Value: "3"}}
@@ -26,6 +32,8 @@ func TestLookupRequest_KeyComponents_SingleKeyPath(t *testing.T) {
 }
 
 func TestLookupRequest_KeyComponents_KeysTakesPrecedence(t *testing.T) {
+	t.Parallel()
+
 	r := &LookupRequest{
 		Field: "id", // should be ignored
 		Value: "999",
@@ -44,6 +52,8 @@ func TestLookupRequest_KeyComponents_KeysTakesPrecedence(t *testing.T) {
 }
 
 func TestLookupRequest_KeyComponents_OrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	r := &LookupRequest{
 		Keys: []LookupKey{
 			{Field: "c", Value: "3"},

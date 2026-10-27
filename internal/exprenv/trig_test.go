@@ -16,6 +16,8 @@ import (
 // answers nil, ±Inf and NaN answer NaN, and a decimal argument reads as
 // its float64 like every float-domain built-in.
 func TestTrigBuiltins_Values(t *testing.T) {
+	t.Parallel()
+
 	unary := map[string]func(float64) float64{FuncSin: detmath.Sin, FuncCos: detmath.Cos, FuncTan: detmath.Tan}
 	for name, k := range unary {
 		for _, x := range []float64{-7.25, -1, 0, 0.5, math.Pi / 3, 1e5} {
@@ -71,6 +73,8 @@ func TestTrigBuiltins_Values(t *testing.T) {
 // in the shared environment — the Fourier seasonality term compiles and
 // evaluates — and a bare pi / e is not the constant (it is the call).
 func TestTrigBuiltins_CompileThroughOptions(t *testing.T) {
+	t.Parallel()
+
 	env := map[string]any{"week": 13.0}
 	prog, err := expr.Compile(`sin(2 * pi() * week / 52) + cos(2 * pi() * week / 52) + atan2(1, 1) * 4 - e()`, append(Options(), expr.Env(env))...)
 	if err != nil {
@@ -97,6 +101,8 @@ func TestTrigBuiltins_CompileThroughOptions(t *testing.T) {
 // that a kernel reverted to math.* differs somewhere on arm64 (fused
 // multiply-adds) and on amd64 (the Exp / Log assembly).
 func TestExprTranscendentals_AreDetmath(t *testing.T) {
+	t.Parallel()
+
 	type check struct {
 		call func(x float64) (any, error)
 		want func(x float64) float64

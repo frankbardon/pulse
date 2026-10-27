@@ -14,6 +14,8 @@ import (
 // successful result whose JSON says null there — never an
 // "encode result" tool error.
 func TestJSONResult_UndefinedFigureIsNull(t *testing.T) {
+	t.Parallel()
+
 	res, err := jsonResult(map[string]any{"data": []map[string]any{{"r": math.NaN(), "s": math.Inf(1), "n": 2}}})
 	if err != nil {
 		t.Fatal(err)

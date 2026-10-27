@@ -81,6 +81,8 @@ func endianTwinSpec(bo spsstest.ByteOrder, c spsstest.Compression) spsstest.Spec
 // of them as command bytes and the rest as 8-byte escapes, and ZSAV wraps
 // that same stream in a zlib block index whose own offsets are byte-ordered.
 func TestByteOrder_TwinsProduceIdenticalCohorts(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		mode spsstest.Compression
@@ -90,6 +92,8 @@ func TestByteOrder_TwinsProduceIdenticalCohorts(t *testing.T) {
 		{"zsav", spsstest.CompressionZSAV},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			le := build(t, endianTwinSpec(spsstest.LittleEndian, c.mode))
 			be := build(t, endianTwinSpec(spsstest.BigEndian, c.mode))
 
@@ -170,6 +174,8 @@ func importToBytes(t *testing.T, raw []byte) []byte {
 // record 7/3; a disagreement is a coded error", including every shape that is
 // deliberately NOT a disagreement.
 func TestByteOrder_CrossCheckAgainstRecord73(t *testing.T) {
+	t.Parallel()
+
 	specFor := func(bo spsstest.ByteOrder, endianField int32) spsstest.Spec {
 		spec := endianTwinSpec(bo, spsstest.CompressionNone)
 		mi := *spec.MachineIntegerInfo
@@ -276,6 +282,8 @@ func TestByteOrder_CrossCheckAgainstRecord73(t *testing.T) {
 // error, because the compression flag is the field that describes the bytes
 // and the magic is a generation label. The file still reads, both ways round.
 func TestMagicVersusCompressionFlag(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name     string
 		mode     spsstest.Compression
@@ -288,6 +296,8 @@ func TestMagicVersusCompressionFlag(t *testing.T) {
 		{"$FL2 carrying a ZSAV section", spsstest.CompressionZSAV, magicSAV, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			raw := build(t, endianTwinSpec(spsstest.LittleEndian, tc.mode))
 			copy(raw[0:4], tc.magic)
 
@@ -326,6 +336,8 @@ func TestMagicVersusCompressionFlag(t *testing.T) {
 // "the download was cut short" and "the target was never written" are three
 // different things for whoever has to fix it.
 func TestMalformedInput_DistinctCodes(t *testing.T) {
+	t.Parallel()
+
 	ref := build(t, endianTwinSpec(spsstest.LittleEndian, spsstest.CompressionNone))
 	refDict := mustParse(t, ref)
 
@@ -439,6 +451,8 @@ func TestMalformedInput_DistinctCodes(t *testing.T) {
 // each compression mode. E3-S2 swept ZSAV; this widens the same sweep to all
 // three so no mode has a bounds check the others do not.
 func TestCorruption_TruncationSweepAcrossModes(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []struct {
 		name string
 		c    spsstest.Compression
@@ -448,6 +462,8 @@ func TestCorruption_TruncationSweepAcrossModes(t *testing.T) {
 		{"zsav", spsstest.CompressionZSAV},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
 			raw := build(t, endianTwinSpec(spsstest.LittleEndian, mode.c))
 			for n := 0; n <= len(raw); n++ {
 				assertNoPanicCodedOrFine(t, raw[:n], n, 0)
@@ -529,6 +545,8 @@ func assertHardeningCoded(t *testing.T, err error, size, off int, fill byte) {
 // links — the rows land, the cohort is real, and the warning arrives with its
 // subtype intact.
 func TestUnknownExtensionSubtype_SkipsWithWarningEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	spec := endianTwinSpec(spsstest.LittleEndian, spsstest.CompressionBytecode)
 	spec.RawExtensions = []spsstest.RawExtension{
 		{Subtype: 4242, Size: 1, Payload: []byte("nobody knows what this is")},
@@ -581,6 +599,8 @@ func TestUnknownExtensionSubtype_SkipsWithWarningEndToEnd(t *testing.T) {
 // override is what makes it importable. Before E3-S5 that override was
 // reachable only from Go, so a CLI user had no recourse whatsoever.
 func TestCharsetOverride_RescuesAnUndeclaredFile(t *testing.T) {
+	t.Parallel()
+
 	// The generator refuses to emit a non-ASCII byte into a file that
 	// declares no encoding — which is the right rule for an emitter and
 	// exactly the file shape under test here — so the 8-bit byte is

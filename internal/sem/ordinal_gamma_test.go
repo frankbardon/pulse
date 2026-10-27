@@ -58,6 +58,8 @@ func matrixClose(t *testing.T, what string, got, want [][]float64, scale, tol fl
 // on the correlation scale, covClose); at the port's own estimates
 // (lavaan's nlminb stop is ~1e-7 off the root) within 1e-5.
 func TestWLSMV_GammaMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	for _, fx := range twoStepFixtures {
 		var gr gammaRef
 		readJSON(t, "testdata/"+fx.ref+"_lavaan.json", &gr)
@@ -127,6 +129,8 @@ func covClose(t *testing.T, what string, got, want [][]float64, tol float64) {
 // hold on amd64 and arm64 alike. Never regenerate them for a refactor;
 // a deliberate numerical change prints the new digests on failure.
 func TestWLSMV_GammaGoldenBits(t *testing.T) {
+	t.Parallel()
+
 	digests := map[string]string{}
 	for _, fx := range twoStepFixtures {
 		var gr gammaRef

@@ -33,6 +33,8 @@ func prototypeTestSchema() *encoding.Schema {
 // the Go type the env binds it as (a decoded record's value through Bind); a duplicate keeps its
 // first occurrence; a nil schema declares nothing.
 func TestPrototype_DeclaresSchemaTypes(t *testing.T) {
+	t.Parallel()
+
 	decl := Prototype(prototypeTestSchema())
 	want := map[string]reflect.Type{
 		"x":        reflect.TypeOf(float64(0)),
@@ -62,6 +64,8 @@ func TestPrototype_DeclaresSchemaTypes(t *testing.T) {
 // record and no engine — and a type error or an unknown name fails at
 // compile, as it does at the runtime's build.
 func TestPrototype_CompilesWithoutEngine(t *testing.T) {
+	t.Parallel()
+
 	opts := append([]expr.Option{expr.Env(Prototype(prototypeTestSchema()))}, Options()...)
 	opts = append(opts, ExtensionFunctions([]NamedFunc{
 		{Name: "triple", Fn: func(v float64) float64 { return v * 3 }},

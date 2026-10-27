@@ -14,6 +14,8 @@ import (
 // only, nothing from Pulse or any third party, so an adapter module can
 // implement it without depending on the engine.
 func TestObserveImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +50,8 @@ func TestObserveImportBoundary(t *testing.T) {
 // empty value — they are metric label values, so a collision would merge
 // two series.
 func TestEnumsDistinct(t *testing.T) {
+	t.Parallel()
+
 	check := func(name string, vals []string, want int) {
 		t.Helper()
 		if len(vals) != want {

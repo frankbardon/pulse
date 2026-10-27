@@ -19,6 +19,8 @@ import (
 // serves the unshaped output — and an unknown preset fails Register
 // with PULSE_RETURN_INVALID.
 func TestRegister_DefaultReturn(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	if err := afero.WriteFile(fs, "d.csv", []byte("name,amount\nA,1\nB,2\n"), 0o644); err != nil {
 		t.Fatal(err)

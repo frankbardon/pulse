@@ -34,6 +34,8 @@ var twoStepFiles = []string{"normal.go", "bvn.go", "ordinal.go", "ordinal_scores
 // expansion either sign, ρ = ±1) and a SHA-256 of every figure of the
 // fixtures' two-step statistics and casewise scores.
 func TestPolychoric_GoldenBits(t *testing.T) {
+	t.Parallel()
+
 	scalars := []struct {
 		name string
 		got  float64
@@ -141,6 +143,8 @@ func twoStepDigest(t *testing.T, in TwoStepInput, ss []*TwoStepStats) string {
 // multiply-add it contracted, and none may name a two-step file. A
 // probe first proves the flag still reports a contraction.
 func TestPolychoric_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	build := func(dir, importPath string) string {
 		cmd := exec.Command("go", "build", "-o", os.DevNull, "-gcflags="+importPath+"=-d=fmahash=vy", ".")
 		cmd.Dir = dir

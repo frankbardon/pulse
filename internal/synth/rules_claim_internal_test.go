@@ -13,6 +13,8 @@ import "testing"
 // fidelity entry this story removes. A substring test fails the second
 // direction on the first survey column named `nps_reason`.
 func TestExprReadsIdentifier_ParsesRatherThanMatchesSubstrings(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		src   string
@@ -51,6 +53,8 @@ func TestExprReadsIdentifier_ParsesRatherThanMatchesSubstrings(t *testing.T) {
 // not a conflict: the FIRST claim is the one a warning names, so a Go
 // map walk here would make the text a reader sees depend on a map seed.
 func TestRuleClaims_KeyingAndOrder(t *testing.T) {
+	t.Parallel()
+
 	rules := []RuleSpec{
 		// Claims both, sorted within the slot and set before set_expr.
 		{Set: map[string]any{"b": 1.0, "a": 2.0}, SetExpr: map[string]string{"d": "1", "c": "2"}},

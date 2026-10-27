@@ -14,6 +14,8 @@ import (
 // known), in that order — over the static catalog and the runtime set
 // alike.
 func TestCheckSweepAxis(t *testing.T) {
+	t.Parallel()
+
 	fits := []types.FitSpec{
 		{Name: "plain", Request: &types.Request{Regressions: []*types.RegressionSpec{namedOLS("m", "x")}}},
 		{Name: "best", FromSweep: &types.FitFromSweep{Regression: "m"}, Request: &types.Request{Regressions: []*types.RegressionSpec{namedOLS("m", "x")}}},

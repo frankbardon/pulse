@@ -54,6 +54,8 @@ func decayModel(t, y []float64) (func([]float64) []float64, func([]float64) [][]
 // recovers (a, k) = (5, 0.3) to the stop tolerance with a zero cost; on
 // perturbed data it lands within 2% and reports JᵀJ at the solution.
 func TestOptimize_LeastSquaresExponentialDecay(t *testing.T) {
+	t.Parallel()
+
 	t.Run("exact", func(t *testing.T) {
 		ts, y := decayData(0)
 		r, j := decayModel(ts, y)
@@ -142,6 +144,8 @@ func linearModel(x1, x2, y []float64) (func([]float64) []float64, func([]float64
 // one-predictor least-squares solution; an upper bound below the truth
 // is hit exactly the same way.
 func TestOptimize_LeastSquaresBoundActive(t *testing.T) {
+	t.Parallel()
+
 	x1, x2, y := linearData()
 	r, j := linearModel(x1, x2, y)
 	inf := math.Inf(1)
@@ -200,6 +204,8 @@ func rosenJac(x []float64) [][]float64 {
 // PULSE_OPTIMIZE_NOT_CONVERGED; uncapped, the same problem converges to
 // (1, 1).
 func TestOptimize_LeastSquaresNotConverged(t *testing.T) {
+	t.Parallel()
+
 	res, err := optimize.LeastSquares(rosenResiduals, rosenJac, []float64{-1.2, 1}, nil, nil, optimize.LeastSquaresOptions{MaxIter: 3})
 	mustCode(t, err, perr.PULSE_OPTIMIZE_NOT_CONVERGED)
 	if res == nil || res.Status != optimize.LSIterLimit || res.Status.Converged() || res.Iterations != 3 || len(res.X) != 2 || res.JTJ == nil {
@@ -218,6 +224,8 @@ func TestOptimize_LeastSquaresNotConverged(t *testing.T) {
 // like a cost rise — the damping grows and the run converges outside
 // the band — never accepted, and never an error.
 func TestOptimize_LeastSquaresRejectsNonFiniteJacobian(t *testing.T) {
+	t.Parallel()
+
 	inBand := func(v float64) bool { return v > 1.99 && v < 2.01 }
 	res, err := optimize.LeastSquares(
 		func(x []float64) []float64 { return []float64{x[0] - 2} },
@@ -240,6 +248,8 @@ func TestOptimize_LeastSquaresRejectsNonFiniteJacobian(t *testing.T) {
 // with a nil result and the fault in details.reason — callback shape
 // faults included, never a panic.
 func TestOptimize_LeastSquaresInvalid(t *testing.T) {
+	t.Parallel()
+
 	r, j := rosenResiduals, rosenJac
 	x0 := []float64{-1.2, 1}
 	cases := []struct {
@@ -315,6 +325,8 @@ func TestOptimize_LeastSquaresInvalid(t *testing.T) {
 // bits on every architecture; a dropped float64() barrier, a reordered
 // sum or a changed damping schedule moves them.
 func TestOptimize_LeastSquaresBitExact(t *testing.T) {
+	t.Parallel()
+
 	ts, y := decayData(0.01)
 	r, j := decayModel(ts, y)
 	res, err := optimize.LeastSquares(r, j, []float64{1, 1}, []float64{0, 0}, nil, optimize.LeastSquaresOptions{})

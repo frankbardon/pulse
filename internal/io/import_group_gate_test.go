@@ -77,6 +77,8 @@ func gateImport(t *testing.T, decls []GroupDecl, mutate ...func(*ImportJob)) (*I
 // positions when an earlier group is dropped. The per-group byte deltas
 // account for the whole file-size difference against the flat import.
 func TestImportJob_GroupGate_PerGroup(t *testing.T) {
+	t.Parallel()
+
 	_, flatRaw, flatFS, err := gateImport(t, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -184,6 +186,8 @@ func TestImportJob_GroupGate_PerGroup(t *testing.T) {
 // fatal error carrying its own code (reachable with errors.As) and no
 // cohort is written; a clean group still imports under strict.
 func TestImportJob_GroupGate_Strict(t *testing.T) {
+	t.Parallel()
+
 	strict := func(j *ImportJob) { j.StrictDedup = true }
 	for _, tc := range []struct {
 		name  string
@@ -219,6 +223,8 @@ func TestImportJob_GroupGate_Strict(t *testing.T) {
 // default; a floor of 1 silences the floor but never the grows-the-file
 // check.
 func TestImportJob_GroupGate_RatioFloor(t *testing.T) {
+	t.Parallel()
+
 	floor := func(f float64) func(*ImportJob) { return func(j *ImportJob) { j.DedupRatioFloor = f } }
 	for _, tc := range []struct {
 		name    string
@@ -251,6 +257,8 @@ func TestImportJob_GroupGate_RatioFloor(t *testing.T) {
 // TestImportJob_GroupGate_DroppedFreesElision: a dropped group reserves
 // nothing, so a constant member of it is elided like any row field.
 func TestImportJob_GroupGate_DroppedFreesElision(t *testing.T) {
+	t.Parallel()
+
 	cols, rows, schema := gateFixture()
 	cols = append(cols, "src")
 	schema.Fields = append(schema.Fields, encoding.Field{Name: "src", Type: encoding.FieldTypeCategoricalU8, CsvColumnIdx: len(cols) - 1})

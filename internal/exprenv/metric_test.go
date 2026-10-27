@@ -16,6 +16,8 @@ import (
 // sum rescaled by p/p_observed when a pair is missing, R stats::dist()),
 // cosine the cosine SIMILARITY — bit for bit.
 func TestExprMetrics_ResolveThroughRegistry(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	cases := []struct {
 		name         string
@@ -78,6 +80,8 @@ func TestExprMetrics_ResolveThroughRegistry(t *testing.T) {
 // the registry over label counts: NaN denominators stay NaN, hamming is
 // an int count.
 func TestExprMetrics_SetKernels(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	cases := []struct {
 		o                      metric.SetCounts
@@ -130,6 +134,8 @@ func TestExprMetrics_SetKernels(t *testing.T) {
 // intersection; duplicates count once, order is irrelevant, inputs are
 // never mutated.
 func TestLabelSetCounts(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		a, b []string
@@ -161,6 +167,8 @@ func TestLabelSetCounts(t *testing.T) {
 // exactly the metrics an expression function exposes, in the forms it
 // exposes them — cosine as a similarity only.
 func TestExprMetrics_ManifestTruthful(t *testing.T) {
+	t.Parallel()
+
 	exposed := map[string]metric.Form{
 		"euclidean": metric.Distance, "cosine": metric.Similarity,
 		"jaccard": metric.Similarity, "dice": metric.Similarity, "hamming": metric.Distance, "overlap": metric.Similarity,

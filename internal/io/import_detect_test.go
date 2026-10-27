@@ -82,6 +82,8 @@ func candidateByKey(t *testing.T, d *GroupDetection, key string) GroupCandidate 
 // breaks later; never nominates the global constant or a child-level
 // column; and suggests both as a non-overlapping, ready-to-paste set.
 func TestImportPredict_SuggestGroups_FindsJoinParents(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := orderLinesFixture(14000)
 	rep, err := predictJob(t, newMockReader(cols, rows), suggest)
 	if err != nil {
@@ -141,6 +143,8 @@ func TestImportPredict_SuggestGroups_FindsJoinParents(t *testing.T) {
 // the inference sample, and one (cust_name) promoted past its inferred
 // categorical_u8 width — which makes predict re-measure from the top.
 func TestImportPredict_SuggestedMatchesImport(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := orderLinesFixture(14000)
 	rep, err := predictJob(t, newMockReader(cols, rows), suggest)
 	if err != nil {
@@ -215,6 +219,8 @@ func TestImportPredict_SuggestedMatchesImport(t *testing.T) {
 // a dropped, a low-ratio and a file-growing group, with and without
 // constant elision.
 func TestImportPredict_DeclaredGroupsMatchImport(t *testing.T) {
+	t.Parallel()
+
 	decls := []GroupDecl{gateGood, gateLow, gateNarrow, gateGrows}
 	for _, elide := range []bool{false, true} {
 		t.Run(fmt.Sprintf("elide=%v", elide), func(t *testing.T) {
@@ -267,6 +273,8 @@ func codes(ws []*perrors.CodedError) string {
 // varies fails predict with the error Run fails with — same code and
 // the same group / field / record / source-row details.
 func TestImportPredict_DeclaredKeyViolation(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := orderLinesFixture(14000)
 	bad := []GroupDecl{{Key: []string{"cust_id"}, Members: []string{"cust_name", "cust_flag"}}}
 	_, perr := predictJob(t, newMockReader(cols, rows), func(j *ImportJob) { j.Groups = bad })
@@ -283,6 +291,8 @@ func TestImportPredict_DeclaredKeyViolation(t *testing.T) {
 // TestImportPredict_Strict: StrictDedup fails predict exactly where it
 // fails the import.
 func TestImportPredict_Strict(t *testing.T) {
+	t.Parallel()
+
 	cols, rows, schema := gateFixture()
 	_, err := predictJob(t, newMockReader(cols, rows), func(j *ImportJob) {
 		j.Schema = schema
@@ -299,6 +309,8 @@ func TestImportPredict_Strict(t *testing.T) {
 // below the floors reports them WITH the verdict and reason, and
 // suggests none — never promotes a marginal group.
 func TestImportPredict_NoViableGroup(t *testing.T) {
+	t.Parallel()
+
 	cols, rows, schema := gateFixture()
 	// Keep only the three non-viable parents (low ratio, narrow,
 	// grows-the-file) and the unique row id.
@@ -347,6 +359,8 @@ func TestImportPredict_NoViableGroup(t *testing.T) {
 // SuggestGroups, predict runs the plain pass and the measured fields
 // stay nil — the report (and its JSON) is unchanged.
 func TestImportPredict_PlainUnchanged(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := orderLinesFixture(600)
 	rep, err := predictJob(t, newMockReader(cols, rows))
 	if err != nil {
@@ -368,6 +382,8 @@ func TestImportPredict_PlainUnchanged(t *testing.T) {
 // TestImportPredict_ShortSource: a source shorter than the window is
 // nominated over all of it.
 func TestImportPredict_ShortSource(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := orderLinesFixture(600)
 	rep, err := predictJob(t, newMockReader(cols, rows), suggest)
 	if err != nil {
@@ -385,6 +401,8 @@ func TestImportPredict_ShortSource(t *testing.T) {
 // TestDetectWindow: the nomination window shrinks for a wide or
 // long-stride schema and never below the floor.
 func TestDetectWindow(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct{ fields, stride, want int }{
 		{10, 80, detectWindowMaxRows},
 		{1000, 8000, detectWindowCells / 1000},

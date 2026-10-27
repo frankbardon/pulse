@@ -11,6 +11,8 @@ import (
 // order differs from the stored fit's — the check a loaded SEM fit file
 // passes at load (model.CheckLoadedSEM) and a bound fit at scoring.
 func TestSEMScore_RebuildChecksStoredOrders(t *testing.T) {
+	t.Parallel()
+
 	good := func() *model.SEMFit {
 		return &model.SEMFit{Name: "f", Model: "f =~ q1 + q2 + q3", Lavaan: true,
 			Observed: []string{"q1", "q2", "q3"}, Inner: []string{"f"}, Latents: []string{"f"}}

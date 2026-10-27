@@ -34,6 +34,8 @@ func (r *stringRowsReader) Close() error { return nil }
 func (r *stringRowsReader) Reset() error { r.pos = 0; return nil }
 
 func TestImport_DecimalRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 20, Scale: 6, CsvColumnIdx: 0, Description: "Amount in USD with 6 decimal places of precision."},
@@ -111,6 +113,8 @@ func TestImport_DecimalRoundTrip(t *testing.T) {
 // exactly what let a wholly-failed import pass for success, so the
 // assertion moved onto the error return.
 func TestImport_DecimalReject(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2, CsvColumnIdx: 0, Description: "Amount field with strict parsing rules applied."},

@@ -18,8 +18,12 @@ import "testing"
 // distribution latentFor cannot invert; see
 // TestLatentFor_EveryDistributionIsClassified.
 func TestFieldMoments_RefusesUnsupportedDistributions(t *testing.T) {
+	t.Parallel()
+
 	for _, dist := range []string{DistPoisson, DistPareto} {
 		t.Run(dist, func(t *testing.T) {
+			t.Parallel()
+
 			fs := FieldSpec{Name: "b", Type: "f64", Distribution: dist}
 			if _, _, _, _, _, err := fieldMoments(fs); err == nil {
 				t.Fatalf("distribution %q: expected fieldMoments refusal, got success", dist)
@@ -38,6 +42,8 @@ func TestFieldMoments_RefusesUnsupportedDistributions(t *testing.T) {
 // These two sets remain identical. It is latentFor that no longer matches
 // them, because a step Q is usable forwards and not backwards.
 func TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions(t *testing.T) {
+	t.Parallel()
+
 	supported := []FieldSpec{
 		{Name: "n", Distribution: DistNormal, Params: map[string]any{"mean": 1.0, "std": 2.0}},
 		{Name: "u", Distribution: DistUniform, Params: map[string]any{"min": 0.0, "max": 1.0}},
@@ -81,6 +87,8 @@ func TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions(t *testing
 // the copula's normal branch must reduce to precisely the pre-copula
 // formula mean + std*u, byte-identical, not merely "close".
 func TestQuantileFor_NormalReducesExactlyToMeanPlusStdTimesU(t *testing.T) {
+	t.Parallel()
+
 	fs := FieldSpec{Name: "n", Distribution: DistNormal, Params: map[string]any{"mean": 5.0, "std": 2.0}}
 	mean, std, _, _, _, err := fieldMoments(fs)
 	if err != nil {
@@ -101,6 +109,8 @@ func TestQuantileFor_NormalReducesExactlyToMeanPlusStdTimesU(t *testing.T) {
 // TestPhi_KnownValues sanity-checks phi (the standard normal CDF, via
 // math.Erf) against textbook values.
 func TestPhi_KnownValues(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		x, want float64
 		tol     float64

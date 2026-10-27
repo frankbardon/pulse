@@ -93,6 +93,8 @@ func runningMoments(xs []float64) (int, float64, float64) {
 // diff needs this fact stated, and a green run must not be mistaken for
 // "no fusion anywhere" when the architecture simply cannot fuse.
 func TestFloatFusion_ProbeReportsWhetherThisBuildContracts(t *testing.T) {
+	t.Parallel()
+
 	obs := contractionObservable()
 	t.Logf("GOARCH=%s contracts a-b*c into an FMA on the gate's samples: %v", runtime.GOARCH, obs)
 	if !obs {
@@ -120,6 +122,8 @@ func fusedSampleVariance(count int, sum, sumSq float64) float64 {
 // sampleVariance — the single expression every captured `std` in a
 // profile document and every `std` in a fidelity report flows through.
 func TestFloatFusion_SampleVarianceIsBarriered(t *testing.T) {
+	t.Parallel()
+
 	spend, _ := fmaGateSamples()
 	count, sum, sumSq := runningMoments(spend)
 
@@ -207,6 +211,8 @@ func barrieredPearson(a, b []float64) float64 {
 // produces every `rho` in a profile document's `pairwise` and
 // `conditional.numeric_pairs` sections.
 func TestFloatFusion_PearsonIsBarriered(t *testing.T) {
+	t.Parallel()
+
 	a, b := fmaGateSamples()
 
 	fused := fusedPearson(a, b)
@@ -245,6 +251,8 @@ func fusedPercentile(sorted []float64, q float64) float64 {
 // barriers in computePercentiles, which produce the `percentiles` block
 // of every numeric field in a profile document.
 func TestFloatFusion_PercentileInterpolationIsBarriered(t *testing.T) {
+	t.Parallel()
+
 	sorted, _ := fmaGateSamples()
 	sort.Float64s(sorted)
 

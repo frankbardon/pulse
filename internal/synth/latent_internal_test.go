@@ -26,6 +26,8 @@ import (
 // a false attenuation is worse than no section at all, because it sends
 // a reader hunting a generation bug that does not exist.
 func TestLatentFor_InvertsQuantileForEveryDistribution(t *testing.T) {
+	t.Parallel()
+
 	// The probe points stay inside +/-2.5 sd. Beyond that the mixture's
 	// bisection bracket and float64's grip on exp() both start costing
 	// digits, and this test is about the ALGEBRA matching, not about the
@@ -113,6 +115,8 @@ func TestLatentFor_InvertsQuantileForEveryDistribution(t *testing.T) {
 // refusal — admitted but not invertible — is the step-quantile case, held
 // by TestLatentFor_EveryDistributionIsClassified.)
 func TestLatentFor_RefusesUnsupportedDistribution(t *testing.T) {
+	t.Parallel()
+
 	fs := FieldSpec{Name: "p", Distribution: DistPoisson,
 		Params: map[string]any{"lambda": 3.0}}
 	if _, err := latentFor(fs, 3, 1.7); err == nil {
@@ -125,6 +129,8 @@ func TestLatentFor_RefusesUnsupportedDistribution(t *testing.T) {
 // generated value outside it is not a number the inverse may guess at:
 // the row must drop out of the refit, exactly as a null would.
 func TestLatentFor_ReportsUnplaceableValues(t *testing.T) {
+	t.Parallel()
+
 	logn := FieldSpec{Name: "l", Distribution: DistLogNormal,
 		Params: map[string]any{"mu": 1.0, "sigma": 0.5}}
 	inv, err := latentFor(logn, 3, 1.5)
@@ -154,6 +160,8 @@ func TestLatentFor_ReportsUnplaceableValues(t *testing.T) {
 // the Gram matrix of the whole refit it appears in, which is a much
 // worse outcome than that row being placed a few thousandths off.
 func TestPhiInv_ClipsRatherThanReturningInfinity(t *testing.T) {
+	t.Parallel()
+
 	for _, p := range []float64{0, 1, -1, 2, math.SmallestNonzeroFloat64} {
 		got := phiInv(p)
 		if math.IsInf(got, 0) || math.IsNaN(got) {

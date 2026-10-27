@@ -17,6 +17,8 @@ import (
 // names outgrow the categorical_u8 the inference sample picks, and
 // reports the promotion as width_warnings.
 func TestManager_Open_WidthPromotion(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	var b strings.Builder
 	b.WriteString("line_id,parent_name,qty\n")

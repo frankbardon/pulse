@@ -57,6 +57,8 @@ func description(t *testing.T, s *template.Store, name string) string {
 // and flaky in the bad one, and Reload exists precisely so neither is
 // necessary.
 func TestStore_ReloadPicksUpDirectoryChanges(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// mutate changes the directory after the store is built.
@@ -180,6 +182,8 @@ func TestStore_ReloadPicksUpDirectoryChanges(t *testing.T) {
 // The assertion is a parse counter rather than a timing measurement,
 // because the claim is about work not done and timing cannot prove that.
 func TestStore_ReloadSkipsUnchangedFiles(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "revenue.json", validTemplate("one"))
 	writeFile(t, dir, "finance/cost.json", validTemplate("two"))
@@ -228,6 +232,8 @@ func TestStore_ReloadSkipsUnchangedFiles(t *testing.T) {
 // the same thing an order of magnitude slower, and would go red on a busy
 // machine for reasons that have nothing to do with the store.
 func TestStore_RescanIntervalGatesTheWalk(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "revenue.json", validTemplate("original"))
 
@@ -289,6 +295,8 @@ func TestStore_RescanIntervalGatesTheWalk(t *testing.T) {
 // name back to the root underneath — otherwise a layered deployment could
 // only be re-layered by restarting.
 func TestStore_ReloadReresolvesShadowing(t *testing.T) {
+	t.Parallel()
+
 	high, low := t.TempDir(), t.TempDir()
 	lowPath := writeFile(t, low, "shared.json", validTemplate("from low"))
 
@@ -339,6 +347,8 @@ func TestStore_ReloadReresolvesShadowing(t *testing.T) {
 // than a fault — which is what lets the facade forward the call without a
 // nil check.
 func TestStore_ReloadOnNilStoreIsANoOp(t *testing.T) {
+	t.Parallel()
+
 	var s *template.Store
 	if err := s.Reload(); err != nil {
 		t.Errorf("(*Store)(nil).Reload() = %v, want nil", err)
@@ -370,6 +380,8 @@ func TestStore_ReloadOnNilStoreIsANoOp(t *testing.T) {
 // regular file is a misconfiguration rather than a transient edit, and
 // there is no per-file scope to degrade it to.
 func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a malformed file does not fail the reload", func(t *testing.T) {
 		dir := t.TempDir()
 		writeFile(t, dir, "revenue.json", validTemplate("original"))
@@ -439,6 +451,8 @@ func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
 // coherent answer or a clean not-found — never a torn index and never a
 // panic.
 func TestStore_ConcurrentLookupDuringRescan(t *testing.T) {
+	t.Parallel()
+
 	high, low := t.TempDir(), t.TempDir()
 	writeFile(t, low, "shared.json", validTemplate("from low"))
 	writeFile(t, low, "stable.json", validTemplate("stable"))

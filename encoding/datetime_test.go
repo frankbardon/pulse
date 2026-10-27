@@ -13,6 +13,8 @@ import (
 // least one row here — the accepted layout list is a contract, not an
 // implementation detail.
 func TestParseDateTime_AcceptedLayouts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  string
@@ -49,6 +51,8 @@ func TestParseDateTime_AcceptedLayouts(t *testing.T) {
 // being added to DateTimeFormats that Go's time package cannot round a
 // reference value through.
 func TestParseDateTime_EveryDeclaredLayoutParses(t *testing.T) {
+	t.Parallel()
+
 	ref := time.Date(2024, 3, 4, 10, 11, 12, 0, time.UTC)
 	for _, layout := range DateTimeFormats {
 		lit := ref.Format(layout)
@@ -63,6 +67,8 @@ func TestParseDateTime_EveryDeclaredLayoutParses(t *testing.T) {
 // date-only forms are `date` values, not datetimes — both must fail
 // loudly rather than resolve to a guessed instant.
 func TestParseDateTime_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  string
@@ -104,6 +110,8 @@ func TestParseDateTime_Rejects(t *testing.T) {
 // date-only literal may be swallowed by ParseDateTime. This is what
 // keeps internal/io/infer.go's date-vs-datetime classification stable.
 func TestParseDateTime_RejectsEveryDateOnlyLayout(t *testing.T) {
+	t.Parallel()
+
 	ref := time.Date(2024, 3, 4, 0, 0, 0, 0, time.UTC)
 	for _, layout := range DateFormats {
 		if hasTimeComponent(layout) {
@@ -130,6 +138,8 @@ func hasTimeComponent(layout string) bool {
 
 // TestFormatDateTime_CanonicalForm pins the emitted text form.
 func TestFormatDateTime_CanonicalForm(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  int64
@@ -155,6 +165,8 @@ func TestFormatDateTime_CanonicalForm(t *testing.T) {
 // exports as must re-import to the identical on-wire uint64, including
 // the time-of-day.
 func TestDateTime_RoundTripThroughCanonicalForm(t *testing.T) {
+	t.Parallel()
+
 	literals := []string{
 		"1970-01-01T00:00:00Z",
 		"2024-03-04T10:11:12Z",
@@ -190,6 +202,8 @@ func TestDateTime_RoundTripThroughCanonicalForm(t *testing.T) {
 // distinction. The same wall-clock day must produce wildly different
 // on-wire numbers for the two types; a swap would be silent corruption.
 func TestDateTime_NotConflatedWithDate(t *testing.T) {
+	t.Parallel()
+
 	days, err := ParseDate("2024-03-04")
 	if err != nil {
 		t.Fatalf("ParseDate: %v", err)
@@ -222,6 +236,8 @@ func errorsAs(err error, target **errors.CodedError) bool {
 // is discarded, never rounded, and the floor runs toward the past so a
 // pre-1970 instant lands on the calendar day that actually contains it.
 func TestDateTimeToDay_Truncates(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  string
@@ -258,6 +274,8 @@ func TestDateTimeToDay_Truncates(t *testing.T) {
 // ever diverge, a GROUP_DATE_RANGES set compiled from date literals
 // would silently mis-bucket every datetime row.
 func TestDateTimeToDay_AgreesWithParseDate(t *testing.T) {
+	t.Parallel()
+
 	days := []string{"1970-01-01", "2000-02-29", "2024-03-04", "2038-01-19"}
 	for _, d := range days {
 		t.Run(d, func(t *testing.T) {
@@ -281,6 +299,8 @@ func TestDateTimeToDay_AgreesWithParseDate(t *testing.T) {
 // TestSecondsPerDay_MatchesParseDate guards the shared constant against
 // drift from the divisor ParseDate itself uses.
 func TestSecondsPerDay_MatchesParseDate(t *testing.T) {
+	t.Parallel()
+
 	if SecondsPerDay != 86400 {
 		t.Fatalf("SecondsPerDay = %d; want 86400", SecondsPerDay)
 	}

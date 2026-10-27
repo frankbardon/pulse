@@ -12,6 +12,8 @@ import (
 // the wire and the profile must report a pre-1970 range rather than a day
 // near 4.29e9.
 func TestSynth_PreEpochDate_RuleLiteralAndProfile(t *testing.T) {
+	t.Parallel()
+
 	const spec = `{
 	  "row_count": 6,
 	  "fields": [

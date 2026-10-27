@@ -15,6 +15,8 @@ import (
 // NEW offset; a copied one would sit beside it as a duplicate) while
 // every other block survives in order, and a malformed tail is kept.
 func TestShardStream_StripZip64Extra(t *testing.T) {
+	t.Parallel()
+
 	block := func(tag uint16, data ...byte) []byte {
 		return append([]byte{byte(tag), byte(tag >> 8), byte(len(data)), 0}, data...)
 	}
@@ -57,6 +59,8 @@ func slicesClone(b []byte) []byte {
 // the copy re-hashing it, and a deflated entry is refused rather than
 // carried as compressed bytes.
 func TestShardStream_CopyStoredEntryRaw(t *testing.T) {
+	t.Parallel()
+
 	payload := bytes.Repeat([]byte("pulse-shard-"), 1000)
 	var src bytes.Buffer
 	zw := zip.NewWriter(&src)

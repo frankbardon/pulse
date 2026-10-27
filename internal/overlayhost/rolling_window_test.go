@@ -11,6 +11,8 @@ import (
 // a window below 2 (a one-point sample SD); the rolling-mean index
 // takes window 1; a non-positive window is the caller's own refusal.
 func TestRollingWindowFloorRefusal(t *testing.T) {
+	t.Parallel()
+
 	z := &types.OverlaySpec{Kind: types.OverlayKindZScoreVsRolling}
 	idx := &types.OverlaySpec{Kind: types.OverlayKindIndexVsRollingMean}
 	if RollingWindowMin(types.OverlayKindZScoreVsRolling) != 2 || RollingWindowMin(types.OverlayKindIndexVsRollingMean) != 1 {
@@ -44,6 +46,8 @@ func TestRollingWindowFloorRefusal(t *testing.T) {
 // for the rolling-mean index — else PULSE_OVERLAY_LEVEL_OUT_OF_RANGE with
 // {kind, param: "min_periods", min_periods, min, max} (+ index when >= 0).
 func TestRollingMinPeriods(t *testing.T) {
+	t.Parallel()
+
 	z := &types.OverlaySpec{Kind: types.OverlayKindZScoreVsRolling}
 	idx := &types.OverlaySpec{Kind: types.OverlayKindIndexVsRollingMean}
 	route := func(s *types.OverlaySpec) types.OverlayKind { return s.Kind }

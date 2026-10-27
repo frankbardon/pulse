@@ -22,6 +22,8 @@ import (
 // fixture profile; a skill the profile prunes is absent everywhere and
 // reads as not found on both sides.
 func TestSkills_FacadeMCPParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	full, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {

@@ -10,6 +10,8 @@ import (
 // weight and that each survives decode → encode: absent (omitted),
 // null (opt out) and set (string or {field, kind} object).
 func TestSlotWeight_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		in       string
@@ -64,6 +66,8 @@ func TestSlotWeight_JSONRoundTrip(t *testing.T) {
 // object with an unknown key is a decode error — never a silent
 // absent weight.
 func TestSlotWeight_RejectsOtherShapes(t *testing.T) {
+	t.Parallel()
+
 	for _, in := range []string{`1`, `true`, `["w"]`, `{"field":"w","kind":"frequency","extra":1}`} {
 		var w SlotWeight
 		if err := json.Unmarshal([]byte(in), &w); err == nil {
@@ -75,6 +79,8 @@ func TestSlotWeight_RejectsOtherShapes(t *testing.T) {
 // TestSlotWeight_GoConstructors: the Go spellings build exactly the
 // states the JSON forms decode into.
 func TestSlotWeight_GoConstructors(t *testing.T) {
+	t.Parallel()
+
 	if !(SlotWeight{}).IsZero() {
 		t.Error("zero SlotWeight must be absent")
 	}
@@ -102,6 +108,8 @@ func TestSlotWeight_GoConstructors(t *testing.T) {
 // ByteIdentical's), while null and set slot weights each change the
 // hash — null is not absent.
 func TestRequestWeight_AbsentByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	const captured = "a4e259f7ed18dcbcb3e78b76066bcbee"
 	mk := func(w SlotWeight) *Request {
 		return &Request{
@@ -143,6 +151,8 @@ func TestRequestWeight_AbsentByteIdentical(t *testing.T) {
 // tests, regressions, attributes, overlays — and the request root its
 // WeightSpec.
 func TestSlotWeight_EverySlotFamily(t *testing.T) {
+	t.Parallel()
+
 	body := `{
 		"weight": {"field": "w", "kind": "frequency"},
 		"aggregations": [{"type":"AGG_SUM","field":"x","weight":null}],
@@ -184,6 +194,8 @@ func TestSlotWeight_EverySlotFamily(t *testing.T) {
 // wire states — absent marshals nothing (an unweighted request is
 // byte-identical), null survives a round trip and changes the hash.
 func TestGroupWeight_NullOptOut(t *testing.T) {
+	t.Parallel()
+
 	mk := func(w SlotWeight) *Request {
 		return &Request{
 			Cohort:       &Cohort{Filename: "a.pulse"},

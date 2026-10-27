@@ -15,6 +15,8 @@ import (
 // PULSE_COHORT_COMPRESSED, never PULSE_IMPORT_FORMAT_UNKNOWN or a
 // passthrough handle every read would then reject.
 func TestManager_Open_TransferArtifactRefused(t *testing.T) {
+	t.Parallel()
+
 	m, afs, _ := newTestManager(t)
 	artifact := append(encoding.ZstdMagic[:], 0x24, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00)
 	for _, p := range []string{"c.pulse.zst", "renamed.pulse"} {

@@ -11,6 +11,8 @@ import (
 )
 
 func TestTsvReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	data := "name\tage\tscore\nalice\t30\t95.5\nbob\t25\t88.0\n"
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -28,6 +30,8 @@ func TestTsvReader_ReadHeader(t *testing.T) {
 }
 
 func TestTsvReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	data := "name\tage\nalice\t30\nbob\t25\ncharlie\t35\n"
 	r := NewReaderFromBytes([]byte(data))
 	defer r.Close()
@@ -51,6 +55,8 @@ func TestTsvReader_ReadRows(t *testing.T) {
 }
 
 func TestTsvReader_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte(""))
 	defer r.Close()
 
@@ -64,6 +70,8 @@ func TestTsvReader_EmptyFile(t *testing.T) {
 }
 
 func TestTsvWriter_WriteHeader(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	if err := w.WriteHeader([]string{"name", "age"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -77,6 +85,8 @@ func TestTsvWriter_WriteHeader(t *testing.T) {
 }
 
 func TestTsvWriter_WriteRows(t *testing.T) {
+	t.Parallel()
+
 	w := NewWriterToBuffer()
 	w.WriteHeader([]string{"name", "age"})
 	w.WriteRow([]any{"alice", 30})
@@ -97,6 +107,8 @@ func TestTsvWriter_WriteRows(t *testing.T) {
 }
 
 func TestTsvImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tsvData := "age\tname\tscore\n10\talice\t95.5\n20\tbob\t88.0\n30\tcharlie\t72.3\n"
 	reader := NewReaderFromBytes([]byte(tsvData))
 	fs := afero.NewMemMapFs()
@@ -139,6 +151,8 @@ func TestTsvImportExportRoundTrip(t *testing.T) {
 }
 
 func TestTsvImport_WithInferredSchema(t *testing.T) {
+	t.Parallel()
+
 	tsvData := "val\n10\n20\n30\n40\n50\n"
 	reader := NewReaderFromBytes([]byte(tsvData))
 	fs := afero.NewMemMapFs()
@@ -160,6 +174,8 @@ func TestTsvImport_WithInferredSchema(t *testing.T) {
 }
 
 func TestTsvReader_ResetReader(t *testing.T) {
+	t.Parallel()
+
 	data := "name\tage\nalice\t30\nbob\t25\n"
 	r := NewReaderFromBytes([]byte(data))
 
@@ -192,6 +208,8 @@ func TestTsvReader_ResetReader(t *testing.T) {
 }
 
 func TestTsvWriter_FilePath(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "output.tsv")
 	w.WriteHeader([]string{"a", "b"})
@@ -213,6 +231,8 @@ func TestTsvWriter_FilePath(t *testing.T) {
 }
 
 func TestTsvImport_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	lines := []string{"color"}
 	colors := []string{"red", "green", "blue"}
 	for i := 0; i < 100; i++ {

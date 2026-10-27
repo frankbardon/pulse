@@ -16,6 +16,8 @@ import (
 // The expectation is sentinelFor's own answer rather than a second
 // hardcoded column, so the two cannot drift.
 func TestConstantRowValue_MatchesTheRowShapeForEveryClass(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		typeName  string
@@ -75,6 +77,8 @@ func TestConstantRowValue_MatchesTheRowShapeForEveryClass(t *testing.T) {
 // that used to reach the row (or the encoder) and produce a silent wrong
 // value are refused at spec compile time instead.
 func TestConstantRowValue_RefusesAShapeTheRowCannotHold(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		typeName string
@@ -105,6 +109,8 @@ func TestConstantRowValue_RefusesAShapeTheRowCannotHold(t *testing.T) {
 // encoding.ParseDecimal128 is exact and routing it through float64 would
 // lose digits the type exists to preserve.
 func TestConstantRowValue_DecimalStringSurvives(t *testing.T) {
+	t.Parallel()
+
 	f := FieldSpec{Name: "f", Type: "decimal128", Scale: 2, Distribution: DistConstant,
 		Params: map[string]any{"value": "1.25"}}
 	smp, err := buildSampler(f)

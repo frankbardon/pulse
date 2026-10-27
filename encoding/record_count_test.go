@@ -8,6 +8,8 @@ import "testing"
 // reported separately; the two arms differ only in what they do with
 // the leftover, never in the count.
 func TestRecordCountForPayload_Matrix(t *testing.T) {
+	t.Parallel()
+
 	// 4 (u32) + 8 (f64) = 12-byte stride, no nullable field.
 	plain := &Schema{Fields: []Field{
 		{Name: "id", Type: FieldTypeU32, ByteOffset: 0},

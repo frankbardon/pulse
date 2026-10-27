@@ -18,6 +18,8 @@ import (
 // assertion is about what actually enters the row map, not about what the
 // params slot happens to hold.
 func TestSpecFromProfile_UnsummarisableFallbackMatchesTheRowShape(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile("testdata/profile_all_null_columns.json")
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)

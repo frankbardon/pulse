@@ -15,6 +15,8 @@ import (
 )
 
 func TestParseSchemaFieldType(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range RegisteredFieldTypeNames() {
 		ft, err := ParseSchemaFieldType("col", name)
 		if err != nil {
@@ -29,6 +31,8 @@ func TestParseSchemaFieldType(t *testing.T) {
 // An unknown type name is refused, never coerced to f64 (the old
 // fallback turned a typo into a silently mistyped column).
 func TestParseSchemaFieldType_UnknownRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"unknown_type", "float", "F64", ""} {
 		_, err := ParseSchemaFieldType("price", name)
 		var ce *errors.CodedError
@@ -83,6 +87,8 @@ func inferredBitPackedSchema(t *testing.T) *encoding.Schema {
 // the one inference builds for the same fields, offsets and bit
 // positions included.
 func TestParseSchemaJSON_BitPackedLayoutMatchesInference(t *testing.T) {
+	t.Parallel()
+
 	got, err := ParseSchemaJSON([]byte(bitPackedSchemaDoc))
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +112,8 @@ func TestParseSchemaJSON_BitPackedLayoutMatchesInference(t *testing.T) {
 // import of the same source writes — so the two are structurally
 // cohesive shards.
 func TestImport_SchemaFileBitPacked_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	const reordered = `[
   {"name": "score", "type": "f64"},
@@ -170,6 +178,8 @@ func TestImport_SchemaFileBitPacked_RoundTrip(t *testing.T) {
 // The schema-template document round-trips through ParseSchemaJSON,
 // decimal precision and scale included.
 func TestSchemaFileTemplate_RoundTrips(t *testing.T) {
+	t.Parallel()
+
 	src := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "flag", Type: encoding.FieldTypePackedBool, Description: "dropped"},
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Nullable: true, Precision: 12, Scale: 2},
@@ -204,6 +214,8 @@ func TestSchemaFileTemplate_RoundTrips(t *testing.T) {
 // of field objects is PULSE_IMPORT_SCHEMA_INVALID (reason malformed), not
 // an uncoded error an envelope can only report under a placeholder.
 func TestParseSchemaJSON_MalformedIsCoded(t *testing.T) {
+	t.Parallel()
+
 	for _, doc := range []string{`{"name":"a"}`, `[{"name":"a","type":"u8"`, `"u8"`} {
 		_, err := ParseSchemaJSON([]byte(doc))
 		var ce *errors.CodedError
@@ -219,6 +231,8 @@ func TestParseSchemaJSON_MalformedIsCoded(t *testing.T) {
 // TestSchemaFromFields_EmptyRefused: an explicit schema with no fields
 // cannot describe a cohort; it is refused rather than read as "infer".
 func TestSchemaFromFields_EmptyRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, run := range []func() error{
 		func() error { _, err := SchemaFromFields(nil); return err },
 		func() error { _, err := ParseSchemaJSON([]byte(`[]`)); return err },
@@ -234,6 +248,8 @@ func TestSchemaFromFields_EmptyRefused(t *testing.T) {
 // TestSchemaFromFields_MatchesParseSchemaJSON: the entry-level builder
 // and the document decoder lay a schema out identically.
 func TestSchemaFromFields_MatchesParseSchemaJSON(t *testing.T) {
+	t.Parallel()
+
 	defs := []SchemaFileField{
 		{Name: "flag", Type: "packed_bool", Nullable: true},
 		{Name: "n", Type: "u16", Description: "count"},
@@ -262,6 +278,8 @@ func TestSchemaFromFields_MatchesParseSchemaJSON(t *testing.T) {
 // the first write as an ENCODING_INVALID about a missing section. The
 // template writes the keys back, so the document round-trips.
 func TestSchemaFileField_VectorKeys(t *testing.T) {
+	t.Parallel()
+
 	doc := `[{"name":"id","type":"u8"},
 		{"name":"r","type":"vec_f32","dim":3,"labels":["x","y","z"],"kind":"scale","scale_min":1,"scale_max":7,"nullable":true}]`
 	s, err := ParseSchemaJSON([]byte(doc))

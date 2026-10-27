@@ -27,6 +27,8 @@ func widenSlotMask(bits ...int) encoding.SetMask {
 }
 
 func TestSetMaskSlot_RoundTripsEveryRung(t *testing.T) {
+	t.Parallel()
+
 	rungs := []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32,
 		encoding.FieldTypeSetU64, encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,
@@ -64,6 +66,8 @@ func TestSetMaskSlot_RoundTripsEveryRung(t *testing.T) {
 }
 
 func TestWriteSetMaskSlot_RefusesAMaskBeyondTheRung(t *testing.T) {
+	t.Parallel()
+
 	// A dropped selection is indistinguishable from one never made, so a
 	// narrow rung must refuse rather than silently truncate.
 	buf := make([]byte, 8)
@@ -83,6 +87,8 @@ func TestWriteSetMaskSlot_RefusesAMaskBeyondTheRung(t *testing.T) {
 }
 
 func TestSetMaskSlot_RefusesNonSetAndShortBuffers(t *testing.T) {
+	t.Parallel()
+
 	var ce *errors.CodedError
 
 	if _, err := readSetMaskSlot(make([]byte, 8), encoding.FieldTypeU64); err == nil {

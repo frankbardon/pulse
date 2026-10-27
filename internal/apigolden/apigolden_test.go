@@ -28,6 +28,8 @@ const (
 // testdata/ carries a valid // golden-hash: footer. Mirrors the same gate
 // in descriptor/ (already listed by name in CLAUDE.md).
 func TestGoldensNotHandEdited(t *testing.T) {
+	t.Parallel()
+
 	entries, err := os.ReadDir("testdata")
 	if err != nil {
 		t.Fatalf("reading testdata: %v", err)
@@ -53,6 +55,8 @@ func TestGoldensNotHandEdited(t *testing.T) {
 }
 
 func TestIsPublicPackage(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		path string
@@ -151,6 +155,8 @@ type importerFunc func(string) (*types.Package, error)
 func (f importerFunc) Import(path string) (*types.Package, error) { return f(path) }
 
 func TestRender_AliasExpandsTargetShape(t *testing.T) {
+	t.Parallel()
+
 	base := renderFixture(t, func(s string) string { return s })
 	for _, want := range []string{
 		"pulse: package root",
@@ -271,6 +277,8 @@ func lineDiff(want, got string) string {
 // linalg routines, but a gonum type on the frozen public surface would
 // tie Pulse's v1 contract to a dependency that can still break it.
 func TestLinalgSurfaceNamesNoGonum(t *testing.T) {
+	t.Parallel()
+
 	content, err := os.ReadFile(filepath.Join("testdata", goldenName))
 	if err != nil {
 		t.Fatal(err)

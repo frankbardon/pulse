@@ -10,6 +10,8 @@ import (
 )
 
 func TestImportJob_NilFS(t *testing.T) {
+	t.Parallel()
+
 	reader := newMockReader([]string{"a"}, [][]string{{"1"}})
 	job := NewImportJob(reader, "test.pulse")
 	// FS not set.
@@ -20,6 +22,8 @@ func TestImportJob_NilFS(t *testing.T) {
 }
 
 func TestExportJob_NilFS(t *testing.T) {
+	t.Parallel()
+
 	writer := &collectWriter{}
 	job := NewExportJob("test.pulse", writer)
 	// FS not set.
@@ -30,6 +34,8 @@ func TestExportJob_NilFS(t *testing.T) {
 }
 
 func TestExportJob_Predict_NilFS(t *testing.T) {
+	t.Parallel()
+
 	writer := &collectWriter{}
 	job := NewExportJob("test.pulse", writer)
 	_, err := job.Predict(context.Background())
@@ -39,6 +45,8 @@ func TestExportJob_Predict_NilFS(t *testing.T) {
 }
 
 func TestExportJob_MissingFile(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writer := &collectWriter{}
 	job := NewExportJob("missing.pulse", writer)
@@ -50,6 +58,8 @@ func TestExportJob_MissingFile(t *testing.T) {
 }
 
 func TestImportJob_RowError(t *testing.T) {
+	t.Parallel()
+
 	// Import with explicit schema where data doesn't match.
 	rows := [][]string{
 		{"10"},
@@ -83,6 +93,8 @@ func TestImportJob_RowError(t *testing.T) {
 }
 
 func TestConvertJob_NoResetReader(t *testing.T) {
+	t.Parallel()
+
 	// A reader that doesn't implement ResetReader.
 	reader := &nonResetReader{
 		columns: []string{"a"},
@@ -98,6 +110,8 @@ func TestConvertJob_NoResetReader(t *testing.T) {
 }
 
 func TestConvertJob_Predict_NoResetReader(t *testing.T) {
+	t.Parallel()
+
 	reader := &nonResetReader{
 		columns: []string{"a"},
 		rows:    [][]string{{"1"}},
@@ -111,6 +125,8 @@ func TestConvertJob_Predict_NoResetReader(t *testing.T) {
 }
 
 func TestImportJob_Predict_NoResetReader(t *testing.T) {
+	t.Parallel()
+
 	reader := &nonResetReader{
 		columns: []string{"a"},
 		rows:    [][]string{{"1"}},
@@ -124,6 +140,8 @@ func TestImportJob_Predict_NoResetReader(t *testing.T) {
 }
 
 func TestErrStopIteration(t *testing.T) {
+	t.Parallel()
+
 	err := ErrStopIteration()
 	if err == nil {
 		t.Error("ErrStopIteration() returned nil")
@@ -131,6 +149,8 @@ func TestErrStopIteration(t *testing.T) {
 }
 
 func TestImportJob_Run_ContextCancel(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 1000)
 	for i := range rows {
 		rows[i] = []string{fmt.Sprintf("%d", i)}

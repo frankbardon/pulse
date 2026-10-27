@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -70,8 +71,12 @@ var scoreCases = []struct{ name, model string }{
 // recorded row, and each group's mean score over all its rows, to
 // lavaan's lavPredict.
 func TestSEMScore_MatchesLavaanPredict(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range scoreCases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			ref := loadLavaanScoreRef(t, "testdata/"+c.name+"_lavaan.json")
 			desc, err := os.ReadFile("testdata/" + c.model + "_model.txt")
 			if err != nil {
@@ -120,12 +125,18 @@ func TestSEMScore_MatchesLavaanPredict(t *testing.T) {
 }
 
 // scoreGroups maps each data row to its group index (0: single group).
-var scoreGroups = map[string][]int{}
+// Parallel tests read and fill it, so scoreGroupsMu guards it.
+var (
+	scoreGroupsMu sync.Mutex
+	scoreGroups   = map[string][]int{}
+)
 
 func groupOf(ref lavaanScoreRef, r int) int {
 	if ref.Options.Group == "" {
 		return 0
 	}
+	scoreGroupsMu.Lock()
+	defer scoreGroupsMu.Unlock()
 	return scoreGroups[ref.Options.Group][r]
 }
 
@@ -174,7 +185,9 @@ func fitForScores(t *testing.T, desc string, ref lavaanScoreRef) ([]*Fit, []*Mod
 		}
 		rows[r] = row[1:]
 	}
+	scoreGroupsMu.Lock()
 	scoreGroups[ref.Options.Group] = idx
+	scoreGroupsMu.Unlock()
 	models := make([]*Model, len(gf.Groups))
 	for g, f := range gf.Groups {
 		models[g] = f.Model
@@ -188,6 +201,8 @@ func fitForScores(t *testing.T, desc string, ref lavaanScoreRef) ([]*Fit, []*Mod
 // the weights the same (a single-group mean structure estimates the
 // means saturated, so the covariance part is one fit).
 func TestSEMScore_CovarianceOnlyCenteredAtFitRows(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_ms_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -238,6 +253,8 @@ func TestSEMScore_CovarianceOnlyCenteredAtFitRows(t *testing.T) {
 // variable or unknown name is no latent, a singular implied covariance
 // has no scores.
 func TestSEMScore_Refusals(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile("testdata/brand_ms_model.txt")
 	if err != nil {
 		t.Fatal(err)

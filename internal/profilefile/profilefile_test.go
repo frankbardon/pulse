@@ -11,6 +11,8 @@ import (
 )
 
 func TestReadOS(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	write := func(name, body string) string {
 		p := filepath.Join(dir, name)

@@ -20,6 +20,8 @@ var indexRe = regexp.MustCompile(`\[[0-9]+\]`)
 // expression-slot list (internal/exprslots) matches, so the template
 // renderer refuses a `{{token}}` splice into each of them.
 func TestTemplateExprSplice_EngineExprSlotsMatch(t *testing.T) {
+	t.Parallel()
+
 	fitOn := json.RawMessage(`{"fit_on":[{"type":"FILTER_EXPRESSION","expression":"b1 > 0"}]}`)
 	req := &types.Request{
 		Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "a1 > 0"}},

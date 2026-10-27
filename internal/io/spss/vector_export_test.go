@@ -71,6 +71,8 @@ func exportVecSav(t *testing.T, fs afero.Fs, cohort string, opts WriterOptions) 
 // element of a null vector read back system-missing, and every case is
 // written.
 func TestExportJob_SPSS_VectorExpandsToElementVariables(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := vecCohort(t, vecSPSSSchema([]string{"a", "b"}), vecSPSSRows())
 	sav, rep, err := exportVecSav(t, fs, cohort, WriterOptions{})
 	if err != nil {
@@ -120,6 +122,8 @@ func TestExportJob_SPSS_VectorExpandsToElementVariables(t *testing.T) {
 // name is a collision, never a silent rename. ValidateCohort (export
 // predict) answers the same.
 func TestExportJob_SPSS_VectorNamePolicy(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort := vecCohort(t, vecSPSSSchema([]string{"a b", "c"}), vecSPSSRows())
 	if _, _, err := exportVecSav(t, fs, cohort, WriterOptions{}); codeOf(t, err) != perr.PULSE_SPSS_NAME_INVALID {
 		t.Fatalf("err = %v, want PULSE_SPSS_NAME_INVALID", err)
@@ -151,6 +155,8 @@ func TestExportJob_SPSS_VectorNamePolicy(t *testing.T) {
 // refused by name — before the vector could surface as an unmapped column
 // or bind to a same-named source variable.
 func TestBuildDictionary_SidecarBesideAVectorIsRefused(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, richSpec())
 	withVec := &encoding.Schema{Fields: append(append([]encoding.Field(nil), schema.Fields...),
 		encoding.Field{Name: "emb", Type: encoding.FieldTypeVecF64})}
@@ -169,6 +175,8 @@ func TestBuildDictionary_SidecarBesideAVectorIsRefused(t *testing.T) {
 // pointing past its field's dim is refused at plan time, where predict can
 // see it.
 func TestDataEncoder_VectorElementOutOfRangeRefused(t *testing.T) {
+	t.Parallel()
+
 	s := vecSPSSSchema(nil)
 	plan, err := BuildDictionary(DictionaryRequest{Schema: s, Cases: 1})
 	if err != nil {

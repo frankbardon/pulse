@@ -22,6 +22,8 @@ import (
 // shape for this story: the data section is E5-S3's, and a dictionary-only
 // file isolates what E5-S2 actually emits.
 func TestEmittedDictionary_OpensInReadStatAndForeign(t *testing.T) {
+	t.Parallel()
+
 	bin := rEnvironment(t)
 
 	// The hard fixture concentrates the records most likely to be rejected:
@@ -148,6 +150,8 @@ cat(h, "\n", g, "\n", sep="")
 // string, the DATE column as an R Date, the system-missing cells as NA, and
 // the set indicators as their counted value.
 func TestEmittedFile_ValuesReadInReadStatAndForeign(t *testing.T) {
+	t.Parallel()
+
 	bin := rEnvironment(t)
 
 	// A cohort covering the four things a data section can get wrong
@@ -264,6 +268,8 @@ cat(h, "\n", g, "\n", sep="")
 // `pulse import spss` then `pulse export spss`, opened in R — with the
 // value labels, variable labels and the response-set indicators intact.
 func TestExportedThroughTheAdapter_ReadsInReadStatAndForeign(t *testing.T) {
+	t.Parallel()
+
 	bin := rEnvironment(t)
 
 	fs, cohort, _ := importFixture(t, richSpec())
@@ -350,6 +356,8 @@ cat(h, "\n", g, "\n", sep="")
 // missing; foreign 0.8.91 (use.missings=FALSE) reports the same three columns
 // and the same values, and lists INCOME under its own `missings` attribute.
 func TestEmittedFoldedFile_ReadsInReadStatAndForeign(t *testing.T) {
+	t.Parallel()
+
 	bin := rEnvironment(t)
 
 	fs, cohort, _ := importFixture(t, bothKindsSpec())
@@ -424,6 +432,8 @@ cat(h, "\n", g, "\n", sep="")
 // together say the emitted bytes really are windows-1252 and the declaration
 // really does name them.
 func TestEmittedNonUTF8File_ReadsInReadStatAndForeign(t *testing.T) {
+	t.Parallel()
+
 	bin := rEnvironment(t)
 
 	fs, cohort, _ := importFixture(t, latin1Spec())
@@ -512,6 +522,8 @@ cat(h, "\n", g, "\n", sep="")
 // instants, the MOYR raw seconds, the 600-byte very long string and the
 // re-padded short string.
 func TestRoundTrippedFile_ReadsIdenticallyInReadStatAndForeign(t *testing.T) {
+	t.Parallel()
+
 	bin := rEnvironment(t)
 
 	// Both byte orders. The big-endian arm is not decoration: a numeric

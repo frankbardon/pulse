@@ -52,6 +52,8 @@ var paramsGateFields = map[string]FieldSpec{
 // Each distribution's probe field generates (and, where the copula
 // supports it, correlates) under a recording of every params lookup.
 func TestDistributionParamsDeclaredMatchRead(t *testing.T) {
+	// serial: swaps the package-level synth.paramReads test hook
+
 	var mu sync.Mutex
 	read := map[string]map[string]bool{}
 	rec := func(field, key string) {
@@ -125,6 +127,8 @@ func TestDistributionParamsDeclaredMatchRead(t *testing.T) {
 // reads that go through paramLookup, so no production file may index a
 // params map directly.
 func TestDistributionParamsReadThroughLookup(t *testing.T) {
+	t.Parallel()
+
 	direct := regexp.MustCompile(`\.Params\[`)
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -154,6 +158,8 @@ func TestDistributionParamsReadThroughLookup(t *testing.T) {
 // input document (Spec, a rules file, Profile) may carry one — it would
 // silently reopen the lenient decode below it.
 func TestSynthDocuments_NoCustomUnmarshalers(t *testing.T) {
+	t.Parallel()
+
 	unmarshaler := reflect.TypeFor[json.Unmarshaler]()
 	seen := map[reflect.Type]bool{}
 	var found []string

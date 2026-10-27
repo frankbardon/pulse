@@ -19,6 +19,8 @@ import (
 // and amd64. Pinned on darwin/arm64 and checked identical on
 // linux/amd64 (docker); CI re-runs it on linux/amd64.
 func TestStatdist_StudentTBitsPinned(t *testing.T) {
+	t.Parallel()
+
 	quantiles := []struct {
 		p, df float64
 		want  uint64
@@ -94,6 +96,8 @@ func fmahashReport(t *testing.T, dir, importPath string) []string {
 // (NormalQuantile) is exempt by name: it is not on the bit contract
 // (doc.go). A probe first proves the flag still reports one.
 func TestStatdist_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	probe := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)

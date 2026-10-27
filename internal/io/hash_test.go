@@ -10,6 +10,8 @@ import (
 // *ExportJob must still produce a 32-char hex hash so callers can use
 // the value as a map key without nil-check boilerplate.
 func TestExportJob_Hash_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	var j *ExportJob
 	if got := j.Hash(); len(got) != 32 {
 		t.Fatalf("nil ExportJob.Hash() must return 32-char hex, got %q (len=%d)", got, len(got))
@@ -19,6 +21,8 @@ func TestExportJob_Hash_NilSafe(t *testing.T) {
 // TestConvertJob_Hash_NilSafe mirrors TestExportJob_Hash_NilSafe for
 // ConvertJob.
 func TestConvertJob_Hash_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	var j *ConvertJob
 	if got := j.Hash(); len(got) != 32 {
 		t.Fatalf("nil ConvertJob.Hash() must return 32-char hex, got %q (len=%d)", got, len(got))
@@ -29,6 +33,8 @@ func TestConvertJob_Hash_NilSafe(t *testing.T) {
 // two structurally identical ExportJobs must hash identically across
 // invocations.
 func TestExportJob_Hash_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	a := &ExportJob{Source: "a.pulse", Includes: []string{"x", "y"}}
 	b := &ExportJob{Source: "a.pulse", Includes: []string{"x", "y"}}
 	if a.Hash() != b.Hash() {
@@ -41,6 +47,8 @@ func TestExportJob_Hash_Deterministic(t *testing.T) {
 
 // TestConvertJob_Hash_Deterministic mirrors the ExportJob test.
 func TestConvertJob_Hash_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	a := &ConvertJob{KeepPulseAt: "out.pulse", Includes: []string{"x"}, SampleRows: 500}
 	b := &ConvertJob{KeepPulseAt: "out.pulse", Includes: []string{"x"}, SampleRows: 500}
 	if a.Hash() != b.Hash() {
@@ -52,6 +60,8 @@ func TestConvertJob_Hash_Deterministic(t *testing.T) {
 // namespace rule — an ExportJob and a ConvertJob with overlapping
 // shape must never collide.
 func TestExportJob_Hash_NamespaceSeparates(t *testing.T) {
+	t.Parallel()
+
 	export := &ExportJob{Source: "a.pulse", Includes: []string{"x"}}
 	convert := &ConvertJob{Includes: []string{"x"}}
 	if export.Hash() == convert.Hash() {
@@ -65,6 +75,8 @@ func TestExportJob_Hash_NamespaceSeparates(t *testing.T) {
 // out) — must produce three distinct hashes so a cache cannot return
 // stale results across the toggle.
 func TestExportJob_IncludeOverlays_HashChanges(t *testing.T) {
+	t.Parallel()
+
 	trueP := true
 	falseP := false
 
@@ -90,6 +102,8 @@ func TestExportJob_IncludeOverlays_HashChanges(t *testing.T) {
 // TestConvertJob_IncludeOverlays_HashChanges mirrors the ExportJob
 // test for ConvertJob — three states, three distinct hashes.
 func TestConvertJob_IncludeOverlays_HashChanges(t *testing.T) {
+	t.Parallel()
+
 	trueP := true
 	falseP := false
 
@@ -113,6 +127,8 @@ func TestConvertJob_IncludeOverlays_HashChanges(t *testing.T) {
 }
 
 func TestExportJob_Hash_IncludeOverlaysNilByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	job := &ExportJob{
 		Source:   "a.pulse",
 		Includes: []string{"x", "y"},
@@ -130,6 +146,8 @@ func TestExportJob_Hash_IncludeOverlaysNilByteIdentity(t *testing.T) {
 // TestConvertJob_Hash_IncludeOverlaysNilByteIdentity mirrors the
 // ExportJob test for ConvertJob.
 func TestConvertJob_Hash_IncludeOverlaysNilByteIdentity(t *testing.T) {
+	t.Parallel()
+
 	job := &ConvertJob{
 		KeepPulseAt: "out.pulse",
 		Includes:    []string{"x"},
@@ -148,6 +166,8 @@ func TestConvertJob_Hash_IncludeOverlaysNilByteIdentity(t *testing.T) {
 // slot's participation in the hash — guards against a regression
 // where adding IncludeOverlays masks Labels by accident.
 func TestExportJob_Hash_LabelsParticipate(t *testing.T) {
+	t.Parallel()
+
 	noLabels := &ExportJob{Source: "a.pulse"}
 	withLabels := &ExportJob{
 		Source: "a.pulse",
@@ -162,6 +182,8 @@ func TestExportJob_Hash_LabelsParticipate(t *testing.T) {
 // identity (different literals), and an empty one leaves the hash of
 // every zone-free job exactly as it was.
 func TestExportJob_Hash_TimeZone(t *testing.T) {
+	t.Parallel()
+
 	plain := &ExportJob{Source: "a.pulse"}
 	legacy := types.CanonicalHash("export_job", &struct {
 		Source string `json:"source,omitempty"`
@@ -180,6 +202,8 @@ func TestExportJob_Hash_TimeZone(t *testing.T) {
 // cohort), so each one moves the hash; a zone-free job hashes exactly as
 // the pre-zone shape did.
 func TestConvertJob_Hash_SourceZoneParticipates(t *testing.T) {
+	t.Parallel()
+
 	base := &ConvertJob{KeepPulseAt: "k.pulse", Includes: []string{"x"}}
 	legacy := types.CanonicalHash("convert_job", &struct {
 		KeepPulseAt string   `json:"keep_pulse_at,omitempty"`

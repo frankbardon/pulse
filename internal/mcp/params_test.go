@@ -19,6 +19,8 @@ import (
 // params.from_wave, a large integer stays exact — and an undeclared read
 // is the coded PULSE_PARAMS_UNDECLARED.
 func TestParams_ProcessTool(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: afs})
 	if err != nil {
@@ -71,6 +73,8 @@ func TestParams_ProcessTool(t *testing.T) {
 // inherits (a sub-request's own key wins), and both tools' input
 // schemas declare it.
 func TestParams_ComposeAndChainTools(t *testing.T) {
+	t.Parallel()
+
 	afs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: afs})
 	if err != nil {

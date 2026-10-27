@@ -15,12 +15,16 @@ import (
 // TestMergeBlockSizeMatchesLinalg pins the leaf's restated block
 // length to linalg's — the leaf may not import linalg.
 func TestMergeBlockSizeMatchesLinalg(t *testing.T) {
+	t.Parallel()
+
 	if MergeBlockSize != linalg.MergeBlockSize {
 		t.Fatalf("limits.MergeBlockSize = %d, linalg.MergeBlockSize = %d", MergeBlockSize, linalg.MergeBlockSize)
 	}
 }
 
 func TestMergeBlocks(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		shards []int64
 		want   int64
@@ -52,6 +56,8 @@ func TestMergeBlocks(t *testing.T) {
 }
 
 func TestMergeBufferedRows(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		shards []int64
 		want   int64
@@ -74,6 +80,8 @@ func TestMergeBufferedRows(t *testing.T) {
 }
 
 func TestMatrixStateBytes(t *testing.T) {
+	t.Parallel()
+
 	if got := MatrixStateBytes(3, 4, 104); got != 3*4*104 {
 		t.Fatalf("MatrixStateBytes = %d, want %d", got, 3*4*104)
 	}
@@ -86,6 +94,8 @@ func TestMatrixStateBytes(t *testing.T) {
 }
 
 func TestRecordBytes(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	cases := []struct {
 		name   string
@@ -120,6 +130,8 @@ func TestRecordBytes(t *testing.T) {
 
 // TestEstimateMemory_PerArm pins each arm's formula term by term.
 func TestEstimateMemory_PerArm(t *testing.T) {
+	t.Parallel()
+
 	const (
 		records = 1000
 		stride  = 50
@@ -229,6 +241,8 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 // The schema decode is the archive term the memory estimate charges
 // for the canonical entry (E8-S3; shards read layout-only since E8-S5).
 func TestSchemaDecodeBytes_BoundsDecode(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	for _, c := range []struct {
 		name   string
 		format string
@@ -269,6 +283,8 @@ func TestSchemaDecodeBytes_BoundsDecode(t *testing.T) {
 }
 
 func TestMatrixRowBufferBytes(t *testing.T) {
+	t.Parallel()
+
 	if got := MatrixRowBufferBytes(1000, 8*4); got != 1000*32 {
 		t.Fatalf("MatrixRowBufferBytes = %d, want %d", got, 1000*32)
 	}
@@ -285,6 +301,8 @@ func TestMatrixRowBufferBytes(t *testing.T) {
 // fan-out slots, per-value state — while the payload term stays on the
 // left scan's Records; 0 leaves the figure unchanged.
 func TestEstimateMemory_JoinedRows(t *testing.T) {
+	t.Parallel()
+
 	base := MemoryInputs{Records: 100, Stride: 40, RecordBytes: 300, Buckets: 1, Aggregations: 1, ValueStateAggregations: 1, DerivedColumns: 2, FanOut: 2}
 	for _, arm := range []MemoryArm{ArmBuffered, ArmStreaming, ArmFusedCrosstab} {
 		in := base
@@ -313,6 +331,8 @@ func TestEstimateMemory_JoinedRows(t *testing.T) {
 // the largest window whose estimate fits, and 1 when none does. An
 // Unlimited budget or an unknown estimate never shrinks it.
 func TestShardMergeWindowWithin(t *testing.T) {
+	t.Parallel()
+
 	// 100 fixed bytes plus 10 a live partial.
 	est := func(w int) (int64, bool) { return 100 + 10*int64(w), true }
 	unknown := func(int) (int64, bool) { return 0, false }

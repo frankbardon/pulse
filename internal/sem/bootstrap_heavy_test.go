@@ -11,6 +11,8 @@ import (
 // bootstrap of the brand-survey mediation (free and := rows) to
 // lavaan's se = "bootstrap" within the sampling tolerances.
 func TestSEM_BootstrapMatchesLavaanSampling(t *testing.T) {
+	t.Parallel()
+
 	ref := loadLavaanBootRef(t, "testdata/brand_boot_def_lavaan.json")
 	desc, err := os.ReadFile("testdata/brand_def_model.txt")
 	if err != nil {
@@ -42,6 +44,8 @@ func TestSEM_BootstrapMatchesLavaanSampling(t *testing.T) {
 // two-wave fit's bootstrap (resampled within each wave) against
 // lavaan's: every group's rows and the cross-wave := rows.
 func TestSEM_BootstrapMultiGroupMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	ref := loadLavaanBootRef(t, "testdata/brand_boot_mg_lavaan.json")
 	desc, err := os.ReadFile("testdata/brand_mgdef_model.txt")
 	if err != nil {

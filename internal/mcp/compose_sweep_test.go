@@ -47,6 +47,8 @@ const mcpSweepBody = `{"cohort":{"filename":"imports/data.pulse"},"aggregations"
 // combination, each sweep slot shaped by the MCP `return` default
 // exactly as the explicit slot sent without a `return` is.
 func TestPulseCompose_RunsSweep(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)
@@ -77,6 +79,8 @@ func TestPulseCompose_RunsSweep(t *testing.T) {
 // `return`, never over an authored one, and leaves a non-object body to
 // the sweep's own validation.
 func TestFillRawReturn(t *testing.T) {
+	t.Parallel()
+
 	def := &types.Return{Preset: types.ReturnPresetStandard}
 	got := string(fillRawReturn(json.RawMessage(`{"label_x":"<{{op}}>"}`), def))
 	if !strings.Contains(got, `"return":{"preset":"standard"}`) || !strings.Contains(got, `"<{{op}}>"`) {
@@ -97,6 +101,8 @@ func TestFillRawReturn(t *testing.T) {
 // on an instance offering Compose but not capability:compose_sweep the
 // `sweep` key is refused as PULSE_REQUEST_UNKNOWN_FIELD on both tools.
 func TestPulseCompose_SweepFaultsKeepTheirCodes(t *testing.T) {
+	t.Parallel()
+
 	sweepArgs := `{"requests":[],"sweep":{"axes":[{"name":"op","values":["AGG_SUM"]}],"request":` + mcpSweepBody + `}}`
 	invalid := `{"requests":[],"sweep":{"axes":[],"request":{}}}`
 
@@ -146,6 +152,8 @@ func TestPulseCompose_SweepFaultsKeepTheirCodes(t *testing.T) {
 // it — ordered, 1-based and trimmed by `top`, every response kept,
 // each entry carrying its slot and typed axis values.
 func TestPulseCompose_SweepRanking(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)
@@ -183,6 +191,8 @@ func TestPulseCompose_SweepRanking(t *testing.T) {
 // sweep body carries its own `return` (which the MCP default never
 // overrides).
 func TestPulseCompose_SampledSweepMatchesLibrary(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
 		t.Fatalf("ImportFile: %v", err)

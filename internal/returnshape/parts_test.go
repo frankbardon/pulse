@@ -55,6 +55,8 @@ func payloadOf(t *testing.T, b []byte) map[string]any {
 // standard preset (the MCP default) keeps parts whole and minimal drops
 // the payload with them.
 func TestReturn_OverlayParts(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		ret         types.Return
@@ -137,6 +139,8 @@ func TestReturn_OverlayParts(t *testing.T) {
 // TestReturn_ComposeOverlayParts: the Compose-level `return` (rooted at
 // ComposedResponse) addresses a top-level layer's part the same way.
 func TestReturn_ComposeOverlayParts(t *testing.T) {
+	t.Parallel()
+
 	top, err := descx.ResolveComposeReturn(&types.ComposedRequest{
 		Return: &types.Return{Exclude: []string{"overlays[*].payload.parts.p"}},
 	}, nil)

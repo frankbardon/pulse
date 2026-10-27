@@ -61,6 +61,8 @@ var goldenBits = []struct {
 // arithmetic is adds, power-of-two scalings and float64()-barriered
 // products, so these bits must hold on every GOARCH.
 func TestReproSum_GoldenBits(t *testing.T) {
+	t.Parallel()
+
 	cases := goldenCases()
 	if len(cases) != len(goldenBits) {
 		t.Fatalf("%d golden cases, %d frozen results", len(cases), len(goldenBits))

@@ -12,6 +12,8 @@ import (
 // round-trip invariants. Days around every transition 1970–2040 are
 // included, plus days on both sides of the table window.
 func TestLocalMidnightUTC_Invariants(t *testing.T) {
+	t.Parallel()
+
 	edges := []int64{
 		stdDayUTC(1850, 6, 1), stdDayUTC(1899, 12, 31), stdDayUTC(1900, 1, 1),
 		stdDayUTC(2099, 12, 31), stdDayUTC(2100, 1, 1), stdDayUTC(2150, 3, 28),

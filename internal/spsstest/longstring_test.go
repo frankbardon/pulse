@@ -30,6 +30,8 @@ func longSpec() Spec {
 // of the first segment can reproduce a 256-byte value, which is why the
 // divisor is 252 and not the 255 the segment declares.
 func TestVeryLongString_SegmentMath(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		width    int
 		count    int
@@ -77,6 +79,8 @@ func TestVeryLongString_SegmentMath(t *testing.T) {
 // keeps the variable's own name because every cross-referencing record — 7/14
 // itself, 7/13, 7/11 — addresses the variable by it.
 func TestVeryLongString_SegmentNames(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		base string
 		i    int
@@ -102,6 +106,8 @@ func TestVeryLongString_SegmentNames(t *testing.T) {
 // PHYSICAL variables the format needs, not the one logical variable the Spec
 // declares — and that the caller never had to say so.
 func TestVeryLongString_Expands(t *testing.T) {
+	t.Parallel()
+
 	b, err := Build(longSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -133,6 +139,8 @@ func TestVeryLongString_Expands(t *testing.T) {
 // TestVeryLongString_Deterministic keeps the byte-determinism promise across
 // the new expansion path.
 func TestVeryLongString_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	spec := longSpec()
 	spec.LongStringValueLabels = []LongStringValueLabels{{
 		Var: "Comments", Labels: []LongStringValueLabel{{Value: "short", Label: "Terse"}},
@@ -158,6 +166,8 @@ func TestVeryLongString_Deterministic(t *testing.T) {
 // to its full declared width and then cut at fixed offsets, so a segment
 // boundary lands in the same place whatever the value's own length.
 func TestVeryLongString_SplitsData(t *testing.T) {
+	t.Parallel()
+
 	got := splitVeryLongString("AB", 600)
 	if len(got) != 3 {
 		t.Fatalf("got %d segments, want 3", len(got))
@@ -178,6 +188,8 @@ func TestVeryLongString_SplitsData(t *testing.T) {
 // TestLongStringRecords_PayloadShape walks the records 7/21 and 7/22 payloads
 // against the specification, byte by byte.
 func TestLongStringRecords_PayloadShape(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Vars: []Var{{Name: "NOTE", Width: 12, LongName: "Note"}},
 		Cases: [][]Value{
@@ -223,6 +235,8 @@ func TestLongStringRecords_PayloadShape(t *testing.T) {
 // TestLongStringRecords_Rejects covers the spec faults the emitter refuses
 // rather than writing a file no reader could make sense of.
 func TestLongStringRecords_Rejects(t *testing.T) {
+	t.Parallel()
+
 	long := func(mut func(*Spec)) Spec {
 		s := longSpec()
 		mut(&s)
@@ -341,6 +355,8 @@ func TestLongStringRecords_Rejects(t *testing.T) {
 // charset FIRST, and only then cut. Cutting a Go-source string and then
 // changing its byte length would put the boundary in the wrong place.
 func TestVeryLongString_TranscodesBeforeSplitting(t *testing.T) {
+	t.Parallel()
+
 	// "é" is one byte in windows-1252 and two in UTF-8. 251 ASCII bytes plus
 	// one é lands the é ON the 252-byte boundary in windows-1252 and
 	// straddling it in UTF-8.

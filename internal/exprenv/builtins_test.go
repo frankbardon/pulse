@@ -12,6 +12,8 @@ import (
 )
 
 func TestNames_CopyAndMembership(t *testing.T) {
+	t.Parallel()
+
 	names := Names()
 	if len(names) == 0 {
 		t.Fatal("Names() is empty")
@@ -44,6 +46,8 @@ func TestNames_CopyAndMembership(t *testing.T) {
 // transitive graph is checked against the execution, descriptor and
 // vector-resolver packages (internal/vectors imports this one).
 func TestExprenvImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	const module = "github.com/frankbardon/pulse"
 	allowedDirect := map[string]bool{
 		module + "/encoding":         true,
@@ -105,6 +109,8 @@ func TestExprenvImportBoundary(t *testing.T) {
 }
 
 func TestOverlaySubset(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		allowed bool
@@ -158,6 +164,8 @@ func TestOverlaySubset(t *testing.T) {
 // TestSetHelperNames: the unreserved set helpers are listed (a copy),
 // never reserved and never refused in an overlay formula.
 func TestSetHelperNames(t *testing.T) {
+	t.Parallel()
+
 	names := SetHelperNames()
 	if len(names) != 8 || names[0] != "has_any" || names[7] != "set_xor" {
 		t.Fatalf("SetHelperNames = %v", names)
@@ -177,6 +185,8 @@ func TestSetHelperNames(t *testing.T) {
 // built-in is a reserved name, its form one of the two metric forms,
 // and the declaration-order list carries exactly the table.
 func TestMetricFunctions_AreReservedAndTyped(t *testing.T) {
+	t.Parallel()
+
 	names := MetricFunctionNames()
 	want := []string{"dist", "cosine", "jaccard", "dice", "hamming", "overlap"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {

@@ -71,8 +71,12 @@ func lit(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
 // independently computed detmath values. `y` is drawn far from every
 // function's range (~1000), so a row the gate skipped is recognisable.
 func TestSynthExprMath_EveryFunctionInSetExprWhenAndConstraint(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range rowMathCases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			gate := quantileOf(c.want, 0.6)
 			floor := quantileOf(c.want, 0.2)
 			spec := &synth.Spec{
@@ -124,8 +128,12 @@ func TestSynthExprMath_EveryFunctionInSetExprWhenAndConstraint(t *testing.T) {
 // collision PRECEDENCE: a bare name is the field, so an existing spec
 // with a column named like a built-in keeps generating the same values.
 func TestSynthExprMath_FieldNamedLikeABuiltinStillReadsTheField(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"exp", "log", "sqrt", "hill", "sin", "pi", "e", "row", "lag", "now"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := &synth.Spec{
 				RowCount: 50,
 				Fields: []synth.FieldSpec{
@@ -196,6 +204,8 @@ func specDoc(tail string) string {
 // the precedence — with a field `log`, log(x) cannot reach the built-in
 // and says so, in every slot.
 func TestSynthExprMath_CallingAShadowedBuiltinIsRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, tail := range []string{
 		`"rules": [{"when": "log(x) > 0", "set": {"y": 1}}]`,
 		`"rules": [{"set_expr": {"y": "log(x)"}}]`,
@@ -214,6 +224,8 @@ func TestSynthExprMath_CallingAShadowedBuiltinIsRefused(t *testing.T) {
 // refusal (it was "unknown name" before the built-ins existed), never a
 // silently written null-shaped value.
 func TestSynthExprMath_BareBuiltinWithoutFieldIsRefused(t *testing.T) {
+	t.Parallel()
+
 	expectCode(t, specDoc(`"rules": [{"set_expr": {"y": "pi * x"}}]`), errors.PULSE_SYNTH_RULE_EXPR_INVALID, "bare pi", "pi(...)")
 	expectCode(t, specDoc(`"rules": [{"when": "sin > 0", "set": {"y": 1}}]`), errors.PULSE_SYNTH_RULE_EXPR_INVALID, "bare sin")
 	expectCode(t, specDoc(`"constraints": [{"expr": "x < e"}]`), errors.SERVICE_VALIDATION, "bare e")
@@ -223,6 +235,8 @@ func TestSynthExprMath_BareBuiltinWithoutFieldIsRefused(t *testing.T) {
 // row environment, and every slot refuses it with the dedicated code
 // before a row exists.
 func TestSynthExprMath_NowIsRefusedAtSpecValidation(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		tail, slot string
 	}{
@@ -252,6 +266,8 @@ func TestSynthExprMath_NowIsRefusedAtSpecValidation(t *testing.T) {
 // added, so the wider environment provably changes nothing it does not
 // name.
 func TestSynthExprMath_SpecWithoutNewFunctionsIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec := preU58RowEnvSpec()
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 4242})
 	if err != nil {

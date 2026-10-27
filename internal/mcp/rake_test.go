@@ -42,6 +42,8 @@ func invokeRake(t *testing.T, p *pulse.Pulse, args string) (RakeOut, error) {
 // data dir and reports the fit; the written weights reproduce the
 // targets.
 func TestPulseRake_WritesWeights(t *testing.T) {
+	t.Parallel()
+
 	p, src := materializeSource(t)
 	res, err := invokeRake(t, p, `{"cohort":"`+src+`","out":"weighted.pulse","weight_field":"w",
 		"margins":[{"field":"name","targets_as":"counts","targets":{"Alice":2,"Bob":1,"Carol":1}}]}`)
@@ -70,6 +72,8 @@ func TestPulseRake_WritesWeights(t *testing.T) {
 // margins is the facade's PULSE_RAKE_INVALID; a record category with no
 // target is PULSE_RAKE_UNTARGETED_CATEGORY — none writes anything.
 func TestPulseRake_RefusalsKeepTheirCode(t *testing.T) {
+	t.Parallel()
+
 	p, src := materializeSource(t)
 	c := `"cohort":"` + src + `"`
 	for _, tc := range []struct{ name, args, want string }{
@@ -97,6 +101,8 @@ func TestPulseRake_RefusalsKeepTheirCode(t *testing.T) {
 // drifts in Go type or order already fails to compile: HandleRake
 // converts RakeIn to pulse.RakeRequest.)
 func TestRakeIn_SchemaCoversEveryRequestKey(t *testing.T) {
+	t.Parallel()
+
 	ts, ok := SchemaFor(toolmeta.ToolRake)
 	if !ok {
 		t.Fatal("pulse_rake has no schema")

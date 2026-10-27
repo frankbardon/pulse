@@ -52,6 +52,8 @@ import (
 // dictionary rather than against the order the fixture declared. Sources[i]
 // must be dictionary entry i, which is bit i, for every i.
 func TestSidecar_WideSetRecordsTheFullTriple(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 
 	fs := afero.NewMemMapFs()
@@ -145,6 +147,8 @@ func TestSidecar_WideSetRecordsTheFullTriple(t *testing.T) {
 // assembled through a uint64 renders identically and drops every bit past
 // 63, and only the cohort can see that.
 func TestRoundTrip_WideSetSurvivesTheSPSSCycle(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 
 	fs := afero.NewMemMapFs()
@@ -220,8 +224,12 @@ func TestRoundTrip_WideSetSurvivesTheSPSSCycle(t *testing.T) {
 // So the same cycle runs at the narrowest rung and the widest, and the
 // expectations are read off pio.SetTypeFor rather than written down.
 func TestRoundTrip_DerivedSetDropIsWidthBlind(t *testing.T) {
+	t.Parallel()
+
 	for _, members := range []int{3, 206} {
 		t.Run(itoa(members), func(t *testing.T) {
+			t.Parallel()
+
 			want, derives := pio.SetTypeFor(members)
 			if !derives {
 				t.Fatalf("%d constituents do not derive a column; the case is not the one being tested", members)
@@ -273,6 +281,8 @@ func TestRoundTrip_DerivedSetDropIsWidthBlind(t *testing.T) {
 // uint64 would emit 206 variables and report 0 for every one of them at
 // or above bit 64, which is a perfectly well-formed `.sav` that is wrong.
 func TestWriter_SynthesisedWideSetExpandsToConstituents(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 	selections := [][]int{
 		{3, 70, 200},
@@ -337,6 +347,8 @@ func TestWriter_SynthesisedWideSetExpandsToConstituents(t *testing.T) {
 // before, so a fix that promoted every set to the wide read path would
 // still have to answer for set_u8.
 func TestWriter_SynthesisedNarrowSetIsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	selections := [][]int{{0, 2}, {}, {1}}
 	fs, path := wideSetCohort(t, encoding.FieldTypeSetU8, 3, selections)
 	out := exportSav(t, fs, path, "out.sav", WriterOptions{})
@@ -370,6 +382,8 @@ func TestWriter_SynthesisedNarrowSetIsUnchanged(t *testing.T) {
 // silence — see .claude/reference/byte-layout.md (Export predict is
 // target-aware).
 func TestExportPredict_WideSetIsAcceptedByTheSPSSTarget(t *testing.T) {
+	t.Parallel()
+
 	fs, path := wideSetCohort(t, encoding.FieldTypeSetU256, 206, [][]int{{3, 70, 200}})
 
 	job := pio.NewExportJob(path, NewWriter(fs, "out.sav", WriterOptions{}))
@@ -401,6 +415,8 @@ func TestExportPredict_WideSetIsAcceptedByTheSPSSTarget(t *testing.T) {
 // check and its prediction disagreeing, which is exactly what
 // io.CohortValidator exists to prevent.
 func TestExportPredict_SetBitBeyondItsRungIsRefusedAtPlanTime(t *testing.T) {
+	t.Parallel()
+
 	// A set_u8 addresses bits 0..7. Ten dictionary entries mean members
 	// standing for bits 8 and 9, which no set_u8 mask has.
 	fs, path := wideSetCohort(t, encoding.FieldTypeSetU8, 10, [][]int{{0}})

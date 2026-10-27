@@ -16,6 +16,8 @@ import (
 // by a template, a sweep or a for_each axis — is refused. Renaming the
 // wire key without the slot fails here.
 func TestTemplateExprSplice_FeatureFitOnSlot(t *testing.T) {
+	t.Parallel()
+
 	f, ok := reflect.TypeFor[targetencode.Params]().FieldByName("FitOn")
 	if !ok || f.Type.Kind() != reflect.String {
 		t.Fatal("targetencode.Params.FitOn is gone or no longer a string; update internal/exprslots")

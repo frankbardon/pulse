@@ -126,6 +126,8 @@ type knownAnswer struct {
 // "reported as an unexplained co-missing block" was always an acceptable
 // answer; saying nothing was never one.
 func TestSuggestRules_FindsEveryKnownRelationship(t *testing.T) {
+	t.Parallel()
+
 	prof, _ := knownAnswerProfile(t)
 
 	perception := []string{"perception1", "perception2", "perception3", "perception4",
@@ -251,6 +253,8 @@ func TestSuggestRules_FindsEveryKnownRelationship(t *testing.T) {
 // is the ABSENCE of a `never fired` line — which is the strongest form
 // available and the one E3-S1's suite uses.
 func TestSuggestRules_TheLoopCloses(t *testing.T) {
+	t.Parallel()
+
 	const rows = 8000
 	prof, _ := knownAnswerProfile(t)
 	if len(prof.RuleCandidates) == 0 {

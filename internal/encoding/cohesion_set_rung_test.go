@@ -32,6 +32,8 @@ func setRungSchema(t *testing.T, ft encoding.FieldType, values ...string) *encod
 // AddShard promote the archive instead of the caller re-importing every
 // prior month to reach a layout a mechanical re-stride already produces.
 func TestPlanSetWidening_IncomingWiderRungPlansArchiveWiden(t *testing.T) {
+	t.Parallel()
+
 	canonical := setRungSchema(t, encoding.FieldTypeSetU8, "tv", "radio")
 	incoming := setRungSchema(t, encoding.FieldTypeSetU64, "tv", "radio")
 
@@ -53,6 +55,8 @@ func TestPlanSetWidening_IncomingWiderRungPlansArchiveWiden(t *testing.T) {
 // promoted to canonical's rung instead, so the plan's target is
 // canonical's own rung and only the incoming side moves.
 func TestPlanSetWidening_IncomingNarrowerRungPromotesIncomingOnly(t *testing.T) {
+	t.Parallel()
+
 	canonical := setRungSchema(t, encoding.FieldTypeSetU64, "tv", "radio")
 	incoming := setRungSchema(t, encoding.FieldTypeSetU8, "tv", "radio")
 
@@ -79,6 +83,8 @@ func TestPlanSetWidening_IncomingNarrowerRungPromotesIncomingOnly(t *testing.T) 
 // compose: the target is the narrowest rung holding the union, which may
 // be wider than either side declared.
 func TestPlanSetWidening_RungDivergencePlusUnionOverflowTakesTheWiderTarget(t *testing.T) {
+	t.Parallel()
+
 	canonicalVals := []string{"a", "b", "c", "d", "e"}
 	incomingVals := make([]string, 0, 62)
 	for i := 0; i < 62; i++ {
@@ -107,6 +113,8 @@ func TestPlanSetWidening_RungDivergencePlusUnionOverflowTakesTheWiderTarget(t *t
 // Identical rungs with a union that fits stay plan-free: the ordinary
 // append must not be turned into a rewrite.
 func TestPlanSetWidening_MatchingRungsWithFittingUnionPlanNothing(t *testing.T) {
+	t.Parallel()
+
 	canonical := setRungSchema(t, encoding.FieldTypeSetU64, "tv", "radio")
 	incoming := setRungSchema(t, encoding.FieldTypeSetU64, "radio", "print")
 
@@ -122,6 +130,8 @@ func TestPlanSetWidening_MatchingRungsWithFittingUnionPlanNothing(t *testing.T) 
 // Only the set-rung dimension relaxes. A set column meeting a non-set
 // column of the same name is still a hard structural mismatch.
 func TestPlanSetWidening_SetMeetingNonSetStaysFatal(t *testing.T) {
+	t.Parallel()
+
 	canonical := setRungSchema(t, encoding.FieldTypeSetU8, "tv")
 	incoming := setRungSchema(t, encoding.FieldTypeSetU8, "tv")
 	incoming.Fields[1].Type = encoding.FieldTypeU64
@@ -136,6 +146,8 @@ func TestPlanSetWidening_SetMeetingNonSetStaysFatal(t *testing.T) {
 // Above set_u256 there is nowhere to widen to, so the overflow stays
 // fatal even when the rungs diverge.
 func TestPlanSetWidening_UnionAboveWidestRungStaysFatal(t *testing.T) {
+	t.Parallel()
+
 	canonicalVals := make([]string, 200)
 	for i := range canonicalVals {
 		canonicalVals[i] = "c" + string(rune('A'+i%26)) + string(rune('0'+i/26))

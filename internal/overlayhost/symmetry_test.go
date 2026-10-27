@@ -12,6 +12,8 @@ import (
 // decodes a boolean, and refuses a non-boolean, null or unknown key with
 // PULSE_OVERLAY_PARAM_MISSING carrying the index when given.
 func TestParseSymmetryParams(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.OverlaySpec{Kind: types.OverlayKindSymmetry}
 	if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || !p.Correct {
 		t.Fatalf("default %+v %v", p, cerr)

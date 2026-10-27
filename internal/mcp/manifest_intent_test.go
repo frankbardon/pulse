@@ -38,6 +38,8 @@ func invokeManifest(t *testing.T, args string) ([]byte, error) {
 // keys absent and scope set; an unknown one is the coded recommend
 // error, not a stringified one.
 func TestManifest_IntentArg(t *testing.T) {
+	t.Parallel()
+
 	p := defaultPulse(t)
 	ctx := context.Background()
 

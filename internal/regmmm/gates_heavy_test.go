@@ -15,6 +15,8 @@ import (
 // file would make them arm64-only. TestMMMHill_NoFMAContraction's probe
 // proves the flag still reports.
 func TestMMMBayes_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)

@@ -20,6 +20,8 @@ import (
 // test demanding failure would be asserting that corruption is always
 // detectable, which is false for a format with no checksums.
 func TestCorruption_DictionarySweep(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []struct {
 		name string
 		c    spsstest.Compression
@@ -29,6 +31,8 @@ func TestCorruption_DictionarySweep(t *testing.T) {
 		{"zsav", spsstest.CompressionZSAV},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
 			raw := build(t, endianTwinSpec(spsstest.LittleEndian, mode.c))
 			dictEnd := mustParse(t, raw).dataOffset
 

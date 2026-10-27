@@ -120,6 +120,8 @@ func assertFactorBits(t *testing.T, label string, want [][]float64, got *linalg.
 // synth copula's tryCholesky and requires every factor element to agree
 // bit for bit.
 func TestCholesky_BitIdenticalToSynthReference(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(15))
 	for n := 2; n <= 40; n++ {
 		for rep := 0; rep < 25; rep++ {
@@ -146,6 +148,8 @@ func TestCholesky_BitIdenticalToSynthReference(t *testing.T) {
 // factor, the success decision and the accumulated ridge to match the
 // reference loop bit for bit.
 func TestCholeskyRidge_BitIdenticalToSynthReference(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(1515))
 	ridged := 0
 	for n := 2; n <= 40; n++ {

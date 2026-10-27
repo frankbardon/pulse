@@ -35,6 +35,8 @@ func deep(n int) {
 // PROCESSING_PANIC with details op, panic_type and stack, and nothing
 // else. Falsified by dropping the panic_type entry (fails "keys").
 func TestError_Shape(t *testing.T) {
+	t.Parallel()
+
 	ce := recoverFrom("process", panickingLeaf)
 	if ce == nil {
 		t.Fatal("no error recovered")
@@ -72,11 +74,15 @@ func TestError_Shape(t *testing.T) {
 // data) appears nowhere in Error(), Message or details. Falsified by
 // formatting the value into the message.
 func TestError_NeverCarriesValue(t *testing.T) {
+	t.Parallel()
+
 	for name, f := range map[string]func(){
 		"string": panickingLeaf,
 		"error":  func() { deep(0) },
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			ce := recoverFrom("compose", f)
 			if strings.Contains(ce.Error(), secret) {
 				t.Errorf("Error() leaks the panic value: %q", ce.Error())
@@ -90,6 +96,8 @@ func TestError_NeverCarriesValue(t *testing.T) {
 
 // TestError_PanicTypeIsTypeName: panic_type names the Go type.
 func TestError_PanicTypeIsTypeName(t *testing.T) {
+	t.Parallel()
+
 	ce := recoverFrom("facet", func() { deep(0) })
 	if got := ce.Details["panic_type"]; got != "*errors.errorString" {
 		t.Errorf("panic_type = %v, want *errors.errorString", got)
@@ -110,6 +118,8 @@ func TestError_PanicTypeIsTypeName(t *testing.T) {
 // TestError_StackCapped: at most MaxFrames frames however deep the
 // panic. Falsified by removing the cap.
 func TestError_StackCapped(t *testing.T) {
+	t.Parallel()
+
 	ce := recoverFrom("process", func() { deep(100) })
 	stack := ce.Details["stack"].([]string)
 	if len(stack) != MaxFrames {
@@ -128,6 +138,8 @@ func TestError_StackCapped(t *testing.T) {
 // TestError_OutsidePanic: called without a panic in flight (a
 // defensive use) it still builds the shape, starting at the caller.
 func TestError_OutsidePanic(t *testing.T) {
+	t.Parallel()
+
 	ce := Error("process", 42)
 	stack := ce.Details["stack"].([]string)
 	if len(stack) == 0 || !strings.Contains(stack[0], "TestError_OutsidePanic") {

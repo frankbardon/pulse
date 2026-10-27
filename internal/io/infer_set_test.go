@@ -43,6 +43,8 @@ func itoa(i int) string {
 }
 
 func TestInfer_SetFromPipeDelimitedCSV(t *testing.T) {
+	t.Parallel()
+
 	r := pipeSetSamples()
 	res, err := InferSchemaWithOptions(r, InferOptions{})
 	if err != nil {
@@ -57,6 +59,8 @@ func TestInfer_SetFromPipeDelimitedCSV(t *testing.T) {
 }
 
 func TestInfer_SetRespectsMinPct(t *testing.T) {
+	t.Parallel()
+
 	// Build a 60-row sample where only 5 rows carry the pipe — far
 	// below the default 30% threshold; heuristic must not fire.
 	rows := make([][]string, 0, 60)
@@ -78,6 +82,8 @@ func TestInfer_SetRespectsMinPct(t *testing.T) {
 }
 
 func TestInfer_SetOverflowFallsBackToCategorical(t *testing.T) {
+	t.Parallel()
+
 	// Build a column with many pipe-delimited cells whose post-split
 	// unique-token count exceeds the widest set rung's capacity
 	// (set_u256 holds 256). The set probe rejects on cardinality; the
@@ -113,6 +119,8 @@ func TestInfer_SetOverflowFallsBackToCategorical(t *testing.T) {
 }
 
 func TestInfer_AvgCardinalityOneRejectsSet(t *testing.T) {
+	t.Parallel()
+
 	// Every cell has exactly one token; delimiter is absent. The
 	// probe never fires — column should be categorical.
 	rows := make([][]string, 0, minSampleRows)
@@ -132,6 +140,8 @@ func TestInfer_AvgCardinalityOneRejectsSet(t *testing.T) {
 }
 
 func TestInfer_ForceTypeOverridesInference(t *testing.T) {
+	t.Parallel()
+
 	// Single-token sample that would normally land as categorical;
 	// force_type pins it to set_u8.
 	rows := make([][]string, 0, minSampleRows)
@@ -157,6 +167,8 @@ func TestInfer_ForceTypeOverridesInference(t *testing.T) {
 }
 
 func TestInfer_SetMinPctRespectsCustom(t *testing.T) {
+	t.Parallel()
+
 	// Same data as the low-frequency case, but raise the threshold
 	// down to 5% so the column lands as set.
 	rows := make([][]string, 0, 60)
@@ -184,6 +196,8 @@ func TestInfer_SetMinPctRespectsCustom(t *testing.T) {
 // set_u64. A regression where the gate is mis-coded as `>= 64` would
 // silently kick the column to categorical_u16 instead of set_u64.
 func TestInfer_SetExactlySixtyFourTokensInfersSetU64(t *testing.T) {
+	t.Parallel()
+
 	// 64 rows, each cell carrying a pipe-delimited pair of tokens
 	// drawn from a 64-token alphabet. Every token T00..T63 appears at
 	// least once across the rows. Average post-split cardinality is
@@ -220,6 +234,8 @@ func TestInfer_SetExactlySixtyFourTokensInfersSetU64(t *testing.T) {
 // the boundary the format permits. A regression that signed-int-casts
 // the mask anywhere along the path would lose bit 63.
 func TestConvertValue_SetU64_Bit63RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	// Push 64 tokens. Token T63 lands at dict index 63 → bit 63 of the
 	// set_u64 mask.
@@ -251,6 +267,8 @@ func TestConvertValue_SetU64_Bit63RoundTrip(t *testing.T) {
 }
 
 func TestConvertValue_SetU8(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"VISA", "MC", "AMEX", "DISC"} {
 		if _, err := dict.Add(v); err != nil {
@@ -280,6 +298,8 @@ func TestConvertValue_SetU8(t *testing.T) {
 }
 
 func TestConvertValue_SetU8_OverflowEmitsTypedError(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	// Push 8 tokens — set_u8 capacity is exactly 8. The 9th token
 	// must trip PULSE_IMPORT_SET_OVERFLOW.
@@ -303,6 +323,8 @@ func TestConvertValue_SetU8_OverflowEmitsTypedError(t *testing.T) {
 // was string(ft) — a FieldType is a byte, so that produced a one-byte
 // control character instead of "set_u8".
 func TestSetOverflow_DetailsTypeIsTheTypeName(t *testing.T) {
+	t.Parallel()
+
 	detailsType := func(t *testing.T, err error) any {
 		t.Helper()
 		var ce *errors.CodedError

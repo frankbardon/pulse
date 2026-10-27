@@ -67,6 +67,8 @@ func listedNames(s *template.Store) []string {
 // extension, forward-slash separated. Subdirectories namespace, and the
 // root directory's own name never appears in the derived name.
 func TestNewStore_NameIsPathRelative(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	fixtures := []string{
 		"revenue.json",
@@ -113,6 +115,8 @@ func TestNewStore_NameIsPathRelative(t *testing.T) {
 // fixtures are written through filepath.Join, so on a backslash host the
 // on-disk path carries backslashes; the derived name must not.
 func TestNewStore_NamesUseForwardSlashes(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "finance/quarterly/revenue.json", validTemplate("nested"))
 
@@ -141,6 +145,8 @@ func TestNewStore_NamesUseForwardSlashes(t *testing.T) {
 // an empty subdirectory are all normal contents of a template directory and
 // none of them is an error.
 func TestNewStore_SkipsNonJSONAndDirectories(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "revenue.json", validTemplate("kept"))
 	writeFile(t, dir, "README.md", "# not a template")
@@ -165,6 +171,8 @@ func TestNewStore_SkipsNonJSONAndDirectories(t *testing.T) {
 // error, the first root wins, and the loser is recorded rather than
 // discarded.
 func TestNewStore_FirstDirectoryWins(t *testing.T) {
+	t.Parallel()
+
 	first := t.TempDir()
 	second := t.TempDir()
 	firstPath := writeFile(t, first, "shared.json", validTemplate("from first"))
@@ -244,6 +252,8 @@ func summaryFor(s *template.Store, name string) (template.Summary, bool) {
 // list rather than a two-way rule: the winner is the earliest root and
 // every later root is recorded, in root order.
 func TestNewStore_ThreeRootsShadowInOrder(t *testing.T) {
+	t.Parallel()
+
 	a, b, c := t.TempDir(), t.TempDir(), t.TempDir()
 	pa := writeFile(t, a, "shared.json", validTemplate("a"))
 	pb := writeFile(t, b, "shared.json", validTemplate("b"))
@@ -283,6 +293,8 @@ func TestNewStore_ThreeRootsShadowInOrder(t *testing.T) {
 // name. The near-miss shapes are asserted explicitly: a file and a
 // directory of the same stem, and a doubled extension.
 func TestNewStore_DuplicateNameWithinOneRootIsImpossible(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "x.json", validTemplate("file x"))
 	writeFile(t, dir, "x/y.json", validTemplate("nested under x"))
@@ -322,6 +334,8 @@ func TestNewStore_DuplicateNameWithinOneRootIsImpossible(t *testing.T) {
 // error names the offending PATH — which Parse alone cannot do, because a
 // document whose bytes do not parse has no knowable name.
 func TestNewStore_MalformedFileFailsConstruction(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rel      string
@@ -406,6 +420,8 @@ func TestNewStore_MalformedFileFailsConstruction(t *testing.T) {
 // naming is the store's job — so the store is the layer that has to reject
 // a file that cannot be named.
 func TestNewStore_EmptyDerivedNameIsInvalid(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		rel  string
@@ -437,6 +453,8 @@ func TestNewStore_EmptyDerivedNameIsInvalid(t *testing.T) {
 // invalid template: reporting it as one sends an operator to inspect JSON
 // when the real fault is a permission bit.
 func TestNewStore_UnreadableFileIsAFilesystemFault(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := writeFile(t, dir, "revenue.json", validTemplate("unreadable"))
 	if err := os.Chmod(path, 0o000); err != nil {
@@ -469,6 +487,8 @@ func TestNewStore_UnreadableFileIsAFilesystemFault(t *testing.T) {
 // precedence list does not shadow itself. Self-shadowing would report a
 // phantom collision on every name in that root.
 func TestNewStore_SameRootListedTwice(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := writeFile(t, dir, "revenue.json", validTemplate("only copy"))
 
@@ -496,6 +516,8 @@ func TestNewStore_SameRootListedTwice(t *testing.T) {
 // document claiming a name its path does not give it is an author error,
 // not a silent rename.
 func TestNewStore_DocumentNameMustMatchPath(t *testing.T) {
+	t.Parallel()
+
 	body := `"body":{"cohort":{"filename":"s.pulse"}}`
 
 	t.Run("agreeing name is accepted", func(t *testing.T) {
@@ -534,6 +556,8 @@ func TestNewStore_DocumentNameMustMatchPath(t *testing.T) {
 
 // TestStore_GetUnknownName pins the lookup miss.
 func TestStore_GetUnknownName(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	writeFile(t, dir, "revenue.json", validTemplate("kept"))
 	s := newStore(t, dir)
@@ -565,6 +589,8 @@ func TestStore_GetUnknownName(t *testing.T) {
 // TestStore_ListIsSortedByName pins deterministic listing order — E2-S3's
 // ListTemplates hands this straight to a caller.
 func TestStore_ListIsSortedByName(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	for _, rel := range []string{"zeta.json", "alpha.json", "mid/beta.json", "mid/alpha.json"} {
 		writeFile(t, dir, rel, validTemplate(rel))
@@ -603,6 +629,8 @@ func TestStore_ListIsSortedByName(t *testing.T) {
 // that exists but is a regular file is an error. E2-S2 wires these to
 // pulse.New(); the behaviour lives here.
 func TestNewStore_DirectoryEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	present := t.TempDir()
 	writeFile(t, present, "revenue.json", validTemplate("kept"))
 
@@ -651,6 +679,8 @@ func TestNewStore_DirectoryEdgeCases(t *testing.T) {
 // reported back in order and that neither the caller's slice nor the
 // store's copy can reach across.
 func TestNewStore_DirsIsDefensiveCopy(t *testing.T) {
+	t.Parallel()
+
 	first, second := t.TempDir(), t.TempDir()
 	dirs := []string{first, second}
 
@@ -673,6 +703,8 @@ func TestNewStore_DirsIsDefensiveCopy(t *testing.T) {
 // TestStore_NilIsUsable covers the "no store configured" shape E2-S2 and
 // E2-S3 rely on: a nil *Store answers rather than panics.
 func TestStore_NilIsUsable(t *testing.T) {
+	t.Parallel()
+
 	var s *template.Store
 
 	if got := s.List(); len(got) != 0 {
@@ -694,6 +726,8 @@ func TestStore_NilIsUsable(t *testing.T) {
 // from the start because E3 layers a concurrent rescan on top of exactly
 // these read paths.
 func TestStore_ConcurrentLookup(t *testing.T) {
+	t.Parallel()
+
 	first, second := t.TempDir(), t.TempDir()
 	writeFile(t, first, "shared.json", validTemplate("from first"))
 	writeFile(t, second, "shared.json", validTemplate("from second"))

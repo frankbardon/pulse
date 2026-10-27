@@ -101,6 +101,8 @@ func sortedWith(extra ...string) []string {
 // mounts exactly the core tools plus those whose feature the profile
 // enables, over the three private fixtures and the profile-free arm.
 func TestRegister_FeatureProfileScopesTools(t *testing.T) {
+	t.Parallel()
+
 	all := toolmeta.Names()
 	slices.Sort(all)
 	for _, tc := range []struct {
@@ -130,6 +132,8 @@ func TestRegister_FeatureProfileScopesTools(t *testing.T) {
 // calling a hidden tool fails byte-identically (after name
 // substitution) to calling a name that was never registered.
 func TestRegister_HiddenToolCallMatchesNonexistent(t *testing.T) {
+	t.Parallel()
+
 	c, cancel := profiledServer(t, afero.NewMemMapFs(), fixtureProfile(t, "minimal"), gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	ctx := context.Background()
@@ -148,6 +152,8 @@ func TestRegister_HiddenToolCallMatchesNonexistent(t *testing.T) {
 // TestRegister_FeatureProfileScopesPrompts pins that each prompt mounts
 // iff its mcp_extra:prompt_* feature is enabled.
 func TestRegister_FeatureProfileScopesPrompts(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name     string
 		features []string
@@ -168,6 +174,8 @@ func TestRegister_FeatureProfileScopesPrompts(t *testing.T) {
 	}
 	for _, fixture := range []string{"empty", "minimal", "survey-crosstab"} {
 		t.Run("fixture="+fixture, func(t *testing.T) {
+			t.Parallel()
+
 			c, cancel := profiledServer(t, afero.NewMemMapFs(), fixtureProfile(t, fixture), gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 			defer cancel()
 			if got := promptNames(t, c); len(got) != 0 {
@@ -182,6 +190,8 @@ func TestRegister_FeatureProfileScopesPrompts(t *testing.T) {
 // (no startup walk) while the template keeps every cohort readable,
 // and that enabling the feature restores the enumeration.
 func TestRegister_FeatureProfileScopesCohortEnumeration(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name     string
 		features []string
@@ -191,6 +201,8 @@ func TestRegister_FeatureProfileScopesCohortEnumeration(t *testing.T) {
 		{name: "enabled", features: []string{"mcp_extra:cohort_resources"}, wantEnum: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			fs := &countingFs{Fs: afero.NewMemMapFs()}
 			writeTestCohort(t, fs, "demo.pulse")
 			p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: &pulse.FeatureProfile{Features: tc.features}})
@@ -237,6 +249,8 @@ func TestRegister_FeatureProfileScopesCohortEnumeration(t *testing.T) {
 // schema-bind-on-inspect rebind (which re-adds tools by name) skips a
 // tool the instance hides, while still binding the enabled ones.
 func TestRegister_BindOnInspectDoesNotResurrectHiddenTools(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeRichCohort(t, fs, "rich.pulse")
 	c, cancel := profiledServer(t, fs, fixtureProfile(t, "minimal"), gosdk.Config{Version: "9.9.9", BindOnInspect: true, DisableCohortScan: true})
@@ -257,6 +271,8 @@ func TestRegister_BindOnInspectDoesNotResurrectHiddenTools(t *testing.T) {
 // TestRegister_CanonicalListsIgnoreFeatureProfile pins that the global
 // canonical lists describe the build, not an instance.
 func TestRegister_CanonicalListsIgnoreFeatureProfile(t *testing.T) {
+	t.Parallel()
+
 	_, cancel := profiledServer(t, afero.NewMemMapFs(), fixtureProfile(t, "empty"), gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
 	defer cancel()
 	if got := gosdk.RegisteredTools(); !slices.Equal(got, toolmeta.Names()) {
@@ -299,6 +315,8 @@ func boundInputSchema(t *testing.T, c *mcpsdk.ClientSession, name string) string
 // hidden operator / overlay kind appears, the enabled ones do, and a
 // hidden request slot is gone.
 func TestRegister_BindOnInspectScopesEnums(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeRichCohort(t, fs, "rich.pulse")
 	fp := fixtureProfile(t, "survey-crosstab")

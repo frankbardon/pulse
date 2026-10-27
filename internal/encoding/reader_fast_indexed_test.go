@@ -281,6 +281,8 @@ func assertKindDecode(t *testing.T, label string, kind recordKind,
 // field's position in Schema.Fields, including after SkipBytes gaps and
 // for the trailing nullable-set bitmap segment.
 func TestBuildDecodePlan_IndicesAreSchemaPositions(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	position := make(map[string]int, len(schema.Fields))
 	for i := range schema.Fields {
@@ -322,6 +324,8 @@ func TestBuildDecodePlan_IndicesAreSchemaPositions(t *testing.T) {
 // correctly through the index-keyed path, and refuses one naming a field
 // the reader's schema does not carry.
 func TestReadRecordReusedWithPlan_HandBuiltSegmentWithoutIndices(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0x4A4D)
 	retained := []string{"u4_hi", "amount", "tags_u128"}

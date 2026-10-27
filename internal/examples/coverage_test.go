@@ -11,6 +11,8 @@ import (
 )
 
 func TestEveryOperatorHasAnExampleTag(t *testing.T) {
+	t.Parallel()
+
 	declared, kinds := collectExampleCoverage(t)
 
 	// Tagged operators: ride _meta.operators. Categories enumerated in

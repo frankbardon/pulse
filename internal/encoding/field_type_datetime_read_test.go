@@ -40,6 +40,8 @@ func writeDateTimeRecords(t *testing.T, s *encoding.Schema, rows [][3]uint64, nu
 // (per-field readRecord, the buffer-once reuse fast path, and the
 // projected plan path) agrees on a datetime column.
 func TestFieldTypeDateTime_RecordReadPaths(t *testing.T) {
+	t.Parallel()
+
 	s := datetimeSchema(false)
 	rows := [][3]uint64{
 		{1, 0, 0},
@@ -74,6 +76,8 @@ func TestFieldTypeDateTime_RecordReadPaths(t *testing.T) {
 // a null datetime rides the shared per-record bitmap with no in-band
 // sentinel value.
 func TestFieldTypeDateTime_NullBitmap(t *testing.T) {
+	t.Parallel()
+
 	s := datetimeSchema(true)
 	if !s.HasBitmap() {
 		t.Fatal("schema with nullable datetime must report HasBitmap()")

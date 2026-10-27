@@ -32,6 +32,8 @@ import (
 // range statement, so a single comparison can pass on a broken tree by
 // luck. It cannot do so repeatedly across a 200-key map.
 func TestProfile_ConditionalCaptureIsByteReproducible(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {

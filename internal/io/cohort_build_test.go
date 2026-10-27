@@ -11,6 +11,8 @@ import (
 // refuses at the same ceiling with the same code; rollback forgets the
 // provisional labels, commit makes them real in assignment order.
 func TestStagedDict_MatchesDictionary(t *testing.T) {
+	t.Parallel()
+
 	seed := func() *encoding.Dictionary {
 		d := encoding.NewDictionary()
 		_, _ = d.Add("a")

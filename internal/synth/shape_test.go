@@ -39,6 +39,8 @@ func synthSingleField(t *testing.T, rows int, seed int64, dist string, params ma
 // (FieldProfile.Numeric.Shape), with both components landing near the
 // source's own well-separated means.
 func TestProfile_FitShapeCapturesBimodalMixture(t *testing.T) {
+	t.Parallel()
+
 	const (
 		mean1, std1 = -10.0, 1.5
 		mean2, std2 = 10.0, 1.5
@@ -99,6 +101,8 @@ func TestProfile_FitShapeCapturesBimodalMixture(t *testing.T) {
 // be force-fit into a needlessly complex mixture — the profile document
 // still uses the plain normal capture (Shape stays nil) for that field.
 func TestProfile_FitShapeDoesNotForceFitNearNormalField(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -139,6 +143,8 @@ func TestProfile_FitShapeDoesNotForceFitNearNormalField(t *testing.T) {
 // reconstructing DistNormal — even for a field whose SOURCE is
 // genuinely bimodal. Shape fitting must be opt-in, not automatic.
 func TestProfile_WithoutFitShape_NumericGeneratesAsToday(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
@@ -187,6 +193,8 @@ func TestProfile_WithoutFitShape_NumericGeneratesAsToday(t *testing.T) {
 // approach exactly, applied here to profile-driven regeneration instead
 // of a hand-written mixture spec.
 func TestProfile_FitShapeThenSynth_ReproducesBimodalShape(t *testing.T) {
+	t.Parallel()
+
 	const (
 		mean1, std1 = -10.0, 1.5
 		mean2, std2 = 10.0, 1.5
@@ -311,6 +319,8 @@ func assertBimodal(t *testing.T, values []float64, mean1, std1, mean2, std2 floa
 // linalg/detmath (TestShapeFit_RunsOnDetmath), so the document is also
 // the same on every architecture, not only on one machine.
 func TestProfile_FitShapeIsByteReproducible(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {

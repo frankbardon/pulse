@@ -86,6 +86,8 @@ func synthIn(t *testing.T, charset string, fields ...encoding.Field) *Dictionary
 //     (encoding.ASCIISub, which charmap.EncodeRune returns alongside ok=false
 //     and which a caller who skipped the check would write).
 func TestCharsetEncoder_NoSubstitutionAnywhere(t *testing.T) {
+	t.Parallel()
+
 	// Runes chosen to be outside at least one supported repertoire each:
 	// Latin Extended-A, Greek, Cyrillic, Han, an emoji, and U+FFFD itself,
 	// which is the replacement character a decoder would have produced.
@@ -147,6 +149,8 @@ func TestCharsetEncoder_NoSubstitutionAnywhere(t *testing.T) {
 // the offset is a BYTE offset into the UTF-8 input, so a caller can slice
 // straight to the character at fault.
 func TestCharsetEncoder_ReportsTheOffendingRune(t *testing.T) {
+	t.Parallel()
+
 	enc := mustEncoder(t, "windows-1252")
 	// "Zürich" is 7 UTF-8 bytes; the Greek capital omega is unrepresentable
 	// in windows-1252 and starts at byte 7.
@@ -172,6 +176,8 @@ func TestCharsetEncoder_ReportsTheOffendingRune(t *testing.T) {
 // U+F014. That is a quiet change of a value rather than a loud refusal, and
 // it is refused for exactly the reason a substitution is.
 func TestCharsetEncoder_RefusesAnEncodableButUnfaithfulRune(t *testing.T) {
+	t.Parallel()
+
 	enc := mustEncoder(t, "GB18030")
 
 	raw, err := enc.enc.NewEncoder().Bytes([]byte(string(rune(0xE000))))
@@ -196,9 +202,13 @@ func TestCharsetEncoder_RefusesAnEncodableButUnfaithfulRune(t *testing.T) {
 // and the '=' / tab / newline delimiters of records 7/5, 7/13 and 7/14 all
 // depend on it.
 func TestCharsetEncoder_ASCIIIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	for i := range charsetTable {
 		e := &charsetTable[i]
 		t.Run(e.name, func(t *testing.T) {
+			t.Parallel()
+
 			enc := mustEncoder(t, e.name)
 			for r := rune(0); r < utf8.RuneSelf; r++ {
 				out, at := enc.encode(string(r))
@@ -213,6 +223,8 @@ func TestCharsetEncoder_ASCIIIsIdentity(t *testing.T) {
 // TestCharsetEncoder_USASCIIRefusesHighText: US-ASCII is a real restriction
 // and not a synonym for UTF-8 on the way out either.
 func TestCharsetEncoder_USASCIIRefusesHighText(t *testing.T) {
+	t.Parallel()
+
 	enc := mustEncoder(t, "US-ASCII")
 	if _, at := enc.encode("Zürich"); at != 1 {
 		t.Errorf("offset = %d, want 1; US-ASCII cannot carry U+00FC", at)
@@ -227,6 +239,8 @@ func TestCharsetEncoder_USASCIIRefusesHighText(t *testing.T) {
 // the emitted 7/3, and a code that did not resolve back to the charset it
 // came from would make the file contradict itself.
 func TestCharsetTable_CodeRoundTrips(t *testing.T) {
+	t.Parallel()
+
 	for i := range charsetTable {
 		e := &charsetTable[i]
 		if e.code == 0 {
@@ -255,6 +269,8 @@ func TestCharsetTable_CodeRoundTrips(t *testing.T) {
 // TestResolveWriteCharset_Precedence pins the four-way decision, including
 // the two spellings that must survive it.
 func TestResolveWriteCharset_Precedence(t *testing.T) {
+	t.Parallel()
+
 	side := func(c Charset) *SidecarResolution {
 		return &SidecarResolution{Document: &Document{Payload: Payload{Charset: c}}}
 	}
@@ -331,8 +347,12 @@ func TestResolveWriteCharset_Precedence(t *testing.T) {
 // while declaring something else is the corruption this whole story exists
 // to stop, so an unusable name is a hard refusal.
 func TestResolveWriteCharset_RefusesAnUnwritableCharset(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"EBCDIC", "UTF-16", "not-a-charset"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := resolveWriteCharset(DictionaryRequest{Options: WriterOptions{Charset: name}})
 			if err == nil {
 				t.Fatal("resolveWriteCharset accepted a charset the writer cannot express the format in")
@@ -353,6 +373,8 @@ func TestResolveWriteCharset_RefusesAnUnwritableCharset(t *testing.T) {
 // declaring windows-1252 — not UTF-8 bytes under a windows-1252 header,
 // which would corrupt every non-ASCII label.
 func TestBuildDictionary_ReEncodesIntoTheSourceCharset(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, latin1Spec())
 	plan := emit(t, DictionaryRequest{Schema: schema, Sidecar: res, Cases: 0, Compression: compressionNone})
 
@@ -394,6 +416,8 @@ func TestBuildDictionary_ReEncodesIntoTheSourceCharset(t *testing.T) {
 // TestBuildDictionary_DataValuesGoOutInTheFileCharset covers the other half:
 // a string DATUM is codepage bytes too, not just the dictionary's metadata.
 func TestBuildDictionary_DataValuesGoOutInTheFileCharset(t *testing.T) {
+	t.Parallel()
+
 	fs, cohort, _ := importFixture(t, latin1Spec())
 	sav := exportCohort(t, fs, cohort, WriterOptions{Uncompressed: true})
 
@@ -419,6 +443,8 @@ func TestBuildDictionary_DataValuesGoOutInTheFileCharset(t *testing.T) {
 // would decode that correctly too. What has to be true is stronger: the same
 // bytes, in the same charset, in the same places.
 func TestExport_NonUTF8FixtureRoundTripsByteComparably(t *testing.T) {
+	t.Parallel()
+
 	spec := latin1Spec()
 	source := build(t, spec)
 
@@ -471,6 +497,8 @@ func TestExport_NonUTF8FixtureRoundTripsByteComparably(t *testing.T) {
 // way: the emitted file, put back through the import path, produces the same
 // cohort bytes the source did. Nothing was lost and nothing was invented.
 func TestExport_NonUTF8FixtureReimportsIdentically(t *testing.T) {
+	t.Parallel()
+
 	spec := latin1Spec()
 	fs, cohort, _ := importFixture(t, spec)
 	first, err := afero.ReadFile(fs, cohort)
@@ -493,6 +521,8 @@ func TestExport_NonUTF8FixtureReimportsIdentically(t *testing.T) {
 // so a width taken before the encode is the wrong number in one of the two
 // files — and a width taken from the RUNE count is the wrong number in both.
 func TestBuildDictionary_RecomputesWidthFromEncodedBytes(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		charset string
 		want    int
@@ -502,6 +532,8 @@ func TestBuildDictionary_RecomputesWidthFromEncodedBytes(t *testing.T) {
 		{"ISO-8859-1", 6},
 	} {
 		t.Run(tc.charset, func(t *testing.T) {
+			t.Parallel()
+
 			plan := synthIn(t, tc.charset, dictField(t, "city", "Zürich"))
 			col := planColumn(t, plan, "city")
 			if col.Width != tc.want {
@@ -529,6 +561,8 @@ func TestBuildDictionary_RecomputesWidthFromEncodedBytes(t *testing.T) {
 // SPSS pads to the declared width and the read path trims the padding, so
 // the extra byte is invisible on the way home.
 func TestBuildDictionary_WidensARecordedWidthRatherThanTruncating(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "CITY", Width: 6}},
@@ -559,6 +593,8 @@ func TestBuildDictionary_WidensARecordedWidthRatherThanTruncating(t *testing.T) 
 // never narrows. The source said A20 and A20 is what the round trip owes
 // back, even though every value in it fits in six bytes.
 func TestBuildDictionary_KeepsAWiderRecordedWidth(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "CITY", Width: 20}},
@@ -580,6 +616,8 @@ func TestBuildDictionary_KeepsAWiderRecordedWidth(t *testing.T) {
 // text a legacy codepage cannot express — which is why the error has to name
 // enough for a caller to act on it.
 func TestBuildDictionary_RefusesUnencodableText(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		field   encoding.Field
@@ -633,6 +671,8 @@ func TestBuildDictionary_RefusesUnencodableText(t *testing.T) {
 // FORMAT fixes, where widening is not available. Each one is a refusal and
 // never a truncation.
 func TestBuildDictionary_RefusesWidthOverflow(t *testing.T) {
+	t.Parallel()
+
 	// A string variable past the 32767-byte ceiling SPSS puts on one. This
 	// is the case dict_synth.go's cannotExpress used to hold under
 	// PULSE_SPSS_EXPORT_UNSUPPORTED; it is a width overflow and now says so.
@@ -700,6 +740,8 @@ func TestBuildDictionary_RefusesWidthOverflow(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			spec := spsstest.Spec{
 				CharacterEncoding: "windows-1252",
 				Vars:              []spsstest.Var{{Name: "Q1", Print: spsstest.Format{Type: spsstest.FormatF, Width: 8}}},
@@ -729,6 +771,8 @@ func TestBuildDictionary_RefusesWidthOverflow(t *testing.T) {
 // the width cannot move. The check stays because "it cannot happen today" is
 // not a reason to let dictEncoder.ascii cut a name silently if it ever does.
 func TestTranscode_RefusesAShortNameThatOutgrewItsField(t *testing.T) {
+	t.Parallel()
+
 	f := &outFile{
 		charset: mustEncoder(t, "UTF-8"),
 		vars: []*outVar{{
@@ -768,6 +812,8 @@ func TestTranscode_RefusesAShortNameThatOutgrewItsField(t *testing.T) {
 // The value is built so that byte 252 falls INSIDE a character in every
 // charset under test, which is what makes the test capable of failing.
 func TestBuildDictionary_ResegmentsOnEncodedBytes(t *testing.T) {
+	t.Parallel()
+
 	// One ASCII byte then 130 three-byte characters: character 83 spans
 	// bytes 250..253, so the 252-byte segment boundary is inside it.
 	straddle := "a" + strings.Repeat("日", 130)
@@ -841,6 +887,8 @@ func TestBuildDictionary_ResegmentsOnEncodedBytes(t *testing.T) {
 // is what goes back out. Re-deriving a layout that happens to differ would
 // still read back correctly and would still not be the file the source was.
 func TestBuildDictionary_ReproducesTheSourceSegmentation(t *testing.T) {
+	t.Parallel()
+
 	spec := spsstest.Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []spsstest.Var{{Name: "NOTES", Width: 400}},
@@ -872,6 +920,8 @@ func TestBuildDictionary_ReproducesTheSourceSegmentation(t *testing.T) {
 // string keeps the source's names for the segments the source had, and the
 // minted ones cannot land on a name already in use.
 func TestResegment_MintsOnlyTheSegmentsTheSourceDidNotHave(t *testing.T) {
+	t.Parallel()
+
 	f := &outFile{vars: []*outVar{
 		{name: "OTHER", shortName: "NOTES2", segments: []SegmentPlan{{Name: "NOTES2", Width: 0}}},
 		{
@@ -911,6 +961,8 @@ func TestResegment_MintsOnlyTheSegmentsTheSourceDidNotHave(t *testing.T) {
 // and never decoded, so they are re-emitted VERBATIM. Transcoding them would
 // require decoding them first, which the reader deliberately does not do.
 func TestBuildDictionary_VerbatimExtensionsPassThrough(t *testing.T) {
+	t.Parallel()
+
 	spec := richSpec() // ASCII attribute records, a cp1252 declaration
 	schema, res := exportFixture(t, spec)
 
@@ -944,6 +996,8 @@ func TestBuildDictionary_VerbatimExtensionsPassThrough(t *testing.T) {
 // E3-S3 note recorded: the generator's attribute text is ASCII-only and
 // nothing decodes it.
 func TestVerbatimExtensions_WarnWhenTheTargetCharsetMoves(t *testing.T) {
+	t.Parallel()
+
 	build := func(source, target string) []*perr.CodedError {
 		t.Helper()
 		f := &outFile{
@@ -987,6 +1041,8 @@ func TestVerbatimExtensions_WarnWhenTheTargetCharsetMoves(t *testing.T) {
 // a differently-declared file is not a disagreement and must not warn. This
 // is the state of the fixture generator's own 7/17 and 7/18 records.
 func TestBuildDictionary_ASCIIVerbatimExtensionsAreSilent(t *testing.T) {
+	t.Parallel()
+
 	spec := richSpec() // its attribute records are ASCII, its charset cp1252
 	schema, res := exportFixture(t, spec)
 	plan := emit(t, DictionaryRequest{
@@ -1007,6 +1063,8 @@ func TestBuildDictionary_ASCIIVerbatimExtensionsAreSilent(t *testing.T) {
 // TestSynthesise_DefaultsToUTF8: a cohort with no SPSS provenance has no
 // source charset to be faithful to, so it gets UTF-8 and says so.
 func TestSynthesise_DefaultsToUTF8(t *testing.T) {
+	t.Parallel()
+
 	plan := synthesise(t, dictField(t, "city", "Zürich"))
 	d := reparse(t, plan)
 	if d.charsetName != "UTF-8" {
@@ -1023,6 +1081,8 @@ func TestSynthesise_DefaultsToUTF8(t *testing.T) {
 // TestSynthesise_RoundTripsInAnyCharset walks the whole synthesised path in
 // several charsets at once: emit, write cases, read back, compare the text.
 func TestSynthesise_RoundTripsInAnyCharset(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		charset string
 		values  []string
@@ -1036,6 +1096,8 @@ func TestSynthesise_RoundTripsInAnyCharset(t *testing.T) {
 		{"Big5", []string{"台北", "中文"}},
 	} {
 		t.Run(tc.charset, func(t *testing.T) {
+			t.Parallel()
+
 			schema := &encoding.Schema{Fields: []encoding.Field{dictField(t, "place", tc.values...)}}
 			plan := synthIn(t, tc.charset, schema.Fields...)
 
@@ -1068,6 +1130,8 @@ func TestSynthesise_RoundTripsInAnyCharset(t *testing.T) {
 // being true, the eight-byte refusal above becomes reachable from a plain
 // synthesised export rather than only from a hand-set charset.
 func TestSynthesise_MintedShortNamesStayASCII(t *testing.T) {
+	t.Parallel()
+
 	// The name is legal SPSS (E5-S5 refuses a space), and every byte past
 	// the first is still non-ASCII, which is what the minter has to fold.
 	plan := synthIn(t, "windows-1252", dictField(t, "Zürich_Größe", "a"))
@@ -1092,6 +1156,8 @@ func TestSynthesise_MintedShortNamesStayASCII(t *testing.T) {
 // CategoryCode.Encoded and never Text, so the encoding is done once, at plan
 // time, where a refusal costs nothing.
 func TestColumnPlan_CarriesEncodedValues(t *testing.T) {
+	t.Parallel()
+
 	plan := synthIn(t, "windows-1252", dictField(t, "city", "Zürich", "Genève"))
 	col := planColumn(t, plan, "city")
 	for _, want := range []struct {
@@ -1121,6 +1187,8 @@ func TestColumnPlan_CarriesEncodedValues(t *testing.T) {
 // space-padded out to the DECLARED byte width, and the padding is measured on
 // the encoded bytes like everything else.
 func TestDataEncoder_PadsToTheEncodedWidth(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{dictField(t, "city", "Zürich", "Bern")}}
 	plan := emit(t, DictionaryRequest{
 		Schema: schema, Cases: 2, Compression: compressionNone,
@@ -1148,6 +1216,8 @@ func TestDataEncoder_PadsToTheEncodedWidth(t *testing.T) {
 // datum, so it goes on the wire in the file's charset like any other. A key
 // left as UTF-8 stops matching the data it names, silently.
 func TestBuildDictionary_ValueLabelKeysAreEncodedToo(t *testing.T) {
+	t.Parallel()
+
 	schema, res := exportFixture(t, latin1Spec())
 	plan := emit(t, DictionaryRequest{Schema: schema, Sidecar: res, Cases: 2, Compression: compressionNone})
 
@@ -1185,6 +1255,8 @@ func contains(xs []string, want string) bool {
 // machine-readable: a caller sizing a fix needs the two widths as numbers,
 // not as prose it has to parse back out of the message.
 func TestBuildDictionary_WidthDetailsAreNumbers(t *testing.T) {
+	t.Parallel()
+
 	ce := emitFails(t, DictionaryRequest{
 		Schema: &encoding.Schema{Fields: []encoding.Field{
 			dictField(t, "notes", strings.Repeat("x", maxVeryLongStringWidth+9)),

@@ -9,6 +9,8 @@ import (
 )
 
 func TestExportJob_Run_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	// First import some data.
 	rows := [][]string{
 		{"10", "hello"},
@@ -54,6 +56,8 @@ func TestExportJob_Run_EndToEnd(t *testing.T) {
 }
 
 func TestExportJob_Predict(t *testing.T) {
+	t.Parallel()
+
 	// Import first.
 	rows := [][]string{
 		{"10"}, {"20"}, {"30"},
@@ -135,6 +139,8 @@ func (j *ImportJob) runOnFs(fs afero.Fs) (*ImportReport, error) {
 }
 
 func TestExportJob_Includes_NilExportsAllFields(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 	w := &collectWriter{}
 	job := NewExportJob("test.pulse", w)
@@ -153,6 +159,8 @@ func TestExportJob_Includes_NilExportsAllFields(t *testing.T) {
 }
 
 func TestExportJob_Includes_SubsetProjects(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 	w := &collectWriter{}
 	job := NewExportJob("test.pulse", w)
@@ -181,6 +189,8 @@ func TestExportJob_Includes_SubsetProjects(t *testing.T) {
 }
 
 func TestExportJob_Includes_UnknownFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 	w := &collectWriter{}
 	job := NewExportJob("test.pulse", w)
@@ -201,6 +211,8 @@ func TestExportJob_Includes_UnknownFieldErrors(t *testing.T) {
 }
 
 func TestExportJob_Includes_DuplicatesAreIdempotent(t *testing.T) {
+	t.Parallel()
+
 	fs := importThreeFieldFixture(t)
 	w := &collectWriter{}
 	job := NewExportJob("test.pulse", w)

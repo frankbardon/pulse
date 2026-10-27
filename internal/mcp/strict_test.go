@@ -14,6 +14,8 @@ import (
 )
 
 func TestJsonObjectKeys_RequestSlots(t *testing.T) {
+	t.Parallel()
+
 	keys := descx.VisibleSlotKeys(&types.Request{}, nil)
 	for _, want := range []string{"cohort", "groups", "aggregations", "filterers", "windows", "tests", "post_tests"} {
 		if !slices.Contains(keys, want) {
@@ -30,6 +32,8 @@ func TestJsonObjectKeys_RequestSlots(t *testing.T) {
 }
 
 func TestCheckUnknownRequestKeys_GroupersSuggestsGroups(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"groupers":[{"type":"GROUP_CATEGORY","field":"region"}]}`)
 	ce := checkUnknownRequestKeys(body, nil)
 	if ce == nil {
@@ -48,6 +52,8 @@ func TestCheckUnknownRequestKeys_GroupersSuggestsGroups(t *testing.T) {
 }
 
 func TestCheckUnknownRequestKeys_AggregatorsSuggestsAggregations(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"aggregators":[{"type":"AGG_SUM","field":"amount"}]}`)
 	ce := checkUnknownRequestKeys(body, nil)
 	if ce == nil {
@@ -60,6 +66,8 @@ func TestCheckUnknownRequestKeys_AggregatorsSuggestsAggregations(t *testing.T) {
 }
 
 func TestCheckUnknownRequestKeys_ValidPasses(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"groups":[{"type":"GROUP_CATEGORY","field":"region"}],"aggregations":[{"type":"AGG_SUM","field":"amount"}]}`)
 	if ce := checkUnknownRequestKeys(body, nil); ce != nil {
 		t.Fatalf("valid request flagged: %s", ce.Message)
@@ -67,6 +75,8 @@ func TestCheckUnknownRequestKeys_ValidPasses(t *testing.T) {
 }
 
 func TestCheckUnknownRequestKeys_UnrelatedKeyNoSuggestion(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"xyzzy":1}`)
 	ce := checkUnknownRequestKeys(body, nil)
 	if ce == nil {
@@ -79,6 +89,8 @@ func TestCheckUnknownRequestKeys_UnrelatedKeyNoSuggestion(t *testing.T) {
 }
 
 func TestCheckUnknownRequestKeys_NonObjectIsNil(t *testing.T) {
+	t.Parallel()
+
 	if ce := checkUnknownRequestKeys([]byte(`[1,2,3]`), nil); ce != nil {
 		t.Errorf("array body should defer to typed decoder, got %s", ce.Code)
 	}
@@ -88,6 +100,8 @@ func TestCheckUnknownRequestKeys_NonObjectIsNil(t *testing.T) {
 }
 
 func TestCheckUnknownKeysComposed_TagsIndex(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"requests":[{"cohort":{"filename":"x.pulse"}},{"groupers":[]}]}`)
 	ce := checkUnknownKeysComposed(body, nil)
 	if ce == nil {
@@ -105,6 +119,8 @@ func TestCheckUnknownKeysComposed_TagsIndex(t *testing.T) {
 // Request too — an unknown key inside fits[i].request is refused with
 // details.fit, the key the service's fit refusals use.
 func TestCheckUnknownKeysComposed_TagsFitIndex(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"requests":[{"cohort":{"filename":"x.pulse"}}],"fits":[{"name":"a","request":{}},{"name":"b","request":{"regresions":[]}}]}`)
 	ce := checkUnknownKeysComposed(body, nil)
 	if ce == nil {
@@ -117,6 +133,8 @@ func TestCheckUnknownKeysComposed_TagsFitIndex(t *testing.T) {
 }
 
 func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"stages":[{"name":"s0","request":{"groupers":[]}}]}`)
 	ce := checkUnknownKeysChain(body, nil)
 	if ce == nil {
@@ -147,6 +165,8 @@ func assertDetailKeys(t *testing.T, details map[string]any, want ...string) {
 // TestStrictRequestDecode_RejectsUnknownKey proves the decode wrapper used by
 // Invoke surfaces the coded error verbatim before the typed unmarshal.
 func TestStrictRequestDecode_RejectsUnknownKey(t *testing.T) {
+	t.Parallel()
+
 	_, err := strictRequestDecode([]byte(`{"groupers":[]}`), nil)
 	if err == nil {
 		t.Fatal("expected unknown-key error")
@@ -163,6 +183,8 @@ func TestStrictRequestDecode_RejectsUnknownKey(t *testing.T) {
 // (here the unscoped list; TestCheckUnknownKeys_HiddenSlot* pin the
 // scoped one).
 func TestCheckUnknownRequestKeys_SharesSlotGateShape(t *testing.T) {
+	t.Parallel()
+
 	ce := checkUnknownRequestKeys([]byte(`{"crosstabz":{},"groupers":[]}`), nil)
 	if ce == nil {
 		t.Fatal("expected an unknown-field error")
@@ -201,6 +223,8 @@ func TestCheckUnknownRequestKeys_SharesSlotGateShape(t *testing.T) {
 // opt-out while an absent key stays absent — the distinction survives
 // the MCP hop.
 func TestStrictRequestDecode_WeightNullIsNotAbsent(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"weight":{"field":"w","kind":"frequency"},"aggregations":[
 		{"type":"AGG_SUM","field":"x"},
 		{"type":"AGG_SUM","field":"x","weight":null},
@@ -236,6 +260,8 @@ func TestStrictRequestDecode_WeightNullIsNotAbsent(t *testing.T) {
 // object or a pulse_predict facet body is refused located by
 // details.path, never dropped.
 func TestStrictDecode_NestedUnknownKeys(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		decode func() error

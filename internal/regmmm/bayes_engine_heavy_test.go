@@ -25,6 +25,8 @@ import (
 // any sampling; rows written out of time order fit exactly as the
 // sorted rows do.
 func TestMMMBayes_InputsRefused(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	p := bayesInstance(t, nil)
@@ -92,6 +94,8 @@ func TestMMMBayes_InputsRefused(t *testing.T) {
 // gives the same seed, a different slot another; a non-zero rng_seed is
 // used as is.
 func TestMMMBayes_Seed(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	p := bayesInstance(t, nil)
@@ -142,6 +146,8 @@ func TestMMMBayes_Seed(t *testing.T) {
 // credible_level narrows every interval; the diagnostics block reports
 // the run; no holdout without params.holdout_from.
 func TestMMMBayes_FitOutputs(t *testing.T) {
+	t.Parallel()
+
 	p := bayesInstance(t, nil)
 	r := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(regmmm.FastParams))).Regressions[0]
 	if r.Error != nil {
@@ -233,6 +239,8 @@ func TestMMMBayes_FitOutputs(t *testing.T) {
 // run reports none of those three; under Strict the first warning
 // fails the run with PROCESSING_REGRESSION_DIAGNOSTIC.
 func TestMMMBayes_HealthWarnings(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	const tiny = `{"channels":["tv"],"time":"week","chains":2,"warmup":10,"draws":30}`
 	p := bayesInstance(t, nil)
 	resp := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(tiny)))
@@ -336,6 +344,8 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 // outside the series is PROCESSING_CONFIG before any sampling, a
 // fractional one a params refusal.
 func TestMMMBayes_Holdout(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
 	c := &countingSampler{}
 	withSampler(t, c)
 	p := bayesInstance(t, nil)

@@ -11,6 +11,8 @@ import (
 // it reproduces: the default (the SLSQP port) semopy's default fit,
 // early stop included, to rounding; a converging setup the tight fit.
 func TestFit_MatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	configs := []struct {
 		name string
 		opt  Options

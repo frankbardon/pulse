@@ -77,6 +77,8 @@ func checkMoments(t *testing.T, res mcmc.Result, wantVar []float64) {
 // moments, mixes (R̂ ≤ 1.01), hits the 0.8 acceptance target, never
 // diverges and keeps short trees (a broken U-turn criterion saturates).
 func TestNUTS_StandardNormalRecovery(t *testing.T) {
+	t.Parallel()
+
 	res := sample(t, mcmc.NUTS{}, normal{d: 10}, 11, mcmc.Options{})
 	if len(res.Draws) != mcmc.DefaultChains || len(res.Draws[0]) != 10 || len(res.Draws[0][0]) != mcmc.DefaultDraws {
 		t.Fatalf("draws shape %d×%d×%d", len(res.Draws), len(res.Draws[0]), len(res.Draws[0][0]))
@@ -113,6 +115,8 @@ func TestNUTS_StandardNormalRecovery(t *testing.T) {
 // correlation 0.9 (condition number ≈ 70, beyond what a diagonal metric
 // removes) recovers its marginal moments and the lag-1 correlation.
 func TestNUTS_CorrelatedGaussianRecovery(t *testing.T) {
+	t.Parallel()
+
 	const d, rho = 5, 0.9
 	res := sample(t, mcmc.NUTS{}, gaussian{d: d, prec: ar1Precision(d, rho)}, 12, mcmc.Options{})
 	checkMoments(t, res, []float64{1, 1, 1, 1, 1})
@@ -138,6 +142,8 @@ func TestNUTS_CorrelatedGaussianRecovery(t *testing.T) {
 // three orders of magnitude the adapted inverse metric tracks the
 // variances, so the trees stay short.
 func TestNUTS_MetricAdaptation(t *testing.T) {
+	t.Parallel()
+
 	sd := []float64{0.1, 1, 10, 100}
 	res := sample(t, mcmc.NUTS{}, normal{d: 4, sd: sd}, 13, mcmc.Options{Chains: 2})
 	for c, st := range res.Diagnostics.Chains {
@@ -161,6 +167,8 @@ func TestNUTS_MetricAdaptation(t *testing.T) {
 // parameterisation diverges in its neck; every divergence is recorded
 // per draw and counted.
 func TestNUTS_FunnelDivergences(t *testing.T) {
+	t.Parallel()
+
 	res := sample(t, mcmc.NUTS{}, funnel{d: 10}, 14, mcmc.Options{Warmup: 500, Draws: 500})
 	total := 0
 	for c, st := range res.Diagnostics.Chains {
@@ -183,6 +191,8 @@ func TestNUTS_FunnelDivergences(t *testing.T) {
 // TestNUTS_MaxTreeDepth: a depth cap of 2 on a strongly correlated
 // target bounds every tree and counts the saturated ones.
 func TestNUTS_MaxTreeDepth(t *testing.T) {
+	t.Parallel()
+
 	res := sample(t, mcmc.NUTS{MaxTreeDepth: 2}, gaussian{d: 5, prec: ar1Precision(5, 0.99)}, 15,
 		mcmc.Options{Chains: 2, Warmup: 300, Draws: 300})
 	sat := 0
@@ -209,6 +219,8 @@ func TestNUTS_MaxTreeDepth(t *testing.T) {
 // TestNUTS_TargetAccept: raising the dual-averaging target shrinks the
 // adapted step size and raises the realised acceptance statistic.
 func TestNUTS_TargetAccept(t *testing.T) {
+	t.Parallel()
+
 	m := gaussian{d: 5, prec: ar1Precision(5, 0.9)}
 	mean := func(res mcmc.Result) (eps, acc float64) {
 		for _, st := range res.Diagnostics.Chains {
@@ -292,6 +304,8 @@ var goldenRuns = []struct {
 // transcendental anywhere in the sampler or the test models fails this
 // test on amd64 CI (it never skips).
 func TestNUTS_GoldenHash(t *testing.T) {
+	t.Parallel()
+
 	for _, g := range goldenRuns {
 		got := drawHash(sample(t, g.nuts, g.model, g.seed, g.opts))
 		if got != g.hash {
@@ -303,6 +317,8 @@ func TestNUTS_GoldenHash(t *testing.T) {
 // TestNUTS_Deterministic: the same seed gives the same bits across runs,
 // worker counts and GOMAXPROCS; another seed gives other bits.
 func TestNUTS_Deterministic(t *testing.T) {
+	// serial: sets the process-wide runtime.GOMAXPROCS
+
 	m := funnel{d: 4}
 	opts := mcmc.Options{Chains: 5, Warmup: 150, Draws: 100}
 	base := drawHash(sample(t, mcmc.NUTS{}, m, 7, opts))
@@ -354,6 +370,8 @@ func (m *cancelAfter) LogDensityGrad(theta, grad []float64) float64 {
 // within one transition per chain; an already-cancelled context returns
 // before any gradient.
 func TestNUTS_ContextCancel(t *testing.T) {
+	// serial: wall-clock bound; CPU contention from parallel tests would make it flaky
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m := &cancelAfter{Model: normal{d: 3}, n: 500, cancel: cancel}
@@ -397,6 +415,8 @@ func (m *firstTheta) LogDensityGrad(theta, grad []float64) float64 {
 // TestNUTS_InitPoint: a supplied Init is where the chain starts; without
 // one each coordinate is drawn from (−2, 2).
 func TestNUTS_InitPoint(t *testing.T) {
+	t.Parallel()
+
 	opts := mcmc.Options{Chains: 1, Warmup: 20, Draws: 5, Init: []float64{3.25, -7.5}}
 	m := &firstTheta{Model: normal{d: 2}}
 	sample(t, mcmc.NUTS{}, m, 3, opts)
@@ -422,6 +442,8 @@ func TestNUTS_InitPoint(t *testing.T) {
 // Constrain never changes the chain (the same seed's raw draws map onto
 // them exactly).
 func TestNUTS_Constrain(t *testing.T) {
+	t.Parallel()
+
 	opts := mcmc.Options{Chains: 2, Warmup: 50, Draws: 40}
 	raw := sample(t, mcmc.NUTS{}, normal{d: 2}, 5, opts)
 	opts.Constrain = func(theta, out []float64) {
@@ -454,6 +476,8 @@ func (nowhere) LogDensityGrad(theta, grad []float64) float64 { return math.Inf(-
 // TestNUTS_Refusals: bad options and models are coded errors naming
 // their reason.
 func TestNUTS_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		nuts   mcmc.NUTS
@@ -493,6 +517,8 @@ func (panicky) LogDensityGrad(theta, grad []float64) float64 { panic("model bug"
 // TestNUTS_PanicReraised: a model panic on a chain goroutine resurfaces
 // on the caller's, where an embedder's recover can catch it.
 func TestNUTS_PanicReraised(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 		if r := recover(); r != "model bug" {
 			t.Fatalf("recovered %v, want the model's panic", r)

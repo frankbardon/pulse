@@ -9,6 +9,8 @@ import (
 // TestValidZoneName: the cheap validity check accepts exactly what
 // LoadZone accepts and refuses with LoadZone's own coded error.
 func TestValidZoneName(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"UTC", "Europe/Berlin", "America/New_York", "Etc/GMT-5", "Etc/UTC"} {
 		if err := ValidZoneName(name); err != nil {
 			t.Errorf("ValidZoneName(%q) = %v, want nil", name, err)
@@ -34,6 +36,8 @@ func TestValidZoneName(t *testing.T) {
 // a repeated name shares one *Zone, an out-of-range code is nil and a
 // bad entry is refused with its dictionary index.
 func TestLoadZones_CodeIndexed(t *testing.T) {
+	t.Parallel()
+
 	names := []string{"Europe/Berlin", "UTC", "America/New_York", "Europe/Berlin"}
 	tab, err := LoadZones(names, nil)
 	if err != nil {
@@ -73,6 +77,8 @@ func TestLoadZones_CodeIndexed(t *testing.T) {
 // TestLoadZones_UsesLoader: a long-lived owner's loader (a Cache) is
 // consulted once per distinct name.
 func TestLoadZones_UsesLoader(t *testing.T) {
+	t.Parallel()
+
 	var c Cache
 	calls := map[string]int{}
 	load := func(n string) (*Zone, error) { calls[n]++; return c.Load(n) }
@@ -92,6 +98,8 @@ func TestLoadZones_UsesLoader(t *testing.T) {
 // TestZoneTable_Fork: a fork answers identically, keeps the sharing
 // between repeated names, and owns its own lookup caches.
 func TestZoneTable_Fork(t *testing.T) {
+	t.Parallel()
+
 	tab, err := LoadZones([]string{"Europe/Berlin", "UTC", "Europe/Berlin"}, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -19,6 +19,8 @@ import (
 // server identifies itself. This proves Serve wires the mcp/gosdk adapter through to a
 // working JSON-RPC loop.
 func TestServe_InitializeRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	p, err := pulse.New(pulse.Options{DataDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -102,6 +104,8 @@ func (c *countingFs) reset() {
 // same test so a scan that stopped running could not make the disabled arm
 // pass vacuously.
 func TestServe_DisableCohortScanSkipsTheStartupWalk(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name      string
 		opts      mcpserve.Options
@@ -111,6 +115,8 @@ func TestServe_DisableCohortScanSkipsTheStartupWalk(t *testing.T) {
 		{name: "scan disabled", opts: mcpserve.Options{DisableCohortScan: true}, wantOpens: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			fsys := &countingFs{Fs: afero.NewMemMapFs()}
 			p, err := pulse.New(pulse.Options{FS: fsys})
 			if err != nil {

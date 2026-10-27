@@ -20,6 +20,8 @@ import (
 // a slot the request-template renderer would not know to refuse a
 // `{{token}}` splice into — fails here.
 func TestTemplateExprSplice_CompileSitesShared(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

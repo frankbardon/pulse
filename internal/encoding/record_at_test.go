@@ -111,6 +111,8 @@ func sequentialDecode(t *testing.T, payload []byte, schema *encoding.Schema, tar
 // no iteration) must byte/value-equal a sequential decode up to i, for
 // the first, a middle, and the last record.
 func TestRecordLocator_MatchesSequentialDecode(t *testing.T) {
+	t.Parallel()
+
 	const n = 11
 	payload, schema, _, _ := buildRecordAtFixture(t, n)
 
@@ -162,6 +164,8 @@ func TestRecordLocator_MatchesSequentialDecode(t *testing.T) {
 // retained subset exactly (the unretained columns are simply absent,
 // never wrong).
 func TestRecordLocator_ProjectedDecode(t *testing.T) {
+	t.Parallel()
+
 	const n = 7
 	payload, schema, _, _ := buildRecordAtFixture(t, n)
 
@@ -224,6 +228,8 @@ func TestRecordLocator_ProjectedDecode(t *testing.T) {
 // index at or beyond TotalRecords returns a coded ENCODING_INVALID
 // error, never a panic and never a seek past the end of the payload.
 func TestRecordLocator_OutOfRange(t *testing.T) {
+	t.Parallel()
+
 	const n = 4
 	payload, schema, _, _ := buildRecordAtFixture(t, n)
 
@@ -270,6 +276,8 @@ func TestRecordLocator_OutOfRange(t *testing.T) {
 // records yields TotalRecords == 0 and every index — including 0 —
 // is out of range.
 func TestRecordLocator_EmptyCohort(t *testing.T) {
+	t.Parallel()
+
 	payload, schema, _, _ := buildRecordAtFixture(t, 0)
 
 	r := bytes.NewReader(payload)
@@ -297,6 +305,8 @@ func TestRecordLocator_EmptyCohort(t *testing.T) {
 // against the recordRegionStart + i*stride formula the offset math
 // precedent (internal/service/parallel_decode.go) uses.
 func TestRecordLocator_Offset(t *testing.T) {
+	t.Parallel()
+
 	const n = 5
 	payload, schema, _, _ := buildRecordAtFixture(t, n)
 
@@ -324,6 +334,8 @@ func TestRecordLocator_Offset(t *testing.T) {
 // schema or nil reader must never panic and must surface a coded
 // ENCODING_INVALID error.
 func TestRecordLocator_NilGuards(t *testing.T) {
+	t.Parallel()
+
 	payload, schema, _, _ := buildRecordAtFixture(t, 1)
 
 	t.Run("nil_schema", func(t *testing.T) {

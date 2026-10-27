@@ -11,6 +11,8 @@ import (
 // TestFormatValue_Date32 pins the epoch-day → ISO rendering of a Date32
 // cell, including the pre-epoch side of the sign boundary.
 func TestFormatValue_Date32(t *testing.T) {
+	t.Parallel()
+
 	b := array.NewDate32Builder(memory.NewGoAllocator())
 	defer b.Release()
 	days := []int32{0, 1, -1, -25567, 19787}

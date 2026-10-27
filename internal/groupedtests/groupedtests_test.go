@@ -9,6 +9,8 @@ import (
 )
 
 func TestSpecIndex(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct{ k, specs, results, want int }{
 		{0, 2, 2, 0}, {1, 2, 2, 1}, // ungrouped: one per slot
 		{0, 2, 6, 0}, {2, 2, 6, 0}, {3, 2, 6, 1}, {5, 2, 6, 1}, // 3 groups, test-major
@@ -24,6 +26,8 @@ func TestSpecIndex(t *testing.T) {
 }
 
 func TestSplitRefusal(t *testing.T) {
+	t.Parallel()
+
 	g := func(typ types.GroupType, field string) *types.Group { return &types.Group{Type: typ, Field: field} }
 	cases := []struct {
 		name   string
@@ -58,6 +62,8 @@ func TestSplitRefusal(t *testing.T) {
 // PostTestDepth: the prefix rule per post-test, one depth per request,
 // and a split on a partition key column refused.
 func TestPostTestDepth(t *testing.T) {
+	t.Parallel()
+
 	g := func(field string) *types.Group { return &types.Group{Type: types.GROUP_CATEGORY, Field: field} }
 	two := []*types.Group{g("warehouse"), g("week")}
 	pt := func(params, split string) *types.Test {
@@ -96,6 +102,8 @@ func TestPostTestDepth(t *testing.T) {
 
 // WithoutPartition strips only partition_by, never mutating the spec.
 func TestWithoutPartition(t *testing.T) {
+	t.Parallel()
+
 	in := &types.Test{Type: types.TEST_TREND, Params: json.RawMessage(`{"partition_by":[],"variant":"mann_kendall"}`)}
 	out := WithoutPartition(in)
 	if string(out.Params) != `{"variant":"mann_kendall"}` || string(in.Params) != `{"partition_by":[],"variant":"mann_kendall"}` {

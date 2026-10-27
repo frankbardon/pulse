@@ -36,6 +36,8 @@ import (
 // Every shipped profile must prune at least one skill, and the set as a
 // whole at least one example, or the gate is vacuous.
 func TestSkillsCoverProfileGet(t *testing.T) {
+	t.Parallel()
+
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	full, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
 	if err != nil {

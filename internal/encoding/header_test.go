@@ -11,6 +11,8 @@ import (
 )
 
 func TestHeaderWrite_MagicBytes(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := encoding.WriteHeader(&buf); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -29,6 +31,8 @@ func TestHeaderWrite_MagicBytes(t *testing.T) {
 // TestHeaderWrite_FormatVersion pins that the plain WriteHeader still
 // emits the 0x01 baseline — the byte every pre-0x02 file carries.
 func TestHeaderWrite_FormatVersion(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	if err := encoding.WriteHeader(&buf); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
@@ -45,6 +49,8 @@ func TestHeaderWrite_FormatVersion(t *testing.T) {
 // TestHeaderRead_ReturnsVersion: every supported version is accepted and
 // handed back to the caller rather than discarded.
 func TestHeaderRead_ReturnsVersion(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range []byte{0x01, 0x02} {
 		var buf bytes.Buffer
 		if err := writeHeaderVersion(&buf, v); err != nil {
@@ -61,6 +67,8 @@ func TestHeaderRead_ReturnsVersion(t *testing.T) {
 }
 
 func TestSupportedFormatVersions(t *testing.T) {
+	t.Parallel()
+
 	if got := encoding.SupportedFormatVersions(); !bytes.Equal(got, []byte{0x01, 0x02}) {
 		t.Fatalf("SupportedFormatVersions = %v, want [1 2]", got)
 	}
@@ -76,6 +84,8 @@ func TestSupportedFormatVersions(t *testing.T) {
 }
 
 func TestHeaderRead_TruncatedHeader(t *testing.T) {
+	t.Parallel()
+
 	data := []byte{0x50, 0x55} // too short
 	_, err := encoding.ReadHeader(bytes.NewReader(data))
 	if err == nil {
@@ -87,6 +97,8 @@ func TestHeaderRead_TruncatedHeader(t *testing.T) {
 }
 
 func TestHeaderRead_WrongMagic(t *testing.T) {
+	t.Parallel()
+
 	data := make([]byte, encoding.HeaderSize)
 	data[0] = 0xFF // wrong magic
 	_, err := encoding.ReadHeader(bytes.NewReader(data))
@@ -126,6 +138,8 @@ func assertUnsupportedVersion(t *testing.T, err error, v byte) {
 // including 0x00 and the next version up — stays ENCODING_INVALID,
 // never a silent misparse.
 func TestHeaderRead_UnsupportedVersion(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range []byte{0x00, 0x03, 0x7F, 0xFF} {
 		var buf bytes.Buffer
 		if err := encoding.WriteHeader(&buf); err != nil {
@@ -152,6 +166,8 @@ func TestHeaderRead_UnsupportedVersion(t *testing.T) {
 // PULSE_COHORT_COMPRESSED, never a generic ENCODING_INVALID; any other
 // bad magic keeps ENCODING_INVALID.
 func TestReadHeader_ZstdArtifactRefused(t *testing.T) {
+	t.Parallel()
+
 	long := append(encoding.ZstdMagic[:], 0x24, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05)
 	for name, in := range map[string][]byte{"full": long, "short": encoding.ZstdMagic[:]} {
 		_, err := encoding.ReadHeader(bytes.NewReader(in))

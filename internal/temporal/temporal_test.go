@@ -11,12 +11,16 @@ func utc(y int, m time.Month, d, hh, mm, ss int) time.Time {
 }
 
 func TestSecondsPerDay(t *testing.T) {
+	t.Parallel()
+
 	if SecondsPerDay != 24*60*60 {
 		t.Fatalf("SecondsPerDay = %d, want 86400", SecondsPerDay)
 	}
 }
 
 func TestDateTimeToDay(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		sec  int64
@@ -45,6 +49,8 @@ func TestDateTimeToDay(t *testing.T) {
 }
 
 func TestTimeToDay(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   time.Time
@@ -66,6 +72,8 @@ func TestTimeToDay(t *testing.T) {
 }
 
 func TestDayToTime(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		day  int64
 		want time.Time
@@ -85,6 +93,8 @@ func TestDayToTime(t *testing.T) {
 }
 
 func TestDayToTimeTimeToDayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, day := range []int64{-1_000_000, -25567, -366, -2, -1, 0, 1, 59, 365, 19782, 2932896, 1_000_000} {
 		if got := TimeToDay(DayToTime(day)); got != day {
 			t.Fatalf("round trip day %d -> %d", day, got)
@@ -100,6 +110,8 @@ func TestDayToTimeTimeToDayRoundTrip(t *testing.T) {
 }
 
 func TestCalendarStarts(t *testing.T) {
+	t.Parallel()
+
 	d := func(y int, m time.Month, dd int) int64 { return TimeToDay(utc(y, m, dd, 0, 0, 0)) }
 	cases := []struct {
 		name                 string
@@ -134,6 +146,8 @@ func TestCalendarStarts(t *testing.T) {
 }
 
 func TestDayToUnix(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ day, want int64 }{{0, 0}, {1, 86400}, {-1, -86400}, {19787, 19787 * 86400}} {
 		if got := DayToUnix(tc.day); got != tc.want {
 			t.Fatalf("DayToUnix(%d) = %d, want %d", tc.day, got, tc.want)
@@ -148,6 +162,8 @@ func TestDayToUnix(t *testing.T) {
 }
 
 func TestIsWholeDay(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		sec  int64
 		want bool

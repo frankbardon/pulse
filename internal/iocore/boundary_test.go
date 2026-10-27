@@ -107,6 +107,8 @@ func goListDeps(t *testing.T, pkg string) []string {
 // the implementation and every adapter, or the check above inspects a graph
 // that no longer has the shape it guards.
 func TestIOImportBoundary_FacadeReachesAdapters(t *testing.T) {
+	t.Parallel()
+
 	have := map[string]bool{}
 	for _, dep := range goListDeps(t, publicIO) {
 		have[dep] = true
@@ -126,6 +128,8 @@ func TestIOImportBoundary_FacadeReachesAdapters(t *testing.T) {
 // reach removed or internal names through internal/io, never through the
 // narrowed facade.
 func TestIOImportBoundary_NoFileImportsFacade(t *testing.T) {
+	t.Parallel()
+
 	scanned := 0
 	for _, pkg := range []string{modulePrefix + "/internal/io", modulePrefix + "/internal/iocore"} {
 		out, err := exec.Command("go", "list", "-f", "{{.Dir}}", pkg).Output()

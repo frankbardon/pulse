@@ -12,6 +12,8 @@ import (
 // FieldType byte beyond the known sentinel fails loud at parse time
 // with ENCODING_INVALID rather than silently mis-decoding records.
 func TestReadSchema_RejectsUnknownFieldType(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	// fieldCount=1
 	binary.Write(&buf, binary.LittleEndian, uint16(1))
@@ -39,6 +41,8 @@ func TestReadSchema_RejectsUnknownFieldType(t *testing.T) {
 }
 
 func TestSchema_DecimalMetadata_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := &Schema{
 		Fields: []Field{
 			{Name: "amount", Type: FieldTypeDecimal128, Precision: 20, Scale: 6, Description: "Amount with 6 decimal places of precision."},

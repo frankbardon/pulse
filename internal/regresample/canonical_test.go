@@ -6,6 +6,8 @@ import "testing"
 // numbers and strings keep their text, array order is kept, and a value
 // change still shows. Malformed or empty input comes back as given.
 func TestCanonicalJSON(t *testing.T) {
+	t.Parallel()
+
 	a := CanonicalJSON([]byte(`{"b":{"y":[3, {"q":1,"p":"{{x}}"}],"x":0.10},"a":{"$var":"k"}, "n":12345678901234567890}`))
 	b := CanonicalJSON([]byte(` { "n" : 12345678901234567890, "a":{"$var":"k"},"b":{"x":0.10,"y":[3,{"p":"{{x}}","q":1}]}}`))
 	want := `{"a":{"$var":"k"},"b":{"x":0.10,"y":[3,{"p":"{{x}}","q":1}]},"n":12345678901234567890}`

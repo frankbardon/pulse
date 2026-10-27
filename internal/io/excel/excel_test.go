@@ -96,6 +96,8 @@ func helperCreateTypedXLSX(t *testing.T, fs afero.Fs, path string) {
 }
 
 func TestExcelReader_ReadHeader(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"name", "age", "score"}, [][]string{
 		{"alice", "30", "95.5"},
@@ -117,6 +119,8 @@ func TestExcelReader_ReadHeader(t *testing.T) {
 }
 
 func TestExcelReader_ReadRows(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"name", "age"}, [][]string{
 		{"alice", "30"},
@@ -147,6 +151,8 @@ func TestExcelReader_ReadRows(t *testing.T) {
 }
 
 func TestExcelReader_EmptySheet(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"a", "b"}, nil)
 
@@ -175,6 +181,8 @@ func TestExcelReader_EmptySheet(t *testing.T) {
 }
 
 func TestExcelReader_MultipleSheets(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 
 	// Create workbook with two sheets.
@@ -233,6 +241,8 @@ func TestExcelReader_MultipleSheets(t *testing.T) {
 }
 
 func TestExcelReader_TypedCells(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateTypedXLSX(t, fs, "typed.xlsx")
 
@@ -282,6 +292,8 @@ func TestExcelReader_TypedCells(t *testing.T) {
 }
 
 func TestExcelWriter_WriteRows(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.xlsx")
 
@@ -329,6 +341,8 @@ func TestExcelWriter_WriteRows(t *testing.T) {
 }
 
 func TestExcelImportExportRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "input.xlsx", "", []string{"age", "name", "score"}, [][]string{
 		{"10", "alice", "95.5"},
@@ -382,6 +396,8 @@ func TestExcelImportExportRoundTrip(t *testing.T) {
 }
 
 func TestExcelImport_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	colors := []string{"red", "green", "blue"}
 	rows := make([][]string, 100)
@@ -414,6 +430,8 @@ func TestExcelImport_CategoricalColumn(t *testing.T) {
 }
 
 func TestExcelExport_CategoricalResolved(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	colors := []string{"red", "green", "blue"}
 	rows := make([][]string, 100)
@@ -464,6 +482,8 @@ func TestExcelExport_CategoricalResolved(t *testing.T) {
 }
 
 func TestExcelImport_InferredSchema(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := make([][]string, 100)
 	for i := range rows {
@@ -494,6 +514,8 @@ func TestExcelImport_InferredSchema(t *testing.T) {
 }
 
 func TestExcelExport_DateFormatting(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := make([][]string, 100)
 	for i := range rows {
@@ -539,6 +561,8 @@ func TestExcelExport_DateFormatting(t *testing.T) {
 }
 
 func TestConvertJob_CsvToExcel(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	csvData := "name,age\nalice,30\nbob,25\ncharlie,35\n"
 	csvReader := csv.NewReaderFromBytes([]byte(csvData))
@@ -578,6 +602,8 @@ func TestConvertJob_CsvToExcel(t *testing.T) {
 }
 
 func TestConvertJob_ExcelToCsv(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "source.xlsx", "", []string{"name", "age"}, [][]string{
 		{"alice", "30"},
@@ -613,6 +639,8 @@ func TestConvertJob_ExcelToCsv(t *testing.T) {
 }
 
 func TestExcelReader_FromBytes(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"x", "y"}, [][]string{
 		{"1", "2"},
@@ -642,6 +670,8 @@ func TestExcelReader_FromBytes(t *testing.T) {
 }
 
 func TestExcelReader_NoDataSource(t *testing.T) {
+	t.Parallel()
+
 	r := &Reader{}
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -653,6 +683,8 @@ func TestExcelReader_NoDataSource(t *testing.T) {
 }
 
 func TestExcelReader_InvalidFile(t *testing.T) {
+	t.Parallel()
+
 	r := NewReaderFromBytes([]byte("not a valid xlsx"))
 	_, err := r.ReadHeader()
 	if err == nil {
@@ -661,6 +693,8 @@ func TestExcelReader_InvalidFile(t *testing.T) {
 }
 
 func TestExcelReader_CancelContext(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	rows := make([][]string, 100)
 	for i := range rows {
@@ -688,6 +722,8 @@ func TestExcelReader_CancelContext(t *testing.T) {
 }
 
 func TestExcelReader_StopIteration(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"a"}, [][]string{
 		{"1"}, {"2"}, {"3"},
@@ -713,6 +749,8 @@ func TestExcelReader_StopIteration(t *testing.T) {
 }
 
 func TestExcelReader_RowError(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"a"}, [][]string{
 		{"1"},
@@ -730,6 +768,8 @@ func TestExcelReader_RowError(t *testing.T) {
 }
 
 func TestExcelWriter_WithSheet(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.xlsx", WithSheet("MyData"))
 	w.WriteHeader([]string{"a"})
@@ -751,6 +791,8 @@ func TestExcelWriter_WithSheet(t *testing.T) {
 }
 
 func TestExcelWriter_CloseWithoutInit(t *testing.T) {
+	t.Parallel()
+
 	w := &Writer{}
 	err := w.Close()
 	if err != nil {
@@ -759,6 +801,8 @@ func TestExcelWriter_CloseWithoutInit(t *testing.T) {
 }
 
 func TestExcelReader_ReadRowsWithoutHeader(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"a"}, [][]string{
 		{"1"},
@@ -781,6 +825,8 @@ func TestExcelReader_ReadRowsWithoutHeader(t *testing.T) {
 }
 
 func TestExcelWriter_WriteRowWithoutHeader(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.xlsx")
 	// Write row without header first - should auto-init.
@@ -792,6 +838,8 @@ func TestExcelWriter_WriteRowWithoutHeader(t *testing.T) {
 }
 
 func TestExcelReader_Reset(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	helperCreateXLSX(t, fs, "test.xlsx", "", []string{"a"}, [][]string{
 		{"1"},
@@ -842,6 +890,8 @@ func TestExcelReader_Reset(t *testing.T) {
 // `date` already gets. No adapter change was needed for datetime; this
 // test exists so a future typed arm cannot silently regress it.
 func TestExcel_DateTimeColumnWritesCanonicalString(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	w := NewWriter(fs, "out.xlsx")
 	w.SetPulseSchema(&encoding.Schema{Fields: []encoding.Field{

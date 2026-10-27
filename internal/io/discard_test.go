@@ -24,6 +24,8 @@ func (w *discardingWriter) Discard() error { w.discarded = true; return w.err }
 // left ALONE — calling Close on it is exactly the close-on-error that
 // would write a zero-row target next to a hard error.
 func TestDiscardWriter_OnlyTouchesDiscardableTargets(t *testing.T) {
+	t.Parallel()
+
 	plain := &plainWriter{}
 	if err := DiscardWriter(plain); err != nil {
 		t.Errorf("DiscardWriter(plain) = %v, want nil", err)

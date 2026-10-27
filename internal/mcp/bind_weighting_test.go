@@ -34,6 +34,8 @@ func weightingInstance(t *testing.T, with bool) (*pulse.Pulse, *descx.InstanceSn
 // nested (aggregations, crosstab, groups, overlays, tests …), in the
 // process / predict / compose / chain tools alike.
 func TestBindForInstance_WeightingHidden(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	_, on := weightingInstance(t, true)
 	_, off := weightingInstance(t, false)
@@ -60,6 +62,8 @@ func TestBindForInstance_WeightingHidden(t *testing.T) {
 // TestCheckUnknownKeys_HiddenWeightRefusedLikeLibrary: a request-root
 // weight sent over MCP is refused exactly as the library refuses it.
 func TestCheckUnknownKeys_HiddenWeightRefusedLikeLibrary(t *testing.T) {
+	t.Parallel()
+
 	_, off := weightingInstance(t, false)
 	sameRefusal(t, "root weight",
 		checkUnknownRequestKeys([]byte(`{"weight":{"field":"score"}}`), off),
@@ -75,6 +79,8 @@ func TestCheckUnknownKeys_HiddenWeightRefusedLikeLibrary(t *testing.T) {
 // through the MCP decode and is refused located, as the library refuses
 // the same typed request.
 func TestTools_InvokeRefusesHiddenNestedWeight(t *testing.T) {
+	t.Parallel()
+
 	p, off := weightingInstance(t, false)
 	invoke := map[string]InvokeFunc{}
 	for _, d := range Tools(Config{}) {

@@ -19,6 +19,8 @@ import (
 // several times larger than the peak is what makes the ratio meaningful.
 // Minimum of three runs per side, compared as a ratio.
 func TestTransfer_BoundedMemory(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	ctx := context.Background()
 	osfs := afero.NewOsFs()
 	dir := t.TempDir()

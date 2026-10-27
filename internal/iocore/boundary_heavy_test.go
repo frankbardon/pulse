@@ -14,6 +14,8 @@ import (
 // and if the iocore leaf reaches anything in the module beyond encoding,
 // errors and types.
 func TestIOImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	under := map[string]bool{}
 	for _, pkg := range belowFacade {
 		under[pkg] = true

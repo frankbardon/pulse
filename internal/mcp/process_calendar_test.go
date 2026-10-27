@@ -15,6 +15,8 @@ import (
 // rows (an ungrouped windowed run) render date as YYYY-MM-DD and
 // datetime as RFC 3339 UTC, as the library Process does.
 func TestMCPProcessRecordRows_RenderCalendarLiterals(t *testing.T) {
+	t.Parallel()
+
 	sch := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "d", Type: encoding.FieldTypeDate, ByteOffset: 0},
 		{Name: "ts", Type: encoding.FieldTypeDateTime, ByteOffset: 4},

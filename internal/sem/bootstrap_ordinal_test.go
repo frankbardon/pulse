@@ -55,6 +55,8 @@ func wlsFixtureInput(t *testing.T, m *Model) TwoStepInput {
 // refusal) and is skipped — a category held by one row is lost by most
 // replicates, so fewer than BootstrapMinSuccesses refit.
 func TestSEM_BootstrapOrdinalLostCategory(t *testing.T) {
+	t.Parallel()
+
 	m, err := NewModelWithOptions("f =~ x1 + x2 + x3", ModelOptions{Ordered: []string{"x1", "x2", "x3"}})
 	if err != nil {
 		t.Fatal(err)

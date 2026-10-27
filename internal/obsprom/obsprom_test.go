@@ -67,6 +67,8 @@ func exposeFixture() *Registry {
 // TestExposition (FR-21) compares the exporter against a hand-written
 // spec rendering and runs the result through a line validator.
 func TestExposition(t *testing.T) {
+	t.Parallel()
+
 	var b bytes.Buffer
 	if err := exposeFixture().WriteText(&b); err != nil {
 		t.Fatal(err)
@@ -161,6 +163,8 @@ func validateExposition(t *testing.T, text string) {
 }
 
 func TestEscapingAndFormatting(t *testing.T) {
+	t.Parallel()
+
 	if got := escapeLabelValue("a\\b\"c\nd"); got != `a\\b\"c\nd` {
 		t.Errorf("escapeLabelValue = %q", got)
 	}
@@ -178,6 +182,8 @@ func TestEscapingAndFormatting(t *testing.T) {
 }
 
 func TestRegistrySemantics(t *testing.T) {
+	t.Parallel()
+
 	r := New()
 	a := r.Counter("x_total", observe.Label{Key: "k", Value: "v"})
 	b := r.Counter("x_total", observe.Label{Key: "k", Value: "v"})
@@ -213,6 +219,8 @@ func TestRegistrySemantics(t *testing.T) {
 }
 
 func TestConcurrentWrites(t *testing.T) {
+	t.Parallel()
+
 	r := New()
 	c := r.Counter("c_total")
 	g := r.UpDownCounter("g")
@@ -244,6 +252,8 @@ func TestConcurrentWrites(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
+	t.Parallel()
+
 	r := exposeFixture()
 	s, err := Listen("127.0.0.1:0", r)
 	if err != nil {
@@ -292,6 +302,8 @@ func TestServer(t *testing.T) {
 // Falsified by allocating histData in Registry.series, or by storing
 // (not CompareAndSwap-ing) it in series.histData.
 func TestLazySeriesStorage(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	r := New()
 	allocs := testing.AllocsPerRun(100, func() {
 		_ = r.Histogram("h_seconds", observe.Label{Key: "op", Value: "process"})

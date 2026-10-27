@@ -88,6 +88,8 @@ func requireSameState(t *testing.T, row int, got, want *CoMoment) {
 // agree on every architecture). Rows mix missing cells, zero, negative,
 // NaN and infinite weights, a massless start and wide magnitudes.
 func TestCoMomentAddListwise_MatchesPreScratchReference(t *testing.T) {
+	t.Parallel()
+
 	weights := []float64{0, -1, math.NaN(), math.Inf(1)}
 	for _, p := range []int{0, 1, 2, 3, 8, 50} {
 		for _, scale := range []float64{1, 1e-6, 1e9} {
@@ -125,6 +127,8 @@ func TestCoMomentAddListwise_MatchesPreScratchReference(t *testing.T) {
 // TestCoMomentAddListwise_AllocatesNothing (E8-S5): a Listwise Add
 // allocates nothing per row — the massed path folds in place.
 func TestCoMomentAddListwise_AllocatesNothing(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	for _, p := range []int{1, 8, 50, 256} {
 		c, _ := NewCoMoment(p, Listwise)
 		x := make([]float64, p)

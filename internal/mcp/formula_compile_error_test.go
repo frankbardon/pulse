@@ -16,6 +16,8 @@ import (
 // (the adapter renders the coded error as is), reason and source in
 // details.
 func TestInvoke_FormulaCompileErrorVerbatim(t *testing.T) {
+	t.Parallel()
+
 	p, _ := newImportTestPulse(t)
 	if _, err := HandleImport(context.Background(), p, ImportIn{Source: "data.csv", TTL: "24h"}); err != nil {
 		t.Fatalf("HandleImport: %v", err)

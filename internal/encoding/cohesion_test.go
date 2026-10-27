@@ -35,6 +35,8 @@ func baseSchema(t *testing.T) *encoding.Schema {
 }
 
 func TestShardArchiveStructuralCohesion(t *testing.T) {
+	t.Parallel()
+
 	t.Run("identical schemas pass with no warnings", func(t *testing.T) {
 		canonical := baseSchema(t)
 		incoming := baseSchema(t)
@@ -102,6 +104,8 @@ func TestShardArchiveStructuralCohesion(t *testing.T) {
 }
 
 func TestShardArchiveDescriptionDivergenceWarns(t *testing.T) {
+	t.Parallel()
+
 	canonical := baseSchema(t)
 	incoming := baseSchema(t)
 	incoming.Fields[0].Description = "different but still valid"
@@ -123,6 +127,8 @@ func TestShardArchiveDescriptionDivergenceWarns(t *testing.T) {
 }
 
 func TestShardArchiveDictPrefixRule(t *testing.T) {
+	t.Parallel()
+
 	t.Run("incoming is prefix of canonical: accept, no change", func(t *testing.T) {
 		canonical := baseSchema(t)
 		canonical.Fields[1].Dictionary = dictOf(t, "US", "CA", "MX")
@@ -196,6 +202,8 @@ func TestShardArchiveDictPrefixRule(t *testing.T) {
 }
 
 func TestShardArchiveDictWidthOverflow(t *testing.T) {
+	t.Parallel()
+
 	// Build a u8 field where the incoming dictionary extends beyond
 	// the u8 capacity of 256 entries.
 	canonical := &encoding.Schema{
@@ -278,6 +286,8 @@ func vecCohesionSchema(midDim, lastDim int) *encoding.Schema {
 // the type byte, and labels / kind / scale are description-class
 // warnings.
 func TestShardArchiveStructuralCohesion_Vectors(t *testing.T) {
+	t.Parallel()
+
 	dimOf := func(err error) any {
 		t.Helper()
 		assertCode(t, err, errors.PULSE_SHARD_SCHEMA_MISMATCH)
@@ -344,6 +354,8 @@ func nullCohesionSchema(idNull, scoreNull, tagNull bool) *encoding.Schema {
 // reads as non-null), and never for a parent-group member, whose null
 // bits ride the group entry.
 func TestShardArchiveStructuralCohesion_Nullability(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name                string
 		canonical, incoming *encoding.Schema
@@ -360,6 +372,8 @@ func TestShardArchiveStructuralCohesion_Nullability(t *testing.T) {
 			nullCohesionSchema(true, false, false), nullCohesionSchema(false, false, false), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := encx.ValidateStructuralCohesion(tc.canonical, tc.incoming)
 			if !tc.wantRefused {
 				if err != nil {
@@ -381,6 +395,8 @@ func TestShardArchiveStructuralCohesion_Nullability(t *testing.T) {
 // the member nullability decides, so neither direction is admitted for
 // a member even when the row bitmaps agree.
 func TestShardArchiveStructuralCohesion_NullabilityGroupMember(t *testing.T) {
+	t.Parallel()
+
 	grouped := func(memberNull bool) *encoding.Schema {
 		s := nullCohesionSchema(false, true, memberNull)
 		s.Groups = []encoding.Group{{Kind: encoding.GroupKindIndexed, Members: []encoding.GroupMember{{Field: 2}}}}

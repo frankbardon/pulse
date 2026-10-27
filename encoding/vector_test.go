@@ -13,6 +13,8 @@ import (
 )
 
 func TestFieldTypeVector_Predicates(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		ft   FieldType
 		b    byte
@@ -58,6 +60,8 @@ func TestFieldTypeVector_Predicates(t *testing.T) {
 }
 
 func TestVectorKind_Names(t *testing.T) {
+	t.Parallel()
+
 	want := map[VectorKind]string{VectorKindMeasure: "measure", VectorKindScale: "scale", VectorKindComposition: "composition", VectorKindBinary: "binary"}
 	for k, n := range want {
 		if k.String() != n {
@@ -92,6 +96,8 @@ func vecSchema() *Schema {
 }
 
 func TestSchema_VectorWidthAndVersion(t *testing.T) {
+	t.Parallel()
+
 	s := vecSchema()
 	wantW := []int{2, 16, 1, 24, 8}
 	for i, w := range wantW {
@@ -124,6 +130,8 @@ func TestSchema_VectorWidthAndVersion(t *testing.T) {
 }
 
 func TestSchema_VectorsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	s := vecSchema()
 	var b bytes.Buffer
 	if err := writeSchemaVersion(&b, s, FormatVersionV2); err != nil {
@@ -160,6 +168,8 @@ func TestSchema_VectorsRoundTrip(t *testing.T) {
 // TestVectorsSection_Wire pins the section layout byte-for-byte for one
 // entry carrying every optional part.
 func TestVectorsSection_Wire(t *testing.T) {
+	t.Parallel()
+
 	s := &Schema{Fields: []Field{{Name: "v", Type: FieldTypeVecF64}}, Vectors: []VectorField{
 		{FieldIndex: 0, Dim: 2, Kind: VectorKindComposition, HasScale: true, ScaleMin: 0, ScaleMax: 1, Labels: []string{"x", "yz"}},
 	}}
@@ -199,6 +209,8 @@ func wantInvalid(t *testing.T, err error, msgPart string) {
 // TestValidateVectors_Refusals: every in-memory fault is refused by the
 // writer before a byte is written.
 func TestValidateVectors_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		mut  func(s *Schema)
@@ -261,6 +273,8 @@ func vecSchemaBlock(t *testing.T, s *Schema, tag uint16, flags uint8, body []byt
 // TestVectorsSection_ReadRefusals: every fault a hand-made VECTORS
 // section can carry is ENCODING_INVALID at read.
 func TestVectorsSection_ReadRefusals(t *testing.T) {
+	t.Parallel()
+
 	two := &Schema{Fields: []Field{
 		{Name: "a", Type: FieldTypeVecF64},
 		{Name: "b", Type: FieldTypeVecF32},
@@ -331,6 +345,8 @@ func TestVectorsSection_ReadRefusals(t *testing.T) {
 // TestReadSchema_V1VecFieldRefused: a 0x01 block has no VECTORS
 // section, so a vec field in it has no width and is refused.
 func TestReadSchema_V1VecFieldRefused(t *testing.T) {
+	t.Parallel()
+
 	var b bytes.Buffer
 	s := &Schema{Fields: []Field{{Name: "v", Type: FieldTypeVecF64}}}
 	if err := writeFieldDescriptors(&b, s); err != nil {
@@ -341,6 +357,8 @@ func TestReadSchema_V1VecFieldRefused(t *testing.T) {
 }
 
 func TestVectorValueAPI_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	v := []float64{1.5, math.NaN(), -0.25, math.Inf(1)}
 	for _, ft := range []FieldType{FieldTypeVecF32, FieldTypeVecF64} {
 		var b bytes.Buffer
@@ -380,6 +398,8 @@ func TestVectorValueAPI_RoundTrip(t *testing.T) {
 // TestVectorValueAPI_NullPlaceholder: a nil vector writes a zeroed full
 // stride (the null rides the bitmap), overwriting whatever was there.
 func TestVectorValueAPI_NullPlaceholder(t *testing.T) {
+	t.Parallel()
+
 	buf := bytes.Repeat([]byte{0xAB}, 3*8+1)
 	if err := PutVector(buf, FieldTypeVecF64, 3, nil); err != nil {
 		t.Fatal(err)
@@ -394,6 +414,8 @@ func TestVectorValueAPI_NullPlaceholder(t *testing.T) {
 }
 
 func TestVectorValueAPI_Refusals(t *testing.T) {
+	t.Parallel()
+
 	mismatch := func(err error) bool { return errors.HasCode(err, errors.ENCODING_TYPE_MISMATCH) }
 	invalid := func(err error) bool { return errors.HasCode(err, errors.ENCODING_INVALID) }
 	buf := make([]byte, 64)
@@ -427,6 +449,8 @@ func TestVectorValueAPI_Refusals(t *testing.T) {
 // TestFieldValue_VectorRejected: the uint64 scalar API refuses both
 // vector types through explicit arms that point at the vector API.
 func TestFieldValue_VectorRejected(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FieldType{FieldTypeVecF32, FieldTypeVecF64} {
 		var b bytes.Buffer
 		werr := WriteFieldValue(&b, ft, 1)

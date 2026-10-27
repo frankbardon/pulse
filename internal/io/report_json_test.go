@@ -20,6 +20,8 @@ var snakeKey = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 // json tag — the managed-import Result's casing — so no Go field name
 // ever reaches the wire. A new report field without a tag fails here.
 func TestReports_JSONTagsAreSnakeCase(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range []any{
 		ImportReport{}, ExportReport{}, ConvertReport{}, PredictReport{},
 		LabelWarning{}, InferenceWarning{}, GroupReport{}, ImportProjection{},
@@ -49,6 +51,8 @@ func TestReports_JSONTagsAreSnakeCase(t *testing.T) {
 // types as names, and each row error flattened to {row, code, message,
 // details} — never an empty object for an uncoded error.
 func TestImportReport_JSONShape(t *testing.T) {
+	t.Parallel()
+
 	warn := perrors.NewCodedErrorWithDetails(perrors.PULSE_IMPORT_WIDTH_PROMOTED, "widened", map[string]any{"field": "a"})
 	rep := &ImportReport{
 		RowsImported: 3,

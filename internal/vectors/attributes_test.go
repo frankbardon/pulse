@@ -31,6 +31,8 @@ func maha(mod func(*types.Attribute)) *types.Attribute {
 // the members a valid slot resolves to, its decoded fit_on, and the code
 // + details.reason of each refusal.
 func TestResolveAttributes_Rules(t *testing.T) {
+	t.Parallel()
+
 	vecs := []types.VectorSpec{
 		{Name: "va", Fields: []string{"a*"}},
 		{Name: "vb", Fields: []string{"b1", "b2"}},
@@ -161,6 +163,8 @@ func TestResolveAttributes_Rules(t *testing.T) {
 // to an unknown name and is not judged (its absence is refused by the
 // registry elsewhere).
 func TestResolveAttributes_RouteHidesType(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{Attributes: []*types.Attribute{maha(func(a *types.Attribute) { a.Vector = "nope" })}}
 	if _, err := ResolveAttributes(req, testInputSchema(), nil, nil, nil); err == nil {
 		t.Fatal("vacuous: the unrouted slot is not refused")
@@ -171,6 +175,8 @@ func TestResolveAttributes_RouteHidesType(t *testing.T) {
 }
 
 func TestVectorAttributeLabel(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		attr *types.Attribute
 		want string
@@ -198,6 +204,8 @@ func TestVectorAttributeLabel(t *testing.T) {
 // TestReferenced_CountsAttributeVectors: an attribute-referenced vector
 // is not unreferenced.
 func TestReferenced_CountsAttributeVectors(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Vectors:    []types.VectorSpec{{Name: "va", Fields: []string{"a1"}}, {Name: "vb", Fields: []string{"b1"}}},
 		Attributes: []*types.Attribute{maha(func(a *types.Attribute) { a.Vector = "va" })},
@@ -208,6 +216,8 @@ func TestReferenced_CountsAttributeVectors(t *testing.T) {
 }
 
 func TestAttributeInputMembersAndFitOn(t *testing.T) {
+	t.Parallel()
+
 	a := maha(func(a *types.Attribute) {
 		a.Fields = []string{"b*"}
 		a.Params = json.RawMessage(`{"fit_on": [{"type": "FILTER_NULL", "field": "a3"}]}`)
@@ -234,6 +244,8 @@ func TestAttributeInputMembersAndFitOn(t *testing.T) {
 // carry the decoded rotation and geomin epsilon (default 0.01, 0 for any
 // other criterion) into their configs — the inline fit reads them.
 func TestScoreParams_RotationEpsilon(t *testing.T) {
+	t.Parallel()
+
 	for raw, want := range map[string]PCScoreConfig{
 		`{"component": 1, "rotation": "geomin_orthogonal", "components": 2}`:                 {Rotation: RotationGeominOrthogonal, Epsilon: GeominDefaultEpsilon},
 		`{"component": 1, "rotation": "geomin_orthogonal", "epsilon": 0.2, "components": 2}`: {Rotation: RotationGeominOrthogonal, Epsilon: 0.2},

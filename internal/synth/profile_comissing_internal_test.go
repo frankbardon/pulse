@@ -158,6 +158,8 @@ func blockMembers(cands []RuleSpec) []string {
 // term from blockDetector.classify and keep the rate term, and the
 // second half below fails with solo0 and solo1 folded into the block.
 func TestSuggestBlocks_PatternNotMerelyRateYieldsTheBlock(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	cands := blockCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -215,6 +217,8 @@ func TestSuggestBlocks_PatternNotMerelyRateYieldsTheBlock(t *testing.T) {
 // A column with no observations has no gate and no block; it is named
 // with its type and kept out of both.
 func TestSuggestBlocks_AlwaysNullIsItsOwnFinding(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	var line string
 	for _, w := range prof.Warnings {
@@ -281,6 +285,8 @@ func TestSuggestBlocks_AlwaysNullIsItsOwnFinding(t *testing.T) {
 // acceptance criterion 4: a near block is neither emitted silently nor
 // dropped silently.
 func TestSuggestBlocks_PartialOverlapIsReportedWithItsAgreement(t *testing.T) {
+	t.Parallel()
+
 	// 400 rows: the block covers 100, `near` covers those 100 plus 5.
 	prof := blockFixtureProfile(t, 400, 5)
 
@@ -359,6 +365,8 @@ func TestSuggestBlocks_PartialOverlapIsReportedWithItsAgreement(t *testing.T) {
 // rate and nothing else must not surface as a near miss either, or the
 // report becomes noise a reader learns to skip.
 func TestSuggestBlocks_IndependentPairsAreNotEvenReported(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	for _, w := range prof.Warnings {
 		if !strings.Contains(w, "null together on") {
@@ -376,6 +384,8 @@ func TestSuggestBlocks_IndependentPairsAreNotEvenReported(t *testing.T) {
 // property: a candidate a reader cannot verify is one they accept
 // blindly.
 func TestSuggestBlocks_EvidenceCarriesThePatternClaim(t *testing.T) {
+	t.Parallel()
+
 	prof := blockFixtureProfile(t, 400, 5)
 	cands := blockCandidates(prof.RuleCandidates)
 	if len(cands) == 0 {
@@ -436,6 +446,8 @@ func TestSuggestBlocks_EvidenceCarriesThePatternClaim(t *testing.T) {
 // one-shot io.Reader, so a second pass is unrepresentable without
 // re-reading bytes.
 func TestSuggestBlocks_RidesTheExistingScan(t *testing.T) {
+	t.Parallel()
+
 	schema := blockFixtureSchema(t)
 	rows, nulls := blockFixtureRows(t, 400, 5)
 	data := encodeModelRows(t, schema, rows, nulls)
@@ -468,6 +480,8 @@ func TestSuggestBlocks_RidesTheExistingScan(t *testing.T) {
 // by every other accumulator in profileRecords and would be a test of
 // the allocator's noise floor.
 func TestSuggestBlocks_MemoryIsBoundedByTheChunkNotTheCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := blockFixtureSchema(t)
 	small := newBlockDetector(schema)
 	if small == nil {
@@ -525,6 +539,8 @@ func TestSuggestBlocks_MemoryIsBoundedByTheChunkNotTheCohort(t *testing.T) {
 // sizes would need more nullable fields than maxBlockFields admits, and
 // the detector would abandon instead. Found by this test.
 func TestSuggestBlocks_RankedLargestFirstAndBounded(t *testing.T) {
+	t.Parallel()
+
 	const blocks = maxBlockCandidates + 3
 	size := func(b int) int {
 		if b == 0 {
@@ -601,6 +617,8 @@ func TestSuggestBlocks_RankedLargestFirstAndBounded(t *testing.T) {
 // slots gained `omitempty` so a co-missing candidate does not write five
 // empty measurements, and a GATING candidate must still write all five.
 func TestSuggestBlocks_EvidenceKeepsTheGatingWireShape(t *testing.T) {
+	t.Parallel()
+
 	prof := gateFixtureProfile(t, 400, 4)
 	gate, ok := candidateByGate(prof.RuleCandidates, "aware")
 	if !ok {
@@ -660,6 +678,8 @@ func mustMarshalRule(t *testing.T, r RuleSpec) string {
 // thin-block warning outright broke no test, so the warning existed and
 // nothing asserted it.
 func TestSuggestBlocks_ThinBlockShipsWithItsSupport(t *testing.T) {
+	t.Parallel()
+
 	// Twelve rows: the block is null on three of them.
 	prof := blockFixtureProfile(t, 12, 0)
 	cands := blockCandidates(prof.RuleCandidates)
@@ -728,6 +748,8 @@ func nearBlockHandleFromLine(t *testing.T, line string) string {
 // say so rather than advertise a handle that resolves to nothing, which
 // is the failure a per-side flag exists to prevent.
 func TestNearBlockSideLabel_HandleOnlyWhenThereIsACandidate(t *testing.T) {
+	t.Parallel()
+
 	if got := blockSideLabel("solo", 1, false); got != `"solo"` {
 		t.Errorf("singleton label = %q, want the bare name", got)
 	}

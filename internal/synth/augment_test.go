@@ -38,6 +38,8 @@ func setupAugmentFixture(t *testing.T, fs afero.Fs, sourcePath string, sourceRow
 // acceptance criterion 1: the output schema has exactly one new field
 // (_synthetic, packed_bool) versus the source schema.
 func TestAugmentFromProfile_AppendsExactlyOneSyntheticField(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupAugmentFixture(t, fs, "/source.pulse", 200)
 	spec.RowCount = 500
@@ -81,6 +83,8 @@ func TestAugmentFromProfile_AppendsExactlyOneSyntheticField(t *testing.T) {
 // the two partitions are the exact sizes requested (source rows, then
 // generated rows).
 func TestAugmentFromProfile_TagsRealAndGeneratedPartitions(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	const sourceRows, newRows = 200, 500
 	p, spec := setupAugmentFixture(t, fs, "/source.pulse", sourceRows)
@@ -112,6 +116,8 @@ func TestAugmentFromProfile_TagsRealAndGeneratedPartitions(t *testing.T) {
 // regression: --rows 500 against a 200-row source produces a 700-row
 // output (200 real + 500 synthetic), never a 500-row output.
 func TestAugmentFromProfile_RowsIsExplicitCountNotTopUp(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupAugmentFixture(t, fs, "/source.pulse", 200)
 	spec.RowCount = 500
@@ -139,6 +145,8 @@ func TestAugmentFromProfile_RowsIsExplicitCountNotTopUp(t *testing.T) {
 // bytes and mtime are unchanged after a from-profile run — the source is
 // never opened for write, explicit test rather than "no error".
 func TestAugmentFromProfile_SourceUntouched(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupAugmentFixture(t, fs, "/source.pulse", 200)
 	spec.RowCount = 500
@@ -179,6 +187,8 @@ func TestAugmentFromProfile_SourceUntouched(t *testing.T) {
 // error rather than a panic or silent misbehavior when the augment path
 // is invoked directly with no source path.
 func TestAugmentFromProfile_RefusesMissingSource(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	_, spec := setupAugmentFixture(t, fs, "/source.pulse", 50)
 	spec.RowCount = 10
@@ -192,6 +202,8 @@ func TestAugmentFromProfile_RefusesMissingSource(t *testing.T) {
 // TestAugmentFromProfile_RefusesMissingOutput asserts a clear coded
 // error when no output path is given.
 func TestAugmentFromProfile_RefusesMissingOutput(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	_, spec := setupAugmentFixture(t, fs, "/source.pulse", 50)
 	spec.RowCount = 10
@@ -206,6 +218,8 @@ func TestAugmentFromProfile_RefusesMissingOutput(t *testing.T) {
 // is never silently mutated: an output path resolving to the same file
 // as the source is refused outright.
 func TestAugmentFromProfile_RefusesOutputEqualToSource(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	_, spec := setupAugmentFixture(t, fs, "/source.pulse", 50)
 	spec.RowCount = 10
@@ -226,6 +240,8 @@ func TestAugmentFromProfile_RefusesOutputEqualToSource(t *testing.T) {
 // cohort that already declares a _synthetic field is refused rather
 // than silently gaining a second, ambiguous provenance column.
 func TestAugmentFromProfile_RefusesAlreadyTaggedSource(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	p, spec := setupAugmentFixture(t, fs, "/source.pulse", 50)
 	spec.RowCount = 10
@@ -254,6 +270,8 @@ func TestAugmentFromProfile_RefusesAlreadyTaggedSource(t *testing.T) {
 // dictionary distinct from the source's own — real rows must still
 // resolve to the same category names they had in the source).
 func TestAugmentFromProfile_CategoricalValuesResolveCorrectly(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	const sourceRows = 200
 	p, spec := setupAugmentFixture(t, fs, "/source.pulse", sourceRows)
@@ -303,6 +321,8 @@ func TestAugmentFromProfile_CategoricalValuesResolveCorrectly(t *testing.T) {
 // shape) is refused with a clear coded error rather than silently
 // misinterpreting one side's bytes as the other's.
 func TestAugmentFromProfile_RefusesSchemaMismatch(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	_, spec := setupAugmentFixture(t, fs, "/source.pulse", 50)
 	spec.RowCount = 5
@@ -321,6 +341,8 @@ func TestAugmentFromProfile_RefusesSchemaMismatch(t *testing.T) {
 // reproduces byte-identical plain-synthesis output, with no
 // _synthetic field anywhere.
 func TestSynth_PlainPathUnaffectedByAugmentAddition(t *testing.T) {
+	t.Parallel()
+
 	spec := smallSpec(50)
 	a, _, err := synth.SynthBytes(spec, synth.Options{Seed: 7})
 	if err != nil {

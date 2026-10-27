@@ -3,6 +3,8 @@ package encoding
 import "testing"
 
 func TestFieldTypes_AllPresent(t *testing.T) {
+	t.Parallel()
+
 	// Verify we have exactly 22 field types (0..21). Bytes 13–16 are the
 	// set_u8/u16/u32/u64 multi-select family added alongside the
 	// categorical family — same inline dictionary block, fixed-width
@@ -38,6 +40,8 @@ func TestFieldTypes_AllPresent(t *testing.T) {
 }
 
 func TestFieldType_ByteSize(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft   FieldType
 		want int
@@ -71,6 +75,8 @@ func TestFieldType_ByteSize(t *testing.T) {
 }
 
 func TestFieldType_String(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft   FieldType
 		want string
@@ -105,6 +111,8 @@ func TestFieldType_String(t *testing.T) {
 }
 
 func TestFieldType_IsCategorical(t *testing.T) {
+	t.Parallel()
+
 	categorical := map[FieldType]bool{
 		FieldTypeCategoricalU8:  true,
 		FieldTypeCategoricalU16: true,
@@ -119,6 +127,8 @@ func TestFieldType_IsCategorical(t *testing.T) {
 }
 
 func TestFieldType_MaxCategoricalEntries(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		ft   FieldType
 		want uint32
@@ -136,12 +146,16 @@ func TestFieldType_MaxCategoricalEntries(t *testing.T) {
 }
 
 func TestFieldType_ByteSize_Unknown(t *testing.T) {
+	t.Parallel()
+
 	if got := FieldType(200).ByteSize(); got != 0 {
 		t.Errorf("unknown type ByteSize() = %d, want 0", got)
 	}
 }
 
 func TestSchema_Field(t *testing.T) {
+	t.Parallel()
+
 	s := &Schema{
 		Fields: []Field{
 			{Name: "age", Type: FieldTypeU8},
@@ -163,6 +177,8 @@ func TestSchema_Field(t *testing.T) {
 }
 
 func TestSchema_Categorical(t *testing.T) {
+	t.Parallel()
+
 	dict := NewDictionary()
 	dict.Add("red")
 	dict.Add("blue")

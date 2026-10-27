@@ -49,8 +49,12 @@ import (
 // the ladder on the day it was written and silently disagree afterwards,
 // which is exactly the defect this story fixes.
 func TestMRSet_WidthLadderIsTheSharedOne(t *testing.T) {
+	t.Parallel()
+
 	for _, members := range []int{64, 65, 128, 129, 256, 257} {
 		t.Run(itoa(members), func(t *testing.T) {
+			t.Parallel()
+
 			want, derives := pio.SetTypeFor(members)
 
 			r := NewReaderFromBytes(buildFixture(t, wideMDSpec(members)))
@@ -98,6 +102,8 @@ func TestMRSet_WidthLadderIsTheSharedOne(t *testing.T) {
 // set_u256 column with one dictionary entry per constituent, in
 // DECLARATION order, beside all 206 constituents.
 func TestMRSet_TwoHundredSixConstituentsDeriveOneWideColumn(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 
 	r := NewReaderFromBytes(buildFixture(t, wideSelectionSpec(members)))
@@ -161,6 +167,8 @@ func TestMRSet_TwoHundredSixConstituentsDeriveOneWideColumn(t *testing.T) {
 // constituents and never from the mask — the truncation happens later,
 // where only the cohort can see it.
 func TestMRSet_WideSelectionRoundTripsThroughTheCohort(t *testing.T) {
+	t.Parallel()
+
 	const members = 206
 	spec := wideSelectionSpec(members)
 
@@ -243,6 +251,8 @@ func TestMRSet_WideSelectionRoundTripsThroughTheCohort(t *testing.T) {
 // correctness suite does not notice. So the rung's ON-WIRE width is
 // asserted, not just its name.
 func TestMRSet_NarrowSetsAreStillNarrow(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		members int
 		want    encoding.FieldType
@@ -253,6 +263,8 @@ func TestMRSet_NarrowSetsAreStillNarrow(t *testing.T) {
 		{64, encoding.FieldTypeSetU64, 8},
 	} {
 		t.Run(itoa(tc.members), func(t *testing.T) {
+			t.Parallel()
+
 			fs := afero.NewMemMapFs()
 			if err := afero.WriteFile(fs, "n.sav", buildFixture(t, wideMDSpec(tc.members)), 0o644); err != nil {
 				t.Fatalf("writing the fixture: %v", err)
@@ -292,6 +304,8 @@ func TestMRSet_NarrowSetsAreStillNarrow(t *testing.T) {
 // constituent imported — and the message now names 256 and set_u256
 // rather than 64 and set_u64.
 func TestMRSet_AboveTheCeilingStillRefuses(t *testing.T) {
+	t.Parallel()
+
 	over := pio.MaxSetElements() + 1
 	r := NewReaderFromBytes(buildFixture(t, wideMDSpec(over)))
 	header, rows := readHeaderAndRows(t, r)
@@ -334,6 +348,8 @@ func TestMRSet_AboveTheCeilingStillRefuses(t *testing.T) {
 // The needle is assembled rather than written, so this file does not
 // itself trip the gate.
 func TestMRSet_NoStaleWiderTypeClaim(t *testing.T) {
+	t.Parallel()
+
 	needle := "there is no wider set type" + " to widen to"
 
 	root := repoRoot(t)

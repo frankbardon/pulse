@@ -70,6 +70,8 @@ func dataSection(t *testing.T, raw []byte) []byte {
 //	0x18  8  commands   FC 00 00 00 00 00 00 00
 //	0x20     end. 32 bytes, against 64 for the same cases uncompressed.
 func TestBytecode_HandVerifiedStream(t *testing.T) {
+	t.Parallel()
+
 	spec := ReferenceSpec()
 	spec.Compression = CompressionBytecode
 
@@ -102,6 +104,8 @@ func TestBytecode_HandVerifiedStream(t *testing.T) {
 // or a decoder test proves only that the reader can read what it already
 // could.
 func TestBytecode_DiffersFromUncompressedOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	plain, err := Build(ReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build(uncompressed): %v", err)
@@ -143,6 +147,8 @@ const offCompressionField = 72
 // new code path. A fixture that is not byte-stable cannot be hashed, cannot
 // be diffed and cannot anchor a regression.
 func TestBytecode_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	spec := ReferenceSpec()
 	spec.Compression = CompressionBytecode
 	first, err := Build(spec)
@@ -165,6 +171,8 @@ func TestBytecode_Deterministic(t *testing.T) {
 // that it does. It is the fixture the reader's own command-coverage test
 // consumes, so this is where the claim that it covers everything is checked.
 func TestBytecode_EveryCommandByte(t *testing.T) {
+	t.Parallel()
+
 	spec := everyCommandSpec()
 	raw, err := Build(spec)
 	if err != nil {
@@ -224,6 +232,8 @@ func everyCommandSpec() Spec {
 // fixture cannot: the header field a reader is required to read rather than
 // assume.
 func TestBytecode_HeaderCarriesTheDeclaredBias(t *testing.T) {
+	t.Parallel()
+
 	for _, bias := range []float64{0, 100, 1, 200, -50} {
 		spec := ReferenceSpec()
 		spec.Compression = CompressionBytecode
@@ -252,6 +262,8 @@ const offBiasField = offCompressionField + 4 + 4 + 4
 // not decoration. The same value under two biases must reach the wire as two
 // different command bytes, or a reader could hardcode 100 and pass.
 func TestBytecode_BiasChangesTheCommandBytes(t *testing.T) {
+	t.Parallel()
+
 	build := func(bias float64) []byte {
 		t.Helper()
 		spec := Spec{
@@ -282,6 +294,8 @@ func TestBytecode_BiasChangesTheCommandBytes(t *testing.T) {
 // reader would hide. Under the conventional bias the range is exactly
 // [-99, 151]: one past either end must take the escape.
 func TestBytecode_OutOfRangeValuesEscape(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		value float64
 		want  byte
@@ -314,6 +328,8 @@ func TestBytecode_OutOfRangeValuesEscape(t *testing.T) {
 // still has to be a well-formed one: an end-of-file command, padded out to a
 // whole block.
 func TestBytecode_EmptyDataSection(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Compression: CompressionBytecode,
 		Vars:        []Var{{Name: "N", Print: Format{Type: FormatF, Width: 8}}},
@@ -335,6 +351,8 @@ func TestBytecode_EmptyDataSection(t *testing.T) {
 // would emit the wrong number of elements and desynchronise every case after
 // the first.
 func TestBytecode_LongStringSegments(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Compression: CompressionBytecode,
 		Vars:        []Var{{Name: "S", Width: 20}},
@@ -360,6 +378,8 @@ func TestBytecode_LongStringSegments(t *testing.T) {
 // no numeric analogue. An empty Text value is SPSS's conventional missing
 // string, so this is the common case rather than an edge one.
 func TestBytecode_AllSpacesStringUsesTheSpacesCommand(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		Compression: CompressionBytecode,
 		Vars:        []Var{{Name: "S", Width: 8}},
@@ -380,6 +400,8 @@ func TestBytecode_AllSpacesStringUsesTheSpacesCommand(t *testing.T) {
 // back to the value that produced it — under an unconventional bias as well
 // as the usual one, because that is where a rounding disagreement would show.
 func TestNumberCommand_RoundTrips(t *testing.T) {
+	t.Parallel()
+
 	for _, bias := range []float64{100, 1, 251, -20, 1000} {
 		for v := -400.0; v <= 400.0; v++ {
 			cmd, ok := numberCommand(v, bias)
@@ -402,6 +424,8 @@ func TestNumberCommand_RoundTrips(t *testing.T) {
 // through one implementation would never reveal, because both halves would
 // round the same way. Refusing to compress is the only safe answer.
 func TestNumberCommand_RefusesAFractionalBias(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range []float64{-99, 0, 1, 151} {
 		if cmd, ok := numberCommand(v, 100.5); ok {
 			t.Errorf("value %v compressed to command %d under a fractional bias; it must take the escape instead", v, cmd)

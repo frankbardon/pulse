@@ -14,6 +14,8 @@ import (
 // and the slot — the one rule the bind and the field-reference walk
 // share.
 func TestAlignFit(t *testing.T) {
+	t.Parallel()
+
 	perm, ce := AlignFit("matrix", "m", "pop", []string{"a", "b", "c"}, []string{"c", "a", "b"})
 	if ce != nil || !reflect.DeepEqual(perm, []int{2, 0, 1}) {
 		t.Fatalf("perm %v, err %v", perm, ce)
@@ -31,6 +33,8 @@ func TestAlignFit(t *testing.T) {
 // a fit to — params.labels over inline fields, else the member names;
 // a non-fit type resolves none.
 func TestAttributeFitLabels(t *testing.T) {
+	t.Parallel()
+
 	members := Resolved{Members: []string{"x", "y"}}
 	a := &types.Attribute{Type: types.ATTR_MAHALANOBIS, Fields: []string{"x", "y"}, Params: json.RawMessage(`{"labels":["q1","q2"]}`)}
 	if got, ok := AttributeFitLabels(types.ATTR_MAHALANOBIS, a, members, nil); !ok || !reflect.DeepEqual(got, []string{"q1", "q2"}) {
@@ -50,6 +54,8 @@ func TestAttributeFitLabels(t *testing.T) {
 // ATTR_VEC_DISTANCE; fit_on, an absent / empty fit, undecodable params
 // and every other type are not.
 func TestFitBound(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		typ    types.AttributeType

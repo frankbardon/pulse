@@ -192,6 +192,8 @@ func rawBits(s Sum) [8]uint64 {
 }
 
 func TestReproSum_PermutationInvariant(t *testing.T) {
+	t.Parallel()
+
 	r := newRand(100)
 	for _, c := range corpora() {
 		t.Run(c.name, func(t *testing.T) {
@@ -211,6 +213,8 @@ func TestReproSum_PermutationInvariant(t *testing.T) {
 }
 
 func TestReproSum_PartitionMergeInvariant(t *testing.T) {
+	t.Parallel()
+
 	r := newRand(200)
 	for _, c := range corpora() {
 		t.Run(c.name, func(t *testing.T) {
@@ -239,6 +243,8 @@ func TestReproSum_PartitionMergeInvariant(t *testing.T) {
 // endurance step and an un-renormalised operand would carry the merged
 // primary out of its binade.
 func TestReproSum_MergePastEndurance(t *testing.T) {
+	t.Parallel()
+
 	binTop := make([]float64, 4*Endurance+5)
 	for i := range binTop {
 		binTop[i] = math.Ldexp(1, 24) - math.Ldexp(1, -15)
@@ -276,6 +282,8 @@ func TestReproSum_MergePastEndurance(t *testing.T) {
 // value is split between primary and carry, so reading an
 // un-renormalised state gives different bits for the same inputs.
 func TestReproSum_Float64IsCanonical(t *testing.T) {
+	t.Parallel()
+
 	for seed := uint64(1); seed < 300; seed++ {
 		r := newRand(seed)
 		var s Sum
@@ -298,6 +306,8 @@ func TestReproSum_Float64IsCanonical(t *testing.T) {
 
 // A zero input is skipped: the state of {+0, -0} is the empty state.
 func TestReproSum_ZeroIsEmptyState(t *testing.T) {
+	t.Parallel()
+
 	s := sumOf([]float64{0, math.Copysign(0, -1), 0})
 	if rawBits(s) != rawBits(Sum{}) {
 		t.Fatalf("state of zeros %x, want the empty state", rawBits(s))
@@ -305,6 +315,8 @@ func TestReproSum_ZeroIsEmptyState(t *testing.T) {
 }
 
 func TestReproSum_MergeSelf(t *testing.T) {
+	t.Parallel()
+
 	xs := mixedCorpus(10, 777)
 	s := sumOf(xs)
 	s.Merge(&s)
@@ -315,6 +327,8 @@ func TestReproSum_MergeSelf(t *testing.T) {
 }
 
 func TestReproSum_SpecialValues(t *testing.T) {
+	t.Parallel()
+
 	nan, pinf, ninf := math.NaN(), math.Inf(1), math.Inf(-1)
 	negZero := math.Copysign(0, -1)
 	cases := []struct {
@@ -372,6 +386,8 @@ func TestReproSum_SpecialValues(t *testing.T) {
 // Non-finite inputs never touch the bins: the finite part of the state is
 // the state of the finite inputs alone.
 func TestReproSum_NonFiniteLeavesBinsAlone(t *testing.T) {
+	t.Parallel()
+
 	xs := signedUniformCorpus(11, 500)
 	clean := sumOf(xs)
 	dirty := sumOf(append(append([]float64{math.Inf(1)}, xs...), math.NaN(), math.Inf(-1)))
@@ -384,6 +400,8 @@ func TestReproSum_NonFiniteLeavesBinsAlone(t *testing.T) {
 }
 
 func TestReproSum_AddWeighted(t *testing.T) {
+	t.Parallel()
+
 	r := newRand(400)
 	var a, b Sum
 	for range 2000 {
@@ -399,6 +417,8 @@ func TestReproSum_AddWeighted(t *testing.T) {
 }
 
 func TestReproSum_StateSize(t *testing.T) {
+	t.Parallel()
+
 	if sz := unsafe.Sizeof(Sum{}); sz > 64 {
 		t.Fatalf("Sum is %d bytes, budget 64", sz)
 	}
@@ -408,6 +428,8 @@ func TestReproSum_StateSize(t *testing.T) {
 }
 
 func TestReproSum_Constants(t *testing.T) {
+	t.Parallel()
+
 	// The ReproBLAS constants this port is pinned to (binned.h).
 	if maxIndex != 51 || Endurance != 2048 || compression != 1.0/16384 || expansion != 16384 {
 		t.Fatalf("maxIndex %d endurance %d compression %v expansion %v", maxIndex, Endurance, compression, expansion)
@@ -450,6 +472,8 @@ func bound(n int, maxAbs, s float64) float64 {
 }
 
 func TestReproSum_Accuracy(t *testing.T) {
+	t.Parallel()
+
 	type acc struct {
 		name string
 		gen  func(seed uint64) []float64
@@ -498,6 +522,8 @@ func TestReproSum_Accuracy(t *testing.T) {
 // Subnormal contributions below the deepest bin's grid (2^-1055) round
 // away deterministically; the absolute error stays under N * 2^-1056 + 1 ulp.
 func TestReproSum_SubnormalErrorFloor(t *testing.T) {
+	t.Parallel()
+
 	for seed := uint64(1); seed <= 10; seed++ {
 		xs := subnormalCorpus(seed, 2000)
 		exact, _ := exactSum(xs)
@@ -512,6 +538,8 @@ func TestReproSum_SubnormalErrorFloor(t *testing.T) {
 // Long runs push the carries through many renormalisations; the sum of
 // 1e6 copies of a value must stay within the bound (naive drifts).
 func TestReproSum_LongRunCarries(t *testing.T) {
+	t.Parallel()
+
 	const n = 1_000_000
 	for _, v := range []float64{0.1, -3.7, 1e300, math.Ldexp(1, -1000)} {
 		var s Sum
@@ -537,6 +565,8 @@ func TestReproSum_LongRunCarries(t *testing.T) {
 // merges it equals what pri[0] implies, or a later add would deposit on
 // the wrong path or skip a needed bin raise.
 func TestReproSum_FastCacheConsistent(t *testing.T) {
+	t.Parallel()
+
 	r := newRand(700)
 	check := func(s *Sum, what string) {
 		t.Helper()

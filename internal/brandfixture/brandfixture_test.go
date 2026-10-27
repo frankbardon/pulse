@@ -13,6 +13,8 @@ import (
 // lavaan oracles' brand_data.csv carries — so the SEM examples read the
 // data the oracles fit, planted wave-2 shift included.
 func TestBrandFixture_ExamplesCohortIsTheOracleRows(t *testing.T) {
+	t.Parallel()
+
 	body, err := os.ReadFile("../sem/testdata/brand_spec.json")
 	if err != nil {
 		t.Fatal(err)

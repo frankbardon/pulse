@@ -13,6 +13,8 @@ import (
 
 // TestErrorCodeFormat verifies all codes follow expected naming patterns.
 func TestErrorCodeFormat(t *testing.T) {
+	t.Parallel()
+
 	for _, code := range perr.AllCodes() {
 		s := string(code)
 		if s == "" {
@@ -30,6 +32,8 @@ func TestErrorCodeFormat(t *testing.T) {
 
 // TestErrorCodeUniqueness ensures no duplicate code values.
 func TestErrorCodeUniqueness(t *testing.T) {
+	t.Parallel()
+
 	seen := make(map[perr.Code]bool)
 	for _, code := range perr.AllCodes() {
 		if seen[code] {
@@ -41,6 +45,8 @@ func TestErrorCodeUniqueness(t *testing.T) {
 
 // TestErrorCodeStringRepresentation verifies codes produce correct string output.
 func TestErrorCodeStringRepresentation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		code perr.Code
 		want string
@@ -70,6 +76,8 @@ func TestErrorCodeStringRepresentation(t *testing.T) {
 
 // TestNoFrontendCodes ensures no FRONTEND_* codes exist.
 func TestNoFrontendCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, code := range perr.AllCodes() {
 		if strings.HasPrefix(string(code), "FRONTEND_") {
 			t.Errorf("found frontend code: %s", code)
@@ -79,6 +87,8 @@ func TestNoFrontendCodes(t *testing.T) {
 
 // TestNoTwirpCodes ensures no Twirp-related codes exist.
 func TestNoTwirpCodes(t *testing.T) {
+	t.Parallel()
+
 	for _, code := range perr.AllCodes() {
 		s := strings.ToLower(string(code))
 		if strings.Contains(s, "twirp") {
@@ -94,6 +104,8 @@ func TestNoTwirpCodes(t *testing.T) {
 // that are not registered codes (the pairwise overlay skip reasons once
 // shipped as ORBIT_STATS_SKIP_*) reach the wire in details.reason.
 func TestNoOrbitPrefixes(t *testing.T) {
+	t.Parallel()
+
 	for _, code := range perr.AllCodes() {
 		if strings.HasPrefix(string(code), "ORBIT_") {
 			t.Errorf("found orbit code: %s", code)
@@ -147,6 +159,8 @@ func TestNoOrbitPrefixes(t *testing.T) {
 
 // TestParseCode verifies string-to-code parsing.
 func TestParseCode(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid code round-trips", func(t *testing.T) {
 		for _, code := range perr.AllCodes() {
 			parsed, ok := perr.ParseCode(string(code))
@@ -183,6 +197,8 @@ func TestParseCode(t *testing.T) {
 
 // TestDomainCodes verifies codes are grouped by domain correctly.
 func TestDomainCodes(t *testing.T) {
+	t.Parallel()
+
 	domains := map[string][]perr.Code{
 		"ENCODING_": {
 			perr.ENCODING_INVALID,

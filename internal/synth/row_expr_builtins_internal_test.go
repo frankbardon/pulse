@@ -15,6 +15,8 @@ import (
 // with the SAME code and details at compileRules / compileConstraints as
 // at validation — the synth twin of predict/runtime parity.
 func TestSynthExprMath_EagerAndCompileRefusalsAgree(t *testing.T) {
+	t.Parallel()
+
 	ruled := ruleSpecFixture(RuleSpec{When: "now().Unix() > 0", SetNull: []string{"score"}})
 	validateErr := validateRules(ruled)
 	_, wfs, err := buildSchema(ruled)
@@ -68,6 +70,8 @@ func TestSynthExprMath_EagerAndCompileRefusalsAgree(t *testing.T) {
 // detmath on some of them on this machine (arm64: ~5e-4 of Exp inputs,
 // ~2e-3 of Log inputs), so a revert to math.* fails here.
 func TestShapeFit_RunsOnDetmath(t *testing.T) {
+	t.Parallel()
+
 	r := rand.New(rand.NewSource(9))
 	for i := 0; i < 200000; i++ {
 		x := float64(r.Float64()*40) - 20
@@ -92,6 +96,8 @@ func TestShapeFit_RunsOnDetmath(t *testing.T) {
 // spec (no record-index meaning to choose), and bad arity is refused the
 // same way.
 func TestSynthRow_DetectorsCompileAgainstTheLoaderEnvironment(t *testing.T) {
+	t.Parallel()
+
 	gate := (&gateDetector{schema: &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeU4},
 	}}}).predicateCompiler()

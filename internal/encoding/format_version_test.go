@@ -212,6 +212,8 @@ func decodeAll(t *testing.T, data []byte) (byte, []map[string]any) {
 // current writer still emits those exact bytes for the same schema and
 // rows (a schema using no 0x02 feature must stay 0x01, byte-identical).
 func TestFormatV1Golden_ReadableForever(t *testing.T) {
+	t.Parallel()
+
 	s := formatGoldenSchema()
 	fresh := buildFormatFile(t, s, encodeFormatGoldenRecords(t, s), encoding.FormatVersionV1)
 
@@ -285,6 +287,8 @@ func TestFormatV1Golden_ReadableForever(t *testing.T) {
 // length-prefixed extension block (u64 length 2, then u16
 // section_count 0) between the last descriptor and the first record.
 func TestFormatV2_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	s := formatGoldenSchema()
 	recs := encodeFormatGoldenRecords(t, s)
 	v1 := buildFormatFile(t, s, recs, encoding.FormatVersionV1)
@@ -340,6 +344,8 @@ func TestFormatV2_RoundTrip(t *testing.T) {
 // threaded: parsing a 0x02 schema block with the 0x01 layout leaves the
 // reader 10 bytes early, inside the extension block.
 func TestFormatV2_ReadAsV1Misplaces(t *testing.T) {
+	t.Parallel()
+
 	s := formatGoldenSchema()
 	recs := encodeFormatGoldenRecords(t, s)
 	v2 := buildFormatFile(t, s, recs, encoding.FormatVersionV2)
@@ -364,6 +370,8 @@ func v2PreambleBytes(t *testing.T) []byte {
 // TestReadSchema_V2ExtensionPayloadRefused: extension bytes that are
 // not a well-formed section list are refused loud, never skipped.
 func TestReadSchema_V2ExtensionPayloadRefused(t *testing.T) {
+	t.Parallel()
+
 	data := v2PreambleBytes(t)
 	data = data[:len(data)-10]
 	data = append(data, 3, 0, 0, 0, 0, 0, 0, 0, 0xAA, 0xBB, 0xCC)
@@ -375,6 +383,8 @@ func TestReadSchema_V2ExtensionPayloadRefused(t *testing.T) {
 }
 
 func TestReadSchema_V2TruncatedExtension(t *testing.T) {
+	t.Parallel()
+
 	data := v2PreambleBytes(t)
 	for cut := 1; cut <= 10; cut++ {
 		_, _, err := ReadPreamble(bytes.NewReader(data[:len(data)-cut]))
@@ -387,6 +397,8 @@ func TestReadSchema_V2TruncatedExtension(t *testing.T) {
 // TestReadSchema_UnknownTypeByteEveryVersion: an unknown field-type byte
 // still fails loud at parse time under both versions.
 func TestReadSchema_UnknownTypeByteEveryVersion(t *testing.T) {
+	t.Parallel()
+
 	for _, v := range encoding.SupportedFormatVersions() {
 		var b bytes.Buffer
 		s := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeU8}}}
@@ -407,6 +419,8 @@ func TestReadSchema_UnknownTypeByteEveryVersion(t *testing.T) {
 // participates in versioning — a 0x02 doc's SHRD trailer is found after
 // the extension block.
 func TestSchemaDoc_V2RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	var b bytes.Buffer
 	b.Write(v2PreambleBytes(t))
 	b.Write(SchemaDocMagic[:])

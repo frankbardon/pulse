@@ -11,6 +11,8 @@ import (
 // TestParseRakeParams: the strict decode — defaults, every accepted
 // form, and one row per refusal with its code and param.
 func TestParseRakeParams(t *testing.T) {
+	t.Parallel()
+
 	const both = `"row_targets":{"a":1,"b":3},"col_targets":{"x":2,"y":2}`
 	cases := []struct {
 		name      string
@@ -75,6 +77,8 @@ func TestParseRakeParams(t *testing.T) {
 // TestRakeKeyRefusal: nil when both sides match; otherwise sorted,
 // never-null lists under reason "keys".
 func TestRakeKeyRefusal(t *testing.T) {
+	t.Parallel()
+
 	if cerr := RakeKeyRefusal(types.OverlayKindRake, RakeAxisRow, nil, nil, 0); cerr != nil {
 		t.Fatalf("matching keys refused: %v", cerr)
 	}
@@ -100,6 +104,8 @@ func TestRakeKeyRefusal(t *testing.T) {
 // TestRakeTotalsRefusal: the gap is judged relative to the larger
 // total.
 func TestRakeTotalsRefusal(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		rows, cols, tol float64
 		refuse          bool

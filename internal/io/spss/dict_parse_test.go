@@ -41,6 +41,8 @@ func mustParse(t *testing.T, b []byte) *dictionary {
 // expected values are read off the offset walkthrough on
 // spsstest.TestReferenceFixture_HandVerified, not off this parser.
 func TestParseDictionary_ReferenceFixture(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 	d := mustParse(t, raw)
 
@@ -177,6 +179,8 @@ func TestParseDictionary_ReferenceFixture(t *testing.T) {
 // TestParseDictionary_Matrix runs the parser over the structural axes the
 // reference fixture does not reach.
 func TestParseDictionary_Matrix(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		spec  spsstest.Spec
@@ -417,6 +421,8 @@ func TestParseDictionary_Matrix(t *testing.T) {
 // The alignment padding that follows a label is a separate thing and is
 // stepped over, never read.
 func TestParseDictionary_LabelTextIsVerbatim(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "A", Label: "Trailing space "}, {Name: "B", Label: " Leading"}},
 		ValueLabels: []spsstest.ValueLabelSet{{
@@ -455,6 +461,8 @@ func TestParseDictionary_LabelTextIsVerbatim(t *testing.T) {
 // that compares the raw slot against a data value trimmed to the declared
 // width misses every short-string label.
 func TestValueLabel_ShortStringKeyTrimsToDeclaredWidth(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.Spec{
 		Vars: []spsstest.Var{{Name: "CODE", Width: 4}},
 		ValueLabels: []spsstest.ValueLabelSet{{
@@ -507,6 +515,8 @@ func TestValueLabel_ShortStringKeyTrimsToDeclaredWidth(t *testing.T) {
 // first variable's record and the eight-byte slots are inserted immediately
 // after its fixed part. Every other byte is generator output.
 func TestParseDictionary_MissingValueSpecs(t *testing.T) {
+	t.Parallel()
+
 	// A single unlabelled numeric variable, so its record type 2 is exactly
 	// the 32-byte fixed part at headerSize with nothing following it.
 	numericBase := spsstest.Spec{Vars: []spsstest.Var{{Name: "A"}, {Name: "B"}}}
@@ -633,6 +643,8 @@ func TestParseDictionary_MissingValueSpecs(t *testing.T) {
 // The second half is the other routed E2-S1 finding: a dictionary with NO
 // extension records at all is legal, and nothing here may require one.
 func TestParseDictionary_SkipsDocumentAndExtensionRecords(t *testing.T) {
+	t.Parallel()
+
 	base := build(t, spsstest.ReferenceSpec())
 	baseDict := mustParse(t, base)
 
@@ -720,6 +732,8 @@ func TestParseDictionary_SkipsDocumentAndExtensionRecords(t *testing.T) {
 // hand-assembled: a header, one numeric variable and the terminator, every
 // multi-byte field big-endian.
 func TestParseDictionary_BigEndian(t *testing.T) {
+	t.Parallel()
+
 	b := make([]byte, 0, headerSize+32+8)
 	b = append(b, []byte("$FL2")...)
 	b = append(b, padASCII("@(#) SPSS DATA FILE big-endian probe", 60)...)
@@ -768,6 +782,8 @@ func TestParseDictionary_BigEndian(t *testing.T) {
 // dictionary layout is identical; only the data section differs, and that is
 // E2-S4's problem.
 func TestParseDictionary_AcceptsZSAVMagic(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.Spec{Vars: []spsstest.Var{{Name: "A"}}})
 	copy(raw[0:4], magicZSAV)
 	d := mustParse(t, raw)
@@ -784,6 +800,8 @@ func TestParseDictionary_AcceptsZSAVMagic(t *testing.T) {
 // This is also the no-panic proof for the truncation axis — a missed bounds
 // check anywhere in the walk shows up here as a panic, not as a wrong value.
 func TestParseDictionary_Truncated(t *testing.T) {
+	t.Parallel()
+
 	raw := build(t, spsstest.ReferenceSpec())
 	full := mustParse(t, raw)
 
@@ -822,6 +840,8 @@ func TestParseDictionary_Truncated(t *testing.T) {
 // record type and the byte offset — never a panic, never a silent
 // misinterpretation.
 func TestParseDictionary_Malformed(t *testing.T) {
+	t.Parallel()
+
 	ref := build(t, spsstest.ReferenceSpec())
 	refDict := mustParse(t, ref)
 	termOff := refDict.dataOffset - 8
@@ -1183,6 +1203,8 @@ func TestParseDictionary_Malformed(t *testing.T) {
 // warning must name the variable so an operator can tell which labels are
 // missing.
 func TestParseDictionary_ValueLabelBindingIsTolerated(t *testing.T) {
+	t.Parallel()
+
 	ref := build(t, spsstest.ReferenceSpec())
 
 	cases := []struct {
@@ -1286,6 +1308,8 @@ func TestParseDictionary_ValueLabelBindingIsTolerated(t *testing.T) {
 // damaged bytes — and damaged bytes in a record type 4 payload put the
 // record's framing in doubt, so those stay hard errors.
 func TestParseDictionary_ValueLabelIndexCorruptionStaysStrict(t *testing.T) {
+	t.Parallel()
+
 	ref := build(t, spsstest.ReferenceSpec())
 	for _, tc := range []struct {
 		name string
@@ -1317,6 +1341,8 @@ func TestParseDictionary_ValueLabelIndexCorruptionStaysStrict(t *testing.T) {
 // TestUnpackFormat covers the 0x00TTWWDD unpacking, mirroring the packing
 // table in internal/spsstest.
 func TestUnpackFormat(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		raw  int32
@@ -1346,6 +1372,8 @@ func TestUnpackFormat(t *testing.T) {
 
 // TestRecordName pins the strings that land in the error details.
 func TestRecordName(t *testing.T) {
+	t.Parallel()
+
 	cases := map[int32]string{2: "2", 3: "3", 4: "4", 6: "6", 7: "7", 999: "999", 5: recordUnknown, -1: recordUnknown}
 	for rt, want := range cases {
 		if got := recordName(rt); got != want {

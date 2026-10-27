@@ -12,6 +12,8 @@ import (
 // type conversion, nil arg) that are easier to exercise here.
 
 func TestReflectiveTrampoline_NonFunction(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline("not-a-function")
 	_, err := fn()
 	if err == nil {
@@ -23,6 +25,8 @@ func TestReflectiveTrampoline_NonFunction(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_TypedFunction(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline(func(v float64) float64 { return v * 3 })
 	got, err := fn(5.0)
 	if err != nil {
@@ -34,6 +38,8 @@ func TestReflectiveTrampoline_TypedFunction(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_ArityMismatch(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline(func(a, b int) int { return a + b })
 	if _, err := fn(1); err == nil {
 		t.Error("expected arity mismatch error for 1 arg to 2-arity fn")
@@ -41,6 +47,8 @@ func TestReflectiveTrampoline_ArityMismatch(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_VariadicAcceptsMore(t *testing.T) {
+	t.Parallel()
+
 	sum := func(vs ...float64) float64 {
 		var s float64
 		for _, v := range vs {
@@ -59,6 +67,8 @@ func TestReflectiveTrampoline_VariadicAcceptsMore(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_VariadicAcceptsZero(t *testing.T) {
+	t.Parallel()
+
 	count := func(vs ...float64) int { return len(vs) }
 	fn := reflectiveTrampoline(count)
 	got, err := fn()
@@ -71,6 +81,8 @@ func TestReflectiveTrampoline_VariadicAcceptsZero(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_TypeConversionFailure(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline(func(v float64) float64 { return v })
 	// Pass a struct value that cannot convert to float64.
 	if _, err := fn(struct{}{}); err == nil {
@@ -79,6 +91,8 @@ func TestReflectiveTrampoline_TypeConversionFailure(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_NilArgZeroesTarget(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline(func(s string) int { return len(s) })
 	got, err := fn(nil)
 	if err != nil {
@@ -90,6 +104,8 @@ func TestReflectiveTrampoline_NilArgZeroesTarget(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_NoReturn(t *testing.T) {
+	t.Parallel()
+
 	var called bool
 	fn := reflectiveTrampoline(func() { called = true })
 	got, err := fn()
@@ -105,6 +121,8 @@ func TestReflectiveTrampoline_NoReturn(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_TwoReturnsErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	sentinel := errors.New("boom")
 	fn := reflectiveTrampoline(func() (float64, error) { return 0, sentinel })
 	_, err := fn()
@@ -117,6 +135,8 @@ func TestReflectiveTrampoline_TwoReturnsErrorPropagates(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_TwoReturnsNoError(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline(func() (float64, error) { return 7, nil })
 	got, err := fn()
 	if err != nil {
@@ -128,6 +148,8 @@ func TestReflectiveTrampoline_TwoReturnsNoError(t *testing.T) {
 }
 
 func TestReflectiveTrampoline_TooManyReturns(t *testing.T) {
+	t.Parallel()
+
 	fn := reflectiveTrampoline(func() (int, int, int) { return 1, 2, 3 })
 	if _, err := fn(); err == nil {
 		t.Error("expected 3-return signature to be rejected")
@@ -135,6 +157,8 @@ func TestReflectiveTrampoline_TooManyReturns(t *testing.T) {
 }
 
 func TestAsExprFunc_CanonicalDynamicShapePassThrough(t *testing.T) {
+	t.Parallel()
+
 	dynamic := func(args ...any) (any, error) {
 		if len(args) == 0 {
 			return nil, nil
@@ -153,6 +177,8 @@ func TestAsExprFunc_CanonicalDynamicShapePassThrough(t *testing.T) {
 }
 
 func TestAsExprFunc_TypedFunctionViaTrampoline(t *testing.T) {
+	t.Parallel()
+
 	got := Func(func(s string) string { return s + "!" })
 	v, err := got("hi")
 	if err != nil {

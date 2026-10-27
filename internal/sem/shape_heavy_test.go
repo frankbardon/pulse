@@ -20,6 +20,8 @@ import (
 // root package's TestSEMShape_OneRequestMatchesSemopy, which keeps this
 // package's run short.
 func TestFit_ShapeMatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range shapeCases {
 		desc, err := os.ReadFile("testdata/" + tc.model + "_model.txt")
 		if err != nil {

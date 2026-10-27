@@ -19,6 +19,8 @@ func vectorFit(name string) *VectorFit {
 // LookupVector, and an unbound or regression name is PULSE_MODEL_UNKNOWN
 // listing the bound vector fits; WithModels carries them over.
 func TestSet_VectorFits(t *testing.T) {
+	t.Parallel()
+
 	s := &Set{}
 	if err := s.AddVector(vectorFit("pop")); err != nil {
 		t.Fatal(err)
@@ -83,6 +85,8 @@ func TestSet_VectorFits(t *testing.T) {
 // TestVectorFit_NStar is the fold's N*: Σw unweighted / frequency,
 // Kish n_eff under probability (0 with no mass).
 func TestVectorFit_NStar(t *testing.T) {
+	t.Parallel()
+
 	v := vectorFit("x")
 	v.SumWeights, v.SumWeightsSq = 4, 6
 	if got := v.NStar(); got != 4 {
@@ -111,6 +115,8 @@ func TestVectorFit_NStar(t *testing.T) {
 // regression name PULSE_MODEL_KIND_MISMATCH; the regression consumers
 // (CheckCoef, CheckScore) refuse a vector name the same way.
 func TestCheckVectorFit(t *testing.T) {
+	t.Parallel()
+
 	set := &Set{}
 	if err := set.AddVector(vectorFit("pop")); err != nil {
 		t.Fatal(err)
@@ -155,6 +161,8 @@ func TestCheckVectorFit(t *testing.T) {
 // TestVectorCapture: offers are kept in order, a nil capture ignores
 // them, and WithCapture copies the namespace without mutating it.
 func TestVectorCapture(t *testing.T) {
+	t.Parallel()
+
 	base := &Set{}
 	if err := base.AddVector(vectorFit("pop")); err != nil {
 		t.Fatal(err)
@@ -181,6 +189,8 @@ func TestVectorCapture(t *testing.T) {
 // TestFitKindOf: a regression fit, a matrix or fitted-attribute vector
 // fit, or "" for anything CheckFits refuses.
 func TestFitKindOf(t *testing.T) {
+	t.Parallel()
+
 	mat := types.MatrixSpec{Type: types.MAT_COVARIANCE, Fields: []string{"a", "b"}}
 	attr := &types.Attribute{Type: types.ATTR_MAHALANOBIS, Fields: []string{"a", "b"}}
 	other := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "a"}

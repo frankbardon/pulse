@@ -23,6 +23,8 @@ import (
 // verdict must fire on neither count — it is not a total row failure and
 // it is no longer an ambiguous sample, because there IS a row to sample.
 func TestNdjsonImport_SingleRecordIsNotATotalRowFailure(t *testing.T) {
+	t.Parallel()
+
 	data := []byte(`{"name":"alice","age":30}` + "\n")
 
 	fs := afero.NewMemMapFs()
@@ -54,6 +56,8 @@ func TestNdjsonImport_SingleRecordIsNotATotalRowFailure(t *testing.T) {
 // rowsImported 0 and no row errors — the one shape totalRowFailure must
 // let through. It must produce an empty cohort, not an error.
 func TestNdjsonImport_ExplicitSchemaEmptySourceStaysLegitimate(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	job := pio.NewImportJob(NewReaderFromBytes([]byte("")), "empty.pulse")
 	job.FS = fs

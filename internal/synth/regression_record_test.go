@@ -35,6 +35,8 @@ func dummyTestSchema(t *testing.T) *encoding.Schema {
 }
 
 func TestDummyPlan_ExpandsEveryPredictorShape(t *testing.T) {
+	t.Parallel()
+
 	plan, err := newDummyPlan(dummyTestSchema(t), "spend", []string{"dma", "brandAssets", "age"})
 	if err != nil {
 		t.Fatalf("newDummyPlan: %v", err)
@@ -62,6 +64,8 @@ func TestDummyPlan_ExpandsEveryPredictorShape(t *testing.T) {
 // TestDummyRecord_NumericValue is the core table: every dummy kind
 // against every row shape the acceptance criteria name.
 func TestDummyRecord_NumericValue(t *testing.T) {
+	t.Parallel()
+
 	schema := dummyTestSchema(t)
 	plan, err := newDummyPlan(schema, "spend", []string{"dma", "brandAssets", "age"})
 	if err != nil {
@@ -199,6 +203,8 @@ func TestDummyRecord_NumericValue(t *testing.T) {
 // TestDummyRecord_UnboundIsMissing guards the zero value: an adapter
 // that has not seen a row must not answer a confident zero.
 func TestDummyRecord_UnboundIsMissing(t *testing.T) {
+	t.Parallel()
+
 	plan, err := newDummyPlan(dummyTestSchema(t), "spend", []string{"dma"})
 	if err != nil {
 		t.Fatalf("newDummyPlan: %v", err)
@@ -216,6 +222,8 @@ func TestDummyRecord_UnboundIsMissing(t *testing.T) {
 // column. The length prefix on the field name is what makes the
 // encoding injective.
 func TestDummyColumnNames_CollisionSafe(t *testing.T) {
+	t.Parallel()
+
 	pairs := []struct{ field, level string }{
 		{"dma", "501"},
 		{"dma", "501=602"},
@@ -248,6 +256,8 @@ func TestDummyColumnNames_CollisionSafe(t *testing.T) {
 }
 
 func TestNewDummyPlan_Rejects(t *testing.T) {
+	t.Parallel()
+
 	schema := dummyTestSchema(t)
 	tests := []struct {
 		name       string
@@ -278,6 +288,8 @@ func TestNewDummyPlan_Rejects(t *testing.T) {
 // column the engine will be driven with is present, declared f64, and
 // the real cohort schema is left untouched.
 func TestDummyPlan_ViewSchemaDeclaresEveryColumn(t *testing.T) {
+	t.Parallel()
+
 	schema := dummyTestSchema(t)
 	plan, err := newDummyPlan(schema, "spend", []string{"dma", "brandAssets", "age"})
 	if err != nil {
@@ -323,6 +335,8 @@ func TestDummyPlan_ViewSchemaDeclaresEveryColumn(t *testing.T) {
 // dma=501 is the dropped reference level (see newDummyPlan on the dummy
 // trap); leaving it in would make the design matrix rank-deficient.
 func TestDummyPlan_DrivesShippedOLSEngine(t *testing.T) {
+	t.Parallel()
+
 	schema := dummyTestSchema(t)
 	plan, err := newDummyPlan(schema, "spend", []string{"dma", "brandAssets", "age"})
 	if err != nil {

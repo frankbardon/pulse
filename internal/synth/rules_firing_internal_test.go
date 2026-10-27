@@ -44,6 +44,8 @@ func firingRow(aware float64) (map[string]any, map[string]bool) {
 // test is deliberate — a counter that counts nothing satisfies the zero
 // case and a counter that counts every rule satisfies the always case.
 func TestRuleFirings_CountedPerAcceptedRow(t *testing.T) {
+	t.Parallel()
+
 	a := firingFixture(t,
 		RuleSpec{When: "aware == 1", SetNull: []string{"score"}},
 		RuleSpec{When: "aware == 2", SetNull: []string{"score"}},
@@ -102,6 +104,8 @@ func TestRuleFirings_CountedPerAcceptedRow(t *testing.T) {
 // firing ONLY on rejected rows would report as applied while the file
 // shows no trace of it.
 func TestRuleFirings_RejectedRowDoesNotCount(t *testing.T) {
+	t.Parallel()
+
 	a := firingFixture(t, RuleSpec{When: "aware == 1", SetNull: []string{"score"}})
 
 	for i := 0; i < 5; i++ {
@@ -135,6 +139,8 @@ func TestRuleFirings_RejectedRowDoesNotCount(t *testing.T) {
 // that turned out constant produces one finding per rule, and the
 // terminal summary is a screen every kind shares.
 func TestNeverFiredWarnings_BoundedWithACountedRemainder(t *testing.T) {
+	t.Parallel()
+
 	rules := make([]RuleSpec, 0, maxNeverFiredRuleWarnings+5)
 	for i := 0; i < maxNeverFiredRuleWarnings+5; i++ {
 		rules = append(rules, RuleSpec{When: "aware == 2", SetNull: []string{"score"}})
@@ -194,6 +200,8 @@ func TestNeverFiredWarnings_BoundedWithACountedRemainder(t *testing.T) {
 //  4. A rule reading no quantizing field at all gets neither remedy and
 //     names what the predicate reads instead.
 func TestRuleNeverFiredWarning_NamesTheCauseThatApplies(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		firing  ruleFiring
@@ -274,6 +282,8 @@ func TestRuleNeverFiredWarning_NamesTheCauseThatApplies(t *testing.T) {
 // separation the original single message could not make, and the reason
 // it sent this case to a normalisation that would have done nothing.
 func TestRuleFirings_ConstraintRejectedOnlyIsItsOwnCause(t *testing.T) {
+	t.Parallel()
+
 	a := firingFixture(t, RuleSpec{When: "aware == 1", SetNull: []string{"score"}})
 
 	for i := 0; i < 5; i++ {
@@ -314,6 +324,8 @@ func TestRuleFirings_ConstraintRejectedOnlyIsItsOwnCause(t *testing.T) {
 // f64, which the writer stores as given; `region` is a categorical a
 // numeric comparison never reaches.
 func TestWhenFieldsRead_ClassifiesTheFieldsAPredicateReads(t *testing.T) {
+	t.Parallel()
+
 	spec := ruleSpecFixture()
 	byName := map[string]FieldSpec{}
 	for _, f := range spec.Fields {

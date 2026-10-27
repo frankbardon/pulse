@@ -81,6 +81,8 @@ func schemaAt(node map[string]any, path string) map[string]any {
 // slot the engine accepts it — profile-free and profiled alike — with
 // the closed method vocabulary and the surface's own families.
 func TestBindForInstance_MultiplicityAdvertised(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	_, free := instanceFor(t, nil, pulse.Extensions{})
 	for label, inst := range map[string]*descx.InstanceSnapshot{"profile-free": free, "profiled": multiplicityInstance(t, true)} {
@@ -113,6 +115,8 @@ func TestBindForInstance_MultiplicityAdvertised(t *testing.T) {
 // `alpha` (a test reads its own Test.alpha; one set on its block is
 // refused).
 func TestBindForInstance_MultiplicitySurfaceFamilies(t *testing.T) {
+	t.Parallel()
+
 	bound, err := BindForInstance(makeBindSchema(), multiplicityInstance(t, true))
 	if err != nil {
 		t.Fatal(err)
@@ -149,6 +153,8 @@ func TestBindForInstance_MultiplicitySurfaceFamilies(t *testing.T) {
 // own block advertises the matrix-surface families (`request`,
 // `matrix`) and alpha, and disappears with capability:multiplicity.
 func TestBindForInstance_MatrixMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	const path = "properties.matrices.items.properties.multiplicity"
 	for _, with := range []bool{true, false} {
 		features := []string{"capability:process", "capability:matrices", "AGG_SUM", "MAT_CORRELATION"}
@@ -183,6 +189,8 @@ func TestBindForInstance_MatrixMultiplicity(t *testing.T) {
 // hidden no bound tool schema carries a `multiplicity` property — root,
 // nested or under a pulse_predict alternative root.
 func TestBindForInstance_MultiplicityHidden(t *testing.T) {
+	t.Parallel()
+
 	schema := makeBindSchema()
 	enabled, err := BindForInstance(schema, multiplicityInstance(t, true))
 	if err != nil {

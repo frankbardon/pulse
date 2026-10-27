@@ -71,6 +71,8 @@ func warningContainsAll(warnings []string, substrs ...string) bool {
 // pair (region1 -> score) and drops the second (region2 -> score),
 // reporting exactly why.
 func TestSynth_ConflictWarns_CategoricalNumericMultiTarget(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 20000
 	spec := &synth.Spec{
 		RowCount: rowCount,
@@ -142,6 +144,8 @@ func TestSynth_ConflictWarns_CategoricalNumericMultiTarget(t *testing.T) {
 // entry targets option "b" (a DIFFERENT target on the SAME set_* field —
 // must NOT be treated as conflicting with anything, and must survive).
 func TestSynth_ConflictWarns_SetOptionGranularity(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 20000
 	spec := &synth.Spec{
 		RowCount: rowCount,
@@ -257,6 +261,8 @@ func TestSynth_ConflictWarns_SetOptionGranularity(t *testing.T) {
 // independent generation since its only correlation partner was
 // excluded.
 func TestSynth_ConflictWarns_CorrelationVsCategoricalNumeric(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 20000
 	spec := &synth.Spec{
 		RowCount: rowCount,
@@ -321,6 +327,8 @@ func TestSynth_ConflictWarns_CorrelationVsCategoricalNumeric(t *testing.T) {
 // "a"'s row/column is excluded from the rebuilt Cholesky matrix, and the
 // remaining pair ("b","c") must still correlate at its requested rho.
 func TestSynth_ConflictWarns_PartialExclusionFromMultiFieldCorrelation(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 20000
 	const rhoBC = 0.7
 	spec := &synth.Spec{
@@ -407,6 +415,8 @@ func TestSynth_ConflictWarns_PartialExclusionFromMultiFieldCorrelation(t *testin
 // hand-authored-spec behavior, since fieldMoments has no closed-form
 // moments for a mixture).
 func TestSynth_ConflictWarns_ShapeFitExcludedFromCorrelation(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 8000
 	const mean1, std1 = -10.0, 1.5
 	const mean2, std2 = 10.0, 1.5
@@ -440,6 +450,8 @@ func TestSynth_ConflictWarns_ShapeFitExcludedFromCorrelation(t *testing.T) {
 // relationship per target produces zero warnings — resolveConflicts must
 // be purely additive for the non-conflicting case.
 func TestSynth_NoConflicts_NoWarnings(t *testing.T) {
+	t.Parallel()
+
 	spec := &synth.Spec{
 		RowCount: 500,
 		Fields: []synth.FieldSpec{

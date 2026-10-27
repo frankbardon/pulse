@@ -10,6 +10,8 @@ import (
 )
 
 func TestParse_Accepts(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		raw   string
 		want  Spec
@@ -37,6 +39,8 @@ func TestParse_Accepts(t *testing.T) {
 }
 
 func TestParse_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct{ raw, msg string }{
 		{`{`, "invalid GROUP_DATE params: unexpected end of JSON input"},
 		{`{"component":"minute"}`, `invalid date group component "minute": must be one of year, quarter, month, week, day, hour, hour_of_day, day_of_week`},
@@ -57,6 +61,8 @@ func TestParse_Refusals(t *testing.T) {
 }
 
 func TestCheckField(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "ts", Type: encoding.FieldTypeDateTime},
 		{Name: "d", Type: encoding.FieldTypeDate},

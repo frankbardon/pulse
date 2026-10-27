@@ -11,6 +11,8 @@ import (
 // a Spec that declared windows-1252 and got a UTF-8 fixture would look like
 // a charset test and be testing nothing.
 func TestCharset_CodecResolution(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		in      string
 		ascii   bool
@@ -63,6 +65,8 @@ func TestCharset_CodecResolution(t *testing.T) {
 // TestCharset_FixtureIsWrittenInTheDeclaredCharset is the generator's half
 // of the round trip: the bytes on the wire must be the codepage's, not Go's.
 func TestCharset_FixtureIsWrittenInTheDeclaredCharset(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		CharacterEncoding: "windows-1252",
 		FileLabel:         "Enquête",
@@ -116,6 +120,8 @@ func TestCharset_FixtureIsWrittenInTheDeclaredCharset(t *testing.T) {
 // relaxed rather than removed: without a record 7/20 a high byte on the wire
 // means nothing in particular, so a fixture may not carry one.
 func TestCharset_UndeclaredStillRefusesNonASCII(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec Spec
@@ -157,6 +163,8 @@ func TestCharset_UndeclaredStillRefusesNonASCII(t *testing.T) {
 // character the charset has no byte for cannot be written, and substituting
 // one would produce a fixture that does not say what its author wrote.
 func TestCharset_DeclaredRefusesUnrepresentableText(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []Var{{Name: "A", Label: "日本語"}},
@@ -174,6 +182,8 @@ func TestCharset_DeclaredRefusesUnrepresentableText(t *testing.T) {
 // applies to the generator: an SPSS width is a BYTE count, so the width
 // check has to run on the encoded form.
 func TestCharset_WidthIsCheckedOnWireBytes(t *testing.T) {
+	t.Parallel()
+
 	// "ééèè" is 4 bytes in windows-1252 and 8 in UTF-8.
 	fits := Spec{
 		CharacterEncoding: "windows-1252",
@@ -200,6 +210,8 @@ func TestCharset_WidthIsCheckedOnWireBytes(t *testing.T) {
 // have relaxed the rule that keeps a control byte out of a fixed-width field
 // or a delimiter-separated payload, which is wrong in every charset.
 func TestCharset_ControlBytesStillRefused(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []Var{{Name: "A", Label: "a\x01b"}},
@@ -219,6 +231,8 @@ func TestCharset_ControlBytesStillRefused(t *testing.T) {
 // declaration itself adds. Nothing about the transcode may perturb the
 // fixtures every other test in the tree is pinned against.
 func TestCharset_ASCIISpecIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	base, err := Build(ReferenceSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -251,6 +265,8 @@ func TestCharset_ASCIISpecIsByteIdentical(t *testing.T) {
 // caller that builds the same spec twice — or builds one and then inspects
 // it — sees the text it wrote and not the wire bytes.
 func TestCharset_SpecIsNotMutated(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{
 		CharacterEncoding: "windows-1252",
 		Vars:              []Var{{Name: "A", Width: 8, Label: "café"}},
@@ -293,6 +309,8 @@ func TestCharset_SpecIsNotMutated(t *testing.T) {
 }
 
 func TestCharset_IsWirePrintable(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]bool{
 		"plain":      true,
 		"":           true,

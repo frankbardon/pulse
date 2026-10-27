@@ -30,6 +30,8 @@ func spec(params string) *types.OverlaySpec {
 // a label resolves by output label, explicit or TYPE_field, so two
 // aggregations over one input field are told apart.
 func TestResolve(t *testing.T) {
+	t.Parallel()
+
 	for params, want := range map[string]int{
 		"":                                 0,
 		`{}`:                               0,
@@ -51,6 +53,8 @@ func TestResolve(t *testing.T) {
 // An unknown label or a non-string field is refused
 // PULSE_OVERLAY_FIELD_UNKNOWN with {index, kind, field, available}.
 func TestResolve_Refused(t *testing.T) {
+	t.Parallel()
+
 	for params, field := range map[string]any{
 		`{"field": "AGG_COUNT_id"}`: "AGG_COUNT_id", // explicit Label wins
 		`{"field": "spend"}`:        "spend",        // an input field is not a label
@@ -74,6 +78,8 @@ func TestResolve_Refused(t *testing.T) {
 }
 
 func TestKinds(t *testing.T) {
+	t.Parallel()
+
 	ks := Kinds()
 	if len(ks) != len(kinds) {
 		t.Fatalf("Kinds() = %v, want %d kinds", ks, len(kinds))
@@ -91,6 +97,8 @@ func TestKinds(t *testing.T) {
 // ResolveComposeSlot reads the Compose spec's decoded params by the
 // Resolve rule and stamps the slot label on a refusal.
 func TestResolveComposeSlot(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.ComposeOverlaySpec{Kind: types.OverlayKindIndexVsRef}
 	for field, want := range map[any]int{nil: 0, "": 0, "orders": 2, "AGG_AVERAGE_spend": 1} {
 		spec.Params = map[string]any{"field": field}
@@ -117,6 +125,8 @@ func TestResolveComposeSlot(t *testing.T) {
 // ResolveChainStage reads the chain spec's params by the Resolve rule
 // and stamps the arm and stage on a refusal.
 func TestResolveChainStage(t *testing.T) {
+	t.Parallel()
+
 	spec := &types.ChainOverlaySpec{Kind: types.OverlayKindDeltaVsStage}
 	for field, want := range map[any]int{nil: 0, "": 0, "orders": 2, "AGG_AVERAGE_spend": 1} {
 		spec.Params = map[string]any{"field": field}
@@ -169,6 +179,8 @@ func vecAggs(known bool) ([]*types.Aggregation, Columns) {
 // aggregation itself (Element false — the array-valued rule judges
 // it); with no lister an element name is unknown.
 func TestResolve_ElementColumn(t *testing.T) {
+	t.Parallel()
+
 	as, cols := vecAggs(true)
 	for params, want := range map[string]Scored{
 		`{"field": "m[a]"}`:   {Index: 1, Column: "m[a]"},
@@ -203,6 +215,8 @@ func TestResolve_ElementColumn(t *testing.T) {
 // PULSE_OVERLAY_FIELD_UNKNOWN; Details.available lists the element
 // columns after their aggregation's label, on every host.
 func TestResolve_ElementColumnRefused(t *testing.T) {
+	t.Parallel()
+
 	as, cols := vecAggs(true)
 	wantAvail := []string{"AGG_SUM_spend", "m", "m[a]", "m[b]", "orders"}
 	for _, field := range []string{"m[zz]", "m[]", "orders[a]", "m[a"} {

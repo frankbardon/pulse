@@ -96,6 +96,8 @@ func runBoth(t *testing.T, s *encoding.Schema, src string, env map[string]any) (
 // where float64 is not, and the null-row twin (every name declared
 // through Untyped) gives the typed program's result to the byte.
 func TestDecimal_ExactOracle(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	env := decimalStdEnv(t, s)
 	// The float64 oracle is wrong on each of these.
@@ -169,6 +171,8 @@ func TestDecimal_ExactOracle(t *testing.T) {
 // substitutes (lifted to a decimal, so the arithmetic stays exact) — and
 // an operator over nil is an evaluation error, never a number.
 func TestDecimal_NullTwin(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	env := decimalStdEnv(t, s)
 	delete(env, "price")
@@ -213,6 +217,8 @@ func TestDecimal_NullTwin(t *testing.T) {
 // TestDecimal_CodedFailures: a zero divisor and an out-of-range result
 // raise the decimal codes, reachable through the evaluation error.
 func TestDecimal_CodedFailures(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	env := decimalStdEnv(t, s)
 	for _, tc := range []struct {
@@ -242,6 +248,8 @@ func TestDecimal_CodedFailures(t *testing.T) {
 // TestDecimal_CompileRefusals: an ill-typed decimal expression fails at
 // compile (predict's and the runtime build's compile alike).
 func TestDecimal_CompileRefusals(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	for _, src := range []string{
 		`price / "x"`,
@@ -261,6 +269,8 @@ func TestDecimal_CompileRefusals(t *testing.T) {
 // compiles to the very program it compiled to before (no decimal call is
 // patched in), so its run-time cost is unchanged.
 func TestDecimal_NonDecimalUntouched(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	for _, src := range []string{
 		`x + 1 > 2`, `(x ?? 0) * 2`, `float(x) / 3`, `-x`, `x == nil`, `cat == "a"`,
@@ -281,6 +291,8 @@ func TestDecimal_NonDecimalUntouched(t *testing.T) {
 // a Decimal at the field's scale (the declared ValueType); every other
 // value passes through untouched.
 func TestDecimal_BindAndValueType(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	f := s.Field("price")
 	d := encoding.NewDecimal128FromInt(360)
@@ -311,6 +323,8 @@ func TestDecimal_BindAndValueType(t *testing.T) {
 // TestDecimal_MulScaleCap: a product past scale 38 is held to 38 by
 // banker's rounding — half to even, either sign.
 func TestDecimal_MulScaleCap(t *testing.T) {
+	t.Parallel()
+
 	at20 := func(m int64) Decimal { return Decimal{Value: encoding.NewDecimal128FromInt(m), Scale: 20} }
 	for _, tc := range []struct {
 		a, b int64
@@ -338,6 +352,8 @@ func TestDecimal_MulScaleCap(t *testing.T) {
 // receives a decimal argument as the public encoding.Decimal128 it always
 // did — never the env's internal binding.
 func TestDecimal_EmbedderFunctionsSeeDecimal128(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	var seen any
 	opts := append([]expr.Option{expr.Env(Prototype(s))}, Options()...)
@@ -381,6 +397,8 @@ func decimalWant(t *testing.T, label string, got, want any) {
 // rescale); int truncates; sqrt / log / exp / pow and the vector family
 // read the decimal's float64 (their answers are irrational floats).
 func TestDecimal_BranchesAndBuiltins(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	env := decimalStdEnv(t, s) // a 0.1, price 3.60, cost 3.00, x 0.1
 	for _, tc := range []struct {
@@ -472,6 +490,8 @@ func TestDecimal_BranchesAndBuiltins(t *testing.T) {
 // program lifts a number, and a built-in over the absent decimal is an
 // evaluation error (never a number).
 func TestDecimal_NullTwinBranches(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	env := decimalStdEnv(t, s)
 	delete(env, "price")
@@ -511,6 +531,8 @@ func TestDecimal_NullTwinBranches(t *testing.T) {
 // decimal meaning is refused at COMPILE (typed program — predict's and
 // the build's compile), and the reason names float() as the escape.
 func TestDecimal_RefusalsNameFloatEscape(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	for _, src := range []string{`price % 2`, `2 % price`, `(x > 0 ? price : 0) % 2`} {
 		_, err := compileTyped(t, s, src)
@@ -525,6 +547,8 @@ func TestDecimal_RefusalsNameFloatEscape(t *testing.T) {
 // — so the compile refuses with the error, at the position, an
 // unpatched check reports.
 func TestDecimal_PatchHidesNoError(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	for _, tc := range []struct{ src, want string }{
 		{`price / "x" > 1`, `invalid operation: / (mismatched types exprenv.Decimal and string) (1:7)`},
@@ -548,6 +572,8 @@ func TestDecimal_PatchHidesNoError(t *testing.T) {
 // TestDecimal_IntOverflowCoded: int() of a decimal past int64 is
 // PULSE_DECIMAL_OVERFLOW, never a wrapped integer.
 func TestDecimal_IntOverflowCoded(t *testing.T) {
+	t.Parallel()
+
 	s := decimalTestSchema()
 	env := decimalStdEnv(t, s)
 	typed, twin, terr, werr := runBoth(t, s, `int(big)`, env)

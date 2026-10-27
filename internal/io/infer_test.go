@@ -48,6 +48,8 @@ func (m *mockReader) Reset() error {
 }
 
 func TestInferSchema_AllNumericTypes(t *testing.T) {
+	t.Parallel()
+
 	// u8 range: 0-255
 	// u16 range: 256-65535
 	// u32 range: 65536-4294967295
@@ -98,6 +100,8 @@ func TestInferSchema_AllNumericTypes(t *testing.T) {
 }
 
 func TestInferSchema_DateColumn(t *testing.T) {
+	t.Parallel()
+
 	reader := newMockReader(
 		[]string{"date"},
 		[][]string{
@@ -122,6 +126,8 @@ func TestInferSchema_DateColumn(t *testing.T) {
 }
 
 func TestInferSchema_BoolColumn(t *testing.T) {
+	t.Parallel()
+
 	reader := newMockReader(
 		[]string{"flag"},
 		[][]string{
@@ -143,6 +149,8 @@ func TestInferSchema_BoolColumn(t *testing.T) {
 }
 
 func TestInferSchema_CategoricalColumn(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 100)
 	colors := []string{"red", "green", "blue", "yellow", "orange"}
 	for i := range rows {
@@ -164,6 +172,8 @@ func TestInferSchema_CategoricalColumn(t *testing.T) {
 }
 
 func TestInferSchema_CategoricalWidthSelection(t *testing.T) {
+	t.Parallel()
+
 	// <=200 unique -> U8
 	// <=60000 unique -> U16
 	// >60000 unique -> U32
@@ -202,6 +212,8 @@ func TestInferSchema_CategoricalWidthSelection(t *testing.T) {
 }
 
 func TestInferSchema_Ambiguous_FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	// No columns should fail.
 	reader := newMockReader([]string{}, [][]string{})
 	_, _, err := InferSchema(reader, 500)
@@ -224,6 +236,8 @@ func TestInferSchema_Ambiguous_FailsClosed(t *testing.T) {
 }
 
 func TestInferSchema_UnboundedCategorical_FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	// All unique string values with enough rows.
 	rows := make([][]string, 100)
 	for i := range rows {
@@ -241,6 +255,8 @@ func TestInferSchema_UnboundedCategorical_FailsClosed(t *testing.T) {
 }
 
 func TestInferSchema_MinSampleRows(t *testing.T) {
+	t.Parallel()
+
 	// Even if we pass sampleRows=10, it should use minSampleRows (50).
 	rows := make([][]string, 60)
 	for i := range rows {
@@ -258,6 +274,8 @@ func TestInferSchema_MinSampleRows(t *testing.T) {
 }
 
 func TestInferSchema_CustomSampleSize(t *testing.T) {
+	t.Parallel()
+
 	// Create 200 rows, sample only 100.
 	rows := make([][]string, 200)
 	for i := range rows {
@@ -280,6 +298,8 @@ func TestInferSchema_CustomSampleSize(t *testing.T) {
 }
 
 func TestInferSchema_NullableDetection(t *testing.T) {
+	t.Parallel()
+
 	// Mix of integers with some null/empty values.
 	rows := [][]string{
 		{"10"}, {"20"}, {""}, {"30"}, {"null"}, {"40"}, {"50"},
@@ -308,6 +328,8 @@ func TestInferSchema_NullableDetection(t *testing.T) {
 }
 
 func TestInferSchema_NullableBool(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"true"}, {"false"}, {""}, {"true"}, {"null"}, {"false"},
 		{"true"}, {"false"}, {""}, {"true"}, {"null"}, {"false"},

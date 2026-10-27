@@ -25,6 +25,8 @@ import (
 // does, and this test is what actually proves that rather than assuming
 // it from the bare-path test alone.
 func TestAugmentFromProfile_ReconstructsCorrelationWithinTolerance(t *testing.T) {
+	t.Parallel()
+
 	const tolerance = 0.03
 	const sourceRows = 8000
 	const newRows = 20000
@@ -94,6 +96,8 @@ func TestAugmentFromProfile_ReconstructsCorrelationWithinTolerance(t *testing.T)
 // FR-11: no new generate-time flag activates the feature, and its absence
 // from the profile document is what keeps behavior unchanged.
 func TestAugmentFromProfile_WithoutConditional_GeneratesIndependentMarginals(t *testing.T) {
+	t.Parallel()
+
 	const sourceRows = 8000
 	const newRows = 20000
 

@@ -8,6 +8,8 @@ import (
 )
 
 func TestExprStaticIssue(t *testing.T) {
+	t.Parallel()
+
 	lenOf := func(name string) (int, bool) {
 		if name == "xy" {
 			return 2, true
@@ -42,6 +44,8 @@ func TestExprStaticIssue(t *testing.T) {
 }
 
 func TestStaticIssues_Sites(t *testing.T) {
+	t.Parallel()
+
 	req := &types.Request{
 		Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "vcenter(xy)"}},
 		Attributes: []*types.Attribute{

@@ -25,6 +25,8 @@ import (
 // and the string form of the second cannot be the empty string, because
 // the import path reads "" as a null before any dictionary is consulted.
 func TestJSONShared_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	// The delimiters must agree, or a cell this package joins is a cell
 	// internal/io/import.go cannot split.
 	if pjsonshared.SetArrayDelimiter != pio.DefaultSetDelimiter {

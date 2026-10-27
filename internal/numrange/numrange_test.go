@@ -11,6 +11,8 @@ import (
 func f(v float64) *float64 { return &v }
 
 func TestCompile_HalfOpen(t *testing.T) {
+	t.Parallel()
+
 	set, err := Compile([]Spec{
 		{Label: "holdout", Start: f(91), End: f(104)},
 		{Label: "train", Start: f(0), End: f(91)},
@@ -40,6 +42,8 @@ func TestCompile_HalfOpen(t *testing.T) {
 }
 
 func TestCompile_Refusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		specs []Spec
@@ -65,6 +69,8 @@ func TestCompile_Refusals(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	t.Parallel()
+
 	cfg, err := Parse(json.RawMessage(`{"ranges":[{"label":"b","start":5},{"label":"a","end":5}],"unmatched_label":"x"}`))
 	if err != nil {
 		t.Fatal(err)

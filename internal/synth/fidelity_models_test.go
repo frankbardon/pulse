@@ -158,6 +158,8 @@ func findPredictorFidelity(m *synth.ModelFidelity, field, level string) *synth.M
 // twice as noisy as it is, and the point of this fixture is that a
 // healthy generation path recovers its structure with room to spare.
 func TestBuildModelFidelity_RecoversStrongMultiPredictorModel(t *testing.T) {
+	t.Parallel()
+
 	const recoveryBar = 0.05
 	const marginalStd = 25.0
 
@@ -264,6 +266,8 @@ func TestBuildModelFidelity_RecoversStrongMultiPredictorModel(t *testing.T) {
 // it must not read as a failure: no Error, no empty predictor
 // placeholder, and an intercept comparison that is still a real check.
 func TestBuildModelFidelity_ZeroPredictorModelIsMarginal(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(8000, synth.FieldModelSpec{
 		Field:       "spend",
 		Intercept:   100,
@@ -312,6 +316,8 @@ func TestBuildModelFidelity_ZeroPredictorModelIsMarginal(t *testing.T) {
 // section — which is what keeps a report for a pre-`--fit-models`
 // profile byte-identical to what it was.
 func TestBuildModelFidelity_UnmodelledFieldIsAbsent(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(4000, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -353,6 +359,8 @@ func TestBuildModelFidelity_UnmodelledFieldIsAbsent(t *testing.T) {
 // Every marginal in such a cohort is healthy, and every other section of
 // the fidelity report would say so. This section must not.
 func TestBuildModelFidelity_BrokenGenerationRecoversBadly(t *testing.T) {
+	t.Parallel()
+
 	const marginalStd = 25.0
 
 	inert := modelFidelitySpec(8000, synth.FieldModelSpec{
@@ -421,6 +429,8 @@ func TestBuildModelFidelity_BrokenGenerationRecoversBadly(t *testing.T) {
 // as a recovered zero sitting beside a captured coefficient. The second
 // reads as a measured failure; the first is the truth.
 func TestBuildModelFidelity_UnrealizedLevelReportsNoFabricatedDelta(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(4000, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,
@@ -478,6 +488,8 @@ func TestBuildModelFidelity_UnrealizedLevelReportsNoFabricatedDelta(t *testing.T
 // warned-and-skipped by buildModelDrawers at generation time; reporting a
 // recovery for it would be scoring a relationship that was never applied.
 func TestBuildModelFidelity_ReportsOnlyAppliedModels(t *testing.T) {
+	t.Parallel()
+
 	applied := synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -521,6 +533,8 @@ func TestBuildModelFidelity_ReportsOnlyAppliedModels(t *testing.T) {
 // contrast really is far enough away that the distinction is load-bearing
 // rather than a theoretical nicety.
 func TestBuildModelFidelity_ShapeFittedTargetRecoversOnLatentScale(t *testing.T) {
+	t.Parallel()
+
 	const eastCoef = 40.0
 	const recoveryBar = 0.05
 
@@ -634,6 +648,8 @@ func syntheticMeanByLevel(t *testing.T, schema *encoding.Schema, records []byte,
 // in row order and reads coefficients out of the result map by name, and
 // this test is what keeps that true.
 func TestBuildModelFidelity_IsByteReproducible(t *testing.T) {
+	t.Parallel()
+
 	spec := modelFidelitySpec(6000, synth.FieldModelSpec{
 		Field:     "spend",
 		Intercept: 100,

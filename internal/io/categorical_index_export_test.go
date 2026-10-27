@@ -73,6 +73,8 @@ func corruptExportCohort(t *testing.T, off int, v byte) afero.Fs {
 // (the clean cohort's null seg cells then refuse) and by deleting the
 // categorical faults[i] assignment (the region case then exports).
 func TestCorruptCategorical_ExportRefuses(t *testing.T) {
+	t.Parallel()
+
 	run := func(fs afero.Fs) (*collectingWriter, error) {
 		w := &collectingWriter{}
 		_, err := (&ExportJob{Source: "c.pulse", Target: w, FS: fs}).Run(context.Background())

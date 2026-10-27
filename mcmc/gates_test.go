@@ -30,6 +30,8 @@ func mcmcAllowed(path string) bool {
 // TestMCMC_ImportBoundary fails when a non-test file in mcmc imports
 // anything outside the standard library and the allowlist.
 func TestMCMC_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -96,6 +98,8 @@ func fmahashRun(t *testing.T, dir, verb, importPath string) []string {
 // report no contraction, so the package's bits are the same on every
 // architecture. A probe first proves the flag still reports one.
 func TestMCMC_NoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	probe := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -122,6 +126,8 @@ func TestMCMC_NoFMAContraction(t *testing.T) {
 // would make the golden hash arm64-only. TestMCMC_NoFMAContraction's
 // probe proves the flag still reports.
 func TestNUTS_TestModelsNoFMAContraction(t *testing.T) {
+	t.Parallel()
+
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)

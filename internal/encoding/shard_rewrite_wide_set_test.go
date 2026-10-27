@@ -98,6 +98,8 @@ func maskOf(bits ...int) encoding.SetMask {
 // high words would drop the selection silently while still producing a
 // parseable record.
 func TestMergeDictUnion_Divergent_RewritesWideSetMasks(t *testing.T) {
+	t.Parallel()
+
 	// Canonical dict holds 70 labels: label-0..label-69. Incoming holds
 	// three of them in a DIFFERENT order plus one new label, so the union
 	// both reorders and appends.
@@ -184,6 +186,8 @@ func TestMergeDictUnion_Divergent_RewritesWideSetMasks(t *testing.T) {
 // untranslated (they keep pointing at the shard's old dictionary frame),
 // and one that only WRITES words[0] drops them entirely.
 func TestRewriteShardCategoricals_WideSet_HighWordRemapSurvives(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU256
 	labels := make([]string, 256)
 	for i := range labels {
@@ -226,6 +230,8 @@ func TestRewriteShardCategoricals_WideSet_HighWordRemapSurvives(t *testing.T) {
 // arm of the guard is exercised by the narrow rungs; this is the one that
 // can only be reached by walking past bit 63.
 func TestRewriteShardCategoricals_WideSet_HighSourceBitOverflows(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU128
 	labels := make([]string, 128)
 	for i := range labels {
@@ -252,6 +258,8 @@ func TestRewriteShardCategoricals_WideSet_HighSourceBitOverflows(t *testing.T) {
 // selection. set_u128 caps at 128 bits even though SetMask itself
 // carries 256.
 func TestRewriteShardCategoricals_WideSet_WidthOverflow(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU128
 	src, schema := buildShardWithWideSet(t, ft, []string{"a", "b"}, []wideSetRecord{
 		{1, maskOf(0)},
@@ -272,6 +280,8 @@ func TestRewriteShardCategoricals_WideSet_WidthOverflow(t *testing.T) {
 // the verbatim-copy arm still holds when a wide set is present: an empty
 // remap re-emits the schema but must not touch a single record byte.
 func TestRewriteShardCategoricals_WideSet_EmptyRemapPreservesBytes(t *testing.T) {
+	t.Parallel()
+
 	ft := encoding.FieldTypeSetU256
 	recsIn := []wideSetRecord{
 		{1, maskOf(0, 63, 64, 127, 128, 191, 192, 255)},

@@ -30,6 +30,8 @@ func mustParse(t *testing.T, ss ...string) []Path {
 // TestParse_Grammar: well-formed paths round-trip to their canonical
 // spelling; malformed ones are SyntaxErrors naming the rule.
 func TestParse_Grammar(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		in   string
 		segs []Segment
@@ -73,6 +75,8 @@ func TestParse_Grammar(t *testing.T) {
 // canonical form quotes exactly the names the bare form cannot spell,
 // so every bare-spellable path keeps its spelling.
 func TestParse_QuotedSegment(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		in, canon string
 		segs      []Segment
@@ -118,6 +122,8 @@ func TestParse_QuotedSegment(t *testing.T) {
 // in the bare grammar: adding quoted segments moved no existing
 // spelling, so no existing plan's rp1 digest moved either.
 func TestNew_DigestStableAcrossQuoting(t *testing.T) {
+	t.Parallel()
+
 	p := New(PresetCustom,
 		mustParse(t, "data[*].region", "tests[*].details.effect_*", "data[*].first name", "matrices[*].primary.values[*][*]", `data[*].a"b\c`),
 		mustParse(t, "metadata.x*", "components.aggregations[*].groups[*].operator.mean"),
@@ -153,6 +159,8 @@ var rootKeys = []string{"data", "metadata", "tests", "warnings", "components"}
 // TestVisit_IncludeOnlyAllowlist: an include-only plan emits the
 // ancestors of a selected path as containers and drops siblings.
 func TestVisit_IncludeOnlyAllowlist(t *testing.T) {
+	t.Parallel()
+
 	p := New(PresetCustom, mustParse(t, "data[*].region", "warnings"), nil, nil, 0, rootKeys)
 	for _, c := range []struct {
 		path []string
@@ -178,6 +186,8 @@ func TestVisit_IncludeOnlyAllowlist(t *testing.T) {
 // TestVisit_ExcludeWins: an exclude removes a node even beneath an
 // include, and makes its ancestor non-whole.
 func TestVisit_ExcludeWins(t *testing.T) {
+	t.Parallel()
+
 	p := New("full", mustParse(t, "data", "metadata", "tests", "warnings", "components", "tests[*].p_value"),
 		mustParse(t, "tests[*].details", "components"), nil, 0, rootKeys)
 	if got := verdict(p, "tests", "[*]", "details"); got.Keep {
@@ -204,6 +214,8 @@ func TestVisit_ExcludeWins(t *testing.T) {
 // TestVisit_KeepRetainsNestedWarnings: a keep path is emitted wherever
 // its parent is, never conjures its parent, and yields to an exclude.
 func TestVisit_KeepRetainsNestedWarnings(t *testing.T) {
+	t.Parallel()
+
 	keep := mustParse(t, "tests[*].warnings")
 	p := New(PresetCustom, mustParse(t, "tests[*].p_value"), nil, keep, 0, rootKeys)
 	if got := verdict(p, "tests", "[*]", "warnings"); got != (Verdict{Keep: true, Whole: true}) {
@@ -221,6 +233,8 @@ func TestVisit_KeepRetainsNestedWarnings(t *testing.T) {
 
 // TestVisit_Globs: a suffix glob selects every matching map key.
 func TestVisit_Globs(t *testing.T) {
+	t.Parallel()
+
 	p := New(PresetCustom, mustParse(t, "tests[*].details.effect_*"), nil, nil, 0, rootKeys)
 	if got := verdict(p, "tests", "[*]", "details", "effect_size"); !got.Whole {
 		t.Errorf("glob match = %+v", got)
@@ -234,6 +248,8 @@ func TestVisit_Globs(t *testing.T) {
 // digest ignores spelling order, duplicates, covered paths, the preset
 // name and irrelevant excludes, and moves with precision.
 func TestNew_IdentityAndDigest(t *testing.T) {
+	t.Parallel()
+
 	full := New("full", mustParse(t, rootKeys...), nil, mustParse(t, "tests[*].warnings"), 0, rootKeys)
 	if !full.Identity() || !full.SelectsAll {
 		t.Fatalf("full plan is not the identity: %+v", full)
@@ -266,6 +282,8 @@ func TestNew_IdentityAndDigest(t *testing.T) {
 // only, so the public types package can carry a plan without a new
 // dependency.
 func TestReturnPlan_ImportBoundary(t *testing.T) {
+	t.Parallel()
+
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -293,6 +311,8 @@ func TestReturnPlan_ImportBoundary(t *testing.T) {
 }
 
 func TestPath_Matches(t *testing.T) {
+	t.Parallel()
+
 	mustParse := func(s string) Path {
 		p, err := Parse(s)
 		if err != nil {
@@ -324,6 +344,8 @@ func TestPath_Matches(t *testing.T) {
 // include covering it makes it unconditional, and a plan without
 // companions digests as New always did.
 func TestVisitIn_Companions(t *testing.T) {
+	t.Parallel()
+
 	comp := []Companion{{Path: mustParse(t, "m[*].aux.n")[0], With: "p"}}
 	n := []Segment{Key("m"), Elem(), Key("aux"), Key("n")}
 	has := func(keys ...string) func(string) bool {

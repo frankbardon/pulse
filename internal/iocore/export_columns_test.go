@@ -22,6 +22,8 @@ func columnFieldNames(fields []*encoding.Field) []string {
 // projected or augmented header is typed by NAME without a plan, and by
 // the plan itself when one matches the header.
 func TestColumnFields(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "qty", Type: encoding.FieldTypeU32},
 		{Name: "amount", Type: encoding.FieldTypeDecimal128, Scale: 2},

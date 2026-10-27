@@ -14,6 +14,8 @@ import (
 // TestLoadZone_Accept pins the accepted half of the validity rule:
 // exactly "UTC", or an Area/Location name resolved from embedded tzdata.
 func TestLoadZone_Accept(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{
 		"UTC",
 		"Etc/UTC",
@@ -27,6 +29,8 @@ func TestLoadZone_Accept(t *testing.T) {
 		"Asia/Kolkata",
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			z, err := LoadZone(name)
 			if err != nil {
 				t.Fatalf("LoadZone(%q) error = %v", name, err)
@@ -44,6 +48,8 @@ func TestLoadZone_Accept(t *testing.T) {
 // TestLoadZone_UTCIsSentinel asserts "UTC" short-circuits to the shared
 // sentinel rather than building a table.
 func TestLoadZone_UTCIsSentinel(t *testing.T) {
+	t.Parallel()
+
 	z, err := LoadZone("UTC")
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +70,8 @@ func TestLoadZone_UTCIsSentinel(t *testing.T) {
 // TestLoadZone_Reject pins the refused half: every listed example is a
 // PULSE_TIMEZONE_UNKNOWN CodedError carrying the name under `tz`.
 func TestLoadZone_Reject(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{
 		"",
 		"Local",
@@ -84,6 +92,8 @@ func TestLoadZone_Reject(t *testing.T) {
 		"Europe/Berlin ",
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			z, err := LoadZone(name)
 			if err == nil {
 				t.Fatalf("LoadZone(%q) = %v, want error", name, z.Name())
@@ -129,6 +139,8 @@ func wantOffset(loc *time.Location, sec int64) int32 {
 // 1900–2100 table window), on every transition instant and its
 // neighbours, and on the window edges themselves.
 func TestZoneOffset_MatchesStdlib(t *testing.T) {
+	t.Parallel()
+
 	lo := time.Date(1850, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 	hi := time.Date(2200, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 	rng := rand.New(rand.NewPCG(1, 2))
@@ -177,6 +189,8 @@ func TestZoneOffset_MatchesStdlib(t *testing.T) {
 // starts at the window start and is parallel, so the binary search and
 // the cache bounds check have something well-formed to work over.
 func TestZoneOffset_TableShape(t *testing.T) {
+	t.Parallel()
+
 	z, err := LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -211,6 +225,8 @@ func TestZoneOffset_TableShape(t *testing.T) {
 // goroutines with disjoint instant streams; run under -race the shared
 // last-span cache must be clean, and every answer must still be right.
 func TestZoneOffset_Concurrent(t *testing.T) {
+	t.Parallel()
+
 	z, err := LoadZone("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -240,6 +256,8 @@ func TestZoneOffset_Concurrent(t *testing.T) {
 }
 
 func TestZoneOffset_AllocFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	z, err := LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -301,6 +319,8 @@ func BenchmarkZoneOffset(b *testing.B) {
 // TestFirstChange pins the bisect the table walk falls back on when the
 // stdlib's ZoneBounds reports a degenerate (non-advancing) end.
 func TestFirstChange(t *testing.T) {
+	t.Parallel()
+
 	ny, err := LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -323,6 +343,8 @@ func TestFirstChange(t *testing.T) {
 // works around: in the rule-extended range the final UTC day of a leap
 // year reports a non-advancing end. The table must carry on past it.
 func TestZoneOffset_LeapYearEnd(t *testing.T) {
+	t.Parallel()
+
 	z, err := LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -338,6 +360,8 @@ func TestZoneOffset_LeapYearEnd(t *testing.T) {
 // a zone that only sits at offset zero for part of history (or part of
 // the year) is not.
 func TestZone_IsUTC(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]bool{
 		"UTC":              true,
 		"Etc/UTC":          true,
@@ -366,8 +390,12 @@ func TestZone_IsUTC(t *testing.T) {
 // same identity, and moving its cache never moves the parent's — the
 // property that keeps parallel workers from contending.
 func TestZoneFork_SameAnswersOwnCache(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"Europe/Berlin", "Asia/Kolkata", "Australia/Sydney", "America/Santiago", "Etc/UTC"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			z, err := LoadZone(name)
 			if err != nil {
 				t.Fatal(err)
@@ -408,6 +436,8 @@ func TestZoneFork_SameAnswersOwnCache(t *testing.T) {
 }
 
 func TestZoneFork_UTCIsSentinel(t *testing.T) {
+	t.Parallel()
+
 	if UTC.Fork() != UTC {
 		t.Fatal("UTC.Fork() must return the UTC sentinel")
 	}
@@ -416,6 +446,8 @@ func TestZoneFork_UTCIsSentinel(t *testing.T) {
 // TestZoneFork_ConcurrentForks: one fork per goroutine, under -race,
 // all correct; the shared read-only table is never written.
 func TestZoneFork_ConcurrentForks(t *testing.T) {
+	t.Parallel()
+
 	z, err := LoadZone("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -446,6 +478,8 @@ func TestZoneFork_ConcurrentForks(t *testing.T) {
 }
 
 func TestZoneFork_OffsetAllocFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	z, err := LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)

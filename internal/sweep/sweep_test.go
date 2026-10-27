@@ -25,6 +25,8 @@ func intPtr(n int) *int { return &n }
 // TestValidate_Rules drives every rule: one valid twin per edge, and one
 // fault per reason with the details that name the axis or field.
 func TestValidate_Rules(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		mutate func(s *types.SweepSpec)
@@ -123,6 +125,8 @@ func TestValidate_Rules(t *testing.T) {
 }
 
 func TestValidate_Nil(t *testing.T) {
+	t.Parallel()
+
 	if ce := Validate(nil); ce != nil {
 		t.Fatalf("nil spec refused: %v", ce)
 	}
@@ -131,6 +135,8 @@ func TestValidate_Nil(t *testing.T) {
 // TestValidate_FirstFaultWins: rules run in contract order — an axis
 // fault is reported before a mode fault before a rank fault.
 func TestValidate_FirstFaultWins(t *testing.T) {
+	t.Parallel()
+
 	s := validSpec()
 	s.Axes[1].Values = nil
 	s.Mode = "bad"
@@ -147,6 +153,8 @@ func TestValidate_FirstFaultWins(t *testing.T) {
 // TestValidate_DecodedJSON: a wire sweep decodes into values Validate
 // accepts (numbers arrive as json.Number) and refuses a null value.
 func TestValidate_DecodedJSON(t *testing.T) {
+	t.Parallel()
+
 	var cr types.ComposedRequest
 	if err := json.Unmarshal([]byte(`{"requests":[],"sweep":{"axes":[{"name":"a","values":[1,2.5,"s",false]}],"request":{}}}`), &cr); err != nil {
 		t.Fatal(err)

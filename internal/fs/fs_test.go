@@ -13,6 +13,8 @@ import (
 
 // TestOsFs_ReadWrite verifies basic file operations with OsFs on a temp dir.
 func TestOsFs_ReadWrite(t *testing.T) {
+	t.Parallel()
+
 	tmpDir := t.TempDir()
 
 	cfg, err := fs.New(fs.WithDataDir(tmpDir))
@@ -44,6 +46,8 @@ func TestOsFs_ReadWrite(t *testing.T) {
 
 // TestMemMapFs_ReadWrite verifies the same operations with MemMapFs.
 func TestMemMapFs_ReadWrite(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	afs := cfg.Fs()
 
@@ -71,6 +75,8 @@ func TestMemMapFs_ReadWrite(t *testing.T) {
 
 // TestCustomFs_Injection verifies a custom afero.Fs can be injected and used.
 func TestCustomFs_Injection(t *testing.T) {
+	t.Parallel()
+
 	custom := afero.NewMemMapFs()
 
 	if err := afero.WriteFile(custom, "preexisting.txt", []byte("already here"), 0644); err != nil {
@@ -98,6 +104,8 @@ func TestCustomFs_Injection(t *testing.T) {
 
 // TestDataDirFromEnv verifies that PULSE_DATA_DIR resolves correctly.
 func TestDataDirFromEnv(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	tmpDir := t.TempDir()
 	t.Setenv("PULSE_DATA_DIR", tmpDir)
 
@@ -113,6 +121,8 @@ func TestDataDirFromEnv(t *testing.T) {
 
 // TestDataDirMissing returns a clear error when env var not set and no explicit dir.
 func TestDataDirMissing(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_DATA_DIR", "")
 
 	_, err := fs.Default()
@@ -127,6 +137,8 @@ func TestDataDirMissing(t *testing.T) {
 
 // TestNoGcsReferences greps the fs package to ensure no GCS-related code.
 func TestNoGcsReferences(t *testing.T) {
+	t.Parallel()
+
 	fsDir := filepath.Join(".")
 	entries, err := os.ReadDir(fsDir)
 	if err != nil {
@@ -166,6 +178,8 @@ func TestNoGcsReferences(t *testing.T) {
 // TestDataDir_Explicit verifies that an explicitly set DataDir takes precedence
 // over the environment variable.
 func TestDataDir_Explicit(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	envDir := t.TempDir()
 	explicitDir := t.TempDir()
 
@@ -183,6 +197,8 @@ func TestDataDir_Explicit(t *testing.T) {
 
 // TestNewMemMap_DataDir verifies MemMapFs gets an empty DataDir.
 func TestNewMemMap_DataDir(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if cfg.DataDir() != "" {
 		t.Errorf("DataDir() = %q, want empty for MemMapFs", cfg.DataDir())
@@ -191,6 +207,8 @@ func TestNewMemMap_DataDir(t *testing.T) {
 
 // TestOsFs_BasePath verifies that OsFs is rooted at the data dir.
 func TestOsFs_BasePath(t *testing.T) {
+	t.Parallel()
+
 	tmpDir := t.TempDir()
 
 	cfg, err := fs.New(fs.WithDataDir(tmpDir))
@@ -219,6 +237,8 @@ func TestOsFs_BasePath(t *testing.T) {
 // directory is resolved against the working directory ONCE, at New, so a
 // later chdir cannot silently re-root the filesystem.
 func TestDataDir_RelativeIsAbsolutisedAtNew(t *testing.T) {
+	// serial: t.Chdir moves the process working directory
+
 	base := t.TempDir()
 	if err := os.Mkdir(filepath.Join(base, "data"), 0o755); err != nil {
 		t.Fatal(err)
@@ -245,6 +265,8 @@ func TestDataDir_RelativeIsAbsolutisedAtNew(t *testing.T) {
 
 // TestDataDirFromEnv_RelativeIsAbsolutised is the PULSE_DATA_DIR twin.
 func TestDataDirFromEnv_RelativeIsAbsolutised(t *testing.T) {
+	// serial: t.Chdir moves the process working directory; t.Setenv mutates the process environment
+
 	base := t.TempDir()
 	if err := os.Mkdir(filepath.Join(base, "data"), 0o755); err != nil {
 		t.Fatal(err)

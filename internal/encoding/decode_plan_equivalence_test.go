@@ -767,6 +767,8 @@ func generateBigSchemaRecords(t *testing.T, schema *encoding.Schema, seed int64)
 // projection subset produces byte-equal decode results between the two
 // paths. Schemas are kept to ≤ 12 fields so the subset sweep is feasible.
 func TestDecodePlan_Equivalence_PerType(t *testing.T) {
+	t.Parallel()
+
 	fixtures := perTypeFixtures()
 	for _, f := range fixtures {
 		f := f
@@ -805,6 +807,8 @@ func TestDecodePlan_Equivalence_PerType(t *testing.T) {
 // and the all-bitmap-null variant. This keeps the test runtime sub-30s
 // while still exercising every record at the load-bearing extremes.
 func TestDecodePlan_Equivalence_PerTypeAllRecords(t *testing.T) {
+	t.Parallel()
+
 	fixtures := perTypeFixtures()
 	for _, f := range fixtures {
 		f := f
@@ -835,6 +839,8 @@ func TestDecodePlan_Equivalence_PerTypeAllRecords(t *testing.T) {
 // subset of a 10-field mixed schema across a single representative
 // record per subset. Records span a sub-sample of the synth corpus.
 func TestDecodePlan_Equivalence_SmallMixed(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32},
 		{Name: "u4_lo", Type: encoding.FieldTypeU4, BitPosition: 0},
@@ -915,6 +921,8 @@ func signature(retained []string) string {
 // will not grow a map without a Set call, so this is observationally
 // equivalent to "no allocations beyond a zero-size map".
 func TestDecodePlan_Equivalence_EmptyRetainedNoAllocs(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xE0091D0A)
 	for ri, raw := range records {
@@ -955,6 +963,8 @@ func TestDecodePlan_Equivalence_EmptyRetainedNoAllocs(t *testing.T) {
 // plan). This is the strictest contract — anything that breaks
 // projection-free decode breaks every consumer.
 func TestDecodePlan_Equivalence_FullRetainedMatchesUnprojected(t *testing.T) {
+	t.Parallel()
+
 	schema := bigMixedSchema()
 	records := generateBigSchemaRecords(t, schema, 0xF011BAD5)
 	all := allFieldNames(schema)

@@ -101,6 +101,8 @@ func happy() *types.Request {
 }
 
 func TestDecide(t *testing.T) {
+	t.Parallel()
+
 	const extAgg types.AggregationType = "AGG_ACME_SUM"
 	const extGrp types.GroupType = "GROUP_ACME_KEY"
 	facts := fakeFacts{
@@ -180,6 +182,8 @@ func TestDecide(t *testing.T) {
 }
 
 func TestDecide_Degenerate(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name  string
 		req   *types.Request
@@ -208,6 +212,8 @@ func TestDecide_Degenerate(t *testing.T) {
 // no decline (the request is refused before dispatch anyway), so
 // predict on a profiled instance cannot reveal a hidden operator.
 func TestDecide_HiddenNameKeyedBails(t *testing.T) {
+	t.Parallel()
+
 	req := happy()
 	req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2"}}
 	req.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION}}
@@ -227,6 +233,8 @@ func TestDecide_HiddenNameKeyedBails(t *testing.T) {
 // its type's or its metric's two-pass fact says; the same slot unbound
 // declines.
 func TestDecide_BoundSlotIsRowLocal(t *testing.T) {
+	t.Parallel()
+
 	req := happy()
 	req.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Label: "bound"}, {Type: types.ATTR_VEC_DISTANCE, Label: "bound"}}
 	slot := func(a *types.Attribute) bool { return a.Type == types.ATTR_VEC_DISTANCE }
@@ -245,6 +253,8 @@ func TestDecide_BoundSlotIsRowLocal(t *testing.T) {
 // (a vector element slot, AggregatorSlotMarginClass) fuses on that
 // class; the same type without the slot class declines on its own.
 func TestDecide_SlotMarginClass(t *testing.T) {
+	t.Parallel()
+
 	req := happy()
 	req.Crosstab.Cell = &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"score"}, Label: "elem"}
 	slot := fakeFacts{slotClass: func(a *types.Aggregation) (types.MarginReducibility, bool) {
@@ -266,6 +276,8 @@ func TestDecide_SlotMarginClass(t *testing.T) {
 // once per slot, in slot order beside the two-pass rule; a hidden one
 // answers as never-registered (no decline).
 func TestDecide_BufferedAttributeDeclines(t *testing.T) {
+	t.Parallel()
+
 	req := happy()
 	req.Attributes = []*types.Attribute{
 		{Type: types.ATTR_PERCENTILE, Label: "p"},

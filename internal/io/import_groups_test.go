@@ -80,6 +80,8 @@ func runGroupImport(t *testing.T, src Reader, groups []GroupDecl, mutate ...func
 // whose stride and file are smaller. The report carries each group's
 // entry count and widths.
 func TestImportJob_Groups(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	flatRep, flatRaw, flatFS, err := runGroupImport(t, newMockReader(cols, rows), nil)
 	if err != nil {
@@ -154,6 +156,8 @@ func TestImportJob_Groups(t *testing.T) {
 // reproduces the source table row for row, cell for cell, exactly as
 // the flat cohort's export does.
 func TestImportJob_Groups_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	export := func(groups []GroupDecl) *collectWriter {
 		_, _, fs, err := runGroupImport(t, newMockReader(cols, rows), groups)
@@ -191,6 +195,8 @@ func TestImportJob_Groups_RoundTrip(t *testing.T) {
 // TestImportJob_Groups_NoneIsByteIdentical: no declaration and an empty
 // declaration list both write the 0x01 cohort, byte for byte.
 func TestImportJob_Groups_NoneIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	_, base, _, err := runGroupImport(t, newMockReader(cols, rows), nil)
 	if err != nil {
@@ -210,6 +216,8 @@ func TestImportJob_Groups_NoneIsByteIdentical(t *testing.T) {
 // unknown field and a key that is also listed as a member are refused
 // with their own codes before any cohort is written.
 func TestImportJob_Groups_DeclarationErrors(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(100)
 	for _, tc := range []struct {
 		name    string
@@ -257,6 +265,8 @@ func TestImportJob_Groups_DeclarationErrors(t *testing.T) {
 // record index and the SOURCE row (which skips an earlier row error) —
 // never silently accepted as a bigger dictionary.
 func TestImportJob_Groups_KeyViolation(t *testing.T) {
+	t.Parallel()
+
 	cols := []string{"line_id", "cust_id", "cust_name", "qty"}
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "line_id", Type: encoding.FieldTypeU16, CsvColumnIdx: 0},
@@ -300,6 +310,8 @@ func TestImportJob_Groups_KeyViolation(t *testing.T) {
 // TestImportJob_Groups_EntriesExhausted: outgrowing the u32 index space
 // (shrunk here) is a coded error, never a wraparound.
 func TestImportJob_Groups_EntriesExhausted(t *testing.T) {
+	// serial: lowers the process-wide encoding.MaxGroupEntries ceiling
+
 	old := encoding.MaxGroupEntries
 	encoding.MaxGroupEntries = 39
 	t.Cleanup(func() { encoding.MaxGroupEntries = old })
@@ -316,6 +328,8 @@ func TestImportJob_Groups_EntriesExhausted(t *testing.T) {
 // its group, a constant field outside every group is elided into a
 // trailing constant group, and the cohort still decodes to the flat one.
 func TestImportJob_Groups_WithElision(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := joinFixture(600)
 	cols = append(cols, "batch", "src")
 	for i := range rows {
@@ -351,6 +365,8 @@ func TestImportJob_Groups_WithElision(t *testing.T) {
 // (no inference pass at all) takes group declarations exactly as an
 // inferred import does.
 func TestImportJob_Groups_AuthoritativeSchema(t *testing.T) {
+	t.Parallel()
+
 	src := func() *authoritativeReader {
 		return &authoritativeReader{
 			columns: []string{"id", "parent", "label"},
@@ -386,6 +402,8 @@ func TestImportJob_Groups_AuthoritativeSchema(t *testing.T) {
 
 // TestParseGroupDecl: the CLI declaration syntax.
 func TestParseGroupDecl(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		in   string
 		want GroupDecl

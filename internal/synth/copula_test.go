@@ -22,6 +22,8 @@ import (
 // math.Erf, the forward direction) — so this test cannot pass merely by
 // agreeing with the implementation under test.
 func TestSynth_CopulaPreservesLognormalMarginal(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.8
 	const tolerance = 0.03
 	// sigma is kept modest (0.25, not e.g. 1.0) deliberately: the
@@ -98,6 +100,8 @@ func TestSynth_CopulaPreservesLognormalMarginal(t *testing.T) {
 // kept as a second, differently-seeded instance of the same anchor
 // rather than a restatement of it.
 func TestSynth_CopulaNormalOnNormalIsExact(t *testing.T) {
+	t.Parallel()
+
 	const targetRho = 0.8
 	const tolerance = 0.03
 

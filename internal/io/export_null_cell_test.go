@@ -77,6 +77,8 @@ func nullCellCohort(t *testing.T) afero.Fs {
 // "" is what made "answered with a blank" and "did not answer" the
 // same cell for every adapter downstream.
 func TestExportJob_NullCellIsNilNotEmptyString(t *testing.T) {
+	t.Parallel()
+
 	fs := nullCellCohort(t)
 
 	w := &collectWriter{}
@@ -110,6 +112,8 @@ func TestExportJob_NullCellIsNilNotEmptyString(t *testing.T) {
 // that asymmetry is what keeps a convert's "" — which IS the source
 // null token there — reading as a null.
 func TestExportJob_DeclaresExplicitNullsToNullAwareTargets(t *testing.T) {
+	t.Parallel()
+
 	fs := nullCellCohort(t)
 
 	w := &nullAwareCollectWriter{}
@@ -150,6 +154,8 @@ var _ NullAwareWriter = (*nullAwareCollectWriter)(nil)
 // the same "" is the absent cell on the convert (text) path and a
 // value on the export path, and nil is absent on both.
 func TestIsNullCell_TwoConventions(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		v        any
 		explicit bool

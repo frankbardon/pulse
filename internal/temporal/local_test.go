@@ -79,8 +79,12 @@ func propertySamples(z *Zone, rng *rand.Rand) []int64 {
 // every LocalParts field equal time.Unix(s, 0).In(loc) on dense samples
 // around every transition 1970–2040 plus random instants.
 func TestLocalDayAndParts_MatchStdlib(t *testing.T) {
+	t.Parallel()
+
 	for i, name := range append(append([]string{}, localZones...), midnightZones...) {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			z := mustZone(t, name)
 			rng := rand.New(rand.NewPCG(uint64(i)+10, 77))
 			samples := propertySamples(z, rng)
@@ -108,6 +112,8 @@ func TestLocalDayAndParts_MatchStdlib(t *testing.T) {
 // TestLocalDay_UTC pins the UTC sentinel to DateTimeToDay, negatives and
 // exact midnights included.
 func TestLocalDay_UTC(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewPCG(5, 6))
 	samples := []int64{-86401, -86400, -86399, -1, 0, 1, 86399, 86400}
 	for range 20000 {
@@ -131,6 +137,8 @@ func TestLocalDay_UTC(t *testing.T) {
 // TestLocalDay_NegativeOffsetFloor: before 1970 in a west-of-UTC zone the
 // shifted instant is negative and the day must floor toward the past.
 func TestLocalDay_NegativeOffsetFloor(t *testing.T) {
+	t.Parallel()
+
 	ny := mustZone(t, "America/New_York")
 	// 1970-01-01T04:59:59Z is 1969-12-31T23:59:59-05:00: local day -1.
 	if got := LocalDay(4*3600+3599, ny); got != -1 {
@@ -170,6 +178,8 @@ func stdDayUTC(y int, m time.Month, d int) int64 {
 // 01:00), a fall-back from 24:00 starts the day after the repeated hour,
 // and an entirely skipped day yields the next existing day's start.
 func TestLocalMidnightUTC_DSTAtMidnight(t *testing.T) {
+	t.Parallel()
+
 	ts := func(s string) int64 {
 		v, err := time.Parse(time.RFC3339, s)
 		if err != nil {
@@ -215,6 +225,8 @@ func TestLocalMidnightUTC_DSTAtMidnight(t *testing.T) {
 // TestNextChange_OutOfWindow covers the stdlib probe on both sides of the
 // table window, including a change exactly at an hour-probe boundary.
 func TestNextChange_OutOfWindow(t *testing.T) {
+	t.Parallel()
+
 	ny := mustZone(t, "America/New_York")
 	// 2150-03-08 is the second Sunday of March: DST begins 07:00Z.
 	from := time.Date(2150, 3, 7, 0, 0, 0, 0, time.UTC).Unix()
@@ -243,6 +255,8 @@ func TestNextChange_OutOfWindow(t *testing.T) {
 // test moves windowEnd onto a real New York transition and rebuilds the
 // table, which then ends just before it.
 func TestNextChange_AtWindowEnd(t *testing.T) {
+	// serial: swaps the package-level temporal.windowEnd test hook
+
 	ny := mustZone(t, "America/New_York")
 	tr := time.Date(2050, 3, 13, 7, 0, 0, 0, time.UTC).Unix()
 	if offsetAt(ny.loc, tr) == offsetAt(ny.loc, tr-1) {
@@ -258,6 +272,8 @@ func TestNextChange_AtWindowEnd(t *testing.T) {
 }
 
 func TestLocal_AllocFree(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	z := mustZone(t, "Europe/Berlin")
 	s := int64(1_650_000_000)
 	var sink int64

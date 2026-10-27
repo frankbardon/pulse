@@ -101,6 +101,8 @@ func readWideSetFieldRows(t *testing.T, data []byte, name string) (masks []encod
 // (spec, seed) must produce byte-identical output, including the 16-
 // and 32-byte payloads whose word order is the normative wire contract.
 func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typeName string
 		options  int
@@ -109,6 +111,8 @@ func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {
 		{"set_u256", 256},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
+			t.Parallel()
+
 			params, _, _ := wideSetParams(tc.options, 0.5, map[int]float64{70: 0.3, tc.options - 1: 0.7})
 			spec := &synth.Spec{
 				RowCount: 300,
@@ -150,6 +154,8 @@ func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {
 // reversed pair of words would decode as a different, plausible
 // selection.
 func TestSynth_SetU256_SampleReadsBackExpectedLabels(t *testing.T) {
+	t.Parallel()
+
 	const options = 256
 	selected := []int{0, 64, 130, 200, 255}
 	probe := make(map[int]float64, len(selected))
@@ -209,6 +215,8 @@ func TestSynth_SetU256_SampleReadsBackExpectedLabels(t *testing.T) {
 // with low per-option frequencies must produce all three states —
 // null, non-null-empty and non-null-populated — in one run.
 func TestSynth_SetBernoulli_WideEmptyMaskIsGeneratedAndDistinctFromNull(t *testing.T) {
+	t.Parallel()
+
 	params, _, _ := wideSetParams(128, 0.01, nil)
 	spec := &synth.Spec{
 		RowCount: 800,
@@ -248,6 +256,8 @@ func TestSynth_SetBernoulli_WideEmptyMaskIsGeneratedAndDistinctFromNull(t *testi
 // table spans narrow and wide rungs so the refusal is derived from
 // MaxSetEntries rather than hardcoded at 64.
 func TestSynth_SetSpec_OptionsBeyondRungCapacityRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typeName string
 		capacity int
@@ -258,6 +268,8 @@ func TestSynth_SetSpec_OptionsBeyondRungCapacityRefused(t *testing.T) {
 		{"set_u256", 256},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
+			t.Parallel()
+
 			params, _, _ := wideSetParams(tc.capacity+1, 0.5, nil)
 			spec := &synth.Spec{
 				RowCount: 4,
@@ -298,6 +310,8 @@ func TestSynth_SetSpec_OptionsBeyondRungCapacityRefused(t *testing.T) {
 // width shifts every following column by a fixed offset and still
 // decodes into plausible numbers.
 func TestSynth_SetWideRungStride(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		typeName   string
 		options    int
@@ -309,6 +323,8 @@ func TestSynth_SetWideRungStride(t *testing.T) {
 		{"set_u256", 256, 32, 40, 7},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
+			t.Parallel()
+
 			params, _, _ := wideSetParams(tc.options, 0.5, nil)
 			spec := &synth.Spec{
 				RowCount: tc.rowCount,
@@ -367,6 +383,8 @@ func TestSynth_SetWideRungStride(t *testing.T) {
 // only thing that could go wrong is the encode width — which is exactly
 // what a silent truncation looks like.
 func TestSynth_SetU256_ConstantSelectionCoercesAtWideRung(t *testing.T) {
+	t.Parallel()
+
 	const options = 256
 	names := wideSetOptionNames(options)
 	optionsAny := make([]any, options)

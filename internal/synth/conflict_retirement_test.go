@@ -112,6 +112,8 @@ func classesPresent(warnings []string) map[string]bool {
 // The samples are verbatim resolveConflicts output, not paraphrases —
 // a paraphrase would test the test.
 func TestConflictClassFragments_Disjoint(t *testing.T) {
+	t.Parallel()
+
 	samples := []struct {
 		want   conflictClass
 		sample string
@@ -189,6 +191,8 @@ func modelDrivenProfiles(t *testing.T) (condSpec, bothSpec *synth.Spec, condWarn
 // modelled field must never be reported as having lost its correlation
 // to a pair that claimed it first, because no pair claims it any more.
 func TestSpecFromProfile_ModelDrivenProfileRaisesNoNumericTargetConflicts(t *testing.T) {
+	t.Parallel()
+
 	condSpec, bothSpec, condWarn, bothWarn := modelDrivenProfiles(t)
 
 	if len(bothSpec.Models) == 0 {
@@ -235,6 +239,8 @@ func TestSpecFromProfile_ModelDrivenProfileRaisesNoNumericTargetConflicts(t *tes
 // TestResolveConflicts_SurvivingArmsUnchangedByModels below, which can
 // hand-author the contention a profile capture does not produce here.
 func TestSpecFromProfile_NonNumericConflictArbitrationSurvivesModels(t *testing.T) {
+	t.Parallel()
+
 	_, _, condWarn, bothWarn := modelDrivenProfiles(t)
 
 	collect := func(warnings []string) []string {
@@ -293,6 +299,8 @@ func TestSpecFromProfile_NonNumericConflictArbitrationSurvivesModels(t *testing.
 // exactly as SpecFromProfile leaves them for a modelled target, and all
 // three non-numeric arms must come back pruned pick-one either way.
 func TestResolveConflicts_SurvivingArmsUnchangedByModels(t *testing.T) {
+	t.Parallel()
+
 	base := func() *synth.Spec {
 		return &synth.Spec{
 			RowCount: 100,
@@ -411,6 +419,8 @@ func TestResolveConflicts_SurvivingArmsUnchangedByModels(t *testing.T) {
 // elsewhere in this file: the input is a frozen file, so its warning set
 // is a fixed quantity, and the whole point is that it did not shrink.
 func TestSpecFromProfile_PreModelsDocumentKeepsFullConflictSet(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile("testdata/profile_pre_models.json")
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)

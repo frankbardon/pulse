@@ -33,6 +33,8 @@ func chainCodeNext(r *types.Request, _ *encoding.Schema) *encoding.Schema {
 }
 
 func TestChainCodeColumns(t *testing.T) {
+	t.Parallel()
+
 	var k AggregationKinds
 	g := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 	agg := func(typ types.AggregationType, field, label string) *types.Aggregation {

@@ -22,6 +22,8 @@ const minimalSpec = `{
 // and seed through the facade and through internal/synth yield the same
 // bytes, and the file / profile / spec round trip stays on that path.
 func TestFacade_ForwardsAreByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	spec, err := synth.ParseSpec([]byte(minimalSpec))
 	if err != nil {
 		t.Fatalf("ParseSpec: %v", err)

@@ -16,6 +16,8 @@ import (
 // count found and the duration — never the cohort names. A disabled scan
 // logs nothing.
 func TestRegister_CohortScanLogsCountAndDuration(t *testing.T) {
+	t.Parallel()
+
 	fs := afero.NewMemMapFs()
 	writeTestCohort(t, fs, "zzsentinel_a.pulse")
 	writeTestCohort(t, fs, "zzsentinel_b.pulse")

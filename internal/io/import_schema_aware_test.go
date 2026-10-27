@@ -33,6 +33,8 @@ import (
 // before and after — readers place fields by a type-derived cursor.
 // Previous: 5c289e0a… (non_nullable), 8742d35c… (nullable_bitmap).
 func TestImportJob_NonSchemaAwareReader_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		columns []string
@@ -215,6 +217,8 @@ var _ ResetReader = (*resettableAuthoritativeReader)(nil)
 // --- the bypass ------------------------------------------------------------
 
 func TestImportJob_SchemaAwareReader_BypassesInference(t *testing.T) {
+	t.Parallel()
+
 	// Every cell is a small integer literal that inference would classify
 	// u8, and "grade" reads like a categorical. The authoritative schema says
 	// otherwise, and the authoritative schema is what must land on disk.
@@ -251,6 +255,8 @@ func TestImportJob_SchemaAwareReader_BypassesInference(t *testing.T) {
 }
 
 func TestImportJob_SchemaAwareReader_ExplicitSchemaWins(t *testing.T) {
+	t.Parallel()
+
 	src := &authoritativeReader{
 		columns: []string{"score"},
 		rows:    [][]string{{"1"}, {"2"}},
@@ -280,6 +286,8 @@ func TestImportJob_SchemaAwareReader_ExplicitSchemaWins(t *testing.T) {
 // --- inference-steering slots are inert -------------------------------------
 
 func TestImportJob_SchemaAwareReader_SteeringSlotsInert(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 0, 60)
 	for i := 0; i < 60; i++ {
 		rows = append(rows, []string{"7", "red|blue"})
@@ -337,6 +345,8 @@ func TestImportJob_SchemaAwareReader_SteeringSlotsInert(t *testing.T) {
 // cannot honour it, so Run and Predict refuse it with
 // PULSE_IMPORT_OVERRIDE_INVALID instead of silently ignoring it (E4-S13).
 func TestImportJob_SchemaAwareReader_OverridesRefused(t *testing.T) {
+	t.Parallel()
+
 	newSrc := func() *authoritativeReader {
 		return &authoritativeReader{
 			columns: []string{"code"},
@@ -365,6 +375,8 @@ func TestImportJob_SchemaAwareReader_OverridesRefused(t *testing.T) {
 // --- authoritative dictionaries are preserved, not re-derived ---------------
 
 func TestImportJob_SchemaAwareReader_DictionaryOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	// The source declares low=0, mid=1, high=2. The data contains only
 	// "high", so a re-derived dictionary would give it ID 0 — silently
 	// renumbering the source codes. The authoritative ordering must survive,
@@ -411,6 +423,8 @@ func TestImportJob_SchemaAwareReader_DictionaryOrderPreserved(t *testing.T) {
 // --- no null promotion ------------------------------------------------------
 
 func TestImportJob_SchemaAwareReader_NoNullPromotion(t *testing.T) {
+	t.Parallel()
+
 	for _, inferredFlag := range []bool{false, true} {
 		name := "InferredSchema=false"
 		if inferredFlag {
@@ -465,6 +479,8 @@ func TestImportJob_SchemaAwareReader_NoNullPromotion(t *testing.T) {
 // --- error / decline / malformed -------------------------------------------
 
 func TestImportJob_SchemaAwareReader_ErrorFailsImport(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		schema *encoding.Schema
@@ -503,6 +519,8 @@ func TestImportJob_SchemaAwareReader_ErrorFailsImport(t *testing.T) {
 }
 
 func TestImportJob_SchemaAwareReader_NilSchemaFallsBackToInference(t *testing.T) {
+	t.Parallel()
+
 	src := &resettableAuthoritativeReader{
 		mockReader: newMockReader([]string{"score"}, [][]string{{"1"}, {"2"}, {"3"}}),
 		schema:     nil, // deliberate opt-out
@@ -531,6 +549,8 @@ func TestImportJob_SchemaAwareReader_NilSchemaFallsBackToInference(t *testing.T)
 // --- predict parity ---------------------------------------------------------
 
 func TestImportJob_Predict_SchemaAwareReader(t *testing.T) {
+	t.Parallel()
+
 	src := &authoritativeReader{
 		columns: []string{"score"},
 		rows:    [][]string{{"1"}, {""}, {"3"}},

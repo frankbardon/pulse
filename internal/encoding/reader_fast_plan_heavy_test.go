@@ -13,9 +13,13 @@ import (
 // including subsets that drop a bit-packed member sharing a byte with a
 // retained member and subsets that drop/retain a nullable field.
 func TestReadRecordReusedWithPlan_MatchesReusedRestrictedPerType(t *testing.T) {
+	t.Parallel()
+
 	for _, f := range perTypeFixtures() {
 		f := f
 		t.Run(f.name, func(t *testing.T) {
+			t.Parallel()
+
 			if got := len(f.schema.Fields); got > 12 {
 				t.Fatalf("fixture %s has %d fields; subset sweep intractable", f.name, got)
 			}

@@ -47,6 +47,8 @@ func setPairSpecForClaim(rules []RuleSpec) *Spec {
 // field's other options, so letting it evict a whole-field claimant
 // would drop structure nothing contests.
 func TestClaimTarget_OptionGranularity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a whole-field rule claim subsumes the field's options", func(t *testing.T) {
 		spec := setPairSpecForClaim([]RuleSpec{{Set: map[string]any{"b": []any{"x"}}}})
 		res := resolveConflicts(spec)
@@ -132,6 +134,8 @@ func TestClaimTarget_OptionGranularity(t *testing.T) {
 // starts producing option targets, which is the point at which that
 // decision has to be made rather than inherited.
 func TestRuleClaims_NeverEmitsAnOptionTarget(t *testing.T) {
+	t.Parallel()
+
 	claims := ruleClaims([]RuleSpec{
 		{Set: map[string]any{"b": []any{"x"}, "n": 1.0}},
 		{SetExpr: map[string]string{"c": "1"}},

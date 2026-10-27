@@ -32,6 +32,8 @@ import (
 // with. The row count is therefore asserted twice, once at the export
 // report and once at the materialized table.
 func TestParquet_WideSetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	fs, src := sourceCohort(t)
 
 	exportThrough(t, "parquet", fs, src, pparquet.NewWriter(fs, "out.parquet"))
@@ -176,6 +178,8 @@ func TestParquet_WideSetRoundTrip(t *testing.T) {
 // set_u8 exactly as hard as set_u256 — so verifying the fix only at the
 // wide rung would leave the case that has been broken longest unproven.
 func TestParquet_NarrowSetRoundTripsToo(t *testing.T) {
+	t.Parallel()
+
 	fs, src, want := narrowSetCohort(t)
 
 	exportThrough(t, "parquet/narrow", fs, src, pparquet.NewWriter(fs, "narrow.parquet"))

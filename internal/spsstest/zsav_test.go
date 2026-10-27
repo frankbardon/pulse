@@ -108,6 +108,8 @@ func zsavSpec() Spec {
 // magic alone, so getting it wrong would produce a file that outside readers
 // classify as something else entirely.
 func TestZSAV_MagicIsFL3(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		compression Compression
 		want        string
@@ -144,6 +146,8 @@ func TestZSAV_MagicIsFL3(t *testing.T) {
 // as plausible numbers under any decoder, which is exactly the failure this
 // pins shut.
 func TestZSAV_InnerStreamIsTheBytecodeStream(t *testing.T) {
+	t.Parallel()
+
 	spec := ReferenceSpec()
 	spec.Compression = CompressionBytecode
 	packed, err := Build(spec)
@@ -168,6 +172,8 @@ func TestZSAV_InnerStreamIsTheBytecodeStream(t *testing.T) {
 // entries state each block's position twice, in two coordinate spaces, and a
 // reader validates them precisely because a writer could get them wrong.
 func TestZSAV_IndexDescribesTheFile(t *testing.T) {
+	t.Parallel()
+
 	specs := []struct {
 		name string
 		spec Spec
@@ -246,6 +252,8 @@ func TestZSAV_IndexDescribesTheFile(t *testing.T) {
 // rather than accidental: if a real-world file is ever found writing it
 // positive, this is the assertion to revisit.
 func TestZSAV_TrailerBiasIsTheNegatedHeaderBias(t *testing.T) {
+	t.Parallel()
+
 	cases := []float64{0, 37, 50}
 	for _, bias := range cases {
 		spec := zsavSpec()
@@ -291,6 +299,8 @@ func multiBlockSpec() Spec {
 // as ordinary as possible. ZSAVBlockSize exists for tests; a fixture handed to
 // an outside reader should look like what a real writer produces.
 func TestZSAV_BlockSizeDefaultsToTheConventionalValue(t *testing.T) {
+	t.Parallel()
+
 	raw, err := Build(zsavSpec())
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -307,6 +317,8 @@ func TestZSAV_BlockSizeDefaultsToTheConventionalValue(t *testing.T) {
 // TestZSAV_BlockSizeOverrideCutsTheStream is the capability the override
 // exists for: several blocks, each full except the last.
 func TestZSAV_BlockSizeOverrideCutsTheStream(t *testing.T) {
+	t.Parallel()
+
 	spec := multiBlockSpec()
 	raw, err := Build(spec)
 	if err != nil {
@@ -337,6 +349,8 @@ func TestZSAV_BlockSizeOverrideCutsTheStream(t *testing.T) {
 // bytes, which is why the deflate level is pinned rather than left at the
 // standard library's DefaultCompression sentinel.
 func TestZSAV_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, spec := range []Spec{zsavSpec(), multiBlockSpec()} {
 		a, err := Build(spec)
 		if err != nil {
@@ -360,6 +374,8 @@ func TestZSAV_Deterministic(t *testing.T) {
 // anything as a test input: the same logical cases must reach a reader as
 // genuinely different bytes from both other encodings.
 func TestZSAV_DiffersFromItsTwinsOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	spec := ReferenceSpec()
 	plain, err := Build(spec)
 	if err != nil {
@@ -389,6 +405,8 @@ func TestZSAV_DiffersFromItsTwinsOnTheWire(t *testing.T) {
 // coerce discipline. A zero means the default; a negative is a mistake, and
 // silently substituting the default would hide it.
 func TestZSAV_RejectsANegativeBlockSize(t *testing.T) {
+	t.Parallel()
+
 	spec := zsavSpec()
 	spec.ZSAVBlockSize = -1
 	if _, err := Build(spec); err == nil {
@@ -400,6 +418,8 @@ func TestZSAV_RejectsANegativeBlockSize(t *testing.T) {
 // non-empty — the end-of-file command and its block padding are part of the
 // encoding — so the index still names one block.
 func TestZSAV_EmptyDataSection(t *testing.T) {
+	t.Parallel()
+
 	spec := Spec{Vars: []Var{{Name: "A"}}, Compression: CompressionZSAV}
 	raw, err := Build(spec)
 	if err != nil {

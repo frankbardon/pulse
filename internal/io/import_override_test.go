@@ -43,6 +43,8 @@ func smallIntRows(count int) [][]string {
 // override" and the column narrowed to u4. Every integer rung, and every
 // other type a 1..4 column can hold, must come back exactly as forced.
 func TestImportJob_OverrideToU8Wins(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeU8, encoding.FieldTypeU4, encoding.FieldTypeU16,
 		encoding.FieldTypeU32, encoding.FieldTypeU64, encoding.FieldTypeF32,
@@ -51,6 +53,8 @@ func TestImportJob_OverrideToU8Wins(t *testing.T) {
 		encoding.FieldTypeDecimal128,
 	} {
 		t.Run(ft.String(), func(t *testing.T) {
+			t.Parallel()
+
 			fs := afero.NewMemMapFs()
 			job := NewImportJob(newMockReader([]string{"n", "s"}, smallIntRows(60)), "out.pulse")
 			job.FS = fs
@@ -74,6 +78,8 @@ func TestImportJob_OverrideToU8Wins(t *testing.T) {
 // the presence fix: a column with no override keeps inference, so a
 // map that names only one column does not force u8 onto the rest.
 func TestImportJob_OverrideAbsentColumnStillInfers(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 60)
 	for i := range rows {
 		rows[i] = []string{fmt.Sprint(i%4 + 1), fmt.Sprint(i%3 + 1)}
@@ -99,6 +105,8 @@ func TestImportJob_OverrideAbsentColumnStillInfers(t *testing.T) {
 // inside the inference sample and past it alike, and with no cohort
 // left behind. Before, an in-sample overflow became a skipped row.
 func TestImportJob_OverrideUnrepresentableRefused(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		ft        encoding.FieldType
@@ -164,6 +172,8 @@ func TestImportJob_OverrideUnrepresentableRefused(t *testing.T) {
 // TestImportJob_OverridePreEpochDate: dates are signed epoch days, so a
 // forced date column accepts pre-1970 values.
 func TestImportJob_OverridePreEpochDate(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 60)
 	for i := range rows {
 		rows[i] = []string{"1950-06-01", "x"}
@@ -189,8 +199,12 @@ func TestImportJob_OverridePreEpochDate(t *testing.T) {
 // column the header does not carry is refused, not silently dropped.
 // Matching is exact — a case or whitespace variant is unknown too.
 func TestImportJob_OverrideUnknownColumnRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"missing", "N", " n", "n "} {
 		t.Run(fmt.Sprintf("%q", name), func(t *testing.T) {
+			t.Parallel()
+
 			job := NewImportJob(newMockReader([]string{"n", "s"}, smallIntRows(60)), "out.pulse")
 			job.FS = afero.NewMemMapFs()
 			job.ColumnTypeOverrides = map[string]encoding.FieldType{name: encoding.FieldTypeU8}
@@ -207,6 +221,8 @@ func TestImportJob_OverrideUnknownColumnRefused(t *testing.T) {
 // leaves nothing to override; the conflicting instruction is refused
 // instead of being ignored.
 func TestImportJob_OverrideWithExplicitSchemaRefused(t *testing.T) {
+	t.Parallel()
+
 	job := NewImportJob(newMockReader([]string{"n", "s"}, smallIntRows(60)), "out.pulse")
 	job.FS = afero.NewMemMapFs()
 	job.Schema = &encoding.Schema{Fields: []encoding.Field{
@@ -223,6 +239,8 @@ func TestImportJob_OverrideWithExplicitSchemaRefused(t *testing.T) {
 // decimal128 takes the sample's largest scale; a later value with more
 // fractional digits is refused, never silently rounded to fit.
 func TestImportJob_OverrideDecimalScaleRefusedNotRounded(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][]string, 120)
 	for i := range rows {
 		rows[i] = []string{"1.5", "x"}
@@ -242,6 +260,8 @@ func TestImportJob_OverrideDecimalScaleRefusedNotRounded(t *testing.T) {
 // predict pass (constant elision / groups) converts every row as Run
 // does, so it refuses an out-of-sample value exactly as Run does.
 func TestImportJob_OverrideMeasuredPredictRefusesPastSample(t *testing.T) {
+	t.Parallel()
+
 	rows := smallIntRows(200)
 	rows[150][0] = "300"
 	job := NewImportJob(newMockReader([]string{"n", "s"}, rows), "out.pulse")
