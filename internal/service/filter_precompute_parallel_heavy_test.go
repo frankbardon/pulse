@@ -1,3 +1,5 @@
+//go:build heavy
+
 package service
 
 import (
@@ -19,9 +21,6 @@ import (
 // at every worker count, and the entry evaluations are bounded by
 // workers × entries, never by rows.
 func TestFilterPrecompute_ParallelDecode(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping >100K-record parallel decode fixture in -short mode")
-	}
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))

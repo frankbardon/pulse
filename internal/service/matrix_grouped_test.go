@@ -522,7 +522,8 @@ func assertGroupedRunsEqual(t *testing.T, label string, got, want groupedRun) {
 // TestMatrixGrouped_ParallelArms: the merge gate admits a grouped
 // request carrying matrices, and the shard and decode reducers return
 // the serial per-bucket matrices bit for bit (E4-S2 carries the full
-// grouped invariance matrix; this pins the wiring).
+// grouped invariance matrix; this pins the wiring). The DecodeWorkers
+// arm is the heavy-tier TestMatrixGrouped_ParallelArms_DecodeWorkers.
 func TestMatrixGrouped_ParallelArms(t *testing.T) {
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
@@ -547,33 +548,6 @@ func TestMatrixGrouped_ParallelArms(t *testing.T) {
 				}
 				assertGroupedRunsEqual(t, fmt.Sprintf("%s ShardWorkers=%d", pv, workers), got, serial)
 			}
-		}
-	})
-
-	t.Run("DecodeWorkers", func(t *testing.T) {
-		if testing.Short() {
-			t.Skip("skipping the 100K-record grouped decode arm in -short mode")
-		}
-		dir := t.TempDir()
-		osFs := afero.NewOsFs()
-		cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
-		if err != nil {
-			t.Fatalf("fs.New: %v", err)
-		}
-		n := 25*B + 2777
-		recs, nullAt := coMomentRows(n, 0)
-		path := dir + "/grouped.pulse"
-		if err := afero.WriteFile(osFs, path, writeNullablePulse(t, schema, recs, nullAt), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		req := groupedInvarianceRequest(path, v)
-		serial := runGroupedInvariance(t, cfg, req, 1, 0)
-		for _, workers := range []int{3, 8} {
-			got := runGroupedInvariance(t, cfg, req, workers, 0)
-			if got.instances <= serial.instances {
-				t.Fatalf("DecodeWorkers=%d fed %d vehicle instances, serial %d — the decode reducer did not engage", workers, got.instances, serial.instances)
-			}
-			assertGroupedRunsEqual(t, fmt.Sprintf("DecodeWorkers=%d", workers), got, serial)
 		}
 	})
 }

@@ -1,3 +1,5 @@
+//go:build heavy
+
 package service
 
 import (
@@ -6,11 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/afero"
-
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // TestGroupRounded_DistanceBetweenMerges (U51 E3-S3): a MAT_DISTANCE
@@ -21,9 +22,6 @@ import (
 // the same width (both floor to the interval and emit in numeric key
 // order), so the matrix also equals the GROUP_RANGE-between twin.
 func TestGroupRounded_DistanceBetweenMerges(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping the 100K-record distance merge gate in -short mode")
-	}
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	v := matrixInvarianceVariant{withVehicle: true, typ: types.MAT_DISTANCE}

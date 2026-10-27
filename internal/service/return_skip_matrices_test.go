@@ -67,11 +67,12 @@ func matrixSkipSelections() []skipSelection {
 }
 
 func TestReturnSkipsComputation_Matrices(t *testing.T) {
-	for _, arm := range skipArms() {
+	runReturnSkipsComputationMatrices(t, false)
+}
+
+func runReturnSkipsComputationMatrices(t *testing.T, long bool) {
+	for _, arm := range skipArmsOfLength(long) {
 		t.Run(arm.name, func(t *testing.T) {
-			if arm.long && testing.Short() {
-				t.Skip("parallel decode needs a cohort above the decode threshold")
-			}
 			svc, path := arm.build(t)
 			for _, grouped := range []bool{false, true} {
 				for _, buffered := range []bool{false, true} {

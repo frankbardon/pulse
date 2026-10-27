@@ -111,7 +111,7 @@ func skipRequest(path string, grouped, buffered bool) *types.Request {
 // skipArm builds a service and the cohort path one execution arm runs.
 type skipArm struct {
 	name      string
-	long      bool // -short skips it (parallel decode needs >100K rows)
+	long      bool // heavy tier only (parallel decode needs >100K rows)
 	mergeable bool // the arm needs a mergeable request (no AGG_MEDIAN)
 	build     func(t *testing.T) (*Service, string)
 }
@@ -215,11 +215,26 @@ func skipSelections() []skipSelection {
 }
 
 func TestReturnSkipsComputation(t *testing.T) {
+	runReturnSkipsComputation(t, false)
+}
+
+// skipArmsOfLength returns the skipArms whose long flag equals long: the
+// fast tier runs the short arms, the heavy tier
+// (TestReturnSkipsComputation_LongArms and its _Matrices twin) the
+// arms that need a cohort above the parallel-decode threshold.
+func skipArmsOfLength(long bool) []skipArm {
+	var out []skipArm
 	for _, arm := range skipArms() {
+		if arm.long == long {
+			out = append(out, arm)
+		}
+	}
+	return out
+}
+
+func runReturnSkipsComputation(t *testing.T, long bool) {
+	for _, arm := range skipArmsOfLength(long) {
 		t.Run(arm.name, func(t *testing.T) {
-			if arm.long && testing.Short() {
-				t.Skip("parallel decode needs a cohort above the decode threshold")
-			}
 			svc, path := arm.build(t)
 			for _, grouped := range []bool{false, true} {
 				for _, buffered := range []bool{false, true} {

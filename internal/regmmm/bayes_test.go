@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
-	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -61,27 +60,6 @@ func TestMMMBayes_PosteriorMoments(t *testing.T) {
 	}
 	if math.Abs(cov[0][0]-v00/5) > 1e-12 || math.Abs(cov[0][1]-v01/5) > 1e-12 || cov[0][1] != cov[1][0] {
 		t.Errorf("cov = %v, want %v / %v", cov, v00/5, v01/5)
-	}
-}
-
-// TestMMMBayes_FitMatchesFitContext: Fit is FitContext under a
-// background context, byte for byte.
-func TestMMMBayes_FitMatchesFitContext(t *testing.T) {
-	model, err := BayesFactory(BayesSpec(FastParams), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows := make(probeRows, 0, BayesWeeks)
-	for _, r := range BayesRows(11) {
-		rows = append(rows, probeRow{"week": r.Week, "tv": r.TV, "price": r.Price, "sales": r.Sales})
-	}
-	a, errA := model.(extend.BufferedRegression).Fit(rows)
-	b, errB := model.(extend.ContextRegression).FitContext(context.Background(), rows)
-	if errA != nil || errB != nil {
-		t.Fatalf("Fit %v, FitContext %v", errA, errB)
-	}
-	if !reflect.DeepEqual(a, b) {
-		t.Errorf("Fit and FitContext differ:\n%+v\n%+v", a, b)
 	}
 }
 

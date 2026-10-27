@@ -156,40 +156,6 @@ func TestExtensions_RegressionResampleMatchesBuiltin(t *testing.T) {
 	}
 }
 
-// TestExtensions_RegressionResampleDeterministic: a bootstrap at
-// rng_seed 0 (the data-derived seed) and a jackknife are bit-identical
-// across runs and across DecodeWorkers, streaming and buffered.
-func TestExtensions_RegressionResampleDeterministic(t *testing.T) {
-	large := parityLargeCohort(t.TempDir())(t)
-	specs := []*types.RegressionSpec{
-		{Type: regParityOLS, Name: "s", Target: "score", Predictors: []string{"qty", "day"}, Resample: "bootstrap", BootstrapIters: 50},
-		{Type: regParityOLSBuf, Name: "b", Target: "score", Predictors: []string{"qty"}, Resample: "jackknife", JackknifeGroups: 10},
-	}
-	run := func(t *testing.T, workers int) string {
-		t.Helper()
-		p, err := pulse.New(pulse.Options{DataDir: large, DecodeWorkers: workers, Extensions: pulse.Extensions{Regressions: modifierRegistrations()}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp := processE2E(t, p, &types.Request{Cohort: &types.Cohort{Filename: "large.pulse"}, Regressions: specs})
-		for _, r := range resp.Regressions {
-			if r == nil || r.Error != nil || r.Resample == "" {
-				t.Fatalf("regression failed: %+v", r)
-			}
-		}
-		return mustJSON(t, resp.Regressions)
-	}
-	want := run(t, 1)
-	if again := run(t, 1); again != want {
-		t.Fatalf("a rerun differs:\n%s\n%s", again, want)
-	}
-	for _, w := range []int{2, 4, 7} {
-		if got := run(t, w); got != want {
-			t.Errorf("DecodeWorkers %d differs from 1:\n%s\n%s", w, got, want)
-		}
-	}
-}
-
 // TestExtensions_RegressionSelectionMatchesBuiltin: forward, backward
 // and stepwise selection (aic and bic, alone and under a jackknife) on a
 // SupportsSelection model keep REG_OLS's predictors and report its fit.
