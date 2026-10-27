@@ -65,9 +65,10 @@
 2 ./internal/synth TestSuggestBlocks_WideCohortIsAbandonedNotTruncated
 2 ./internal/synth TestSynth_SetBernoulli_WideRungMarginalFrequencies
 
-# shard 3: ./internal/service 66s, ./internal/docgen 6s, ./mcp/gosdk 6s, ./internal/guide 5s, ./internal/apigolden 3s, ./internal/processing/regression 1s, ./internal/temporal 1s, ./internal/iocore 1s
+# shard 3: ./internal/service 66s, ./internal/docgen 6s, ./mcp/gosdk 6s, ./internal/guide 5s, ./internal/apigolden 3s, ./internal/processing/regression 1s, ./internal/temporal 1s, ./internal/iocore 1s, FMA gates (fmagate) ~3s
 3 ./internal/apigolden TestPublicAPIGolden
 3 ./internal/apigolden TestRootSurfaceNamesNoProcessing
+3 ./internal/distlagparams TestDistLag_NoFMAContraction
 3 ./internal/docgen TestRender_LinksResolve
 3 ./internal/docgen TestRender_ProfiledHidesOperators
 3 ./internal/guide TestGuideNoExecutionImports
@@ -91,9 +92,15 @@
 3 ./internal/service TestStrideSites_ParallelDecodeSplitsOnPhysicalRecords
 3 ./internal/service TestWeightUnityParity
 3 ./internal/service TestWideSet_DecodeWorkersParity
+3 ./internal/statdist TestStatdist_NoFMAContraction
 3 ./internal/temporal TestLocalMidnightUTC_Invariants
+3 ./internal/testutil/fmagate TestFMAGate_SeesContractionAndBarrier
+3 ./linalg/detmath TestDetmath_NoFMAContraction
+3 ./mcmc TestMCMC_NoFMAContraction
+3 ./mcmc TestNUTS_TestModelsNoFMAContraction
 3 ./mcp/gosdk TestSkillsCoverProfileGet
 3 ./mcp/gosdk TestSkills_FacadeMCPParity
+3 ./optimize TestOptimize_NoFMAContraction
 
 # shard 4: . 49s, ./internal/sem 48s
 4 . TestBitExact_CountsAndDistinctSums
@@ -107,6 +114,7 @@
 4 . TestSEM_OrdinalBootstrapDeterministic
 4 ./internal/sem TestFit_MatchesSemopy
 4 ./internal/sem TestFit_ShapeMatchesSemopy
+4 ./internal/sem TestPolychoric_NoFMAContraction
 4 ./internal/sem TestPolychoric_NoFusibleProducts
 4 ./internal/sem TestPolychoric_ScoresMatchLavaan
 4 ./internal/sem TestSEM_BootstrapMatchesLavaanSampling
@@ -136,6 +144,7 @@
 5 ./internal/tools/sites TestRun_CLI
 5 ./internal/tools/sites TestSlotReport
 5 ./internal/tools/sites TestSlotReport_ImportPathIsNotASlot
+5 ./internal/tools/sites TestTypeCheck_OncePerRepo
 
 # shard 6: . 49s, ./internal/descriptor 24s, ./internal/regmmm 22s
 6 . TestBitExact_Crosstab
@@ -160,3 +169,4 @@
 6 ./internal/regmmm TestMMMBayes_InputsRefused
 6 ./internal/regmmm TestMMMBayes_NoFMAContraction
 6 ./internal/regmmm TestMMMBayes_Seed
+6 ./internal/regmmm TestMMMHill_NoFMAContraction

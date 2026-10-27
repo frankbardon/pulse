@@ -1,15 +1,10 @@
 package sem
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -86,48 +81,4 @@ func twoStepDigest(t *testing.T, in TwoStepInput, ss []*TwoStepStats) string {
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-// TestPolychoric_NoFMAContraction asks the compiler: internal/sem
-// cross-compiled for arm64 with -d=fmahash=vy prints one line per
-// multiply-add it contracted, and none may name a two-step file. A
-// probe first proves the flag still reports a contraction.
-func TestPolychoric_NoFMAContraction(t *testing.T) {
-	t.Parallel()
-
-	build := func(dir, importPath string) string {
-		cmd := exec.Command("go", "build", "-o", os.DevNull, "-gcflags="+importPath+"=-d=fmahash=vy", ".")
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0", "GOFLAGS=")
-		var out bytes.Buffer
-		cmd.Stdout, cmd.Stderr = &out, &out
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("cross-compile for arm64: %v\n%s", err, out.String())
-		}
-		return out.String()
-	}
-	probe := t.TempDir()
-	if err := os.WriteFile(filepath.Join(probe, "go.mod"), []byte("module fmaprobe\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(probe, "p.go"), []byte("package fmaprobe\n\nfunc F(a, b, c float64) float64 { return a + b*c }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(build(probe, "fmaprobe"), "fmahash triggered") {
-		t.Fatal("the -d=fmahash=vy probe reported no contraction for `a + b*c`: the flag changed and this gate is vacuous")
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for l := range strings.SplitSeq(build(wd, "github.com/frankbardon/pulse/internal/sem"), "\n") {
-		if !strings.Contains(l, "fmahash triggered") {
-			continue
-		}
-		for _, f := range twoStepFiles {
-			if strings.Contains(l, "/"+f+":") || strings.HasPrefix(l, f+":") || strings.Contains(l, " "+f+":") {
-				t.Errorf("the arm64 compiler contracted a multiply-add in %s: %s", f, l)
-			}
-		}
-	}
 }
