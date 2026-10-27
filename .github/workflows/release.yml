@@ -10,11 +10,48 @@ permissions:
 concurrency: release-${{ github.ref }}
 
 jobs:
+  # verify reuses the branch's pre-merge CI instead of re-running it: a
+  # successful ci.yml run whose head commit has the tagged commit's TREE
+  # (a merge of an up-to-date branch keeps the tree) passes. Without
+  # one, the ci job below runs the suite on the tag.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      found: ${{ steps.match.outputs.found }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Find a passing CI run for the tagged tree
+        id: match
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tree="$(git rev-parse "${GITHUB_SHA}^{tree}")"
+          found=false
+          for sha in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+              --status success --limit 100 --json headSha --jq '.[].headSha' | sort -u); do
+            if git cat-file -e "${sha}^{commit}" 2>/dev/null \
+                && [ "$(git rev-parse "${sha}^{tree}")" = "$tree" ]; then
+              echo "CI passed on ${sha} (same tree as ${GITHUB_SHA})"
+              found=true
+              break
+            fi
+          done
+          echo "found=${found}" >> "$GITHUB_OUTPUT"
+
   ci:
+    needs: verify
+    if: needs.verify.outputs.found != 'true'
     uses: ./.github/workflows/ci.yml
 
   release:
-    needs: ci
+    needs: [verify, ci]
+    if: ${{ !cancelled() && (needs.verify.outputs.found == 'true' || needs.ci.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

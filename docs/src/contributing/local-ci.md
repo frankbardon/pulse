@@ -99,6 +99,24 @@ make contrib-tidy   # re-tidy every contrib module
 lockstep with the root tag by `scripts/release-contrib.sh` (called by
 `release.yml`); run it without `--push` for a dry-run tag plan.
 
+## When CI runs
+
+`ci.yml` does not run on pushes or pull requests. Local gates cover a
+branch while it is built; CI runs once, by hand, on the finished branch
+before merge:
+
+```bash
+gh workflow run ci.yml --ref <branch>
+gh run watch "$(gh run list --workflow ci.yml --branch <branch> --limit 1 --json databaseId --jq '.[0].databaseId')"
+```
+
+Its `lint` and `test (1.26)` check runs land on the branch head, which
+branch protection requires before merge. A tag push (`release.yml`)
+reuses a passing `ci.yml` run whose head commit has the tagged
+commit's tree, and runs the suite itself only when there is none.
+`api-compat.yml` still runs on pull requests (it diffs against the PR
+base and takes under a minute).
+
 ## CLAUDE.md hygiene gates
 
 `CLAUDE.md` is itself a tested artefact. Every `PULSE_*` env var

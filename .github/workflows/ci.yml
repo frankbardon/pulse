@@ -1,10 +1,14 @@
 name: CI
 
+# CI runs on demand, not per push: local gates (`make lint`, `go test
+# ./...`, `make smoke`, `make contrib`) cover a branch while it is built,
+# and this workflow runs once on the finished branch before merge —
+# `gh workflow run ci.yml --ref <branch>`. Its `lint` and `test (1.26)`
+# check runs land on the branch head, which is what branch protection
+# requires. release.yml reuses a passing run for the tagged tree and
+# calls this workflow only when none exists.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
   workflow_call:
 
 jobs:
@@ -27,8 +31,10 @@ jobs:
       - name: Build
         run: make build
 
+      # The 30m per-package timeout is a stopgap while the root and
+      # internal/service packages run near go test's 10m default.
       - name: Test
-        run: make test
+        run: make test TESTFLAGS=-timeout=30m
 
       - name: Embedder smoke module
         run: make smoke
