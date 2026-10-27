@@ -39,6 +39,8 @@ func committedFixtures(t *testing.T) []string {
 // equal, byte for byte, what convert writes from its committed CSV, and
 // no .pulse may lack a CSV.
 func TestRefCohorts_CommittedPulseCurrent(t *testing.T) {
+	t.Parallel()
+
 	csvs := committedFixtures(t)
 	want := map[string]bool{}
 	for _, path := range csvs {
@@ -74,6 +76,8 @@ func TestRefCohorts_CommittedPulseCurrent(t *testing.T) {
 // bit-identical doubles, nulls exactly where the CSV is empty, and a
 // null bitmap only when some column needs one.
 func TestRefCohorts_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, path := range committedFixtures(t) {
 		name := filepath.Base(path)
 		raw, err := os.ReadFile(path)
@@ -161,6 +165,8 @@ type fixtureManifest struct {
 // citations, and nothing is drawn from a package other than R's
 // public-domain `datasets` (no GPL-package data such as psych::bfi).
 func TestRefCohorts_FixtureManifest(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile(filepath.Join(referenceDir, "mv_fixtures.json"))
 	if err != nil {
 		t.Fatalf("%v (regenerate with `make reference`)", err)
@@ -219,6 +225,8 @@ func TestRefCohorts_FixtureManifest(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		csv     string
@@ -272,6 +280,8 @@ func TestConvert(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	if err := run(dir); err == nil || !strings.Contains(err.Error(), "no fixture CSVs") {
 		t.Fatalf("empty dir err = %v", err)

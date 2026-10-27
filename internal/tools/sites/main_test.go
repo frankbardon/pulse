@@ -99,6 +99,8 @@ func gitGrep(t *testing.T, root string, args ...string) map[string]bool {
 }
 
 func TestScanBytes_TokenBoundaries(t *testing.T) {
+	t.Parallel()
+
 	m := &matcher{
 		words:  map[string][]int{"MAT_PCA": {0}, "TEST_T": {1}},
 		stems:  map[string][]int{"op-mat-pca": {0}},
@@ -119,6 +121,8 @@ func TestScanBytes_TokenBoundaries(t *testing.T) {
 }
 
 func TestNormPath(t *testing.T) {
+	t.Parallel()
+
 	pca := newOperator(categoryDef{Prefix: "MAT_", Skill: "op-mat-"}, "MAT_PCA")
 	pc := newOperator(categoryDef{Prefix: "ATTR_", Skill: "op-attr-"}, "ATTR_PC_SCORE")
 	tt := newOperator(categoryDef{Prefix: "TEST_", Skill: "op-test-"}, "TEST_T")
@@ -145,6 +149,8 @@ func TestNormPath(t *testing.T) {
 }
 
 func TestClassify(t *testing.T) {
+	t.Parallel()
+
 	for p, want := range map[string]string{
 		"types/matrix.go":                            "types",
 		"types/matrix_test.go":                       "test",
@@ -181,6 +187,8 @@ func TestClassify(t *testing.T) {
 // real test function, so a rename fails here instead of silently
 // dropping out of the checklist.
 func TestStaticGatesExist(t *testing.T) {
+	t.Parallel()
+
 	idx := sharedRepo(t).testIndex()
 	for _, c := range classTable {
 		for _, g := range c.Gates {
@@ -198,6 +206,8 @@ func TestStaticGatesExist(t *testing.T) {
 
 // TestManualPathsExist pins the hand-kept reading lists to real files.
 func TestManualPathsExist(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	var all []string
 	for _, c := range categoryTable {
@@ -215,6 +225,8 @@ func TestManualPathsExist(t *testing.T) {
 // TestCategoriesLoad pins every registry to a non-empty operator list
 // whose atomic skills exist (the stem convention the matcher relies on).
 func TestCategoriesLoad(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	for _, def := range categoryTable {
 		c, err := r.loadCategory(def)
@@ -260,6 +272,8 @@ func symbolNote(s *Site, name string) (string, bool) {
 }
 
 func TestMakeTargetCovers(t *testing.T) {
+	t.Parallel()
+
 	bench := makeTarget{name: "bench", patterns: []string{".", "./internal/service/...", "./encoding/..."}}
 	for dir, want := range map[string]bool{
 		".": true, "internal/service": true, "internal/service/sub": true, "encoding": true,

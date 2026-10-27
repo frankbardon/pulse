@@ -14,6 +14,8 @@ import (
 )
 
 func TestOpReport_KnownSites(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	cases := []struct {
 		op    string
@@ -92,6 +94,8 @@ func TestOpReport_KnownSites(t *testing.T) {
 // the files a report lists are exactly the files an independent
 // `git grep` finds for the operator's identifiers.
 func TestOpReport_MatchesGrep(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	for _, name := range []string{"MAT_PCA", "ATTR_VEC_DISTANCE", "OVERLAY_MARKOV", "WIN_LAG", "TEST_T"} {
 		t.Run(name, func(t *testing.T) {
@@ -138,6 +142,8 @@ func TestOpReport_MatchesGrep(t *testing.T) {
 }
 
 func TestNewOpReport_Templates(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	cases := []struct {
 		cat   string
@@ -197,6 +203,8 @@ func TestNewOpReport_Templates(t *testing.T) {
 }
 
 func TestSlotReport(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	rep, err := slotReport(r, "request", "matrices", options{})
 	if err != nil {
@@ -254,6 +262,8 @@ func TestSlotReport(t *testing.T) {
 }
 
 func TestRun_CLI(t *testing.T) {
+	t.Parallel()
+
 	var out, errb bytes.Buffer
 	if code := run([]string{"op", "MAT_PCA"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
@@ -279,6 +289,8 @@ func TestRun_CLI(t *testing.T) {
 // callers of a selective predicate (followed through further predicates)
 // and the size estimates in its files plus their callers.
 func TestOpReport_DerivedSites(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	cases := []struct {
 		op     string
@@ -333,6 +345,8 @@ func TestOpReport_DerivedSites(t *testing.T) {
 // declaration (helper-local params included) and the sites using the
 // constants that spell their values.
 func TestOpReport_ParamEnums(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	rep, err := opReport(r, "MAT_FACTOR", options{})
 	if err != nil {
@@ -368,6 +382,8 @@ func TestOpReport_ParamEnums(t *testing.T) {
 // operator's tests, written by scripts/reference), the test tables naming
 // it, and the benchmarks / Makefile targets of its packages.
 func TestOpReport_OracleTablesBenches(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	rep, err := opReport(r, "MAT_PCA", options{})
 	if err != nil {
@@ -402,6 +418,8 @@ func TestOpReport_OracleTablesBenches(t *testing.T) {
 // TestNewOpReport_NextExampleNumber pins the NN_ hint to the directory's
 // highest numeric prefix + 1.
 func TestNewOpReport_NextExampleNumber(t *testing.T) {
+	t.Parallel()
+
 	r := sharedRepo(t)
 	rep, err := newOpReport(r, "overlay", options{})
 	if err != nil {
@@ -429,6 +447,8 @@ func TestNewOpReport_NextExampleNumber(t *testing.T) {
 // slot whose json name is also a package path (`sort`) must not match
 // `import "sort"` as a string literal or count an import block as a walker.
 func TestSlotReport_ImportPathIsNotASlot(t *testing.T) {
+	t.Parallel()
+
 	rep, err := slotReport(sharedRepo(t), "request", "sort", options{})
 	if err != nil {
 		t.Fatal(err)

@@ -9,6 +9,8 @@ import (
 )
 
 func TestRun_SplicesInPlaceAndRefusesUnmarkedBook(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	book := filepath.Join(dir, "SUMMARY.md")
 	frag := filepath.Join(dir, "fragment.md")
