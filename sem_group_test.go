@@ -411,16 +411,6 @@ func TestSEM_MultiGroupProcessMatchesLavaan(t *testing.T) {
 	}
 }
 
-func sortedStrings(s []string) []string {
-	out := append([]string(nil), s...)
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j] < out[j-1]; j-- {
-			out[j], out[j-1] = out[j-1], out[j]
-		}
-	}
-	return out
-}
-
 // TestSEM_MultiGroupFieldTypesAgree: a grouped fit on every supported
 // group field type gives the same estimates (only the level labels
 // differ). That each is the same bits under every worker knob and over

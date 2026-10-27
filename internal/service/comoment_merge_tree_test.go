@@ -196,18 +196,6 @@ func coMomentRequest(path, mode string, weighted bool) *types.Request {
 	}
 }
 
-func firstWordDiff(a, b []uint64) int {
-	if len(a) != len(b) {
-		return -2
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return i
-		}
-	}
-	return -1
-}
-
 func coMomentArchive(t *testing.T, schema *encoding.Schema, shardRows []int) []byte {
 	t.Helper()
 	var doc bytes.Buffer
