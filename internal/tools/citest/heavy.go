@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"go/build/constraint"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,29 +90,10 @@ func tagged(x constraint.Expr, heavy bool) bool {
 	})
 }
 
-// scan walks the root module (nested modules, testdata and dot dirs excluded).
+// scan walks the root module's test files (see walkTestFiles).
 func scan(root string) (tree, error) {
 	t := tree{heavy: testSet{}, all: testSet{}}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if path == root {
-				return nil
-			}
-			name := d.Name()
-			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || name == "vendor" || name == "node_modules" {
-				return filepath.SkipDir
-			}
-			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
+	err := walkTestFiles(root, func(path string) error {
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return err

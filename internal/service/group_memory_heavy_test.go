@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"math"
+	"runtime"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -97,4 +98,40 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGroupMemory_MergedBytesPerGroup: the merged state of four
+// partitions — each folding a disjoint quarter of the 800,000 keys plus
+// one key every partition shares — stays under the same ceiling once
+// the absorbed partitions are released: a bucket moves into the merged
+// map whole, and nothing of the source partition outlives its merge.
+func TestGroupMemory_MergedBytesPerGroup(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
+	svc := New(nil)
+	before := liveHeap()
+	m := partialMerger{req: groupMemoryRequest()}
+	const parts = 4
+	for i := range parts {
+		p, fold := groupMemoryPartition(t, svc)
+		fold(i*groupMemoryKeys/parts, (i+1)*groupMemoryKeys/parts)
+		fold(0, 1) // the shared key: a slot-wise merge, not a move
+		if err := m.add(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	merged := m.result()
+	after := liveHeap()
+	if len(merged.groups) != groupMemoryKeys {
+		t.Fatalf("%d merged groups, want %d", len(merged.groups), groupMemoryKeys)
+	}
+	if n := merged.groups["0"].Floors[0].N(); n != parts+1 {
+		t.Fatalf("shared key's floor n = %d, want %d (one row per partition + its own)", n, parts+1)
+	}
+	perGroup := float64(after-before) / groupMemoryKeys
+	t.Logf("merged: %.1f bytes/group at %d keys over %d partitions", perGroup, groupMemoryKeys, parts)
+	if perGroup > groupMemoryCeiling {
+		t.Errorf("merged state holds %.1f bytes/group, ceiling %d", perGroup, groupMemoryCeiling)
+	}
+	runtime.KeepAlive(merged)
 }

@@ -1,9 +1,10 @@
 // Command citest is the CI test-job helper (development tool only: never
-// imported, never shipped). It has three subcommands.
+// imported, never shipped). Its subcommands:
 //
 //	go run ./internal/tools/citest heavy-check
 //	go run ./internal/tools/citest heavy-run <shard> [go test flags...]
-//	go test -json ./... | go run ./internal/tools/citest filter -json-out FILE
+//	go run ./internal/tools/citest parallel-check
+//	go test -json ./... | go run ./internal/tools/citest filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]
 //
 // heavy-check validates the heavy-tier shard list (.github/heavy-shards.txt)
 // against the tree and the ci.yml test-heavy matrix: no stale or duplicate
@@ -21,8 +22,16 @@
 // filter reads a `go test -json` stream on stdin, copies it to -json-out,
 // prints the non-verbose human-readable log (package result lines, plus the
 // full output of every failed or unfinished test) and appends the 10 slowest
-// top-level tests to $GITHUB_STEP_SUMMARY when that is set. filter never
-// fails the job: run it under `set -o pipefail` so go test's status wins.
+// top-level tests to $GITHUB_STEP_SUMMARY when that is set. Without
+// -budget (or with -report-only) filter never fails the job: run it under
+// `set -o pipefail` so go test's status wins. -budget D lists every
+// top-level test that took D or longer plus the slowest five with their
+// margin, and (unless -report-only) exits 1 on an offender or a failed test;
+// -recheck reruns each offender alone and clears it when that run is under
+// D. `make test` enforces -budget 1s -recheck on the fast tier.
+//
+// parallel-check is the parallel-by-default gate (TestTestsParallelByDefault):
+// every top-level test calls t.Parallel() or carries "// serial: <reason>".
 package main
 
 import (
@@ -52,8 +61,10 @@ func main() {
 		if err != nil {
 			code = 1
 		}
+	case "parallel-check":
+		code, err = parallelCheckMain(".", os.Stdout)
 	case "filter":
-		filterMain(os.Args[2:])
+		code = filterMain(os.Args[2:], os.Stdin, os.Stdout)
 	default:
 		usage()
 	}
@@ -67,6 +78,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | filter -json-out FILE")
+	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]")
 	os.Exit(2)
 }

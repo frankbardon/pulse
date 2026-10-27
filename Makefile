@@ -37,8 +37,18 @@ dist:
 # file. Tests that take >= 1 s live in *_heavy_test.go files that start
 # with `//go:build heavy`; `make test-heavy` adds them (it runs both
 # tiers). Helpers both tiers use stay in untagged files.
+#
+# `make test` also enforces the 1 s budget: citest filter prints go test's
+# usual log, then fails if any top-level test took >= 1 s (move it to a
+# *_heavy_test.go file or make it cheaper) and shows the slowest five.
+# -parallel 1 keeps a test's time close to its own cost (fanned out with
+# t.Parallel(), a 0.2 s test reads > 1 s); packages still run in parallel,
+# and `go test ./...` and CI keep t.Parallel(). -recheck reruns each
+# offender alone and clears it if it is then under 1 s (contention, not
+# cost). pipefail and the filter's own failure tracking both keep a test
+# failure fatal. `make test-heavy` applies no budget.
 test:
-	$(GO) test $(TESTFLAGS) ./...
+	set -o pipefail; $(GO) test -count=1 -json -parallel 1 $(TESTFLAGS) ./... | $(GO) run ./internal/tools/citest filter -budget 1s -recheck
 
 test-heavy:
 	$(GO) test -tags heavy $(TESTFLAGS) ./...

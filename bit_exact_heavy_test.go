@@ -262,3 +262,34 @@ func TestBitExact_GroupRounded(t *testing.T) {
 		})
 	}
 }
+
+// TestBitExact_ScalarSums: the reproducible-sum slots, ungrouped and
+// grouped, answer identical bits on every worker count and shard split.
+func TestBitExact_ScalarSums(t *testing.T) {
+	t.Parallel()
+
+	dir := bitExactCohorts(t)
+	arms := bitExactArms(true)
+	for _, grouped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("grouped=%v", grouped), func(t *testing.T) {
+			resps := bitExactRun(t, dir, arms, func(cohort string) *types.Request {
+				req := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: bitExactAggs()}
+				if grouped {
+					req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+				}
+				return req
+			})
+			// The figures are real: a non-dyadic, non-integral sum, and
+			// the probability floor's sum_weights / n_eff present.
+			if s, _ := resps[0].Data[0]["s"].(float64); s == 0 || s == math.Trunc(s) {
+				t.Fatalf("sum %v is zero or integral: the fixture is not mixed-magnitude", s)
+			}
+			for _, e := range resps[0].Components.Aggregations {
+				if e.Label == "ws" && (e.SumWeights == nil || e.NEff == nil) {
+					t.Fatalf("weighted slot %s carries no sum_weights / n_eff floor", e.Label)
+				}
+			}
+			bitExactCompare(t, arms, resps)
+		})
+	}
+}

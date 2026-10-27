@@ -251,7 +251,11 @@ not json
 func TestFilter_LogAndSlowest(t *testing.T) {
 	t.Parallel()
 	var raw, out bytes.Buffer
-	report := filter(strings.NewReader(stream), &raw, &out, "unit")
+	res := filter(strings.NewReader(stream), &raw, &out)
+	report := slowest(res.timings, 10, "unit")
+	if !res.failed {
+		t.Fatal("stream has a failed test: filter must record it")
+	}
 	if raw.String() != stream {
 		t.Fatalf("raw copy differs:\n%s", raw.String())
 	}

@@ -259,9 +259,17 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = s.Shutdown(context.Background()) }()
+	// A private transport whose idle connections are closed before
+	// Shutdown: a spare connection the client dialed but never used sits in
+	// StateNew, and Shutdown waits up to 5 s for such a connection.
+	tr := &http.Transport{}
+	client := &http.Client{Transport: tr}
+	defer func() {
+		tr.CloseIdleConnections()
+		_ = s.Shutdown(context.Background())
+	}()
 
-	resp, err := http.Get("http://" + s.Addr() + Path)
+	resp, err := client.Get("http://" + s.Addr() + Path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +279,7 @@ func TestServer(t *testing.T) {
 		t.Errorf("GET %s: status %d, type %q, body:\n%s", Path, resp.StatusCode, resp.Header.Get("Content-Type"), body)
 	}
 
-	resp, err = http.Get("http://" + s.Addr() + "/other")
+	resp, err = client.Get("http://" + s.Addr() + "/other")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +288,7 @@ func TestServer(t *testing.T) {
 		t.Errorf("GET /other: status %d, want 404", resp.StatusCode)
 	}
 
-	resp, err = http.Post("http://"+s.Addr()+Path, "text/plain", nil)
+	resp, err = client.Post("http://"+s.Addr()+Path, "text/plain", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
