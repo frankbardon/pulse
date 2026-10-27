@@ -16,24 +16,6 @@ import (
 // standardized vector over it z-scores the computed values over the
 // listwise rows.
 
-// computedInvarianceRequest is a MAT_COVARIANCE (probability-weighted,
-// optionally standardized) or MAT_SEM over x1, a nullable formula of
-// x3, and x3.
-func computedInvarianceRequest(path string, typ types.MatrixType, std types.VectorStandardize) *types.Request {
-	spec := types.MatrixSpec{Name: "mat", Type: typ, Vector: "z", Params: json.RawMessage(`{"max_drop_share": 0}`),
-		Weight: types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})}
-	if typ == types.MAT_SEM {
-		spec.Params = json.RawMessage(`{"max_drop_share": 0, "model": "x1 ~ f + x3"}`)
-		spec.Weight = types.SlotWeight{}
-	}
-	return &types.Request{
-		Cohort:     &types.Cohort{Filename: path},
-		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "x3 > 9.9e5 ? nil : x3 / 1e3 + x3 * x3 / 1e9"}},
-		Vectors:    []types.VectorSpec{{Name: "z", Fields: []string{"x1", "f", "x3"}, Standardize: std}},
-		Matrices:   []types.MatrixSpec{spec},
-	}
-}
-
 // TestMatrixComputedMember_StandardizedZScoresComputedValues: under
 // standardize a computed member is z-scored over the listwise rows like
 // any member — the ddof-0 covariance is the raw run's correlation, the

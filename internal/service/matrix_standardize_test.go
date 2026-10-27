@@ -320,22 +320,3 @@ func TestMatrixSEM_StandardizedMatchesSemopy(t *testing.T) {
 		})
 	}
 }
-
-// standardizeInvarianceRequest is a standardized MAT_COVARIANCE
-// (probability-weighted, listwise with a heavy-drop warning) or MAT_SEM
-// over the co-moment gate's cohort.
-func standardizeInvarianceRequest(path string, typ types.MatrixType) *types.Request {
-	spec := types.MatrixSpec{Name: "mat", Type: typ, Vector: "z", Params: json.RawMessage(`{"max_drop_share": 0}`),
-		Weight: types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})}
-	fields := []string{"x1", "x2", "x3"}
-	if typ == types.MAT_SEM {
-		fields = []string{"x1", "x3"}
-		spec.Params = json.RawMessage(`{"max_drop_share": 0, "model": "x1 ~ x3"}`)
-		spec.Weight = types.SlotWeight{}
-	}
-	return &types.Request{
-		Cohort:   &types.Cohort{Filename: path},
-		Vectors:  []types.VectorSpec{{Name: "z", Fields: fields, Standardize: types.VectorStandardizeZScore}},
-		Matrices: []types.MatrixSpec{spec},
-	}
-}

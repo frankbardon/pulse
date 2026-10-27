@@ -3,7 +3,6 @@ package service
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
@@ -196,32 +194,6 @@ func coMomentRequest(path, mode string, weighted bool) *types.Request {
 			{Type: coMomentVehicle, Field: "x1", Label: "cm", Params: raw},
 		},
 	}
-}
-
-type coMomentRun struct {
-	words     []uint64
-	instances int64
-}
-
-func runCoMomentVehicle(t *testing.T, cfg *fs.Config, req *types.Request, decodeWorkers, shardWorkers int) coMomentRun {
-	t.Helper()
-	stats := &vehicleStats{}
-	svc := New(cfg)
-	svc.SetExtensions(coMomentVehicleRegistry(stats))
-	svc.SetDecodeWorkers(decodeWorkers)
-	svc.SetShardWorkers(shardWorkers)
-	resp, err := svc.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Process(decode=%d, shard=%d): %v", decodeWorkers, shardWorkers, err)
-	}
-	if len(resp.Data) != 1 {
-		t.Fatalf("Process: %d data rows, want 1", len(resp.Data))
-	}
-	words, ok := resp.Data[0]["cm"].([]uint64)
-	if !ok {
-		t.Fatalf("cm = %T, want the vehicle's rich []uint64", resp.Data[0]["cm"])
-	}
-	return coMomentRun{words: words, instances: stats.instancesWithRows.Load()}
 }
 
 func firstWordDiff(a, b []uint64) int {

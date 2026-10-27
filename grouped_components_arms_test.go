@@ -7,16 +7,14 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
-// Per-group aggregator Components (components.aggregations[*].groups)
-// are keyed to the REQUEST, never to the execution arm: the buffered
-// grouped arm, the streaming-grouped terminal flush, the serial and
-// parallel shard-archive arms and the parallel-decode arm all report
-// the same groups[] — and a multi-shard archive the same as its
-// single-file twin.
+// The grouped-components family's slots, groupers and guards: per-group
+// aggregator Components (components.aggregations[*].groups) are keyed
+// to the REQUEST, never to the execution arm — the worker-invariance
+// gate over every arm is grouped_components_invariance_test.go (the
+// shared harness); the stream's terminal-only rule is below.
 
 // gaExtSum is a Streamable + Mergeable extension aggregator, so it
 // rides the streaming and both parallel arms (its merges are probed).
@@ -59,16 +57,6 @@ func gaOpen(t *testing.T, opts pulse.Options, probe *parityProbe) *pulse.Pulse {
 	return p
 }
 
-// gaAnswer is the arm-invariant document: Data plus
-// Components.Aggregations (Run differs by design — shard_count).
-func gaAnswer(t *testing.T, resp *types.Response) string {
-	t.Helper()
-	if resp.Components == nil {
-		t.Fatal("no Components")
-	}
-	return mustJSON(t, resp.Data) + mustJSON(t, resp.Components.Aggregations)
-}
-
 // gaAssertGroups fails unless resp carries a non-degenerate groups[] on
 // every slot — so arm parity is not parity over an empty block.
 func gaAssertGroups(t *testing.T, resp *types.Response) {
@@ -94,72 +82,6 @@ func gaAssertGroups(t *testing.T, resp *types.Response) {
 	}
 	if g := aggs[3].Groups[0]; g.Operator["sum"] == nil {
 		t.Errorf("fixture: extension group lacks its operator map: %+v", g)
-	}
-}
-
-// TestGroupedComponents_ArmsAgree: buffered ≡ streaming-grouped ≡
-// archive serial ≡ archive ShardWorkers=3, the archive answering like
-// its single-file twin; the extension aggregator is merged on the
-// parallel shard arm.
-func TestGroupedComponents_ArmsAgree(t *testing.T) {
-	t.Parallel()
-
-	fsys := afero.NewMemMapFs()
-	s := paritySchema(t)
-	writeParityCohort(t, fsys, "twin.pulse", s, 0, paritySmallRows)
-	shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}
-	for i, path := range shards {
-		writeParityCohort(t, fsys, path, s, i*paritySmallRows/3, (i+1)*paritySmallRows/3)
-	}
-	probe := &parityProbe{}
-	serial := gaOpen(t, pulse.Options{FS: fsys, ShardWorkers: 1, DecodeWorkers: 1}, probe)
-	parallel := gaOpen(t, pulse.Options{FS: fsys, ShardWorkers: 3}, probe)
-	if _, err := serial.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
-		t.Fatalf("CreateShardArchive: %v", err)
-	}
-	exts := pulse.ServiceForTest(serial).Extensions()
-
-	for name, grp := range gaGroupers() {
-		t.Run(name, func(t *testing.T) {
-			req := func(cohort string) *types.Request {
-				return &types.Request{Cohort: &types.Cohort{Filename: cohort},
-					Groups: []*types.Group{grp}, Aggregations: gaAggregations()}
-			}
-			// ATTR_PERCENTILE is non-streamable and adds no output
-			// column: it forces the buffered grouped arm.
-			buffered := req("twin.pulse")
-			buffered.Attributes = []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "qty", Label: "qty_pct"}}
-			if processing.CanStreamRequestWithExtensions(buffered, s, exts) {
-				t.Fatal("fixture: the buffered arm streams")
-			}
-			if !processing.CanStreamRequestWithExtensions(req("twin.pulse"), s, exts) ||
-				!processing.CanMergeRequestWithExtensions(req("archive.pulse"), s, exts) {
-				t.Fatal("fixture: the request neither streams nor merges; the arms would collapse")
-			}
-
-			base := gcProcess(t, serial, buffered)
-			gaAssertGroups(t, base)
-			want := gaAnswer(t, base)
-
-			arms := []struct {
-				name string
-				p    *pulse.Pulse
-				req  *types.Request
-			}{
-				{"streaming", serial, req("twin.pulse")},
-				{"archive_serial", serial, req("archive.pulse")},
-				{"archive_shard_workers_3", parallel, req("archive.pulse")},
-			}
-			for _, arm := range arms {
-				probe.reset()
-				if got := gaAnswer(t, gcProcess(t, arm.p, arm.req)); got != want {
-					t.Errorf("%s answers differently from the buffered single-file arm\n got  %s\n want %s", arm.name, got, want)
-				}
-				if arm.name == "archive_shard_workers_3" && probe.merges.Load() == 0 {
-					t.Error("the extension aggregator was never merged; the parallel shard arm did not run")
-				}
-			}
-		})
 	}
 }
 

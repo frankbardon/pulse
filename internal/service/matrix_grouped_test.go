@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -23,7 +22,7 @@ import (
 // grouped Data order, each the bucket's own matrix (bit-equal to the
 // ungrouped matrix over exactly that bucket's rows), on the streaming,
 // buffered, shard and decode paths alike. The exhaustive grouped
-// worker-invariance matrix is E4-S2's.
+// worker-invariance matrix is TestMatrixInvariance_* (the shared harness).
 
 // groupedMatrixSchema: a categorical region (bucket "d" holds a single
 // row — the thin bucket), a set-valued tags column (the fan-out
@@ -349,7 +348,7 @@ func TestMatrixGrouped_BucketOrderFollowsData(t *testing.T) {
 // streaming and the buffered grouped arms. Only positions move: every
 // bucket's matrix, warnings and Components entry equal the unsorted
 // run's for the same key. (The DecodeWorkers / ShardWorkers arms ride
-// the sort variants of TestMatrixGrouped_WorkerInvariant; Compose and
+// sort shapes of TestMatrixInvariance_*; Compose and
 // chain stage 0, TestMatrices_ComposeAndChainStageZero.)
 func TestMatrixGrouped_BucketOrderFollowsSort(t *testing.T) {
 	t.Parallel()
@@ -464,100 +463,4 @@ func TestMatrixGrouped_StreamingEqualsBuffered(t *testing.T) {
 			}
 		})
 	}
-}
-
-// groupedInvarianceRequest is a grouped matrixInvarianceRequest: the
-// coMoment cohort bucketed by GROUP_RANGE over x3 (never null), beside
-// the vehicle aggregation whose instance count proves the parallel arm
-// ran.
-func groupedInvarianceRequest(path string, v matrixInvarianceVariant) *types.Request {
-	req := matrixInvarianceRequest(path, v)
-	req.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "x3", Interval: 250000}}
-	return req
-}
-
-// groupedRun captures every per-bucket figure a reducer could get
-// wrong.
-type groupedRun struct {
-	keys      []any
-	words     [][]uint64
-	warnings  [][]*types.ResponseWarning
-	comps     []types.MatrixComponents
-	instances int64
-}
-
-func runGroupedInvariance(t *testing.T, cfg *fs.Config, req *types.Request, decodeWorkers, shardWorkers int) groupedRun {
-	t.Helper()
-	stats := &vehicleStats{}
-	svc := New(cfg)
-	svc.SetExtensions(coMomentVehicleRegistry(stats))
-	svc.SetDecodeWorkers(decodeWorkers)
-	svc.SetShardWorkers(shardWorkers)
-	resp, err := svc.Process(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Process(decode=%d, shard=%d): %v", decodeWorkers, shardWorkers, err)
-	}
-	if len(resp.Data) < 2 || len(resp.Matrices) != len(resp.Data) {
-		t.Fatalf("Process(decode=%d, shard=%d): %d matrices over %d buckets", decodeWorkers, shardWorkers, len(resp.Matrices), len(resp.Data))
-	}
-	out := groupedRun{comps: resp.Components.Matrices, instances: stats.instancesWithRows.Load()}
-	for _, m := range resp.Matrices {
-		out.keys = append(out.keys, m.GroupKey...)
-		out.words = append(out.words, matrixResultWords(m))
-		out.warnings = append(out.warnings, m.Warnings)
-	}
-	return out
-}
-
-func assertGroupedRunsEqual(t *testing.T, label string, got, want groupedRun) {
-	t.Helper()
-	if !reflect.DeepEqual(got.keys, want.keys) {
-		t.Fatalf("%s: bucket keys %v, serial %v", label, got.keys, want.keys)
-	}
-	for i := range want.words {
-		if !reflect.DeepEqual(got.words[i], want.words[i]) {
-			t.Errorf("%s: bucket %v differs from serial", label, want.keys[i])
-		}
-	}
-	if !reflect.DeepEqual(got.warnings, want.warnings) {
-		t.Errorf("%s: warnings differ from serial", label)
-	}
-	if !reflect.DeepEqual(got.comps, want.comps) {
-		t.Errorf("%s: Components.Matrices %s, serial %s", label, mustJSON(t, got.comps), mustJSON(t, want.comps))
-	}
-}
-
-// TestMatrixGrouped_ParallelArms: the merge gate admits a grouped
-// request carrying matrices, and the shard and decode reducers return
-// the serial per-bucket matrices bit for bit (E4-S2 carries the full
-// grouped invariance matrix; this pins the wiring). The DecodeWorkers
-// arm is the heavy-tier TestMatrixGrouped_ParallelArms_DecodeWorkers.
-func TestMatrixGrouped_ParallelArms(t *testing.T) {
-	t.Parallel()
-
-	schema := coMomentSchema()
-	B := linalg.MergeBlockSize
-	v := matrixInvarianceVariant{weighted: true, withVehicle: true, typ: types.MAT_CORRELATION}
-	if !processing.CanMergeRequest(groupedInvarianceRequest("x.pulse", matrixInvarianceVariant{}), schema) {
-		t.Fatal("the merge gate refuses a grouped matrix-only request")
-	}
-
-	t.Run("ShardWorkers", func(t *testing.T) {
-		cfg := fs.NewMemMap()
-		shardRows := []int{B + 3, 700, 2*B + 1, 999}
-		if err := afero.WriteFile(cfg.Fs(), "archive.pulse", coMomentArchive(t, schema, shardRows), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-		for _, pv := range []matrixInvarianceVariant{v, {pairwise: true, withVehicle: true, typ: types.MAT_COVARIANCE}} {
-			req := groupedInvarianceRequest("archive.pulse", pv)
-			serial := runGroupedInvariance(t, cfg, req, 0, 1)
-			for _, workers := range []int{2, 3} {
-				got := runGroupedInvariance(t, cfg, req, 0, workers)
-				if got.instances <= serial.instances {
-					t.Fatalf("ShardWorkers=%d fed %d vehicle instances, serial %d — the shard reducer did not engage", workers, got.instances, serial.instances)
-				}
-				assertGroupedRunsEqual(t, fmt.Sprintf("%s ShardWorkers=%d", pv, workers), got, serial)
-			}
-		}
-	})
 }

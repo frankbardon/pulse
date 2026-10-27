@@ -22,8 +22,8 @@ import (
 
 // extensions_matrix_invariance_test.go: the worker-invariance gate for
 // extension MAT_* operators (U30 E1-S4, roadmap #156) — the
-// public-registration twin of TestCoMomentMergeTree_WorkerInvariant and
-// TestMatrixGrouped_WorkerInvariant. An operator registered through
+// public-registration twin of the service matrix family on the shared
+// harness (TestMatrixInvariance_*). An operator registered through
 // Options.Extensions.MatrixOps only (no engine hook) renders every raw
 // figure of the merged co-moment it is handed; the gate proves those
 // figures carry the same BITS serially, under every DecodeWorkers count
@@ -36,7 +36,7 @@ import (
 // lands on the co-moment tier's bits.
 
 // extInvRows is above the parallel-decode threshold (100,000 records)
-// and ends mid-block, as TestMatrixGrouped_WorkerInvariant's cohort.
+// and ends mid-block, as the service matrix family's BigFile cohort.
 const extInvRows = 25*linalg.MergeBlockSize + 2777
 
 // extInvTwinRows is the archive's single-file twin: shard fan-out has

@@ -37,6 +37,26 @@ split that part into its own heavy test that calls a shared helper.
 There is no `-short` mode. Use the heavy tag instead of a
 `testing.Short()` guard.
 
+### Worker-invariance tests
+
+A test that proves an answer does not depend on `DecodeWorkers`,
+`ShardWorkers`, a single file against its shard archive, or streaming
+against buffered runs on the shared harness in
+`internal/testutil/invariance` (test-only). A family supplies one
+request shape (batch its variants into one request where it can), a
+`Run` that executes it under a knob cell and returns the
+arm-invariant answer (`invariance.LayoutFree` blanks the cohort path
+and shard count), and a `Check` that guards the reference against
+degeneracy. The harness compares every cell against its group's
+reference (`BitExact` unless the family documents a tolerance) and
+fails a parallel cell that does not report its parallel arm.
+`ArchiveGroup` and `BufferedCell` are cheap and belong in the fast
+tier. The parallel-decode arm engages only at 100,000 records or more,
+and no knob lowers that threshold, so `DecodeGroup` belongs in a heavy
+test. The matrix, multi-grouper and grouped-components families
+(`TestMatrixInvariance_*`, `TestMultiGrouperInvariance_*`,
+`TestGroupedComponentsInvariance_*`) are the worked examples.
+
 ### Parallel by default
 
 Every top-level `func TestXxx(t *testing.T)` in the root module, in

@@ -1,16 +1,13 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"math"
 	"reflect"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
-	"github.com/spf13/afero"
 )
 
 // U16 E3-S3: Response.Components.Matrices — one entry per
@@ -169,49 +166,6 @@ func TestMatrixComponents_OptOut(t *testing.T) {
 		b, _ := json.Marshal(off)
 		if string(a) != string(b) {
 			t.Errorf("buffered=%v: disabled wire form differs beyond Components\n on %s\noff %s", buffered, a, b)
-		}
-	}
-}
-
-// TestMatrixComponents_ShardWorkerInvariant: the integer tallies behind
-// the entry (listwise drops, pairwise all-null rows) are summed across
-// partitions, so every shard-worker count reports the serial entry.
-// Members x1 / x2 are both null on some rows, so n_null is non-zero on
-// both modes.
-func TestMatrixComponents_ShardWorkerInvariant(t *testing.T) {
-	t.Parallel()
-
-	schema := coMomentSchema()
-	cfg := fs.NewMemMap()
-	if err := afero.WriteFile(cfg.Fs(), "archive.pulse", coMomentArchive(t, schema, []int{900, 1300, 77, 2000}), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	for _, mode := range []string{"listwise", "pairwise"} {
-		spec := types.MatrixSpec{Name: "m", Type: types.MAT_COVARIANCE, Fields: []string{"x1", "x2"},
-			Params: json.RawMessage(`{"missing": "` + mode + `"}`),
-			Weight: types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})}
-		req := &types.Request{Cohort: &types.Cohort{Filename: "archive.pulse"}, Matrices: []types.MatrixSpec{spec}}
-		var serial string
-		for _, workers := range []int{1, 2, 4} {
-			svc := New(cfg)
-			svc.SetShardWorkers(workers)
-			resp, err := svc.Process(context.Background(), req)
-			if err != nil {
-				t.Fatalf("%s ShardWorkers=%d: %v", mode, workers, err)
-			}
-			if resp.Components == nil || len(resp.Components.Matrices) != 1 {
-				t.Fatalf("%s ShardWorkers=%d: no Components.Matrices entry", mode, workers)
-			}
-			c := resp.Components.Matrices[0]
-			if c.NNull == 0 {
-				t.Fatalf("%s: fixture has no null rows", mode)
-			}
-			got := mustJSON(t, c)
-			if workers == 1 {
-				serial = got
-			} else if got != serial {
-				t.Errorf("%s ShardWorkers=%d: %s, serial %s", mode, workers, got, serial)
-			}
 		}
 	}
 }

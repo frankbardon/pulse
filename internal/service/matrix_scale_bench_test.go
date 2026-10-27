@@ -36,7 +36,7 @@ import (
 //   - BenchmarkMatrixScaleWorkers: the pairwise covariance swept over
 //     DecodeWorkers on the single file and ShardWorkers on an 8-shard
 //     archive of the same rows (the results are bit-identical across the
-//     sweep — TestMatrixGrouped_WorkerInvariant — so only time moves).
+//     sweep — TestMatrixInvariance_* — so only time moves).
 //
 // Tiers. `make bench` runs the default tier, 1M rows × p = 50. The
 // opt-in `make bench-scale` adds 1M × p = 256, 10M × p = 50 and

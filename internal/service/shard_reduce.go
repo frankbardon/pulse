@@ -522,7 +522,7 @@ func (d *shardDecode) openRows(arch *archiveFile, name string, schema *encoding.
 // (parallel_decode.go). The old map decode built three maps and a
 // converted Record per row (~58 allocations a row at p = 50, E8-S1);
 // the values a consumer reads are the same, so the partial's bits are
-// too (TestShardWorkers_* / TestMatrixCovariance_WorkerInvariant).
+// too (TestShardWorkers_* / TestMatrixInvariance_*).
 // Under a projection the plan seeks past the unretained fields and the
 // record holds only the retained ones (U51 E2-S2); the projection-
 // without-plan case (defensive) keeps the map decode, converted on

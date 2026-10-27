@@ -27,8 +27,6 @@
 1 ./internal/service TestFitBound_ParallelDecodeMatchesSerial
 1 ./internal/service TestGroupMemory_AggregatorStateTable
 1 ./internal/service TestGroupMemory_EstimateBoundsPeak
-1 ./internal/service TestGroupRounded_DistanceBetweenMerges
-1 ./internal/service TestMatrixCovariance_WorkerInvariant
 1 ./internal/service TestMultiplicityFold_ParallelDecodeArm
 1 ./internal/service TestProcess_ParallelDecode_MemMapFsBails
 1 ./internal/service TestProcess_ParallelDecode_WorkersOneBails
@@ -47,14 +45,12 @@
 2 ./internal/encoding TestReadRecordReused_IndexedKinds
 2 ./internal/io TestTransfer_BoundedMemory
 2 ./internal/service TestBitExact_RetentionShapeChain
-2 ./internal/service TestCoMomentMergeTree_WorkerInvariant
 2 ./internal/service TestCoefFilter_ParallelDecodeMatchesSerial
 2 ./internal/service TestCrosstabMemory_CellChargeTable
 2 ./internal/service TestCrosstab_ParallelDecode_ByteEqualToSerial
 2 ./internal/service TestCrosstab_WeightedTwoMeansZ_DecodeWorkersParity
 2 ./internal/service TestDecodeWorkers_WeightedParity
 2 ./internal/service TestLimitsReleaseMemory
-2 ./internal/service TestMatrixGrouped_ParallelArms_DecodeWorkers
 2 ./internal/service TestMemoryEstimate_Calibration
 2 ./internal/service TestParallelDecode_MergeableULPEquivalent
 2 ./internal/service TestParallelDecode_MergeableZeroRecordSegments
@@ -79,11 +75,9 @@
 3 ./internal/service TestArchiveMemory_EstimatedBytesRatio
 3 ./internal/service TestGroupMemory_FinalizedRowBytes
 3 ./internal/service TestLimitsPredictRuntimeParity
-3 ./internal/service TestMatrixComputedMember_PathInvariant
-3 ./internal/service TestMatrixGrouped_WorkerInvariant
+3 ./internal/service TestMatrixInvariance_Heavy
 3 ./internal/service TestMatrixRankCorrelation_SerialUnderParallelKnobs
 3 ./internal/service TestMatrixScale_EstimatedBytesRatio
-3 ./internal/service TestMatrixStandardize_PathInvariant
 3 ./internal/service TestMaxGroups_ParallelDecode
 3 ./internal/service TestParallelDecode_MergeableByteEqualVsSerial
 3 ./internal/service TestParallelDecode_MergeableGroupedByteEqualVsSerial
@@ -126,7 +120,7 @@
 5 . TestBitExact_FormulaTotal
 5 . TestExportReference_DefaultDeterministic
 5 . TestLimitsDefaultsNeverTripGoldens
-5 . TestMultiGrouper_BitExactAcrossWorkers
+5 . TestMultiGrouperInvariance_Heavy
 5 . TestParams_U64FieldExactAcrossArms
 5 . TestPreviousState_ParallelDecodeMatchesSerial
 5 . TestReferenceDocPointersResolve
@@ -152,7 +146,7 @@
 6 . TestExamples_RunEndToEnd
 6 . TestExtensionMatrix_WorkerInvariant
 6 . TestExtensions_BuiltinParity
-6 . TestGroupedComponents_DecodeWorkersAgree
+6 . TestGroupedComponentsInvariance_Heavy
 6 . TestParamsDeclaredMatchRead
 6 . TestProfileExportTreeSweep
 6 . TestSEMShape_OneRequestMatchesSemopy
