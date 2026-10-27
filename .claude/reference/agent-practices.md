@@ -1,26 +1,26 @@
 # Agent working practices
 
-**Load before any delegated or agent work.** Every `.claude/agents/pulse-*.md` persona points here first. These rules are the same for every role. A persona adds only the rules specific to its own role and repeats the few that matter most for it. If a persona and this file disagree, this file wins; report the conflict.
+**Load before any delegated or agent work.** Every `.claude/agents/pulse-*.md` persona points here first. A persona adds only role-specific rules and repeats the few that matter most for it. If the two disagree, this file wins; report the conflict.
 
 Each rule's reason comes from a failure this repo already shipped.
 
 ## Context loading
 
-- Read `CLAUDE.md` first. Next read the reference INDEX for your change from its "Reference Docs" table, for example `.claude/reference/update-demand.md`. Then load only the per-area slice or slices your change triggers. A file with a same-named subdirectory is an index, and its "How to load" note names the slices. *Why: the reference corpus is several hundred KB, and bulk-loading it uses up the context the actual change needs.*
-- Never load a whole `.claude/reference/` directory or every slice. Unsure which slice holds a rule? Run `grep -l '<identifier>' .claude/reference/<index>/*.md`.
-- Load a `history.md` slice only for the rationale of a past decision. *Why: it holds superseded wording that reintroduces fixed bugs.*
+- Read `CLAUDE.md` first. Next read the reference INDEX for your change from its "Reference Docs" table. Then load only the per-area slice or slices your change triggers. A file with a same-named subdirectory is an index, and its "How to load" note names the slices. *Why: the reference corpus is several hundred KB, and bulk-loading it uses up the context the actual change needs.*
+- Never load a whole `.claude/reference/` directory or every slice; find a rule's slice with `grep -l '<identifier>' .claude/reference/<index>/*.md`.
+- Load a `history.md` slice only for a past decision's rationale. *Why: its superseded wording reintroduces fixed bugs.*
 - If you were handed an effort brief or a dispatch contract, read it before re-exploring the repo.
 
 ## Sites first
 
-- Before grepping, run the `sites` tool for the operator, slot or category you are changing: `make sites ARGS="op <TYPE>"`, `ARGS="new-op <category>"`, `ARGS="slot <request|response> <name>"` or `ARGS="categories"` (also `go run ./internal/tools/sites [--json] …`). Recipe: `docs/src/internals/finding-change-sites.md`. *Why: it derives the file checklist, gates and goldens from code; a hand grep misses sites that do not name the identifier.*
+- Before grepping, run the `sites` tool for the operator, slot or category you are changing: `make sites ARGS="op <TYPE>"`, `ARGS="new-op <category>"`, `ARGS="slot <request|response> <name>"` or `ARGS="categories"` (also `go run ./internal/tools/sites [--json] …`). Recipe: `docs/src/internals/finding-change-sites.md`. *Why: it derives the checklist, gates and goldens from code; a hand grep misses sites that do not name the identifier.*
 - Use grep only to fill gaps, and grep the operator / kind name across the root parity tests and leaf packages even when the tool is clean: it missed `internal/seriesfield`, `internal/seriespartition`, `overlayhost/series_spec_refusal.go`, `vectors.ExprSlots` (via `vecPair`) and the attribute merge suite in `extensions_parity_categories_test.go`. Report missed sites in your hand-back.
 - The tool finds sites; the slices it lists under "Read before editing" say what each must contain.
 
 ## TDD and falsification
 
 - Tests go in the same commit as the implementation, with no exceptions. *Why: CLAUDE.md "What NOT to Do". An untested change gets merged and never gets its test.*
-- Prove each key new test can fail. Revert one production line, confirm the test fails, then restore the line. *Why: about half of past work packages contained a test that passed whether or not the code was right.*
+- Prove each key new test can fail: revert one production line, confirm the test fails, restore it. *Why: about half of past work packages had a test that passed whether or not the code was right.*
 - Never use `t.Skip` and never disable a gate to get green. Report the failing gate with its name and an error excerpt.
 
 ## Goldens and generated files
@@ -30,28 +30,33 @@ Each rule's reason comes from a failure this repo already shipped.
 
 ## Cross-architecture numerics
 
-- Values that pass through gonum decompositions (SymEigen, SVD, QR), rotations or math-library tails (chi-square and similar) can differ by a few ulps between amd64 (CI) and arm64 (local). `.claude/reference/matrix-and-vectors.md` permits this.
+- Values from gonum decompositions (SymEigen, SVD, QR), rotations or math-library tails (chi-square and similar) can differ by a few ulps between amd64 (CI) and arm64 (local); `.claude/reference/matrix-and-vectors.md` permits this.
 - Never store the exact bits of such a value in a golden or an oracle fixture. Compare stored fixtures within the documented tolerance. *Why: a fixture that matched bit for bit on arm64 failed in amd64 CI.*
 - Keep bit-exact checks only in two cases: (a) both sides are computed live in the same process, for example across `DecodeWorkers` or `ShardWorkers` counts; (b) the path is declared FMA-free (`CoMoment`, the SPD reference kernels, the metric registry).
 - In an FMA-free kernel, write the barrier as an explicit `float64(x*y)`.
-- Test-input generators follow the same rule. arm64 fuses `a*b + c` into one FMA instruction, and amd64 does not, so a generator expression such as `rng.NormFloat64()*k + c` produces different inputs on the two architectures. Wrap the product as `float64(rng.NormFloat64()*k) + c` in any generator whose output feeds frozen words or a bit-exact fixture. *Why: a frozen-word test generated its inputs this way, passed on arm64 and failed in amd64 CI.*
+- Test-input generators too: arm64 fuses `a*b + c` into one FMA instruction and amd64 does not, so `rng.NormFloat64()*k + c` yields different inputs on each. Wrap the product as `float64(rng.NormFloat64()*k) + c` in any generator whose output feeds frozen words or a bit-exact fixture. *Why: a frozen-word test generated its inputs this way, passed on arm64 and failed in amd64 CI.*
 - Never call `math.Signbit`, or compare raw bits, on a value that can be NaN. Guard NaN explicitly first. A runtime 0/0 is `0x7ff8…` (sign clear) on arm64 and `0xfff8…` (sign set) on x86 SSE. *Why: a sign check on a possibly-NaN statistic passed locally and failed in amd64 CI.*
-- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64` (adjust paths). On Apple silicon this runs under Rosetta: it reproduces the FMA class but emits the arm64-style NaN, so a NaN sign-bit failure shows only in amd64 CI.
+- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64`. Rosetta reproduces the FMA class but emits the arm64-style NaN, so a NaN sign-bit failure shows only in amd64 CI.
+
+## Test tiers and parallelism
+
+- Every top-level test starts with `t.Parallel()`, or says why not with `// serial: <reason>` above or inside it (`TestTestsParallelByDefault`). *Why: a serial test stalls its package.*
+- A test that takes 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`), or is made cheaper. `make test` runs the fast tier and fails on a test of 1 s or more; `make test-heavy` runs both tiers with no budget.
 
 ## Local gate set
 
 This set covers everything CI runs:
 
-1. `GOTOOLCHAIN=go1.26.1 make lint` (`fmt-check` + vet + staticcheck). `fmt-check` fails on any file `gofmt -l .` lists, and the CI `lint` job runs the same target, so an unformatted file fails CI; `make fmt` fixes it. *Why: with a newer local toolchain, staticcheck breaks on export data.*
+1. `GOTOOLCHAIN=go1.26.1 make lint` (`fmt-check` + vet + staticcheck). An unformatted file fails it, in CI too; `make fmt` fixes it. *Why: with a newer local toolchain, staticcheck breaks on export data.*
 2. `go test -tags heavy -count=1 ./...`
 3. `make smoke`. The embedder module is nested, so `./...` never reaches it.
 4. `GOTOOLCHAIN=go1.26.1 make contrib` (the nested contrib modules; tidy, vet, staticcheck, test).
 
-A story or companion agent runs only the tests for the packages it touched, plus any whole-repo gate it added or changed, plus lint, unless it is told otherwise. The checkpoint or the PR owner runs the full set. After a push, check CI itself (`gh pr checks`). *Why: local arm64 misses amd64 divergence.*
+A story or companion agent runs only its touched packages' tests, any whole-repo gate it added or changed, and lint, unless told otherwise. The checkpoint or the PR owner runs the full set. After a push, check CI itself (`gh pr checks`). *Why: local arm64 misses amd64 divergence.*
 
 ## Shared-checkout safety
 
-Other agents may be working in the same checkout and git index.
+Other agents may share the checkout and git index.
 
 - Never run `git add -A`, `git commit -a`, `reset`, `stash`, `--amend`, `checkout` / `switch`, or a rebase of commits you did not write.
 - Stage and commit explicit paths with `git commit -F <msgfile> -- <paths>`. Check `git status` for surprise files first.
@@ -71,6 +76,6 @@ Other agents may be working in the same checkout and git index.
 
 ## CLAUDE.md budget
 
-- `CLAUDE.md` must stay at or under 40,000 bytes (`TestClaudeMdSizeBudget`). To fit new content, move long-form prose into the per-area reference slice and leave a one-line pointer. Never raise the ceiling. *Why: CLAUDE.md is loaded on every turn of every session.*
+- `CLAUDE.md` must stay at or under 40,000 bytes (`TestClaudeMdSizeBudget`). To fit new content, move long prose into the per-area slice and leave a one-line pointer. Never raise the ceiling. *Why: CLAUDE.md is loaded on every turn of every session.*
 - Reference indexes and slices have their own ceilings (`reference_docs_test.go`), and an unsplit reference file carries the slice ceiling. A file or slice that grows past it is split (again), and the new slice is named in its index.
 - Every `.claude/reference/...` path or section pointer you write must resolve (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).

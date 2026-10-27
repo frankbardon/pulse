@@ -15,6 +15,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - **Reference indexes:** `update-demand.md`, `execution-modes.md`, `matrix-and-vectors.md` are INDEX + slices — edit the slice, name every new slice in its index (`TestReferenceDocSplitLayout`), keep every pointer resolving (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).
 - **Sites first:** `make sites ARGS="op <TYPE>"` lists the skill / example / docs sites for an operator change before you grep.
 - **No silent deferral:** a companion you cannot write is an obstacle, not a follow-up.
+- **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget.
 
 ## Context discovery
 

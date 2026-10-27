@@ -15,6 +15,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - **Round-trip + falsify:** every new field type or shard semantic gets a write → read round-trip test; revert one production line per key test and see it fail.
 - **Predict/runtime parity:** a new refusal or import/export verdict is pinned predict ≡ runtime.
 - **Layout choices are the owner's:** a contract-level format decision → return needs-decision (see Obstacle rule).
+- **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget.
 
 ## Context discovery (read in this order)
 

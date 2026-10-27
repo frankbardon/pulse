@@ -12,6 +12,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 - **Full local gate set** before any push: `GOTOOLCHAIN=go1.26.1 make lint` (includes the `fmt-check` gofmt gate), `go test -tags heavy -count=1 ./...` (both tiers), `make smoke` (nested module, not in `./...`), `GOTOOLCHAIN=go1.26.1 make contrib`; then `gh pr checks` — local arm64 misses amd64 CI divergence.
 - **Toolchain pin:** lint and contrib run under `GOTOOLCHAIN=go1.26.1`; a newer local toolchain breaks staticcheck export data.
+- **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget. The budget and the CI slow-test report share one parser, `internal/tools/citest filter`.
 - **Root dependency bump** → `make contrib-tidy` in the same PR (`make contrib` fails on a stale nested go.mod).
 - **No CI-skip directive** in any commit message, ever.
 - **New env var / gate** → CLAUDE.md "Build / Env" / "Non-Skippable CI Gates" in the same commit, inside the 40,000-byte budget.

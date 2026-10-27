@@ -37,6 +37,37 @@ split that part into its own heavy test that calls a shared helper.
 There is no `-short` mode. Use the heavy tag instead of a
 `testing.Short()` guard.
 
+### Parallel by default
+
+Every top-level `func TestXxx(t *testing.T)` in the root module, in
+both tiers, starts with `t.Parallel()`. A test that cannot run in
+parallel says why, with a `// serial: <reason>` comment above the
+function or inside its body, for example `// serial: uses t.Setenv`.
+`TestTestsParallelByDefault` (in `internal/tools/citest`) parses every
+test file and fails on a test that has neither, or on a `// serial:`
+comment with no reason. `TestMain`, benchmarks, fuzz targets and
+examples are exempt. The nested modules (`internal/embeddersmoke`,
+`contrib/*`) are out of scope: `make smoke` and `make contrib` run
+them separately. Run the same check by hand:
+
+```bash
+go run ./internal/tools/citest parallel-check
+```
+
+### The 1 s budget
+
+`make test` pipes `go test -count=1 -json -parallel 1 ./...` through
+`citest filter -budget 1s -recheck`. The filter prints the usual
+`go test` log and fails if any top-level test took 1 s or more. It
+lists each offender with its time and the fix (move it to a
+`*_heavy_test.go` file or make it cheaper), and prints the five
+slowest tests with their margin. `-parallel 1` keeps each test's time
+close to its own cost, because a test fanned out with `t.Parallel()`
+also waits on its neighbours. `-recheck` reruns each offender alone
+and clears it when that run is under 1 s. A test failure still fails
+`make test`. `make test-heavy` and CI apply no budget. CI only
+reports the ten slowest tests in the job summary.
+
 `make lint` checks both tiers. `go vet` runs once without the tag and
 once with `-tags heavy`. `staticcheck` runs both ways and merges the
 results with `-merge`, so a helper that only heavy tests use is not

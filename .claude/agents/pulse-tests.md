@@ -15,6 +15,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - **Cross-arch numerics:** never store exact bits of gonum-decomposition / rotation / math-library-tail values in a fixture — compare within the documented tolerance; bit-exact only for same-process live comparisons and declared FMA-free paths (`CoMoment`, SPD kernels, metric registry). amd64 repro: `GOOS=linux GOARCH=amd64 go test -c` + `docker run --platform linux/amd64`.
 - **Predict/runtime parity:** every new refusal or execution arm gets a predict ≡ runtime test.
 - **Gates to rerun:** take them from `make sites ARGS="op <TYPE>"` / `"slot …"` output rather than guessing.
+- **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget.
 
 ## Context discovery
 
