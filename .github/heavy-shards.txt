@@ -4,10 +4,14 @@
 # test this file does not name runs in the catchall shard, so a new heavy
 # test is never skipped: add it here to balance the shards. Validate with
 # `go run ./internal/tools/citest heavy-check`; list the current split with
-# `heavy-list`. Initial balance: per-test seconds from a local -tags heavy
-# -json run (10-core arm64); service splits over shards 1-3, root over 4-6.
+# `heavy-list`. Balance (E5-S1): local wall of each shard run alone
+# (`citest heavy-run <shard> -count=1 -json`, 10-core arm64, warm build
+# cache); CI is ~3.3x that. A shard's wall is set by its slowest package,
+# and the serial (heap-measuring) service tests run one at a time, so
+# service's serial tests spread over shards 1-3 and the small packages
+# share shard 5 rather than contend with service in shard 3.
 
-# shard 1: ./internal/service 66s, ./internal/io/spss 16s, ./internal/processing 11s
+# shard 1 (31 s local): ./internal/service, ./internal/io/spss, ./internal/processing
 1 ./internal/io/spss TestCorruption_DictionarySweep
 1 ./internal/io/spss TestEmittedDictionary_OpensInReadStatAndForeign
 1 ./internal/io/spss TestEmittedFile_ValuesReadInReadStatAndForeign
@@ -21,18 +25,22 @@
 1 ./internal/processing TestReferenceOracle_StudentizedRangeInverse
 1 ./internal/processing TestSEMScore_BoundMatchesInlineAcrossBlocks
 1 ./internal/processing TestSEMScore_OrdinalInlineMatchesLavaan
+1 ./internal/service TestBitExact_RetentionShapeChain
 1 ./internal/service TestDecodeWorkers_ComponentsParity
 1 ./internal/service TestDecodeWorkers_GroupedAnswersParity
 1 ./internal/service TestFilterPrecompute_ParallelDecode
 1 ./internal/service TestFitBound_ParallelDecodeMatchesSerial
 1 ./internal/service TestGroupMemory_AggregatorStateTable
 1 ./internal/service TestGroupMemory_EstimateBoundsPeak
+1 ./internal/service TestGroupMemory_MergedBytesPerGroup
 1 ./internal/service TestOverlayInvariance_Heavy
 1 ./internal/service TestProcess_ParallelDecode_MemMapFsBails
 1 ./internal/service TestProcess_ParallelDecode_WorkersOneBails
+1 ./internal/service TestShardStream_FilterSingleFileMemoryBounded
+1 ./internal/service TestShardStream_FlattenMemoryBoundedByShard
 1 ./internal/service TestTimeZoneInvariance_Heavy
 
-# shard 2: ./internal/service 66s, ./internal/encoding 8s, ./internal/io 7s, ./cmd/pulse 7s, ./internal/synth 6s
+# shard 2 (37 s local): ./internal/service, ./cmd/pulse, ./internal/encoding, ./internal/synth, ./internal/io
 2 ./cmd/pulse TestCompletion_ShippedScriptsMatchLeaf
 2 ./cmd/pulse TestExitStatus_Binary
 2 ./cmd/pulse TestExitStatus_EveryLeaf
@@ -44,7 +52,6 @@
 2 ./internal/encoding TestReadRecordReusedWithPlan_MatchesReusedRestrictedPerType
 2 ./internal/encoding TestReadRecordReused_IndexedKinds
 2 ./internal/io TestTransfer_BoundedMemory
-2 ./internal/service TestBitExact_RetentionShapeChain
 2 ./internal/service TestCoefFilter_ParallelDecodeMatchesSerial
 2 ./internal/service TestCrosstabMemory_CellChargeTable
 2 ./internal/service TestCrosstab_ParallelDecode_ByteEqualToSerial
@@ -56,22 +63,15 @@
 2 ./internal/service TestParallelDecode_MergeableZeroRecordSegments
 2 ./internal/service TestProcess_ParallelDecode_ByteEqualToSerial
 2 ./internal/service TestReturnSkipsComputation_MatricesLongArms
-2 ./internal/service TestShardStream_FlattenMemoryBoundedByShard
 2 ./internal/service TestWeightFrequencyExpansionParity
 2 ./internal/synth TestSuggestBlocks_WideCohortIsAbandonedNotTruncated
 2 ./internal/synth TestSynth_SetBernoulli_WideRungMarginalFrequencies
 
-# shard 3: ./internal/service 66s, ./internal/docgen 6s, ./mcp/gosdk 6s, ./internal/guide 5s, ./internal/apigolden 3s, ./internal/processing/regression 1s, ./internal/temporal 1s, ./internal/iocore 1s, FMA gates (fmagate) ~3s
-3 ./internal/apigolden TestPublicAPIGolden
-3 ./internal/apigolden TestRootSurfaceNamesNoProcessing
-3 ./internal/distlagparams TestDistLag_NoFMAContraction
+# shard 3 (31 s local): ./internal/service, ./internal/docgen, ./internal/guide
 3 ./internal/docgen TestRender_LinksResolve
 3 ./internal/docgen TestRender_ProfiledHidesOperators
 3 ./internal/guide TestGuideNoExecutionImports
 3 ./internal/guide TestRecommendBound_NativeVectorsOnlyInVectorSlots
-3 ./internal/iocore TestIOImportBoundary
-3 ./internal/processing/regression TestRegBayes_CredibleIntervalCoverage
-3 ./internal/processing/regression TestRegressionOutputsHoldAtRuntime
 3 ./internal/service TestArchiveMemory_EstimatedBytesRatio
 3 ./internal/service TestGroupMemory_FinalizedRowBytes
 3 ./internal/service TestLimitsPredictRuntimeParity
@@ -86,18 +86,11 @@
 3 ./internal/service TestStrideSites_ParallelDecodeSplitsOnPhysicalRecords
 3 ./internal/service TestWeightUnityParity
 3 ./internal/service TestWideSetInvariance_Heavy
-3 ./internal/statdist TestStatdist_NoFMAContraction
-3 ./internal/temporal TestLocalMidnightUTC_Invariants
-3 ./internal/testutil/fmagate TestFMAGate_SeesContractionAndBarrier
-3 ./linalg/detmath TestDetmath_NoFMAContraction
-3 ./mcmc TestMCMC_NoFMAContraction
-3 ./mcmc TestNUTS_TestModelsNoFMAContraction
-3 ./mcp/gosdk TestSkillsCoverProfileGet
-3 ./mcp/gosdk TestSkills_FacadeMCPParity
-3 ./optimize TestOptimize_NoFMAContraction
 
-# shard 4: . 49s, ./internal/sem 48s
+# shard 4 (17 s local): ., ./internal/sem
 4 . TestExtensionRegressionInvariance_Heavy
+4 . TestExtensions_DeclaredMarginCellFusesCrosstab
+4 . TestFilterToFile_DateRangesMatchesProcess
 4 . TestGroupKMeans_DecodeWorkersAgree
 4 . TestPanicRecovery_PoolRepanics
 4 . TestProfileInvisibilityParity
@@ -107,6 +100,7 @@
 4 . TestVectorInvariance_Heavy
 4 ./internal/sem TestFit_MatchesSemopy
 4 ./internal/sem TestFit_ShapeMatchesSemopy
+4 ./internal/sem TestPolychoric_GoldenBits
 4 ./internal/sem TestPolychoric_NoFMAContraction
 4 ./internal/sem TestPolychoric_NoFusibleProducts
 4 ./internal/sem TestPolychoric_ScoresMatchLavaan
@@ -115,17 +109,30 @@
 4 ./internal/sem TestSEM_BootstrapOrdinalDeterministic
 4 ./internal/sem TestSEM_BootstrapOrdinalMatchesLavaanSampling
 
-# shard 5: . 49s, ./internal/tools/sites 45s
+# shard 5 (19 s local): ., ./internal/tools/sites, ./internal/apigolden, ./internal/processing/regression, ./mcmc, ./mcp/gosdk, ./internal/distlagparams, ./internal/iocore, ./internal/statdist, ./internal/temporal, ./internal/testutil/fmagate, ./linalg/detmath, ./optimize, ./internal/tools/citest
 5 . TestExportReference_DefaultDeterministic
 5 . TestLimitsDefaultsNeverTripGoldens
 5 . TestMultiGrouperInvariance_Heavy
+5 . TestMultiGrouper_YoYPerPartition
 5 . TestParams_U64FieldExactAcrossArms
 5 . TestPreviousStateInvariance_Heavy
 5 . TestReferenceDocPointersResolve
 5 . TestSEM_BootstrapProcessMatchesLavaan
 5 . TestScalarOverlayHost_RefusalsMatchPredict
+5 . TestSeriesOverlayField_ScoresNamedAggregation
+5 . TestTallyMerge_ParallelArmsMatchSerial
 5 . TestTimeZoneField_PerRowEqualsSingleZoneSlotsEveryMode
 5 . TestWeight_InferentialRefusalsMatchPredict
+5 ./internal/apigolden TestPublicAPIGolden
+5 ./internal/apigolden TestRootSurfaceNamesNoProcessing
+5 ./internal/distlagparams TestDistLag_NoFMAContraction
+5 ./internal/iocore TestIOImportBoundary
+5 ./internal/processing/regression TestRegBayes_CredibleIntervalCoverage
+5 ./internal/processing/regression TestRegressionOutputsHoldAtRuntime
+5 ./internal/statdist TestStatdist_NoFMAContraction
+5 ./internal/temporal TestLocalMidnightUTC_Invariants
+5 ./internal/testutil/fmagate TestFMAGate_SeesContractionAndBarrier
+5 ./internal/tools/citest TestGoRecheck_RerunsRealTest
 5 ./internal/tools/sites TestNewOpReport_NextExampleNumber
 5 ./internal/tools/sites TestNewOpReport_Templates
 5 ./internal/tools/sites TestOpReport_DerivedSites
@@ -137,8 +144,14 @@
 5 ./internal/tools/sites TestSlotReport
 5 ./internal/tools/sites TestSlotReport_ImportPathIsNotASlot
 5 ./internal/tools/sites TestTypeCheck_OncePerRepo
+5 ./linalg/detmath TestDetmath_NoFMAContraction
+5 ./mcmc TestMCMC_NoFMAContraction
+5 ./mcmc TestNUTS_TestModelsNoFMAContraction
+5 ./mcp/gosdk TestSkillsCoverProfileGet
+5 ./mcp/gosdk TestSkills_FacadeMCPParity
+5 ./optimize TestOptimize_NoFMAContraction
 
-# shard 6: . 49s, ./internal/descriptor 24s, ./internal/regmmm 22s
+# shard 6 (20 s local): ., ./internal/regmmm, ./internal/descriptor
 6 . TestBitExact_Heavy
 6 . TestCoreModuleNoObservabilityDeps
 6 . TestExamples_RunEndToEnd
