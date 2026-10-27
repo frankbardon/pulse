@@ -36,14 +36,18 @@ func TestShardStream_FlattenMemoryBoundedByShard(t *testing.T) {
 				svc, fsys, dir := streamOsEnv(t)
 				archive := streamBuildArchive(t, svc, fsys, dir, shards, recs)
 				dst := filepath.Join(dir, "out.pulse")
-				run := func() error {
+				runOn := func(svc *Service) error {
 					_, err := svc.FilterToFileWithOptions(context.Background(), archive, dst, r.opts)
 					return err
 				}
 				if r.opts.Expression == "" {
-					got[i] = allocDuring(t, run)
+					got[i] = allocDuring(t, func() error { return runOn(svc) })
 				} else {
-					got[i] = peakHeapDuring(t, run)
+					var points int
+					got[i], points = liveHeapPeakDuring(t, fsys, runOn)
+					if points < 2 {
+						t.Fatalf("%d probe points: the probe is not on the filter's I/O path", points)
+					}
 				}
 				assertNoStages(t, fsys, dir)
 			}

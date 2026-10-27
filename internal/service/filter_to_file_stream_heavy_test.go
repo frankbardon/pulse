@@ -33,7 +33,7 @@ func TestShardStream_FilterSingleFileMemoryBounded(t *testing.T) {
 						src = anchored
 					}
 					dst := filepath.Join(dir, "out.pulse")
-					run := func() error {
+					runOn := func(svc *Service) error {
 						out, err := svc.FilterToFileWithOptions(context.Background(), src, dst,
 							FilterToFileOptions{Expression: expr, Flatten: expr == ""})
 						if err == nil && out.Records != int64(recs) {
@@ -42,9 +42,13 @@ func TestShardStream_FilterSingleFileMemoryBounded(t *testing.T) {
 						return err
 					}
 					if expr == "" {
-						got[i] = allocDuring(t, run)
+						got[i] = allocDuring(t, func() error { return runOn(svc) })
 					} else {
-						got[i] = peakHeapDuring(t, run)
+						var points int
+						got[i], points = liveHeapPeakDuring(t, fsys, runOn)
+						if points < 2 {
+							t.Fatalf("%d probe points: the probe is not on the filter's I/O path", points)
+						}
 					}
 					assertNoStages(t, fsys, dir)
 				}

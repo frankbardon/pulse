@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"runtime/debug"
+	"runtime/metrics"
 	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -330,43 +329,108 @@ func archiveEntriesByName(t *testing.T, archive []byte) map[string][]byte {
 	return out
 }
 
-// peakHeapDuring samples the live heap while fn runs (GC tightened so
-// the heap tracks what is actually held) and returns the peak above the
-// starting heap.
-func peakHeapDuring(t *testing.T, fn func() error) uint64 {
+// liveHeapProbe measures the live heap SYNCHRONOUSLY, at fixed points of
+// the operation under test, through probeFs: before every Open /
+// OpenFile, and before every Write of at least probeWriteMin bytes (a
+// payload in flight to the stage). Each point runs a full runtime.GC()
+// on the operation's own goroutine, so nothing allocates during the mark
+// and /gc/heap/live:bytes is exactly what the operation holds there.
+//
+// It replaces a concurrent sampler that read HeapAlloc every 200 µs,
+// which is not fit for a small-versus-large comparison: HeapAlloc counts
+// garbage awaiting the next cycle, and even a concurrently read
+// /gc/heap/live counts what the mutator allocates DURING a mark
+// (allocate-black, up to the pacer's ~1 MiB runway per cycle at this
+// heap size). A longer run takes more samples of that noise, so the
+// N=32 create peak drifted ~1.4 MB above the N=4 one under CI load with
+// nothing more held. Probing at the same per-source points makes both runs'
+// figures the same deterministic function of what create retains.
+type liveHeapProbe struct {
+	mu     sync.Mutex
+	base   uint64
+	peak   uint64
+	points int
+	sample []metrics.Sample
+}
+
+// probeWriteMin is the smallest Write that probes: the stage's bufio
+// flushes (shardCopyBuffer) and any direct payload write, never the
+// zip framing's small writes.
+const probeWriteMin = 64 << 10
+
+// liveHeapPeakDuring runs fn against a Service whose filesystem is fsys
+// probed (liveHeapProbe) and returns the peak live heap over the probe
+// points, above the live heap fn started from, and the point count.
+func liveHeapPeakDuring(t *testing.T, fsys afero.Fs, fn func(svc *Service) error) (peak uint64, points int) {
 	t.Helper()
-	defer debug.SetGCPercent(debug.SetGCPercent(10))
-	runtime.GC()
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	base := ms.HeapAlloc
-	var peak atomic.Uint64
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var s runtime.MemStats
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-			runtime.ReadMemStats(&s)
-			if s.HeapAlloc > base && s.HeapAlloc-base > peak.Load() {
-				peak.Store(s.HeapAlloc - base)
-			}
-			time.Sleep(200 * time.Microsecond)
-		}
-	}()
-	err := fn()
-	close(stop)
-	wg.Wait()
+	p := &liveHeapProbe{sample: []metrics.Sample{{Name: "/gc/heap/live:bytes"}}}
+	cfg, err := fs.New(fs.WithFs(probeFs{Fs: fsys, p: p}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return peak.Load()
+	svc := New(cfg)
+	runtime.GC()
+	metrics.Read(p.sample)
+	if k := p.sample[0].Value.Kind(); k != metrics.KindUint64 {
+		t.Fatalf("/gc/heap/live:bytes unsupported (kind %v)", k)
+	}
+	p.base = p.sample[0].Value.Uint64()
+	if err := fn(svc); err != nil {
+		t.Fatal(err)
+	}
+	return p.peak, p.points
+}
+
+func (p *liveHeapProbe) measure() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	runtime.GC()
+	metrics.Read(p.sample)
+	p.points++
+	if live := p.sample[0].Value.Uint64(); live > p.base && live-p.base > p.peak {
+		p.peak = live - p.base
+	}
+}
+
+// probeFs is an afero.Fs that probes the live heap before each open.
+type probeFs struct {
+	afero.Fs
+	p *liveHeapProbe
+}
+
+func (f probeFs) Open(name string) (afero.File, error) {
+	f.p.measure()
+	file, err := f.Fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return probeFile{File: file, p: f.p}, nil
+}
+
+func (f probeFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	f.p.measure()
+	file, err := f.Fs.OpenFile(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+	return probeFile{File: file, p: f.p}, nil
+}
+
+func (f probeFs) Create(name string) (afero.File, error) {
+	return f.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o666)
+}
+
+// probeFile probes before every large Write.
+type probeFile struct {
+	afero.File
+	p *liveHeapProbe
+}
+
+func (f probeFile) Write(b []byte) (int, error) {
+	if len(b) >= probeWriteMin {
+		f.p.measure()
+	}
+	return f.File.Write(b)
 }
 
 // TestShardStream_CreateMemoryBoundedBySource is the FR-12 gate: create
@@ -375,7 +439,9 @@ func peakHeapDuring(t *testing.T, fn func() error) uint64 {
 //   - verbatim: every source takes no transform, so it is streamed into
 //     the stage and the whole create ALLOCATES fixed buffers only;
 //   - remapped: every source's dictionary diverges, so each is loaded,
-//     rewritten and stored — the live heap peaks at about one source.
+//     rewritten and stored — the live heap, probed after a full GC at
+//     every source open and every payload write (liveHeapProbe), peaks
+//     at about one source.
 //
 // The resident create allocated, and held, every source at once.
 func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
@@ -416,7 +482,7 @@ func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
 		shardBytes := uint64(recs * 5)
 		var got [2]uint64
 		for i, n := range []int{4, 32} {
-			svc, fsys, dir := streamOsEnv(t)
+			_, fsys, dir := streamOsEnv(t)
 			paths := make([]string, n)
 			for j := range paths {
 				paths[j] = filepath.Join(dir, fmt.Sprintf("s%02d.pulse", j))
@@ -431,10 +497,16 @@ func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			got[i] = peakHeapDuring(t, func() error {
+			var points int
+			got[i], points = liveHeapPeakDuring(t, fsys, func(svc *Service) error {
 				_, err := svc.CreateShardArchive(ctx, filepath.Join(dir, "arch.pulse"), paths)
 				return err
 			})
+			// Every source is opened in each pass and written to the
+			// stage: a probe point per source per phase, at least.
+			if points < 2*n {
+				t.Fatalf("%d probe points over %d sources: the probe is not on create's I/O path", points, n)
+			}
 		}
 		t.Logf("remapped create: 4 sources -> peak %d B, 32 sources -> peak %d B (source %d B)", got[0], got[1], shardBytes)
 		// One source loaded + its rewrite + the stored copy's buffers;
@@ -442,7 +514,9 @@ func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
 		if bound := 8*shardBytes + uint64(2<<20); got[1] > bound {
 			t.Errorf("create over 32 sources peaked at %d B live, want <= %d B (one source + the plan)", got[1], bound)
 		}
-		if got[1] > got[0]+4*shardBytes {
+		// Probed, the figures are deterministic (28 more plan entries
+		// cost ~30 KB): one more source's bytes is the no-growth margin.
+		if got[1] > got[0]+shardBytes {
 			t.Errorf("create peak grows with the sources: %d B at 4, %d B at 32", got[0], got[1])
 		}
 	})
