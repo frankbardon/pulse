@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -112,8 +113,8 @@ func seedExamplePopulation(t *testing.T, p *pulse.Pulse, tmp string) {
 // temp .pulse dir, and dispatches the request through both Predict and
 // Process. Asserts predict reports Valid=true (warnings are allowed —
 // the leakage example is expected to warn) and that process returns a
-// non-nil response with non-nil data.
-func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
+// non-nil response with non-nil data; returns the response.
+func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) *pulse.Response {
 	t.Helper()
 	body, err := os.ReadFile(examplePath)
 	if err != nil {
@@ -166,6 +167,7 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 				examplePath, resp.Overlays[i].Name, resp.Overlays[i].Kind, resp.Overlays[i].Warnings)
 		}
 	}
+	return resp
 }
 
 // overlayLayerHasFigure reports whether an overlay layer's payload
@@ -188,6 +190,64 @@ func overlayLayerHasFigure(l *types.OverlayLayer) bool {
 		}
 	}
 	return false
+}
+
+// heavyExamples are the library's two multi-second examples, keyed by
+// "<category>/<_meta.name>" with their file under internal/examples.
+// TestExamples_RunEndToEnd is the ONE example pass that executes them
+// (and holds their figures, exampleChecks); every other pass over the
+// library skips or cheapens them by name and says what still covers
+// them there. TestHeavyExamplesExist keeps the names live.
+var heavyExamples = map[string]string{
+	"regression/mmm_bayes":              "regression/20_mmm_bayes.json",
+	"matrices/sem-defined-contribution": "matrices/17_sem_contribution.json",
+}
+
+// isHeavyExample reports whether the example at category/name is one
+// of heavyExamples.
+func isHeavyExample(category, name string) bool {
+	_, ok := heavyExamples[category+"/"+name]
+	return ok
+}
+
+// isHeavyExampleFile reports whether path (any prefix, then
+// internal/examples/<category>/<file>) is one of heavyExamples' files.
+func isHeavyExampleFile(path string) bool {
+	rel := filepath.ToSlash(path)
+	for _, f := range heavyExamples {
+		if rel == f || strings.HasSuffix(rel, "/"+f) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestHeavyExamplesExist: every heavyExamples entry names an embedded
+// example whose file is the one listed — a rename would otherwise drop
+// the skip (a slow pass) or, worse, the figure checks that ride the one
+// pass that runs it.
+func TestHeavyExamplesExist(t *testing.T) {
+	t.Parallel()
+
+	for key, file := range heavyExamples {
+		body, err := os.ReadFile(filepath.Join("internal", "examples", filepath.FromSlash(file)))
+		if err != nil {
+			t.Errorf("%s: %v", key, err)
+			continue
+		}
+		var doc struct {
+			Meta struct {
+				Name     string `json:"name"`
+				Category string `json:"category"`
+			} `json:"_meta"`
+		}
+		if err := json.Unmarshal(body, &doc); err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		if got := doc.Meta.Category + "/" + doc.Meta.Name; got != key {
+			t.Errorf("%s is %s, heavyExamples keys it %s", file, got, key)
+		}
+	}
 }
 
 func TestRegressionExamplesCount(t *testing.T) {

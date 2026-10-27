@@ -79,6 +79,7 @@ func runAllExamples(t *testing.T, p *pulse.Pulse, dataDir string) {
 			t.Fatalf("%s: %v", path, err)
 		}
 		delete(doc, "_meta")
+		cheapenHeavyExample(t, path, doc)
 		rebaseExamplePaths(doc, dataDir)
 		body, _ = json.Marshal(doc)
 		switch {
@@ -131,6 +132,38 @@ func runAllExamples(t *testing.T, p *pulse.Pulse, dataDir string) {
 			_, err := p.Process(ctx, &req)
 			refusedForParams(path, err)
 		}
+	}
+}
+
+// cheapenHeavyExample shrinks a heavyExamples request in place to its
+// smallest run that still decodes every params key the example carries
+// (the read set is the example's keys, not its sizes): TestExamples_RunEndToEnd
+// runs the full-size ones. REG_MMM_BAYES samples 1 chain of 5 + 5, the
+// MAT_SEM bootstrap slot 12 replicates (sem.BootstrapMinSuccesses is 10).
+func cheapenHeavyExample(t *testing.T, path string, doc map[string]any) {
+	t.Helper()
+	if !isHeavyExampleFile(path) {
+		return
+	}
+	slotParams := func(slots string, i int) map[string]any {
+		list, _ := doc[slots].([]any)
+		if i >= len(list) {
+			t.Fatalf("%s: no %s[%d] to cheapen", path, slots, i)
+		}
+		params, _ := list[i].(map[string]any)["params"].(map[string]any)
+		if params == nil {
+			t.Fatalf("%s: %s[%d] carries no params", path, slots, i)
+		}
+		return params
+	}
+	switch filepath.ToSlash(path)[strings.LastIndex(filepath.ToSlash(path), "/")+1:] {
+	case "20_mmm_bayes.json":
+		pp := slotParams("regressions", 0)
+		pp["chains"], pp["warmup"], pp["draws"] = 1, 5, 5
+	case "17_sem_contribution.json":
+		slotParams("matrices", 1)["bootstrap_iters"] = 12
+	default:
+		t.Fatalf("%s: a heavy example with no cheapened twin", path)
 	}
 }
 

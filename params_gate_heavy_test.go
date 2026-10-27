@@ -23,7 +23,8 @@ import (
 // accepted and silently ignored.
 //
 // It runs the whole embedded example library — every root, Predict and
-// execution — under a paramread.Recording (every built-in params read
+// execution; the two heavyExamples as cheapened twins that carry the
+// same params keys (cheapenHeavyExample) — under a paramread.Recording (every built-in params read
 // goes through internal/paramread, TestParamsReadThroughParamread) and
 // holds, per built-in operator:
 //

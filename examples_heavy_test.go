@@ -3,8 +3,6 @@
 package pulse_test
 
 import (
-	"context"
-	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
@@ -12,16 +10,18 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/internal/io/csv"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 
 // TestExamples_RunEndToEnd builds the shared fixture cohorts into a
 // temp directory, then runs every example JSON across all categories
 // (attributes, filterers, groupers, windows, features) through
-// pulse.Process. Asserts no errors come back. Catches both example
-// bitrot (schema drift) and operator regressions.
+// pulse.Process. Asserts no errors come back and no limit trips on the
+// built-in defaults (the runtime half of
+// TestLimitsDefaultsNeverTripGoldens for the heavyExamples, which run
+// only here); every regression example fills Regressions with no slot
+// failure; and the per-example figure checks (exampleChecks) hold.
+// Catches both example bitrot (schema drift) and operator regressions.
 func TestExamples_RunEndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -40,28 +40,35 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		dir     string
 		minJSON int
 		glob    string // "" = every *.json in dir
+		check   func(t *testing.T, resp *pulse.Response)
 	}{
-		{"features", "features", 10, ""},
-		{"attributes", "attributes", 6, ""},
-		{"filterers", "filterers", 4, ""},
-		{"groupers", "groupers", 5, ""},
-		{"windows", "windows", 10, ""},
-		{"aggregations", "aggregations", 4, ""},
-		{"tests", "tests", 27, ""},
-		{"regression", "regression", 17, ""},
-		{"matrices", "matrices", 2, ""},
-		{"crosstab", "crosstab", 13, ""},
+		{"features", "features", 10, "", nil},
+		{"attributes", "attributes", 6, "", nil},
+		{"filterers", "filterers", 4, "", nil},
+		{"groupers", "groupers", 5, "", nil},
+		{"windows", "windows", 10, "", nil},
+		{"aggregations", "aggregations", 4, "", nil},
+		{"tests", "tests", 27, "", nil},
+		{"regression", "regression", 17, "", checkRegressionExample},
+		{"matrices", "matrices", 2, "", nil},
+		{"crosstab", "crosstab", 13, "", nil},
 		// The overlays directory mixes Request-, Compose- and Facet-host
 		// examples, and only Request-host ones run through pulse.Process,
 		// so this arm is scoped to the MATRIX-host axis-pairing family.
-		{"overlays-crosstab-pairwise", "overlays", 4, "*_crosstab_pairwise_*.json"},
+		{"overlays-crosstab-pairwise", "overlays", 4, "*_crosstab_pairwise_*.json", nil},
 		// The flows overlays (U30 E7) on a from x to crosstab.
-		{"overlays-crosstab-symmetry", "overlays", 1, "*_crosstab_symmetry.json"},
-		{"overlays-crosstab-retention", "overlays", 1, "*_crosstab_retention.json"},
+		{"overlays-crosstab-symmetry", "overlays", 1, "*_crosstab_symmetry.json", nil},
+		{"overlays-crosstab-retention", "overlays", 1, "*_crosstab_retention.json", nil},
 		// The three flows overlays straight from a long panel (U55).
-		{"overlays-crosstab-previous-state", "overlays", 1, "*_crosstab_previous_state_*.json"},
+		{"overlays-crosstab-previous-state", "overlays", 1, "*_crosstab_previous_state_*.json", nil},
 	}
 
+	// A renamed example would silently drop its figure checks.
+	for key := range exampleChecks {
+		if _, err := os.Stat(filepath.Join("internal", "examples", filepath.FromSlash(key))); err != nil {
+			t.Errorf("exampleChecks %s: %v", key, err)
+		}
+	}
 	for _, cat := range categories {
 		t.Run(cat.name, func(t *testing.T) {
 			pattern := cat.glob
@@ -77,129 +84,64 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 			}
 			for _, ex := range matches {
 				t.Run(filepath.Base(ex), func(t *testing.T) {
-					runExample(t, p, ex, tmp)
+					resp := runExample(t, p, ex, tmp)
+					if trip := limitTripIn(t, nil, resp); trip != "" {
+						t.Fatalf("%s tripped a limit under the defaults: %s", ex, trip)
+					}
+					if cat.check != nil {
+						cat.check(t, resp)
+					}
+					key := cat.dir + "/" + filepath.Base(ex)
+					if c, ok := exampleChecks[key]; ok {
+						c(t, resp)
+					}
 				})
 			}
 		})
 	}
 }
 
-// TestRegressionExamplesEndToEnd is a tighter contract over the
-// regression-only example category: it asserts every regression example
-// emits a non-empty Regressions slice with no envelope errors, catching
-// drift between the example wire shape and the regression engine
-// surface.
-func TestRegressionExamplesEndToEnd(t *testing.T) {
-	t.Parallel()
-
-	tmp := t.TempDir()
-	fs := afero.NewOsFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
-	if err != nil {
-		t.Fatalf("pulse.New: %v", err)
+// checkRegressionExample is the regression arm's tighter contract:
+// every regression example emits a non-empty Regressions slice, each
+// result typed, over rows (n_obs > 0) and not a failed slot — the drift
+// between the example wire shape and the regression engine surface
+// that a slot failing alone would otherwise hide.
+func checkRegressionExample(t *testing.T, resp *pulse.Response) {
+	t.Helper()
+	if len(resp.Regressions) == 0 {
+		t.Fatal("expected Regressions to be populated")
 	}
-	for _, name := range []string{"customers", "training_data", "experiment", "subscribers", "mmm_weekly"} {
-		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
-		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
-		outPath := filepath.Join(tmp, name+".pulse")
-		schema, err := loadFixtureSchema(schemaPath)
-		if err != nil {
-			t.Fatalf("loadFixtureSchema(%s): %v", schemaPath, err)
+	for i, r := range resp.Regressions {
+		if r == nil || r.Type == "" {
+			t.Errorf("regression result %d is empty (%+v)", i, r)
 		}
-		job := &pio.ImportJob{
-			Source:     csv.NewReader(fs, csvPath),
-			Target:     outPath,
-			Schema:     schema,
-			SampleRows: 50,
-			FS:         fs,
+		if r != nil && r.NObs == 0 {
+			t.Errorf("regression result %d has zero n_obs", i)
 		}
-		if _, err := p.Import(context.Background(), job); err != nil {
-			t.Fatalf("import %s: %v", name, err)
+		if r != nil && r.Error != nil {
+			t.Errorf("regression result %d failed: %s %s", i, r.Error.Code, r.Error.Message)
 		}
-	}
-
-	matches, err := filepath.Glob(filepath.Join("internal", "examples", "regression", "*.json"))
-	if err != nil {
-		t.Fatalf("glob: %v", err)
-	}
-	if len(matches) != 20 {
-		t.Fatalf("expected exactly 20 regression examples, found %d", len(matches))
-	}
-	for _, ex := range matches {
-		t.Run(filepath.Base(ex), func(t *testing.T) {
-			body, err := os.ReadFile(ex)
-			if err != nil {
-				t.Fatalf("read %s: %v", ex, err)
-			}
-			var req pulse.Request
-			if err := json.Unmarshal(body, &req); err != nil {
-				t.Fatalf("parse %s: %v", ex, err)
-			}
-			if req.Cohort == nil {
-				t.Fatalf("%s: missing cohort", ex)
-			}
-			req.Cohort.DataDir = tmp
-			resp, err := p.Process(context.Background(), &req)
-			if err != nil {
-				t.Fatalf("Process %s: %v", ex, err)
-			}
-			if resp == nil {
-				t.Fatalf("%s: nil response", ex)
-			}
-			if len(resp.Regressions) == 0 {
-				t.Fatalf("%s: expected Regressions to be populated", ex)
-			}
-			for i, r := range resp.Regressions {
-				if r == nil || r.Type == "" {
-					t.Errorf("%s: regression result %d is empty (%+v)", ex, i, r)
-				}
-				if r != nil && r.NObs == 0 {
-					t.Errorf("%s: regression result %d has zero n_obs", ex, i)
-				}
-				if r != nil && r.Error != nil {
-					t.Errorf("%s: regression result %d failed: %s %s", ex, i, r.Error.Code, r.Error.Message)
-				}
-			}
-		})
 	}
 }
 
-// TestExamples_SEMContributionRecipe runs
-// matrices/17_sem_contribution.json over the brand_survey fixture: the
-// := rows close the table (vectors.group null, vectors.label the name)
-// with a delta-method SE, p and Wald interval; the planted wave-2 shift
-// makes value's contribution negative and service's positive, each
-// distinguishable from zero (p < 0.05, the interval excluding 0); the
-// slot's Holm block adjusts every row with a p, := rows included; and
-// the bootstrap slot keeps the estimates, echoes 200 replicates and
-// replaces the SEs and intervals.
-func TestExamples_SEMContributionRecipe(t *testing.T) {
-	t.Parallel()
+// exampleChecks are per-example figure checks, keyed
+// "<dir>/<file>", run on the response TestExamples_RunEndToEnd already
+// holds — so a heavyExamples entry is executed once.
+var exampleChecks = map[string]func(t *testing.T, resp *pulse.Response){
+	"matrices/17_sem_contribution.json": checkSEMContributionRecipe,
+}
 
-	tmp := t.TempDir()
-	osfs := afero.NewOsFs()
-	builder, err := pulse.New(pulse.Options{FS: osfs})
-	if err != nil {
-		t.Fatal(err)
-	}
-	buildExampleFixtures(t, builder, osfs, tmp)
-	p, err := pulse.New(pulse.Options{DataDir: tmp})
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(filepath.Join("internal", "examples", "matrices", "17_sem_contribution.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var req pulse.Request
-	if err := json.Unmarshal(body, &req); err != nil {
-		t.Fatal(err)
-	}
-	req.Cohort.DataDir = ""
-	resp, err := p.Process(context.Background(), &req)
-	if err != nil {
-		t.Fatal(err)
-	}
+// checkSEMContributionRecipe holds matrices/17_sem_contribution.json over
+// the brand_survey fixture: the := rows close the table (vectors.group
+// null, vectors.label the name) with a delta-method SE, p and Wald
+// interval; the planted wave-2 shift makes value's contribution
+// negative and service's positive, each distinguishable from zero
+// (p < 0.05, the interval excluding 0); the slot's Holm block adjusts
+// every row with a p, := rows included; and the bootstrap slot keeps
+// the estimates, echoes 200 replicates and replaces the SEs and
+// intervals.
+func checkSEMContributionRecipe(t *testing.T, resp *pulse.Response) {
+	t.Helper()
 	if len(resp.Matrices) != 2 || resp.Matrices[0].Error != nil || resp.Matrices[1].Error != nil {
 		t.Fatalf("matrices %+v", resp.Matrices)
 	}

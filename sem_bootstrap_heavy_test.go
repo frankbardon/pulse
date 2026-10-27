@@ -11,11 +11,12 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestSEM_BootstrapProcessMatchesLavaan: a seeded 1000-replicate
+// TestSEM_BootstrapProcessMatchesLavaan: a seeded semBootIters-replicate
 // bootstrap through the facade — the brand-survey mediation (free and
 // := rows) and the two-wave scalar-invariant fit, resampled within each
-// wave — is within the sampling tolerances of lavaan's se =
-// "bootstrap"; the analytic SEs are replaced, the estimates are not.
+// wave — is within the B = 40 sampling tolerances of lavaan's se =
+// "bootstrap" (the 1000-replicate parity is internal/sem's); the
+// analytic SEs are replaced, the estimates are not.
 func TestSEM_BootstrapProcessMatchesLavaan(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +107,8 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 // any decode-worker count and over a shard archive; a request that
 // differs only in the slot's name (no figure reads it) draws other
 // replicates, while a pinned seed draws the same ones whatever the
-// name.
+// name. Twelve replicates (sem.BootstrapMinSuccesses is 10): the bits
+// under test are the seed's and the row order's, whatever the count.
 func TestSEM_BootstrapDerivedSeed(t *testing.T) {
 	t.Parallel()
 
@@ -121,7 +123,7 @@ func TestSEM_BootstrapDerivedSeed(t *testing.T) {
 			t.Parallel()
 
 			req := func(seed any, name string) *types.Request {
-				params := map[string]any{"resample": "bootstrap", "bootstrap_iters": 25}
+				params := map[string]any{"resample": "bootstrap", "bootstrap_iters": 12}
 				if seed != nil {
 					params["rng_seed"] = seed
 				}

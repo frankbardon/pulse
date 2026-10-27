@@ -21,8 +21,9 @@ import (
 // not drive — runs clean on an instance with the built-in limit
 // defaults. Predict reports no LimitFindings for any Request (a single
 // Request, every Compose slot, a chain's stage 0), and no run trips a
-// limit at runtime. Lowering a default is breaking; this gate is what
-// catches it.
+// limit at runtime (the two heavyExamples run their runtime half in
+// TestExamples_RunEndToEnd). Lowering a default is breaking; this gate
+// is what catches it.
 func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 	t.Parallel()
 
@@ -121,6 +122,13 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 					t.Fatalf("parse request: %v", err)
 				}
 				noFindings(t, "request", &req)
+				if isHeavyExample(ex.Category, ex.Name) {
+					// Predict's half only: TestExamples_RunEndToEnd is
+					// the one pass that executes a heavyExamples entry,
+					// on the same built-in defaults, and fails on a
+					// limit trip there (limitTripIn).
+					return
+				}
 				resp, err = p.Process(ctx, &req)
 			}
 			if trip := limitTripIn(t, err, resp); trip != "" {

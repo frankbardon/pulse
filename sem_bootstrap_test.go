@@ -42,17 +42,26 @@ type semBootLavaan struct {
 	} `json:"params"`
 }
 
-// The sampling tolerances (internal/sem/bootstrap_test.go derives
-// them): a bootstrap SE within 15% of lavaan's, a percentile bound
-// within 0.75 SE.
+// The facade comparison is a wiring check, not the sampling parity:
+// internal/sem (TestSEM_BootstrapMatchesLavaanSampling,
+// TestSEM_BootstrapMultiGroupMatchesLavaan) holds the same two models'
+// SEs and percentile bounds to these references at their 1000
+// replicates (15% / 0.75 SE). Here semBootIters replicates run through
+// the facade, so the tolerances are the B = 40 Monte-Carlo widths: a
+// bootstrap SE's relative error is about 1/sqrt(2B) ≈ 11% (50% is
+// ~4.4 SD; observed max 35%), a 2.5% / 97.5% percentile bound's about
+// 0.42 SE under normality and more on a skewed := ratio (observed max
+// 1.62 SE; 2.5 SE). checkBootReplaced separately proves the analytic
+// SEs and intervals are gone.
 const (
-	semBootSETol = 0.15
-	semBootCITol = 0.75
+	semBootIters = 40
+	semBootSETol = 0.5
+	semBootCITol = 2.5
 )
 
 // semBootParams are the bootstrap knobs every lavaan comparison runs.
 func semBootParams(extra map[string]any) map[string]any {
-	out := map[string]any{"resample": "bootstrap", "bootstrap_iters": 1000, "rng_seed": 20261024}
+	out := map[string]any{"resample": "bootstrap", "bootstrap_iters": semBootIters, "rng_seed": 20261024}
 	for k, v := range extra {
 		out[k] = v
 	}
@@ -68,8 +77,8 @@ func checkBootProcess(t *testing.T, res types.MatrixResult, ref semBootLavaan, g
 	if res.Error != nil || res.Scalars["converged"] != 1 {
 		t.Fatalf("error %+v converged %v", res.Error, res.Scalars["converged"])
 	}
-	if res.Scalars["bootstrap_requested"] != 1000 || res.Scalars["bootstrap_succeeded"] != float64(ref.Successful) {
-		t.Errorf("bootstrap_requested %v succeeded %v, want 1000 / %d", res.Scalars["bootstrap_requested"], res.Scalars["bootstrap_succeeded"], ref.Successful)
+	if res.Scalars["bootstrap_requested"] != semBootIters || res.Scalars["bootstrap_succeeded"] != semBootIters {
+		t.Errorf("bootstrap_requested %v succeeded %v, want %d / %d", res.Scalars["bootstrap_requested"], res.Scalars["bootstrap_succeeded"], semBootIters, semBootIters)
 	}
 	est := res.Auxiliary["estimates"]
 	if !reflect.DeepEqual(est.ColumnKeys, []string{"estimate", "std_estimate", "std_err", "z_value", "p_value", "ci_lower", "ci_upper"}) {

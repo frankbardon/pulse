@@ -99,7 +99,6 @@
 4 . TestBitExact_CountsAndDistinctSums
 4 . TestBitExact_FormulaTotalOutsideFirstCut
 4 . TestBitExact_GroupRounded
-4 . TestExamples_SEMContributionRecipe
 4 . TestExtensions_RegressionResampleDeterministic
 4 . TestGroupKMeans_DecodeWorkersAgree
 4 . TestPanicRecovery_PoolRepanics
@@ -123,7 +122,6 @@
 5 . TestParams_U64FieldExactAcrossArms
 5 . TestPreviousState_ParallelDecodeMatchesSerial
 5 . TestReferenceDocPointersResolve
-5 . TestRegressionExamplesEndToEnd
 5 . TestSEM_BootstrapProcessMatchesLavaan
 5 . TestScalarOverlayHost_RefusalsMatchPredict
 5 . TestTimeZoneField_PerRowEqualsSingleZoneSlotsEveryMode
