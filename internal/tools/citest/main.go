@@ -28,7 +28,10 @@
 // top-level test that took D or longer plus the slowest five with their
 // margin, and (unless -report-only) exits 1 on an offender or a failed test;
 // -recheck reruns each offender alone and clears it when that run is under
-// D. `make test` enforces -budget 1s -recheck on the fast tier.
+// D. `make test` enforces -budget 1s -recheck on the fast tier. A
+// top-level test's time is its Elapsed plus the time of each subtest that
+// called t.Parallel() (recursively): go test stops a parent's clock before
+// its paused subtests run, so their cost is charged to it here.
 //
 // parallel-check is the parallel-by-default gate (TestTestsParallelByDefault):
 // every top-level test calls t.Parallel() or carries "// serial: <reason>".

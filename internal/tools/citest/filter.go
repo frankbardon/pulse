@@ -35,6 +35,44 @@ type filterState struct {
 	order   []string                    // buffered keys, first-seen order
 	timings []timing
 	failed  bool
+	// Subtest cost accounting, keyed pkg + "\x00" + full test name. A
+	// test's Elapsed covers its body and every sequential subtest (t.Run
+	// blocks until it is done), but NOT a subtest that called t.Parallel():
+	// the parent's clock stops when its body returns, and only then do its
+	// paused subtests run. So a test's true cost is its Elapsed plus the
+	// cost of each direct child that paused, recursively.
+	live   map[string]bool    // started, not yet ended
+	paused map[string]bool    // a subtest that emitted "pause" (t.Parallel)
+	extra  map[string]float64 // summed cost of a test's paused children
+}
+
+// parentOf returns the nearest started ancestor of a subtest ("" when none).
+// It walks '/' prefixes from the longest, so a subtest name that itself
+// holds a '/' still finds its real parent.
+func (f *filterState) parentOf(pkg, test string) string {
+	for i := strings.LastIndexByte(test, '/'); i > 0; i = strings.LastIndexByte(test[:i], '/') {
+		if f.live[pkg+"\x00"+test[:i]] {
+			return test[:i]
+		}
+	}
+	return ""
+}
+
+// end closes a test (pass, fail or skip) and returns its cost: Elapsed plus
+// its paused children's costs. A paused subtest's cost is charged to its
+// parent.
+func (f *filterState) end(e event) float64 {
+	id := e.Package + "\x00" + e.Test
+	cost := e.Elapsed + f.extra[id]
+	if f.paused[id] {
+		if p := f.parentOf(e.Package, e.Test); p != "" {
+			f.extra[e.Package+"\x00"+p] += cost
+		}
+	}
+	delete(f.live, id)
+	delete(f.paused, id)
+	delete(f.extra, id)
+	return cost
 }
 
 func topLevel(test string) string {
@@ -64,6 +102,17 @@ func (f *filterState) line(raw string) {
 		}
 		return
 	}
+	var cost float64
+	switch e.Action {
+	case "run":
+		f.live[e.Package+"\x00"+e.Test] = true
+	case "pause":
+		if e.Test != topLevel(e.Test) {
+			f.paused[e.Package+"\x00"+e.Test] = true
+		}
+	case "pass", "fail", "skip":
+		cost = f.end(e)
+	}
 	key := e.Package + "\x00" + topLevel(e.Test)
 	b := f.buf[key]
 	if b == nil {
@@ -78,11 +127,11 @@ func (f *filterState) line(raw string) {
 	switch e.Action {
 	case "pass", "skip":
 		if e.Action == "pass" {
-			f.timings = append(f.timings, timing{pkg: e.Package, test: e.Test, secs: e.Elapsed})
+			f.timings = append(f.timings, timing{pkg: e.Package, test: e.Test, secs: cost})
 		}
 		delete(f.buf, key)
 	case "fail":
-		f.timings = append(f.timings, timing{pkg: e.Package, test: e.Test, secs: e.Elapsed, failed: true})
+		f.timings = append(f.timings, timing{pkg: e.Package, test: e.Test, secs: cost, failed: true})
 		fmt.Fprint(f.out, b.String())
 		delete(f.buf, key)
 	}
@@ -132,7 +181,8 @@ type filterResult struct {
 
 // filter copies in to raw (when non-nil) and writes the human log to out.
 func filter(in io.Reader, raw, out io.Writer) filterResult {
-	f := &filterState{out: out, buf: map[string]*strings.Builder{}}
+	f := &filterState{out: out, buf: map[string]*strings.Builder{},
+		live: map[string]bool{}, paused: map[string]bool{}, extra: map[string]float64{}}
 	r := bufio.NewReaderSize(in, 1<<20)
 	for {
 		line, err := r.ReadString('\n')

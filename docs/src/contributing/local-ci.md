@@ -84,7 +84,11 @@ lists each offender with its time and the fix (move it to a
 slowest tests with their margin. `-parallel 1` keeps each test's time
 close to its own cost, because a test fanned out with `t.Parallel()`
 also waits on its neighbours. `-recheck` reruns each offender alone
-and clears it when that run is under 1 s. A test failure still fails
+and clears it when that run is under 1 s. A test's time is its
+`Elapsed` plus the time of every subtest that called `t.Parallel()`:
+`go test` stops a parent's clock when its body returns, before those
+subtests run, so without this a test that fans its work out into
+parallel subtests reads near zero. A test failure still fails
 `make test`. `make test-heavy` and CI apply no budget. CI only
 reports the ten slowest tests in the job summary.
 

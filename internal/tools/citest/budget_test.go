@@ -150,3 +150,93 @@ func TestBudgetReport_Recheck(t *testing.T) {
 		t.Fatalf("no offender: n=%d, recheck called=%v; want 0 and no rerun", n, called)
 	}
 }
+
+// parallelSubtestStream mirrors go test -json under -parallel 1: a parent's
+// Elapsed stops when its body returns, before the subtests that called
+// t.Parallel() ("pause") run, so their time must be charged to it. A
+// sequential subtest is already inside its parent's Elapsed and must not be
+// added again (TestNest: seq 0.1 s + its paused inner 0.5 s = the parent's
+// 0.6 s). Tests of two packages interleave, a same-named test in p/b must
+// not borrow p/a's children, and TestSlash's subtest name holds a '/'.
+const parallelSubtestStream = `{"Action":"run","Package":"p/a","Test":"TestPar"}
+{"Action":"pause","Package":"p/a","Test":"TestPar"}
+{"Action":"run","Package":"p/b","Test":"TestPar"}
+{"Action":"cont","Package":"p/a","Test":"TestPar"}
+{"Action":"run","Package":"p/a","Test":"TestPar/a"}
+{"Action":"pause","Package":"p/a","Test":"TestPar/a"}
+{"Action":"run","Package":"p/a","Test":"TestPar/b"}
+{"Action":"pause","Package":"p/a","Test":"TestPar/b"}
+{"Action":"cont","Package":"p/a","Test":"TestPar/a"}
+{"Action":"pass","Package":"p/a","Test":"TestPar/a","Elapsed":0.5}
+{"Action":"cont","Package":"p/a","Test":"TestPar/b"}
+{"Action":"output","Package":"p/a","Test":"TestPar/b","Output":"    par_test.go:9: boom\n"}
+{"Action":"fail","Package":"p/a","Test":"TestPar/b","Elapsed":0.5}
+{"Action":"fail","Package":"p/a","Test":"TestPar","Elapsed":0.05}
+{"Action":"pass","Package":"p/b","Test":"TestPar","Elapsed":0.3}
+{"Action":"run","Package":"p/a","Test":"TestNest"}
+{"Action":"run","Package":"p/a","Test":"TestNest/seq"}
+{"Action":"run","Package":"p/a","Test":"TestNest/seq/inner"}
+{"Action":"pause","Package":"p/a","Test":"TestNest/seq/inner"}
+{"Action":"cont","Package":"p/a","Test":"TestNest/seq/inner"}
+{"Action":"pass","Package":"p/a","Test":"TestNest/seq/inner","Elapsed":0.5}
+{"Action":"pass","Package":"p/a","Test":"TestNest/seq","Elapsed":0.1}
+{"Action":"pass","Package":"p/a","Test":"TestNest","Elapsed":0.6}
+{"Action":"run","Package":"p/a","Test":"TestDeep"}
+{"Action":"run","Package":"p/a","Test":"TestDeep/a"}
+{"Action":"pause","Package":"p/a","Test":"TestDeep/a"}
+{"Action":"cont","Package":"p/a","Test":"TestDeep/a"}
+{"Action":"run","Package":"p/a","Test":"TestDeep/a/x"}
+{"Action":"pause","Package":"p/a","Test":"TestDeep/a/x"}
+{"Action":"run","Package":"p/a","Test":"TestDeep/a/skipped"}
+{"Action":"pause","Package":"p/a","Test":"TestDeep/a/skipped"}
+{"Action":"cont","Package":"p/a","Test":"TestDeep/a/x"}
+{"Action":"pass","Package":"p/a","Test":"TestDeep/a/x","Elapsed":0.8}
+{"Action":"cont","Package":"p/a","Test":"TestDeep/a/skipped"}
+{"Action":"skip","Package":"p/a","Test":"TestDeep/a/skipped","Elapsed":0.01}
+{"Action":"pass","Package":"p/a","Test":"TestDeep/a","Elapsed":0.2}
+{"Action":"pass","Package":"p/a","Test":"TestDeep","Elapsed":0.1}
+{"Action":"run","Package":"p/a","Test":"TestSlash"}
+{"Action":"run","Package":"p/a","Test":"TestSlash/x/y"}
+{"Action":"pause","Package":"p/a","Test":"TestSlash/x/y"}
+{"Action":"cont","Package":"p/a","Test":"TestSlash/x/y"}
+{"Action":"pass","Package":"p/a","Test":"TestSlash/x/y","Elapsed":1.2}
+{"Action":"pass","Package":"p/a","Test":"TestSlash","Elapsed":0}
+{"Action":"output","Package":"p/a","Output":"FAIL\tp/a\t3.0s\n"}
+{"Action":"fail","Package":"p/a","Elapsed":3}
+`
+
+func TestFilter_ChargesParallelSubtestsToTheirParent(t *testing.T) {
+	t.Parallel()
+	var log bytes.Buffer
+	res := filter(strings.NewReader(parallelSubtestStream), nil, &log)
+	got := map[string]float64{}
+	for _, tm := range res.timings {
+		got[tm.pkg+" "+tm.test] = tm.secs
+	}
+	for name, want := range map[string]float64{
+		"p/a TestPar":   1.05, // 0.05 + paused a 0.5 + paused (failed) b 0.5
+		"p/b TestPar":   0.3,  // same name, other package: none of p/a's children
+		"p/a TestNest":  0.6,  // sequential seq already inside the 0.6
+		"p/a TestDeep":  1.11, // 0.1 + (a 0.2 + x 0.8 + skipped 0.01)
+		"p/a TestSlash": 1.2,  // parent found past the never-started "TestSlash/x"
+	} {
+		if g, ok := got[name]; !ok || g < want-1e-9 || g > want+1e-9 {
+			t.Errorf("%s: cost %v (present %v), want %v", name, g, ok, want)
+		}
+	}
+	if len(got) != 5 {
+		t.Errorf("timings %v, want exactly the five top-level tests", got)
+	}
+	if !res.failed || !strings.Contains(log.String(), "par_test.go:9: boom") {
+		t.Errorf("failed=%v, log lacks the failed subtest's output:\n%s", res.failed, log.String())
+	}
+	text, n := budgetReport(res.timings, time.Second, nil)
+	if n != 3 {
+		t.Fatalf("offenders = %d, want 3 (TestSlash, TestDeep, TestPar):\n%s", n, text)
+	}
+	for _, want := range []string{"  1.20s  p/a  TestSlash\n", "  1.11s  p/a  TestDeep\n", "  1.05s  p/a  TestPar\n"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("report lacks %q:\n%s", want, text)
+		}
+	}
+}
