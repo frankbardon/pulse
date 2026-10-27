@@ -75,6 +75,8 @@ func createTestPulseFile(t *testing.T, dir string) string {
 }
 
 func TestCliHelp(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "--help")
 	if err != nil {
 		t.Fatalf("--help: %v", err)
@@ -85,6 +87,8 @@ func TestCliHelp(t *testing.T) {
 }
 
 func TestCliVersion(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "--version")
 	if err != nil {
 		t.Fatalf("--version: %v", err)
@@ -95,6 +99,8 @@ func TestCliVersion(t *testing.T) {
 }
 
 func TestCliRootJson(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "--json")
 	if err != nil {
 		t.Fatalf("--json: %v", err)
@@ -110,6 +116,8 @@ func TestCliRootJson(t *testing.T) {
 }
 
 func TestCliImportCsv(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := createTestCSV(t, dir, "input.csv")
 	pulsePath := filepath.Join(dir, "output.pulse")
@@ -129,6 +137,8 @@ func TestCliImportCsv(t *testing.T) {
 }
 
 func TestCliImportPredict(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := createTestCSV(t, dir, "input.csv")
 
@@ -144,6 +154,8 @@ func TestCliImportPredict(t *testing.T) {
 }
 
 func TestCliImportSchemaTemplate(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := createTestCSV(t, dir, "input.csv")
 
@@ -172,6 +184,8 @@ func TestCliImportSchemaTemplate(t *testing.T) {
 }
 
 func TestCliExportCsv(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 	outPath := filepath.Join(dir, "output.csv")
@@ -194,6 +208,8 @@ func TestCliExportCsv(t *testing.T) {
 }
 
 func TestCliExportPredict(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -209,6 +225,8 @@ func TestCliExportPredict(t *testing.T) {
 }
 
 func TestCliConvert(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := createTestCSV(t, dir, "input.csv")
 	tsvPath := filepath.Join(dir, "output.tsv")
@@ -231,6 +249,8 @@ func TestCliConvert(t *testing.T) {
 }
 
 func TestCliConvertPredict(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := createTestCSV(t, dir, "input.csv")
 	tsvPath := filepath.Join(dir, "output.tsv")
@@ -245,6 +265,8 @@ func TestCliConvertPredict(t *testing.T) {
 }
 
 func TestCliCohortInspect(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -258,6 +280,8 @@ func TestCliCohortInspect(t *testing.T) {
 }
 
 func TestCliCohortInspectJson(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -276,6 +300,8 @@ func TestCliCohortInspectJson(t *testing.T) {
 }
 
 func TestCliApiSample(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -294,6 +320,8 @@ func TestCliApiSample(t *testing.T) {
 }
 
 func TestCliApiFacet(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -307,6 +335,8 @@ func TestCliApiFacet(t *testing.T) {
 }
 
 func TestCliApiProcess(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -332,6 +362,8 @@ func TestCliApiProcess(t *testing.T) {
 }
 
 func TestCliApiProcessJson(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -359,6 +391,8 @@ func TestCliApiProcessJson(t *testing.T) {
 }
 
 func TestCliApiCompose(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -393,6 +427,8 @@ func TestCliApiCompose(t *testing.T) {
 }
 
 func TestCliApiProcessStream(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -425,6 +461,8 @@ func TestCliApiProcessStream(t *testing.T) {
 }
 
 func TestCliApiComposeParallel(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -458,6 +496,8 @@ func TestCliApiComposeParallel(t *testing.T) {
 }
 
 func TestCliApiComposeStream(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -493,6 +533,8 @@ func TestCliApiComposeStream(t *testing.T) {
 }
 
 func TestCliApiPredict(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 
@@ -515,6 +557,8 @@ func TestCliApiPredict(t *testing.T) {
 }
 
 func TestCliSkillsList(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "skills", "list")
 	if err != nil {
 		t.Fatalf("skills list: %v\noutput: %s", err, out)
@@ -525,6 +569,8 @@ func TestCliSkillsList(t *testing.T) {
 }
 
 func TestCliSkillsListJson(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "skills", "list", "--json")
 	if err != nil {
 		t.Fatalf("skills list --json: %v\noutput: %s", err, out)
@@ -537,6 +583,8 @@ func TestCliSkillsListJson(t *testing.T) {
 }
 
 func TestCliSkillsShow(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "skills", "show", "session-bootstrap")
 	if err != nil {
 		t.Fatalf("skills show: %v\noutput: %s", err, out)
@@ -547,6 +595,8 @@ func TestCliSkillsShow(t *testing.T) {
 }
 
 func TestCliConvertCommand_E2E(t *testing.T) {
+	t.Parallel()
+
 	// Full convert E2E: CSV -> TSV with --json output
 	dir := t.TempDir()
 	csvPath := createTestCSV(t, dir, "data.csv")
@@ -576,6 +626,8 @@ func TestCliConvertCommand_E2E(t *testing.T) {
 }
 
 func TestCliApiProcessChain_Warnings(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := filepath.Join(dir, "chain_warn.pulse")
 
@@ -789,6 +841,8 @@ doneScan:
 }
 
 func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
 	exampleSrc := readRepoFile(t, "internal/examples/overlays/pairwise-z-matrix.json")
@@ -811,6 +865,8 @@ func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 }
 
 func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
 	exampleSrc := readRepoFile(t, "internal/examples/overlays/pairwise-welch-matrix.json")
@@ -1174,6 +1230,8 @@ func createTestShardArchive(t *testing.T, dir string) (string, string, string) {
 // anchor resolves identically and the reported record count is the
 // named SHARD's, not the archive aggregate.
 func TestCliCohortInspectJson_ResolvesShardAnchor(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	archive, _, second := createTestShardArchive(t, dir)
 
@@ -1212,6 +1270,8 @@ func TestCliCohortInspectJson_ResolvesShardAnchor(t *testing.T) {
 // os.ReadFile path and failed on an anchor while plain text mode
 // succeeded.
 func TestCliCohortInspectFullDict_ResolvesShardAnchor(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	archive, first, _ := createTestShardArchive(t, dir)
 
@@ -1230,6 +1290,8 @@ func TestCliCohortInspectFullDict_ResolvesShardAnchor(t *testing.T) {
 // --json, the library or the MCP tool and not through the leaf a human
 // runs. Three shapes, three correct answers.
 func TestCliCohortInspectText_ReportsRecordCount(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	single := createTestPulseFile(t, dir)
@@ -1277,6 +1339,8 @@ func TestCliCohortInspectText_ReportsRecordCount(t *testing.T) {
 // moved when the leaf stopped calling descriptor's byte-level inspect
 // itself — a dropped option would have been invisible.
 func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var b strings.Builder
 	b.WriteString("id,city\n")

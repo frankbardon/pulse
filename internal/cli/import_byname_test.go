@@ -47,6 +47,8 @@ func envelopeErrorCode(t *testing.T, buf *bytes.Buffer) string {
 // --schema carries the refusal's own code on the envelope, and
 // --ignore-extra reaches the job.
 func TestImportCLI_ByNameRefusalAndIgnoreExtra(t *testing.T) {
+	t.Parallel()
+
 	csvPath, schemaPath, outPath := seedByNameImport(t)
 	unmapped := string(perrors.PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED)
 

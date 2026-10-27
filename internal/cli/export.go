@@ -12,14 +12,19 @@ import (
 	cli "github.com/urfave/cli/v3"
 )
 
-// exportFlags are the common flags for all export format subcommands.
-var exportFlags = []cli.Flag{
-	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output file path", Required: true},
-	&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
-	&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical or integer-coded u4/u8/u16/u32 field: " + labelBindingGrammar + ". Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
-	&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
-	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+// exportFlags returns the common flags for all export format subcommands,
+// built fresh per call: a *cli.Flag carries its parsed value, so two
+// command trees built in one process (parallel tests) must not share
+// one.
+func exportFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
+		&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output file path", Required: true},
+		&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
+		&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical or integer-coded u4/u8/u16/u32 field: " + labelBindingGrammar + ". Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+		&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
+		&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+	}
 }
 
 // predictLabelsFlagUsage is `export predict --labels`: the export leaves'
@@ -67,7 +72,7 @@ func exportFormatCmd(format string) *cli.Command {
 	return &cli.Command{
 		Name:  format,
 		Usage: fmt.Sprintf("Export .pulse to %s format", format),
-		Flags: exportFlags,
+		Flags: exportFlags(),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runExport(ctx, cmd, format)
 		},
@@ -75,10 +80,11 @@ func exportFormatCmd(format string) *cli.Command {
 }
 
 // withExportFlags returns the common export flags plus the format-specific
-// extras, without mutating the shared slice.
+// extras, as a fresh slice.
 func withExportFlags(extra ...cli.Flag) []cli.Flag {
-	flags := make([]cli.Flag, 0, len(exportFlags)+len(extra))
-	flags = append(flags, exportFlags...)
+	base := exportFlags()
+	flags := make([]cli.Flag, 0, len(base)+len(extra))
+	flags = append(flags, base...)
 	return append(flags, extra...)
 }
 

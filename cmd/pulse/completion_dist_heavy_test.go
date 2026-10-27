@@ -15,6 +15,8 @@ import (
 )
 
 func TestCompletion_ShippedScriptsMatchLeaf(t *testing.T) {
+	t.Parallel()
+
 	if _, err := exec.LookPath("bash"); err != nil {
 		t.Fatalf("bash is required to exercise scripts/release-completions.sh: %v", err)
 	}

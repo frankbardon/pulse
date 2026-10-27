@@ -12,6 +12,8 @@ import (
 // echoes the params block with its exact integer, and an undeclared
 // read is the coded envelope error predict reports.
 func TestParams_APIProcessJSON(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "waves.csv", "wave,x\n1,10\n2,20\n3,30\n3,31\n4,40\n")
 	c, err := json.Marshal(map[string]string{"filename": cohort})
@@ -85,6 +87,8 @@ func TestParams_APIProcessJSON(t *testing.T) {
 // slot / stage inherits it (a sub-request's own key wins), and
 // --echo-request shows the merged params on each sub-request.
 func TestParams_APIComposeAndChainInherit(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "waves.csv", "wave,x\n1,10\n2,20\n3,30\n3,31\n5,50\n")
 	c, err := json.Marshal(map[string]string{"filename": cohort})

@@ -21,6 +21,8 @@ func runVersion(t *testing.T, args ...string) string {
 }
 
 func TestVersionCommand_PlainOutput(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 	if got, want := runVersion(t), "pulse v0.0.0-test\n"; got != want {
 		t.Fatalf("plain output = %q, want %q", got, want)
@@ -28,6 +30,8 @@ func TestVersionCommand_PlainOutput(t *testing.T) {
 }
 
 func TestVersionCommand_JSONEnvelope(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 	out := runVersion(t, "--json")
 

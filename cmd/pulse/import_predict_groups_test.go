@@ -31,6 +31,8 @@ func writeParentChildCSV(t *testing.T, dir string) string {
 // standard envelope; feeding that value back through `import predict
 // --group` evaluates it as the import would.
 func TestCliImportPredict_SuggestGroups(t *testing.T) {
+	t.Parallel()
+
 	csvPath := writeParentChildCSV(t, t.TempDir())
 	out, err := runApp(t, "import", "predict", "--input", csvPath, "--suggest-groups", "--json")
 	if err != nil {
@@ -78,6 +80,8 @@ func TestCliImportPredict_SuggestGroups(t *testing.T) {
 // TestCliImportPredict_GroupViolation: a --group the import would refuse
 // fails predict with the import's own code under --json.
 func TestCliImportPredict_GroupViolation(t *testing.T) {
+	t.Parallel()
+
 	csvPath := writeParentChildCSV(t, t.TempDir())
 	out, _ := runApp(t, "import", "predict", "--input", csvPath, "--group", "p_id:p_score,line_id", "--json")
 	if !strings.Contains(out, `"code": "PULSE_GROUP_MEMBER_NOT_CONSTANT"`) {

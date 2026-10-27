@@ -71,6 +71,8 @@ func wantCode(t *testing.T, err error, code perrors.Code) {
 // TestImportCSV_SourceTZ_DefaultRefusesAmbiguous: the overlap row fails the
 // import under the default --dst-policy, naming row and column.
 func TestImportCSV_SourceTZ_DefaultRefusesAmbiguous(t *testing.T) {
+	t.Parallel()
+
 	out, _, err := zoneImport(t, "--source-tz", "America/New_York")
 	wantCode(t, err, perrors.PULSE_IMPORT_DST_AMBIGUOUS)
 	if !strings.Contains(err.Error(), "row 3") || !strings.Contains(err.Error(), `"local"`) {
@@ -85,6 +87,8 @@ func TestImportCSV_SourceTZ_DefaultRefusesAmbiguous(t *testing.T) {
 // stores New York wall clocks as UTC instants, keeps Z literals and reports
 // the resolved count in the envelope warnings.
 func TestImportCSV_SourceTZ_LaterStoresUTCAndWarns(t *testing.T) {
+	t.Parallel()
+
 	out, buf, err := zoneImport(t, "--source-tz", "America/New_York", "--dst-policy", "later", "--json")
 	if err != nil {
 		t.Fatal(err)
@@ -124,6 +128,8 @@ func TestImportCSV_SourceTZ_LaterStoresUTCAndWarns(t *testing.T) {
 
 // TestImportCSV_SourceTZ_PerColumn: col=Zone wins over the bare zone.
 func TestImportCSV_SourceTZ_PerColumn(t *testing.T) {
+	t.Parallel()
+
 	out, _, err := zoneImport(t, "--source-tz", "America/New_York", "--source-tz", "local=+05:30")
 	if err != nil {
 		t.Fatal(err)
@@ -136,6 +142,8 @@ func TestImportCSV_SourceTZ_PerColumn(t *testing.T) {
 // TestImportCSV_SourceTZ_FlagRefusals: every flag mistake is CLI_INPUT; an
 // unknown zone keeps its own code.
 func TestImportCSV_SourceTZ_FlagRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -150,6 +158,8 @@ func TestImportCSV_SourceTZ_FlagRefusals(t *testing.T) {
 		{"unknown zone", []string{"--source-tz", "Mars/Olympus"}, perrors.PULSE_TIMEZONE_UNKNOWN},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, _, err := zoneImport(t, tc.args...)
 			wantCode(t, err, tc.code)
 		})
@@ -159,6 +169,8 @@ func TestImportCSV_SourceTZ_FlagRefusals(t *testing.T) {
 // TestImportCSV_NoSourceTZ_ByteIdentical: without --source-tz (and with a
 // policy flag alone, which is inert) the cohort bytes are unchanged.
 func TestImportCSV_NoSourceTZ_ByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	a, _, err := zoneImport(t)
 	if err != nil {
 		t.Fatal(err)

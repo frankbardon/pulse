@@ -17,6 +17,8 @@ import (
 // a u64 cell as its exact integer — 2^53+1 and MaxUint64 keep their own
 // digits — on a single file and on a shard archive.
 func TestAPILookupCLI_U64RowsExact(t *testing.T) {
+	t.Parallel()
+
 	ids := []uint64{1<<53 - 1, 1<<53 + 1, math.MaxUint64, 7}
 	dir := t.TempDir()
 	write := func(name string, ids []uint64) string {

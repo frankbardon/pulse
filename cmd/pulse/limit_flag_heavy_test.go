@@ -20,6 +20,8 @@ import (
 //
 // Falsified by dropping withLimits from withGlobals.
 func TestLimitFlag_RaisesComposeSlots(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := createTestPulseFile(t, dir)
 	slots := int(pulse.DefaultMaxComposeSlots) + 1

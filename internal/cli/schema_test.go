@@ -13,6 +13,8 @@ import (
 // full-registry BuildPayloadSchema (the published golden), digest
 // $comment included — followed by a newline.
 func TestSchemaCommand_ServesDefaultInstance(t *testing.T) {
+	t.Parallel()
+
 	cmd := SchemaCommand()
 	var buf bytes.Buffer
 	cmd.Writer = &buf

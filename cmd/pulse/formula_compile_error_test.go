@@ -14,6 +14,8 @@ import (
 // the fatal coded error's own code, never the PROCESS_ERROR placeholder —
 // with the reason in the message and details, and exits 1.
 func TestFormulaCompileError_Envelope(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	t.Setenv("PULSE_DATA_DIR", dir)
 	t.Setenv("PULSE_FEATURE_PROFILE", "")

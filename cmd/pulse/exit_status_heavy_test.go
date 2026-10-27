@@ -18,6 +18,8 @@ import (
 // (an envelope with errors, nothing added to stderr); success exits 0,
 // warnings included; a warning --strict escalates exits 1.
 func TestExitStatus_EveryLeaf(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	f := newExitFixture(t)
 	for _, c := range exitCases(f) {
 		cmd := leafCommand(t, c.leaf)
@@ -72,6 +74,8 @@ func TestExitStatus_EveryLeaf(t *testing.T) {
 // the envelope alone and stderr stays empty. Text mode exits 1 with the
 // error on stderr; a warning-only predict exits 0; a bad flag exits 2.
 func TestExitStatus_Binary(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	f := newExitFixture(t)
 	status := func(args ...string) (int, string, string) {
 		t.Helper()

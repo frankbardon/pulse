@@ -305,6 +305,8 @@ func leafArgs(path string, json bool, rest []string) []string {
 // TestExitStatus_TableCoversEveryLeaf: the table and the command tree
 // name the same leaves, in both directions.
 func TestExitStatus_TableCoversEveryLeaf(t *testing.T) {
+	t.Parallel()
+
 	var table []string
 	seen := map[string]bool{}
 	for _, c := range exitCases(exitFixture{}) {
@@ -360,6 +362,8 @@ func decodeExitEnvelope(t *testing.T, what, out string) *descriptor.Envelope {
 // rule, and the parser's refusals (unknown flag, missing required flag)
 // and a bad persistent flag value exit 2 before any leaf runs.
 func TestExitStatus_RootAndUsage(t *testing.T) {
+	t.Parallel()
+
 	if s, out, _ := runExit(t, "--json", "--intent", "nope"); s != pcli.ExitFatal || !strings.Contains(out, "PULSE_RECOMMEND_INTENT_UNKNOWN") {
 		t.Errorf("root --json --intent nope: exit %d (want 1)\n%s", s, out)
 	}
@@ -381,6 +385,8 @@ func TestExitStatus_RootAndUsage(t *testing.T) {
 // negative --shard-workers / --decode-workers (U51 E2-S2) are refused
 // before the leaf runs: exit 2, still the CLI_INPUT message.
 func TestExitStatus_PersistentFlagIsUsage(t *testing.T) {
+	t.Parallel()
+
 	for _, args := range [][]string{
 		{"--log-level", "loud"},
 		{"--shard-workers", "-1"},

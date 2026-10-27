@@ -16,6 +16,8 @@ import (
 // PULSE_IMPORT_WIDTH_PROMOTED — for `import csv` and `import predict`
 // with a measured pass alike.
 func TestCliImportWidthPromotion(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var b strings.Builder
 	b.WriteString("line_id,parent_name,qty\n")
@@ -70,6 +72,8 @@ func TestCliImportWidthPromotion(t *testing.T) {
 // envelope's warnings, the csv target is the source text, and the
 // --keep-pulse intermediate is byte-for-byte what `import csv` writes.
 func TestCliConvertWidthPromotion(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var b strings.Builder
 	b.WriteString("line_id,parent_name,qty\n")

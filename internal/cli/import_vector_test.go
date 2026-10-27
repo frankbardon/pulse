@@ -39,6 +39,8 @@ func readCohortSchema(t *testing.T, path string) *encoding.Schema {
 // schema carries the vec field) and `import auto` (the managed cohort
 // and its sidecar) — and a bad declaration is the coded refusal on each.
 func TestImportCLI_VectorFlags(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := filepath.Join(dir, "survey.csv")
 	if err := os.WriteFile(src, []byte(vectorCSV), 0o644); err != nil {

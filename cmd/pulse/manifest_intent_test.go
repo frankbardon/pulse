@@ -9,6 +9,8 @@ import (
 // envelope-wrapped scoped manifest (scope set, fixed sections absent); an
 // unknown intent is a coded error envelope.
 func TestRootManifest_Intent(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "--json", "--slim", "--intent", "compare_groups")
 	if err != nil {
 		t.Fatal(err)

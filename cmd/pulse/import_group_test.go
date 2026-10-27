@@ -39,6 +39,8 @@ func writeGroupCSV(t *testing.T, dir string) string {
 // whose groups hold one entry per distinct key. A malformed declaration
 // is refused with its own code.
 func TestCliImportGroup(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := writeGroupCSV(t, dir)
 	out := filepath.Join(dir, "out.pulse")
@@ -78,6 +80,8 @@ func TestCliImportGroup(t *testing.T) {
 // errors[0] with its own code and writes nothing; --dedup-ratio-floor
 // moves the floor.
 func TestCliImportGroupGate(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := writeGroupCSV(t, dir)
 	type entry struct {
@@ -155,6 +159,8 @@ func TestCliImportGroupGate(t *testing.T) {
 // cohort's physical layout and each group's realized figures, and marks
 // member fields; a 0x01 cohort prints none of it.
 func TestCliCohortInspectGroups(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := writeGroupCSV(t, dir)
 	out := filepath.Join(dir, "out.pulse")

@@ -36,8 +36,8 @@ type sourceZoneFlags struct {
 }
 
 // sourceZoneCLIFlags returns fresh --source-tz / --dst-policy flags for
-// `import auto`, which builds its flag list outside the shared
-// importFlags slice. The leaf must not split slice values on ','
+// `import auto`, which builds its flag list outside importFlags. The
+// leaf must not split slice values on ','
 // (importLeaf).
 func sourceZoneCLIFlags() []cli.Flag {
 	return []cli.Flag{

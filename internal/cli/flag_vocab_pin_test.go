@@ -42,6 +42,8 @@ func runDSTPolicy(t *testing.T, args ...string) (pio.DSTPolicy, error) {
 }
 
 func TestFlagVocab_DSTPolicyPin(t *testing.T) {
+	t.Parallel()
+
 	for _, in := range []string{"error", "earlier", "later"} {
 		got, err := runDSTPolicy(t, "--dst-policy", in)
 		if err != nil || got != pio.DSTPolicy(in) {
@@ -70,6 +72,8 @@ func TestFlagVocab_DSTPolicyPin(t *testing.T) {
 }
 
 func TestFlagVocab_LookupModePin(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]types.LookupMultiplicity{
 		"assert-unique": types.LookupMultiplicityAssertUnique,
 		"assert_unique": types.LookupMultiplicityAssertUnique,
@@ -98,6 +102,8 @@ func TestFlagVocab_LookupModePin(t *testing.T) {
 }
 
 func TestFlagVocab_LabelModePin(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]types.LabelMode{
 		"f=t":           types.LabelModeReplace,
 		"f=t:":          types.LabelModeReplace,
@@ -140,6 +146,8 @@ func runExplain(t *testing.T, args ...string) string {
 }
 
 func TestFlagVocab_ExplainRootPin(t *testing.T) {
+	t.Parallel()
+
 	missing := filepath.Join(t.TempDir(), "absent.json")
 	for _, root := range []string{"request", "composed", "chain", "facet", "sample"} {
 		msg := runExplain(t, "--root", root, "--request", missing)

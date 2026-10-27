@@ -26,6 +26,8 @@ func runAPI(t *testing.T, args ...string) (string, error) {
 // a Valid line in text mode, and a refused request carries its coded
 // errors and exits non-zero in text mode.
 func TestAPIPredictRoots(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "roots.csv", "n,cat\n1,a\n2,b\n3,a\n")
 	c := `{"filename":"` + cohort + `"}`
@@ -86,6 +88,8 @@ func TestAPIPredictRoots(t *testing.T) {
 // request with no cohort) is written with its own code, never the
 // PREDICT_ERROR placeholder.
 func TestAPIPredictRoots_CodedFacadeError(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	for leaf, body := range map[string]string{"predict-facet": `{"fields":["a"]}`, "predict-chain": `{}`} {
 		reqPath := filepath.Join(dir, leaf+"-nocohort.json")
@@ -112,6 +116,8 @@ func TestAPIPredictRoots_CodedFacadeError(t *testing.T) {
 // --echo-request publishes the root's normalized request on the
 // envelope's `request`, absent without the flag.
 func TestAPIPredictRoots_StrictAndEcho(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "roots.csv", "n,cat\n1,a\n2,b\n3,a\n")
 	c := `{"filename":"` + cohort + `"}`

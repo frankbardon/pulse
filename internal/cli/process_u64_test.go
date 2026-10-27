@@ -20,6 +20,8 @@ import (
 // (float64-echo) sort order; `--stream` NDJSON carries the same digits.
 // A WIN_LAG copy of the id prints its source's exact digits (E4-S7).
 func TestAPIProcessCLI_U64RecordRowsExact(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	ids := []uint64{1<<53 - 1, 1<<53 + 1, math.MaxUint64, 7}
 	// Sort id desc over the echo: MaxUint64, 2^53+1, 2^53-1, 7.
 	want := []uint64{math.MaxUint64, 1<<53 + 1, 1<<53 - 1, 7}

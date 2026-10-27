@@ -33,6 +33,8 @@ func runWorkersBefore(t *testing.T, args ...string) (context.Context, error) {
 //
 // Falsified by dropping withWorkers from withGlobals.
 func TestWorkerFlags_ThreadIntoOptions(t *testing.T) {
+	t.Parallel()
+
 	ctx, err := runWorkersBefore(t, "--shard-workers", "3", "--decode-workers", "1")
 	if err != nil {
 		t.Fatal(err)
@@ -63,8 +65,12 @@ func TestWorkerFlags_ThreadIntoOptions(t *testing.T) {
 //
 // Falsified by deleting the n < 0 refusal in workersBefore.
 func TestWorkerFlags_NegativeIsUsageError(t *testing.T) {
+	t.Parallel()
+
 	for _, flag := range []string{"--shard-workers", "--decode-workers"} {
 		t.Run(flag, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := runWorkersBefore(t, flag, "-2")
 			if status, _ := ExitStatus(err); status != ExitUsage {
 				t.Fatalf("%s -2: exit status %d (err %v), want %d", flag, status, err, ExitUsage)

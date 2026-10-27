@@ -25,6 +25,8 @@ import (
 // assertion is unchanged: what `pulse import spss` builds must carry the
 // two optional interfaces the import path keys off.
 func TestMakeImportReader_SPSS(t *testing.T) {
+	t.Parallel()
+
 	r, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("makeImportReader(spss): %v", err)
@@ -44,6 +46,8 @@ func TestMakeImportReader_SPSS(t *testing.T) {
 // mounted. Everything else in this story can be correct and the command
 // still not exist.
 func TestImportCommand_HasSPSSSubcommand(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range ImportCommand().Commands {
 		if c.Name == "spss" {
 			if c.Action == nil {
@@ -60,6 +64,8 @@ func TestImportCommand_HasSPSSSubcommand(t *testing.T) {
 // reach the option is the failure this catches: it changes nothing and
 // says nothing.
 func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
+	t.Parallel()
+
 	var got pio.SPSSWriterOptions
 	cmd := &cli.Command{
 		Flags: []cli.Flag{
@@ -86,6 +92,8 @@ func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
 // TestExportSPSS_HasEveryWriteFlag. The knobs have to be MOUNTED, which
 // is a different claim from io.SPSSWriterOptions carrying the fields.
 func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
+	t.Parallel()
+
 	var spssCmd *cli.Command
 	for _, c := range ExportCommand().Commands {
 		if c.Name == "spss" {
@@ -126,6 +134,8 @@ func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
 // --sanitize-names unmounted leaves it refusing an export that would have
 // succeeded, with no way for the caller to say otherwise.
 func TestExportPredict_HasTheTargetFlags(t *testing.T) {
+	t.Parallel()
+
 	var predict *cli.Command
 	for _, c := range ExportCommand().Commands {
 		if c.Name == "predict" {
@@ -152,6 +162,8 @@ func TestExportPredict_HasTheTargetFlags(t *testing.T) {
 // knob mounted on `export spss` alone would leave `pulse convert data.csv
 // out.sav` — the shortest path to a `.sav` — unable to ask for it.
 func TestConvertHasTheWriteFlags(t *testing.T) {
+	t.Parallel()
+
 	convert := ConvertCommand()
 	for _, name := range []string{"ignore-sidecar", "uncompressed", "sanitize-names"} {
 		assertHasFlag(t, convert, name)
@@ -172,6 +184,8 @@ func TestConvertHasTheWriteFlags(t *testing.T) {
 // codes all along. This effort built a rich PULSE_SPSS_* error surface
 // that was unreachable on the path users hit first.
 func TestWriteCodedErrorEnvelope_PreservesTheCode(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a coded error keeps its code and details", func(t *testing.T) {
 		var buf bytes.Buffer
 		err := perrors.NewCodedErrorWithDetails(perrors.PULSE_SPSS_SIDECAR_STALE,
@@ -226,6 +240,8 @@ func decodeEnvelope(t *testing.T, raw []byte) descriptor.Envelope {
 // which is where the Output Format Contract says warnings live. Burying
 // them in `data` would leave every generic envelope consumer blind.
 func TestWriteEnvelopeWithWarnings_LiftsCodes(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	warns := []*perrors.CodedError{
 		perrors.NewCodedErrorWithDetails(
@@ -261,6 +277,8 @@ func TestWriteEnvelopeWithWarnings_LiftsCodes(t *testing.T) {
 // degrade path byte-for-byte: every format other than SPSS emits no
 // source warnings, so their --json output must not move.
 func TestWriteEnvelopeWithWarnings_EmptyMatchesPlainEnvelope(t *testing.T) {
+	t.Parallel()
+
 	data := map[string]int{"rows": 3}
 	var withWarn, plain bytes.Buffer
 	if err := writeEnvelopeWithWarnings(&withWarn, data, nil); err != nil {
@@ -277,6 +295,8 @@ func TestWriteEnvelopeWithWarnings_EmptyMatchesPlainEnvelope(t *testing.T) {
 // TestWriteSourceWarnings_TextPath covers the human-readable surface,
 // including that a nil slice prints nothing at all.
 func TestWriteSourceWarnings_TextPath(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	writeSourceWarnings(&buf, nil)
 	if buf.Len() != 0 {
@@ -302,6 +322,8 @@ func TestWriteSourceWarnings_TextPath(t *testing.T) {
 // all. The flag has to be MOUNTED, which is a different claim from the
 // option existing.
 func TestImportSPSS_HasCharsetFlag(t *testing.T) {
+	t.Parallel()
+
 	var spssCmd *cli.Command
 	for _, c := range ImportCommand().Commands {
 		if c.Name == "spss" {
@@ -325,6 +347,8 @@ func TestImportSPSS_HasCharsetFlag(t *testing.T) {
 // readable — unable to ask for the slim schema, and would make the
 // default silently unoverridable there.
 func TestSPSSMissingFlagOnEverySPSSReachableLeaf(t *testing.T) {
+	t.Parallel()
+
 	convert := ConvertCommand()
 	assertHasFlag(t, convert, "spss-missing")
 	for _, sub := range convert.Commands {
@@ -345,6 +369,8 @@ func TestSPSSMissingFlagOnEverySPSSReachableLeaf(t *testing.T) {
 // into a format-level error. A typo'd
 // --spss-missing must not silently import under the default.
 func TestMakeImportReader_RejectsUnknownMissingMode(t *testing.T) {
+	t.Parallel()
+
 	_, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav",
 		pio.ReaderOptions{SPSS: pio.SPSSReaderOptions{MissingMode: "nul"}})
 	if err == nil {
@@ -360,6 +386,8 @@ func TestMakeImportReader_RejectsUnknownMissingMode(t *testing.T) {
 // survey.sav out.csv` — the shortest path from an SPSS file to something
 // readable — with no way to answer the same question.
 func TestCharsetFlagOnEverySPSSReachableLeaf(t *testing.T) {
+	t.Parallel()
+
 	convert := ConvertCommand()
 	assertHasFlag(t, convert, "charset")
 	for _, sub := range convert.Commands {
@@ -386,6 +414,8 @@ func TestCharsetFlagOnEverySPSSReachableLeaf(t *testing.T) {
 // discard information does not belong on the auto-detect convenience path;
 // `pulse import spss --spss-missing=null` is where asking for it is explicit.
 func TestImportAuto_CharsetWithoutMissingMode(t *testing.T) {
+	t.Parallel()
+
 	var auto *cli.Command
 	for _, c := range ImportCommand().Commands {
 		if c.Name == "auto" {
@@ -414,6 +444,8 @@ func TestImportAuto_CharsetWithoutMissingMode(t *testing.T) {
 // reaches the spec changes nothing and reports nothing — the silent failure
 // this story exists to close, one level further in.
 func TestImportAutoSpec_MapsEveryFlag(t *testing.T) {
+	t.Parallel()
+
 	var got pulse.ImportSpec
 	cmd := &cli.Command{
 		Flags: []cli.Flag{
@@ -457,6 +489,8 @@ func TestImportAutoSpec_MapsEveryFlag(t *testing.T) {
 // empty string forwarded as an override would make every non-SPSS import
 // carry a codepage request and every SPSS import ignore its own record 7/20.
 func TestImportAutoSpec_UnsetCharsetIsNotAnOverride(t *testing.T) {
+	t.Parallel()
+
 	var got pulse.ImportSpec
 	cmd := &cli.Command{
 		Flags: []cli.Flag{&cli.StringFlag{Name: "charset"}},
@@ -477,6 +511,8 @@ func TestImportAutoSpec_UnsetCharsetIsNotAnOverride(t *testing.T) {
 // excel's hand-copied flag slice with withImportFlags. A shared slice that
 // got appended to in place would corrupt every other leaf's flags.
 func TestImportExcel_SheetFlagStillMounted(t *testing.T) {
+	t.Parallel()
+
 	var excelCmd, csvCmd *cli.Command
 	for _, c := range ImportCommand().Commands {
 		switch c.Name {
@@ -520,6 +556,8 @@ func assertHasFlag(t *testing.T, cmd *cli.Command, name string) {
 // details must not. A marshal that flattened or dropped it would leave
 // "which entry do I exclude?" answerable only by opening the sidecar.
 func TestWriteEnvelopeWithWarnings_CarriesMissingCategories(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	warns := []*perrors.CodedError{
 		perrors.NewCodedErrorWithDetails(

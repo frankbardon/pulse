@@ -25,6 +25,8 @@ func runSkills(t *testing.T, args ...string) string {
 // lists the glossary and intents virtual skills and pulse skills show
 // prints their rendered bodies.
 func TestSkillsCommand_GuidanceSkills(t *testing.T) {
+	t.Parallel()
+
 	text := runSkills(t, "list")
 	var env struct {
 		Data []skills.Metadata `json:"data"`

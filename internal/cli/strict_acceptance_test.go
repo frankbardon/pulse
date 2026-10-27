@@ -364,6 +364,8 @@ func strictTemplateRows(c string) []strictRow {
 // TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey is the #311
 // acceptance table.
 func TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "strict.csv", "n,n2,cat\n1,2,a\n2,3,b\n3,5,a\n4,4,b\n")
 	c := `{"filename":` + strconv.Quote(cohort) + `}`

@@ -37,6 +37,8 @@ func writeWideCompose(t *testing.T, dir, cohort string, n int) string {
 // TestLimitFlag_BadValueOnNonMCPLeaf: a bad --limit on any leaf is a
 // usage error (exit 2) carrying CLI_INPUT {flag, value, limit}.
 func TestLimitFlag_BadValueOnNonMCPLeaf(t *testing.T) {
+	t.Parallel()
+
 	_, err := runApp(t, "api", "compose", "--request", "nope.json", "--limit", "max_compose_slots=lots")
 	if status, _ := pcli.ExitStatus(err); status != pcli.ExitUsage {
 		t.Fatalf("exit status %d (err %v), want %d", status, err, pcli.ExitUsage)
@@ -51,6 +53,8 @@ func TestLimitFlag_BadValueOnNonMCPLeaf(t *testing.T) {
 // TestLimitFlag_NoRequestLevelSlot: limits stay instance-level — the
 // payload schema gives Request and ComposedRequest no limit slot.
 func TestLimitFlag_NoRequestLevelSlot(t *testing.T) {
+	t.Parallel()
+
 	out, err := runApp(t, "schema")
 	if err != nil {
 		t.Fatal(err)

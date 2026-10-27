@@ -15,6 +15,8 @@ import (
 // `pulse cohort inspect` surfaces the SPSS sidecar's weighting variable
 // as suggested_weight on --json and as a "not applied" line in text.
 func TestCliCohortInspect_SuggestedWeight(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	raw, err := spsstest.Build(spsstest.Spec{
 		Vars: []spsstest.Var{

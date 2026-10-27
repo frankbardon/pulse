@@ -42,24 +42,29 @@ var floatFlagUsage = "Width an all-float column infers as, one of " + orList(pio
 // pio.Formats.
 var formatFlagUsage = "Input format (" + commaList(pio.Formats()) + ")"
 
-// importFlags are the common flags for all import format subcommands.
-var importFlags = []cli.Flag{
-	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
-	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
-	&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
-	&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
-	&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
-	&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
-	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
-	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
-	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
-	&cli.BoolFlag{Name: "strict", Usage: "Treat import warnings as errors: a partial import (PULSE_IMPORT_ROWS_DROPPED) and parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) fail the import, which writes nothing"},
-	&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
-	&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
-	&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
-	&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
-	&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
+// importFlags returns the common flags for all import format subcommands,
+// built fresh per call: a *cli.Flag carries its parsed value, so two
+// command trees built in one process (parallel tests) must not share
+// one.
+func importFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
+		&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
+		&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
+		&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
+		&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
+		&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
+		&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+		&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
+		&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
+		&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
+		&cli.BoolFlag{Name: "strict", Usage: "Treat import warnings as errors: a partial import (PULSE_IMPORT_ROWS_DROPPED) and parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) fail the import, which writes nothing"},
+		&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
+		&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
+		&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+		&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
+		&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
+	}
 }
 
 // vectorFlagUsage / vectorKindFlagUsage are the one-line help for
@@ -124,7 +129,7 @@ func importFormatCmd(format string) *cli.Command {
 	return importLeaf(&cli.Command{
 		Name:  format,
 		Usage: fmt.Sprintf("Import %s file into .pulse format", format),
-		Flags: importFlags,
+		Flags: importFlags(),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runImport(ctx, cmd, format)
 		},
@@ -132,10 +137,11 @@ func importFormatCmd(format string) *cli.Command {
 }
 
 // withImportFlags returns the common import flags plus the format-specific
-// extras, without mutating the shared slice.
+// extras, as a fresh slice.
 func withImportFlags(extra ...cli.Flag) []cli.Flag {
-	flags := make([]cli.Flag, 0, len(importFlags)+len(extra))
-	flags = append(flags, importFlags...)
+	base := importFlags()
+	flags := make([]cli.Flag, 0, len(base)+len(extra))
+	flags = append(flags, base...)
 	return append(flags, extra...)
 }
 

@@ -52,6 +52,8 @@ func assertSnakeData(t *testing.T, leaf, out string) map[string]any {
 // types as names (`"f64"`, never the type byte) — the managed-import
 // result's casing, fixed in place under format_version "1.1".
 func TestCliJSONCasing_ImportExportConvertShard(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := filepath.Join(dir, "in.csv")
 	if err := os.WriteFile(csvPath, []byte("a,b,c\n1,x,2.5\n2,y,3.5\n3,x,\n"), 0o644); err != nil {

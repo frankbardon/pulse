@@ -19,6 +19,8 @@ import (
 // every actionable leaf parses them after its own name and lists them
 // in help.
 func TestWorkerFlags_AcceptedOnEveryLeaf(t *testing.T) {
+	t.Parallel()
+
 	for _, leaf := range cliLeaves() {
 		if isCompletionLeafPath(strings.Fields(leaf)) {
 			continue // urfave's script printers: no instance, persistent flags unlisted
@@ -47,6 +49,8 @@ func TestWorkerFlags_AcceptedOnEveryLeaf(t *testing.T) {
 //
 // Falsified by dropping withWorkers from withGlobals.
 func TestWorkerFlags_ReachTheRun(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var shards []string
 	for i := range 3 {

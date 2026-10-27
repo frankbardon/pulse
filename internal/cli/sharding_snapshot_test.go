@@ -32,6 +32,8 @@ const shardingSnapshotRequest = `{
 // compared them to a live run. Regenerate with
 // `go test ./internal/cli/ -run TestShardingSnapshots -update`.
 func TestShardingSnapshots_MatchCLIOutput(t *testing.T) {
+	// serial: t.Chdir moves the process working directory; t.Setenv mutates the process environment
+
 	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "sharding"))
 	if err != nil {
 		t.Fatal(err)

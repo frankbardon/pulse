@@ -64,6 +64,8 @@ func repoPath(t *testing.T, rel string) string {
 // TestDocsExport_DefaultNeedsNoDataDir: with PULSE_DATA_DIR unset the
 // leaf exports the full reference, skills included, plus the marker.
 func TestDocsExport_DefaultNeedsNoDataDir(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_DATA_DIR", "")
 	os.Unsetenv("PULSE_DATA_DIR")
 	out := filepath.Join(t.TempDir(), "ref")
@@ -92,6 +94,8 @@ func TestDocsExport_DefaultNeedsNoDataDir(t *testing.T) {
 // TestDocsExport_FeatureProfileShrinksTree: the minimal example feature
 // profile exports strictly fewer files than the default instance.
 func TestDocsExport_FeatureProfileShrinksTree(t *testing.T) {
+	t.Parallel()
+
 	base := t.TempDir()
 	full := filepath.Join(base, "full")
 	minDir := filepath.Join(base, "min")
@@ -111,6 +115,8 @@ func TestDocsExport_FeatureProfileShrinksTree(t *testing.T) {
 // TestDocsExport_NoSkillsOmitsSkillPages: --no-skills leaves out
 // skills.md and the skills/ tree; --json reports it.
 func TestDocsExport_NoSkillsOmitsSkillPages(t *testing.T) {
+	t.Parallel()
+
 	out := filepath.Join(t.TempDir(), "ref")
 	stdout, err := runDocs(t, "export", "--out", out, "--no-skills", "--json")
 	if err != nil {
@@ -145,6 +151,8 @@ func TestDocsExport_NoSkillsOmitsSkillPages(t *testing.T) {
 // the export did not write fails non-zero, keeps the library code in
 // errors[0], and leaves the directory untouched.
 func TestDocsExport_UnmarkedNonEmptyDirRefused(t *testing.T) {
+	t.Parallel()
+
 	out := t.TempDir()
 	if err := os.WriteFile(filepath.Join(out, "notes.md"), []byte("mine\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -168,6 +176,8 @@ func TestDocsExport_UnmarkedNonEmptyDirRefused(t *testing.T) {
 // TestDocsExport_BadFeatureProfileIsCoded: an unreadable profile path
 // surfaces the profile reader's own code, not the placeholder.
 func TestDocsExport_BadFeatureProfileIsCoded(t *testing.T) {
+	t.Parallel()
+
 	out := filepath.Join(t.TempDir(), "ref")
 	stdout, err := runDocs(t, "export", "--out", out, "--feature-profile", filepath.Join(t.TempDir(), "absent.json"), "--json")
 	if err == nil {

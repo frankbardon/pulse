@@ -49,6 +49,8 @@ func runImportCLI(t *testing.T, args ...string) error {
 }
 
 func TestImportAutoCLI_CSVImport(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	_ = writeCSVFile(t, dir, "data.csv")
 
@@ -64,6 +66,8 @@ func TestImportAutoCLI_CSVImport(t *testing.T) {
 }
 
 func TestImportAutoCLI_PulsePassthrough(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	if err := os.WriteFile(filepath.Join(dir, "curated.pulse"), []byte("PULSE\x00\x00\x00\x01"), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -78,6 +82,8 @@ func TestImportAutoCLI_PulsePassthrough(t *testing.T) {
 }
 
 func TestImportListAndDropCLI(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	_ = writeCSVFile(t, dir, "data.csv")
 
@@ -102,6 +108,8 @@ func TestImportListAndDropCLI(t *testing.T) {
 }
 
 func TestImportAutoCLI_OverwriteRequired(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	_ = writeCSVFile(t, dir, "data.csv")
 
@@ -150,6 +158,8 @@ func writeUndeclaredCharsetSav(t *testing.T, dir, name string) string {
 // lived on `pulse import spss` and on spss.WithCharset, and `import auto`
 // reached neither.
 func TestImportAutoCLI_CharsetRescuesUndeclaredSav(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	writeUndeclaredCharsetSav(t, dir, "legacy.sav")
 
@@ -179,6 +189,8 @@ func TestImportAutoCLI_CharsetRescuesUndeclaredSav(t *testing.T) {
 // opinion about codepages must ignore it rather than reject it — and produce
 // the same cohort bytes it would have produced without it.
 func TestImportAutoCLI_CharsetInertForCSV(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	_ = writeCSVFile(t, dir, "data.csv")
 
@@ -220,6 +232,8 @@ func writeJoinCSVFile(t *testing.T, dir, name string, rows, customers int) {
 // TestImportAutoCLI_GroupFlag: --group reaches the managed cohort (0x02),
 // in the per-format leaves' own KEY:MEMBER syntax.
 func TestImportAutoCLI_GroupFlag(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	writeJoinCSVFile(t, dir, "orders.csv", 200, 10)
 	if err := runImportCLI(t, "auto", "--group", "cust_id:cust_lat,cust_lon", "orders.csv"); err != nil {
@@ -237,6 +251,8 @@ func TestImportAutoCLI_GroupFlag(t *testing.T) {
 // TestImportAutoCLI_GroupWarningInEnvelope: a gate finding lands in the
 // --json envelope's warnings array as a coded entry.
 func TestImportAutoCLI_GroupWarningInEnvelope(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	writeJoinCSVFile(t, dir, "orders.csv", 20, 12)
 	var out bytes.Buffer
@@ -268,6 +284,8 @@ func TestImportAutoCLI_GroupWarningInEnvelope(t *testing.T) {
 // TestImportAutoCLI_BadGroupFlagIsCoded: a malformed --group fails with
 // the declaration code and imports nothing.
 func TestImportAutoCLI_BadGroupFlagIsCoded(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	writeJoinCSVFile(t, dir, "orders.csv", 200, 10)
 	err := runImportCLI(t, "auto", "--group", "a:b:c", "orders.csv")
@@ -290,6 +308,8 @@ func TestImportAutoCLI_BadGroupFlagIsCoded(t *testing.T) {
 // the managed cohort exactly as the per-format leaf writes it — the two
 // cohorts are byte-identical, and differ from the flag-free import.
 func TestImportAutoCLI_SchemaFloatIgnoreExtra(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	src := writeCSVFile(t, dir, "data.csv")
 	schema := filepath.Join(dir, "s.json")

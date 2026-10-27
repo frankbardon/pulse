@@ -46,6 +46,8 @@ func buildWidenIndex(t *testing.T, cohort string) {
 // With no sidecars beside the cohort the leaf must print NOTHING extra.
 // An empty section is noise on the overwhelmingly common path.
 func TestWidenCLI_NoSidecarsPrintsNoHint(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeWidenCliCohort(t, cohort)
@@ -72,6 +74,8 @@ func TestWidenCLI_NoSidecarsPrintsNoHint(t *testing.T) {
 // it was NOT rebuilt, and prints the exact rebuild command including the
 // key tuple — which the sidecar's hashed filename cannot yield.
 func TestWidenCLI_TextArmPrintsTheSidecarHint(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeWidenCliCohort(t, cohort)
@@ -93,6 +97,8 @@ func TestWidenCLI_TextArmPrintsTheSidecarHint(t *testing.T) {
 // not as prose: a consumer must not have to parse a sentence to learn
 // which file to rebuild.
 func TestWidenCLI_JSONArmCarriesTheSidecarHintAsData(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeWidenCliCohort(t, cohort)
@@ -130,6 +136,8 @@ func TestWidenCLI_JSONArmCarriesTheSidecarHintAsData(t *testing.T) {
 // The key must be OMITTED, not emitted empty, when there is nothing to
 // report — the same rule the text arm follows.
 func TestWidenCLI_JSONArmOmitsTheHintWhenThereAreNoSidecars(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeWidenCliCohort(t, cohort)
@@ -153,6 +161,8 @@ func TestWidenCLI_JSONArmOmitsTheHintWhenThereAreNoSidecars(t *testing.T) {
 // oversight: rebuilding is unbounded work attached to a bounded
 // operation, and the user did not ask for it.
 func TestWidenCLI_HintDoesNotRebuildTheIndex(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeWidenCliCohort(t, cohort)

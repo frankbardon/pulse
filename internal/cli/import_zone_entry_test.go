@@ -57,6 +57,8 @@ func hasZoneCode(codes []string, c perrors.Code) bool {
 // and reports the resolved count; a date column named per-column is
 // CLI_INPUT.
 func TestImportAuto_SourceTZ(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	writeZoneCSV(t, dir)
 	var buf bytes.Buffer
@@ -90,6 +92,8 @@ func TestImportAuto_SourceTZ(t *testing.T) {
 // TestImportPredict_SourceTZ: predict raises the refusal the import would
 // and, under a policy, reports the resolved count in the envelope.
 func TestImportPredict_SourceTZ(t *testing.T) {
+	t.Parallel()
+
 	in := writeZoneCSV(t, t.TempDir())
 	root := ImportCommand()
 	root.Writer = &bytes.Buffer{}
@@ -117,6 +121,8 @@ func TestImportPredict_SourceTZ(t *testing.T) {
 // naive literal (Z literals verbatim), the --keep-pulse cohort stores the
 // same instant, and convert predict refuses the overlap without a policy.
 func TestConvert_SourceTZ(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	in := writeZoneCSV(t, dir)
 	out := filepath.Join(dir, "out.csv")

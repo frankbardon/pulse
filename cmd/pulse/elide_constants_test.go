@@ -14,6 +14,8 @@ import (
 // writes the full-pass constants once (format 0x02) and says so; without
 // the flag the same source imports as 0x01.
 func TestCliImportElideConstants(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var b strings.Builder
 	b.WriteString("id,kind,score\n")

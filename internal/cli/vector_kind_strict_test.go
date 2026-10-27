@@ -17,6 +17,8 @@ import (
 // predict error and a refused run whose envelope carries
 // PULSE_VECTOR_METRIC_UNSUITED as its own code.
 func TestAPIStrict_VectorMetricUnsuited(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "a,b,c\n"
 	for i := 0; i < 30; i++ {

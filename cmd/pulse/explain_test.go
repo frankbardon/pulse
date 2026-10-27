@@ -56,6 +56,8 @@ func writeFile(t *testing.T, dir, name, body string) string {
 // --json envelope unwrapped, another root through --root, and every
 // refusal under its own code in errors[0].
 func TestCliExplain(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "c.pulse")
 	if text, err := runApp(t, "import", "csv", "--input", writeGroupCSV(t, dir), "--output", cohort); err != nil {

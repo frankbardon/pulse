@@ -21,6 +21,8 @@ import (
 // — on the export leaf and on `export predict` with no --format alike, and a
 // refused export leaves no output file.
 func TestExportCSV_LabelsOnIntegerCodedField(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	tables := filepath.Join(dir, "tables")
 	if err := os.MkdirAll(tables, 0o755); err != nil {
@@ -91,6 +93,8 @@ func TestExportCSV_LabelsOnIntegerCodedField(t *testing.T) {
 // status 1 — on the export leaf, which leaves no output file, and on
 // `export predict` with no --format alike — instead of exporting unlabelled.
 func TestExportCSV_LabelsOnUnknownField(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	tables := filepath.Join(dir, "tables")
 	if err := os.MkdirAll(tables, 0o755); err != nil {

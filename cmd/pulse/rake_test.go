@@ -118,6 +118,8 @@ func weightedShares(t *testing.T, path, field, weight string) map[string]float64
 // the RakeResult, and the same request via --request (a literal, with a
 // flag overriding its out) or a margins FILE gives the same report.
 func TestCliRake_WritesWeightsThatHitTheTargets(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	src := filepath.Join(dir, "survey.pulse")
 	if text, err := runApp(t, "import", "csv", "--input", writeRakeCSV(t, dir), "--output", src); err != nil {
@@ -193,6 +195,8 @@ func TestCliRake_WritesWeightsThatHitTheTargets(t *testing.T) {
 // TestCliRake_RefusalsKeepTheirCode: every refusal is the envelope's
 // error with its OWN code, exits 1 and writes nothing.
 func TestCliRake_RefusalsKeepTheirCode(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	src := filepath.Join(dir, "survey.pulse")
 	if text, err := runApp(t, "import", "csv", "--input", writeRakeCSV(t, dir), "--output", src); err != nil {

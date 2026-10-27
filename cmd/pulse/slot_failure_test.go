@@ -16,6 +16,8 @@ import (
 // envelope; with --strict it exits 1 and the envelope's error carries
 // the slot's OWN code (writeCodedErrorEnvelope), never a placeholder.
 func TestCliSlotFailure_ExitFollowsTheEnvelope(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	f := newExitFixture(t)
 	var b strings.Builder
 	b.WriteString("x,y\n")

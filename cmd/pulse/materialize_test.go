@@ -52,6 +52,8 @@ func writeJSONFile(t *testing.T, dir, name string, v any) string {
 // keeps its own code in errors[0].code; an existing --out needs
 // --overwrite.
 func TestCliMaterialize_RegressionOnAWindowColumn(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	src := filepath.Join(dir, "series.pulse")
 	if text, err := runApp(t, "import", "csv", "--input", writeMaterializeCSV(t, dir), "--output", src); err != nil {

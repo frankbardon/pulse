@@ -19,6 +19,8 @@ import (
 // pulse.Options.Logger nil is the silent path — every named level gates
 // its records, json and text both render, and a bad value is CLI_INPUT.
 func TestNewLogger_LevelsAndFormats(t *testing.T) {
+	t.Parallel()
+
 	for _, lv := range []string{"", "off", "OFF"} {
 		lg, err := newLogger(lv, "text", io.Discard)
 		if err != nil || lg != nil {
@@ -60,6 +62,8 @@ func TestNewLogger_LevelsAndFormats(t *testing.T) {
 // pulse.Options.Logger; no logger in ctx leaves it nil; a caller's own
 // logger is never replaced.
 func TestLoggerFrom_ThreadsIntoOptions(t *testing.T) {
+	t.Parallel()
+
 	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ctx := context.WithValue(context.Background(), loggerKey{}, lg)
 	if got := withLogger(ctx, newOptsForTest()).Logger; got != lg {
@@ -79,6 +83,8 @@ func TestLoggerFrom_ThreadsIntoOptions(t *testing.T) {
 // TestStartMetrics_OnlyWhenAsked: no address opens no listener; an
 // address serves the registry on /metrics; a bad address is CLI_INPUT.
 func TestStartMetrics_OnlyWhenAsked(t *testing.T) {
+	t.Parallel()
+
 	srv, err := startMetrics("", obsprom.New())
 	if srv != nil || err != nil {
 		t.Fatalf("startMetrics(\"\") = %v, %v; want no listener", srv, err)

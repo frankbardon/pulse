@@ -71,6 +71,8 @@ func vectorParityListNDJSON() string {
 // a regex fold of sibling columns with a scale kind, and a bare
 // --vector over an NDJSON list column.
 func TestImportCLI_VectorMatchesLibrary(t *testing.T) {
+	t.Parallel()
+
 	min, max := 1.0, 7.0
 	cases := []struct {
 		name    string

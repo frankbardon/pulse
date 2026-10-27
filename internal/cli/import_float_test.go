@@ -43,6 +43,8 @@ func schemaLeaves(t *testing.T, csvPath, outDir string) []struct {
 // that is not registered is refused on every loader with its own code —
 // the old loader silently stored the column as f64.
 func TestImportCLI_UnknownSchemaTypeRefused(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := filepath.Join(dir, "src.csv")
 	if err := os.WriteFile(csvPath, []byte("a,b\n1,2.5\n3,4.5\n"), 0o644); err != nil {
@@ -68,6 +70,8 @@ func TestImportCLI_UnknownSchemaTypeRefused(t *testing.T) {
 // unknown width is refused with its own code — and the default infers
 // f64 while --float f32 opts the column into f32.
 func TestImportCLI_FloatFlag(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := filepath.Join(dir, "src.csv")
 	if err := os.WriteFile(csvPath, []byte("price\n0.1\n123456.789012\n"), 0o644); err != nil {
@@ -112,6 +116,8 @@ func TestImportCLI_FloatFlag(t *testing.T) {
 // TestImportCLI_SchemaTemplateFloat: schema-template inherits the f64
 // default and honours --float f32.
 func TestImportCLI_SchemaTemplateFloat(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := filepath.Join(dir, "src.csv")
 	if err := os.WriteFile(csvPath, []byte("price\n0.1\n123456.789012\n"), 0o644); err != nil {

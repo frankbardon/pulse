@@ -24,6 +24,8 @@ func writeReqFile(t *testing.T, body string) string {
 // cohort, as its help text says, even when the request file names
 // another one (and a data_dir that would otherwise prefix it).
 func TestAPILookupCLI_InputOverridesRequestCohort(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 	req := writeReqFile(t, `{"cohort":{"filename":"elsewhere.pulse","data_dir":"/nonexistent"},`+
 		`"keys":[{"field":"id","value":"2"}],"return_columns":["region"]}`)
@@ -47,6 +49,8 @@ func TestAPILookupCLI_InputOverridesRequestCohort(t *testing.T) {
 // TestAPILookupCLI_RequestCohortUsedWithoutInput: absent -i, the
 // request file's cohort still drives the run.
 func TestAPILookupCLI_RequestCohortUsedWithoutInput(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t, "id")
 	req := writeReqFile(t, `{"cohort":{"filename":"`+cohort+`"},`+
 		`"keys":[{"field":"id","value":"2"}],"return_columns":["region"]}`)
@@ -67,6 +71,8 @@ func TestAPILookupCLI_RequestCohortUsedWithoutInput(t *testing.T) {
 // TestAPIFacetCLI_InputOverridesRequestCohort is lookup's twin: the
 // facet leaf shares the "flags layer on top of the file" precedence.
 func TestAPIFacetCLI_InputOverridesRequestCohort(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t)
 	req := writeReqFile(t, `{"cohort":{"filename":"elsewhere.pulse"},"fields":["region"]}`)
 
@@ -97,6 +103,8 @@ func runCohortCLIOut(t *testing.T, buf *bytes.Buffer, args ...string) error {
 // inspect` takes -i/--input like every other leaf, and the positional
 // PATH still works; both read the same cohort.
 func TestCohortInspectCLI_InputFlagAndPositional(t *testing.T) {
+	t.Parallel()
+
 	cohort := lookupCLIFixture(t)
 	for name, args := range map[string][]string{
 		"short":      {"inspect", "-i", cohort, "--json"},
@@ -127,6 +135,8 @@ func TestCohortInspectCLI_InputFlagAndPositional(t *testing.T) {
 // TestCohortInspectCLI_MissingPathIsCliInput: neither -i nor a
 // positional is a coded CLI_INPUT envelope, not a bare usage string.
 func TestCohortInspectCLI_MissingPathIsCliInput(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	err := runCohortCLIOut(t, &buf, "inspect", "--json")
 	if err == nil {

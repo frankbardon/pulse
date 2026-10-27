@@ -13,6 +13,8 @@ import (
 // records to stderr and leaves stdout byte-identical to the flagless run,
 // `--json` envelopes included.
 func TestLogFlags_StderrOnly(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 	reqPath := filepath.Join(dir, "request.json")

@@ -102,6 +102,8 @@ func decodeWidenEnvelope(t *testing.T, buf *bytes.Buffer) widenEnvelope {
 }
 
 func TestWidenCLI_WidensCohortInPlace(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	before := writeWidenCliCohort(t, cohort)
@@ -136,6 +138,8 @@ func TestWidenCLI_WidensCohortInPlace(t *testing.T) {
 }
 
 func TestWidenCLI_JSONEnvelopeReportsTheRewrite(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "cohort.pulse")
 	writeWidenCliCohort(t, cohort)
@@ -169,6 +173,8 @@ func TestWidenCLI_JSONEnvelopeReportsTheRewrite(t *testing.T) {
 // `pulse errors lookup`, which is the only reason the envelope carries a
 // code field at all.
 func TestWidenCLI_JSONRefusalsCarryTheirOwnCode(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		field    string
@@ -225,6 +231,8 @@ func TestWidenCLI_JSONRefusalsCarryTheirOwnCode(t *testing.T) {
 }
 
 func TestWidenCLI_MissingCohortIsCoded(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	var buf bytes.Buffer
 	wantEnvelopeFatal(t, runWidenCLI(t, &buf, filepath.Join(dir, "nope.pulse"),
@@ -239,6 +247,8 @@ func TestWidenCLI_MissingCohortIsCoded(t *testing.T) {
 // and leave the archive byte-identical — treating a Zip64 archive as a
 // single-file cohort is the one failure mode that would destroy data.
 func TestWidenCLI_RefusesShardArchiveWithoutTouchingIt(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "archive.pulse")
 
@@ -289,6 +299,8 @@ func TestWidenCLI_RefusesShardArchiveWithoutTouchingIt(t *testing.T) {
 }
 
 func TestWidenCLI_MissingPositionalIsCliInput(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	wantEnvelopeFatal(t, runWidenCLI(t, &buf, "--field", "picks", "--to", "set_u128", "--json"))
 	env := decodeWidenEnvelope(t, &buf)

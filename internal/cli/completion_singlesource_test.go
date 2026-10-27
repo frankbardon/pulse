@@ -64,6 +64,8 @@ type parsedFile struct {
 // lister (the same one the flag's validator reads). The CLI-owned log
 // vocabulary is the one allowlisted exception.
 func TestCompletion_SingleSource(t *testing.T) {
+	t.Parallel()
+
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(".")
 	if err != nil {

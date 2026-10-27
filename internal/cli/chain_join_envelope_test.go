@@ -15,6 +15,8 @@ import (
 // output under their own codes, with their location (details.stage /
 // details.request) intact through writeCodedErrorEnvelope.
 func TestAPI_LocatedJoinRefusalsKeepCodeAndDetails(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "cat,n\n"
 	for i := range 20 {

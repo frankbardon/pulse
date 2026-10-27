@@ -77,6 +77,8 @@ func decodeRuntimeEnvelope(t *testing.T, out string) runtimeWarningEnvelope {
 // one, located by details.request (compose slot) / details.stage
 // (chain stage), and stays in data too.
 func TestAPI_RuntimeWarningsReachEnvelope(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	f := runtimeWarningFixture(t)
 	const leak, unref, trunc = "PULSE_FEAT_TARGET_LEAKAGE_RISK", "PULSE_VECTOR_UNREFERENCED", "PULSE_FACET_VALUES_TRUNCATED"
 	cases := []struct {
@@ -115,6 +117,8 @@ func TestAPI_RuntimeWarningsReachEnvelope(t *testing.T) {
 // TestAPI_StrictRuntimeWarningExitsFatal: under --strict the same
 // runtime warning is the run's coded error and the leaf exits 1.
 func TestAPI_StrictRuntimeWarningExitsFatal(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	f := runtimeWarningFixture(t)
 	out, err := runAPI(t, "process", "-r", f("process.json"), "--json", "--strict")
 	if status, _ := ExitStatus(err); status != ExitFatal {
@@ -130,6 +134,8 @@ func TestAPI_StrictRuntimeWarningExitsFatal(t *testing.T) {
 // its NDJSON with one {"warnings":[...]} record (compose: located by
 // details.request); a warning-free stream has none.
 func TestAPI_StreamEndsWithWarningsRecord(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	f := runtimeWarningFixture(t)
 	for _, tc := range []struct {
 		name string

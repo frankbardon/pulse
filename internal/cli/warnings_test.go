@@ -34,6 +34,8 @@ func manyWarnings(n int) []string {
 // a counted group with a bounded example list, not 2,900 lines. A test
 // that only asserted "something printed" would pass on the dump.
 func TestWriteWarningSummary_GroupsAndCapsRatherThanDumping(t *testing.T) {
+	t.Parallel()
+
 	const total = 2900
 	var buf bytes.Buffer
 	writeWarningSummary(&buf, manyWarnings(total), "prof.json (.warnings)")
@@ -65,6 +67,8 @@ func TestWriteWarningSummary_GroupsAndCapsRatherThanDumping(t *testing.T) {
 // a model nothing applied must be visible above thousands of
 // expected-outcome lines, not sorted underneath them by count.
 func TestWriteWarningSummary_AttentionGroupIsOnTheFirstScreen(t *testing.T) {
+	t.Parallel()
+
 	ws := append(manyWarnings(2900),
 		`model for numeric field "regard" not applied: predictor "brand" carries unsupported kind "numeric"`)
 	var buf bytes.Buffer
@@ -91,6 +95,8 @@ func TestWriteWarningSummary_AttentionGroupIsOnTheFirstScreen(t *testing.T) {
 // TestWriteWarningSummary_EmptyPrintsNothing lets every leaf call it
 // unconditionally.
 func TestWriteWarningSummary_EmptyPrintsNothing(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	writeWarningSummary(&buf, nil, "prof.json")
 	writeWarningSummary(&buf, []string{}, "prof.json")
@@ -106,6 +112,8 @@ func TestWriteWarningSummary_EmptyPrintsNothing(t *testing.T) {
 // verbatim. Counting it twice would report 1,590 conflicts where there
 // are 795.
 func TestDedupeWarnings_CollapsesTheDoubleReportedConflicts(t *testing.T) {
+	t.Parallel()
+
 	conflict := `conditional relationship conflict: field "dma" is already claimed by categorical pair (wave -> dma); dropping categorical pair (study -> dma)`
 	other := `conditional relationship conflict: field "region" is already claimed by categorical pair (wave -> region); dropping categorical pair (study -> region)`
 	got := dedupeWarnings([]string{conflict, other, conflict, other})
@@ -124,6 +132,8 @@ func TestDedupeWarnings_CollapsesTheDoubleReportedConflicts(t *testing.T) {
 // cohort inside a 1.65 MB document, and nothing told the operator they
 // existed.
 func TestWriteModelRecoverySummary_ReportsCheckedAndFlagged(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	rep := synth.FidelityReport{
 		SourceRows:    100,
@@ -165,6 +175,8 @@ func TestWriteModelRecoverySummary_ReportsCheckedAndFlagged(t *testing.T) {
 // A courtesy line must never speak up about a section that is not there,
 // and must never fail a generation that already succeeded.
 func TestWriteModelRecoverySummary_SilentWithoutAModelsSection(t *testing.T) {
+	t.Parallel()
+
 	fsys := afero.NewMemMapFs()
 	if err := afero.WriteFile(fsys, "/plain.json", []byte(`{"source_rows":1,"synthetic_rows":1}`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -185,6 +197,8 @@ func TestWriteModelRecoverySummary_SilentWithoutAModelsSection(t *testing.T) {
 // fidelity report is the only document carrying all three warning
 // channels, so without --fidelity-report there is no file to point at.
 func TestFidelityWarningsLocation_NamesTheFlagWhenThereIsNoReport(t *testing.T) {
+	t.Parallel()
+
 	if got := fidelityWarningsLocation(""); !strings.Contains(got, "--fidelity-report") {
 		t.Errorf("location without a report = %q, want the flag that would produce one", got)
 	}
@@ -255,6 +269,8 @@ func writeConditioningCohort(t *testing.T, path string, rowCount int) {
 // It also pins the redirect contract: stdout keeps exactly the bytes it
 // had, so `pulse profile create … > out` is unaffected.
 func TestProfileCreateCLI_WarningsReachStderrAndNotStdout(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "thin.pulse")
 	// 10 rows is below MinPairObservations (30), so --conditional emits
@@ -295,6 +311,8 @@ func TestProfileCreateCLI_WarningsReachStderrAndNotStdout(t *testing.T) {
 // data, so the human summary must not run — stdout stays exactly one
 // envelope and stderr stays empty.
 func TestProfileCreateCLI_JSONOutputCarriesNoWarningSummary(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "thin.pulse")
 	synthLibraryCohort(t, source, []synth.FieldSpec{
@@ -337,6 +355,8 @@ func TestProfileCreateCLI_JSONOutputCarriesNoWarningSummary(t *testing.T) {
 // summary and the model-recovery headline both land on stderr, and
 // stdout keeps exactly its two result lines.
 func TestSynthFromProfileCLI_WarningSummaryAndRecoveryLineOnStderr(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "cond.pulse")
 	writeConditioningCohort(t, source, 400)
@@ -381,6 +401,8 @@ func TestSynthFromProfileCLI_WarningSummaryAndRecoveryLineOnStderr(t *testing.T)
 // one carries the model-drop lines that hid the v0.32.x defect. A
 // summary reading one channel would still be blind to it.
 func TestSynthFromProfileCLI_WarningSummarySpansAllThreeChannels(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source := filepath.Join(dir, "thin.pulse")
 	// 10 rows is below MinPairObservations (30), so --conditional emits
@@ -432,6 +454,8 @@ func TestSynthFromProfileCLI_WarningSummarySpansAllThreeChannels(t *testing.T) {
 // run that prints no summary at all, must produce byte-identical
 // cohorts.
 func TestSynthFromProfileCLI_GeneratedCohortUnchangedByTheSummary(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	source, profile := synthFromProfileFixture(t, dir, 40, 2)
 

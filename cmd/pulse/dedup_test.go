@@ -19,6 +19,8 @@ import (
 // nothing and returns candidates; --strict turns a gate finding into
 // errors[0] with its own code; a shard archive is refused with a code.
 func TestCliDedup(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := writeGroupCSV(t, dir)
 	flat := filepath.Join(dir, "flat.pulse")
@@ -97,6 +99,8 @@ func TestCliDedup(t *testing.T) {
 // TestCliDedup_ShardArchive: a shard archive is refused with
 // SERVICE_VALIDATION, not rewritten.
 func TestCliDedup_ShardArchive(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	csvPath := writeGroupCSV(t, dir)
 	a, b := filepath.Join(dir, "a.pulse"), filepath.Join(dir, "b.pulse")

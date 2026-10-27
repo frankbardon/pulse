@@ -50,6 +50,8 @@ func vectorCLICohort(t *testing.T, path string, rows int) {
 // from-schema` generates one from a hand-written spec — the four
 // surfaces that refused a vector before #450.
 func TestSynthCLI_VectorFieldEverySurface(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	src := filepath.Join(dir, "vec.pulse")
 	vectorCLICohort(t, src, 400)

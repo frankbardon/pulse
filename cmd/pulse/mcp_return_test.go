@@ -10,6 +10,8 @@ import (
 // Config: an unknown preset fails startup with PULSE_RETURN_INVALID and
 // a real one lets the server come up.
 func TestMCP_ReturnFlag(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	dataDir := t.TempDir()
 	if code, _ := profileCode(runMCPBriefly(t, "--data-dir", dataDir, "--return", "lean")); code != errors.PULSE_RETURN_INVALID {

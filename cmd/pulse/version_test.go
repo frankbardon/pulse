@@ -10,6 +10,8 @@ import (
 // TestVersionSurfaces: `pulse --version` and the `pulse version` leaf both
 // report the single build version from internal/buildinfo, never a literal.
 func TestVersionSurfaces(t *testing.T) {
+	// serial: overrides the process-wide build version (buildinfo)
+
 	defer buildinfo.SetForTest("v0.0.0-test")()
 
 	out, err := runApp(t, "version")

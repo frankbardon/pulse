@@ -46,6 +46,8 @@ func decodeRecommend(t *testing.T, text string) recommendEnvelope {
 // tooling route for a non-analytic intent, and every refusal under its
 // own code in errors[0].
 func TestCliRecommend(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "c.pulse")
 	if text, err := runApp(t, "import", "csv", "--input", writeGroupCSV(t, dir), "--output", cohort); err != nil {

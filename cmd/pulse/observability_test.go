@@ -25,6 +25,8 @@ const cliHelperEnv = "GO_WANT_PULSE_CLI_HELPER"
 // arguments after "--" and exits with its status, when re-executed by
 // runCLIProcess / cliProcess.
 func TestCLIHelperProcess(t *testing.T) {
+	t.Parallel()
+
 	if os.Getenv(cliHelperEnv) != "1" {
 		return
 	}
@@ -63,6 +65,8 @@ func runCLIProcess(t *testing.T, args ...string) (stdout, stderr string) {
 // persistent flags, so every actionable leaf parses them after its own
 // name (urfave/cli v3 flags persist unless Local) and lists them in help.
 func TestLogFlags_AcceptedOnEveryLeaf(t *testing.T) {
+	t.Parallel()
+
 	leaves := cliLeaves()
 	if len(leaves) < 20 {
 		t.Fatalf("cliLeaves() = %d leaves; the walk is broken", len(leaves))
@@ -91,6 +95,8 @@ func TestLogFlags_AcceptedOnEveryLeaf(t *testing.T) {
 // TestLogFlags_BadValueIsRefused: an unknown level fails before any leaf
 // runs.
 func TestLogFlags_BadValueIsRefused(t *testing.T) {
+	t.Parallel()
+
 	if _, err := runApp(t, "version", "--log-level", "loud"); err == nil || !strings.Contains(err.Error(), "--log-level loud") {
 		t.Fatalf("--log-level loud: err = %v", err)
 	}
@@ -103,6 +109,8 @@ var metricsAddrRe = regexp.MustCompile(`metrics: ([0-9.:]+)\)`)
 // stderr, names the effective return / log level / bound exporter on the
 // startup line, and serves /metrics while it runs.
 func TestMCP_ObservabilityFlags(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	createTestPulseFile(t, dataDir)
 
@@ -239,6 +247,8 @@ func TestMCP_ObservabilityFlags(t *testing.T) {
 // TestMCP_NoMetricsAddrOpensNoPort: without --metrics-addr the startup
 // line names no exporter and no log level.
 func TestMCP_NoMetricsAddrOpensNoPort(t *testing.T) {
+	t.Parallel()
+
 	_, stderr := runCLIProcess(t, "mcp", "--data-dir", t.TempDir())
 	if !strings.Contains(stderr, ", return: standard)") {
 		t.Errorf("startup line = %q, want it to end at return: standard", stderr)

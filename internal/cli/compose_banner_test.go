@@ -13,6 +13,8 @@ import (
 // responses, and --stream (the matrix slots have no rows) ends with
 // exactly one {"banner":{...}} record; a banner-free batch streams none.
 func TestAPICompose_BannerSurfaces(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "bncli.csv", "n,cat,g\n1,a,x\n2,b,y\n3,a,y\n4,b,x\n")
 	write := func(name, body string) string {

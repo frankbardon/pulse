@@ -14,6 +14,8 @@ import (
 // mandatory PULSE_SHARD_INDEXES_UPDATED warning onto the envelope's
 // warnings array, with the action in its details.
 func TestShardIndexUpkeepCLI_WarningsRideTheEnvelope(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	a, b, c := filepath.Join(dir, "a.pulse"), filepath.Join(dir, "b.pulse"), filepath.Join(dir, "c.pulse")
 	arch := filepath.Join(dir, "arch.pulse")

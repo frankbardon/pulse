@@ -114,6 +114,8 @@ func shardWidenCLIFixture(t *testing.T) (archive, add string) {
 // not be buried in `data`, where a generic envelope consumer never
 // looks, and not be dropped entirely.
 func TestCliShardAddJson_SurfacesTheMandatoryWidenWarning(t *testing.T) {
+	t.Parallel()
+
 	archive, add := shardWidenCLIFixture(t)
 
 	var buf bytes.Buffer
@@ -155,6 +157,8 @@ func TestCliShardAddJson_SurfacesTheMandatoryWidenWarning(t *testing.T) {
 // The text path must print the warning too — a human running `shard add`
 // without --json still has to learn the archive was re-laid-out.
 func TestCliShardAddText_PrintsTheWidenWarning(t *testing.T) {
+	t.Parallel()
+
 	archive, add := shardWidenCLIFixture(t)
 
 	var buf bytes.Buffer
@@ -172,6 +176,8 @@ func TestCliShardAddText_PrintsTheWidenWarning(t *testing.T) {
 // `shard verify --json` carries per-set-field headroom so the widen is
 // foreseeable before it is billed for.
 func TestCliShardVerifyJson_ReportsSetWidthHeadroom(t *testing.T) {
+	t.Parallel()
+
 	archive, _ := shardWidenCLIFixture(t)
 
 	var buf bytes.Buffer

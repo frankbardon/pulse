@@ -23,6 +23,8 @@ import (
 // PULSE_LABEL_KEY_INVALID, and a float field is
 // PULSE_LABEL_FIELD_NOT_CATEGORICAL.
 func TestExportSPSS_LabelsBecomeValueLabels(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	tables := filepath.Join(dir, "tables")
 	if err := os.MkdirAll(tables, 0o755); err != nil {
@@ -94,6 +96,8 @@ func TestExportSPSS_LabelsBecomeValueLabels(t *testing.T) {
 // the loader keeps the order, the resolver reports it, the export carries it
 // onto the .sav, and Pulse's SPSS reader brings the codes back.
 func TestExportSPSS_LabelCodesFollowTheTableFileOrder(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	tables := filepath.Join(dir, "tables")
 	if err := os.MkdirAll(tables, 0o755); err != nil {
@@ -165,6 +169,8 @@ func TestExportSPSS_LabelCodesFollowTheTableFileOrder(t *testing.T) {
 // and a binding beside an honoured SPSS metadata sidecar. A clean binding
 // predicts clean.
 func TestExportPredict_LabelsRefuseLikeTheExport(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := t.TempDir()
 	tables := filepath.Join(dir, "tables")
 	if err := os.MkdirAll(tables, 0o755); err != nil {

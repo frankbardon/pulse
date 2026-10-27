@@ -17,6 +17,8 @@ import (
 // MAT_CORRELATION's params.summary.top_pairs reaches the wire as
 // vectors.top_pairs [{row, col, r, n}] ranked by |r|.
 func TestAPIProcess_MatrixUpperAndTopPairs(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	dir := withTempDataDir(t)
 	csv := "a,b,c,d\n"
 	for i := 0; i < 40; i++ {

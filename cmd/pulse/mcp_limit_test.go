@@ -10,6 +10,8 @@ import (
 // the server comes up; good values (and a profile limits section beside
 // them) let it start.
 func TestMCP_LimitFlag(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	dataDir := t.TempDir()
 	for _, bad := range []string{"max_widgets=5", "max_groups=lots", "request_timeout=30", "max_groups"} {

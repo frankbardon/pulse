@@ -120,6 +120,8 @@ func runConvert(t *testing.T, args ...string) (string, error) {
 // survived — or the convert to have failed with a coded error naming why.
 // The one thing no target is allowed to do is succeed while losing it.
 func TestConvertCLI_SavWideSetReachesEveryTarget(t *testing.T) {
+	t.Parallel()
+
 	source := wideBatterySav(t)
 
 	for _, tc := range []struct {
@@ -179,6 +181,8 @@ func TestConvertCLI_SavWideSetReachesEveryTarget(t *testing.T) {
 // quietly stopped reporting a set_u256 column would make `pulse export
 // predict` answer for a narrower cohort than the one on disk.
 func TestExportPredict_EveryTargetReportsTheWideSetField(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	cohort := filepath.Join(dir, "wide.pulse")
 	if err := os.WriteFile(cohort, wideSetPulse(t), 0o644); err != nil {

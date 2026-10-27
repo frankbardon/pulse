@@ -36,6 +36,8 @@ func sweepCLIFixture(t *testing.T) (dir string, write func(name, body string) st
 // combination, the same responses sequentially and with --parallel 0,
 // and --stream emits rows tagged with every expanded slot's index.
 func TestAPICompose_SweepRunsEveryExpandedSlot(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	_, write, composed := sweepCLIFixture(t)
 	path := write("sweep.json", composed)
 
@@ -107,6 +109,8 @@ func dataOf(t *testing.T, resp json.RawMessage) string {
 // TestAPIPredictCompose_ShowsSweepSummary: `pulse api predict-compose`
 // reports the sweep — axes, resolved mode, expanded count and labels.
 func TestAPIPredictCompose_ShowsSweepSummary(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	_, write, composed := sweepCLIFixture(t)
 	out, err := runAPI(t, "predict-compose", "--json", "-r", write("sweep.json", composed))
 	if err != nil {
@@ -146,6 +150,8 @@ func TestAPIPredictCompose_ShowsSweepSummary(t *testing.T) {
 // compose (both entry points) and predict-compose — never the
 // COMPOSE_ERROR / PREDICT_ERROR placeholder.
 func TestAPICompose_SweepFaultsKeepTheirCodes(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	_, write, _ := sweepCLIFixture(t)
 	// 32 x 32 = 1024 slots, over the default max_compose_slots of 1000.
 	vals := make([]string, 32)
@@ -188,6 +194,8 @@ func TestAPICompose_SweepFaultsKeepTheirCodes(t *testing.T) {
 // --stream, ends with exactly one {"ranking":[...]} record after the
 // last slot's rows; a rank-free sweep streams no such record.
 func TestAPICompose_SweepRankingSurfaces(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	_, write, unranked := sweepCLIFixture(t)
 	// Rank by each sweep slot's aggregation floor `n` (components, a
 	// list element selected by its label): every slot ties, so the
@@ -254,6 +262,8 @@ func TestAPICompose_SweepRankingSurfaces(t *testing.T) {
 // one {"sweep_seed":N} record before the ranking record; a grid sweep
 // streams none.
 func TestAPICompose_SampledSweepSeedSurfaces(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
 	_, write, grid := sweepCLIFixture(t)
 	cohort := grid[strings.Index(grid, `"filename":"`)+len(`"filename":"`):]
 	cohort = cohort[:strings.Index(cohort, `"`)]
