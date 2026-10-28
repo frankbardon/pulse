@@ -101,3 +101,94 @@ func TestOutputSlotRefusal_EveryRoot(t *testing.T) {
 		t.Fatalf("no output refused: %v", err)
 	}
 }
+
+// TestMaterializeOutputLayout_Casts: a `type` retypes the written field
+// (a decimal with its default or declared shape; a set widen keeps its
+// dictionary, any other target drops it), records the field read as
+// Cast.From and marks the column Rebuild; the column's own type (and a
+// decimal's own shape) is no cast. MaterializePlan stamps the zone on a
+// date ↔ datetime cast only: time_zone, else the default, else UTC.
+func TestMaterializeOutputLayout_Casts(t *testing.T) {
+	t.Parallel()
+
+	dict := encoding.NewDictionary()
+	if _, err := dict.Add("x"); err != nil {
+		t.Fatal(err)
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "n", Type: encoding.FieldTypeU32, Description: "Count of the source"},
+		{Name: "p", Type: encoding.FieldTypeDecimal128, Precision: 10, Scale: 2, Description: "Price of the source"},
+		{Name: "s", Type: encoding.FieldTypeSetU8, Dictionary: dict, Description: "Set of the source"},
+		{Name: "ts", Type: encoding.FieldTypeDateTime, Description: "Instant of the source"},
+	}}
+	cols := []MaterializeColumn{{Name: "d", Description: "derived d"}}
+	six := 6
+	req := &types.Request{Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+		{From: "n", Type: "decimal128"},
+		{From: "p", As: "p6", Type: "decimal128", Scale: &six},
+		{From: "p", As: "p_same", Type: "decimal128"},
+		{From: "s", Type: "set_u64"},
+		{From: "d", Type: "u8"},
+		{From: "n", As: "n_same", Type: "u32"},
+		{From: "ts", As: "day", Type: "date"},
+	}}}
+	layout, ce := MaterializeOutputLayout(req, schema, cols)
+	if ce != nil {
+		t.Fatal(ce)
+	}
+	want := []struct {
+		typ        encoding.FieldType
+		prec, scal uint8
+		cast       bool
+	}{
+		{encoding.FieldTypeDecimal128, 38, 0, true},
+		{encoding.FieldTypeDecimal128, 10, 6, true},
+		{encoding.FieldTypeDecimal128, 10, 2, false},
+		{encoding.FieldTypeSetU64, 0, 0, true},
+		{encoding.FieldTypeU8, 0, 0, true},
+		{encoding.FieldTypeU32, 0, 0, false},
+		{encoding.FieldTypeDate, 0, 0, true},
+	}
+	for i, w := range want {
+		f := layout[i]
+		if f.Field.Type != w.typ || f.Field.Precision != w.prec || f.Field.Scale != w.scal || (f.Cast != nil) != w.cast || f.Rebuild != w.cast {
+			t.Errorf("column %d = %+v (cast %+v), want %+v", i, f.Field, f.Cast, w)
+		}
+	}
+	if layout[3].Field.Dictionary != dict {
+		t.Errorf("a set widen dropped its dictionary")
+	}
+	if c := layout[4].Cast; c == nil || c.From.Type != encoding.FieldTypeF64 || c.From.Name != "d" {
+		t.Errorf("derived cast From = %+v, want the derived f64", c)
+	}
+	if c := layout[1].Cast; c == nil || c.From.Scale != 2 {
+		t.Errorf("decimal cast From = %+v, want the source shape", c)
+	}
+
+	for _, z := range []struct{ tz, def, want string }{
+		{"Europe/Berlin", "Asia/Tokyo", "Europe/Berlin"},
+		{"", "Asia/Tokyo", "Asia/Tokyo"},
+		{"", "", "UTC"},
+	} {
+		// The plan derives its own columns: no derived "d" here.
+		r := &types.Request{TimeZone: z.tz, Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+			{From: "n", Type: "decimal128"}, {From: "ts", As: "day", Type: "date"},
+		}}}
+		_, planned, ce := MaterializePlan(r, schema, nil, "s.pulse", z.def)
+		if ce != nil {
+			t.Fatal(ce)
+		}
+		for i, f := range planned {
+			wantZone := ""
+			if i == 1 {
+				wantZone = z.want
+			}
+			if f.Cast != nil && f.Cast.Zone != wantZone {
+				t.Errorf("tz %q default %q: column %d zone = %q, want %q", z.tz, z.def, i, f.Cast.Zone, wantZone)
+			}
+		}
+	}
+	if layout[6].Cast.Zone != "" {
+		t.Errorf("MaterializeOutputLayout set a zone; only MaterializePlan does")
+	}
+}

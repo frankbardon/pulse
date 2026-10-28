@@ -160,3 +160,42 @@ func TestMaterializeOutput_SidecarFollowsReorderAndRedescribe(t *testing.T) {
 		t.Errorf("value labels = %v, want %v", labels, want)
 	}
 }
+
+// TestMaterializeOutput_CastColumnSidecarRebuilt: a cast column's
+// variable is rebuilt from its written type (spss.RebuildVariable) —
+// never the source variable's stale description — while the uncast
+// columns keep theirs (Q1 its value labels).
+func TestMaterializeOutput_CastColumnSidecarRebuilt(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, labelledSavSpec(), Options{})
+	req := absentOutputRequest()
+	req.Output = &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+		{From: "ID", As: "id16", Type: "u16"}, {From: "Q1"}, {From: "WT"},
+	}}
+	res, err := p.Materialize(context.Background(), req, "derived.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("warnings %v, want the sidecar carried", res.Warnings)
+	}
+	sc, err := spss.LoadSidecar(afs, "derived.pulse", spss.WriterOptions{})
+	if err != nil || sc == nil || sc.Document == nil {
+		t.Fatalf("no fresh sidecar: %v", err)
+	}
+	labelled := map[string]int{}
+	pulseTypes := map[string]string{}
+	for _, v := range sc.Document.Payload.Variables {
+		pulseTypes[v.Name] = v.PulseType
+		for _, c := range v.Categories {
+			if c.Labelled {
+				labelled[v.Name]++
+			}
+		}
+	}
+	if pulseTypes["id16"] != "u16" || labelled["Q1"] != 2 {
+		t.Errorf("pulse types %v, labelled categories %v: want id16 rebuilt as u16, Q1 keeping its 2 labels", pulseTypes, labelled)
+	}
+}

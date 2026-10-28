@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 438,
+    "error_codes_count": 441,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11321,6 +11321,9 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATERIALIZE_CAST_FAILED",
+      "PULSE_MATERIALIZE_CAST_NULLED",
+      "PULSE_MATERIALIZE_CAST_UNSUPPORTED",
       "PULSE_MATERIALIZE_NO_DERIVED",
       "PULSE_MATERIALIZE_OUTPUT_DUPLICATE",
       "PULSE_MATERIALIZE_OUTPUT_INVALID",
@@ -13129,6 +13132,10 @@
       {
         "name": "label-display",
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
+      },
+      {
+        "name": "materialize-casts",
+        "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
       },
       {
         "name": "matrix-results",
@@ -20399,4 +20406,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 642fa6b0b5557ddd7ad8d1a9051b2b0b8d455f32facea8ee0550b6fa65583809
+// golden-hash: bea4223591d28fe7ba7b3fac917a64f8ea8535e77512e856d5ba79777120ecc7

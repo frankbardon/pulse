@@ -316,8 +316,8 @@ byte-identical to the earlier wire form.
 
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
 `Pulse.Materialize` writes: `columns` — a list of
-`#/$defs/MaterializeOutputColumn` `{from, as, description, nullable}`,
-`from` required — XOR `exclude` (field / derived-column names). It is
+`#/$defs/MaterializeOutputColumn` `{from, as, description, nullable,
+type, precision, scale, on_cast_error}`, `from` required — XOR `exclude` (field / derived-column names). It is
 additive: `format_version` stays `"1.1"` and omitting it writes the
 cohort Materialize always wrote, byte for byte. It is MATERIALIZE-ONLY:
 every other operation that takes a `Request` (process, compose, chain,
@@ -331,8 +331,14 @@ list, an `exclude` dropping every column or an entry without `from` is
 `PULSE_MATERIALIZE_OUTPUT_INVALID`; a name that is neither a source
 field nor a derived column is `PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN`;
 two columns under one name after `as` is
-`PULSE_MATERIALIZE_OUTPUT_DUPLICATE`. A null in a `nullable: false`
-column fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`. See
+`PULSE_MATERIALIZE_OUTPUT_DUPLICATE`; a `type` its column cannot cast
+to is `PULSE_MATERIALIZE_CAST_UNSUPPORTED`, an unknown `type`, a bad
+`precision` / `scale` or a misused `on_cast_error` (`"fail"` /
+`"null"`) `PULSE_MATERIALIZE_OUTPUT_INVALID`. A null in a `nullable:
+false` column fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`, a
+stored value its cast cannot represent with
+`PULSE_MATERIALIZE_CAST_FAILED` (or, `on_cast_error: "null"`, a null and
+a `PULSE_MATERIALIZE_CAST_NULLED` warning). See
 [Materializing Derived Columns](../library/materialize.md).
 
 ## Multiplicity slots

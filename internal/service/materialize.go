@@ -131,7 +131,7 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	// call PredictMaterialize makes too. Resolved last: every slot above
 	// has already read the full schema, so a column the output drops
 	// stays readable to them.
-	cols, layout, perr := descx.MaterializePlan(req, schema, s.instance, path)
+	cols, layout, perr := descx.MaterializePlan(req, schema, s.instance, path, s.defaultZone)
 	if perr != nil {
 		return perr
 	}

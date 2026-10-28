@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 )
@@ -46,11 +47,19 @@ func TestPulseMaterialize_OutputReshapes(t *testing.T) {
 	if !slices.Equal(names, []string{"total", "id"}) {
 		t.Fatalf("fields = %v", names)
 	}
-	// A later-story key is not decoded: strict decode refuses it.
+	// `type` decodes and retypes the column.
+	if _, err := invokeMaterialize(t, p, `{"request":{"cohort":{"filename":"`+src+`"},
+		"output":{"columns":[{"from":"id","type":"f64","on_cast_error":"fail"}]}},"out":"typed.pulse"}`); err != nil {
+		t.Fatalf("output.columns[0].type: %v", err)
+	}
+	if typed, _ := readCohort(t, p, "typed.pulse"); typed.Fields[0].Type != encoding.FieldTypeF64 {
+		t.Fatalf("typed id = %s, want f64", typed.Fields[0].Type)
+	}
+	// A misspelled column key is not decoded: strict decode refuses it.
 	_, err = invokeMaterialize(t, p, `{"request":{"cohort":{"filename":"`+src+`"},
-		"output":{"columns":[{"from":"id","type":"u64"}]}},"out":"typed.pulse"}`)
+		"output":{"columns":[{"from":"id","tpye":"u64"}]}},"out":"typed2.pulse"}`)
 	if codeOf(err) != perr.PULSE_REQUEST_UNKNOWN_FIELD {
-		t.Fatalf("output.columns[0].type: err %v, want PULSE_REQUEST_UNKNOWN_FIELD", err)
+		t.Fatalf("output.columns[0].tpye: err %v, want PULSE_REQUEST_UNKNOWN_FIELD", err)
 	}
 }
 

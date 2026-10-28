@@ -62,8 +62,10 @@ type MaterializePredictColumn struct {
 
 // MaterializeRisk is one data-dependent check a materialize run makes
 // on the records: the column it guards, the request path that asks for
-// it, the code the run fails with when a record does not pass, and the
-// check in words.
+// it, the code the run fails with when a record does not pass (or, for a
+// cast column with on_cast_error: "null", the warning it raises), and
+// the check in words — a cast's condition reads "f64 → u8: integral,
+// 0 ≤ v ≤ 255".
 type MaterializeRisk struct {
 	Column string `json:"column"`
 	Path   string `json:"path,omitempty"`

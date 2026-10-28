@@ -2726,6 +2726,9 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MATERIALIZE_CAST_FAILED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_FAILED"
+pulse/errors: const PULSE_MATERIALIZE_CAST_NULLED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_NULLED"
+pulse/errors: const PULSE_MATERIALIZE_CAST_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_UNSUPPORTED"
 pulse/errors: const PULSE_MATERIALIZE_NO_DERIVED pulse/errors.Code = "PULSE_MATERIALIZE_NO_DERIVED"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_DUPLICATE pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_DUPLICATE"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_INVALID pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
@@ -5395,6 +5398,10 @@ pulse/types: type MaterializeOutputColumn field As string "json:\"as,omitempty\"
 pulse/types: type MaterializeOutputColumn field Description *string "json:\"description,omitempty\""
 pulse/types: type MaterializeOutputColumn field From string "json:\"from\""
 pulse/types: type MaterializeOutputColumn field Nullable *bool "json:\"nullable,omitempty\""
+pulse/types: type MaterializeOutputColumn field OnCastError string "json:\"on_cast_error,omitempty\""
+pulse/types: type MaterializeOutputColumn field Precision *int "json:\"precision,omitempty\""
+pulse/types: type MaterializeOutputColumn field Scale *int "json:\"scale,omitempty\""
+pulse/types: type MaterializeOutputColumn field Type string "json:\"type,omitempty\""
 pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
@@ -6259,4 +6266,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3cae0de24f6002431ea7ef13f388dcbdc724c4138f31a2483cc941ba134a6f06
+// golden-hash: 79cc6da4e7cbd0a0c053ec253c3235794b67aedf63f9d092ac4e8de39f599113

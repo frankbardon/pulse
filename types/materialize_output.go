@@ -58,4 +58,36 @@ type MaterializeOutputColumn struct {
 	// PULSE_MATERIALIZE_OUTPUT_NULL (details column + row), nothing
 	// written.
 	Nullable *bool `json:"nullable,omitempty"`
+
+	// Type retypes the column: a field type name ("u8", "f64",
+	// "decimal128", "packed_bool", "date", "datetime", "set_u16", ...).
+	// Empty (or the column's own type) keeps it. The legal pairs:
+	// numeric (u4..u64, f32, f64, decimal128) → numeric; numeric ↔
+	// packed_bool (0 / 1 only); numeric epoch ↔ date (epoch days) /
+	// datetime (epoch seconds); date ↔ datetime in Request.TimeZone
+	// (else the instance default zone, else UTC: midnight, and the
+	// local day); set_* → a wider set_* rung. vec_* and categorical_*
+	// keep their type. Any other pair is PULSE_MATERIALIZE_CAST_UNSUPPORTED
+	// before anything is read; an unknown name is
+	// PULSE_MATERIALIZE_OUTPUT_INVALID (reason unknown_type). Every cast
+	// is exact or fails: a stored value that does not fit (a fraction to
+	// an integer, a value past the range, a non-0/1 to packed_bool)
+	// follows OnCastError.
+	Type string `json:"type,omitempty"`
+
+	// Precision and Scale shape a decimal128 Type (1 ≤ precision ≤ 38,
+	// 0 ≤ scale ≤ precision). Nil inherits a decimal128 column's own
+	// shape; from any other type the default is precision 38, scale 0.
+	// Set on any other Type they are refused (reason decimal_shape).
+	Precision *int `json:"precision,omitempty"`
+	Scale     *int `json:"scale,omitempty"`
+
+	// OnCastError is what a stored value the cast cannot represent does:
+	// "" / "fail" (the default) fails the run with
+	// PULSE_MATERIALIZE_CAST_FAILED (details column + row + value +
+	// reason), nothing written; "null" writes a null in its place and
+	// warns once per column with PULSE_MATERIALIZE_CAST_NULLED (details
+	// count). "null" needs a nullable output column and a Type
+	// (PULSE_MATERIALIZE_OUTPUT_INVALID otherwise).
+	OnCastError string `json:"on_cast_error,omitempty"`
 }

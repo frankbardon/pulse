@@ -85,7 +85,8 @@ var (
 	_                                                                                                                         = pulse.MaterializeResult{Target: "", Records: 0, DerivedColumns: []string(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
 	// The materialize-only output slot and its column entries.
 	_ = pulse.Request{Output: &types.MaterializeOutput{Exclude: []string(nil),
-		Columns: []types.MaterializeOutputColumn{{From: "a", As: "b", Description: (*string)(nil), Nullable: (*bool)(nil)}}}}
+		Columns: []types.MaterializeOutputColumn{{From: "a", As: "b", Description: (*string)(nil), Nullable: (*bool)(nil),
+			Type: "u8", Precision: (*int)(nil), Scale: (*int)(nil), OnCastError: "null"}}}}
 	// The no-execute materialize verdict and its result types.
 	_ func(*pulse.Pulse, context.Context, *pulse.Request) (*descriptor.Envelope, error) = (*pulse.Pulse).PredictMaterialize
 	_                                                                                   = descriptor.MaterializePredictResult{Valid: true, SchemaInfo: (*descriptor.PredictSchemaInfo)(nil),

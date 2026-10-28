@@ -835,7 +835,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATERIALIZE_OUTPUT_INVALID: {
-		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, or has a column entry without from. details.reason names the rule and details.path the offending key.",
+		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, has a column entry without from, names an unknown type, gives a precision / scale out of range or on a non-decimal type, or sets on_cast_error to an unknown value, without a type, or to null on a non-nullable column. details.reason names the rule and details.path the offending key.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -871,6 +871,36 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Output", "Columns", "*", "Nullable"},
 				Hint:   "Drop nullable: false from the column named by details.column (or set it true), or add a filterer that removes the rows where it is null (details.row is the first output row found).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_CAST_UNSUPPORTED: {
+		Message: "A materialize output column's type names a field type its column cannot cast to. Legal: numeric (u4..u64, f32, f64, decimal128) to numeric, numeric to and from packed_bool, numeric to and from date / datetime, date to and from datetime, a set to a wider set rung; vectors and categoricals keep their type.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Columns", "*", "Type"},
+				Hint:   "Drop the type from the column named by details.column, or name a type its from_type casts to (details.reason says why this pair is refused).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_CAST_FAILED: {
+		Message: "A stored value does not fit a materialize output column's cast type (a fraction to an integer, a value past the range, NaN to an exact type, or a value other than 0 / 1 to packed_bool), so nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Output", "Columns", "*", "OnCastError"},
+				Hint:   "Set on_cast_error: \"null\" on the column named by details.column (it must be nullable) to write a null in place of each such value, pick a wider type, or filter out the rows (details.row is the first output row found, details.value the value).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_CAST_NULLED: {
+		Message: "A materialize output column with on_cast_error: null nulled values its cast could not represent; details.count says how many.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Columns", "*", "OnCastError"},
+				Hint:   "Expected when on_cast_error is null. To fail instead of nulling, drop on_cast_error; to keep the values, pick a wider type for the column named by details.column.",
 			},
 		},
 	},

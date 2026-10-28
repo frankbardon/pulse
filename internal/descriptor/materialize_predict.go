@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/fieldcast"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,8 +30,11 @@ import (
 // the cohort writer would refuse with the same code and details). req is
 // the item-expanded request, schema the source's logical schema and
 // source the cohort path the run reads (only its base name is used).
-// Reads no record.
-func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source string) ([]MaterializeColumn, []MaterializeOutputField, *errors.CodedError) {
+// defaultZone is pulse.Options.DefaultTimeZone: a date ↔ datetime cast
+// reads local days in req.TimeZone, else defaultZone, else "UTC"
+// (MaterializeCast.Zone; the zone name was validated by the zone
+// pre-flight). Reads no record.
+func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *errors.CodedError) {
 	cols, ce := MaterializeColumns(req, schema, inst, source)
 	if ce != nil {
 		return nil, nil, ce
@@ -39,10 +43,32 @@ func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *Instance
 	if ce != nil {
 		return nil, nil, ce
 	}
+	zone := "UTC"
+	switch {
+	case req != nil && req.TimeZone != "":
+		zone = req.TimeZone
+	case defaultZone != "":
+		zone = defaultZone
+	}
+	for i := range layout {
+		if c := layout[i].Cast; c != nil && temporalPair(c.From.Type, layout[i].Field.Type) {
+			// A copy: the layout's casts are the plan's own.
+			cc := *c
+			cc.Zone = zone
+			layout[i].Cast = &cc
+		}
+	}
 	if ce := encx.DescriptionLengthRefusal(layoutFields(layout)); ce != nil {
 		return nil, nil, ce
 	}
 	return cols, layout, nil
+}
+
+// temporalPair reports whether from → to reads local days: date ↔
+// datetime.
+func temporalPair(from, to encoding.FieldType) bool {
+	return (from == encoding.FieldTypeDate && to == encoding.FieldTypeDateTime) ||
+		(from == encoding.FieldTypeDateTime && to == encoding.FieldTypeDate)
 }
 
 // layoutFields is the written schema's fields, in output order.
@@ -55,21 +81,38 @@ func layoutFields(layout []MaterializeOutputField) []encoding.Field {
 }
 
 // MaterializeRisks lists the data-dependent checks a materialize run of
-// req makes on the records, over its resolved layout: today one per
-// output.columns entry declaring `nullable: false` over a column that
-// may hold a null (a nullable source field, or any derived column) — the
-// run fails with PULSE_MATERIALIZE_OUTPUT_NULL at the first null row
-// (MaterializeOutputNull). Empty, never nil. Schema-only.
+// req makes on the records, over its resolved layout, per output.columns
+// entry in order: a cast that a stored value can fail
+// (fieldcast.Check — "f64 → u8: integral, 0 ≤ v ≤ 255"), coded
+// PULSE_MATERIALIZE_CAST_FAILED, or PULSE_MATERIALIZE_CAST_NULLED under
+// on_cast_error: "null" (path .type); then `nullable: false` over a
+// column that may hold a null (a nullable source field, or any derived
+// column) — the run fails with PULSE_MATERIALIZE_OUTPUT_NULL at the
+// first null row (MaterializeOutputNull). Empty, never nil. Schema-only.
 func MaterializeRisks(req *types.Request, schema *encoding.Schema, layout []MaterializeOutputField) []descriptor.MaterializeRisk {
 	risks := []descriptor.MaterializeRisk{}
 	if req == nil || req.Output == nil || req.Output.Columns == nil || len(layout) != len(req.Output.Columns) {
 		return risks
 	}
 	for i, c := range req.Output.Columns {
+		col := layout[i]
+		if cast := col.Cast; cast != nil {
+			if check := fieldcast.Check(cast.From, col.Field); check != "" {
+				code, then := errors.PULSE_MATERIALIZE_CAST_FAILED, "the run fails at the first value that does not and writes nothing"
+				if cast.NullOnError {
+					code, then = errors.PULSE_MATERIALIZE_CAST_NULLED, "a value that does not is written as null and counted in one warning"
+				}
+				risks = append(risks, descriptor.MaterializeRisk{
+					Column: col.Field.Name,
+					Path:   outputPath("columns", i, "type"),
+					Code:   string(code),
+					Check:  check + " — " + then,
+				})
+			}
+		}
 		if c.Nullable == nil || *c.Nullable {
 			continue
 		}
-		col := layout[i]
 		// A derived column is always written nullable; a source field
 		// carries its own flag.
 		mayBeNull := col.Derived >= 0
@@ -188,7 +231,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	// leads the errors: a request Process's operator construction would
 	// also refuse (FEAT_POLY degree 1) is refused by the run's pre-flight
 	// first, before any operator is built.
-	cols, layout, planErr := MaterializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort))
+	cols, layout, planErr := MaterializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort), opts.DefaultTimeZone)
 	if planErr != nil {
 		addCodedError(env, planErr)
 	}

@@ -2708,6 +2708,18 @@
         },
         "nullable": {
           "type": "boolean"
+        },
+        "on_cast_error": {
+          "type": "string"
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "scale": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
         }
       },
       "required": [
@@ -6702,4 +6714,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d11f88448393f1aad858516f6df0d910a5d2ed91d3ace3db9913e100aad5c4cc
+// golden-hash: decb397de3a59f2dc73c08dff1281afd38bca5a6aafa08f9ddfbe86ed7073e0a

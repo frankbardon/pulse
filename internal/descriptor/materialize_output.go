@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldcast"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,11 +26,29 @@ import (
 // or bucket) rather than copies: the source's SPSS sidecar variable for
 // it is regenerated from the written type and dictionary, never carried
 // (spss.RebuildVariable) — old value labels never land on new codes.
+//
+// Cast is the column's `type` cast (nil when it keeps its type): every
+// cell read is converted by fieldcast before the append. A cast column
+// is always Rebuild.
 type MaterializeOutputField struct {
 	Field   encoding.Field
 	Source  int
 	Derived int
 	Rebuild bool
+	Cast    *MaterializeCast
+}
+
+// MaterializeCast is one output column's cast: From is the field read
+// (the source field or derived column before any override — its type
+// and decimal shape), the written field is MaterializeOutputField.Field.
+// NullOnError is on_cast_error: "null". Zone is the zone a date ↔
+// datetime cast reads local days in (MaterializePlan sets it:
+// Request.TimeZone, else the instance default, else "UTC"); "" for
+// every other pair.
+type MaterializeCast struct {
+	From        encoding.Field
+	NullOnError bool
+	Zone        string
 }
 
 // outputPath renders a path inside the `output` slot for details.path.
@@ -151,6 +170,13 @@ func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols [
 		if c.Nullable != nil {
 			f.Field.Nullable = *c.Nullable
 		}
+		cast, ce := outputCast(c, i, all[at].Field, &f.Field)
+		if ce != nil {
+			return nil, ce
+		}
+		if cast != nil {
+			f.Cast, f.Rebuild = cast, true
+		}
 		path := outputPath("columns", i, "")
 		if first, dup := seen[f.Field.Name]; dup {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_OUTPUT_DUPLICATE,
@@ -161,6 +187,83 @@ func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols [
 		layout = append(layout, f)
 	}
 	return layout, nil
+}
+
+// outputCast resolves column i's `type` / `precision` / `scale` /
+// `on_cast_error` against from, the field it reads, retyping *to (the
+// written field, its name / description / nullability already
+// resolved). Nil when the column keeps its type. Refuses
+// PULSE_MATERIALIZE_OUTPUT_INVALID (unknown_type, decimal_shape,
+// on_cast_error_invalid, on_cast_error_without_type,
+// on_cast_error_not_nullable) and PULSE_MATERIALIZE_CAST_UNSUPPORTED
+// (fieldcast.Unsupported) — the one matrix the run's conversion uses.
+func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to *encoding.Field) (*MaterializeCast, *errors.CodedError) {
+	nullOnError := false
+	switch c.OnCastError {
+	case "", "fail":
+	case "null":
+		nullOnError = true
+	default:
+		return nil, outputInvalid("on_cast_error_invalid", outputPath("columns", i, "on_cast_error"),
+			"output.columns["+strconv.Itoa(i)+"].on_cast_error is "+strconv.Quote(c.OnCastError)+"; use \"fail\" (the default) or \"null\"")
+	}
+	if c.Type == "" {
+		switch {
+		case c.OnCastError != "":
+			return nil, outputInvalid("on_cast_error_without_type", outputPath("columns", i, "on_cast_error"),
+				"output.columns["+strconv.Itoa(i)+"] sets on_cast_error without a type; it applies only to a cast column")
+		case c.Precision != nil || c.Scale != nil:
+			return nil, outputInvalid("decimal_shape", outputPath("columns", i, "precision"),
+				"output.columns["+strconv.Itoa(i)+"] sets precision / scale without type: \"decimal128\"")
+		}
+		return nil, nil
+	}
+	typ, ok := encoding.ParseFieldType(c.Type)
+	if !ok {
+		return nil, outputInvalid("unknown_type", outputPath("columns", i, "type"),
+			"output.columns["+strconv.Itoa(i)+"].type "+strconv.Quote(c.Type)+" is not a field type")
+	}
+	if why := fieldcast.Unsupported(from.Type, typ); why != "" {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+			"output column "+strconv.Quote(to.Name)+" cannot cast "+strconv.Quote(from.Name)+" from "+from.Type.String()+" to "+typ.String()+": "+why,
+			map[string]any{"column": to.Name, "path": outputPath("columns", i, "type"), "from": from.Name,
+				"from_type": from.Type.String(), "to_type": typ.String(), "reason": why})
+	}
+	var precision, scale uint8
+	if typ.IsDecimal() {
+		p, s := 38, 0
+		if from.Type.IsDecimal() {
+			p, s = int(from.Precision), int(from.Scale)
+		}
+		if c.Precision != nil {
+			p = *c.Precision
+		}
+		if c.Scale != nil {
+			s = *c.Scale
+		}
+		if p < 1 || p > encoding.MaxDecimalPrecision || s < 0 || s > p {
+			return nil, outputInvalid("decimal_shape", outputPath("columns", i, "precision"),
+				"output.columns["+strconv.Itoa(i)+"] declares decimal128("+strconv.Itoa(p)+","+strconv.Itoa(s)+"); precision must be 1..38 and scale 0..precision")
+		}
+		precision, scale = uint8(p), uint8(s)
+	} else if c.Precision != nil || c.Scale != nil {
+		return nil, outputInvalid("decimal_shape", outputPath("columns", i, "precision"),
+			"output.columns["+strconv.Itoa(i)+"] sets precision / scale on type "+strconv.Quote(c.Type)+"; they shape only a decimal128")
+	}
+	if nullOnError && !to.Nullable {
+		return nil, outputInvalid("on_cast_error_not_nullable", outputPath("columns", i, "on_cast_error"),
+			"output.columns["+strconv.Itoa(i)+"] sets on_cast_error: \"null\" on a column that is not nullable; set nullable: true or drop on_cast_error")
+	}
+	if typ == from.Type && (!typ.IsDecimal() || (precision == from.Precision && scale == from.Scale)) {
+		return nil, nil
+	}
+	to.Type, to.Precision, to.Scale = typ, precision, scale
+	if !typ.IsSet() {
+		// A set widen keeps its labels; every other cast target carries
+		// no dictionary.
+		to.Dictionary = nil
+	}
+	return &MaterializeCast{From: from, NullOnError: nullOnError}, nil
 }
 
 // materializeOutputShape is the schema-free half of the `output`
@@ -197,6 +300,26 @@ func MaterializeOutputNull(column string, row int64) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_OUTPUT_NULL,
 		"output column "+strconv.Quote(column)+" is declared nullable: false but row "+strconv.FormatInt(row, 10)+" holds a null; nothing was written",
 		map[string]any{"column": column, "row": row})
+}
+
+// MaterializeCastFailed is the run-time refusal of a stored value an
+// output column's cast cannot represent (fieldcast.Failure): details
+// column (the output name), row (the 0-based output row), from_type,
+// to_type, value (rendered exactly) and reason. Raised before the row is
+// appended, so nothing is written at the target.
+func MaterializeCastFailed(column string, row int64, from, to encoding.Field, value, reason string) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_CAST_FAILED,
+		"output column "+strconv.Quote(column)+" cannot cast row "+strconv.FormatInt(row, 10)+"'s value "+value+" from "+from.Type.String()+" to "+to.Type.String()+" ("+reason+"); nothing was written",
+		map[string]any{"column": column, "row": row, "from_type": from.Type.String(), "to_type": to.Type.String(), "value": value, "reason": reason})
+}
+
+// MaterializeCastNulled is the warning an on_cast_error: "null" column
+// raises once when its cast nulled count values, the first at output
+// row first.
+func MaterializeCastNulled(column string, count, first int64, from, to encoding.Field) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_CAST_NULLED,
+		"output column "+strconv.Quote(column)+" nulled "+strconv.FormatInt(count, 10)+" value(s) its "+from.Type.String()+" → "+to.Type.String()+" cast could not represent (on_cast_error: null)",
+		map[string]any{"column": column, "count": count, "first_row": first, "from_type": from.Type.String(), "to_type": to.Type.String()})
 }
 
 // MaterializeOutputOnly is the refusal of the materialize-only `output`

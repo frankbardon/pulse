@@ -9,8 +9,10 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldcast"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -43,6 +45,8 @@ type MaterializeResult struct {
 	// Warnings are the non-fatal coded findings: the derived columns'
 	// (a fitted vector attribute's PULSE_MATRIX_SINGULAR /
 	// PULSE_MATRIX_INSUFFICIENT_N fit, whose column is then all null),
+	// one PULSE_MATERIALIZE_CAST_NULLED per output column whose
+	// on_cast_error: "null" cast nulled a value,
 	// the cohort write's (PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak
 	// source description), then a PULSE_SPSS_SIDECAR_STALE / _INVALID when
 	// the source's SPSS sidecar could not be carried, then one
@@ -107,7 +111,17 @@ type MaterializeResult struct {
 // derived column, renamed by `as`, its description / nullability
 // overridable, every omitted key inherited), `exclude` drops the named
 // ones. A null in a column the layout declares non-nullable fails the
-// run with PULSE_MATERIALIZE_OUTPUT_NULL (details column + row). With
+// run with PULSE_MATERIALIZE_OUTPUT_NULL (details column + row). A
+// column's `type` retypes it (MaterializeOutputColumn.Type: the
+// numeric / packed_bool / date-family / set-widen matrix, exact or
+// failing; date ↔ datetime in the request time_zone, else
+// Options.DefaultTimeZone, else UTC): an illegal pair is
+// PULSE_MATERIALIZE_CAST_UNSUPPORTED before anything is read, a stored
+// value that does not fit fails the run with
+// PULSE_MATERIALIZE_CAST_FAILED (details column + row + value + reason)
+// unless the column says on_cast_error: "null", which writes a null and
+// warns once with the count; source integers (u64 past 2^53 included)
+// never route through float64. With
 // an output block a request needs no derived column (a pure reshape),
 // and the source's SPSS sidecar is carried through the layout (a
 // dropped column loses its variable, a renamed or duplicated one keeps
@@ -143,13 +157,15 @@ func (p *Pulse) Materialize(ctx context.Context, req *Request, out string, opts 
 // output schema the run writes (each column's name, type, nullability,
 // description, dictionary and the column it reads), the derived column
 // names, and the data-dependent risks — the checks only the records
-// can settle (a `nullable: false` column over a column that may hold a
-// null). Every static refusal the run raises is a coded env.Errors
+// can settle (a cast a stored value can fail, coded by its
+// on_cast_error; a `nullable: false` column over a column that may hold
+// a null). Every static refusal the run raises is a coded env.Errors
 // entry with the run's code and details, Valid false: the slot gates
 // (the instance's, then PULSE_MATERIALIZE_SLOT_UNSUPPORTED),
 // PULSE_MATERIALIZE_NO_DERIVED, Process's pre-flight and operator
 // checks, PULSE_MATERIALIZE_OUTPUT_UNDECLARED, the output block's
-// refusals and an over-long written description — the run's pre-flight
+// refusals (an illegal cast pair, PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+// included) and an over-long written description — the run's pre-flight
 // shares the one plan call (descx.MaterializePlan), so the two cannot
 // drift. A weak description of the written schema is a
 // PULSE_FIELD_DESCRIPTION_LOW_QUALITY warning, as the run warns.
@@ -214,7 +230,7 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 		Target:              built.Target,
 		Records:             built.Records,
 		DerivedColumns:      sink.names,
-		Warnings:            append(append(append([]*errors.CodedError(nil), sink.warns...), built.Warnings...), carried...),
+		Warnings:            append(append(append(append([]*errors.CodedError(nil), sink.warns...), sink.castWarnings()...), built.Warnings...), carried...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
 	}
 	if len(built.InvalidatedSidecars) > 0 {
@@ -261,6 +277,24 @@ type materializeSink struct {
 	// index (the SPSS carry's projection names the column each reads).
 	srcNames        []string
 	srcDescriptions []string
+	// casts holds, per layout column, its cast (nil when it keeps its
+	// type); nulled / firstNulled count, per column, the values an
+	// on_cast_error: "null" cast nulled and the first output row.
+	casts       []*fieldcast.Plan
+	nulled      []int64
+	firstNulled []int64
+}
+
+// castWarnings is one PULSE_MATERIALIZE_CAST_NULLED warning per column
+// whose on_cast_error: "null" cast nulled a value, in output order.
+func (m *materializeSink) castWarnings() []*errors.CodedError {
+	var out []*errors.CodedError
+	for i, n := range m.nulled {
+		if n > 0 {
+			out = append(out, descx.MaterializeCastNulled(m.layout[i].Field.Name, n, m.firstNulled[i], m.casts[i].From, m.casts[i].To))
+		}
+	}
+	return out
 }
 
 // projection describes each written column for the SPSS carry
@@ -277,7 +311,7 @@ func (m *materializeSink) projection() []spss.ProjectedColumn {
 			if d := col.Field.Description; d != m.srcDescriptions[col.Source] {
 				pc.Label = &d
 			}
-		case col.Derived >= 0 && m.inherited[col.Derived] != nil:
+		case col.Derived >= 0 && m.inherited[col.Derived] != nil && !col.Rebuild:
 			pc.Mirror = &spss.Mirror{Source: m.sources[col.Derived], Observed: m.observed[col.Derived]}
 		}
 		cols[i] = pc
@@ -360,12 +394,40 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 	if m.names == nil {
 		m.names = []string{}
 	}
+	if err := m.planCasts(); err != nil {
+		return err
+	}
 	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields, Vectors: vecs},
 		CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite})
 	if err != nil {
 		return err
 	}
 	m.builder = b
+	return nil
+}
+
+// planCasts builds each cast column's fieldcast.Plan, loading the zone
+// a date ↔ datetime cast reads local days in (validated by the zone
+// pre-flight before Begin).
+func (m *materializeSink) planCasts() error {
+	m.casts = make([]*fieldcast.Plan, len(m.layout))
+	m.nulled = make([]int64, len(m.layout))
+	m.firstNulled = make([]int64, len(m.layout))
+	for i, col := range m.layout {
+		c := col.Cast
+		if c == nil {
+			continue
+		}
+		plan := &fieldcast.Plan{From: c.From, To: col.Field}
+		if c.Zone != "" {
+			z, err := temporal.LoadZone(c.Zone)
+			if err != nil {
+				return err
+			}
+			plan.Zone = z
+		}
+		m.casts[i] = plan
+	}
 	return nil
 }
 
@@ -400,6 +462,19 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 			v = row[col.Source]
 		} else {
 			v = derived[col.Derived]
+		}
+		if c := m.casts[i]; c != nil && v != nil {
+			cv, fail := c.Apply(v)
+			if fail != nil {
+				if !col.Cast.NullOnError {
+					return descx.MaterializeCastFailed(col.Field.Name, m.rows, c.From, c.To, fail.Value, fail.Reason)
+				}
+				if m.nulled[i] == 0 {
+					m.firstNulled[i] = m.rows
+				}
+				m.nulled[i]++
+			}
+			v = cv
 		}
 		if v == nil && !col.Field.Nullable {
 			return descx.MaterializeOutputNull(col.Field.Name, m.rows)

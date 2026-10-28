@@ -32,10 +32,10 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 - **Label outputs** you will reference: the column name is the label.
 - Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Every refusal precedes any write; the write is atomic.
-- `sort` orders the ROWS only (keys: source fields or derived columns; Process's comparator, nulls last); window values follow each window's own `order_by`.
+- `sort` orders ROWS only (source or derived keys, nulls last); window values follow each window's own `order_by`.
 - Single-file output; the SPSS metadata sidecar is carried, no other sidecar.
 <!-- feature: capability:materialize_output -->
-- **`output`** picks, orders, renames and describes the columns, applied last (`derived-cohorts`).
+- **`output`** picks, orders, renames, describes and retypes (`type`) the columns, applied last (`derived-cohorts`, `materialize-casts`).
 <!-- /feature -->
 
 ## See

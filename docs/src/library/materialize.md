@@ -124,6 +124,39 @@ res, err := p.Materialize(ctx, &pulse.Request{
   time fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`
   (`details.column`, `details.row` — the 0-based output row), nothing
   written.
+- **Retyping: `type`.** A column's `type` (a field type name) casts it;
+  empty or its own type keeps it. Every cast is exact or fails — a
+  source integer (a `u64` past 2^53 included) never goes through
+  `float64` on its way to an integer or `decimal128`:
+
+  | From → to | Rule |
+  |---|---|
+  | numeric (`u4`..`u64`, `f32`, `f64`, `decimal128`) → numeric | a fraction to an integer and a value past the range fail; to `f32` / `f64` rounds to nearest (only an overflow to ±Inf fails) |
+  | numeric → `packed_bool` | `0` / `1` only; `packed_bool` → numeric is `0` / `1` |
+  | numeric → `date` / `datetime` | the epoch count (days / seconds), integral and in range; `date` / `datetime` → numeric is the epoch count |
+  | `date` → `datetime` | local midnight in `time_zone` (else `Options.DefaultTimeZone`, else UTC; a day whose midnight DST skips starts at its first instant) |
+  | `datetime` → `date` | the local day in that zone, truncating toward the past |
+  | `set_*` → a wider `set_*` | the labels and dictionary unchanged |
+  | `vec_*`, `categorical_*` | keep their type |
+
+  `decimal128` takes `precision` / `scale` (a decimal column's own
+  shape by default, else `38` / `0`; a float keeps its shortest printed
+  digits, and more fractional digits than `scale` fail). Any other pair
+  is `PULSE_MATERIALIZE_CAST_UNSUPPORTED` (`details.column`, `path`,
+  `from`, `from_type`, `to_type`, `reason`); an unknown name, a bad
+  decimal shape and every `on_cast_error` misuse are
+  `PULSE_MATERIALIZE_OUTPUT_INVALID` (`unknown_type`, `decimal_shape`,
+  `on_cast_error_invalid`, `on_cast_error_without_type`,
+  `on_cast_error_not_nullable`) — all before a record is read, and
+  predicted identically.
+- **A value that does not fit.** By default it fails the run with
+  `PULSE_MATERIALIZE_CAST_FAILED` (`details.column`, `row`, `value`
+  rendered exactly, `reason`: `fractional` / `overflow` / `not_finite` /
+  `not_boolean`), nothing written. `on_cast_error: "null"` (on a
+  nullable output column only) writes a null instead and warns once
+  per column with `PULSE_MATERIALIZE_CAST_NULLED` (`details.count`,
+  `first_row`). A cast column's SPSS variable is rebuilt from its new
+  type — no old value label lands on the cast values.
 - **Projection is last.** Filters, `sort`, weights, features,
   attributes and windows read the full source schema plus the derived
   columns, so they may name a column the output drops.
@@ -159,9 +192,12 @@ one) and writes nothing. It returns the whole envelope, `Data` a
   does) and a decimal's `precision` / `scale`;
 - `derived_columns` — the run's `MaterializeResult.DerivedColumns`;
 - `risks` — the checks only the records can settle, each
-  `{column, path, code, check}` with the code the run fails with (today
-  a `nullable: false` column over one that may hold a null:
-  `PULSE_MATERIALIZE_OUTPUT_NULL`);
+  `{column, path, code, check}` with the code the run fails with: a
+  cast a stored value can fail (`check` such as `f64 → u8: integral,
+  0 ≤ v ≤ 255`; `PULSE_MATERIALIZE_CAST_FAILED`, or
+  `PULSE_MATERIALIZE_CAST_NULLED` — the warning — under
+  `on_cast_error: "null"`), and a `nullable: false` column over one
+  that may hold a null (`PULSE_MATERIALIZE_OUTPUT_NULL`);
 - `schema_info` — the source's field names.
 
 Every static refusal is a coded `env.Errors` entry with the run's own

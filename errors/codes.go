@@ -477,8 +477,13 @@ const (
 	// PULSE_MATERIALIZE_OUTPUT_INVALID indicates a malformed `output`
 	// block: both columns and exclude (reason columns_and_exclude), an
 	// empty columns list or an exclude list dropping every column
-	// (no_columns), a column entry without `from` (from_missing).
-	// details carry reason and path. Raised before any file is created.
+	// (no_columns), a column entry without `from` (from_missing), an
+	// unknown `type` name (unknown_type), a precision / scale out of
+	// range or on a non-decimal type (decimal_shape), an unknown
+	// on_cast_error (on_cast_error_invalid), on_cast_error without a
+	// `type` (on_cast_error_without_type) or "null" on a non-nullable
+	// column (on_cast_error_not_nullable). details carry reason and
+	// path. Raised before any file is created.
 	PULSE_MATERIALIZE_OUTPUT_INVALID Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
 
 	// PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN indicates an `output`
@@ -499,6 +504,30 @@ const (
 	// name) and row (the 0-based output row). The run fails with no
 	// target written.
 	PULSE_MATERIALIZE_OUTPUT_NULL Code = "PULSE_MATERIALIZE_OUTPUT_NULL"
+
+	// PULSE_MATERIALIZE_CAST_UNSUPPORTED indicates an `output` column
+	// whose `type` names a field type its column cannot cast to (a
+	// vector or categorical retyped, a set narrowed or cast to a scalar,
+	// packed_bool to or from a date-family type, ...). details carry
+	// column (the output name), path, from (the column read), from_type,
+	// to_type and reason. Raised before any file is created; predict
+	// refuses the same pair with the same code.
+	PULSE_MATERIALIZE_CAST_UNSUPPORTED Code = "PULSE_MATERIALIZE_CAST_UNSUPPORTED"
+
+	// PULSE_MATERIALIZE_CAST_FAILED indicates a stored value an `output`
+	// column's cast cannot represent exactly — a fraction to an integer
+	// or date-family type (reason fractional), a value past the target's
+	// range (overflow), NaN / ±Inf to an exact type (not_finite), a value
+	// other than 0 / 1 to packed_bool (not_boolean). details carry
+	// column, row (the 0-based output row), from_type, to_type, value
+	// and reason. The run fails with no target written.
+	PULSE_MATERIALIZE_CAST_FAILED Code = "PULSE_MATERIALIZE_CAST_FAILED"
+
+	// PULSE_MATERIALIZE_CAST_NULLED is the warning an `output` column
+	// with on_cast_error: "null" raises once when its cast nulled one or
+	// more values. details carry column, count, first_row, from_type and
+	// to_type.
+	PULSE_MATERIALIZE_CAST_NULLED Code = "PULSE_MATERIALIZE_CAST_NULLED"
 
 	// PULSE_RAKE_INVALID indicates a malformed Pulse.Rake request,
 	// refused before any record is read or any file is created.
@@ -4486,6 +4515,9 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN,
 	PULSE_MATERIALIZE_OUTPUT_DUPLICATE,
 	PULSE_MATERIALIZE_OUTPUT_NULL,
+	PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+	PULSE_MATERIALIZE_CAST_FAILED,
+	PULSE_MATERIALIZE_CAST_NULLED,
 	PULSE_RAKE_INVALID,
 	PULSE_RAKE_UNKNOWN_CATEGORY,
 	PULSE_RAKE_UNTARGETED_CATEGORY,

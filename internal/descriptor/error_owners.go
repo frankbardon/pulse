@@ -191,6 +191,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN: own(featMaterializeOutput),
 	errors.PULSE_MATERIALIZE_OUTPUT_DUPLICATE:      own(featMaterializeOutput),
 	errors.PULSE_MATERIALIZE_OUTPUT_NULL:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED:      own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_CAST_FAILED:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_CAST_NULLED:           own(featMaterializeOutput),
 
 	// Pulse.Rake is a library method every instance carries.
 	errors.PULSE_RAKE_INVALID:              shared,

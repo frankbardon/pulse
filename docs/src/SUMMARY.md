@@ -81,6 +81,7 @@
     - [item-fan-out](guide/skills/item-fan-out.md)
     - [join-design](guide/skills/join-design.md)
     - [label-display](guide/skills/label-display.md)
+    - [materialize-casts](guide/skills/materialize-casts.md)
     - [matrix-results](guide/skills/matrix-results.md)
     - [mmm-workflow](guide/skills/mmm-workflow.md)
     - [multiplicity-correction](guide/skills/multiplicity-correction.md)
