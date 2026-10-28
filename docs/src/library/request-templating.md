@@ -580,6 +580,40 @@ number `7` (never `"7"`, and an integer beyond 2^53 keeps every
 digit); the expression text is untouched. Writing
 `"wave == {{from_wave}}"` instead is `PULSE_TEMPLATE_EXPR_SPLICE`.
 
+## A stored reshape recipe
+
+A reshape of a cohort ([`output`](materialize.md#shaping-the-output-the-output-slot):
+pick, rename, retype, recode, bucket, shard) is a request like any other, so
+it can be authored once and re-run over each new cohort with the cohort as a
+variable:
+
+```json
+{"target": "request",
+ "variables": [{"name": "cohort", "type": "string", "required": true}],
+ "body": {"cohort": {"filename": {"$var": "cohort"}},
+  "output": {"columns": [
+    {"from": "id", "as": "key"},
+    {"from": "region"},
+    {"from": "spend", "as": "spend_band", "bucket": {"ranges": [
+      {"label": "low", "end": 15}, {"label": "high", "start": 15}]}}],
+   "elide_constants": true}}}
+```
+
+Render it per cohort, validate with `PredictMaterialize`, write with
+`Materialize`:
+
+```go
+req, err := p.RenderTemplateRequest("reshape/handoff", map[string]any{"cohort": "wave2.pulse"})
+env, err := p.PredictMaterialize(ctx, req)
+res, err := p.Materialize(ctx, req, "wave2_handoff.pulse", pulse.MaterializeOptions{})
+```
+
+`output` is **materialize-only**: handing the rendered request to `Process`
+(or any other operation) is `PULSE_MATERIALIZE_OUTPUT_ONLY`. Render still
+opens no cohort; a column the new cohort lacks, or a `recode` label its
+dictionary no longer holds, surfaces at `PredictMaterialize`, before anything
+is written. See [Materializing Derived Columns](materialize.md).
+
 ## See also
 
 - [`pulse.New` & Options](options.md) — the rest of the construction

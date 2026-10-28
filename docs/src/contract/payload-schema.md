@@ -1100,8 +1100,8 @@ cannot score is `PULSE_MODEL_SCORE_INVALID` `details.reason`
 scorable held-out row fails the slot alone
 (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `details.reason`
 `holdout_empty`; `PULSE_SLOT_FAILED`). A holdout forces the buffered
-path (predict `streamable_reasons`: "regression <TYPE> holdout requires
-the buffered path (the held-out rows are scored after the fit)"). The
+path (predict `streamable_reasons`: `"regression <TYPE> holdout requires
+the buffered path (the held-out rows are scored after the fit)"`). The
 block rides `capability:regression_holdout`, is kept by the `standard`
 and `minimal` presets, is rounded by `return.precision` and never
 appears under `Response.components`.

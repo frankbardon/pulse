@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -116,6 +117,16 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 					t.Fatalf("parse facet: %v", err)
 				}
 				resp, err = p.FacetSchema(ctx, &req)
+			case hostMaterialize:
+				var req pulse.Request
+				if err := json.Unmarshal(body, &req); err != nil {
+					t.Fatalf("parse materialize: %v", err)
+				}
+				env, perr := p.PredictMaterialize(ctx, &req)
+				if perr != nil || len(env.Errors) != 0 {
+					t.Fatalf("PredictMaterialize: %v %+v", perr, env)
+				}
+				resp, err = p.Materialize(ctx, &req, filepath.Join(tmp, "materialized_"+ex.Name+".pulse"), pulse.MaterializeOptions{})
 			default:
 				var req pulse.Request
 				if err := json.Unmarshal(body, &req); err != nil {
@@ -146,7 +157,7 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 	}
 	// Every host the catalog carries must have been driven — a host
 	// that silently stopped matching would otherwise drop out.
-	for _, h := range []exampleHost{hostRequest, hostCompose, hostChain, hostFacet} {
+	for _, h := range []exampleHost{hostRequest, hostCompose, hostChain, hostFacet, hostMaterialize} {
 		if hosts[h] == 0 {
 			t.Errorf("no example ran through the %s host", h)
 		}

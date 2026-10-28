@@ -10,19 +10,19 @@ requires: [capability:materialize, capability:process]
 
 # Derived cohorts
 
-A derived column — a window, a feature output, an attribute — exists only inside the request that computes it. Features, attributes and (windows-over-records shape) regressions read same-request labels directly; groupers, filters, joins and tests read COHORT fields, so they cannot name one (`SERVICE_VALIDATION`: unknown field). Materialising writes the derived columns as ordinary fields of a NEW cohort; the next request reads them like any other field.
+A derived column — a window, a feature output, an attribute — exists only inside the request that computes it. Features, attributes and (windows-over-records) regressions read same-request labels; groupers, filters, joins and tests read COHORT fields, so they cannot name one (`SERVICE_VALIDATION`: unknown field). Materialising writes the derived columns as ordinary fields of a NEW cohort.
 
 Surfaces: MCP `pulse_materialize` ([`tool-materialize`](tool-materialize.md)), CLI `pulse api materialize -r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`, library `Pulse.Materialize`.
 
-**Predict first:** `predict: true` / `--predict` / `Pulse.PredictMaterialize` reads header + schema only, writes nothing, returns the output `columns`, `risks` and every refusal below with the run's code.
+Predict first (`predict: true` / `--predict` / `Pulse.PredictMaterialize`): header + schema only, nothing written, every refusal below with the run's code.
 
 ## When to materialise
 
 - A model over a window: a lagged, smoothed or cumulative predictor.
 - Grouping or filtering on a derived value: a log-spend bucket, a rank.
-- One derived column feeding several later requests: compute once, read many times.
+- One derived column feeding several requests: compute once.
 
-A request that only DISPLAYS a derived value needs no materialise step: run it directly. A chain stage cannot carry windows or features ([`process-chain`](process-chain.md)), so a chain is no substitute.
+A request that only DISPLAYS a derived value needs no materialise step. A chain stage cannot carry windows or features ([`process-chain`](process-chain.md)), so a chain is no substitute.
 
 ## The two-step recipe
 
@@ -41,28 +41,41 @@ Step 1 — materialise (the request carries only derived columns and filters):
 }
 ```
 
-Step 2 — point the next request at `out` and reference the column by its label: a regression with `"predictors": ["spend_lag1"]`, a grouper on it, a filter on it.
+Step 2 — point the next request at `out`, reference the column by its label: a regression with `"predictors": ["spend_lag1"]`, a grouper on it, a filter on it.
 
-Label every output you will reference; unlabelled, a column takes the operator's default name (listed in `derived_columns`).
+Label every output you will reference; unlabelled, a column takes the operator's default name (`derived_columns`).
 
 ## What the output holds
 
-- **Rows:** one per filter-passing source record, in source order (an archive's shards in archive order) — or in `sort` order, keyed on source fields or derived columns with `pulse_process`'s comparator. `sort` moves rows, never values: each window already ran under its own `order_by`. Features see every record; attributes and windows the survivors — exactly as `pulse_process` computes them.
-- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows; an `ATTR_PREVIOUS_STATE` output keeps its state field's `categorical_*` / `packed_bool` type and dictionary (nullable; the carried SPSS sidecar copies the state's value labels). Each gets a generated description: operator, field, params, partition / order, the frame only when read (never under `ignores_frame`), the source cohort; a `reads_expression` operator (a formula) is described by its expression verbatim.
-- Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output (a lag over a categorical) is `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- The source's SPSS metadata sidecar is carried (rewritten for the new columns, so value labels survive to a `.sav` export; a stale one warns with its own code and is dropped); no other sidecar is — rebuild an index on the new cohort if you need one.
+- **Rows:** one per filter-passing source record, in source order (an archive's shards in archive order) — or in `sort` order (source fields or derived columns, `pulse_process`'s comparator). `sort` moves rows, never values: each window ran under its own `order_by`. Features see every record; attributes and windows the survivors, as `pulse_process` computes them.
+- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows; an `ATTR_PREVIOUS_STATE` output keeps its state field's `categorical_*` / `packed_bool` type and dictionary (nullable; the carried SPSS sidecar copies the state's value labels). Each gets a generated description (operator, field, params, partition / order, frame when read, source cohort; a formula by its expression verbatim).
+- Integer window outputs (row number, rank) are `f64`; a non-numeric one (a lag over a categorical) is `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
+- The source's SPSS sidecar is carried (rewritten for the new columns, so value labels survive a `.sav` export; a stale one warns with its own code and is dropped); no other sidecar is — rebuild an index on the new cohort.
 
-## Shaping the output
+## Reshaping a cohort
 
-`output` lays out the written cohort: `columns` — `[{from, as, description, nullable, type, on_cast_error, recode, bucket}]` in list order — XOR `exclude` (drop these; the rest keep source-then-derived order). `from` names a source field or a derived label (the same `from` under two `as` names: a duplicate). Omitted keys inherit (a source field its type, nullability, dictionary, description; a derived column stays nullable `f64`). Projection runs LAST: filters, sort, weight, derived slots may read dropped columns. With `output`, no derived column is needed (pure reshape). `nullable: false` on a column holding a null fails the run (`PULSE_MATERIALIZE_OUTPUT_NULL`, `details.row`); malformed blocks are `PULSE_MATERIALIZE_OUTPUT_INVALID` / `_UNKNOWN_COLUMN` / `_DUPLICATE`; other operations refuse the slot (`PULSE_MATERIALIZE_OUTPUT_ONLY`). The SPSS sidecar follows the layout; renames keep labels. `type` retypes, exact or failing ([`materialize-casts`](materialize-casts.md)); `recode` relabels a categorical, `bucket` ranges numbers/dates ([`materialize-recode`](materialize-recode.md)); `shards` / `elide_constants` / `groups` shape the file ([`materialize-container`](materialize-container.md)).
+`output` lays out the written cohort, so a request with NO derived column is a pure reshape. Workflow:
+
+1. Write `output`; 2. predict: the exact output `columns` and `risks`; 3. materialise; 4. to re-run the recipe over each new cohort, store it as a template with the cohort as `$var` ([`request-templating`](request-templating.md)).
+
+`columns` — `[{from, as, description, nullable, type, on_cast_error, recode, bucket}]` in list order — XOR `exclude`. `from` names a source field or a derived label; omitted keys inherit (a derived column stays a nullable `f64`). Projection runs LAST: filters, sort, weight and derived slots may read dropped columns. `nullable: false` over a null fails the run (`PULSE_MATERIALIZE_OUTPUT_NULL`, `details.row`); malformed blocks are `_OUTPUT_INVALID` / `_UNKNOWN_COLUMN` / `_DUPLICATE`; any other operation refuses the slot (`PULSE_MATERIALIZE_OUTPUT_ONLY`). The SPSS sidecar follows the layout; renames keep labels.
+
+| To... | Key | Skill |
+|---|---|---|
+| retype a column, exact or failing | `type`, `on_cast_error` | [`materialize-casts`](materialize-casts.md) |
+| relabel, merge, null out, reorder categories | `recode` | [`materialize-recode`](materialize-recode.md) |
+| range numbers or dates into labelled bands | `bucket` | [`materialize-recode`](materialize-recode.md) |
+| shard the file, store constants once, declare parent groups | `shards`, `elide_constants`, `groups` | [`materialize-container`](materialize-container.md) |
+
+An absent `output` writes the source columns verbatim plus the derived ones, byte-identically.
 
 ## Refusals
 
-All before anything is written; the write itself is atomic.
+All before anything is written; the write is atomic.
 
 | Code | Cause | Fix |
 |---|---|---|
-| `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` | a slot other than cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, disable_components (`details.slot`) | move that slot to the step-2 request |
+| `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` | a slot outside cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, output, disable_components (`details.slot`) | move that slot to the step-2 request |
 | `PULSE_MATERIALIZE_NO_DERIVED` | no feature, attribute or window | nothing to write: run the request directly |
 | `PULSE_MATERIALIZE_OUTPUT_UNDECLARED` | an embedder-registered feature, whose outputs cannot be named before it runs | apply it in the step-2 request instead |
 | `SERVICE_VALIDATION` | `out` exists | pick a new path, or `overwrite` (stale sidecars are listed, never rebuilt) |
@@ -72,6 +85,6 @@ A request `pulse_process` refuses is refused here with the same code.
 ## Gotchas
 
 - **Windows need their frame.** A cumulative window without `frame` (`{"mode": "rows", "preceding": null, "following": 0}`) sums the whole partition on every row.
-- **Filters shape the rows.** A window over the survivors differs from one over every record; filter in step 1 only when step 2 should see the same population.
-- **Re-materialise after the source changes**: the output is a snapshot, not a view.
+- **Filters shape the rows.** A window over the survivors differs from one over every record; filter in step 1 only when step 2 should see that population.
+- **Re-materialise after the source changes**: the output is a snapshot.
 - **Do not round-trip through an export and `pulse_import`.** Re-importing a streamed result is lossy (types re-inferred, columns projected); materialise instead.

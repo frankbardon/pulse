@@ -361,6 +361,24 @@ Label every output a later request references; an unlabelled one takes
 the operator's default output name (`res.DerivedColumns` lists each).
 The output is a snapshot: re-materialise after the source changes.
 
+## Re-running a reshape over each new cohort
+
+A reshape is a request, so it can be stored as a
+[request template](request-templating.md#a-stored-reshape-recipe) with the
+cohort as a variable: author the `output` block once, render it per cohort,
+predict, then materialize.
+
+```go
+req, err := p.RenderTemplateRequest("reshape/handoff", map[string]any{"cohort": "wave2.pulse"})
+env, err := p.PredictMaterialize(ctx, req) // the output schema, no record read
+res, err := p.Materialize(ctx, req, "wave2_handoff.pulse", pulse.MaterializeOptions{})
+```
+
+A `recode` map key the new cohort's dictionary lacks is
+`PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL` at predict and at run: a recipe
+meeting drifted data fails before it writes. The shipped example
+`materialize_reshape_for_handoff` is a ready request.
+
 ## CLI
 
 ```sh
