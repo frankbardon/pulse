@@ -258,8 +258,9 @@ res, err := p.Materialize(ctx, &pulse.Request{
   An `output` holding only these keys keeps every column (a pure copy is
   legal). The SPSS metadata sidecar is carried as for a single file —
   beside the archive, fingerprinted over the archive's bytes (Inspect
-  reads its suggested weight; `pulse export` does not read a shard
-  archive yet) — and an elided column keeps its variable. `Overwrite`
+  reads its suggested weight; `pulse export` of the archive, every
+  format, writes exactly what the single-file output would, a `.sav`
+  applying the sidecar) — and an elided column keeps its variable. `Overwrite`
   replaces an existing cohort or archive whole.
 - **Parent groups: `groups`.** With an `output` block, a grouped
   (`0x02`) source keeps its parent groups: `groups` absent INHERITS each

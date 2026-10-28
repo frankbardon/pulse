@@ -2,7 +2,6 @@ package io
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -15,7 +14,6 @@ import (
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
-	"github.com/spf13/afero"
 )
 
 // exportReadBufferSize is the buffered-reader size used when streaming a
@@ -40,25 +38,17 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		return nil, fmt.Errorf("ExportJob.FS is required")
 	}
 
-	f, err := j.FS.Open(j.Source)
-	if err != nil {
-		return nil, fmt.Errorf("reading pulse file: %w", err)
-	}
-	defer f.Close()
-
-	r := bufio.NewReaderSize(f, exportReadBufferSize)
-
-	// Read header.
-	pulseVersion, err := encoding.ReadHeader(r)
+	// A single-file cohort or a whole shard archive: the archive reads
+	// as its canonical (widened) schema over every shard's records in
+	// archive order, so it exports exactly as its flattened twin.
+	src, err := OpenCohortRecords(j.FS, j.Source)
 	if err != nil {
 		return nil, err
 	}
+	defer src.Close()
 
-	// Read schema.
-	schema, err := encoding.ReadSchema(r, pulseVersion)
-	if err != nil {
-		return nil, err
-	}
+	r := bufio.NewReaderSize(src.Reader, exportReadBufferSize)
+	schema := src.Schema
 
 	// Resolve the render zone before a single byte is written: an
 	// unknown name refuses the export outright. nil means the canonical
@@ -594,22 +584,14 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		return nil, fmt.Errorf("ExportJob.FS is required")
 	}
 
-	data, err := afero.ReadFile(j.FS, j.Source)
-	if err != nil {
-		return nil, fmt.Errorf("reading pulse file: %w", err)
-	}
-
-	r := bytes.NewReader(data)
-
-	pulseVersion, err := encoding.ReadHeader(r)
+	// The same dispatch Run makes: a shard archive predicts as its
+	// canonical schema over the summed whole records of its shards.
+	src, err := OpenCohortRecords(j.FS, j.Source)
 	if err != nil {
 		return nil, err
 	}
-
-	schema, err := encoding.ReadSchema(r, pulseVersion)
-	if err != nil {
-		return nil, err
-	}
+	defer src.Close()
+	schema := src.Schema
 
 	// The same zone check Run makes, so predict refuses an unknown zone
 	// on the same terms.
@@ -628,11 +610,7 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	// Estimate record count from remaining bytes and per-record size.
-	recordSize := schema.RecordByteSize()
-	estimatedRows := 0
-	if recordSize > 0 {
-		estimatedRows = r.Len() / recordSize
-	}
+	estimatedRows := int(src.Records)
 
 	report := &PredictReport{
 		Schema:        schema,

@@ -47,7 +47,7 @@ Every group passes import's gate: no wider than its 4-byte index → dropped (`P
 ## Gotchas
 
 - The SPSS metadata sidecar is carried as for a single file: beside the archive, fingerprinted over its bytes (`pulse_inspect` still suggests its weight). An elided column keeps its variable.
-- A shard archive is a cohort for every request, but `pulse export` reads a single file only: keep a single-file output for a `.sav` / CSV export.
+- `pulse export` (every format) reads the archive exactly as its flattened single file; a `.sav` applies the carried sidecar.
 - `overwrite: true` replaces an existing cohort or archive whole; its other sidecars are reported stale.
 
 ## See

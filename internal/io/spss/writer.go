@@ -61,6 +61,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	stderrors "errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -380,8 +381,17 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 		return nil, err
 	}
 
-	f, err := fs.Open(path)
+	// A shard archive reads as its canonical (widened) schema over every
+	// shard's records in archive order — the export job's own dispatch
+	// (iio.OpenCohortRecords) — so it encodes exactly as its flattened
+	// twin. The sidecar above sits beside the archive and is
+	// fingerprinted over the archive's bytes.
+	src, err := iio.OpenCohortRecords(fs, path)
 	if err != nil {
+		var ce *errors.CodedError
+		if stderrors.As(err, &ce) {
+			return nil, err
+		}
 		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
 			"spss: cannot open the cohort to export: "+err.Error(),
 			map[string]any{errors.DetailSPSSCohort: path})
@@ -389,19 +399,12 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 	// Every failure below has to close the file it was handed; only the
 	// success path transfers ownership to the returned pass.
 	fail := func(err error) (*cohortPass, error) {
-		_ = f.Close()
+		_ = src.Close()
 		return nil, err
 	}
 
-	r := bufio.NewReader(f)
-	pulseVersion, err := encoding.ReadHeader(r)
-	if err != nil {
-		return fail(err)
-	}
-	schema, err := encoding.ReadSchema(r, pulseVersion)
-	if err != nil {
-		return fail(err)
-	}
+	r := bufio.NewReader(src.Reader)
+	schema := src.Schema
 	if err := w.checkAnnouncedSchema(schema, path); err != nil {
 		return fail(err)
 	}
@@ -435,7 +438,7 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 		plan:     plan,
 		enc:      enc,
 		r:        r,
-		closeFn:  f.Close,
+		closeFn:  src.Close,
 		renames:  plan.Renames,
 		warnings: plan.Warnings,
 	}, nil

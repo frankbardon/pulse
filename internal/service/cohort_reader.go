@@ -201,35 +201,11 @@ func openArchiveRecordReader(fsys afero.Fs, path string, canonical *encoding.Sch
 }
 
 // shardDecodeCompatible reports whether a shard written with header
-// schema own decodes to its own values under canonical. It checks, via
-// encx.ValidateStructuralCohesion, the same field names, types (set
-// rungs included), vector dims, byte offsets, bit positions, group
-// layout and per-field nullability under its one-directional rule (a
-// field canonical declares non-nullable may not be nullable in own; a
-// nullable canonical field admits a non-nullable one only with an
-// equal-width bitmap and outside any group — details.dimension
-// "nullable"); then the record stride; then that every dictionary
-// (categorical, set, group entries) is a PREFIX of canonical's. A
-// dictionary LONGER than canonical's could hold IDs the canonical
-// dictionary cannot resolve and is PULSE_SHARD_DICT_DIVERGENCE.
+// schema own decodes to its own values under canonical: the one rule
+// every whole-archive record read applies (encx.ShardDecodeCompatible,
+// shared with the sequential export pass).
 func shardDecodeCompatible(canonical, own *encoding.Schema) error {
-	if _, err := encx.ValidateStructuralCohesion(canonical, own); err != nil {
-		return err
-	}
-	if own.RecordByteSize() != canonical.RecordByteSize() {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-			"shard record stride differs from the canonical schema",
-			map[string]any{"canonical_stride": canonical.RecordByteSize(), "shard_stride": own.RecordByteSize()})
-	}
-	ext, err := encx.ValidateDictPrefixRule(canonical, own)
-	if err != nil {
-		return err
-	}
-	if ext != canonical {
-		return errors.NewCodedError(errors.PULSE_SHARD_DICT_DIVERGENCE,
-			"shard dictionary extends past the canonical dictionary")
-	}
-	return nil
+	return encx.ShardDecodeCompatible(canonical, own)
 }
 
 // Schema returns the cohort schema the reader decodes against; row
