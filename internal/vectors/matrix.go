@@ -985,7 +985,7 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, cat model.
 		if err := resolveSEM(at, &m); err != nil {
 			return nil, err
 		}
-		if err := resolveSEMGroup(at, req, schema, &m); err != nil {
+		if err := resolveSEMGroup(at, req, schema, computed, &m); err != nil {
 			return nil, err
 		}
 		if err := resolveSEMOrdinal(at, schema, &m); err != nil {
@@ -1996,7 +1996,7 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema, cat model.Catalo
 			members, ok = appendBetweenFields(members, ok, matrixPath(i), spec, schema)
 		}
 		if spec.Type == types.MAT_SEM {
-			members, ok = appendSEMGroupField(members, ok, spec, schema)
+			members, ok = appendSEMGroupField(members, ok, spec, schema, computed)
 		}
 		if spec.Vector != "" || len(spec.Fields) == 0 {
 			continue // vector members ride Members(req.Vectors)
@@ -2066,13 +2066,17 @@ func appendBetweenFields(members []string, ok bool, at string, spec types.Matrix
 }
 
 // appendSEMGroupField appends a MAT_SEM spec's params.group field (the
-// column that splits a multi-group fit's rows); a group the schema
-// lacks clears ok.
-func appendSEMGroupField(members []string, ok bool, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
+// column that splits a multi-group fit's rows); a group the request
+// computes (computed) adds nothing — its producer's inputs decode — and
+// one neither the schema nor the request has clears ok.
+func appendSEMGroupField(members []string, ok bool, spec types.MatrixSpec, schema *encoding.Schema, computed Computed) ([]string, bool) {
 	var p struct {
 		Group *string `json:"group"`
 	}
 	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || p.Group == nil {
+		return members, ok
+	}
+	if _, isComputed := computed[*p.Group]; isComputed && (schema == nil || schema.Field(*p.Group) == nil) {
 		return members, ok
 	}
 	if schema == nil || schema.Field(*p.Group) == nil {

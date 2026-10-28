@@ -25,13 +25,14 @@ Questions it answers:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `latent` | string | — | Absent: the only. |
-| `method` | enum | `regression` | Or `bartlett` (ML fit only). |
+| `method` | enum | `regression` | Or `bartlett` (ML only). |
 | `model` | string | — | By label; absent: `F1 =~` all. |
-| `meanstructure` | bool | `false` | Latent-mean scale. |
+| `meanstructure` | bool | `false` | |
 | `group` | string | — | Multi-group fit. |
 | `group_reference` | string | — | |
 | `group_equal` | list | — | |
 | `group_partial` | list | — | |
+| `group_levels` | array | — | [`sem-groups`](sem-groups.md). |
 | `solver` | enum | `slsqp` | Or `fisher`. |
 | `information` | enum | `dense` | |
 | `ftol` | float | 1e-06 | |
@@ -42,9 +43,9 @@ Questions it answers:
 | `ordered` | list | — | |
 | `parameterization` | enum | `delta` | |
 | `fit_on` | any | `filtered` | Picks FIT rows. |
-| `fit` | string | — | Compose / `.pulse-sem.json`; no knobs. |
+| `fit` | string | — | Compose / `.pulse-sem.json`. |
 | `labels` | list | — | |
-| `missing` | enum | `listwise` | Only. |
+| `missing` | enum | `listwise` | |
 
 The fit knobs are `MAT_SEM`'s; no bootstrap. `weight` — frequency only, fit only.
 
@@ -54,7 +55,7 @@ The fit knobs are `MAT_SEM`'s; no bootstrap. `weight` — frequency only, fit on
 
 ## Output
 
-One `f64` per record: latent-mean scale with a mean structure (or `group`), else centered at the fit rows. Null member or group → null.
+One `f64` per record: latent-mean scale with a mean structure (or `group`), else centered at fit rows. Null member / group → null.
 
 ## Reading the output
 
@@ -71,10 +72,10 @@ One `f64` per record: latent-mean scale with a mean structure (or `group`), else
 ## Gotchas
 
 - Fit is cohort-wide, never per request group (two-pass; `fit`: row-local).
-- A fit-less level, or an unseen ordered value, scores null + `PULSE_SEM_SCORE_LEVEL_UNSEEN`.
-- All null + warning: `PULSE_MATRIX_INSUFFICIENT_N`, `_SINGULAR`, `_NOT_IDENTIFIED`; scored + warning: `_NOT_CONVERGED`, `_NEAREST_PD`.
+- A fit-less level or unseen ordered value scores null + `PULSE_SEM_SCORE_LEVEL_UNSEEN`.
+- Null + warning: `PULSE_MATRIX_INSUFFICIENT_N`, `_SINGULAR`, `_NOT_IDENTIFIED`; scored + warning: `_NOT_CONVERGED`, `_NEAREST_PD`.
 
 ## See
 
 - `pulse_examples_search tags=[multivariate, comparison]`
-- Skills: [`sem-fits`](sem-fits.md), [`sem-modeling`](sem-modeling.md), [`sem-ordinal`](sem-ordinal.md), [`op-mat-sem`](op-mat-sem.md)
+- Skills: [`sem-fits`](sem-fits.md), [`sem-groups`](sem-groups.md), [`sem-modeling`](sem-modeling.md), [`sem-ordinal`](sem-ordinal.md), [`op-mat-sem`](op-mat-sem.md)

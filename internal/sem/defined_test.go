@@ -369,3 +369,27 @@ func TestSEM_WaldLevelMatchesLavaan(t *testing.T) {
 }
 
 func sameNaN(a, b float64) bool { return a == b || (math.IsNaN(a) && math.IsNaN(b)) }
+
+// TestSEM_LevelLabelsAndDefinedReads: a level's labels are its c(...)
+// entries plus the shared labels; a := reads its labels through earlier
+// := lines.
+func TestSEM_LevelLabelsAndDefinedReads(t *testing.T) {
+	t.Parallel()
+
+	m, err := NewGroupModel("f =~ x1 + l*x2 + x3\ny ~ c(b1, b2, b3)*f\nd31 := b3 - b1\nd := d31 + l", ModelOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for level, want := range [][]string{{"b1", "l"}, {"b2", "l"}, {"b3", "l"}, nil} {
+		if got := m.LevelLabels(level); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("LevelLabels(%d) = %v, want %v", level, got, want)
+		}
+	}
+	reads := m.DefinedReads()
+	if got := strings.Join(reads["d31"], ","); got != "b1,b3" {
+		t.Errorf("d31 reads %s, want b1,b3", got)
+	}
+	if got := strings.Join(reads["d"], ","); got != "b1,b3,l" {
+		t.Errorf("d reads %s, want b1,b3,l", got)
+	}
+}

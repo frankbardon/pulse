@@ -67,11 +67,14 @@ func (a *semScoreAttribute) prePassOrdinal(rec *Record) error {
 		a.ord.base.add(a.x, w)
 		return nil
 	}
-	code, ok, err := a.groupCode(rec)
-	if err != nil || !ok {
-		return err
+	code, ok, level, err := a.groupCode(rec)
+	if err != nil || !ok || !level {
+		return err // a null group, or no level: a listwise drop
 	}
 	rows, ok := a.ord.levels[code]
+	if !a.admitLevel(ok, len(a.ord.levels)) {
+		return nil
+	}
 	if !ok {
 		rows = newMatrixRows(len(a.members), false)
 		a.ord.levels[code] = rows

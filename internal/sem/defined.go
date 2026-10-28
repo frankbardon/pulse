@@ -175,6 +175,45 @@ func HasDefined(desc string) bool {
 	return err == nil && len(e.defs) > 0
 }
 
+// LevelLabels lists the labels a multi-group model names at per-group
+// position level — each c(...) list's level-th entry and every label
+// outside one — sorted; nil when level is past the per-group lists or
+// the description does not parse. The labels of a level that holds no
+// rows are absent from the fit, so a := reading one is null.
+func (m *Model) LevelLabels(level int) []string {
+	if level < 0 || (m.arity > 0 && level >= m.arity) {
+		return nil
+	}
+	e, err := Parse(m.desc)
+	if err != nil {
+		return nil
+	}
+	e.selectGroup(level)
+	return e.labels().sorted()
+}
+
+// DefinedReads maps each := name to the labels it reads, directly or
+// through an earlier := line, sorted.
+func (m *Model) DefinedReads() map[string][]string {
+	out := make(map[string][]string, len(m.defined))
+	reads := map[string]stringSet{}
+	for _, d := range m.defined {
+		set := stringSet{}
+		d.expr.refs(func(r string) {
+			if earlier, ok := reads[r]; ok {
+				for l := range earlier {
+					set.add(l)
+				}
+				return
+			}
+			set.add(r)
+		})
+		reads[d.name] = set
+		out[d.name] = set.sorted()
+	}
+	return out
+}
+
 // DefinedCount is the model's := lines: the estimate rows a fit appends
 // after the parameter table.
 func (m *Model) DefinedCount() int { return len(m.defined) }

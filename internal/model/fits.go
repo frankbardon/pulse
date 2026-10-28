@@ -280,21 +280,41 @@ func FitRequest(spec types.FitSpec) *types.Request {
 // empirical Bayes modal. Params are read loosely: a malformed params
 // object is the slot resolution's to refuse.
 func SEMOrdinalEstimator(req *types.Request) string {
-	if req == nil || len(req.Matrices) != 1 || req.Matrices[0].Type != types.MAT_SEM {
-		return ""
-	}
-	raw := bytes.TrimSpace(req.Matrices[0].Params)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return ""
-	}
 	var p struct {
 		Estimator *string `json:"estimator"`
 	}
-	if paramread.Probe(raw, &p) != nil || p.Estimator == nil {
+	if !semFitParams(req, &p) || p.Estimator == nil {
 		return ""
 	}
 	if *p.Estimator == "dwls" || *p.Estimator == "wlsmv" {
 		return *p.Estimator
 	}
 	return ""
+}
+
+// SEMGroupOf is a SEM fit request's params.group, read loosely ("" when
+// ungrouped, or when the request is no SEM fit or its params do not
+// decode — CheckFits refuses those first).
+func SEMGroupOf(req *types.Request) string {
+	var p struct {
+		Group *string `json:"group"`
+	}
+	if !semFitParams(req, &p) || p.Group == nil {
+		return ""
+	}
+	return *p.Group
+}
+
+// semFitParams probes a SEM fit request's one MAT_SEM params into dst;
+// false when req is no such request or the params are absent or do not
+// decode.
+func semFitParams(req *types.Request, dst any) bool {
+	if req == nil || len(req.Matrices) != 1 || req.Matrices[0].Type != types.MAT_SEM {
+		return false
+	}
+	raw := bytes.TrimSpace(req.Matrices[0].Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return false
+	}
+	return paramread.Probe(raw, dst) == nil
 }

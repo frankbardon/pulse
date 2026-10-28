@@ -257,8 +257,8 @@ func ComputedRefusal(req *types.Request, resolved []Resolved) *errors.CodedError
 
 // MatrixComputedMembers returns, in first-read order, the computed
 // columns (ComputedColumns) req's MAT_* slots read: an entry of a
-// matrix's vector or inline fields, or a MAT_PARTIAL_CORRELATION
-// params.control — always by its literal name, the only way a member
+// matrix's vector or inline fields, a MAT_PARTIAL_CORRELATION
+// params.control or a MAT_SEM params.group — always by its literal name, the only way a member
 // names a computed column. cat is the site's bound-model catalog
 // (ComputedColumns). Nil when none.
 func MatrixComputedMembers(req *types.Request, schema *encoding.Schema, cat model.Catalog) []string {
@@ -286,6 +286,14 @@ func MatrixComputedMembers(req *types.Request, schema *encoding.Schema, cat mode
 			}
 		} else {
 			add(m.Fields)
+		}
+		if m.Type == types.MAT_SEM && len(m.Params) > 0 {
+			var p struct {
+				Group *string `json:"group"`
+			}
+			if paramread.Probe(m.Params, &p) == nil && p.Group != nil {
+				add([]string{*p.Group})
+			}
 		}
 		if m.Type == types.MAT_PARTIAL_CORRELATION && len(m.Params) > 0 {
 			var p struct {

@@ -1019,6 +1019,21 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 					continue
 				}
 			}
+			if typ == types.ATTR_SEM_SCORE && sig.SEMGroup != "" {
+				// A grouped SEM fit's group on this cohort: its field,
+				// or — a group its fit request computed — the same column
+				// computed ahead of the slot (the bind's rule). A static
+				// Compose-fit signature does not know which: a group that
+				// is no cohort field is a computed one.
+				derived := sig.SEMGroupDerived
+				if !sig.SEMGroupDerivedKnown {
+					derived = schema != nil && schema.Field(sig.SEMGroup) == nil
+				}
+				if cerr := vectors.SEMScoreFitGroupRefusal(label, name, sig.SEMGroup, derived, schema, vectors.SEMScoreComputed(req, schema, i), true); cerr != nil {
+					out = append(out, cerr)
+					continue
+				}
+			}
 		}
 		// A {population} reference (after the slot's own fit, as the
 		// runtime binds them): unbound is PULSE_VECTOR_REFERENCE_UNKNOWN,

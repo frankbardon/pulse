@@ -144,6 +144,10 @@ const (
 	// BucketBasisBoolean: GROUP_CATEGORY over packed_bool — keys "0"
 	// and "1".
 	BucketBasisBoolean = "boolean"
+	// BucketBasisDeclared: a grouped MAT_SEM's levels are a derived
+	// group's params.group_levels, in declaration order (its
+	// GroupLevelsBasis only; never a grouper's).
+	BucketBasisDeclared = "declared"
 	// BucketBasisInclude: Group.Include restricts the keys — its
 	// distinct values (those the field can produce, when that is known).
 	BucketBasisInclude = "include"

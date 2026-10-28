@@ -286,8 +286,9 @@ func detailsOf(ce *errors.CodedError) map[string]any {
 
 // TestMatrixSEM_OrdinalTooManyCategories: an ordered member holding more
 // than sem.MaxOrderedCategories distinct values over the slot's rows
-// fails the slot with PULSE_MATRIX_TOO_MANY_CATEGORIES (details
-// variable, categories, limit); one at the ceiling fits, and the same
+// fails the slot ALONE with PULSE_MATRIX_TOO_MANY_CATEGORIES (details
+// variable, categories, limit): the response carries the slot's
+// identity and error, no figure; one at the ceiling fits, and the same
 // member declared numeric fits too.
 func TestMatrixSEM_OrdinalTooManyCategories(t *testing.T) {
 	t.Parallel()
@@ -304,7 +305,10 @@ func TestMatrixSEM_OrdinalTooManyCategories(t *testing.T) {
 		return types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"a", "b", "c"},
 			Params: json.RawMessage(`{"model":"f =~ a + b + c","estimator":"wlsmv","ordered":` + ordered + `}`)}
 	}
-	_, ce := semProcessErr(t, build(sem.MaxOrderedCategories+1), spec(`["a","b","c"]`))
+	resp, ce := semProcessErr(t, build(sem.MaxOrderedCategories+1), spec(`["a","b","c"]`))
+	if resp == nil || len(resp.Matrices) != 1 || resp.Matrices[0].Error == nil || resp.Matrices[0].Primary != nil || resp.Matrices[0].Name != "sem" {
+		t.Fatalf("%d categories: response %+v, want the slot failed alone (identity + error, no figure)", sem.MaxOrderedCategories+1, resp)
+	}
 	if ce == nil || ce.Code != errors.PULSE_MATRIX_TOO_MANY_CATEGORIES || ce.Details["variable"] != "a" ||
 		ce.Details["categories"] != sem.MaxOrderedCategories+1 || ce.Details["limit"] != sem.MaxOrderedCategories {
 		t.Fatalf("%d categories: %v (%v), want PULSE_MATRIX_TOO_MANY_CATEGORIES on a", sem.MaxOrderedCategories+1, ce, detailsOf(ce))

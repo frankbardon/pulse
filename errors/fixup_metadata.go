@@ -5106,12 +5106,57 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_DEFINED_NONFINITE: {
-		Message: "A structural equation model's defined parameter (a `name := expr` line of params.model) is not finite at the fitted estimate — a division by zero, or the log or square root of a value outside its domain — so its estimate-table row has every figure null (estimate, std_estimate, std_err, z_value, p_value, ci_lower, ci_upper), as does every := line reading it; the fit and every other row stand. Details carry `matrix` and `defined` (the names, in model order).",
+		Message: "A structural equation model's defined parameter (a `name := expr` line of params.model) is not finite at the fitted estimate — a division by zero, or the log or square root of a value outside its domain — so its estimate-table row has every figure null (estimate, std_estimate, std_err, z_value, p_value, ci_lower, ci_upper), as does every := line reading it; the fit and every other row stand. Details carry `matrix` and `defined` (the names, in model order). In a grouped fit (params.group) a := reading the per-group label of a level with no rows after the filters warns once per such label with `reason` \"empty_group\", `label`, `level`, `group_field` and `defined`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"matrices", "*", "params", "model"},
 				Hint:   "Rewrite the := expression so it is defined at the estimate: divide by a parameter that is not zero, and take log / sqrt of a positive quantity (abs() or a square first).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*"},
+				Hint:   "For reason empty_group: keep the level the := reads in the filtered rows, or rewrite the := over the labels of levels that hold rows.",
+			},
+		},
+	},
+	PULSE_MATRIX_GROUP_LEVEL_EMPTY: {
+		Message: "A multi-group structural equation model (params.group) has group-field levels — a categorical's dictionary entries, packed_bool's 0 / 1, a derived group's params.group_levels entries — that hold no rows after the filters. Each such level is no group: no estimate rows, no chi2_group_ / n_group_ scalars, and a := line reading its per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason empty_group); the fit over the other levels stands. Emitted once per slot. Details carry `matrix`, `group_field` and `levels` (the empty levels, in level order). An attribute scoring rows by such a fit, fitted inline, warns the same over the known levels without fit rows (`attribute` in place of `matrix`; a row of such a level scores null); under Strict that fails the run.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*"},
+				Hint:   "Widen the filters so every level the model names keeps rows, or accept the fit over the levels that hold rows.",
+			},
+		},
+	},
+	PULSE_MATRIX_GROUP_LEVEL_UNDECLARED: {
+		Message: "A multi-group structural equation model grouped by a column the request computes (params.group naming an attribute, feature or window label) met rows whose group value is no level of the fit: not among params.group_levels (matched exactly), or not an integral number. Each such row is dropped listwise (counted in n_listwise_dropped) and joins no group; the fit over the levels that hold rows stands. Emitted once per slot. Details carry `matrix`, `group_field` and `count` (the rows dropped so). An attribute scoring rows by such a fit (inline, or bound to a fit grouped by a computed column) scores each such row null and warns once with `attribute` in place of `matrix` (`fit` when bound) and the scored rows' `count`; under Strict that fails the run.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "group_levels"},
+				Hint:   "Declare every value the computed group takes that should be a group, or omit group_levels to group by every integral value observed.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*"},
+				Hint:   "Filter out the rows whose group value is no level, so the drop is explicit.",
+			},
+		},
+	},
+	PULSE_MATRIX_GROUP_LEVEL_LIMIT: {
+		Message: "A multi-group structural equation model grouped by a column the request computes, without params.group_levels, takes its levels from the data — every distinct integral value — and its rows held more than 256 of them. The fit keeps one moment state per level, so a group that is a continuous measure or a row identifier is refused, never fitted; the slot fails alone. Details carry `matrix`, `reason` (observed_levels), `group_field` and `limit` (256). An attribute scoring rows by such a fit, fitted inline, nulls every score with this fit-scoped warning (`attribute` in place of `matrix`).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "group_levels"},
+				Hint:   "Declare the levels the fit compares in params.group_levels; rows whose value is no declared level are dropped listwise instead of opening a group.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Compute a group with a few integer levels (an ATTR_FORMULA mapping each row to its level), not the raw measure.",
 			},
 		},
 	},

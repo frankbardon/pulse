@@ -51,15 +51,15 @@ The two paths can report a different `chi2` for one covariance model: compare on
 <!-- feature: capability:sem_groups -->
 ## Multi-group fits
 
-`params.group` names a categorical, `packed_bool` or `u4` / `u8` field. Its levels are the groups of ONE joint fit (lavaan's `group =`):
+`params.group` names a categorical, `packed_bool` or `u4` / `u8` field, or a computed column (`sem-groups`). Its levels are the groups of ONE joint fit (lavaan's `group =`):
 
 - Configural (no `group_equal`): every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
 - A group fit always models the means and follows lavaan.
-- The levels are the field's values that hold rows, in dictionary order (else ascending). A null group drops the row. Predict's `group_levels` bounds them (`unknown` on an integer field).
+- The levels are the values that hold rows, in dictionary order (else ascending). A null group drops the row. Predict's `group_levels` bounds them.
 - `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label (`records` rows add `group`, `label`).
 - `primary` is the `group_reference` level's Σ̂ (default: the first level). Per level, the auxiliaries are `implied_covariance.<level>`, `residual_covariance.<level>`, `implied_means.<level>` and `observed_means.<level>`.
 - The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (Σw under a frequency weight).
-- Refused: request `groups` with `group`, a vector that standardizes, another field type, a one-entry dictionary.
+- Refused: request `groups`, a standardizing vector, another field type, a one-entry dictionary.
 - The slot fails alone (`PULSE_MATRIX_INSUFFICIENT_N`) on fewer than two levels with rows, on a level with no more rows than observed variables, or on a reference level without rows.
 
 ## Invariance

@@ -2682,6 +2682,9 @@ pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNDECLARED pulse/errors.Code = "PUL
 pulse/errors: const PULSE_MATERIALIZE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 pulse/errors: const PULSE_MATERIALIZE_SLOT_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
 pulse/errors: const PULSE_MATRIX_DEFINED_NONFINITE pulse/errors.Code = "PULSE_MATRIX_DEFINED_NONFINITE"
+pulse/errors: const PULSE_MATRIX_GROUP_LEVEL_EMPTY pulse/errors.Code = "PULSE_MATRIX_GROUP_LEVEL_EMPTY"
+pulse/errors: const PULSE_MATRIX_GROUP_LEVEL_LIMIT pulse/errors.Code = "PULSE_MATRIX_GROUP_LEVEL_LIMIT"
+pulse/errors: const PULSE_MATRIX_GROUP_LEVEL_UNDECLARED pulse/errors.Code = "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED"
 pulse/errors: const PULSE_MATRIX_HEYWOOD pulse/errors.Code = "PULSE_MATRIX_HEYWOOD"
 pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
@@ -5961,6 +5964,9 @@ pulse/types: type SEMFitGroup field SampleMean []float64 "json:\"sample_mean\""
 pulse/types: type SEMFitGroup field SumWeights float64 "json:\"sum_weights\""
 pulse/types: type SEMFitGroup field Theta [][]float64 "json:\"theta\""
 pulse/types: type SEMFitGroup field Thresholds [][]float64 "json:\"thresholds,omitempty\""
+pulse/types: type SEMFitGroupLevel struct
+pulse/types: type SEMFitGroupLevel field Label string "json:\"label\""
+pulse/types: type SEMFitGroupLevel field Value float64 "json:\"value\""
 pulse/types: type SEMFitResult struct
 pulse/types: type SEMFitResult field Basis string "json:\"basis\""
 pulse/types: type SEMFitResult field Categories [][]float64 "json:\"categories,omitempty\""
@@ -5970,7 +5976,9 @@ pulse/types: type SEMFitResult field DoF float64 "json:\"dof\""
 pulse/types: type SEMFitResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type SEMFitResult field Estimator string "json:\"estimator\""
 pulse/types: type SEMFitResult field Group string "json:\"group,omitempty\""
+pulse/types: type SEMFitResult field GroupDerived bool "json:\"group_derived,omitempty\""
 pulse/types: type SEMFitResult field GroupEqual []string "json:\"group_equal,omitempty\""
+pulse/types: type SEMFitResult field GroupLevels []pulse/types.SEMFitGroupLevel "json:\"group_levels,omitempty\""
 pulse/types: type SEMFitResult field GroupPartial []string "json:\"group_partial,omitempty\""
 pulse/types: type SEMFitResult field GroupReference string "json:\"group_reference,omitempty\""
 pulse/types: type SEMFitResult field Groups []pulse/types.SEMFitGroup "json:\"groups\""
@@ -6186,4 +6194,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5098071887da921c24f9668a6a5370b05a86c2e95942e09b0fd2fadbe64e11e2
+// golden-hash: 9eb20bd55de675bf215bb484d003615c0169a911be759f66e3bfc5725dcc1afa

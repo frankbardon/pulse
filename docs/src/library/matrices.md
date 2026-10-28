@@ -566,13 +566,17 @@ Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
 
 `Pulse.Predict` names the levels it can see on the matrix entry:
 `group_levels` (a categorical's dictionary entries, `packed_bool`'s `"0"`
-/ `"1"`) with `group_levels_basis` `dictionary` / `boolean`. The list is
+/ `"1"`, a computed group's declared `params.group_levels` labels) with
+`group_levels_basis` `dictionary` / `boolean` / `declared`. The list is
 an upper bound — a level without rows after the filters is no group —
-and the per-level auxiliaries are sized over it. On a `u4` / `u8` field
-the levels are the data's: `group_levels_basis` is `unknown`, and the
+and the per-level auxiliaries are sized over it. On a `u4` / `u8` field,
+or a computed group without `group_levels`, the levels are the data's:
+`group_levels_basis` is `unknown`, and the
 `matrices` entry of `sizes` is left out. `estimated_bytes`
 counts one co-moment state per level beside the base state (the
-integer type's value range when the levels are unknown). The manifest
+integer type's value range when the levels are unknown, 256 for a
+computed group — whose rows holding more distinct levels fail the slot
+alone with `PULSE_MATRIX_GROUP_LEVEL_LIMIT`). The manifest
 declares the per-level keys as patterns, `implied_means.<level>` or
 `chi2_group_<level>`: `<level>` stands for a level's label.
 
@@ -583,6 +587,24 @@ modifiers; it needs `capability:sem_meanstructure`). Hidden, their keys
 are unknown params keys (`PULSE_REQUEST_UNKNOWN_FIELD`), the model
 syntax they own is `bad_params`, and the manifest lists neither their
 params nor their output keys.
+
+**A group the request computes.** `params.group` may also name a column
+the request computes — an `ATTR_FORMULA` label (or a feature output)
+declared before the slot — with `params.group_levels` fixing its levels:
+`[{"value": 1, "name": "from"}, {"value": 2, "name": "to"}]`. The array
+order is the `c(...)` position, the names key the outputs (`[from] lval
+op rval`, `n_group_from`, `group_reference`), and a row whose value is no
+level drops listwise (`PULSE_MATRIX_GROUP_LEVEL_UNDECLARED`). A declared
+level without rows warns `PULSE_MATRIX_GROUP_LEVEL_EMPTY` and is no group.
+This is how a stored request fits a wave pair chosen by request `params`:
+the attribute expression reads `params.from_wave` / `params.to_wave`
+(`wave == params.to_wave ? 2 : (wave == params.from_wave ? 1 : 0)`), while
+the `MAT_SEM` params stay plain JSON — no `params` reach `model` or
+`group_reference`. `ATTR_SEM_SCORE` takes the same `group` / `group_levels`.
+More than 256 distinct undeclared values fail the slot alone with
+`PULSE_MATRIX_GROUP_LEVEL_LIMIT`; `group_levels` on a cohort-field group
+is refused. Runnable: `internal/examples/matrices/19_sem_wave_pair.json`.
+Skill: `sem-groups`.
 
 **Invariance.** `params.group_equal` holds lavaan `group.equal` classes
 equal across the groups — `loadings`, `intercepts`, `means`, `residuals`,

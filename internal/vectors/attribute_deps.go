@@ -39,13 +39,20 @@ func DefaultAttributeLabel(attr *types.Attribute) string {
 // params.fit_on filterers and every identifier of an ATTR_FORMULA
 // expression. known=false means the set cannot be proven complete (an
 // ATTR_REG_PREDICT or fit-referenced slot, whose inputs are the bound
-// model's predictors, or an expression that does not parse); a caller
+// model's predictors, an ATTR_SEM_SCORE bound to a SEM fit, whose group
+// may be an earlier label, or an expression that does not parse); a caller
 // then treats the slot as depending on every earlier attribute. An
 // extension attribute's declared FieldInputs are the caller's to add
 // (processing's two-pass planner does; the merge gate, which cannot
 // see them, treats an extension as unknown).
 func AttributeInputNames(attr *types.Attribute) (map[string]struct{}, bool) {
 	if attr.Type == types.ATTR_REG_PREDICT || model.FitReferenced(attr.Type, attr) {
+		return nil, false
+	}
+	if attr.Type == types.ATTR_SEM_SCORE && AttributeFit(attr.Type, attr) != "" {
+		// A bound SEM fit's group may be a column its request computed,
+		// which the scoring request computes too — an earlier label the
+		// params do not name.
 		return nil, false
 	}
 	out := make(map[string]struct{}, 2+len(attr.Predictors))
@@ -73,6 +80,9 @@ func AttributeInputNames(attr *types.Attribute) (map[string]struct{}, bool) {
 			}
 		}
 	}
+	// An ATTR_SEM_SCORE params.group may be an earlier label (a derived
+	// group): its fit and scoring read it off the record.
+	add(SEMScoreGroupField(attr.Type, attr))
 	if attr.Type == types.ATTR_FORMULA && attr.Expression != "" {
 		if !walkIdents(attr.Expression, out) {
 			return nil, false

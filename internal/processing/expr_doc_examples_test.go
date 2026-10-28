@@ -115,6 +115,8 @@ func docExprSchema() *encoding.Schema {
 		cat("brand", "Apple", "Samsung", "Other"),
 		cat("study", "s1", "s2"),
 		cat("panel", "a", "b"),
+		// sem-groups.md: a categorical wave reads as its label string.
+		cat("wave_name", "wave1", "wave2", "wave3"),
 		{Name: "wave_date", Type: encoding.FieldTypeDate, Nullable: true},
 		{Name: "order_day", Type: encoding.FieldTypeDate, Nullable: true},
 		{Name: "signup_day", Type: encoding.FieldTypeDate, Nullable: true},

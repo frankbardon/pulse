@@ -7,6 +7,7 @@ import (
 	"math"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
@@ -42,23 +43,30 @@ const SEMSuffix = ".pulse-sem.json"
 
 // SEMFormatVersion is the newest sem_format_version this build writes
 // and reads. The version is a function of the content, never a choice:
-// an ordinal fit (ordered, categories, per-group thresholds) writes
+// a fit grouped by a column its request computed (group_derived,
+// group_levels) writes SEMFormatVersionDerivedGroup, else an ordinal
+// fit (ordered, categories, per-group thresholds)
 // SEMFormatVersionOrdinal, every other fit SEMFormatVersionML — byte
 // for byte the document a build before the ordinal fields wrote — so a
-// version-1 file stays readable forever and an older build refuses an
-// ordinal file as an unsupported version rather than misreading it.
-const SEMFormatVersion = SEMFormatVersionOrdinal
+// version-1 or -2 file stays readable forever and an older build
+// refuses a newer file as an unsupported version rather than misreading
+// it (a version-2 reader would take a derived group for a cohort field).
+const SEMFormatVersion = SEMFormatVersionDerivedGroup
 
 // The sem_format_version values: 1, a maximum-likelihood fit; 2, an
-// ordinal (DWLS / WLSMV) fit.
+// ordinal (DWLS / WLSMV) fit; 3, a fit grouped by a computed column
+// (either estimator: the ordinal fields optional).
 const (
-	SEMFormatVersionML      = 1
-	SEMFormatVersionOrdinal = 2
+	SEMFormatVersionML           = 1
+	SEMFormatVersionOrdinal      = 2
+	SEMFormatVersionDerivedGroup = 3
 )
 
 // SEMFormatVersions are the sem_format_version values this build
 // reads, oldest first.
-func SEMFormatVersions() []int { return []int{SEMFormatVersionML, SEMFormatVersionOrdinal} }
+func SEMFormatVersions() []int {
+	return []int{SEMFormatVersionML, SEMFormatVersionOrdinal, SEMFormatVersionDerivedGroup}
+}
 
 // The SEMFile conventions spellings.
 const (
@@ -107,6 +115,11 @@ type SEMFile struct {
 	GroupPartial   []string `json:"group_partial,omitempty"`
 	Solver         string   `json:"solver"`
 	Information    string   `json:"information"`
+	// GroupDerived reports a group the fit request computed and
+	// GroupLevels its declared levels in order (absent: its observed
+	// integral values) — a version-3 file only.
+	GroupDerived bool                `json:"group_derived,omitempty"`
+	GroupLevels  []SEMFileGroupLevel `json:"group_levels,omitempty"`
 	// Basis is the weight basis (unweighted or frequency).
 	Basis VectorBasis `json:"basis"`
 	// N and SumWeights are the fit's listwise-complete rows and Σw.
@@ -127,6 +140,13 @@ type SEMFile struct {
 	Groups []SEMFileGroup `json:"groups"`
 	// Provenance records where the fit came from. Informational only.
 	Provenance Provenance `json:"provenance"`
+}
+
+// SEMFileGroupLevel is one declared level of a derived group
+// (SEMGroupLevel).
+type SEMFileGroupLevel struct {
+	Value Float  `json:"value"`
+	Label string `json:"label"`
 }
 
 // SEMFileGroup is one group's stored parameters (SEMGroup).
@@ -155,7 +175,10 @@ func NewSEMFile(name string, f *SEMFit, prov Provenance) (*SEMFile, error) {
 			fmt.Sprintf("SEM fit %q has no state to save", name), map[string]any{"name": name})
 	}
 	version := SEMFormatVersionML
-	if f.Ordinal() {
+	switch {
+	case f.GroupDerived:
+		version = SEMFormatVersionDerivedGroup
+	case f.Ordinal():
 		version = SEMFormatVersionOrdinal
 	}
 	out := &SEMFile{
@@ -178,6 +201,7 @@ func NewSEMFile(name string, f *SEMFit, prov Provenance) (*SEMFile, error) {
 		GroupPartial:     cloneStrings(f.GroupPartial),
 		Solver:           f.Solver,
 		Information:      f.Information,
+		GroupDerived:     f.GroupDerived,
 		Basis:            f.Basis,
 		N:                f.N,
 		SumWeights:       Float(f.SumWeights),
@@ -195,6 +219,9 @@ func NewSEMFile(name string, f *SEMFit, prov Provenance) (*SEMFile, error) {
 	}
 	if f.Ordinal() {
 		out.Categories = toFloatRows(f.Categories)
+	}
+	for _, l := range f.GroupLevels {
+		out.GroupLevels = append(out.GroupLevels, SEMFileGroupLevel{Value: Float(l.Value), Label: l.Label})
 	}
 	for g, gr := range f.Groups {
 		out.Groups[g] = SEMFileGroup{
@@ -328,7 +355,64 @@ func (f *SEMFile) check() string {
 			return fmt.Sprintf("has a group %d nu, alpha or sample_mean unlike the model's %d observed and %d inner variables", g, nObs, nIn)
 		}
 	}
+	if what := f.checkDerived(); what != "" {
+		return what
+	}
 	return f.checkOrdinal()
+}
+
+// semGroupValueMax bounds a derived group's level values (exact
+// integers in a float64): vectors.SEMGroupValueMax.
+const semGroupValueMax = 1 << 53
+
+// checkDerived is the rule over the derived-group fields: present
+// exactly on a version-3 file, which is a grouped fit; declared levels
+// (when present) two at least, each an integral value |v| ≤ 2^53 with a
+// non-blank label, no value and no label twice, and every group's level
+// one of the labels — undeclared, every group's level an integer's
+// canonical text (a scoring row's computed value matches it).
+func (f *SEMFile) checkDerived() string {
+	if f.SEMFormatVersion != SEMFormatVersionDerivedGroup {
+		if f.GroupDerived || f.GroupLevels != nil {
+			return fmt.Sprintf("has group_derived or group_levels under sem_format_version %d; a fit grouped by a computed column is version %d", f.SEMFormatVersion, SEMFormatVersionDerivedGroup)
+		}
+		return ""
+	}
+	if !f.GroupDerived || f.Group == "" {
+		return fmt.Sprintf("is sem_format_version %d but no fit grouped by a computed column (group and group_derived)", SEMFormatVersionDerivedGroup)
+	}
+	if f.GroupLevels == nil {
+		for _, g := range f.Groups {
+			v, err := strconv.ParseInt(g.Level, 10, 64)
+			if err != nil || strconv.FormatInt(v, 10) != g.Level || v > semGroupValueMax || v < -semGroupValueMax {
+				return fmt.Sprintf("has group level %q, which is no integer level of computed group %q (declare named levels in group_levels)", g.Level, f.Group)
+			}
+		}
+		return ""
+	}
+	if len(f.GroupLevels) < 2 {
+		return "declares fewer than two group_levels"
+	}
+	labels := make([]string, len(f.GroupLevels))
+	for i, l := range f.GroupLevels {
+		v := float64(l.Value)
+		if v != math.Trunc(v) || math.Abs(v) > semGroupValueMax {
+			return fmt.Sprintf("has group_levels[%d] value %v, which is not an integer of magnitude at most 2^53", i, v)
+		}
+		if slices.ContainsFunc(f.GroupLevels[:i], func(o SEMFileGroupLevel) bool { return float64(o.Value) == v }) {
+			return fmt.Sprintf("lists group_levels value %v twice", v)
+		}
+		labels[i] = l.Label
+	}
+	if what := distinctNames("group_levels label", labels); what != "" {
+		return what
+	}
+	for _, g := range f.Groups {
+		if !slices.Contains(labels, g.Level) {
+			return fmt.Sprintf("has group level %q, which is none of its group_levels", g.Level)
+		}
+	}
+	return ""
 }
 
 // checkOrdinal is the rule over the ordinal fields: present exactly on
@@ -336,10 +420,12 @@ func (f *SEMFile) check() string {
 // in Observed order, each with two or more ascending finite category
 // values, and every group one finite threshold per category boundary.
 func (f *SEMFile) checkOrdinal() string {
-	ordinal := f.SEMFormatVersion == SEMFormatVersionOrdinal
+	// Version 2 is an ordinal fit; version 3 (a derived group) may be
+	// one, signalled by its ordered variables.
+	ordinal := f.SEMFormatVersion == SEMFormatVersionOrdinal || (f.SEMFormatVersion == SEMFormatVersionDerivedGroup && f.Ordered != nil)
 	if !ordinal {
 		if f.Ordered != nil || f.Categories != nil || slices.ContainsFunc(f.Groups, func(g SEMFileGroup) bool { return g.Thresholds != nil }) {
-			return fmt.Sprintf("has ordered, categories or thresholds under sem_format_version %d; an ordinal fit is version %d", f.SEMFormatVersion, SEMFormatVersionOrdinal)
+			return fmt.Sprintf("has ordered, categories or thresholds under sem_format_version %d; an ordinal fit is version %d (or %d, grouped by a computed column)", f.SEMFormatVersion, SEMFormatVersionOrdinal, SEMFormatVersionDerivedGroup)
 		}
 		return ""
 	}
@@ -428,6 +514,7 @@ func (f *SEMFile) SEMFit(name string) *SEMFit {
 		GroupPartial:   cloneStrings(f.GroupPartial),
 		Solver:         f.Solver,
 		Information:    f.Information,
+		GroupDerived:   f.GroupDerived,
 		Basis:          f.Basis,
 		N:              f.N,
 		SumWeights:     float64(f.SumWeights),
@@ -443,6 +530,9 @@ func (f *SEMFile) SEMFit(name string) *SEMFit {
 	}
 	if f.Categories != nil {
 		out.Categories = fromFloatRows(f.Categories)
+	}
+	for _, l := range f.GroupLevels {
+		out.GroupLevels = append(out.GroupLevels, SEMGroupLevel{Value: float64(l.Value), Label: l.Label})
 	}
 	for g, gr := range f.Groups {
 		out.Groups[g] = SEMGroup{

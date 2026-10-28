@@ -22,12 +22,13 @@ Questions it answers:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
+| `model` | string | — | lavaan. |
 | `meanstructure` | bool | false | Means; `x ~ 1` too. |
 | `group` | string | — | Multi-group fit. |
 | `group_reference` | string | — | Primary level. |
 | `group_equal` | list | — | Invariance. |
 | `group_partial` | list | — | Freed rows. |
+| `group_levels` | array | — | [`sem-groups`](sem-groups.md). |
 | `resample` | `bootstrap` | — | SE, p, CI. |
 | `bootstrap_iters` | int | 1000 | B. |
 | `rng_seed` | int | 0 | — |
@@ -41,17 +42,17 @@ Questions it answers:
 | `max_iter` | int | — | — |
 | `grad_tol` | float | 1e-10 | — |
 | `singular` | enum | `nearest` | — |
-| `missing` | enum | `listwise` | Only. |
+| `missing` | enum | `listwise` | — |
 | `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |
 
 ## Inputs
 
-Numeric members: the model's observed variables (labels).
+The model's observed variables.
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`, lavaan); `residual_covariance` S − Σ; `implied_means` / `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`); `residual_covariance` S − Σ; `implied_means` / `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 ## Reading the output
 
@@ -73,7 +74,7 @@ Numeric members: the model's observed variables (labels).
 ## Gotchas
 
 - Unused / non-member: `bad_params`.
-- lavaan rules: [`sem-modeling`](sem-modeling.md); `:=`: [`sem-defined-parameters`](sem-defined-parameters.md); `resample`: [`sem-bootstrap`](sem-bootstrap.md).
+- lavaan rules: [`sem-modeling`](sem-modeling.md); groups: [`sem-groups`](sem-groups.md); `:=`: [`sem-defined-parameters`](sem-defined-parameters.md); `resample`: [`sem-bootstrap`](sem-bootstrap.md).
 - Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
 
 ## See

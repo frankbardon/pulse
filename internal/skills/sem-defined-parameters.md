@@ -25,7 +25,7 @@ A `:=` line switches a covariance-only model to lavaan's conventions (Fisher sco
 - Rows `name := expr` close the table. Under `group` they come after every level, unprefixed: `vectors.group` is `null` and `vectors.label` is the name.
 - `std_err` is the delta method: √(gᵀVg), g the expression's exact gradient (forward-mode, never finite differences), V the inverse expected information. `z_value`, the normal `p_value` and the Wald `ci_lower` / `ci_upper`<!-- feature: capability:sem_bootstrap --> (at `ci_level`, default 0.95)<!-- /feature --> follow.
 - `std_estimate` is the expression over the standardized solution (lavaan's `std.all`).
-- A value that is not finite at the estimate (a log of a negative, a zero divisor) nulls the row and every row built on it, with the warning `PULSE_MATRIX_DEFINED_NONFINITE`.
+- A value that is not finite at the estimate (a log of a negative, a zero divisor) nulls the row and every row built on it, with the warning `PULSE_MATRIX_DEFINED_NONFINITE`.<!-- feature: capability:sem_groups --> A per-group label of a level without rows after the filters is absent from the fit: a `:=` reading it is null with `details.reason` `empty_group`, `label` and `level`.<!-- /feature -->
 - `abs()`: Pulse differentiates it by its sign (exact; 0 at 0). lavaan's complex-step jacobian reads that slope as 0, so the estimate matches lavaan and the SE does not.
 <!-- feature: capability:sem_bootstrap -->
 - Under `resample: "bootstrap"` the `:=` rows take the bootstrap's SE, its normal p and the percentile interval like every free row: `sem-bootstrap`. Prefer it for a product or a ratio, whose sampling distribution is skewed.

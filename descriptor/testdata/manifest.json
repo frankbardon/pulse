@@ -4358,7 +4358,13 @@
               "name": "group",
               "type": "string",
               "required": false,
-              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit; each row is scored with its own group's parameters. Implies the mean structure."
+              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit — or a numeric column computed ahead of the slot (an earlier attribute's label or a feature output; a cohort field of that name wins), its levels params.group_levels, else its integral values; each row is scored with its own group's parameters. A known level without fit rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY; a computed value that is no level scores null with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED (details.count) — under Strict either fails the run. Implies the mean structure."
+            },
+            {
+              "name": "group_levels",
+              "type": "array",
+              "required": false,
+              "description": "MAT_SEM's params.group_levels: a computed group's levels in order, [{value, name?}, ...] (integer values matched exactly, labels the names, else the integer text). Refused on a cohort field. params.group only."
             },
             {
               "name": "group_reference",
@@ -4480,7 +4486,7 @@
               "name": "fit",
               "type": "string",
               "required": false,
-              "description": "A bound SEM fit's name (a Compose fits entry whose request holds one MAT_SEM matrix — kind sem) to score from instead of fitting inline: no model, MAT_SEM knob or fit_on beside it (the fit supplies them). The fit's member labels must be the slot's (matched by label), its group field a field of the cohort (each row's level matched by label); the slot is row-local — it streams, fuses into a crosstab and merges across shards and chain stages — and scores every row to the bit of the inline fit on the same fit rows. An ordinal fit is scored by EBM, coding each row by the fit's own categories (method bartlett refused). A fit that failed on its data nulls every score with PULSE_FIT_UNAVAILABLE; another kind is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN."
+              "description": "A bound SEM fit's name (a Compose fits entry whose request holds one MAT_SEM matrix — kind sem) to score from instead of fitting inline: no model, MAT_SEM knob or fit_on beside it (the fit supplies them). The fit's member labels must be the slot's (matched by label), its group field a field of the cohort (each row's level matched by label) — or, a fit grouped by a column its request computed, the same column computed ahead of this slot (each row matched by the fit's declared level values, else its integer levels; else SERVICE_VALIDATION fit_group_field); the slot is row-local — it streams, fuses into a crosstab and merges across shards and chain stages — and scores every row to the bit of the inline fit on the same fit rows. An ordinal fit is scored by EBM, coding each row by the fit's own categories (method bartlett refused). A fit that failed on its data nulls every score with PULSE_FIT_UNAVAILABLE; another kind is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN."
             },
             {
               "name": "labels",
@@ -10409,7 +10415,7 @@
             "name": "model",
             "type": "string",
             "required": false,
-            "description": "The model description in semopy / lavaan syntax, one statement per line (# comments): lhs =~ indicators (measurement; the first indicator's loading is fixed to 1), lhs ~ predictors (regression; comma-separated left sides), lhs ~~ rhs (covariance); a term may carry a label (a*x: equal across every use), a fixed value (0.5*x) or NA (NA*x: free — on a first indicator, no marker). Under lavaan conventions the first indicator is the marker whatever follows (a labelled one stays fixed at 1). Its observed variables must be exactly the members, matched by label (a variable that is not a member, or a member it never names, is SERVICE_VALIDATION bad_params). semopy's operation commands (START, BOUND, DEFINE, ...) are not supported. A line name := expr is a lavaan defined parameter over the labels (numbers, + - * / ^, parentheses, sqrt / exp / log / abs, the names of earlier := lines; an unknown label, a forward or cyclic reference or a reused name is SERVICE_VALIDATION defined_invalid), switches the fit to lavaan conventions and appends the row \"name := expr\" to estimates (its value at the estimate, the delta-method std_err from the parameters' covariance, z, p, Wald interval; vectors.free false, vectors.group null when grouped; every figure null with PULSE_MATRIX_DEFINED_NONFINITE when not finite at the estimate). A lavaan constraint line (==, \u003c, \u003e) is SERVICE_VALIDATION constraint_unsupported: equality is a shared label. Absent: one factor F1 over every member."
+            "description": "The model description in semopy / lavaan syntax, one statement per line (# comments): lhs =~ indicators (measurement; the first indicator's loading is fixed to 1), lhs ~ predictors (regression; comma-separated left sides), lhs ~~ rhs (covariance); a term may carry a label (a*x: equal across every use), a fixed value (0.5*x) or NA (NA*x: free — on a first indicator, no marker). Under lavaan conventions the first indicator is the marker whatever follows (a labelled one stays fixed at 1). Its observed variables must be exactly the members, matched by label (a variable that is not a member, or a member it never names, is SERVICE_VALIDATION bad_params). semopy's operation commands (START, BOUND, DEFINE, ...) are not supported. A line name := expr is a lavaan defined parameter over the labels (numbers, + - * / ^, parentheses, sqrt / exp / log / abs, the names of earlier := lines; an unknown label, a forward or cyclic reference or a reused name is SERVICE_VALIDATION defined_invalid), switches the fit to lavaan conventions and appends the row \"name := expr\" to estimates (its value at the estimate, the delta-method std_err from the parameters' covariance, z, p, Wald interval; vectors.free false, vectors.group null when grouped; every figure null with PULSE_MATRIX_DEFINED_NONFINITE when not finite at the estimate, details.reason empty_group when it reads the label of a level without rows). A lavaan constraint line (==, \u003c, \u003e) is SERVICE_VALIDATION constraint_unsupported: equality is a shared label. Absent: one factor F1 over every member."
           },
           {
             "name": "solver",
@@ -10475,7 +10481,13 @@
             "name": "group",
             "type": "string",
             "required": false,
-            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values); a level without rows after the filters is no group, a null group drops the row (listwise). Implies the mean structure and lavaan conventions. In params.model a term may then carry lavaan's per-group list c(a1, a2)*x / c(0.5, NA)*x, one entry per level in level order (a categorical's dictionary entries, a level without rows keeping its position; packed_bool's 0 / 1; a length other than the level count, or an integer group field, is bad_params). The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR."
+            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values) — or a numeric column the request computes (an attribute, feature or window label; a cohort field of that name wins), whose levels are params.group_levels, else its integral values ascending; a level without rows after the filters is no group (a categorical or packed_bool level so dropped warns PULSE_MATRIX_GROUP_LEVEL_EMPTY once per slot, details.levels), a null group drops the row (listwise). Implies the mean structure and lavaan conventions. In params.model a term may then carry lavaan's per-group list c(a1, a2)*x / c(0.5, NA)*x, one entry per level in level order (a categorical's dictionary entries, a level without rows keeping its position; packed_bool's 0 / 1; a length other than the level count, or an integer group field, is bad_params). The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR."
+          },
+          {
+            "name": "group_levels",
+            "type": "array",
+            "required": false,
+            "description": "A computed group's levels, in order: [{value, name?}, ...] — value an integer (|value| \u003c= 2^53) the column's per-row value matches exactly, name the level's label (default the value's integer text). Array order is the c(...) position and the labels key n_group_\u003clevel\u003e, chi2_group_\u003clevel\u003e, the estimate rows and group_reference. A row whose value is no declared level (or not an integer) is dropped listwise (n_listwise_dropped) with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED warning per slot (details.count); a declared level without rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY and has no n_group_ scalar. Required for c(...) modifiers on a computed group (absent: its observed integral values — more than 256 distinct fail the slot alone with PULSE_MATRIX_GROUP_LEVEL_LIMIT, details.limit). Predict lists the declared labels as group_levels with group_levels_basis declared. Fewer than two levels, a non-integer or repeated value, a repeated or empty name, or group_levels on a cohort field is bad_params. params.group only."
           },
           {
             "name": "group_reference",
@@ -11077,7 +11089,7 @@
         ]
       }
     ],
-    "error_codes_count": 430,
+    "error_codes_count": 433,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11272,6 +11284,9 @@
       "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_DEFINED_NONFINITE",
+      "PULSE_MATRIX_GROUP_LEVEL_EMPTY",
+      "PULSE_MATRIX_GROUP_LEVEL_LIMIT",
+      "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED",
       "PULSE_MATRIX_HEYWOOD",
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
@@ -14028,6 +14043,10 @@
         "description": "SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. A save writes the fit to a .pulse-sem.json file that a later request loads with models and scores from bit-equal. The fit request, the response shape, saving and loading, scoring rules, refusals and failures."
       },
       {
+        "name": "sem-groups",
+        "description": "The group of a multi-group MAT_SEM fit — which field or computed column splits the rows, its levels and their order, params.group_levels for a group the request computes (a wave pair chosen by request params), and the level warnings (an empty level, rows that are no level)."
+      },
+      {
         "name": "sem-modeling",
         "description": "Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's) and how to read the outputs. The meanstructure param and the ~ 1 syntax for intercepts and latent means. Multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers)."
       },
@@ -14416,7 +14435,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 264,
+    "examples_count": 265,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -20332,4 +20351,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f98aa5ff72f3b0bfed44494a413b5dc39ee5a05a2575a3deb73b4d2bacff05c5
+// golden-hash: 4cf7c3293673b6dedcc0ac4ce90aba9a6d6cd68212b2e67b9a83d5e87d3294e9
