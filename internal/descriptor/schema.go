@@ -532,6 +532,9 @@ var fieldOverrides = map[fieldKey]any{
 	// value rules.
 	{reflect.TypeFor[types.ComposedRequest](), "params"}: inheritedParamsSchema("Compose slot and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
 	{reflect.TypeFor[types.ChainRequest](), "params"}:    inheritedParamsSchema("chain stage", ""),
+	// A facet's own block, read by its filterers' expressions: the
+	// Request.Params value rules.
+	{reflect.TypeFor[types.FacetRequest](), "params"}: facetParamsSchema(),
 	// A sweep body is a Request with axis placeholders — `{"$var":
 	// "axis"}` may stand where the request takes a number — so it is an
 	// open object, not #/$defs/Request; likewise its overlays.
@@ -946,6 +949,14 @@ func splitComma(s string) []string {
 func inheritedParamsSchema(sub, extra string) map[string]any {
 	out := paramsSchema()
 	out["description"] = "Named constants every " + sub + " inherits into its own params (a name it declares itself wins), read as params.<name>: a number (integers kept exact), a string, a bool, or a list of one of those kinds. Never null." + extra
+	return out
+}
+
+// facetParamsSchema is FacetRequest.params: paramsSchema read by the
+// facet's filterers alone.
+func facetParamsSchema() map[string]any {
+	out := paramsSchema()
+	out["description"] = "Named constants the facet's filterer expressions read, read-only, as params.<name>: a number (integers kept exact), a string, a bool, or a list of one of those kinds. Never null. The Request params rules and refusals."
 	return out
 }
 

@@ -202,6 +202,30 @@ type Param struct {
 	// written under params is refused rather than silently ignored.
 	// Omitted for a params key.
 	Slot bool `json:"slot,omitempty"`
+
+	// NamesColumn is true when the value names a record column the
+	// operator reads: a cohort field, or a column the request computes
+	// ahead of the slot (an attribute, feature or window label) where
+	// the operator accepts one. A "string" value names one column, a
+	// "list" value one column per element (a keyword the Description
+	// documents, such as MAT_PARTIAL_CORRELATION's control "all",
+	// excepted). Every Type=="field" entry carries it too, so a client
+	// that needs the params referencing columns — to rename a column
+	// across a request, draw a dependency between slots, or list what a
+	// request reads without running it — reads this one flag, never a
+	// guess from the param's name or prose.
+	//
+	// It is a flag beside Type rather than a new Type value so every
+	// existing consumer keeps its reading of Type: "string" stays a
+	// string to validate and render, and "field" keeps meaning a cohort
+	// field filtered by FieldFilter. The name of a RESULT column (a post
+	// test's n_col, an overlay's field or partition_by: an output label
+	// resolved after aggregation) is no record column and does not carry
+	// it. Held by descriptor's TestCapabilities_FieldParamsNameColumns
+	// and processing's TestManifestNamesColumnMatchesProjection, which
+	// probes every built-in param through the projection extractor.
+	// Omitted when false.
+	NamesColumn bool `json:"names_column,omitempty"`
 }
 
 // TestMeta describes a statistical test entry in the manifest. Tier-1 and

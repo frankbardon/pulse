@@ -295,7 +295,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("sem_defined"),        // MAT_SEM `name := expr` model lines (defined parameters)
 	capability("sem_bootstrap"),      // MAT_SEM params.resample / bootstrap_iters / rng_seed / ci_level
 	capability("sem_ordinal"),        // MAT_SEM params.estimator (dwls / wlsmv) / ordered
-	capability("params"),             // Request.Params (params.<name> in request expressions)
+	capability("params"),             // Request.Params + FacetRequest.Params (params.<name> in expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
 	// The compose sweep's seeded random / lhs modes: SweepSpec.Samples /
@@ -573,12 +573,14 @@ var requestSlotCapabilities = map[string]bool{
 	featForEach:    true,
 	featModelSave:  true,
 	featRegHoldout: true,
-	featParams:     true,
+	// capability:params rides modelsHosts instead: a facet's filterers
+	// read params too.
 }
 
-// modelsHosts is the any-of host group of capability:models: every
-// request host, plus capability:facet (FacetRequest.Models feeds the
-// facet filterers' coef()).
+// modelsHosts is the any-of host group of capability:models and
+// capability:params: every request host, plus capability:facet
+// (FacetRequest.Models feeds the facet filterers' coef(),
+// FacetRequest.Params their params.<name> reads).
 var modelsHosts = []string{featProcess, featCompose, featProcessChain, featFacet}
 
 // slotTokenSet is the prose vocabulary one slot-owning capability owns:
@@ -1023,7 +1025,7 @@ func withDependencies(rows []Feature) []Feature {
 			if hosts := OverlayHostCapabilities(f.Name); len(hosts) > 0 {
 				groups = append(groups, hosts)
 			}
-		case f.Name == featModels:
+		case f.Name == featModels, f.Name == featParams:
 			groups = append(groups, append([]string(nil), modelsHosts...))
 		case f.Kind == FeatureKindOperator, requestSlotCapabilities[f.Name]:
 			groups = append(groups, append([]string(nil), requestHosts...))

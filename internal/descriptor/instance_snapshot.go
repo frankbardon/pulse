@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
@@ -114,6 +115,11 @@ type InstanceSnapshot struct {
 	// input to a resolution — is identical.
 	returnPlans *returnPlanCache
 
+	// reads is the instance manifest's names_column index RequestReads
+	// consults, built on first use (request_reads.go). Installed by
+	// buildOntology; shared by the With* copies, whose manifest is the same.
+	reads func() readsIndex
+
 	// ontology is the instance graph (base + extension nodes, pruned to
 	// the feature set) and discovery the skill / example view walking
 	// it — both built eagerly by the constructors (ontology_instance.go).
@@ -152,6 +158,7 @@ func NewInstanceSnapshot(ext *ExtensionsSnapshot, set FeatureSet) *InstanceSnaps
 // walking it. Called once, by the constructors.
 func (s *InstanceSnapshot) buildOntology() {
 	s.returnPlans = newReturnPlanCache()
+	s.reads = sync.OnceValue(func() readsIndex { return buildReadsIndex(s) })
 	s.ontology = instanceOntology(s.ext, s)
 	s.discovery = fullDiscovery
 	if s.Scoped() && len(s.hidden) > 0 || s.ext != nil && len(s.ext.Skills)+len(s.ext.Examples) > 0 {

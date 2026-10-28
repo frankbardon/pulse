@@ -46,8 +46,8 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			OutputKeys:   bayesOutputKeys(),
 			OutputSchema: slices.Clone(regmmm.BayesOutputSchema),
 			Params: []descriptor.Param{
-				{Name: "channels", Type: "list", Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
-				{Name: "time", Type: "string", Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
+				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
+				{Name: "time", Type: "string", NamesColumn: true, Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
 				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13)."},
 				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel: geometric (the only one)."},
 				{Name: "priors", Type: "object", Description: "Per-channel priors keyed by channel: {roi | beta, decay, k, s}, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock."},
@@ -75,7 +75,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			Scorer:     true,
 			OutputKeys: []string{"k", "s"},
 			Params: []descriptor.Param{
-				{Name: "channels", Type: "list", Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
+				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
 				{Name: "nonnegative", Type: "bool", Default: true, Description: "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."},
 				{Name: "prior", Type: "object", Description: "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."},
 			},
@@ -164,7 +164,7 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 var modelResampleKnobs = []descriptor.Param{
 	{Name: "bootstrap_iters", Type: "int", Default: 1000, Description: "Replicate count when resample == bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).", Slot: true},
 	{Name: "jackknife_groups", Type: "int", Description: "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.", Slot: true},
-	{Name: "jackknife_by", Type: "field", Description: "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.", Slot: true},
+	{Name: "jackknife_by", Type: "field", NamesColumn: true, Description: "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.", Slot: true},
 	{Name: "rng_seed", Type: "int", Description: "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.", Slot: true},
 }
 

@@ -161,3 +161,73 @@ func TestParams_APIComposeAndChainInherit(t *testing.T) {
 		t.Fatalf("process-chain echo: %s", out)
 	}
 }
+
+// TestParams_APIFacetJSON (expression-wires E2-S4): `pulse api facet`
+// with a FacetRequest params block — its FILTER_EXPRESSION reads
+// params.from_wave — and an undeclared read is the coded envelope
+// error `pulse api predict-facet` reports.
+func TestParams_APIFacetJSON(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
+	dir := withTempDataDir(t)
+	cohort := seedCohortViaImport(t, dir, "waves.csv", "wave,x\n1,10\n2,20\n3,30\n3,31\n4,40\n")
+	c, err := json.Marshal(map[string]string{"filename": cohort})
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, params string) string {
+		body := `{"cohort":` + string(c) + `,"fields":["x"],` + params +
+			`"filterers":[{"type":"FILTER_EXPRESSION","expression":"wave == params.from_wave"}]}`
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	type envelope struct {
+		Data struct {
+			FilteredRecords int64 `json:"filtered_records"`
+		} `json:"data"`
+		Errors []struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	decode := func(out string) envelope {
+		t.Helper()
+		var env envelope
+		if err := json.Unmarshal([]byte(out), &env); err != nil {
+			t.Fatalf("envelope: %v\n%s", err, out)
+		}
+		return env
+	}
+
+	ok := write("ok.json", `"params":{"from_wave":3},`)
+	out, err := runAPI(t, "facet", "-r", ok, "--json")
+	if err != nil {
+		t.Fatalf("facet: %v\n%s", err, out)
+	}
+	if env := decode(out); len(env.Errors) != 0 || env.Data.FilteredRecords != 2 {
+		t.Fatalf("facet: %s", out)
+	}
+	pout, _ := runAPI(t, "predict-facet", "-r", ok, "--json")
+	if env := decode(pout); len(env.Errors) != 0 {
+		t.Fatalf("predict-facet ok: %s", pout)
+	}
+
+	bad := write("bad.json", `"params":{"to_wave":3},`)
+	out, err = runAPI(t, "facet", "-r", bad, "--json")
+	wantEnvelopeFatal(t, err)
+	env := decode(out)
+	if len(env.Errors) != 1 || env.Errors[0].Code != "PULSE_PARAMS_UNDECLARED" {
+		t.Fatalf("undeclared: %s", out)
+	}
+	pout, _ = runAPI(t, "predict-facet", "-r", bad, "--json")
+	found := false
+	for _, e := range decode(pout).Errors {
+		found = found || (e.Code == env.Errors[0].Code && e.Message == env.Errors[0].Message)
+	}
+	if !found {
+		t.Fatalf("predict-facet lacks the run's %s %q: %s", env.Errors[0].Code, env.Errors[0].Message, pout)
+	}
+}

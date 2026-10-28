@@ -297,6 +297,23 @@ var (
 	_ func() []descriptor.Intent = pulse.Intents
 )
 
+// Expression read sets: what one expression reads, from a parse alone.
+var (
+	_ func(string) (descriptor.ExprReads, error) = pulse.ExpressionReads
+	_                                            = descriptor.ExprReads{Vars: []string{}, Params: []string{}, Funcs: []string{}, UsesEnv: true}
+)
+
+// Request read maps: what every slot of a request document reads.
+var (
+	_ func(*pulse.Pulse, []byte, descriptor.ReadsRoot) (descriptor.RequestReads, error) = (*pulse.Pulse).RequestReads
+	_                                                                                   = descriptor.RequestReads{Root: descriptor.ReadsRootComposed, Slots: []descriptor.SlotReads{{
+		Path: "requests[0].filterers[0]", Key: "expression", Request: "requests[0]",
+		Columns: []string{}, Params: []string{}, Variables: []string{}, Funcs: []string{}, UsesEnv: true,
+		Error: &descriptor.EnvelopeEntry{},
+	}}}
+	_ = []descriptor.ReadsRoot{descriptor.ReadsRootRequest, descriptor.ReadsRootChain, descriptor.ReadsRootFacet}
+)
+
 // Instance discovery: the pruned skill ontology and the skill pack as
 // this instance serves them (what an embedder's discovery UI reads).
 var (

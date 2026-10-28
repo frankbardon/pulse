@@ -219,8 +219,9 @@ func strictAcceptanceRequiredFamilies() []string {
 				// refusal exists (a bad name is PULSE_PARAMS_INVALID,
 				// TestParams_PredictMatchesRuntime). The same holds for
 				// the top-level block a ComposedRequest / ChainRequest
-				// hands every sub-request (U58 E3-S2).
-				if t != reflect.TypeFor[types.Request]() && t != reflect.TypeFor[types.ComposedRequest]() && t != reflect.TypeFor[types.ChainRequest]() {
+				// hands every sub-request (U58 E3-S2) and a
+				// FacetRequest's own block (expression-wires E2-S4).
+				if t != reflect.TypeFor[types.Request]() && t != reflect.TypeFor[types.ComposedRequest]() && t != reflect.TypeFor[types.ChainRequest]() && t != reflect.TypeFor[types.FacetRequest]() {
 					out = append(out, name)
 				}
 				continue

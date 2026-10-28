@@ -59,6 +59,8 @@ import (
 //   - Request.Models, FacetRequest.Models and OptimizeSpec.Models —
 //     capability:models
 //   - Request.Populations — capability:models
+//   - Request.Params, ComposedRequest.Params, ChainRequest.Params and
+//     FacetRequest.Params — capability:params
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -138,7 +140,8 @@ var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(
 
 // paramsSlotGate gates the `params` key on a Request, a
 // ComposedRequest and a ChainRequest (the top-level block every
-// sub-request inherits): capability:params. A nested operator's own `params` (a filterer's, an
+// sub-request inherits) and a FacetRequest (its filterers' block):
+// capability:params. A nested operator's own `params` (a filterer's, an
 // overlay's) is a different key on a different struct and never gated.
 var paramsSlotGate = gatedSlot{key: "params", visible: capabilityGate(featParams)}
 
@@ -281,6 +284,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.FacetRequest{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
 		modelsSlotGate,
+		paramsSlotGate,
 	},
 	reflect.TypeOf(types.FacetResult{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
@@ -503,6 +507,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Models) > 0 {
 			out = append(out, "models")
+		}
+		if r != nil && len(r.Params) > 0 {
+			out = append(out, "params")
 		}
 	}
 	return out

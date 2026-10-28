@@ -21,14 +21,39 @@ import (
 // requestExtensions is s.extensions folding req's params (s.extensions
 // itself when req declares none or the block is invalid).
 func (s *Service) requestExtensions(req *types.Request) *processing.ExtensionRegistry {
-	if req == nil || len(req.Params) == 0 {
+	if req == nil {
 		return s.extensions
 	}
-	params, cerr := exprenv.NormalizeParams(req.Params)
+	return s.paramsExtensions(req.Params)
+}
+
+// paramsExtensions is s.extensions folding params (s.extensions itself
+// when params is empty or invalid — the walk refused it already).
+func (s *Service) paramsExtensions(p types.Params) *processing.ExtensionRegistry {
+	if len(p) == 0 {
+		return s.extensions
+	}
+	params, cerr := exprenv.NormalizeParams(p)
 	if cerr != nil {
 		return s.extensions
 	}
 	return s.extensions.WithParams(params)
+}
+
+// forFacet is forRequest for a FacetRequest (FacetRequest.Params): its
+// base and additive filterers, labels and overlays all compile through
+// the folding registry.
+func (s *Service) forFacet(req *types.FacetRequest) *Service {
+	if req == nil {
+		return s
+	}
+	exts := s.paramsExtensions(req.Params)
+	if exts == s.extensions {
+		return s
+	}
+	cp := *s
+	cp.extensions = exts
+	return &cp
 }
 
 // forRequest is the Service one run of req executes on: s itself when
@@ -54,12 +79,8 @@ func (s *Service) forRequest(req *types.Request) *Service {
 // s.extensions itself when the batch declares none (or the block is
 // invalid: descx.InheritComposeParams refused it before any slot ran).
 func (s *Service) composeExtensions(c *types.ComposedRequest) *processing.ExtensionRegistry {
-	if c == nil || len(c.Params) == 0 {
+	if c == nil {
 		return s.extensions
 	}
-	params, cerr := exprenv.NormalizeParams(c.Params)
-	if cerr != nil {
-		return s.extensions
-	}
-	return s.extensions.WithParams(params)
+	return s.paramsExtensions(c.Params)
 }

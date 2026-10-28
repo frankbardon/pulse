@@ -13,7 +13,7 @@ Also top-K truncation and additive-contribution counts: the faceted-UI / discove
 
 ## Input
 
-`request` (string): JSON-encoded `pulse.FacetRequest`. Fields: `cohort.filename`, `fields` (`string[]`), `filterers` (`Filterer[]`), `additive_fields` (`string[]`), `discrete_top_k` (`int`), `numeric_percentiles` (`float[]`), `include_histogram` (`bool`), `histogram_bins` (`int`), `histogram_range` (`[min, max]`). FACET-host overlays ride `FacetRequest.Overlays`.
+`request` (string): JSON-encoded `pulse.FacetRequest`. Fields: `cohort.filename`, `fields` (`string[]`), `filterers` (`Filterer[]`), `additive_fields` (`string[]`), `discrete_top_k` (`int`), `numeric_percentiles` (`float[]`), `include_histogram` (`bool`), `histogram_bins` (`int`), `histogram_range` (`[min, max]`), `params` (constants the expression filters read as `params.<name>`; [`request-params`](request-params.md) rules). FACET-host overlays ride `FacetRequest.Overlays`.
 
 ## Output
 

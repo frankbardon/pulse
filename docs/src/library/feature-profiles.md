@@ -146,10 +146,11 @@ one name in every group must be enabled:
 
 - Every operator, and `capability:crosstab` / `capability:joins` /
   `capability:weighting` / `capability:matrices` / `capability:for_each` /
-  `capability:model_save` / `capability:regression_holdout` / `capability:params`, needs a host that runs requests: `capability:process`, `capability:compose` or
+  `capability:model_save` / `capability:regression_holdout`, needs a host that runs requests: `capability:process`, `capability:compose` or
   `capability:process_chain`.
-- `capability:models` needs a host that runs requests or `capability:facet`
-  (a facet's `models` feed its filters' `coef()`).
+- `capability:models` and `capability:params` need a host that runs
+  requests or `capability:facet` (a facet's `models` feed its filters'
+  `coef()`, its `params` their `params.<name>` reads).
 - `capability:crosstab_cells` (several measures in one crosstab) needs
   `capability:crosstab`.
 - `capability:multiplicity` needs nothing: its blocks ride every request

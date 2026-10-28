@@ -86,6 +86,17 @@ type FacetRequest struct {
 	// Models loads saved model files by name for the filterers' coef()
 	// calls — the Request.Models contract. Gated by capability:models.
 	Models []ModelRef `json:"models,omitempty"`
+
+	// Params names constants the filterers' expressions read,
+	// read-only, as params.<name> — the Request.Params contract: the
+	// same value rules (a number, string or bool, or a list of one of
+	// those kinds; never null) and the same refusals
+	// (PULSE_PARAMS_INVALID, PULSE_PARAMS_UNDECLARED,
+	// PULSE_PARAMS_FIELD_COLLISION). A facet often summarises the
+	// population a filtered analysis runs over, so the filter the two
+	// share reads the same values. Nil declares none. Gated by
+	// capability:params.
+	Params Params `json:"params,omitempty"`
 }
 
 // FacetResult is the response shape returned by pulse.FacetSchema.

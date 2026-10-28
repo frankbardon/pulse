@@ -26,6 +26,7 @@ func TestPredictNoExecutionImports(t *testing.T) {
 		"predict_suggestions.go",
 		"predict_advisories.go",
 		"defaults.go",
+		"request_reads.go",
 		publicDir + "predict.go",
 	}
 	for _, file := range files {
@@ -70,6 +71,7 @@ func TestDescriptorNoFmtSprintf(t *testing.T) {
 		"predict_suggestions.go",
 		"inspect.go",
 		"defaults.go",
+		"request_reads.go",
 	}
 
 	for _, file := range files {

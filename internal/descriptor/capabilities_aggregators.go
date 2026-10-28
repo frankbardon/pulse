@@ -495,6 +495,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				{
 					Name:        "distinct_by",
 					Type:        "string",
+					NamesColumn: true,
 					Required:    true,
 					Description: "Schema field whose value is the distinct key. Required — an absent or empty distinct_by is refused, never defaulted to the aggregation's own field. Rows with a null key or a null value contribute nothing and register no key.",
 				},
@@ -550,6 +551,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				{
 					Name:        "weight_field",
 					Type:        "string",
+					NamesColumn: true,
 					Required:    false,
 					Description: "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
 				},
@@ -575,6 +577,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				{
 					Name:        "numerator_field",
 					Type:        "field",
+					NamesColumn: true,
 					Required:    true,
 					FieldFilter: "any",
 					Description: "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
@@ -582,6 +585,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				{
 					Name:        "denominator_field",
 					Type:        "field",
+					NamesColumn: true,
 					Required:    true,
 					FieldFilter: "any",
 					Description: "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
@@ -625,6 +629,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				{
 					Name:        "outcome",
 					Type:        "field",
+					NamesColumn: true,
 					Required:    true,
 					FieldFilter: "numeric",
 					Description: "Binary outcome column scored against the score in field: a packed_bool, or a numeric column holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
@@ -892,6 +897,7 @@ func modelErrorCapability(op types.AggregationType, desc string, own ...descript
 			{
 				Name:        "prediction_field",
 				Type:        "field",
+				NamesColumn: true,
 				Required:    true,
 				FieldFilter: "numeric",
 				Description: "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",

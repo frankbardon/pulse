@@ -31,7 +31,7 @@ requires: [capability:params]
 
 ## Where they bind
 
-`ATTR_FORMULA`, `FILTER_EXPRESSION`, `total()` and the holdout expression. `OVERLAY_FORMULA` reads them too. Not synth rules, not `FilterToFile` or `Facet` requests. Params are READ-ONLY constants folded per run: an expression cannot write one, and a run sees only its own values.
+`ATTR_FORMULA`, `FILTER_EXPRESSION`, `total()` and the holdout expression. `OVERLAY_FORMULA` reads them too. Not synth rules, not `FilterToFile`. A `FacetSchema` request's filterers read the facet's own `params` (same rules, same refusals). Params are READ-ONLY constants folded per run: an expression cannot write one, and a run sees only its own values.
 
 ## Refusals (predict raises the same)
 
