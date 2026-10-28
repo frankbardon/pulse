@@ -1,8 +1,11 @@
 package pulse
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	stderrors "errors"
+	"io"
 	"reflect"
 	"slices"
 	"testing"
@@ -266,5 +269,106 @@ func TestPredictExport_ArchiveMatchesSingleFile(t *testing.T) {
 				t.Errorf("%s %v: binding refused archive %v, single file %v — want the same code", f, bad[0], aerr, serr)
 			}
 		}
+	}
+}
+
+// rezipArchive rewrites the archive at path through archive/zip, entry
+// by entry in order: replace swaps an entry's payload, deflate stores
+// the named entry compressed.
+func rezipArchive(t *testing.T, fsys afero.Fs, path string, replace map[string][]byte, deflate string) {
+	t.Helper()
+	src := readFile(t, fsys, path)
+	zr, err := zip.NewReader(bytes.NewReader(src), int64(len(src)))
+	if err != nil {
+		t.Fatalf("open %s: %v", path, err)
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, f := range zr.File {
+		payload, ok := replace[f.Name]
+		if !ok {
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if payload, err = io.ReadAll(rc); err != nil {
+				t.Fatal(err)
+			}
+			_ = rc.Close()
+		}
+		m := zip.Store
+		if f.Name == deflate {
+			m = zip.Deflate
+		}
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(fsys, path, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestExportArchive_RefusesUnreadableShards: an export of an archive
+// whose shard the canonical schema cannot decode — a dictionary longer
+// than the canonical one — is refused with PULSE_SHARD_DICT_DIVERGENCE,
+// and one whose shard entry is deflated with PULSE_ARCHIVE_CORRUPT;
+// both name the shard on details.entry and export no row.
+func TestExportArchive_RefusesUnreadableShards(t *testing.T) {
+	t.Parallel()
+
+	rows := []CohortRow{{uint64(1), []string{"a"}}, {uint64(2), []string{"b"}}}
+	for _, tc := range []struct {
+		name string
+		code errors.Code
+		bad  func(t *testing.T, p *Pulse, fsys afero.Fs, shard string)
+	}{
+		{"dictionary divergence", errors.PULSE_SHARD_DICT_DIVERGENCE, func(t *testing.T, p *Pulse, fsys afero.Fs, shard string) {
+			// The same layout, a dictionary one label past the canonical.
+			buildCohort(t, p, "wide.pulse", setSchema(), CohortBuilderOptions{},
+				[]CohortRow{{uint64(1), []string{"a"}}, {uint64(2), []string{"b"}}, {uint64(3), []string{"c"}}})
+			rezipArchive(t, fsys, "arch.pulse", map[string][]byte{shard: readFile(t, fsys, "wide.pulse")}, "")
+		}},
+		{"deflated shard", errors.PULSE_ARCHIVE_CORRUPT, func(t *testing.T, _ *Pulse, fsys afero.Fs, shard string) {
+			rezipArchive(t, fsys, "arch.pulse", nil, shard)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p, fsys := memBuilderEngine(t)
+			buildCohort(t, p, "arch.pulse", setSchema(), CohortBuilderOptions{Shards: &ShardSplit{MaxRecords: 1}}, rows)
+			arts, err := p.ListShards(context.Background(), "arch.pulse")
+			if err != nil || len(arts) != 2 {
+				t.Fatalf("shards %v (%v), want 2", arts, err)
+			}
+			shard := arts[1].Filename
+			tc.bad(t, p, fsys, shard)
+
+			w, err := pio.NewWriter(pio.FormatCSV, fsys, "out.csv", pio.WriterOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			job := pio.NewExportJob("arch.pulse", w)
+			job.FS = fsys
+			rep, err := p.Export(context.Background(), job)
+			_ = w.Close()
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != tc.code {
+				t.Fatalf("export = %v (report %+v), want %s", err, rep, tc.code)
+			}
+			if ce.Details["entry"] != shard {
+				t.Errorf("details.entry = %v, want %q", ce.Details["entry"], shard)
+			}
+			if rep != nil && rep.RowsExported != 0 {
+				t.Errorf("exported %d rows before the refusal", rep.RowsExported)
+			}
+		})
 	}
 }
