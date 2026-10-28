@@ -39,12 +39,12 @@ Without `group_levels` a derived group's levels are its integral values, ascendi
 <!-- feature: ATTR_FORMULA -->
 ## A wave pair from request params
 
-Map the two waves to declared levels with an attribute, so one stored request fits any pair. A categorical `wave` reads as its label string, so the params are labels, not numbers:
+Map the two waves to declared levels with an attribute, so one stored request fits any pair. A categorical wave column (`wave_name` here, `wave` in the runnable example) reads as its label string, so the params are labels, not numbers:
 
 ```json
 {"params": {"from_wave": "wave3", "to_wave": "wave1"},
  "attributes": [{"type": "ATTR_FORMULA", "label": "period",
-   "expression": "wave == params.to_wave ? 2 : (wave == params.from_wave ? 1 : 0)"}]}
+   "expression": "wave_name == params.to_wave ? 2 : (wave_name == params.from_wave ? 1 : 0)"}]}
 ```
 
 and the `MAT_SEM` slot's params:
