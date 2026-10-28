@@ -38,7 +38,7 @@ Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictio
 
 ## Additive contribution counts
 
-For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filterers` minus every clause targeting F, then runs a parallel discrete accumulator. Result at `FacetResult.Additive[F]`. Answers "if I added V to my filter on F, how many records survive?" per V. When no base clause names F, the scope filter equals the base filter.
+For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filterers` minus every clause targeting F, then runs a parallel discrete accumulator. Result at `FacetResult.Additive[F]`. Answers "if I added V to my filter on F, how many records survive?" per V.
 
 An additive field named inside an expression filter is rejected `SERVICE_VALIDATION` (the stripper cannot see into an expression body); filter it with an include / exclude value filter.
 
@@ -46,7 +46,7 @@ An additive field named inside an expression filter is rejected `SERVICE_VALIDAT
 
 Single-pass when: no `numeric_percentiles`; AND `include_histogram=false` OR `histogram_range` supplied; AND every filterer is row-local. Buffered otherwise. Manifest: `manifest.facet.streamable_conditions`.
 
-A filterer naming an unknown field — or, outside an expression filter, none — is refused by `FacetSchema` and predict alike with `Process`'s rule: `SERVICE_VALIDATION` `filter references unknown field: <f>`.
+A filterer naming an unknown field — or, outside an expression filter, none — is refused by `FacetSchema` and predict alike with `Process`'s rule: `SERVICE_VALIDATION` `filter references unknown field: <f>`. Expression filters read the facet's `params` ([`request-params`](request-params.md)).
 
 ## FACET-host overlays
 

@@ -364,6 +364,7 @@ pulse: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels
 pulse: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse: type FacetRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse: type FacetRequest method (*FacetRequest) Hash() string
@@ -5138,6 +5139,7 @@ pulse/types: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"
 pulse/types: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type FacetRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/types: type FacetRequest method (*FacetRequest) Hash() string
@@ -6220,4 +6222,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 16240104124db36e30e92a91d2168a7b916125553ceb27fe5fae090275e547ea
+// golden-hash: 4c883a1f70763ac783bdd0fd7c4b7d3137d16ecb86b7a69843057f91cc80c556

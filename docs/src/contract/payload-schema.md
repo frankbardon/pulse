@@ -295,6 +295,15 @@ shows the merged params on every sub-request. A Compose-level
 `OVERLAY_FORMULA` reads the batch's top-level params; an undeclared
 read there is `PULSE_PARAMS_UNDECLARED`.
 
+`FacetRequest` carries a `params` of its own too, same schema, rules and
+gate: its filterers' `FILTER_EXPRESSION`s (base and additive scope
+alike) read it as a `Request`'s filterers read theirs, so a facet over
+the filter an analysis applies (`wave == params.wave`) takes the same
+block. `pulse api facet`, `pulse api predict-facet` and the
+`pulse_facet_schema` tool accept it; a facet template can pass a
+variable as `"params": {"wave": {"$var": "wave"}}`. Omitting it is
+byte-identical to the earlier wire form.
+
 ## Multiplicity slots
 
 Multiple-comparison correction adds one additive block shape,

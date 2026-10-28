@@ -96,7 +96,8 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// a holdout scores a regression slot's fit, from any request host
 		"capability:regression_holdout": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_HILL", "REG_OLS"}},
 		// parameters are read only by an expression, from any request host
-		"capability:params": {requestHosts, {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "capability:regression_holdout", "capability:compose_optimize"}},
+		// or a facet (its filterers read FacetRequest.params)
+		"capability:params": {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "capability:regression_holdout", "capability:compose_optimize"}},
 		// a load feeds a scoring reference, from any request host or a facet
 		"capability:models":            {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FACTOR_SCORE", "ATTR_FORMULA", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", "ATTR_SEM_SCORE", "ATTR_VEC_DISTANCE", "FILTER_EXPRESSION", "capability:matrices", "capability:compose_optimize"}},
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},

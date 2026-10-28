@@ -70,9 +70,9 @@ anything else is a request.
 
 ```go
 reads, err := p.RequestReads([]byte(`{
-  "params": {"wave": "2"},
+  "params": {"wave": 2},
   "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave == params.wave"}],
-  "attributes": [{"type": "ATTR_FORMULA", "label": "period", "expression": "wave == \"2\" ? 2 : 1"}],
+  "attributes": [{"type": "ATTR_FORMULA", "label": "period", "expression": "wave == 2 ? 2 : 1"}],
   "vectors": [{"name": "items", "fields": ["q1", "q2", "q3"]}],
   "matrices": [{"type": "MAT_SEM", "vector": "items", "params": {"model": "f =~ q1 + q2 + q3", "group": "period"}}]
 }`), "")
@@ -90,7 +90,7 @@ Each `descriptor.SlotReads`:
 |---|---|---|
 | `Path` | `path` | the component holding the slot, in the document's JSON shape: `filterers[0]`, `matrices[0]`, `requests[2].filterers[0]`, `stages[1].request.groups[0]`, `optimize[0]`; `""` for a slot on the document root |
 | `Key` | `key` | the dotted key of the value inside the component: `expression`, `field`, `fields`, `params.group`, `weight.field`, `covariance.cluster` |
-| `Request` | `request` | the request whose `params` the slot's `params.<name>` reads resolve against (`""` the root); a Compose or chain sub-request inherits the root's `params` beneath its own |
+| `Request` | `request` | the request whose `params` the slot's `params.<name>` reads resolve against (`""` the root: a Request's, Compose batch's, chain's or facet's own `params`); a Compose or chain sub-request inherits the root's `params` beneath its own |
 | `Columns` | `columns` | the column-namespace names read, first-read order, no repeats |
 | `Params` | `params` | the request parameters read |
 | `Variables` | `variables` | an optimize objective's or constraint's names: decision variables, never columns |

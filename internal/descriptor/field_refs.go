@@ -87,7 +87,7 @@ func ScopedFacetFieldRefRefusalsWithModels(req *types.FacetRequest, schema *enco
 	if req == nil {
 		return nil
 	}
-	return fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField}, schema, inst.Extensions(), inst, models)
+	return fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField, Params: req.Params}, schema, inst.Extensions(), inst, models)
 }
 
 // FacetFieldRefRefusals is FieldRefRefusals for a FacetRequest: its
@@ -100,7 +100,7 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 	if req == nil {
 		return nil
 	}
-	return FieldRefRefusals(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField}, schema, snap)
+	return FieldRefRefusals(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField, Params: req.Params}, schema, snap)
 }
 
 // FieldRefRefusals walks every slot that names a field, in PIPELINE

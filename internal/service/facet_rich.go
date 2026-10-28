@@ -53,10 +53,15 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if len(req.Fields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a non-empty fields list")
 	}
-	// A hidden FacetRequest.Overlays / Models slot is an unknown field.
+	// A hidden FacetRequest.Overlays / Models / Params slot is an
+	// unknown field.
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
 	}
+	// The facet's params fold into every filterer it compiles; the walk
+	// (checkFacetFieldRefs) refuses an invalid block or an undeclared
+	// read before any build.
+	s = s.forFacet(req)
 	// The request's `models` (for its filterers' coef()), loaded before
 	// any record is read — predict loads them at the same point.
 	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: req.Models})

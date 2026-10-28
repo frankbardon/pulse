@@ -440,6 +440,9 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
 	requestObject["properties"].(map[string]any)["models"] = modelsSchema("Saved model files loaded by name for the filterers' coef() calls (one namespace).")
+	facetParams := paramsSchema()
+	facetParams["description"] = "Named constants the filterer expressions read, read-only, as params.<name> — the Request params rules: a number (integers kept exact), a string, a bool or a list of ONE of those kinds; never null. Reading an undeclared name is PULSE_PARAMS_UNDECLARED."
+	requestObject["properties"].(map[string]any)["params"] = facetParams
 	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
 	dropHiddenMultiplicity(requestObject, inst)
 	return json.Marshal(requestObject)

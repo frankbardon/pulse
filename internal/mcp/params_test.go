@@ -155,3 +155,83 @@ func TestParams_ComposeAndChainTools(t *testing.T) {
 		}
 	}
 }
+
+// TestParams_FacetSchemaTool (expression-wires E2-S4): pulse_facet_schema
+// accepts a FacetRequest params block its filterers read, an undeclared
+// read is the coded PULSE_PARAMS_UNDECLARED, and the bound schema
+// declares params only with capability:params.
+func TestParams_FacetSchemaTool(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := p.NewCohortBuilder(context.Background(), "waves.pulse", encoding.Schema{Fields: []encoding.Field{
+		{Name: "wave", Type: encoding.FieldTypeU16},
+		{Name: "x", Type: encoding.FieldTypeF64},
+	}}, pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10; i++ {
+		if err := b.Append(pulse.CohortRow{uint64(i%5 + 1), float64(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	body := func(params string) string {
+		return `{"cohort":{"filename":"waves.pulse"},"fields":["x"],"params":` + params + `,` +
+			`"filterers":[{"type":"FILTER_EXPRESSION","expression":"wave == params.from_wave"}]}`
+	}
+	out := invokeTool(t, p, Config{}, toolmeta.ToolFacetSchema, body(`{"from_wave":3}`))
+	var resp struct {
+		FilteredRecords int64 `json:"filtered_records"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil || resp.FilteredRecords != 2 {
+		t.Fatalf("pulse_facet_schema: %v %s", err, out)
+	}
+	invoked := false
+	for _, d := range Tools(Config{}) {
+		if d.Name != toolmeta.ToolFacetSchema {
+			continue
+		}
+		invoked = true
+		_, err := d.Invoke(context.Background(), p, json.RawMessage(body(`{"to_wave":3}`)))
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_PARAMS_UNDECLARED {
+			t.Fatalf("undeclared: %v", err)
+		}
+	}
+	if !invoked {
+		t.Fatal("no pulse_facet_schema tool")
+	}
+
+	base := []string{"capability:process", "capability:facet", "FILTER_EXPRESSION"}
+	for _, c := range []struct {
+		features []string
+		want     bool
+	}{{nil, true}, {base, false}, {append(append([]string{}, base...), "capability:params"), true}} {
+		var fp *pulse.FeatureProfile
+		if c.features != nil {
+			fp = &pulse.FeatureProfile{Features: c.features}
+		}
+		_, inst := instanceFor(t, fp, pulse.Extensions{})
+		bound, err := BindForInstance(makeBindSchema(), inst)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(bound[toolmeta.ToolFacetSchema], &schema); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := schema.Properties["params"]; ok != c.want {
+			t.Fatalf("%v: bound facet schema params present = %v, want %v", c.features, ok, c.want)
+		}
+	}
+}

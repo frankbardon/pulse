@@ -175,6 +175,17 @@ func TestRequestReads_RootKinds(t *testing.T) {
 				"filterers[1]|field| cols=wave params=",
 			},
 		},
+		{
+			// A facet's own params block is the root scope its filterers
+			// read; its values are data, never a slot.
+			name: "facet params",
+			doc:  `{"fields":["region"],"params":{"wave":2,"col":"age"},"filterers":[{"type":"FILTER_EXPRESSION","expression":"wave == params.wave"}]}`,
+			root: "",
+			want: []string{
+				"|fields| cols=region params=",
+				"filterers[0]|expression| cols=wave params=wave",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

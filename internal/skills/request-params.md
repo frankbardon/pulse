@@ -33,7 +33,7 @@ requires: [capability:params]
 
 ## Where they bind
 
-<!-- feature: ATTR_FORMULA -->`ATTR_FORMULA`,<!-- /feature --><!-- feature: FILTER_EXPRESSION --> `FILTER_EXPRESSION`,<!-- /feature --> `total()` and the holdout expression.<!-- feature: OVERLAY_FORMULA --> `OVERLAY_FORMULA` reads them too.<!-- /feature --> Not synth rules, not `FilterToFile` or `Facet` requests. Params are READ-ONLY constants folded per run: an expression cannot write one, and a run sees only its own values.
+<!-- feature: ATTR_FORMULA -->`ATTR_FORMULA`,<!-- /feature --><!-- feature: FILTER_EXPRESSION --> `FILTER_EXPRESSION`,<!-- /feature --> `total()` and the holdout expression.<!-- feature: OVERLAY_FORMULA --> `OVERLAY_FORMULA` reads them too.<!-- /feature --> Not synth rules, not `FilterToFile`.<!-- feature: capability:facet --> A `FacetSchema` request's filterers read the facet's own `params` (same rules, same refusals).<!-- /feature --> Params are READ-ONLY constants folded per run: an expression cannot write one, and a run sees only its own values.
 
 ## Refusals (predict raises the same)
 

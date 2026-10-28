@@ -56,9 +56,11 @@ type SlotReads struct {
 	// Key is the dotted key path of the value inside the component.
 	Key string `json:"key"`
 	// Request is the JSON path of the request whose `params` the slot
-	// resolves `params.<name>` against ("" for the document root): a
-	// Compose sub-request, fit request or banner request, or a chain
-	// stage's request, inherits the root's `params` beneath its own.
+	// resolves `params.<name>` against ("" for the document root — a
+	// Request's, a Compose batch's, a chain's or a facet's own
+	// `params`): a Compose sub-request, fit request or banner request,
+	// or a chain stage's request, inherits the root's `params` beneath
+	// its own.
 	Request string `json:"request"`
 	// Columns are the column-namespace names the slot reads. Never nil.
 	Columns []string `json:"columns"`
