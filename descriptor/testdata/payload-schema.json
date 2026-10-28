@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:bc94bc0d1daf0bfe43fb41b6c2fe7b6f7e34c9fd7e7d39136fb4eef92a22d02d",
+  "$comment": "feature_set_digest: fs1:0db8e6f718ad65aa16c7b10cd79c2f9aeb8c13feac370a5f6f8d16af57f548ed",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2644,6 +2644,51 @@
       ],
       "type": "object"
     },
+    "MaterializeOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/MaterializeOutputColumn"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MaterializeOutputColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "as": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "nullable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "type": "object"
+    },
     "MatrixCell": {
       "additionalProperties": false,
       "properties": {
@@ -4903,6 +4948,9 @@
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
+        "output": {
+          "$ref": "#/$defs/MaterializeOutput"
+        },
         "outputs": {
           "items": {
             "$ref": "#/$defs/Output"
@@ -6494,4 +6542,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ab35fbca65136a0f9ce14328fdd5ea6044804bb843b42ac0fe85f5dbbd5187bf
+// golden-hash: 89cbd682022b47517dfbf8dcd269bec20f01644ba8ef73df0f6286e28c7cda5d

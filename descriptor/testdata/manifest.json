@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:bc94bc0d1daf0bfe43fb41b6c2fe7b6f7e34c9fd7e7d39136fb4eef92a22d02d",
+    "feature_set_digest": "fs1:0db8e6f718ad65aa16c7b10cd79c2f9aeb8c13feac370a5f6f8d16af57f548ed",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 433,
+    "error_codes_count": 438,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11322,8 +11322,13 @@
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_MATERIALIZE_NO_DERIVED",
+      "PULSE_MATERIALIZE_OUTPUT_DUPLICATE",
+      "PULSE_MATERIALIZE_OUTPUT_INVALID",
       "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC",
+      "PULSE_MATERIALIZE_OUTPUT_NULL",
+      "PULSE_MATERIALIZE_OUTPUT_ONLY",
       "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
+      "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN",
       "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_DEFINED_NONFINITE",
@@ -11643,7 +11648,7 @@
       },
       {
         "name": "pulse_materialize",
-        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW single-file .pulse cohort (`out`, relative to PULSE_DATA_DIR) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, warnings."
+        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW single-file .pulse cohort (`out`, relative to PULSE_DATA_DIR) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. An `output` block in `request` lays out the written cohort — `columns` [{from, as, description, nullable}] (exactly these, in order) XOR `exclude`, applied after every other slot, so a request may then carry no derived column — refused when malformed with PULSE_MATERIALIZE_OUTPUT_INVALID / _UNKNOWN_COLUMN / _DUPLICATE, a null in a `nullable: false` column fails the run with PULSE_MATERIALIZE_OUTPUT_NULL. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, warnings."
       },
       {
         "name": "pulse_predict",
@@ -20394,4 +20399,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8994f8a777bf58d9016e842052d523ec812a0a0888c8e2b6b948f7d53d2fdb99
+// golden-hash: ef2a2564838c146119fb37df679ca51e4a23a2c358fb949aaa24f9ed2347ad33

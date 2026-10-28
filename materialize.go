@@ -64,13 +64,16 @@ type MaterializeResult struct {
 // any later request can read, filter, group or join on.
 //
 // req may carry only features, filterers, attributes, windows, sort,
-// weight and time_zone (plus cohort, label and disable_components). It runs
+// weight, time_zone and output (plus cohort, label and
+// disable_components). It runs
 // Process's own pre-flight — the instance slot gate, smart defaults,
 // zones, the field-reference rule, the limits pre-flight — so a request
 // Process refuses is refused here with the same error; then:
 // PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot) for any other slot,
 // PULSE_MATERIALIZE_NO_DERIVED when no feature, attribute or window is
-// given, and PULSE_MATERIALIZE_OUTPUT_UNDECLARED for a feature whose
+// given and no output block either, the output block's own refusals
+// (PULSE_MATERIALIZE_OUTPUT_INVALID / _UNKNOWN_COLUMN / _DUPLICATE),
+// and PULSE_MATERIALIZE_OUTPUT_UNDECLARED for a feature whose
 // output columns cannot be named before the run (an embedder-registered
 // feature). Every one fails before anything is created at out.
 //
@@ -96,6 +99,18 @@ type MaterializeResult struct {
 // operator reads it — frame) and source cohort. An integer window output
 // (row number, rank) is stored as f64; a value that is not a number
 // fails the run with PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC.
+//
+// req.Output (types.MaterializeOutput) replaces that layout, LAST —
+// after every slot above has read the full schema: `columns` writes
+// exactly the listed columns in list order (each a source field or a
+// derived column, renamed by `as`, its description / nullability
+// overridable, every omitted key inherited), `exclude` drops the named
+// ones. A null in a column the layout declares non-nullable fails the
+// run with PULSE_MATERIALIZE_OUTPUT_NULL (details column + row). With
+// an output block a request needs no derived column (a pure reshape),
+// and the source's SPSS sidecar is not carried (one
+// PULSE_SPSS_SIDECAR_INVALID warning). Absent, the output is the layout
+// above, byte for byte.
 //
 // The output is always an ungrouped (format 0x01) single file, written
 // atomically through NewCohortBuilder: any failure — a refusal, a limit
@@ -125,6 +140,16 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 		source = resolveCohortPath(req.Cohort)
 	}
 	carry, carryWarn := p.prepareSidecarCarry(source)
+	if carry != nil && req.Output != nil {
+		// The carry rewrites the sidecar against the source's columns;
+		// an output block may drop, rename, duplicate, reorder or
+		// redescribe them, which it cannot follow — so the reshaped
+		// cohort is written without one, never with a stale one.
+		carry, carryWarn = nil, errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_SIDECAR_INVALID,
+			"the source's SPSS metadata sidecar is not carried onto a cohort whose columns an output block lays out; "+
+				"it is written without one (a .sav export of it synthesises its dictionary)",
+			map[string]any{errors.DetailSPSSCohort: source, errors.DetailSPSSSidecar: spss.SidecarPath(source)})
+	}
 	sink := &materializeSink{p: p, ctx: ctx, out: out, opts: opts}
 	err := p.svc.Materialize(ctx, req, sink)
 	if sink.reader != nil {
@@ -174,7 +199,14 @@ type materializeSink struct {
 	opts    MaterializeOptions
 	reader  *service.CohortRecordReader
 	builder *CohortBuilder
-	names   []string
+	// names are the written columns holding derived values, under their
+	// output names, in output order (MaterializeResult.DerivedColumns).
+	names []string
+	// layout is the written cohort's columns in output order, each
+	// reading a source field or a derived column; rows counts the rows
+	// appended (a nullable: false refusal names the row).
+	layout []descx.MaterializeOutputField
+	rows   int64
 	// warns are the run's attribute warnings (service.MaterializeWarner).
 	warns []*errors.CodedError
 	// inherited holds, per derived column, the field shape it inherits
@@ -212,37 +244,38 @@ func (m *materializeSink) Warn(ws []*types.ResponseWarning) {
 	}
 }
 
-func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn) error {
+func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn, layout []descx.MaterializeOutputField) error {
 	r, err := cohort.OpenRecordReader()
 	if err != nil {
 		return err
 	}
 	m.reader = r
-	// Schema.Fields is the LOGICAL field list whatever the source's
-	// layout; only Fields is carried, so a grouped source's parent
-	// groups (and a shard archive's layout) never reach the output.
-	src := r.Schema()
-	fields := make([]encoding.Field, 0, len(src.Fields)+len(cols))
-	fields = append(fields, src.Fields...)
-	m.names = make([]string, len(cols))
 	m.inherited = make([]*encoding.Field, len(cols))
 	m.sources = make([]string, len(cols))
 	m.observed = make([][]bool, len(cols))
 	for i, c := range cols {
-		m.names[i] = c.Name
-		f := encoding.Field{
-			Name:        c.Name,
-			Type:        encoding.FieldTypeF64,
-			Nullable:    true,
-			Description: c.Description,
-		}
 		if c.Inherits != "" {
 			// A previous-state column: its state field's type and
 			// dictionary, its values that field's codes.
-			f.Type, f.Dictionary = c.Type, c.Dictionary
+			f := encoding.Field{Name: c.Name, Type: c.Type, Nullable: true, Description: c.Description, Dictionary: c.Dictionary}
 			m.inherited[i], m.sources[i] = &f, c.Inherits
 		}
-		fields = append(fields, f)
+	}
+	// The layout's fields are the source's LOGICAL fields (a grouped
+	// source's parent groups and a shard archive's layout never reach
+	// the output) and the derived columns, as the output block arranges
+	// them — without one, every source field verbatim then every
+	// derived column.
+	m.layout = layout
+	fields := make([]encoding.Field, len(layout))
+	for i, col := range layout {
+		fields[i] = col.Field
+		if col.Derived >= 0 {
+			m.names = append(m.names, col.Field.Name)
+		}
+	}
+	if m.names == nil {
+		m.names = []string{}
 	}
 	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields},
 		CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite})
@@ -277,7 +310,21 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 		}
 		derived[i] = v
 	}
-	return m.builder.Append(append(CohortRow(row), derived...))
+	out := make(CohortRow, len(m.layout))
+	for i, col := range m.layout {
+		var v any
+		if col.Source >= 0 {
+			v = row[col.Source]
+		} else {
+			v = derived[col.Derived]
+		}
+		if v == nil && !col.Field.Nullable {
+			return descx.MaterializeOutputNull(col.Field.Name, m.rows)
+		}
+		out[i] = v
+	}
+	m.rows++
+	return m.builder.Append(out)
 }
 
 // inheritedCell turns one inherited column's derived value — its source

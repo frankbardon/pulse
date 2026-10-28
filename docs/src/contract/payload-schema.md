@@ -304,6 +304,29 @@ block. `pulse api facet`, `pulse api predict-facet` and the
 variable as `"params": {"wave": {"$var": "wave"}}`. Omitting it is
 byte-identical to the earlier wire form.
 
+## Materialize output slot
+
+`output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
+`Pulse.Materialize` writes: `columns` — a list of
+`#/$defs/MaterializeOutputColumn` `{from, as, description, nullable}`,
+`from` required — XOR `exclude` (field / derived-column names). It is
+additive: `format_version` stays `"1.1"` and omitting it writes the
+cohort Materialize always wrote, byte for byte. It is MATERIALIZE-ONLY:
+every other operation that takes a `Request` (process, compose, chain,
+predict, their streaming, CLI and MCP surfaces) refuses it with
+`PULSE_MATERIALIZE_OUTPUT_ONLY` (`details.slot: "output"`). Gated by
+`capability:materialize_output`: an instance whose feature profile
+omits it has no `output` property and refuses the key as an unknown
+field everywhere. Rules the schema cannot say, enforced before any
+record is read: `columns` and `exclude` together, an empty `columns`
+list, an `exclude` dropping every column or an entry without `from` is
+`PULSE_MATERIALIZE_OUTPUT_INVALID`; a name that is neither a source
+field nor a derived column is `PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN`;
+two columns under one name after `as` is
+`PULSE_MATERIALIZE_OUTPUT_DUPLICATE`. A null in a `nullable: false`
+column fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`. See
+[Materializing Derived Columns](../library/materialize.md).
+
 ## Multiplicity slots
 
 Multiple-comparison correction adds one additive block shape,

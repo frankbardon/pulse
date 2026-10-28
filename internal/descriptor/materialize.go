@@ -46,8 +46,9 @@ const materializeDescriptionMax = 1000
 // PULSE_MATERIALIZE_SLOT_UNSUPPORTED, details.slot naming its JSON key,
 // in Request field order. Accepted: cohort, label, features,
 // filterers, attributes, windows, sort (the output row order), weight,
-// time_zone and disable_components (which has nothing to gate).
-// Schema-free.
+// time_zone, output (the written cohort's layout,
+// MaterializeOutputLayout) and disable_components (which has nothing to
+// gate). Schema-free.
 func MaterializeSlotRefusal(req *types.Request) *errors.CodedError {
 	if req == nil {
 		return nil
@@ -92,13 +93,17 @@ func MaterializeSlotRefusal(req *types.Request) *errors.CodedError {
 // Field; a regression attribute adds its slot-level penalty.
 //
 // Refusals: PULSE_MATERIALIZE_NO_DERIVED when req carries no feature,
-// attribute or window; PULSE_MATERIALIZE_OUTPUT_UNDECLARED for an
+// attribute or window and no `output` block (with one, a pure reshape
+// is legal: no column, no refusal); PULSE_MATERIALIZE_OUTPUT_UNDECLARED for an
 // embedder-registered feature (its outputs are known only after it
 // runs) or a built-in one whose outputs cannot be named from its params
 // and schema. A feature type that is neither built-in nor registered
 // contributes nothing here: the run refuses it as an unknown operator,
 // exactly as Process does. Reads only the schema.
 func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source string) ([]MaterializeColumn, *errors.CodedError) {
+	if req != nil && req.Output != nil && len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0 {
+		return nil, nil
+	}
 	if req == nil || (len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0) {
 		return nil, errors.NewCodedError(errors.PULSE_MATERIALIZE_NO_DERIVED,
 			"materialize needs at least one feature, attribute or window: there is no derived column to append")

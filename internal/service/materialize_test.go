@@ -18,7 +18,7 @@ type recordingSink struct {
 	sources  []int64
 }
 
-func (r *recordingSink) Begin(_ *Cohort, cols []descx.MaterializeColumn) error {
+func (r *recordingSink) Begin(_ *Cohort, cols []descx.MaterializeColumn, _ []descx.MaterializeOutputField) error {
 	r.began, r.cols = true, cols
 	return r.beginErr
 }

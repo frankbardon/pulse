@@ -111,6 +111,7 @@ func sweepSlotExtensions() Extensions {
 				{Field: "details.sweep_w", Means: "Rows with an invalid weight are counted in n_weight_invalid."},
 				{Field: "details.sweep_m", Means: "Bounded by the correlation matrix pair counts min_pair_n and max_pair_n."},
 				{Field: "details.sweep_c", Means: "Margin figures come from margin_aggregations on the crosstab."},
+				{Field: "details.sweep_o", Means: "A malformed materialize output block is refused as PULSE_MATERIALIZE_OUTPUT_INVALID."},
 			},
 		}},
 		Skills: fstest.MapFS{"op-test-sweep-slots.md": {Data: []byte(skill)}},

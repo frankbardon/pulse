@@ -23,9 +23,10 @@ res, err := p.Materialize(ctx, &pulse.Request{
 ```
 
 - **Accepted slots.** Features, filterers, attributes, windows, `sort`,
-  weight and `time_zone`. Any other slot is refused with
+  weight, `time_zone` and `output` (below). Any other slot is refused with
   `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); a request with
-  no feature, attribute or window with `PULSE_MATERIALIZE_NO_DERIVED`;
+  no feature, attribute or window — and no `output` — with
+  `PULSE_MATERIALIZE_NO_DERIVED`;
   an embedder-registered feature (its outputs are unknown before it
   runs) with `PULSE_MATERIALIZE_OUTPUT_UNDECLARED`. Process's own
   pre-flight runs first, so a request `Process` refuses is refused with
@@ -78,6 +79,62 @@ res, err := p.Materialize(ctx, &pulse.Request{
   a weak description on the output schema (the generated ones always
   pass; an undescribed source field does not). A limit breach, a
   refusal or a write failure leaves nothing at the target.
+
+## Shaping the output: the `output` slot
+
+`Request.Output` (`types.MaterializeOutput`, JSON `output`) lays out the
+cohort a materialize run writes. It is materialize-only: `Process`,
+`Compose`, `ProcessChain`, `Predict` and their stream, CLI and MCP
+surfaces refuse a request carrying it with
+`PULSE_MATERIALIZE_OUTPUT_ONLY` (`details.slot`; a Compose slot, fit or
+chain stage is located by `details.request` / `fit` / `stage`).
+
+```go
+desc, required := "Customer key", false
+res, err := p.Materialize(ctx, &pulse.Request{
+    Cohort:    &types.Cohort{Filename: "sales.pulse"},
+    Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"north"}}},
+    Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+        {From: "customer_id", As: "key", Description: &desc, Nullable: &required},
+        {From: "spend"},
+    }},
+}, "north_customers.pulse", pulse.MaterializeOptions{})
+```
+
+- **`columns` XOR `exclude`.** `columns` is the closed list — exactly
+  these columns, in list order; `exclude` drops the named columns and
+  keeps every other in source-then-derived order. Neither keeps every
+  column. Both, an empty `columns` list, an `exclude` that drops every
+  column or an entry without `from` is `PULSE_MATERIALIZE_OUTPUT_INVALID`
+  (`details.reason`: `columns_and_exclude`, `no_columns`,
+  `from_missing`; `details.path`).
+- **`from` / `as`.** `from` names a source field or a derived column's
+  label; an unknown name is `PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN`
+  (`details.column`, `path`, and `suggestion` when a name is close).
+  `as` renames; two columns written under one name is
+  `PULSE_MATERIALIZE_OUTPUT_DUPLICATE` (`details.column`, `path`,
+  `first`). The same `from` under two `as` names duplicates the column.
+- **Inheritance.** A key left out inherits: a source field keeps its
+  type, nullability, dictionary, decimal shape and description; a
+  derived column stays a nullable `f64` (a previous-state column its
+  state field's type) with its generated description. `description`
+  replaces the description (`""` clears it); `nullable` overrides the
+  nullability. `nullable: false` on a column that holds a null at run
+  time fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`
+  (`details.column`, `details.row` — the 0-based output row), nothing
+  written.
+- **Projection is last.** Filters, `sort`, weights, features,
+  attributes and windows read the full source schema plus the derived
+  columns, so they may name a column the output drops.
+- **A pure reshape is legal.** With `output` present a request needs no
+  feature, attribute or window: it writes the filtered, sorted source
+  under the new layout (`res.DerivedColumns` is empty).
+- **Sidecars.** A reshaped cohort is written WITHOUT the source's SPSS
+  metadata sidecar (one `PULSE_SPSS_SIDECAR_INVALID` warning says so),
+  never with one describing the source's columns.
+- **Absent `output`** writes exactly what Materialize always wrote, byte
+  for byte. A feature profile without `capability:materialize_output`
+  refuses a set `output` as an unknown field everywhere.
 
 ## The two-step recipe: a regression on a window
 

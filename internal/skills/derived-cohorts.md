@@ -50,6 +50,12 @@ Label every output you will reference; without a label the column takes the oper
 - Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output (a lag over a categorical) is `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - Always a single-file cohort. The source's SPSS metadata sidecar is carried (rewritten for the new columns, so value labels survive to a `.sav` export; a stale one warns with its own code and is dropped); no other sidecar is — rebuild an index on the new cohort if you need one.
 
+<!-- feature: capability:materialize_output -->
+## Shaping the output
+
+`output` lays out the written cohort: `columns` — `[{from, as, description, nullable}]`, exactly these in list order — XOR `exclude` (drop these, keep the rest in source-then-derived order). `from` names a source field or a derived label; the same `from` twice under two `as` names duplicates a column. Omitted keys inherit (a source field its type, nullability, dictionary, description; a derived column stays nullable `f64`). Projection runs LAST: filters, sort, weight and derived slots may read dropped columns. With `output`, no derived column is needed (a pure reshape). `nullable: false` on a column holding a null fails the run (`PULSE_MATERIALIZE_OUTPUT_NULL`, `details.column` + `row`); malformed blocks are `PULSE_MATERIALIZE_OUTPUT_INVALID` / `_UNKNOWN_COLUMN` / `_DUPLICATE`; any other operation refuses the slot (`PULSE_MATERIALIZE_OUTPUT_ONLY`). A reshaped cohort carries no SPSS sidecar (a warning says so).
+<!-- /feature -->
+
 ## Refusals
 
 All before anything is written; the write itself is atomic.

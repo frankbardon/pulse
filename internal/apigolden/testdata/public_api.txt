@@ -1024,6 +1024,7 @@ pulse: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omit
 pulse: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
 pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse: type Request field Output *pulse/types.MaterializeOutput "json:\"output,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type Request field Params pulse/types.Params "json:\"params,omitempty\""
@@ -2704,8 +2705,13 @@ pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
 pulse/errors: const PULSE_MATERIALIZE_NO_DERIVED pulse/errors.Code = "PULSE_MATERIALIZE_NO_DERIVED"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_DUPLICATE pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_DUPLICATE"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_INVALID pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NULL pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_NULL"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_ONLY pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_ONLY"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNDECLARED pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN"
 pulse/errors: const PULSE_MATERIALIZE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 pulse/errors: const PULSE_MATERIALIZE_SLOT_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
 pulse/errors: const PULSE_MATRIX_DEFINED_NONFINITE pulse/errors.Code = "PULSE_MATRIX_DEFINED_NONFINITE"
@@ -5359,6 +5365,14 @@ pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
 pulse/types: func MarshalFinite(v any) ([]byte, error)
+pulse/types: type MaterializeOutput struct
+pulse/types: type MaterializeOutput field Columns []pulse/types.MaterializeOutputColumn "json:\"columns,omitempty\""
+pulse/types: type MaterializeOutput field Exclude []string "json:\"exclude,omitempty\""
+pulse/types: type MaterializeOutputColumn struct
+pulse/types: type MaterializeOutputColumn field As string "json:\"as,omitempty\""
+pulse/types: type MaterializeOutputColumn field Description *string "json:\"description,omitempty\""
+pulse/types: type MaterializeOutputColumn field From string "json:\"from\""
+pulse/types: type MaterializeOutputColumn field Nullable *bool "json:\"nullable,omitempty\""
 pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
@@ -5914,6 +5928,7 @@ pulse/types: type Request field Labels []*pulse/types.LabelBinding "json:\"label
 pulse/types: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
 pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type Request field Output *pulse/types.MaterializeOutput "json:\"output,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type Request field Params pulse/types.Params "json:\"params,omitempty\""
@@ -6222,4 +6237,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4c883a1f70763ac783bdd0fd7c4b7d3137d16ecb86b7a69843057f91cc80c556
+// golden-hash: 7a3ca1ee0ca67eb7407088a1edd4fc181c3ac465204c2938cda517187da81d81

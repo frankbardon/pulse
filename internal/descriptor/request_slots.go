@@ -61,6 +61,7 @@ import (
 //   - Request.Populations — capability:models
 //   - Request.Params, ComposedRequest.Params, ChainRequest.Params and
 //     FacetRequest.Params — capability:params
+//   - Request.Output (materialize-only) — capability:materialize_output
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
@@ -145,6 +146,11 @@ var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(
 // overlay's) is a different key on a different struct and never gated.
 var paramsSlotGate = gatedSlot{key: "params", visible: capabilityGate(featParams)}
 
+// outputSlotGate gates the materialize-only `output` key on a Request:
+// capability:materialize_output. Hidden, a set `output` is an unknown
+// field on every operation, Materialize included.
+var outputSlotGate = gatedSlot{key: "output", visible: capabilityGate(featMaterializeOutput)}
+
 // crosstabCellsSlotGate gates the `cells` key on a CrosstabSpec (the
 // multi-measure crosstab): capability:crosstab_cells.
 var crosstabCellsSlotGate = gatedSlot{key: "cells", visible: capabilityGate(featCrosstabCells)}
@@ -177,6 +183,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		modelsSlotGate,
 		populationsSlotGate,
 		paramsSlotGate,
+		outputSlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}): {weightSlotGate},
 	// The multi-measure crosstab: the `cells` request key and the
@@ -471,6 +478,9 @@ func setSlots(v any) []string {
 		}
 		if len(r.Params) > 0 {
 			out = append(out, "params")
+		}
+		if r.Output != nil {
+			out = append(out, outputSlotGate.key)
 		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
@@ -847,15 +857,48 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 //     use, descx.RefusalAt).
 //
 // valid_keys and suggestions range over the offending root's VISIBLE
-// keys only. Then — on every instance, scoped or not — every slot's
+// keys only. Then — on every instance — a set materialize-only `output`
+// (the Request, a Compose slot or fit, a chain stage) is
+// PULSE_MATERIALIZE_OUTPUT_ONLY (outputSlotRefusal; MaterializeSlotGate
+// skips it). Then — on every instance, scoped or not — every slot's
 // params object is held to its operator's manifest allowlist
 // (ParamsRefusal). Every service funnel and Predict run it before any
 // other request check, so a hidden slot or an unknown params key is
 // refused at the point an unknown JSON key would have been.
 func SlotRefusal(v any, inst *InstanceSnapshot) error {
-	if !inst.Scoped() {
-		return ParamsRefusal(v, inst)
+	return slotRefusal(v, inst, false)
+}
+
+// MaterializeSlotGate is SlotRefusal for a materialize run's request:
+// the same hidden-slot and params gates, but the materialize-only
+// `output` slot is accepted (it is still an unknown field on an
+// instance hiding capability:materialize_output).
+func MaterializeSlotGate(req *types.Request, inst *InstanceSnapshot) error {
+	return slotRefusal(req, inst, true)
+}
+
+// slotRefusal runs the hidden-slot gate (scoped instances only), then —
+// unless the caller is a materialize run — the materialize-only
+// `output` refusal (PULSE_MATERIALIZE_OUTPUT_ONLY), then the params
+// allowlist. A hidden `output` is refused as an unknown field before
+// the materialize-only rule, as any hidden slot is.
+func slotRefusal(v any, inst *InstanceSnapshot, allowOutput bool) error {
+	if inst.Scoped() {
+		if err := scopedSlotRefusal(v, inst); err != nil {
+			return err
+		}
 	}
+	if !allowOutput {
+		if err := outputSlotRefusal(v); err != nil {
+			return err
+		}
+	}
+	return ParamsRefusal(v, inst)
+}
+
+// scopedSlotRefusal is the hidden-slot half of SlotRefusal on a scoped
+// instance; nil when v sets no slot inst hides.
+func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 	if ce := rootSlotRefusal(v, inst); ce != nil {
 		return ce
 	}
@@ -938,5 +981,5 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 		}
 	}
-	return ParamsRefusal(v, inst)
+	return nil
 }

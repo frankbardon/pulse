@@ -184,6 +184,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATERIALIZE_OUTPUT_UNDECLARED:    shared,
 	errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC:   shared,
 	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
+	// The `output` slot rides capability:materialize_output: hidden, a
+	// set `output` is an unknown field, so none of these is reachable.
+	errors.PULSE_MATERIALIZE_OUTPUT_ONLY:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_INVALID:        own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN: own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_DUPLICATE:      own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_NULL:           own(featMaterializeOutput),
 
 	// Pulse.Rake is a library method every instance carries.
 	errors.PULSE_RAKE_INVALID:              shared,

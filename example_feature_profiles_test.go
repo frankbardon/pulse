@@ -176,6 +176,8 @@ func TestExampleFeatureProfiles_Content(t *testing.T) {
 		"capability:dedup": true, "capability:widen": true, "capability:shard": true,
 		"capability:index": true, "capability:synth": true, "capability:materialize": true, "capability:rake": true,
 		"capability:model_save": true,
+		// The materialize-only output slot rides capability:materialize.
+		"capability:materialize_output": true,
 	}
 	fp, _ := ExampleFeatureProfile("read-only-analyst")
 	for _, f := range descx.Features() {

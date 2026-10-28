@@ -43,6 +43,7 @@ var bindParityRoots = []bindParityRoot{
 // bug; a gap without a reason is a bind fix, never an entry.
 var bindParityExclusions = map[string]string{
 	"Test.multiplicity.alpha":      "A test's adjusted flag reads the test's own `alpha`; the engine refuses multiplicity.alpha on a test or post-test block (multiplicity_resolve multReasonTestAlpha). The payload schema shares one Multiplicity def across every host, so it cannot omit alpha at this site alone.",
+	"Request.output":               "The materialize-only output slot: every tool bound here (pulse_process, pulse_compose, pulse_process_chain, pulse_predict) refuses it with PULSE_MATERIALIZE_OUTPUT_ONLY, so advertising it would invite a refusal. pulse_materialize's request (reflected from types.Request) carries it.",
 	"FacetRequest.overlays.weight": "Facets are never weighted: no facet-host overlay kind reads a weight, so advertising one would invite a key that changes nothing. The payload schema shares the OverlaySpec def with the Request host, where the weight is live.",
 }
 

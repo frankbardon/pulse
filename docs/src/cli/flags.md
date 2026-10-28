@@ -814,7 +814,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api compose` | Execute multiple processing requests in batch | [api compose](api-compose.md) |
 | `pulse api facet` | Distinct values for a field, or a rich multi-field summary | [api facet](api-facet.md) |
 | `pulse api lookup` | Key-exact row read against a prebuilt sidecar index | [api lookup](api-lookup.md) |
-| `pulse api materialize` | Write a request's derived columns (features, attributes, windows) as fields of a new cohort: `-r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`; refusals keep their own code | [Materialize](../library/materialize.md) |
+| `pulse api materialize` | Write a request's derived columns (features, attributes, windows) as fields of a new cohort, laid out by its `output` block when present: `-r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`; refusals keep their own code | [Materialize](../library/materialize.md) |
 | `pulse api predict` | Validate a request against a cohort without executing | [api predict](api-predict.md) |
 | `pulse api predict-chain` | Validate a process-chain request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
 | `pulse api predict-compose` | Validate a Compose batch without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |

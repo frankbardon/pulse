@@ -13,15 +13,18 @@ import (
 
 // MaterializeSink receives a materialize run. Begin is called once,
 // after every pre-flight check passed and before any record is
-// decoded, with the opened source cohort and the derived columns in
-// output order; an error from it ends the run. Row is then called once
+// decoded, with the opened source cohort, the derived columns in
+// pipeline order and the resolved output layout
+// (descx.MaterializeOutputLayout: every column the cohort is written
+// with, in output order, each reading a source field or a derived
+// column); an error from it ends the run. Row is then called once
 // per filter-passing source record — in source order, or in the
 // request's sort order when it carries one — with the record's
 // 0-based source index (global over a shard archive, in Cohort.Shards
 // order — the CohortRecordReader index) and one value per derived
 // column (float64 or nil). Row is never called when Begin failed.
 type MaterializeSink interface {
-	Begin(cohort *Cohort, columns []descx.MaterializeColumn) error
+	Begin(cohort *Cohort, columns []descx.MaterializeColumn, layout []descx.MaterializeOutputField) error
 	Row(source int64, derived []any) error
 }
 
@@ -40,9 +43,12 @@ type MaterializeWarner interface {
 // the limits pre-flight) so a request Process refuses is refused with
 // the same error, plus the materialize gates: a slot that does not
 // produce one value per record (PULSE_MATERIALIZE_SLOT_UNSUPPORTED),
-// no derived slot (PULSE_MATERIALIZE_NO_DERIVED) and a feature whose
-// outputs cannot be named (PULSE_MATERIALIZE_OUTPUT_UNDECLARED) — all
-// before sink.Begin.
+// no derived slot without an output block (PULSE_MATERIALIZE_NO_DERIVED),
+// a feature whose outputs cannot be named
+// (PULSE_MATERIALIZE_OUTPUT_UNDECLARED) and the output block's layout
+// refusals (descx.MaterializeOutputLayout) — all before sink.Begin.
+// Unlike every other operation it accepts the materialize-only
+// `output` slot (descx.MaterializeSlotGate).
 //
 // A sort reorders the Row calls only (processing.DeriveRecords): the
 // derived values are those of the unsorted run. The scan always
@@ -61,7 +67,9 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 		return errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
 	s = s.forRequest(req)
-	if err := s.slotRefusal(req); err != nil {
+	// The instance slot gate with the materialize-only `output` slot
+	// accepted (every other operation refuses it).
+	if err := descx.MaterializeSlotGate(req, s.instance); err != nil {
 		return markLocated(err)
 	}
 	// Every item for_each expands before the materialize gates read
@@ -85,7 +93,7 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err != nil {
 		return err
 	}
-	if len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0 {
+	if req.Output == nil && len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0 {
 		_, err := descx.MaterializeColumns(req, nil, s.instance, "")
 		return err
 	}
@@ -120,10 +128,18 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if cerr != nil {
 		return cerr
 	}
+	// The output layout (projection, renames, descriptions,
+	// nullability) is resolved last, over the source schema plus the
+	// derived columns: every slot above has already read the full
+	// schema, so a column the output drops stays readable to them.
+	layout, lerr := descx.MaterializeOutputLayout(req, schema, cols)
+	if lerr != nil {
+		return lerr
+	}
 	req = s.zoned(req, zones)
 	ei.Lap(observe.PhasePlan)
 
-	if err := sink.Begin(cohort, cols); err != nil {
+	if err := sink.Begin(cohort, cols, layout); err != nil {
 		return err
 	}
 

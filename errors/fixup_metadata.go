@@ -824,6 +824,56 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATERIALIZE_OUTPUT_ONLY: {
+		Message: "The request carries the output slot, which lays out the cohort a materialize run writes and is accepted only by materialize.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output"},
+				Hint:   "Remove the output block, or run the request through materialize (pulse api materialize / pulse_materialize) to write the reshaped cohort.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_INVALID: {
+		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, or has a column entry without from. details.reason names the rule and details.path the offending key.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Exclude"},
+				Hint:   "Use columns (the closed list to keep, in order) OR exclude (the columns to drop), never both; keep at least one column; give every columns entry a from naming a source field or derived column.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN: {
+		Message: "A materialize output column names neither a source field nor a derived column of the request.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Columns", "*", "From"},
+				Hint:   "Name a source field (pulse inspect lists them) or a feature / attribute / window label of the same request; details.suggestion names the closest match when there is one.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_DUPLICATE: {
+		Message: "Two materialize output columns are written under the same name after renaming.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Columns", "*", "As"},
+				Hint:   "Give one of the entries named by details.path and details.first a distinct as; the same from may appear twice under different as names.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_NULL: {
+		Message: "A materialize output column declared nullable: false holds a null, so nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Columns", "*", "Nullable"},
+				Hint:   "Drop nullable: false from the column named by details.column (or set it true), or add a filterer that removes the rows where it is null (details.row is the first output row found).",
+			},
+		},
+	},
 	PULSE_RAKE_INVALID: {
 		Message: "The rake request is malformed, so nothing is read or written. It needs a source `cohort`, an `out` path that is not the source, and at least one margin; each margin is either `field` + `targets` or two or more `fields` + `cells` (each cell one value per field, no tuple twice). Margin, `by` and `base_weight` fields must exist, a margin or `by` field must be categorical, packed_bool or an unsigned integer and appear once, a base weight must be numeric with no null, negative or non-finite value. Targets are finite and non-negative with at least one positive; `targets_as: shares` sums to 1 or 100; `missing` is `refuse` or `base`; caps satisfy 0 <= min_weight <= 1 <= max_weight; max_iter, tol and total are non-negative. A `weight_field` the source already has needs `overwrite` and may not be a margin or `by` field. details.reason names the rule and details.field the request path.",
 		Fixups: []Fixup{

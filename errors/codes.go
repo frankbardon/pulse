@@ -467,6 +467,39 @@ const (
 	// invalidated_sidecars names each with its rebuild command.
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 
+	// PULSE_MATERIALIZE_OUTPUT_ONLY indicates a request carrying the
+	// materialize-only `output` slot outside Pulse.Materialize (Process,
+	// Compose, ProcessChain, Predict and their stream / api / MCP
+	// surfaces). details.slot is "output"; a Compose slot or fit adds
+	// details.request / fit, a chain stage details.stage.
+	PULSE_MATERIALIZE_OUTPUT_ONLY Code = "PULSE_MATERIALIZE_OUTPUT_ONLY"
+
+	// PULSE_MATERIALIZE_OUTPUT_INVALID indicates a malformed `output`
+	// block: both columns and exclude (reason columns_and_exclude), an
+	// empty columns list or an exclude list dropping every column
+	// (no_columns), a column entry without `from` (from_missing).
+	// details carry reason and path. Raised before any file is created.
+	PULSE_MATERIALIZE_OUTPUT_INVALID Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
+
+	// PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN indicates an `output`
+	// column `from` (or an exclude entry) naming neither a source field
+	// nor a derived column of the request. details carry column, path
+	// and, when a name is close, suggestion. Raised before any file is
+	// created.
+	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN Code = "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN"
+
+	// PULSE_MATERIALIZE_OUTPUT_DUPLICATE indicates two `output` columns
+	// written under the same name after renaming. details carry column,
+	// path (the second entry) and first (the earlier one). Raised before
+	// any file is created.
+	PULSE_MATERIALIZE_OUTPUT_DUPLICATE Code = "PULSE_MATERIALIZE_OUTPUT_DUPLICATE"
+
+	// PULSE_MATERIALIZE_OUTPUT_NULL indicates a null cell in an `output`
+	// column declared nullable: false. details carry column (the output
+	// name) and row (the 0-based output row). The run fails with no
+	// target written.
+	PULSE_MATERIALIZE_OUTPUT_NULL Code = "PULSE_MATERIALIZE_OUTPUT_NULL"
+
 	// PULSE_RAKE_INVALID indicates a malformed Pulse.Rake request,
 	// refused before any record is read or any file is created.
 	// details.reason names the rule ("cohort_missing", "out_missing",
@@ -4448,6 +4481,11 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_OUTPUT_UNDECLARED,
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
+	PULSE_MATERIALIZE_OUTPUT_ONLY,
+	PULSE_MATERIALIZE_OUTPUT_INVALID,
+	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN,
+	PULSE_MATERIALIZE_OUTPUT_DUPLICATE,
+	PULSE_MATERIALIZE_OUTPUT_NULL,
 	PULSE_RAKE_INVALID,
 	PULSE_RAKE_UNKNOWN_CATEGORY,
 	PULSE_RAKE_UNTARGETED_CATEGORY,

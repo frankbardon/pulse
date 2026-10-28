@@ -1627,6 +1627,14 @@ type Request struct {
 	// request. Values are typed, never spliced into an expression's
 	// text. Nil declares none. Gated by capability:params. See Params.
 	Params Params `json:"params,omitempty"`
+
+	// Output lays out the schema of the cohort a Pulse.Materialize run
+	// writes: which columns, in what order, under which names, with
+	// which descriptions and nullability. Materialize-only — every other
+	// operation refuses it (PULSE_MATERIALIZE_OUTPUT_ONLY). Nil writes
+	// every source column then every derived column, unchanged. Gated by
+	// capability:materialize_output. See MaterializeOutput.
+	Output *MaterializeOutput `json:"output,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
