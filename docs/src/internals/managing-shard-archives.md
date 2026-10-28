@@ -250,7 +250,14 @@ predict` included) reads an archive the same way without writing one:
 the canonical schema over every shard's records in archive order
 (`internal/io.OpenCohortRecords`), so its output equals the flattened
 file's export. The SPSS metadata sidecar beside the archive is
-fingerprinted over the archive's bytes.
+fingerprinted over the archive's bytes. An anchored source
+(`archive.pulse#shard.pulse`) exports that one shard the same way
+(`encx.OpenArchiveEntryRecords`): the canonical schema over its records,
+equal to the archive flattened and filtered to the shard. An unknown or
+reserved anchor is refused with `pulse.Open`'s code
+(`PULSE_SHARD_MISSING` / `PULSE_SHARD_RESERVED_NAME`, `details.entry`);
+a `.sav` reads the ARCHIVE's sidecar (fresh, stale or absent exactly as
+for a whole-archive export), never a per-shard one.
 
 ### Point-lookup indexes
 

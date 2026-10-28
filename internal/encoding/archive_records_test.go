@@ -230,3 +230,96 @@ func TestShardDecodeCompatible(t *testing.T) {
 		}
 	}
 }
+
+// TestOpenArchiveEntryRecords: an anchored pass reads ONE shard under
+// the canonical schema — exactly the records the whole-archive pass
+// yields for that entry, the truncated tail dropped, a prefix
+// dictionary accepted — and refuses with pulse.Open's anchor codes: the
+// reserved canonical entry, an entry the directory lacks (an empty name
+// included, never read as "every shard"), a non-archive; a shard the
+// canonical schema cannot decode keeps the verify code with
+// details.entry.
+func TestOpenArchiveEntryRecords(t *testing.T) {
+	t.Parallel()
+
+	canonical := tagSchema(t, encoding.FieldTypeSetU16, []string{"a", "b", "c"}, false)
+	first := []tagRow{{1, 0b001}, {2, 0b011}}
+	second := []tagRow{{3, 0b100}, {4, 0b111}, {5, 0}}
+	data := zipArchive(t,
+		zipEntry{name: encx.ReservedSchemaName, payload: tagCohort(t, canonical, nil, 0)},
+		zipEntry{name: "part-00001.pulse", payload: tagCohort(t, tagSchema(t, encoding.FieldTypeSetU16, []string{"a", "b"}, false), first, 4)},
+		zipEntry{name: "part-00002.pulse", payload: tagCohort(t, canonical, second, 0)},
+		zipEntry{name: "bad.pulse", payload: tagCohort(t, tagSchema(t, encoding.FieldTypeSetU16, []string{"a", "b", "c", "d"}, false), first, 0)},
+	)
+	for name, rows := range map[string][]tagRow{"part-00001.pulse": first, "part-00002.pulse": second} {
+		ar, err := encx.OpenArchiveEntryRecords(bytes.NewReader(data), int64(len(data)), name)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if ar.Records != int64(len(rows)) || len(ar.Shards) != 1 || ar.Shards[0] != name {
+			t.Errorf("%s: records %d shards %v, want %d records of the one shard", name, ar.Records, ar.Shards, len(rows))
+		}
+		if ar.Schema.Fields[1].Dictionary.Count() != 3 {
+			t.Errorf("%s: schema dictionary %d labels, want the canonical 3", name, ar.Schema.Fields[1].Dictionary.Count())
+		}
+		got, err := io.ReadAll(ar.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []byte
+		for _, r := range rows {
+			want = append(want, tagRecord(r)...)
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("%s: records\n got %x\nwant %x", name, got, want)
+		}
+	}
+
+	single := tagCohort(t, canonical, first, 0)
+	for _, tc := range []struct {
+		name, entry string
+		data        []byte
+		code        errors.Code
+		detail      any
+	}{
+		{"reserved", encx.ReservedSchemaName, data, errors.PULSE_SHARD_RESERVED_NAME, encx.ReservedSchemaName},
+		{"unknown", "nope.pulse", data, errors.PULSE_SHARD_MISSING, "nope.pulse"},
+		{"empty", "", data, errors.PULSE_SHARD_MISSING, ""},
+		{"undecodable", "bad.pulse", data, errors.PULSE_SHARD_DICT_DIVERGENCE, "bad.pulse"},
+		{"not an archive", "x.pulse", single, errors.PULSE_ARCHIVE_MAGIC_INVALID, nil},
+	} {
+		ar, err := encx.OpenArchiveEntryRecords(bytes.NewReader(tc.data), int64(len(tc.data)), tc.entry)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != tc.code {
+			t.Errorf("%s: %+v, %v; want %s", tc.name, ar, err, tc.code)
+			continue
+		}
+		if tc.detail != nil && ce.Details["entry"] != tc.detail {
+			t.Errorf("%s: details.entry = %v, want %q", tc.name, ce.Details["entry"], tc.detail)
+		}
+	}
+}
+
+// TestSplitAnchorPath: the one anchor parser splits at the FIRST '#'
+// and reports a path without one as unanchored.
+func TestSplitAnchorPath(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		path, archive, entry string
+		ok                   bool
+	}{
+		{"a.pulse#s.pulse", "a.pulse", "s.pulse", true},
+		{"dir/a.pulse#s#t.pulse", "dir/a.pulse", "s#t.pulse", true},
+		{"a.pulse#", "a.pulse", "", true},
+		{"a.pulse", "", "", false},
+	} {
+		a, e, ok := encx.SplitAnchorPath(tc.path)
+		if a != tc.archive || e != tc.entry || ok != tc.ok {
+			t.Errorf("SplitAnchorPath(%q) = %q, %q, %v; want %q, %q, %v", tc.path, a, e, ok, tc.archive, tc.entry, tc.ok)
+		}
+	}
+	if err := encx.RefuseReservedAnchor("s.pulse"); err != nil {
+		t.Errorf("RefuseReservedAnchor(s.pulse) = %v, want nil", err)
+	}
+}

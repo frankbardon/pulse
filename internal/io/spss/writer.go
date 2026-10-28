@@ -68,6 +68,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
@@ -376,7 +377,8 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 
 	// The sidecar read is the writer's first act, and it is the one that can
 	// refuse: a STALE sidecar stops the export outright. See LoadSidecar.
-	res, err := LoadSidecar(fs, path, opts)
+	// An anchored source reads the ARCHIVE's sidecar (sidecarCohortPath).
+	res, err := LoadSidecar(fs, sidecarCohortPath(path), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -442,6 +444,20 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 		renames:  plan.Renames,
 		warnings: plan.Warnings,
 	}, nil
+}
+
+// sidecarCohortPath names the cohort whose SPSS sidecar an export of path
+// consults. An anchored source (`archive.pulse#entry.pulse`) is read under
+// the archive's CANONICAL schema, which is what the archive's own sidecar
+// (`archive.pulse.spss.json`, fingerprinted over the archive's bytes)
+// describes — so that sidecar is the one, fresh, stale or absent exactly
+// as for a whole-archive export. A per-shard sidecar is never looked for.
+// Any other path is its own cohort.
+func sidecarCohortPath(path string) string {
+	if archive, _, ok := encx.SplitAnchorPath(path); ok {
+		return archive
+	}
+	return path
 }
 
 // encodeCohort is E5-S1..S5 assembled: run the non-data pass, encode every

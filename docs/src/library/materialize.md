@@ -260,7 +260,9 @@ res, err := p.Materialize(ctx, &pulse.Request{
   beside the archive, fingerprinted over the archive's bytes (Inspect
   reads its suggested weight; `pulse export` of the archive, every
   format, writes exactly what the single-file output would, a `.sav`
-  applying the sidecar) — and an elided column keeps its variable. `Overwrite`
+  applying the sidecar; an anchored `archive.pulse#shard.pulse` exports
+  that one shard under the canonical schema with the archive's sidecar)
+  — and an elided column keeps its variable. `Overwrite`
   replaces an existing cohort or archive whole.
 - **Parent groups: `groups`.** With an `output` block, a grouped
   (`0x02`) source keeps its parent groups: `groups` absent INHERITS each

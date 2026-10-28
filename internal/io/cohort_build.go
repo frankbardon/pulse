@@ -294,10 +294,7 @@ func checkBuildTarget(fsys afero.Fs, target string, overwrite bool) error {
 // splitAnchor splits `archive.pulse#name.pulse` at the FIRST '#', as
 // every anchored read does.
 func splitAnchor(target string) (archive, shard string, ok bool) {
-	if archive, shard, ok = strings.Cut(target, "#"); !ok {
-		return "", "", false
-	}
-	return archive, shard, true
+	return encx.SplitAnchorPath(target)
 }
 
 // checkAppendTarget refuses an anchored (append-one-shard) build the

@@ -486,3 +486,18 @@ func codes(warns []*perr.CodedError) []string {
 	}
 	return out
 }
+
+// TestSidecarCohortPath: an anchored export consults the ARCHIVE's
+// sidecar, never a per-shard one; any other path is its own cohort.
+func TestSidecarCohortPath(t *testing.T) {
+	t.Parallel()
+
+	for in, want := range map[string]string{
+		"dir/arch.pulse#part-00001.pulse": "dir/arch.pulse",
+		"cohort.pulse":                    "cohort.pulse",
+	} {
+		if got := sidecarCohortPath(in); got != want {
+			t.Errorf("sidecarCohortPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

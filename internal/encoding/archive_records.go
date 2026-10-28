@@ -43,9 +43,43 @@ type ArchiveRecords struct {
 // deflated shard entry is PULSE_ARCHIVE_CORRUPT; the canonical entry's
 // absence is PULSE_SHARD_MISSING. ra must outlive the returned Reader.
 func OpenArchiveRecords(ra io.ReaderAt, size int64) (*ArchiveRecords, error) {
+	return openArchiveRecords(ra, size, "", false)
+}
+
+// OpenArchiveEntryRecords is OpenArchiveRecords restricted to ONE
+// shard: the read an anchored (`archive.pulse#entry.pulse`) export
+// makes. Schema is still the archive's CANONICAL schema and the shard
+// passes the same ShardDecodeCompatible gate, so its records are
+// exactly the ones the whole-archive pass yields for that entry —
+// byte-for-byte the record region of the single file a flatten of the
+// archive filtered to that shard would write.
+//
+// The anchor refusals are pulse.Open's own, raised in its order: the
+// reserved canonical entry is PULSE_SHARD_RESERVED_NAME before the
+// archive is read (RefuseReservedAnchor); a non-archive keeps the
+// OpenArchive code (PULSE_ARCHIVE_MAGIC_INVALID, ...); an entry the
+// central directory lacks is Archive.OpenAt's PULSE_SHARD_MISSING with
+// details.entry. A deflated entry is PULSE_ARCHIVE_CORRUPT exactly as
+// in the whole-archive pass.
+func OpenArchiveEntryRecords(ra io.ReaderAt, size int64, entry string) (*ArchiveRecords, error) {
+	if err := RefuseReservedAnchor(entry); err != nil {
+		return nil, err
+	}
+	return openArchiveRecords(ra, size, entry, true)
+}
+
+// openArchiveRecords plans the pass over every shard, or — anchored —
+// over the one shard only names (an empty name is an entry like any
+// other, so it is refused as missing, never read as "every shard").
+func openArchiveRecords(ra io.ReaderAt, size int64, only string, anchored bool) (*ArchiveRecords, error) {
 	arch, err := OpenArchive(ra, size)
 	if err != nil {
 		return nil, err
+	}
+	if anchored {
+		if _, err := arch.OpenAt(only); err != nil {
+			return nil, err // PULSE_SHARD_MISSING, details.entry
+		}
 	}
 	rc, err := arch.Open(ReservedSchemaName)
 	if err != nil {
@@ -63,7 +97,7 @@ func OpenArchiveRecords(ra io.ReaderAt, size int64) (*ArchiveRecords, error) {
 	out := &ArchiveRecords{Schema: canonical}
 	var parts []io.Reader
 	for _, e := range arch.Entries() {
-		if e.Name == ReservedSchemaName {
+		if e.Name == ReservedSchemaName || (anchored && e.Name != only) {
 			continue
 		}
 		if !arch.IsStored(e.Name) {

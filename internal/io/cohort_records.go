@@ -24,6 +24,12 @@ import (
 //     Reader yields every shard's whole records back to back in archive
 //     order (encx.OpenArchiveRecords) — byte-for-byte the record region of
 //     the single file a flatten would write.
+//   - An anchored shard (`archive.pulse#entry.pulse`, split by the one
+//     anchor parser encx.SplitAnchorPath): the archive's CANONICAL
+//     schema over that one shard's whole records
+//     (encx.OpenArchiveEntryRecords) — exactly the rows the
+//     whole-archive pass yields for the entry, read the same way. An
+//     unknown or reserved anchor is refused with pulse.Open's code.
 //
 // Either way Reader holds PHYSICAL rows: a grouped schema is read
 // through encx.NewLogicalStream by the caller, as before.
@@ -33,9 +39,12 @@ type CohortRecords struct {
 	// Records is the number of whole records Reader holds — the
 	// payload-length estimate ExportJob.Predict has always reported.
 	Records int64
-	// Archive reports a shard-archive source.
+	// Archive reports a shard-archive source, whole or anchored.
 	Archive bool
-	file    afero.File
+	// Entry names the anchored shard; "" for a whole archive or a
+	// single file.
+	Entry string
+	file  afero.File
 }
 
 // Close releases the cohort's file handle. Safe on nil.
@@ -53,17 +62,55 @@ func (c *CohortRecords) Close() error {
 // always returned; header, schema and archive faults keep their own
 // codes (ENCODING_INVALID, PULSE_COHORT_COMPRESSED, the PULSE_ARCHIVE_*
 // / PULSE_SHARD_* codes). The caller owns Close.
+//
+// An anchored path opens its ARCHIVE: the reserved entry is refused
+// before the archive is opened, an unopenable archive is the same plain
+// "reading pulse file" error, and the rest are encx.OpenArchiveEntryRecords'
+// refusals (PULSE_ARCHIVE_MAGIC_INVALID for a single file,
+// PULSE_SHARD_MISSING + details.entry for an unknown entry).
 func OpenCohortRecords(fsys afero.Fs, path string) (*CohortRecords, error) {
+	archivePath, entry, anchored := encx.SplitAnchorPath(path)
+	if anchored {
+		if err := encx.RefuseReservedAnchor(entry); err != nil {
+			return nil, err
+		}
+		path = archivePath
+	}
 	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading pulse file: %w", err)
 	}
-	c, err := cohortRecordsFromFile(f)
+	var c *CohortRecords
+	if anchored {
+		c, err = anchoredRecordsFromFile(f, entry)
+	} else {
+		c, err = cohortRecordsFromFile(f)
+	}
 	if err != nil {
 		_ = f.Close()
 		return nil, err
 	}
 	return c, nil
+}
+
+// anchoredRecordsFromFile reads the one shard entry of the archive f.
+func anchoredRecordsFromFile(f afero.File, entry string) (*CohortRecords, error) {
+	st, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("reading pulse file: %w", err)
+	}
+	ar, err := encx.OpenArchiveEntryRecords(f, st.Size(), entry)
+	if err != nil {
+		return nil, err
+	}
+	return &CohortRecords{
+		Schema:  ar.Schema,
+		Reader:  bufio.NewReaderSize(ar.Reader, exportReadBufferSize),
+		Records: ar.Records,
+		Archive: true,
+		Entry:   entry,
+		file:    f,
+	}, nil
 }
 
 func cohortRecordsFromFile(f afero.File) (*CohortRecords, error) {
