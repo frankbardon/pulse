@@ -320,8 +320,11 @@ byte-identical to the earlier wire form.
 type, precision, scale, on_cast_error, recode, bucket}`, `from` required — XOR `exclude` (field / derived-column names) — plus the
 container keys `shards` (`#/$defs/MaterializeShards` `{max_records}`: a
 shard archive of `max_records`-row shards; `max_records ≤ 0` is
-`PULSE_MATERIALIZE_OUTPUT_INVALID`) and `elide_constants` (store a
-column constant over the written rows once). It is
+`PULSE_MATERIALIZE_OUTPUT_INVALID`), `elide_constants` (store a
+column constant over the written rows once) and `groups`
+(`#/$defs/MaterializeGroup` `{key, members}` over written names; absent
+inherits the source's parent groups whose members are written
+unchanged, `[]` writes none). It is
 additive: `format_version` stays `"1.1"` and omitting it writes the
 cohort Materialize always wrote, byte for byte. It is MATERIALIZE-ONLY:
 every other operation that takes a `Request` (process, compose, chain,

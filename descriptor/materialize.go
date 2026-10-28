@@ -52,6 +52,44 @@ type MaterializeContainer struct {
 	// value on every written row is stored once. Which columns qualify
 	// only the rows settle, so none is named here.
 	ElideConstants bool `json:"elide_constants"`
+	// Groups is the parent-group plan (output.groups, or the source's
+	// groups inherited when it is absent): every group handed to the
+	// writer, in the order it is declared to it, then every source group
+	// left out. Empty when the written cohort has no group to judge.
+	Groups []MaterializeGroupPlan `json:"groups,omitempty"`
+}
+
+// MaterializeGroupPlan is one parent group of a materialize run's
+// container plan (MaterializeContainer.Groups).
+type MaterializeGroupPlan struct {
+	// Label names the group as the run's result and warnings do: "group
+	// 1 [key: region]" for a group handed to the writer, "source group
+	// 2 [...]" (source names) for one left out.
+	Label string `json:"label"`
+	// Origin is "declared" (output.groups) or "inherited" (a source
+	// group).
+	Origin string `json:"origin"`
+	// Key and Members are the group's key and determined members by
+	// written name (by source name for a group left out); no Key means
+	// every member is key.
+	Key     []string `json:"key,omitempty"`
+	Members []string `json:"members"`
+	// SourceFields names an inherited group's source members (key and
+	// determined, in source order); absent for a declared one.
+	SourceFields []string `json:"source_fields,omitempty"`
+	// Verdict is "planned" (handed to the writer, whose viability gate
+	// over the written rows decides admitted or low_ratio),
+	// "dropped_too_narrow" (no wider than its index: never formed,
+	// PULSE_GROUP_TOO_NARROW) or "not_inherited" (a member is not written
+	// unchanged, PULSE_MATERIALIZE_GROUP_NOT_INHERITED).
+	Verdict string `json:"verdict"`
+	// Reason is the code behind a dropped verdict.
+	Reason string `json:"reason,omitempty"`
+	// Member and Change say why a source group is not inherited: the
+	// first member that changed, and how — "dropped", "retyped",
+	// "recoded" or "bucketed".
+	Member string `json:"member,omitempty"`
+	Change string `json:"change,omitempty"`
 }
 
 // MaterializePredictColumn is one column of the cohort a materialize run

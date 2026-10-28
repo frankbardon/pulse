@@ -821,6 +821,11 @@ func materializePredict(ctx context.Context, cmd *cli.Command, jsonOut bool, req
 		if c := res.Container; c != nil && c.ElideConstants {
 			writeText(w, "Container: constants elided\n")
 		}
+		if c := res.Container; c != nil {
+			for _, g := range c.Groups {
+				writeText(w, "Group %s (%s): %s\n", g.Label, g.Origin, g.Verdict)
+			}
+		}
 	}
 	for _, e := range env.Errors {
 		writeText(w, "Error [%s]: %s\n", e.Code, e.Message)
@@ -844,6 +849,9 @@ func writeMaterializeText(cmd *cli.Command, res *pulse.MaterializeResult) {
 	}
 	if len(res.ElidedConstants) > 0 {
 		writeText(w, "Elided constants: %s\n", strings.Join(res.ElidedConstants, ", "))
+	}
+	for _, g := range res.Groups {
+		writeText(w, "Group %s: %s\n", g.Label, g.Verdict)
 	}
 	writeSourceWarnings(w, res.Warnings)
 	if len(res.InvalidatedSidecars) > 0 {

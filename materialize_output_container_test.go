@@ -302,7 +302,7 @@ func TestMaterializeOutput_PredictContainerPlan(t *testing.T) {
 		return env.Data.(*descriptor.MaterializePredictResult)
 	}
 
-	if got := plan(nil).Container; got == nil || *got != (descriptor.MaterializeContainer{Kind: "file"}) {
+	if got := plan(nil).Container; got == nil || !reflect.DeepEqual(*got, descriptor.MaterializeContainer{Kind: "file"}) {
 		t.Errorf("absent output container = %+v, want a file", got)
 	}
 	out := &types.MaterializeOutput{Shards: &types.MaterializeShards{MaxRecords: 5}, ElideConstants: true}

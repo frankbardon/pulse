@@ -35,7 +35,7 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 - `sort` orders ROWS only (source or derived keys, nulls last); windows follow their own `order_by`.
 - The SPSS metadata sidecar is carried, no other sidecar.
 <!-- feature: capability:materialize_output -->
-- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last (`derived-cohorts`, `materialize-recode`, `materialize-casts`); `shards` writes a shard archive (`materialize-container`).
+- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last (`derived-cohorts`, `materialize-recode`, `materialize-casts`); `shards` / `groups` shape the file (`materialize-container`).
 <!-- /feature -->
 
 ## See

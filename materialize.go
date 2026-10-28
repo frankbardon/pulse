@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/internal/temporal"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -28,7 +29,11 @@ type MaterializeOptions struct {
 	// the output schema into a fatal error of the same code, raised
 	// before any record is read (as CohortBuilderOptions.Strict). The
 	// generated derived-column descriptions always pass; a source field
-	// with an empty or placeholder description does not.
+	// with an empty or placeholder description does not. It makes the
+	// output block's parent groups strict too: a source group left out
+	// (PULSE_MATERIALIZE_GROUP_NOT_INHERITED) or a group too narrow to
+	// form (PULSE_GROUP_TOO_NARROW) fails before any record is read, a
+	// low ratio (PULSE_DEDUP_LOW_RATIO) fails before anything is written.
 	Strict bool
 }
 
@@ -46,9 +51,12 @@ type MaterializeResult struct {
 	// (a fitted vector attribute's PULSE_MATRIX_SINGULAR /
 	// PULSE_MATRIX_INSUFFICIENT_N fit, whose column is then all null),
 	// one PULSE_MATERIALIZE_CAST_NULLED per output column whose
-	// on_cast_error: "null" cast nulled a value,
+	// on_cast_error: "null" cast nulled a value, one
+	// PULSE_MATERIALIZE_GROUP_NOT_INHERITED per source parent group the
+	// output block leaves out,
 	// the cohort write's (PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak
-	// source description), then a PULSE_SPSS_SIDECAR_STALE / _INVALID when
+	// source description, then the group gate's PULSE_GROUP_TOO_NARROW /
+	// PULSE_DEDUP_LOW_RATIO), then a PULSE_SPSS_SIDECAR_STALE / _INVALID when
 	// the source's SPSS sidecar could not be carried, then one
 	// PULSE_MATERIALIZE_SIDECARS_INVALIDATED
 	// when an overwrite invalidated sidecars beside the target, then a
@@ -67,6 +75,15 @@ type MaterializeResult struct {
 	// stored once (each held one value on every written row), in output
 	// order. Empty when nothing was elided.
 	ElidedConstants []string `json:"elided_constants,omitempty"`
+	// Groups is the writer's verdict on every parent group the output
+	// block handed it — output.groups as declared, or the source's groups
+	// it inherited (output.groups absent) — in declaration order:
+	// admitted, low_ratio (written, with PULSE_DEDUP_LOW_RATIO) or
+	// dropped_too_narrow (not formed, PULSE_GROUP_TOO_NARROW), with the
+	// figures behind it (as CohortBuildResult.Groups). Empty when no group
+	// was handed over; a source group left out is a
+	// PULSE_MATERIALIZE_GROUP_NOT_INHERITED warning instead.
+	Groups []pio.GroupReport `json:"groups,omitempty"`
 }
 
 // Materialize writes a NEW cohort at out — a single file, or a shard
@@ -154,10 +171,21 @@ type MaterializeResult struct {
 // leaves the cohort without a sidecar, with one warning). Absent, the
 // output is the layout above, byte for byte.
 //
-// The output is an ungrouped single file — format 0x01, or 0x02
-// when it keeps a vec_* field, whose VECTORS entry (dim, kind, scale,
-// labels) follows it to its output position — unless the output block's
-// container keys say otherwise: output.shards {max_records} writes a
+// Without an output block the output is an ungrouped single file —
+// format 0x01, or 0x02 when it keeps a vec_* field, whose VECTORS entry
+// (dim, kind, scale, labels) follows it to its output position. With
+// one, output.groups shapes its parent groups (format 0x02 when one is
+// written; decoding unchanged): absent, each source parent group whose
+// members are all written unchanged (a rename is fine) is declared again
+// under the written names, and one with a dropped or re-coded member is
+// left out with PULSE_MATERIALIZE_GROUP_NOT_INHERITED (fatal under
+// opts.Strict); a list declares exactly its groups over written names
+// ([] none; a bad declaration is PULSE_GROUP_FIELD_UNKNOWN /
+// _FIELD_CONFLICT / _DECLARATION_INVALID before anything is read). Every
+// group handed over passes import's viability gate
+// (MaterializeResult.Groups: PULSE_GROUP_TOO_NARROW drops one,
+// PULSE_DEDUP_LOW_RATIO warns, both fatal under opts.Strict). Its
+// container keys shape the rest: output.shards {max_records} writes a
 // shard archive of consecutive max_records-row shards in output row
 // order (MaterializeResult.Shards names them; max_records ≤ 0 is
 // PULSE_MATERIALIZE_OUTPUT_INVALID, reason shards_max_records, before
@@ -267,10 +295,11 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 		Target:              built.Target,
 		Records:             built.Records,
 		DerivedColumns:      sink.names,
-		Warnings:            append(append(append(append([]*errors.CodedError(nil), sink.warns...), sink.castWarnings()...), built.Warnings...), carried...),
+		Warnings:            append(append(append(append(append([]*errors.CodedError(nil), sink.warns...), sink.castWarnings()...), sink.groupWarns...), built.Warnings...), carried...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
 		Shards:              built.Shards,
 		ElidedConstants:     built.ElidedConstants,
+		Groups:              built.Groups,
 	}
 	if len(built.InvalidatedSidecars) > 0 {
 		paths := make([]string, len(built.InvalidatedSidecars))
@@ -328,6 +357,9 @@ type materializeSink struct {
 	// buckets holds, per layout column, its bucketing (nil when it has
 	// none), its datetime zone loaded; a value it nulls counts in nulled.
 	buckets []*fieldcast.Bucket
+	// groupWarns are the source parent groups the output leaves out
+	// (PULSE_MATERIALIZE_GROUP_NOT_INHERITED).
+	groupWarns []*errors.CodedError
 }
 
 // castWarnings is one PULSE_MATERIALIZE_CAST_NULLED warning per column
@@ -430,26 +462,18 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 	// them — without one, every source field verbatim then every
 	// derived column.
 	m.layout = layout
-	fields := make([]encoding.Field, len(layout))
-	// A kept vector field carries its VECTORS entry (dim, kind, scale,
-	// labels) to its output position, under its output name.
-	var vecs []encoding.VectorField
-	src := cohort.Schema()
-	for i, col := range layout {
-		fields[i] = col.Field
+	for _, col := range layout {
 		if col.Derived >= 0 {
 			m.names = append(m.names, col.Field.Name)
-		}
-		if col.Source >= 0 && col.Field.Type.IsVector() && src != nil {
-			if v, ok := src.Vector(col.Source); ok {
-				v.FieldIndex = i
-				vecs = append(vecs, v)
-			}
 		}
 	}
 	if m.names == nil {
 		m.names = []string{}
 	}
+	// A kept vector field carries its VECTORS entry (dim, kind, scale,
+	// labels) to its output position, under its output name.
+	src := cohort.Schema()
+	written := descx.MaterializeOutputSchema(src, layout)
 	if err := m.planCasts(); err != nil {
 		return err
 	}
@@ -461,8 +485,22 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 		if out.Shards != nil {
 			bopts.Shards = &ShardSplit{MaxRecords: out.Shards.MaxRecords}
 		}
+		// Its parent groups — declared, or the source's inherited — the
+		// pre-flight's own plan (descx.MaterializePlan refused a bad
+		// declaration). A source group left out warns; Strict fails it.
+		groups, ce := descx.MaterializeGroupPlan(out, src, layout)
+		if ce != nil {
+			return ce
+		}
+		if m.opts.Strict && len(groups.Warnings) > 0 {
+			return groups.Warnings[0]
+		}
+		m.groupWarns = groups.Warnings
+		for _, d := range groups.Decls {
+			bopts.Groups = append(bopts.Groups, pio.GroupDecl{Key: d.Key, Members: d.Members})
+		}
 	}
-	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields, Vectors: vecs}, bopts)
+	b, err := m.p.NewCohortBuilder(m.ctx, m.out, *written, bopts)
 	if err != nil {
 		return err
 	}

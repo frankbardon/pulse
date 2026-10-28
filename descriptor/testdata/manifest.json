@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 442,
+    "error_codes_count": 443,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11324,6 +11324,7 @@
       "PULSE_MATERIALIZE_CAST_FAILED",
       "PULSE_MATERIALIZE_CAST_NULLED",
       "PULSE_MATERIALIZE_CAST_UNSUPPORTED",
+      "PULSE_MATERIALIZE_GROUP_NOT_INHERITED",
       "PULSE_MATERIALIZE_NO_DERIVED",
       "PULSE_MATERIALIZE_OUTPUT_DUPLICATE",
       "PULSE_MATERIALIZE_OUTPUT_INVALID",
@@ -11652,7 +11653,7 @@
       },
       {
         "name": "pulse_materialize",
-        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW .pulse cohort (`out`, relative to PULSE_DATA_DIR; a single file unless `output.shards`) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. An `output` block in `request` lays out the written cohort — `columns` [{from, as, description, nullable}] (exactly these, in order) XOR `exclude`, applied after every other slot, so a request may then carry no derived column; `shards: {max_records}` writes a shard archive, `elide_constants: true` stores constant columns once — refused when malformed with PULSE_MATERIALIZE_OUTPUT_INVALID / _UNKNOWN_COLUMN / _DUPLICATE, a null in a `nullable: false` column fails the run with PULSE_MATERIALIZE_OUTPUT_NULL. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, shards, elided_constants, warnings. `predict: true` validates without writing (no `out` needed), reading the source's header and schema only: the answer is under `predict` — valid, the output columns (name, type, nullable, description, from, derived), derived_columns, the data-dependent risks, the container plan and the coded errors / warnings, each refusal with the run's own code and details."
+        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW .pulse cohort (`out`, relative to PULSE_DATA_DIR; a single file unless `output.shards`) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. An `output` block in `request` lays out the written cohort — `columns` [{from, as, description, nullable}] (exactly these, in order) XOR `exclude`, applied after every other slot, so a request may then carry no derived column; `shards: {max_records}` writes a shard archive, `elide_constants: true` stores constant columns once; `groups` [{key, members}] declares parent groups over the written names (absent keeps each source group whose members are written unchanged, warning PULSE_MATERIALIZE_GROUP_NOT_INHERITED for one it cannot; `[]` writes none) — refused when malformed with PULSE_MATERIALIZE_OUTPUT_INVALID / _UNKNOWN_COLUMN / _DUPLICATE, a null in a `nullable: false` column fails the run with PULSE_MATERIALIZE_OUTPUT_NULL. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, shards, elided_constants, groups (each group's gate verdict), warnings. `predict: true` validates without writing (no `out` needed), reading the source's header and schema only: the answer is under `predict` — valid, the output columns (name, type, nullable, description, from, derived), derived_columns, the data-dependent risks, the container plan (with its parent groups) and the coded errors / warnings, each refusal with the run's own code and details."
       },
       {
         "name": "pulse_predict",
@@ -13137,6 +13138,10 @@
       {
         "name": "materialize-casts",
         "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen, categorical), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
+      },
+      {
+        "name": "materialize-container",
+        "description": "Write a materialized cohort as a shard archive with output.shards {max_records}, store columns constant over the written rows once with output.elide_constants, and keep or declare parent groups with output.groups — row order, shard boundaries, the shard-count limit, group inheritance, the predict container plan, and the SPSS sidecar. Topical design; child of derived-cohorts."
       },
       {
         "name": "materialize-recode",
@@ -20411,4 +20416,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1e0458bc97a40aafee747d47fbd3dd67e35420c7bf2fe68d4226343bd5494d04
+// golden-hash: 28ba01d5ee4dbbadcc0adf98379581cdda52afc770cbcc49385e9a2b731c29fc

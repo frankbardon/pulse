@@ -68,6 +68,13 @@ func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *Instance
 	if ce := encx.DescriptionLengthRefusal(layoutFields(layout)); ce != nil {
 		return nil, nil, ce
 	}
+	if req != nil {
+		// The output block's parent groups: a declaration the writer
+		// would refuse is refused here, before anything is read.
+		if _, ce := MaterializeGroupPlan(req.Output, schema, layout); ce != nil {
+			return nil, nil, ce
+		}
+	}
 	return cols, layout, nil
 }
 
@@ -295,12 +302,34 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 		if r := MaterializeShardLimitRisk(result.Container); r != nil {
 			result.Risks = append(result.Risks, *r)
 		}
-		validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
+		// The parent-group plan the run hands its writer, its static
+		// warnings (a source group left out, a group too narrow to form)
+		// and the key check only the rows settle. MaterializePlan has
+		// already refused a bad declaration.
+		if groups, ce := MaterializeGroupPlan(expanded.Output, schema, layout); ce == nil {
+			result.Container.Groups = groups.Plan
+			result.Risks = append(result.Risks, MaterializeGroupRisks(groups)...)
+			// In the run's order: the groups left out, the written
+			// schema's description findings, then the writer's width
+			// screen.
+			addCodedWarnings(env, groups.Warnings)
+			validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
+			addCodedWarnings(env, groups.TooNarrow)
+		} else {
+			validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
+		}
 	}
 	if len(env.Errors) > 0 {
 		result.Valid = false
 	}
 	return expanded
+}
+
+// addCodedWarnings adds each coded warning to env, in order.
+func addCodedWarnings(env *descriptor.Envelope, ws []*errors.CodedError) {
+	for _, w := range ws {
+		env.AddWarning(string(w.Code), w.Message, w.Details)
+	}
 }
 
 // predictColumn renders one layout column as the predict result's

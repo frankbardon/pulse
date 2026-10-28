@@ -919,6 +919,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATERIALIZE_GROUP_NOT_INHERITED: {
+		Message: "A materialize output does not carry one of the source's parent groups, because a member is dropped or re-coded (type, recode or bucket); its members are written as ordinary row fields.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Groups"},
+				Hint:   "Expected when the column named by details.member changes. To regroup, declare output.groups over the written names; to write no group and silence this, set output.groups to []; to keep the group, write details.member unchanged.",
+			},
+		},
+	},
 	PULSE_RAKE_INVALID: {
 		Message: "The rake request is malformed, so nothing is read or written. It needs a source `cohort`, an `out` path that is not the source, and at least one margin; each margin is either `field` + `targets` or two or more `fields` + `cells` (each cell one value per field, no tuple twice). Margin, `by` and `base_weight` fields must exist, a margin or `by` field must be categorical, packed_bool or an unsigned integer and appear once, a base weight must be numeric with no null, negative or non-finite value. Targets are finite and non-negative with at least one positive; `targets_as: shares` sums to 1 or 100; `missing` is `refuse` or `base`; caps satisfy 0 <= min_weight <= 1 <= max_weight; max_iter, tol and total are non-negative. A `weight_field` the source already has needs `overwrite` and may not be a margin or `by` field. details.reason names the rule and details.field the request path.",
 		Fixups: []Fixup{

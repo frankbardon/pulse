@@ -549,6 +549,18 @@ const (
 	// same code and details.
 	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL Code = "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL"
 
+	// PULSE_MATERIALIZE_GROUP_NOT_INHERITED is the warning a materialize
+	// run with an `output` block (and no output.groups) raises for each
+	// source parent group it does not carry into the written cohort,
+	// because a member is not written unchanged: dropped, or re-coded by
+	// a type cast, recode or bucket. Its members are written as ordinary
+	// row fields. details carry group (the source group's label),
+	// fields (its source member names), member (the first member that
+	// changed) and change (dropped, retyped, recoded or bucketed).
+	// Fatal under MaterializeOptions.Strict, before any file is
+	// created; predict reports it as a warning.
+	PULSE_MATERIALIZE_GROUP_NOT_INHERITED Code = "PULSE_MATERIALIZE_GROUP_NOT_INHERITED"
+
 	// PULSE_RAKE_INVALID indicates a malformed Pulse.Rake request,
 	// refused before any record is read or any file is created.
 	// details.reason names the rule ("cohort_missing", "out_missing",
@@ -4542,6 +4554,7 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_CAST_FAILED,
 	PULSE_MATERIALIZE_CAST_NULLED,
 	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL,
+	PULSE_MATERIALIZE_GROUP_NOT_INHERITED,
 	PULSE_RAKE_INVALID,
 	PULSE_RAKE_UNKNOWN_CATEGORY,
 	PULSE_RAKE_UNTARGETED_CATEGORY,

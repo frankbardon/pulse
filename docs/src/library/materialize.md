@@ -70,7 +70,7 @@ res, err := p.Materialize(ctx, &pulse.Request{
 - **Writing.** An ungrouped single file — `0x01`, or `0x02` when
   it keeps a `vec_*` field, whose dim, kind, scale and labels follow it
   to its output position — unless the `output` slot's container keys
-  ask for a shard archive or constant elision (below) — written
+  ask for a shard archive, constant elision or parent groups (below) — written
   atomically through `NewCohortBuilder`. The source's SPSS metadata
   sidecar is carried — rewritten with a plain numeric variable per
   derived column (a previous-state column copies its state variable's
@@ -261,6 +261,26 @@ res, err := p.Materialize(ctx, &pulse.Request{
   reads its suggested weight; `pulse export` does not read a shard
   archive yet) — and an elided column keeps its variable. `Overwrite`
   replaces an existing cohort or archive whole.
+- **Parent groups: `groups`.** With an `output` block, a grouped
+  (`0x02`) source keeps its parent groups: `groups` absent INHERITS each
+  source group whose every member is written unchanged — a rename is
+  fine, the group is declared again under the written names, same key —
+  while a member dropped or re-coded (`type`, `recode`, `bucket`) leaves
+  its group out with `PULSE_MATERIALIZE_GROUP_NOT_INHERITED`
+  (`details.member`, `change`; its members become row fields). A list
+  `groups: [{key, members}]` (`types.MaterializeGroup`, the import shape)
+  declares exactly those groups over WRITTEN names and replaces
+  inheritance; `groups: []` writes none. A bad declaration —
+  `PULSE_GROUP_FIELD_UNKNOWN`, `_FIELD_CONFLICT`, `_DECLARATION_INVALID`,
+  with `details.path` — is refused before anything is read, predict
+  alike; a keyed group whose member varies within its key fails the run
+  with `PULSE_GROUP_MEMBER_NOT_CONSTANT`. Every group passes import's
+  viability gate over the written rows (archive-wide with `shards`);
+  `res.Groups` carries each verdict (`admitted`, `low_ratio`,
+  `dropped_too_narrow`). `MaterializeOptions.Strict` makes a group left
+  out or dropped, and a low ratio, fatal. A grouped output decodes
+  exactly as its ungrouped twin; without an `output` block nothing is
+  inherited and the output stays ungrouped, byte for byte.
 - **Absent `output`** writes exactly what Materialize always wrote, byte
   for byte. A feature profile without `capability:materialize_output`
   refuses a set `output` as an unknown field everywhere.
@@ -288,10 +308,14 @@ one) and writes nothing. It returns the whole envelope, `Data` a
   that may hold a null (`PULSE_MATERIALIZE_OUTPUT_NULL`), and a sharded
   output whose source holds more records than `max_records` × 65,535
   (`PULSE_SHARD_COUNT_LIMIT`);
-- `container` — `{kind, max_records, max_shards, elide_constants}`:
+- `container` — `{kind, max_records, max_shards, elide_constants, groups}`:
   `"file"` or `"shard_archive"`; `max_shards` is the most shards the run
   writes, `ceil(source records / max_records)`, reached when every
-  record passes the filters;
+  record passes the filters; `groups` lists each parent group — `label`,
+  `origin` (`inherited` / `declared`), `key`, `members`,
+  `source_fields`, `verdict` (`planned`, `dropped_too_narrow`,
+  `not_inherited` with `member` / `change`) — and a declared keyed group
+  adds a `PULSE_GROUP_MEMBER_NOT_CONSTANT` risk;
 - `schema_info` — the source's field names.
 
 Every static refusal is a coded `env.Errors` entry with the run's own

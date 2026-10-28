@@ -2722,6 +2722,15 @@
         "elide_constants": {
           "type": "boolean"
         },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/MaterializeGroupPlan"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "kind": {
           "type": "string"
         },
@@ -2735,6 +2744,90 @@
       "required": [
         "elide_constants",
         "kind"
+      ],
+      "type": "object"
+    },
+    "MaterializeGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "members"
+      ],
+      "type": "object"
+    },
+    "MaterializeGroupPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "change": {
+          "type": "string"
+        },
+        "key": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source_fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "verdict": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "members",
+        "origin",
+        "verdict"
       ],
       "type": "object"
     },
@@ -2756,6 +2849,15 @@
         "exclude": {
           "items": {
             "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/MaterializeGroup"
           },
           "type": [
             "array",
@@ -6834,4 +6936,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 0e31fcc755f49638f3919f757e825555f09556c14ca257726696031d59564a0b
+// golden-hash: f76748eb7ead194a02d8c85ab296bf843803687a40a722b98ba8bf745985ed02

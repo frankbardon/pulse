@@ -34,7 +34,7 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 - Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Refusals precede any write (atomic).
 - `sort` orders ROWS only (source or derived keys, nulls last); windows follow their own `order_by`.
 - The SPSS metadata sidecar is carried, no other sidecar.
-- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last ([`derived-cohorts`](derived-cohorts.md), [`materialize-recode`](materialize-recode.md), [`materialize-casts`](materialize-casts.md)); `shards` writes a shard archive ([`materialize-container`](materialize-container.md)).
+- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last ([`derived-cohorts`](derived-cohorts.md), [`materialize-recode`](materialize-recode.md), [`materialize-casts`](materialize-casts.md)); `shards` / `groups` shape the file ([`materialize-container`](materialize-container.md)).
 
 ## See
 

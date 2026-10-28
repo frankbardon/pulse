@@ -51,6 +51,40 @@ type MaterializeOutput struct {
 	// Shards the pass runs once over every row, so a column is elided
 	// only when constant across the whole archive.
 	ElideConstants bool `json:"elide_constants,omitempty"`
+
+	// Groups declares the written cohort's parent groups (format 0x02),
+	// by OUTPUT column name. Nil (absent) INHERITS the source's: each
+	// source parent group whose every member is written unchanged —
+	// renamed is fine, dropped or re-coded (a type cast, recode or
+	// bucket) is not — is declared again over the written names; one that
+	// is not is left out with a PULSE_MATERIALIZE_GROUP_NOT_INHERITED
+	// warning (its members become row fields). A present list replaces
+	// inheritance entirely: exactly these groups, and `[]` writes none.
+	// Every group handed to the writer passes import's viability gate —
+	// a group no wider than its index is dropped with
+	// PULSE_GROUP_TOO_NARROW, one under 2 rows per tuple is written with
+	// PULSE_DEDUP_LOW_RATIO — and MaterializeOptions.Strict makes a
+	// dropped or not-inherited group (and a low ratio) fatal. A declared
+	// name the output does not write is PULSE_GROUP_FIELD_UNKNOWN, a
+	// field in two groups PULSE_GROUP_FIELD_CONFLICT, an empty group or a
+	// key that is not a member PULSE_GROUP_DECLARATION_INVALID — each
+	// before anything is read, predict alike; a keyed group whose member
+	// varies within its key fails the run with
+	// PULSE_GROUP_MEMBER_NOT_CONSTANT. Decoding is unchanged: a grouped
+	// cohort answers every request as its ungrouped twin does. The
+	// source's constant groups (elided constants) are never inherited —
+	// ElideConstants decides elision afresh.
+	Groups []MaterializeGroup `json:"groups,omitzero"`
+}
+
+// MaterializeGroup is one parent group of MaterializeOutput.Groups, the
+// pulse_import / pulse_dedup `groups` entry: Key names the output columns
+// identifying the parent, Members the columns the key determines. The
+// group stores Key ∪ Members; with no Key every member is key (a plain
+// tuple group).
+type MaterializeGroup struct {
+	Key     []string `json:"key,omitempty"`
+	Members []string `json:"members"`
 }
 
 // MaterializeShards is the output slot's shard split

@@ -1,10 +1,10 @@
 ```yaml
 name: materialize-container
-description: Write a materialized cohort as a shard archive with output.shards {max_records}, and store columns constant over the written rows once with output.elide_constants — row order, shard boundaries, the shard-count limit, the predict container plan, and the SPSS sidecar. Topical design; child of derived-cohorts.
+description: Write a materialized cohort as a shard archive with output.shards {max_records}, store columns constant over the written rows once with output.elide_constants, and keep or declare parent groups with output.groups — row order, shard boundaries, the shard-count limit, group inheritance, the predict container plan, and the SPSS sidecar. Topical design; child of derived-cohorts.
 type: guide
 kind: design
 applies_to: materialize, predict
-covers: [shards, max_records, elide_constants, shard archive, PULSE_SHARD_COUNT_LIMIT]
+covers: [shards, max_records, elide_constants, shard archive, PULSE_SHARD_COUNT_LIMIT, groups, PULSE_MATERIALIZE_GROUP_NOT_INHERITED]
 requires: [capability:materialize, capability:materialize_output]
 ```
 
@@ -32,9 +32,17 @@ The `output` block's container keys shape the FILE a materialize run writes, not
 
 A filter makes columns constant: materializing one region writes that region's code on every row, and elision stores it once.
 
+## Parent groups: `groups`
+
+A grouped source (format `0x02`) keeps its parent groups through an `output` block: with `groups` absent, each source group whose members are ALL written unchanged — renamed is fine — is declared again under the written names (same key). A member dropped, or re-coded by `type`, `recode` or `bucket`, leaves its group out with `PULSE_MATERIALIZE_GROUP_NOT_INHERITED` (`details.member`, `change`); its members become row fields. Without an `output` block nothing is inherited: the output stays ungrouped, as it always was.
+
+`groups: [{key, members}]` declares exactly these groups over WRITTEN names (the import `groups` shape), replacing inheritance; `groups: []` writes none. A name the output does not write is `PULSE_GROUP_FIELD_UNKNOWN` (`details.path`), a field in two groups `PULSE_GROUP_FIELD_CONFLICT` — before anything is read. A keyed group whose member varies within its key fails the run (`PULSE_GROUP_MEMBER_NOT_CONSTANT`).
+
+Every group passes import's gate: no wider than its 4-byte index → dropped (`PULSE_GROUP_TOO_NARROW`); under 2 rows per tuple → written with `PULSE_DEDUP_LOW_RATIO`. The result's `groups` carries each verdict. Strict (`--strict`, `MaterializeOptions.Strict`) makes a left-out or dropped group, and a low ratio, fatal. Decoding is unchanged; with `shards` the gate judges the whole archive.
+
 ## Predict
 
-`predict: true` adds `container`: `kind` (`"file"` or `"shard_archive"`), `max_records`, `max_shards` — the most shards the run writes, `ceil(source records / max_records)`, reached when every record passes the filters — and `elide_constants`. Which columns elide only the rows settle, so none is named. A source holding more records than `max_records` × 65,535 adds a `PULSE_SHARD_COUNT_LIMIT` risk.
+`predict: true` adds `container`: `kind` (`"file"` or `"shard_archive"`), `max_records`, `max_shards` — the most shards the run writes, `ceil(source records / max_records)`, reached when every record passes the filters — and `elide_constants`. Which columns elide only the rows settle, so none is named. A source holding more records than `max_records` × 65,535 adds a `PULSE_SHARD_COUNT_LIMIT` risk. `container.groups` lists each group: `origin` (`inherited` / `declared`), `verdict` (`planned`, `dropped_too_narrow`, `not_inherited` with `member` / `change`); a declared keyed group adds a `PULSE_GROUP_MEMBER_NOT_CONSTANT` risk.
 
 ## Gotchas
 
@@ -46,4 +54,4 @@ A filter makes columns constant: materializing one region writes that region's c
 
 - [`derived-cohorts`](derived-cohorts.md) — the output slot and the two-step recipe.
 - [`cohort-sharding`](cohort-sharding.md) — archives: cohesion, appends, compaction.
-- [`cohort-parent-groups`](cohort-parent-groups.md) — constant groups, the storage behind elision.
+- [`cohort-parent-groups`](cohort-parent-groups.md) — parent and constant groups, the gate, dedup.

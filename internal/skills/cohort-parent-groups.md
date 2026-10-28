@@ -21,4 +21,6 @@ A denormalised join repeats its parent block on every child row. A **parent grou
 
 **An existing cohort** converts with `pulse dedup COHORT --group …` (`Pulse.Dedup`<!-- feature: capability:dedup -->, `pulse_dedup`<!-- /feature -->): same declarations, gate and flags, in place (atomic) or `--out`; `--suggest-groups` finds candidates over its records. It reports invalidated sidecars and rebuilds none. Single-file only.
 
+<!-- feature: capability:materialize_output -->**A materialized cohort** keeps a source group whose members it writes unchanged, or declares its own with `output.groups` (`materialize-container`).<!-- /feature -->
+
 **Global-constant elision** is opt-in: `pulse import <fmt> --elide-constants` / `ImportJob.ElideConstants`. Fields holding one value on EVERY imported row — decided over the full row pass, never the 500-row inference sample — go into one constant group (`ImportReport.ElidedConstants`). A column null everywhere is a (null) constant; one value plus some nulls is NOT. Nothing is elided below 2 rows, or when declaring the constants costs more schema bytes than it saves — the cohort then stays byte-identical `0x01`. All-constant keeps the lowest-index field in the row. The output is `0x02`: binaries predating it cannot open it.
