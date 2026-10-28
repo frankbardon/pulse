@@ -1,8 +1,10 @@
 package processing
 
 import (
+	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -24,7 +26,10 @@ import (
 //
 // The levels are the group field's values that hold rows after the
 // filters, in level order (a categorical's dictionary order, else
-// ascending). Every group needs more rows than the model has observed
+// ascending); a declared level (a categorical's dictionary entry,
+// packed_bool's 0 / 1) without rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY,
+// and a := reading its per-group label is null (DEFINED_NONFINITE,
+// reason empty_group). Every group needs more rows than the model has observed
 // variables and a positive-definite covariance; a group failing either,
 // fewer than two groups, or a group_reference without rows fails the
 // slot alone (PULSE_MATRIX_INSUFFICIENT_N / PULSE_MATRIX_SINGULAR). A
@@ -153,6 +158,10 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 	for i, c := range codes {
 		labels[i] = gs.label(spec, c)
 	}
+	emptyLabels, emptyLevels := semEmptyLevels(spec.GroupLevels, func(c uint64) bool { _, ok := gs.buckets[c]; return ok })
+	if w := semGroupLevelEmpty(plan.Name, spec.Group, emptyLabels); w != nil {
+		out.Warnings = append(out.Warnings, w)
+	}
 	if len(codes) < 2 {
 		return matrixOutput{}, semGroupRefusal(errors.PULSE_MATRIX_INSUFFICIENT_N, plan.Name, "one_level",
 			"params.group "+strconv.Quote(spec.Group)+" has fewer than two levels with rows; a multi-group fit needs two groups at least",
@@ -220,7 +229,11 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			"matrix "+plan.Name+": the model has more free parameters than the groups' covariances and means have distinct moments (negative degrees of freedom); its estimates are not identified",
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
-	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	fitted := make([]int, len(moments))
+	for g := range moments {
+		fitted[g] = moments[g].Level
+	}
+	out.Warnings = append(out.Warnings, semGroupDefinedWarnings(plan.Name, spec.Group, spec.Model, emptyLabels, emptyLevels, fitted, fit.Defined)...)
 	if m.capture != nil {
 		// A Compose SEM fit request's battery: bind the point fit, each
 		// group's own parameters.
@@ -381,4 +394,75 @@ func semGroupAuxiliary(in *matrixFinalizeInput, fit *sem.GroupFit, labels []stri
 		aux[ks[3]] = in.Rect(semMeanColumns, func(r, _ int) float64 { return gf.SampleMean[pos[r]] })
 	}
 	return aux
+}
+
+// semEmptyLevels lists the declared levels (level code i ↔ declared[i])
+// for which has reports no rows: their labels and codes, in level
+// order. A group field without declared levels (an integer field, whose
+// levels are its observed values) has none.
+func semEmptyLevels(declared []string, has func(code uint64) bool) (labels []string, levels []int) {
+	for i, l := range declared {
+		if !has(uint64(i)) {
+			labels, levels = append(labels, l), append(levels, i)
+		}
+	}
+	return labels, levels
+}
+
+// semGroupLevelEmpty is PULSE_MATRIX_GROUP_LEVEL_EMPTY over a grouped
+// slot's empty levels (nil when there are none): one per slot.
+func semGroupLevelEmpty(name, field string, levels []string) *types.ResponseWarning {
+	if len(levels) == 0 {
+		return nil
+	}
+	return matrixWarning(errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY,
+		"matrix "+name+": level(s) "+strings.Join(levels, ", ")+" of group field "+strconv.Quote(field)+" hold no rows after the filters; they are no group of the fit (no estimate rows, no chi2_group_ / n_group_ scalars)",
+		map[string]any{"matrix": name, "group_field": field, "levels": slices.Clone(levels)})
+}
+
+// semGroupDefinedWarnings is a grouped fit's := warnings: a label only
+// an empty level names (emptyLabels / emptyLevels from semEmptyLevels;
+// fitted the levels of the fitted groups) is absent from the fit, so
+// each such label a null := row reads warns PULSE_MATRIX_DEFINED_NONFINITE
+// with reason empty_group, in level then label order; every other null
+// row warns semDefinedWarnings' plain one.
+func semGroupDefinedWarnings(name, field string, model *sem.Model, emptyLabels []string, emptyLevels, fitted []int, rows []sem.Estimate) []*types.ResponseWarning {
+	present := map[string]bool{}
+	for _, l := range fitted {
+		for _, lab := range model.LevelLabels(l) {
+			present[lab] = true
+		}
+	}
+	reads := model.DefinedReads()
+	explained := map[string]bool{}
+	var out []*types.ResponseWarning
+	seen := map[string]bool{}
+	for i, lv := range emptyLevels {
+		for _, lab := range model.LevelLabels(lv) {
+			if present[lab] || seen[lab] {
+				continue
+			}
+			seen[lab] = true
+			var defined []string
+			for _, e := range rows {
+				if math.IsNaN(e.Value) && slices.Contains(reads[e.LVal], lab) {
+					defined = append(defined, e.LVal)
+					explained[e.LVal] = true
+				}
+			}
+			if len(defined) == 0 {
+				continue
+			}
+			out = append(out, matrixWarning(errors.PULSE_MATRIX_DEFINED_NONFINITE,
+				"matrix "+name+": defined parameter(s) "+strings.Join(defined, ", ")+" read label "+lab+" of level "+strconv.Quote(emptyLabels[i])+" of group field "+strconv.Quote(field)+", which holds no rows after the filters; their rows are null",
+				map[string]any{"matrix": name, "reason": "empty_group", "label": lab, "level": emptyLabels[i], "group_field": field, "defined": defined}))
+		}
+	}
+	var rest []sem.Estimate
+	for _, e := range rows {
+		if !explained[e.LVal] {
+			rest = append(rest, e)
+		}
+	}
+	return append(out, semDefinedWarnings(name, rest)...)
 }

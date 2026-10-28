@@ -15,7 +15,7 @@ examples_tags: [matrix, multivariate]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
+| `model` | string | — | lavaan. |
 <!-- feature: capability:sem_meanstructure -->
 | `meanstructure` | bool | false | Means; `x ~ 1` too. |
 <!-- /feature -->
@@ -42,17 +42,17 @@ examples_tags: [matrix, multivariate]
 | `max_iter` | int | — | — |
 | `grad_tol` | float | 1e-10 | — |
 | `singular` | enum | `nearest` | — |
-| `missing` | enum | `listwise` | Only. |
+| `missing` | enum | `listwise` | — |
 | `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |
 
 ## Inputs
 
-Numeric members: the model's observed variables (labels).
+The model's observed variables.
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`, lavaan); `residual_covariance` S − Σ<!-- feature: capability:sem_meanstructure -->; `implied_means` / `observed_means`<!-- /feature -->. `vectors`: `parameter`, `free`; `scalars`: fit indices.
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`); `residual_covariance` S − Σ<!-- feature: capability:sem_meanstructure -->; `implied_means` / `observed_means`<!-- /feature -->. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 <!-- generated: reading-the-output -->
 
@@ -66,7 +66,7 @@ Numeric members: the model's observed variables (labels).
 
 - Unused / non-member: `bad_params`.
 - lavaan rules: `sem-modeling`<!-- feature: capability:sem_defined -->; `:=`: `sem-defined-parameters`<!-- /feature --><!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
-- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
+- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`<!-- feature: capability:sem_groups -->; empty level: `PULSE_MATRIX_GROUP_LEVEL_EMPTY`<!-- /feature --><!-- feature: capability:sem_groups, capability:sem_defined --> (`:=` on it: `empty_group`)<!-- /feature -->.
 
 ## See
 

@@ -319,6 +319,10 @@ func finalizeSEMOrdinalGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 	for i, c := range codes {
 		labels[i] = gs.label(spec, c)
 	}
+	emptyLabels, emptyLevels := semEmptyLevels(spec.GroupLevels, func(c uint64) bool { _, ok := gs.rows[c]; return ok })
+	if w := semGroupLevelEmpty(plan.Name, spec.Group, emptyLabels); w != nil {
+		out.Warnings = append(out.Warnings, w)
+	}
 	if len(codes) < 2 {
 		return matrixOutput{}, semGroupRefusal(errors.PULSE_MATRIX_INSUFFICIENT_N, plan.Name, "one_level",
 			"params.group "+strconv.Quote(spec.Group)+" has fewer than two levels with rows; a multi-group fit needs two groups at least",
@@ -366,7 +370,11 @@ func finalizeSEMOrdinalGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			"matrix "+plan.Name+": the model has more free parameters than the groups' two-step statistics have moments (negative degrees of freedom); its estimates are not identified",
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
-	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	fitted := make([]int, len(groups))
+	for g := range groups {
+		fitted[g] = groups[g].Level
+	}
+	out.Warnings = append(out.Warnings, semGroupDefinedWarnings(plan.Name, spec.Group, spec.Model, emptyLabels, emptyLevels, fitted, fit.Defined)...)
 	if m.capture != nil {
 		// A Compose SEM fit request's battery: bind the point fit, each
 		// group's own parameters and thresholds at the pooled coding.

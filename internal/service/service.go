@@ -773,13 +773,17 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// warning — or, under Strict, fails the run with the slot's own code.
 	// A regression result's own warnings: under Strict each warned slot
 	// fails with its first warning's code (so Apply below refuses the
-	// run); otherwise they are lifted onto Response.Warnings.
+	// run); otherwise they are lifted onto Response.Warnings. A matrix
+	// result's missing-figure warnings (liftedMatrixWarnings) follow the
+	// same rule.
 	escalateRegressionWarnings(resp, s.strict)
+	escalateMatrixWarnings(resp, s.strict)
 	slotfail.Scope(resp, s.scopeRefusal)
 	if err := slotfail.Apply(req, resp, s.strict); err != nil {
 		return nil, err
 	}
 	liftRegressionWarnings(resp)
+	liftMatrixWarnings(req, resp)
 	// The advisories a fitted regression carries beside its undefined
 	// figures (never warnings; Options.SuppressAdvisories drops them).
 	attachRegressionAdvisories(req, resp, s.instance)

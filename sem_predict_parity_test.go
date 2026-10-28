@@ -359,9 +359,9 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 		hidden []string // params and wire tokens absent from the entry
 		kept   []string // params still listed
 	}{
-		{true, []string{"group", "group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
+		{true, []string{"group", "group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "PULSE_MATRIX_GROUP_LEVEL_EMPTY", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
 			"resample", "bootstrap_iters", "rng_seed", "ci_level", "bootstrap_requested", "bootstrap_succeeded"}, []string{"meanstructure", "model"}},
-		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
+		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means", "PULSE_MATRIX_GROUP_LEVEL_EMPTY", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
 			"resample", "bootstrap_iters", "rng_seed", "ci_level", "bootstrap_requested", "bootstrap_succeeded"}, []string{"model", "solver"}},
 		// capability:sem_ordinal (never enabled here): its params, the
 		// estimators' names and the scaled-test scalars.

@@ -5106,12 +5106,27 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_DEFINED_NONFINITE: {
-		Message: "A structural equation model's defined parameter (a `name := expr` line of params.model) is not finite at the fitted estimate — a division by zero, or the log or square root of a value outside its domain — so its estimate-table row has every figure null (estimate, std_estimate, std_err, z_value, p_value, ci_lower, ci_upper), as does every := line reading it; the fit and every other row stand. Details carry `matrix` and `defined` (the names, in model order).",
+		Message: "A structural equation model's defined parameter (a `name := expr` line of params.model) is not finite at the fitted estimate — a division by zero, or the log or square root of a value outside its domain — so its estimate-table row has every figure null (estimate, std_estimate, std_err, z_value, p_value, ci_lower, ci_upper), as does every := line reading it; the fit and every other row stand. Details carry `matrix` and `defined` (the names, in model order). In a grouped fit (params.group) a := reading the per-group label of a level with no rows after the filters warns once per such label with `reason` \"empty_group\", `label`, `level`, `group_field` and `defined`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"matrices", "*", "params", "model"},
 				Hint:   "Rewrite the := expression so it is defined at the estimate: divide by a parameter that is not zero, and take log / sqrt of a positive quantity (abs() or a square first).",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*"},
+				Hint:   "For reason empty_group: keep the level the := reads in the filtered rows, or rewrite the := over the labels of levels that hold rows.",
+			},
+		},
+	},
+	PULSE_MATRIX_GROUP_LEVEL_EMPTY: {
+		Message: "A multi-group structural equation model (params.group) has group-field levels — a categorical's dictionary entries, packed_bool's 0 / 1 — that hold no rows after the filters. Each such level is no group: no estimate rows, no chi2_group_ / n_group_ scalars, and a := line reading its per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason empty_group); the fit over the other levels stands. Emitted once per slot. Details carry `matrix`, `group_field` and `levels` (the empty levels, in level order).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*"},
+				Hint:   "Widen the filters so every level the model names keeps rows, or accept the fit over the levels that hold rows.",
 			},
 		},
 	},

@@ -4002,8 +4002,21 @@ const (
 	// value it does not take — so its row's figures (estimate, SE, z,
 	// p, interval, std_estimate) are null, as are those of every :=
 	// line reading it; the fit and the other rows stand. Details carry
-	// "matrix" and "defined" (the names, in model order).
+	// "matrix" and "defined" (the names, in model order). A grouped fit's
+	// := reading the per-group label of a level without rows warns once
+	// per such label instead, details "reason" "empty_group", "label",
+	// "level", "group_field" and "defined".
 	PULSE_MATRIX_DEFINED_NONFINITE Code = "PULSE_MATRIX_DEFINED_NONFINITE"
+
+	// PULSE_MATRIX_GROUP_LEVEL_EMPTY is a per-matrix WARNING: a grouped
+	// MAT_SEM fit (params.group) whose group field declares levels that
+	// hold no rows after the filters — a categorical's dictionary entry,
+	// packed_bool's 0 or 1. Such a level is no group: it has no estimate
+	// rows, no chi2_group_ / n_group_ scalars, and a := line reading its
+	// per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason
+	// "empty_group"). Emitted once per slot. Details carry "matrix",
+	// "group_field" and "levels" (the empty levels, in level order).
+	PULSE_MATRIX_GROUP_LEVEL_EMPTY Code = "PULSE_MATRIX_GROUP_LEVEL_EMPTY"
 
 	// PULSE_MATRIX_TOO_MANY_CATEGORIES indicates a MAT_SEM ordinal fit
 	// (params.estimator "dwls" / "wlsmv") whose ordered member holds
@@ -4750,6 +4763,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_PAIRWISE_N_STAR,
 	PULSE_MATRIX_NEAREST_PD,
 	PULSE_MATRIX_DEFINED_NONFINITE,
+	PULSE_MATRIX_GROUP_LEVEL_EMPTY,
 	PULSE_MATRIX_TOO_MANY_CATEGORIES,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,

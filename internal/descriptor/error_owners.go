@@ -696,6 +696,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_NEAREST_PD: own("MAT_SEM", "ATTR_SEM_SCORE"),
 	// A MAT_SEM := line undefined at the estimate (its row nulled).
 	errors.PULSE_MATRIX_DEFINED_NONFINITE: own(featSEMDefined),
+	// A grouped MAT_SEM fit's declared level without rows.
+	errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY: own(featSEMGroups),
 	// A MAT_SEM ordinal fit's ordered member past the category ceiling.
 	errors.PULSE_MATRIX_TOO_MANY_CATEGORIES: own(featSEMOrdinal),
 
