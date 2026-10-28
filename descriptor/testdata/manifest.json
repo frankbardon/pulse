@@ -13140,7 +13140,7 @@
       },
       {
         "name": "materialize-recode",
-        "description": "Relabel, merge, null out and reorder a materialized categorical column's values with output.columns[].recode — the dictionary rewrite, its order with type and as, the drift guard against a new source cohort, and the SPSS rebuild. Topical design; child of derived-cohorts."
+        "description": "Relabel, merge, null out and reorder a materialized categorical column's values with output.columns[].recode, and bucket a numeric or date column into labelled ranges with output.columns[].bucket — the order with type and as, the drift guard against a new source cohort, and the SPSS rebuild. Topical design; child of derived-cohorts."
       },
       {
         "name": "matrix-results",
@@ -20411,4 +20411,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b41981a851c2f7a340de9a13cc4197e0c30a0dfe6cd7c83c1b63098e35e7199f
+// golden-hash: 11263cfcc5a31f90eab4db70df5d91f38eca6545dd68e0517301ca8f66919bfc

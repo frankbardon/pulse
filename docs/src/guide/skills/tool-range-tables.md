@@ -27,6 +27,7 @@ No arguments.
 - A table of the other kind is refused `PULSE_RANGE_TABLE_KIND_MISMATCH`: date tables feed the date-range operators, numeric tables the numeric-ranges grouper.
 - Entries are calendar days with no zone of their own: over a `datetime` they match the local day in the referencing slot's resolved zone, exactly like inline ranges.
 - Reference a table by name from the grouper's `table` field or the filter's `Params.table` — do not re-inline the ranges.
+- A materialize output column's `bucket.range_table` names one too, writing the labels as a categorical ([`materialize-recode`](materialize-recode.md)).
 
 ## See
 

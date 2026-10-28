@@ -426,15 +426,16 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_JOIN_FIELD_COLLISION:      own(featJoins),
 
 	// Range compilation runs for a named range table (loaded under
-	// capability:range_tables) and for the inline ranges of the two
-	// date-range operators; table resolution only from the operators.
-	errors.PULSE_RANGE_EMPTY:               own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_INVALID:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_DUPLICATE_LABEL:     own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_OVERLAP:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_SOURCE_AMBIGUOUS:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	// capability:range_tables), for the inline ranges of the range
+	// operators and for a materialize output column's bucket
+	// (capability:materialize_output), which also resolves tables.
+	errors.PULSE_RANGE_EMPTY:               own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_INVALID:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_DUPLICATE_LABEL:     own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_OVERLAP:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_SOURCE_AMBIGUOUS:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
 
 	// Label bindings ride the request's labels slot (part of every
 	// request host, not capability:labels) and sample / facet output, so

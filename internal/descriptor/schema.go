@@ -557,6 +557,11 @@ var fieldOverrides = map[fieldKey]any{
 		"additionalProperties": map[string]any{"type": []any{"string", "null"}},
 		"description":          "Source label → new label, or null to write the cell null. Every key must be a label of the source column's dictionary; unmapped labels keep themselves, labels mapped to one value merge.",
 	},
+	// A bucket bound is a JSON number (a numeric column) or an ISO date
+	// string (a date-family column), null or absent for an open side;
+	// the generic RawMessage rule would describe operator params.
+	{reflect.TypeFor[types.MaterializeBucketRange](), "start"}: bucketBoundSchema("Lower bound"),
+	{reflect.TypeFor[types.MaterializeBucketRange](), "end"}:   bucketBoundSchema("Upper bound"),
 	// An item for_each walks explicit values only: its mode is grid or
 	// zip whatever the instance (the sampling modes are compose-sweep
 	// only, refused as mode_unknown).
@@ -991,5 +996,13 @@ func paramsSchema() map[string]any {
 				list("boolean"),
 			},
 		},
+	}
+}
+
+// bucketBoundSchema describes one MaterializeBucketRange bound.
+func bucketBoundSchema(which string) map[string]any {
+	return map[string]any{
+		"type":        []any{"number", "string", "null"},
+		"description": which + " of the range: a JSON number on a numeric column (ranges half-open [start, end)), an ISO date string on a date / datetime column (inclusive); omitted or null leaves that side open.",
 	}
 }

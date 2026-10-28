@@ -5,8 +5,10 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/daterange"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -48,6 +50,11 @@ type ExtensionsSnapshot struct {
 	// GROUP_NUMERIC_RANGES unmatched_label may not collide with. Never
 	// projected into the manifest (RangeTableMeta stays count-only).
 	RangeTableLabels map[string][]string
+	// RangeTableSpecs is each registered range table's ranges in
+	// authored order, keyed by table name: what a materialize output
+	// bucket naming the table compiles (outputBucket). Never projected
+	// into the manifest.
+	RangeTableSpecs map[string]RangeTableSpecs
 	// Populations are the instance's registered populations: the names
 	// and member labels predict binds beneath every request (the
 	// runtime's registered set, statically — PopulationCatalog).
@@ -203,6 +210,13 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		RangeTables:      []descriptor.RangeTableMeta{},
 		Populations:      []descriptor.PopulationMeta{},
 	}
+}
+
+// RangeTableSpecs is one registered range table's ranges: a date
+// table's in Dates, a numeric table's in Numeric (exactly one is set).
+type RangeTableSpecs struct {
+	Dates   []daterange.Spec
+	Numeric []numrange.Spec
 }
 
 // extensionsManifestFromSnapshot copies the snapshot's slices into a

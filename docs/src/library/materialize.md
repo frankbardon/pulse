@@ -149,8 +149,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
   `from`, `from_type`, `to_type`, `reason`); an unknown name, a bad
   decimal shape and every `on_cast_error` misuse are
   `PULSE_MATERIALIZE_OUTPUT_INVALID` (`unknown_type`, `decimal_shape`,
-  `on_cast_error_invalid`, `on_cast_error_without_type` (neither
-  `type` nor `recode`),
+  `on_cast_error_invalid`, `on_cast_error_without_type` (no `type`,
+  `recode` or `bucket`),
   `on_cast_error_not_nullable`) — all before a record is read, and
   predicted identically.
 - **A value that does not fit.** By default it fails the run with
@@ -189,6 +189,39 @@ res, err := p.Materialize(ctx, &pulse.Request{
   fails a value). The column's SPSS variable is rebuilt from the
   recoded dictionary — an unlabelled string variable of the new labels,
   so no old value label lands on a new code.
+- **Bucketing: `bucket`.** On a numeric (`u4`..`u64`, `f32`, `f64`,
+  `decimal128`, or a derived column) or date-family column,
+  `bucket: {ranges, range_table}` writes each value as the label of the
+  range holding it. Give exactly one of inline `ranges`
+  (`[{label, start, end}]`: JSON numbers on a numeric column, ISO date
+  strings on a date-family one; an omitted or `null` bound is open) or
+  `range_table`, a registered range table (`Extensions.RangeTables` /
+  `PULSE_RANGE_TABLES_DIR`) of the column's kind. Both go through the
+  shared range-compilation pass with its rules: a numeric range is
+  half-open `[start, end)` and compared exactly (a `u64` past 2^53 or a
+  `decimal128` never rounds across a bound); a date range is inclusive on
+  both ends; a `datetime` is matched by its local day in the request
+  `time_zone` (else `Options.DefaultTimeZone`, else UTC). The written
+  type is the narrowest `categorical_*` holding every label, its
+  dictionary the labels in DECLARED order (inline order, or the
+  table's), unused labels included — inline ranges and a table holding
+  the same ranges write identical columns. A null stays null; a value
+  outside every range (or a NaN) follows `on_cast_error`
+  (`PULSE_MATERIALIZE_CAST_FAILED` / `_NULLED`, `reason` `no_range` /
+  `not_finite`, a date rendered as its ISO day). Order of operations:
+  `bucket`, then `type` (a categorical width, or a numeric parse of the
+  labels), then the nullability check. Refused before a record is read,
+  and predicted identically (`details.column` + `path` on each): a
+  source neither numeric nor date-family
+  (`PULSE_MATERIALIZE_OUTPUT_INVALID`, `bucket_unsupported_type`), both
+  or neither source (`PULSE_RANGE_SOURCE_AMBIGUOUS`), an unknown or
+  hidden table (`PULSE_RANGE_TABLE_UNKNOWN`), a table of the other kind
+  (`PULSE_RANGE_TABLE_KIND_MISMATCH`), and every range the shared pass
+  refuses (`PULSE_RANGE_EMPTY` / `_INVALID` — a bound of the wrong JSON
+  kind too — / `_DUPLICATE_LABEL` / `_OVERLAP`). Predict lists a risk
+  when the ranges leave a gap or the column is a float. The column's
+  SPSS variable is rebuilt — an unlabelled string variable of the range
+  labels. `bucket` never touches `FEAT_BUCKETIZE`.
 - **Projection is last.** Filters, `sort`, weights, features,
   attributes and windows read the full source schema plus the derived
   columns, so they may name a column the output drops.

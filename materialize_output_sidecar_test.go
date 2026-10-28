@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -382,5 +383,46 @@ func TestMaterializeOutput_RecodedColumnSidecarRebuilt(t *testing.T) {
 	_, labels := savRoundTrip(t, p, afs, "recoded.pulse")
 	if want := map[string]map[float64]string{"Q1": {1: "Low", 2: "High"}}; !reflect.DeepEqual(labels, want) {
 		t.Errorf("value labels after the round trip = %v, want only Q1's %v", labels, want)
+	}
+}
+
+// TestMaterializeOutput_BucketedColumnSidecarRebuilt: a bucketed
+// column's variable is rebuilt from its written categorical (the range
+// labels, unlabelled) — the source variable's description and value
+// labels never land on the new codes — while untouched columns keep
+// theirs.
+func TestMaterializeOutput_BucketedColumnSidecarRebuilt(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, labelledSavSpec(), Options{})
+	req := absentOutputRequest()
+	req.Output = &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+		{From: "ID", As: "id_band", Bucket: &types.MaterializeBucket{Ranges: []types.MaterializeBucketRange{
+			{Label: "early", End: json.RawMessage("3")}, {Label: "late", Start: json.RawMessage("3")}}}},
+		{From: "WT", As: "wt_band", Bucket: &types.MaterializeBucket{Ranges: []types.MaterializeBucketRange{
+			{Label: "light", End: json.RawMessage("1")}, {Label: "heavy", Start: json.RawMessage("1")}}}},
+		{From: "Q1"}, {From: "WT"},
+	}}
+	res, err := p.Materialize(context.Background(), req, "bucketed.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("warnings %v, want the sidecar carried", res.Warnings)
+	}
+	vars := sidecarVars(t, afs, "bucketed.pulse")
+	for name, want := range map[string][]string{"id_band": {"early", "late"}, "wt_band": {"light", "heavy"}} {
+		v := vars[name]
+		var values []string
+		for _, c := range v.Categories {
+			values = append(values, c.Value)
+		}
+		if v.Kind != "categorical" || labelledCount(v) != 0 || !reflect.DeepEqual(values, want) {
+			t.Errorf("%s = %s, values %v, %d labelled; want an unlabelled categorical of %v", name, v.Kind, values, labelledCount(v), want)
+		}
+	}
+	if n := labelledCount(vars["Q1"]); n != 2 {
+		t.Errorf("untouched Q1 keeps %d labels, want 2", n)
 	}
 }

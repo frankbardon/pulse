@@ -49,7 +49,7 @@ func TestMaterializeRisks_NullableFalseOverNullable(t *testing.T) {
 	req := &types.Request{Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
 		{From: "a", Nullable: &no}, {From: "b", Nullable: &no}, {From: "d", As: "dd", Nullable: &no}, {From: "b", As: "b2", Nullable: &yes},
 	}}}
-	layout, ce := MaterializeOutputLayout(req, schema, cols)
+	layout, ce := MaterializeOutputLayout(req, schema, cols, nil)
 	if ce != nil {
 		t.Fatal(ce)
 	}
@@ -81,7 +81,7 @@ func TestMaterializeRisks_Casts(t *testing.T) {
 		{From: "b", Type: "u8", Nullable: &no},
 		{From: "b", As: "b2", Type: "packed_bool", OnCastError: "null"},
 	}}}
-	layout, ce := MaterializeOutputLayout(req, schema, nil)
+	layout, ce := MaterializeOutputLayout(req, schema, nil, nil)
 	if ce != nil {
 		t.Fatal(ce)
 	}

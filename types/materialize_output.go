@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // MaterializeOutput is the materialize-only `output` slot
 // (Request.Output): it lays out the schema of the cohort a
 // Pulse.Materialize run writes. Absent, the run writes every source
@@ -94,15 +96,21 @@ type MaterializeOutputColumn struct {
 	// count). "null" needs a nullable output column
 	// (PULSE_MATERIALIZE_OUTPUT_INVALID, reason
 	// on_cast_error_not_nullable). It applies only to a column that
-	// re-codes its values — a Type or a Recode
+	// re-codes its values — a Type, a Recode or a Bucket
 	// (on_cast_error_without_type otherwise); a Recode alone never fails
-	// a value, its refusals are all static.
+	// a value, its refusals are all static; a Bucket fails a value
+	// outside every range (reason no_range) or a NaN (not_finite).
 	OnCastError string `json:"on_cast_error,omitempty"`
 
 	// Recode rewrites a categorical column's labels — relabel, merge,
 	// map to null, reorder — before any Type cast reads them. Nil keeps
 	// the labels. See MaterializeRecode.
 	Recode *MaterializeRecode `json:"recode,omitempty"`
+
+	// Bucket turns a numeric or date-family column into labelled
+	// categories: each value is written as the label of the range
+	// holding it. Nil keeps the values. See MaterializeBucket.
+	Bucket *MaterializeBucket `json:"bucket,omitempty"`
 }
 
 // MaterializeRecode is an output column's categorical recode
@@ -138,4 +146,52 @@ type MaterializeRecode struct {
 	// Order is the written dictionary's order: every label the recode
 	// writes, each exactly once. Empty keeps first-occurrence order.
 	Order []string `json:"order,omitempty"`
+}
+
+// MaterializeBucket is an output column's bucketing
+// (MaterializeOutputColumn.Bucket): the numeric (u4..u64, f32, f64,
+// decimal128, or a derived f64) or date-family (date, datetime) column it
+// reads is written as a categorical_* of range labels. The ranges are
+// exactly one of inline Ranges or RangeTable, a registered range table
+// (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR), compiled by the
+// shared range-compilation pass GROUP_NUMERIC_RANGES, GROUP_DATE_RANGES
+// and FILTER_DATE_RANGES use, with their boundary rules: a numeric range
+// is half-open [start, end); a date range is inclusive on both ends and
+// a datetime is matched by its local day in Request.TimeZone (else the
+// instance default zone, else UTC). An omitted bound is open.
+//
+// The written type is the narrowest categorical_* holding every label
+// (categorical_u8 up to 256), its dictionary the labels in declared
+// order — inline order, or the table's own — every label present
+// whether or not a value lands in it. A null stays null; a value
+// outside every range (or a NaN) follows OnCastError. The order of
+// operations on one column is bucket, then Type (a categorical width, or
+// a numeric parse of the labels), then the nullability check.
+//
+// Refusals, all before anything is read (predict refuses each with the
+// same code and details, plus column and path): a source that is not
+// numeric or date-family (PULSE_MATERIALIZE_OUTPUT_INVALID, reason
+// bucket_unsupported_type); both or neither of Ranges / RangeTable
+// (PULSE_RANGE_SOURCE_AMBIGUOUS); an unknown table
+// (PULSE_RANGE_TABLE_UNKNOWN) or one of the other kind
+// (PULSE_RANGE_TABLE_KIND_MISMATCH); inline ranges the shared pass
+// refuses (PULSE_RANGE_EMPTY / _INVALID / _DUPLICATE_LABEL / _OVERLAP;
+// a bound of the wrong JSON kind is PULSE_RANGE_INVALID).
+type MaterializeBucket struct {
+	// Ranges are the inline ranges, in the written dictionary's order.
+	Ranges []MaterializeBucketRange `json:"ranges,omitempty"`
+
+	// RangeTable names a registered range table: a numeric table for a
+	// numeric column, a date table for a date-family one.
+	RangeTable string `json:"range_table,omitempty"`
+}
+
+// MaterializeBucketRange is one inline bucket range: Label is the
+// category written; Start and End are JSON numbers on a numeric column
+// (half-open [start, end)) or ISO date strings on a date-family column
+// (inclusive). An omitted or null bound is open.
+type MaterializeBucketRange struct {
+	Label string          `json:"label"`
+	Start json.RawMessage `json:"start,omitempty"`
+	End   json.RawMessage `json:"end,omitempty"`
 }

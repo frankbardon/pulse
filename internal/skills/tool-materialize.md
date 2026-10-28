@@ -31,11 +31,11 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 - **Nest the request.** A slot beside `out` → `PULSE_REQUEST_UNKNOWN_FIELD`; a slot outside the list → `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); nothing derived → `PULSE_MATERIALIZE_NO_DERIVED`.
 - **Label outputs** you will reference: the column name is the label.
 - Integer window outputs (row number, rank) are `f64`; a non-numeric output → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Every refusal precedes any write; the write is atomic.
+- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Refusals precede any write; the write is atomic.
 - `sort` orders ROWS only (source or derived keys, nulls last); window values follow each window's own `order_by`.
 - Single-file output; the SPSS metadata sidecar is carried, no other sidecar.
 <!-- feature: capability:materialize_output -->
-- **`output`** picks, orders, renames, describes, recodes and retypes columns, applied last (`derived-cohorts`, `materialize-recode`, `materialize-casts`).
+- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last (`derived-cohorts`, `materialize-recode`, `materialize-casts`).
 <!-- /feature -->
 
 ## See

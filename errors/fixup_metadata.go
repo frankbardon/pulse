@@ -2813,7 +2813,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_EMPTY: {
-		Message: "A labeled-range set (the inline ranges of a date-range grouper or filterer or a numeric-range grouper, or a named range table) was presented with zero ranges.",
+		Message: "A labeled-range set (the inline ranges of a date-range grouper or filterer, a numeric-range grouper or a materialize output column's bucket, or a named range table) was presented with zero ranges.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2849,7 +2849,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_SOURCE_AMBIGUOUS: {
-		Message: "A range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
+		Message: "A range grouper or filterer (or a materialize output column's bucket) must name exactly one range source; supplying both an inline `ranges` array and a named `table` (`range_table` on a bucket), or neither, is ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2858,7 +2858,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A range grouper or filterer referenced a range table by a name that is not registered.",
+		Message: "A range grouper or filterer (or a materialize output column's bucket.range_table) referenced a range table by a name that is not registered.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2867,7 +2867,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_KIND_MISMATCH: {
-		Message: "A range operator referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table.",
+		Message: "A range operator (or a materialize output column's bucket) referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table. A bucket reads a numeric table on a numeric column and a date table on a date / datetime column.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

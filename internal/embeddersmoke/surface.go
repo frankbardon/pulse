@@ -3,6 +3,7 @@ package embeddersmoke
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"math/rand/v2"
 
@@ -87,7 +88,9 @@ var (
 	_ = pulse.Request{Output: &types.MaterializeOutput{Exclude: []string(nil),
 		Columns: []types.MaterializeOutputColumn{{From: "a", As: "b", Description: (*string)(nil), Nullable: (*bool)(nil),
 			Type: "u8", Precision: (*int)(nil), Scale: (*int)(nil), OnCastError: "null",
-			Recode: &types.MaterializeRecode{Map: map[string]*string(nil), Order: []string(nil)}}}}}
+			Recode: &types.MaterializeRecode{Map: map[string]*string(nil), Order: []string(nil)},
+			Bucket: &types.MaterializeBucket{RangeTable: "t",
+				Ranges: []types.MaterializeBucketRange{{Label: "a", Start: json.RawMessage(nil), End: json.RawMessage(nil)}}}}}}}
 	// The no-execute materialize verdict and its result types.
 	_ func(*pulse.Pulse, context.Context, *pulse.Request) (*descriptor.Envelope, error) = (*pulse.Pulse).PredictMaterialize
 	_                                                                                   = descriptor.MaterializePredictResult{Valid: true, SchemaInfo: (*descriptor.PredictSchemaInfo)(nil),

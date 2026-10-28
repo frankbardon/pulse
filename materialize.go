@@ -130,7 +130,14 @@ type MaterializeResult struct {
 // merge, map to null (a nullable column only), `order` — and the cast
 // reads the recoded labels; a map key the source dictionary lacks is
 // PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL before anything is read, and a
-// recoded column's SPSS variable is rebuilt like a cast one's. With
+// recoded column's SPSS variable is rebuilt like a cast one's. A
+// numeric or date-family column's `bucket` (types.MaterializeBucket:
+// inline ranges XOR a registered range_table, compiled by the shared
+// range pass — numeric half-open, dates inclusive, a datetime by its
+// local day in the cast zone) writes it as the categorical_* of its
+// range labels in declared order before any cast; a value outside every
+// range follows on_cast_error (reason no_range), and its SPSS variable
+// is rebuilt. With
 // an output block a request needs no derived column (a pure reshape),
 // and the source's SPSS sidecar is carried through the layout (a
 // dropped column loses its variable, a renamed or duplicated one keeps
@@ -292,6 +299,9 @@ type materializeSink struct {
 	casts       []*fieldcast.Plan
 	nulled      []int64
 	firstNulled []int64
+	// buckets holds, per layout column, its bucketing (nil when it has
+	// none), its datetime zone loaded; a value it nulls counts in nulled.
+	buckets []*fieldcast.Bucket
 }
 
 // castWarnings is one PULSE_MATERIALIZE_CAST_NULLED warning per column
@@ -299,9 +309,18 @@ type materializeSink struct {
 func (m *materializeSink) castWarnings() []*errors.CodedError {
 	var out []*errors.CodedError
 	for i, n := range m.nulled {
-		if n > 0 {
-			out = append(out, descx.MaterializeCastNulled(m.layout[i].Field.Name, n, m.firstNulled[i], m.casts[i].From, m.casts[i].To))
+		if n == 0 {
+			continue
 		}
+		// A bucketed column names the field it read and the field it
+		// writes; a cast-only column its cast's pair.
+		from, to := m.layout[i].Field, m.layout[i].Field
+		if b := m.layout[i].Bucket; b != nil {
+			from = b.From
+		} else if c := m.casts[i]; c != nil {
+			from, to = c.From, c.To
+		}
+		out = append(out, descx.MaterializeCastNulled(m.layout[i].Field.Name, n, m.firstNulled[i], from, to))
 	}
 	return out
 }
@@ -422,9 +441,21 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 // pre-flight before Begin).
 func (m *materializeSink) planCasts() error {
 	m.casts = make([]*fieldcast.Plan, len(m.layout))
+	m.buckets = make([]*fieldcast.Bucket, len(m.layout))
 	m.nulled = make([]int64, len(m.layout))
 	m.firstNulled = make([]int64, len(m.layout))
 	for i, col := range m.layout {
+		if b := col.Bucket; b != nil {
+			bucket := b.Bucket
+			if b.Zone != "" {
+				z, err := temporal.LoadZone(b.Zone)
+				if err != nil {
+					return err
+				}
+				bucket.Zone = z
+			}
+			m.buckets[i] = &bucket
+		}
 		c := col.Cast
 		if c == nil {
 			continue
@@ -482,6 +513,20 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 					v = *to
 				}
 			}
+		}
+		if b := m.buckets[i]; b != nil && v != nil {
+			// Bucket, then cast: the cast reads the range label.
+			bv, fail := b.Apply(v)
+			if fail != nil {
+				if !col.Bucket.NullOnError {
+					return descx.MaterializeCastFailed(col.Field.Name, m.rows, b.From, col.Bucket.To, fail.Value, fail.Reason)
+				}
+				if m.nulled[i] == 0 {
+					m.firstNulled[i] = m.rows
+				}
+				m.nulled[i]++
+			}
+			v = bv
 		}
 		if c := m.casts[i]; c != nil && v != nil {
 			cv, fail := c.Apply(v)

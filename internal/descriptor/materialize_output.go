@@ -33,16 +33,34 @@ import (
 // label with no entry as itself — applied BEFORE Cast. Field.Dictionary
 // is then the recoded dictionary (outputRecode).
 //
+// Bucket is the column's bucketing (nil when it has none): each value
+// read is written as the label of the range holding it — applied BEFORE
+// Cast, which then reads the bucketed categorical (outputBucket).
+//
 // Cast is the column's `type` cast (nil when it keeps its type): every
-// cell read is converted by fieldcast before the append. A cast or
-// recoded column is always Rebuild.
+// cell read is converted by fieldcast before the append. A cast,
+// recoded or bucketed column is always Rebuild.
 type MaterializeOutputField struct {
 	Field   encoding.Field
 	Source  int
 	Derived int
 	Rebuild bool
 	Recode  map[string]*string
+	Bucket  *MaterializeBucket
 	Cast    *MaterializeCast
+}
+
+// MaterializeBucket is one output column's resolved bucketing: the
+// compiled ranges (fieldcast.Bucket — From, and exactly one of Numeric /
+// Dates), To the bucketed categorical field (before any `type` cast),
+// NullOnError on_cast_error: "null", and Zone the zone a datetime source
+// is matched by its local day in (MaterializePlan sets it as for a
+// date ↔ datetime cast; "" for every other source).
+type MaterializeBucket struct {
+	fieldcast.Bucket
+	To          encoding.Field
+	NullOnError bool
+	Zone        string
 }
 
 // MaterializeCast is one output column's cast: From is the field read
@@ -102,9 +120,10 @@ func derivedField(c MaterializeColumn) encoding.Field {
 // (type, nullability, dictionary, description; decimal shape);
 // `description` replaces the description, `nullable` the nullability.
 // Projection names output columns only: filters, sort, weight and the
-// derived slots have already read the full source schema. Schema-only;
+// derived slots have already read the full source schema. inst resolves
+// a bucket's range_table (nil: no table is registered). Schema-only;
 // reads no record.
-func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols []MaterializeColumn) ([]MaterializeOutputField, *errors.CodedError) {
+func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols []MaterializeColumn, inst *InstanceSnapshot) ([]MaterializeOutputField, *errors.CodedError) {
 	var src []encoding.Field
 	if schema != nil {
 		src = schema.Fields
@@ -188,6 +207,15 @@ func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols [
 			f.Recode, f.Rebuild = recode, true
 			from.Dictionary = f.Field.Dictionary
 		}
+		bucket, ce := outputBucket(c, i, from, &f.Field, inst)
+		if ce != nil {
+			return nil, ce
+		}
+		if bucket != nil {
+			f.Bucket, f.Rebuild = bucket, true
+			// The cast reads the bucketed categorical.
+			from.Type, from.Dictionary, from.Precision, from.Scale = f.Field.Type, f.Field.Dictionary, 0, 0
+		}
 		cast, ce := outputCast(c, i, from, &f.Field)
 		if ce != nil {
 			return nil, ce
@@ -213,7 +241,8 @@ func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols [
 // resolved). Nil when the column keeps its type. Refuses
 // PULSE_MATERIALIZE_OUTPUT_INVALID (unknown_type, decimal_shape,
 // on_cast_error_invalid, on_cast_error_without_type,
-// on_cast_error_not_nullable) and PULSE_MATERIALIZE_CAST_UNSUPPORTED
+// on_cast_error_not_nullable — on_cast_error needs a type, recode or
+// bucket) and PULSE_MATERIALIZE_CAST_UNSUPPORTED
 // (fieldcast.Refused: an illegal pair, or a categorical narrowing whose
 // dictionary does not fit) — the one matrix the run's conversion uses.
 func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to *encoding.Field) (*MaterializeCast, *errors.CodedError) {
@@ -228,9 +257,9 @@ func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to 
 	}
 	if c.Type == "" {
 		switch {
-		case c.OnCastError != "" && c.Recode == nil:
+		case c.OnCastError != "" && c.Recode == nil && c.Bucket == nil:
 			return nil, outputInvalid("on_cast_error_without_type", outputPath("columns", i, "on_cast_error"),
-				"output.columns["+strconv.Itoa(i)+"] sets on_cast_error without a type or recode; it applies only to a column that re-codes its values")
+				"output.columns["+strconv.Itoa(i)+"] sets on_cast_error without a type, recode or bucket; it applies only to a column that re-codes its values")
 		case nullOnError && !to.Nullable:
 			return nil, onCastErrorNotNullable(i)
 		case c.Precision != nil || c.Scale != nil:

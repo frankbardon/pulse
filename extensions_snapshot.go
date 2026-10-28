@@ -226,6 +226,13 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			snap.RangeTableLabels = make(map[string][]string, len(ext.RangeTables))
 		}
 		snap.RangeTableLabels[name] = labels
+		if snap.RangeTableSpecs == nil {
+			snap.RangeTableSpecs = make(map[string]descx.RangeTableSpecs, len(ext.RangeTables))
+		}
+		snap.RangeTableSpecs[name] = descx.RangeTableSpecs{
+			Dates:   toEngineDateRanges(t.Ranges),
+			Numeric: toEngineNumericRanges(t.NumericRanges),
+		}
 		snap.RangeTables = append(snap.RangeTables, descriptor.RangeTableMeta{
 			Name:        name,
 			Description: t.Description,

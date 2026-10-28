@@ -317,7 +317,7 @@ byte-identical to the earlier wire form.
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
 `Pulse.Materialize` writes: `columns` — a list of
 `#/$defs/MaterializeOutputColumn` `{from, as, description, nullable,
-type, precision, scale, on_cast_error, recode}`, `from` required — XOR `exclude` (field / derived-column names). It is
+type, precision, scale, on_cast_error, recode, bucket}`, `from` required — XOR `exclude` (field / derived-column names). It is
 additive: `format_version` stays `"1.1"` and omitting it writes the
 cohort Materialize always wrote, byte for byte. It is MATERIALIZE-ONLY:
 every other operation that takes a `Request` (process, compose, chain,
@@ -341,7 +341,16 @@ to is `PULSE_MATERIALIZE_CAST_UNSUPPORTED`, an unknown `type`, a bad
 `PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL` (`details.label`); a recode of a
 non-categorical, a `null` on a non-nullable column, or an `order` that
 is not exactly the recoded labels once each is
-`PULSE_MATERIALIZE_OUTPUT_INVALID`. A null in a `nullable:
+`PULSE_MATERIALIZE_OUTPUT_INVALID`. `bucket`
+(`#/$defs/MaterializeBucket` `{ranges, range_table}`, each range a
+`#/$defs/MaterializeBucketRange` `{label, start, end}` whose bounds are a
+number, an ISO date string or `null`) writes a numeric or date-family
+column as the `categorical_*` of its range labels; its refusals are the
+shared range codes (`PULSE_RANGE_SOURCE_AMBIGUOUS`,
+`PULSE_RANGE_TABLE_UNKNOWN`, `PULSE_RANGE_TABLE_KIND_MISMATCH`,
+`PULSE_RANGE_EMPTY` / `_INVALID` / `_DUPLICATE_LABEL` / `_OVERLAP`) plus
+`PULSE_MATERIALIZE_OUTPUT_INVALID` for an unbucketable column, and a
+value outside every range fails like a cast. A null in a `nullable:
 false` column fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`, a
 stored value its cast cannot represent with
 `PULSE_MATERIALIZE_CAST_FAILED` (or, `on_cast_error: "null"`, a null and

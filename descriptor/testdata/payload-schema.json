@@ -2670,6 +2670,52 @@
       ],
       "type": "object"
     },
+    "MaterializeBucket": {
+      "additionalProperties": false,
+      "properties": {
+        "range_table": {
+          "type": "string"
+        },
+        "ranges": {
+          "items": {
+            "$ref": "#/$defs/MaterializeBucketRange"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MaterializeBucketRange": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "description": "Upper bound of the range: a JSON number on a numeric column (ranges half-open [start, end)), an ISO date string on a date / datetime column (inclusive); omitted or null leaves that side open.",
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "start": {
+          "description": "Lower bound of the range: a JSON number on a numeric column (ranges half-open [start, end)), an ISO date string on a date / datetime column (inclusive); omitted or null leaves that side open.",
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
     "MaterializeOutput": {
       "additionalProperties": false,
       "properties": {
@@ -2699,6 +2745,9 @@
       "properties": {
         "as": {
           "type": "string"
+        },
+        "bucket": {
+          "$ref": "#/$defs/MaterializeBucket"
         },
         "description": {
           "type": "string"
@@ -6742,4 +6791,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ecf687b286c6f564ff3bbe206fa60f1d71be3b0c8f151d6e4f6e0ef5045ae152
+// golden-hash: 7298dbee8a4335fcdf64056193b5aac272ca99d458f5258df277dc3f7e4479ae

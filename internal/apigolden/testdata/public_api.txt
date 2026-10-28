@@ -5391,11 +5391,19 @@ pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
 pulse/types: func MarshalFinite(v any) ([]byte, error)
+pulse/types: type MaterializeBucket struct
+pulse/types: type MaterializeBucket field RangeTable string "json:\"range_table,omitempty\""
+pulse/types: type MaterializeBucket field Ranges []pulse/types.MaterializeBucketRange "json:\"ranges,omitempty\""
+pulse/types: type MaterializeBucketRange struct
+pulse/types: type MaterializeBucketRange field End encoding/json.RawMessage "json:\"end,omitempty\""
+pulse/types: type MaterializeBucketRange field Label string "json:\"label\""
+pulse/types: type MaterializeBucketRange field Start encoding/json.RawMessage "json:\"start,omitempty\""
 pulse/types: type MaterializeOutput struct
 pulse/types: type MaterializeOutput field Columns []pulse/types.MaterializeOutputColumn "json:\"columns,omitempty\""
 pulse/types: type MaterializeOutput field Exclude []string "json:\"exclude,omitempty\""
 pulse/types: type MaterializeOutputColumn struct
 pulse/types: type MaterializeOutputColumn field As string "json:\"as,omitempty\""
+pulse/types: type MaterializeOutputColumn field Bucket *pulse/types.MaterializeBucket "json:\"bucket,omitempty\""
 pulse/types: type MaterializeOutputColumn field Description *string "json:\"description,omitempty\""
 pulse/types: type MaterializeOutputColumn field From string "json:\"from\""
 pulse/types: type MaterializeOutputColumn field Nullable *bool "json:\"nullable,omitempty\""
@@ -6271,4 +6279,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 53cfb92be059ca1e6d36131c1c59a9ea990f873f0ab485ec9a33a5245fa28729
+// golden-hash: 8689aa72036acd01caf36a83fb5c63d661e363680e935e4631f290a3d6369b76

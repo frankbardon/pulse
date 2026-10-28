@@ -33,13 +33,14 @@ import (
 // defaultZone is pulse.Options.DefaultTimeZone: a date ↔ datetime cast
 // reads local days in req.TimeZone, else defaultZone, else "UTC"
 // (MaterializeCast.Zone; the zone name was validated by the zone
-// pre-flight). Reads no record.
+// pre-flight) — and a bucketed datetime column is matched by its local
+// day in that zone (MaterializeBucket.Zone). Reads no record.
 func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *errors.CodedError) {
 	cols, ce := MaterializeColumns(req, schema, inst, source)
 	if ce != nil {
 		return nil, nil, ce
 	}
-	layout, ce := MaterializeOutputLayout(req, schema, cols)
+	layout, ce := MaterializeOutputLayout(req, schema, cols, inst)
 	if ce != nil {
 		return nil, nil, ce
 	}
@@ -56,6 +57,12 @@ func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *Instance
 			cc := *c
 			cc.Zone = zone
 			layout[i].Cast = &cc
+		}
+		if b := layout[i].Bucket; b != nil && b.From.Type == encoding.FieldTypeDateTime {
+			// A datetime is bucketed by its local day.
+			bb := *b
+			bb.Zone = zone
+			layout[i].Bucket = &bb
 		}
 	}
 	if ce := encx.DescriptionLengthRefusal(layoutFields(layout)); ce != nil {
@@ -82,7 +89,9 @@ func layoutFields(layout []MaterializeOutputField) []encoding.Field {
 
 // MaterializeRisks lists the data-dependent checks a materialize run of
 // req makes on the records, over its resolved layout, per output.columns
-// entry in order: a cast that a stored value can fail
+// entry in order: a bucket whose ranges leave a gap (or that reads a
+// float column, which may hold a NaN), coded like a cast (path .bucket);
+// a cast that a stored value can fail
 // (fieldcast.Check — "f64 → u8: integral, 0 ≤ v ≤ 255"), coded
 // PULSE_MATERIALIZE_CAST_FAILED, or PULSE_MATERIALIZE_CAST_NULLED under
 // on_cast_error: "null" (path .type); then `nullable: false` over a
@@ -96,6 +105,20 @@ func MaterializeRisks(req *types.Request, schema *encoding.Schema, layout []Mate
 	}
 	for i, c := range req.Output.Columns {
 		col := layout[i]
+		if b := col.Bucket; b != nil {
+			if check := bucketCheck(b); check != "" {
+				code, then := errors.PULSE_MATERIALIZE_CAST_FAILED, "the run fails at the first value that is not and writes nothing"
+				if b.NullOnError {
+					code, then = errors.PULSE_MATERIALIZE_CAST_NULLED, "a value that is not is written as null and counted in one warning"
+				}
+				risks = append(risks, descriptor.MaterializeRisk{
+					Column: col.Field.Name,
+					Path:   outputPath("columns", i, "bucket"),
+					Code:   string(code),
+					Check:  check + " — " + then,
+				})
+			}
+		}
 		if cast := col.Cast; cast != nil {
 			if check := fieldcast.Check(cast.From, col.Field); check != "" {
 				code, then := errors.PULSE_MATERIALIZE_CAST_FAILED, "the run fails at the first value that does not and writes nothing"
@@ -299,4 +322,23 @@ func predictColumn(col MaterializeOutputField, schema *encoding.Schema, cols []M
 		out.Dictionary = truncatedEntries(f.Dictionary.Values(), DefaultDictionaryLimit)
 	}
 	return out
+}
+
+// bucketCheck is the data-dependent condition of a bucket, or "" when
+// every value it can read lands in a range: ranges with a gap (a
+// bounded lowest or highest range, or two ranges that do not meet), or a
+// float source (a NaN lies in no range).
+func bucketCheck(b *MaterializeBucket) string {
+	gapless := b.Numeric.Gapless()
+	if b.Dates != nil {
+		gapless = b.Dates.Gapless()
+	}
+	float := b.From.Type == encoding.FieldTypeF32 || b.From.Type == encoding.FieldTypeF64
+	switch {
+	case !gapless:
+		return b.From.Type.String() + " → " + b.To.Type.String() + " bucket: every value must lie in one of the ranges"
+	case float:
+		return b.From.Type.String() + " → " + b.To.Type.String() + " bucket: every value must be a number (a NaN lies in no range)"
+	}
+	return ""
 }

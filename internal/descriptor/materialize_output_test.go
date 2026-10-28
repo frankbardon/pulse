@@ -31,7 +31,7 @@ func TestMaterializeOutputLayout_Resolves(t *testing.T) {
 	}}
 	cols := []MaterializeColumn{{Name: "d", Description: "derived d"}}
 
-	full, err := MaterializeOutputLayout(&types.Request{}, schema, cols)
+	full, err := MaterializeOutputLayout(&types.Request{}, schema, cols, nil)
 	if err != nil || !slices.Equal(layoutNames(full), []string{"a", "b", "d"}) {
 		t.Fatalf("absent output: %v %v", layoutNames(full), err)
 	}
@@ -42,7 +42,7 @@ func TestMaterializeOutputLayout_Resolves(t *testing.T) {
 	desc, null := "renamed b", false
 	got, err := MaterializeOutputLayout(&types.Request{Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
 		{From: "d", As: "dd"}, {From: "b", Description: &desc, Nullable: &null}, {From: "a"},
-	}}}, schema, cols)
+	}}}, schema, cols, nil)
 	if err != nil || !slices.Equal(layoutNames(got), []string{"dd", "b", "a"}) {
 		t.Fatalf("columns: %v %v", layoutNames(got), err)
 	}
@@ -56,11 +56,11 @@ func TestMaterializeOutputLayout_Resolves(t *testing.T) {
 		t.Error("the layout mutated the source schema")
 	}
 
-	ex, err := MaterializeOutputLayout(&types.Request{Output: &types.MaterializeOutput{Exclude: []string{"a"}}}, schema, cols)
+	ex, err := MaterializeOutputLayout(&types.Request{Output: &types.MaterializeOutput{Exclude: []string{"a"}}}, schema, cols, nil)
 	if err != nil || !slices.Equal(layoutNames(ex), []string{"b", "d"}) {
 		t.Fatalf("exclude: %v %v", layoutNames(ex), err)
 	}
-	if _, err := MaterializeOutputLayout(&types.Request{Output: &types.MaterializeOutput{Exclude: []string{"a", "b", "d"}}}, schema, cols); err == nil || err.Code != errors.PULSE_MATERIALIZE_OUTPUT_INVALID {
+	if _, err := MaterializeOutputLayout(&types.Request{Output: &types.MaterializeOutput{Exclude: []string{"a", "b", "d"}}}, schema, cols, nil); err == nil || err.Code != errors.PULSE_MATERIALIZE_OUTPUT_INVALID {
 		t.Fatalf("exclude all: %v", err)
 	}
 }
@@ -133,7 +133,7 @@ func TestMaterializeOutputLayout_Casts(t *testing.T) {
 		{From: "n", As: "n_same", Type: "u32"},
 		{From: "ts", As: "day", Type: "date"},
 	}}}
-	layout, ce := MaterializeOutputLayout(req, schema, cols)
+	layout, ce := MaterializeOutputLayout(req, schema, cols, nil)
 	if ce != nil {
 		t.Fatal(ce)
 	}
@@ -224,7 +224,7 @@ func TestMaterializeOutputLayout_Recode(t *testing.T) {
 		{From: "w", Type: "categorical_u8", Recode: &types.MaterializeRecode{Map: map[string]*string{"L256": str("L0")}}},
 		{From: "k", As: "plain"},
 	}}}
-	layout, ce := MaterializeOutputLayout(req, schema, nil)
+	layout, ce := MaterializeOutputLayout(req, schema, nil, nil)
 	if ce != nil {
 		t.Fatal(ce)
 	}
