@@ -39,6 +39,32 @@ func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, 
 	if w := c.WriteFor(p.fsys, built.Target, built.Schema, replaced, mirrors); w != nil {
 		return []*errors.CodedError{w}
 	}
+	dropFreshSPSS(built)
+	return nil
+}
+
+// carryProjectedSidecar is carrySidecar for a cohort an output block laid
+// out: the carried sidecar is rewritten column for column through cols
+// (spss.SidecarCarry.WriteProjected — dropped columns lose their
+// variables, renamed ones keep theirs under the new name, duplicates get
+// copies, rebuilt ones a regenerated variable).
+func (p *Pulse) carryProjectedSidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, built *CohortBuildResult, cols []spss.ProjectedColumn) []*errors.CodedError {
+	if prepWarn != nil {
+		return []*errors.CodedError{prepWarn}
+	}
+	if c == nil {
+		return nil
+	}
+	if w := c.WriteProjected(p.fsys, built.Target, built.Schema, cols); w != nil {
+		return []*errors.CodedError{w}
+	}
+	dropFreshSPSS(built)
+	return nil
+}
+
+// dropFreshSPSS removes the SPSS sidecar from built.InvalidatedSidecars:
+// a carried sidecar is fresh, so an overwrite no longer leaves it stale.
+func dropFreshSPSS(built *CohortBuildResult) {
 	kept := built.InvalidatedSidecars[:0]
 	for _, s := range built.InvalidatedSidecars {
 		if s.Kind != SidecarKindSPSSMetadata {
@@ -46,5 +72,4 @@ func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, 
 		}
 	}
 	built.InvalidatedSidecars = kept
-	return nil
 }

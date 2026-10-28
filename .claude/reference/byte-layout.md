@@ -20,35 +20,36 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 6. Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup`
 7. Row-at-a-time builder — `Pulse.NewCohortBuilder`
 8. Materialized derived columns — `Pulse.Materialize`
-9. Wide-set word order — `set_u128` / `set_u256`
-10. Vector fields — `vec_f32` / `vec_f64` and the VECTORS section
-11. Temporal word sign — `date` int32 / `datetime` int64
-12. Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet)
-13. Shard set-width auto-widen
-14. Shard archives with parent groups — `0x02` shards
-15. Sidecar point-lookup index
-16. Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestSuffix`)
-17. Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage
-18. SPSS metadata sidecar
-19. SPSS derived columns
-20. SPSS export
-21. SPSS convert carries the source through
-22. Export predict is target-aware
-23. Projected buffered decode
-24. Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import transfer`)
-25. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`
-26. Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3)
-27. Population file — `.pulse-population.json` (`population_format_version` 1)
-28. SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3)
-29. CLAUDE.md's sidecar contract sentence, pre-compression
-30. The always-load half, long form — header, schema block, bitmap, field types, shard archive variant (relocated at U18 E1-S1)
+9. Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3)
+10. Wide-set word order — `set_u128` / `set_u256`
+11. Vector fields — `vec_f32` / `vec_f64` and the VECTORS section
+12. Temporal word sign — `date` int32 / `datetime` int64
+13. Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet)
+14. Shard set-width auto-widen
+15. Shard archives with parent groups — `0x02` shards
+16. Sidecar point-lookup index
+17. Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestSuffix`)
+18. Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage
+19. SPSS metadata sidecar
+20. SPSS derived columns
+21. SPSS export
+22. SPSS convert carries the source through
+23. Export predict is target-aware
+24. Projected buffered decode
+25. Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import transfer`)
+26. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`
+27. Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3)
+28. Population file — `.pulse-population.json` (`population_format_version` 1)
+29. SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3)
+30. CLAUDE.md's sidecar contract sentence, pre-compression
+31. The always-load half, long form — header, schema block, bitmap, field types, shard archive variant (relocated at U18 E1-S1)
 
 ## Section map
 
 | Slice | Sections and bold leads, in file order |
 |---|---|
 | `byte-layout/format-and-groups.md` | The contract; Format version — `0x01` / `0x02`; Parent groups — the `0x02` group descriptor; Global-constant elision — opt-in, full-pass detection; Import-time group declaration — `--group` / `ImportJob.Groups`; Per-group viability gate — `PULSE_GROUP_TOO_NARROW` / `PULSE_DEDUP_LOW_RATIO` / `--strict`; Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup` |
-| `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
+| `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3); Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
 | `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS…; Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage |
 | `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran…; Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`… |
 | `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3); Population file — `.pulse-population.json` (`population_format_version` 1); SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3) |

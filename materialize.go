@@ -109,9 +109,11 @@ type MaterializeResult struct {
 // ones. A null in a column the layout declares non-nullable fails the
 // run with PULSE_MATERIALIZE_OUTPUT_NULL (details column + row). With
 // an output block a request needs no derived column (a pure reshape),
-// and the source's SPSS sidecar is not carried (one
-// PULSE_SPSS_SIDECAR_INVALID warning). Absent, the output is the layout
-// above, byte for byte.
+// and the source's SPSS sidecar is carried through the layout (a
+// dropped column loses its variable, a renamed or duplicated one keeps
+// its codes and value labels under its new name; one it cannot describe
+// leaves the cohort without a sidecar, with one warning). Absent, the
+// output is the layout above, byte for byte.
 //
 // The output is always an ungrouped (format 0x01) single file, written
 // atomically through NewCohortBuilder: any failure — a refusal, a limit
@@ -179,16 +181,6 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 		source = resolveCohortPath(req.Cohort)
 	}
 	carry, carryWarn := p.prepareSidecarCarry(source)
-	if carry != nil && req.Output != nil {
-		// The carry rewrites the sidecar against the source's columns;
-		// an output block may drop, rename, duplicate, reorder or
-		// redescribe them, which it cannot follow — so the reshaped
-		// cohort is written without one, never with a stale one.
-		carry, carryWarn = nil, errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_SIDECAR_INVALID,
-			"the source's SPSS metadata sidecar is not carried onto a cohort whose columns an output block lays out; "+
-				"it is written without one (a .sav export of it synthesises its dictionary)",
-			map[string]any{errors.DetailSPSSCohort: source, errors.DetailSPSSSidecar: spss.SidecarPath(source)})
-	}
 	sink := &materializeSink{p: p, ctx: ctx, out: out, opts: opts}
 	err := p.svc.Materialize(ctx, req, sink)
 	if sink.reader != nil {
@@ -206,7 +198,14 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	if err != nil {
 		return nil, err
 	}
-	carried := p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
+	var carried []*errors.CodedError
+	if req.Output != nil {
+		// An output block lays the columns out itself: the carry follows
+		// it column for column (drop, rename, duplicate, rebuild).
+		carried = p.carryProjectedSidecar(carry, carryWarn, built, sink.projection())
+	} else {
+		carried = p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
+	}
 	// A read of a managed import slides its expiry, as Process does.
 	p.touchManaged(ctx, source)
 	res := &MaterializeResult{
@@ -256,6 +255,32 @@ type materializeSink struct {
 	inherited []*encoding.Field
 	sources   []string
 	observed  [][]bool
+	// srcNames are the source's logical field names, by layout Source
+	// index (the SPSS carry's projection names the column each reads).
+	srcNames        []string
+	srcDescriptions []string
+}
+
+// projection describes each written column for the SPSS carry
+// (spss.ProjectedColumn): the source field it copies, its description
+// override, whether it was rebuilt (MaterializeOutputField.Rebuild), and
+// — a derived column inheriting a source field's codes — its mirror.
+func (m *materializeSink) projection() []spss.ProjectedColumn {
+	cols := make([]spss.ProjectedColumn, len(m.layout))
+	for i, col := range m.layout {
+		pc := spss.ProjectedColumn{Rebuild: col.Rebuild}
+		switch {
+		case col.Source >= 0:
+			pc.From = m.srcNames[col.Source]
+			if d := col.Field.Description; d != m.srcDescriptions[col.Source] {
+				pc.Label = &d
+			}
+		case col.Derived >= 0 && m.inherited[col.Derived] != nil:
+			pc.Mirror = &spss.Mirror{Source: m.sources[col.Derived], Observed: m.observed[col.Derived]}
+		}
+		cols[i] = pc
+	}
+	return cols
 }
 
 // mirrors maps each inheriting column to its SPSS mirror: the source
@@ -289,6 +314,13 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 		return err
 	}
 	m.reader = r
+	if s := cohort.Schema(); s != nil {
+		m.srcNames = make([]string, len(s.Fields))
+		m.srcDescriptions = make([]string, len(s.Fields))
+		for i, f := range s.Fields {
+			m.srcNames[i], m.srcDescriptions[i] = f.Name, f.Description
+		}
+	}
 	m.inherited = make([]*encoding.Field, len(cols))
 	m.sources = make([]string, len(cols))
 	m.observed = make([][]bool, len(cols))

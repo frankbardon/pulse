@@ -20,10 +20,16 @@ import (
 // at Source (an index into the source schema's logical Fields), or the
 // derived column at Derived (an index into the MaterializeColumns
 // list). Exactly one of Source / Derived is >= 0.
+//
+// Rebuild marks a column whose values the run re-codes (a cast, recode
+// or bucket) rather than copies: the source's SPSS sidecar variable for
+// it is regenerated from the written type and dictionary, never carried
+// (spss.RebuildVariable) — old value labels never land on new codes.
 type MaterializeOutputField struct {
 	Field   encoding.Field
 	Source  int
 	Derived int
+	Rebuild bool
 }
 
 // outputPath renders a path inside the `output` slot for details.path.

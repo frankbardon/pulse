@@ -7,9 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/types"
-	"github.com/spf13/afero"
 )
 
 // The materialize-only `output` slot (types.MaterializeOutput): the
@@ -363,31 +361,4 @@ func TestMaterializeOutput_PureReshape(t *testing.T) {
 	req.Output = nil
 	_, err = p.Materialize(ctx, req, "again.pulse", MaterializeOptions{})
 	assertCode(t, err, errors.PULSE_MATERIALIZE_NO_DERIVED)
-}
-
-// TestMaterializeOutput_SidecarNotCarriedWhenReshaped: an output block
-// over an SPSS-backed source writes the cohort without the sidecar —
-// never a stale one — and warns with the sidecar's code.
-func TestMaterializeOutput_SidecarNotCarriedWhenReshaped(t *testing.T) {
-	t.Parallel()
-
-	afs := afero.NewMemMapFs()
-	p := importSav(t, afs, labelledSavSpec(), Options{})
-	req := absentOutputRequest()
-	// Every source column kept, reordered, one redescribed: a carry
-	// keyed to the source's variables would accept it and write a stale
-	// label.
-	req.Output = &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
-		{From: "WT"}, {From: "Q1", Description: strPtr("Overall satisfaction score")}, {From: "ID"}, {From: "rn"},
-	}}
-	res, err := p.Materialize(context.Background(), req, "derived.pulse", MaterializeOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Warnings) != 1 || res.Warnings[0].Code != errors.PULSE_SPSS_SIDECAR_INVALID {
-		t.Fatalf("warnings = %v, want one PULSE_SPSS_SIDECAR_INVALID", res.Warnings)
-	}
-	if ok, _ := afero.Exists(afs, spss.SidecarPath("derived.pulse")); ok {
-		t.Fatal("a sidecar was carried onto a reshaped cohort")
-	}
 }

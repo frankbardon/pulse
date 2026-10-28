@@ -95,6 +95,12 @@ func (c *SidecarCarry) WriteFor(fs afero.Fs, dstCohort string, schema *encoding.
 	if err != nil {
 		return notCarried(err, c.source)
 	}
+	return c.write(fs, dstCohort, doc)
+}
+
+// write fingerprints doc over dstCohort's bytes and writes it beside
+// dstCohort; the warning, when non-nil, says the sidecar was not carried.
+func (c *SidecarCarry) write(fs afero.Fs, dstCohort string, doc *Document) *errors.CodedError {
 	fp, err := fingerprintCohort(fs, dstCohort)
 	if err != nil {
 		return notCarried(err, c.source)
@@ -108,15 +114,8 @@ func (c *SidecarCarry) WriteFor(fs afero.Fs, dstCohort string, schema *encoding.
 
 // rewrite returns a copy of the carried document describing schema.
 func (c *SidecarCarry) rewrite(schema *encoding.Schema, replaced []string, mirrors map[string]Mirror) (*Document, error) {
-	// A deep copy through JSON: the document is plain data by contract
-	// (`payload` is flat and self-contained), and the carry must never
-	// mutate the source's resolution.
-	raw, err := stdjson.Marshal(c.doc)
+	doc, err := c.copyDocument()
 	if err != nil {
-		return nil, err
-	}
-	doc := &Document{}
-	if err := stdjson.Unmarshal(raw, doc); err != nil {
 		return nil, err
 	}
 	p := &doc.Payload
@@ -190,6 +189,22 @@ func (c *SidecarCarry) rewrite(schema *encoding.Schema, replaced []string, mirro
 		}
 		p.Variables = append(p.Variables, v)
 		nextIndex += int32(max(v.Segments, 1))
+	}
+	return doc, nil
+}
+
+// copyDocument deep-copies the carried document through JSON: the
+// document is plain data by contract (`payload` is flat and
+// self-contained), and the carry must never mutate the source's
+// resolution.
+func (c *SidecarCarry) copyDocument() (*Document, error) {
+	raw, err := stdjson.Marshal(c.doc)
+	if err != nil {
+		return nil, err
+	}
+	doc := &Document{}
+	if err := stdjson.Unmarshal(raw, doc); err != nil {
+		return nil, err
 	}
 	return doc, nil
 }

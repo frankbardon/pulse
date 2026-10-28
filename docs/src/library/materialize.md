@@ -129,9 +129,16 @@ res, err := p.Materialize(ctx, &pulse.Request{
 - **A pure reshape is legal.** With `output` present a request needs no
   feature, attribute or window: it writes the filtered, sorted source
   under the new layout (`res.DerivedColumns` is empty).
-- **Sidecars.** A reshaped cohort is written WITHOUT the source's SPSS
-  metadata sidecar (one `PULSE_SPSS_SIDECAR_INVALID` warning says so),
-  never with one describing the source's columns.
+- **Sidecars.** The source's SPSS metadata sidecar follows the layout,
+  column for column: a dropped column removes its variable (and its
+  weight, variable-set membership and any response set naming it), a
+  renamed one keeps its codes and value labels under the new name, a
+  duplicated one gets a copy of its variable under each extra name, and
+  the order follows the output — so a `.sav` export puts every label on
+  the right variable. What it cannot describe truthfully (a derived
+  registry column kept without a column it reads, two names SPSS folds
+  together) writes the cohort without a sidecar, with one
+  `PULSE_SPSS_SIDECAR_INVALID` warning — never a stale one.
 - **Absent `output`** writes exactly what Materialize always wrote, byte
   for byte. A feature profile without `capability:materialize_output`
   refuses a set `output` as an unknown field everywhere.
