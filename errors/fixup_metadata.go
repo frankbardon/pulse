@@ -5145,6 +5145,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_GROUP_LEVEL_LIMIT: {
+		Message: "A multi-group structural equation model grouped by a column the request computes, without params.group_levels, takes its levels from the data — every distinct integral value — and its rows held more than 256 of them. The fit keeps one moment state per level, so a group that is a continuous measure or a row identifier is refused, never fitted; the slot fails alone. Details carry `matrix`, `reason` (observed_levels), `group_field` and `limit` (256).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "group_levels"},
+				Hint:   "Declare the levels the fit compares in params.group_levels; rows whose value is no declared level are dropped listwise instead of opening a group.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Compute a group with a few integer levels (an ATTR_FORMULA mapping each row to its level), not the raw measure.",
+			},
+		},
+	},
 	PULSE_MATRIX_TOO_MANY_CATEGORIES: {
 		Message: "A structural equation model fitted by an ordinal estimator (params.estimator \"dwls\" or \"wlsmv\") declares a member ordered whose rows hold more than 32 distinct values — one threshold per category boundary, and an asymptotic covariance growing with them — so the member is a continuous measure, not a rating scale, and the slot fails alone. Details carry `matrix`, `variable`, `categories` (its distinct values) and `limit` (32).",
 		Fixups: []Fixup{

@@ -58,6 +58,12 @@ type semGroupState struct {
 	// undeclared counts the rows dropped as no level of a derived
 	// group (merged like the slot's dropped count).
 	undeclared int64
+	// overLimit marks an undeclared derived group that met more than
+	// vectors.SEMObservedGroupLevelLimit distinct levels: no further
+	// level opens a state (the cap bounds the slot's memory as predict
+	// sized it) and finalize fails the slot with
+	// PULSE_MATRIX_GROUP_LEVEL_LIMIT. Sticky across merges.
+	overLimit bool
 	// buckets holds one co-moment set per level code: the dictionary
 	// index, else the integer value (a derived group: the declared
 	// position, else semObservedCode).
@@ -127,6 +133,12 @@ func (s *semGroupState) update(m *matrixSlot, r *Record) error {
 			return nil
 		}
 	}
+	if _, ok := s.buckets[code]; !ok && s.capped() {
+		s.overLimit = true
+	}
+	if s.overLimit {
+		return nil // the slot fails at finalize; fold nothing more
+	}
 	w, err := m.readRow(r)
 	if err != nil {
 		return err
@@ -152,12 +164,20 @@ func (s *semGroupState) update(m *matrixSlot, r *Record) error {
 	return b.Add(r, m.x, w)
 }
 
+// capped reports whether s is an undeclared derived group already
+// holding vectors.SEMObservedGroupLevelLimit levels, so a new level
+// overflows it.
+func (s *semGroupState) capped() bool {
+	return s.derived && s.declared == nil && len(s.buckets) >= vectors.SEMObservedGroupLevelLimit
+}
+
 // buffered reports whether s keeps its levels' rows (a nil s: no).
 func (s *semGroupState) buffered() bool { return s != nil && s.rows != nil }
 
 // merge absorbs o's buckets (a level one side alone saw moves over
 // whole).
 func (s *semGroupState) merge(o *semGroupState) error {
+	s.overLimit = s.overLimit || o.overLimit
 	for k, b := range o.buckets {
 		if mine, ok := s.buckets[k]; ok {
 			if err := mine.Absorb(b); err != nil {
@@ -165,9 +185,16 @@ func (s *semGroupState) merge(o *semGroupState) error {
 			}
 			continue
 		}
+		if s.capped() {
+			// the union of levels overflows: the slot fails at
+			// finalize, whichever partition met the extra level
+			s.overLimit = true
+			continue
+		}
 		s.buckets[k] = b
 	}
 	o.buckets = map[uint64]*BlockCoMoments{}
+	o.overLimit = false
 	s.undeclared += o.undeclared
 	o.undeclared = 0
 	return nil
@@ -201,6 +228,11 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 	plan := in.Plan()
 	spec := plan.SEM
 	gs := m.semGroups
+	if gs.overLimit {
+		return matrixOutput{}, semGroupRefusal(errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT, plan.Name, "observed_levels",
+			"params.group "+strconv.Quote(spec.Group)+" takes more than "+strconv.Itoa(vectors.SEMObservedGroupLevelLimit)+" distinct levels over the rows; declare the levels the fit compares in params.group_levels, or compute a group with few integer levels",
+			map[string]any{"group_field": spec.Group, "limit": vectors.SEMObservedGroupLevelLimit})
+	}
 	out := matrixOutput{Warnings: m.warnings(in.CM, in.CM.Cov(0))}
 	k := len(spec.Model.Observed)
 	codes := make([]uint64, 0, len(gs.buckets))

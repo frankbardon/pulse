@@ -32,7 +32,9 @@ requires: [MAT_SEM, capability:sem_groups]
 - Labels key the outputs: estimate rows `[from] lval op rval`, `vectors.group`, `n_group_from`, `chi2_group_from`, `group_reference`. The default reference is the first declared level.
 - `bad_params`: fewer than two levels, a non-integer value, a repeated value or label, an empty name, `group_levels` on a cohort field, a `group_reference` that is no declared label, `c(...)` whose length is not the level count.
 
-Without `group_levels` a derived group's levels are its integral values, ascending, labelled by their text. `c(...)` modifiers then are `bad_params`: declare the levels.
+Without `group_levels` a derived group's levels are its integral values, ascending, labelled by their text. `c(...)` modifiers then are `bad_params`: declare the levels. More than 256 distinct values fail the slot alone with `PULSE_MATRIX_GROUP_LEVEL_LIMIT` (`details.limit`) — a measure or an identifier is no group.
+
+`predict` lists declared levels as `group_levels` with `group_levels_basis` `declared` (an upper bound: a level without rows is no group); undeclared, the basis is `unknown`.
 
 ## A wave pair from request params
 

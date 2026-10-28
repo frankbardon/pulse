@@ -297,10 +297,14 @@ func SEMGroupNKey(level string) string { return "n_group_" + level }
 // GroupLevelsKnown is a grouped plan's levels as the schema knows them
 // (an upper bound: a level without rows after the filters is no group)
 // and their basis — BucketBasisDictionary (a categorical),
-// BucketBasisBoolean (packed_bool) or, on an integer field whose levels
-// are its observed values, nil and BucketBasisUnknown. A fresh slice.
+// BucketBasisBoolean (packed_bool), BucketBasisDeclared (a derived
+// group's params.group_levels labels, in order) or, on an integer field
+// or an undeclared derived group whose levels are its observed values,
+// nil and BucketBasisUnknown. A fresh slice.
 func (p *SEMPlan) GroupLevelsKnown() ([]string, string) {
 	switch {
+	case p.GroupDerived && p.GroupDeclared != nil:
+		return append([]string(nil), p.GroupLevels...), BucketBasisDeclared
 	case p.GroupType.IsCategorical():
 		return append([]string(nil), p.GroupLevels...), BucketBasisDictionary
 	case p.GroupType == encoding.FieldTypePackedBool:
@@ -309,9 +313,18 @@ func (p *SEMPlan) GroupLevelsKnown() ([]string, string) {
 	return nil, BucketBasisUnknown
 }
 
+// SEMObservedGroupLevelLimit is the most levels a grouped MAT_SEM fit
+// whose levels are the data's holds: a u8 field's value range, and the
+// ENFORCED cap of a derived group without params.group_levels — one
+// distinct observed level more fails the slot alone with
+// PULSE_MATRIX_GROUP_LEVEL_LIMIT. Predict sizes the per-level states
+// over it (groupStateBound), so the two read one number.
+const SEMObservedGroupLevelLimit = 256
+
 // groupStateBound is the per-level co-moment states a grouped plan
 // holds beside its base state, at most: one per known level, else the
-// integer type's value range (u4 16, u8 256).
+// integer type's value range (u4 16, u8 256) or a derived group's
+// observed-level cap (SEMObservedGroupLevelLimit).
 func (p *SEMPlan) groupStateBound() int64 {
 	switch {
 	case p.GroupLevels != nil:
@@ -319,7 +332,7 @@ func (p *SEMPlan) groupStateBound() int64 {
 	case p.GroupType == encoding.FieldTypeU4:
 		return 16
 	}
-	return 256
+	return SEMObservedGroupLevelLimit
 }
 
 // Lavaan reports whether the resolved fit follows lavaan's conventions

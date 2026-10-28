@@ -4029,6 +4029,17 @@ const (
 	// "group_field" and "count" (the rows dropped so).
 	PULSE_MATRIX_GROUP_LEVEL_UNDECLARED Code = "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED"
 
+	// PULSE_MATRIX_GROUP_LEVEL_LIMIT indicates a MAT_SEM fit grouped by a
+	// column the request computes WITHOUT params.group_levels (its levels
+	// are the observed integral values) whose rows hold more than 256
+	// distinct levels (vectors.SEMObservedGroupLevelLimit — the per-level
+	// state bound predict sizes the run with). The fit holds one
+	// co-moment state per level, so a group that is a continuous measure
+	// or an identifier is refused, never fitted. The slot fails alone.
+	// Details carry "matrix", "reason" ("observed_levels"), "group_field"
+	// and "limit".
+	PULSE_MATRIX_GROUP_LEVEL_LIMIT Code = "PULSE_MATRIX_GROUP_LEVEL_LIMIT"
+
 	// PULSE_MATRIX_TOO_MANY_CATEGORIES indicates a MAT_SEM ordinal fit
 	// (params.estimator "dwls" / "wlsmv") whose ordered member holds
 	// more than 32 distinct values (sem.MaxOrderedCategories) over the
@@ -4776,6 +4787,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_DEFINED_NONFINITE,
 	PULSE_MATRIX_GROUP_LEVEL_EMPTY,
 	PULSE_MATRIX_GROUP_LEVEL_UNDECLARED,
+	PULSE_MATRIX_GROUP_LEVEL_LIMIT,
 	PULSE_MATRIX_TOO_MANY_CATEGORIES,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,

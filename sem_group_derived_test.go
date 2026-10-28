@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -425,4 +426,157 @@ func TestSEM_DerivedGroupArchiveMatchesFile(t *testing.T) {
 		t.Fatalf("count file %v archive %v, n_listwise_dropped file %d archive %d", counts[0], counts[1], dropped[0], dropped[1])
 	}
 	sameFigures(t, "archive", figures[1], figures[0])
+}
+
+// TestSEM_DerivedGroupPredictLevels: predict reports a derived group's
+// declared levels (basis "declared", labels in declaration order — an
+// upper bound, as a dictionary's) and the run fits those levels; an
+// undeclared derived group's levels are the data's ("unknown", no
+// list), sized at the shared observed-level bound.
+func TestSEM_DerivedGroupPredictLevels(t *testing.T) {
+	t.Parallel()
+
+	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeU8}.build(t, pulse.Options{})
+	later := append(append([]map[string]any(nil), fromTo...), map[string]any{"value": 3, "name": "later"})
+	for _, c := range []struct {
+		name   string
+		params map[string]any
+		basis  string
+		levels []string // predict's
+		fitted []string // the run's
+	}{
+		{"declared", map[string]any{"group_levels": fromTo}, "declared", []string{"from", "to"}, []string{"from", "to"}},
+		{"declared_empty_level", map[string]any{"group_levels": later}, "declared", []string{"from", "to", "later"}, []string{"from", "to"}},
+		{"observed", nil, "unknown", nil, []string{"1", "2"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := predictEnvelope(t, p, fsys, "brand.pulse", derivedGroupRequest(t, "brand_mgmis", "wave", c.params))
+			if len(env.Errors) != 0 {
+				t.Fatalf("predict errors %v", env.Errors)
+			}
+			mp := env.Data.(*descriptor.PredictResult).Matrices[0]
+			if mp.GroupLevelsBasis != c.basis || strings.Join(mp.GroupLevels, ",") != strings.Join(c.levels, ",") || (c.levels == nil) != (mp.GroupLevels == nil) {
+				t.Errorf("predict group levels %v (%q), want %v (%q)", mp.GroupLevels, mp.GroupLevelsBasis, c.levels, c.basis)
+			}
+			states := int64(len(c.levels))
+			if c.levels == nil {
+				states = vectors.SEMObservedGroupLevelLimit
+			}
+			if mp.EstimatedBuckets == nil || *mp.EstimatedBuckets != 1 || mp.EstimatedBytes == nil || *mp.EstimatedBytes%(mp.AccumulatorBytes*(1+states)) != 0 {
+				t.Errorf("estimated_bytes %v, want a multiple of %d states x %d", mp.EstimatedBytes, 1+states, mp.AccumulatorBytes)
+			}
+			res := semGroupRun(t, p, derivedGroupRequest(t, "brand_mgmis", "wave", c.params))
+			if res.Error != nil {
+				t.Fatalf("slot error %+v", res.Error)
+			}
+			if got := runLevels(t, res); strings.Join(got, ",") != strings.Join(c.fitted, ",") {
+				t.Errorf("fitted levels %v, want %v", got, c.fitted)
+			}
+		})
+	}
+}
+
+// TestSEM_DerivedGroupComputedNamesPredict: predict resolves a group
+// named by a feature output or a window label as runtime does — the
+// static c(...) arity check refuses both alike, and with the arity
+// right predict is clean.
+func TestSEM_DerivedGroupComputedNamesPredict(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeU8}.build(t, pulse.Options{})
+	cmodel := "quality =~ q1 + q2 + q3\nvalue =~ v1 + l*v2 + v3 + s1 + l*s2 + s3\nrecommend ~ quality + c(a1, a2)*value"
+	three := []map[string]any{{"value": 1}, {"value": 2}, {"value": 3}}
+	for _, c := range []struct {
+		name, group string
+		mut         func(*types.Request)
+	}{
+		{"feature output", "SQRT_wave", func(r *types.Request) {
+			r.Attributes = nil
+			r.Features = []*types.Feature{{Type: types.FEAT_SQRT, Field: "wave"}}
+		}},
+		{"window label", "wave_lag", func(r *types.Request) {
+			r.Attributes = nil
+			r.Windows = []*types.Window{{Type: types.WIN_LAG, Field: "wave", Label: "wave_lag", OrderBy: []types.OrderKey{{Field: "q1"}}}}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := func(levels []map[string]any) *types.Request {
+				r := derivedGroupRequest(t, "brand_mgmis", "wave", map[string]any{"group": c.group, "model": cmodel, "group_levels": levels})
+				c.mut(r)
+				return r
+			}
+			_, rerr := p.Process(ctx, req(three))
+			var ce *errors.CodedError
+			if !asCoded(rerr, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["param"] != "model" || ce.Details["group_field"] != c.group {
+				t.Fatalf("runtime error %v (details %v), want the c(...) arity refusal on %s", rerr, semDetailsOf(ce), c.group)
+			}
+			env := predictEnvelope(t, p, fsys, "brand.pulse", req(three))
+			sameEntry(t, env, rerr)
+			if env.Data.(*descriptor.PredictResult).Valid {
+				t.Fatal("predict Valid=true")
+			}
+			ok := predictEnvelope(t, p, fsys, "brand.pulse", req(fromTo[:2]))
+			if len(ok.Errors) != 0 {
+				t.Fatalf("predict with the arity right: %+v", *ok.Errors[0])
+			}
+			if mp := ok.Data.(*descriptor.PredictResult).Matrices[0]; mp.GroupLevelsBasis != "declared" {
+				t.Errorf("basis %q, want declared", mp.GroupLevelsBasis)
+			}
+		})
+	}
+}
+
+// TestSEM_DerivedGroupObservedLevelLimit: an undeclared derived group
+// holds one state per observed level, at most
+// vectors.SEMObservedGroupLevelLimit — predict's state bound. One more
+// distinct level fails the slot alone with
+// PULSE_MATRIX_GROUP_LEVEL_LIMIT (identity kept, PULSE_SLOT_FAILED),
+// on a single file and across shards alike; at the bound the run goes
+// on (here to the per-level row check). Strict fails the run with the
+// slot's own code; declared levels are never capped by the data.
+func TestSEM_DerivedGroupObservedLevelLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	limit := int(vectors.SEMObservedGroupLevelLimit)
+	rowIndex := func(r int) int { return r }
+	file, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeU8, weight: rowIndex}.build(t, pulse.Options{})
+	archive, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeU8, weight: rowIndex, shards: 100}.build(t, pulse.Options{ShardWorkers: 3})
+	strict, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeU8, weight: rowIndex}.build(t, pulse.Options{Strict: true})
+	// w is the row index: "w < n ? w : 0" has exactly n distinct values.
+	levels := func(n int) string { return "w < " + itoa(n) + " ? w : 0" }
+	for _, p := range []*pulse.Pulse{file, archive} {
+		resp, err := p.Process(ctx, derivedGroupRequest(t, "brand_mgmis", levels(limit+1), nil))
+		if err != nil {
+			t.Fatalf("Process: %v", err)
+		}
+		res := resp.Matrices[0]
+		if res.Error == nil || res.Error.Code != string(errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT) || res.Error.Details["limit"] != float64(limit) && res.Error.Details["limit"] != limit {
+			t.Fatalf("slot error %+v, want PULSE_MATRIX_GROUP_LEVEL_LIMIT limit %d", res.Error, limit)
+		}
+		if res.Primary != nil || res.Name != "sem" {
+			t.Fatalf("a failed slot keeps its identity and no figure: %+v", res)
+		}
+		if warningOf(resp.Warnings, errors.PULSE_SLOT_FAILED) == nil {
+			t.Fatalf("warnings %+v, want PULSE_SLOT_FAILED", resp.Warnings)
+		}
+		at := semGroupRun(t, p, derivedGroupRequest(t, "brand_mgmis", levels(limit), nil))
+		if at.Error == nil || at.Error.Code != string(errors.PULSE_MATRIX_INSUFFICIENT_N) {
+			t.Fatalf("at the bound: slot error %+v, want the per-level row check (INSUFFICIENT_N)", at.Error)
+		}
+	}
+	_, err := strict.Process(ctx, derivedGroupRequest(t, "brand_mgmis", levels(limit+1), nil))
+	var ce *errors.CodedError
+	if !asCoded(err, &ce) || ce.Code != errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT {
+		t.Fatalf("Strict run error %v, want PULSE_MATRIX_GROUP_LEVEL_LIMIT", err)
+	}
+	declared := semGroupRun(t, file, derivedGroupRequest(t, "brand_mgmis", levels(limit+1), map[string]any{"group_levels": fromTo}))
+	if declared.Error != nil && declared.Error.Code == string(errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT) {
+		t.Fatalf("declared levels capped: %+v", declared.Error)
+	}
 }

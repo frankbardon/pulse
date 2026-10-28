@@ -10481,7 +10481,7 @@
             "name": "group_levels",
             "type": "array",
             "required": false,
-            "description": "A computed group's levels, in order: [{value, name?}, ...] — value an integer (|value| \u003c= 2^53) the column's per-row value matches exactly, name the level's label (default the value's integer text). Array order is the c(...) position and the labels key n_group_\u003clevel\u003e, chi2_group_\u003clevel\u003e, the estimate rows and group_reference. A row whose value is no declared level (or not an integer) is dropped listwise (n_listwise_dropped) with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED warning per slot (details.count); a declared level without rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY and has no n_group_ scalar. Required for c(...) modifiers on a computed group (absent: its observed integral values). Fewer than two levels, a non-integer or repeated value, a repeated or empty name, or group_levels on a cohort field is bad_params. params.group only."
+            "description": "A computed group's levels, in order: [{value, name?}, ...] — value an integer (|value| \u003c= 2^53) the column's per-row value matches exactly, name the level's label (default the value's integer text). Array order is the c(...) position and the labels key n_group_\u003clevel\u003e, chi2_group_\u003clevel\u003e, the estimate rows and group_reference. A row whose value is no declared level (or not an integer) is dropped listwise (n_listwise_dropped) with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED warning per slot (details.count); a declared level without rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY and has no n_group_ scalar. Required for c(...) modifiers on a computed group (absent: its observed integral values — more than 256 distinct fail the slot alone with PULSE_MATRIX_GROUP_LEVEL_LIMIT, details.limit). Predict lists the declared labels as group_levels with group_levels_basis declared. Fewer than two levels, a non-integer or repeated value, a repeated or empty name, or group_levels on a cohort field is bad_params. params.group only."
           },
           {
             "name": "group_reference",
@@ -11083,7 +11083,7 @@
         ]
       }
     ],
-    "error_codes_count": 432,
+    "error_codes_count": 433,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11279,6 +11279,7 @@
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_DEFINED_NONFINITE",
       "PULSE_MATRIX_GROUP_LEVEL_EMPTY",
+      "PULSE_MATRIX_GROUP_LEVEL_LIMIT",
       "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED",
       "PULSE_MATRIX_HEYWOOD",
       "PULSE_MATRIX_HOST_CONFLICT",
@@ -20344,4 +20345,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cbac960a3173b85d4ce70784025f9a9b3296c5e0b69b24868e6dc4dae1846581
+// golden-hash: d08c3bfd6732995e503af856078f98b0796f1726414030a81d4e4fcfae54ce9d

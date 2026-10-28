@@ -87,6 +87,9 @@ var MatrixCodes = map[errors.Code]bool{
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  true,
 	errors.PULSE_MATRIX_NOT_CONVERGED:  true,
 	errors.PULSE_MATRIX_HEYWOOD:        true,
+	// a derived group without params.group_levels whose rows hold more
+	// levels than the per-level state cap
+	errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT: true,
 }
 
 // CorruptRecordData reports whether coded is the dictionary-index

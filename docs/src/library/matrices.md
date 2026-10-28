@@ -566,13 +566,17 @@ Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
 
 `Pulse.Predict` names the levels it can see on the matrix entry:
 `group_levels` (a categorical's dictionary entries, `packed_bool`'s `"0"`
-/ `"1"`) with `group_levels_basis` `dictionary` / `boolean`. The list is
+/ `"1"`, a computed group's declared `params.group_levels` labels) with
+`group_levels_basis` `dictionary` / `boolean` / `declared`. The list is
 an upper bound — a level without rows after the filters is no group —
-and the per-level auxiliaries are sized over it. On a `u4` / `u8` field
-the levels are the data's: `group_levels_basis` is `unknown`, and the
+and the per-level auxiliaries are sized over it. On a `u4` / `u8` field,
+or a computed group without `group_levels`, the levels are the data's:
+`group_levels_basis` is `unknown`, and the
 `matrices` entry of `sizes` is left out. `estimated_bytes`
 counts one co-moment state per level beside the base state (the
-integer type's value range when the levels are unknown). The manifest
+integer type's value range when the levels are unknown, 256 for a
+computed group — whose rows holding more distinct levels fail the slot
+alone with `PULSE_MATRIX_GROUP_LEVEL_LIMIT`). The manifest
 declares the per-level keys as patterns, `implied_means.<level>` or
 `chi2_group_<level>`: `<level>` stands for a level's label.
 
