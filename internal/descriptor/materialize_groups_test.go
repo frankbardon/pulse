@@ -97,3 +97,166 @@ func TestMaterializeGroupPlan_Inherit(t *testing.T) {
 		}
 	}
 }
+
+// TestMaterializeGroupPlan_DeclaredRefusals: a declaration the cohort
+// writer would refuse is refused with the writer's code, details.path
+// naming the (last) group it involves — output.groups[i] — and the
+// writer's own details kept.
+func TestMaterializeGroupPlan_DeclaredRefusals(t *testing.T) {
+	t.Parallel()
+
+	s := groupedSourceSchema()
+	layout := []MaterializeOutputField{srcCol(s, 0, "k"), srcCol(s, 1, "a"), srcCol(s, 5, "x")}
+	for _, tc := range []struct {
+		name   string
+		groups []types.MaterializeGroup
+		code   errors.Code
+		path   string
+	}{
+		{"unknown member", []types.MaterializeGroup{{Key: []string{"k"}, Members: []string{"a"}}, {Members: []string{"nope"}}},
+			errors.PULSE_GROUP_FIELD_UNKNOWN, "output.groups[1]"},
+		{"member in two groups", []types.MaterializeGroup{{Members: []string{"k", "a"}}, {Members: []string{"x"}}, {Members: []string{"a"}}},
+			errors.PULSE_GROUP_FIELD_CONFLICT, "output.groups[2]"},
+		{"empty group", []types.MaterializeGroup{{Members: []string{}}},
+			errors.PULSE_GROUP_DECLARATION_INVALID, "output.groups[0]"},
+		{"key repeated as a member", []types.MaterializeGroup{{Members: []string{"x"}}, {Key: []string{"k"}, Members: []string{"k", "a"}}},
+			errors.PULSE_GROUP_DECLARATION_INVALID, "output.groups[1]"},
+	} {
+		g, ce := MaterializeGroupPlan(&types.MaterializeOutput{Groups: tc.groups}, s, layout)
+		if ce == nil {
+			t.Errorf("%s: planned %+v, want %s", tc.name, g, tc.code)
+			continue
+		}
+		if ce.Code != tc.code || ce.Details["path"] != tc.path || ce.Details["group_label"] == nil && ce.Details["group_labels"] == nil {
+			t.Errorf("%s: %s %v, want %s at %s with the writer's details", tc.name, ce.Code, ce.Details, tc.code, tc.path)
+		}
+	}
+}
+
+// TestMaterializeGroupPlan_DeclaredRisksAndNarrow: a declared keyed
+// group with determined members is planned and carries one
+// PULSE_GROUP_MEMBER_NOT_CONSTANT risk at its output.groups path; a
+// tuple group carries none; a group no wider than its row index is
+// reported dropped_too_narrow with a PULSE_GROUP_TOO_NARROW finding and
+// no risk. An inherited group never carries a risk.
+func TestMaterializeGroupPlan_DeclaredRisksAndNarrow(t *testing.T) {
+	t.Parallel()
+
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "k", Type: encoding.FieldTypeU32},
+		{Name: "a", Type: encoding.FieldTypeF64},
+		{Name: "t1", Type: encoding.FieldTypeF64},
+		{Name: "t2", Type: encoding.FieldTypeF64},
+		{Name: "tiny", Type: encoding.FieldTypeU8},
+		{Name: "tk", Type: encoding.FieldTypeU8},
+	}}
+	layout := []MaterializeOutputField{srcCol(s, 0, "k"), srcCol(s, 1, "a"), srcCol(s, 2, "t1"), srcCol(s, 3, "t2"), srcCol(s, 4, "tiny"), srcCol(s, 5, "tk")}
+	out := &types.MaterializeOutput{Groups: []types.MaterializeGroup{
+		{Key: []string{"k"}, Members: []string{"a"}},
+		{Members: []string{"t1", "t2"}},
+		{Key: []string{"tk"}, Members: []string{"tiny"}},
+	}}
+	g, ce := MaterializeGroupPlan(out, s, layout)
+	if ce != nil {
+		t.Fatal(ce)
+	}
+	if len(g.Plan) != 3 || g.Plan[0].Verdict != MaterializeGroupPlanned || g.Plan[0].Origin != "declared" ||
+		g.Plan[1].Verdict != MaterializeGroupPlanned || g.Plan[2].Verdict == MaterializeGroupPlanned {
+		t.Fatalf("Plan = %+v, want two planned groups then one dropped too narrow", g.Plan)
+	}
+	if len(g.TooNarrow) != 1 || g.TooNarrow[0].Code != errors.PULSE_GROUP_TOO_NARROW {
+		t.Errorf("TooNarrow = %v, want one PULSE_GROUP_TOO_NARROW", g.TooNarrow)
+	}
+	risks := MaterializeGroupRisks(g)
+	if len(risks) != 1 || risks[0].Path != "output.groups[0]" || risks[0].Column != g.Plan[0].Label ||
+		risks[0].Code != string(errors.PULSE_GROUP_MEMBER_NOT_CONSTANT) {
+		t.Errorf("risks = %+v, want one member-not-constant risk on group 0", risks)
+	}
+
+	if r := MaterializeGroupRisks(nil); r == nil || len(r) != 0 {
+		t.Errorf("nil plan risks = %#v, want empty, never nil", r)
+	}
+	// The same keyed group inherited from the source carries no risk.
+	src := groupedSourceSchema()
+	inh, ce := MaterializeGroupPlan(&types.MaterializeOutput{}, src, []MaterializeOutputField{srcCol(src, 0, "k"), srcCol(src, 1, "a")})
+	if ce != nil {
+		t.Fatal(ce)
+	}
+	if len(inh.Decls) != 1 || len(MaterializeGroupRisks(inh)) != 0 {
+		t.Errorf("inherited plan %+v risks %v, want one inherited group and no risk", inh.Plan, MaterializeGroupRisks(inh))
+	}
+}
+
+// TestMaterializeOutputSchema_Vectors: the flat output schema carries
+// each kept vec_* source field's VECTORS entry re-indexed to its output
+// position; a derived column, a non-vector field and a nil source carry
+// none.
+func TestMaterializeOutputSchema_Vectors(t *testing.T) {
+	t.Parallel()
+
+	s := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "id", Type: encoding.FieldTypeU32},
+			{Name: "emb", Type: encoding.FieldTypeVecF32},
+		},
+		Vectors: []encoding.VectorField{{FieldIndex: 1, Dim: 3, Labels: []string{"x", "y", "z"}}},
+	}
+	layout := []MaterializeOutputField{
+		{Field: encoding.Field{Name: "d", Type: encoding.FieldTypeF64, Nullable: true}, Source: -1, Derived: 0},
+		srcCol(s, 1, "vec"),
+		srcCol(s, 0, "id"),
+	}
+	out := MaterializeOutputSchema(s, layout)
+	if len(out.Fields) != 3 || out.Fields[1].Name != "vec" {
+		t.Fatalf("fields = %+v", out.Fields)
+	}
+	if len(out.Vectors) != 1 || out.Vectors[0].FieldIndex != 1 || out.Vectors[0].Dim != 3 || !reflect.DeepEqual(out.Vectors[0].Labels, []string{"x", "y", "z"}) {
+		t.Errorf("vectors = %+v, want emb's entry at output index 1", out.Vectors)
+	}
+	if s.Vectors[0].FieldIndex != 1 {
+		t.Error("the source schema's vector entry was mutated")
+	}
+	layout[0], layout[1] = layout[1], layout[0]
+	if v := MaterializeOutputSchema(s, layout).Vectors; len(v) != 1 || v[0].FieldIndex != 0 {
+		t.Errorf("reordered vectors = %+v, want index 0", v)
+	}
+	if v := MaterializeOutputSchema(nil, layout).Vectors; len(v) != 0 {
+		t.Errorf("nil source vectors = %+v, want none", v)
+	}
+}
+
+// TestUnchangedColumn_Changes: a source field no column writes is
+// "dropped"; the first column reading it names the change — bucketed,
+// recoded or retyped — and an unchanged copy anywhere wins.
+func TestUnchangedColumn_Changes(t *testing.T) {
+	t.Parallel()
+
+	f := encoding.Field{Name: "v", Type: encoding.FieldTypeU32}
+	col := func(mod func(*MaterializeOutputField)) MaterializeOutputField {
+		c := MaterializeOutputField{Field: f, Source: 0, Derived: -1}
+		if mod != nil {
+			mod(&c)
+		}
+		return c
+	}
+	bucketed := col(func(c *MaterializeOutputField) { c.Rebuild, c.Bucket = true, &MaterializeBucket{} })
+	recoded := col(func(c *MaterializeOutputField) { c.Rebuild, c.Recode = true, map[string]*string{} })
+	retyped := col(func(c *MaterializeOutputField) { c.Field.Type = encoding.FieldTypeF64 })
+	other := MaterializeOutputField{Field: f, Source: 1, Derived: -1}
+	for _, tc := range []struct {
+		name         string
+		layout       []MaterializeOutputField
+		written, how string
+	}{
+		{"dropped", []MaterializeOutputField{other}, "", "dropped"},
+		{"bucketed first", []MaterializeOutputField{bucketed, recoded}, "", "bucketed"},
+		{"recoded first", []MaterializeOutputField{recoded, retyped}, "", "recoded"},
+		{"retyped", []MaterializeOutputField{retyped}, "", "retyped"},
+		{"unchanged copy after a change", []MaterializeOutputField{retyped, col(func(c *MaterializeOutputField) { c.Field.Name = "kept" })}, "kept", ""},
+	} {
+		written, how := unchangedColumn(f, 0, tc.layout)
+		if written != tc.written || how != tc.how {
+			t.Errorf("%s: (%q, %q), want (%q, %q)", tc.name, written, how, tc.written, tc.how)
+		}
+	}
+}
