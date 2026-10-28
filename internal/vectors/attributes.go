@@ -190,7 +190,13 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, cat model.Ca
 			m, err = resolveExtensionMembers(attributePath(i), a.Vector, a.Fields, req.Vectors, resolved, schema, attributeInvalid)
 			in = AttributeInput{Members: m}
 		} else {
-			in, err = resolveAttribute(attributePath(i), a, typ, req.Vectors, resolved, schema, hid)
+			var computed Computed
+			if typ == types.ATTR_SEM_SCORE {
+				// A derived params.group names a column computed ahead
+				// of the slot.
+				computed = SEMScoreComputed(req, schema, i)
+			}
+			in, err = resolveAttribute(attributePath(i), a, typ, req.Vectors, resolved, schema, hid, computed)
 		}
 		if err != nil {
 			return nil, err
@@ -200,8 +206,10 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, cat model.Ca
 	return out, nil
 }
 
-// resolveAttribute resolves one slot whose built-in route is typ.
-func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, hidden func(string) bool) (AttributeInput, *errors.CodedError) {
+// resolveAttribute resolves one slot whose built-in route is typ;
+// computed are the columns computed ahead of it (an ATTR_SEM_SCORE
+// slot's: SEMScoreComputed).
+func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, hidden func(string) bool, computed Computed) (AttributeInput, *errors.CodedError) {
 	name := string(a.Type)
 	if !IsVectorAttribute(typ) {
 		if HasAttributeVectorInput(a) && slices.Contains(types.AllAttributeTypes(), typ) {
@@ -252,7 +260,7 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 		if err := semHiddenSyntaxRefusal(at, &m, hidden); err != nil {
 			return AttributeInput{}, asAttributeRefusal(err)
 		}
-		if _, err := ResolveSEMScore(at, &cfg, members, schema); err != nil {
+		if _, err := ResolveSEMScore(at, &cfg, members, schema, computed); err != nil {
 			return AttributeInput{}, err
 		}
 	}

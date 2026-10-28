@@ -4358,7 +4358,13 @@
               "name": "group",
               "type": "string",
               "required": false,
-              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit; each row is scored with its own group's parameters. Implies the mean structure."
+              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit — or a numeric column computed ahead of the slot (an earlier attribute's label or a feature output; a cohort field of that name wins), its levels params.group_levels, else its integral values; each row is scored with its own group's parameters. A known level without fit rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY; a computed value that is no level scores null with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED (details.count) — under Strict either fails the run. Implies the mean structure."
+            },
+            {
+              "name": "group_levels",
+              "type": "array",
+              "required": false,
+              "description": "MAT_SEM's params.group_levels: a computed group's levels in order, [{value, name?}, ...] (integer values matched exactly, labels the names, else the integer text). Refused on a cohort field. params.group only."
             },
             {
               "name": "group_reference",
@@ -4480,7 +4486,7 @@
               "name": "fit",
               "type": "string",
               "required": false,
-              "description": "A bound SEM fit's name (a Compose fits entry whose request holds one MAT_SEM matrix — kind sem) to score from instead of fitting inline: no model, MAT_SEM knob or fit_on beside it (the fit supplies them). The fit's member labels must be the slot's (matched by label), its group field a field of the cohort (each row's level matched by label); the slot is row-local — it streams, fuses into a crosstab and merges across shards and chain stages — and scores every row to the bit of the inline fit on the same fit rows. An ordinal fit is scored by EBM, coding each row by the fit's own categories (method bartlett refused). A fit that failed on its data nulls every score with PULSE_FIT_UNAVAILABLE; another kind is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN."
+              "description": "A bound SEM fit's name (a Compose fits entry whose request holds one MAT_SEM matrix — kind sem) to score from instead of fitting inline: no model, MAT_SEM knob or fit_on beside it (the fit supplies them). The fit's member labels must be the slot's (matched by label), its group field a field of the cohort (each row's level matched by label) — or, a fit grouped by a column its request computed, the same column computed ahead of this slot (each row matched by the fit's declared level values, else its integer levels; else SERVICE_VALIDATION fit_group_field); the slot is row-local — it streams, fuses into a crosstab and merges across shards and chain stages — and scores every row to the bit of the inline fit on the same fit rows. An ordinal fit is scored by EBM, coding each row by the fit's own categories (method bartlett refused). A fit that failed on its data nulls every score with PULSE_FIT_UNAVAILABLE; another kind is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN."
             },
             {
               "name": "labels",
@@ -20345,4 +20351,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d08c3bfd6732995e503af856078f98b0796f1726414030a81d4e4fcfae54ce9d
+// golden-hash: b9c1fb36c0f085cbc5b5be4e44d0c8e32b31f4c6f8019c05a53c37904a7903dd

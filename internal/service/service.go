@@ -776,6 +776,9 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// run); otherwise they are lifted onto Response.Warnings. A matrix
 	// result's missing-figure warnings (liftedMatrixWarnings) follow the
 	// same rule.
+	if err := escalateAttributeGroupWarnings(resp, s.strict); err != nil {
+		return nil, err
+	}
 	escalateRegressionWarnings(resp, s.strict)
 	escalateMatrixWarnings(resp, s.strict)
 	slotfail.Scope(resp, s.scopeRefusal)

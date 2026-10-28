@@ -107,6 +107,17 @@ type Signature struct {
 	// the runtime's bound fit alike.
 	Ordinal bool
 
+	// SEMGroup is a grouped SEM fit's params.group ("" ungrouped);
+	// SEMGroupDerived reports a group the fit request computed (a
+	// derived group a scoring request must compute too), known when
+	// SEMGroupDerivedKnown — the runtime's Set and a loaded SEM fit file
+	// know it; predict's static FitCatalog of a `fits` entry does not
+	// (the fit request's computed columns are judged against the scoring
+	// schema: a group that is no cohort field is derived).
+	SEMGroup             string
+	SEMGroupDerived      bool
+	SEMGroupDerivedKnown bool
+
 	// Coefficients are the coefficient names an extension regression's
 	// fit reports (sorted), when known (CoefficientsKnown): the
 	// runtime's Set and a loaded model file know them; predict's static
@@ -253,7 +264,8 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
 		case types.FitKindSEM:
-			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindSEM, Ordinal: SEMOrdinalEstimator(f.Request) != ""}
+			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindSEM, Ordinal: SEMOrdinalEstimator(f.Request) != "",
+				SEMGroup: SEMGroupOf(f.Request)}
 		}
 	}
 	return out

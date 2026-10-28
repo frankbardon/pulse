@@ -4017,6 +4017,8 @@ const (
 	// per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason
 	// "empty_group"). Emitted once per slot. Details carry "matrix",
 	// "group_field" and "levels" (the empty levels, in level order).
+	// ATTR_SEM_SCORE's inline fit warns it too ("attribute" in place of
+	// "matrix"); under Strict it then fails the run.
 	PULSE_MATRIX_GROUP_LEVEL_EMPTY Code = "PULSE_MATRIX_GROUP_LEVEL_EMPTY"
 
 	// PULSE_MATRIX_GROUP_LEVEL_UNDECLARED is a per-matrix WARNING: a
@@ -4026,7 +4028,9 @@ const (
 	// number. Each such row is a listwise drop (counted in
 	// n_listwise_dropped), never a group; the fit over the declared
 	// levels stands. Emitted once per slot. Details carry "matrix",
-	// "group_field" and "count" (the rows dropped so).
+	// "group_field" and "count" (the rows dropped so). ATTR_SEM_SCORE
+	// (inline or bound) scores such rows null and warns it once
+	// ("attribute" in place of "matrix", the scored rows' count).
 	PULSE_MATRIX_GROUP_LEVEL_UNDECLARED Code = "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED"
 
 	// PULSE_MATRIX_GROUP_LEVEL_LIMIT indicates a MAT_SEM fit grouped by a
@@ -4037,7 +4041,8 @@ const (
 	// co-moment state per level, so a group that is a continuous measure
 	// or an identifier is refused, never fitted. The slot fails alone.
 	// Details carry "matrix", "reason" ("observed_levels"), "group_field"
-	// and "limit".
+	// and "limit". ATTR_SEM_SCORE's inline fit nulls every score with it
+	// as a fit-scoped warning ("attribute" in place of "matrix").
 	PULSE_MATRIX_GROUP_LEVEL_LIMIT Code = "PULSE_MATRIX_GROUP_LEVEL_LIMIT"
 
 	// PULSE_MATRIX_TOO_MANY_CATEGORIES indicates a MAT_SEM ordinal fit

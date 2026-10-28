@@ -304,6 +304,16 @@ type SEMFitResult struct {
 	Solver         string   `json:"solver"`
 	Information    string   `json:"information"`
 
+	// GroupDerived reports a group the fit request computed (Group is
+	// then the computed column's name — an attribute label or a feature
+	// output — which a scoring request must compute too); absent on a
+	// cohort-field group. GroupLevels are its params.group_levels as
+	// declared, in order (absent when the levels were its observed
+	// integral values): each level's value, matched exactly against the
+	// computed column, and its label (Groups[].Level).
+	GroupDerived bool               `json:"group_derived,omitempty"`
+	GroupLevels  []SEMFitGroupLevel `json:"group_levels,omitempty"`
+
 	// Basis is the weight basis: "unweighted" or "frequency".
 	Basis string `json:"basis"`
 
@@ -332,6 +342,14 @@ type SEMFitResult struct {
 	// every other figure absent on the wire, and nothing is bound under
 	// the fit's name (see SlotError).
 	Error *SlotError `json:"error,omitempty"`
+}
+
+// SEMFitGroupLevel is one declared level of a SEM fit's derived group:
+// the integral Value a row's computed group equals and the level's
+// Label (its declared name, else the value's integer text).
+type SEMFitGroupLevel struct {
+	Value float64 `json:"value"`
+	Label string  `json:"label"`
 }
 
 // SEMFitGroup is one group's parameters in a SEMFitResult.

@@ -189,6 +189,35 @@ func TestSEMFile_DecodeRefusals(t *testing.T) {
 		return m
 	}
 	group := func(m map[string]any, g int) map[string]any { return m["groups"].([]any)[g].(map[string]any) }
+	// derive makes m a version-3 fit grouped by a computed column,
+	// declared levels levels (nil: its integer levels).
+	derive := func(m map[string]any, levels []any) {
+		m["sem_format_version"], m["group_derived"] = 3, true
+		if levels != nil {
+			m["group_levels"] = levels
+		}
+	}
+	level := func(v float64, l string) map[string]any { return map[string]any{"value": v, "label": l} }
+	for _, ok := range []struct {
+		name   string
+		levels []any
+	}{{"integer levels", nil}, {"declared levels", []any{level(2, "2"), level(1, "1")}}} {
+		m := base()
+		derive(m, ok.levels)
+		data, _ := json.Marshal(m)
+		f, err := DecodeSEMFile("f"+SEMSuffix, data)
+		if err != nil {
+			t.Fatalf("derived %s: %v", ok.name, err)
+		}
+		sf := f.SEMFit("x")
+		if !sf.GroupDerived || len(sf.GroupLevels) != len(ok.levels) || !sf.Signature().SEMGroupDerived {
+			t.Fatalf("derived %s: fit %+v", ok.name, sf)
+		}
+		again, err := NewSEMFile("x", sf, Provenance{})
+		if err != nil || again.SEMFormatVersion != SEMFormatVersionDerivedGroup {
+			t.Fatalf("derived %s: re-save %v version %v", ok.name, err, again)
+		}
+	}
 	for _, c := range []struct {
 		name   string
 		mutate func(map[string]any)
@@ -198,7 +227,7 @@ func TestSEMFile_DecodeRefusals(t *testing.T) {
 		{"version missing", func(m map[string]any) { delete(m, "sem_format_version") }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"version null", func(m map[string]any) { m["sem_format_version"] = nil }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"version string", func(m map[string]any) { m["sem_format_version"] = "1" }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"version 3", func(m map[string]any) { m["sem_format_version"] = 3 }, errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"version 4", func(m map[string]any) { m["sem_format_version"] = 4 }, errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
 		{"version 2 without ordered", func(m map[string]any) { m["sem_format_version"] = 2 }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"ordered under version 1", func(m map[string]any) { m["ordered"] = []any{"a"} }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"thresholds under version 1", func(m map[string]any) { group(m, 0)["thresholds"] = []any{[]any{0}} }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
@@ -220,6 +249,16 @@ func TestSEMFile_DecodeRefusals(t *testing.T) {
 		{"theta row", func(m map[string]any) { group(m, 1)["theta"].([]any)[2] = []any{0} }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"alpha length", func(m map[string]any) { group(m, 0)["alpha"] = []any{0} }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"bad float string", func(m map[string]any) { group(m, 0)["nu"].([]any)[0] = "Inf" }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"version 3 not derived", func(m map[string]any) { m["sem_format_version"] = 3 }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"group_derived under version 1", func(m map[string]any) { m["group_derived"] = true }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"derived ungrouped", func(m map[string]any) { derive(m, nil); delete(m, "group") }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"derived level not an integer", func(m map[string]any) { derive(m, nil); group(m, 0)["level"] = "a" }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"derived level not canonical", func(m map[string]any) { derive(m, nil); group(m, 0)["level"] = "01" }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"one declared level", func(m map[string]any) { derive(m, []any{level(1, "1")}) }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"declared value not an integer", func(m map[string]any) { derive(m, []any{level(1.5, "1"), level(2, "2")}) }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"declared value twice", func(m map[string]any) { derive(m, []any{level(1, "1"), level(1, "2")}) }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"declared label twice", func(m map[string]any) { derive(m, []any{level(1, "1"), level(2, "1")}) }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"group level undeclared", func(m map[string]any) { derive(m, []any{level(1, "1"), level(3, "3")}) }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			m := base()

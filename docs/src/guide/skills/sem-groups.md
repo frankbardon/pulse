@@ -64,6 +64,14 @@ Both reach the envelope's `warnings` (`details.index` locates the slot) and fail
 
 Fewer than two levels with rows, or a reference level without rows, still fails the slot alone (`PULSE_MATRIX_INSUFFICIENT_N`).
 
+## Scoring on a derived group
+
+`ATTR_SEM_SCORE` takes the same `group` and `group_levels`. Its group may be a feature output or the label of an attribute declared BEFORE the score slot (a later label is `bad_params`).
+
+- Inline, the fit is the `MAT_SEM` fit on the same rows, so scores match a cohort-field twin bit for bit. A row whose value is no level scores null, counted once in `PULSE_MATRIX_GROUP_LEVEL_UNDECLARED` (`details.attribute`, `count`); a known level without fit rows warns `PULSE_MATRIX_GROUP_LEVEL_EMPTY`; more than 256 undeclared levels null every score with `PULSE_MATRIX_GROUP_LEVEL_LIMIT`.
+- A bound fit (`params.fit`) taken on a derived group carries `group_derived` and its `group_levels`. The scoring request must compute the same column ahead of the slot, else `SERVICE_VALIDATION` `fit_group_field` (predict refuses it too). Rows match the fit's declared values exactly; another value scores null with `PULSE_MATRIX_GROUP_LEVEL_UNDECLARED`.
+- These warnings sit on the envelope's `warnings`; under Strict the run fails with their code.
+
 ## See
 
 - [`op-mat-sem`](op-mat-sem.md) — the params table.

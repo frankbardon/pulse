@@ -5121,7 +5121,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_GROUP_LEVEL_EMPTY: {
-		Message: "A multi-group structural equation model (params.group) has group-field levels — a categorical's dictionary entries, packed_bool's 0 / 1, a derived group's params.group_levels entries — that hold no rows after the filters. Each such level is no group: no estimate rows, no chi2_group_ / n_group_ scalars, and a := line reading its per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason empty_group); the fit over the other levels stands. Emitted once per slot. Details carry `matrix`, `group_field` and `levels` (the empty levels, in level order).",
+		Message: "A multi-group structural equation model (params.group) has group-field levels — a categorical's dictionary entries, packed_bool's 0 / 1, a derived group's params.group_levels entries — that hold no rows after the filters. Each such level is no group: no estimate rows, no chi2_group_ / n_group_ scalars, and a := line reading its per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason empty_group); the fit over the other levels stands. Emitted once per slot. Details carry `matrix`, `group_field` and `levels` (the empty levels, in level order). An attribute scoring rows by such a fit, fitted inline, warns the same over the known levels without fit rows (`attribute` in place of `matrix`; a row of such a level scores null); under Strict that fails the run.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -5131,7 +5131,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_GROUP_LEVEL_UNDECLARED: {
-		Message: "A multi-group structural equation model grouped by a column the request computes (params.group naming an attribute, feature or window label) met rows whose group value is no level of the fit: not among params.group_levels (matched exactly), or not an integral number. Each such row is dropped listwise (counted in n_listwise_dropped) and joins no group; the fit over the levels that hold rows stands. Emitted once per slot. Details carry `matrix`, `group_field` and `count` (the rows dropped so).",
+		Message: "A multi-group structural equation model grouped by a column the request computes (params.group naming an attribute, feature or window label) met rows whose group value is no level of the fit: not among params.group_levels (matched exactly), or not an integral number. Each such row is dropped listwise (counted in n_listwise_dropped) and joins no group; the fit over the levels that hold rows stands. Emitted once per slot. Details carry `matrix`, `group_field` and `count` (the rows dropped so). An attribute scoring rows by such a fit (inline, or bound to a fit grouped by a computed column) scores each such row null and warns once with `attribute` in place of `matrix` (`fit` when bound) and the scored rows' `count`; under Strict that fails the run.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -5146,7 +5146,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_GROUP_LEVEL_LIMIT: {
-		Message: "A multi-group structural equation model grouped by a column the request computes, without params.group_levels, takes its levels from the data — every distinct integral value — and its rows held more than 256 of them. The fit keeps one moment state per level, so a group that is a continuous measure or a row identifier is refused, never fitted; the slot fails alone. Details carry `matrix`, `reason` (observed_levels), `group_field` and `limit` (256).",
+		Message: "A multi-group structural equation model grouped by a column the request computes, without params.group_levels, takes its levels from the data — every distinct integral value — and its rows held more than 256 of them. The fit keeps one moment state per level, so a group that is a continuous measure or a row identifier is refused, never fitted; the slot fails alone. Details carry `matrix`, `reason` (observed_levels), `group_field` and `limit` (256). An attribute scoring rows by such a fit, fitted inline, nulls every score with this fit-scoped warning (`attribute` in place of `matrix`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

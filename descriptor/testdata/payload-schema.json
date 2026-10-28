@@ -5448,6 +5448,25 @@
       ],
       "type": "object"
     },
+    "SEMFitGroupLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "type": "object"
+    },
     "SEMFitResult": {
       "additionalProperties": false,
       "if": {
@@ -5500,9 +5519,21 @@
         "group": {
           "type": "string"
         },
+        "group_derived": {
+          "type": "boolean"
+        },
         "group_equal": {
           "items": {
             "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "group_levels": {
+          "items": {
+            "$ref": "#/$defs/SEMFitGroupLevel"
           },
           "type": [
             "array",
@@ -6425,4 +6456,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 74462375890e6280919a15da008ba64d4944956a2a9ddb621b3ad2ec6b59a6c1
+// golden-hash: 48d73dd01c8e72ad8ba3547f7a393d96a5e87bcccd4aaef6173d7ee057eeaffc

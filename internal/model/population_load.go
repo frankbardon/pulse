@@ -210,6 +210,10 @@ func CatalogWithLoaded(outer Catalog, refs Refs, l *Loaded) FitCatalog {
 			Members: append([]string(nil), l.SEMs[j].Labels...),
 			Source:  ModelSource(j, r.Path),
 			Ordinal: len(l.SEMs[j].Ordered) > 0,
+			// A loaded file records whether its group was computed.
+			SEMGroup:             l.SEMs[j].Group,
+			SEMGroupDerived:      l.SEMs[j].GroupDerived,
+			SEMGroupDerivedKnown: true,
 		}
 	}
 	for k, r := range refs.Populations {

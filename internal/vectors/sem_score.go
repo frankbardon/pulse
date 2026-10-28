@@ -73,6 +73,9 @@ type semScoreParams struct {
 	GroupReference *string  `json:"group_reference"`
 	GroupEqual     *semList `json:"group_equal"`
 	GroupPartial   *semList `json:"group_partial"`
+	// GroupLevels declares a derived group's levels (MAT_SEM's
+	// params.group_levels: value, optional name, in c(...) order).
+	GroupLevels *[]semGroupLevel `json:"group_levels"`
 	// Estimator, Ordered and Parameterization are MAT_SEM's ordinal
 	// knobs: an inline DWLS / WLSMV fit, scored by empirical Bayes
 	// modal scores (sem.NewEBMScorer).
@@ -90,7 +93,7 @@ func (p semScoreParams) fitKnob() string {
 	}{
 		{"model", p.Model != nil}, {"meanstructure", p.MeanStructure != nil}, {"group", p.Group != nil},
 		{"group_reference", p.GroupReference != nil}, {"group_equal", p.GroupEqual != nil},
-		{"group_partial", p.GroupPartial != nil}, {"solver", p.Solver != nil}, {"information", p.Information != nil},
+		{"group_partial", p.GroupPartial != nil}, {"group_levels", p.GroupLevels != nil}, {"solver", p.Solver != nil}, {"information", p.Information != nil},
 		{"ftol", p.Ftol != nil}, {"max_iter", p.MaxIter != nil}, {"grad_tol", p.GradTol != nil}, {"singular", p.Singular != nil},
 		{"estimator", p.Estimator != nil}, {"ordered", p.Ordered != nil}, {"parameterization", p.Parameterization != nil},
 	} {
@@ -173,7 +176,7 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 	if len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
 		if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_SEM_SCORE), raw, &params); err != nil {
 			return SEMScoreConfig{}, attributeInvalid(at, "bad_params",
-				at+" ATTR_SEM_SCORE params: "+err.Error()+" (keys: latent, method, model, meanstructure, group, group_reference, group_equal, group_partial, solver, information, ftol, max_iter, grad_tol, singular, estimator, ordered, parameterization, fit_on, fit, labels, missing)", nil)
+				at+" ATTR_SEM_SCORE params: "+err.Error()+" (keys: latent, method, model, meanstructure, group, group_reference, group_equal, group_partial, group_levels, solver, information, ftol, max_iter, grad_tol, singular, estimator, ordered, parameterization, fit_on, fit, labels, missing)", nil)
 		}
 	}
 	common := FittedCommon{FitOn: params.FitOn, Fit: params.Fit, Missing: params.Missing}
@@ -212,7 +215,7 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 	sp := semParams{Model: params.Model, Solver: params.Solver, Information: params.Information, Ftol: params.Ftol,
 		MaxIter: params.MaxIter, GradTol: params.GradTol, Singular: params.Singular, MeanStructure: params.MeanStructure,
 		Group: params.Group, GroupReference: params.GroupReference, GroupEqual: params.GroupEqual, GroupPartial: params.GroupPartial,
-		Estimator: params.Estimator, Ordered: params.Ordered, Parameterization: params.Parameterization}
+		GroupLevels: params.GroupLevels, Estimator: params.Estimator, Ordered: params.Ordered, Parameterization: params.Parameterization}
 	var m Matrix
 	if ce := decodeSEM(at, sp, &m); ce != nil {
 		return SEMScoreConfig{}, asAttributeRefusal(ce)
@@ -229,11 +232,14 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 // ResolveSEMScore parses cfg's model against the slot's resolved
 // members (matched by label: params.labels over inline fields, else the
 // members' labels — slotLabels), checks params.group against the
-// schema (nil skips the field checks) and settles the latent: a latent
-// variable of the model, defaulting to its only one. cfg.Plan gains the
-// parsed model and its member order; the returned labels are the
-// members' fit labels.
-func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *encoding.Schema) ([]string, *errors.CodedError) {
+// schema (nil skips the field checks) and the columns computed ahead of
+// the slot (computed: SEMScoreComputed; nil none) — MAT_SEM's
+// resolveSEMGroup, so a derived group and params.group_levels resolve
+// as MAT_SEM's — and settles the latent: a latent variable of the
+// model, defaulting to its only one. cfg.Plan gains the parsed model
+// and its member order; the returned labels are the members' fit
+// labels.
+func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *encoding.Schema, computed Computed) ([]string, *errors.CodedError) {
 	labels, err := slotLabels(at, cfg.Labels, members)
 	if err != nil {
 		return nil, err
@@ -249,7 +255,7 @@ func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *e
 	if ce := resolveSEM(at, &m); ce != nil {
 		return nil, asAttributeRefusal(ce)
 	}
-	if ce := resolveSEMGroup(at, nil, schema, nil, &m); ce != nil {
+	if ce := resolveSEMGroup(at, nil, schema, computed, &m); ce != nil {
 		return nil, asAttributeRefusal(ce)
 	}
 	if ce := resolveSEMOrdinal(at, schema, &m); ce != nil {
@@ -331,4 +337,92 @@ func withLabels(params json.RawMessage, members Resolved) (json.RawMessage, bool
 		return nil, false
 	}
 	return out, true
+}
+
+// SEMScoreComputed are the columns req computes AHEAD of its attribute
+// slot i — the built-in feature outputs (the features run before every
+// attribute) and the labels of attributes 0..i-1 (the attributes run in
+// declared order) — the columns an ATTR_SEM_SCORE params.group may name
+// as a derived group: the record holds them when the slot's fit and its
+// scoring read the group. A window label is none (the windows run after
+// the attribute pass), nor is a later attribute's label. Nil when none.
+func SEMScoreComputed(req *types.Request, schema *encoding.Schema, i int) Computed {
+	var out Computed
+	for name, c := range computedColumns(req, schema, false) {
+		if c.Slot == "attribute" && c.Index >= i {
+			continue
+		}
+		if out == nil {
+			out = Computed{}
+		}
+		out[name] = c
+	}
+	return out
+}
+
+// SEMScoreFactoryComputed is the computed-column view an ATTR_SEM_SCORE
+// factory resolves its inline params.group with: a group that is no
+// cohort field is a column computed ahead of the slot, a number per row
+// — the request-level pass (ResolveAttributes over SEMScoreComputed,
+// run by the field-reference rule before any build) has refused every
+// other name. Nil when the slot names no such group.
+func SEMScoreFactoryComputed(cfg SEMScoreConfig, schema *encoding.Schema) Computed {
+	if cfg.Plan == nil || !cfg.Plan.Grouped() || schema == nil || schema.Field(cfg.Plan.Group) != nil {
+		return nil
+	}
+	return Computed{cfg.Plan.Group: {Slot: "attribute", Type: encoding.FieldTypeF64}}
+}
+
+// SEMScoreFitGroupRefusal is the rule over a bound SEM fit's group on
+// the scoring cohort — SERVICE_VALIDATION reason fit_group_field
+// (details attribute, fit; group for a cohort field, group_field for a
+// computed one) — at is the slot label, fit the bound name, group the
+// fit's params.group. A fit grouped by a cohort field (derived false)
+// needs that field here with a SEMGroupFieldTypes type. A fit grouped by
+// a column its request computed (derived) needs the scoring request to
+// compute the same column ahead of the slot (computed:
+// SEMScoreComputed), a number per row, under a name that is no cohort
+// field; checkComputed false skips the computed lookup (the engine's
+// bind, which the request-level pass has already judged). Nil when the
+// group resolves. Predict and the runtime both call it.
+func SEMScoreFitGroupRefusal(at, fit, group string, derived bool, schema *encoding.Schema, computed Computed, checkComputed bool) *errors.CodedError {
+	if group == "" || schema == nil {
+		return nil
+	}
+	f := schema.Field(group)
+	refuse := func(msg string, extra map[string]any) *errors.CodedError {
+		d := map[string]any{"attribute": at, "reason": "fit_group_field", "fit": fit}
+		for k, v := range extra {
+			d[k] = v
+		}
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION, at+": "+msg, d)
+	}
+	if !derived {
+		if f != nil && slices.Contains(SEMGroupFieldTypes(), f.Type) {
+			return nil
+		}
+		what := "which the cohort does not have"
+		if f != nil {
+			what = "which is " + f.Type.String() + " here, not a group field (categorical, packed_bool, u4 or u8)"
+		}
+		return refuse("bound SEM fit "+strconv.Quote(fit)+" is a multi-group fit by field "+strconv.Quote(group)+", "+what,
+			map[string]any{"group": group})
+	}
+	if f != nil {
+		return refuse("bound SEM fit "+strconv.Quote(fit)+" is a multi-group fit by "+strconv.Quote(group)+", a column its fit request computed, but "+strconv.Quote(group)+" is a cohort field here; compute the group under a name that is no cohort field, in the fit request and the scoring request alike",
+			map[string]any{"group_field": group})
+	}
+	if !checkComputed {
+		return nil
+	}
+	c, ok := computed[group]
+	if !ok {
+		return refuse("bound SEM fit "+strconv.Quote(fit)+" is a multi-group fit by "+strconv.Quote(group)+", a column its fit request computed; compute the same column in this request, ahead of the slot (an earlier attribute or a feature output), as the fit request did",
+			map[string]any{"group_field": group})
+	}
+	if c.Type != encoding.FieldTypeF64 {
+		return refuse("bound SEM fit "+strconv.Quote(fit)+" is a multi-group fit by computed "+strconv.Quote(group)+", but this request computes it as a "+c.Slot+" column of type "+c.Type.String()+"; a computed group is a number per row — wrap it in an ATTR_FORMULA",
+			map[string]any{"group_field": group, "field_type": c.Type.String()})
+	}
+	return nil
 }

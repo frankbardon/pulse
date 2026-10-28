@@ -158,8 +158,23 @@ type semScoreAttribute struct {
 	dict       *encoding.Field
 	// levels are the group field's level labels by code when the
 	// schema knows them (a categorical's dictionary, packed_bool's
-	// "0" / "1"); nil on an integer field.
+	// "0" / "1") or the group's levels are declared (a derived group's
+	// params.group_levels, or a bound fit's); nil on an integer field
+	// and an undeclared derived group.
 	levels []string
+	// derived marks a group the request computes (MAT_SEM's derived
+	// group: an earlier attribute's label or a feature output, read off
+	// the record); declared maps each declared level value to its code
+	// (its position), nil when the levels are the observed integral
+	// values (code semObservedCode). undeclared tallies the scored rows
+	// whose value is no level (null scores); overLimit marks an
+	// undeclared inline group that met more than
+	// vectors.SEMObservedGroupLevelLimit distinct fit levels (MAT_SEM's
+	// cap: no further level opens, and the fit fails).
+	derived    bool
+	declared   map[float64]uint64
+	undeclared int64
+	overLimit  bool
 
 	// fitName is params.fit ("" fits inline); labels are the slot's
 	// member labels the bound fit aligns to; bound is the fit, set by
@@ -242,7 +257,7 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 		return nil, cerr
 	}
 	members := vectors.Resolved{Members: append([]string(nil), attr.Fields...)}
-	labels, cerr := vectors.ResolveSEMScore(at, &cfg, members, schema)
+	labels, cerr := vectors.ResolveSEMScore(at, &cfg, members, schema, vectors.SEMScoreFactoryComputed(cfg, schema))
 	if cerr != nil {
 		return nil, cerr
 	}
@@ -286,7 +301,9 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 		a.groupField = cfg.Plan.Group
 		a.levels = cfg.Plan.GroupLevels
 		a.buckets = map[uint64]*BlockCoMoments{}
-		if schema != nil {
+		if cfg.Plan.GroupDerived {
+			a.deriveGroup(cfg.Plan.GroupDeclared)
+		} else if schema != nil {
 			if f := schema.Field(a.groupField); f != nil && f.Type.IsCategorical() {
 				a.dict = f
 			}
@@ -419,17 +436,19 @@ func (a *semScoreAttribute) bindFitGroups(sf *model.SEMFit) ([]uint64, error) {
 	if !sf.Grouped() {
 		return []uint64{0}, nil
 	}
+	if sf.GroupDerived {
+		return a.bindDerivedGroup(sf)
+	}
 	var f *encoding.Field
 	if a.schema != nil {
 		f = a.schema.Field(sf.Group)
 	}
 	if f == nil || !slices.Contains(vectors.SEMGroupFieldTypes(), f.Type) {
-		what := "which the cohort does not have"
-		if f != nil {
-			what = "which is " + f.Type.String() + " here, not a group field (categorical, packed_bool, u4 or u8)"
+		if cerr := vectors.SEMScoreFitGroupRefusal(a.label, a.fitName, sf.Group, false, a.schema, nil, false); cerr != nil {
+			return nil, cerr
 		}
 		return nil, attributeFitInvalid(a.label, a.fitName, "fit_group_field",
-			fmt.Sprintf("bound SEM fit %q is a multi-group fit by field %q, %s", a.fitName, sf.Group, what),
+			fmt.Sprintf("bound SEM fit %q is a multi-group fit by field %q, which the cohort does not have", a.fitName, sf.Group),
 			map[string]any{"group": sf.Group})
 	}
 	a.groupField = sf.Group
@@ -459,6 +478,56 @@ func (a *semScoreAttribute) bindFitGroups(sf *model.SEMFit) ([]uint64, error) {
 		}
 	}
 	return codes, nil
+}
+
+// bindDerivedGroup is bindFitGroups for a fit grouped by a column its
+// request computed: this request computes the same column ahead of the
+// slot (the request-level pass, vectors.SEMScoreFitGroupRefusal, judged
+// that; a cohort field of the name is refused here too), a row's value
+// matching a declared level's value exactly (else, undeclared, an
+// integral value its integer level). Each fit group's code: its
+// declared position, else semObservedCode of its integer label.
+func (a *semScoreAttribute) bindDerivedGroup(sf *model.SEMFit) ([]uint64, error) {
+	if cerr := vectors.SEMScoreFitGroupRefusal(a.label, a.fitName, sf.Group, true, a.schema, nil, false); cerr != nil {
+		return nil, cerr
+	}
+	a.groupField = sf.Group
+	declared := make([]vectors.SEMGroupLevel, len(sf.GroupLevels))
+	for i, l := range sf.GroupLevels {
+		declared[i] = vectors.SEMGroupLevel{Value: l.Value, Label: l.Label}
+	}
+	if sf.GroupLevels == nil {
+		declared = nil
+	}
+	a.deriveGroup(declared)
+	codes := make([]uint64, len(sf.Groups))
+	for g, gr := range sf.Groups {
+		codes[g] = math.MaxUint64 // no code: no row can hold the level
+		if a.declared != nil {
+			if i := slices.Index(a.levels, gr.Level); i >= 0 {
+				codes[g] = uint64(i)
+			}
+		} else if v, err := strconv.ParseInt(gr.Level, 10, 64); err == nil && vectors.SEMGroupIntegral(float64(v)) {
+			codes[g] = semObservedCode(float64(v))
+		}
+	}
+	return codes, nil
+}
+
+// deriveGroup points the slot at a derived group: declared levels (nil:
+// the observed integral values) key the level codes and labels.
+func (a *semScoreAttribute) deriveGroup(declared []vectors.SEMGroupLevel) {
+	a.derived, a.dict = true, nil
+	a.declared, a.levels = nil, nil
+	if declared == nil {
+		return
+	}
+	a.declared = make(map[float64]uint64, len(declared))
+	a.levels = make([]string, len(declared))
+	for i, l := range declared {
+		a.declared[l.Value] = uint64(i)
+		a.levels[i] = l.Label
+	}
 }
 
 // attributeFitInvalid is a bound slot's SERVICE_VALIDATION refusal.
@@ -494,23 +563,38 @@ func (a *semScoreAttribute) MergeTally(other RowLocalAttribute) error {
 		}
 		a.unseenCats[k] += n
 	}
+	a.undeclared += o.undeclared
 	return nil
 }
 
 // resetTally satisfies attributeTallyResetter: a stage a prepass layer
 // scored once already counts its unseen rows again on the emission
 // scan.
-func (a *semScoreAttribute) resetTally() { a.unseen, a.unseenCats = nil, nil }
+func (a *semScoreAttribute) resetTally() { a.unseen, a.unseenCats, a.undeclared = nil, nil, 0 }
 
 // EmitsNull satisfies NullEmitter: a NaN score is a null.
 func (a *semScoreAttribute) EmitsNull() bool { return true }
 
 // attributeWarnings satisfies attributeWarner: the fit's warnings, then
-// the unseen-level tally of the rows scored so far.
+// the tallies of the rows scored so far — an ordered value outside the
+// fit's categories, a derived group's value that is no level
+// (PULSE_MATRIX_GROUP_LEVEL_UNDECLARED), a level without parameters.
 func (a *semScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 	out := append([]*types.ResponseWarning(nil), a.warnings...)
 	if w := a.unseenCategoryWarning(); w != nil {
 		out = append(out, w)
+	}
+	if a.undeclared > 0 {
+		d := map[string]any{"attribute": a.label, "type": string(types.ATTR_SEM_SCORE), "group_field": a.groupField, "count": a.undeclared}
+		if a.fitName != "" {
+			d["fit"] = a.fitName
+		}
+		out = append(out, &types.ResponseWarning{
+			Code: string(errors.PULSE_MATRIX_GROUP_LEVEL_UNDECLARED),
+			Message: a.label + ": " + strconv.FormatInt(a.undeclared, 10) + " row(s) of computed group " + strconv.Quote(a.groupField) +
+				" hold a value that is no level of the fit (not a declared group_levels value, or not an integer); their scores are null",
+			Details: d,
+		})
 	}
 	if len(a.unseen) == 0 {
 		return out
@@ -533,26 +617,52 @@ func (a *semScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 }
 
 // levelLabel is a level code's label: the dictionary entry (the
-// field's levels), else the integer.
+// field's levels) or a declared derived level's label, else the integer
+// (an undeclared derived group's: its signed value).
 func (a *semScoreAttribute) levelLabel(code uint64) string {
-	if lv := a.levels; a.dict != nil && int(code) < len(lv) {
+	if lv := a.levels; (a.dict != nil || a.declared != nil) && int(code) < len(lv) {
 		return lv[code]
+	}
+	if a.derived {
+		return strconv.FormatInt(semObservedValue(code), 10)
 	}
 	return strconv.FormatUint(code, 10)
 }
 
-// groupCode reads rec's group level code; false on a null group.
-func (a *semScoreAttribute) groupCode(rec *Record) (uint64, bool, error) {
-	v, ok := rec.NumericValue(a.groupField)
-	if !ok || math.IsNaN(v) {
-		return 0, false, nil
+// groupCode reads rec's group level code: ok false on a null group;
+// level false (ok true) on a derived group's value that is no level —
+// not a declared value (exact match), or, undeclared, not integral.
+func (a *semScoreAttribute) groupCode(rec *Record) (code uint64, ok, level bool, err error) {
+	v, has := rec.NumericValue(a.groupField)
+	if !has || math.IsNaN(v) {
+		return 0, false, false, nil
+	}
+	if a.derived {
+		if a.declared != nil {
+			code, level = a.declared[v]
+		} else if level = vectors.SEMGroupIntegral(v); level {
+			code = semObservedCode(v)
+		}
+		return code, true, level, nil
 	}
 	if a.dict != nil {
 		if err := encx.CategoricalIndexFault(a.dict, v); err != nil {
-			return 0, false, err
+			return 0, false, false, err
 		}
 	}
-	return uint64(v), true, nil
+	return uint64(v), true, true, nil
+}
+
+// admitLevel reports whether a fit row of a level (open: the level
+// already holds rows) may fold: MAT_SEM's cap on an undeclared derived
+// group — a new level beyond vectors.SEMObservedGroupLevelLimit sets
+// the sticky overLimit, and nothing folds after it (the fit fails at
+// Finalize with PULSE_MATRIX_GROUP_LEVEL_LIMIT).
+func (a *semScoreAttribute) admitLevel(open bool, levels int) bool {
+	if !open && a.derived && a.declared == nil && levels >= vectors.SEMObservedGroupLevelLimit {
+		a.overLimit = true
+	}
+	return !a.overLimit
 }
 
 // PrePass folds one filtered record into the fit (complete members,
@@ -610,11 +720,14 @@ func (a *semScoreAttribute) fold(rec *Record, key BlockKey, x []float64, w float
 	if a.buckets == nil {
 		return a.base.AddAt(key, x, w)
 	}
-	code, ok, err := a.groupCode(rec)
-	if err != nil || !ok {
-		return err
+	code, ok, level, err := a.groupCode(rec)
+	if err != nil || !ok || !level {
+		return err // a null group, or no level: a listwise drop
 	}
 	b, ok := a.buckets[code]
+	if !a.admitLevel(ok, len(a.buckets)) {
+		return nil
+	}
 	if !ok {
 		if b, err = NewBlockCoMoments(len(a.members), linalg.Listwise); err != nil {
 			return err
@@ -649,6 +762,16 @@ func (a *semScoreAttribute) Finalize() error {
 			}
 		}
 	}
+	if a.overLimit {
+		a.warnings = append(a.warnings, a.fitWarning(&fitRefusal{code: errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT,
+			msg: "params.group " + strconv.Quote(a.groupField) + " takes more than " + strconv.Itoa(vectors.SEMObservedGroupLevelLimit) +
+				" distinct levels over the fit rows; declare the levels the fit compares in params.group_levels, or compute a group with few integer levels; every score is null",
+			details: map[string]any{"reason": "observed_levels", "group_field": a.groupField, "limit": vectors.SEMObservedGroupLevelLimit}}))
+		return nil
+	}
+	if w := a.emptyLevelWarning(); w != nil {
+		a.warnings = append(a.warnings, w)
+	}
 	fit, notes, ref := a.fitModel()
 	for _, n := range notes {
 		a.warnings = append(a.warnings, a.fitWarning(n))
@@ -659,6 +782,31 @@ func (a *semScoreAttribute) Finalize() error {
 	}
 	a.closeFit(fit)
 	return nil
+}
+
+// emptyLevelWarning is PULSE_MATRIX_GROUP_LEVEL_EMPTY over an inline
+// grouped fit's known levels (a categorical's dictionary, packed_bool's
+// 0 / 1, a derived group's declared levels) without fit rows — MAT_SEM's
+// rule (semEmptyLevels): such a level is no group of the fit, and a row
+// of it scores null. Nil when every known level holds fit rows.
+func (a *semScoreAttribute) emptyLevelWarning() *types.ResponseWarning {
+	if a.levels == nil {
+		return nil
+	}
+	has := func(c uint64) bool { _, ok := a.buckets[c]; return ok }
+	if a.ord != nil {
+		has = func(c uint64) bool { _, ok := a.ord.levels[c]; return ok }
+	}
+	empty, _ := semEmptyLevels(a.levels, has)
+	if len(empty) == 0 {
+		return nil
+	}
+	return &types.ResponseWarning{
+		Code: string(errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY),
+		Message: a.label + ": level(s) " + strings.Join(empty, ", ") + " of group " + strconv.Quote(a.groupField) +
+			" hold no fit rows; they are no group of the fit, and a row of such a level scores null",
+		Details: map[string]any{"attribute": a.label, "type": string(types.ATTR_SEM_SCORE), "group_field": a.groupField, "levels": empty},
+	}
 }
 
 // closeFit builds each fit group's scorer under its level code — the
@@ -922,11 +1070,15 @@ func (a *semScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 	}
 	code := uint64(0)
 	if a.groupField != "" {
-		c, ok, err := a.groupCode(rec)
+		c, ok, level, err := a.groupCode(rec)
 		if err != nil {
 			return 0, err
 		}
 		if !ok {
+			return math.NaN(), nil
+		}
+		if !level {
+			a.undeclared++
 			return math.NaN(), nil
 		}
 		code = c

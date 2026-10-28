@@ -510,6 +510,14 @@ func (m *matrixSlot) semCaptureFit(cm *linalg.CoMoment, converged bool, status s
 	if nearestMin != nil {
 		sf.NearestPD, sf.MinEigenvalue = true, *nearestMin
 	}
+	if spec.GroupDerived {
+		// A computed group: a scoring request must compute it too, and
+		// its rows match the declared values (else integral values).
+		sf.GroupDerived = true
+		for _, l := range spec.GroupDeclared {
+			sf.GroupLevels = append(sf.GroupLevels, model.SEMGroupLevel{Value: l.Value, Label: l.Label})
+		}
+	}
 	return sf
 }
 

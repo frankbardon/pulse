@@ -72,6 +72,14 @@ type SEMFit struct {
 	Solver         string
 	Information    string
 
+	// GroupDerived reports that Group is a column the fit request
+	// computed (an attribute label or a feature output), not a cohort
+	// field: a scoring request must compute it too. GroupLevels are its
+	// declared levels in order (nil when the levels are its observed
+	// integral values, labelled by their integer text).
+	GroupDerived bool
+	GroupLevels  []SEMGroupLevel
+
 	// Basis is the weight basis the fit was taken under (unweighted or
 	// frequency).
 	Basis VectorBasis
@@ -99,6 +107,13 @@ type SEMFit struct {
 
 	// Source is where the name was bound (the zero value when unknown).
 	Source Source
+}
+
+// SEMGroupLevel is one declared level of a derived group: the
+// integral Value a row's computed group equals and its Label.
+type SEMGroupLevel struct {
+	Value float64
+	Label string
 }
 
 // SEMGroup is one group's parameters at the estimate.
@@ -137,7 +152,8 @@ func (f *SEMFit) Conventions() string {
 
 // Signature is f's static face: kind sem, its member labels.
 func (f *SEMFit) Signature() Signature {
-	return Signature{Name: f.Name, Kind: types.FitKindSEM, Members: append([]string(nil), f.Labels...), Source: f.Source, Ordinal: f.Ordinal()}
+	return Signature{Name: f.Name, Kind: types.FitKindSEM, Members: append([]string(nil), f.Labels...), Source: f.Source, Ordinal: f.Ordinal(),
+		SEMGroup: f.Group, SEMGroupDerived: f.GroupDerived, SEMGroupDerivedKnown: true}
 }
 
 // Result is f's ComposedResponse.Fits summary: every stored figure, at
@@ -161,6 +177,7 @@ func (f *SEMFit) Result() *types.SEMFitResult {
 		GroupPartial:   cloneStrings(f.GroupPartial),
 		Solver:         f.Solver,
 		Information:    f.Information,
+		GroupDerived:   f.GroupDerived,
 		Basis:          string(f.Basis),
 		N:              f.N,
 		SumWeights:     f.SumWeights,
@@ -180,6 +197,9 @@ func (f *SEMFit) Result() *types.SEMFitResult {
 	}
 	if f.Categories != nil {
 		out.Categories = cloneRows(f.Categories)
+	}
+	for _, l := range f.GroupLevels {
+		out.GroupLevels = append(out.GroupLevels, types.SEMFitGroupLevel{Value: l.Value, Label: l.Label})
 	}
 	for g, gr := range f.Groups {
 		out.Groups[g] = types.SEMFitGroup{

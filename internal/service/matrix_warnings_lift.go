@@ -106,3 +106,27 @@ func liftMatrixWarnings(req *types.Request, resp *types.Response) {
 		}
 	}
 }
+
+// escalateAttributeGroupWarnings is the attribute path's twin under
+// Strict: an ATTR_SEM_SCORE slot fits MAT_SEM's grouped model and raises
+// the same group-level warnings (PULSE_MATRIX_GROUP_LEVEL_EMPTY, a
+// declared level without fit rows; _UNDECLARED, rows whose computed
+// group is no level) straight onto Response.Warnings (details.attribute
+// locates the slot) — lifted already, so only Strict acts: the run
+// fails with the first such warning's code, message and details. An
+// attribute has no per-slot result to fail alone. Nil otherwise.
+func escalateAttributeGroupWarnings(resp *types.Response, strict bool) error {
+	if !strict || resp == nil {
+		return nil
+	}
+	for _, w := range resp.Warnings {
+		if w == nil || w.Code == string(errors.PULSE_MATRIX_DEFINED_NONFINITE) || !liftedMatrixWarnings[w.Code] {
+			continue
+		}
+		if _, ok := w.Details["attribute"]; !ok {
+			continue
+		}
+		return errors.NewCodedErrorWithDetails(errors.Code(w.Code), w.Message, maps.Clone(w.Details))
+	}
+	return nil
+}

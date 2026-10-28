@@ -1326,7 +1326,10 @@ when the nearest positive-definite substitute was fitted) and `groups`
 ordinal fit (`estimator` `dwls` / `wlsmv`) adds `ordered` (its ordered
 variables, `observed` order), `categories` (each one's category values,
 ascending) and, per group, `thresholds` (one list per ordered variable);
-all three are absent on an ML fit. The
+all three are absent on an ML fit. A fit grouped by a column its request
+computed adds `group_derived: true` and, when the levels were declared,
+`group_levels` (`[{value, label}]`, in order); both are absent on a
+cohort-field group. The
 `vector` / `sem` key discriminates. A fit that failed on its data keeps its entry with
 an `error` and no figures (see Failed slots). The object is pinned outside the Compose-level `return`
 like `ranking` (always emitted, never rounded). Both slots are gated by
@@ -1424,7 +1427,7 @@ population file instead (`population_format_version` 1; the path must end
 `suffix`): the battery's stored listwise state — labels, members, weight
 basis, counts, Σw / Σw², raw mean and raw co-moment — with nothing
 derived, written atomically under the fit's name with the same overwrite
-warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes a SEM fit file (`sem_format_version` 1, or 2 for an ordinal fit; the
+warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes a SEM fit file (`sem_format_version` 1, 2 for an ordinal fit, or 3 for a fit grouped by a computed column; the
 path must end `.pulse-sem.json`, else `PULSE_MODEL_SAVE_INVALID` reason
 `suffix`): the model description and options, member labels, the
 model's variable orders, the solver stop and per group its level,

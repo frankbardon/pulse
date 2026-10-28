@@ -313,7 +313,17 @@ func TestSEMScore_FailedFitNullsEveryScore(t *testing.T) {
 					t.Fatalf("row %d scored %v, want null", i, v)
 				}
 			}
-			if len(resp.Warnings) != 1 || resp.Warnings[0].Code != string(c.code) || resp.Warnings[0].Details["scope"] != "fit" {
+			warns := resp.Warnings
+			if c.name == "one_level" {
+				// A dictionary level without fit rows is no group of the
+				// fit: warned first, as MAT_SEM warns it.
+				if len(warns) == 0 || warns[0].Code != string(errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY) || fmt.Sprint(warns[0].Details["levels"]) != "[2]" {
+					wj, _ := json.Marshal(warns)
+					t.Fatalf("warnings %s, want PULSE_MATRIX_GROUP_LEVEL_EMPTY on level 2 first", wj)
+				}
+				warns = warns[1:]
+			}
+			if len(warns) != 1 || warns[0].Code != string(c.code) || warns[0].Details["scope"] != "fit" {
 				wj, _ := json.Marshal(resp.Warnings)
 				t.Fatalf("warnings %s, want one fit-scoped %s", wj, c.code)
 			}
@@ -403,11 +413,15 @@ func TestSEMScore_UnseenLevelAndNullGroup(t *testing.T) {
 			t.Errorf("row %d scored %v, want null (unseen level or null group)", r, streamed[r])
 		}
 	}
-	if len(resp.Warnings) != 1 || resp.Warnings[0].Code != string(errors.PULSE_SEM_SCORE_LEVEL_UNSEEN) {
+	// Level 3 holds no fit rows (fit_on keeps it out): EMPTY, as
+	// MAT_SEM warns a dictionary level without rows, then the tally of
+	// its scored rows.
+	if len(resp.Warnings) != 2 || resp.Warnings[0].Code != string(errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY) ||
+		fmt.Sprint(resp.Warnings[0].Details["levels"]) != "[3]" || resp.Warnings[1].Code != string(errors.PULSE_SEM_SCORE_LEVEL_UNSEEN) {
 		wj, _ := json.Marshal(resp.Warnings)
-		t.Fatalf("warnings %s, want one PULSE_SEM_SCORE_LEVEL_UNSEEN", wj)
+		t.Fatalf("warnings %s, want PULSE_MATRIX_GROUP_LEVEL_EMPTY [3] then one PULSE_SEM_SCORE_LEVEL_UNSEEN", wj)
 	}
-	d := resp.Warnings[0].Details
+	d := resp.Warnings[1].Details
 	if fmt.Sprint(d["levels"]) != "[3]" || fmt.Sprint(d["rows"]) != "[12]" || fmt.Sprint(d["fit_levels"]) != "[1 2]" {
 		t.Fatalf("details %v", d)
 	}
