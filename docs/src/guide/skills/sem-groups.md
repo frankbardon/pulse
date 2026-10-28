@@ -53,6 +53,8 @@ and the `MAT_SEM` slot's params:
  "model": "... + c(bfrom, bto)*service\nshift := bto - bfrom"}
 ```
 
+The request `params` reach only the attribute expression: `MAT_SEM` params (`model`, `group_reference`, `group_levels`) are plain JSON and take no `params` reference — hence the fixed `from` / `to` names and the model's `c(bfrom, bto)` labels. Runnable: `internal/examples/matrices/19_sem_wave_pair.json`.
+
 Every other wave is `0` — no level — so its rows drop. A reversed pair (`from` 3, `to` 1) reads the change from wave 3 to wave 1.
 
 ## Level warnings

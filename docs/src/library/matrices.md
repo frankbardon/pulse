@@ -588,6 +588,24 @@ are unknown params keys (`PULSE_REQUEST_UNKNOWN_FIELD`), the model
 syntax they own is `bad_params`, and the manifest lists neither their
 params nor their output keys.
 
+**A group the request computes.** `params.group` may also name a column
+the request computes — an `ATTR_FORMULA` label (or a feature output)
+declared before the slot — with `params.group_levels` fixing its levels:
+`[{"value": 1, "name": "from"}, {"value": 2, "name": "to"}]`. The array
+order is the `c(...)` position, the names key the outputs (`[from] lval
+op rval`, `n_group_from`, `group_reference`), and a row whose value is no
+level drops listwise (`PULSE_MATRIX_GROUP_LEVEL_UNDECLARED`). A declared
+level without rows warns `PULSE_MATRIX_GROUP_LEVEL_EMPTY` and is no group.
+This is how a stored request fits a wave pair chosen by request `params`:
+the attribute expression reads `params.from_wave` / `params.to_wave`
+(`wave == params.to_wave ? 2 : (wave == params.from_wave ? 1 : 0)`), while
+the `MAT_SEM` params stay plain JSON — no `params` reach `model` or
+`group_reference`. `ATTR_SEM_SCORE` takes the same `group` / `group_levels`.
+More than 256 distinct undeclared values fail the slot alone with
+`PULSE_MATRIX_GROUP_LEVEL_LIMIT`; `group_levels` on a cohort-field group
+is refused. Runnable: `internal/examples/matrices/19_sem_wave_pair.json`.
+Skill: `sem-groups`.
+
 **Invariance.** `params.group_equal` holds lavaan `group.equal` classes
 equal across the groups — `loadings`, `intercepts`, `means`, `residuals`,
 `residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`

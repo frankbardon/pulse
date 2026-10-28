@@ -32,7 +32,7 @@ Questions it answers:
 | `group_reference` | string | — | |
 | `group_equal` | list | — | |
 | `group_partial` | list | — | |
-| `group_levels` | array | — | |
+| `group_levels` | array | — | [`sem-groups`](sem-groups.md). |
 | `solver` | enum | `slsqp` | Or `fisher`. |
 | `information` | enum | `dense` | |
 | `ftol` | float | 1e-06 | |
