@@ -809,7 +809,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 202,
+    "error_codes_count": 203,
     "error_domains": [
       "CLI",
       "DATA",
@@ -991,6 +991,7 @@
       "PULSE_SPSS_SIDECAR_INVALID",
       "PULSE_SPSS_SIDECAR_STALE",
       "PULSE_SPSS_TEMPORAL_PRECISION",
+      "PULSE_SPSS_TYPE_NOT_RESTORED",
       "PULSE_SPSS_VALUE_COLLISION",
       "PULSE_SPSS_VALUE_LABELS_DROPPED",
       "PULSE_SPSS_VERY_LONG_STRING_INVALID",
@@ -2453,4 +2454,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8346563e0f0559b1090b942f5a836a3603fbc52a8fa2e8f2b51f6483ee2158ea
+// golden-hash: 30750b92bc575aa7851ed35da3b9b421c30468788fbfc2d6a9d70fb2c76f6767

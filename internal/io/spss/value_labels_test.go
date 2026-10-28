@@ -44,6 +44,11 @@ func digest(b []byte) string {
 // that carry no value-label binding to their pre-binding bytes: the sidecar
 // path (an SPSS-origin cohort) and the synthesised path (a native cohort,
 // categoricals as STRING variables).
+//
+// The synthesised digest moved once, at cohort-reshape E6-S2, for the
+// record 7/18 `@PulseType` hint on the u8 `id` column (type_hint.go); the
+// sidecar-path digest did not move, which is the hint's no-op on an
+// SPSS-origin cohort.
 func TestValueLabels_UnboundExportsAreByteIdentical(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +61,7 @@ func TestValueLabels_UnboundExportsAreByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := digest(out); got != "f4e5ee281a081c1d7048a8e31d1a2dd805ce18cc6666afb03459281d7736ba09" {
+	if got := digest(out); got != "e7b959825c398bf0b94d9e61bb23aae6c66d957775474d839c46903300155e83" {
 		t.Errorf("synthesised-path export digest = %s, changed", got)
 	}
 }

@@ -3131,6 +3131,21 @@ const (
 	// DetailSPSSFormat.
 	PULSE_SPSS_DATE_WIDENED Code = "PULSE_SPSS_DATE_WIDENED"
 
+	// PULSE_SPSS_TYPE_NOT_RESTORED indicates a `.sav` variable carried a
+	// Pulse type hint — the record 7/18 `@PulseType` attribute a Pulse
+	// export writes for a column whose type SPSS cannot hold natively
+	// (an integer width, f32, packed_bool, decimal128, a wide categorical
+	// rung) — and the import did NOT restore that type, because the hint
+	// is unreadable, names a type the variable's SPSS shape cannot carry,
+	// or a value does not fit it exactly (a u64 at or past 2^53, a
+	// fractional value under an integer type, a decimal past its scale).
+	// It is a WARNING: the variable maps as if it carried no hint (a plain
+	// numeric is f64), which holds every value the file stores, so nothing
+	// is truncated. Details carry the variable under DetailSPSSVariable,
+	// the hint under DetailSPSSPulseType and, for a value that did not
+	// fit, that value under DetailSPSSValue.
+	PULSE_SPSS_TYPE_NOT_RESTORED Code = "PULSE_SPSS_TYPE_NOT_RESTORED"
+
 	// PULSE_SPSS_VALUE_COLLISION indicates two distinct SPSS values of one
 	// variable resolve to the same Pulse categorical dictionary entry, so
 	// the original-value-to-dictionary-ID mapping is no longer one-to-one
@@ -4350,6 +4365,12 @@ const (
 	// a schema-mapping diagnostic refers to.
 	DetailSPSSFormat = "format_code"
 
+	// DetailSPSSPulseType is the CodedError.Details key carrying the Pulse
+	// type hint (the record 7/18 `@PulseType` attribute value, e.g. "u8"
+	// or "decimal128(10,2)") a PULSE_SPSS_TYPE_NOT_RESTORED diagnostic
+	// refers to.
+	DetailSPSSPulseType = "pulse_type"
+
 	// DetailSPSSCharset is the CodedError.Details key carrying the
 	// character encoding a PULSE_SPSS_CHARSET_* diagnostic refers to:
 	// the canonical name the reader resolved where it resolved one, and
@@ -4826,6 +4847,7 @@ var allCodes = []Code{
 	PULSE_SPSS_CARDINALITY_HIGH,
 	PULSE_SPSS_TEMPORAL_PRECISION,
 	PULSE_SPSS_DATE_WIDENED,
+	PULSE_SPSS_TYPE_NOT_RESTORED,
 	PULSE_SPSS_VALUE_COLLISION,
 	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
 	PULSE_SPSS_NULL_TOKEN_COLLISION,

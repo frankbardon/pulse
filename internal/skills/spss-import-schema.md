@@ -22,7 +22,7 @@ Part of the SPSS surface; entry skill `spss-cohorts`. Missing values: `spss-miss
 
 | SPSS | Pulse | Why |
 |---|---|---|
-| numeric (F/E/COMMA/DOT/PCT…) | `f64` | no range-probe narrowing — a probe types two identical files differently |
+| numeric (F/E/COMMA/DOT/PCT…) | `f64`, or its `@PulseType` hint | no range-probe narrowing — a probe types two identical files differently |
 | numeric with value labels | `categorical_u8/u16/u32` | width from distinct count; past `u32` → `PULSE_SPSS_CATEGORICAL_OVERFLOW` (hard; dropping values is worse) |
 | string (A*) | `categorical_*` | near-unique → `PULSE_SPSS_CARDINALITY_HIGH` (free-text signature), still imports |
 | very long string (>255 bytes) | one `categorical_*` | record `7/14` segments it; Pulse rejoins RAW bytes, decodes once |
@@ -34,6 +34,8 @@ Part of the SPSS surface; entry skill `spss-cohorts`. Missing values: `spss-miss
 | categorical/string user-missing | dictionary entries, verbatim + FLAGGED | `spss-missing-values` |
 | multiple-DICHOTOMY set (`7/5`, `7/7`, `7/19`) | every constituent PLUS a derived `set_*` | additive, never a replacement |
 | multiple-CATEGORY set | N `categorical_*`; definition sidecar-only | positional, duplicate-tolerant ⇒ not a set |
+
+**`@PulseType` hints restore a Pulse-written `.sav`.** A Pulse export records each column type SPSS cannot hold (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`, `categorical_u16`/`_u32`) as a hidden record `7/18` variable attribute. The import restores it only when EVERY non-missing value fits exactly; else the plain mapping (`f64`) + `PULSE_SPSS_TYPE_NOT_RESTORED` naming the value (a hand-edited file; a `u64` ≥ 2^53, which no double holds exactly). No hint (any third-party file) ⇒ the table, unchanged.
 
 **Labels naming only missing codes do NOT make a variable categorical** — `INCOME` labelled solely on 97/98/99 is continuous. Labels code the variable iff one names a value that is neither user-missing nor sysmis.
 

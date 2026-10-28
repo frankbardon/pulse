@@ -275,6 +275,10 @@ type columnMapping struct {
 	// fieldType is the resolved .pulse type.
 	fieldType encoding.FieldType
 
+	// precision and scale are a decimal128 column's, restored from a
+	// record 7/18 type hint (type_hint.go). Zero for every other type.
+	precision, scale uint8
+
 	// nullable is authoritative, not a guess: the whole data section was
 	// scanned, so it is true exactly when some case carried a value the
 	// import path reads as null (a system-missing numeric, or a string
@@ -413,6 +417,10 @@ type mapping struct {
 	// once with the mapping and never re-raised, because the mapping is
 	// memoised for the life of the reader.
 	warnings []*errors.CodedError
+
+	// hints are the record 7/18 Pulse type hints, one slot per variable,
+	// nil where the variable carries none. See type_hint.go.
+	hints []*importedHint
 }
 
 // decodeLabelKey decodes a short-string value label's VALUE slot.
@@ -482,6 +490,31 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 		kinds[i] = classify(v, labelsCodeTheVariable(v, labels[i], d.byteOrder, d.sysmis))
 	}
 
+	// Pulse type hints (record 7/18 `@PulseType`). A hinted plain numeric
+	// is checked value by value DURING the scan, so restoring the type is
+	// a fact about the whole column rather than a guess. A file without
+	// hints takes none of this.
+	var hints []*importedHint
+	if byName := typeHintsFrom(d); len(byName) > 0 {
+		hints = make([]*importedHint, len(d.vars))
+		for i, v := range d.vars {
+			// Keyed by the long name, as SPSS and PSPP write the record;
+			// a writer keying by the 8-byte short name is honoured too.
+			ih, ok := byName[strings.ToLower(v.fieldName())]
+			if !ok {
+				ih, ok = byName[strings.ToLower(v.name)]
+			}
+			if !ok {
+				continue
+			}
+			hints[i] = &ih
+			if kinds[i] == kindNumeric && ih.ok && ih.hint.numericHint() && ih.hint.ft != encoding.FieldTypeF64 {
+				h := ih.hint
+				plan.cols[i].hint = &h
+			}
+		}
+	}
+
 	// The cohort's column layout is decided from the dictionary alone,
 	// before a single case is read, so ReadHeader can answer without a
 	// scan and cannot drift from what the schema declares. It is also
@@ -510,7 +543,7 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	}
 
 	m := &mapping{plan: plan, cases: cases, body: body, charset: d.charset,
-		out: out, mrSets: sets, warnings: setWarnings,
+		out: out, mrSets: sets, warnings: setWarnings, hints: hints,
 		cols: make([]columnMapping, len(d.vars))}
 	for i, v := range d.vars {
 		col, err := m.resolveColumn(i, v, kinds[i], labels[i], &stats[i], opts)
@@ -720,6 +753,12 @@ type columnStats struct {
 	// the bounds.
 	missingValues []float64
 	missingSeen   map[string]bool
+
+	// hintMisfit records that a value did not fit the column's record
+	// 7/18 type hint, and hintMisfitValue is the first such value. See
+	// type_hint.go.
+	hintMisfit      bool
+	hintMisfitValue float64
 }
 
 // observeMissing records one user-missing datum, keeping the distinct
@@ -869,6 +908,9 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 				if value := math.Float64frombits(bits); col.missing.match(value) {
 					st.sawNull = true
 					st.observeMissing(value)
+				} else if col.hint != nil && !st.hintMisfit && !col.hint.fits(value) {
+					st.hintMisfit = true
+					st.hintMisfitValue = value
 				}
 			}
 		}
@@ -945,6 +987,10 @@ func (m *mapping) resolveColumn(at int, v variable, kind columnKind,
 			m.missingCategories = append(m.missingCategories,
 				missingCategories{field: col.name, values: flagged})
 		}
+	}
+
+	if at < len(m.hints) && m.hints[at] != nil {
+		m.applyTypeHint(&col, at, v, kind, m.hints[at], st)
 	}
 
 	col.defaultAgg, col.defaultGroup = defaultHints(col.fieldType, col.measure)
@@ -1189,6 +1235,9 @@ func (m *mapping) schema() *encoding.Schema {
 			Nullable:     nullable,
 			CsvColumnIdx: i,
 			Description:  description,
+		}
+		if ft == encoding.FieldTypeDecimal128 && !slot.sibling {
+			f.Precision, f.Scale = c.precision, c.scale
 		}
 		if ft.HasDictionary() {
 			dict := encoding.NewDictionary()

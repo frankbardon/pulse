@@ -124,6 +124,12 @@ type dataColumn struct {
 	// renders them as a reason instead of a value.
 	sibling *missingSibling
 
+	// hint is the record 7/18 Pulse type hint a plain numeric column is
+	// restored to, nil for every other column. The mapping clears it when
+	// the column falls back, so a non-nil hint here always renders a value
+	// that fits — see type_hint.go.
+	hint *typeHint
+
 	// pieces is the record 7/14 very-long-string reassembly plan: the
 	// byte ranges within a case that together hold the logical value, in
 	// order, with each physical segment's unused tail and its round-up
@@ -332,6 +338,10 @@ func (p *dataPlan) decodeCase(c []byte, row []string) *errors.CodedError {
 		case kindDateTime:
 			row[i] = p.formatDateTime(seg)
 		default:
+			if col.hint != nil && !p.isSysmis(p.bo.Uint64(seg)) {
+				row[i] = col.hint.render(math.Float64frombits(p.bo.Uint64(seg)))
+				continue
+			}
 			row[i] = p.formatNumeric(seg)
 		}
 	}

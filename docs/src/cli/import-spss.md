@@ -81,7 +81,7 @@ is **always** absent for an SPSS import — see
 
 | SPSS | Pulse | Notes |
 |---|---|---|
-| numeric (`F`, `E`, `COMMA`, `DOT`, `PCT`, …) | `f64` | No integer narrowing by range probe — a probe would type two otherwise identical files differently |
+| numeric (`F`, `E`, `COMMA`, `DOT`, `PCT`, …) | `f64`, or the type its `@PulseType` hint names | No integer narrowing by range probe — a probe would type two otherwise identical files differently. See [Pulse type hints](#pulse-type-hints) |
 | numeric with value labels | `categorical_u8` / `u16` / `u32` | Width from the distinct code count; past `u32` → `PULSE_SPSS_CATEGORICAL_OVERFLOW` |
 | string (`A*`) | `categorical_*` | Near-unique columns warn `PULSE_SPSS_CARDINALITY_HIGH` and still import |
 | very long string (wider than 255 bytes) | one `categorical_*` column | Reassembled from the record `7/14` segments — see [Very long strings](#very-long-strings) |
@@ -93,6 +93,30 @@ is **always** absent for an SPSS import — see
 | categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries, flagged in the sidecar | See [Categorical user-missing codes](#categorical-user-missing-codes) — the value *is* the label, so nothing is lost and a sibling would be redundant |
 | multiple-**dichotomy** response set (records `7/5`, `7/7`, `7/19`) | every constituent variable **as its own column**, plus an extra `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256` convenience column | See [Multiple-response sets](#multiple-response-sets) — the derived column is *additive*, because a bit cannot tell "not selected" from "not asked" |
 | multiple-**category** response set | N separate `categorical_*` columns, definition on the sidecar | Positional and duplicate-tolerant, so it is genuinely not a set |
+
+## Pulse type hints
+
+A `.sav` written by `pulse export spss` (or `pulse convert`) records the
+Pulse type of every column SPSS cannot type natively — `u4`, `u8`, `u16`,
+`u32`, `u64`, `f32`, `packed_bool`, `decimal128(p,s)` and the wider
+categorical rungs `categorical_u16` / `categorical_u32` — as a record
+`7/18` variable attribute named `@PulseType` (the `@` hides it from SPSS's
+Variable View; other readers ignore or display it). The import restores
+that type, so a cohort survives a `.sav` round trip with its field types
+intact.
+
+It is never taken on trust. A hinted numeric is restored only when every
+non-missing value fits the type **exactly**; otherwise the column maps as
+it would without the hint (`f64`) and `PULSE_SPSS_TYPE_NOT_RESTORED` names
+the variable, the hint and the first value that did not fit. That covers a
+`.sav` edited in SPSS (a fractional value under an integer type, a value
+past the type's range) and a `u64` at or past 2^53, which no SPSS double
+holds exactly — the value is kept as the double the file stores, never
+rounded into the integer type. An unreadable hint, or one naming a type
+the variable's SPSS shape cannot carry, raises the same warning.
+
+A file with no hint — every file not written by Pulse — maps exactly as
+the table above says.
 
 ## Missing values
 
@@ -706,6 +730,7 @@ each.
 | `PULSE_SPSS_CARDINALITY_HIGH` | A string column is near-unique — a free-text signature |
 | `PULSE_SPSS_DATE_WIDENED` | A date column widened to `datetime` |
 | `PULSE_SPSS_TEMPORAL_PRECISION` | A temporal column demoted to `f64` raw seconds |
+| `PULSE_SPSS_TYPE_NOT_RESTORED` | A `@PulseType` hint was not restored — a value does not fit it exactly, or the hint is unreadable — so the column maps as if unhinted; see [Pulse type hints](#pulse-type-hints) |
 | `PULSE_SPSS_VALUE_COLLISION` | Two distinct SPSS values resolve to one dictionary entry (reachable causes: the shared import path trims cells, so `" X"` and `"X"` merge; or two user-missing codes share a value label, in which case the second reason falls back to its code — see [Missing values](#missing-values)) |
 | `PULSE_SPSS_MEASURE_LEVEL_MISMATCH` | A `scale`-level variable carries value labels, so it mapped to a categorical whose smart defaults are `AGG_MODE_COUNT` / `GROUP_CATEGORY` rather than `AGG_SUM` / `GROUP_RANGE` |
 | `PULSE_SPSS_NULL_TOKEN_COLLISION` | A cell's text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) and imports as null |

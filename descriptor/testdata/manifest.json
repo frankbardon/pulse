@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 443,
+    "error_codes_count": 444,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11492,6 +11492,7 @@
       "PULSE_SPSS_SIDECAR_INVALID",
       "PULSE_SPSS_SIDECAR_STALE",
       "PULSE_SPSS_TEMPORAL_PRECISION",
+      "PULSE_SPSS_TYPE_NOT_RESTORED",
       "PULSE_SPSS_VALUE_COLLISION",
       "PULSE_SPSS_VALUE_LABELS_DROPPED",
       "PULSE_SPSS_VERY_LONG_STRING_INVALID",
@@ -20417,4 +20418,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 54dc7e680564de9b083dd0f98f5633f55c541a142ca6b28a6c261c57087fbc70
+// golden-hash: c47cff0ea992ff56b4b44e73a40af6cf0f0ee87c24ec0f6e5da57e4c8d6979e5

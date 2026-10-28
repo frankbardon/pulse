@@ -235,15 +235,15 @@ func labelledCount(v spss.Variable) int {
 // is rebuilt from its written type — a plain numeric, or an unlabelled
 // string variable of the written dictionary — so no Low / High label
 // lands on the new values, while the uncast Q1 keeps both; a .sav
-// export round-trips every cell.
+// export round-trips every cell AND every field type (the record 7/18
+// @PulseType hint restores u8 and categorical_u16 on re-import).
 func TestMaterializeOutput_CategoricalCastSidecarRebuilt(t *testing.T) {
 	t.Parallel()
 
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, labelledSavSpec(), Options{})
 	req := absentOutputRequest()
-	// A cast to a number: a plain numeric (its .sav round trip reads back
-	// as f64, as any numeric variable does, so it runs apart).
+	// A cast to a number: a plain numeric, typed u8 again on the way back.
 	req.Output = &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
 		{From: "Q1", As: "q1n", Type: "u8"}, {From: "Q1"},
 	}}
@@ -258,6 +258,8 @@ func TestMaterializeOutput_CategoricalCastSidecarRebuilt(t *testing.T) {
 	if v := vars["q1n"]; v.PulseType != "u8" || v.Kind != "numeric" || len(v.Categories) != 0 {
 		t.Errorf("q1n = %s %s %d categories, want a plain u8 numeric", v.PulseType, v.Kind, len(v.Categories))
 	}
+	savRoundTrip(t, p, afs, "numeric.pulse")
+	assertSameFieldTypes(t, p, "numeric.pulse")
 
 	req.Output = &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
 		{From: "Q1", As: "q1w", Type: "categorical_u16"},
@@ -289,6 +291,21 @@ func TestMaterializeOutput_CategoricalCastSidecarRebuilt(t *testing.T) {
 	_, labels := savRoundTrip(t, p, afs, "derived.pulse")
 	if want := map[string]map[float64]string{"Q1": {1: "Low", 2: "High"}}; !reflect.DeepEqual(labels, want) {
 		t.Errorf("value labels after the round trip = %v, want only Q1's %v", labels, want)
+	}
+	assertSameFieldTypes(t, p, "derived.pulse")
+}
+
+// assertSameFieldTypes checks a savRoundTrip re-import kept every field's
+// type (savRoundTrip itself compares rows, which a categorical's rung does
+// not show).
+func assertSameFieldTypes(t *testing.T, p *Pulse, cohort string) {
+	t.Helper()
+	src, _ := readAll(t, p, cohort)
+	back, _ := readAll(t, p, cohort+".back.pulse")
+	for i, f := range src.Fields {
+		if i >= len(back.Fields) || back.Fields[i].Type != f.Type {
+			t.Errorf("%s field %s re-imported as %v, want %s", cohort, f.Name, back.Fields[min(i, len(back.Fields)-1)].Type, f.Type)
+		}
 	}
 }
 

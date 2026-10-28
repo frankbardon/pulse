@@ -4208,6 +4208,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_TYPE_NOT_RESTORED: {
+		Message: "A .sav variable carried a Pulse type hint (the record 7/18 @PulseType attribute a Pulse export writes for a column SPSS cannot type natively), but the import did not restore that type: the hint is unreadable, names a type the variable's SPSS shape cannot carry, or a value does not fit it exactly (a u64 at or past 2^53, a fractional value under an integer type, a decimal past its scale or precision). This is a warning: the variable maps as if it carried no hint — a plain numeric becomes f64 — so every stored value is kept and nothing is truncated.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "No action is needed if f64 is acceptable. To keep the narrower type, correct the offending value in the .sav (details.value) or supply an explicit ImportJob.Schema naming the type, accepting that the import then refuses a value that does not fit.",
+			},
+		},
+	},
 	PULSE_SPSS_VALUE_COLLISION: {
 		Message: "Two distinct SPSS values of one variable resolve to the same Pulse categorical dictionary entry, so the original-code-to-dictionary-ID mapping is no longer one-to-one and an export back to .sav cannot tell which code to re-emit. This is a warning: the file is otherwise readable and the recorded code-to-label-to-ID triple carries both codes against the shared ID, so the collision is visible rather than silent.",
 		Fixups: []Fixup{

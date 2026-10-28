@@ -569,12 +569,25 @@ fixed 252-byte stride, so a multi-byte character *can* straddle a
 boundary — the reader joins the pieces before decoding, exactly as the
 writer encodes the whole value before slicing.
 
-Records `7/10`, `7/17` and `7/18` pass through **verbatim**: the reader
-never decodes them, so their bytes are the only record of what the source
-said. That is correct whenever the target charset is the source's, and it
-is the only case where overriding the target is lossy — a non-ASCII
-payload then rides `PULSE_SPSS_CHARSET_MISMATCH` as a warning rather than
-being guessed at or dropped.
+Records `7/10`, `7/17` and `7/18` pass through **verbatim**: their bytes
+are the only record of what the source said. That is correct whenever the
+target charset is the source's, and it is the only case where overriding
+the target is lossy — a non-ASCII payload then rides
+`PULSE_SPSS_CHARSET_MISMATCH` as a warning rather than being guessed at or
+dropped.
+
+The one exception is the `@PulseType` variable attribute in `7/18`, which
+the writer owns: it records the Pulse type of each column SPSS cannot type
+natively (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`,
+`categorical_u16` / `categorical_u32`) so a re-import restores it — see
+[Pulse type hints](import-spss.md#pulse-type-hints). A hint carried in
+from the source is dropped and re-derived from the cohort, so a column
+retyped since import never keeps a stale one; a column the plain import
+already types correctly gets none, so an SPSS-origin cohort nothing
+retyped exports exactly as before. A source `7/18` the writer cannot parse
+stays verbatim and gains no hint. A value-labelled integer column (a
+`--labels` binding) carries no hint: its labels make the re-import
+categorical.
 
 ## Diagnostics raised by the write side
 

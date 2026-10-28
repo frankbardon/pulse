@@ -2536,6 +2536,7 @@ pulse/errors: const DetailSPSSFormat untyped string = "format_code"
 pulse/errors: const DetailSPSSMissingCategories untyped string = "missing_categories"
 pulse/errors: const DetailSPSSMissingMode untyped string = "missing_mode"
 pulse/errors: const DetailSPSSOffset untyped string = "offset"
+pulse/errors: const DetailSPSSPulseType untyped string = "pulse_type"
 pulse/errors: const DetailSPSSRecord untyped string = "record_type"
 pulse/errors: const DetailSPSSRenames untyped string = "renames"
 pulse/errors: const DetailSPSSSet untyped string = "response_set"
@@ -2917,6 +2918,7 @@ pulse/errors: const PULSE_SPSS_SIDECAR_IGNORED pulse/errors.Code = "PULSE_SPSS_S
 pulse/errors: const PULSE_SPSS_SIDECAR_INVALID pulse/errors.Code = "PULSE_SPSS_SIDECAR_INVALID"
 pulse/errors: const PULSE_SPSS_SIDECAR_STALE pulse/errors.Code = "PULSE_SPSS_SIDECAR_STALE"
 pulse/errors: const PULSE_SPSS_TEMPORAL_PRECISION pulse/errors.Code = "PULSE_SPSS_TEMPORAL_PRECISION"
+pulse/errors: const PULSE_SPSS_TYPE_NOT_RESTORED pulse/errors.Code = "PULSE_SPSS_TYPE_NOT_RESTORED"
 pulse/errors: const PULSE_SPSS_VALUE_COLLISION pulse/errors.Code = "PULSE_SPSS_VALUE_COLLISION"
 pulse/errors: const PULSE_SPSS_VALUE_LABELS_DROPPED pulse/errors.Code = "PULSE_SPSS_VALUE_LABELS_DROPPED"
 pulse/errors: const PULSE_SPSS_VERY_LONG_STRING_INVALID pulse/errors.Code = "PULSE_SPSS_VERY_LONG_STRING_INVALID"
@@ -6308,4 +6310,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8a09be5a330a79f2d77a4ff032a1a6f7d1baed0741e5ac9d452c23dfdd12b442
+// golden-hash: a9c09c4c7187695bfb1389262acf13c007563c37a28d5221fe13b71805635d93
