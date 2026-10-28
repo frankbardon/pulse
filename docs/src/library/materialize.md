@@ -66,8 +66,9 @@ res, err := p.Materialize(ctx, &pulse.Request{
   rank) are stored as `f64`; a non-numeric value (a lag copying a
   categorical label) fails the run with
   `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- **Writing.** Always an ungrouped (`0x01`) single file, written
-  atomically through `NewCohortBuilder`. The source's SPSS metadata
+- **Writing.** Always an ungrouped single file — `0x01`, or `0x02` when
+  it keeps a `vec_*` field, whose dim, kind, scale and labels follow it
+  to its output position — written atomically through `NewCohortBuilder`. The source's SPSS metadata
   sidecar is carried — rewritten with a plain numeric variable per
   derived column (a previous-state column copies its state variable's
   codes and value labels, each category's `observed` flag recomputed

@@ -115,7 +115,9 @@ type MaterializeResult struct {
 // leaves the cohort without a sidecar, with one warning). Absent, the
 // output is the layout above, byte for byte.
 //
-// The output is always an ungrouped (format 0x01) single file, written
+// The output is always an ungrouped single file — format 0x01, or 0x02
+// when it keeps a vec_* field, whose VECTORS entry (dim, kind, scale,
+// labels) follows it to its output position — written
 // atomically through NewCohortBuilder: any failure — a refusal, a limit
 // breach (PULSE_LIMIT_EXCEEDED), a write error, cancellation — leaves
 // nothing at out (an overwritten cohort stays as it was). The source's
@@ -339,16 +341,26 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 	// derived column.
 	m.layout = layout
 	fields := make([]encoding.Field, len(layout))
+	// A kept vector field carries its VECTORS entry (dim, kind, scale,
+	// labels) to its output position, under its output name.
+	var vecs []encoding.VectorField
+	src := cohort.Schema()
 	for i, col := range layout {
 		fields[i] = col.Field
 		if col.Derived >= 0 {
 			m.names = append(m.names, col.Field.Name)
 		}
+		if col.Source >= 0 && col.Field.Type.IsVector() && src != nil {
+			if v, ok := src.Vector(col.Source); ok {
+				v.FieldIndex = i
+				vecs = append(vecs, v)
+			}
+		}
 	}
 	if m.names == nil {
 		m.names = []string{}
 	}
-	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields},
+	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields, Vectors: vecs},
 		CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite})
 	if err != nil {
 		return err
