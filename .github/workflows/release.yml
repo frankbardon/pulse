@@ -92,8 +92,12 @@ jobs:
   # pushes the contrib tags atomically. The contrib tags do not match
   # this workflow's `v*.*.*` trigger, and get no GitHub Release of their
   # own, so the root release (pre-release flag, Latest) is untouched.
+  # The explicit `if` matters: without it the implicit success() also
+  # requires the skipped `ci` job (skipped whenever a passing ci.yml run
+  # is reused), so the contrib tags were silently never cut.
   contrib:
     needs: release
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
