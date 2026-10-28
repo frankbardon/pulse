@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 441,
+    "error_codes_count": 442,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11332,6 +11332,7 @@
       "PULSE_MATERIALIZE_OUTPUT_ONLY",
       "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
       "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN",
+      "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL",
       "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_DEFINED_NONFINITE",
@@ -13136,6 +13137,10 @@
       {
         "name": "materialize-casts",
         "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen, categorical), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
+      },
+      {
+        "name": "materialize-recode",
+        "description": "Relabel, merge, null out and reorder a materialized categorical column's values with output.columns[].recode — the dictionary rewrite, its order with type and as, the drift guard against a new source cohort, and the SPSS rebuild. Topical design; child of derived-cohorts."
       },
       {
         "name": "matrix-results",
@@ -20406,4 +20411,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4dc5a6c41afba1d8ce03a6029b046a41369b07e41ee892ab3b38dad41e3381a1
+// golden-hash: b41981a851c2f7a340de9a13cc4197e0c30a0dfe6cd7c83c1b63098e35e7199f

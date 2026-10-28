@@ -317,7 +317,7 @@ byte-identical to the earlier wire form.
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
 `Pulse.Materialize` writes: `columns` — a list of
 `#/$defs/MaterializeOutputColumn` `{from, as, description, nullable,
-type, precision, scale, on_cast_error}`, `from` required — XOR `exclude` (field / derived-column names). It is
+type, precision, scale, on_cast_error, recode}`, `from` required — XOR `exclude` (field / derived-column names). It is
 additive: `format_version` stays `"1.1"` and omitting it writes the
 cohort Materialize always wrote, byte for byte. It is MATERIALIZE-ONLY:
 every other operation that takes a `Request` (process, compose, chain,
@@ -334,7 +334,14 @@ two columns under one name after `as` is
 `PULSE_MATERIALIZE_OUTPUT_DUPLICATE`; a `type` its column cannot cast
 to is `PULSE_MATERIALIZE_CAST_UNSUPPORTED`, an unknown `type`, a bad
 `precision` / `scale` or a misused `on_cast_error` (`"fail"` /
-`"null"`) `PULSE_MATERIALIZE_OUTPUT_INVALID`. A null in a `nullable:
+`"null"`) `PULSE_MATERIALIZE_OUTPUT_INVALID`. `recode`
+(`#/$defs/MaterializeRecode` `{map, order}`; a `map` value is a label or
+`null`) rewrites a categorical's dictionary before `type` reads it: a
+`map` key its source dictionary lacks is
+`PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL` (`details.label`); a recode of a
+non-categorical, a `null` on a non-nullable column, or an `order` that
+is not exactly the recoded labels once each is
+`PULSE_MATERIALIZE_OUTPUT_INVALID`. A null in a `nullable:
 false` column fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`, a
 stored value its cast cannot represent with
 `PULSE_MATERIALIZE_CAST_FAILED` (or, `on_cast_error: "null"`, a null and

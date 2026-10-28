@@ -481,9 +481,14 @@ const (
 	// unknown `type` name (unknown_type), a precision / scale out of
 	// range or on a non-decimal type (decimal_shape), an unknown
 	// on_cast_error (on_cast_error_invalid), on_cast_error without a
-	// `type` (on_cast_error_without_type) or "null" on a non-nullable
-	// column (on_cast_error_not_nullable). details carry reason and
-	// path. Raised before any file is created.
+	// `type` or `recode` (on_cast_error_without_type) or "null" on a
+	// non-nullable column (on_cast_error_not_nullable), a recode on a
+	// column that is not categorical_* (recode_not_categorical), a
+	// recode to null on a non-nullable column (recode_null_not_nullable),
+	// a recode.order naming a label twice (recode_order_duplicate), one
+	// the recode does not write (recode_order_unknown) or omitting one it
+	// does (recode_order_missing). details carry reason and path (a
+	// recode refusal also label). Raised before any file is created.
 	PULSE_MATERIALIZE_OUTPUT_INVALID Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
 
 	// PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN indicates an `output`
@@ -532,6 +537,15 @@ const (
 	// more values. details carry column, count, first_row, from_type and
 	// to_type.
 	PULSE_MATERIALIZE_CAST_NULLED Code = "PULSE_MATERIALIZE_CAST_NULLED"
+
+	// PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL indicates an `output`
+	// column's recode.map key that the source column's dictionary does
+	// not hold — the drift guard when a stored request meets a new
+	// source cohort. details carry column (the output name), path, from
+	// (the column read), label and, when a label is close, suggestion.
+	// Raised before any file is created; predict refuses it with the
+	// same code and details.
+	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL Code = "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL"
 
 	// PULSE_RAKE_INVALID indicates a malformed Pulse.Rake request,
 	// refused before any record is read or any file is created.
@@ -4522,6 +4536,7 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_CAST_UNSUPPORTED,
 	PULSE_MATERIALIZE_CAST_FAILED,
 	PULSE_MATERIALIZE_CAST_NULLED,
+	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL,
 	PULSE_RAKE_INVALID,
 	PULSE_RAKE_UNKNOWN_CATEGORY,
 	PULSE_RAKE_UNTARGETED_CATEGORY,

@@ -835,7 +835,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATERIALIZE_OUTPUT_INVALID: {
-		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, has a column entry without from, names an unknown type, gives a precision / scale out of range or on a non-decimal type, or sets on_cast_error to an unknown value, without a type, or to null on a non-nullable column. details.reason names the rule and details.path the offending key.",
+		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, has a column entry without from, names an unknown type, gives a precision / scale out of range or on a non-decimal type, sets on_cast_error to an unknown value, without a type or recode, or to null on a non-nullable column, recodes a column that is not categorical or a label to null on a non-nullable column, or gives a recode.order that is not exactly the recoded labels once each. details.reason names the rule and details.path the offending key.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -901,6 +901,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Output", "Columns", "*", "OnCastError"},
 				Hint:   "Expected when on_cast_error is null. To fail instead of nulling, drop on_cast_error; to keep the values, pick a wider type for the column named by details.column.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL: {
+		Message: "A materialize output column's recode.map names a label its source column's dictionary does not hold (the source cohort changed, or the label is misspelled), so nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Columns", "*", "Recode", "Map"},
+				Hint:   "Rename or drop the recode.map key details.label (details.suggestion names the closest source label when there is one); pulse inspect --full-dict lists the dictionary of the column named by details.from.",
 			},
 		},
 	},

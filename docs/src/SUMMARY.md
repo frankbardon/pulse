@@ -82,6 +82,7 @@
     - [join-design](guide/skills/join-design.md)
     - [label-display](guide/skills/label-display.md)
     - [materialize-casts](guide/skills/materialize-casts.md)
+    - [materialize-recode](guide/skills/materialize-recode.md)
     - [matrix-results](guide/skills/matrix-results.md)
     - [mmm-workflow](guide/skills/mmm-workflow.md)
     - [multiplicity-correction](guide/skills/multiplicity-correction.md)

@@ -2715,6 +2715,9 @@
         "precision": {
           "type": "integer"
         },
+        "recode": {
+          "$ref": "#/$defs/MaterializeRecode"
+        },
         "scale": {
           "type": "integer"
         },
@@ -2811,6 +2814,31 @@
         "risks",
         "valid"
       ],
+      "type": "object"
+    },
+    "MaterializeRecode": {
+      "additionalProperties": false,
+      "properties": {
+        "map": {
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": "Source label → new label, or null to write the cell null. Every key must be a label of the source column's dictionary; unmapped labels keep themselves, labels mapped to one value merge.",
+          "type": "object"
+        },
+        "order": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
       "type": "object"
     },
     "MaterializeRisk": {
@@ -6714,4 +6742,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: decb397de3a59f2dc73c08dff1281afd38bca5a6aafa08f9ddfbe86ed7073e0a
+// golden-hash: ecf687b286c6f564ff3bbe206fa60f1d71be3b0c8f151d6e4f6e0ef5045ae152

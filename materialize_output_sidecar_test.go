@@ -340,3 +340,47 @@ func TestMaterializeOutput_RebuiltPreviousStateDropsMirror(t *testing.T) {
 		}
 	}
 }
+
+// TestMaterializeOutput_RecodedColumnSidecarRebuilt: Q1 (SPSS codes "1"
+// / "2", value-labelled Low / High) recoded — relabelled, and merged
+// into one entry — has its variable rebuilt from the recoded dictionary,
+// an unlabelled string variable of the new labels: Low / High never land
+// on the new codes, while an untouched Q1 keeps both; a .sav export
+// round-trips every cell.
+func TestMaterializeOutput_RecodedColumnSidecarRebuilt(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, labelledSavSpec(), Options{})
+	req := absentOutputRequest()
+	req.Output = &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+		{From: "Q1", As: "q1r", Recode: &types.MaterializeRecode{Map: recodeMap("1", "low", "2", "high"), Order: []string{"high", "low"}}},
+		{From: "Q1", As: "q1m", Recode: &types.MaterializeRecode{Map: recodeMap("1", "2")}},
+		{From: "Q1"},
+	}}
+	res, err := p.Materialize(context.Background(), req, "recoded.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("warnings %v, want the sidecar carried", res.Warnings)
+	}
+	vars := sidecarVars(t, afs, "recoded.pulse")
+	for name, want := range map[string][]string{"q1r": {"high", "low"}, "q1m": {"2"}} {
+		v := vars[name]
+		var values []string
+		for _, c := range v.Categories {
+			values = append(values, c.Value)
+		}
+		if v.Kind != "categorical" || labelledCount(v) != 0 || !reflect.DeepEqual(values, want) {
+			t.Errorf("%s = %s, values %v, %d labelled; want an unlabelled categorical of %v", name, v.Kind, values, labelledCount(v), want)
+		}
+	}
+	if n := labelledCount(vars["Q1"]); n != 2 {
+		t.Errorf("untouched Q1 keeps %d labels, want 2", n)
+	}
+	_, labels := savRoundTrip(t, p, afs, "recoded.pulse")
+	if want := map[string]map[float64]string{"Q1": {1: "Low", 2: "High"}}; !reflect.DeepEqual(labels, want) {
+		t.Errorf("value labels after the round trip = %v, want only Q1's %v", labels, want)
+	}
+}

@@ -550,6 +550,13 @@ var fieldOverrides = map[fieldKey]any{
 		"items":       map[string]any{"type": "object"},
 		"description": "Compose overlay specs (the #/$defs/ComposeOverlaySpec shape) with axis placeholders, substituted per expanded slot and appended to the request's own overlays.",
 	},
+	// A recode map's value is a label or JSON null (the cell written
+	// null); reflection would describe *string as a bare string.
+	{reflect.TypeFor[types.MaterializeRecode](), "map"}: map[string]any{
+		"type":                 "object",
+		"additionalProperties": map[string]any{"type": []any{"string", "null"}},
+		"description":          "Source label → new label, or null to write the cell null. Every key must be a label of the source column's dictionary; unmapped labels keep themselves, labels mapped to one value merge.",
+	},
 	// An item for_each walks explicit values only: its mode is grid or
 	// zip whatever the instance (the sampling modes are compose-sweep
 	// only, refused as mode_unknown).

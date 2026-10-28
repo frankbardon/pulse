@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -190,5 +191,62 @@ func TestMaterializeOutputLayout_Casts(t *testing.T) {
 	}
 	if layout[6].Cast.Zone != "" {
 		t.Errorf("MaterializeOutputLayout set a zone; only MaterializePlan does")
+	}
+}
+
+// TestMaterializeOutputLayout_Recode: a recode rewrites the written
+// field's dictionary (relabel in place, merge at the first label's
+// position, null entries left out, order applied), marks the column
+// Rebuild, hands the run its label map (never nil: an order-only recode
+// carries an empty one) and feeds the cast the recoded dictionary — a
+// merge that brings a 257-label categorical to 256 narrows to
+// categorical_u8. The source schema's dictionary is never mutated.
+func TestMaterializeOutputLayout_Recode(t *testing.T) {
+	t.Parallel()
+
+	small := encoding.NewDictionary()
+	for _, l := range []string{"a", "b", "c"} {
+		_, _ = small.Add(l)
+	}
+	wide := encoding.NewDictionary()
+	for i := 0; i < 257; i++ {
+		_, _ = wide.Add("L" + strconv.Itoa(i))
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "k", Type: encoding.FieldTypeCategoricalU8, Nullable: true, Dictionary: small, Description: "Key of the source"},
+		{Name: "w", Type: encoding.FieldTypeCategoricalU16, Dictionary: wide, Description: "Wide key of the source"},
+	}}
+	str := func(s string) *string { return &s }
+	req := &types.Request{Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
+		{From: "k", As: "relabel", Recode: &types.MaterializeRecode{Map: map[string]*string{"b": str("B")}}},
+		{From: "k", As: "merge", Recode: &types.MaterializeRecode{Map: map[string]*string{"c": str("a"), "b": nil}}},
+		{From: "k", As: "order", Recode: &types.MaterializeRecode{Order: []string{"c", "a", "b"}}},
+		{From: "w", Type: "categorical_u8", Recode: &types.MaterializeRecode{Map: map[string]*string{"L256": str("L0")}}},
+		{From: "k", As: "plain"},
+	}}}
+	layout, ce := MaterializeOutputLayout(req, schema, nil)
+	if ce != nil {
+		t.Fatal(ce)
+	}
+	for i, want := range [][]string{{"a", "B", "c"}, {"a"}, {"c", "a", "b"}} {
+		if got := layout[i].Field.Dictionary.Values(); !slices.Equal(got, want) {
+			t.Errorf("%s dictionary = %v, want %v", layout[i].Field.Name, got, want)
+		}
+		if !layout[i].Rebuild || layout[i].Recode == nil || layout[i].Cast != nil {
+			t.Errorf("%s rebuild=%v recode=%v cast=%v, want a rebuilt uncast recode", layout[i].Field.Name, layout[i].Rebuild, layout[i].Recode, layout[i].Cast)
+		}
+	}
+	if m := layout[1].Recode; len(m) != 2 || m["b"] != nil || m["c"] == nil || *m["c"] != "a" {
+		t.Errorf("merge map = %v", m)
+	}
+	w := layout[3]
+	if w.Field.Type != encoding.FieldTypeCategoricalU8 || w.Field.Dictionary.Count() != 256 || w.Cast == nil || w.Cast.From.Dictionary.Count() != 256 {
+		t.Errorf("w = %s, %d labels, cast %+v", w.Field.Type, w.Field.Dictionary.Count(), w.Cast)
+	}
+	if layout[4].Rebuild || layout[4].Recode != nil || layout[4].Field.Dictionary != small {
+		t.Errorf("plain column touched: %+v", layout[4])
+	}
+	if small.Count() != 3 || wide.Count() != 257 {
+		t.Errorf("source dictionaries mutated: %d / %d", small.Count(), wide.Count())
 	}
 }

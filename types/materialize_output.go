@@ -91,7 +91,51 @@ type MaterializeOutputColumn struct {
 	// PULSE_MATERIALIZE_CAST_FAILED (details column + row + value +
 	// reason), nothing written; "null" writes a null in its place and
 	// warns once per column with PULSE_MATERIALIZE_CAST_NULLED (details
-	// count). "null" needs a nullable output column and a Type
-	// (PULSE_MATERIALIZE_OUTPUT_INVALID otherwise).
+	// count). "null" needs a nullable output column
+	// (PULSE_MATERIALIZE_OUTPUT_INVALID, reason
+	// on_cast_error_not_nullable). It applies only to a column that
+	// re-codes its values — a Type or a Recode
+	// (on_cast_error_without_type otherwise); a Recode alone never fails
+	// a value, its refusals are all static.
 	OnCastError string `json:"on_cast_error,omitempty"`
+
+	// Recode rewrites a categorical column's labels — relabel, merge,
+	// map to null, reorder — before any Type cast reads them. Nil keeps
+	// the labels. See MaterializeRecode.
+	Recode *MaterializeRecode `json:"recode,omitempty"`
+}
+
+// MaterializeRecode is an output column's categorical recode
+// (MaterializeOutputColumn.Recode): a rewrite of the dictionary of the
+// categorical_* column it reads, never a per-row expression. The order
+// of operations on one column is recode (the source labels), then Type
+// (the recoded labels — a categorical narrowing is judged on the
+// recoded dictionary, so a merge can make it fit), then the nullability
+// check; As only names the result.
+//
+// The written dictionary is the source dictionary's labels in code
+// order, each replaced by its Map value (an unmapped label keeps
+// itself; a label mapped to null leaves it), first occurrence kept —
+// so labels mapped to one value merge into one entry at the position
+// of the first of them — unless Order names the final order. Each cell
+// is written as its label's recoded value.
+//
+// Refusals, all before anything is read (predict refuses each with the
+// same code and details): Recode on a column that is not categorical_*
+// (PULSE_MATERIALIZE_OUTPUT_INVALID, reason recode_not_categorical); a
+// Map key absent from the source dictionary
+// (PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL, details label — the drift
+// guard when a stored request meets a new source cohort); a null value
+// on a column whose output is not nullable (reason
+// recode_null_not_nullable); an Order naming a label the recode does not
+// write (recode_order_unknown), omitting one it does
+// (recode_order_missing) or naming one twice (recode_order_duplicate).
+type MaterializeRecode struct {
+	// Map maps a source label to its new label, or to null (JSON null:
+	// the cell is written null). Labels mapped to the same value merge.
+	Map map[string]*string `json:"map,omitempty"`
+
+	// Order is the written dictionary's order: every label the recode
+	// writes, each exactly once. Empty keeps first-occurrence order.
+	Order []string `json:"order,omitempty"`
 }

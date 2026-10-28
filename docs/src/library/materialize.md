@@ -149,7 +149,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
   `from`, `from_type`, `to_type`, `reason`); an unknown name, a bad
   decimal shape and every `on_cast_error` misuse are
   `PULSE_MATERIALIZE_OUTPUT_INVALID` (`unknown_type`, `decimal_shape`,
-  `on_cast_error_invalid`, `on_cast_error_without_type`,
+  `on_cast_error_invalid`, `on_cast_error_without_type` (neither
+  `type` nor `recode`),
   `on_cast_error_not_nullable`) — all before a record is read, and
   predicted identically.
 - **A value that does not fit.** By default it fails the run with
@@ -163,6 +164,31 @@ res, err := p.Materialize(ctx, &pulse.Request{
   type (a categorical: an unlabelled string variable of its labels) —
   no old value label lands on the cast values, a cast previous-state
   column's included.
+- **Recoding: `recode`.** On a `categorical_*` column,
+  `recode: {map, order}` rewrites the dictionary — never a per-row
+  expression. `map` takes a source label to a new label (relabel), many
+  labels to one (merge: one entry, at the first one's position) or to
+  `null` (the cells written null; the output column must be nullable).
+  Unmapped labels keep themselves; the written dictionary is the
+  source's in code order with each label replaced, unused entries
+  included, unless `order` lists every recoded label once in the order
+  wanted (codes follow). Order of operations on one column: `recode`,
+  then `type` (the cast reads the recoded labels — a merge can bring a
+  257-label column under `categorical_u8`), then the nullability check;
+  `as` only names the result. A `map` key the source dictionary does not
+  hold is `PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL` (`details.column`,
+  `path`, `from`, `label`, `suggestion`) — the drift guard when a stored
+  request meets a new source cohort; a recode of a non-categorical, a
+  `null` on a non-nullable column, or an `order` naming a label the
+  recode does not write, omitting one it does or naming one twice is
+  `PULSE_MATERIALIZE_OUTPUT_INVALID` (`recode_not_categorical`,
+  `recode_null_not_nullable`, `recode_order_unknown`,
+  `recode_order_missing`, `recode_order_duplicate`; `details.label`).
+  All are refused before a record is read, and predicted identically.
+  `on_cast_error` is accepted on a recoded column (a recode alone never
+  fails a value). The column's SPSS variable is rebuilt from the
+  recoded dictionary — an unlabelled string variable of the new labels,
+  so no old value label lands on a new code.
 - **Projection is last.** Filters, `sort`, weights, features,
   attributes and windows read the full source schema plus the derived
   columns, so they may name a column the output drops.

@@ -41,7 +41,7 @@ Refused before anything is read (`PULSE_MATERIALIZE_CAST_UNSUPPORTED`, `details.
 - Default (`on_cast_error` absent or `"fail"`): the run fails with `PULSE_MATERIALIZE_CAST_FAILED` — `details.column`, `row` (0-based output row), `value` (exact), `reason` (`fractional`, `overflow`, `not_finite`, `not_boolean`, `unparseable`). Nothing is written.
 - `on_cast_error: "null"`: the cell is written null and the run warns ONCE per column, `PULSE_MATERIALIZE_CAST_NULLED` (`details.count`, `first_row`). The output column must be nullable — `nullable: true` on a non-nullable source.
 
-`PULSE_MATERIALIZE_OUTPUT_INVALID` reasons: `unknown_type`, `decimal_shape` (out of range, or on a non-decimal type), `on_cast_error_invalid`, `on_cast_error_without_type`, `on_cast_error_not_nullable`.
+`PULSE_MATERIALIZE_OUTPUT_INVALID` reasons: `unknown_type`, `decimal_shape` (out of range, or on a non-decimal type), `on_cast_error_invalid`, `on_cast_error_without_type` (neither `type` nor `recode`), `on_cast_error_not_nullable`.
 
 ## Predict first
 
@@ -57,5 +57,6 @@ Predict refuses every static case above with the run's code and details, and lis
 ## See
 
 - [`derived-cohorts`](derived-cohorts.md) — the output slot and the two-step recipe.
+- [`materialize-recode`](materialize-recode.md) — relabel / merge / reorder a categorical BEFORE its cast.
 - [`tool-materialize`](tool-materialize.md) — the MCP tool.
 - [`time-zones`](time-zones.md) — zone resolution and DST.

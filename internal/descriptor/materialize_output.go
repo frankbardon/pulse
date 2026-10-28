@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -27,14 +28,20 @@ import (
 // it is regenerated from the written type and dictionary, never carried
 // (spss.RebuildVariable) — old value labels never land on new codes.
 //
+// Recode is the column's categorical recode (nil when it has none): each
+// label read is written as its entry's value (a nil value: null), a
+// label with no entry as itself — applied BEFORE Cast. Field.Dictionary
+// is then the recoded dictionary (outputRecode).
+//
 // Cast is the column's `type` cast (nil when it keeps its type): every
-// cell read is converted by fieldcast before the append. A cast column
-// is always Rebuild.
+// cell read is converted by fieldcast before the append. A cast or
+// recoded column is always Rebuild.
 type MaterializeOutputField struct {
 	Field   encoding.Field
 	Source  int
 	Derived int
 	Rebuild bool
+	Recode  map[string]*string
 	Cast    *MaterializeCast
 }
 
@@ -170,7 +177,18 @@ func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols [
 		if c.Nullable != nil {
 			f.Field.Nullable = *c.Nullable
 		}
-		cast, ce := outputCast(c, i, all[at].Field, &f.Field)
+		// Recode, then cast: the cast reads the recoded labels and
+		// dictionary (a narrowing is judged on the merged one).
+		from := all[at].Field
+		recode, ce := outputRecode(c, i, from, &f.Field)
+		if ce != nil {
+			return nil, ce
+		}
+		if recode != nil {
+			f.Recode, f.Rebuild = recode, true
+			from.Dictionary = f.Field.Dictionary
+		}
+		cast, ce := outputCast(c, i, from, &f.Field)
 		if ce != nil {
 			return nil, ce
 		}
@@ -210,9 +228,11 @@ func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to 
 	}
 	if c.Type == "" {
 		switch {
-		case c.OnCastError != "":
+		case c.OnCastError != "" && c.Recode == nil:
 			return nil, outputInvalid("on_cast_error_without_type", outputPath("columns", i, "on_cast_error"),
-				"output.columns["+strconv.Itoa(i)+"] sets on_cast_error without a type; it applies only to a cast column")
+				"output.columns["+strconv.Itoa(i)+"] sets on_cast_error without a type or recode; it applies only to a column that re-codes its values")
+		case nullOnError && !to.Nullable:
+			return nil, onCastErrorNotNullable(i)
 		case c.Precision != nil || c.Scale != nil:
 			return nil, outputInvalid("decimal_shape", outputPath("columns", i, "precision"),
 				"output.columns["+strconv.Itoa(i)+"] sets precision / scale without type: \"decimal128\"")
@@ -252,8 +272,7 @@ func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to 
 			"output.columns["+strconv.Itoa(i)+"] sets precision / scale on type "+strconv.Quote(c.Type)+"; they shape only a decimal128")
 	}
 	if nullOnError && !to.Nullable {
-		return nil, outputInvalid("on_cast_error_not_nullable", outputPath("columns", i, "on_cast_error"),
-			"output.columns["+strconv.Itoa(i)+"] sets on_cast_error: \"null\" on a column that is not nullable; set nullable: true or drop on_cast_error")
+		return nil, onCastErrorNotNullable(i)
 	}
 	if typ == from.Type && (!typ.IsDecimal() || (precision == from.Precision && scale == from.Scale)) {
 		return nil, nil
@@ -267,6 +286,126 @@ func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to 
 		to.Dictionary = nil
 	}
 	return &MaterializeCast{From: from, NullOnError: nullOnError}, nil
+}
+
+func onCastErrorNotNullable(i int) *errors.CodedError {
+	return outputInvalid("on_cast_error_not_nullable", outputPath("columns", i, "on_cast_error"),
+		"output.columns["+strconv.Itoa(i)+"] sets on_cast_error: \"null\" on a column that is not nullable; set nullable: true or drop on_cast_error")
+}
+
+// outputRecode resolves column i's `recode` (types.MaterializeRecode)
+// against from, the field it reads, rewriting to.Dictionary (the
+// written field, its name and nullability already resolved) to the
+// recoded dictionary: from's labels in code order, each replaced by its
+// map value (unmapped: kept; null: left out), first occurrence kept —
+// or recode.order. It returns the label map the run applies per cell
+// (never nil when the column has a recode), nil when it has none.
+// Schema-only: every refusal is static, so predict and the run raise
+// the same one —
+//
+//   - from not categorical_*: PULSE_MATERIALIZE_OUTPUT_INVALID, reason
+//     recode_not_categorical;
+//   - a map key absent from from's dictionary (keys checked in sorted
+//     order): PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL, details column,
+//     path, from, label (+ suggestion when a label is close);
+//   - a null value on a non-nullable output: recode_null_not_nullable
+//     (details label);
+//   - order naming the same label twice (recode_order_duplicate), a
+//     label the recode does not write (recode_order_unknown) or
+//     omitting one it does (recode_order_missing), details label.
+func outputRecode(c types.MaterializeOutputColumn, i int, from encoding.Field, to *encoding.Field) (map[string]*string, *errors.CodedError) {
+	rc := c.Recode
+	if rc == nil {
+		return nil, nil
+	}
+	path := outputPath("columns", i, "recode")
+	if !from.Type.HasDictionary() || from.Type.IsSet() {
+		return nil, outputInvalid("recode_not_categorical", path,
+			"output.columns["+strconv.Itoa(i)+"] recodes "+strconv.Quote(from.Name)+", a "+from.Type.String()+" column; recode rewrites a categorical_* column's labels only")
+	}
+	var source []string
+	if from.Dictionary != nil {
+		source = from.Dictionary.Values()
+	}
+	known := make(map[string]bool, len(source))
+	for _, l := range source {
+		known[l] = true
+	}
+	keys := make([]string, 0, len(rc.Map))
+	for k := range rc.Map {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	invalid := func(reason, at, label, msg string) *errors.CodedError {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_OUTPUT_INVALID, msg,
+			map[string]any{"reason": reason, "path": at, "label": label})
+	}
+	for _, k := range keys {
+		if !known[k] {
+			details := map[string]any{"column": to.Name, "path": path + ".map", "from": from.Name, "label": k}
+			if near := NearestKey(k, source); near != "" {
+				details["suggestion"] = near
+			}
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL,
+				"output column "+strconv.Quote(to.Name)+" recodes the label "+strconv.Quote(k)+", which "+strconv.Quote(from.Name)+"'s dictionary does not hold",
+				details)
+		}
+		if rc.Map[k] == nil && !to.Nullable {
+			return nil, invalid("recode_null_not_nullable", path+".map", k,
+				"output.columns["+strconv.Itoa(i)+"] recodes "+strconv.Quote(k)+" to null on a column that is not nullable; set nullable: true or map it to a label")
+		}
+	}
+	mapping := make(map[string]*string, len(rc.Map))
+	written := make([]string, 0, len(source))
+	at := make(map[string]bool, len(source))
+	for _, l := range source {
+		v, mapped := rc.Map[l]
+		switch {
+		case !mapped:
+			v = &l
+		case v == nil:
+			mapping[l] = nil
+			continue
+		default:
+			nv := *v
+			v = &nv
+			mapping[l] = v
+		}
+		if !at[*v] {
+			at[*v] = true
+			written = append(written, *v)
+		}
+	}
+	if len(rc.Order) > 0 {
+		opath := path + ".order"
+		named := make(map[string]bool, len(rc.Order))
+		for _, l := range rc.Order {
+			switch {
+			case named[l]:
+				return nil, invalid("recode_order_duplicate", opath, l,
+					"output.columns["+strconv.Itoa(i)+"].recode.order names "+strconv.Quote(l)+" twice")
+			case !at[l]:
+				return nil, invalid("recode_order_unknown", opath, l,
+					"output.columns["+strconv.Itoa(i)+"].recode.order names "+strconv.Quote(l)+", which the recode does not write; list exactly the recoded labels")
+			}
+			named[l] = true
+		}
+		for _, l := range written {
+			if !named[l] {
+				return nil, invalid("recode_order_missing", opath, l,
+					"output.columns["+strconv.Itoa(i)+"].recode.order omits "+strconv.Quote(l)+", which the recode writes; list every recoded label once")
+			}
+		}
+		written = rc.Order
+	}
+	dict := encoding.NewDictionary()
+	for _, l := range written {
+		// Add never fails (no capacity): the recoded dictionary holds at
+		// most as many labels as the source's, which fits its type.
+		_, _ = dict.Add(l)
+	}
+	to.Dictionary = dict
+	return mapping, nil
 }
 
 // materializeOutputShape is the schema-free half of the `output`

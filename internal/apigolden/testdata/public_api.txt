@@ -2737,6 +2737,7 @@ pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NULL pulse/errors.Code = "PULSE_MAT
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_ONLY pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_ONLY"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNDECLARED pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN"
+pulse/errors: const PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL pulse/errors.Code = "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL"
 pulse/errors: const PULSE_MATERIALIZE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 pulse/errors: const PULSE_MATERIALIZE_SLOT_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
 pulse/errors: const PULSE_MATRIX_DEFINED_NONFINITE pulse/errors.Code = "PULSE_MATRIX_DEFINED_NONFINITE"
@@ -5400,8 +5401,12 @@ pulse/types: type MaterializeOutputColumn field From string "json:\"from\""
 pulse/types: type MaterializeOutputColumn field Nullable *bool "json:\"nullable,omitempty\""
 pulse/types: type MaterializeOutputColumn field OnCastError string "json:\"on_cast_error,omitempty\""
 pulse/types: type MaterializeOutputColumn field Precision *int "json:\"precision,omitempty\""
+pulse/types: type MaterializeOutputColumn field Recode *pulse/types.MaterializeRecode "json:\"recode,omitempty\""
 pulse/types: type MaterializeOutputColumn field Scale *int "json:\"scale,omitempty\""
 pulse/types: type MaterializeOutputColumn field Type string "json:\"type,omitempty\""
+pulse/types: type MaterializeRecode struct
+pulse/types: type MaterializeRecode field Map map[string]*string "json:\"map,omitempty\""
+pulse/types: type MaterializeRecode field Order []string "json:\"order,omitempty\""
 pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
@@ -6266,4 +6271,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 79cc6da4e7cbd0a0c053ec253c3235794b67aedf63f9d092ac4e8de39f599113
+// golden-hash: 53cfb92be059ca1e6d36131c1c59a9ea990f873f0ab485ec9a33a5245fa28729

@@ -125,7 +125,12 @@ type MaterializeResult struct {
 // PULSE_MATERIALIZE_CAST_FAILED (details column + row + value + reason)
 // unless the column says on_cast_error: "null", which writes a null and
 // warns once with the count; source integers (u64 past 2^53 included)
-// never route through float64. With
+// never route through float64. A categorical column's `recode`
+// (types.MaterializeRecode) rewrites its dictionary first — relabel,
+// merge, map to null (a nullable column only), `order` — and the cast
+// reads the recoded labels; a map key the source dictionary lacks is
+// PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL before anything is read, and a
+// recoded column's SPSS variable is rebuilt like a cast one's. With
 // an output block a request needs no derived column (a pure reshape),
 // and the source's SPSS sidecar is carried through the layout (a
 // dropped column loses its variable, a renamed or duplicated one keeps
@@ -468,6 +473,15 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 			v = row[col.Source]
 		} else {
 			v = derived[col.Derived]
+		}
+		if label, isLabel := v.(string); isLabel && col.Recode != nil {
+			// Recode, then cast: a label with an entry is written as its
+			// value (nil: null), any other label as itself.
+			if to, ok := col.Recode[label]; ok {
+				if v = nil; to != nil {
+					v = *to
+				}
+			}
 		}
 		if c := m.casts[i]; c != nil && v != nil {
 			cv, fail := c.Apply(v)
