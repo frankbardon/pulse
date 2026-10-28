@@ -292,6 +292,7 @@ pulse: type ExprFunction field Fn any
 pulse: type ExprFunction field Name string
 pulse: type ExprFunction field Pure bool
 pulse: type ExprFunction field Signature string
+pulse: func ExpressionReads(src string) (pulse/descriptor.ExprReads, error)
 pulse: type Extensions struct
 pulse: type Extensions field Aggregators []pulse.AggregatorRegistration
 pulse: type Extensions field Attributes []pulse.AttributeRegistration
@@ -1515,6 +1516,11 @@ pulse/descriptor: type ExprFunctionMeta field Description string "json:\"descrip
 pulse/descriptor: type ExprFunctionMeta field Name string "json:\"name\""
 pulse/descriptor: type ExprFunctionMeta field Pure bool "json:\"pure,omitempty\""
 pulse/descriptor: type ExprFunctionMeta field Signature string "json:\"signature,omitempty\""
+pulse/descriptor: type ExprReads struct
+pulse/descriptor: type ExprReads field Funcs []string "json:\"funcs\""
+pulse/descriptor: type ExprReads field Params []string "json:\"params\""
+pulse/descriptor: type ExprReads field UsesEnv bool "json:\"uses_env,omitempty\""
+pulse/descriptor: type ExprReads field Vars []string "json:\"vars\""
 pulse/descriptor: type ExtensionsManifest struct
 pulse/descriptor: type ExtensionsManifest field Aggregators []pulse/descriptor.OperatorMeta "json:\"aggregators\""
 pulse/descriptor: type ExtensionsManifest field Attributes []pulse/descriptor.OperatorMeta "json:\"attributes\""
@@ -6194,4 +6200,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9eb20bd55de675bf215bb484d003615c0169a911be759f66e3bfc5725dcc1afa
+// golden-hash: 23d6f50f0c06512b4a527ea423ff88388e111d12ce9b63d55826e02d7e5c1145

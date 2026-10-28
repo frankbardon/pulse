@@ -1194,6 +1194,14 @@ Not yet released (targets `v1.0.0-alpha.29`; release notes in [U63](../units/U63
 | `crosstabfuse.Decide` admitted a crosstab carrying windows (and one with regressions), so the fused arm failed `PROCESSING_INTERNAL`; predict reported a historical-order crosstab with windows streamable | the fusion gate declines any window (`windows force buffered`) and any regression; predict's streamability gives a historical-order crosstab with windows a buffered reason, parity with the runtime | behaviour change (internal error → result; predict verdict) | read `streamable` / `crosstab_fusable` from predict as before | U63 (E4-S3, E4-S6) |
 | `REG_MMM_HILL` / `REG_MMM_BAYES` appeared only after registration, so a feature profile could not name them | both are built-in features (`REG_MMM_HILL`, `REG_MMM_BAYES`, `since` 1.0.0, dependency edges on the regression family): a feature profile can hide them, and a hidden one acts never-registered. The media-mix design guide is the core skill `mmm-workflow` (was the pack skill `ext-mmm-workflow`) | additive (features) + breaking (skill stem renamed) | fetch `mmm-workflow`; add either name to a profile's `features` list | U63 (E2-S1, E2-S2) |
 
+## Changes from expression-wires
+
+Not yet released (targets `v1.0.0-alpha.31`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change. Covers the parse-only expression read set.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| an embedder learning what an expression reads (an editor wiring a formula to its columns, a linter, an agent planning a draft's data dependencies) re-implemented expr-lang scoping or compiled the expression against a guessed env | NEW `pulse.ExpressionReads(src string) (descriptor.ExprReads, error)` and NEW `descriptor.ExprReads` `{vars, params, funcs, uses_env}`: the free names (columns, derived labels, vectors; first-use order), the `params.<name>` / `params["<name>"]` names and the called functions, from a parse alone with no instance — the engine's own walk (let bindings, closure pointers, member-chain roots, `$env` members, string literals and keywords as the compile binds them; `params` is a var only when used other than as a parameter read). A source that does not parse returns `PULSE_FORMULA_COMPILE_ERROR` (details `compile_error`, `expression`); a templated `{{token}}` must be rendered first. Docs: `docs/src/library/expression-reads.md` | additive (function, type) | call it instead of a hand-rolled identifier walk | expression-wires (E2-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

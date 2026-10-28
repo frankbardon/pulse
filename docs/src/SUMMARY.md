@@ -461,6 +461,7 @@
 - [Compose Sweeps](library/compose-sweeps.md)
 - [Compose Banners](library/compose-banner.md)
 - [Request Hashing](library/request-hashing.md)
+- [Expression Read Sets](library/expression-reads.md)
 - [Watch & WatchDir](library/watch.md)
 - [Deterministic FilterToFile](library/filter-to-file.md)
 - [Reading & Building Cohorts](library/cohort-reader.md)

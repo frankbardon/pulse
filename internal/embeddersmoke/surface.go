@@ -297,6 +297,12 @@ var (
 	_ func() []descriptor.Intent = pulse.Intents
 )
 
+// Expression read sets: what one expression reads, from a parse alone.
+var (
+	_ func(string) (descriptor.ExprReads, error) = pulse.ExpressionReads
+	_                                            = descriptor.ExprReads{Vars: []string{}, Params: []string{}, Funcs: []string{}, UsesEnv: true}
+)
+
 // Instance discovery: the pruned skill ontology and the skill pack as
 // this instance serves them (what an embedder's discovery UI reads).
 var (
