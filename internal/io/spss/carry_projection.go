@@ -27,7 +27,9 @@ package spss
 //     type and dictionary: no value labels, codes or missing specification
 //     of the old variable survive onto the new codes.
 //   - A new column (a derived output) is described as the plain carry
-//     describes one: a mirror of a recorded variable, else plain numeric.
+//     describes one: a mirror of a recorded variable, else plain numeric —
+//     unless it is rebuilt (a cast derived column), which RebuildVariable
+//     describes from its written type, a categorical included.
 //
 // Anything the rewrite cannot describe truthfully refuses the carry — one
 // warning, the cohort written without a sidecar — exactly as the plain
@@ -63,7 +65,8 @@ type ProjectedColumn struct {
 	Rebuild bool
 	// Mirror, for a new column, describes it as a recorded variable's
 	// codes (Materialize's previous-state column); nil for a plain
-	// numeric.
+	// numeric or a rebuilt column (a mirror wins over Rebuild, so a
+	// caller re-coding a mirrored column passes none).
 	Mirror *Mirror
 }
 
@@ -205,17 +208,26 @@ func (c *SidecarCarry) project(schema *encoding.Schema, cols []ProjectedColumn) 
 				continue
 			}
 		}
-		// A new column: a mirror of a recorded variable, else a plain
-		// numeric — the plain carry's rule.
+		// A new column: a mirror of a recorded variable (the caller
+		// gives a rebuilt column none), else rebuilt from its written
+		// type when re-coded (a cast derived column — a categorical one
+		// too), else a plain numeric — the plain carry's rule.
 		v := Variable{Segments: 1}
-		if col.Mirror != nil {
+		switch {
+		case col.Mirror != nil:
 			m, err := mirroredVariable(op, *col.Mirror, fld)
 			if err != nil {
 				return nil, err
 			}
 			v = m
-		} else if err := plainNumeric(&v, fld, display); err != nil {
-			return nil, err
+		case col.Rebuild:
+			if err := RebuildVariable(&v, fld, display); err != nil {
+				return nil, err
+			}
+		default:
+			if err := plainNumeric(&v, fld, display); err != nil {
+				return nil, err
+			}
 		}
 		v.Name, v.LongName, v.Position = fld.Name, "", i
 		v.ShortName = minter.mint(fld.Name)

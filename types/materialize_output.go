@@ -66,13 +66,17 @@ type MaterializeOutputColumn struct {
 	// packed_bool (0 / 1 only); numeric epoch ↔ date (epoch days) /
 	// datetime (epoch seconds); date ↔ datetime in Request.TimeZone
 	// (else the instance default zone, else UTC: midnight, and the
-	// local day); set_* → a wider set_* rung. vec_* and categorical_*
-	// keep their type. Any other pair is PULSE_MATERIALIZE_CAST_UNSUPPORTED
-	// before anything is read; an unknown name is
-	// PULSE_MATERIALIZE_OUTPUT_INVALID (reason unknown_type). Every cast
-	// is exact or fails: a stored value that does not fit (a fraction to
-	// an integer, a value past the range, a non-0/1 to packed_bool)
-	// follows OnCastError.
+	// local day); set_* → a wider set_* rung; categorical_* → another
+	// categorical_* width (the whole dictionary kept; a known dictionary
+	// larger than the target is refused) or → numeric (each label parsed
+	// as a number); numeric → categorical_* (each value stringified into
+	// a dictionary built in first-seen order). vec_* keeps its type. Any
+	// other pair is PULSE_MATERIALIZE_CAST_UNSUPPORTED before anything is
+	// read; an unknown name is PULSE_MATERIALIZE_OUTPUT_INVALID (reason
+	// unknown_type). Every cast is exact or fails: a stored value that
+	// does not fit (a fraction to an integer, a value past the range, a
+	// non-0/1 to packed_bool, a label that is not a number, a distinct
+	// value past a categorical's capacity) follows OnCastError.
 	Type string `json:"type,omitempty"`
 
 	// Precision and Scale shape a decimal128 Type (1 ≤ precision ≤ 38,

@@ -875,7 +875,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATERIALIZE_CAST_UNSUPPORTED: {
-		Message: "A materialize output column's type names a field type its column cannot cast to. Legal: numeric (u4..u64, f32, f64, decimal128) to numeric, numeric to and from packed_bool, numeric to and from date / datetime, date to and from datetime, a set to a wider set rung; vectors and categoricals keep their type.",
+		Message: "A materialize output column's type names a field type its column cannot cast to. Legal: numeric (u4..u64, f32, f64, decimal128) to numeric, numeric to and from packed_bool, numeric to and from date / datetime, date to and from datetime, a set to a wider set rung, a categorical to another categorical width (its dictionary must fit) or to numeric, numeric to a categorical; vectors keep their type.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -885,7 +885,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATERIALIZE_CAST_FAILED: {
-		Message: "A stored value does not fit a materialize output column's cast type (a fraction to an integer, a value past the range, NaN to an exact type, or a value other than 0 / 1 to packed_bool), so nothing was written.",
+		Message: "A stored value does not fit a materialize output column's cast type (a fraction to an integer, a value past the range, NaN to an exact type, a value other than 0 / 1 to packed_bool, a categorical label that is not a number, or one distinct value more than a categorical holds), so nothing was written.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

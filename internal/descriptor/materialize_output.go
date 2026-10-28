@@ -196,7 +196,8 @@ func MaterializeOutputLayout(req *types.Request, schema *encoding.Schema, cols [
 // PULSE_MATERIALIZE_OUTPUT_INVALID (unknown_type, decimal_shape,
 // on_cast_error_invalid, on_cast_error_without_type,
 // on_cast_error_not_nullable) and PULSE_MATERIALIZE_CAST_UNSUPPORTED
-// (fieldcast.Unsupported) — the one matrix the run's conversion uses.
+// (fieldcast.Refused: an illegal pair, or a categorical narrowing whose
+// dictionary does not fit) — the one matrix the run's conversion uses.
 func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to *encoding.Field) (*MaterializeCast, *errors.CodedError) {
 	nullOnError := false
 	switch c.OnCastError {
@@ -223,7 +224,7 @@ func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to 
 		return nil, outputInvalid("unknown_type", outputPath("columns", i, "type"),
 			"output.columns["+strconv.Itoa(i)+"].type "+strconv.Quote(c.Type)+" is not a field type")
 	}
-	if why := fieldcast.Unsupported(from.Type, typ); why != "" {
+	if why := fieldcast.Refused(from, typ); why != "" {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
 			"output column "+strconv.Quote(to.Name)+" cannot cast "+strconv.Quote(from.Name)+" from "+from.Type.String()+" to "+typ.String()+": "+why,
 			map[string]any{"column": to.Name, "path": outputPath("columns", i, "type"), "from": from.Name,
@@ -258,9 +259,11 @@ func outputCast(c types.MaterializeOutputColumn, i int, from encoding.Field, to 
 		return nil, nil
 	}
 	to.Type, to.Precision, to.Scale = typ, precision, scale
-	if !typ.IsSet() {
-		// A set widen keeps its labels; every other cast target carries
-		// no dictionary.
+	if !typ.HasDictionary() || !from.Type.HasDictionary() {
+		// A set widen and a categorical rung change keep the whole
+		// dictionary (labels, order, codes); a numeric → categorical
+		// cast builds its own from the data in first-seen order; every
+		// other target carries none.
 		to.Dictionary = nil
 	}
 	return &MaterializeCast{From: from, NullOnError: nullOnError}, nil

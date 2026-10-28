@@ -13135,7 +13135,7 @@
       },
       {
         "name": "materialize-casts",
-        "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
+        "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen, categorical), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
       },
       {
         "name": "matrix-results",
@@ -20406,4 +20406,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: bea4223591d28fe7ba7b3fac917a64f8ea8535e77512e856d5ba79777120ecc7
+// golden-hash: 4dc5a6c41afba1d8ce03a6029b046a41369b07e41ee892ab3b38dad41e3381a1

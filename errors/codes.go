@@ -507,8 +507,10 @@ const (
 
 	// PULSE_MATERIALIZE_CAST_UNSUPPORTED indicates an `output` column
 	// whose `type` names a field type its column cannot cast to (a
-	// vector or categorical retyped, a set narrowed or cast to a scalar,
-	// packed_bool to or from a date-family type, ...). details carry
+	// vector retyped, a categorical to or from anything but a categorical
+	// or numeric type, a categorical narrowed below its dictionary's
+	// size, a set narrowed or cast to a scalar, packed_bool to or from a
+	// date-family type, ...). details carry
 	// column (the output name), path, from (the column read), from_type,
 	// to_type and reason. Raised before any file is created; predict
 	// refuses the same pair with the same code.
@@ -517,8 +519,10 @@ const (
 	// PULSE_MATERIALIZE_CAST_FAILED indicates a stored value an `output`
 	// column's cast cannot represent exactly — a fraction to an integer
 	// or date-family type (reason fractional), a value past the target's
-	// range (overflow), NaN / ±Inf to an exact type (not_finite), a value
-	// other than 0 / 1 to packed_bool (not_boolean). details carry
+	// range or a new label past a categorical's capacity (overflow),
+	// NaN / ±Inf to an exact or categorical type (not_finite), a value
+	// other than 0 / 1 to packed_bool (not_boolean), a categorical label
+	// that is not a number (unparseable). details carry
 	// column, row (the 0-based output row), from_type, to_type, value
 	// and reason. The run fails with no target written.
 	PULSE_MATERIALIZE_CAST_FAILED Code = "PULSE_MATERIALIZE_CAST_FAILED"

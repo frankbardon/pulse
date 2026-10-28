@@ -3,6 +3,7 @@ package fieldcast
 import (
 	"math"
 	"math/big"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -251,16 +252,22 @@ func TestApply_DatetimeToDateInZone(t *testing.T) {
 	}
 }
 
-// TestUnsupported_IllegalPairs: vectors, categoricals, set narrowing and
-// set ↔ scalar, bool ↔ temporal are refused with a reason.
+// TestUnsupported_IllegalPairs: vectors, a categorical to or from
+// anything but a categorical or numeric type, set narrowing and set ↔
+// scalar, bool ↔ temporal are refused with a reason.
 func TestUnsupported_IllegalPairs(t *testing.T) {
 	t.Parallel()
 
 	for _, pair := range [][2]encoding.FieldType{
 		{encoding.FieldTypeVecF32, encoding.FieldTypeVecF64},
 		{encoding.FieldTypeF64, encoding.FieldTypeVecF64},
-		{encoding.FieldTypeCategoricalU8, encoding.FieldTypeU8},
-		{encoding.FieldTypeU8, encoding.FieldTypeCategoricalU8},
+		{encoding.FieldTypeCategoricalU8, encoding.FieldTypeDate},
+		{encoding.FieldTypeCategoricalU8, encoding.FieldTypePackedBool},
+		{encoding.FieldTypeCategoricalU8, encoding.FieldTypeSetU8},
+		{encoding.FieldTypeSetU8, encoding.FieldTypeCategoricalU8},
+		{encoding.FieldTypePackedBool, encoding.FieldTypeCategoricalU8},
+		{encoding.FieldTypeDateTime, encoding.FieldTypeCategoricalU16},
+		{encoding.FieldTypeVecF64, encoding.FieldTypeCategoricalU8},
 		{encoding.FieldTypeSetU16, encoding.FieldTypeSetU8},
 		{encoding.FieldTypeSetU8, encoding.FieldTypeU8},
 		{encoding.FieldTypeU64, encoding.FieldTypeSetU64},
@@ -324,6 +331,246 @@ func TestApply_UnexpectedValue(t *testing.T) {
 	} {
 		if _, fail := p.Apply("x"); fail == nil || fail.Reason != "unexpected_value" {
 			t.Errorf("%s → %s on a string = %+v, want unexpected_value", p.From.Type, p.To.Type, fail)
+		}
+	}
+}
+
+func catDict(n int) *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for i := 0; i < n; i++ {
+		if _, err := d.Add("L" + strconv.Itoa(i)); err != nil {
+			panic(err)
+		}
+	}
+	return d
+}
+
+func cat(t encoding.FieldType, d *encoding.Dictionary) encoding.Field {
+	return encoding.Field{Type: t, Dictionary: d}
+}
+
+// TestRefused_CategoricalNarrowing: a narrowing whose known dictionary
+// fits the target (256 labels into categorical_u8) is legal; one label
+// over (257) is refused statically; a widen and an unknown dictionary
+// are never refused here.
+func TestRefused_CategoricalNarrowing(t *testing.T) {
+	t.Parallel()
+
+	u8, u16, u32 := encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32
+	if why := Refused(cat(u16, catDict(256)), u8); why != "" {
+		t.Errorf("256 labels → categorical_u8 refused: %s", why)
+	}
+	why := Refused(cat(u16, catDict(257)), u8)
+	if want := "its dictionary holds 257 labels and categorical_u8 holds at most 256"; why != want {
+		t.Errorf("257 labels → categorical_u8 = %q, want %q", why, want)
+	}
+	if why := Refused(cat(u8, catDict(200)), u32); why != "" {
+		t.Errorf("widen refused: %s", why)
+	}
+	if why := Refused(cat(u16, nil), u8); why != "" {
+		t.Errorf("unknown dictionary refused statically: %s", why)
+	}
+	if why := Refused(fld(encoding.FieldTypeF64), encoding.FieldTypeVecF64); why == "" {
+		t.Error("Refused misses Unsupported's matrix")
+	}
+}
+
+// TestApply_CategoricalToCategorical: a widen and a narrow keep the
+// label; a narrowing over an unknown dictionary admits labels up to the
+// target's capacity (256 for categorical_u8) and fails the 257th
+// distinct label with overflow, a repeat of an admitted label still
+// casting; a seeded dictionary's labels are always admitted.
+func TestApply_CategoricalToCategorical(t *testing.T) {
+	t.Parallel()
+
+	u8, u16 := encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16
+	widen := &Plan{From: cat(u8, catDict(3)), To: cat(u16, catDict(3))}
+	if got, fail := widen.Apply("L2"); fail != nil || got != "L2" {
+		t.Errorf("widen = %v, %+v", got, fail)
+	}
+	seeded := &Plan{From: cat(u16, catDict(256)), To: cat(u8, catDict(256))}
+	for i := 255; i >= 0; i-- {
+		if _, fail := seeded.Apply("L" + strconv.Itoa(i)); fail != nil {
+			t.Fatalf("seeded label %d refused: %+v", i, fail)
+		}
+	}
+	open := &Plan{From: cat(u16, nil), To: cat(u8, nil)}
+	for i := 0; i < 256; i++ {
+		if _, fail := open.Apply("L" + strconv.Itoa(i)); fail != nil {
+			t.Fatalf("label %d of 256 refused: %+v", i, fail)
+		}
+	}
+	if got, fail := open.Apply("L256"); got != nil || fail == nil || fail.Reason != "overflow" || fail.Value != "L256" {
+		t.Errorf("257th label = %v, %+v, want overflow", got, fail)
+	}
+	if got, fail := open.Apply("L0"); fail != nil || got != "L0" {
+		t.Errorf("an admitted label after the overflow = %v, %+v", got, fail)
+	}
+	if _, fail := open.Apply(uint64(3)); fail == nil || fail.Reason != "unexpected_value" {
+		t.Errorf("a non-string = %+v, want unexpected_value", fail)
+	}
+}
+
+// TestApply_CategoricalToNumeric: a label is parsed exactly — integers
+// and decimals to an exact target (a fraction refused, a value past the
+// range refused, a u64 past 2^53 exact), any decimal syntax to a float
+// (rounded once) — and a label that is not a number is unparseable,
+// its Value the label verbatim.
+func TestApply_CategoricalToNumeric(t *testing.T) {
+	t.Parallel()
+
+	c := cat(encoding.FieldTypeCategoricalU8, nil)
+	cases := []struct {
+		name   string
+		to     encoding.Field
+		in     string
+		want   any
+		reason string
+	}{
+		{"int to u8", fld(encoding.FieldTypeU8), "255", uint64(255), ""},
+		{"int over u8", fld(encoding.FieldTypeU8), "256", nil, "overflow"},
+		{"negative to u8", fld(encoding.FieldTypeU8), "-1", nil, "overflow"},
+		{"integral decimal to u8", fld(encoding.FieldTypeU8), "7.000", uint64(7), ""},
+		{"exponent to u8", fld(encoding.FieldTypeU8), "1.5e2", uint64(150), ""},
+		{"fraction to u8", fld(encoding.FieldTypeU8), "2.5", nil, "fractional"},
+		{"tiny exponent to u8", fld(encoding.FieldTypeU8), "1e-400", nil, "fractional"},
+		{"u64 past 2^53", fld(encoding.FieldTypeU64), "9007199254740993", uint64(9007199254740993), ""},
+		{"float label to f64", fld(encoding.FieldTypeF64), "2.5", 2.5, ""},
+		{"exponent to f64", fld(encoding.FieldTypeF64), "-1e3", -1000.0, ""},
+		{"f64 overflow", fld(encoding.FieldTypeF64), "1e400", nil, "overflow"},
+		{"f32 rounds once", fld(encoding.FieldTypeF32), "0.1", float32(0.1), ""},
+		{"f32 overflow", fld(encoding.FieldTypeF32), "1e39", nil, "overflow"},
+		{"decimal scale", dec(10, 2), "3.25", mustDec(t, "3.25"), ""},
+		{"decimal too fine", dec(10, 2), "3.255", nil, "fractional"},
+		{"decimal too wide", dec(4, 2), "100", nil, "overflow"},
+		{"letters", fld(encoding.FieldTypeU8), "Low", nil, "unparseable"},
+		{"empty", fld(encoding.FieldTypeF64), "", nil, "unparseable"},
+		{"surrounding space", fld(encoding.FieldTypeU8), " 3", nil, "unparseable"},
+		{"NaN is not a number", fld(encoding.FieldTypeF64), "NaN", nil, "unparseable"},
+		{"Inf is not a number", fld(encoding.FieldTypeF64), "Inf", nil, "unparseable"},
+		{"hex", fld(encoding.FieldTypeU8), "0x10", nil, "unparseable"},
+		{"two signs", fld(encoding.FieldTypeU8), "1-2", nil, "unparseable"},
+		{"huge exponent", fld(encoding.FieldTypeU8), "1e9999", nil, "unparseable"},
+	}
+	for _, tc := range cases {
+		p := &Plan{From: c, To: tc.to}
+		got, fail := p.Apply(tc.in)
+		if tc.reason != "" {
+			if fail == nil || fail.Reason != tc.reason || fail.Value != tc.in || got != nil {
+				t.Errorf("%s: %q = %v, %+v, want %s", tc.name, tc.in, got, fail, tc.reason)
+			}
+			continue
+		}
+		if fail != nil {
+			t.Errorf("%s: %q failed %+v", tc.name, tc.in, fail)
+			continue
+		}
+		if d, ok := tc.want.(encoding.Decimal128); ok {
+			if got.(encoding.Decimal128).Mantissa().Cmp(new(big.Int).Mul(d.Mantissa(), big.NewInt(1))) != 0 {
+				t.Errorf("%s: %q = %v, want %v", tc.name, tc.in, got, d.Mantissa())
+			}
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("%s: %q = %#v, want %#v", tc.name, tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestApply_NumericToCategorical: each value is stringified (Label) and
+// admitted into a data-built dictionary in first-seen order; the first
+// distinct value past the capacity fails with overflow, and NaN fails
+// not_finite.
+func TestApply_NumericToCategorical(t *testing.T) {
+	t.Parallel()
+
+	p := &Plan{From: fld(encoding.FieldTypeU16), To: cat(encoding.FieldTypeCategoricalU8, nil)}
+	for i := 0; i < 256; i++ {
+		got, fail := p.Apply(uint64(1000 + i))
+		if fail != nil || got != strconv.Itoa(1000+i) {
+			t.Fatalf("value %d = %v, %+v", 1000+i, got, fail)
+		}
+	}
+	if got, fail := p.Apply(uint64(1256)); got != nil || fail == nil || fail.Reason != "overflow" || fail.Value != "1256" {
+		t.Errorf("257th distinct value = %v, %+v, want overflow", got, fail)
+	}
+	if got, fail := p.Apply(uint64(1000)); fail != nil || got != "1000" {
+		t.Errorf("a seen value after the overflow = %v, %+v", got, fail)
+	}
+	if p.dict.Labels()[0] != "1000" || p.dict.Labels()[255] != "1255" || p.dict.Len() != 256 {
+		t.Errorf("dictionary is not first-seen: %v…", p.dict.Labels()[:3])
+	}
+	f := &Plan{From: fld(encoding.FieldTypeF64), To: cat(encoding.FieldTypeCategoricalU8, nil)}
+	if _, fail := f.Apply(math.NaN()); fail == nil || fail.Reason != "not_finite" {
+		t.Errorf("NaN = %+v, want not_finite", fail)
+	}
+}
+
+// TestLabel_Rendering pins the stringification rule a numeric → categorical
+// cast writes: integers as digits, a float as encoding/json writes it
+// (no ".0" on an integral float, -0 as "0", an exponent only outside
+// [1e-6, 1e21)), an f32 in its shortest 32-bit form, a decimal at its
+// scale with trailing zeros.
+func TestLabel_Rendering(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		v    any
+		f    encoding.Field
+		want string
+	}{
+		{uint64(7), fld(encoding.FieldTypeU8), "7"},
+		{uint64(math.MaxUint64), fld(encoding.FieldTypeU64), "18446744073709551615"},
+		{3.0, fld(encoding.FieldTypeF64), "3"},
+		{-2.5, fld(encoding.FieldTypeF64), "-2.5"},
+		{1e6, fld(encoding.FieldTypeF64), "1000000"},
+		{1e20, fld(encoding.FieldTypeF64), "100000000000000000000"},
+		{1e21, fld(encoding.FieldTypeF64), "1e+21"},
+		{1e-7, fld(encoding.FieldTypeF64), "1e-7"},
+		{0.000001, fld(encoding.FieldTypeF64), "0.000001"},
+		{math.Copysign(0, -1), fld(encoding.FieldTypeF64), "0"},
+		{0.1, fld(encoding.FieldTypeF64), "0.1"},
+		{float32(0.1), fld(encoding.FieldTypeF32), "0.1"},
+		{mustDec(t, "350"), dec(10, 2), "3.50"},
+		{mustDec(t, "-5"), dec(10, 1), "-0.5"},
+	} {
+		got, ok := Label(c.v, c.f)
+		if !ok || got != c.want {
+			t.Errorf("Label(%v) = %q, %v, want %q", c.v, got, ok, c.want)
+		}
+	}
+	if _, ok := Label(math.Inf(1), fld(encoding.FieldTypeF64)); ok {
+		t.Error("Label(+Inf) has a label")
+	}
+}
+
+// TestCheck_Categorical: the risk text for each categorical pair, and
+// none where no stored value can fail (a widen, a known dictionary, an
+// unsigned source whose every value fits the rung).
+func TestCheck_Categorical(t *testing.T) {
+	t.Parallel()
+
+	u8c, u16c, u32c := encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32
+	for _, c := range []struct {
+		from, to encoding.Field
+		want     string
+	}{
+		{cat(u16c, nil), cat(u8c, nil), "categorical_u16 → categorical_u8: at most 256 distinct labels"},
+		{cat(u16c, catDict(3)), cat(u8c, nil), ""},
+		{cat(u8c, nil), cat(u16c, nil), ""},
+		{cat(u8c, nil), fld(encoding.FieldTypeU8), "categorical_u8 → u8: label is an integral number, 0 ≤ v ≤ 255"},
+		{cat(u8c, nil), fld(encoding.FieldTypeF64), "categorical_u8 → f64: label is a number within f64"},
+		{cat(u8c, nil), fld(encoding.FieldTypeF32), "categorical_u8 → f32: label is a number, |v| ≤ 3.4028235e+38 (within f32)"},
+		{cat(u8c, nil), dec(10, 2), "categorical_u8 → decimal128(10,2): label is a number, at most 2 fractional digits, |v| < 1e8"},
+		{fld(encoding.FieldTypeU8), cat(u8c, nil), ""},
+		{fld(encoding.FieldTypeU16), cat(u8c, nil), "u16 → categorical_u8: at most 256 distinct values"},
+		{fld(encoding.FieldTypeU16), cat(u16c, nil), ""},
+		{fld(encoding.FieldTypeU32), cat(u32c, nil), "u32 → categorical_u32: at most 4294967295 distinct values"},
+		{fld(encoding.FieldTypeF64), cat(u16c, nil), "f64 → categorical_u16: finite, at most 65536 distinct values"},
+		{dec(10, 2), cat(u8c, nil), "decimal128(10,2) → categorical_u8: at most 256 distinct values"},
+	} {
+		if got := Check(c.from, c.to); got != c.want {
+			t.Errorf("Check(%s → %s) = %q, want %q", name(c.from), name(c.to), got, c.want)
 		}
 	}
 }

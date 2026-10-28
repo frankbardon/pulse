@@ -137,7 +137,10 @@ res, err := p.Materialize(ctx, &pulse.Request{
   | `date` → `datetime` | local midnight in `time_zone` (else `Options.DefaultTimeZone`, else UTC; a day whose midnight DST skips starts at its first instant) |
   | `datetime` → `date` | the local day in that zone, truncating toward the past |
   | `set_*` → a wider `set_*` | the labels and dictionary unchanged |
-  | `vec_*`, `categorical_*` | keep their type |
+  | `categorical_*` → `categorical_*` | the labels and the whole dictionary (order, codes, unused entries) unchanged; a narrowing whose dictionary holds more labels than the target (257 into `categorical_u8`) is refused |
+  | `categorical_*` → numeric | each label parsed as a number (decimal syntax; exact to an integer or `decimal128`); a label that is not one fails `unparseable` |
+  | numeric → `categorical_*` | each value stringified — integers in digits, a float as JSON prints it (`3.0` → `"3"`, `-0` → `"0"`), a `decimal128` at its scale (`"3.50"`) — into a dictionary built in first-seen output order; one distinct value past the rung fails `overflow` |
+  | `vec_*` | keeps its type |
 
   `decimal128` takes `precision` / `scale` (a decimal column's own
   shape by default, else `38` / `0`; a float keeps its shortest printed
@@ -151,12 +154,15 @@ res, err := p.Materialize(ctx, &pulse.Request{
   predicted identically.
 - **A value that does not fit.** By default it fails the run with
   `PULSE_MATERIALIZE_CAST_FAILED` (`details.column`, `row`, `value`
-  rendered exactly, `reason`: `fractional` / `overflow` / `not_finite` /
-  `not_boolean`), nothing written. `on_cast_error: "null"` (on a
+  rendered exactly — a label verbatim, `reason`: `fractional` /
+  `overflow` / `not_finite` / `not_boolean` / `unparseable`), nothing
+  written. `on_cast_error: "null"` (on a
   nullable output column only) writes a null instead and warns once
   per column with `PULSE_MATERIALIZE_CAST_NULLED` (`details.count`,
   `first_row`). A cast column's SPSS variable is rebuilt from its new
-  type — no old value label lands on the cast values.
+  type (a categorical: an unlabelled string variable of its labels) —
+  no old value label lands on the cast values, a cast previous-state
+  column's included.
 - **Projection is last.** Filters, `sort`, weights, features,
   attributes and windows read the full source schema plus the derived
   columns, so they may name a column the output drops.

@@ -219,10 +219,10 @@ func TestMaterializeCast_StaticRefusalsMatchPredict(t *testing.T) {
 		code    errors.Code
 		details map[string]any
 	}{
-		{"categorical to number", col{From: "region", Type: "u8"}, errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
-			map[string]any{"column": "region", "path": "output.columns[0].type", "from": "region", "from_type": "categorical_u8", "to_type": "u8"}},
-		{"number to categorical", col{From: "id", Type: "categorical_u16"}, errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
-			map[string]any{"from_type": "u32", "to_type": "categorical_u16"}},
+		{"categorical to date", col{From: "region", Type: "date"}, errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+			map[string]any{"column": "region", "path": "output.columns[0].type", "from": "region", "from_type": "categorical_u8", "to_type": "date"}},
+		{"bool to categorical", col{From: "flag", Type: "categorical_u16"}, errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+			map[string]any{"from_type": "packed_bool", "to_type": "categorical_u16"}},
 		{"set to a scalar", col{From: "tags", As: "t", Type: "u8"}, errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,
 			map[string]any{"column": "t", "from": "tags", "from_type": "set_u8", "to_type": "u8"}},
 		{"bool to date", col{From: "flag", Type: "date"}, errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED,

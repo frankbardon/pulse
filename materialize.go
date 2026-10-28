@@ -113,9 +113,13 @@ type MaterializeResult struct {
 // ones. A null in a column the layout declares non-nullable fails the
 // run with PULSE_MATERIALIZE_OUTPUT_NULL (details column + row). A
 // column's `type` retypes it (MaterializeOutputColumn.Type: the
-// numeric / packed_bool / date-family / set-widen matrix, exact or
-// failing; date ↔ datetime in the request time_zone, else
-// Options.DefaultTimeZone, else UTC): an illegal pair is
+// numeric / packed_bool / date-family / set-widen / categorical matrix,
+// exact or failing; date ↔ datetime in the request time_zone, else
+// Options.DefaultTimeZone, else UTC; a categorical rung change keeps
+// its dictionary, a categorical → numeric cast parses each label, a
+// numeric → categorical cast stringifies each value into a dictionary
+// built in first-seen output order): an illegal pair, or a categorical
+// narrowed below its dictionary's size, is
 // PULSE_MATERIALIZE_CAST_UNSUPPORTED before anything is read, a stored
 // value that does not fit fails the run with
 // PULSE_MATERIALIZE_CAST_FAILED (details column + row + value + reason)
@@ -300,7 +304,9 @@ func (m *materializeSink) castWarnings() []*errors.CodedError {
 // projection describes each written column for the SPSS carry
 // (spss.ProjectedColumn): the source field it copies, its description
 // override, whether it was rebuilt (MaterializeOutputField.Rebuild), and
-// — a derived column inheriting a source field's codes — its mirror.
+// — a derived column inheriting a source field's codes — its mirror,
+// unless the column is rebuilt (a cast previous-state column holds new
+// values, so its variable is regenerated, never the state's labels).
 func (m *materializeSink) projection() []spss.ProjectedColumn {
 	cols := make([]spss.ProjectedColumn, len(m.layout))
 	for i, col := range m.layout {
