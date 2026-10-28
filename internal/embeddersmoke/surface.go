@@ -86,6 +86,12 @@ var (
 	// The materialize-only output slot and its column entries.
 	_ = pulse.Request{Output: &types.MaterializeOutput{Exclude: []string(nil),
 		Columns: []types.MaterializeOutputColumn{{From: "a", As: "b", Description: (*string)(nil), Nullable: (*bool)(nil)}}}}
+	// The no-execute materialize verdict and its result types.
+	_ func(*pulse.Pulse, context.Context, *pulse.Request) (*descriptor.Envelope, error) = (*pulse.Pulse).PredictMaterialize
+	_                                                                                   = descriptor.MaterializePredictResult{Valid: true, SchemaInfo: (*descriptor.PredictSchemaInfo)(nil),
+		Columns: []descriptor.MaterializePredictColumn{{Name: "", Type: "", Nullable: false, Description: "", From: "", Derived: false,
+			Dictionary: (*descriptor.DictionaryInfo)(nil), Precision: (*uint8)(nil), Scale: (*uint8)(nil)}},
+		DerivedColumns: []string(nil), Risks: []descriptor.MaterializeRisk{{Column: "", Path: "", Code: "", Check: ""}}}
 )
 
 // Survey weighting: Pulse.Rake, its request (margins, joint cells) and

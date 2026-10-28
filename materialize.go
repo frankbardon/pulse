@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -126,6 +127,44 @@ type MaterializeResult struct {
 func (p *Pulse) Materialize(ctx context.Context, req *Request, out string, opts MaterializeOptions) (*MaterializeResult, error) {
 	return observed(p, ctx, requestOp(observe.OpMaterialize, req), func(ctx context.Context) (*MaterializeResult, error) {
 		return p.materialize(ctx, req, out, opts)
+	})
+}
+
+// PredictMaterialize validates a Materialize request without executing
+// it: the source cohort's header and schema only, never a record (a
+// shard archive is judged on its canonical schema, an anchored shard on
+// its own entry, as Predict reads them). Nothing is written anywhere.
+//
+// The envelope's Data is a *descriptor.MaterializePredictResult: the
+// output schema the run writes (each column's name, type, nullability,
+// description, dictionary and the column it reads), the derived column
+// names, and the data-dependent risks — the checks only the records
+// can settle (a `nullable: false` column over a column that may hold a
+// null). Every static refusal the run raises is a coded env.Errors
+// entry with the run's code and details, Valid false: the slot gates
+// (the instance's, then PULSE_MATERIALIZE_SLOT_UNSUPPORTED),
+// PULSE_MATERIALIZE_NO_DERIVED, Process's pre-flight and operator
+// checks, PULSE_MATERIALIZE_OUTPUT_UNDECLARED, the output block's
+// refusals and an over-long written description — the run's pre-flight
+// shares the one plan call (descx.MaterializePlan), so the two cannot
+// drift. A weak description of the written schema is a
+// PULSE_FIELD_DESCRIPTION_LOW_QUALITY warning, as the run warns.
+//
+// A returned error is a cancelled ctx, a nil request or cohort
+// (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;
+// ENCODING_INVALID for a malformed header or schema). Options.Strict
+// promotes every warning into an error; Options.EchoRequest sets
+// env.Request to the item-expanded request. Reports as a `predict`
+// operation and slides a managed import's expiry, as Predict does.
+func (p *Pulse) PredictMaterialize(ctx context.Context, req *Request) (*descriptor.Envelope, error) {
+	return observed(p, ctx, requestOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.Envelope, error) {
+		if req == nil {
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: materialize request is required")
+		}
+		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			p.predictRootOptions(opts)
+			return descx.ValidateMaterializeWithOptions(src.rs, req, opts)
+		})
 	})
 }
 

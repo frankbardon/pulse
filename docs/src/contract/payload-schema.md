@@ -58,7 +58,8 @@ built with a feature profile gets a narrower document:
   (process-chain), `FacetRequest` / `FacetResult` (facet),
   `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup),
   `RecommendRequest` / `RecommendResult` (recommend),
-  `ExplainRequest` / `ExplainResult` (explain); on an instance that
+  `ExplainRequest` / `ExplainResult` (explain),
+  `MaterializePredictResult` (materialize); on an instance that
   offers explain, `ExplainRequest` drops the slots of every hidden root
   (`composed` / `composed_response`, `chain` / `chain_response`,
   `facet` / `facet_result`, `sample`);
@@ -88,7 +89,14 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   derived-column producer carries: a `pulse_materialize` draft, then
   the model request that reads the written column), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
-  coded warnings). A bootstrap `RegressionResult` echoes
+  coded warnings), `MaterializePredictResult` (`Pulse.PredictMaterialize`
+  / `pulse api materialize --predict` / `pulse_materialize {predict:
+  true}`: `valid`, the source `schema_info`, the output `columns` —
+  `{name, type, nullable, description, from, derived}` plus a truncated
+  `dictionary` and a decimal `precision` / `scale` — the
+  `derived_columns` names and the data-dependent `risks`
+  `{column, path, code, check}`; the three lists are `[]`, never
+  `null`). A bootstrap `RegressionResult` echoes
   `bootstrap_requested` / `bootstrap_succeeded`; a delete-a-group
   jackknife (`RegressionSpec.jackknife_groups` / `jackknife_by`, both
   additive `omitempty`) echoes its replicate count as

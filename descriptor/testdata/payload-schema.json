@@ -1489,6 +1489,32 @@
       ],
       "type": "object"
     },
+    "DictionaryInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "total_entries": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "total_entries",
+        "truncated",
+        "values"
+      ],
+      "type": "object"
+    },
     "Envelope": {
       "additionalProperties": false,
       "properties": {
@@ -2686,6 +2712,115 @@
       },
       "required": [
         "from"
+      ],
+      "type": "object"
+    },
+    "MaterializePredictColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "derived": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dictionary": {
+          "$ref": "#/$defs/DictionaryInfo"
+        },
+        "from": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "scale": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "derived",
+        "description",
+        "from",
+        "name",
+        "nullable",
+        "type"
+      ],
+      "type": "object"
+    },
+    "MaterializePredictResult": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/MaterializePredictColumn"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "derived_columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/MaterializeRisk"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "schema_info": {
+          "$ref": "#/$defs/PredictSchemaInfo"
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "columns",
+        "derived_columns",
+        "risks",
+        "valid"
+      ],
+      "type": "object"
+    },
+    "MaterializeRisk": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "check",
+        "code",
+        "column"
       ],
       "type": "object"
     },
@@ -4060,6 +4195,28 @@
       "required": [
         "name",
         "path"
+      ],
+      "type": "object"
+    },
+    "PredictSchemaInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "field_count": {
+          "type": "integer"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "field_count",
+        "fields"
       ],
       "type": "object"
     },
@@ -6525,6 +6682,9 @@
       "$ref": "#/$defs/LookupResult"
     },
     {
+      "$ref": "#/$defs/MaterializePredictResult"
+    },
+    {
       "$ref": "#/$defs/RecommendRequest"
     },
     {
@@ -6542,4 +6702,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 89cbd682022b47517dfbf8dcd269bec20f01644ba8ef73df0f6286e28c7cda5d
+// golden-hash: d11f88448393f1aad858516f6df0d910a5d2ed91d3ace3db9913e100aad5c4cc

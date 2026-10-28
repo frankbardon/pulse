@@ -136,6 +136,39 @@ res, err := p.Materialize(ctx, &pulse.Request{
   for byte. A feature profile without `capability:materialize_output`
   refuses a set `output` as an unknown field everywhere.
 
+## Predict first: `PredictMaterialize`
+
+`p.PredictMaterialize(ctx, req)` validates a Materialize request without
+executing it: it reads the source's header and schema only (never a
+record — a truncated or record-corrupt source predicts like the intact
+one) and writes nothing. It returns the whole envelope, `Data` a
+`*descriptor.MaterializePredictResult`:
+
+- `columns` — the output schema the run writes, in output order: each
+  column's `name`, `type`, `nullable`, `description`, the column it
+  reads (`from`; `derived` when that is a feature, attribute or window
+  output), its `dictionary` (truncated to 100 entries, as `Inspect`
+  does) and a decimal's `precision` / `scale`;
+- `derived_columns` — the run's `MaterializeResult.DerivedColumns`;
+- `risks` — the checks only the records can settle, each
+  `{column, path, code, check}` with the code the run fails with (today
+  a `nullable: false` column over one that may hold a null:
+  `PULSE_MATERIALIZE_OUTPUT_NULL`);
+- `schema_info` — the source's field names.
+
+Every static refusal is a coded `env.Errors` entry with the run's own
+code, message and details (`valid` false): the slot gates,
+`PULSE_MATERIALIZE_NO_DERIVED`, `PULSE_MATERIALIZE_OUTPUT_UNDECLARED`,
+the `output` block's refusals, an over-long written description
+(`PULSE_IMPORT_DESCRIPTION_TOO_LONG`) and Process's own pre-flight and
+operator checks. The run's pre-flight makes the same plan call
+(`MaterializePlan`), so the two cannot drift; where one request carries
+several faults the run stops at its first, predict lists them all. A
+weak description of a WRITTEN column is a
+`PULSE_FIELD_DESCRIPTION_LOW_QUALITY` warning, as the run warns;
+`Options.Strict` promotes every warning, `Options.EchoRequest` echoes
+the request on `env.Request`. It reports as a `predict` operation.
+
 ## The two-step recipe: a regression on a window
 
 Step 1 materialises the window (only derived columns and filters):
@@ -169,20 +202,27 @@ The output is a snapshot: re-materialise after the source changes.
 
 ```sh
 pulse api materialize -r req.json -o weekly_derived.pulse [--overwrite] [--strict] [--json]
+pulse api materialize -r req.json --predict [--strict] [--json]
 ```
 
 `req.json` is an ordinary request body. `--json` wraps the
 `MaterializeResult` (`target`, `records`, `derived_columns`,
 `warnings`, `invalidated_sidecars`) in the standard envelope and lifts
 its warnings onto the envelope's `warnings`; a refusal keeps its own
-code in `errors[0].code` (`pulse errors lookup CODE`). The leaf is a
-thin adapter over `Pulse.Materialize`.
+code in `errors[0].code` (`pulse errors lookup CODE`). `--predict`
+writes `PredictMaterialize`'s envelope as it is (no `-o` needed, nothing
+written; `--strict` promotes its warnings) and exits 1 when it carries
+an error. The leaf is a thin adapter over `Pulse.Materialize` /
+`Pulse.PredictMaterialize`.
 
 ## MCP
 
-`pulse_materialize` takes `{request, out, overwrite}` — the request
-NESTED under `request`, `out` relative to the data dir — and returns
-the same result object. A request slot spread beside `out` (or a
+`pulse_materialize` takes `{request, out, overwrite, predict}` — the
+request NESTED under `request`, `out` relative to the data dir — and
+returns the same result object. `predict: true` needs no `out`, writes
+nothing and answers `{predict: {valid, schema_info, columns,
+derived_columns, risks, errors, warnings}}`; a refused request is that
+verdict, not a tool error. A request slot spread beside `out` (or a
 misspelled argument) is `PULSE_REQUEST_UNKNOWN_FIELD` with a
 suggestion; an unknown key inside `request` is refused as
 `pulse_process` refuses it. Description-quality strict mode is CLI and
@@ -193,6 +233,6 @@ library only.
 `capability:materialize` (which needs `capability:process`) gates the
 tool and the CLI leaf; a profile without it does not mount
 `pulse_materialize` and lists no `materialize` command. The library
-method itself is never hidden — an embedder calling it holds the
+methods themselves (`Materialize`, `PredictMaterialize`) are never hidden — an embedder calling them holds the
 instance — but the instance's operator set still applies: a hidden
 operator in the request is refused exactly as an unknown one.

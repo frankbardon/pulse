@@ -93,6 +93,7 @@ func payloadEntries() []payloadEntry {
 		{reflect.TypeFor[types.LookupResult](), "point-lookup result", featLookup},
 		{reflect.TypeFor[descriptor.RecommendResult](), "recommend result", featRecommend},
 		{reflect.TypeFor[descriptor.ExplainResult](), "explain result", featExplain},
+		{reflect.TypeFor[descriptor.MaterializePredictResult](), "materialize predict result", featMaterialize},
 		{reflect.TypeFor[descriptor.Advisory](), "predict advisory (one entry of a predict result's advisories)", ""},
 		{reflect.TypeFor[descriptor.Envelope](), "universal --json output envelope (data wraps the operation result)", ""},
 	}
@@ -111,7 +112,8 @@ const payloadSchemaDigestPrefix = "feature_set_digest: "
 //     Request.crosstab / joins / overlays, the overlays slot of each
 //     other request root and of each result root) are not properties;
 //   - a root whose capability is hidden (compose, process_chain, facet,
-//     sample, lookup, recommend, explain) is not an entry point;
+//     sample, lookup, recommend, explain, materialize) is not an entry
+//     point;
 //
 // and every def reachable only through something omitted is absent,
 // because defs are registered by walking from the surviving entries.
@@ -362,7 +364,8 @@ func resultOnlyStructs() map[reflect.Type]bool {
 	}
 	results := reach(reflect.TypeFor[types.Response](), reflect.TypeFor[types.ComposedResponse](),
 		reflect.TypeFor[types.ChainResponse](), reflect.TypeFor[types.FacetResult](), reflect.TypeFor[types.LookupResult](),
-		reflect.TypeFor[descriptor.RecommendResult](), reflect.TypeFor[descriptor.ExplainResult]())
+		reflect.TypeFor[descriptor.RecommendResult](), reflect.TypeFor[descriptor.ExplainResult](),
+		reflect.TypeFor[descriptor.MaterializePredictResult]())
 	// ExplainRequest is deliberately not a request root here: it carries
 	// RESULTS to read (a Response, …), whose undefined figures arrive as
 	// null, so the result structs it reaches keep their nullable floats.

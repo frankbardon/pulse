@@ -843,6 +843,7 @@ pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse
 pulse: type Pulse method (*Pulse) PredictEnvelope(ctx context.Context, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictExport(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.PredictReport, error)
 pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictMaterialize(ctx context.Context, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
@@ -1739,6 +1740,27 @@ pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"
 pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
 pulse/descriptor: type ManifestScope struct
 pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
+pulse/descriptor: type MaterializePredictColumn struct
+pulse/descriptor: type MaterializePredictColumn field Derived bool "json:\"derived\""
+pulse/descriptor: type MaterializePredictColumn field Description string "json:\"description\""
+pulse/descriptor: type MaterializePredictColumn field Dictionary *pulse/descriptor.DictionaryInfo "json:\"dictionary,omitempty\""
+pulse/descriptor: type MaterializePredictColumn field From string "json:\"from\""
+pulse/descriptor: type MaterializePredictColumn field Name string "json:\"name\""
+pulse/descriptor: type MaterializePredictColumn field Nullable bool "json:\"nullable\""
+pulse/descriptor: type MaterializePredictColumn field Precision *uint8 "json:\"precision,omitempty\""
+pulse/descriptor: type MaterializePredictColumn field Scale *uint8 "json:\"scale,omitempty\""
+pulse/descriptor: type MaterializePredictColumn field Type string "json:\"type\""
+pulse/descriptor: type MaterializePredictResult struct
+pulse/descriptor: type MaterializePredictResult field Columns []pulse/descriptor.MaterializePredictColumn "json:\"columns\""
+pulse/descriptor: type MaterializePredictResult field DerivedColumns []string "json:\"derived_columns\""
+pulse/descriptor: type MaterializePredictResult field Risks []pulse/descriptor.MaterializeRisk "json:\"risks\""
+pulse/descriptor: type MaterializePredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse/descriptor: type MaterializePredictResult field Valid bool "json:\"valid\""
+pulse/descriptor: type MaterializeRisk struct
+pulse/descriptor: type MaterializeRisk field Check string "json:\"check\""
+pulse/descriptor: type MaterializeRisk field Code string "json:\"code\""
+pulse/descriptor: type MaterializeRisk field Column string "json:\"column\""
+pulse/descriptor: type MaterializeRisk field Path string "json:\"path,omitempty\""
 pulse/descriptor: type MatrixCapability struct
 pulse/descriptor: type MatrixCapability field DefaultEncoding string "json:\"default_encoding\""
 pulse/descriptor: type MatrixCapability field Encodings []string "json:\"encodings\""
@@ -6237,4 +6259,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7a3ca1ee0ca67eb7407088a1edd4fc181c3ac465204c2938cda517187da81d81
+// golden-hash: 3cae0de24f6002431ea7ef13f388dcbdc724c4138f31a2483cc941ba134a6f06

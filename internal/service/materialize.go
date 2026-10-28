@@ -45,8 +45,9 @@ type MaterializeWarner interface {
 // produce one value per record (PULSE_MATERIALIZE_SLOT_UNSUPPORTED),
 // no derived slot without an output block (PULSE_MATERIALIZE_NO_DERIVED),
 // a feature whose outputs cannot be named
-// (PULSE_MATERIALIZE_OUTPUT_UNDECLARED) and the output block's layout
-// refusals (descx.MaterializeOutputLayout) — all before sink.Begin.
+// (PULSE_MATERIALIZE_OUTPUT_UNDECLARED), the output block's layout
+// refusals and an over-long written description (descx.MaterializePlan,
+// shared with PredictMaterialize) — all before sink.Begin.
 // Unlike every other operation it accepts the materialize-only
 // `output` slot (descx.MaterializeSlotGate).
 //
@@ -124,17 +125,15 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err := s.limitsPreflight(req, schema, lin); err != nil {
 		return err
 	}
-	cols, cerr := descx.MaterializeColumns(req, schema, s.instance, path)
-	if cerr != nil {
-		return cerr
-	}
-	// The output layout (projection, renames, descriptions,
-	// nullability) is resolved last, over the source schema plus the
-	// derived columns: every slot above has already read the full
-	// schema, so a column the output drops stays readable to them.
-	layout, lerr := descx.MaterializeOutputLayout(req, schema, cols)
-	if lerr != nil {
-		return lerr
+	// The derived columns, then the output layout (projection, renames,
+	// descriptions, nullability) over the source schema plus them, then
+	// the written descriptions' length — descx.MaterializePlan, the one
+	// call PredictMaterialize makes too. Resolved last: every slot above
+	// has already read the full schema, so a column the output drops
+	// stays readable to them.
+	cols, layout, perr := descx.MaterializePlan(req, schema, s.instance, path)
+	if perr != nil {
+		return perr
 	}
 	req = s.zoned(req, zones)
 	ei.Lap(observe.PhasePlan)

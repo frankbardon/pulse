@@ -14,13 +14,15 @@ A derived column — a window, a feature output, an attribute — exists only in
 
 Surfaces: MCP `pulse_materialize` (`tool-materialize`), CLI `pulse api materialize -r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`, library `Pulse.Materialize(ctx, req, out, MaterializeOptions{Overwrite, Strict})`.
 
+**Predict first:** `predict: true` / `--predict` / `Pulse.PredictMaterialize` reads header + schema only, writes nothing, returns the output `columns`, `risks` and every refusal below with the run's code.
+
 ## When to materialise
 
 - A model over a window: a lagged, smoothed or cumulative predictor.
 - Grouping or filtering on a derived value: a log-spend bucket, a rank.
 - One derived column feeding several later requests: compute once, read many times.
 
-A single request that only DISPLAYS a derived value needs no materialise step: run it directly. A chain stage cannot carry windows or features<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->, so a chain is no substitute.
+A request that only DISPLAYS a derived value needs no materialise step: run it directly. A chain stage cannot carry windows or features<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->, so a chain is no substitute.
 
 ## The two-step recipe
 
@@ -41,7 +43,7 @@ Step 1 — materialise (the request carries only derived columns and filters):
 
 Step 2 — point the next request at `out` and reference the column by its label: a regression with `"predictors": ["spend_lag1"]`, a grouper on it, a filter on it.
 
-Label every output you will reference; without a label the column takes the operator's default output name (the `derived_columns` list in the result names each one).
+Label every output you will reference; unlabelled, a column takes the operator's default name (listed in `derived_columns`).
 
 ## What the output holds
 
@@ -67,7 +69,7 @@ All before anything is written; the write itself is atomic.
 | `PULSE_MATERIALIZE_OUTPUT_UNDECLARED` | an embedder-registered feature, whose outputs cannot be named before it runs | apply it in the step-2 request instead |
 | `SERVICE_VALIDATION` | `out` exists | pick a new path, or `overwrite` (stale sidecars are listed, never rebuilt) |
 
-Process's own pre-flight runs first, so a request `pulse_process` refuses is refused here with the same code.
+A request `pulse_process` refuses is refused here with the same code (its pre-flight runs first).
 
 ## Gotchas
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,5 +56,68 @@ func TestCliMaterialize_OutputSlot(t *testing.T) {
 		if !strings.Contains(text, `"code": "PULSE_MATERIALIZE_OUTPUT_ONLY"`) {
 			t.Errorf("api %s: output not refused with PULSE_MATERIALIZE_OUTPUT_ONLY:\n%s", l.leaf, text)
 		}
+	}
+}
+
+// TestCliMaterialize_Predict: `pulse api materialize --predict` writes
+// the predict envelope (the output columns, derived names and risks)
+// and nothing at -o; a refused request is the envelope's coded error
+// with exit status 1; without --predict, -o stays required (usage).
+func TestCliMaterialize_Predict(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "series.pulse")
+	if text, err := runApp(t, "import", "csv", "--input", writeMaterializeCSV(t, dir), "--output", src); err != nil {
+		t.Fatalf("import: %v\n%s", err, text)
+	}
+	cohort := map[string]any{"filename": src}
+	output := map[string]any{"columns": []any{
+		map[string]any{"from": "y", "as": "target", "nullable": false},
+		map[string]any{"from": "LOG_x"},
+	}}
+	features := []any{map[string]any{"type": "FEAT_LOG", "field": "x"}}
+	req := writeJSONFile(t, dir, "mat.json", map[string]any{"cohort": cohort, "features": features, "output": output})
+	out := filepath.Join(dir, "never.pulse")
+
+	status, text, _ := runExit(t, "api", "materialize", "-r", req, "-o", out, "--predict", "--json")
+	var env struct {
+		Data struct {
+			Valid   bool `json:"valid"`
+			Columns []struct {
+				Name string `json:"name"`
+				Type string `json:"type"`
+				From string `json:"from"`
+			} `json:"columns"`
+			DerivedColumns []string `json:"derived_columns"`
+			Risks          []struct {
+				Column string `json:"column"`
+				Code   string `json:"code"`
+			} `json:"risks"`
+		} `json:"data"`
+		Errors []struct {
+			Code string `json:"code"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal([]byte(text), &env); err != nil || status != 0 || !env.Data.Valid || len(env.Errors) != 0 {
+		t.Fatalf("predict (status %d, %v): %s", status, err, text)
+	}
+	if len(env.Data.Columns) != 2 || env.Data.Columns[0].Name != "target" || env.Data.Columns[1].From != "LOG_x" ||
+		len(env.Data.DerivedColumns) != 1 || env.Data.DerivedColumns[0] != "LOG_x" {
+		t.Errorf("predicted columns %+v, derived %v", env.Data.Columns, env.Data.DerivedColumns)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Errorf("--predict wrote %s (stat err %v)", out, err)
+	}
+
+	bad := writeJSONFile(t, dir, "bad.json", map[string]any{"cohort": cohort, "features": features,
+		"output": map[string]any{"columns": []any{map[string]any{"from": "nope"}}}})
+	status, text, _ = runExit(t, "api", "materialize", "-r", bad, "--predict", "--json")
+	if err := json.Unmarshal([]byte(text), &env); err != nil || status != 1 || env.Data.Valid ||
+		len(env.Errors) == 0 || env.Errors[0].Code != "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN" {
+		t.Errorf("refused predict (status %d, %v): %s", status, err, text)
+	}
+	if status, _, _ := runExit(t, "api", "materialize", "-r", req); status != 2 {
+		t.Errorf("materialize without -o or --predict exited %d, want 2 (usage)", status)
 	}
 }

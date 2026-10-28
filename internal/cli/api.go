@@ -733,23 +733,37 @@ func apiLookupCmd() *cli.Command {
 // flags, calls it once and formats the result. Every refusal carries
 // its own code (PULSE_MATERIALIZE_*, SERVICE_VALIDATION for an existing
 // target, the request's own pre-flight codes); MATERIALIZE_ERROR is
-// reached only by an uncoded error.
+// reached only by an uncoded error. --predict calls
+// pulse.PredictMaterialize instead: the predict envelope is written as
+// it is, nothing is written at --out (which it does not need), and the
+// exit status follows the envelope's errors; --strict there promotes
+// every predict warning into an error (the instance's Options.Strict).
 func apiMaterializeCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "materialize",
 		Usage: "Write a new cohort holding the request's filter-passing source records plus one f64 column per derived output (features, attributes, windows), so later requests read them as ordinary fields (atomic)",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path (cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, disable_components only)", Required: true},
-			&cli.StringFlag{Name: "out", Aliases: []string{"o"}, Usage: "Path of the new .pulse cohort to write", Required: true},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path (cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, output, disable_components only)", Required: true},
+			&cli.StringFlag{Name: "out", Aliases: []string{"o"}, Usage: "Path of the new .pulse cohort to write (required unless --predict)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic); its now-stale sidecars are listed, never rebuilt"},
-			&cli.BoolFlag{Name: "strict", Usage: "Fail with PULSE_FIELD_DESCRIPTION_LOW_QUALITY (nothing written) when an output field's description is weak, instead of warning"},
+			&cli.BoolFlag{Name: "strict", Usage: "Fail with PULSE_FIELD_DESCRIPTION_LOW_QUALITY (nothing written) when an output field's description is weak, instead of warning; with --predict, promote every predict warning into an error"},
+			&cli.BoolFlag{Name: "predict", Usage: "Validate without executing: print the output schema the run would write, every static refusal and the data-dependent risks, reading the source's header and schema only; nothing is written"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
+			if !cmd.Bool("predict") && cmd.String("out") == "" {
+				// The parser's own refusal for a missing required flag,
+				// which --out is unless --predict.
+				return usageExit(perr.NewCodedError(perr.CLI_INPUT,
+					`Required flag "out" not set (pass --predict to validate without writing)`))
+			}
 			req, err := loadRequest(cmd.String("request"))
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_INPUT", err)
+			}
+			if cmd.Bool("predict") {
+				return materializePredict(ctx, cmd, jsonOut, req)
 			}
 			p, err := newPulse(ctx)
 			if err != nil {
@@ -769,6 +783,49 @@ func apiMaterializeCmd() *cli.Command {
 			return nil
 		},
 	}
+}
+
+// materializePredict is `pulse api materialize --predict`: the facade's
+// predict envelope written as it is (--json), or a text report of the
+// output columns, refusals, warnings and risks. Exits non-zero when the
+// envelope carries an error.
+func materializePredict(ctx context.Context, cmd *cli.Command, jsonOut bool, req *pulse.Request) error {
+	p, err := newPulseOpts(ctx, pulse.Options{Strict: cmd.Bool("strict")})
+	if err != nil {
+		return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
+	}
+	env, err := p.PredictMaterialize(ctx, req)
+	if err != nil {
+		return cliCodedError(cmd, jsonOut, "PREDICT_ERROR", err)
+	}
+	if jsonOut {
+		return writeJSON(cmd.Writer, env)
+	}
+	w := cmd.Writer
+	valid := len(env.Errors) == 0
+	writeText(w, "Valid: %t\n", valid)
+	if res, ok := env.Data.(*descriptor.MaterializePredictResult); ok {
+		for _, c := range res.Columns {
+			nullable := ""
+			if c.Nullable {
+				nullable = ", nullable"
+			}
+			writeText(w, "  %s  %s%s  (from %s)\n", c.Name, c.Type, nullable, c.From)
+		}
+		for _, r := range res.Risks {
+			writeText(w, "Risk [%s] %s: %s\n", r.Code, r.Column, r.Check)
+		}
+	}
+	for _, e := range env.Errors {
+		writeText(w, "Error [%s]: %s\n", e.Code, e.Message)
+	}
+	for _, wn := range env.Warnings {
+		writeText(w, "Warning [%s]: %s\n", wn.Code, wn.Message)
+	}
+	if !valid {
+		return fmt.Errorf("validation failed")
+	}
+	return nil
 }
 
 // writeMaterializeText is the human-readable report of a materialize run.

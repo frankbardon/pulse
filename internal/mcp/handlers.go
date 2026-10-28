@@ -373,9 +373,29 @@ func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, err
 // columns written as ordinary fields of a new cohort at in.Out. All
 // behaviour — the slot gate, every refusal, the atomic write — is
 // pulse.Materialize; coded errors pass through verbatim.
+//
+// With in.Predict it runs pulse.PredictMaterialize instead: the verdict
+// under `predict`, its coded errors / warnings inside it, nothing
+// written (out is not needed); a refused request is a verdict, not a
+// tool error.
 func HandleMaterialize(ctx context.Context, p *pulse.Pulse, in MaterializeIn) (MaterializeOut, error) {
 	if in.Request == nil {
 		return MaterializeOut{}, errMissingArg("request")
+	}
+	if in.Predict {
+		env, err := p.PredictMaterialize(ctx, in.Request)
+		if err != nil {
+			return MaterializeOut{}, err
+		}
+		verdict := &MaterializePredictOut{Errors: env.Errors, Warnings: env.Warnings}
+		verdict.MaterializePredictResult, _ = env.Data.(*descriptor.MaterializePredictResult)
+		if len(verdict.Errors) == 0 {
+			verdict.Errors = nil
+		}
+		if len(verdict.Warnings) == 0 {
+			verdict.Warnings = nil
+		}
+		return MaterializeOut{Predict: verdict}, nil
 	}
 	if in.Out == "" {
 		return MaterializeOut{}, errMissingArg("out")
@@ -384,7 +404,7 @@ func HandleMaterialize(ctx context.Context, p *pulse.Pulse, in MaterializeIn) (M
 	if err != nil {
 		return MaterializeOut{}, err
 	}
-	return *res, nil
+	return MaterializeOut{MaterializeResult: res}, nil
 }
 
 // HandleRake runs pulse_rake: survey weights computed for in.Cohort and

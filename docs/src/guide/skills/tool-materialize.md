@@ -14,21 +14,24 @@ A derived value lives only inside the request that computes it: a regression, gr
 ## Input
 
 - `request` (object, required): a request body (the `pulse_process` shape) with `cohort`. Only `cohort`, `label`, `features`, `filterers`, `attributes`, `windows`, `sort`, `weight`, `time_zone`, `disable_components`, `output`.
-- `out` (string, required): the NEW `.pulse` path, relative to the data dir.
+- `out` (string; required unless `predict`): the NEW `.pulse` path, relative to the data dir.
 - `overwrite` (bool): replace an existing cohort at `out`.
+- `predict` (bool): validate only; writes nothing.
 
 ## Output
 
 `target`, `records` (one per filter-passing source record; source order, or `sort` order), `derived_columns` (output order: feature outputs, attributes, windows), `warnings`, `invalidated_sidecars` (overwrite only, each with its rebuild command).
+
+`predict: true` answers under `predict`: `valid`, `columns`, `derived_columns`, `risks`, `errors` / `warnings` (the run's codes).
 
 The cohort holds the source fields verbatim, then one nullable `f64` per derived column (an `ATTR_PREVIOUS_STATE` column keeps its state field's categorical type and dictionary), described by operator, field, params and (when the operator reads it) frame.
 
 ## Gotchas
 
 - **Nest the request.** A slot beside `out` → `PULSE_REQUEST_UNKNOWN_FIELD`; a slot outside the list → `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); nothing derived → `PULSE_MATERIALIZE_NO_DERIVED`.
-- **Label the outputs** you will reference; the column name is the label.
+- **Label outputs** you will reference: the column name is the label.
 - Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Every refusal happens before anything is written; the write is atomic.
+- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Every refusal precedes any write; the write is atomic.
 - `sort` orders the ROWS only (keys: source fields or derived columns; Process's comparator, nulls last); window values follow each window's own `order_by`.
 - Single-file output; the SPSS metadata sidecar is carried, no other sidecar.
 - **`output`** picks, orders, renames and describes the columns, applied last ([`derived-cohorts`](derived-cohorts.md)).

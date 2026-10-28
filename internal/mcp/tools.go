@@ -163,7 +163,7 @@ func checkGroupsShape(raw json.RawMessage, tool string) error {
 }
 
 // materializeKeys are pulse_materialize's top-level argument keys.
-var materializeKeys = []string{"out", "overwrite", "request"}
+var materializeKeys = []string{"out", "overwrite", "predict", "request"}
 
 // strictMaterializeDecode decodes pulse_materialize's input. An unknown
 // top-level key is PULSE_REQUEST_UNKNOWN_FIELD over the tool's own keys
@@ -207,7 +207,7 @@ func unknownMaterializeKeys(unknown []string) *perr.CodedError {
 	}
 	return perr.NewCodedErrorWithDetails(perr.PULSE_REQUEST_UNKNOWN_FIELD,
 		"pulse_materialize arguments contain unrecognized key(s): "+strings.Join(unknown, ", ")+
-			". The arguments are request, out and overwrite; every request slot (cohort, features, windows, ...) goes INSIDE request.",
+			". The arguments are request, out, overwrite and predict; every request slot (cohort, features, windows, ...) goes INSIDE request.",
 		map[string]any{
 			"unknown_keys": unknown,
 			"suggestions":  suggestions,
