@@ -11,8 +11,9 @@ import (
 // — a fit note such as PULSE_MATRIX_NOT_CONVERGED or _NEAREST_PD rides
 // beside the figures it qualifies. The closed set below names the matrix
 // warnings that mark a figure as MISSING rather than qualified: a null :=
-// row (PULSE_MATRIX_DEFINED_NONFINITE) or a declared group level that is
-// no group of the fit (PULSE_MATRIX_GROUP_LEVEL_EMPTY). Left on the
+// row (PULSE_MATRIX_DEFINED_NONFINITE), a declared group level that is
+// no group of the fit (PULSE_MATRIX_GROUP_LEVEL_EMPTY) or rows a derived
+// group dropped as no level (PULSE_MATRIX_GROUP_LEVEL_UNDECLARED). Left on the
 // result alone they were silent to every consumer reading the envelope's
 // top-level warnings (issue #393), so, like a regression result's
 // warnings (regression_warnings.go), each reaches the caller two ways,
@@ -32,8 +33,9 @@ import (
 // liftedMatrixWarnings are the matrix warning codes lifted to
 // Response.Warnings and escalated under Strict.
 var liftedMatrixWarnings = map[string]bool{
-	string(errors.PULSE_MATRIX_DEFINED_NONFINITE): true,
-	string(errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY): true,
+	string(errors.PULSE_MATRIX_DEFINED_NONFINITE):      true,
+	string(errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY):      true,
+	string(errors.PULSE_MATRIX_GROUP_LEVEL_UNDECLARED): true,
 }
 
 // matrixSlotIndex is the request slot index of the matrix result named

@@ -50,8 +50,8 @@ type brandGroupCohort struct {
 	dict []string
 	// fsys is the filesystem to write on (nil: a fresh MemMapFs).
 	fsys afero.Fs
-	// relabel rewrites a categorical wave's label per row r (nil: the
-	// CSV's own), e.g. to split a wave in two.
+	// relabel rewrites a categorical (or u8) wave's label per row r
+	// (nil: the CSV's own), e.g. to split a wave in two.
 	relabel func(r int, wave string) string
 }
 
@@ -130,6 +130,11 @@ func (c brandGroupCohort) build(t *testing.T, opts pulse.Options) (*pulse.Pulse,
 			case encoding.FieldTypePackedBool:
 				row[i] = v == 2
 			default:
+				if c.relabel != nil {
+					if v, err = strconv.ParseFloat(c.relabel(r, s), 64); err != nil {
+						t.Fatal(err)
+					}
+				}
 				row[i] = uint64(v)
 			}
 		}

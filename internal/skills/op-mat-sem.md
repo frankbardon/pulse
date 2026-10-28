@@ -24,6 +24,7 @@ examples_tags: [matrix, multivariate]
 | `group_reference` | string | — | Primary level. |
 | `group_equal` | list | — | Invariance. |
 | `group_partial` | list | — | Freed rows. |
+| `group_levels` | array | — | `sem-groups`. |
 <!-- /feature -->
 <!-- feature: capability:sem_bootstrap -->
 | `resample` | `bootstrap` | — | SE, p, CI. |
@@ -65,8 +66,8 @@ The model's observed variables.
 ## Gotchas
 
 - Unused / non-member: `bad_params`.
-- lavaan rules: `sem-modeling`<!-- feature: capability:sem_defined -->; `:=`: `sem-defined-parameters`<!-- /feature --><!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
-- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`<!-- feature: capability:sem_groups -->; empty level: `PULSE_MATRIX_GROUP_LEVEL_EMPTY`<!-- /feature --><!-- feature: capability:sem_groups, capability:sem_defined --> (`:=` on it: `empty_group`)<!-- /feature -->.
+- lavaan rules: `sem-modeling`<!-- feature: capability:sem_groups -->; groups: `sem-groups`<!-- /feature --><!-- feature: capability:sem_defined -->; `:=`: `sem-defined-parameters`<!-- /feature --><!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
+- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
 
 ## See
 

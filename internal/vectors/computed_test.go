@@ -141,6 +141,32 @@ func TestResolveMatrices_ComputedMembers(t *testing.T) {
 	}
 }
 
+// TestMatrixComputedMembers_SEMGroup: a MAT_SEM params.group naming a
+// computed column (here a window label) is a computed column the
+// matrices read — so a window's is copied onto the records — and the
+// projection decodes no source of its own for it; a cohort-field group
+// is no computed column.
+func TestMatrixComputedMembers_SEMGroup(t *testing.T) {
+	t.Parallel()
+
+	s := testSchema()
+	req := computedRequest()
+	req.Matrices = []types.MatrixSpec{{Name: "s", Type: types.MAT_SEM, Fields: []string{"q_1", "q_2", "q_3"}, Params: json.RawMessage(`{"group": "lag"}`)}}
+	if got := MatrixComputedMembers(req, s, nil); !slices.Equal(got, []string{"lag"}) {
+		t.Errorf("MatrixComputedMembers = %v, want [lag]", got)
+	}
+	if m, ok := MatrixMembers(req, s, nil); !ok || slices.Contains(m, "lag") {
+		t.Errorf("MatrixMembers = %v, %v", m, ok)
+	}
+	req.Matrices[0].Params = json.RawMessage(`{"group": "region"}`)
+	if got := MatrixComputedMembers(req, s, nil); got != nil {
+		t.Errorf("cohort-field group listed as computed: %v", got)
+	}
+	if m, ok := MatrixMembers(req, s, nil); !ok || !slices.Contains(m, "region") {
+		t.Errorf("MatrixMembers = %v, %v, want region", m, ok)
+	}
+}
+
 // TestComputedRefusal: every non-matrix consumer of a vector with a
 // computed member is PULSE_VECTOR_INVALID computed_member_unsupported
 // naming the slot and the member, judged even on a matrix-free request.

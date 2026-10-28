@@ -28,6 +28,7 @@ Questions it answers:
 | `group_reference` | string | — | Primary level. |
 | `group_equal` | list | — | Invariance. |
 | `group_partial` | list | — | Freed rows. |
+| `group_levels` | array | — | [`sem-groups`](sem-groups.md). |
 | `resample` | `bootstrap` | — | SE, p, CI. |
 | `bootstrap_iters` | int | 1000 | B. |
 | `rng_seed` | int | 0 | — |
@@ -73,8 +74,8 @@ The model's observed variables.
 ## Gotchas
 
 - Unused / non-member: `bad_params`.
-- lavaan rules: [`sem-modeling`](sem-modeling.md); `:=`: [`sem-defined-parameters`](sem-defined-parameters.md); `resample`: [`sem-bootstrap`](sem-bootstrap.md).
-- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`; empty level: `PULSE_MATRIX_GROUP_LEVEL_EMPTY` (`:=` on it: `empty_group`).
+- lavaan rules: [`sem-modeling`](sem-modeling.md); groups: [`sem-groups`](sem-groups.md); `:=`: [`sem-defined-parameters`](sem-defined-parameters.md); `resample`: [`sem-bootstrap`](sem-bootstrap.md).
+- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
 
 ## See
 

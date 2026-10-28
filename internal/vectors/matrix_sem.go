@@ -3,6 +3,7 @@ package vectors
 import (
 	"encoding/json"
 	stderrors "errors"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,6 +52,18 @@ type SEMPlan struct {
 	// without rows after the filters is no group of the fit.
 	GroupType   encoding.FieldType
 	GroupLevels []string
+	// GroupDerived reports that params.group names a column the request
+	// computes (ComputedColumns: an attribute, feature or window label,
+	// a nullable f64) rather than a cohort field; GroupType is then f64.
+	// Its levels are GroupDeclared when params.group_levels declares
+	// them (GroupLevels their labels, level i ↔ c(...) position i), else
+	// its observed integral values, ascending (GroupLevels nil). A row
+	// whose value is no level is a listwise drop warned
+	// PULSE_MATRIX_GROUP_LEVEL_UNDECLARED.
+	GroupDerived bool
+	// GroupDeclared is params.group_levels in order (nil when absent):
+	// each level's integral value and label.
+	GroupDeclared []SEMGroupLevel
 	// GroupEqual and GroupPartial are params.group_equal /
 	// group_partial: lavaan's group.equal classes held equal across
 	// the groups and the group.partial rows freed from them
@@ -89,6 +102,28 @@ type SEMPlan struct {
 	// (TestSEM_OrderedBoundsBelowCeiling).
 	OrderedLevels []int
 }
+
+// SEMGroupLevel is one params.group_levels entry: an integral Value a
+// derived group's rows match exactly, and its Label — the entry's name,
+// else the value's canonical integer text.
+type SEMGroupLevel struct {
+	Value float64
+	Label string
+}
+
+// SEMGroupValueMax bounds a derived group's level values: an integral
+// value is exact in a float64 up to 2^53, so |value| ≤ 2^53.
+const SEMGroupValueMax = 1 << 53
+
+// SEMGroupIntegral reports whether v can be a derived group's level:
+// an integral number with |v| ≤ SEMGroupValueMax.
+func SEMGroupIntegral(v float64) bool {
+	return v == math.Trunc(v) && math.Abs(v) <= SEMGroupValueMax
+}
+
+// SEMGroupValueLabel is an integral level value's canonical text ("1",
+// "-2"; -0 is "0").
+func SEMGroupValueLabel(v float64) string { return strconv.FormatInt(int64(v), 10) }
 
 // Ordinal reports whether the plan fits by an ordinal estimator (DWLS /
 // WLSMV).
@@ -330,6 +365,9 @@ type semParams struct {
 	// sweep axis value).
 	GroupEqual   *semList `json:"group_equal"`
 	GroupPartial *semList `json:"group_partial"`
+	// GroupLevels declares a derived group's levels: value, optional
+	// name, in c(...) order.
+	GroupLevels *[]semGroupLevel `json:"group_levels"`
 	// Resample is lavaan's se = "bootstrap" (REG_RESAMPLE's naming):
 	// BootstrapIters replicates seeded by RNGSeed, percentile intervals
 	// at CILevel.
@@ -346,6 +384,75 @@ type semParams struct {
 	// "delta" (the default, the only one fitted); "theta" is refused.
 	Parameterization *string `json:"parameterization"`
 	missingParams
+}
+
+// semGroupLevel is one params.group_levels entry as written.
+type semGroupLevel struct {
+	Value *float64 `json:"value"`
+	Name  *string  `json:"name"`
+}
+
+// decodeSEMGroupLevels decodes params.group_levels into
+// plan.GroupDeclared: params.group set, two levels at least, each an
+// integral value (SEMGroupIntegral) with an optional non-empty name,
+// no value and no label (the name, else the value's text) twice — any
+// other is bad_params. Whether the group is a computed column is
+// resolveSEMGroup's to judge.
+func decodeSEMGroupLevels(at string, p semParams, plan *SEMPlan) *errors.CodedError {
+	if p.GroupLevels == nil {
+		return nil
+	}
+	levels := *p.GroupLevels
+	refuse := func(msg string, extra map[string]any) *errors.CodedError {
+		d := map[string]any{"param": "group_levels"}
+		for k, v := range extra {
+			d[k] = v
+		}
+		return matrixInvalid(at, "bad_params", at+" params.group_levels "+msg, d)
+	}
+	if p.Group == nil {
+		return refuse("applies with params.group only (a group the request computes)", nil)
+	}
+	if len(levels) < 2 {
+		return refuse("declares "+strconv.Itoa(len(levels))+" level(s); a multi-group fit needs two at least",
+			map[string]any{"count": len(levels)})
+	}
+	values := map[float64]int{}
+	labels := map[string]int{}
+	out := make([]SEMGroupLevel, len(levels))
+	for i, l := range levels {
+		idx := "[" + strconv.Itoa(i) + "]"
+		if l.Value == nil {
+			return refuse(idx+" has no value; each level is {\"value\": <integer>, \"name\": <optional label>}",
+				map[string]any{"index": i})
+		}
+		v := *l.Value
+		if !SEMGroupIntegral(v) {
+			return refuse(idx+" value "+strconv.FormatFloat(v, 'g', -1, 64)+" is not an integer (|value| ≤ 2^53); a group level is matched exactly against the computed value",
+				map[string]any{"index": i, "value": v})
+		}
+		if j, dup := values[v]; dup {
+			return refuse(idx+" repeats the value of ["+strconv.Itoa(j)+"]",
+				map[string]any{"index": i, "value": v})
+		}
+		values[v] = i
+		label := SEMGroupValueLabel(v)
+		if l.Name != nil {
+			if *l.Name == "" {
+				return refuse(idx+" has an empty name; omit it to label the level by its value",
+					map[string]any{"index": i})
+			}
+			label = *l.Name
+		}
+		if j, dup := labels[label]; dup {
+			return refuse(idx+" repeats the label "+strconv.Quote(label)+" of ["+strconv.Itoa(j)+"]",
+				map[string]any{"index": i, "name": label})
+		}
+		labels[label] = i
+		out[i] = SEMGroupLevel{Value: v, Label: label}
+	}
+	plan.GroupDeclared = out
+	return nil
 }
 
 // semList is a list param that also reads as one comma-separated
@@ -437,7 +544,7 @@ const (
 func SEMFeatureParams() map[string][]string {
 	return map[string][]string{
 		SEMFeatureMeanStructure: {"meanstructure"},
-		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial"},
+		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial", "group_levels"},
 		SEMFeatureDefined:       {},
 		SEMFeatureBootstrap:     {"resample", "bootstrap_iters", "rng_seed", "ci_level"},
 		SEMFeatureOrdinal:       {"estimator", "ordered", "parameterization"},
@@ -558,6 +665,9 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 			return matrixInvalid(at, "bad_params", msg,
 				map[string]any{"param": "group_equal", "value": v, "valid": valid})
 		}
+	}
+	if err := decodeSEMGroupLevels(at, p, plan); err != nil {
+		return err
 	}
 	if p.GroupReference != nil {
 		if p.Group == nil {
@@ -901,13 +1011,18 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 }
 
 // resolveSEMGroup checks a grouped MAT_SEM's params.group against the
-// request and the schema (nil skips the field checks): the request is
-// not grouped itself (each bucket of a grouped request is an
-// ungrouped fit — group_with_groups), the field exists, is no member
-// and has a SEMGroupFieldTypes type (group_field_type), a categorical
-// dictionary holds two levels at least (group_one_level), no params.fit
-// binds the slot, and a group_reference names a level of the field.
-func resolveSEMGroup(at string, req *types.Request, schema *encoding.Schema, m *Matrix) *errors.CodedError {
+// request, the schema (nil skips the field checks) and the columns the
+// request computes (computed; nil: none): the request is not grouped
+// itself (each bucket of a grouped request is an ungrouped fit —
+// group_with_groups), the group is no member, a cohort field wins over
+// a computed column of the same name (ComputedColumns leaves such a
+// name out), a cohort field has a SEMGroupFieldTypes type
+// (group_field_type), a categorical dictionary holds two levels at
+// least (group_one_level), no params.fit binds the slot, a
+// group_reference names a level of the field and params.group_levels
+// is refused on a cohort field (its levels are its own). A computed
+// group resolves by resolveSEMDerivedGroup.
+func resolveSEMGroup(at string, req *types.Request, schema *encoding.Schema, computed Computed, m *Matrix) *errors.CodedError {
 	if m.Type != types.MAT_SEM || !m.SEM.Grouped() {
 		return nil
 	}
@@ -935,8 +1050,15 @@ func resolveSEMGroup(at string, req *types.Request, schema *encoding.Schema, m *
 	}
 	f := schema.Field(plan.Group)
 	if f == nil {
-		return matrixInvalid(at, "bad_params", at+" params.group names field "+strconv.Quote(plan.Group)+", which the cohort does not have",
+		if c, ok := computed[plan.Group]; ok {
+			return resolveSEMDerivedGroup(at, plan, c)
+		}
+		return matrixInvalid(at, "bad_params", at+" params.group names "+strconv.Quote(plan.Group)+", which is neither a cohort field nor a column the request computes (an attribute, feature or window label)",
 			map[string]any{"param": "group", "group": plan.Group})
+	}
+	if plan.GroupDeclared != nil {
+		return matrixInvalid(at, "bad_params", at+" params.group_levels declares the levels of a group the request computes, but "+strconv.Quote(plan.Group)+" is a cohort field, whose levels are its own (dictionary order, else its values); drop group_levels",
+			map[string]any{"param": "group_levels", "group_field": plan.Group, "field_type": f.Type.String()})
 	}
 	if !slices.Contains(SEMGroupFieldTypes(), f.Type) {
 		valid := make([]string, 0, len(SEMGroupFieldTypes()))
@@ -987,6 +1109,59 @@ func resolveSEMGroup(at string, req *types.Request, schema *encoding.Schema, m *
 	}
 	if !ok {
 		return matrixInvalid(at, "bad_params", at+" params.group_reference "+strconv.Quote(plan.GroupReference)+" is not a level of field "+strconv.Quote(plan.Group),
+			map[string]any{"param": "group_reference", "value": plan.GroupReference, "levels": plan.GroupLevels})
+	}
+	return nil
+}
+
+// resolveSEMDerivedGroup resolves a params.group naming a column the
+// request computes (c, its ComputedColumns entry): the column must be
+// a number per row (a nullable f64 — an ATTR_PREVIOUS_STATE output over
+// a categorical or packed_bool state keeps that type and is
+// group_field_type, to be wrapped in an ATTR_FORMULA); its levels are
+// params.group_levels when declared (GroupLevels their labels, in
+// order), else its observed integral values. A c(...) modifier needs
+// declared levels, as many as its entries (bad_params otherwise), and a
+// group_reference names a declared label — else, undeclared, an
+// integer's canonical text.
+func resolveSEMDerivedGroup(at string, plan *SEMPlan, c ComputedColumn) *errors.CodedError {
+	if c.Type != encoding.FieldTypeF64 {
+		return matrixInvalid(at, "group_field_type", at+" params.group "+strconv.Quote(plan.Group)+" is a computed "+c.Slot+" column of type "+c.Type.String()+"; a computed group is a number per row — wrap it in an ATTR_FORMULA giving each row an integer level and group by that",
+			map[string]any{"param": "group", "group_field": plan.Group, "field_type": c.Type.String(), "slot": c.Slot, "slot_index": c.Index,
+				"valid": []string{encoding.FieldTypeF64.String()}})
+	}
+	plan.GroupDerived, plan.GroupType = true, encoding.FieldTypeF64
+	if plan.GroupDeclared != nil {
+		plan.GroupLevels = make([]string, len(plan.GroupDeclared))
+		for i, l := range plan.GroupDeclared {
+			plan.GroupLevels[i] = l.Label
+		}
+	}
+	if k := plan.Model.Arity(); k > 0 {
+		if plan.GroupLevels == nil {
+			return matrixInvalid(at, "bad_params", at+" params.model's per-group modifiers c(...) read one value per level, but the levels of computed group "+strconv.Quote(plan.Group)+" are its observed values; declare them, in c(...) order, in params.group_levels",
+				map[string]any{"param": "model", "group_field": plan.Group, "arity": k})
+		}
+		if err := plan.Model.CheckGroupCount(len(plan.GroupLevels)); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params.model: "+err.Error()+" (the declared levels of "+strconv.Quote(plan.Group)+", in order: "+strings.Join(plan.GroupLevels, ", ")+")",
+				map[string]any{"param": "model", "group_field": plan.Group, "arity": k, "groups": len(plan.GroupLevels), "levels": plan.GroupLevels})
+		}
+	}
+	if plan.GroupReference == "" {
+		return nil
+	}
+	ok := false
+	if plan.GroupLevels != nil {
+		ok = slices.Contains(plan.GroupLevels, plan.GroupReference)
+	} else if v, err := strconv.ParseInt(plan.GroupReference, 10, 64); err == nil {
+		ok = SEMGroupIntegral(float64(v)) && SEMGroupValueLabel(float64(v)) == plan.GroupReference
+	}
+	if !ok {
+		msg := at + " params.group_reference " + strconv.Quote(plan.GroupReference) + " is not a declared level of computed group " + strconv.Quote(plan.Group)
+		if plan.GroupLevels == nil {
+			msg = at + " params.group_reference " + strconv.Quote(plan.GroupReference) + " is not an integer level of computed group " + strconv.Quote(plan.Group) + " (its levels are its integral values; declare names in params.group_levels)"
+		}
+		return matrixInvalid(at, "bad_params", msg,
 			map[string]any{"param": "group_reference", "value": plan.GroupReference, "levels": plan.GroupLevels})
 	}
 	return nil

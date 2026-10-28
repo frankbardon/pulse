@@ -20,7 +20,8 @@ import (
 //
 //   - multi-group fits (the per-level co-moments merge through the fixed
 //     tree, so a grouped fit takes the shard reducer) on every supported
-//     group field type, and the := rows over a grouped invariance fit
+//     group field type and on a derived group (an attribute with
+//     declared levels and undeclared rows), and the := rows over a grouped invariance fit
 //     (they read the merged fit only) — and (heavy,
 //     sem_worker_invariance_heavy_test.go; the categorical_u8 fit and
 //     the := rows) under DecodeWorkers 2/3/7/8 over the brand rows
@@ -88,6 +89,12 @@ func semInvShapes() []semInvShape {
 		{"defined", "brand", cat, true, func(t *testing.T) *types.Request {
 			return semGroupRequest(t, "brand_mgdef", map[string]any{"group_equal": "loadings,intercepts"})
 		}},
+		// A derived group (an attribute) with declared levels and
+		// undeclared rows (q1 >= 5): the per-level states and the
+		// undeclared count merge across shards.
+		{"derived_group", "brand_uneq", encoding.FieldTypeU8, true, func(t *testing.T) *types.Request {
+			return derivedGroupRequest(t, "brand_mgmis", "q1 >= 5 ? 7 : wave", map[string]any{"group_levels": fromTo})
+		}},
 		ml("bootstrap_single", "brand_def", true, single),
 		ml("bootstrap_grouped", "brand_mgdef", true, grouped),
 		ml("derived_seed_single", "brand_def", false, single),
@@ -98,7 +105,7 @@ func semInvShapes() []semInvShape {
 }
 
 // semInvSmoke runs in the fast tier.
-var semInvSmoke = map[string]bool{"multigroup_categorical_u8": true, "defined": true}
+var semInvSmoke = map[string]bool{"multigroup_categorical_u8": true, "defined": true, "derived_group": true}
 
 // semInvRepeat writes each row this many times on the BigFile layout:
 // 101,000 (brand_uneq) or 121,200 (brand) records, past the

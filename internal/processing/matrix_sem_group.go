@@ -35,14 +35,32 @@ import (
 // slot alone (PULSE_MATRIX_INSUFFICIENT_N / PULSE_MATRIX_SINGULAR). A
 // frequency weight applies within each group: n_g = Σw over its rows.
 
+// A DERIVED group (params.group naming a column the request computes —
+// vectors.SEMPlan.GroupDerived) reads the record's computed value
+// (Record.NumericValue, the one pass): with params.group_levels a value
+// equal to a declared one is that level (code = its declared position,
+// so the c(...) position), without them an integral value is its own
+// level (ascending); NaN is null (a listwise drop, as a computed member
+// reads it), and any other value — undeclared, or not integral — is a
+// listwise drop counted once per slot in PULSE_MATRIX_GROUP_LEVEL_UNDECLARED.
+
 // semGroupState is a grouped MAT_SEM slot's per-level state.
 type semGroupState struct {
 	field string
 	// dict is the group field when categorical (its dictionary keys the
 	// level labels and guards the index), nil otherwise.
 	dict *encoding.Field
+	// derived marks a group the request computes; declared maps each
+	// params.group_levels value to its position (nil: the observed
+	// integral values are the levels, coded by semObservedCode).
+	derived  bool
+	declared map[float64]uint64
+	// undeclared counts the rows dropped as no level of a derived
+	// group (merged like the slot's dropped count).
+	undeclared int64
 	// buckets holds one co-moment set per level code: the dictionary
-	// index, else the integer value.
+	// index, else the integer value (a derived group: the declared
+	// position, else semObservedCode).
 	buckets map[uint64]*BlockCoMoments
 	// rows holds each level's admitted rows (member order) on a
 	// BUFFERED plan — a bootstrap, which redraws them within each level
@@ -56,6 +74,16 @@ func newSEMGroupState(plan vectors.Matrix, schema *encoding.Schema) *semGroupSta
 	if !plan.Streamable {
 		st.rows = map[uint64]*matrixRows{}
 	}
+	if plan.SEM.GroupDerived {
+		st.derived = true
+		if plan.SEM.GroupDeclared != nil {
+			st.declared = make(map[float64]uint64, len(plan.SEM.GroupDeclared))
+			for i, l := range plan.SEM.GroupDeclared {
+				st.declared[l.Value] = uint64(i)
+			}
+		}
+		return st
+	}
 	if schema != nil {
 		if f := schema.Field(plan.SEM.Group); f != nil && f.Type.IsCategorical() {
 			st.dict = f
@@ -64,11 +92,19 @@ func newSEMGroupState(plan vectors.Matrix, schema *encoding.Schema) *semGroupSta
 	return st
 }
 
+// semObservedCode is an undeclared derived group's level code for the
+// integral value v: its int64 with the sign bit flipped, so codes sort
+// as the values do (semObservedValue inverts it).
+func semObservedCode(v float64) uint64 { return uint64(int64(v)) ^ (1 << 63) }
+
+func semObservedValue(code uint64) int64 { return int64(code ^ (1 << 63)) }
+
 // update folds one filter-passing record into the base state and its
-// level's bucket; a null group is a listwise drop.
+// level's bucket; a null group is a listwise drop, and so is a derived
+// group's value that is no level (counted undeclared).
 func (s *semGroupState) update(m *matrixSlot, r *Record) error {
 	v, ok := r.NumericValue(s.field)
-	if !ok {
+	if !ok || (s.derived && math.IsNaN(v)) {
 		m.dropped++
 		return nil
 	}
@@ -78,6 +114,19 @@ func (s *semGroupState) update(m *matrixSlot, r *Record) error {
 		}
 	}
 	code := uint64(v)
+	if s.derived {
+		var level bool
+		if s.declared != nil {
+			code, level = s.declared[v]
+		} else if level = vectors.SEMGroupIntegral(v); level {
+			code = semObservedCode(v)
+		}
+		if !level {
+			m.dropped++
+			s.undeclared++
+			return nil
+		}
+	}
 	w, err := m.readRow(r)
 	if err != nil {
 		return err
@@ -119,14 +168,19 @@ func (s *semGroupState) merge(o *semGroupState) error {
 		s.buckets[k] = b
 	}
 	o.buckets = map[uint64]*BlockCoMoments{}
+	s.undeclared += o.undeclared
+	o.undeclared = 0
 	return nil
 }
 
 // label is a level code's label: the dictionary entry (GROUP_CATEGORY's
-// key), else the integer.
+// key) or a declared derived level's label, else the integer.
 func (s *semGroupState) label(plan *vectors.SEMPlan, code uint64) string {
-	if s.dict != nil && int(code) < len(plan.GroupLevels) {
+	if (s.dict != nil || s.declared != nil) && int(code) < len(plan.GroupLevels) {
 		return plan.GroupLevels[code]
+	}
+	if s.derived {
+		return strconv.FormatInt(semObservedValue(code), 10)
 	}
 	return strconv.FormatUint(code, 10)
 }
@@ -159,9 +213,7 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 		labels[i] = gs.label(spec, c)
 	}
 	emptyLabels, emptyLevels := semEmptyLevels(spec.GroupLevels, func(c uint64) bool { _, ok := gs.buckets[c]; return ok })
-	if w := semGroupLevelEmpty(plan.Name, spec.Group, emptyLabels); w != nil {
-		out.Warnings = append(out.Warnings, w)
-	}
+	out.Warnings = append(out.Warnings, semGroupLevelWarnings(plan.Name, spec.Group, emptyLabels, gs.undeclared)...)
 	if len(codes) < 2 {
 		return matrixOutput{}, semGroupRefusal(errors.PULSE_MATRIX_INSUFFICIENT_N, plan.Name, "one_level",
 			"params.group "+strconv.Quote(spec.Group)+" has fewer than two levels with rows; a multi-group fit needs two groups at least",
@@ -407,6 +459,23 @@ func semEmptyLevels(declared []string, has func(code uint64) bool) (labels []str
 		}
 	}
 	return labels, levels
+}
+
+// semGroupLevelWarnings are a grouped slot's level warnings, in order:
+// PULSE_MATRIX_GROUP_LEVEL_EMPTY over its empty declared levels, then
+// PULSE_MATRIX_GROUP_LEVEL_UNDECLARED over the rows a derived group
+// dropped as no level (undeclared, the count); each at most once.
+func semGroupLevelWarnings(name, field string, empty []string, undeclared int64) []*types.ResponseWarning {
+	var out []*types.ResponseWarning
+	if w := semGroupLevelEmpty(name, field, empty); w != nil {
+		out = append(out, w)
+	}
+	if undeclared > 0 {
+		out = append(out, matrixWarning(errors.PULSE_MATRIX_GROUP_LEVEL_UNDECLARED,
+			"matrix "+name+": "+strconv.FormatInt(undeclared, 10)+" row(s) of computed group "+strconv.Quote(field)+" hold a value that is no level of the fit (not a declared group_levels value, or not an integer); they are dropped listwise",
+			map[string]any{"matrix": name, "group_field": field, "count": undeclared}))
+	}
+	return out
 }
 
 // semGroupLevelEmpty is PULSE_MATRIX_GROUP_LEVEL_EMPTY over a grouped

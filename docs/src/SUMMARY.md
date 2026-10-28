@@ -321,6 +321,7 @@
     - [sem-bootstrap](guide/skills/sem-bootstrap.md)
     - [sem-defined-parameters](guide/skills/sem-defined-parameters.md)
     - [sem-fits](guide/skills/sem-fits.md)
+    - [sem-groups](guide/skills/sem-groups.md)
     - [sem-modeling](guide/skills/sem-modeling.md)
     - [sem-ordinal](guide/skills/sem-ordinal.md)
     - [session-bootstrap](guide/skills/session-bootstrap.md)

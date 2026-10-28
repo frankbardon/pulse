@@ -249,7 +249,7 @@ func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *e
 	if ce := resolveSEM(at, &m); ce != nil {
 		return nil, asAttributeRefusal(ce)
 	}
-	if ce := resolveSEMGroup(at, nil, schema, &m); ce != nil {
+	if ce := resolveSEMGroup(at, nil, schema, nil, &m); ce != nil {
 		return nil, asAttributeRefusal(ce)
 	}
 	if ce := resolveSEMOrdinal(at, schema, &m); ce != nil {

@@ -320,9 +320,7 @@ func finalizeSEMOrdinalGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 		labels[i] = gs.label(spec, c)
 	}
 	emptyLabels, emptyLevels := semEmptyLevels(spec.GroupLevels, func(c uint64) bool { _, ok := gs.rows[c]; return ok })
-	if w := semGroupLevelEmpty(plan.Name, spec.Group, emptyLabels); w != nil {
-		out.Warnings = append(out.Warnings, w)
-	}
+	out.Warnings = append(out.Warnings, semGroupLevelWarnings(plan.Name, spec.Group, emptyLabels, gs.undeclared)...)
 	if len(codes) < 2 {
 		return matrixOutput{}, semGroupRefusal(errors.PULSE_MATRIX_INSUFFICIENT_N, plan.Name, "one_level",
 			"params.group "+strconv.Quote(spec.Group)+" has fewer than two levels with rows; a multi-group fit needs two groups at least",

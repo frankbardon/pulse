@@ -10475,7 +10475,13 @@
             "name": "group",
             "type": "string",
             "required": false,
-            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values); a level without rows after the filters is no group (a categorical or packed_bool level so dropped warns PULSE_MATRIX_GROUP_LEVEL_EMPTY once per slot, details.levels), a null group drops the row (listwise). Implies the mean structure and lavaan conventions. In params.model a term may then carry lavaan's per-group list c(a1, a2)*x / c(0.5, NA)*x, one entry per level in level order (a categorical's dictionary entries, a level without rows keeping its position; packed_bool's 0 / 1; a length other than the level count, or an integer group field, is bad_params). The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR."
+            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values) — or a numeric column the request computes (an attribute, feature or window label; a cohort field of that name wins), whose levels are params.group_levels, else its integral values ascending; a level without rows after the filters is no group (a categorical or packed_bool level so dropped warns PULSE_MATRIX_GROUP_LEVEL_EMPTY once per slot, details.levels), a null group drops the row (listwise). Implies the mean structure and lavaan conventions. In params.model a term may then carry lavaan's per-group list c(a1, a2)*x / c(0.5, NA)*x, one entry per level in level order (a categorical's dictionary entries, a level without rows keeping its position; packed_bool's 0 / 1; a length other than the level count, or an integer group field, is bad_params). The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR."
+          },
+          {
+            "name": "group_levels",
+            "type": "array",
+            "required": false,
+            "description": "A computed group's levels, in order: [{value, name?}, ...] — value an integer (|value| \u003c= 2^53) the column's per-row value matches exactly, name the level's label (default the value's integer text). Array order is the c(...) position and the labels key n_group_\u003clevel\u003e, chi2_group_\u003clevel\u003e, the estimate rows and group_reference. A row whose value is no declared level (or not an integer) is dropped listwise (n_listwise_dropped) with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED warning per slot (details.count); a declared level without rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY and has no n_group_ scalar. Required for c(...) modifiers on a computed group (absent: its observed integral values). Fewer than two levels, a non-integer or repeated value, a repeated or empty name, or group_levels on a cohort field is bad_params. params.group only."
           },
           {
             "name": "group_reference",
@@ -11077,7 +11083,7 @@
         ]
       }
     ],
-    "error_codes_count": 431,
+    "error_codes_count": 432,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11273,6 +11279,7 @@
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_DEFINED_NONFINITE",
       "PULSE_MATRIX_GROUP_LEVEL_EMPTY",
+      "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED",
       "PULSE_MATRIX_HEYWOOD",
       "PULSE_MATRIX_HOST_CONFLICT",
       "PULSE_MATRIX_INSUFFICIENT_N",
@@ -14027,6 +14034,10 @@
       {
         "name": "sem-fits",
         "description": "SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. A save writes the fit to a .pulse-sem.json file that a later request loads with models and scores from bit-equal. The fit request, the response shape, saving and loading, scoring rules, refusals and failures."
+      },
+      {
+        "name": "sem-groups",
+        "description": "The group of a multi-group MAT_SEM fit — which field or computed column splits the rows, its levels and their order, params.group_levels for a group the request computes (a wave pair chosen by request params), and the level warnings (an empty level, rows that are no level)."
       },
       {
         "name": "sem-modeling",
@@ -20333,4 +20344,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 917180c7cdd55d3e53c956fde4954033aff80ab386c887f4462f753d924d375f
+// golden-hash: cbac960a3173b85d4ce70784025f9a9b3296c5e0b69b24868e6dc4dae1846581

@@ -236,7 +236,7 @@ func hiddenProseNames(inst *InstanceSnapshot) map[string]struct{} {
 // token: the group param's own description goes with the param.
 var semProseTokens = map[string][]string{
 	featSEMMeans:  {"meanstructure", "implied_means", "observed_means"},
-	featSEMGroups: {"group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "PULSE_MATRIX_GROUP_LEVEL_EMPTY"},
+	featSEMGroups: {"group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "group_levels", "PULSE_MATRIX_GROUP_LEVEL_EMPTY", "PULSE_MATRIX_GROUP_LEVEL_UNDECLARED"},
 	// The := lines own no wire key: their sentences name the code
 	// only they raise.
 	featSEMDefined: {"PULSE_MATRIX_DEFINED_NONFINITE"},

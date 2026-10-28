@@ -5121,12 +5121,27 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_GROUP_LEVEL_EMPTY: {
-		Message: "A multi-group structural equation model (params.group) has group-field levels — a categorical's dictionary entries, packed_bool's 0 / 1 — that hold no rows after the filters. Each such level is no group: no estimate rows, no chi2_group_ / n_group_ scalars, and a := line reading its per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason empty_group); the fit over the other levels stands. Emitted once per slot. Details carry `matrix`, `group_field` and `levels` (the empty levels, in level order).",
+		Message: "A multi-group structural equation model (params.group) has group-field levels — a categorical's dictionary entries, packed_bool's 0 / 1, a derived group's params.group_levels entries — that hold no rows after the filters. Each such level is no group: no estimate rows, no chi2_group_ / n_group_ scalars, and a := line reading its per-group label is null (PULSE_MATRIX_DEFINED_NONFINITE, reason empty_group); the fit over the other levels stands. Emitted once per slot. Details carry `matrix`, `group_field` and `levels` (the empty levels, in level order).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"filterers", "*"},
 				Hint:   "Widen the filters so every level the model names keeps rows, or accept the fit over the levels that hold rows.",
+			},
+		},
+	},
+	PULSE_MATRIX_GROUP_LEVEL_UNDECLARED: {
+		Message: "A multi-group structural equation model grouped by a column the request computes (params.group naming an attribute, feature or window label) met rows whose group value is no level of the fit: not among params.group_levels (matched exactly), or not an integral number. Each such row is dropped listwise (counted in n_listwise_dropped) and joins no group; the fit over the levels that hold rows stands. Emitted once per slot. Details carry `matrix`, `group_field` and `count` (the rows dropped so).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "group_levels"},
+				Hint:   "Declare every value the computed group takes that should be a group, or omit group_levels to group by every integral value observed.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"filterers", "*"},
+				Hint:   "Filter out the rows whose group value is no level, so the drop is explicit.",
 			},
 		},
 	},

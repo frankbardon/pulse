@@ -698,6 +698,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_DEFINED_NONFINITE: own(featSEMDefined),
 	// A grouped MAT_SEM fit's declared level without rows.
 	errors.PULSE_MATRIX_GROUP_LEVEL_EMPTY: own(featSEMGroups),
+	// A derived-group MAT_SEM fit's rows outside its levels.
+	errors.PULSE_MATRIX_GROUP_LEVEL_UNDECLARED: own(featSEMGroups),
 	// A MAT_SEM ordinal fit's ordered member past the category ceiling.
 	errors.PULSE_MATRIX_TOO_MANY_CATEGORIES: own(featSEMOrdinal),
 
