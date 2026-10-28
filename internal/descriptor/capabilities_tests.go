@@ -37,6 +37,7 @@ var testReferenceParam = descriptor.Param{
 var testCovariateParam = descriptor.Param{
 	Name:        "covariate",
 	Type:        "string",
+	NamesColumn: true,
 	Required:    false,
 	Description: "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
 }
@@ -46,6 +47,7 @@ var testCovariateParam = descriptor.Param{
 var testPropCovariateParam = descriptor.Param{
 	Name:        "covariate",
 	Type:        "string",
+	NamesColumn: true,
 	Required:    false,
 	Description: "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID.",
 }

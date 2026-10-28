@@ -84,7 +84,7 @@ func featureCapabilities() []descriptor.Operator {
 			Category:    "feature",
 			Description: "Replace each categorical value (or packed_bool level \"0\" / \"1\") with the smoothed mean of a numeric Target field for that category.",
 			Params: []descriptor.Param{
-				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Numeric field whose grouped mean is encoded into the output column."},
+				{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Numeric field whose grouped mean is encoded into the output column."},
 				{Name: "smoothing", Type: "float", Required: false, Default: 0.0, Description: "Bayesian smoothing weight blending category mean with global mean."},
 				{Name: "fit_on", Type: "string", Required: false, Description: "Boolean expression (expression-filter syntax) choosing the training rows, e.g. \"split == 0\"; may read earlier features' columns. Only training rows feed the means; every row is encoded, an unseen category with the training global mean. Silences PULSE_FEAT_TARGET_LEAKAGE_RISK."},
 				{Name: "folds", Type: "int", Required: false, Default: 0, Description: "0 (off) or 2..100: encode each training row out-of-fold, from the training rows outside its fold; other rows get the full-training encoding."},
@@ -102,7 +102,7 @@ func featureCapabilities() []descriptor.Operator {
 			Params: []descriptor.Param{
 				{Name: "ratios", Type: "list", Required: true, Description: "Two- or three-element ratio list summing to ~1.0."},
 				{Name: "seed", Type: "int", Required: false, Default: 0, Description: "RNG seed; same seed produces byte-identical assignments."},
-				{Name: "stratify", Type: "field", Required: false, FieldFilter: "categorical", Description: "Optional categorical or packed_bool field; ratios are applied per level for class balance."},
+				{Name: "stratify", Type: "field", NamesColumn: true, Required: false, FieldFilter: "categorical", Description: "Optional categorical or packed_bool field; ratios are applied per level for class balance."},
 			},
 			AcceptsTypes:  nonVectorFieldTypes,
 			EmitsType:     "u8",

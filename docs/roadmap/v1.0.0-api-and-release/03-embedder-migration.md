@@ -1196,11 +1196,12 @@ Not yet released (targets `v1.0.0-alpha.29`; release notes in [U63](../units/U63
 
 ## Changes from expression-wires
 
-Not yet released (targets `v1.0.0-alpha.31`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change. Covers the parse-only expression read set.
+Not yet released (targets `v1.0.0-alpha.31`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change. Covers the parse-only expression read set and the manifest's column-naming param marker.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
 | an embedder learning what an expression reads (an editor wiring a formula to its columns, a linter, an agent planning a draft's data dependencies) re-implemented expr-lang scoping or compiled the expression against a guessed env | NEW `pulse.ExpressionReads(src string) (descriptor.ExprReads, error)` and NEW `descriptor.ExprReads` `{vars, params, funcs, uses_env}`: the free names (columns, derived labels, vectors; first-use order), the `params.<name>` / `params["<name>"]` names and the called functions, from a parse alone with no instance — the engine's own walk (let bindings, closure pointers, member-chain roots, `$env` members, string literals and keywords as the compile binds them; `params` is a var only when used other than as a parameter read). A source that does not parse returns `PULSE_FORMULA_COMPILE_ERROR` (details `compile_error`, `expression`); a templated `{{token}}` must be rendered first. Docs: `docs/src/library/expression-reads.md` | additive (function, type) | call it instead of a hand-rolled identifier walk | expression-wires (E2-S1) |
+| a manifest client could not tell that a `type: "string"` param names a column (MAT_SEM / ATTR_SEM_SCORE `group`, a mean test's `covariate`, AGG_DISTINCT_SUM `distinct_by`, AGG_WEIGHTED_MEAN `weight_field`, REG_MMM_BAYES `time`, MAT_PARTIAL_CORRELATION `control`) and guessed from its name or prose | NEW `descriptor.Param.NamesColumn` (manifest `names_column`, `omitempty`): true on every param entry whose value names a record column (cohort field or a column the request computes), one per element on a `list`; every `type: "field"` entry carries it too, and `type` is unchanged everywhere. Result-column names (post tests' `n_col`, overlays' `field` / `partition_by`) and expression slots do not carry it. Docs: `docs/src/cli/manifest.md` | additive (field; manifest key) | read `names_column` to find the params naming columns; ignore-unknown consumers are unaffected | expression-wires (E2-S2) |
 
 ## Third-party dependency
 

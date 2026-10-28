@@ -1933,6 +1933,7 @@ pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,om
 pulse/descriptor: type Param field Example any "json:\"example,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
 pulse/descriptor: type Param field Name string "json:\"name\""
+pulse/descriptor: type Param field NamesColumn bool "json:\"names_column,omitempty\""
 pulse/descriptor: type Param field Required bool "json:\"required\""
 pulse/descriptor: type Param field Slot bool "json:\"slot,omitempty\""
 pulse/descriptor: type Param field Type string "json:\"type\""
@@ -6200,4 +6201,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 23d6f50f0c06512b4a527ea423ff88388e111d12ce9b63d55826e02d7e5c1145
+// golden-hash: b31ea5f6f51e7cfe983deabf894175ef49d070714c99bec625d099a128435d0d

@@ -82,6 +82,28 @@ aggregator) and `compare_groups` (every two-sample test and pairwise
 overlay) are the named exceptions, each with a measured ceiling. The
 unscoped manifest is unchanged.
 
+## Param entries that name a column
+
+Every operator's `params[]` entry carries `name`, `type`, `required`
+and `description`, plus optional keys (`default`, `enum_values`,
+`field_filter`, `exactly_one_of`, `slot`). `names_column: true` marks an
+entry whose value names a record column the operator reads — a cohort
+field, or a column the request computes ahead of the slot where the
+operator accepts one. A `string` value is one column, a `list` value one
+per element; every `type: "field"` entry carries the flag too, so it is
+the one key to read. Some column-naming params stay `type: "string"`
+with the flag (MAT_SEM's and ATTR_SEM_SCORE's `group`, a mean test's
+`covariate`, AGG_DISTINCT_SUM's `distinct_by`, REG_MMM_BAYES's `time`):
+the flag sits beside `type` so no existing reading of `type` changes. A
+name of a result column (a post test's `n_col`, an overlay's `field` or
+`partition_by`) and an expression slot (`fit_on`, `holdout`) do not
+carry it. The flag is additive (omitted when false), so `format_version`
+is unchanged.
+
+```bash
+pulse --json | jq '[.data.components[][] | {op: .name, p: [.params[] | select(.names_column) | .name]} | select(.p != [])]'
+```
+
 ## Determinism gates
 
 Several CI tests enforce manifest completeness — see [Testing

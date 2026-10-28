@@ -122,8 +122,8 @@ func regressionSpecStreamable(opts *PredictOptions, reg *types.RegressionSpec) b
 // accepted set) follow target and predictors.
 func extensionRegressionSlotParams(decl ExtensionRegression) []descriptor.Param {
 	out := []descriptor.Param{
-		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the regression entry.", Slot: true},
-		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names; a top-level key of the regression entry.", Slot: true},
+		{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the regression entry.", Slot: true},
+		{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names; a top-level key of the regression entry.", Slot: true},
 	}
 	return append(out, regressionSlotParamsFor(decl)...)
 }

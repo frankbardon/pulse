@@ -186,7 +186,7 @@ func windowCapabilities() []descriptor.Operator {
 			Category:    "window",
 			Description: "Lift of field over base: (field / Σfield) / (base / Σbase) within the partition — exactly the field's share over the base's share, each total over its own present values. With cumulative, the running share of field over the running share of base (order_by required), e.g. the cumulative lift of a gains table. 1 is no lift. No frame.",
 			Params: []descriptor.Param{
-				{Name: "base", Type: "field", Required: true, FieldFilter: "numeric", Description: "Column the field's share is compared with (e.g. the record count per decile); its share is the denominator."},
+				{Name: "base", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Column the field's share is compared with (e.g. the record count per decile); its share is the denominator."},
 				{Name: "cumulative", Type: "bool", Required: false, Default: false, Description: "Running shares (unbounded preceding to the current row) instead of the row's own; requires order_by."},
 			},
 			AcceptsTypes:  tableAcceptsTypes(types.WIN_LIFT),

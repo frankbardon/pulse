@@ -104,8 +104,8 @@ func attributeCapabilities() []descriptor.Operator {
 			Category:    "attribute",
 			Description: "Per-record previous state of a long panel: the state field's value on the same subject's record at the previous time point, ordered by order_field's instant (never local time). Null on a subject's first time point, on a record whose subject or order value is null (never a predecessor either), and when the previous state is null (no carry-forward). Records tied on (subject, order) each read the last earlier time point; the time point after a tie reads the tied state only when every tied state agrees, else null with a PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE warning (an error under Strict). Not weightable; buffered.",
 			Params: []descriptor.Param{
-				{Name: "subject_field", Type: "field", Required: true, Description: "Cohort field identifying each record's subject (any scalar type but a set or vector); a top-level key of the attribute entry.", Slot: true, FieldFilter: "any"},
-				{Name: "order_field", Type: "field", Required: true, Description: "Date or datetime cohort field ordering each subject's records by instant; a top-level key of the attribute entry.", Slot: true, FieldFilter: "date"},
+				{Name: "subject_field", Type: "field", NamesColumn: true, Required: true, Description: "Cohort field identifying each record's subject (any scalar type but a set or vector); a top-level key of the attribute entry.", Slot: true, FieldFilter: "any"},
+				{Name: "order_field", Type: "field", NamesColumn: true, Required: true, Description: "Date or datetime cohort field ordering each subject's records by instant; a top-level key of the attribute entry.", Slot: true, FieldFilter: "date"},
 			},
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_PREVIOUS_STATE), fieldaccept.SlotField),
 			EmitsTypeNote:  "one state code per record — the field's dictionary index (categorical) or 0 / 1 (packed_bool); null where no single previous state exists",
@@ -433,7 +433,7 @@ func attributeCapabilities() []descriptor.Operator {
 				{Name: "method", Type: "enum", Default: string(sem.ScoreRegression), EnumValues: sem.ScoreMethods(), Description: "On an ordinal fit regression means EBM scores (lavaan's) and bartlett is bad_params. regression: lavaan's regression (Thurstone) scores, E(latent | row) = E(latent) + Cov(latent, y) Sigma^-1 (y - mu) — shrunk toward the latent mean, the most accurate per row. bartlett: lavaan's Bartlett scores, (L' Sigma^-1 L)^-1 L' Sigma^-1 (y - mu) over the measurement loadings (an observed variable of a ~ line is its own column, so it informs no latent) — unbiased for the latent, noisier."},
 				{Name: "model", Type: "string", Description: "MAT_SEM's params.model: the model description over the members (by label). Absent: one factor F1 over every member."},
 				{Name: "meanstructure", Type: "bool", Default: false, Description: "MAT_SEM's params.meanstructure: model the means too, so the scores sit on the latent-mean scale (lavaan conventions)."},
-				{Name: "group", Type: "string", Description: "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit — or a numeric column computed ahead of the slot (an earlier attribute's label or a feature output; a cohort field of that name wins), its levels params.group_levels, else its integral values; each row is scored with its own group's parameters. A known level without fit rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY; a computed value that is no level scores null with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED (details.count) — under Strict either fails the run. Implies the mean structure."},
+				{Name: "group", Type: "string", NamesColumn: true, Description: "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit — or a numeric column computed ahead of the slot (an earlier attribute's label or a feature output; a cohort field of that name wins), its levels params.group_levels, else its integral values; each row is scored with its own group's parameters. A known level without fit rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY; a computed value that is no level scores null with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED (details.count) — under Strict either fails the run. Implies the mean structure."},
 				{Name: "group_levels", Type: "array", Description: "MAT_SEM's params.group_levels: a computed group's levels in order, [{value, name?}, ...] (integer values matched exactly, labels the names, else the integer text). Refused on a cohort field. params.group only."},
 				{Name: "group_reference", Type: "string", Description: "MAT_SEM's params.group_reference: the level whose latent means stay at 0. params.group only."},
 				{Name: "group_equal", Type: "list", EnumValues: sem.GroupEqualValues(), Description: "MAT_SEM's params.group_equal (lavaan's group.equal): loadings and intercepts make the groups' scores comparable on one latent-mean scale. A list or one comma-separated string. params.group only."},
@@ -630,13 +630,13 @@ func otherForm(f metric.Form) metric.Form {
 func regAttributeParams(penalized bool) []descriptor.Param {
 	if !penalized {
 		return []descriptor.Param{
-			{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry.", Slot: true},
-			{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry.", Slot: true},
+			{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry.", Slot: true},
+			{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry.", Slot: true},
 		}
 	}
 	return []descriptor.Param{
-		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
-		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
+		{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
+		{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
 		{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Top-level.", Slot: true},
 		{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set). Top-level.", Slot: true},
 		{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.", Slot: true},

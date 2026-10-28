@@ -418,7 +418,8 @@
               "type": "field",
               "required": true,
               "description": "Binary outcome column scored against the score in field: a packed_bool, or a numeric column holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
-              "field_filter": "numeric"
+              "field_filter": "numeric",
+              "names_column": true
             },
             {
               "name": "positive",
@@ -966,7 +967,8 @@
               "name": "distinct_by",
               "type": "string",
               "required": true,
-              "description": "Schema field whose value is the distinct key. Required — an absent or empty distinct_by is refused, never defaulted to the aggregation's own field. Rows with a null key or a null value contribute nothing and register no key."
+              "description": "Schema field whose value is the distinct key. Required — an absent or empty distinct_by is refused, never defaulted to the aggregation's own field. Rows with a null key or a null value contribute nothing and register no key.",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -1190,7 +1192,8 @@
               "type": "field",
               "required": true,
               "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
-              "field_filter": "numeric"
+              "field_filter": "numeric",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -1283,7 +1286,8 @@
               "type": "field",
               "required": true,
               "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
-              "field_filter": "numeric"
+              "field_filter": "numeric",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -1912,14 +1916,16 @@
               "type": "field",
               "required": true,
               "description": "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
-              "field_filter": "any"
+              "field_filter": "any",
+              "names_column": true
             },
             {
               "name": "denominator_field",
               "type": "field",
               "required": true,
               "description": "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
-              "field_filter": "any"
+              "field_filter": "any",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -2017,7 +2023,8 @@
               "type": "field",
               "required": true,
               "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
-              "field_filter": "numeric"
+              "field_filter": "numeric",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -3088,7 +3095,8 @@
               "name": "weight_field",
               "type": "string",
               "required": false,
-              "description": "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only)."
+              "description": "Schema field whose value is the per-row weight (kind probability); sugar for a slot weight. Absent: the slot or request weight, else the instance default weight; none resolving is refused. Rows with an invalid (null, negative, NaN/Inf) or zero weight are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -3803,7 +3811,8 @@
               "required": true,
               "description": "Cohort field identifying each record's subject (any scalar type but a set or vector); a top-level key of the attribute entry.",
               "field_filter": "any",
-              "slot": true
+              "slot": true,
+              "names_column": true
             },
             {
               "name": "order_field",
@@ -3811,7 +3820,8 @@
               "required": true,
               "description": "Date or datetime cohort field ordering each subject's records by instant; a top-level key of the attribute entry.",
               "field_filter": "date",
-              "slot": true
+              "slot": true,
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -3960,14 +3970,16 @@
               "required": true,
               "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
-              "slot": true
+              "slot": true,
+              "names_column": true
             },
             {
               "name": "predictors",
               "type": "list",
               "required": true,
               "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
-              "slot": true
+              "slot": true,
+              "names_column": true
             },
             {
               "name": "penalty",
@@ -4044,14 +4056,16 @@
               "required": true,
               "description": "Response variable field name; a top-level key of the attribute entry.",
               "field_filter": "numeric",
-              "slot": true
+              "slot": true,
+              "names_column": true
             },
             {
               "name": "predictors",
               "type": "list",
               "required": true,
               "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
-              "slot": true
+              "slot": true,
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -4160,14 +4174,16 @@
               "required": true,
               "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
-              "slot": true
+              "slot": true,
+              "names_column": true
             },
             {
               "name": "predictors",
               "type": "list",
               "required": true,
               "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
-              "slot": true
+              "slot": true,
+              "names_column": true
             },
             {
               "name": "penalty",
@@ -4358,7 +4374,8 @@
               "name": "group",
               "type": "string",
               "required": false,
-              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit — or a numeric column computed ahead of the slot (an earlier attribute's label or a feature output; a cohort field of that name wins), its levels params.group_levels, else its integral values; each row is scored with its own group's parameters. A known level without fit rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY; a computed value that is no level scores null with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED (details.count) — under Strict either fails the run. Implies the mean structure."
+              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit — or a numeric column computed ahead of the slot (an earlier attribute's label or a feature output; a cohort field of that name wins), its levels params.group_levels, else its integral values; each row is scored with its own group's parameters. A known level without fit rows warns PULSE_MATRIX_GROUP_LEVEL_EMPTY; a computed value that is no level scores null with one PULSE_MATRIX_GROUP_LEVEL_UNDECLARED (details.count) — under Strict either fails the run. Implies the mean structure.",
+              "names_column": true
             },
             {
               "name": "group_levels",
@@ -6400,7 +6417,8 @@
               "type": "field",
               "required": true,
               "description": "Column the field's share is compared with (e.g. the record count per decile); its share is the denominator.",
-              "field_filter": "numeric"
+              "field_filter": "numeric",
+              "names_column": true
             },
             {
               "name": "cumulative",
@@ -6820,7 +6838,8 @@
               "type": "field",
               "required": true,
               "description": "Numeric field whose grouped mean is encoded into the output column.",
-              "field_filter": "numeric"
+              "field_filter": "numeric",
+              "names_column": true
             },
             {
               "name": "smoothing",
@@ -6888,7 +6907,8 @@
               "type": "field",
               "required": false,
               "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance.",
-              "field_filter": "categorical"
+              "field_filter": "categorical",
+              "names_column": true
             }
           ],
           "accepts_types": [
@@ -7515,7 +7535,8 @@
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID."
+            "description": "Numeric pre-period column (CUPED) adjusting the success indicator I to I − θ·(x − x̄): Variant two_proportion_adjusted, z = adjusted diff / its Wald SE; proportion, diff, its interval and cohens_h are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped. Needs SplitBy (not with p0); else, or non-numeric, PULSE_TEST_COVARIATE_INVALID.",
+            "names_column": true
           }
         ],
         "requires": [
@@ -7612,7 +7633,8 @@
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test."
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "names_column": true
           }
         ],
         "requires": [
@@ -7652,7 +7674,8 @@
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test."
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "names_column": true
           }
         ],
         "requires": [
@@ -7720,7 +7743,8 @@
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test."
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "names_column": true
           }
         ],
         "requires": [
@@ -8193,14 +8217,16 @@
             "required": true,
             "description": "Response variable field name.",
             "field_filter": "numeric",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
             "description": "Predictor field names (numeric only in v1).",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "prior",
@@ -8336,14 +8362,16 @@
             "required": true,
             "description": "Response variable field name.",
             "field_filter": "numeric",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
             "description": "Predictor field names (numeric only in v1).",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "family",
@@ -8447,7 +8475,8 @@
             "type": "field",
             "required": false,
             "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "rng_seed",
@@ -8593,14 +8622,16 @@
             "required": true,
             "description": "Response variable field name; a top-level key of the regression entry.",
             "field_filter": "numeric",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
             "description": "Predictor field names; a top-level key of the regression entry.",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "conf_level",
@@ -8629,14 +8660,16 @@
             "name": "channels",
             "type": "list",
             "required": true,
-            "description": "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."
+            "description": "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls.",
+            "names_column": true
           },
           {
             "name": "time",
             "type": "string",
             "required": true,
             "description": "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
-            "example": "week"
+            "example": "week",
+            "names_column": true
           },
           {
             "name": "max_lag",
@@ -8793,14 +8826,16 @@
             "required": true,
             "description": "Response variable field name; a top-level key of the regression entry.",
             "field_filter": "numeric",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
             "description": "Predictor field names; a top-level key of the regression entry.",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "resample",
@@ -8834,7 +8869,8 @@
             "type": "field",
             "required": false,
             "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "rng_seed",
@@ -8891,7 +8927,8 @@
             "name": "channels",
             "type": "list",
             "required": true,
-            "description": "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."
+            "description": "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls.",
+            "names_column": true
           },
           {
             "name": "nonnegative",
@@ -8949,14 +8986,16 @@
             "required": true,
             "description": "Response variable field name.",
             "field_filter": "numeric",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
             "description": "Predictor field names (numeric only in v1).",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "penalty",
@@ -8991,7 +9030,8 @@
             "type": "list",
             "required": false,
             "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG).",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "bounds",
@@ -9046,7 +9086,8 @@
             "type": "field",
             "required": false,
             "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
-            "slot": true
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "rng_seed",
@@ -9953,7 +9994,8 @@
             "type": "list",
             "required": false,
             "default": "all",
-            "description": "\"all\" (each pair controls for every other member: -P_ij/sqrt(P_ii*P_jj) of the precision matrix P) or a list of numeric field names: each output pair controls for exactly those fields. A listed member leaves the output axis; a listed field outside the members joins the co-moment and the missing-data mode."
+            "description": "\"all\" (each pair controls for every other member: -P_ij/sqrt(P_ii*P_jj) of the precision matrix P) or a list of numeric field names: each output pair controls for exactly those fields. A listed member leaves the output axis; a listed field outside the members joins the co-moment and the missing-data mode.",
+            "names_column": true
           },
           {
             "name": "repair",
@@ -10481,7 +10523,8 @@
             "name": "group",
             "type": "string",
             "required": false,
-            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values) — or a numeric column the request computes (an attribute, feature or window label; a cohort field of that name wins), whose levels are params.group_levels, else its integral values ascending; a level without rows after the filters is no group (a categorical or packed_bool level so dropped warns PULSE_MATRIX_GROUP_LEVEL_EMPTY once per slot, details.levels), a null group drops the row (listwise). Implies the mean structure and lavaan conventions. In params.model a term may then carry lavaan's per-group list c(a1, a2)*x / c(0.5, NA)*x, one entry per level in level order (a categorical's dictionary entries, a level without rows keeping its position; packed_bool's 0 / 1; a length other than the level count, or an integer group field, is bad_params). The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR."
+            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values) — or a numeric column the request computes (an attribute, feature or window label; a cohort field of that name wins), whose levels are params.group_levels, else its integral values ascending; a level without rows after the filters is no group (a categorical or packed_bool level so dropped warns PULSE_MATRIX_GROUP_LEVEL_EMPTY once per slot, details.levels), a null group drops the row (listwise). Implies the mean structure and lavaan conventions. In params.model a term may then carry lavaan's per-group list c(a1, a2)*x / c(0.5, NA)*x, one entry per level in level order (a categorical's dictionary entries, a level without rows keeping its position; packed_bool's 0 / 1; a length other than the level count, or an integer group field, is bad_params). The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR.",
+            "names_column": true
           },
           {
             "name": "group_levels",
@@ -20351,4 +20394,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4cf7c3293673b6dedcc0ac4ce90aba9a6d6cd68212b2e67b9a83d5e87d3294e9
+// golden-hash: 8994f8a777bf58d9016e842052d523ec812a0a0888c8e2b6b948f7d53d2fdb99
