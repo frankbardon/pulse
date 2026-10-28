@@ -854,6 +854,7 @@ pulse: type Pulse method (*Pulse) ReloadTemplates() error
 pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) (*pulse.RemoveShardResult, error)
 pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
 pulse: type Pulse method (*Pulse) RenderTemplateRequest(name string, vars map[string]any) (*pulse.Request, error)
+pulse: type Pulse method (*Pulse) RequestReads(doc []byte, root pulse/descriptor.ReadsRoot) (pulse/descriptor.RequestReads, error)
 pulse: type Pulse method (*Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*pulse/encoding.Schema, error)
 pulse: type Pulse method (*Pulse) ResolveImport(ctx context.Context, handle string) (string, error)
 pulse: type Pulse method (*Pulse) ResolveLabel(table string, query string, limit int) ([]pulse.LabelMatch, error)
@@ -2014,6 +2015,11 @@ pulse/descriptor: type RangeTableMeta field Description string "json:\"descripti
 pulse/descriptor: type RangeTableMeta field Kind string "json:\"kind\""
 pulse/descriptor: type RangeTableMeta field Name string "json:\"name\""
 pulse/descriptor: type RangeTableMeta field RangeCount int "json:\"range_count\""
+pulse/descriptor: type ReadsRoot string
+pulse/descriptor: const ReadsRootChain pulse/descriptor.ReadsRoot = "chain"
+pulse/descriptor: const ReadsRootComposed pulse/descriptor.ReadsRoot = "composed"
+pulse/descriptor: const ReadsRootFacet pulse/descriptor.ReadsRoot = "facet"
+pulse/descriptor: const ReadsRootRequest pulse/descriptor.ReadsRoot = "request"
 pulse/descriptor: type RecommendNeed struct
 pulse/descriptor: type RecommendNeed field Param string "json:\"param\""
 pulse/descriptor: type RecommendNeed field Why string "json:\"why\""
@@ -2074,6 +2080,9 @@ pulse/descriptor: type RegressionOutputMeta struct
 pulse/descriptor: type RegressionOutputMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type RegressionOutputMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type RegressionOutputMeta field Key string "json:\"key\""
+pulse/descriptor: type RequestReads struct
+pulse/descriptor: type RequestReads field Root pulse/descriptor.ReadsRoot "json:\"root\""
+pulse/descriptor: type RequestReads field Slots []pulse/descriptor.SlotReads "json:\"slots\""
 pulse/descriptor: type ResolvedWeight struct
 pulse/descriptor: type ResolvedWeight field Field string "json:\"field,omitempty\""
 pulse/descriptor: type ResolvedWeight field Kind string "json:\"kind,omitempty\""
@@ -2126,6 +2135,16 @@ pulse/descriptor: type SlotPair struct
 pulse/descriptor: type SlotPair field Reason string "json:\"reason\""
 pulse/descriptor: type SlotPair field ReferenceLabel string "json:\"reference_label\""
 pulse/descriptor: type SlotPair field TargetLabel string "json:\"target_label\""
+pulse/descriptor: type SlotReads struct
+pulse/descriptor: type SlotReads field Columns []string "json:\"columns\""
+pulse/descriptor: type SlotReads field Error *pulse/descriptor.EnvelopeEntry "json:\"error,omitempty\""
+pulse/descriptor: type SlotReads field Funcs []string "json:\"funcs,omitempty\""
+pulse/descriptor: type SlotReads field Key string "json:\"key\""
+pulse/descriptor: type SlotReads field Params []string "json:\"params\""
+pulse/descriptor: type SlotReads field Path string "json:\"path\""
+pulse/descriptor: type SlotReads field Request string "json:\"request\""
+pulse/descriptor: type SlotReads field UsesEnv bool "json:\"uses_env,omitempty\""
+pulse/descriptor: type SlotReads field Variables []string "json:\"variables,omitempty\""
 pulse/descriptor: type SuggestedWeight struct
 pulse/descriptor: type SuggestedWeight field Field string "json:\"field\""
 pulse/descriptor: type SuggestedWeight field Kind string "json:\"kind\""
@@ -6201,4 +6220,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b31ea5f6f51e7cfe983deabf894175ef49d070714c99bec625d099a128435d0d
+// golden-hash: 16240104124db36e30e92a91d2168a7b916125553ceb27fe5fae090275e547ea

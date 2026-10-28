@@ -339,6 +339,9 @@ var uninstrumentedMethods = map[string]bool{
 	// guidance and, over a cohort, in-process predicts that fire no
 	// predict operation.
 	"Explain": true,
+	// RequestReads is a parse of a caller-held document against the
+	// in-memory manifest: no cohort, no engine, nothing to time.
+	"RequestReads": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every
