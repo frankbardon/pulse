@@ -16,7 +16,7 @@
       "capability:sem_groups",
       "capability:sem_meanstructure"
     ],
-    "description": "A wave pair chosen by request params, fitted as ONE two-group SEM on brand_survey.pulse. The ATTR_FORMULA period maps wave == params.from_wave to 1, wave == params.to_wave to 2 and every other wave to 0 (no level, so those rows drop listwise). MAT_SEM groups by that computed column (group: period) and declares its levels with group_levels, [{value 1, name from}, {value 2, name to}]: array order is the c(...) position, the names key the estimate rows ([from] / [to]), n_group_from and the group_reference (from, the first level). The model gives the value-on-service path a per-group label, value ~ c(bfrom, bto)*service, and the defined parameter shift := bto - bfrom is that path's change from the first wave to the second. Change params.from_wave and params.to_wave to compare another pair (swap them to read the change backwards) without editing the model. params reach the attribute expression only: the MAT_SEM params (model, group_reference) are plain JSON and take no params reference.",
+    "description": "A wave pair chosen by request params, fitted as ONE two-group SEM on brand_survey.pulse. The ATTR_FORMULA period maps wave == params.from_wave to 1, wave == params.to_wave to 2 and every other wave to 0 (no level, so those rows drop listwise). MAT_SEM groups by that computed column (group: period) and declares its levels with group_levels, [{value 1, name from}, {value 2, name to}]: array order is the c(...) position, the names key the estimate rows ([from] / [to]), n_group_from and the group_reference (from, the first level). The model gives the value-on-service path a per-group label, value ~ c(bfrom, bto)*service, and the defined parameter shift := bto - bfrom is that path's change from the first wave to the second. params.from_wave and params.to_wave are wave LABELS (wave is categorical, and an expression reads a categorical as its dictionary string, so a number never matches): change them to compare another pair (swap them to read the change backwards) without editing the model. params reach the attribute expression only: the MAT_SEM params (model, group_reference) are plain JSON and take no params reference.",
     "intents": [
       "compare_groups",
       "measure_construct"
@@ -26,7 +26,7 @@
     "filename": "brand_survey.pulse",
     "data_dir": ".data"
   },
-  "params": {"from_wave": 1, "to_wave": 2},
+  "params": {"from_wave": "wave1", "to_wave": "wave2"},
   "vectors": [
     {"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}
   ],
