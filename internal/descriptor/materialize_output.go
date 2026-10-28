@@ -111,6 +111,8 @@ func derivedField(c MaterializeColumn) encoding.Field {
 //   - a `from` (or an exclude name) that is neither a source field nor a
 //     derived label is PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN, details
 //     column + path (+ suggestion when a name is close);
+//   - shards.max_records ≤ 0 is PULSE_MATERIALIZE_OUTPUT_INVALID
+//     (reason shards_max_records, details max_records);
 //   - an output name written twice after renaming is
 //     PULSE_MATERIALIZE_OUTPUT_DUPLICATE, details column + path (the
 //     second entry) + first (the earlier entry's path). The same `from`
@@ -448,6 +450,12 @@ func materializeOutputShape(out *types.MaterializeOutput) *errors.CodedError {
 	if out.Columns != nil && len(out.Columns) == 0 {
 		return outputInvalid("no_columns", "output.columns",
 			"output.columns is empty; the written cohort needs at least one column")
+	}
+	if out.Shards != nil && out.Shards.MaxRecords <= 0 {
+		ce := outputInvalid("shards_max_records", "output.shards.max_records",
+			"output.shards.max_records is "+strconv.Itoa(out.Shards.MaxRecords)+"; the rows per shard must be positive")
+		ce.Details["max_records"] = out.Shards.MaxRecords
+		return ce
 	}
 	for i, c := range out.Columns {
 		if c.From == "" {

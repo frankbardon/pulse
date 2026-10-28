@@ -487,8 +487,10 @@ const (
 	// recode to null on a non-nullable column (recode_null_not_nullable),
 	// a recode.order naming a label twice (recode_order_duplicate), one
 	// the recode does not write (recode_order_unknown) or omitting one it
-	// does (recode_order_missing). details carry reason and path (a
-	// recode refusal also label). Raised before any file is created.
+	// does (recode_order_missing), or an output.shards.max_records that
+	// is not positive (shards_max_records, details also max_records).
+	// details carry reason and path (a recode refusal also label).
+	// Raised before any file is created.
 	PULSE_MATERIALIZE_OUTPUT_INVALID Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
 
 	// PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN indicates an `output`
@@ -1476,7 +1478,10 @@ const (
 	// filter-to-file archive write would produce an archive of more than
 	// 65535 shards — the most the `_schema.pulse` SHRD trailer's u16
 	// shard_count holds. Refused before anything is written, never
-	// stored truncated. details: archive, shard_count, limit.
+	// stored truncated. details: archive, shard_count, limit. A
+	// materialize run with output.shards raises it at the first output
+	// row that would open shard 65536 (details archive, max_records,
+	// limit, row), nothing written.
 	PULSE_SHARD_COUNT_LIMIT Code = "PULSE_SHARD_COUNT_LIMIT"
 
 	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)

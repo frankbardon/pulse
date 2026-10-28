@@ -59,9 +59,18 @@ type MaterializeResult struct {
 	// CohortBuildResult.InvalidatedSidecars). Empty when nothing was
 	// replaced.
 	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
+	// Shards names the archive entries an output.shards run wrote, in
+	// archive (= output row) order: part-00001.pulse, part-00002.pulse,
+	// …. Empty for a single-file output.
+	Shards []string `json:"shards,omitempty"`
+	// ElidedConstants names the written columns output.elide_constants
+	// stored once (each held one value on every written row), in output
+	// order. Empty when nothing was elided.
+	ElidedConstants []string `json:"elided_constants,omitempty"`
 }
 
-// Materialize writes a NEW single-file cohort at out holding every
+// Materialize writes a NEW cohort at out — a single file, or a shard
+// archive under output.shards — holding every
 // filter-passing record of req's cohort — the source columns verbatim,
 // then one nullable f64 column per derived output of req (features,
 // attributes, windows; an ATTR_PREVIOUS_STATE output instead takes its
@@ -145,9 +154,18 @@ type MaterializeResult struct {
 // leaves the cohort without a sidecar, with one warning). Absent, the
 // output is the layout above, byte for byte.
 //
-// The output is always an ungrouped single file — format 0x01, or 0x02
+// The output is an ungrouped single file — format 0x01, or 0x02
 // when it keeps a vec_* field, whose VECTORS entry (dim, kind, scale,
-// labels) follows it to its output position — written
+// labels) follows it to its output position — unless the output block's
+// container keys say otherwise: output.shards {max_records} writes a
+// shard archive of consecutive max_records-row shards in output row
+// order (MaterializeResult.Shards names them; max_records ≤ 0 is
+// PULSE_MATERIALIZE_OUTPUT_INVALID, reason shards_max_records, before
+// anything is read; a row past 65,535 shards is PULSE_SHARD_COUNT_LIMIT),
+// and output.elide_constants stores a column holding one value on every
+// written row once (format 0x02, decoding unchanged; with shards, judged
+// over the whole archive; MaterializeResult.ElidedConstants). Either way
+// it is written
 // atomically through NewCohortBuilder: any failure — a refusal, a limit
 // breach (PULSE_LIMIT_EXCEEDED), a write error, cancellation — leaves
 // nothing at out (an overwritten cohort stays as it was). The source's
@@ -207,7 +225,7 @@ func (p *Pulse) PredictMaterialize(ctx context.Context, req *Request) (*descript
 func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts MaterializeOptions) (*MaterializeResult, error) {
 	if strings.Contains(out, "#") {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"materialize writes a single-file cohort; an anchored archive#shard target is not accepted",
+			"materialize writes a new cohort (a single file, or a shard archive under output.shards); an anchored archive#shard target is not accepted",
 			map[string]any{"target": out, "reason": "anchored_target"})
 	}
 	var source string
@@ -216,6 +234,9 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	}
 	carry, carryWarn := p.prepareSidecarCarry(source)
 	sink := &materializeSink{p: p, ctx: ctx, out: out, opts: opts}
+	if req != nil {
+		sink.output = req.Output
+	}
 	err := p.svc.Materialize(ctx, req, sink)
 	if sink.reader != nil {
 		if cerr := sink.reader.Close(); err == nil && cerr != nil {
@@ -248,6 +269,8 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 		DerivedColumns:      sink.names,
 		Warnings:            append(append(append(append([]*errors.CodedError(nil), sink.warns...), sink.castWarnings()...), built.Warnings...), carried...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
+		Shards:              built.Shards,
+		ElidedConstants:     built.ElidedConstants,
 	}
 	if len(built.InvalidatedSidecars) > 0 {
 		paths := make([]string, len(built.InvalidatedSidecars))
@@ -271,6 +294,9 @@ type materializeSink struct {
 	opts    MaterializeOptions
 	reader  *service.CohortRecordReader
 	builder *CohortBuilder
+	// output is the request's output slot (nil when absent): its
+	// container keys shape the builder (Shards, ElideConstants).
+	output *types.MaterializeOutput
 	// names are the written columns holding derived values, under their
 	// output names, in output order (MaterializeResult.DerivedColumns).
 	names []string
@@ -427,8 +453,16 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 	if err := m.planCasts(); err != nil {
 		return err
 	}
-	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields, Vectors: vecs},
-		CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite})
+	bopts := CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite}
+	if out := m.output; out != nil {
+		// The output slot's container keys: a shard archive and / or
+		// constant elision, decided by the builder over every written row.
+		bopts.ElideConstants = out.ElideConstants
+		if out.Shards != nil {
+			bopts.Shards = &ShardSplit{MaxRecords: out.Shards.MaxRecords}
+		}
+	}
+	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields, Vectors: vecs}, bopts)
 	if err != nil {
 		return err
 	}
@@ -496,6 +530,9 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 			m.observed[i][id] = true
 		}
 		derived[i] = v
+	}
+	if m.output != nil && m.output.Shards != nil && descx.MaterializeShardLimitReached(m.rows, m.output.Shards.MaxRecords) {
+		return descx.MaterializeShardLimit(m.out, m.output.Shards.MaxRecords, m.rows)
 	}
 	out := make(CohortRow, len(m.layout))
 	for i, col := range m.layout {

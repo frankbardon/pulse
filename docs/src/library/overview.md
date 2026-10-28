@@ -80,7 +80,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Facet(ctx, path, field) ([]string, error)` | Distinct values of a field |
 | `Synth(ctx, spec, out, opts) (*SynthResult, error)` | Generate a synthetic cohort |
 | `PredictMaterialize(ctx, req) (*Envelope, error)` | Validate a Materialize request without executing it (header and schema only, nothing written): `Data` a `*descriptor.MaterializePredictResult` — the output columns, derived names and data-dependent risks — with each refusal a coded `Errors` entry carrying the run's code — see [Materializing Derived Columns](materialize.md) |
-| `Materialize(ctx, req, out, opts) (*MaterializeResult, error)` | Write a new cohort: the filtered source records plus one nullable `f64` column per derived output (features, attributes, windows), or the columns a request `output` block lays out — see [Materializing Derived Columns](materialize.md) |
+| `Materialize(ctx, req, out, opts) (*MaterializeResult, error)` | Write a new cohort: the filtered source records plus one nullable `f64` column per derived output (features, attributes, windows), or the columns a request `output` block lays out, as a single file or a shard archive — see [Materializing Derived Columns](materialize.md) |
 | `Rake(ctx, req) (*RakeResult, error)` | Compute rim / cell survey weights to population margins and write them, beside every source column, into a new cohort — see [Computing Survey Weights](rake.md) |
 | `Profile(ctx, path, opts) (*Profile, error)` | Statistical summary suitable for `from-profile` synthesis |
 | `Manifest(ctx) *Manifest` | Deterministic root self-description |

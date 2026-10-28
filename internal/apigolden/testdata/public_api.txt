@@ -680,8 +680,10 @@ pulse: type MaterializeOptions field Overwrite bool
 pulse: type MaterializeOptions field Strict bool
 pulse: type MaterializeResult struct
 pulse: type MaterializeResult field DerivedColumns []string "json:\"derived_columns\""
+pulse: type MaterializeResult field ElidedConstants []string "json:\"elided_constants,omitempty\""
 pulse: type MaterializeResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type MaterializeResult field Records int64 "json:\"records\""
+pulse: type MaterializeResult field Shards []string "json:\"shards,omitempty\""
 pulse: type MaterializeResult field Target string "json:\"target\""
 pulse: type MaterializeResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type MatrixOpRegistration struct
@@ -1740,6 +1742,11 @@ pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"
 pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
 pulse/descriptor: type ManifestScope struct
 pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
+pulse/descriptor: type MaterializeContainer struct
+pulse/descriptor: type MaterializeContainer field ElideConstants bool "json:\"elide_constants\""
+pulse/descriptor: type MaterializeContainer field Kind string "json:\"kind\""
+pulse/descriptor: type MaterializeContainer field MaxRecords int "json:\"max_records,omitempty\""
+pulse/descriptor: type MaterializeContainer field MaxShards *int64 "json:\"max_shards,omitempty\""
 pulse/descriptor: type MaterializePredictColumn struct
 pulse/descriptor: type MaterializePredictColumn field Derived bool "json:\"derived\""
 pulse/descriptor: type MaterializePredictColumn field Description string "json:\"description\""
@@ -1752,6 +1759,7 @@ pulse/descriptor: type MaterializePredictColumn field Scale *uint8 "json:\"scale
 pulse/descriptor: type MaterializePredictColumn field Type string "json:\"type\""
 pulse/descriptor: type MaterializePredictResult struct
 pulse/descriptor: type MaterializePredictResult field Columns []pulse/descriptor.MaterializePredictColumn "json:\"columns\""
+pulse/descriptor: type MaterializePredictResult field Container *pulse/descriptor.MaterializeContainer "json:\"container,omitempty\""
 pulse/descriptor: type MaterializePredictResult field DerivedColumns []string "json:\"derived_columns\""
 pulse/descriptor: type MaterializePredictResult field Risks []pulse/descriptor.MaterializeRisk "json:\"risks\""
 pulse/descriptor: type MaterializePredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
@@ -5400,7 +5408,9 @@ pulse/types: type MaterializeBucketRange field Label string "json:\"label\""
 pulse/types: type MaterializeBucketRange field Start encoding/json.RawMessage "json:\"start,omitempty\""
 pulse/types: type MaterializeOutput struct
 pulse/types: type MaterializeOutput field Columns []pulse/types.MaterializeOutputColumn "json:\"columns,omitempty\""
+pulse/types: type MaterializeOutput field ElideConstants bool "json:\"elide_constants,omitempty\""
 pulse/types: type MaterializeOutput field Exclude []string "json:\"exclude,omitempty\""
+pulse/types: type MaterializeOutput field Shards *pulse/types.MaterializeShards "json:\"shards,omitempty\""
 pulse/types: type MaterializeOutputColumn struct
 pulse/types: type MaterializeOutputColumn field As string "json:\"as,omitempty\""
 pulse/types: type MaterializeOutputColumn field Bucket *pulse/types.MaterializeBucket "json:\"bucket,omitempty\""
@@ -5415,6 +5425,8 @@ pulse/types: type MaterializeOutputColumn field Type string "json:\"type,omitemp
 pulse/types: type MaterializeRecode struct
 pulse/types: type MaterializeRecode field Map map[string]*string "json:\"map,omitempty\""
 pulse/types: type MaterializeRecode field Order []string "json:\"order,omitempty\""
+pulse/types: type MaterializeShards struct
+pulse/types: type MaterializeShards field MaxRecords int "json:\"max_records\""
 pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
@@ -6279,4 +6291,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8689aa72036acd01caf36a83fb5c63d661e363680e935e4631f290a3d6369b76
+// golden-hash: 599adc075eb8f01d8088c2b4a6408bd31e192d9a2f9137996991726a6aa14e87

@@ -70,6 +70,7 @@
     - [join-design](skills/join-design.md)
     - [label-display](skills/label-display.md)
     - [materialize-casts](skills/materialize-casts.md)
+    - [materialize-container](skills/materialize-container.md)
     - [materialize-recode](skills/materialize-recode.md)
     - [matrix-results](skills/matrix-results.md)
     - [mmm-workflow](skills/mmm-workflow.md)

@@ -835,12 +835,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATERIALIZE_OUTPUT_INVALID: {
-		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, has a column entry without from, names an unknown type, gives a precision / scale out of range or on a non-decimal type, sets on_cast_error to an unknown value, without a type or recode, or to null on a non-nullable column, recodes a column that is not categorical or a label to null on a non-nullable column, or gives a recode.order that is not exactly the recoded labels once each. details.reason names the rule and details.path the offending key.",
+		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, has a column entry without from, names an unknown type, gives a precision / scale out of range or on a non-decimal type, sets on_cast_error to an unknown value, without a type or recode, or to null on a non-nullable column, recodes a column that is not categorical or a label to null on a non-nullable column, gives a recode.order that is not exactly the recoded labels once each, or gives shards.max_records ≤ 0. details.reason names the rule and details.path the offending key.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Output", "Exclude"},
 				Hint:   "Use columns (the closed list to keep, in order) OR exclude (the columns to drop), never both; keep at least one column; give every columns entry a from naming a source field or derived column.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Shards", "MaxRecords"},
+				Hint:   "Give output.shards.max_records a positive row count per shard, or drop output.shards to write a single file.",
 			},
 		},
 	},
@@ -2203,6 +2208,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Shard", "Paths"},
 				Hint:   "Concatenate small shards into fewer, larger `.pulse` files before archiving them, or split the data across more than one archive. `details.shard_count` is the count the write would have produced and `details.limit` the ceiling.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Shards", "MaxRecords"},
+				Hint:   "A materialize run with output.shards: raise max_records so the written rows fit 65535 shards (`details.row` is the first row past the limit), or filter the rows written.",
 			},
 		},
 	},

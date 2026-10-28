@@ -177,7 +177,9 @@ func MaterializeRisks(req *types.Request, schema *encoding.Schema, layout []Mate
 //     description of the WRITTEN schema, as the cohort writer warns.
 //
 // Data is a *descriptor.MaterializePredictResult: the output columns,
-// the derived column names and the data-dependent risks. opts.Strict
+// the derived column names, the data-dependent risks and the container
+// plan (MaterializeContainerPlan; a sharded output whose source could
+// outgrow the archive's shard limit adds MaterializeShardLimitRisk). opts.Strict
 // promotes every warning into an error; opts.EchoRequest echoes the
 // item-expanded request on env.Request.
 func ValidateMaterializeWithOptions(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
@@ -243,7 +245,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	if !rewind() {
 		return expanded
 	}
-	schema, _, fault := readCohortHead(fileData)
+	schema, counts, fault := readCohortHead(fileData)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
@@ -289,6 +291,10 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 			}
 		}
 		result.Risks = MaterializeRisks(expanded, schema, layout)
+		result.Container = MaterializeContainerPlan(expanded, counts.Records)
+		if r := MaterializeShardLimitRisk(result.Container); r != nil {
+			result.Risks = append(result.Risks, *r)
+		}
 		validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
 	}
 	if len(env.Errors) > 0 {

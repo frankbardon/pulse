@@ -436,7 +436,7 @@ type DedupOut = pulse.DedupResult
 // shadowed).
 type MaterializeOut struct {
 	*pulse.MaterializeResult
-	Predict *MaterializePredictOut `json:"predict,omitempty" jsonschema:"The predict verdict (predict: true): valid, the source schema_info, the output columns in order, the derived column names, the data-dependent risks ({column, path, code, check}: a check only the records settle, failing the run with code) and the coded errors / warnings behind it."`
+	Predict *MaterializePredictOut `json:"predict,omitempty" jsonschema:"The predict verdict (predict: true): valid, the source schema_info, the output columns in order, the derived column names, the data-dependent risks ({column, path, code, check}: a check only the records settle, failing the run with code), the container plan ({kind, max_records, max_shards, elide_constants}) and the coded errors / warnings behind it."`
 }
 
 // MaterializePredictOut is pulse_materialize's predict answer: the

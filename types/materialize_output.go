@@ -20,6 +20,7 @@ import "encoding/json"
 // Columns and Exclude are exclusive (both set is
 // PULSE_MATERIALIZE_OUTPUT_INVALID, reason columns_and_exclude). With
 // neither, every source column then every derived column is written.
+// Shards and ElideConstants shape the container, not the columns.
 // Gated by capability:materialize_output.
 type MaterializeOutput struct {
 	// Columns is the closed column list: exactly these columns, in this
@@ -31,6 +32,32 @@ type MaterializeOutput struct {
 	// An unknown name is PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN; a list
 	// that drops every column is refused (reason no_columns).
 	Exclude []string `json:"exclude,omitempty"`
+
+	// Shards writes the output as a shard archive instead of a single
+	// file: the rows, in output order, cut into consecutive shards of
+	// MaxRecords rows (part-00001.pulse, …; the last one partial, an
+	// empty output one empty shard), published whole or not at all. Nil
+	// writes a single file. MaxRecords ≤ 0 is
+	// PULSE_MATERIALIZE_OUTPUT_INVALID (reason shards_max_records) before
+	// anything is read; a row that would open shard 65,536 fails the run
+	// with PULSE_SHARD_COUNT_LIMIT, nothing written.
+	Shards *MaterializeShards `json:"shards,omitempty"`
+
+	// ElideConstants stores every written column holding one value on
+	// every output row once (a constant group) instead of on every row,
+	// decided by a full pass over the written rows — import's
+	// --elide-constants. Decoding is unchanged; the file is format 0x02
+	// when anything is elided, else byte-identical to elision off. With
+	// Shards the pass runs once over every row, so a column is elided
+	// only when constant across the whole archive.
+	ElideConstants bool `json:"elide_constants,omitempty"`
+}
+
+// MaterializeShards is the output slot's shard split
+// (MaterializeOutput.Shards).
+type MaterializeShards struct {
+	// MaxRecords is the number of rows per shard; must be positive.
+	MaxRecords int `json:"max_records"`
 }
 
 // MaterializeOutputColumn is one entry of MaterializeOutput.Columns.

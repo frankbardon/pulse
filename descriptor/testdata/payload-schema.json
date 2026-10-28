@@ -2716,6 +2716,28 @@
       ],
       "type": "object"
     },
+    "MaterializeContainer": {
+      "additionalProperties": false,
+      "properties": {
+        "elide_constants": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "max_records": {
+          "type": "integer"
+        },
+        "max_shards": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "elide_constants",
+        "kind"
+      ],
+      "type": "object"
+    },
     "MaterializeOutput": {
       "additionalProperties": false,
       "properties": {
@@ -2728,6 +2750,9 @@
             "null"
           ]
         },
+        "elide_constants": {
+          "type": "boolean"
+        },
         "exclude": {
           "items": {
             "type": "string"
@@ -2736,6 +2761,9 @@
             "array",
             "null"
           ]
+        },
+        "shards": {
+          "$ref": "#/$defs/MaterializeShards"
         }
       },
       "type": "object"
@@ -2832,6 +2860,9 @@
             "null"
           ]
         },
+        "container": {
+          "$ref": "#/$defs/MaterializeContainer"
+        },
         "derived_columns": {
           "items": {
             "type": "string"
@@ -2910,6 +2941,18 @@
         "check",
         "code",
         "column"
+      ],
+      "type": "object"
+    },
+    "MaterializeShards": {
+      "additionalProperties": false,
+      "properties": {
+        "max_records": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_records"
       ],
       "type": "object"
     },
@@ -6791,4 +6834,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7298dbee8a4335fcdf64056193b5aac272ca99d458f5258df277dc3f7e4479ae
+// golden-hash: 0e31fcc755f49638f3919f757e825555f09556c14ca257726696031d59564a0b

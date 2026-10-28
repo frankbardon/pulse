@@ -24,17 +24,17 @@ A derived value lives only inside the request that computes it: a regression, gr
 
 `predict: true` answers under `predict`: `valid`, `columns`, `derived_columns`, `risks`, `errors` / `warnings` (the run's codes).
 
-The cohort holds the source fields verbatim, then one nullable `f64` per derived column (an `ATTR_PREVIOUS_STATE` column keeps its state field's categorical type and dictionary), described by operator, field, params and (when the operator reads it) frame.
+The cohort holds the source fields verbatim, then one nullable `f64` per derived column (an `ATTR_PREVIOUS_STATE` column keeps its state field's categorical type and dictionary), described by operator, field, params and (when read) frame.
 
 ## Gotchas
 
 - **Nest the request.** A slot beside `out` → `PULSE_REQUEST_UNKNOWN_FIELD`; a slot outside the list → `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); nothing derived → `PULSE_MATERIALIZE_NO_DERIVED`.
 - **Label outputs** you will reference: the column name is the label.
-- Integer window outputs (row number, rank) are `f64`; a non-numeric output → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Refusals precede any write; the write is atomic.
-- `sort` orders ROWS only (source or derived keys, nulls last); window values follow each window's own `order_by`.
-- Single-file output; the SPSS metadata sidecar is carried, no other sidecar.
-- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last ([`derived-cohorts`](derived-cohorts.md), [`materialize-recode`](materialize-recode.md), [`materialize-casts`](materialize-casts.md)).
+- Integer window outputs are `f64`; a non-numeric one → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
+- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Refusals precede any write (atomic).
+- `sort` orders ROWS only (source or derived keys, nulls last); windows follow their own `order_by`.
+- The SPSS metadata sidecar is carried, no other sidecar.
+- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last ([`derived-cohorts`](derived-cohorts.md), [`materialize-recode`](materialize-recode.md), [`materialize-casts`](materialize-casts.md)); `shards` writes a shard archive ([`materialize-container`](materialize-container.md)).
 
 ## See
 

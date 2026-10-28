@@ -121,3 +121,46 @@ func TestCliMaterialize_Predict(t *testing.T) {
 		t.Errorf("materialize without -o or --predict exited %d, want 2 (usage)", status)
 	}
 }
+
+// TestCliMaterialize_ShardArchiveOutput: an `output.shards` block makes
+// `pulse api materialize` write a shard archive — the envelope names its
+// shards, the text report says so — and --predict reports the container
+// plan in both forms.
+func TestCliMaterialize_ShardArchiveOutput(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "series.pulse")
+	if text, err := runApp(t, "import", "csv", "--input", writeMaterializeCSV(t, dir), "--output", src); err != nil {
+		t.Fatalf("import: %v\n%s", err, text)
+	}
+	output := map[string]any{"shards": map[string]any{"max_records": 5}, "elide_constants": true}
+	req := writeJSONFile(t, dir, "mat.json", map[string]any{"cohort": map[string]any{"filename": src}, "output": output})
+
+	text, err := runApp(t, "api", "materialize", "-r", req, "-o", filepath.Join(dir, "arch.pulse"), "--json")
+	if err != nil {
+		t.Fatalf("materialize: %v\n%s", err, text)
+	}
+	var env struct {
+		Data struct {
+			Records int64    `json:"records"`
+			Shards  []string `json:"shards"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(text), &env); err != nil || env.Data.Records != 12 || len(env.Data.Shards) != 3 {
+		t.Fatalf("materialize envelope (%v): %s", err, text)
+	}
+	text, err = runApp(t, "api", "materialize", "-r", req, "-o", filepath.Join(dir, "arch2.pulse"))
+	if err != nil || !strings.Contains(text, "Shard archive of 3 shard(s): part-00001.pulse, part-00002.pulse, part-00003.pulse") {
+		t.Errorf("text report (%v):\n%s", err, text)
+	}
+
+	text, err = runApp(t, "api", "materialize", "-r", req, "--predict", "--json")
+	if err != nil || !strings.Contains(text, `"kind": "shard_archive"`) || !strings.Contains(text, `"max_shards": 3`) {
+		t.Errorf("predict envelope (%v):\n%s", err, text)
+	}
+	text, err = runApp(t, "api", "materialize", "-r", req, "--predict")
+	if err != nil || !strings.Contains(text, "Container: shard archive, 5 row(s) per shard") || !strings.Contains(text, "Container: constants elided") {
+		t.Errorf("predict text (%v):\n%s", err, text)
+	}
+}

@@ -28,6 +28,30 @@ type MaterializePredictResult struct {
 	// records — each a refusal the run raises only if a record fails it.
 	// Empty (never null) when the run checks nothing data-dependent.
 	Risks []MaterializeRisk `json:"risks"`
+
+	// Container is how the run writes the cohort: a single file or a
+	// shard archive (output.shards), and whether constants are elided
+	// (output.elide_constants). Absent when a refusal stops the layout
+	// from resolving.
+	Container *MaterializeContainer `json:"container,omitempty"`
+}
+
+// MaterializeContainer is the container plan of a materialize run
+// (MaterializePredictResult.Container).
+type MaterializeContainer struct {
+	// Kind is "file" (a single-file cohort) or "shard_archive".
+	Kind string `json:"kind"`
+	// MaxRecords is a shard archive's rows per shard; absent for a file.
+	MaxRecords int `json:"max_records,omitempty"`
+	// MaxShards is the most shards a shard archive run writes —
+	// ceil(source records / max_records), at least 1 — reached when
+	// every source record passes the filters. Absent for a file, or when
+	// the source's record count is unknown.
+	MaxShards *int64 `json:"max_shards,omitempty"`
+	// ElideConstants is output.elide_constants: a column holding one
+	// value on every written row is stored once. Which columns qualify
+	// only the rows settle, so none is named here.
+	ElideConstants bool `json:"elide_constants"`
 }
 
 // MaterializePredictColumn is one column of the cohort a materialize run

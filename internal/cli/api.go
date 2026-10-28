@@ -815,6 +815,12 @@ func materializePredict(ctx context.Context, cmd *cli.Command, jsonOut bool, req
 		for _, r := range res.Risks {
 			writeText(w, "Risk [%s] %s: %s\n", r.Code, r.Column, r.Check)
 		}
+		if c := res.Container; c != nil && c.Kind == "shard_archive" {
+			writeText(w, "Container: shard archive, %d row(s) per shard\n", c.MaxRecords)
+		}
+		if c := res.Container; c != nil && c.ElideConstants {
+			writeText(w, "Container: constants elided\n")
+		}
 	}
 	for _, e := range env.Errors {
 		writeText(w, "Error [%s]: %s\n", e.Code, e.Message)
@@ -833,6 +839,12 @@ func writeMaterializeText(cmd *cli.Command, res *pulse.MaterializeResult) {
 	w := cmd.Writer
 	writeText(w, "Materialized %d record(s) to %s; derived columns: %s\n",
 		res.Records, res.Target, strings.Join(res.DerivedColumns, ", "))
+	if len(res.Shards) > 0 {
+		writeText(w, "Shard archive of %d shard(s): %s\n", len(res.Shards), strings.Join(res.Shards, ", "))
+	}
+	if len(res.ElidedConstants) > 0 {
+		writeText(w, "Elided constants: %s\n", strings.Join(res.ElidedConstants, ", "))
+	}
 	writeSourceWarnings(w, res.Warnings)
 	if len(res.InvalidatedSidecars) > 0 {
 		writeText(w, "Invalidated sidecars (not rebuilt — rebuilding is yours to schedule):\n")

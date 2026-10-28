@@ -9,7 +9,8 @@ of a NEW cohort; the next request reads them like any other field.
 ## Library
 
 `Pulse.Materialize(ctx, req, out, opts)` turns a request's derived
-columns into ordinary fields of a NEW single-file cohort, so later
+columns into ordinary fields of a NEW cohort (a single file, or a shard
+archive under `output.shards`), so later
 requests can filter, group or join on them:
 
 ```go
@@ -66,9 +67,11 @@ res, err := p.Materialize(ctx, &pulse.Request{
   rank) are stored as `f64`; a non-numeric value (a lag copying a
   categorical label) fails the run with
   `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- **Writing.** Always an ungrouped single file — `0x01`, or `0x02` when
+- **Writing.** An ungrouped single file — `0x01`, or `0x02` when
   it keeps a `vec_*` field, whose dim, kind, scale and labels follow it
-  to its output position — written atomically through `NewCohortBuilder`. The source's SPSS metadata
+  to its output position — unless the `output` slot's container keys
+  ask for a shard archive or constant elision (below) — written
+  atomically through `NewCohortBuilder`. The source's SPSS metadata
   sidecar is carried — rewritten with a plain numeric variable per
   derived column (a previous-state column copies its state variable's
   codes and value labels, each category's `observed` flag recomputed
@@ -238,6 +241,26 @@ res, err := p.Materialize(ctx, &pulse.Request{
   registry column kept without a column it reads, two names SPSS folds
   together) writes the cohort without a sidecar, with one
   `PULSE_SPSS_SIDECAR_INVALID` warning — never a stale one.
+- **Container: `shards` and `elide_constants`.** `shards: {max_records}`
+  writes a shard archive instead of a single file: the rows, in output
+  order, cut into consecutive `max_records`-row shards
+  (`part-00001.pulse`, …; the last one partial, an empty output one empty
+  shard), published by one `CreateShardArchive` call so the archive
+  appears whole or not at all. `pulse.Open` reads it as one cohort, rows
+  in the single file's order. `res.Shards` names the entries.
+  `max_records ≤ 0` is `PULSE_MATERIALIZE_OUTPUT_INVALID` (reason
+  `shards_max_records`) before anything is read; a row that would open
+  shard 65,536 fails the run with `PULSE_SHARD_COUNT_LIMIT`, nothing
+  written. `elide_constants: true` stores every column holding one value
+  on every written row once (`res.ElidedConstants` names them) — the file
+  is `0x02` when anything is elided, decoding unchanged; with `shards`
+  the decision is made once over every row and applied to every shard.
+  An `output` holding only these keys keeps every column (a pure copy is
+  legal). The SPSS metadata sidecar is carried as for a single file —
+  beside the archive, fingerprinted over the archive's bytes (Inspect
+  reads its suggested weight; `pulse export` does not read a shard
+  archive yet) — and an elided column keeps its variable. `Overwrite`
+  replaces an existing cohort or archive whole.
 - **Absent `output`** writes exactly what Materialize always wrote, byte
   for byte. A feature profile without `capability:materialize_output`
   refuses a set `output` as an unknown field everywhere.
@@ -262,7 +285,13 @@ one) and writes nothing. It returns the whole envelope, `Data` a
   0 ≤ v ≤ 255`; `PULSE_MATERIALIZE_CAST_FAILED`, or
   `PULSE_MATERIALIZE_CAST_NULLED` — the warning — under
   `on_cast_error: "null"`), and a `nullable: false` column over one
-  that may hold a null (`PULSE_MATERIALIZE_OUTPUT_NULL`);
+  that may hold a null (`PULSE_MATERIALIZE_OUTPUT_NULL`), and a sharded
+  output whose source holds more records than `max_records` × 65,535
+  (`PULSE_SHARD_COUNT_LIMIT`);
+- `container` — `{kind, max_records, max_shards, elide_constants}`:
+  `"file"` or `"shard_archive"`; `max_shards` is the most shards the run
+  writes, `ceil(source records / max_records)`, reached when every
+  record passes the filters;
 - `schema_info` — the source's field names.
 
 Every static refusal is a coded `env.Errors` entry with the run's own
