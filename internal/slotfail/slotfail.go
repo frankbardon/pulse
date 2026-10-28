@@ -90,6 +90,9 @@ var MatrixCodes = map[errors.Code]bool{
 	// a derived group without params.group_levels whose rows hold more
 	// levels than the per-level state cap
 	errors.PULSE_MATRIX_GROUP_LEVEL_LIMIT: true,
+	// an ordered SEM member whose rows hold more distinct values than
+	// sem.MaxOrderedCategories
+	errors.PULSE_MATRIX_TOO_MANY_CATEGORIES: true,
 }
 
 // CorruptRecordData reports whether coded is the dictionary-index

@@ -150,3 +150,60 @@ func TestSEM_OrdinalRefusalsMatchPredict(t *testing.T) {
 		t.Fatalf("predict compose: %v %+v", perr, penv.Errors)
 	}
 }
+
+// TestSEM_OrdinalTooManyCategoriesFailsSlotAlone: an ordered member
+// holding more than sem.MaxOrderedCategories distinct values is a
+// data-dependent refusal — predict cannot foresee it, so it reports no
+// error, and the runtime fails the SEM slot alone (identity kept, error
+// PULSE_MATRIX_TOO_MANY_CATEGORIES, no figure, a PULSE_SLOT_FAILED
+// warning) while the other slots compute; Strict fails the run with the
+// slot's own code.
+func TestSEM_OrdinalTooManyCategoriesFailsSlotAlone(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	// w is the row index: far more distinct values than the ceiling.
+	rowIndex := func(r int) int { return r }
+	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, weight: rowIndex}.build(t, pulse.Options{})
+	strict, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, weight: rowIndex}.build(t, pulse.Options{Strict: true})
+	params, _ := json.Marshal(map[string]any{"model": "f =~ q1 + q2 + q3 + w", "estimator": "wlsmv", "ordered": []string{"q1", "q2", "q3", "w"}})
+	req := &types.Request{
+		Cohort:       &types.Cohort{Filename: "brand.pulse"},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q1"}},
+		Matrices: []types.MatrixSpec{
+			{Name: "sem", Type: types.MAT_SEM, Fields: []string{"q1", "q2", "q3", "w"}, Params: params},
+			{Name: "cov", Type: types.MAT_COVARIANCE, Fields: []string{"q1", "q2", "q3"}},
+		},
+	}
+	if env := predictEnvelope(t, p, fsys, "brand.pulse", req); len(env.Errors) != 0 {
+		t.Fatalf("predict errors %+v: the category count is data-dependent", env.Errors)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Matrices) != 2 {
+		t.Fatalf("%d matrices, want 2", len(resp.Matrices))
+	}
+	res := resp.Matrices[0]
+	if res.Error == nil || res.Error.Code != string(errors.PULSE_MATRIX_TOO_MANY_CATEGORIES) || res.Error.Details["variable"] != "w" {
+		t.Fatalf("slot error %+v, want PULSE_MATRIX_TOO_MANY_CATEGORIES on w", res.Error)
+	}
+	if res.Primary != nil || res.Name != "sem" || res.Type != types.MAT_SEM {
+		t.Fatalf("a failed slot keeps its identity and no figure: %+v", res)
+	}
+	if warningOf(resp.Warnings, errors.PULSE_SLOT_FAILED) == nil {
+		t.Fatalf("warnings %+v, want PULSE_SLOT_FAILED", resp.Warnings)
+	}
+	if cov := resp.Matrices[1]; cov.Error != nil || cov.Primary == nil {
+		t.Fatalf("the covariance slot still computes: %+v", cov)
+	}
+	if len(resp.Data) == 0 {
+		t.Fatal("the aggregation still computes")
+	}
+	_, err = strict.Process(ctx, req)
+	var ce *errors.CodedError
+	if !asCoded(err, &ce) || ce.Code != errors.PULSE_MATRIX_TOO_MANY_CATEGORIES {
+		t.Fatalf("Strict run error %v, want PULSE_MATRIX_TOO_MANY_CATEGORIES", err)
+	}
+}
