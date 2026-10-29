@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	cli "github.com/urfave/cli/v3"
+	"go.opentelemetry.io/otel"
 )
 
 // mcpServerName is the MCP server identity reported during initialize. The
@@ -83,6 +85,31 @@ func MCPCommand(version string) *cli.Command {
 				opts.Metrics = reg
 			}
 
+			// OTLP/HTTP export, only when the standard OTel environment
+			// names an endpoint; unset builds nothing.
+			otlp, err := startOTLP(ctx, os.LookupEnv)
+			if err != nil {
+				return err
+			}
+			var otlpSignals string
+			if otlp != nil {
+				h := otlpErrorHandler(opts.Logger, cmd.Root().ErrWriter)
+				otel.SetErrorHandler(h)
+				if otlp.ResourceWarning != nil {
+					h.Handle(otlp.ResourceWarning)
+				}
+				defer func() {
+					if err := otlp.Shutdown(ctx); err != nil {
+						h.Handle(err)
+					}
+				}()
+				if otlp.Hooks != nil {
+					opts.Hooks = otlp.Hooks
+				}
+				opts.Metrics = fanMetrics(opts.Metrics, otlp.Metrics)
+				otlpSignals = otlp.Signals
+			}
+
 			// mcpserve.NewPulse owns the profile resolution: the flag, else
 			// PULSE_FEATURE_PROFILE, read as an OS path and parsed strictly.
 			p, err := mcpserve.NewPulse(opts,
@@ -136,6 +163,7 @@ func MCPCommand(version string) *cli.Command {
 			fmt.Fprintln(cmd.Root().ErrWriter, mcpStartupLine(dataDir, bindOnOpen, info, mcpObsSettings{
 				LogLevel:    activeLogLevel(cmd.String(flagLogLevel)),
 				MetricsAddr: metricsAddr,
+				OTLP:        otlpSignals,
 			}))
 
 			if err := srv.Run(ctx, &mcpsdk.StdioTransport{}); err != nil {
@@ -147,11 +175,14 @@ func MCPCommand(version string) *cli.Command {
 }
 
 // mcpObsSettings is the observability half of the startup notice: the
-// active --log-level (empty when off) and the bound --metrics-addr
-// (empty when no exporter runs).
+// active --log-level (empty when off), the bound --metrics-addr
+// (empty when no exporter runs) and the OTLP signals.
 type mcpObsSettings struct {
 	LogLevel    string
 	MetricsAddr string
+	// OTLP names the signals exported over OTLP/HTTP (empty when the
+	// OTel environment names no endpoint) — never the endpoint itself.
+	OTLP string
 }
 
 // mcpStartupLine formats the one-line stderr startup notice from the
@@ -180,6 +211,9 @@ func mcpStartupLine(dataDir string, bindOnOpen bool, info mcpserve.ServeInfo, ob
 	}
 	if obs.MetricsAddr != "" {
 		line += ", metrics: " + obs.MetricsAddr
+	}
+	if obs.OTLP != "" {
+		line += ", otlp: " + obs.OTLP
 	}
 	return line + ")"
 }
