@@ -36,13 +36,23 @@ import (
 // pre-flight) — and a bucketed datetime column is matched by its local
 // day in that zone (MaterializeBucket.Zone). Reads no record.
 func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *errors.CodedError) {
+	cols, layout, _, ce := materializePlan(req, schema, inst, source, defaultZone)
+	return cols, layout, ce
+}
+
+// materializePlan is MaterializePlan plus the parent-group plan it
+// resolved (MaterializeGroupPlan over the same output block, schema and
+// layout), so predict reports that plan rather than resolving it a
+// second time behind a refusal branch no input can reach. The groups
+// are non-nil whenever the error is nil.
+func materializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *MaterializeGroups, *errors.CodedError) {
 	cols, ce := MaterializeColumns(req, schema, inst, source)
 	if ce != nil {
-		return nil, nil, ce
+		return nil, nil, nil, ce
 	}
 	layout, ce := MaterializeOutputLayout(req, schema, cols, inst)
 	if ce != nil {
-		return nil, nil, ce
+		return nil, nil, nil, ce
 	}
 	zone := "UTC"
 	switch {
@@ -66,16 +76,19 @@ func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *Instance
 		}
 	}
 	if ce := encx.DescriptionLengthRefusal(layoutFields(layout)); ce != nil {
-		return nil, nil, ce
+		return nil, nil, nil, ce
 	}
+	// The output block's parent groups: a declaration the writer would
+	// refuse is refused here, before anything is read.
+	var out *types.MaterializeOutput
 	if req != nil {
-		// The output block's parent groups: a declaration the writer
-		// would refuse is refused here, before anything is read.
-		if _, ce := MaterializeGroupPlan(req.Output, schema, layout); ce != nil {
-			return nil, nil, ce
-		}
+		out = req.Output
 	}
-	return cols, layout, nil
+	groups, ce := MaterializeGroupPlan(out, schema, layout)
+	if ce != nil {
+		return nil, nil, nil, ce
+	}
+	return cols, layout, groups, nil
 }
 
 // temporalPair reports whether from → to reads local days: date ↔
@@ -263,7 +276,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	// leads the errors: a request Process's operator construction would
 	// also refuse (FEAT_POLY degree 1) is refused by the run's pre-flight
 	// first, before any operator is built.
-	cols, layout, planErr := MaterializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort), opts.DefaultTimeZone)
+	cols, layout, groups, planErr := materializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort), opts.DefaultTimeZone)
 	if planErr != nil {
 		addCodedError(env, planErr)
 	}
@@ -302,22 +315,17 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 		if r := MaterializeShardLimitRisk(result.Container); r != nil {
 			result.Risks = append(result.Risks, *r)
 		}
-		// The parent-group plan the run hands its writer, its static
-		// warnings (a source group left out, a group too narrow to form)
-		// and the key check only the rows settle. MaterializePlan has
-		// already refused a bad declaration.
-		if groups, ce := MaterializeGroupPlan(expanded.Output, schema, layout); ce == nil {
-			result.Container.Groups = groups.Plan
-			result.Risks = append(result.Risks, MaterializeGroupRisks(groups)...)
-			// In the run's order: the groups left out, the written
-			// schema's description findings, then the writer's width
-			// screen.
-			addCodedWarnings(env, groups.Warnings)
-			validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
-			addCodedWarnings(env, groups.TooNarrow)
-		} else {
-			validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
-		}
+		// The parent-group plan the run hands its writer (the plan's own,
+		// resolved once by materializePlan), its static warnings (a
+		// source group left out, a group too narrow to form) and the key
+		// check only the rows settle.
+		result.Container.Groups = groups.Plan
+		result.Risks = append(result.Risks, MaterializeGroupRisks(groups)...)
+		// In the run's order: the groups left out, the written schema's
+		// description findings, then the writer's width screen.
+		addCodedWarnings(env, groups.Warnings)
+		validateDescriptionQuality(env, &encoding.Schema{Fields: layoutFields(layout)}, &PredictOptions{})
+		addCodedWarnings(env, groups.TooNarrow)
 	}
 	if len(env.Errors) > 0 {
 		result.Valid = false

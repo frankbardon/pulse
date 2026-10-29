@@ -1,7 +1,6 @@
 package descriptor
 
 import (
-	stderrors "errors"
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -103,16 +102,24 @@ func MaterializeGroupPlan(out *types.MaterializeOutput, schema *encoding.Schema,
 	}
 	flat := MaterializeOutputSchema(schema, layout)
 	specs := materializeGroupSpecs(g.Decls)
-	if _, err := encx.NewGroupEncoder(flat, specs); err != nil {
+	// NewGroupEncoder is the full declaration check. The width screen
+	// after it refuses only a member name the encoder has already
+	// refused (a lenient gate never fails on width), so both share one
+	// refusal path rather than the screen keeping its own.
+	_, err := encx.NewGroupEncoder(flat, specs)
+	var (
+		screen []encx.GroupViability
+		warns  []*errors.CodedError
+	)
+	if err == nil {
+		_, screen, warns, err = encx.DedupGate{}.ScreenWidths(flat, specs)
+	}
+	if err != nil {
 		ce := groupRefusal(err)
 		if origin == materializeGroupDeclared {
 			ce = withGroupPath(ce)
 		}
 		return nil, ce
-	}
-	_, screen, warns, err := encx.DedupGate{}.ScreenWidths(flat, specs)
-	if err != nil {
-		return nil, groupRefusal(err)
 	}
 	g.TooNarrow = warns
 	planned := make([]descriptor.MaterializeGroupPlan, len(g.Decls))
@@ -285,14 +292,14 @@ func withGroupPath(ce *errors.CodedError) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
 }
 
-// groupRefusal is a group declaration check's error as a coded one (an
-// uncoded error is PULSE_GROUP_DECLARATION_INVALID).
+// groupRefusal is a group declaration check's refusal as the coded
+// error it already is: NewGroupEncoder and DedupGate.ScreenWidths return
+// only a bare *errors.CodedError (TestGroupDeclarationRefusalsAreCoded,
+// internal/encoding, pins every refusal class), so there is no uncoded
+// case to translate. Were one ever added, the assertion fails loudly —
+// the facade reports PROCESSING_PANIC — never as a passed plan.
 func groupRefusal(err error) *errors.CodedError {
-	var ce *errors.CodedError
-	if stderrors.As(err, &ce) {
-		return ce
-	}
-	return errors.WrapCodedError(err, errors.PULSE_GROUP_DECLARATION_INVALID, "output.groups: "+err.Error())
+	return err.(*errors.CodedError)
 }
 
 // MaterializeGroupRisks is the data-dependent check of a declared keyed

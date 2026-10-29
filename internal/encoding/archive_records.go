@@ -174,12 +174,12 @@ func withEntry(err error, name string) error {
 // ShardDecodeCompatible reports whether a shard written with header
 // schema own decodes to its own values under canonical. It checks, via
 // ValidateStructuralCohesion, the same field names, types (set rungs
-// included), vector dims, byte offsets, bit positions, group layout and
-// per-field nullability under its one-directional rule (a field
-// canonical declares non-nullable may not be nullable in own; a
-// nullable canonical field admits a non-nullable one only with an
-// equal-width bitmap and outside any group — details.dimension
-// "nullable"); then the record stride; then that every dictionary
+// included), vector dims, bit positions, group layout and per-field
+// nullability under its one-directional rule (a field canonical
+// declares non-nullable may not be nullable in own; a nullable
+// canonical field admits a non-nullable one only with an equal-width
+// bitmap and outside any group — details.dimension "nullable"), which
+// together fix the record stride; then that every dictionary
 // (categorical, set, group entries) is a PREFIX of canonical's. A
 // dictionary LONGER than canonical's could hold IDs the canonical
 // dictionary cannot resolve and is PULSE_SHARD_DICT_DIVERGENCE.
@@ -188,13 +188,12 @@ func withEntry(err error, name string) error {
 // index-addressed CohortRecordReader and the sequential export pass
 // (OpenArchiveRecords).
 func ShardDecodeCompatible(canonical, own *encoding.Schema) error {
+	// Cohesion fixes the record stride too: every input of RecordByteSize
+	// (field count, types, vector dims, group layout, the null bitmap's
+	// width) is compared there, so no separate stride check is needed
+	// (TestValidateStructuralCohesion_FixesRecordStride pins it).
 	if _, err := ValidateStructuralCohesion(canonical, own); err != nil {
 		return err
-	}
-	if own.RecordByteSize() != canonical.RecordByteSize() {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-			"shard record stride differs from the canonical schema",
-			map[string]any{"canonical_stride": canonical.RecordByteSize(), "shard_stride": own.RecordByteSize()})
 	}
 	ext, err := ValidateDictPrefixRule(canonical, own)
 	if err != nil {
