@@ -151,6 +151,45 @@ authentication. Metric labels are operation kinds, scopes, phases,
 error codes, limit names and hook names — never cohort paths or
 data.
 
+## OTLP export (`OTEL_*`)
+
+`pulse mcp` exports traces and metrics over OTLP/HTTP when the
+standard OpenTelemetry environment names an endpoint. There is no
+flag and no `PULSE_*` variable; other leaves never export.
+
+| Variable | Effect |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for both signals; `/v1/traces` and `/v1/metrics` are appended |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Per-signal URL, used as-is; setting only one exports only that signal |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` (+ `_TRACES_` / `_METRICS_` forms) | Must be unset or `http/protobuf`; anything else fails startup |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | Resource; `service.name` defaults to `pulse` |
+| `OTEL_EXPORTER_OTLP_HEADERS` / `_TIMEOUT` / `_COMPRESSION` / TLS vars, `OTEL_BSP_*`, `OTEL_METRIC_EXPORT_INTERVAL` / `_TIMEOUT` | Read by the OpenTelemetry SDK as usual |
+
+An empty variable counts as unset. With no endpoint nothing starts —
+no providers, no goroutines. An endpoint that is not an `http(s)` URL
+with a host, or a gRPC protocol, fails startup with `CLI_INPUT`
+(`details.variable`, `details.value`; message "pulse mcp exports OTLP
+over HTTP only"). A partly invalid `OTEL_RESOURCE_ATTRIBUTES` warns and
+keeps the valid attributes.
+
+Spans are batched and metrics read periodically; the providers are
+never installed as OpenTelemetry globals. With `--metrics-addr` as
+well, metrics go to both the scrape endpoint and OTLP. A failed export
+logs a warning (`otlp export failed`) and serving continues; under
+`--log-level off` those warnings still reach stderr. On exit both
+providers flush and shut down within 5 s. The startup notice gains
+`otlp: traces+metrics` (or `traces` / `metrics`) and never names the
+endpoint; stdout stays pure JSON-RPC.
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 pulse mcp --data-dir /mnt/cohorts
+# Stderr: pulse mcp: serving over stdio (data dir: /mnt/cohorts, ..., otlp: traces+metrics)
+```
+
+Embedders running `mcpserve` wire OpenTelemetry themselves through
+`pulse.Options.Hooks` / `Metrics` and the
+[`observe/otel` adapter](../library/observability.md).
+
 ## --bind-on-open
 
 When a session calls `pulse_inspect` successfully, the server can

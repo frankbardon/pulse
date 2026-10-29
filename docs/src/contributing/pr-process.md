@@ -75,7 +75,6 @@ make fmt
 make lint
 make test-heavy   # both test tiers; `make test` is the fast tier only
 make smoke   # when the public surface moved
-make contrib # when contrib/ or a root dependency moved
 ```
 
 For change-category-specific gates, see [Testing → Running a subset of

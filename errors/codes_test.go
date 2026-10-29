@@ -100,7 +100,7 @@ func TestNoTwirpCodes(t *testing.T) {
 // TestNoOrbitPrefixes ensures no ORBIT_* identifiers exist: not as a
 // registered error code, and not as any ORBIT_-prefixed token (code,
 // reason string, constant, comment) in a non-test Go source file of the
-// repository, nested contrib modules included. Runtime reason strings
+// repository, nested modules included. Runtime reason strings
 // that are not registered codes (the pairwise overlay skip reasons once
 // shipped as ORBIT_STATS_SKIP_*) reach the wire in details.reason.
 func TestNoOrbitPrefixes(t *testing.T) {

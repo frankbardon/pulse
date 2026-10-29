@@ -66,9 +66,8 @@ function or inside its body, for example `// serial: uses t.Setenv`.
 `TestTestsParallelByDefault` (in `internal/tools/citest`) parses every
 test file and fails on a test that has neither, or on a `// serial:`
 comment with no reason. `TestMain`, benchmarks, fuzz targets and
-examples are exempt. The nested modules (`internal/embeddersmoke`,
-`contrib/*`) are out of scope: `make smoke` and `make contrib` run
-them separately. Run the same check by hand:
+examples are exempt. The nested module `internal/embeddersmoke` is out of scope: `make smoke`
+runs it separately. Run the same check by hand:
 
 ```bash
 go run ./internal/tools/citest parallel-check
@@ -172,25 +171,6 @@ make smoke                               # builds internal/embeddersmoke as an e
 - The `apidiff` job in `ci.yml` runs on each dispatch (not under a
   release). See [Pull Request Process](pr-process.md#public-api-changes).
 
-## Contrib modules
-
-`contrib/otelpulse` and `contrib/prompulse` (observability adapters) are
-separately published Go modules (own `go.mod` + `go.sum`, `replace =>
-../..` for development).
-The core module never depends on them, nor on any OpenTelemetry or
-Prometheus module (`TestCoreModuleNoObservabilityDeps`).
-
-```bash
-make contrib        # per module: go mod tidy -diff, vet, staticcheck, test
-make contrib-tidy   # re-tidy every contrib module
-```
-
-`make contrib` runs without `-mod=mod`, so a stale contrib `go.mod` or
-`go.sum` fails locally and in CI. A root dependency bump therefore needs
-`make contrib-tidy` in the same PR. Contrib modules are released in
-lockstep with the root tag by `scripts/release-contrib.sh` (called by
-`release.yml`); run it without `--push` for a dry-run tag plan.
-
 ## When CI runs
 
 `ci.yml` does not run on pushes or pull requests. Local gates cover a
@@ -211,7 +191,7 @@ the sum:
 | `staticcheck (fast)`, `staticcheck (heavy)` | `make staticcheck-fast` / `staticcheck-heavy`: one tier each, results uploaded as an artifact |
 | `lint` | needs the three above (fails, never skips, if one failed), then `make staticcheck-merge`; together the four jobs run exactly `make lint` |
 | `docs` | `mdbook build docs` |
-| `build` | `make build`, `make smoke`, `make contrib` |
+| `build` | `make build`, `make smoke` |
 | `test (1.26)` | the fast tier: `go test -count=1 -json ./...`, plus `citest heavy-check` |
 | `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
 | `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
@@ -278,8 +258,6 @@ then gathers them, writes `checksums.txt` with
 `scripts/release-dist.sh --checksums-only`, and publishes. The asset set
 is the one a local `make dist VERSION=<tag>` builds. A tag containing
 `-` is published as a pre-release, and a release never takes Latest.
-The `contrib` job cuts the lockstep contrib tags after a successful
-`release`, whether or not CI was reused.
 The `apidiff` job is skipped under a release's `workflow_call`, since
 the tagged tree is the release itself.
 

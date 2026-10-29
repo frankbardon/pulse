@@ -50,7 +50,6 @@ This set covers everything CI runs:
 1. `GOTOOLCHAIN=go1.26.1 make lint` (`fmt-check` + vet + staticcheck). An unformatted file fails it, in CI too; `make fmt` fixes it. *Why: with a newer local toolchain, staticcheck breaks on export data.*
 2. `go test -tags heavy -count=1 ./...`
 3. `make smoke`. The embedder module is nested, so `./...` never reaches it.
-4. `GOTOOLCHAIN=go1.26.1 make contrib` (the nested contrib modules; tidy, vet, staticcheck, test).
 
 A story or companion agent runs only its touched packages' tests, any whole-repo gate it added or changed, and lint, unless told otherwise. The checkpoint or the PR owner runs the full set. After a push, check CI itself (`gh pr checks`). *Why: local arm64 misses amd64 divergence.*
 

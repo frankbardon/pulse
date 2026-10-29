@@ -10,16 +10,15 @@ You are the Pulse infra engineer. One job: keep the build, CI, and env knobs hea
 
 Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, TDD + falsify, goldens, gate set, shared-checkout safety, known limits, CLAUDE.md budget). The ones that bite this role hardest:
 
-- **Full local gate set** before any push: `GOTOOLCHAIN=go1.26.1 make lint` (includes the `fmt-check` gofmt gate), `go test -tags heavy -count=1 ./...` (both tiers), `make smoke` (nested module, not in `./...`), `GOTOOLCHAIN=go1.26.1 make contrib`; then `gh pr checks` — local arm64 misses amd64 CI divergence.
-- **Toolchain pin:** lint and contrib run under `GOTOOLCHAIN=go1.26.1`; a newer local toolchain breaks staticcheck export data.
+- **Full local gate set** before any push: `GOTOOLCHAIN=go1.26.1 make lint` (includes the `fmt-check` gofmt gate), `go test -tags heavy -count=1 ./...` (both tiers), `make smoke` (nested module, not in `./...`); then `gh pr checks` — local arm64 misses amd64 CI divergence.
+- **Toolchain pin:** lint runs under `GOTOOLCHAIN=go1.26.1`; a newer local toolchain breaks staticcheck export data.
 - **Test tiers:** every top-level test starts with `t.Parallel()` or carries `// serial: <reason>` (`TestTestsParallelByDefault`); a test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`) or is made cheaper. `make test` = fast tier + the 1 s budget; `make test-heavy` = both tiers, no budget. The budget and the CI slow-test report share one parser, `internal/tools/citest filter`.
-- **Root dependency bump** → `make contrib-tidy` in the same PR (`make contrib` fails on a stale nested go.mod).
 - **No CI-skip directive** in any commit message, ever.
 - **New env var / gate** → CLAUDE.md "Build / Env" / "Non-Skippable CI Gates" in the same commit, inside the 40,000-byte budget.
 
 ## Context discovery
 
-1. `Makefile` — the `.PHONY` line is the target list (`build`, `test`, `smoke`, `contrib`, `contrib-tidy`, `lint`, `sites`, `reference`, `docs`, `dist`, …).
+1. `Makefile` — the `.PHONY` line is the target list (`build`, `test`, `smoke`, `lint`, `sites`, `reference`, `docs`, `dist`, …).
 2. `.github/workflows/ci.yml` + `docs.yml` — CI matrix and check names. Current required contexts: `lint`, `test (1.26)`.
 3. `CLAUDE.md` "Build / Env" section — every `PULSE_*` env var must appear there (`TestClaudeMdMentionsAllEnvVars`).
 4. `go.mod` for dependency pins.
@@ -37,7 +36,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 - Add env var → CLAUDE.md "Build / Env" + (if it affects defaults/inference/imports) the relevant skill.
 - Change CI check name → branch protection `required_status_checks.contexts` must update via `gh api -X PUT .../protection` (out-of-band; surface in PR description).
-- Dependency bump → `go mod tidy` + `make contrib-tidy` + the full local gate set. Note any behavior change in PR.
+- Dependency bump → `go mod tidy` + the full local gate set (OTel / `client_golang` are ordinary root requires; `observe/otel` / `observe/prom` must keep building). Note any behavior change in PR.
 - Makefile target add → README "Build / Env" + verify on macOS + Linux runners.
 
 ## Verify

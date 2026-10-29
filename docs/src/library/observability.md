@@ -16,11 +16,17 @@ Pulse never reads `slog.Default()`, adds no environment variable, and does not c
 |---|---|
 | Logs only (slog) | `Options.Logger = slog.New(handler)` |
 | Custom callbacks (audit, tracing of your own) | `Options.Hooks = &observe.Hooks{...}` |
-| OpenTelemetry traces and metrics | `contrib/otelpulse`: `Hooks(tp)` + `Metrics(mp)` |
-| Prometheus via `client_golang` | `contrib/prompulse`: `Metrics(reg)` |
+| OpenTelemetry traces and metrics | `observe/otel` (package `otelpulse`): `Hooks(tp)` + `Metrics(mp)` |
+| Prometheus via `client_golang` | `observe/prom` (package `prompulse`): `Metrics(reg)` |
 | The CLI MCP server | `pulse mcp --log-level info --metrics-addr 127.0.0.1:9090` |
+| The CLI MCP server to an OTLP collector | `OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318 pulse mcp` |
 
 ```go
+import (
+    otelpulse "github.com/frankbardon/pulse/observe/otel"
+    prompulse "github.com/frankbardon/pulse/observe/prom"
+)
+
 p, err := pulse.New(pulse.Options{
     Logger:  slog.New(slog.NewJSONHandler(os.Stderr, nil)),
     Hooks:   otelpulse.Hooks(tracerProvider),
@@ -28,7 +34,7 @@ p, err := pulse.New(pulse.Options{
 })
 ```
 
-The core module depends on neither OpenTelemetry nor Prometheus. The two adapters are separate modules (`go get github.com/frankbardon/pulse/contrib/otelpulse`, `.../contrib/prompulse`) released at the same version as Pulse itself.
+Both adapters are packages of the Pulse module itself: no separate `go get`, same version as Pulse. Only the adapters (and the `pulse` CLI) import OpenTelemetry or `client_golang`, so a program that imports neither adapter links none of it. The packages are named `otelpulse` and `prompulse`; alias the import as above to keep those names readable beside the vendor packages.
 
 ## What counts as an operation
 
@@ -100,6 +106,8 @@ Operations count and duration cover top-level and child operations (split by `sc
 
 `pulse mcp --metrics-addr HOST:PORT` serves `GET /metrics` in Prometheus text format from the standard library alone. **The endpoint has no authentication**: bind a loopback address or put it behind your own access control. No port opens unless the flag is given. See [pulse mcp](../cli/mcp.md).
 
+`pulse mcp` also exports traces and metrics over OTLP/HTTP when the standard `OTEL_EXPORTER_OTLP_ENDPOINT` (or a per-signal `..._TRACES_ENDPOINT` / `..._METRICS_ENDPOINT`) is set; `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` and the SDK's other `OTEL_*` variables apply. HTTP only: a gRPC protocol or a malformed endpoint fails startup with `CLI_INPUT`. Export failures warn and never stop the server; with `--metrics-addr` metrics go to both. No endpoint, no export. Details: [pulse mcp, OTLP export](../cli/mcp.md#otlp-export-otel_). An embedder running `mcpserve` wires the `observe/otel` adapter itself.
+
 ## Contributors
 
-The full contract (attribute keys, phase lists per arm, gates, adapter release procedure) is in `.claude/reference/observability.md`; `make contrib` builds and tests the adapter modules.
+The full contract (attribute keys, phase lists per arm, gates, the vendor import allowlist, `pulse mcp`'s OTLP rules) is in `.claude/reference/observability.md`; the adapters are tested by the ordinary `go test ./...`.

@@ -153,7 +153,7 @@
 
 # shard 6 (20 s local): ., ./internal/regmmm, ./internal/descriptor
 6 . TestBitExact_Heavy
-6 . TestCoreModuleNoObservabilityDeps
+6 . TestObservabilityVendorImportBoundaryModule
 6 . TestExamples_RunEndToEnd
 6 . TestExtensionMatrixInvariance_Heavy
 6 . TestExtensions_BuiltinParity

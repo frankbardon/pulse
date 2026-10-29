@@ -48,7 +48,7 @@ The pack did not stay a pack. In `v1.0.0-alpha.29` `REG_MMM_HILL` and `REG_MMM_B
 
 ## Where code and examples live
 
-- **Model packs:** nested modules under `contrib/` (the `contrib/otelpulse` / `contrib/prompulse` pattern: root Pulse never imports them, they version with Pulse), or a separate `pulse-extensions` repository if they should release on their own schedule. Decided (U60): `contrib/mmmpulse`; reversed by mmm-followups, which made both MMM models built-ins and removed the module.
+- **Model packs:** nested modules under `contrib/` (the former `contrib/otelpulse` / `contrib/prompulse` pattern, since folded into the root module as `observe/otel` / `observe/prom`: root Pulse never imports them, they version with Pulse), or a separate `pulse-extensions` repository if they should release on their own schedule. Decided (U60): `contrib/mmmpulse`; reversed by mmm-followups, which made both MMM models built-ins and removed the module.
 - **Worked examples:** a companion repository, `frankbardon/pulse-casebook`, published as its own mdBook. It depends on Pulse through the CLI and public library only. No importable Go code lives there: anything reusable belongs in a pack.
 
 ## After v1.0.0 (not committed)

@@ -39,14 +39,14 @@ One row per category: trigger → companions → gates. **The exhaustive per-slo
 | A registered operator (any category) → its `Purpose` (+ `Interpretation` if inferential); the intent taxonomy, glossary, virtual skills or extension guidance hook | **`guided-analysis.md`** + `builtinPurposes` / `builtinInterpretations` + `make docs` (regenerates `docs/src/guide`; never hand-edit it) | `TestSkillsCoverAllPurposes`, `TestInterpretationCoversOutputs`, `TestManifestGuidanceBudget`, `TestDocsGeneratedCurrent` |
 | A skill file's stem, frontmatter, required sections or budget; a feature name in a skill (fence it) | **`skill-pack.md`** + the file itself + `make docs` (regenerates `docs/src/guide`; never hand-edit it) | ATOMIC, `TestSkillsCoverFeatureFences`, `TestDocsGeneratedCurrent` |
 | `Request.Weight`, a per-slot `weight` (null ≠ absent), `Options.DefaultWeight`, an operator's weight class, or the weighted floor keys | **`weighting.md`** + `skills/weighting.md` + the operator's atomic skill + **`response-components.md`** + the payload-schema golden | the weighting row in `update-demand.md` |
-| An `observe` enum value (operation kind / phase / arm), a metric, a stable log attribute, an `observe.Hooks` field, `Options.Logger` / `Hooks` / `Metrics`, a `contrib/` adapter symbol, or an exported `*Pulse` method | **`observability.md`** + `docs/src/library/observability.md` + both contrib adapters | `TestObservabilityDocCoversEnums`, `TestObservedMethodsCoverSurface` |
+| An `observe` enum value (operation kind / phase / arm), a metric, a stable log attribute, an `observe.Hooks` field, `Options.Logger` / `Hooks` / `Metrics`, an `observe/otel` / `observe/prom` symbol, `pulse mcp` OTLP export, or an exported `*Pulse` method | **`observability.md`** + `docs/src/library/observability.md` + both adapters | `TestObservabilityDocCoversEnums`, `TestObservedMethodsCoverSurface` |
 | Any Request slot, Response slot, capability block, or Execution-mode wiring | the per-slot row in `update-demand.md` | per-slot suites cited there |
 
 Between them the rows carry every word `TestUpdateDemandTableCovers` checks; keep it that way when editing one.
 
 ## Architecture
 
-**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free kernels, gonum decompositions; `/metric` registry; `/detmath` portable math), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`), `optimize` (FMA-free solvers: SLSQP `Minimize`, bounded LM `LeastSquares`), `mcmc` (`NUTS`, RHat/ESS). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
+**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free kernels, gonum decompositions; `/metric` registry; `/detmath` portable math), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`; adapters `/otel`, `/prom`), `optimize` (FMA-free solvers: SLSQP `Minimize`, bounded LM `LeastSquares`), `mcmc` (`NUTS`, RHat/ESS). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
@@ -175,7 +175,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make contrib` / `make contrib-tidy` (nested adapter modules; a root dependency bump needs `contrib-tidy` in its PR). `make build` (default; ldflags `VERSION` from `git describe` → `pulse.Version()`), `test` (fast tier), `test-heavy` (both tiers), `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives), `docs`, `docs-serve`, `docs-clean`. **Test tiers:** a test ≥ 1 s goes in a `*_heavy_test.go` file starting `//go:build heavy`; shared helpers stay untagged. CI runs by hand once, before merge (tiers, CI, release: `docs/src/contributing/local-ci.md`). A repo-root `.env` is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` on both tiers (CI's `lint` job), and must pass before any push.
+`make build` (default; ldflags `VERSION` from `git describe` → `pulse.Version()`), `test` (fast tier), `test-heavy` (both tiers), `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives), `docs`, `docs-serve`, `docs-clean`. **Test tiers:** a test ≥ 1 s goes in a `*_heavy_test.go` file starting `//go:build heavy`; shared helpers stay untagged. CI runs by hand once, before merge (tiers, CI, release: `docs/src/contributing/local-ci.md`). A repo-root `.env` is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` on both tiers (CI's `lint` job), and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 
@@ -192,7 +192,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 The table directories skip Pulse's own sidecars yet hard-fail any other unparseable `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
-**Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only in nested `contrib/` modules; no `PULSE_*` var): `.claude/reference/observability.md`.
+**Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only via `observe/otel` / `observe/prom`; `pulse mcp` reads standard `OTEL_*`; no `PULSE_*` var): `.claude/reference/observability.md`.
 
 Hermetic tests: `fs.NewMemMap()` (`internal/fs`).
 
@@ -252,6 +252,6 @@ The pack under `internal/skills/` (addressed `skills/<stem>.md`, embedded via `/
 | `weighting.md` | the weight surface (null ≠ absent), resolution, weight classes, refusals, floor keys, op-order exactness | touching ANY weight surface |
 | `guided-analysis.md` | intents, `Purpose`, `Interpretation`, glossary, virtual skills, effect-size keys, budget gates | touching any guidance registry, an effect-size key, an overlay `Inferential` flag or the extension `Purpose` hook |
 | `matrix-and-vectors.md` | index → slices (`matrix-and-vectors/`): `linalg` policy, `CoMoment`, vectors, matrix slot | touching `linalg/`, its callers or the blocked merge |
-| `observability.md` | levels, log attributes + privacy rule, enums, hook contract, metric table, streaming end, contrib versioning, the four gates | changing an `observe` enum, metric, log attribute, hook field, `Options.Logger`/`Hooks`/`Metrics`, or a `contrib/` module |
+| `observability.md` | levels, log attributes + privacy rule, enums, hook contract, metric table, streaming end, adapters, OTLP, the four gates | changing an `observe` enum, metric, log attribute, hook field, `Options.Logger`/`Hooks`/`Metrics`, an adapter or OTLP |
 
 `.claude/reference/**` is inside `TestSkillsCoverAllCrossReferences`' and `TestReferenceDocPointersResolve`' corpus — renaming a moved heading breaks every pointer to it.
