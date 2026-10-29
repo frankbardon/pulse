@@ -602,11 +602,17 @@ func (j *ConvertJob) offerConvertSource(
 	if !ok {
 		return
 	}
+	// StrictRows reaches the target even when nothing else may: the strict
+	// half carries no fact about the stream, so it cannot mis-bind a column.
+	strictOnly := ConvertSource{Strict: j.StrictRows}
 	if schema == nil || !faithfulRowStream(includeMask, augmentInsertAfter, replaceFields) {
+		if strictOnly.Strict {
+			saw.SetConvertSource(strictOnly)
+		}
 		return
 	}
 
-	src := ConvertSource{}
+	src := ConvertSource{Strict: j.StrictRows}
 	if se, ok := j.Source.(SidecarEmitter); ok {
 		src.Sidecar = se
 	}
@@ -624,7 +630,7 @@ func (j *ConvertJob) offerConvertSource(
 		}
 		src.Schema = &encoding.Schema{Fields: fields, Vectors: schema.Vectors}
 	}
-	if src.Schema == nil && src.Sidecar == nil {
+	if src.Schema == nil && src.Sidecar == nil && !src.Strict {
 		return
 	}
 	saw.SetConvertSource(src)

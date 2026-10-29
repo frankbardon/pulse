@@ -579,7 +579,8 @@ dropped.
 The one exception is the `@PulseType` variable attribute in `7/18`, which
 the writer owns: it records the Pulse type of each column SPSS cannot type
 natively (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`,
-`categorical_u16` / `categorical_u32`) so a re-import restores it — see
+`categorical_u16` / `categorical_u32`, a `set_*` rung wider than its
+members need, a `vec_f32` element) so a re-import restores it — see
 [Pulse type hints](import-spss.md#pulse-type-hints). A hint carried in
 from the source is dropped and re-derived from the cohort, so a column
 retyped since import never keeps a stale one; a column the plain import
@@ -615,6 +616,12 @@ row path does — has raised none of them when the job builds its report.
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | error | A `--charset` name Pulse cannot write |
 | `PULSE_SPSS_CHARSET_MISMATCH` | warning | A verbatim `7/10` / `7/17` / `7/18` payload under an overridden target charset |
 | `PULSE_SPSS_WIDTH_OVERFLOW` | error | An encoded value exceeds a width the format fixes |
+| `PULSE_SPSS_INTEGER_INEXACT` | warning (error under Strict) | A `u64` value past 2^53, which no SPSS double holds unambiguously; one per variable, with `count`, `first_row` and the first `value`. Export predict lists it, without count or row, for every `u64` column |
+
+`PULSE_SPSS_INTEGER_INEXACT` is the one warning Strict escalates: a
+library `Export` under `Options.Strict` (or `ExportJob.Strict`), and a
+`pulse convert --strict` (`ConvertJob.StrictRows`), fail on the first such
+value and write no `.sav`.
 
 `pulse errors lookup CODE` is authoritative for the per-code fixups.
 

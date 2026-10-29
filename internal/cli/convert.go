@@ -29,7 +29,7 @@ func ConvertCommand() *cli.Command {
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.StringFlag{Name: "keep-pulse", Usage: "Also write intermediate .pulse file at this path"},
-			&cli.BoolFlag{Name: "strict", Usage: "Treat dropped rows (PULSE_IMPORT_ROWS_DROPPED: rows the target refused, or rows the --keep-pulse import skipped) as an error: the convert fails and writes no target or intermediate"},
+			&cli.BoolFlag{Name: "strict", Usage: "Treat dropped rows (PULSE_IMPORT_ROWS_DROPPED: rows the target refused, or rows the --keep-pulse import skipped), and a value the target cannot store exactly (PULSE_SPSS_INTEGER_INEXACT), as an error: the convert fails and writes no target or intermediate"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage + ". A zoned naive value is written to the target as its UTC instant (…Z)"},

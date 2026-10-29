@@ -3146,6 +3146,22 @@ const (
 	// fit, that value under DetailSPSSValue.
 	PULSE_SPSS_TYPE_NOT_RESTORED Code = "PULSE_SPSS_TYPE_NOT_RESTORED"
 
+	// PULSE_SPSS_INTEGER_INEXACT indicates a `.sav` export wrote a `u64`
+	// value past 2^53 into its variable's double. Past 2^53 a double no
+	// longer tells neighbouring integers apart (2^53+1 is stored as 2^53),
+	// so the file may not hold the value the cohort held, and nothing
+	// reading it can tell. It is a WARNING on the export (the case is
+	// written, the double is SPSS's only numeric) and the export's error
+	// under Strict (ExportJob.Strict, ConvertJob.StrictRows, Options.Strict
+	// on the facade), which then writes nothing. Details carry the
+	// variable under DetailSPSSVariable, the cohort field under
+	// DetailSPSSField, the number of such values under DetailSPSSCount,
+	// the first one's 1-based cohort row under DetailSPSSFirstRow and its
+	// exact decimal under DetailSPSSValue. `pulse export predict` lists
+	// the same code, without count or row, for every `u64` variable — a
+	// risk, since only the data can say whether a value is that large.
+	PULSE_SPSS_INTEGER_INEXACT Code = "PULSE_SPSS_INTEGER_INEXACT"
+
 	// PULSE_SPSS_VALUE_COLLISION indicates two distinct SPSS values of one
 	// variable resolve to the same Pulse categorical dictionary entry, so
 	// the original-value-to-dictionary-ID mapping is no longer one-to-one
@@ -4371,6 +4387,16 @@ const (
 	// refers to.
 	DetailSPSSPulseType = "pulse_type"
 
+	// DetailSPSSCount is the CodedError.Details key carrying how many
+	// values a PULSE_SPSS_INTEGER_INEXACT diagnostic covers in its
+	// variable.
+	DetailSPSSCount = "count"
+
+	// DetailSPSSFirstRow is the CodedError.Details key carrying the
+	// 1-based cohort row of the first value a PULSE_SPSS_INTEGER_INEXACT
+	// diagnostic covers.
+	DetailSPSSFirstRow = "first_row"
+
 	// DetailSPSSCharset is the CodedError.Details key carrying the
 	// character encoding a PULSE_SPSS_CHARSET_* diagnostic refers to:
 	// the canonical name the reader resolved where it resolved one, and
@@ -4848,6 +4874,7 @@ var allCodes = []Code{
 	PULSE_SPSS_TEMPORAL_PRECISION,
 	PULSE_SPSS_DATE_WIDENED,
 	PULSE_SPSS_TYPE_NOT_RESTORED,
+	PULSE_SPSS_INTEGER_INEXACT,
 	PULSE_SPSS_VALUE_COLLISION,
 	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
 	PULSE_SPSS_NULL_TOKEN_COLLISION,

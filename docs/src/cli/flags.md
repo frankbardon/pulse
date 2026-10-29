@@ -161,7 +161,9 @@ validation.
 `import <format>`, `import auto` and `convert` also take `--strict`,
 with an import meaning: it escalates a partial import
 (`PULSE_IMPORT_ROWS_DROPPED`) and, on `import <format>`, the parent-group
-viability warnings — see [`--strict` (import)](#--strict-import).
+viability warnings — see [`--strict` (import)](#--strict-import). On
+`convert` into `.sav` it also refuses a `u64` past 2^53
+(`PULSE_SPSS_INTEGER_INEXACT`) rather than writing it as a rounded double.
 
 ### `--echo-request`
 

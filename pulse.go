@@ -1342,6 +1342,11 @@ func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportR
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
+	// Options.Strict refuses a value the target could not store exactly
+	// (ExportJob.Strict); it never relaxes a job that already asked.
+	if p.svc.Strict() {
+		job.Strict = true
+	}
 	if job.LabelResolver == nil && len(job.Labels) > 0 {
 		r, err := p.newIOLabelResolver(job.Labels)
 		if err != nil {

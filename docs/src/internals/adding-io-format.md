@@ -800,6 +800,7 @@ type CohortSource struct {
     // field, entry text -> label (nil for a field that is no categorical)
     ValueLabels map[string]map[string]string
     TimeZone string   // ExportJob.TimeZone when NOT UTC-equivalent, else ""
+    Strict   bool     // ExportJob.Strict: fail, not warn, on a value stored inexactly
 }
 
 type CohortWriter interface {
@@ -865,6 +866,7 @@ recoverable downstream:
 type ConvertSource struct {
     Schema  *encoding.Schema // the source's DECLARED schema, or nil
     Sidecar SidecarEmitter   // the source Reader itself, or nil
+    Strict  bool             // ConvertJob.StrictRows; offered even for an unfaithful stream
 }
 
 type SourceAwareWriter interface {

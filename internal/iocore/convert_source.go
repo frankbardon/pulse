@@ -41,7 +41,10 @@ import (
 // replacement rewriting the cells. Where it is not, nothing is carried and
 // the target takes the unchanged inference path. So a recipient may rely on
 // Schema.Fields[i] describing emitted column i, and on
-// Schema.Fields[i].CsvColumnIdx being i.
+// Schema.Fields[i].CsvColumnIdx being i. The one exception is Strict: under
+// ConvertJob.StrictRows the struct is handed over even for an unfaithful
+// stream, with Schema and Sidecar nil, so the refusal still reaches the
+// target.
 type ConvertSource struct {
 	// Schema is the source's DECLARED schema — a pio.SchemaAwareReader's
 	// own dictionary, or the caller's explicit ConvertJob.Schema — never
@@ -63,6 +66,12 @@ type ConvertSource struct {
 	// re-fingerprints the document and places it where the recipient's own
 	// read path looks for it.
 	Sidecar SidecarEmitter
+
+	// Strict is ConvertJob.StrictRows: a target that would otherwise WARN
+	// that it could not hold a value exactly (the `.sav` writer's
+	// PULSE_SPSS_INTEGER_INEXACT) fails the encode instead, before it
+	// writes anything. See CohortSource.Strict.
+	Strict bool
 }
 
 // SourceAwareWriter is an optional extension of Writer for convert targets

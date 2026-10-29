@@ -4218,6 +4218,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SPSS_INTEGER_INEXACT: {
+		Message: "A .sav export wrote a u64 value past 2^53 into its variable's double. Past 2^53 a double cannot tell neighbouring integers apart (2^53+1 is stored as 2^53), so the file may not hold the value the cohort held. The export warns and writes the case; under Strict it fails and writes nothing. From export predict the same code is a risk on a u64 variable: only the data can say whether a value is that large.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Target"},
+				Hint:   "Export the cohort to a format with a 64-bit unsigned integer (parquet, arrow) or to text (csv, ndjson), which keep every u64 exactly. Keep the .sav only if the column is never used as an exact key: an identifier past 2^53 does not survive a double.",
+			},
+		},
+	},
 	PULSE_SPSS_VALUE_COLLISION: {
 		Message: "Two distinct SPSS values of one variable resolve to the same Pulse categorical dictionary entry, so the original-code-to-dictionary-ID mapping is no longer one-to-one and an export back to .sav cannot tell which code to re-emit. This is a warning: the file is otherwise readable and the recorded code-to-label-to-ID triple carries both codes against the shared ID, so the collision is visible rather than silent.",
 		Fixups: []Fixup{

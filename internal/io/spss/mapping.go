@@ -525,6 +525,9 @@ func buildMapping(d *dictionary, data []byte, opts mappingOptions) (*mapping, er
 	if err != nil {
 		return nil, err
 	}
+	if hints != nil {
+		setWarnings = append(setWarnings, setTypeHints(d, hints, sets)...)
+	}
 
 	// The user-missing predicate has to be in force DURING the scan, not
 	// merely at decode time: the scan is what establishes nullability,

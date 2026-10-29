@@ -46,6 +46,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/iocore"
 )
 
 // pulseTypeAttr is the record 7/18 attribute name carrying a Pulse type hint.
@@ -101,6 +102,12 @@ func parseTypeHint(s string) (typeHint, bool) {
 	ft, ok := encoding.ParseFieldType(s)
 	if !ok {
 		return typeHint{}, false
+	}
+	switch {
+	case ft.IsSet():
+		// A set rung, carried on its multiple-dichotomy set's FIRST member
+		// variable (setTypeHints); restated rungs parse too.
+		return typeHint{ft: ft}, true
 	}
 	switch ft {
 	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32,
@@ -206,6 +213,24 @@ func exportTypeHint(v *outVar, fld *encoding.Field) (typeHint, bool) {
 	case EncodeText, EncodeCategoricalCode:
 		if fld.Type == encoding.FieldTypeCategoricalU16 || fld.Type == encoding.FieldTypeCategoricalU32 {
 			return typeHint{ft: fld.Type}, true
+		}
+	case EncodeSetMember:
+		// The import derives the set at the narrowest rung with a bit per
+		// member (iocore.SetTypeFor). One hint, on the member standing for
+		// bit 0, records a wider declared rung; nothing else is needed,
+		// because the members ARE the dictionary, in bit order.
+		if v.setBit != 0 || fld.Dictionary == nil {
+			return typeHint{}, false
+		}
+		if narrow, ok := iocore.SetTypeFor(fld.Dictionary.Count()); ok && narrow != fld.Type {
+			return typeHint{ft: fld.Type}, true
+		}
+	case EncodeVectorElement:
+		// SPSS has no vector and the import never builds one, so the
+		// vector itself cannot come back; a vec_f32 element can at least
+		// come back f32 rather than f64.
+		if fld.Type == encoding.FieldTypeVecF32 {
+			return typeHint{ft: encoding.FieldTypeF32}, true
 		}
 	}
 	return typeHint{}, false
@@ -433,6 +458,11 @@ func typeHintsFrom(d *dictionary) map[string]importedHint {
 
 // warnTypeNotRestored records one hint the mapping did not honour.
 func (m *mapping) warnTypeNotRestored(v variable, hint, why string, value *float64) {
+	m.warnings = append(m.warnings, typeNotRestored(v, hint, why, value))
+}
+
+// typeNotRestored is the PULSE_SPSS_TYPE_NOT_RESTORED diagnostic.
+func typeNotRestored(v variable, hint, why string, value *float64) *errors.CodedError {
 	ce := mapError(errors.PULSE_SPSS_TYPE_NOT_RESTORED, v,
 		"the variable carries the Pulse type hint %q, which was not restored: %s; it maps as if it carried no hint",
 		hint, why)
@@ -440,7 +470,44 @@ func (m *mapping) warnTypeNotRestored(v variable, hint, why string, value *float
 	if value != nil {
 		ce.Details[errors.DetailSPSSValue] = formatNumericValue(*value)
 	}
-	m.warnings = append(m.warnings, ce)
+	return ce
+}
+
+// setTypeHints CONSUMES every set-rung hint: a hint on the first member of a
+// derived multiple-dichotomy set widens that set's column to the hinted rung
+// when the rung has a bit for every member (widening a mask loses nothing);
+// any other set hint — a rung too narrow, or on a variable that is not the
+// first member of a derived set — warns and leaves the set (and the
+// variable) as the plain mapping has them. The member variable itself always
+// maps as if it carried no hint. hints is cleared where consumed so the
+// per-variable pass never sees a set rung.
+func setTypeHints(d *dictionary, hints []*importedHint, sets []*mrSetColumn) []*errors.CodedError {
+	var warns []*errors.CodedError
+	for i, ih := range hints {
+		if ih == nil || !ih.ok || !ih.hint.ft.IsSet() {
+			continue
+		}
+		hints[i] = nil
+		var set *mrSetColumn
+		for _, s := range sets {
+			if len(s.elements) > 0 && s.elements[0].col == i {
+				set = s
+				break
+			}
+		}
+		switch {
+		case set == nil:
+			warns = append(warns, typeNotRestored(d.vars[i], ih.text,
+				"the variable is not the first member of a derived multiple-dichotomy set", nil))
+		case uint64(len(set.elements)) > uint64(ih.hint.ft.MaxSetEntries()):
+			warns = append(warns, typeNotRestored(d.vars[i], ih.text,
+				"its set "+strconv.Quote(set.setName)+" has "+strconv.Itoa(len(set.elements))+
+					" members, more than "+ih.hint.ft.String()+" has bits", nil))
+		default:
+			set.fieldType = ih.hint.ft
+		}
+	}
+	return warns
 }
 
 // applyTypeHint restores a resolved column to its hinted type, or warns and

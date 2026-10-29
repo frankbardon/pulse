@@ -167,6 +167,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			ValueLabels:     cohortValueLabels(schema, j.Labels, j.LabelResolver),
 			ValueLabelOrder: cohortValueLabelOrder(schema, j.Labels, j.LabelResolver),
 			TimeZone:        zoneName(zone),
+			Strict:          j.Strict,
 		})
 		if err != nil {
 			return nil, err

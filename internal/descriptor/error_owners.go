@@ -564,6 +564,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SPSS_TEMPORAL_PRECISION:       ownSPSS,
 	errors.PULSE_SPSS_DATE_WIDENED:             ownSPSS,
 	errors.PULSE_SPSS_TYPE_NOT_RESTORED:        ownSPSS,
+	errors.PULSE_SPSS_INTEGER_INEXACT:          ownSPSS,
 	errors.PULSE_SPSS_VALUE_COLLISION:          ownSPSS,
 	errors.PULSE_SPSS_MEASURE_LEVEL_MISMATCH:   ownSPSS,
 	errors.PULSE_SPSS_NULL_TOKEN_COLLISION:     ownSPSS,

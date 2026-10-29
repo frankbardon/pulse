@@ -132,6 +132,10 @@ type Writer struct {
 	cases    int
 	renames  []NameRename
 	warnings []*errors.CodedError
+
+	// strict is CohortSource.Strict / ConvertSource.Strict: a u64 past 2^53
+	// fails the encode instead of warning. See DataEncoder.SetStrict.
+	strict bool
 }
 
 // Compile-time assertions. The last three are the whole point of this file:
@@ -195,7 +199,10 @@ func (w *Writer) SetPulseSchema(s *encoding.Schema) { w.schema = s }
 // Nothing here changes the COHORT path: a `pulse export spss` already reads
 // both from the cohort and its sidecar on disk, and this value stays zero
 // there.
-func (w *Writer) SetConvertSource(src iocore.ConvertSource) { w.source = src }
+func (w *Writer) SetConvertSource(src iocore.ConvertSource) {
+	w.source = src
+	w.strict = src.Strict
+}
 
 // WriteHeader records the emitted column names.
 //
@@ -236,6 +243,7 @@ func (w *Writer) WriteCohort(ctx context.Context, src iocore.CohortSource) (int,
 	if err != nil {
 		return 0, err
 	}
+	w.strict = src.Strict
 	if err := w.encodeCohort(ctx, src.FS, src.Path, opts); err != nil {
 		return 0, err
 	}
@@ -278,7 +286,10 @@ func (w *Writer) ValidateCohort(ctx context.Context, src iocore.CohortSource) ([
 		return nil, err
 	}
 	defer pass.close()
-	return pass.warnings, nil
+	// A u64 variable is a RISK, not a refusal: only a record can say whether
+	// a value is past 2^53, and predict never refuses what the export would
+	// accept. The real export names the count and the first row.
+	return append(pass.warnings, pass.enc.U64Risks()...), nil
 }
 
 // Warnings returns the encode's non-fatal diagnostics.
@@ -472,6 +483,7 @@ func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string, opt
 	w.renames = pass.renames
 	w.warnings = append(w.warnings, pass.warnings...)
 
+	pass.enc.SetStrict(w.strict)
 	if err := pass.enc.WriteCohort(pass.r); err != nil {
 		return err
 	}
@@ -479,6 +491,7 @@ func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string, opt
 	if err != nil {
 		return err
 	}
+	w.warnings = append(w.warnings, pass.enc.Warnings()...)
 
 	out := make([]byte, 0, len(pass.plan.Bytes)+len(data))
 	out = append(out, pass.plan.Bytes...)

@@ -562,6 +562,13 @@ type CohortSource struct {
 	// only when the row stream would have rendered datetimes off UTC.
 	// A writer that cannot honour it must refuse rather than ignore it.
 	TimeZone string
+
+	// Strict is ExportJob.Strict: a writer that would otherwise WARN that
+	// it could not hold a value exactly (the `.sav` writer's
+	// PULSE_SPSS_INTEGER_INEXACT for a u64 past 2^53) returns that
+	// diagnostic as its error instead, so the export writes nothing.
+	// Warnings that lose no value are unaffected.
+	Strict bool
 }
 
 // CohortWriter is an optional extension of Writer for targets whose

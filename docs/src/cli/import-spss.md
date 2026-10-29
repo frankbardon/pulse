@@ -115,6 +115,15 @@ holds exactly — the value is kept as the double the file stores, never
 rounded into the integer type. An unreadable hint, or one naming a type
 the variable's SPSS shape cannot carry, raises the same warning.
 
+A `set_*` column comes back at the narrowest rung with a bit per member,
+so an export of a column declared wider (a 3-member `set_u16`) hints the
+rung on the set's **first** member variable, and the import widens the
+derived set column to it. A rung with fewer bits than the set has members,
+or a set hint on any other variable, keeps the narrowest rung and raises
+`PULSE_SPSS_TYPE_NOT_RESTORED`. SPSS has no vector type, so a `vec_*`
+field never comes back as a vector; a `vec_f32`'s element variables come
+back `f32`.
+
 A file with no hint — every file not written by Pulse — maps exactly as
 the table above says.
 

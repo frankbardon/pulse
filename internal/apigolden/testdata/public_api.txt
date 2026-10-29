@@ -2526,12 +2526,14 @@ pulse/errors: const DetailSPSSBlock untyped string = "block"
 pulse/errors: const DetailSPSSCharset untyped string = "charset"
 pulse/errors: const DetailSPSSCohort untyped string = "cohort"
 pulse/errors: const DetailSPSSCollidesWith untyped string = "collides_with"
+pulse/errors: const DetailSPSSCount untyped string = "count"
 pulse/errors: const DetailSPSSDeclaredCases untyped string = "declared"
 pulse/errors: const DetailSPSSDeclaredWidth untyped string = "declared_width"
 pulse/errors: const DetailSPSSDerived untyped string = "derived"
 pulse/errors: const DetailSPSSDistinct untyped string = "distinct"
 pulse/errors: const DetailSPSSExpected untyped string = "expected_fingerprint"
 pulse/errors: const DetailSPSSField untyped string = "cohort_field"
+pulse/errors: const DetailSPSSFirstRow untyped string = "first_row"
 pulse/errors: const DetailSPSSFormat untyped string = "format_code"
 pulse/errors: const DetailSPSSMissingCategories untyped string = "missing_categories"
 pulse/errors: const DetailSPSSMissingMode untyped string = "missing_mode"
@@ -2905,6 +2907,7 @@ pulse/errors: const PULSE_SPSS_EXPORT_UNSUPPORTED pulse/errors.Code = "PULSE_SPS
 pulse/errors: const PULSE_SPSS_EXTENSION_INVALID pulse/errors.Code = "PULSE_SPSS_EXTENSION_INVALID"
 pulse/errors: const PULSE_SPSS_EXTENSION_UNKNOWN pulse/errors.Code = "PULSE_SPSS_EXTENSION_UNKNOWN"
 pulse/errors: const PULSE_SPSS_FILE_EMPTY pulse/errors.Code = "PULSE_SPSS_FILE_EMPTY"
+pulse/errors: const PULSE_SPSS_INTEGER_INEXACT pulse/errors.Code = "PULSE_SPSS_INTEGER_INEXACT"
 pulse/errors: const PULSE_SPSS_MAGIC_FLAG_MISMATCH pulse/errors.Code = "PULSE_SPSS_MAGIC_FLAG_MISMATCH"
 pulse/errors: const PULSE_SPSS_MEASURE_LEVEL_MISMATCH pulse/errors.Code = "PULSE_SPSS_MEASURE_LEVEL_MISMATCH"
 pulse/errors: const PULSE_SPSS_MISSING_MODE_INVALID pulse/errors.Code = "PULSE_SPSS_MISSING_MODE_INVALID"
@@ -3176,6 +3179,7 @@ pulse/io: type CohortSource field FS github.com/spf13/afero.Fs
 pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
+pulse/io: type CohortSource field Strict bool
 pulse/io: type CohortSource field TimeZone string
 pulse/io: type CohortSource field ValueLabelOrder map[string][]string
 pulse/io: type CohortSource field ValueLabels map[string]map[string]string
@@ -3237,6 +3241,7 @@ pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
 pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
 pulse/io: type ConvertSource field Sidecar pulse/internal/iocore.SidecarEmitter
+pulse/io: type ConvertSource field Strict bool
 pulse/io: func DSTPolicies() []pulse/io.DSTPolicy
 pulse/io: type DSTPolicy = pulse/internal/io.DSTPolicy
 pulse/io: type DSTPolicy underlying string
@@ -3301,6 +3306,7 @@ pulse/io: type ExportJob field LabelResolver pulse/internal/io.LabelResolver
 pulse/io: type ExportJob field Labels []*pulse/types.LabelBinding
 pulse/io: type ExportJob field Overlays []*pulse/types.OverlayLayer
 pulse/io: type ExportJob field Source string
+pulse/io: type ExportJob field Strict bool
 pulse/io: type ExportJob field Target pulse/internal/io.Writer
 pulse/io: type ExportJob field TimeZone string
 pulse/io: type ExportJob method (*ExportJob) Hash() string
@@ -6310,4 +6316,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a9c09c4c7187695bfb1389262acf13c007563c37a28d5221fe13b71805635d93
+// golden-hash: 99b43984a712fd9512cdc3d940c75635e731910e4e69d90b17468f0e8d154b75

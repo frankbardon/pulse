@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 444,
+    "error_codes_count": 445,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11479,6 +11479,7 @@
       "PULSE_SPSS_EXTENSION_INVALID",
       "PULSE_SPSS_EXTENSION_UNKNOWN",
       "PULSE_SPSS_FILE_EMPTY",
+      "PULSE_SPSS_INTEGER_INEXACT",
       "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
       "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
       "PULSE_SPSS_MISSING_MODE_INVALID",
@@ -20418,4 +20419,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c47cff0ea992ff56b4b44e73a40af6cf0f0ee87c24ec0f6e5da57e4c8d6979e5
+// golden-hash: 95750d1aaefbe2d8a8d36842cbdeb1d18a2a9d5d32fce0d57aa9f29b237964f1

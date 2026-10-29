@@ -562,6 +562,12 @@ type ExportJob struct {
 	// refuses a non-UTC zone with PULSE_SPSS_EXPORT_UNSUPPORTED rather
 	// than silently ignore or lossily apply it.
 	TimeZone string
+	// Strict turns a cohort writer's "this value was not stored exactly"
+	// warning into Run's error, so nothing is written: the `.sav` writer's
+	// PULSE_SPSS_INTEGER_INEXACT (a u64 past 2^53) is the one such warning
+	// today. Other target warnings are unaffected. The pulse facade sets it
+	// under Options.Strict. Carried to the writer as CohortSource.Strict.
+	Strict bool
 }
 
 // NewExportJob creates an ExportJob.
@@ -596,8 +602,11 @@ type ConvertJob struct {
 	// does an import: rows the target refused, or rows the KeepPulseAt
 	// intermediate import skipped, fail Run with
 	// PULSE_IMPORT_ROWS_DROPPED instead of riding
-	// ConvertReport.DroppedWarnings. CLI `--strict`; the pulse facade
-	// also sets it under Options.Strict.
+	// ConvertReport.DroppedWarnings. It also reaches a SourceAwareWriter
+	// target as ConvertSource.Strict, so a value the target could not
+	// store exactly (the `.sav` writer's PULSE_SPSS_INTEGER_INEXACT) fails
+	// the target's encode instead of warning. CLI `--strict`; the pulse
+	// facade also sets it under Options.Strict.
 	StrictRows bool
 	// Includes restricts the export half to the named schema fields,
 	// in schema order. Nil / empty means write every field. The

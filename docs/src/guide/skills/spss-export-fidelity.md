@@ -20,6 +20,7 @@ Fidelity is this adapter's whole justification, so be precise about PROVEN vs. P
 - **Local only, not CI.** `internal/io/spss/dict_ecosystem_test.go` (incl. `TestRoundTrippedFile_ReadsIdenticallyInReadStatAndForeign`) hands emitted and cycled files to haven 2.5.5 (ReadStat — the C reader behind haven, pyreadstat and most of what opens a `.sav`) and to independent `foreign` 0.8.91, requiring each reader's cycled read to match its own source read. Both pass — but they `t.Skip` without R / haven / foreign, which is CI's state. A recorded result, not a gate.
 - **Corroborated by no independent reader.** MR set subtypes `7/5` / `7/19` — neither haven nor `foreign` exposes MR metadata, so nothing outside Pulse has read our set definitions back; the round trip proves only that Pulse reads what Pulse writes. Same for the two-`int32` form of record `7/11`: Pulse READS two- and three-`int32` shapes, always WRITES three, so that branch rests on synthetic fixtures.
 - **Not implemented.** ZSAV emission — read-only, no partial or degraded path.
+- **Lossy by the format, never silently.** A `u64` past 2^53 has no exact double: the export warns `PULSE_SPSS_INTEGER_INEXACT` (variable, count, first row) and `Strict` fails it; `pulse export predict` lists it as a risk on every `u64` column. A vector has no SPSS form: its element variables re-import as plain columns (`vec_f32` elements as `f32`), never as a vector.
 
 ## Charset on the way out — the same two hard rules, mirrored
 

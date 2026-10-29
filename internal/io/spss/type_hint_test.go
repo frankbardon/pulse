@@ -359,12 +359,12 @@ func TestTypeHint_ParseVarAttributes(t *testing.T) {
 	if got := string(renderVarAttributes(sets, trailer)); got != "A:k('1'\n'2'\n)j('3'\n)/B:k('4'\n)\n" {
 		t.Errorf("render = %q", got)
 	}
-	for _, s := range []string{"u8", "decimal128(18,4)", "categorical_u32", "f64"} {
+	for _, s := range []string{"u8", "decimal128(18,4)", "categorical_u32", "f64", "set_u8", "set_u256"} {
 		if h, ok := parseTypeHint(s); !ok || h.String() != s {
 			t.Errorf("parseTypeHint(%q) = %v %v", s, h, ok)
 		}
 	}
-	for _, s := range []string{"decimal128(0,0)", "decimal128(5,6)", "decimal128(5)", "decimal128(5,2", "vec_f64", "set_u8"} {
+	for _, s := range []string{"decimal128(0,0)", "decimal128(5,6)", "decimal128(5)", "decimal128(5,2", "vec_f64", "vec_f32"} {
 		if _, ok := parseTypeHint(s); ok {
 			t.Errorf("parseTypeHint(%q) accepted", s)
 		}
