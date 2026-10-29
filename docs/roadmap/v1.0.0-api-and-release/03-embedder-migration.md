@@ -1196,7 +1196,7 @@ Not yet released (targets `v1.0.0-alpha.29`; release notes in [U63](../units/U63
 
 ## Changes from expression-wires
 
-Not yet released (targets `v1.0.0-alpha.31`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change. Covers the parse-only expression read set, the manifest's column-naming param marker, the request read map and facet params.
+Shipped in `v1.0.0-alpha.31`. `format_version` stays `"1.1"`; no `.pulse` byte-layout change. Covers the parse-only expression read set, the manifest's column-naming param marker, the request read map and facet params.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
@@ -1207,7 +1207,7 @@ Not yet released (targets `v1.0.0-alpha.31`). `format_version` stays `"1.1"`; no
 
 ## Changes from cohort-reshape
 
-Not yet released (targets `v1.0.0-alpha.31`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change (a reshaped cohort is the existing `0x01` / `0x02` / shard-archive layout), and the SPSS metadata sidecar's schema does not move. **A materialize request without `output` that succeeded before writes a byte-identical cohort, sidecar and result** on every surface; every materialize row below is additive, a fix of a refusal, or applies only with `output`. The SPSS rows change behaviour in three places, each listed with how to adapt: a `.sav` export of a cohort holding a column SPSS cannot type natively gains one record `7/18` (a byte change), re-importing such a Pulse-written `.sav` restores the column's Pulse type instead of `f64` / `categorical_u8`, and under `Strict` an export holding a `u64` past 2^53 now fails instead of rounding silently. A `.sav` without the new attribute (every third-party file, every `.sav` Pulse wrote before) imports exactly as before. Covers the materialize-only `output` slot — pick, rename and describe columns, retype, recode, bucket, the output container (shards, constants elision, parent groups) — its predict, archive-aware and anchored-shard export, and `.sav` type round-trips.
+Shipped in `v1.0.0-alpha.32`. `format_version` stays `"1.1"`; no `.pulse` byte-layout change (a reshaped cohort is the existing `0x01` / `0x02` / shard-archive layout), and the SPSS metadata sidecar's schema does not move. **A materialize request without `output` that succeeded before writes a byte-identical cohort, sidecar and result** on every surface; every materialize row below is additive, a fix of a refusal, or applies only with `output`. The SPSS rows change behaviour in three places, each listed with how to adapt: a `.sav` export of a cohort holding a column SPSS cannot type natively gains one record `7/18` (a byte change), re-importing such a Pulse-written `.sav` restores the column's Pulse type instead of `f64` / `categorical_u8`, and under `Strict` an export holding a `u64` past 2^53 now fails instead of rounding silently. A `.sav` without the new attribute (every third-party file, every `.sav` Pulse wrote before) imports exactly as before. Covers the materialize-only `output` slot — pick, rename and describe columns, retype, recode, bucket, the output container (shards, constants elision, parent groups) — its predict, archive-aware and anchored-shard export, and `.sav` type round-trips.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
