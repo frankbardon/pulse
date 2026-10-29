@@ -130,6 +130,11 @@ type CaseValue struct {
 	// precisely so that narrowing cannot happen by accident.
 	Mask encoding.SetMask
 
+	// U64 is a u64 column's EXACT stored word, zero for every other type.
+	// Num rounds it past 2^53, so the encoder can only tell a value the
+	// double cannot hold from this (PULSE_SPSS_INTEGER_INEXACT).
+	U64 uint64
+
 	// Vec is a vec_f32 / vec_f64 column's elements (vec_f32 widened
 	// exactly), nil for every other type. The buffer is reused case to case.
 	Vec []float64
@@ -192,7 +197,27 @@ type DataEncoder struct {
 
 	cases    int64
 	finished bool
+
+	// strict turns the first u64 past 2^53 into WriteCase's error instead
+	// of a recorded warning. See [DataEncoder.SetStrict].
+	strict bool
+
+	// inexact records, per plan column, the u64 values past 2^53 written so
+	// far, in first-seen column order. See [DataEncoder.Warnings].
+	inexact      map[int]*inexactRun
+	inexactOrder []int
 }
+
+// inexactRun is one variable's u64 values past 2^53: how many, and the first.
+type inexactRun struct {
+	count    int64
+	firstRow int64
+	first    uint64
+}
+
+// maxExactU64 is the largest integer a double holds with no neighbour it could
+// have been rounded from: 2^53 itself is exact, but 2^53+1 is stored as 2^53.
+const maxExactU64 = 1 << 53
 
 // NewDataEncoder prepares a data-section encoder for an emitted dictionary.
 //
@@ -374,6 +399,11 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
 	v := c[col.Field]
 	switch col.Encoding {
 	case EncodeNumeric:
+		if !v.Null && v.U64 > maxExactU64 && e.schema.Fields[col.Field].Type == encoding.FieldTypeU64 {
+			if err := e.noteInexact(col, v.U64); err != nil {
+				return err
+			}
+		}
 		return e.putNumeric(col, c, v.Num)
 
 	case EncodeDateDays:
@@ -460,6 +490,95 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
 		return cannotWrite(col, "its value encoding is "+col.Encoding.String()+", which the data encoder cannot write")
 	}
 	return nil
+}
+
+// SetStrict makes a u64 value past 2^53 fail the encode
+// (PULSE_SPSS_INTEGER_INEXACT as WriteCase's error) instead of being written
+// and reported by [DataEncoder.Warnings].
+func (e *DataEncoder) SetStrict(strict bool) { e.strict = strict }
+
+// noteInexact records one u64 value the double cannot hold exactly, or under
+// strict refuses it.
+func (e *DataEncoder) noteInexact(col *ColumnPlan, v uint64) error {
+	at := int(col.Index)
+	run, ok := e.inexact[at]
+	if !ok {
+		if e.inexact == nil {
+			e.inexact = make(map[int]*inexactRun)
+		}
+		run = &inexactRun{firstRow: e.cases + 1, first: v}
+		e.inexact[at] = run
+		e.inexactOrder = append(e.inexactOrder, at)
+	}
+	run.count++
+	if e.strict {
+		return inexactIntegerError(col, e.schema.Fields[col.Field].Name, run)
+	}
+	return nil
+}
+
+// Warnings returns one PULSE_SPSS_INTEGER_INEXACT per variable that was
+// handed a u64 past 2^53, in the order the variables first met one. Nil when
+// none was (and always under strict, which refuses the first instead).
+func (e *DataEncoder) Warnings() []*errors.CodedError {
+	var out []*errors.CodedError
+	for _, at := range e.inexactOrder {
+		col := e.columnAt(at)
+		if col == nil {
+			continue
+		}
+		out = append(out, inexactIntegerError(col, e.schema.Fields[col.Field].Name, e.inexact[at]))
+	}
+	return out
+}
+
+// columnAt finds the plan column with the given Index.
+func (e *DataEncoder) columnAt(index int) *ColumnPlan {
+	for i := range e.plan.Columns {
+		if int(e.plan.Columns[i].Index) == index {
+			return &e.plan.Columns[i]
+		}
+	}
+	return nil
+}
+
+// inexactIntegerError is the PULSE_SPSS_INTEGER_INEXACT diagnostic for one
+// variable's run of u64 values past 2^53.
+func inexactIntegerError(col *ColumnPlan, field string, run *inexactRun) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_INTEGER_INEXACT,
+		"spss: the u64 field "+strconv.Quote(field)+" holds "+strconv.FormatInt(run.count, 10)+
+			" value(s) past 2^53 (first "+strconv.FormatUint(run.first, 10)+" at row "+strconv.FormatInt(run.firstRow, 10)+
+			"); the variable "+strconv.Quote(col.Name)+" stores a double, which past 2^53 cannot tell neighbouring integers apart, so the .sav may not hold the value the cohort held",
+		map[string]any{
+			errors.DetailSPSSVariable: col.Name,
+			errors.DetailSPSSField:    field,
+			errors.DetailSPSSCount:    run.count,
+			errors.DetailSPSSFirstRow: run.firstRow,
+			errors.DetailSPSSValue:    strconv.FormatUint(run.first, 10),
+		})
+}
+
+// U64Risks is what predict can say about PULSE_SPSS_INTEGER_INEXACT without
+// reading a record: one diagnostic, without count or row, per variable
+// written from a u64 field. Whether a value is actually past 2^53 is a fact
+// about the data.
+func (e *DataEncoder) U64Risks() []*errors.CodedError {
+	var out []*errors.CodedError
+	for i := range e.plan.Columns {
+		col := &e.plan.Columns[i]
+		if col.Encoding != EncodeNumeric || e.schema.Fields[col.Field].Type != encoding.FieldTypeU64 {
+			continue
+		}
+		field := e.schema.Fields[col.Field].Name
+		out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_INTEGER_INEXACT,
+			"spss: the u64 field "+strconv.Quote(field)+" is written to the variable "+strconv.Quote(col.Name)+
+				" as a double, which past 2^53 cannot tell neighbouring integers apart; the export warns for every such value it finds (and fails under Strict)",
+			map[string]any{
+				errors.DetailSPSSVariable: col.Name,
+				errors.DetailSPSSField:    field,
+			}))
+	}
+	return out
 }
 
 // category resolves a cohort dictionary ID to the SPSS value recorded for it.
@@ -876,6 +995,9 @@ func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 				return cohortReadError(err, i, len(s.Fields))
 			}
 			c[i].Num = cohortNumber(f.Type, raw)
+			if f.Type == encoding.FieldTypeU64 {
+				c[i].U64 = raw
+			}
 			if f.Type.IsSet() {
 				c[i].Mask = encoding.SetMaskFromUint64(raw)
 			}

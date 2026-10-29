@@ -245,6 +245,20 @@ surviving rows in archive order, streamed into `<output>.pulse.tmp-staged`
 and published by the same rename. Either output that replaces a cohort
 with point-lookup sidecars reports them in `invalidated_sidecars`.
 
+`pulse export` (every format, the `.sav` writer and `pulse export
+predict` included) reads an archive the same way without writing one:
+the canonical schema over every shard's records in archive order
+(`internal/io.OpenCohortRecords`), so its output equals the flattened
+file's export. The SPSS metadata sidecar beside the archive is
+fingerprinted over the archive's bytes. An anchored source
+(`archive.pulse#shard.pulse`) exports that one shard the same way
+(`encx.OpenArchiveEntryRecords`): the canonical schema over its records,
+equal to the archive flattened and filtered to the shard. An unknown or
+reserved anchor is refused with `pulse.Open`'s code
+(`PULSE_SHARD_MISSING` / `PULSE_SHARD_RESERVED_NAME`, `details.entry`);
+a `.sav` reads the ARCHIVE's sidecar (fresh, stale or absent exactly as
+for a whole-archive export), never a per-shard one.
+
 ### Point-lookup indexes
 
 An archive with point-lookup indexes (`pulse index build archive.pulse`)

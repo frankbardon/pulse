@@ -103,6 +103,16 @@ func TestMaterializeSlotRefusal_AcceptedSlots(t *testing.T) {
 	if _, err := MaterializeColumns(&types.Request{}, nil, nil, ""); err == nil || err.Code != errors.PULSE_MATERIALIZE_NO_DERIVED {
 		t.Fatalf("empty request: %v", err)
 	}
+	// output lays out the written cohort; with it a request needs no
+	// derived column.
+	ok.Groups = nil
+	ok.Output = &types.MaterializeOutput{}
+	if err := MaterializeSlotRefusal(ok); err != nil {
+		t.Fatalf("output refused: %v", err)
+	}
+	if cols, err := MaterializeColumns(&types.Request{Output: &types.MaterializeOutput{}}, nil, nil, ""); err != nil || cols != nil {
+		t.Fatalf("output-only request: cols %v err %v", cols, err)
+	}
 }
 
 // TestMaterializeColumns_FrameClauseOnlyWhereRead: a window's

@@ -86,7 +86,7 @@ type ManifestIn struct {
 type ExamplesSearchIn struct {
 	Query    string   `json:"query,omitempty" jsonschema:"Plain words or a name. One word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags. Known operator aliases (anova, chisq.test, pearson) and phrases from an intent's sounds (move together) also match; failing those, near-miss spellings (regon finds region)"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Canonical taxonomy tags; results must carry every tag (AND)"`
-	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, compose, crosstab, facet, features, filterers, groupers, matrices, overlays, regression, tests, windows"`
+	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, compose, crosstab, facet, features, filterers, groupers, materialize, matrices, overlays, regression, tests, windows"`
 	Intent   string   `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship); results must declare it. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
 }
 
@@ -208,9 +208,10 @@ type DedupIn struct {
 // as pulse_dedup's: it changes no byte written, and the warnings it
 // would escalate are returned either way.
 type MaterializeIn struct {
-	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD."`
-	Out       string         `json:"out" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR). An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
+	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone, output (the written cohort's columns: columns XOR exclude, each {from, as, description, nullable, type, precision, scale, on_cast_error, recode, bucket}, applied last; recode {map, order} rewrites a categorical's labels before type, a map key the source dictionary lacks refused with PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL; bucket {ranges XOR range_table} writes a numeric or date column as the categorical of its range labels, a value outside every range failing like a cast; type casts exactly or fails PULSE_MATERIALIZE_CAST_FAILED unless on_cast_error is null; with it no derived column is required) and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD."`
+	Out       string         `json:"out,omitempty" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR). Required unless predict is set. An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
 	Overwrite bool           `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic: a failure leaves it as it was). Sidecars beside it become stale and are listed under invalidated_sidecars, each with its rebuild command; nothing is rebuilt."`
+	Predict   bool           `json:"predict,omitempty" jsonschema:"Validate without executing: answer under predict with the output schema the run would write (columns: name, type, nullable, description, from, derived, dictionary), the derived column names and the data-dependent risks, every static refusal as a coded errors entry (valid false). Reads the source's header and schema only; nothing is written and out is not needed."`
 }
 
 // RakeIn is the input contract for pulse_rake: a pulse.RakeRequest
@@ -428,8 +429,24 @@ type ExplainOut = descriptor.ExplainResult
 // DedupOut is the output contract for pulse_dedup.
 type DedupOut = pulse.DedupResult
 
-// MaterializeOut is the output contract for pulse_materialize.
-type MaterializeOut = pulse.MaterializeResult
+// MaterializeOut is the output contract for pulse_materialize. A run
+// answers with the MaterializeResult EMBEDDED, so its keys sit at the
+// root byte-identically to the original contract; a predict answers
+// under `predict` alone (the result's own `warnings` key is never
+// shadowed).
+type MaterializeOut struct {
+	*pulse.MaterializeResult
+	Predict *MaterializePredictOut `json:"predict,omitempty" jsonschema:"The predict verdict (predict: true): valid, the source schema_info, the output columns in order, the derived column names, the data-dependent risks ({column, path, code, check}: a check only the records settle, failing the run with code), the container plan ({kind, max_records, max_shards, elide_constants, groups}) and the coded errors / warnings behind it."`
+}
+
+// MaterializePredictOut is pulse_materialize's predict answer: the
+// verdict EMBEDDED, with the coded errors / warnings that explain it
+// beside its keys (each omitted when empty).
+type MaterializePredictOut struct {
+	*descriptor.MaterializePredictResult
+	Errors   []*descriptor.EnvelopeEntry `json:"errors,omitempty" jsonschema:"Every coded refusal behind valid false — {code, message, details}, the run's own code and details. Absent when there is none."`
+	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Coded warnings (e.g. PULSE_FIELD_DESCRIPTION_LOW_QUALITY on a written field). Absent when there is none."`
+}
 
 // RakeOut is the output contract for pulse_rake.
 type RakeOut = pulse.RakeResult

@@ -467,6 +467,100 @@ const (
 	// invalidated_sidecars names each with its rebuild command.
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 
+	// PULSE_MATERIALIZE_OUTPUT_ONLY indicates a request carrying the
+	// materialize-only `output` slot outside Pulse.Materialize (Process,
+	// Compose, ProcessChain, Predict and their stream / api / MCP
+	// surfaces). details.slot is "output"; a Compose slot or fit adds
+	// details.request / fit, a chain stage details.stage.
+	PULSE_MATERIALIZE_OUTPUT_ONLY Code = "PULSE_MATERIALIZE_OUTPUT_ONLY"
+
+	// PULSE_MATERIALIZE_OUTPUT_INVALID indicates a malformed `output`
+	// block: both columns and exclude (reason columns_and_exclude), an
+	// empty columns list or an exclude list dropping every column
+	// (no_columns), a column entry without `from` (from_missing), an
+	// unknown `type` name (unknown_type), a precision / scale out of
+	// range or on a non-decimal type (decimal_shape), an unknown
+	// on_cast_error (on_cast_error_invalid), on_cast_error without a
+	// `type` or `recode` (on_cast_error_without_type) or "null" on a
+	// non-nullable column (on_cast_error_not_nullable), a recode on a
+	// column that is not categorical_* (recode_not_categorical), a
+	// recode to null on a non-nullable column (recode_null_not_nullable),
+	// a recode.order naming a label twice (recode_order_duplicate), one
+	// the recode does not write (recode_order_unknown) or omitting one it
+	// does (recode_order_missing), or an output.shards.max_records that
+	// is not positive (shards_max_records, details also max_records).
+	// details carry reason and path (a recode refusal also label).
+	// Raised before any file is created.
+	PULSE_MATERIALIZE_OUTPUT_INVALID Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
+
+	// PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN indicates an `output`
+	// column `from` (or an exclude entry) naming neither a source field
+	// nor a derived column of the request. details carry column, path
+	// and, when a name is close, suggestion. Raised before any file is
+	// created.
+	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN Code = "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN"
+
+	// PULSE_MATERIALIZE_OUTPUT_DUPLICATE indicates two `output` columns
+	// written under the same name after renaming. details carry column,
+	// path (the second entry) and first (the earlier one). Raised before
+	// any file is created.
+	PULSE_MATERIALIZE_OUTPUT_DUPLICATE Code = "PULSE_MATERIALIZE_OUTPUT_DUPLICATE"
+
+	// PULSE_MATERIALIZE_OUTPUT_NULL indicates a null cell in an `output`
+	// column declared nullable: false. details carry column (the output
+	// name) and row (the 0-based output row). The run fails with no
+	// target written.
+	PULSE_MATERIALIZE_OUTPUT_NULL Code = "PULSE_MATERIALIZE_OUTPUT_NULL"
+
+	// PULSE_MATERIALIZE_CAST_UNSUPPORTED indicates an `output` column
+	// whose `type` names a field type its column cannot cast to (a
+	// vector retyped, a categorical to or from anything but a categorical
+	// or numeric type, a categorical narrowed below its dictionary's
+	// size, a set narrowed or cast to a scalar, packed_bool to or from a
+	// date-family type, ...). details carry
+	// column (the output name), path, from (the column read), from_type,
+	// to_type and reason. Raised before any file is created; predict
+	// refuses the same pair with the same code.
+	PULSE_MATERIALIZE_CAST_UNSUPPORTED Code = "PULSE_MATERIALIZE_CAST_UNSUPPORTED"
+
+	// PULSE_MATERIALIZE_CAST_FAILED indicates a stored value an `output`
+	// column's cast cannot represent exactly — a fraction to an integer
+	// or date-family type (reason fractional), a value past the target's
+	// range or a new label past a categorical's capacity (overflow),
+	// NaN / ±Inf to an exact or categorical type (not_finite), a value
+	// other than 0 / 1 to packed_bool (not_boolean), a categorical label
+	// that is not a number (unparseable). details carry
+	// column, row (the 0-based output row), from_type, to_type, value
+	// and reason. The run fails with no target written.
+	PULSE_MATERIALIZE_CAST_FAILED Code = "PULSE_MATERIALIZE_CAST_FAILED"
+
+	// PULSE_MATERIALIZE_CAST_NULLED is the warning an `output` column
+	// with on_cast_error: "null" raises once when its cast nulled one or
+	// more values. details carry column, count, first_row, from_type and
+	// to_type.
+	PULSE_MATERIALIZE_CAST_NULLED Code = "PULSE_MATERIALIZE_CAST_NULLED"
+
+	// PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL indicates an `output`
+	// column's recode.map key that the source column's dictionary does
+	// not hold — the drift guard when a stored request meets a new
+	// source cohort. details carry column (the output name), path, from
+	// (the column read), label and, when a label is close, suggestion.
+	// Raised before any file is created; predict refuses it with the
+	// same code and details.
+	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL Code = "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL"
+
+	// PULSE_MATERIALIZE_GROUP_NOT_INHERITED is the warning a materialize
+	// run with an `output` block (and no output.groups) raises for each
+	// source parent group it does not carry into the written cohort,
+	// because a member is not written unchanged: dropped, or re-coded by
+	// a type cast, recode or bucket. Its members are written as ordinary
+	// row fields. details carry group (the source group's label),
+	// fields (its source member names), member (the first member that
+	// changed) and change (dropped, retyped, recoded or bucketed).
+	// Fatal under MaterializeOptions.Strict, before any file is
+	// created; predict reports it as a warning.
+	PULSE_MATERIALIZE_GROUP_NOT_INHERITED Code = "PULSE_MATERIALIZE_GROUP_NOT_INHERITED"
+
 	// PULSE_RAKE_INVALID indicates a malformed Pulse.Rake request,
 	// refused before any record is read or any file is created.
 	// details.reason names the rule ("cohort_missing", "out_missing",
@@ -1396,7 +1490,10 @@ const (
 	// filter-to-file archive write would produce an archive of more than
 	// 65535 shards — the most the `_schema.pulse` SHRD trailer's u16
 	// shard_count holds. Refused before anything is written, never
-	// stored truncated. details: archive, shard_count, limit.
+	// stored truncated. details: archive, shard_count, limit. A
+	// materialize run with output.shards raises it at the first output
+	// row that would open shard 65536 (details archive, max_records,
+	// limit, row), nothing written.
 	PULSE_SHARD_COUNT_LIMIT Code = "PULSE_SHARD_COUNT_LIMIT"
 
 	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)
@@ -3034,6 +3131,37 @@ const (
 	// DetailSPSSFormat.
 	PULSE_SPSS_DATE_WIDENED Code = "PULSE_SPSS_DATE_WIDENED"
 
+	// PULSE_SPSS_TYPE_NOT_RESTORED indicates a `.sav` variable carried a
+	// Pulse type hint — the record 7/18 `@PulseType` attribute a Pulse
+	// export writes for a column whose type SPSS cannot hold natively
+	// (an integer width, f32, packed_bool, decimal128, a wide categorical
+	// rung) — and the import did NOT restore that type, because the hint
+	// is unreadable, names a type the variable's SPSS shape cannot carry,
+	// or a value does not fit it exactly (a u64 at or past 2^53, a
+	// fractional value under an integer type, a decimal past its scale).
+	// It is a WARNING: the variable maps as if it carried no hint (a plain
+	// numeric is f64), which holds every value the file stores, so nothing
+	// is truncated. Details carry the variable under DetailSPSSVariable,
+	// the hint under DetailSPSSPulseType and, for a value that did not
+	// fit, that value under DetailSPSSValue.
+	PULSE_SPSS_TYPE_NOT_RESTORED Code = "PULSE_SPSS_TYPE_NOT_RESTORED"
+
+	// PULSE_SPSS_INTEGER_INEXACT indicates a `.sav` export wrote a `u64`
+	// value past 2^53 into its variable's double. Past 2^53 a double no
+	// longer tells neighbouring integers apart (2^53+1 is stored as 2^53),
+	// so the file may not hold the value the cohort held, and nothing
+	// reading it can tell. It is a WARNING on the export (the case is
+	// written, the double is SPSS's only numeric) and the export's error
+	// under Strict (ExportJob.Strict, ConvertJob.StrictRows, Options.Strict
+	// on the facade), which then writes nothing. Details carry the
+	// variable under DetailSPSSVariable, the cohort field under
+	// DetailSPSSField, the number of such values under DetailSPSSCount,
+	// the first one's 1-based cohort row under DetailSPSSFirstRow and its
+	// exact decimal under DetailSPSSValue. `pulse export predict` lists
+	// the same code, without count or row, for every `u64` variable — a
+	// risk, since only the data can say whether a value is that large.
+	PULSE_SPSS_INTEGER_INEXACT Code = "PULSE_SPSS_INTEGER_INEXACT"
+
 	// PULSE_SPSS_VALUE_COLLISION indicates two distinct SPSS values of one
 	// variable resolve to the same Pulse categorical dictionary entry, so
 	// the original-value-to-dictionary-ID mapping is no longer one-to-one
@@ -4253,6 +4381,22 @@ const (
 	// a schema-mapping diagnostic refers to.
 	DetailSPSSFormat = "format_code"
 
+	// DetailSPSSPulseType is the CodedError.Details key carrying the Pulse
+	// type hint (the record 7/18 `@PulseType` attribute value, e.g. "u8"
+	// or "decimal128(10,2)") a PULSE_SPSS_TYPE_NOT_RESTORED diagnostic
+	// refers to.
+	DetailSPSSPulseType = "pulse_type"
+
+	// DetailSPSSCount is the CodedError.Details key carrying how many
+	// values a PULSE_SPSS_INTEGER_INEXACT diagnostic covers in its
+	// variable.
+	DetailSPSSCount = "count"
+
+	// DetailSPSSFirstRow is the CodedError.Details key carrying the
+	// 1-based cohort row of the first value a PULSE_SPSS_INTEGER_INEXACT
+	// diagnostic covers.
+	DetailSPSSFirstRow = "first_row"
+
 	// DetailSPSSCharset is the CodedError.Details key carrying the
 	// character encoding a PULSE_SPSS_CHARSET_* diagnostic refers to:
 	// the canonical name the reader resolved where it resolved one, and
@@ -4448,6 +4592,16 @@ var allCodes = []Code{
 	PULSE_MATERIALIZE_OUTPUT_UNDECLARED,
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC,
 	PULSE_MATERIALIZE_SIDECARS_INVALIDATED,
+	PULSE_MATERIALIZE_OUTPUT_ONLY,
+	PULSE_MATERIALIZE_OUTPUT_INVALID,
+	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN,
+	PULSE_MATERIALIZE_OUTPUT_DUPLICATE,
+	PULSE_MATERIALIZE_OUTPUT_NULL,
+	PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+	PULSE_MATERIALIZE_CAST_FAILED,
+	PULSE_MATERIALIZE_CAST_NULLED,
+	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL,
+	PULSE_MATERIALIZE_GROUP_NOT_INHERITED,
 	PULSE_RAKE_INVALID,
 	PULSE_RAKE_UNKNOWN_CATEGORY,
 	PULSE_RAKE_UNTARGETED_CATEGORY,
@@ -4719,6 +4873,8 @@ var allCodes = []Code{
 	PULSE_SPSS_CARDINALITY_HIGH,
 	PULSE_SPSS_TEMPORAL_PRECISION,
 	PULSE_SPSS_DATE_WIDENED,
+	PULSE_SPSS_TYPE_NOT_RESTORED,
+	PULSE_SPSS_INTEGER_INEXACT,
 	PULSE_SPSS_VALUE_COLLISION,
 	PULSE_SPSS_MEASURE_LEVEL_MISMATCH,
 	PULSE_SPSS_NULL_TOKEN_COLLISION,

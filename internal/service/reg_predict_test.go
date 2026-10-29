@@ -100,7 +100,7 @@ type valueSink struct {
 	rows [][]any
 }
 
-func (v *valueSink) Begin(_ *Cohort, cols []descx.MaterializeColumn) error {
+func (v *valueSink) Begin(_ *Cohort, cols []descx.MaterializeColumn, _ []descx.MaterializeOutputField, _ *descx.MaterializeGroups) error {
 	v.cols = cols
 	return nil
 }

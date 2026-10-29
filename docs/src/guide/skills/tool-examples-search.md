@@ -16,7 +16,7 @@ Find a runnable template matching the question; clone its body via `pulse_exampl
 - `query` (string, optional): plain words. One word is a case-insensitive substring of name, description or operators; several must each match a whole word (no stemming) of name, description, operators, intents or tags. Fallbacks, in order: an operator alias (`anova`, `pearson`) or intent phrase (`move together`); then a near-miss spelling (`regon` → `region`; one edit at 4–7 letters, two at 8+, exact at ≤3).
 - `intent` (string, optional): an intent-taxonomy ID (`compare_groups`, `relationship`, …); results must declare it. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`, `details.valid` lists the IDs.
 - `tags` (string[], optional): ANDed list of canonical taxonomy tags (e.g. `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`).
-- `category` (string, optional): exact directory — `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`.
+- `category` (string, optional): exact directory — `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `materialize`, `matrices`, `overlays`, `regression`, `tests`, `windows`.
 
 ## Output
 

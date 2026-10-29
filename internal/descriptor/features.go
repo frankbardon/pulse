@@ -100,50 +100,51 @@ func op(name string) Feature {
 // Capability feature names, referenced by the MCP tool and command
 // binding tables and the instance manifest.
 var (
-	featProcess       = FeatureName(FeatureKindCapability, "process")
-	featCompose       = FeatureName(FeatureKindCapability, "compose")
-	featComposeSweep  = FeatureName(FeatureKindCapability, "compose_sweep")
-	featSweepSampling = FeatureComposeSweepSampling
-	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
-	featComposeOpt    = FeatureComposeOptimize
-	featSweepBind     = FeatureComposeSweepBind
-	featComposeBanner = FeatureName(FeatureKindCapability, "compose_banner")
-	featModelSave     = FeatureModelSave
-	featRegHoldout    = FeatureRegressionHoldout
-	featModels        = FeatureModels
-	featForEach       = FeatureForEach
-	featProcessChain  = FeatureName(FeatureKindCapability, "process_chain")
-	featFacet         = FeatureName(FeatureKindCapability, "facet")
-	featSample        = FeatureName(FeatureKindCapability, "sample")
-	featLookup        = FeatureName(FeatureKindCapability, "lookup")
-	featImport        = FeatureName(FeatureKindCapability, "import")
-	featDedup         = FeatureName(FeatureKindCapability, "dedup")
-	featMaterialize   = FeatureName(FeatureKindCapability, "materialize")
-	featRake          = FeatureName(FeatureKindCapability, "rake")
-	featRecommend     = FeatureName(FeatureKindCapability, "recommend")
-	featExplain       = FeatureName(FeatureKindCapability, "explain")
-	featLabels        = FeatureName(FeatureKindCapability, "labels")
-	featRangeTables   = FeatureName(FeatureKindCapability, "range_tables")
-	featCrosstab      = FeatureName(FeatureKindCapability, "crosstab")
-	featCrosstabCells = FeatureCrosstabCells
-	featJoins         = FeatureName(FeatureKindCapability, "joins")
-	featStream        = FeatureName(FeatureKindCapability, "stream")
-	featWatch         = FeatureName(FeatureKindCapability, "watch")
-	featFilterToFile  = FeatureName(FeatureKindCapability, "filter_to_file")
-	featIndex         = FeatureName(FeatureKindCapability, "index")
-	featShard         = FeatureName(FeatureKindCapability, "shard")
-	featWiden         = FeatureName(FeatureKindCapability, "widen")
-	featSynth         = FeatureName(FeatureKindCapability, "synth")
-	featExport        = FeatureName(FeatureKindCapability, "export")
-	featWeighting     = FeatureWeighting
-	featMultiplicity  = FeatureMultiplicity
-	featMatrices      = FeatureName(FeatureKindCapability, "matrices")
-	featParams        = FeatureParams
-	featSEMMeans      = FeatureSEMMeanStructure
-	featSEMGroups     = FeatureSEMGroups
-	featSEMDefined    = FeatureSEMDefined
-	featSEMBootstrap  = FeatureSEMBootstrap
-	featSEMOrdinal    = FeatureSEMOrdinal
+	featProcess           = FeatureName(FeatureKindCapability, "process")
+	featCompose           = FeatureName(FeatureKindCapability, "compose")
+	featComposeSweep      = FeatureName(FeatureKindCapability, "compose_sweep")
+	featSweepSampling     = FeatureComposeSweepSampling
+	featComposeFits       = FeatureName(FeatureKindCapability, "compose_fits")
+	featComposeOpt        = FeatureComposeOptimize
+	featSweepBind         = FeatureComposeSweepBind
+	featComposeBanner     = FeatureName(FeatureKindCapability, "compose_banner")
+	featModelSave         = FeatureModelSave
+	featRegHoldout        = FeatureRegressionHoldout
+	featModels            = FeatureModels
+	featForEach           = FeatureForEach
+	featProcessChain      = FeatureName(FeatureKindCapability, "process_chain")
+	featFacet             = FeatureName(FeatureKindCapability, "facet")
+	featSample            = FeatureName(FeatureKindCapability, "sample")
+	featLookup            = FeatureName(FeatureKindCapability, "lookup")
+	featImport            = FeatureName(FeatureKindCapability, "import")
+	featDedup             = FeatureName(FeatureKindCapability, "dedup")
+	featMaterialize       = FeatureName(FeatureKindCapability, "materialize")
+	featMaterializeOutput = FeatureMaterializeOutput
+	featRake              = FeatureName(FeatureKindCapability, "rake")
+	featRecommend         = FeatureName(FeatureKindCapability, "recommend")
+	featExplain           = FeatureName(FeatureKindCapability, "explain")
+	featLabels            = FeatureName(FeatureKindCapability, "labels")
+	featRangeTables       = FeatureName(FeatureKindCapability, "range_tables")
+	featCrosstab          = FeatureName(FeatureKindCapability, "crosstab")
+	featCrosstabCells     = FeatureCrosstabCells
+	featJoins             = FeatureName(FeatureKindCapability, "joins")
+	featStream            = FeatureName(FeatureKindCapability, "stream")
+	featWatch             = FeatureName(FeatureKindCapability, "watch")
+	featFilterToFile      = FeatureName(FeatureKindCapability, "filter_to_file")
+	featIndex             = FeatureName(FeatureKindCapability, "index")
+	featShard             = FeatureName(FeatureKindCapability, "shard")
+	featWiden             = FeatureName(FeatureKindCapability, "widen")
+	featSynth             = FeatureName(FeatureKindCapability, "synth")
+	featExport            = FeatureName(FeatureKindCapability, "export")
+	featWeighting         = FeatureWeighting
+	featMultiplicity      = FeatureMultiplicity
+	featMatrices          = FeatureName(FeatureKindCapability, "matrices")
+	featParams            = FeatureParams
+	featSEMMeans          = FeatureSEMMeanStructure
+	featSEMGroups         = FeatureSEMGroups
+	featSEMDefined        = FeatureSEMDefined
+	featSEMBootstrap      = FeatureSEMBootstrap
+	featSEMOrdinal        = FeatureSEMOrdinal
 )
 
 // FeatureSEMMeanStructure is capability:sem_meanstructure — MAT_SEM's
@@ -187,6 +188,12 @@ const FeatureSEMOrdinal = vectors.SEMFeatureOrdinal
 // (types.Request.Params): named constants every request-scoped
 // expression reads as params.<name>. Exported for the MCP bound schema.
 const FeatureParams = "capability:params"
+
+// FeatureMaterializeOutput is capability:materialize_output — the
+// materialize-only `output` slot (types.Request.Output), which lays out
+// the schema of the cohort a materialize run writes. Hidden, a set
+// `output` is an unknown field on every operation.
+const FeatureMaterializeOutput = "capability:materialize_output"
 
 // FeatureMultiplicity is capability:multiplicity — the multiple-
 // comparison correction surface: every `multiplicity` slot (Request,
@@ -281,6 +288,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("filter_to_file"),     // FilterToFile*
 	capability("dedup"),              // Dedup
 	capability("materialize"),        // pulse_materialize, pulse api materialize (the facade stays ungated)
+	capability("materialize_output"), // Request.Output: the materialize-only output-schema slot
 	capability("rake"),               // pulse_rake, pulse rake: rim / cell weights written to a new cohort (the facade stays ungated)
 	capability("widen"),              // WidenSetField
 	capability("templates"),          // request templates
@@ -669,6 +677,14 @@ var slotTokens = map[string]slotTokenSet{
 	featParams: {},
 	// `for_each` names the item key only; no guidance sentence names it.
 	featForEach: {},
+	// `output` is everyday English (an operator's output columns), so
+	// the slot's own refusal codes are its tokens: a sentence naming
+	// one (pulse_materialize's description) is about the slot.
+	featMaterializeOutput: {
+		tokens: []string{"PULSE_MATERIALIZE_OUTPUT_ONLY", "PULSE_MATERIALIZE_OUTPUT_INVALID",
+			"PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN", "PULSE_MATERIALIZE_OUTPUT_DUPLICATE", "PULSE_MATERIALIZE_OUTPUT_NULL"},
+		topic: regexp.MustCompile(`(?i)\boutput\b`),
+	},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
 	// (a sample of rows, sample size).
 	featSample: {},
@@ -901,6 +917,9 @@ var hardEdges = map[string][]string{
 	// batch to solve it in (its coef() reads the batch's fits, but a
 	// block over params alone needs none).
 	featComposeOpt: {featCompose},
+	// The output slot lays out a materialize run's cohort: without
+	// materialize there is no run to read it.
+	featMaterializeOutput: {featMaterialize},
 	// The measures are a crosstab's cells: without the crosstab host
 	// there is no table to fold them into.
 	featCrosstabCells: {featCrosstab},

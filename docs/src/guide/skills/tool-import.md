@@ -32,7 +32,7 @@ CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live 
 
 ## Gotchas
 
-- **SPSS is schema-authoritative**: inference skipped; dictionaries hold SPSS CODES, not labels. Read every `PULSE_SPSS_*` in `source_warnings` — they change what the cohort means. No missing-value mode here; writing `.sav` is CLI-only.
+- **SPSS is schema-authoritative**: inference skipped; dictionaries hold SPSS CODES, not labels; a Pulse-written `.sav` restores its types. Read every `PULSE_SPSS_*` in `source_warnings`. No missing-value mode here; writing `.sav` is CLI-only.
 - **Explicit schema matches BY NAME**, never position; each mismatch is a coded refusal before any row.
 - **Naive datetimes import as UTC** unless `source_tz` names the zone; a DST gap / overlap is fatal unless `dst_policy` resolves it. Changing zone means re-import with `overwrite: true`.
 - **Zero rows out of a non-empty source is FATAL `PULSE_IMPORT_ROW_ERROR`**; a partial failure warns `PULSE_IMPORT_ROWS_DROPPED`.

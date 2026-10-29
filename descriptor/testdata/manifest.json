@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:bc94bc0d1daf0bfe43fb41b6c2fe7b6f7e34c9fd7e7d39136fb4eef92a22d02d",
+    "feature_set_digest": "fs1:0db8e6f718ad65aa16c7b10cd79c2f9aeb8c13feac370a5f6f8d16af57f548ed",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11132,7 +11132,7 @@
         ]
       }
     ],
-    "error_codes_count": 433,
+    "error_codes_count": 445,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11321,9 +11321,19 @@
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
+      "PULSE_MATERIALIZE_CAST_FAILED",
+      "PULSE_MATERIALIZE_CAST_NULLED",
+      "PULSE_MATERIALIZE_CAST_UNSUPPORTED",
+      "PULSE_MATERIALIZE_GROUP_NOT_INHERITED",
       "PULSE_MATERIALIZE_NO_DERIVED",
+      "PULSE_MATERIALIZE_OUTPUT_DUPLICATE",
+      "PULSE_MATERIALIZE_OUTPUT_INVALID",
       "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC",
+      "PULSE_MATERIALIZE_OUTPUT_NULL",
+      "PULSE_MATERIALIZE_OUTPUT_ONLY",
       "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
+      "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN",
+      "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL",
       "PULSE_MATERIALIZE_SIDECARS_INVALIDATED",
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_DEFINED_NONFINITE",
@@ -11469,6 +11479,7 @@
       "PULSE_SPSS_EXTENSION_INVALID",
       "PULSE_SPSS_EXTENSION_UNKNOWN",
       "PULSE_SPSS_FILE_EMPTY",
+      "PULSE_SPSS_INTEGER_INEXACT",
       "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
       "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
       "PULSE_SPSS_MISSING_MODE_INVALID",
@@ -11482,6 +11493,7 @@
       "PULSE_SPSS_SIDECAR_INVALID",
       "PULSE_SPSS_SIDECAR_STALE",
       "PULSE_SPSS_TEMPORAL_PRECISION",
+      "PULSE_SPSS_TYPE_NOT_RESTORED",
       "PULSE_SPSS_VALUE_COLLISION",
       "PULSE_SPSS_VALUE_LABELS_DROPPED",
       "PULSE_SPSS_VERY_LONG_STRING_INVALID",
@@ -11599,7 +11611,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`. The `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `materialize`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`. The `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_explain",
@@ -11643,7 +11655,7 @@
       },
       {
         "name": "pulse_materialize",
-        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW single-file .pulse cohort (`out`, relative to PULSE_DATA_DIR) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, warnings."
+        "description": "CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD. Write a NEW .pulse cohort (`out`, relative to PULSE_DATA_DIR; a single file unless `output.shards`) holding every filter-passing record of `request`'s cohort: the source columns verbatim, then one nullable f64 column per derived output of the request (features, attributes, windows) in pipeline order, each with a generated description. Derived values exist only inside the request that computes them, so a regression, grouper, filter or join over one needs this step first; then point the next request at `out`. `request` takes the pulse_process body but only the cohort, label, features, filterers, attributes, windows, sort (orders the output rows; keys may name derived columns), weight, time_zone and disable_components slots: any other slot is PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot), a request with no derived column PULSE_MATERIALIZE_NO_DERIVED, and an unknown key PULSE_REQUEST_UNKNOWN_FIELD. An `output` block in `request` lays out the written cohort — `columns` [{from, as, description, nullable}] (exactly these, in order) XOR `exclude`, applied after every other slot, so a request may then carry no derived column; `shards: {max_records}` writes a shard archive, `elide_constants: true` stores constant columns once; `groups` [{key, members}] declares parent groups over the written names (absent keeps each source group whose members are written unchanged, warning PULSE_MATERIALIZE_GROUP_NOT_INHERITED for one it cannot; `[]` writes none) — refused when malformed with PULSE_MATERIALIZE_OUTPUT_INVALID / _UNKNOWN_COLUMN / _DUPLICATE, a null in a `nullable: false` column fails the run with PULSE_MATERIALIZE_OUTPUT_NULL. Every refusal happens before anything is written; the write is atomic. An existing `out` is refused with SERVICE_VALIDATION unless `overwrite: true`, which lists each sidecar it invalidated under `invalidated_sidecars` (with its rebuild command) beside a PULSE_MATERIALIZE_SIDECARS_INVALIDATED warning. Returns target, records, derived_columns, shards, elided_constants, groups (each group's gate verdict), warnings. `predict: true` validates without writing (no `out` needed), reading the source's header and schema only: the answer is under `predict` — valid, the output columns (name, type, nullable, description, from, derived), derived_columns, the data-dependent risks, the container plan (with its parent groups) and the coded errors / warnings, each refusal with the run's own code and details."
       },
       {
         "name": "pulse_predict",
@@ -13126,6 +13138,18 @@
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
+        "name": "materialize-casts",
+        "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen, categorical), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
+      },
+      {
+        "name": "materialize-container",
+        "description": "Write a materialized cohort as a shard archive with output.shards {max_records}, store columns constant over the written rows once with output.elide_constants, and keep or declare parent groups with output.groups — row order, shard boundaries, the shard-count limit, group inheritance, the predict container plan, and the SPSS sidecar. Topical design; child of derived-cohorts."
+      },
+      {
+        "name": "materialize-recode",
+        "description": "Relabel, merge, null out and reorder a materialized categorical column's values with output.columns[].recode, and bucket a numeric or date column into labelled ranges with output.columns[].bucket — the order with type and as, the drift guard against a new source cohort, and the SPSS rebuild. Topical design; child of derived-cohorts."
+      },
+      {
         "name": "matrix-results",
         "description": "Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused."
       },
@@ -14478,7 +14502,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 265,
+    "examples_count": 266,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14488,6 +14512,7 @@
       "features",
       "filterers",
       "groupers",
+      "materialize",
       "matrices",
       "overlays",
       "regression",
@@ -20394,4 +20419,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8994f8a777bf58d9016e842052d523ec812a0a0888c8e2b6b948f7d53d2fdb99
+// golden-hash: 95750d1aaefbe2d8a8d36842cbdeb1d18a2a9d5d32fce0d57aa9f29b237964f1

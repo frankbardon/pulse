@@ -175,6 +175,13 @@ func obsCalls() []obsCall {
 			_, err := p.PredictChain(ctx, &ChainRequest{Cohort: r.Cohort, Stages: []*ChainStage{{Request: r}}})
 			return err
 		}},
+		{"PredictMaterialize", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictMaterialize(ctx, &Request{
+				Cohort:   &types.Cohort{Filename: obsCohort},
+				Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "amount"}},
+			})
+			return err
+		}},
 		{"Manifest", observe.OpManifest, func(ctx context.Context, p *Pulse) error { p.Manifest(ctx); return nil }},
 		{"ManifestForIntent", observe.OpManifest, func(ctx context.Context, p *Pulse) error {
 			_, err := p.ManifestForIntent(ctx, "compare_groups")

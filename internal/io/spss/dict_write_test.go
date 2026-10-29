@@ -118,7 +118,7 @@ func referenceSchema(t *testing.T) *encoding.Schema {
 // dictionary, derived by hand in the walkthrough below. Asserted so an
 // accidentally-emitted extra record shows up as a length change rather than
 // as a shifted offset.
-const referenceDictionarySize = 441
+const referenceDictionarySize = 478
 
 // TestEmittedDictionary_HandVerified checks the emitted bytes against the
 // GNU PSPP System File Format specification, field by field, at absolute
@@ -297,23 +297,38 @@ const referenceDictionarySize = 441
 //	0x019C      end.
 //
 // ---------------------------------------------------------------------------
-// RECORD 7/20 — character encoding — offsets 0x019C..0x01B0, 21 bytes
+// RECORD 7/18 — variable attributes — offsets 0x019C..0x01C0, 37 bytes
 // ---------------------------------------------------------------------------
 //
 //	0x019C  4   rec_type           7
-//	0x01A0  4   subtype            20      14 00 00 00
+//	0x01A0  4   subtype            18      12 00 00 00
 //	0x01A4  4   size               1       A byte-element text payload.
-//	0x01A8  4   count              5       len("UTF-8")
-//	0x01AC  5   payload            "UTF-8"
-//	0x01B1      end.
+//	0x01A8  4   count              21      len of the payload below
+//	0x01AC  21  payload            "ID:@PulseType('u32'\n)" — the Pulse type
+//	                               hint (type_hint.go): ID is a u32 column,
+//	                               which a plain re-import would read as f64.
+//	                               REGION is a categorical_u8, which the
+//	                               re-import yields anyway, so it has none.
+//	0x01C1      end.
 //
 // ---------------------------------------------------------------------------
-// RECORD 999 — dictionary terminator — offsets 0x01B1..0x01B8, 8 bytes
+// RECORD 7/20 — character encoding — offsets 0x01C1..0x01D5, 21 bytes
 // ---------------------------------------------------------------------------
 //
-//	0x01B1  4   rec_type           999     E7 03 00 00
-//	0x01B5  4   filler             0
-//	0x01B9      end of the dictionary section. 441 bytes.
+//	0x01C1  4   rec_type           7
+//	0x01C5  4   subtype            20      14 00 00 00
+//	0x01C9  4   size               1       A byte-element text payload.
+//	0x01CD  4   count              5       len("UTF-8")
+//	0x01D1  5   payload            "UTF-8"
+//	0x01D6      end.
+//
+// ---------------------------------------------------------------------------
+// RECORD 999 — dictionary terminator — offsets 0x01D6..0x01DD, 8 bytes
+// ---------------------------------------------------------------------------
+//
+//	0x01D6  4   rec_type           999     E7 03 00 00
+//	0x01DA  4   filler             0
+//	0x01DE      end of the dictionary section. 478 bytes.
 func TestEmittedDictionary_HandVerified(t *testing.T) {
 	t.Parallel()
 
@@ -408,15 +423,21 @@ func TestEmittedDictionary_HandVerified(t *testing.T) {
 		{0x0194, "7/16 case count", bytes.Repeat([]byte{0}, 8)},
 
 		// --- record 7/20 ---
-		{0x019C, "7/20 rec_type", []byte{0x07, 0, 0, 0}},
-		{0x01A0, "7/20 subtype", []byte{0x14, 0, 0, 0}},
-		{0x01A4, "7/20 size", []byte{0x01, 0, 0, 0}},
-		{0x01A8, "7/20 count", []byte{0x05, 0, 0, 0}},
-		{0x01AC, "7/20 payload", []byte("UTF-8")},
+		{0x019C, "7/18 rec_type", []byte{0x07, 0, 0, 0}},
+		{0x01A0, "7/18 subtype", []byte{0x12, 0, 0, 0}},
+		{0x01A4, "7/18 size", []byte{0x01, 0, 0, 0}},
+		{0x01A8, "7/18 count", []byte{0x15, 0, 0, 0}},
+		{0x01AC, "7/18 payload", []byte("ID:@PulseType('u32'\n)")},
+
+		{0x01C1, "7/20 rec_type", []byte{0x07, 0, 0, 0}},
+		{0x01C5, "7/20 subtype", []byte{0x14, 0, 0, 0}},
+		{0x01C9, "7/20 size", []byte{0x01, 0, 0, 0}},
+		{0x01CD, "7/20 count", []byte{0x05, 0, 0, 0}},
+		{0x01D1, "7/20 payload", []byte("UTF-8")},
 
 		// --- terminator ---
-		{0x01B1, "999 rec_type", []byte{0xE7, 0x03, 0, 0}},
-		{0x01B5, "999 filler", []byte{0, 0, 0, 0}},
+		{0x01D6, "999 rec_type", []byte{0xE7, 0x03, 0, 0}},
+		{0x01DA, "999 filler", []byte{0, 0, 0, 0}},
 	}
 	for _, tc := range cases {
 		end := tc.offset + len(tc.want)
@@ -540,6 +561,7 @@ func TestEmittedDictionary_ByteIdenticalToTheFixtureGenerator(t *testing.T) {
 			Lowest:  math.Nextafter(-math.MaxFloat64, 0),
 		},
 		CaseCount64:       &zero,
+		VarAttributes:     "ID:@PulseType('u32'\n)",
 		CharacterEncoding: "UTF-8",
 	}
 	want := build(t, spec)

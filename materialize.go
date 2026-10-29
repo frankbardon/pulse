@@ -5,11 +5,15 @@ import (
 	"math"
 	"strings"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/fieldcast"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/temporal"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 )
@@ -25,7 +29,11 @@ type MaterializeOptions struct {
 	// the output schema into a fatal error of the same code, raised
 	// before any record is read (as CohortBuilderOptions.Strict). The
 	// generated derived-column descriptions always pass; a source field
-	// with an empty or placeholder description does not.
+	// with an empty or placeholder description does not. It makes the
+	// output block's parent groups strict too: a source group left out
+	// (PULSE_MATERIALIZE_GROUP_NOT_INHERITED) or a group too narrow to
+	// form (PULSE_GROUP_TOO_NARROW) fails before any record is read, a
+	// low ratio (PULSE_DEDUP_LOW_RATIO) fails before anything is written.
 	Strict bool
 }
 
@@ -42,8 +50,13 @@ type MaterializeResult struct {
 	// Warnings are the non-fatal coded findings: the derived columns'
 	// (a fitted vector attribute's PULSE_MATRIX_SINGULAR /
 	// PULSE_MATRIX_INSUFFICIENT_N fit, whose column is then all null),
+	// one PULSE_MATERIALIZE_CAST_NULLED per output column whose
+	// on_cast_error: "null" cast nulled a value, one
+	// PULSE_MATERIALIZE_GROUP_NOT_INHERITED per source parent group the
+	// output block leaves out,
 	// the cohort write's (PULSE_FIELD_DESCRIPTION_LOW_QUALITY per weak
-	// source description), then a PULSE_SPSS_SIDECAR_STALE / _INVALID when
+	// source description, then the group gate's PULSE_GROUP_TOO_NARROW /
+	// PULSE_DEDUP_LOW_RATIO), then a PULSE_SPSS_SIDECAR_STALE / _INVALID when
 	// the source's SPSS sidecar could not be carried, then one
 	// PULSE_MATERIALIZE_SIDECARS_INVALIDATED
 	// when an overwrite invalidated sidecars beside the target, then a
@@ -54,9 +67,27 @@ type MaterializeResult struct {
 	// CohortBuildResult.InvalidatedSidecars). Empty when nothing was
 	// replaced.
 	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
+	// Shards names the archive entries an output.shards run wrote, in
+	// archive (= output row) order: part-00001.pulse, part-00002.pulse,
+	// …. Empty for a single-file output.
+	Shards []string `json:"shards,omitempty"`
+	// ElidedConstants names the written columns output.elide_constants
+	// stored once (each held one value on every written row), in output
+	// order. Empty when nothing was elided.
+	ElidedConstants []string `json:"elided_constants,omitempty"`
+	// Groups is the writer's verdict on every parent group the output
+	// block handed it — output.groups as declared, or the source's groups
+	// it inherited (output.groups absent) — in declaration order:
+	// admitted, low_ratio (written, with PULSE_DEDUP_LOW_RATIO) or
+	// dropped_too_narrow (not formed, PULSE_GROUP_TOO_NARROW), with the
+	// figures behind it (as CohortBuildResult.Groups). Empty when no group
+	// was handed over; a source group left out is a
+	// PULSE_MATERIALIZE_GROUP_NOT_INHERITED warning instead.
+	Groups []pio.GroupReport `json:"groups,omitempty"`
 }
 
-// Materialize writes a NEW single-file cohort at out holding every
+// Materialize writes a NEW cohort at out — a single file, or a shard
+// archive under output.shards — holding every
 // filter-passing record of req's cohort — the source columns verbatim,
 // then one nullable f64 column per derived output of req (features,
 // attributes, windows; an ATTR_PREVIOUS_STATE output instead takes its
@@ -64,13 +95,16 @@ type MaterializeResult struct {
 // any later request can read, filter, group or join on.
 //
 // req may carry only features, filterers, attributes, windows, sort,
-// weight and time_zone (plus cohort, label and disable_components). It runs
+// weight, time_zone and output (plus cohort, label and
+// disable_components). It runs
 // Process's own pre-flight — the instance slot gate, smart defaults,
 // zones, the field-reference rule, the limits pre-flight — so a request
 // Process refuses is refused here with the same error; then:
 // PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot) for any other slot,
 // PULSE_MATERIALIZE_NO_DERIVED when no feature, attribute or window is
-// given, and PULSE_MATERIALIZE_OUTPUT_UNDECLARED for a feature whose
+// given and no output block either, the output block's own refusals
+// (PULSE_MATERIALIZE_OUTPUT_INVALID / _UNKNOWN_COLUMN / _DUPLICATE),
+// and PULSE_MATERIALIZE_OUTPUT_UNDECLARED for a feature whose
 // output columns cannot be named before the run (an embedder-registered
 // feature). Every one fails before anything is created at out.
 //
@@ -97,7 +131,69 @@ type MaterializeResult struct {
 // (row number, rank) is stored as f64; a value that is not a number
 // fails the run with PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC.
 //
-// The output is always an ungrouped (format 0x01) single file, written
+// req.Output (types.MaterializeOutput) replaces that layout, LAST —
+// after every slot above has read the full schema: `columns` writes
+// exactly the listed columns in list order (each a source field or a
+// derived column, renamed by `as`, its description / nullability
+// overridable, every omitted key inherited), `exclude` drops the named
+// ones. A null in a column the layout declares non-nullable fails the
+// run with PULSE_MATERIALIZE_OUTPUT_NULL (details column + row). A
+// column's `type` retypes it (MaterializeOutputColumn.Type: the
+// numeric / packed_bool / date-family / set-widen / categorical matrix,
+// exact or failing; date ↔ datetime in the request time_zone, else
+// Options.DefaultTimeZone, else UTC; a categorical rung change keeps
+// its dictionary, a categorical → numeric cast parses each label, a
+// numeric → categorical cast stringifies each value into a dictionary
+// built in first-seen output order): an illegal pair, or a categorical
+// narrowed below its dictionary's size, is
+// PULSE_MATERIALIZE_CAST_UNSUPPORTED before anything is read, a stored
+// value that does not fit fails the run with
+// PULSE_MATERIALIZE_CAST_FAILED (details column + row + value + reason)
+// unless the column says on_cast_error: "null", which writes a null and
+// warns once with the count; source integers (u64 past 2^53 included)
+// never route through float64. A categorical column's `recode`
+// (types.MaterializeRecode) rewrites its dictionary first — relabel,
+// merge, map to null (a nullable column only), `order` — and the cast
+// reads the recoded labels; a map key the source dictionary lacks is
+// PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL before anything is read, and a
+// recoded column's SPSS variable is rebuilt like a cast one's. A
+// numeric or date-family column's `bucket` (types.MaterializeBucket:
+// inline ranges XOR a registered range_table, compiled by the shared
+// range pass — numeric half-open, dates inclusive, a datetime by its
+// local day in the cast zone) writes it as the categorical_* of its
+// range labels in declared order before any cast; a value outside every
+// range follows on_cast_error (reason no_range), and its SPSS variable
+// is rebuilt. With
+// an output block a request needs no derived column (a pure reshape),
+// and the source's SPSS sidecar is carried through the layout (a
+// dropped column loses its variable, a renamed or duplicated one keeps
+// its codes and value labels under its new name; one it cannot describe
+// leaves the cohort without a sidecar, with one warning). Absent, the
+// output is the layout above, byte for byte.
+//
+// Without an output block the output is an ungrouped single file —
+// format 0x01, or 0x02 when it keeps a vec_* field, whose VECTORS entry
+// (dim, kind, scale, labels) follows it to its output position. With
+// one, output.groups shapes its parent groups (format 0x02 when one is
+// written; decoding unchanged): absent, each source parent group whose
+// members are all written unchanged (a rename is fine) is declared again
+// under the written names, and one with a dropped or re-coded member is
+// left out with PULSE_MATERIALIZE_GROUP_NOT_INHERITED (fatal under
+// opts.Strict); a list declares exactly its groups over written names
+// ([] none; a bad declaration is PULSE_GROUP_FIELD_UNKNOWN /
+// _FIELD_CONFLICT / _DECLARATION_INVALID before anything is read). Every
+// group handed over passes import's viability gate
+// (MaterializeResult.Groups: PULSE_GROUP_TOO_NARROW drops one,
+// PULSE_DEDUP_LOW_RATIO warns, both fatal under opts.Strict). Its
+// container keys shape the rest: output.shards {max_records} writes a
+// shard archive of consecutive max_records-row shards in output row
+// order (MaterializeResult.Shards names them; max_records ≤ 0 is
+// PULSE_MATERIALIZE_OUTPUT_INVALID, reason shards_max_records, before
+// anything is read; a row past 65,535 shards is PULSE_SHARD_COUNT_LIMIT),
+// and output.elide_constants stores a column holding one value on every
+// written row once (format 0x02, decoding unchanged; with shards, judged
+// over the whole archive; MaterializeResult.ElidedConstants). Either way
+// it is written
 // atomically through NewCohortBuilder: any failure — a refusal, a limit
 // breach (PULSE_LIMIT_EXCEEDED), a write error, cancellation — leaves
 // nothing at out (an overwritten cohort stays as it was). The source's
@@ -114,10 +210,50 @@ func (p *Pulse) Materialize(ctx context.Context, req *Request, out string, opts 
 	})
 }
 
+// PredictMaterialize validates a Materialize request without executing
+// it: the source cohort's header and schema only, never a record (a
+// shard archive is judged on its canonical schema, an anchored shard on
+// its own entry, as Predict reads them). Nothing is written anywhere.
+//
+// The envelope's Data is a *descriptor.MaterializePredictResult: the
+// output schema the run writes (each column's name, type, nullability,
+// description, dictionary and the column it reads), the derived column
+// names, and the data-dependent risks — the checks only the records
+// can settle (a cast a stored value can fail, coded by its
+// on_cast_error; a `nullable: false` column over a column that may hold
+// a null). Every static refusal the run raises is a coded env.Errors
+// entry with the run's code and details, Valid false: the slot gates
+// (the instance's, then PULSE_MATERIALIZE_SLOT_UNSUPPORTED),
+// PULSE_MATERIALIZE_NO_DERIVED, Process's pre-flight and operator
+// checks, PULSE_MATERIALIZE_OUTPUT_UNDECLARED, the output block's
+// refusals (an illegal cast pair, PULSE_MATERIALIZE_CAST_UNSUPPORTED,
+// included) and an over-long written description — the run's pre-flight
+// shares the one plan call (descx.MaterializePlan), so the two cannot
+// drift. A weak description of the written schema is a
+// PULSE_FIELD_DESCRIPTION_LOW_QUALITY warning, as the run warns.
+//
+// A returned error is a cancelled ctx, a nil request or cohort
+// (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;
+// ENCODING_INVALID for a malformed header or schema). Options.Strict
+// promotes every warning into an error; Options.EchoRequest sets
+// env.Request to the item-expanded request. Reports as a `predict`
+// operation and slides a managed import's expiry, as Predict does.
+func (p *Pulse) PredictMaterialize(ctx context.Context, req *Request) (*descriptor.Envelope, error) {
+	return observed(p, ctx, requestOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.Envelope, error) {
+		if req == nil {
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: materialize request is required")
+		}
+		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
+			p.predictRootOptions(opts)
+			return descx.ValidateMaterializeWithOptions(src.rs, req, opts)
+		})
+	})
+}
+
 func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts MaterializeOptions) (*MaterializeResult, error) {
 	if strings.Contains(out, "#") {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"materialize writes a single-file cohort; an anchored archive#shard target is not accepted",
+			"materialize writes a new cohort (a single file, or a shard archive under output.shards); an anchored archive#shard target is not accepted",
 			map[string]any{"target": out, "reason": "anchored_target"})
 	}
 	var source string
@@ -126,6 +262,9 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	}
 	carry, carryWarn := p.prepareSidecarCarry(source)
 	sink := &materializeSink{p: p, ctx: ctx, out: out, opts: opts}
+	if req != nil {
+		sink.output = req.Output
+	}
 	err := p.svc.Materialize(ctx, req, sink)
 	if sink.reader != nil {
 		if cerr := sink.reader.Close(); err == nil && cerr != nil {
@@ -142,15 +281,25 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	if err != nil {
 		return nil, err
 	}
-	carried := p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
+	var carried []*errors.CodedError
+	if req.Output != nil {
+		// An output block lays the columns out itself: the carry follows
+		// it column for column (drop, rename, duplicate, rebuild).
+		carried = p.carryProjectedSidecar(carry, carryWarn, built, sink.projection())
+	} else {
+		carried = p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
+	}
 	// A read of a managed import slides its expiry, as Process does.
 	p.touchManaged(ctx, source)
 	res := &MaterializeResult{
 		Target:              built.Target,
 		Records:             built.Records,
 		DerivedColumns:      sink.names,
-		Warnings:            append(append(append([]*errors.CodedError(nil), sink.warns...), built.Warnings...), carried...),
+		Warnings:            append(append(append(append(append([]*errors.CodedError(nil), sink.warns...), sink.castWarnings()...), sink.groupWarns...), built.Warnings...), carried...),
 		InvalidatedSidecars: built.InvalidatedSidecars,
+		Shards:              built.Shards,
+		ElidedConstants:     built.ElidedConstants,
+		Groups:              built.Groups,
 	}
 	if len(built.InvalidatedSidecars) > 0 {
 		paths := make([]string, len(built.InvalidatedSidecars))
@@ -174,7 +323,17 @@ type materializeSink struct {
 	opts    MaterializeOptions
 	reader  *service.CohortRecordReader
 	builder *CohortBuilder
-	names   []string
+	// output is the request's output slot (nil when absent): its
+	// container keys shape the builder (Shards, ElideConstants).
+	output *types.MaterializeOutput
+	// names are the written columns holding derived values, under their
+	// output names, in output order (MaterializeResult.DerivedColumns).
+	names []string
+	// layout is the written cohort's columns in output order, each
+	// reading a source field or a derived column; rows counts the rows
+	// appended (a nullable: false refusal names the row).
+	layout []descx.MaterializeOutputField
+	rows   int64
 	// warns are the run's attribute warnings (service.MaterializeWarner).
 	warns []*errors.CodedError
 	// inherited holds, per derived column, the field shape it inherits
@@ -185,6 +344,67 @@ type materializeSink struct {
 	inherited []*encoding.Field
 	sources   []string
 	observed  [][]bool
+	// srcNames are the source's logical field names, by layout Source
+	// index (the SPSS carry's projection names the column each reads).
+	srcNames        []string
+	srcDescriptions []string
+	// casts holds, per layout column, its cast (nil when it keeps its
+	// type); nulled / firstNulled count, per column, the values an
+	// on_cast_error: "null" cast nulled and the first output row.
+	casts       []*fieldcast.Plan
+	nulled      []int64
+	firstNulled []int64
+	// buckets holds, per layout column, its bucketing (nil when it has
+	// none), its datetime zone loaded; a value it nulls counts in nulled.
+	buckets []*fieldcast.Bucket
+	// groupWarns are the source parent groups the output leaves out
+	// (PULSE_MATERIALIZE_GROUP_NOT_INHERITED).
+	groupWarns []*errors.CodedError
+}
+
+// castWarnings is one PULSE_MATERIALIZE_CAST_NULLED warning per column
+// whose on_cast_error: "null" cast nulled a value, in output order.
+func (m *materializeSink) castWarnings() []*errors.CodedError {
+	var out []*errors.CodedError
+	for i, n := range m.nulled {
+		if n == 0 {
+			continue
+		}
+		// A bucketed column names the field it read and the field it
+		// writes; a cast-only column its cast's pair.
+		from, to := m.layout[i].Field, m.layout[i].Field
+		if b := m.layout[i].Bucket; b != nil {
+			from = b.From
+		} else if c := m.casts[i]; c != nil {
+			from, to = c.From, c.To
+		}
+		out = append(out, descx.MaterializeCastNulled(m.layout[i].Field.Name, n, m.firstNulled[i], from, to))
+	}
+	return out
+}
+
+// projection describes each written column for the SPSS carry
+// (spss.ProjectedColumn): the source field it copies, its description
+// override, whether it was rebuilt (MaterializeOutputField.Rebuild), and
+// — a derived column inheriting a source field's codes — its mirror,
+// unless the column is rebuilt (a cast previous-state column holds new
+// values, so its variable is regenerated, never the state's labels).
+func (m *materializeSink) projection() []spss.ProjectedColumn {
+	cols := make([]spss.ProjectedColumn, len(m.layout))
+	for i, col := range m.layout {
+		pc := spss.ProjectedColumn{Rebuild: col.Rebuild}
+		switch {
+		case col.Source >= 0:
+			pc.From = m.srcNames[col.Source]
+			if d := col.Field.Description; d != m.srcDescriptions[col.Source] {
+				pc.Label = &d
+			}
+		case col.Derived >= 0 && m.inherited[col.Derived] != nil && !col.Rebuild:
+			pc.Mirror = &spss.Mirror{Source: m.sources[col.Derived], Observed: m.observed[col.Derived]}
+		}
+		cols[i] = pc
+	}
+	return cols
 }
 
 // mirrors maps each inheriting column to its SPSS mirror: the source
@@ -212,44 +432,113 @@ func (m *materializeSink) Warn(ws []*types.ResponseWarning) {
 	}
 }
 
-func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn) error {
+func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn, layout []descx.MaterializeOutputField, groups *descx.MaterializeGroups) error {
 	r, err := cohort.OpenRecordReader()
 	if err != nil {
 		return err
 	}
 	m.reader = r
-	// Schema.Fields is the LOGICAL field list whatever the source's
-	// layout; only Fields is carried, so a grouped source's parent
-	// groups (and a shard archive's layout) never reach the output.
-	src := r.Schema()
-	fields := make([]encoding.Field, 0, len(src.Fields)+len(cols))
-	fields = append(fields, src.Fields...)
-	m.names = make([]string, len(cols))
+	if s := cohort.Schema(); s != nil {
+		m.srcNames = make([]string, len(s.Fields))
+		m.srcDescriptions = make([]string, len(s.Fields))
+		for i, f := range s.Fields {
+			m.srcNames[i], m.srcDescriptions[i] = f.Name, f.Description
+		}
+	}
 	m.inherited = make([]*encoding.Field, len(cols))
 	m.sources = make([]string, len(cols))
 	m.observed = make([][]bool, len(cols))
 	for i, c := range cols {
-		m.names[i] = c.Name
-		f := encoding.Field{
-			Name:        c.Name,
-			Type:        encoding.FieldTypeF64,
-			Nullable:    true,
-			Description: c.Description,
-		}
 		if c.Inherits != "" {
 			// A previous-state column: its state field's type and
 			// dictionary, its values that field's codes.
-			f.Type, f.Dictionary = c.Type, c.Dictionary
+			f := encoding.Field{Name: c.Name, Type: c.Type, Nullable: true, Description: c.Description, Dictionary: c.Dictionary}
 			m.inherited[i], m.sources[i] = &f, c.Inherits
 		}
-		fields = append(fields, f)
 	}
-	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields},
-		CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite})
+	// The layout's fields are the source's LOGICAL fields (a grouped
+	// source's parent groups and a shard archive's layout never reach
+	// the output) and the derived columns, as the output block arranges
+	// them — without one, every source field verbatim then every
+	// derived column.
+	m.layout = layout
+	for _, col := range layout {
+		if col.Derived >= 0 {
+			m.names = append(m.names, col.Field.Name)
+		}
+	}
+	if m.names == nil {
+		m.names = []string{}
+	}
+	// A kept vector field carries its VECTORS entry (dim, kind, scale,
+	// labels) to its output position, under its output name.
+	src := cohort.Schema()
+	written := descx.MaterializeOutputSchema(src, layout)
+	if err := m.planCasts(); err != nil {
+		return err
+	}
+	bopts := CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite}
+	if out := m.output; out != nil {
+		// The output slot's container keys: a shard archive and / or
+		// constant elision, decided by the builder over every written row.
+		bopts.ElideConstants = out.ElideConstants
+		if out.Shards != nil {
+			bopts.Shards = &ShardSplit{MaxRecords: out.Shards.MaxRecords}
+		}
+		// Its parent groups — declared, or the source's inherited — are
+		// the pre-flight's own plan, handed in (descx.MaterializePlan
+		// resolved it once and refused a bad declaration). A source group
+		// left out warns; Strict fails it.
+		if m.opts.Strict && len(groups.Warnings) > 0 {
+			return groups.Warnings[0]
+		}
+		m.groupWarns = groups.Warnings
+		for _, d := range groups.Decls {
+			bopts.Groups = append(bopts.Groups, pio.GroupDecl{Key: d.Key, Members: d.Members})
+		}
+	}
+	b, err := m.p.NewCohortBuilder(m.ctx, m.out, *written, bopts)
 	if err != nil {
 		return err
 	}
 	m.builder = b
+	return nil
+}
+
+// planCasts builds each cast column's fieldcast.Plan, loading the zone
+// a date ↔ datetime cast reads local days in (validated by the zone
+// pre-flight before Begin).
+func (m *materializeSink) planCasts() error {
+	m.casts = make([]*fieldcast.Plan, len(m.layout))
+	m.buckets = make([]*fieldcast.Bucket, len(m.layout))
+	m.nulled = make([]int64, len(m.layout))
+	m.firstNulled = make([]int64, len(m.layout))
+	for i, col := range m.layout {
+		if b := col.Bucket; b != nil {
+			bucket := b.Bucket
+			if b.Zone != "" {
+				z, err := temporal.LoadZone(b.Zone)
+				if err != nil {
+					return err
+				}
+				bucket.Zone = z
+			}
+			m.buckets[i] = &bucket
+		}
+		c := col.Cast
+		if c == nil {
+			continue
+		}
+		plan := &fieldcast.Plan{From: c.From, To: col.Field}
+		if c.Zone != "" {
+			z, err := temporal.LoadZone(c.Zone)
+			if err != nil {
+				return err
+			}
+			plan.Zone = z
+		}
+		m.casts[i] = plan
+	}
 	return nil
 }
 
@@ -277,7 +566,60 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 		}
 		derived[i] = v
 	}
-	return m.builder.Append(append(CohortRow(row), derived...))
+	if m.output != nil && m.output.Shards != nil && descx.MaterializeShardLimitReached(m.rows, m.output.Shards.MaxRecords) {
+		return descx.MaterializeShardLimit(m.out, m.output.Shards.MaxRecords, m.rows)
+	}
+	out := make(CohortRow, len(m.layout))
+	for i, col := range m.layout {
+		var v any
+		if col.Source >= 0 {
+			v = row[col.Source]
+		} else {
+			v = derived[col.Derived]
+		}
+		if label, isLabel := v.(string); isLabel && col.Recode != nil {
+			// Recode, then cast: a label with an entry is written as its
+			// value (nil: null), any other label as itself.
+			if to, ok := col.Recode[label]; ok {
+				if v = nil; to != nil {
+					v = *to
+				}
+			}
+		}
+		if b := m.buckets[i]; b != nil && v != nil {
+			// Bucket, then cast: the cast reads the range label.
+			bv, fail := b.Apply(v)
+			if fail != nil {
+				if !col.Bucket.NullOnError {
+					return descx.MaterializeCastFailed(col.Field.Name, m.rows, b.From, col.Bucket.To, fail.Value, fail.Reason)
+				}
+				if m.nulled[i] == 0 {
+					m.firstNulled[i] = m.rows
+				}
+				m.nulled[i]++
+			}
+			v = bv
+		}
+		if c := m.casts[i]; c != nil && v != nil {
+			cv, fail := c.Apply(v)
+			if fail != nil {
+				if !col.Cast.NullOnError {
+					return descx.MaterializeCastFailed(col.Field.Name, m.rows, c.From, c.To, fail.Value, fail.Reason)
+				}
+				if m.nulled[i] == 0 {
+					m.firstNulled[i] = m.rows
+				}
+				m.nulled[i]++
+			}
+			v = cv
+		}
+		if v == nil && !col.Field.Nullable {
+			return descx.MaterializeOutputNull(col.Field.Name, m.rows)
+		}
+		out[i] = v
+	}
+	m.rows++
+	return m.builder.Append(out)
 }
 
 // inheritedCell turns one inherited column's derived value — its source

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"sort"
 	"strings"
 
@@ -84,6 +85,44 @@ func (s *Set) Match(v float64) (string, bool) {
 		return r.label, true
 	}
 	return "", false
+}
+
+// MatchRat is Match for an exact value: v is compared with each bound
+// exactly (a float64 bound is an exact rational), so an integer past 2^53
+// or a decimal is never rounded onto the wrong side of a boundary.
+func (s *Set) MatchRat(v *big.Rat) (string, bool) {
+	if s == nil || v == nil {
+		return "", false
+	}
+	for _, r := range s.ranges {
+		if r.hasStart && v.Cmp(new(big.Rat).SetFloat64(r.start)) < 0 {
+			continue
+		}
+		if r.hasEnd && v.Cmp(new(big.Rat).SetFloat64(r.end)) >= 0 {
+			continue
+		}
+		return r.label, true
+	}
+	return "", false
+}
+
+// Gapless reports whether every finite value lies in some range: the
+// lowest range is open below, the highest open above, and each range
+// ends exactly where the next begins.
+func (s *Set) Gapless() bool {
+	if s.Len() == 0 {
+		return false
+	}
+	rs := s.ranges
+	if rs[0].hasStart || rs[len(rs)-1].hasEnd {
+		return false
+	}
+	for i := 1; i < len(rs); i++ {
+		if rs[i-1].end != rs[i].start {
+			return false
+		}
+	}
+	return true
 }
 
 // Compile validates specs into a Set. Each failure carries its own code:

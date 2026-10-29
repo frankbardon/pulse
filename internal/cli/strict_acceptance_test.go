@@ -130,6 +130,10 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "request.weight", body: req(agg + `,"weight":{"feild":"n"}`), path: "weight.feild", unknown: "feild"},
 		{family: "request.multiplicity", body: req(agg + `,"multiplicity":{"metod":"bh"}`), path: "multiplicity.metod", unknown: "metod"},
 		{family: "request.return", body: req(agg + `,"return":{"preest":"standard"}`), path: "return.preest", unknown: "preest"},
+		{family: "request.output", body: req(agg + `,"output":{"exlude":["n"]}`), path: "output.exlude", unknown: "exlude"},
+		{family: "request.output.columns", body: req(agg + `,"output":{"columns":[{"form":"n"}]}`), path: "output.columns[0].form", unknown: "form"},
+		{family: "request.output.shards", body: req(agg + `,"output":{"shards":{"max_record":5}}`), path: "output.shards.max_record", unknown: "max_record"},
+		{family: "request.output.groups", body: req(agg + `,"output":{"groups":[{"keys":["n"],"members":["m"]}]}`), path: "output.groups[0].keys", unknown: "keys"},
 
 		// --- Composed root: its own slots, a nested request, a fit, the sweep ---
 		{family: "composed", body: `{"requestz":[` + nested(agg) + `]}`, unknown: "requestz"},

@@ -680,8 +680,11 @@ pulse: type MaterializeOptions field Overwrite bool
 pulse: type MaterializeOptions field Strict bool
 pulse: type MaterializeResult struct
 pulse: type MaterializeResult field DerivedColumns []string "json:\"derived_columns\""
+pulse: type MaterializeResult field ElidedConstants []string "json:\"elided_constants,omitempty\""
+pulse: type MaterializeResult field Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
 pulse: type MaterializeResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type MaterializeResult field Records int64 "json:\"records\""
+pulse: type MaterializeResult field Shards []string "json:\"shards,omitempty\""
 pulse: type MaterializeResult field Target string "json:\"target\""
 pulse: type MaterializeResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type MatrixOpRegistration struct
@@ -843,6 +846,7 @@ pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse
 pulse: type Pulse method (*Pulse) PredictEnvelope(ctx context.Context, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictExport(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.PredictReport, error)
 pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictMaterialize(ctx context.Context, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
@@ -1024,6 +1028,7 @@ pulse: type Request field Labels []*pulse/types.LabelBinding "json:\"labels,omit
 pulse: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
 pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse: type Request field Output *pulse/types.MaterializeOutput "json:\"output,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type Request field Params pulse/types.Params "json:\"params,omitempty\""
@@ -1738,6 +1743,44 @@ pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"
 pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
 pulse/descriptor: type ManifestScope struct
 pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
+pulse/descriptor: type MaterializeContainer struct
+pulse/descriptor: type MaterializeContainer field ElideConstants bool "json:\"elide_constants\""
+pulse/descriptor: type MaterializeContainer field Groups []pulse/descriptor.MaterializeGroupPlan "json:\"groups,omitempty\""
+pulse/descriptor: type MaterializeContainer field Kind string "json:\"kind\""
+pulse/descriptor: type MaterializeContainer field MaxRecords int "json:\"max_records,omitempty\""
+pulse/descriptor: type MaterializeContainer field MaxShards *int64 "json:\"max_shards,omitempty\""
+pulse/descriptor: type MaterializeGroupPlan struct
+pulse/descriptor: type MaterializeGroupPlan field Change string "json:\"change,omitempty\""
+pulse/descriptor: type MaterializeGroupPlan field Key []string "json:\"key,omitempty\""
+pulse/descriptor: type MaterializeGroupPlan field Label string "json:\"label\""
+pulse/descriptor: type MaterializeGroupPlan field Member string "json:\"member,omitempty\""
+pulse/descriptor: type MaterializeGroupPlan field Members []string "json:\"members\""
+pulse/descriptor: type MaterializeGroupPlan field Origin string "json:\"origin\""
+pulse/descriptor: type MaterializeGroupPlan field Reason string "json:\"reason,omitempty\""
+pulse/descriptor: type MaterializeGroupPlan field SourceFields []string "json:\"source_fields,omitempty\""
+pulse/descriptor: type MaterializeGroupPlan field Verdict string "json:\"verdict\""
+pulse/descriptor: type MaterializePredictColumn struct
+pulse/descriptor: type MaterializePredictColumn field Derived bool "json:\"derived\""
+pulse/descriptor: type MaterializePredictColumn field Description string "json:\"description\""
+pulse/descriptor: type MaterializePredictColumn field Dictionary *pulse/descriptor.DictionaryInfo "json:\"dictionary,omitempty\""
+pulse/descriptor: type MaterializePredictColumn field From string "json:\"from\""
+pulse/descriptor: type MaterializePredictColumn field Name string "json:\"name\""
+pulse/descriptor: type MaterializePredictColumn field Nullable bool "json:\"nullable\""
+pulse/descriptor: type MaterializePredictColumn field Precision *uint8 "json:\"precision,omitempty\""
+pulse/descriptor: type MaterializePredictColumn field Scale *uint8 "json:\"scale,omitempty\""
+pulse/descriptor: type MaterializePredictColumn field Type string "json:\"type\""
+pulse/descriptor: type MaterializePredictResult struct
+pulse/descriptor: type MaterializePredictResult field Columns []pulse/descriptor.MaterializePredictColumn "json:\"columns\""
+pulse/descriptor: type MaterializePredictResult field Container *pulse/descriptor.MaterializeContainer "json:\"container,omitempty\""
+pulse/descriptor: type MaterializePredictResult field DerivedColumns []string "json:\"derived_columns\""
+pulse/descriptor: type MaterializePredictResult field Risks []pulse/descriptor.MaterializeRisk "json:\"risks\""
+pulse/descriptor: type MaterializePredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse/descriptor: type MaterializePredictResult field Valid bool "json:\"valid\""
+pulse/descriptor: type MaterializeRisk struct
+pulse/descriptor: type MaterializeRisk field Check string "json:\"check\""
+pulse/descriptor: type MaterializeRisk field Code string "json:\"code\""
+pulse/descriptor: type MaterializeRisk field Column string "json:\"column\""
+pulse/descriptor: type MaterializeRisk field Path string "json:\"path,omitempty\""
 pulse/descriptor: type MatrixCapability struct
 pulse/descriptor: type MatrixCapability field DefaultEncoding string "json:\"default_encoding\""
 pulse/descriptor: type MatrixCapability field Encodings []string "json:\"encodings\""
@@ -2483,16 +2526,19 @@ pulse/errors: const DetailSPSSBlock untyped string = "block"
 pulse/errors: const DetailSPSSCharset untyped string = "charset"
 pulse/errors: const DetailSPSSCohort untyped string = "cohort"
 pulse/errors: const DetailSPSSCollidesWith untyped string = "collides_with"
+pulse/errors: const DetailSPSSCount untyped string = "count"
 pulse/errors: const DetailSPSSDeclaredCases untyped string = "declared"
 pulse/errors: const DetailSPSSDeclaredWidth untyped string = "declared_width"
 pulse/errors: const DetailSPSSDerived untyped string = "derived"
 pulse/errors: const DetailSPSSDistinct untyped string = "distinct"
 pulse/errors: const DetailSPSSExpected untyped string = "expected_fingerprint"
 pulse/errors: const DetailSPSSField untyped string = "cohort_field"
+pulse/errors: const DetailSPSSFirstRow untyped string = "first_row"
 pulse/errors: const DetailSPSSFormat untyped string = "format_code"
 pulse/errors: const DetailSPSSMissingCategories untyped string = "missing_categories"
 pulse/errors: const DetailSPSSMissingMode untyped string = "missing_mode"
 pulse/errors: const DetailSPSSOffset untyped string = "offset"
+pulse/errors: const DetailSPSSPulseType untyped string = "pulse_type"
 pulse/errors: const DetailSPSSRecord untyped string = "record_type"
 pulse/errors: const DetailSPSSRenames untyped string = "renames"
 pulse/errors: const DetailSPSSSet untyped string = "response_set"
@@ -2703,9 +2749,19 @@ pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMB
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
+pulse/errors: const PULSE_MATERIALIZE_CAST_FAILED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_FAILED"
+pulse/errors: const PULSE_MATERIALIZE_CAST_NULLED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_NULLED"
+pulse/errors: const PULSE_MATERIALIZE_CAST_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_UNSUPPORTED"
+pulse/errors: const PULSE_MATERIALIZE_GROUP_NOT_INHERITED pulse/errors.Code = "PULSE_MATERIALIZE_GROUP_NOT_INHERITED"
 pulse/errors: const PULSE_MATERIALIZE_NO_DERIVED pulse/errors.Code = "PULSE_MATERIALIZE_NO_DERIVED"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_DUPLICATE pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_DUPLICATE"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_INVALID pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_INVALID"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NULL pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_NULL"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_ONLY pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_ONLY"
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNDECLARED pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
+pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN"
+pulse/errors: const PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL pulse/errors.Code = "PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL"
 pulse/errors: const PULSE_MATERIALIZE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 pulse/errors: const PULSE_MATERIALIZE_SLOT_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
 pulse/errors: const PULSE_MATRIX_DEFINED_NONFINITE pulse/errors.Code = "PULSE_MATRIX_DEFINED_NONFINITE"
@@ -2851,6 +2907,7 @@ pulse/errors: const PULSE_SPSS_EXPORT_UNSUPPORTED pulse/errors.Code = "PULSE_SPS
 pulse/errors: const PULSE_SPSS_EXTENSION_INVALID pulse/errors.Code = "PULSE_SPSS_EXTENSION_INVALID"
 pulse/errors: const PULSE_SPSS_EXTENSION_UNKNOWN pulse/errors.Code = "PULSE_SPSS_EXTENSION_UNKNOWN"
 pulse/errors: const PULSE_SPSS_FILE_EMPTY pulse/errors.Code = "PULSE_SPSS_FILE_EMPTY"
+pulse/errors: const PULSE_SPSS_INTEGER_INEXACT pulse/errors.Code = "PULSE_SPSS_INTEGER_INEXACT"
 pulse/errors: const PULSE_SPSS_MAGIC_FLAG_MISMATCH pulse/errors.Code = "PULSE_SPSS_MAGIC_FLAG_MISMATCH"
 pulse/errors: const PULSE_SPSS_MEASURE_LEVEL_MISMATCH pulse/errors.Code = "PULSE_SPSS_MEASURE_LEVEL_MISMATCH"
 pulse/errors: const PULSE_SPSS_MISSING_MODE_INVALID pulse/errors.Code = "PULSE_SPSS_MISSING_MODE_INVALID"
@@ -2864,6 +2921,7 @@ pulse/errors: const PULSE_SPSS_SIDECAR_IGNORED pulse/errors.Code = "PULSE_SPSS_S
 pulse/errors: const PULSE_SPSS_SIDECAR_INVALID pulse/errors.Code = "PULSE_SPSS_SIDECAR_INVALID"
 pulse/errors: const PULSE_SPSS_SIDECAR_STALE pulse/errors.Code = "PULSE_SPSS_SIDECAR_STALE"
 pulse/errors: const PULSE_SPSS_TEMPORAL_PRECISION pulse/errors.Code = "PULSE_SPSS_TEMPORAL_PRECISION"
+pulse/errors: const PULSE_SPSS_TYPE_NOT_RESTORED pulse/errors.Code = "PULSE_SPSS_TYPE_NOT_RESTORED"
 pulse/errors: const PULSE_SPSS_VALUE_COLLISION pulse/errors.Code = "PULSE_SPSS_VALUE_COLLISION"
 pulse/errors: const PULSE_SPSS_VALUE_LABELS_DROPPED pulse/errors.Code = "PULSE_SPSS_VALUE_LABELS_DROPPED"
 pulse/errors: const PULSE_SPSS_VERY_LONG_STRING_INVALID pulse/errors.Code = "PULSE_SPSS_VERY_LONG_STRING_INVALID"
@@ -3121,6 +3179,7 @@ pulse/io: type CohortSource field FS github.com/spf13/afero.Fs
 pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
+pulse/io: type CohortSource field Strict bool
 pulse/io: type CohortSource field TimeZone string
 pulse/io: type CohortSource field ValueLabelOrder map[string][]string
 pulse/io: type CohortSource field ValueLabels map[string]map[string]string
@@ -3182,6 +3241,7 @@ pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
 pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
 pulse/io: type ConvertSource field Sidecar pulse/internal/iocore.SidecarEmitter
+pulse/io: type ConvertSource field Strict bool
 pulse/io: func DSTPolicies() []pulse/io.DSTPolicy
 pulse/io: type DSTPolicy = pulse/internal/io.DSTPolicy
 pulse/io: type DSTPolicy underlying string
@@ -3246,6 +3306,7 @@ pulse/io: type ExportJob field LabelResolver pulse/internal/io.LabelResolver
 pulse/io: type ExportJob field Labels []*pulse/types.LabelBinding
 pulse/io: type ExportJob field Overlays []*pulse/types.OverlayLayer
 pulse/io: type ExportJob field Source string
+pulse/io: type ExportJob field Strict bool
 pulse/io: type ExportJob field Target pulse/internal/io.Writer
 pulse/io: type ExportJob field TimeZone string
 pulse/io: type ExportJob method (*ExportJob) Hash() string
@@ -5359,6 +5420,38 @@ pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
 pulse/types: func MarshalFinite(v any) ([]byte, error)
+pulse/types: type MaterializeBucket struct
+pulse/types: type MaterializeBucket field RangeTable string "json:\"range_table,omitempty\""
+pulse/types: type MaterializeBucket field Ranges []pulse/types.MaterializeBucketRange "json:\"ranges,omitempty\""
+pulse/types: type MaterializeBucketRange struct
+pulse/types: type MaterializeBucketRange field End encoding/json.RawMessage "json:\"end,omitempty\""
+pulse/types: type MaterializeBucketRange field Label string "json:\"label\""
+pulse/types: type MaterializeBucketRange field Start encoding/json.RawMessage "json:\"start,omitempty\""
+pulse/types: type MaterializeGroup struct
+pulse/types: type MaterializeGroup field Key []string "json:\"key,omitempty\""
+pulse/types: type MaterializeGroup field Members []string "json:\"members\""
+pulse/types: type MaterializeOutput struct
+pulse/types: type MaterializeOutput field Columns []pulse/types.MaterializeOutputColumn "json:\"columns,omitempty\""
+pulse/types: type MaterializeOutput field ElideConstants bool "json:\"elide_constants,omitempty\""
+pulse/types: type MaterializeOutput field Exclude []string "json:\"exclude,omitempty\""
+pulse/types: type MaterializeOutput field Groups []pulse/types.MaterializeGroup "json:\"groups,omitzero\""
+pulse/types: type MaterializeOutput field Shards *pulse/types.MaterializeShards "json:\"shards,omitempty\""
+pulse/types: type MaterializeOutputColumn struct
+pulse/types: type MaterializeOutputColumn field As string "json:\"as,omitempty\""
+pulse/types: type MaterializeOutputColumn field Bucket *pulse/types.MaterializeBucket "json:\"bucket,omitempty\""
+pulse/types: type MaterializeOutputColumn field Description *string "json:\"description,omitempty\""
+pulse/types: type MaterializeOutputColumn field From string "json:\"from\""
+pulse/types: type MaterializeOutputColumn field Nullable *bool "json:\"nullable,omitempty\""
+pulse/types: type MaterializeOutputColumn field OnCastError string "json:\"on_cast_error,omitempty\""
+pulse/types: type MaterializeOutputColumn field Precision *int "json:\"precision,omitempty\""
+pulse/types: type MaterializeOutputColumn field Recode *pulse/types.MaterializeRecode "json:\"recode,omitempty\""
+pulse/types: type MaterializeOutputColumn field Scale *int "json:\"scale,omitempty\""
+pulse/types: type MaterializeOutputColumn field Type string "json:\"type,omitempty\""
+pulse/types: type MaterializeRecode struct
+pulse/types: type MaterializeRecode field Map map[string]*string "json:\"map,omitempty\""
+pulse/types: type MaterializeRecode field Order []string "json:\"order,omitempty\""
+pulse/types: type MaterializeShards struct
+pulse/types: type MaterializeShards field MaxRecords int "json:\"max_records\""
 pulse/types: type MatrixCell struct
 pulse/types: type MatrixCell field Present bool "json:\"present\""
 pulse/types: type MatrixCell field Value any "json:\"value,omitempty\""
@@ -5914,6 +6007,7 @@ pulse/types: type Request field Labels []*pulse/types.LabelBinding "json:\"label
 pulse/types: type Request field Matrices []pulse/types.MatrixSpec "json:\"matrices,omitempty\""
 pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type Request field Output *pulse/types.MaterializeOutput "json:\"output,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type Request field Params pulse/types.Params "json:\"params,omitempty\""
@@ -6222,4 +6316,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4c883a1f70763ac783bdd0fd7c4b7d3137d16ecb86b7a69843057f91cc80c556
+// golden-hash: 99b43984a712fd9512cdc3d940c75635e731910e4e69d90b17468f0e8d154b75

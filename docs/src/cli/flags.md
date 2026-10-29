@@ -161,7 +161,12 @@ validation.
 `import <format>`, `import auto` and `convert` also take `--strict`,
 with an import meaning: it escalates a partial import
 (`PULSE_IMPORT_ROWS_DROPPED`) and, on `import <format>`, the parent-group
-viability warnings — see [`--strict` (import)](#--strict-import).
+viability warnings — see [`--strict` (import)](#--strict-import). On
+`convert` into `.sav` it also refuses a `u64` past 2^53
+(`PULSE_SPSS_INTEGER_INEXACT`) rather than writing it as a rounded double.
+`export spss --strict` carries only that meaning: the `.sav` export fails
+on such a value (exit 1, `errors[0].code`) and writes no file — the CLI
+spelling of `Options.Strict` / `ExportJob.Strict`.
 
 ### `--echo-request`
 
@@ -814,7 +819,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api compose` | Execute multiple processing requests in batch | [api compose](api-compose.md) |
 | `pulse api facet` | Distinct values for a field, or a rich multi-field summary | [api facet](api-facet.md) |
 | `pulse api lookup` | Key-exact row read against a prebuilt sidecar index | [api lookup](api-lookup.md) |
-| `pulse api materialize` | Write a request's derived columns (features, attributes, windows) as fields of a new cohort: `-r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`; refusals keep their own code | [Materialize](../library/materialize.md) |
+| `pulse api materialize` | Write a request's derived columns (features, attributes, windows) as fields of a new cohort, laid out by its `output` block when present (`shards` writes a shard archive, listed in the report; `groups` keeps or declares parent groups, each verdict reported): `-r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`; refusals keep their own code. `--predict` (no `-o` needed, nothing written) prints the predict envelope instead — output columns, derived names, risks, the container plan (with its parent groups), every refusal with the run's code; exit status follows its errors, `--strict` promotes its warnings | [Materialize](../library/materialize.md) |
 | `pulse api predict` | Validate a request against a cohort without executing | [api predict](api-predict.md) |
 | `pulse api predict-chain` | Validate a process-chain request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
 | `pulse api predict-compose` | Validate a Compose batch without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |

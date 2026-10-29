@@ -58,7 +58,8 @@ built with a feature profile gets a narrower document:
   (process-chain), `FacetRequest` / `FacetResult` (facet),
   `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup),
   `RecommendRequest` / `RecommendResult` (recommend),
-  `ExplainRequest` / `ExplainResult` (explain); on an instance that
+  `ExplainRequest` / `ExplainResult` (explain),
+  `MaterializePredictResult` (materialize); on an instance that
   offers explain, `ExplainRequest` drops the slots of every hidden root
   (`composed` / `composed_response`, `chain` / `chain_response`,
   `facet` / `facet_result`, `sample`);
@@ -88,7 +89,14 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   derived-column producer carries: a `pulse_materialize` draft, then
   the model request that reads the written column), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
-  coded warnings). A bootstrap `RegressionResult` echoes
+  coded warnings), `MaterializePredictResult` (`Pulse.PredictMaterialize`
+  / `pulse api materialize --predict` / `pulse_materialize {predict:
+  true}`: `valid`, the source `schema_info`, the output `columns` —
+  `{name, type, nullable, description, from, derived}` plus a truncated
+  `dictionary` and a decimal `precision` / `scale` — the
+  `derived_columns` names and the data-dependent `risks`
+  `{column, path, code, check}`; the three lists are `[]`, never
+  `null`). A bootstrap `RegressionResult` echoes
   `bootstrap_requested` / `bootstrap_succeeded`; a delete-a-group
   jackknife (`RegressionSpec.jackknife_groups` / `jackknife_by`, both
   additive `omitempty`) echoes its replicate count as
@@ -303,6 +311,58 @@ block. `pulse api facet`, `pulse api predict-facet` and the
 `pulse_facet_schema` tool accept it; a facet template can pass a
 variable as `"params": {"wave": {"$var": "wave"}}`. Omitting it is
 byte-identical to the earlier wire form.
+
+## Materialize output slot
+
+`output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
+`Pulse.Materialize` writes: `columns` — a list of
+`#/$defs/MaterializeOutputColumn` `{from, as, description, nullable,
+type, precision, scale, on_cast_error, recode, bucket}`, `from` required — XOR `exclude` (field / derived-column names) — plus the
+container keys `shards` (`#/$defs/MaterializeShards` `{max_records}`: a
+shard archive of `max_records`-row shards; `max_records ≤ 0` is
+`PULSE_MATERIALIZE_OUTPUT_INVALID`), `elide_constants` (store a
+column constant over the written rows once) and `groups`
+(`#/$defs/MaterializeGroup` `{key, members}` over written names; absent
+inherits the source's parent groups whose members are written
+unchanged, `[]` writes none). It is
+additive: `format_version` stays `"1.1"` and omitting it writes the
+cohort Materialize always wrote, byte for byte. It is MATERIALIZE-ONLY:
+every other operation that takes a `Request` (process, compose, chain,
+predict, their streaming, CLI and MCP surfaces) refuses it with
+`PULSE_MATERIALIZE_OUTPUT_ONLY` (`details.slot: "output"`). Gated by
+`capability:materialize_output`: an instance whose feature profile
+omits it has no `output` property and refuses the key as an unknown
+field everywhere. Rules the schema cannot say, enforced before any
+record is read: `columns` and `exclude` together, an empty `columns`
+list, an `exclude` dropping every column or an entry without `from` is
+`PULSE_MATERIALIZE_OUTPUT_INVALID`; a name that is neither a source
+field nor a derived column is `PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN`;
+two columns under one name after `as` is
+`PULSE_MATERIALIZE_OUTPUT_DUPLICATE`; a `type` its column cannot cast
+to is `PULSE_MATERIALIZE_CAST_UNSUPPORTED`, an unknown `type`, a bad
+`precision` / `scale` or a misused `on_cast_error` (`"fail"` /
+`"null"`) `PULSE_MATERIALIZE_OUTPUT_INVALID`. `recode`
+(`#/$defs/MaterializeRecode` `{map, order}`; a `map` value is a label or
+`null`) rewrites a categorical's dictionary before `type` reads it: a
+`map` key its source dictionary lacks is
+`PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL` (`details.label`); a recode of a
+non-categorical, a `null` on a non-nullable column, or an `order` that
+is not exactly the recoded labels once each is
+`PULSE_MATERIALIZE_OUTPUT_INVALID`. `bucket`
+(`#/$defs/MaterializeBucket` `{ranges, range_table}`, each range a
+`#/$defs/MaterializeBucketRange` `{label, start, end}` whose bounds are a
+number, an ISO date string or `null`) writes a numeric or date-family
+column as the `categorical_*` of its range labels; its refusals are the
+shared range codes (`PULSE_RANGE_SOURCE_AMBIGUOUS`,
+`PULSE_RANGE_TABLE_UNKNOWN`, `PULSE_RANGE_TABLE_KIND_MISMATCH`,
+`PULSE_RANGE_EMPTY` / `_INVALID` / `_DUPLICATE_LABEL` / `_OVERLAP`) plus
+`PULSE_MATERIALIZE_OUTPUT_INVALID` for an unbucketable column, and a
+value outside every range fails like a cast. A null in a `nullable:
+false` column fails the run with `PULSE_MATERIALIZE_OUTPUT_NULL`, a
+stored value its cast cannot represent with
+`PULSE_MATERIALIZE_CAST_FAILED` (or, `on_cast_error: "null"`, a null and
+a `PULSE_MATERIALIZE_CAST_NULLED` warning). See
+[Materializing Derived Columns](../library/materialize.md).
 
 ## Multiplicity slots
 
@@ -1040,8 +1100,8 @@ cannot score is `PULSE_MODEL_SCORE_INVALID` `details.reason`
 scorable held-out row fails the slot alone
 (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `details.reason`
 `holdout_empty`; `PULSE_SLOT_FAILED`). A holdout forces the buffered
-path (predict `streamable_reasons`: "regression <TYPE> holdout requires
-the buffered path (the held-out rows are scored after the fit)"). The
+path (predict `streamable_reasons`: `"regression <TYPE> holdout requires
+the buffered path (the held-out rows are scored after the fit)"`). The
 block rides `capability:regression_holdout`, is kept by the `standard`
 and `minimal` presets, is rounded by `return.precision` and never
 appears under `Response.components`.

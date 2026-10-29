@@ -46,6 +46,8 @@ const (
 	writeCharsetFlagUsage = "Character encoding the emitted .sav is written in, and declared as, e.g. windows-1252 or utf-8. Default: the charset the SOURCE declared, or UTF-8 for a cohort with no SPSS provenance. Set it when the cohort now holds text the source's codepage cannot express."
 
 	sanitizeNamesFlagUsage = "Rewrite cohort field names that cannot be SPSS variable names (a space, bracket, hyphen or leading digit) instead of refusing the export. Every rename is reported as a PULSE_SPSS_NAME_SANITIZED warning. Only affects a synthesised dictionary — names from a sidecar came from SPSS and are already legal."
+
+	exportStrictFlagUsage = "Treat a value the .sav cannot store exactly (PULSE_SPSS_INTEGER_INEXACT: a u64 past 2^53, which no SPSS double holds) as an error: the export fails and writes no .sav. The CLI spelling of Options.Strict / ExportJob.Strict; without it the value is written as the nearest double and warned."
 )
 
 // ExportCommand returns the export command group.
@@ -88,7 +90,7 @@ func withExportFlags(extra ...cli.Flag) []cli.Flag {
 	return append(flags, extra...)
 }
 
-// exportSPSSCmd is `pulse export spss`. It carries the four write-side
+// exportSPSSCmd is `pulse export spss`. It carries the write-side
 // knobs for the same reason `pulse import spss` carries --charset: the
 // format asks questions the cohort cannot always answer for itself.
 func exportSPSSCmd() *cli.Command {
@@ -100,6 +102,7 @@ func exportSPSSCmd() *cli.Command {
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
+			&cli.BoolFlag{Name: "strict", Usage: exportStrictFlagUsage},
 		),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runExport(ctx, cmd, "spss")
@@ -161,6 +164,8 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.FS = fs
 	job.Includes = includes
 	job.TimeZone = cmd.String("tz")
+	// Only the spss leaf declares --strict; every other leaf reads false.
+	job.Strict = cmd.Bool("strict")
 
 	if len(labelArgs) > 0 {
 		bindings, perr := parseLabelBindings(labelArgs)

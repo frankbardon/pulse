@@ -26,8 +26,8 @@ Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` (`request-params`).
 | Form | Rule |
 |---|---|
 | `{"$var":"bucket"}` | Marker **iff** `$var` is the only key and its value a non-empty string; replaced whole, **type-preserving** — `{"interval":{"$var":"bucket"}}` → `{"interval":10}`, never `"10"`. `{"$var":"x","other":1}` is literal data. |
-| `"{{name}}"` | Natural text, inside a **string value** only; `{{ name }}` works, `{{{{` escapes a literal `{{`. `list`/`period` have no text form → `_VAR_TYPE`. `{{` in an object **key** is rejected. |
-| `{"$when":"segs",…}` | Survives iff the variable resolved — **presence, not truthiness**: drops only when unsupplied AND undefaulted; supplied `""`/`[]`/`0`/`false` KEEPS it. Key stripped either way. Guards run **before** descent, so markers in a dropped block never raise. Array drops compact the slice; root-level `$when` errors. |
+| `"{{name}}"` | Text inside a **string value** only; `{{ name }}` works, `{{{{` escapes `{{`. `list`/`period` have no text form → `_VAR_TYPE`. `{{` in an object **key** is rejected. |
+| `{"$when":"segs",…}` | Survives iff the variable resolved — **presence, not truthiness**: drops only when unsupplied AND undefaulted; supplied `""`/`[]`/`0`/`false` KEEPS it. Key stripped either way. Guards run **before** descent: markers in a dropped block never raise. Array drops compact the slice; root-level `$when` errors. |
 
 <!-- feature: capability:for_each -->
 A `for_each` item's axis placeholders pass through to its expansion (`item-fan-out`).
@@ -58,7 +58,7 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label`
   {"$when":"segs","type":"<category grouper>","field":"region","include":{"$var":"segs"}}]}}
 ```
 
-`<…>` = any operator the manifest lists; render never inspects `type`.
+`<…>` = any manifest operator; render never inspects `type`.
 
 `RenderTemplateRequest("finance/revenue", map[string]any{"metric":"revenue"})` →
 
@@ -68,11 +68,15 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label`
 "groups":[{"type":"<binning grouper>","field":"revenue","interval":10}]}
 ```
 
-`bucket` defaulted to the **number** `10`; the `segs`-guarded grouper dropped, the array compacted.
+`bucket` defaulted to the **number** `10`; the `segs` grouper dropped, array compacted.
+
+<!-- feature: capability:materialize_output -->
+A **reshape recipe** is a `request` body with `output` and `{"$var":"cohort"}`: render, then `PredictMaterialize` / `Materialize` (`Process` refuses `output`; `derived-cohorts`).
+<!-- /feature -->
 
 ## Discovery + lifecycle
 
-`Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator`. Name = root-relative path minus `.json`, `/`-separated. Roots are ordered precedence — **first root wins**; losers land on the winner's `Summary.Shadows`, never an error. **Filesystem faults are `DATA_FILE`**, outside the `PULSE_TEMPLATE_*` family.
+`Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator`. Name = root-relative path minus `.json`, `/`-separated. **First root wins**; losers land on `Summary.Shadows`, never an error. **Filesystem faults are `DATA_FILE`**, outside the `PULSE_TEMPLATE_*` family.
 
 | Malformed file | Behaviour |
 |---|---|
@@ -80,9 +84,9 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label`
 | after startup, parsed before | **serves last-good parse**; `ListTemplates` marks `Broken` + `Error` |
 | after startup, never parsed | listed to be seen, not fetchable; `GetTemplate` → `_INVALID` |
 
-Lookups rescan after 1s (unchanged size+mtime: no re-parse). `ReloadTemplates()` forces it; **nil** for one broken file, only whole-walk faults return.
+Lookups rescan after 1s. `ReloadTemplates()` forces it; nil for one broken file.
 
-Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest` (95% path), `ReloadTemplates`. `Rendered.Target` picks the set pointer; compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` — re-marshaling drops explicit zeros from `omitempty` structs.
+Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest`, `ReloadTemplates`. `Rendered.Target` picks the set pointer; compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` (re-marshaling drops explicit zeros).
 
 ## Errors — eleven codes, by provenance
 
@@ -92,7 +96,7 @@ Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateR
 
 ## What render does NOT do
 
-Render **never opens a cohort**: shape only; fields, types, operators and streamability are `Predict`'s job. Strict decode: an unknown key (examples `_meta` too) fails `_RENDER_INVALID` (`details.path`, `suggestion`).
+Render **never opens a cohort**: shape only; fields, types, operators, streamability are `Predict`'s job. Strict decode: an unknown key (examples `_meta` too) fails `_RENDER_INVALID` (`details.path`, `suggestion`).
 
 ## See
 

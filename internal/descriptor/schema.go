@@ -93,6 +93,7 @@ func payloadEntries() []payloadEntry {
 		{reflect.TypeFor[types.LookupResult](), "point-lookup result", featLookup},
 		{reflect.TypeFor[descriptor.RecommendResult](), "recommend result", featRecommend},
 		{reflect.TypeFor[descriptor.ExplainResult](), "explain result", featExplain},
+		{reflect.TypeFor[descriptor.MaterializePredictResult](), "materialize predict result", featMaterialize},
 		{reflect.TypeFor[descriptor.Advisory](), "predict advisory (one entry of a predict result's advisories)", ""},
 		{reflect.TypeFor[descriptor.Envelope](), "universal --json output envelope (data wraps the operation result)", ""},
 	}
@@ -111,7 +112,8 @@ const payloadSchemaDigestPrefix = "feature_set_digest: "
 //     Request.crosstab / joins / overlays, the overlays slot of each
 //     other request root and of each result root) are not properties;
 //   - a root whose capability is hidden (compose, process_chain, facet,
-//     sample, lookup, recommend, explain) is not an entry point;
+//     sample, lookup, recommend, explain, materialize) is not an entry
+//     point;
 //
 // and every def reachable only through something omitted is absent,
 // because defs are registered by walking from the surviving entries.
@@ -362,7 +364,8 @@ func resultOnlyStructs() map[reflect.Type]bool {
 	}
 	results := reach(reflect.TypeFor[types.Response](), reflect.TypeFor[types.ComposedResponse](),
 		reflect.TypeFor[types.ChainResponse](), reflect.TypeFor[types.FacetResult](), reflect.TypeFor[types.LookupResult](),
-		reflect.TypeFor[descriptor.RecommendResult](), reflect.TypeFor[descriptor.ExplainResult]())
+		reflect.TypeFor[descriptor.RecommendResult](), reflect.TypeFor[descriptor.ExplainResult](),
+		reflect.TypeFor[descriptor.MaterializePredictResult]())
 	// ExplainRequest is deliberately not a request root here: it carries
 	// RESULTS to read (a Response, …), whose undefined figures arrive as
 	// null, so the result structs it reaches keep their nullable floats.
@@ -547,6 +550,18 @@ var fieldOverrides = map[fieldKey]any{
 		"items":       map[string]any{"type": "object"},
 		"description": "Compose overlay specs (the #/$defs/ComposeOverlaySpec shape) with axis placeholders, substituted per expanded slot and appended to the request's own overlays.",
 	},
+	// A recode map's value is a label or JSON null (the cell written
+	// null); reflection would describe *string as a bare string.
+	{reflect.TypeFor[types.MaterializeRecode](), "map"}: map[string]any{
+		"type":                 "object",
+		"additionalProperties": map[string]any{"type": []any{"string", "null"}},
+		"description":          "Source label → new label, or null to write the cell null. Every key must be a label of the source column's dictionary; unmapped labels keep themselves, labels mapped to one value merge.",
+	},
+	// A bucket bound is a JSON number (a numeric column) or an ISO date
+	// string (a date-family column), null or absent for an open side;
+	// the generic RawMessage rule would describe operator params.
+	{reflect.TypeFor[types.MaterializeBucketRange](), "start"}: bucketBoundSchema("Lower bound"),
+	{reflect.TypeFor[types.MaterializeBucketRange](), "end"}:   bucketBoundSchema("Upper bound"),
 	// An item for_each walks explicit values only: its mode is grid or
 	// zip whatever the instance (the sampling modes are compose-sweep
 	// only, refused as mode_unknown).
@@ -981,5 +996,13 @@ func paramsSchema() map[string]any {
 				list("boolean"),
 			},
 		},
+	}
+}
+
+// bucketBoundSchema describes one MaterializeBucketRange bound.
+func bucketBoundSchema(which string) map[string]any {
+	return map[string]any{
+		"type":        []any{"number", "string", "null"},
+		"description": which + " of the range: a JSON number on a numeric column (ranges half-open [start, end)), an ISO date string on a date / datetime column (inclusive); omitted or null leaves that side open.",
 	}
 }

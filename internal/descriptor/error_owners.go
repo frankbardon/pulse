@@ -184,6 +184,18 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATERIALIZE_OUTPUT_UNDECLARED:    shared,
 	errors.PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC:   shared,
 	errors.PULSE_MATERIALIZE_SIDECARS_INVALIDATED: shared,
+	// The `output` slot rides capability:materialize_output: hidden, a
+	// set `output` is an unknown field, so none of these is reachable.
+	errors.PULSE_MATERIALIZE_OUTPUT_ONLY:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_INVALID:        own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN: own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_DUPLICATE:      own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_OUTPUT_NULL:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_CAST_UNSUPPORTED:      own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_CAST_FAILED:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_CAST_NULLED:           own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL:  own(featMaterializeOutput),
+	errors.PULSE_MATERIALIZE_GROUP_NOT_INHERITED:   own(featMaterializeOutput),
 
 	// Pulse.Rake is a library method every instance carries.
 	errors.PULSE_RAKE_INVALID:              shared,
@@ -415,15 +427,16 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_JOIN_FIELD_COLLISION:      own(featJoins),
 
 	// Range compilation runs for a named range table (loaded under
-	// capability:range_tables) and for the inline ranges of the two
-	// date-range operators; table resolution only from the operators.
-	errors.PULSE_RANGE_EMPTY:               own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_INVALID:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_DUPLICATE_LABEL:     own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_OVERLAP:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_SOURCE_AMBIGUOUS:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
-	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	// capability:range_tables), for the inline ranges of the range
+	// operators and for a materialize output column's bucket
+	// (capability:materialize_output), which also resolves tables.
+	errors.PULSE_RANGE_EMPTY:               own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_INVALID:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_DUPLICATE_LABEL:     own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_OVERLAP:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_SOURCE_AMBIGUOUS:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
 
 	// Label bindings ride the request's labels slot (part of every
 	// request host, not capability:labels) and sample / facet output, so
@@ -550,6 +563,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SPSS_CARDINALITY_HIGH:         ownSPSS,
 	errors.PULSE_SPSS_TEMPORAL_PRECISION:       ownSPSS,
 	errors.PULSE_SPSS_DATE_WIDENED:             ownSPSS,
+	errors.PULSE_SPSS_TYPE_NOT_RESTORED:        ownSPSS,
+	errors.PULSE_SPSS_INTEGER_INEXACT:          ownSPSS,
 	errors.PULSE_SPSS_VALUE_COLLISION:          ownSPSS,
 	errors.PULSE_SPSS_MEASURE_LEVEL_MISMATCH:   ownSPSS,
 	errors.PULSE_SPSS_NULL_TOKEN_COLLISION:     ownSPSS,

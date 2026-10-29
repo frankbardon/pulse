@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "category": "materialize",
+    "description": "Reshape orders.pulse into a smaller hand-off cohort with materialize's output slot (pulse api materialize, never process): keep three columns, rename id to order_id, bucket revenue into labelled bands (open ends, so every order lands in one), drop ordered_at, and elide constants so the file stays small. Predict first (--predict) to read the output schema before writing; store the request as a template with the cohort as a variable to re-run it over each new cohort.",
+    "capabilities": [
+      "capability:materialize_output"
+    ],
+    "intents": [
+      "prepare"
+    ],
+    "name": "materialize_reshape_for_handoff",
+    "operators": [],
+    "tags": [
+      "feature-engineering",
+      "data-quality"
+    ]
+  },
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "output": {
+    "columns": [
+      {"from": "id", "as": "order_id", "description": "Unique order identifier, renamed from id"},
+      {"from": "order_date"},
+      {
+        "from": "revenue",
+        "as": "revenue_band",
+        "description": "Order revenue band in USD: small below 250, medium to 1000, large above",
+        "bucket": {
+          "ranges": [
+            {"label": "small", "end": 250},
+            {"label": "medium", "start": 250, "end": 1000},
+            {"label": "large", "start": 1000}
+          ]
+        }
+      }
+    ],
+    "elide_constants": true
+  }
+}

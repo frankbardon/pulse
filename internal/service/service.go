@@ -527,10 +527,8 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 //   - PULSE_SHARD_RESERVED_NAME — entry is the reserved `_schema.pulse`.
 //   - PULSE_SHARD_HEADER_INVALID / ENCODING_INVALID — the shard payload is malformed.
 func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Cohort, error) {
-	if entry == encx.ReservedSchemaName {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
-			"cannot anchor-open the reserved canonical schema entry",
-			map[string]any{"entry": entry})
+	if err := encx.RefuseReservedAnchor(entry); err != nil {
+		return nil, err
 	}
 	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
@@ -1463,10 +1461,5 @@ func splitAnchorPath(path string) (string, string, bool) {
 // pulse facade (Predict, Inspect) so anchor paths resolve consistently
 // across every entry point. See splitAnchorPath for semantics.
 func SplitAnchorPath(path string) (string, string, bool) {
-	for i := 0; i < len(path); i++ {
-		if path[i] == '#' {
-			return path[:i], path[i+1:], true
-		}
-	}
-	return "", "", false
+	return encx.SplitAnchorPath(path)
 }

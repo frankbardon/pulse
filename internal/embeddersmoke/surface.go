@@ -3,6 +3,7 @@ package embeddersmoke
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"math/rand/v2"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/frankbardon/pulse/mcpserve"
 	"github.com/frankbardon/pulse/optimize"
 	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/types"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
@@ -73,7 +75,7 @@ var (
 	_                                                                                                                        = pulse.CohortBuilderOptions{Strict: true, Overwrite: true, Groups: []pio.GroupDecl{{Key: []string{"k"}, Members: []string{"m"}}}, ElideConstants: true, RatioFloor: 2}
 	_                                                                                                                        = pulse.CohortBuildResult{Groups: []pio.GroupReport(nil), ElidedConstants: []string(nil), Shards: []string(nil)}
 	_                                                                                                                        = pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 1000}}
-	_                                                                                                                        = pulse.CohortBuildResult{Target: "", Records: 0, FormatVersion: encoding.FormatVersionV1, Schema: (*encoding.Schema)(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
+	_                                                                                                                        = pulse.CohortBuildResult{Target: "", Records: 0, FormatVersion: encoding.FormatVersionV1, Schema: (*encoding.Schema)(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil), Shards: []string(nil), ElidedConstants: []string(nil)}
 )
 
 // Derived-column materialization: Pulse.Materialize and the options and
@@ -81,7 +83,25 @@ var (
 var (
 	_ func(*pulse.Pulse, context.Context, *pulse.Request, string, pulse.MaterializeOptions) (*pulse.MaterializeResult, error) = (*pulse.Pulse).Materialize
 	_                                                                                                                         = pulse.MaterializeOptions{Overwrite: true, Strict: true}
-	_                                                                                                                         = pulse.MaterializeResult{Target: "", Records: 0, DerivedColumns: []string(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil)}
+	_                                                                                                                         = pulse.MaterializeResult{Target: "", Records: 0, DerivedColumns: []string(nil), Warnings: []*perrors.CodedError(nil), InvalidatedSidecars: []pulse.StaleSidecar(nil), Groups: []pio.GroupReport(nil)}
+	// The materialize-only output slot and its column entries.
+	_ = pulse.Request{Output: &types.MaterializeOutput{Exclude: []string(nil),
+		Shards: &types.MaterializeShards{MaxRecords: 1}, ElideConstants: true,
+		Groups: []types.MaterializeGroup{{Key: []string{"k"}, Members: []string{"m"}}},
+		Columns: []types.MaterializeOutputColumn{{From: "a", As: "b", Description: (*string)(nil), Nullable: (*bool)(nil),
+			Type: "u8", Precision: (*int)(nil), Scale: (*int)(nil), OnCastError: "null",
+			Recode: &types.MaterializeRecode{Map: map[string]*string(nil), Order: []string(nil)},
+			Bucket: &types.MaterializeBucket{RangeTable: "t",
+				Ranges: []types.MaterializeBucketRange{{Label: "a", Start: json.RawMessage(nil), End: json.RawMessage(nil)}}}}}}}
+	// The no-execute materialize verdict and its result types.
+	_ func(*pulse.Pulse, context.Context, *pulse.Request) (*descriptor.Envelope, error) = (*pulse.Pulse).PredictMaterialize
+	_                                                                                   = descriptor.MaterializePredictResult{Valid: true, SchemaInfo: (*descriptor.PredictSchemaInfo)(nil),
+		Columns: []descriptor.MaterializePredictColumn{{Name: "", Type: "", Nullable: false, Description: "", From: "", Derived: false,
+			Dictionary: (*descriptor.DictionaryInfo)(nil), Precision: (*uint8)(nil), Scale: (*uint8)(nil)}},
+		DerivedColumns: []string(nil), Risks: []descriptor.MaterializeRisk{{Column: "", Path: "", Code: "", Check: ""}},
+		Container: &descriptor.MaterializeContainer{Kind: "file", MaxRecords: 0, MaxShards: (*int64)(nil), ElideConstants: false,
+			Groups: []descriptor.MaterializeGroupPlan{{Label: "", Origin: "", Key: []string(nil), Members: []string(nil),
+				SourceFields: []string(nil), Verdict: "", Reason: "", Member: "", Change: ""}}}}
 )
 
 // Survey weighting: Pulse.Rake, its request (margins, joint cells) and

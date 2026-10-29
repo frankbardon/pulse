@@ -61,12 +61,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	stderrors "errors"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
@@ -130,6 +132,10 @@ type Writer struct {
 	cases    int
 	renames  []NameRename
 	warnings []*errors.CodedError
+
+	// strict is CohortSource.Strict / ConvertSource.Strict: a u64 past 2^53
+	// fails the encode instead of warning. See DataEncoder.SetStrict.
+	strict bool
 }
 
 // Compile-time assertions. The last three are the whole point of this file:
@@ -193,7 +199,10 @@ func (w *Writer) SetPulseSchema(s *encoding.Schema) { w.schema = s }
 // Nothing here changes the COHORT path: a `pulse export spss` already reads
 // both from the cohort and its sidecar on disk, and this value stays zero
 // there.
-func (w *Writer) SetConvertSource(src iocore.ConvertSource) { w.source = src }
+func (w *Writer) SetConvertSource(src iocore.ConvertSource) {
+	w.source = src
+	w.strict = src.Strict
+}
 
 // WriteHeader records the emitted column names.
 //
@@ -234,6 +243,7 @@ func (w *Writer) WriteCohort(ctx context.Context, src iocore.CohortSource) (int,
 	if err != nil {
 		return 0, err
 	}
+	w.strict = src.Strict
 	if err := w.encodeCohort(ctx, src.FS, src.Path, opts); err != nil {
 		return 0, err
 	}
@@ -276,7 +286,10 @@ func (w *Writer) ValidateCohort(ctx context.Context, src iocore.CohortSource) ([
 		return nil, err
 	}
 	defer pass.close()
-	return pass.warnings, nil
+	// A u64 variable is a RISK, not a refusal: only a record can say whether
+	// a value is past 2^53, and predict never refuses what the export would
+	// accept. The real export names the count and the first row.
+	return append(pass.warnings, pass.enc.U64Risks()...), nil
 }
 
 // Warnings returns the encode's non-fatal diagnostics.
@@ -375,13 +388,23 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 
 	// The sidecar read is the writer's first act, and it is the one that can
 	// refuse: a STALE sidecar stops the export outright. See LoadSidecar.
-	res, err := LoadSidecar(fs, path, opts)
+	// An anchored source reads the ARCHIVE's sidecar (sidecarCohortPath).
+	res, err := LoadSidecar(fs, sidecarCohortPath(path), opts)
 	if err != nil {
 		return nil, err
 	}
 
-	f, err := fs.Open(path)
+	// A shard archive reads as its canonical (widened) schema over every
+	// shard's records in archive order — the export job's own dispatch
+	// (iio.OpenCohortRecords) — so it encodes exactly as its flattened
+	// twin. The sidecar above sits beside the archive and is
+	// fingerprinted over the archive's bytes.
+	src, err := iio.OpenCohortRecords(fs, path)
 	if err != nil {
+		var ce *errors.CodedError
+		if stderrors.As(err, &ce) {
+			return nil, err
+		}
 		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
 			"spss: cannot open the cohort to export: "+err.Error(),
 			map[string]any{errors.DetailSPSSCohort: path})
@@ -389,19 +412,12 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 	// Every failure below has to close the file it was handed; only the
 	// success path transfers ownership to the returned pass.
 	fail := func(err error) (*cohortPass, error) {
-		_ = f.Close()
+		_ = src.Close()
 		return nil, err
 	}
 
-	r := bufio.NewReader(f)
-	pulseVersion, err := encoding.ReadHeader(r)
-	if err != nil {
-		return fail(err)
-	}
-	schema, err := encoding.ReadSchema(r, pulseVersion)
-	if err != nil {
-		return fail(err)
-	}
+	r := bufio.NewReader(src.Reader)
+	schema := src.Schema
 	if err := w.checkAnnouncedSchema(schema, path); err != nil {
 		return fail(err)
 	}
@@ -435,10 +451,24 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string, opts 
 		plan:     plan,
 		enc:      enc,
 		r:        r,
-		closeFn:  f.Close,
+		closeFn:  src.Close,
 		renames:  plan.Renames,
 		warnings: plan.Warnings,
 	}, nil
+}
+
+// sidecarCohortPath names the cohort whose SPSS sidecar an export of path
+// consults. An anchored source (`archive.pulse#entry.pulse`) is read under
+// the archive's CANONICAL schema, which is what the archive's own sidecar
+// (`archive.pulse.spss.json`, fingerprinted over the archive's bytes)
+// describes — so that sidecar is the one, fresh, stale or absent exactly
+// as for a whole-archive export. A per-shard sidecar is never looked for.
+// Any other path is its own cohort.
+func sidecarCohortPath(path string) string {
+	if archive, _, ok := encx.SplitAnchorPath(path); ok {
+		return archive
+	}
+	return path
 }
 
 // encodeCohort is E5-S1..S5 assembled: run the non-data pass, encode every
@@ -453,6 +483,7 @@ func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string, opt
 	w.renames = pass.renames
 	w.warnings = append(w.warnings, pass.warnings...)
 
+	pass.enc.SetStrict(w.strict)
 	if err := pass.enc.WriteCohort(pass.r); err != nil {
 		return err
 	}
@@ -460,6 +491,7 @@ func (w *Writer) encodeCohort(ctx context.Context, fs afero.Fs, path string, opt
 	if err != nil {
 		return err
 	}
+	w.warnings = append(w.warnings, pass.enc.Warnings()...)
 
 	out := make([]byte, 0, len(pass.plan.Bytes)+len(data))
 	out = append(out, pass.plan.Bytes...)

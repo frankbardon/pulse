@@ -13,24 +13,30 @@ A derived value lives only inside the request that computes it: a regression, gr
 
 ## Input
 
-- `request` (object, required): a request body<!-- feature: capability:process --> (the `pulse_process` shape)<!-- /feature --> with `cohort`. Only `cohort`, `label`, `features`, `filterers`, `attributes`, `windows`, `sort`, `weight`, `time_zone`, `disable_components`.
-- `out` (string, required): the NEW `.pulse` path, relative to the data dir.
+- `request` (object, required): a request body<!-- feature: capability:process --> (the `pulse_process` shape)<!-- /feature --> with `cohort`. Only `cohort`, `label`, `features`, `filterers`, `attributes`, `windows`, `sort`, `weight`, `time_zone`, `disable_components`<!-- feature: capability:materialize_output -->, `output`<!-- /feature -->.
+- `out` (string; required unless `predict`): the NEW `.pulse` path, relative to the data dir.
 - `overwrite` (bool): replace an existing cohort at `out`.
+- `predict` (bool): validate only; writes nothing.
 
 ## Output
 
 `target`, `records` (one per filter-passing source record; source order, or `sort` order), `derived_columns` (output order: feature outputs, attributes, windows), `warnings`, `invalidated_sidecars` (overwrite only, each with its rebuild command).
 
-The cohort holds the source fields verbatim, then one nullable `f64` per derived column<!-- feature: ATTR_PREVIOUS_STATE --> (an `ATTR_PREVIOUS_STATE` column keeps its state field's categorical type and dictionary)<!-- /feature -->, described by operator, field, params and (when the operator reads it) frame.
+`predict: true` answers under `predict`: `valid`, `columns`, `derived_columns`, `risks`, `errors` / `warnings` (the run's codes).
+
+The cohort holds the source fields verbatim, then one nullable `f64` per derived column<!-- feature: ATTR_PREVIOUS_STATE --> (an `ATTR_PREVIOUS_STATE` column keeps its state field's categorical type and dictionary)<!-- /feature -->, described by operator, field, params and (when read) frame.
 
 ## Gotchas
 
 - **Nest the request.** A slot beside `out` → `PULSE_REQUEST_UNKNOWN_FIELD`; a slot outside the list → `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); nothing derived → `PULSE_MATERIALIZE_NO_DERIVED`.
-- **Label the outputs** you will reference; the column name is the label (or the operator's default output name).
-- Integer window outputs (row number, rank) are stored as `f64`; a non-numeric output → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
-- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Every refusal happens before anything is written; the write is atomic.
-- `sort` orders the ROWS only (keys: source fields or derived columns; Process's comparator, nulls last); window values follow each window's own `order_by`.
-- Single-file output; the SPSS metadata sidecar is carried, no other sidecar.
+- **Label outputs** you will reference: the column name is the label.
+- Integer window outputs are `f64`; a non-numeric one → `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
+- Existing `out` without `overwrite` → `SERVICE_VALIDATION`. Refusals precede any write (atomic).
+- `sort` orders ROWS only (source or derived keys, nulls last); windows follow their own `order_by`.
+- The SPSS metadata sidecar is carried, no other sidecar.
+<!-- feature: capability:materialize_output -->
+- **`output`** picks, orders, renames, describes, recodes, buckets, retypes columns; applied last (`derived-cohorts`, `materialize-recode`, `materialize-casts`); `shards` / `groups` shape the file (`materialize-container`).
+<!-- /feature -->
 
 ## See
 

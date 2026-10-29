@@ -24,6 +24,10 @@ const (
 	hostCompose exampleHost = "compose"
 	hostChain   exampleHost = "chain"
 	hostFacet   exampleHost = "facet"
+	// hostMaterialize is a request carrying the materialize-only
+	// `output` slot: it runs through Pulse.Materialize, which every other
+	// host refuses it (PULSE_MATERIALIZE_OUTPUT_ONLY).
+	hostMaterialize exampleHost = "materialize"
 )
 
 func classifyExample(body map[string]json.RawMessage) exampleHost {
@@ -35,6 +39,8 @@ func classifyExample(body map[string]json.RawMessage) exampleHost {
 		return hostChain
 	case body["fields"] != nil:
 		return hostFacet
+	case body["output"] != nil:
+		return hostMaterialize
 	}
 	return hostRequest
 }

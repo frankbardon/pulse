@@ -90,6 +90,25 @@ func (s *Set) Match(day int64) (string, bool) {
 	return "", false
 }
 
+// Gapless reports whether every day lies in some range: the lowest range
+// is open below, the highest open above, and each range ends the day
+// before the next begins.
+func (s *Set) Gapless() bool {
+	if s.Len() == 0 {
+		return false
+	}
+	rs := s.ranges
+	if rs[0].hasStart || rs[len(rs)-1].hasEnd {
+		return false
+	}
+	for i := 1; i < len(rs); i++ {
+		if rs[i-1].end+1 != rs[i].start {
+			return false
+		}
+	}
+	return true
+}
+
 // boundOpen reports whether a boundary pointer denotes an open bound
 // (nil / null / empty string).
 func boundOpen(raw *string) bool {

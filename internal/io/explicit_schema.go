@@ -18,17 +18,11 @@ import (
 // checkSchemaDescriptions refuses a field description past
 // encoding.MaxDescriptionBytes with PULSE_IMPORT_DESCRIPTION_TOO_LONG —
 // the code the schema writer raises — before any row is read, so a long
-// description fails fast instead of after a whole pass.
+// description fails fast instead of after a whole pass. The rule is
+// encx.DescriptionLengthRefusal, which a materialize predict shares.
 func checkSchemaDescriptions(schema *encoding.Schema) error {
-	for i := range schema.Fields {
-		f := &schema.Fields[i]
-		if n := len(f.Description); n > encoding.MaxDescriptionBytes {
-			return errors.NewCodedErrorWithDetails(
-				errors.PULSE_IMPORT_DESCRIPTION_TOO_LONG,
-				fmt.Sprintf("field %q description is %d bytes, max %d", f.Name, n, encoding.MaxDescriptionBytes),
-				map[string]any{"field": f.Name, "length": n, "max": encoding.MaxDescriptionBytes},
-			)
-		}
+	if ce := encx.DescriptionLengthRefusal(schema.Fields); ce != nil {
+		return ce
 	}
 	return nil
 }

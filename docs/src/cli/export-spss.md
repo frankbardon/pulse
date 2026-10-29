@@ -31,7 +31,7 @@ source dictionary rather than inventing one.
 ```
 pulse export spss --input PATH.pulse --output PATH.sav
                   [--ignore-sidecar] [--uncompressed]
-                  [--charset NAME] [--sanitize-names]
+                  [--charset NAME] [--sanitize-names] [--strict]
                   [--labels FIELD=TABLE[:replace|augment] ...] [--json]
 pulse export predict --input PATH.pulse --format spss
                      [--ignore-sidecar] [--uncompressed]
@@ -160,6 +160,8 @@ Four flags, each exactly one field of `io.SPSSWriterOptions` (`io.WriterOptions.
 `--ignore-sidecar`, `--uncompressed` and `--sanitize-names` are also on
 `pulse convert` / `convert predict`; `--charset` on `convert` names the
 *source* charset, so the write charset is settable only on this leaf.
+A fifth, `--strict`, sets `ExportJob.Strict`: see
+`PULSE_SPSS_INTEGER_INEXACT` under the write-side diagnostics below.
 
 ### `--ignore-sidecar`
 
@@ -569,12 +571,27 @@ fixed 252-byte stride, so a multi-byte character *can* straddle a
 boundary — the reader joins the pieces before decoding, exactly as the
 writer encodes the whole value before slicing.
 
-Records `7/10`, `7/17` and `7/18` pass through **verbatim**: the reader
-never decodes them, so their bytes are the only record of what the source
-said. That is correct whenever the target charset is the source's, and it
-is the only case where overriding the target is lossy — a non-ASCII
-payload then rides `PULSE_SPSS_CHARSET_MISMATCH` as a warning rather than
-being guessed at or dropped.
+Records `7/10`, `7/17` and `7/18` pass through **verbatim**: their bytes
+are the only record of what the source said. That is correct whenever the
+target charset is the source's, and it is the only case where overriding
+the target is lossy — a non-ASCII payload then rides
+`PULSE_SPSS_CHARSET_MISMATCH` as a warning rather than being guessed at or
+dropped.
+
+The one exception is the `@PulseType` variable attribute in `7/18`, which
+the writer owns: it records the Pulse type of each column SPSS cannot type
+natively (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`,
+`categorical_u16` / `categorical_u32`, a `set_*` rung wider than its
+members need — on the sidecar path too, where it rides the set's first
+constituent variable — a `vec_f32` element) so a re-import restores it — see
+[Pulse type hints](import-spss.md#pulse-type-hints). A hint carried in
+from the source is dropped and re-derived from the cohort, so a column
+retyped since import never keeps a stale one; a column the plain import
+already types correctly gets none, so an SPSS-origin cohort nothing
+retyped exports exactly as before. A source `7/18` the writer cannot parse
+stays verbatim and gains no hint. A value-labelled integer column (a
+`--labels` binding) carries no hint: its labels make the re-import
+categorical.
 
 ## Diagnostics raised by the write side
 
@@ -602,6 +619,13 @@ row path does — has raised none of them when the job builds its report.
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | error | A `--charset` name Pulse cannot write |
 | `PULSE_SPSS_CHARSET_MISMATCH` | warning | A verbatim `7/10` / `7/17` / `7/18` payload under an overridden target charset |
 | `PULSE_SPSS_WIDTH_OVERFLOW` | error | An encoded value exceeds a width the format fixes |
+| `PULSE_SPSS_INTEGER_INEXACT` | warning (error under Strict) | A `u64` value past 2^53, which no SPSS double holds unambiguously; one per variable, with `count`, `first_row` and the first `value`. Export predict lists it, without count or row, for every `u64` column |
+
+`PULSE_SPSS_INTEGER_INEXACT` is the one warning Strict escalates: a
+library `Export` under `Options.Strict` (or `ExportJob.Strict`), a
+`pulse export spss --strict`, and a `pulse convert --strict`
+(`ConvertJob.StrictRows`), fail on the first such value and write no
+`.sav`.
 
 `pulse errors lookup CODE` is authoritative for the per-code fixups.
 

@@ -809,7 +809,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 202,
+    "error_codes_count": 204,
     "error_domains": [
       "CLI",
       "DATA",
@@ -978,6 +978,7 @@
       "PULSE_SPSS_EXTENSION_INVALID",
       "PULSE_SPSS_EXTENSION_UNKNOWN",
       "PULSE_SPSS_FILE_EMPTY",
+      "PULSE_SPSS_INTEGER_INEXACT",
       "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
       "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
       "PULSE_SPSS_MISSING_MODE_INVALID",
@@ -991,6 +992,7 @@
       "PULSE_SPSS_SIDECAR_INVALID",
       "PULSE_SPSS_SIDECAR_STALE",
       "PULSE_SPSS_TEMPORAL_PRECISION",
+      "PULSE_SPSS_TYPE_NOT_RESTORED",
       "PULSE_SPSS_VALUE_COLLISION",
       "PULSE_SPSS_VALUE_LABELS_DROPPED",
       "PULSE_SPSS_VERY_LONG_STRING_INVALID",
@@ -2453,4 +2455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8346563e0f0559b1090b942f5a836a3603fbc52a8fa2e8f2b51f6483ee2158ea
+// golden-hash: 827471eb5d52e2c0c02529b428f47c9af5ea27c434fe0bf1ee1eef1745237c66

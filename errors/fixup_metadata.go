@@ -824,6 +824,111 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATERIALIZE_OUTPUT_ONLY: {
+		Message: "The request carries the output slot, which lays out the cohort a materialize run writes and is accepted only by materialize.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output"},
+				Hint:   "Remove the output block, or run the request through materialize (pulse api materialize / pulse_materialize) to write the reshaped cohort.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_INVALID: {
+		Message: "The materialize output block is malformed: it sets both columns and exclude, keeps no column, has a column entry without from, names an unknown type, gives a precision / scale out of range or on a non-decimal type, sets on_cast_error to an unknown value, without a type or recode, or to null on a non-nullable column, recodes a column that is not categorical or a label to null on a non-nullable column, gives a recode.order that is not exactly the recoded labels once each, or gives shards.max_records ≤ 0. details.reason names the rule and details.path the offending key.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Exclude"},
+				Hint:   "Use columns (the closed list to keep, in order) OR exclude (the columns to drop), never both; keep at least one column; give every columns entry a from naming a source field or derived column.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Shards", "MaxRecords"},
+				Hint:   "Give output.shards.max_records a positive row count per shard, or drop output.shards to write a single file.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_UNKNOWN_COLUMN: {
+		Message: "A materialize output column names neither a source field nor a derived column of the request.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Columns", "*", "From"},
+				Hint:   "Name a source field (pulse inspect lists them) or a feature / attribute / window label of the same request; details.suggestion names the closest match when there is one.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_DUPLICATE: {
+		Message: "Two materialize output columns are written under the same name after renaming.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Columns", "*", "As"},
+				Hint:   "Give one of the entries named by details.path and details.first a distinct as; the same from may appear twice under different as names.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_OUTPUT_NULL: {
+		Message: "A materialize output column declared nullable: false holds a null, so nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Columns", "*", "Nullable"},
+				Hint:   "Drop nullable: false from the column named by details.column (or set it true), or add a filterer that removes the rows where it is null (details.row is the first output row found).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_CAST_UNSUPPORTED: {
+		Message: "A materialize output column's type names a field type its column cannot cast to. Legal: numeric (u4..u64, f32, f64, decimal128) to numeric, numeric to and from packed_bool, numeric to and from date / datetime, date to and from datetime, a set to a wider set rung, a categorical to another categorical width (its dictionary must fit) or to numeric, numeric to a categorical; vectors keep their type.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Columns", "*", "Type"},
+				Hint:   "Drop the type from the column named by details.column, or name a type its from_type casts to (details.reason says why this pair is refused).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_CAST_FAILED: {
+		Message: "A stored value does not fit a materialize output column's cast type (a fraction to an integer, a value past the range, NaN to an exact type, a value other than 0 / 1 to packed_bool, a categorical label that is not a number, or one distinct value more than a categorical holds), so nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Output", "Columns", "*", "OnCastError"},
+				Hint:   "Set on_cast_error: \"null\" on the column named by details.column (it must be nullable) to write a null in place of each such value, pick a wider type, or filter out the rows (details.row is the first output row found, details.value the value).",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_CAST_NULLED: {
+		Message: "A materialize output column with on_cast_error: null nulled values its cast could not represent; details.count says how many.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Output", "Columns", "*", "OnCastError"},
+				Hint:   "Expected when on_cast_error is null. To fail instead of nulling, drop on_cast_error; to keep the values, pick a wider type for the column named by details.column.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL: {
+		Message: "A materialize output column's recode.map names a label its source column's dictionary does not hold (the source cohort changed, or the label is misspelled), so nothing was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Columns", "*", "Recode", "Map"},
+				Hint:   "Rename or drop the recode.map key details.label (details.suggestion names the closest source label when there is one); pulse inspect --full-dict lists the dictionary of the column named by details.from.",
+			},
+		},
+	},
+	PULSE_MATERIALIZE_GROUP_NOT_INHERITED: {
+		Message: "A materialize output does not carry one of the source's parent groups, because a member is dropped or re-coded (type, recode or bucket); its members are written as ordinary row fields.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Groups"},
+				Hint:   "Expected when the column named by details.member changes. To regroup, declare output.groups over the written names; to write no group and silence this, set output.groups to []; to keep the group, write details.member unchanged.",
+			},
+		},
+	},
 	PULSE_RAKE_INVALID: {
 		Message: "The rake request is malformed, so nothing is read or written. It needs a source `cohort`, an `out` path that is not the source, and at least one margin; each margin is either `field` + `targets` or two or more `fields` + `cells` (each cell one value per field, no tuple twice). Margin, `by` and `base_weight` fields must exist, a margin or `by` field must be categorical, packed_bool or an unsigned integer and appear once, a base weight must be numeric with no null, negative or non-finite value. Targets are finite and non-negative with at least one positive; `targets_as: shares` sums to 1 or 100; `missing` is `refuse` or `base`; caps satisfy 0 <= min_weight <= 1 <= max_weight; max_iter, tol and total are non-negative. A `weight_field` the source already has needs `overwrite` and may not be a margin or `by` field. details.reason names the rule and details.field the request path.",
 		Fixups: []Fixup{
@@ -2114,6 +2219,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Shard", "Paths"},
 				Hint:   "Concatenate small shards into fewer, larger `.pulse` files before archiving them, or split the data across more than one archive. `details.shard_count` is the count the write would have produced and `details.limit` the ceiling.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Output", "Shards", "MaxRecords"},
+				Hint:   "A materialize run with output.shards: raise max_records so the written rows fit 65535 shards (`details.row` is the first row past the limit), or filter the rows written.",
+			},
 		},
 	},
 	PULSE_SHARD_INDEXES_UPDATED: {
@@ -2723,7 +2833,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_EMPTY: {
-		Message: "A labeled-range set (the inline ranges of a date-range grouper or filterer or a numeric-range grouper, or a named range table) was presented with zero ranges.",
+		Message: "A labeled-range set (the inline ranges of a date-range grouper or filterer, a numeric-range grouper or a materialize output column's bucket, or a named range table) was presented with zero ranges.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2759,7 +2869,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_SOURCE_AMBIGUOUS: {
-		Message: "A range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
+		Message: "A range grouper or filterer (or a materialize output column's bucket) must name exactly one range source; supplying both an inline `ranges` array and a named `table` (`range_table` on a bucket), or neither, is ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2768,7 +2878,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A range grouper or filterer referenced a range table by a name that is not registered.",
+		Message: "A range grouper or filterer (or a materialize output column's bucket.range_table) referenced a range table by a name that is not registered.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2777,7 +2887,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_KIND_MISMATCH: {
-		Message: "A range operator referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table.",
+		Message: "A range operator (or a materialize output column's bucket) referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table. A bucket reads a numeric table on a numeric column and a date table on a date / datetime column.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4095,6 +4205,26 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema"},
 				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that times of day will not survive.",
+			},
+		},
+	},
+	PULSE_SPSS_TYPE_NOT_RESTORED: {
+		Message: "A .sav variable carried a Pulse type hint (the record 7/18 @PulseType attribute a Pulse export writes for a column SPSS cannot type natively), but the import did not restore that type: the hint is unreadable, names a type the variable's SPSS shape cannot carry, or a value does not fit it exactly (a u64 at or past 2^53, a fractional value under an integer type, a decimal past its scale or precision). This is a warning: the variable maps as if it carried no hint — a plain numeric becomes f64 — so every stored value is kept and nothing is truncated.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Schema"},
+				Hint:   "No action is needed if f64 is acceptable. To keep the narrower type, correct the offending value in the .sav (details.value) or supply an explicit ImportJob.Schema naming the type, accepting that the import then refuses a value that does not fit.",
+			},
+		},
+	},
+	PULSE_SPSS_INTEGER_INEXACT: {
+		Message: "A .sav export wrote a u64 value past 2^53 into its variable's double. Past 2^53 a double cannot tell neighbouring integers apart (2^53+1 is stored as 2^53), so the file may not hold the value the cohort held. The export warns and writes the case; under Strict it fails and writes nothing. From export predict the same code is a risk on a u64 variable: only the data can say whether a value is that large.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Target"},
+				Hint:   "Export the cohort to a format with a 64-bit unsigned integer (parquet, arrow) or to text (csv, ndjson), which keep every u64 exactly. Keep the .sav only if the column is never used as an exact key: an identifier past 2^53 does not survive a double.",
 			},
 		},
 	},

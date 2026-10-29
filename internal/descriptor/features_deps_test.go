@@ -83,6 +83,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:watch":                  {{"capability:process"}},
 		"capability:filter_to_file":         {{"capability:process"}, {"FILTER_EXPRESSION"}},
 		"capability:materialize":            {{"capability:process"}},       // runs Process's pre-flight and record pipeline
+		"capability:materialize_output":     {{"capability:materialize"}},   // the output slot lays out a materialize run's cohort
 		"capability:compose_sweep":          {{"capability:compose"}},       // a sweep expands into Compose slots
 		"capability:compose_sweep_sampling": {{"capability:compose_sweep"}}, // a sampling mode is a sweep mode
 		"capability:compose_optimize":       {{"capability:compose"}},       // an optimize block is a Compose slot
