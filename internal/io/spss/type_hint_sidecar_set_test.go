@@ -145,6 +145,7 @@ func TestTypeHint_TwoValueHintMustPairColumnAndSet(t *testing.T) {
 		{"two column types", "M0:@PulseType('u8'\n'u16'\n)"},
 		{"two set rungs", "M0:@PulseType('set_u16'\n'set_u32'\n)"},
 		{"an unparseable half", "M0:@PulseType('u8'\n'nope'\n)"},
+		{"an unquoted half", "M0:@PulseType(u8\n'set_u16'\n)"},
 		{"three values", "M0:@PulseType('u8'\n'set_u16'\n'u8'\n)"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -161,5 +162,50 @@ func TestTypeHint_TwoValueHintMustPairColumnAndSet(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestSidecarSetHints_OnlyAWideDichotomySetOnItsEmittedBitZero: the
+// sidecar-path set-rung pass hints exactly one variable — the one written
+// from a multiple-dichotomy entry's Sources[0], when the cohort's rung is
+// wider than the members need. Every entry it cannot place (another kind, a
+// set at its narrowest rung, a name or constituent the schema lacks, a
+// constituent no variable is written from) yields no hint and is left to
+// foldDerived, which refuses the unplaceable ones.
+func TestSidecarSetHints_OnlyAWideDichotomySetOnItsEmittedBitZero(t *testing.T) {
+	t.Parallel()
+
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "M0", Type: encoding.FieldTypeF64},
+		{Name: "M1", Type: encoding.FieldTypeF64},
+		{Name: "wide", Type: encoding.FieldTypeSetU16},
+		{Name: "narrow", Type: encoding.FieldTypeSetU8},
+		{Name: "hidden", Type: encoding.FieldTypeF64},
+	}}
+	f := &outFile{vars: []*outVar{
+		{name: "M0wire", field: 0, setBit: -1},
+		{name: "M1wire", field: 1, setBit: -1},
+	}}
+	md := func(name string, sources ...string) Derived {
+		return Derived{Name: name, Kind: DerivedKindMultipleDichotomy, Sources: sources}
+	}
+	for _, tc := range []struct {
+		name string
+		d    Derived
+		want []hintWant
+	}{
+		{"wide set", md("wide", "M1", "M0"), []hintWant{{name: "M1wire", hint: typeHint{ft: encoding.FieldTypeSetU16}}}},
+		{"narrowest rung", md("narrow", "M0", "M1"), nil},
+		{"another kind", Derived{Name: "wide", Kind: DerivedKindNumericMissing, Sources: []string{"M0"}}, nil},
+		{"no sources", md("wide"), nil},
+		{"set not in the schema", md("gone", "M0", "M1"), nil},
+		{"not a set column", md("M0", "M0", "M1"), nil},
+		{"constituent not in the schema", md("wide", "nope", "M1"), nil},
+		{"constituent not emitted", md("wide", "hidden", "M1"), nil},
+	} {
+		got := sidecarSetHints(f, s, []Derived{tc.d})
+		if len(got) != len(tc.want) || (len(got) == 1 && got[0] != tc.want[0]) {
+			t.Errorf("%s: hints %+v, want %+v", tc.name, got, tc.want)
+		}
 	}
 }
