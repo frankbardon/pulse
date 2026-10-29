@@ -256,11 +256,30 @@ command; `make staticcheck` runs the three staticcheck steps over a
 temporary directory.
 
 Branch protection requires the `lint` and `test (1.26)` check runs on
-the branch head before merge. A `v*.*.*` tag push (`release.yml`)
-reuses a passing `ci.yml` run whose head commit has the tagged commit's
-tree. It runs the whole workflow itself (`workflow_call`) only when no
-such run exists, and then builds the archives with `make dist`. A tag
-containing `-` is published as a pre-release.
+the branch head before merge.
+
+A `v*.*.*` tag push (`release.yml`) reuses a passing `ci.yml` run when
+`scripts/release-ci-reuse.sh <tested-sha> <tag-sha>` accepts the run's
+head commit. It accepts the same tree, or a tree where every changed
+path is added or modified (none deleted or renamed) and is on the
+script's allowlist. The allowlist holds only paths that no test, embed or
+build reads: roadmap prose under `docs/roadmap/` (not `units/` or
+`fixtures/`, which tests read), `docs/internals/` baselines, and
+`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` and `SECURITY.md`. The script's
+header records the evidence. A test, embed or build step that starts
+reading an allowlisted path must take it off the list in the same
+change. Any other change makes the release run the whole workflow itself
+(`workflow_call`). Run the script locally to see which way a tag would
+go: exit 0 reuses, exit 1 runs CI.
+
+The archives build in parallel, one `dist` job per platform (`make dist
+DIST_FLAGS="--target <os>/<arch> --no-checksums"`). The `release` job
+then gathers them, writes `checksums.txt` with
+`scripts/release-dist.sh --checksums-only`, and publishes. The asset set
+is the one a local `make dist VERSION=<tag>` builds. A tag containing
+`-` is published as a pre-release, and a release never takes Latest.
+The `contrib` job cuts the lockstep contrib tags after a successful
+`release`, whether or not CI was reused.
 The `apidiff` job is skipped under a release's `workflow_call`, since
 the tagged tree is the release itself.
 

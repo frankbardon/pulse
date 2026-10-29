@@ -30,8 +30,12 @@ clean:
 # amd64/arm64) plus checksums.txt into $(DIST_DIR) via
 # scripts/release-dist.sh — the same script release.yml calls, so the
 # tag-push outcome is reproducible locally: `make dist VERSION=v1.2.3`.
+# DIST_FLAGS (empty by default) passes options through: release.yml builds
+# one platform per job with `DIST_FLAGS="--target linux/amd64
+# --no-checksums"`, then writes checksums.txt once over all six.
+DIST_FLAGS ?=
 dist:
-	LDFLAGS="$(LDFLAGS)" GO="$(GO)" ./scripts/release-dist.sh "$(VERSION)" "$(DIST_DIR)"
+	LDFLAGS="$(LDFLAGS)" GO="$(GO)" ./scripts/release-dist.sh $(DIST_FLAGS) "$(VERSION)" "$(DIST_DIR)"
 
 # Two test tiers. `make test` is the fast tier: every untagged _test.go
 # file. Tests that take >= 1 s live in *_heavy_test.go files that start

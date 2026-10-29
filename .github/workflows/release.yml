@@ -10,10 +10,12 @@ permissions:
 concurrency: release-${{ github.ref }}
 
 jobs:
-  # verify reuses the branch's pre-merge CI instead of re-running it: a
-  # successful ci.yml run whose head commit has the tagged commit's TREE
-  # (a merge of an up-to-date branch keeps the tree) passes. Without
-  # one, the ci job below runs the suite on the tag.
+  # verify reuses the branch's pre-merge CI instead of re-running it. A
+  # successful ci.yml run passes when scripts/release-ci-reuse.sh accepts
+  # its head commit: the tagged commit's TREE (a merge of an up-to-date
+  # branch keeps the tree), or a tree that differs only in the script's
+  # allowlist of paths no test, embed or build reads (roadmap release
+  # notes, say). Without one, the ci job below runs the suite on the tag.
   verify:
     runs-on: ubuntu-latest
     permissions:
@@ -26,18 +28,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Find a passing CI run for the tagged tree
+      - name: Find a passing CI run that covers the tagged commit
         id: match
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tree="$(git rev-parse "${GITHUB_SHA}^{tree}")"
           found=false
           for sha in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
               --status success --limit 100 --json headSha --jq '.[].headSha' | sort -u); do
             if git cat-file -e "${sha}^{commit}" 2>/dev/null \
-                && [ "$(git rev-parse "${sha}^{tree}")" = "$tree" ]; then
-              echo "CI passed on ${sha} (same tree as ${GITHUB_SHA})"
+                && ./scripts/release-ci-reuse.sh "$sha" "$GITHUB_SHA"; then
+              echo "Reusing CI that passed on ${sha} for ${GITHUB_SHA}"
               found=true
               break
             fi
@@ -55,26 +56,71 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/ci.yml
 
-  release:
+  # One job per platform, in parallel: each builds its archive with the
+  # same script `make dist` runs (DIST_FLAGS picks the target and skips
+  # the checksums) and uploads it as an artifact.
+  dist:
     needs: [verify, ci]
     if: ${{ !cancelled() && (needs.verify.outputs.found == 'true' || needs.ci.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    strategy:
+      matrix:
+        target:
+          - linux/amd64
+          - linux/arm64
+          - darwin/amd64
+          - darwin/arm64
+          - windows/amd64
+          - windows/arm64
     steps:
+      # The version comes from the tag through ldflags, so no history is
+      # needed here.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version: "1.26"
 
-      - name: Build release archives
+      - name: Build the release archive
         env:
           TAG: ${{ github.ref_name }}
-        run: make dist VERSION="$TAG"
+          TARGET: ${{ matrix.target }}
+        run: |
+          make dist VERSION="$TAG" DIST_FLAGS="--target $TARGET --no-checksums"
+          echo "ARTIFACT=dist-${TARGET%/*}-${TARGET#*/}" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Gathers the six archives, writes checksums.txt over all of them (the
+  # script refuses a missing archive) and publishes: the asset set is the
+  # one `make dist` builds locally.
+  release:
+    needs: dist
+    if: ${{ !cancelled() && needs.dist.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Write checksums
+        env:
+          TAG: ${{ github.ref_name }}
+        run: ./scripts/release-dist.sh --checksums-only "$TAG" dist
 
       - name: Publish to GitHub Release
         env:
@@ -100,7 +146,8 @@ jobs:
   # own, so the root release (pre-release flag, Latest) is untouched.
   # The explicit `if` matters: without it the implicit success() also
   # requires the skipped `ci` job (skipped whenever a passing ci.yml run
-  # is reused), so the contrib tags were silently never cut.
+  # is reused, and an ancestor of this job through dist and release), so
+  # the contrib tags were silently never cut.
   contrib:
     needs: release
     if: ${{ !cancelled() && needs.release.result == 'success' }}
