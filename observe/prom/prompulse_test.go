@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/contrib/prompulse"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
+	prompulse "github.com/frankbardon/pulse/observe/prom"
 	"github.com/frankbardon/pulse/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -101,6 +101,7 @@ func series(mf *dto.MetricFamily, want ...string) *dto.Metric {
 // registry through Metrics registers and observes every metric of the
 // documented set, with its documented type and help text.
 func TestMetricsDocumentedSet(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	reg := prometheus.NewRegistry()
 	p := engine(t, pulse.Options{
@@ -188,6 +189,7 @@ func TestMetricsDocumentedSet(t *testing.T) {
 // family but exports no series until the instrument is written, so a
 // fresh instance does not export hundreds of zero series.
 func TestMetricsSeriesOnFirstWrite(t *testing.T) {
+	t.Parallel()
 	reg := prometheus.NewRegistry()
 	m := prompulse.Metrics(reg)
 	c := m.Counter("pulse_rows_scanned_total", observe.Label{Key: "op", Value: "process"})
@@ -207,6 +209,7 @@ func TestMetricsSeriesOnFirstWrite(t *testing.T) {
 // TestMetricsSharedRegistry: two adapters (two Pulse instances) on one
 // registry share the vectors instead of failing registration.
 func TestMetricsSharedRegistry(t *testing.T) {
+	t.Parallel()
 	reg := prometheus.NewRegistry()
 	l := observe.Label{Key: "op", Value: "process"}
 	prompulse.Metrics(reg).Counter("pulse_rows_scanned_total", l).Add(1)
@@ -221,6 +224,7 @@ func TestMetricsSharedRegistry(t *testing.T) {
 // taken by another type, or a label-key set that disagrees with the
 // family) is a no-op, never a panic.
 func TestMetricsClashIsNoop(t *testing.T) {
+	t.Parallel()
 	reg := prometheus.NewRegistry()
 	m := prompulse.Metrics(reg)
 	m.Counter("pulse_x", observe.Label{Key: "a", Value: "1"}).Add(1)
@@ -238,6 +242,7 @@ func TestMetricsClashIsNoop(t *testing.T) {
 // from any goroutine, so the factory and its instruments must be safe
 // for concurrent use (run with -race).
 func TestMetricsConcurrent(t *testing.T) {
+	t.Parallel()
 	reg := prometheus.NewRegistry()
 	m := prompulse.Metrics(reg)
 	var wg sync.WaitGroup

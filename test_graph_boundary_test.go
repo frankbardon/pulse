@@ -7,12 +7,11 @@ import (
 )
 
 // cliOnlyImports are the package trees the root package's TEST graph must
-// never reach. A module importing pulse (the contrib/ adapters, any
-// embedder) resolves the test dependencies of the packages it imports
+// never reach. A module importing pulse (any embedder, the smoke module
+// included) resolves the test dependencies of the packages it imports
 // under `go mod tidy`, so a root _test.go importing internal/cli pulls
-// the CLI framework into that module's go.sum — `make contrib`'s
-// `go mod tidy -diff` then fails in CI. CLI end-to-end legs belong in
-// internal/cli's own tests.
+// the CLI framework into that module's go.sum. CLI end-to-end legs
+// belong in internal/cli's own tests.
 var cliOnlyImports = []string{
 	"github.com/frankbardon/pulse/internal/cli",
 	"github.com/frankbardon/pulse/cmd/",

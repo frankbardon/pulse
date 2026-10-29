@@ -10,9 +10,9 @@ import (
 // TestHelpAndBucketsMatchBuiltinExporter pins this adapter's HELP text
 // and default buckets to Pulse's built-in exporter, so a metric scraped
 // from `pulse mcp --metrics-addr` and from a host registry reads the
-// same. (A test-only import: the module path sits under the Pulse
-// module's tree, so its internal packages are visible to it.)
+// same. (A test-only import of a package internal to the same module.)
 func TestHelpAndBucketsMatchBuiltinExporter(t *testing.T) {
+	t.Parallel()
 	for name, h := range help {
 		want, ok := obsprom.Help(name)
 		if !ok {

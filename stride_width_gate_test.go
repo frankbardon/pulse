@@ -88,7 +88,7 @@ var typeOnlyWidthSkipDirs = map[string]bool{
 }
 
 // TestNoTypeOnlyWidthInStridePaths walks every non-test Go file in the
-// module (cmd/, contrib/ and internal/embeddersmoke/ included) and fails
+// module (cmd/ and internal/embeddersmoke/ included) and fails
 // on any type-only width call — `.ByteSize()`, `CellWidth(`,
 // `onWireWidth(`, `fixedWidthBytes(` — outside typeOnlyWidthAllowed.
 // Every stride, offset and skip is a sum of encoding.Schema.FieldWidth:

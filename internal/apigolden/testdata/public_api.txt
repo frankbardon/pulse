@@ -4068,6 +4068,34 @@ pulse/observe: const ScopeChild pulse/observe.Scope = "child"
 pulse/observe: const ScopeTop pulse/observe.Scope = "top"
 pulse/observe: type UpDownCounter interface
 pulse/observe: type UpDownCounter imethod Add(delta float64)
+pulse/observe/otel: package otelpulse
+pulse/observe/otel: const AttrArm go.opentelemetry.io/otel/attribute.Key = "pulse.arm"
+pulse/observe/otel: const AttrBytesRead go.opentelemetry.io/otel/attribute.Key = "pulse.bytes_read"
+pulse/observe/otel: const AttrCode go.opentelemetry.io/otel/attribute.Key = "pulse.code"
+pulse/observe/otel: const AttrCohort go.opentelemetry.io/otel/attribute.Key = "pulse.cohort"
+pulse/observe/otel: const AttrErrorCode go.opentelemetry.io/otel/attribute.Key = "pulse.error_code"
+pulse/observe/otel: const AttrIndex go.opentelemetry.io/otel/attribute.Key = "pulse.index"
+pulse/observe/otel: const AttrOp go.opentelemetry.io/otel/attribute.Key = "pulse.op"
+pulse/observe/otel: const AttrPhase go.opentelemetry.io/otel/attribute.Key = "pulse.phase"
+pulse/observe/otel: const AttrPhaseMillis go.opentelemetry.io/otel/attribute.Key = "pulse.phase.duration_ms"
+pulse/observe/otel: const AttrProjected go.opentelemetry.io/otel/attribute.Key = "pulse.projected"
+pulse/observe/otel: const AttrRequestHash go.opentelemetry.io/otel/attribute.Key = "pulse.request_hash"
+pulse/observe/otel: const AttrRowsMatched go.opentelemetry.io/otel/attribute.Key = "pulse.rows_matched"
+pulse/observe/otel: const AttrRowsOut go.opentelemetry.io/otel/attribute.Key = "pulse.rows_out"
+pulse/observe/otel: const AttrRowsScanned go.opentelemetry.io/otel/attribute.Key = "pulse.rows_scanned"
+pulse/observe/otel: const AttrScope go.opentelemetry.io/otel/attribute.Key = "pulse.scope"
+pulse/observe/otel: const AttrShards go.opentelemetry.io/otel/attribute.Key = "pulse.shards"
+pulse/observe/otel: const AttrWorkers go.opentelemetry.io/otel/attribute.Key = "pulse.workers"
+pulse/observe/otel: var DefaultBuckets []float64
+pulse/observe/otel: func Hooks(tp go.opentelemetry.io/otel/trace.TracerProvider) *pulse/observe.Hooks
+pulse/observe/otel: func Metrics(mp go.opentelemetry.io/otel/metric.MeterProvider) pulse/observe.Metrics
+pulse/observe/otel: const ScopeName untyped string = "github.com/frankbardon/pulse/observe/otel"
+pulse/observe/otel: func SpanName(info pulse/observe.OperationInfo) string
+pulse/observe/prom: package prompulse
+pulse/observe/prom: var DefaultBuckets []float64
+pulse/observe/prom: func Metrics(reg github.com/prometheus/client_golang/prometheus.Registerer, opts ...pulse/observe/prom.Option) pulse/observe.Metrics
+pulse/observe/prom: type Option func(*pulse/observe/prom.config)
+pulse/observe/prom: func WithBuckets(buckets []float64) pulse/observe/prom.Option
 pulse/optimize: package optimize
 pulse/optimize: type ActiveBound int8
 pulse/optimize: const AtLower pulse/optimize.ActiveBound = 1
@@ -6316,4 +6344,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 99b43984a712fd9512cdc3d940c75635e731910e4e69d90b17468f0e8d154b75
+// golden-hash: 6cf6c36f5c4d5d5c5d374263c23e8654742b805a3e720d0d5858eb12ce422dc0
