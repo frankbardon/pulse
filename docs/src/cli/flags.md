@@ -164,6 +164,9 @@ with an import meaning: it escalates a partial import
 viability warnings — see [`--strict` (import)](#--strict-import). On
 `convert` into `.sav` it also refuses a `u64` past 2^53
 (`PULSE_SPSS_INTEGER_INEXACT`) rather than writing it as a rounded double.
+`export spss --strict` carries only that meaning: the `.sav` export fails
+on such a value (exit 1, `errors[0].code`) and writes no file — the CLI
+spelling of `Options.Strict` / `ExportJob.Strict`.
 
 ### `--echo-request`
 

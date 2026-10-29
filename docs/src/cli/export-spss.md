@@ -31,7 +31,7 @@ source dictionary rather than inventing one.
 ```
 pulse export spss --input PATH.pulse --output PATH.sav
                   [--ignore-sidecar] [--uncompressed]
-                  [--charset NAME] [--sanitize-names]
+                  [--charset NAME] [--sanitize-names] [--strict]
                   [--labels FIELD=TABLE[:replace|augment] ...] [--json]
 pulse export predict --input PATH.pulse --format spss
                      [--ignore-sidecar] [--uncompressed]
@@ -160,6 +160,8 @@ Four flags, each exactly one field of `io.SPSSWriterOptions` (`io.WriterOptions.
 `--ignore-sidecar`, `--uncompressed` and `--sanitize-names` are also on
 `pulse convert` / `convert predict`; `--charset` on `convert` names the
 *source* charset, so the write charset is settable only on this leaf.
+A fifth, `--strict`, sets `ExportJob.Strict`: see
+`PULSE_SPSS_INTEGER_INEXACT` under the write-side diagnostics below.
 
 ### `--ignore-sidecar`
 
@@ -620,9 +622,10 @@ row path does — has raised none of them when the job builds its report.
 | `PULSE_SPSS_INTEGER_INEXACT` | warning (error under Strict) | A `u64` value past 2^53, which no SPSS double holds unambiguously; one per variable, with `count`, `first_row` and the first `value`. Export predict lists it, without count or row, for every `u64` column |
 
 `PULSE_SPSS_INTEGER_INEXACT` is the one warning Strict escalates: a
-library `Export` under `Options.Strict` (or `ExportJob.Strict`), and a
-`pulse convert --strict` (`ConvertJob.StrictRows`), fail on the first such
-value and write no `.sav`.
+library `Export` under `Options.Strict` (or `ExportJob.Strict`), a
+`pulse export spss --strict`, and a `pulse convert --strict`
+(`ConvertJob.StrictRows`), fail on the first such value and write no
+`.sav`.
 
 `pulse errors lookup CODE` is authoritative for the per-code fixups.
 
