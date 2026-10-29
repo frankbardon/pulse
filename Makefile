@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke contrib contrib-tidy cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -66,33 +66,10 @@ test-heavy:
 smoke:
 	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
 
-# contrib vets, lints (staticcheck), checks tidiness of and tests every
-# nested module under contrib/ (the otelpulse / prompulse observability
-# adapters): separate Go modules with their own go.mod +
-# go.sum, `require pulse` at the matching root version and
-# `replace => ../..` for in-repo development. Unlike
-# `make smoke` these are PUBLISHED modules, so there is no -mod=mod: a
-# stale go.mod/go.sum fails here (and in CI) instead of reaching a tag or
-# an IDE. A root dependency bump therefore needs `make contrib-tidy` in
-# the same PR. Lockstep release tags: scripts/release-contrib.sh.
-CONTRIB_MODULES=$(patsubst %/go.mod,%,$(wildcard contrib/*/go.mod))
 # STATICCHECK_VERSION pins the staticcheck module version; CI resolves
 # `latest` once per job and passes it in, so the merged runs share a version.
 STATICCHECK_VERSION ?= latest
 STATICCHECK=honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
-
-contrib:
-	@set -e; for m in $(CONTRIB_MODULES); do \
-		echo "contrib: $$m"; \
-		(cd $$m && $(GO) mod tidy -diff && $(GO) vet ./... && $(GO) run $(STATICCHECK) ./... && $(GO) test -count=1 ./...); \
-	done
-
-# contrib-tidy re-tidies every contrib module (after a root dependency
-# bump, or a contrib pin change).
-contrib-tidy:
-	@set -e; for m in $(CONTRIB_MODULES); do \
-		echo "contrib-tidy: $$m"; (cd $$m && $(GO) mod tidy); \
-	done
 
 cover:
 	$(GO) test -coverprofile=coverage.out ./...
@@ -104,8 +81,8 @@ GOFMT := $(shell go env GOROOT)/bin/gofmt
 fmt:
 	$(GOFMT) -w .
 
-# fmt-check fails on any Go file gofmt would rewrite (the nested smoke and
-# contrib modules included). It is part of `make lint`; CI's `lint` job
+# fmt-check fails on any Go file gofmt would rewrite (the nested smoke
+# module included). It is part of `make lint`; CI's `lint` job
 # gates on it, so local lint == CI lint; `make fmt` fixes what it lists.
 fmt-check:
 	@out=$$($(GOFMT) -l .); if [ -n "$$out" ]; then echo "gofmt needed (run make fmt):"; echo "$$out"; exit 1; fi
