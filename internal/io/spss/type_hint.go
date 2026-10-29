@@ -236,6 +236,53 @@ func exportTypeHint(v *outVar, fld *encoding.Field) (typeHint, bool) {
 	return typeHint{}, false
 }
 
+// hintWant is one hint an export writes, keyed by the variable's wire name.
+type hintWant struct {
+	name string
+	hint typeHint
+}
+
+// sidecarSetHints is the set-rung half of a SIDECAR-path export. There the
+// derived multiple-dichotomy set column is folded away (foldDrop) and its
+// constituents go out as the source's own variables, so no variable is
+// EncodeSetMember and exportTypeHint never sees the set. Yet a set can sit
+// wider than its members need on a fresh sidecar — a hinted `.sav` import
+// writes the cohort at the hinted rung AND the sidecar — and without a hint
+// the re-import narrows it silently. The rung therefore rides the variable
+// written from Sources[0], the member the import reads as bit 0
+// (setTypeHints), whenever it differs from the narrowest rung the members
+// need. Registry entries this pass cannot place are left to foldDerived,
+// which refuses them.
+func sidecarSetHints(f *outFile, s *encoding.Schema, derived []Derived) []hintWant {
+	var wants []hintWant
+	byName := schemaIndex(s)
+	for i := range derived {
+		d := &derived[i]
+		if d.Kind != DerivedKindMultipleDichotomy || len(d.Sources) == 0 {
+			continue
+		}
+		at, ok := byName[strings.ToLower(d.Name)]
+		if !ok || !s.Fields[at].Type.IsSet() {
+			continue
+		}
+		rung := s.Fields[at].Type
+		if narrow, ok := iocore.SetTypeFor(len(d.Sources)); !ok || narrow == rung {
+			continue
+		}
+		src, ok := byName[strings.ToLower(d.Sources[0])]
+		if !ok {
+			continue
+		}
+		for _, v := range f.vars {
+			if v.field == src {
+				wants = append(wants, hintWant{name: v.name, hint: typeHint{ft: rung}})
+				break
+			}
+		}
+	}
+	return wants
+}
+
 // applyTypeHints writes the record 7/18 type hints. It runs after the
 // charset pass, so v.name is already the wire bytes the attribute must key
 // on, and it OWNS the `@PulseType` attribute: a hint carried verbatim from a
@@ -245,20 +292,23 @@ func exportTypeHint(v *outVar, fld *encoding.Field) (typeHint, bool) {
 // A source 7/18 this package cannot parse is left verbatim and no hint is
 // added to it — rewriting bytes it cannot read would corrupt them — so such a
 // cohort re-imports with the plain mapping, as it always did.
-func applyTypeHints(f *outFile, s *encoding.Schema) {
-	type want struct {
-		name string
-		hint typeHint
-	}
-	var wants []want
+//
+// derived is the metadata sidecar's derived-column registry on the sidecar
+// path (nil on the synthesised path): a multiple-dichotomy set column is
+// folded away there, so its rung rides its bit-0 constituent
+// (sidecarSetHints). A variable owed both its own type and a set rung carries
+// one attribute with two values, the column type first.
+func applyTypeHints(f *outFile, s *encoding.Schema, derived []Derived) {
+	var wants []hintWant
 	for _, v := range f.vars {
 		if v.field < 0 || v.field >= len(s.Fields) {
 			continue
 		}
 		if h, ok := exportTypeHint(v, &s.Fields[v.field]); ok {
-			wants = append(wants, want{name: v.name, hint: h})
+			wants = append(wants, hintWant{name: v.name, hint: h})
 		}
 	}
+	wants = append(wants, sidecarSetHints(f, s, derived)...)
 
 	var (
 		sets    []attrSet
@@ -286,19 +336,35 @@ func applyTypeHints(f *outFile, s *encoding.Schema) {
 	if len(wants) == 0 && !stripped {
 		return
 	}
+	// One attribute per variable: a second hint for the same variable (only
+	// a sidecar-path set rung beside the constituent's own type) is its
+	// second value.
+	var (
+		order  []string
+		values = map[string][]string{}
+	)
 	for _, w := range wants {
-		attr := attrEntry{key: []byte(pulseTypeAttr),
-			raw: []byte(pulseTypeAttr + "('" + w.hint.String() + "'\n)")}
+		if _, seen := values[w.name]; !seen {
+			order = append(order, w.name)
+		}
+		values[w.name] = append(values[w.name], w.hint.String())
+	}
+	for _, name := range order {
+		raw := pulseTypeAttr + "("
+		for _, v := range values[name] {
+			raw += "'" + v + "'\n"
+		}
+		attr := attrEntry{key: []byte(pulseTypeAttr), raw: []byte(raw + ")")}
 		placed := false
 		for i := range sets {
-			if strings.EqualFold(string(sets[i].name), w.name) {
+			if strings.EqualFold(string(sets[i].name), name) {
 				sets[i].attrs = append(sets[i].attrs, attr)
 				placed = true
 				break
 			}
 		}
 		if !placed {
-			sets = append(sets, attrSet{name: []byte(w.name), attrs: []attrEntry{attr}})
+			sets = append(sets, attrSet{name: []byte(name), attrs: []attrEntry{attr}})
 		}
 	}
 
@@ -406,11 +472,56 @@ func renderVarAttributes(sets []attrSet, trailer []byte) []byte {
 // Import: reading the hints back
 // ---------------------------------------------------------------------------
 
-// importedHint is one variable's raw `@PulseType` text.
+// importedHint is one variable's raw `@PulseType` text. A two-value
+// attribute (a sidecar-path export's bit-0 constituent owed its own type and
+// its set's rung) reads as the column type in text/hint plus the rung in
+// setText/set.
 type importedHint struct {
-	text string
-	hint typeHint
-	ok   bool
+	text    string
+	hint    typeHint
+	ok      bool
+	setText string
+	set     *typeHint
+}
+
+// quotedHintValue is one attribute value's text without its quotes, false
+// when it is not quoted.
+func quotedHintValue(v []byte) (string, bool) {
+	if len(v) >= 2 && v[0] == '\'' && v[len(v)-1] == '\'' {
+		return string(v[1 : len(v)-1]), true
+	}
+	return string(v), false
+}
+
+// readImportedHint reads one `@PulseType` attribute's values: one quoted
+// type, or exactly one column type and one set rung (either order). Anything
+// else is unreadable (ok false; text names every value, for the warning).
+func readImportedHint(values [][]byte) importedHint {
+	texts := make([]string, len(values))
+	hints := make([]typeHint, len(values))
+	readable := len(values) == 1 || len(values) == 2
+	for i, v := range values {
+		t, quoted := quotedHintValue(v)
+		texts[i] = t
+		h, ok := parseTypeHint(t)
+		hints[i] = h
+		readable = readable && quoted && ok
+	}
+	switch {
+	case len(values) == 1:
+		ih := importedHint{text: texts[0]}
+		if readable {
+			ih.hint, ih.ok = hints[0], true
+		}
+		return ih
+	case readable && hints[0].ft.IsSet() != hints[1].ft.IsSet():
+		col, set := 0, 1
+		if hints[0].ft.IsSet() {
+			col, set = 1, 0
+		}
+		return importedHint{text: texts[col], hint: hints[col], ok: true, setText: texts[set], set: &hints[set]}
+	}
+	return importedHint{text: strings.Join(texts, ",")}
 }
 
 // typeHintsFrom reads every `@PulseType` attribute in a file's record 7/18,
@@ -440,17 +551,7 @@ func typeHintsFrom(d *dictionary) map[string]importedHint {
 			if out == nil {
 				out = make(map[string]importedHint)
 			}
-			ih := importedHint{}
-			if len(a.values) == 1 {
-				v := a.values[0]
-				if len(v) >= 2 && v[0] == '\'' && v[len(v)-1] == '\'' {
-					ih.text = string(v[1 : len(v)-1])
-					ih.hint, ih.ok = parseTypeHint(ih.text)
-				} else {
-					ih.text = string(v)
-				}
-			}
-			out[strings.ToLower(string(s.name))] = ih
+			out[strings.ToLower(string(s.name))] = readImportedHint(a.values)
 		}
 	}
 	return out
@@ -478,16 +579,33 @@ func typeNotRestored(v variable, hint, why string, value *float64) *errors.Coded
 // when the rung has a bit for every member (widening a mask loses nothing);
 // any other set hint — a rung too narrow, or on a variable that is not the
 // first member of a derived set — warns and leaves the set (and the
-// variable) as the plain mapping has them. The member variable itself always
-// maps as if it carried no hint. hints is cleared where consumed so the
-// per-variable pass never sees a set rung.
+// variable) as the plain mapping has them. The member variable itself maps
+// as if it carried no set hint — by its own type hint only when the attribute
+// carried one as a second value. hints is cleared (or, for a two-value hint,
+// reduced to its column half) where consumed so the per-variable pass never
+// sees a set rung.
 func setTypeHints(d *dictionary, hints []*importedHint, sets []*mrSetColumn) []*errors.CodedError {
 	var warns []*errors.CodedError
 	for i, ih := range hints {
-		if ih == nil || !ih.ok || !ih.hint.ft.IsSet() {
+		if ih == nil {
 			continue
 		}
-		hints[i] = nil
+		var hint typeHint
+		var text string
+		switch {
+		case ih.set != nil:
+			// A two-value hint: the rung is consumed here, the column type
+			// stays for the per-variable pass.
+			hint, text = *ih.set, ih.setText
+			col := *ih
+			col.set, col.setText = nil, ""
+			hints[i] = &col
+		case ih.ok && ih.hint.ft.IsSet():
+			hint, text = ih.hint, ih.text
+			hints[i] = nil
+		default:
+			continue
+		}
 		var set *mrSetColumn
 		for _, s := range sets {
 			if len(s.elements) > 0 && s.elements[0].col == i {
@@ -497,14 +615,14 @@ func setTypeHints(d *dictionary, hints []*importedHint, sets []*mrSetColumn) []*
 		}
 		switch {
 		case set == nil:
-			warns = append(warns, typeNotRestored(d.vars[i], ih.text,
+			warns = append(warns, typeNotRestored(d.vars[i], text,
 				"the variable is not the first member of a derived multiple-dichotomy set", nil))
-		case uint64(len(set.elements)) > uint64(ih.hint.ft.MaxSetEntries()):
-			warns = append(warns, typeNotRestored(d.vars[i], ih.text,
+		case uint64(len(set.elements)) > uint64(hint.ft.MaxSetEntries()):
+			warns = append(warns, typeNotRestored(d.vars[i], text,
 				"its set "+strconv.Quote(set.setName)+" has "+strconv.Itoa(len(set.elements))+
-					" members, more than "+ih.hint.ft.String()+" has bits", nil))
+					" members, more than "+hint.ft.String()+" has bits", nil))
 		default:
-			set.fieldType = ih.hint.ft
+			set.fieldType = hint.ft
 		}
 	}
 	return warns

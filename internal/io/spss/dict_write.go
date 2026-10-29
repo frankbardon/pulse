@@ -724,7 +724,11 @@ func BuildDictionary(req DictionaryRequest) (*DictionaryPlan, error) {
 
 	// The record 7/18 Pulse type hints key on the FINAL wire names, so they
 	// are written once every name is settled. See type_hint.go.
-	applyTypeHints(f, req.Schema)
+	var derived []Derived
+	if !synth && req.Sidecar.Document != nil {
+		derived = req.Sidecar.Document.Payload.Derived
+	}
+	applyTypeHints(f, req.Schema, derived)
 
 	plan, err := emitDictionary(f)
 	if err != nil {

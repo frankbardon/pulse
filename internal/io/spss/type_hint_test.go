@@ -330,14 +330,14 @@ func TestTypeHint_UnparseableSourceAttributesStayVerbatim(t *testing.T) {
 		varAttrs: &RawText{Subtype: extVarAttributes, Raw: raw},
 		vars:     []*outVar{{name: "AGE", field: 0, enc: EncodeNumeric, setBit: -1}},
 	}
-	applyTypeHints(f, &encoding.Schema{Fields: []encoding.Field{{Name: "AGE", Type: encoding.FieldTypeU8}}})
+	applyTypeHints(f, &encoding.Schema{Fields: []encoding.Field{{Name: "AGE", Type: encoding.FieldTypeU8}}}, nil)
 	if !bytes.Equal(f.varAttrs.Raw, raw) {
 		t.Errorf("record 7/18 = %q, want the source bytes untouched", f.varAttrs.Raw)
 	}
 
 	// A parseable one gains the hint in place.
 	f.varAttrs = &RawText{Subtype: extVarAttributes, Raw: []byte("AGE:$@Role('0'\n)\n")}
-	applyTypeHints(f, &encoding.Schema{Fields: []encoding.Field{{Name: "AGE", Type: encoding.FieldTypeU8}}})
+	applyTypeHints(f, &encoding.Schema{Fields: []encoding.Field{{Name: "AGE", Type: encoding.FieldTypeU8}}}, nil)
 	if got, want := string(f.varAttrs.Raw), "AGE:$@Role('0'\n)@PulseType('u8'\n)\n"; got != want {
 		t.Errorf("record 7/18 = %q, want %q", got, want)
 	}

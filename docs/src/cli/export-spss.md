@@ -580,7 +580,8 @@ The one exception is the `@PulseType` variable attribute in `7/18`, which
 the writer owns: it records the Pulse type of each column SPSS cannot type
 natively (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`,
 `categorical_u16` / `categorical_u32`, a `set_*` rung wider than its
-members need, a `vec_f32` element) so a re-import restores it — see
+members need — on the sidecar path too, where it rides the set's first
+constituent variable — a `vec_f32` element) so a re-import restores it — see
 [Pulse type hints](import-spss.md#pulse-type-hints). A hint carried in
 from the source is dropped and re-derived from the cohort, so a column
 retyped since import never keeps a stale one; a column the plain import

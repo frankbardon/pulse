@@ -118,9 +118,13 @@ the variable's SPSS shape cannot carry, raises the same warning.
 A `set_*` column comes back at the narrowest rung with a bit per member,
 so an export of a column declared wider (a 3-member `set_u16`) hints the
 rung on the set's **first** member variable, and the import widens the
-derived set column to it. A rung with fewer bits than the set has members,
-or a set hint on any other variable, keeps the narrowest rung and raises
-`PULSE_SPSS_TYPE_NOT_RESTORED`. SPSS has no vector type, so a `vec_*`
+derived set column to it. A re-export of that cohort through its metadata
+sidecar hints the rung again, on the same first member; if that member also
+needs its own type hint, the one attribute carries both values (the column
+type, then the rung). A rung with fewer bits than the set has members, a
+set hint on any other variable, or a two-value hint that is not one column
+type plus one set rung, keeps the narrowest rung (and the plain mapping)
+and raises `PULSE_SPSS_TYPE_NOT_RESTORED`. SPSS has no vector type, so a `vec_*`
 field never comes back as a vector; a `vec_f32`'s element variables come
 back `f32`.
 
