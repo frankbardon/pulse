@@ -169,8 +169,8 @@ make smoke                               # builds internal/embeddersmoke as an e
   review the diff as the API delta.
 - `make smoke` compiles and tests `internal/embeddersmoke`, a nested module
   with its own `go.mod` that may only use public spellings. CI runs it.
-- The `apidiff` job (`.github/workflows/api-compat.yml`) runs on PRs only.
-  See [Pull Request Process](pr-process.md#public-api-changes).
+- The `apidiff` job in `ci.yml` runs on each dispatch (not under a
+  release). See [Pull Request Process](pr-process.md#public-api-changes).
 
 ## Contrib modules
 
@@ -207,11 +207,14 @@ the sum:
 
 | Job (check name) | Runs |
 |---|---|
-| `lint` | `make lint`: gofmt check, `go vet` and `staticcheck`, each over both tiers |
+| `fmt-vet` | `make fmt-check vet`: gofmt check and `go vet` over both tiers |
+| `staticcheck (fast)`, `staticcheck (heavy)` | `make staticcheck-fast` / `staticcheck-heavy`: one tier each, results uploaded as an artifact |
+| `lint` | needs the three above (fails, never skips, if one failed), then `make staticcheck-merge`; together the four jobs run exactly `make lint` |
 | `docs` | `mdbook build docs` |
 | `build` | `make build`, `make smoke`, `make contrib` |
 | `test (1.26)` | the fast tier: `go test -count=1 -json ./...`, plus `citest heavy-check` |
 | `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
+| `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
 
 Each shard runs only the heavy tests it owns, with `go test -tags heavy
 -run '^(...)$'`. The fast tests run once, in `test (1.26)`.
@@ -242,8 +245,15 @@ exit status. Before its test step, `test (1.26)` compiles every
 fast-tier test binary on its own (`go test -run '^$' ./...`) and writes
 the compile time to the job summary, so compile and run cost read
 apart. Each Go job restores the `setup-go` module and build
-cache. `lint` and `build` hash different files into their cache keys,
-so they never seed the cache the test jobs use.
+cache. The lint jobs and `build` hash different files into their cache
+keys, so they never seed the cache the test jobs use.
+
+`make lint` runs serially on one machine; CI splits it so the two
+staticcheck tiers run in parallel with `fmt-vet`. Each staticcheck job
+resolves `latest` to one version and records it, and `lint` merges with
+that version (`STATICCHECK_VERSION`). Locally, `make lint` stays the one
+command; `make staticcheck` runs the three staticcheck steps over a
+temporary directory.
 
 Branch protection requires the `lint` and `test (1.26)` check runs on
 the branch head before merge. A `v*.*.*` tag push (`release.yml`)
@@ -251,8 +261,8 @@ reuses a passing `ci.yml` run whose head commit has the tagged commit's
 tree. It runs the whole workflow itself (`workflow_call`) only when no
 such run exists, and then builds the archives with `make dist`. A tag
 containing `-` is published as a pre-release.
-`api-compat.yml` still runs on pull requests (it diffs against the PR
-base and takes under a minute).
+The `apidiff` job is skipped under a release's `workflow_call`, since
+the tagged tree is the release itself.
 
 ## CLAUDE.md hygiene gates
 

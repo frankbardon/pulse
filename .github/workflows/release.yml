@@ -47,6 +47,12 @@ jobs:
   ci:
     needs: verify
     if: needs.verify.outputs.found != 'true'
+    # A called workflow's jobs may not ask for more than the caller grants;
+    # ci.yml's apidiff job declares pull-requests: read (it is skipped here,
+    # but permissions are checked when the workflow loads).
+    permissions:
+      contents: read
+      pull-requests: read
     uses: ./.github/workflows/ci.yml
 
   release:

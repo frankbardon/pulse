@@ -503,7 +503,7 @@ make test     # fast test tier: go test ./...
 make test-heavy  # both tiers: go test -tags heavy ./... (tests >= 1 s live in //go:build heavy files)
 make fmt      # gofmt -w .
 make vet      # go vet
-make lint     # gofmt check (fmt-check) + go vet + staticcheck on both test tiers (auto-installed via go run); CI runs it
+make lint     # gofmt check (fmt-check) + go vet + staticcheck (make staticcheck) on both test tiers (auto-installed via go run); CI splits it into parallel jobs
 make cover    # Coverage report
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
 make dist     # 6-platform release archives (binary + completions/) + checksums.txt in ./dist (VERSION=v1.2.3)

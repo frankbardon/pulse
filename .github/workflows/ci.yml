@@ -8,17 +8,36 @@ name: CI
 # reuses a passing run for the tagged tree and calls this workflow only
 # when none exists.
 #
-# Jobs run in parallel, so the wall clock is the slowest job: lint, docs,
-# build (binary + smoke + contrib), test (fast tier) and the test-heavy
-# shards (heavy tier, split by .github/heavy-shards.txt; a heavy test the
-# list does not name runs in the catchall shard). Layout:
-# docs/src/contributing/local-ci.md ("When CI runs").
+# Jobs run in parallel, so the wall clock is the slowest job. Layout
+# (docs/src/contributing/local-ci.md, "When CI runs"):
+#   fmt-vet                 make fmt-check vet (both tiers)
+#   staticcheck (fast)      make staticcheck-fast  -> artifact
+#   staticcheck (heavy)     make staticcheck-heavy -> artifact
+#   lint                    needs the three above; make staticcheck-merge.
+#                           The required `lint` check = all of `make lint`.
+#   docs                    mdbook build
+#   build                   make build + smoke + contrib
+#   test (1.26)             the fast tier
+#   test-heavy (1..6, catchall)  the heavy tier, split by
+#                           .github/heavy-shards.txt (a heavy test the list
+#                           does not name runs in the catchall shard)
+#   apidiff                 exported-API delta vs the latest v* tag;
+#                           advisory, not required, dispatch only
 on:
   workflow_dispatch:
   workflow_call:
 
+env:
+  # golang.org/x/exp is untagged; bump this pseudo-version deliberately, never
+  # @latest. Verified to build under Go 1.26 and to support `-m -w`.
+  APIDIFF_VERSION: v0.0.0-20260908205506-85c1c2202aba
+  MODULE_PATH: github.com/frankbardon/pulse
+
 jobs:
-  lint:
+  # `make lint` is split across four jobs so its pieces run in parallel
+  # (serial, it was the critical path at ~7 min). The Makefile targets are
+  # the same ones `make lint` runs locally, so no check is dropped.
+  fmt-vet:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -29,14 +48,99 @@ jobs:
         with:
           go-version: "1.26"
           # Own cache key: a vet/staticcheck cache is a poor start for a
-          # test compile, so lint never seeds the test jobs' cache.
+          # test compile, so the lint jobs never seed the test jobs' cache.
           cache-dependency-path: |
             go.sum
             Makefile
 
-      # gofmt check + go vet + staticcheck, each over both test tiers.
-      - name: Lint
-        run: make lint
+      - name: gofmt check + go vet (both tiers)
+        run: make fmt-check vet
+
+  # One staticcheck run per test tier. Each resolves `latest` to a
+  # version once and records it, so the merge in `lint` uses the same
+  # staticcheck (binary results do not merge across versions).
+  staticcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        tier: [fast, heavy]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: |
+            go.sum
+            Makefile
+
+      - name: staticcheck (${{ matrix.tier }} tier)
+        env:
+          TIER: ${{ matrix.tier }}
+        run: |
+          out="$RUNNER_TEMP/staticcheck"
+          mkdir -p "$out"
+          version=$(go list -m -f '{{.Version}}' honnef.co/go/tools@latest)
+          echo "staticcheck module $version"
+          echo "$version" > "$out/$TIER.version"
+          make "staticcheck-$TIER" STATICCHECK_VERSION="$version" STATICCHECK_OUT="$out"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: staticcheck-${{ matrix.tier }}
+          path: ${{ runner.temp }}/staticcheck/
+          retention-days: 1
+          if-no-files-found: error
+
+  # The required `lint` check: fails unless fmt-vet and both staticcheck
+  # tiers passed, then merges the two staticcheck runs (the merge is what
+  # reports, and keeps a heavy-only helper from reading as unused). It
+  # runs even when a dependency failed, so it fails rather than skips — a
+  # skipped required check would not block a merge.
+  lint:
+    needs: [fmt-vet, staticcheck]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require fmt-vet and staticcheck
+        env:
+          FMT_VET: ${{ needs.fmt-vet.result }}
+          STATICCHECK: ${{ needs.staticcheck.result }}
+        run: |
+          echo "fmt-vet: $FMT_VET, staticcheck: $STATICCHECK"
+          if [ "$FMT_VET" != "success" ] || [ "$STATICCHECK" != "success" ]; then
+            echo "::error::lint needs fmt-vet and both staticcheck tiers to pass"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          # Only staticcheck itself is compiled here; skip the large cache.
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: staticcheck-*
+          path: ${{ runner.temp }}/staticcheck
+          merge-multiple: true
+
+      - name: Merge staticcheck runs
+        run: |
+          out="$RUNNER_TEMP/staticcheck"
+          fast=$(cat "$out/fast.version")
+          heavy=$(cat "$out/heavy.version")
+          if [ "$fast" != "$heavy" ]; then
+            echo "::error::staticcheck tiers ran different versions ($fast vs $heavy); re-run the workflow"
+            exit 1
+          fi
+          make staticcheck-merge STATICCHECK_VERSION="$fast" STATICCHECK_OUT="$out"
 
   # docs builds the mdBook. The committed Analysis Guide
   # (docs/src/guide/**, generated by `make docs`) is kept current by
@@ -156,3 +260,149 @@ jobs:
         run: |
           "$RUNNER_TEMP/citest" heavy-run "$SHARD" -count=1 -timeout=30m -json \
             | "$RUNNER_TEMP/citest" filter -json-out "$RUNNER_TEMP/test-heavy.json" -title "test-heavy ($SHARD)"
+
+  # apidiff reports the exported-API delta against the latest release tag,
+  # using a pinned `apidiff -m` over a git-worktree checkout of that tag.
+  # It is NOT a branch-protection required check.
+  #
+  # Dispatch only: under release.yml's `workflow_call` the tagged tree IS
+  # the release, so there is no change to judge and the job is skipped.
+  #
+  # ADVISORY until v1.0.0. While the baseline is a pre-release (or any
+  # v0.x) tag the report is informational: every step that could fail runs
+  # with `continue-on-error`, so the job is green whatever apidiff finds.
+  #
+  # POST-v1.0.0 FLIP TO BLOCKING. Once a stable tag >= v1.0.0 exists it
+  # becomes the baseline and `blocking=true`; the Diff step then fails on
+  # any incompatible change UNLESS the branch's open PR carries the
+  # `api-break-ok` label, the only override. A dispatch has no PR event, so
+  # the label is read from the open PR whose head is the dispatched branch
+  # (`gh pr list --head`); no open PR means no label. Before v1.0.0 the
+  # label just annotates the summary as an intentional break. To make that
+  # failure gate merges, add `apidiff` to the required checks on `main`
+  # deliberately — it is not one today.
+  #
+  # Known blind spot: apidiff compares a root alias to an `internal/` type
+  # by name/path only, never its fields or methods. TestPublicAPIGolden
+  # (internal/apigolden/) covers that gap.
+  apidiff:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history + tags: the default shallow checkout has no tags.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Resolve baseline tag
+        id: base
+        run: |
+          # Latest stable (no pre-release suffix) tag >= v1.0.0 wins once one
+          # exists, and switches the job to blocking; until then the newest
+          # v* tag of any kind is the baseline and the job is advisory.
+          stable=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -n "$stable" ]; then
+            echo "tag=$stable" >> "$GITHUB_OUTPUT"
+            echo "blocking=true" >> "$GITHUB_OUTPUT"
+          else
+            latest=$(git tag -l 'v*' --sort=-v:refname | head -n1 || true)
+            echo "tag=$latest" >> "$GITHUB_OUTPUT"
+            echo "blocking=false" >> "$GITHUB_OUTPUT"
+            if [ -z "$latest" ]; then
+              echo "## API compatibility" >> "$GITHUB_STEP_SUMMARY"
+              echo "No \`v*\` tag exists yet; nothing to compare against. Skipped." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      # The dispatched branch's open PR carries the label, if any.
+      - name: Resolve api-break-ok label
+        id: label
+        if: steps.base.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ok=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --state open \
+              --json labels --jq '[.[].labels[].name] | any(. == "api-break-ok")'); then
+            echo "break_ok=$ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::could not read the PR labels for $GITHUB_REF_NAME; treating api-break-ok as absent"
+            echo "break_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install apidiff (pinned)
+        if: steps.base.outputs.tag != ''
+        continue-on-error: ${{ steps.base.outputs.blocking != 'true' }}
+        run: go install "golang.org/x/exp/cmd/apidiff@${APIDIFF_VERSION}"
+
+      - name: Write export data (baseline + head)
+        id: export
+        if: steps.base.outputs.tag != ''
+        continue-on-error: ${{ steps.base.outputs.blocking != 'true' }}
+        env:
+          BASE_TAG: ${{ steps.base.outputs.tag }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_TAG"
+          # `-w` paths must be absolute and each side must run from its own
+          # module root, or apidiff consults the module cache instead.
+          (cd "$RUNNER_TEMP/base" && apidiff -m -w "$RUNNER_TEMP/base.exp" "$MODULE_PATH")
+          apidiff -m -w "$RUNNER_TEMP/head.exp" "$MODULE_PATH"
+
+      - name: Note tooling failure
+        if: steps.base.outputs.tag != '' && steps.export.outcome != 'success'
+        env:
+          BASE_TAG: ${{ steps.base.outputs.tag }}
+        run: |
+          echo "## API compatibility vs \`$BASE_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "apidiff could not be installed or could not write export data; see the job log. No report." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Diff
+        if: steps.base.outputs.tag != '' && steps.export.outcome == 'success'
+        continue-on-error: ${{ steps.base.outputs.blocking != 'true' }}
+        env:
+          BASE_TAG: ${{ steps.base.outputs.tag }}
+          BLOCKING: ${{ steps.base.outputs.blocking }}
+          BREAK_OK: ${{ steps.label.outputs.break_ok }}
+        run: |
+          apidiff -m "$RUNNER_TEMP/base.exp" "$RUNNER_TEMP/head.exp" > "$RUNNER_TEMP/apidiff.raw" 2>&1
+          grep -v '^Ignoring internal package' "$RUNNER_TEMP/apidiff.raw" > "$RUNNER_TEMP/apidiff.txt" || true
+          # apidiff exits 0 even with incompatible changes; count them from the
+          # "Incompatible changes:" section ourselves.
+          incompatible=$(awk '/^Incompatible changes:/{s=1;next} /^[A-Za-z].*:$/{s=0} s && /^- /{n++} END{print n+0}' "$RUNNER_TEMP/apidiff.txt")
+
+          {
+            echo "## API compatibility vs \`$BASE_TAG\`"
+            echo
+            if [ "$BLOCKING" = "true" ]; then
+              echo "Mode: **blocking** (stable baseline). Incompatible changes fail this job unless the branch's open PR carries \`api-break-ok\`."
+            else
+              echo "Mode: **advisory** (pre-v1.0.0 baseline). This job never fails; it flips to blocking once a \`v1.0.0\` tag exists."
+            fi
+            echo
+            echo "Incompatible changes: **$incompatible**"
+            if [ "$BREAK_OK" = "true" ]; then
+              echo
+              echo "> **Intentional break:** the branch's open PR carries the \`api-break-ok\` label, so the incompatible changes below are declared intentional."
+            fi
+            echo
+            if [ -s "$RUNNER_TEMP/apidiff.txt" ]; then
+              echo '```'
+              cat "$RUNNER_TEMP/apidiff.txt"
+              echo '```'
+            else
+              echo "No exported-API changes."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$BLOCKING" = "true" ] && [ "$incompatible" -gt 0 ] && [ "$BREAK_OK" != "true" ]; then
+            echo "::error::$incompatible incompatible API change(s) vs $BASE_TAG; add the api-break-ok label to the PR if intentional."
+            exit 1
+          fi
