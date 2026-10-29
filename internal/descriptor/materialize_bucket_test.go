@@ -58,7 +58,7 @@ func TestMaterializeOutputLayout_Bucket(t *testing.T) {
 		{From: "ts", Bucket: &types.MaterializeBucket{RangeTable: "q"}},
 		{From: "x", As: "plain"},
 	}}}
-	_, layout, ce := MaterializePlan(req, schema, bucketInstance(), "src.pulse", "")
+	_, layout, _, ce := MaterializePlan(req, schema, bucketInstance(), "src.pulse", "")
 	if ce != nil {
 		t.Fatal(ce)
 	}

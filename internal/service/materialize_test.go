@@ -14,12 +14,13 @@ import (
 type recordingSink struct {
 	beginErr error
 	cols     []descx.MaterializeColumn
+	groups   *descx.MaterializeGroups
 	began    bool
 	sources  []int64
 }
 
-func (r *recordingSink) Begin(_ *Cohort, cols []descx.MaterializeColumn, _ []descx.MaterializeOutputField) error {
-	r.began, r.cols = true, cols
+func (r *recordingSink) Begin(_ *Cohort, cols []descx.MaterializeColumn, _ []descx.MaterializeOutputField, groups *descx.MaterializeGroups) error {
+	r.began, r.cols, r.groups = true, cols, groups
 	return r.beginErr
 }
 
@@ -28,8 +29,8 @@ func (r *recordingSink) Row(src int64, _ []any) error {
 	return nil
 }
 
-// TestMaterialize_SinkContract: Begin sees the derived columns after
-// every check passed; a Begin error ends the run before any Row; a
+// TestMaterialize_SinkContract: Begin sees the derived columns and the
+// group plan after every check passed; a Begin error ends the run before any Row; a
 // refusal never reaches Begin.
 func TestMaterialize_SinkContract(t *testing.T) {
 	t.Parallel()
@@ -49,6 +50,11 @@ func TestMaterialize_SinkContract(t *testing.T) {
 	}
 	if len(sink.cols) != 1 || sink.cols[0].Name != "LOG_x" {
 		t.Fatalf("columns = %+v", sink.cols)
+	}
+	// The pre-flight's group plan reaches Begin: non-nil, empty without
+	// an output block.
+	if g := sink.groups; g == nil || len(g.Decls) != 0 || len(g.Plan) != 0 || len(g.Warnings) != 0 {
+		t.Fatalf("groups = %+v, want the empty plan of a request without an output block", sink.groups)
 	}
 	if want := []int64{0, 4, 8}; len(sink.sources) != 3 || sink.sources[1] != want[1] || sink.sources[2] != want[2] {
 		t.Fatalf("sources = %v, want %v", sink.sources, want)

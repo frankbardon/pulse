@@ -432,7 +432,7 @@ func (m *materializeSink) Warn(ws []*types.ResponseWarning) {
 	}
 }
 
-func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn, layout []descx.MaterializeOutputField) error {
+func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.MaterializeColumn, layout []descx.MaterializeOutputField, groups *descx.MaterializeGroups) error {
 	r, err := cohort.OpenRecordReader()
 	if err != nil {
 		return err
@@ -485,13 +485,10 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 		if out.Shards != nil {
 			bopts.Shards = &ShardSplit{MaxRecords: out.Shards.MaxRecords}
 		}
-		// Its parent groups — declared, or the source's inherited — the
-		// pre-flight's own plan (descx.MaterializePlan refused a bad
-		// declaration). A source group left out warns; Strict fails it.
-		groups, ce := descx.MaterializeGroupPlan(out, src, layout)
-		if ce != nil {
-			return ce
-		}
+		// Its parent groups — declared, or the source's inherited — are
+		// the pre-flight's own plan, handed in (descx.MaterializePlan
+		// resolved it once and refused a bad declaration). A source group
+		// left out warns; Strict fails it.
 		if m.opts.Strict && len(groups.Warnings) > 0 {
 			return groups.Warnings[0]
 		}

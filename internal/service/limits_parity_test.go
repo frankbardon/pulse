@@ -291,7 +291,7 @@ func processRun(req func() *types.Request) func(ctx context.Context, svc *Servic
 // discardSink is a MaterializeSink that keeps nothing.
 type discardSink struct{}
 
-func (discardSink) Begin(*Cohort, []descx.MaterializeColumn, []descx.MaterializeOutputField) error {
+func (discardSink) Begin(*Cohort, []descx.MaterializeColumn, []descx.MaterializeOutputField, *descx.MaterializeGroups) error {
 	return nil
 }
 func (discardSink) Row(int64, []any) error { return nil }

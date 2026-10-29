@@ -34,18 +34,14 @@ import (
 // reads local days in req.TimeZone, else defaultZone, else "UTC"
 // (MaterializeCast.Zone; the zone name was validated by the zone
 // pre-flight) — and a bucketed datetime column is matched by its local
-// day in that zone (MaterializeBucket.Zone). Reads no record.
-func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *errors.CodedError) {
-	cols, layout, _, ce := materializePlan(req, schema, inst, source, defaultZone)
-	return cols, layout, ce
-}
-
-// materializePlan is MaterializePlan plus the parent-group plan it
-// resolved (MaterializeGroupPlan over the same output block, schema and
-// layout), so predict reports that plan rather than resolving it a
-// second time behind a refusal branch no input can reach. The groups
-// are non-nil whenever the error is nil.
-func materializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *MaterializeGroups, *errors.CodedError) {
+// day in that zone (MaterializeBucket.Zone). Last, the parent-group
+// plan (MaterializeGroupPlan over the same output block, schema and
+// layout; a declaration the writer would refuse is refused here) — the
+// plan the run's sink writes and predict reports, so neither resolves
+// it a second time behind a refusal branch no input can reach. The
+// groups are non-nil whenever the error is nil (empty without an
+// output block). Reads no record.
+func MaterializePlan(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, source, defaultZone string) ([]MaterializeColumn, []MaterializeOutputField, *MaterializeGroups, *errors.CodedError) {
 	cols, ce := MaterializeColumns(req, schema, inst, source)
 	if ce != nil {
 		return nil, nil, nil, ce
@@ -276,7 +272,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	// leads the errors: a request Process's operator construction would
 	// also refuse (FEAT_POLY degree 1) is refused by the run's pre-flight
 	// first, before any operator is built.
-	cols, layout, groups, planErr := materializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort), opts.DefaultTimeZone)
+	cols, layout, groups, planErr := MaterializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort), opts.DefaultTimeZone)
 	if planErr != nil {
 		addCodedError(env, planErr)
 	}
@@ -316,7 +312,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 			result.Risks = append(result.Risks, *r)
 		}
 		// The parent-group plan the run hands its writer (the plan's own,
-		// resolved once by materializePlan), its static warnings (a
+		// resolved once by MaterializePlan), its static warnings (a
 		// source group left out, a group too narrow to form) and the key
 		// check only the rows settle.
 		result.Container.Groups = groups.Plan

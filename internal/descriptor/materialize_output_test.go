@@ -175,7 +175,7 @@ func TestMaterializeOutputLayout_Casts(t *testing.T) {
 		r := &types.Request{TimeZone: z.tz, Output: &types.MaterializeOutput{Columns: []types.MaterializeOutputColumn{
 			{From: "n", Type: "decimal128"}, {From: "ts", As: "day", Type: "date"},
 		}}}
-		_, planned, ce := MaterializePlan(r, schema, nil, "s.pulse", z.def)
+		_, planned, _, ce := MaterializePlan(r, schema, nil, "s.pulse", z.def)
 		if ce != nil {
 			t.Fatal(ce)
 		}

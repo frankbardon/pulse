@@ -14,9 +14,10 @@ import (
 // parent groups (types.MaterializeOutput.Groups): which groups a
 // materialize run hands its cohort writer — declared, or inherited from
 // the source — which source groups it leaves out and why, and the static
-// refusals of a declaration. The run's pre-flight (MaterializePlan), its
-// sink and its predict all call MaterializeGroupPlan, so the three
-// cannot drift.
+// refusals of a declaration. MaterializePlan — the run's pre-flight and
+// its predict — makes the one MaterializeGroupPlan call, and the service
+// hands that plan to the run's sink (MaterializeSink.Begin), so the
+// three cannot drift.
 
 // Group plan verdicts (descriptor.MaterializeGroupPlan.Verdict) and
 // origins.

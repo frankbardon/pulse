@@ -24,10 +24,10 @@ func TestMaterializePlan_DescriptionLength(t *testing.T) {
 		return &types.Request{Cohort: &types.Cohort{Filename: "s.pulse"}, Output: &types.MaterializeOutput{
 			Columns: []types.MaterializeOutputColumn{{From: "a"}, {From: "b", As: "bee", Description: &d}}}}
 	}
-	if _, layout, ce := MaterializePlan(req(encoding.MaxDescriptionBytes), schema, nil, "s.pulse", ""); ce != nil || len(layout) != 2 {
+	if _, layout, _, ce := MaterializePlan(req(encoding.MaxDescriptionBytes), schema, nil, "s.pulse", ""); ce != nil || len(layout) != 2 {
 		t.Fatalf("at the limit: layout %v, err %v", layout, ce)
 	}
-	_, _, ce := MaterializePlan(req(encoding.MaxDescriptionBytes+1), schema, nil, "s.pulse", "")
+	_, _, _, ce := MaterializePlan(req(encoding.MaxDescriptionBytes+1), schema, nil, "s.pulse", "")
 	if ce == nil || ce.Code != errors.PULSE_IMPORT_DESCRIPTION_TOO_LONG ||
 		ce.Details["field"] != "bee" || ce.Details["length"] != encoding.MaxDescriptionBytes+1 || ce.Details["max"] != encoding.MaxDescriptionBytes {
 		t.Fatalf("over the limit: %v", ce)

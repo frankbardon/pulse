@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -363,6 +364,85 @@ func TestMaterializeOutputGroups_DeclarationRefusedPredictEqualsRun(t *testing.T
 			}
 		})
 	}
+}
+
+// TestMaterializeOutputGroups_SinkWritesHandedPlan: the sink writes the
+// group plan the service pre-flight hands Begin (descx.MaterializePlan
+// resolved it once) and never resolves its own. Each case hands a plan
+// the request alone would not produce: a grouped source whose inherited
+// group the handed empty plan leaves out writes ungrouped; an ungrouped
+// source's handed warning is the run's warning, and Strict fails Begin
+// with exactly it.
+func TestMaterializeOutputGroups_SinkWritesHandedPlan(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	begin := func(t *testing.T, p *Pulse, opts MaterializeOptions, groups *descx.MaterializeGroups) (*materializeSink, error) {
+		t.Helper()
+		req := matOutputReq(renamedOutput(nil))
+		cohort, err := p.svc.Open(ctx, "src.pulse")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cols, layout, planned, ce := descx.MaterializePlan(req, cohort.Schema(), nil, "src.pulse", "")
+		if ce != nil {
+			t.Fatal(ce)
+		}
+		if planned == nil {
+			t.Fatal("MaterializePlan returned no group plan")
+		}
+		sink := &materializeSink{p: p, ctx: ctx, out: "out.pulse", opts: opts, output: req.Output}
+		err = sink.Begin(cohort, cols, layout, groups)
+		t.Cleanup(func() {
+			if sink.reader != nil {
+				_ = sink.reader.Close()
+			}
+			if sink.builder != nil {
+				_ = sink.builder.Abort()
+			}
+		})
+		return sink, err
+	}
+
+	t.Run("grouped_source_empty_plan", func(t *testing.T) {
+		p, _ := matPulse(t, Options{})
+		buildMatSource(t, p, "src.pulse", CohortBuilderOptions{Groups: regionPriceGroup})
+		sink, err := begin(t, p, MaterializeOptions{}, &descx.MaterializeGroups{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sink.groupWarns) != 0 {
+			t.Errorf("groupWarns = %v, want the handed plan's none", matWarningCodes(sink.groupWarns))
+		}
+		if err := sink.Row(0, []any{0.0, 1.0}); err != nil {
+			t.Fatal(err)
+		}
+		built, err := sink.builder.Close()
+		sink.builder = nil
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(built.Groups) != 0 {
+			t.Fatalf("written groups = %+v, want none: the handed plan declares none", built.Groups)
+		}
+	})
+
+	t.Run("handed_warning", func(t *testing.T) {
+		p, _ := matPulse(t, Options{})
+		buildMatSource(t, p, "src.pulse", CohortBuilderOptions{})
+		warn := perrors.NewCodedError(perrors.PULSE_MATERIALIZE_GROUP_NOT_INHERITED, "handed")
+		plan := &descx.MaterializeGroups{Warnings: []*perrors.CodedError{warn}}
+		sink, err := begin(t, p, MaterializeOptions{}, plan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sink.groupWarns) != 1 || sink.groupWarns[0] != warn {
+			t.Fatalf("groupWarns = %v, want the handed warning", matWarningCodes(sink.groupWarns))
+		}
+		if _, err := begin(t, p, MaterializeOptions{Strict: true}, plan); err != warn {
+			t.Fatalf("Strict Begin err = %v, want the handed warning itself", err)
+		}
+	})
 }
 
 // TestMaterializeOutputGroups_WithShards: groups and shards together —

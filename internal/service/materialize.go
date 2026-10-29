@@ -17,14 +17,17 @@ import (
 // pipeline order and the resolved output layout
 // (descx.MaterializeOutputLayout: every column the cohort is written
 // with, in output order, each reading a source field or a derived
-// column); an error from it ends the run. Row is then called once
+// column) and the parent-group plan the output is written with
+// (descx.MaterializeGroupPlan, resolved once by descx.MaterializePlan —
+// non-nil, empty without an output block); an error from it ends the
+// run. Row is then called once
 // per filter-passing source record — in source order, or in the
 // request's sort order when it carries one — with the record's
 // 0-based source index (global over a shard archive, in Cohort.Shards
 // order — the CohortRecordReader index) and one value per derived
 // column (float64 or nil). Row is never called when Begin failed.
 type MaterializeSink interface {
-	Begin(cohort *Cohort, columns []descx.MaterializeColumn, layout []descx.MaterializeOutputField) error
+	Begin(cohort *Cohort, columns []descx.MaterializeColumn, layout []descx.MaterializeOutputField, groups *descx.MaterializeGroups) error
 	Row(source int64, derived []any) error
 }
 
@@ -127,18 +130,19 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	}
 	// The derived columns, then the output layout (projection, renames,
 	// descriptions, nullability) over the source schema plus them, then
-	// the written descriptions' length — descx.MaterializePlan, the one
-	// call PredictMaterialize makes too. Resolved last: every slot above
+	// the written descriptions' length, then the parent-group plan —
+	// descx.MaterializePlan, the one call PredictMaterialize makes too;
+	// the sink writes that plan, never resolving it again. Resolved last: every slot above
 	// has already read the full schema, so a column the output drops
 	// stays readable to them.
-	cols, layout, perr := descx.MaterializePlan(req, schema, s.instance, path, s.defaultZone)
+	cols, layout, groups, perr := descx.MaterializePlan(req, schema, s.instance, path, s.defaultZone)
 	if perr != nil {
 		return perr
 	}
 	req = s.zoned(req, zones)
 	ei.Lap(observe.PhasePlan)
 
-	if err := sink.Begin(cohort, cols, layout); err != nil {
+	if err := sink.Begin(cohort, cols, layout, groups); err != nil {
 		return err
 	}
 
