@@ -55,11 +55,13 @@ use case justifies it; prefer `internal/`.
   into `internal/`. Regenerate with
   `go test -tags heavy ./internal/apigolden/ -run TestPublicAPIGolden -update` and
   call the delta out in the PR description.
-- **`apidiff`** (`.github/workflows/api-compat.yml`) compares the PR
-  against the latest `v*` tag and writes the report to the job summary.
+- **`apidiff`** (a job in `.github/workflows/ci.yml`, run with each CI
+  dispatch) compares the branch against the latest `v*` tag and writes the
+  report to the job summary.
   It is **advisory** while the latest tag is a pre-release: the job stays
   green whatever it finds. Add the **`api-break-ok`** label to a PR whose
-  break is intentional; the summary then records it as such. Once a
+  break is intentional (the job reads it from the dispatched branch's
+  open PR); the summary then records it as such. Once a
   stable `v1.0.0` tag exists the job becomes **blocking** for incompatible
   changes, and `api-break-ok` is the only override.
 - **`make smoke`** builds `internal/embeddersmoke`, an external module
