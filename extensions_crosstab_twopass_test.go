@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -53,7 +53,7 @@ func TestExtensions_TwoPassAttributeCrosstabNotFused(t *testing.T) {
 			p, path := mode.open(t, attributeParitySuite().register(probe))
 			ctx := context.Background()
 			schema := paritySchema(t)
-			reg := pulse.ServiceForTest(p).Extensions()
+			reg := testhook.Service(p).Extensions()
 
 			bReq, eReq := twoPassCrosstabRequest(types.ATTR_ZSCORE), twoPassCrosstabRequest(attrParityZScore)
 			bReq.Cohort.Filename, eReq.Cohort.Filename = path, path

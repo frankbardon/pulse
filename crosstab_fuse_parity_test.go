@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -306,7 +307,7 @@ func TestStreamability_CrosstabFusionPredictMatchesRuntime(t *testing.T) {
 			if err != nil {
 				t.Fatalf("pulse.New: %v", err)
 			}
-			svc := pulse.ServiceForTest(p)
+			svc := testhook.Service(p)
 			reg, snap := svc.Extensions(), svc.InstanceSnapshot()
 			fused, sanctioned := 0, 0
 			for _, c := range corpus {
@@ -354,7 +355,7 @@ func TestStreamability_CrosstabFusionIgnoresDisableOption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := pulse.ServiceForTest(p)
+	svc := testhook.Service(p)
 	req := fusionXtab([]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 		[]*types.Group{{Type: types.GROUP_DATE, Field: "day"}}, &types.Aggregation{Type: types.AGG_SUM, Field: "qty"})
 	snap := svc.InstanceSnapshot()
@@ -405,7 +406,7 @@ func TestPredict_CrosstabFusableMatchesRuntime(t *testing.T) {
 			if err != nil {
 				t.Fatalf("pulse.New: %v", err)
 			}
-			svc := pulse.ServiceForTest(p)
+			svc := testhook.Service(p)
 			reg, snap := svc.Extensions(), svc.InstanceSnapshot()
 			compared, fused := 0, 0
 			for _, c := range fusionParityCorpus() {
@@ -547,7 +548,7 @@ func TestCrosstab_BufferedAttributeRunsBuffered(t *testing.T) {
 	if pr.CrosstabFusable == nil || *pr.CrosstabFusable || !reflect.DeepEqual(pr.CrosstabFusionReasons, want) {
 		t.Fatalf("predict CrosstabFusable=%v reasons=%q, want false %q", pr.CrosstabFusable, pr.CrosstabFusionReasons, want)
 	}
-	if ok, why := processing.CanFuseCrosstab(req(), schema, pulse.ServiceForTest(p).Extensions()); ok || why != want[0] {
+	if ok, why := processing.CanFuseCrosstab(req(), schema, testhook.Service(p).Extensions()); ok || why != want[0] {
 		t.Fatalf("runtime CanFuseCrosstab = (%v, %q), want (false, %q)", ok, why, want[0])
 	}
 	got, err := p.Process(ctx, req())

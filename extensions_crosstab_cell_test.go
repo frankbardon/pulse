@@ -14,6 +14,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -201,7 +202,7 @@ func TestExtensions_UndeclaredMarginCellStaysBuffered(t *testing.T) {
 	}
 	ctx := context.Background()
 	schema := paritySchema(t)
-	reg := pulse.ServiceForTest(p).Extensions()
+	reg := testhook.Service(p).Extensions()
 	for _, at := range []types.AggregationType{aggXtUndecl, aggXtRecomp} {
 		t.Run(string(at), func(t *testing.T) {
 			c := crosstabCellCase{builtin: types.AGG_SUM, ext: at, field: "qty", aux: true}
@@ -248,7 +249,7 @@ func TestExtensions_ExtensionAuxMarginAggregationFuses(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	schema := paritySchema(t)
-	reg := pulse.ServiceForTest(p).Extensions()
+	reg := testhook.Service(p).Extensions()
 	c := crosstabCellCase{field: "qty", aux: true}
 	// The undeclared-class twin is Mergeable: fine as an auxiliary.
 	if ok, why := processing.CanFuseCrosstab(c.request(types.AGG_SUM, aggXtUndecl), schema, reg); !ok {

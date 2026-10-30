@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -101,7 +102,7 @@ func TestModelError_ArmsAgree(t *testing.T) {
 	if _, err := serial.CreateShardArchive(context.Background(), "archive.pulse", shards); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
-	exts := pulse.ServiceForTest(serial).Extensions()
+	exts := testhook.Service(serial).Extensions()
 
 	groupings := map[string][]*types.Group{
 		"ungrouped": nil,

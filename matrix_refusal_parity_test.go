@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -345,7 +346,7 @@ func TestCrosstab_MatricesDoNotPerturb(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			svc := pulse.ServiceForTest(p)
+			svc := testhook.Service(p)
 			reg := svc.Extensions()
 			ran, fused := 0, 0
 			for _, c := range fusionParityCorpus() {

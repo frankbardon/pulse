@@ -12,6 +12,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -426,7 +427,7 @@ func TestExtensionAggregator_NonScalarScoredRefused(t *testing.T) {
 		t.Fatalf("Process scoring s: %v", err)
 	}
 	// The runtime registry's classifier reads the same declaration.
-	if !pulse.ServiceForTest(p).Extensions().AggregationKinds().IsNonScalar(a.typ) {
+	if !testhook.Service(p).Extensions().AggregationKinds().IsNonScalar(a.typ) {
 		t.Error("runtime AggregationKinds does not class the declared extension non-scalar")
 	}
 
@@ -438,7 +439,7 @@ func TestExtensionAggregator_NonScalarScoredRefused(t *testing.T) {
 	if _, err := q.Process(ctx, nsProcess(a, kind, "ns", nil)); err != nil {
 		t.Fatalf("undeclared: Process: %v", err)
 	}
-	if pulse.ServiceForTest(q).Extensions().AggregationKinds().IsNonScalar(a.typ) {
+	if testhook.Service(q).Extensions().AggregationKinds().IsNonScalar(a.typ) {
 		t.Error("undeclared: runtime AggregationKinds classes the extension non-scalar")
 	}
 }

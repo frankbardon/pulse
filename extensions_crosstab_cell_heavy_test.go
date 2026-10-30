@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -31,7 +31,7 @@ func TestExtensions_DeclaredMarginCellFusesCrosstab(t *testing.T) {
 			p, path := mode.open(t, crosstabCellExtensions(probe))
 			ctx := context.Background()
 			schema := paritySchema(t)
-			reg := pulse.ServiceForTest(p).Extensions()
+			reg := testhook.Service(p).Extensions()
 			for _, c := range crosstabCellCases() {
 				t.Run(c.name, func(t *testing.T) {
 					bReq, eReq := c.request(c.builtin, types.AGG_SUM), c.request(c.ext, aggXtSum)

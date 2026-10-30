@@ -13,6 +13,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -277,7 +278,7 @@ func TestExtensions_RegressionStreamingModelRoutedBuffered(t *testing.T) {
 	req := regressionRequest(cohort, slopeSpec(regStreamName))
 	req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 	req.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "qty", Label: "n"}}
-	if processing.CanStreamRequestWithExtensions(req, paritySchema(t), pulse.ServiceForTest(p).Extensions()) {
+	if processing.CanStreamRequestWithExtensions(req, paritySchema(t), testhook.Service(p).Extensions()) {
 		t.Fatal("a grouped regression request streams; the test needs the buffered arm")
 	}
 	*calls = regCalls{}
@@ -326,7 +327,7 @@ func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
 			if pr.Streamable != tc.stream {
 				t.Errorf("PredictResult.Streamable = %v (%v), want %v", pr.Streamable, pr.StreamableReasons, tc.stream)
 			}
-			if got := processing.CanStreamRequestWithExtensions(req, paritySchema(t), pulse.ServiceForTest(p).Extensions()); got != tc.stream {
+			if got := processing.CanStreamRequestWithExtensions(req, paritySchema(t), testhook.Service(p).Extensions()); got != tc.stream {
 				t.Errorf("CanStreamRequestWithExtensions = %v, want %v", got, tc.stream)
 			}
 		})

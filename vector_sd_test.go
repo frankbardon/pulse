@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -93,7 +94,7 @@ func TestVecSD_CrosstabElementMatchesWelford(t *testing.T) {
 			if err != nil || !pr.Valid {
 				t.Fatalf("predict refused the AGG_VEC_SD element crosstab: %v %+v", err, pr)
 			}
-			rtOK, _ := processing.CanFuseCrosstab(req, vexprSchema(), pulse.ServiceForTest(base).Extensions())
+			rtOK, _ := processing.CanFuseCrosstab(req, vexprSchema(), testhook.Service(base).Extensions())
 			if pr.CrosstabFusable == nil || *pr.CrosstabFusable != rtOK || rtOK {
 				t.Fatalf("CrosstabFusable predict %v (reasons %v), runtime %v; want both false",
 					pr.CrosstabFusable != nil && *pr.CrosstabFusable, pr.CrosstabFusionReasons, rtOK)

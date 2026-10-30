@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mcp"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -47,7 +48,7 @@ func describedRegressions() pulse.Extensions {
 // regressions[].type enum for p's instance.
 func processRegressionTypeEnum(t *testing.T, p *pulse.Pulse) []string {
 	t.Helper()
-	bound, err := mcp.BindForInstance(paritySchema(t), pulse.ServiceForTest(p).InstanceSnapshot())
+	bound, err := mcp.BindForInstance(paritySchema(t), testhook.Service(p).InstanceSnapshot())
 	if err != nil {
 		t.Fatalf("BindForInstance: %v", err)
 	}
@@ -309,7 +310,7 @@ func TestExtensions_RegressionFieldInputs(t *testing.T) {
 		return []string{p.Offset}
 	}
 	p, cohort := openE2E(t, ext)
-	reg := pulse.ServiceForTest(p).Extensions()
+	reg := testhook.Service(p).Extensions()
 	spec := func(typ types.RegressionType, offset string) *types.Request {
 		return regressionRequest(cohort, &types.RegressionSpec{Type: typ, Name: "fit", Target: "score",
 			Predictors: []string{"day"}, Params: json.RawMessage(`{"offset":"` + offset + `"}`)})

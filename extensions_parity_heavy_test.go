@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 )
 
 // TestExtensions_BuiltinParity runs every suite's {builtin, extension}
@@ -37,7 +37,7 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 							// path as the built-in it reimplements,
 							// except where extStreams names the
 							// deliberate divergence.
-							reg := pulse.ServiceForTest(p).Extensions()
+							reg := testhook.Service(p).Extensions()
 							if got := processing.CanStreamRequestWithExtensions(eReq, schema, reg); got == row.bufferedOnly {
 								t.Fatalf("CanStreamRequestWithExtensions(extension) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
 							}
@@ -48,7 +48,7 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 								t.Fatalf("CanMergeRequest(builtin) = %v but row.serialOnly = %v; mode %s would not run the path it names",
 									got, row.serialOnly, mode.name)
 							}
-							reg := pulse.ServiceForTest(p).Extensions()
+							reg := testhook.Service(p).Extensions()
 							if got := processing.CanMergeRequestWithExtensions(eReq, schema, reg); got != extMerge {
 								t.Fatalf("CanMergeRequestWithExtensions(extension) = %v, want %v (serialOnly=%v extMerges=%v)",
 									got, extMerge, row.serialOnly, row.extMerges)

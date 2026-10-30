@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,7 +30,7 @@ func openGroupedComponents(t *testing.T, disable bool) (*pulse.Pulse, *types.Coh
 		t.Fatalf("pulse.New: %v", err)
 	}
 	grouped := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}, Aggregations: gcAggregations()}
-	if processing.CanStreamRequestWithExtensions(grouped, paritySchema(t), pulse.ServiceForTest(p).Extensions()) {
+	if processing.CanStreamRequestWithExtensions(grouped, paritySchema(t), testhook.Service(p).Extensions()) {
 		t.Fatal("fixture: the grouped request streams; it must take the buffered arm")
 	}
 	return p, &types.Cohort{Filename: "gc.pulse"}

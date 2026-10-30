@@ -13,6 +13,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -467,7 +468,7 @@ func TestExtensionAggregator_CategoricalCodeScoredRefused(t *testing.T) {
 	if _, err := p.Process(ctx, ccProcess(typ, "x", kind, "ms", nil)); err != nil {
 		t.Fatalf("Process over x: %v", err)
 	}
-	if !pulse.ServiceForTest(p).Extensions().AggregationKinds().EmitsInputValue(typ) {
+	if !testhook.Service(p).Extensions().AggregationKinds().EmitsInputValue(typ) {
 		t.Error("runtime AggregationKinds does not class the declared extension input-valued")
 	}
 	m := p.Manifest(ctx)

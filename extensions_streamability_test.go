@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -235,7 +236,7 @@ func TestExtensions_StreamabilityFollowsDeclaration(t *testing.T) {
 			if pr.Streamable != row.stream {
 				t.Errorf("PredictResult.Streamable = %v (reasons %v), want %v", pr.Streamable, pr.StreamableReasons, row.stream)
 			}
-			reg := pulse.ServiceForTest(p).Extensions()
+			reg := testhook.Service(p).Extensions()
 			if got := processing.CanStreamRequestWithExtensions(&req, paritySchema(t), reg); got != row.stream {
 				t.Errorf("CanStreamRequestWithExtensions = %v, want %v", got, row.stream)
 			}

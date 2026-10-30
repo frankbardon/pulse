@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -135,7 +136,7 @@ func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	reg := pulse.ServiceForTest(p).Extensions()
+	reg := testhook.Service(p).Extensions()
 	if reg == nil {
 		t.Fatal("expected non-nil registry")
 	}
@@ -173,7 +174,7 @@ func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
 
 	// Snapshot built and reachable from descriptor side — exercises
 	// the per-category snapshot loops in buildExtensionsSnapshot.
-	snap := pulse.ServiceForTest(p).ExtensionsSnapshot()
+	snap := testhook.Service(p).ExtensionsSnapshot()
 	if snap == nil {
 		t.Fatal("expected non-nil ExtensionsSnapshot")
 	}

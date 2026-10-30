@@ -12,6 +12,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/testhook"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -175,7 +176,7 @@ func TestExtensions_CanMergeRequestWithExtensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	reg := pulse.ServiceForTest(p).Extensions()
+	reg := testhook.Service(p).Extensions()
 	schema := paritySchema(t)
 	agg := func(at types.AggregationType, field string) []*types.Aggregation {
 		return []*types.Aggregation{{Type: at, Field: field, Label: "v"}}
@@ -590,7 +591,7 @@ func TestExtensions_MergeableGrouperFloorAcrossModes(t *testing.T) {
 					b, _ := run(c.builtin)
 					e, eReq := run(c.ext)
 					if mode.mergeable {
-						reg := pulse.ServiceForTest(p).Extensions()
+						reg := testhook.Service(p).Extensions()
 						if !processing.CanMergeRequestWithExtensions(eReq, paritySchema(t), reg) {
 							t.Fatal("extension request does not clear the merge gate; the mode would not merge")
 						}
