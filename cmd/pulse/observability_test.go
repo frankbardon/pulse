@@ -44,7 +44,11 @@ func TestCLIHelperProcess(t *testing.T) {
 func cliProcess(t *testing.T, args ...string) *exec.Cmd {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], append([]string{"-test.run=^TestCLIHelperProcess$", "--"}, args...)...)
-	cmd.Env = append(os.Environ(), cliHelperEnv+"=1", "PULSE_FEATURE_PROFILE=")
+	// The OTLP endpoint variables are blanked (empty = unset) so a
+	// developer's shell-wide OTel setup never makes `pulse mcp` export;
+	// a test that wants export appends its own values after these.
+	cmd.Env = append(os.Environ(), cliHelperEnv+"=1", "PULSE_FEATURE_PROFILE=",
+		"OTEL_EXPORTER_OTLP_ENDPOINT=", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=")
 	return cmd
 }
 

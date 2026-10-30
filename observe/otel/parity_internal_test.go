@@ -1,6 +1,7 @@
 package otelpulse
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -9,9 +10,9 @@ import (
 
 // TestDescriptionsAndBucketsMatchBuiltinExporter pins the instrument
 // descriptions and advised buckets to Pulse's built-in exporter. (A
-// test-only import: the module path sits under the Pulse module's tree,
-// so its internal packages are visible to it.)
+// test-only import of a package internal to the same module.)
 func TestDescriptionsAndBucketsMatchBuiltinExporter(t *testing.T) {
+	t.Parallel()
 	for name, d := range descriptions {
 		want, ok := obsprom.Help(name)
 		if !ok {
@@ -23,5 +24,18 @@ func TestDescriptionsAndBucketsMatchBuiltinExporter(t *testing.T) {
 	}
 	if !slices.Equal(DefaultBuckets, obsprom.DefaultBuckets) {
 		t.Errorf("DefaultBuckets %v, want %v", DefaultBuckets, obsprom.DefaultBuckets)
+	}
+}
+
+// TestScopeNameIsImportPath pins the instrumentation scope to the
+// package's own import path, so a moved package cannot keep reporting a
+// stale scope.
+func TestScopeNameIsImportPath(t *testing.T) {
+	t.Parallel()
+	if got := reflect.TypeOf(tracer{}).PkgPath(); ScopeName != got {
+		t.Errorf("ScopeName %q, want the import path %q", ScopeName, got)
+	}
+	if ScopeName != "github.com/frankbardon/pulse/observe/otel" {
+		t.Errorf("ScopeName %q, want github.com/frankbardon/pulse/observe/otel", ScopeName)
 	}
 }

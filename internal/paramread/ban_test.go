@@ -50,7 +50,7 @@ func TestParamsReadThroughParamread(t *testing.T) {
 		if d.IsDir() {
 			switch {
 			case rel != "." && strings.HasPrefix(d.Name(), "."),
-				d.Name() == "testdata", d.Name() == "contrib", d.Name() == "docs", d.Name() == "tmp":
+				d.Name() == "testdata", d.Name() == "docs", d.Name() == "tmp":
 				return filepath.SkipDir
 			}
 			return nil

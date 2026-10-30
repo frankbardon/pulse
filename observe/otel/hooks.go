@@ -33,8 +33,9 @@
 // durations of the phases before it (a phase that ran in several pieces
 // is reported once, with their sum).
 //
-// This package lives in its own Go module so the Pulse core module never
-// depends on OpenTelemetry.
+// Import it as github.com/frankbardon/pulse/observe/otel. It is the
+// only root-module library package that imports OpenTelemetry; the
+// observe package and the rest of the library stay free of it.
 package otelpulse
 
 import (
@@ -50,7 +51,7 @@ import (
 
 // ScopeName is the instrumentation scope of the tracer and meter this
 // package creates.
-const ScopeName = "github.com/frankbardon/pulse/contrib/otelpulse"
+const ScopeName = "github.com/frankbardon/pulse/observe/otel"
 
 // Attribute keys.
 const (

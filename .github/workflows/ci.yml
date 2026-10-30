@@ -1,7 +1,7 @@
 name: CI
 
 # CI runs on demand, not per push: local gates (`make lint`, `make
-# test-heavy`, `make smoke`, `make contrib`) cover a branch while it is
+# test-heavy`, `make smoke`) cover a branch while it is
 # built, and this workflow runs once on the finished branch before merge —
 # `gh workflow run ci.yml --ref <branch>`. Its check runs land on the
 # branch head, which is what branch protection requires. release.yml
@@ -16,7 +16,7 @@ name: CI
 #   lint                    needs the three above; make staticcheck-merge.
 #                           The required `lint` check = all of `make lint`.
 #   docs                    mdbook build
-#   build                   make build + smoke + contrib
+#   build                   make build + smoke
 #   test (1.26)             the fast tier
 #   test-heavy (1..6, catchall)  the heavy tier, split by
 #                           .github/heavy-shards.txt (a heavy test the list
@@ -171,7 +171,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: "1.26"
-          # The nested smoke and contrib modules carry their own go.sum.
+          # The nested smoke module carries its own go.sum.
           cache-dependency-path: "**/go.sum"
 
       - name: Build
@@ -179,9 +179,6 @@ jobs:
 
       - name: Embedder smoke module
         run: make smoke
-
-      - name: Contrib modules
-        run: make contrib
 
   # The fast tier. The go-version matrix keeps the check name
   # `test (1.26)`, which branch protection requires.

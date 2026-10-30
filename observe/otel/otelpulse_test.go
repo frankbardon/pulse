@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/contrib/otelpulse"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
+	otelpulse "github.com/frankbardon/pulse/observe/otel"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/attribute"
@@ -76,6 +76,7 @@ func eventNames(s tracetest.SpanStub) []string {
 // pulse.process span child of the compose span. Phases are span events
 // with durations, and the run facts ride as attributes.
 func TestHooksSpanNesting(t *testing.T) {
+	t.Parallel()
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
@@ -174,6 +175,7 @@ func eventNamesOf(spans tracetest.SpanStubs) []string {
 // code as pulse.error_code and an Error status whose description is the
 // code alone.
 func TestHooksErrorCode(t *testing.T) {
+	t.Parallel()
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
@@ -213,6 +215,7 @@ var documented = []string{
 // MeterProvider through Metrics records every metric of the documented
 // set, with the documented instrument kind and labels as attributes.
 func TestMetricsDocumentedSet(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	reader := sdkmetric.NewManualReader()
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -315,6 +318,7 @@ func TestMetricsDocumentedSet(t *testing.T) {
 // TestMetricsConcurrentAndClash: the factory is safe for concurrent use
 // (run with -race), and a name reused with another kind is a no-op.
 func TestMetricsConcurrentAndClash(t *testing.T) {
+	t.Parallel()
 	reader := sdkmetric.NewManualReader()
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })

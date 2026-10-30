@@ -148,7 +148,7 @@ U24 shipped the multivariate matrix operators without a human reviewer: an exter
 
 ## Inherited from U20
 
-- **Lockstep contrib release rehearsal** (#232). `v1.0.0-alpha.6` is the first release to tag `contrib/otelpulse` and `contrib/prompulse` beside the root (`scripts/release-contrib.sh`, the `contrib` job in `release.yml`). Run it again on `v1.0.0-rc.1` and keep the procedure in the release runbook. Dependabot root bumps fail `make contrib` until `make contrib-tidy` is run in that PR; decide whether CI should do it.
+- **Lockstep contrib release rehearsal** (#232). *Resolved by observability-adapters:* the adapters moved into the root module as `observe/otel` / `observe/prom`, so there are no contrib tags, no `scripts/release-contrib.sh` and no `contrib` release job left to rehearse; nothing for the release runbook.
 - **`ServeInfo` comparability** (#233). `mcpserve.ServeInfo` gained `Limits []descriptor.LimitMeta`, so it is no longer `==`-comparable (an apidiff advisory). Keep the slice or switch to `pulse.Limits` before the freeze; record the choice in the migration doc and `STABILITY.md`.
 - **Uninstrumented methods** (#234). `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars` and `Watch*` have no `OperationKind` (`uninstrumentedMethods` in `observability_test.go`). Confirm the list before the `observe` enums freeze.
 

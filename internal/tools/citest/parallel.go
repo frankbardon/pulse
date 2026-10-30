@@ -32,11 +32,10 @@ type parallelReport struct {
 // nor carries a "// serial: <reason>" comment. TestMain, benchmarks, fuzz
 // targets and examples are exempt.
 //
-// The nested modules (internal/embeddersmoke, contrib/*) are skipped, like
-// every other citest scan: `make test` never runs them (`make smoke` /
-// `make contrib` do, as separate go invocations whose wall time is compile
-// bound), so parallelising their ~50 small tests buys nothing, and the
-// contrib adapters register process-global OTel / Prometheus state.
+// The nested module (internal/embeddersmoke) is skipped, like every other
+// citest scan: `make test` never runs it (`make smoke` does, as a separate
+// go invocation whose wall time is compile bound), so parallelising its
+// small tests buys nothing.
 func parallelCheck(root string) (parallelReport, error) {
 	var paths []string
 	if err := walkTestFiles(root, func(path string) error {

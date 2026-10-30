@@ -7,4 +7,3 @@ set -euo pipefail
 GOTOOLCHAIN=go1.26.1 make lint
 go test -count=1 -tags heavy -timeout=30m ./...
 make smoke
-GOTOOLCHAIN=go1.26.1 make contrib

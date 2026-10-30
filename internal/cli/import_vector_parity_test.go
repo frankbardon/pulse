@@ -17,7 +17,7 @@ import (
 // The CLI legs of the U29 import acceptance. They live here, not in the
 // root package's vector_import_*_e2e_test.go: a root-package test that
 // imports internal/cli drags urfave/cli into the test graph of every
-// module importing pulse, and the contrib modules' `go mod tidy -diff`
+// module importing pulse, and a nested module's `go mod tidy -diff`
 // then fails (see TestRootTestGraphExcludesCLI). The root tests keep the
 // library path and the analysis parity; these pin CLI ≡ library.
 

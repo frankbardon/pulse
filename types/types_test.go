@@ -279,7 +279,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 	}
 
 	// Runtime strings: every Go string literal in every non-test source
-	// file of the repository (nested contrib modules included) — the
+	// file of the repository (nested modules included) — the
 	// warning reasons, details values and messages an embedder reads.
 	// A predecessor-prefixed reason string (the pairwise overlay skips
 	// once shipped as ORBIT_STATS_SKIP_*) is as visible on the wire as

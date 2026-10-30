@@ -59,7 +59,7 @@ func TestGroupedPathsReadEveryGrouper(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case "contrib", "testdata", "vendor", "node_modules", "docs", "dist", "tmp":
+			case "testdata", "vendor", "node_modules", "docs", "dist", "tmp":
 				return filepath.SkipDir
 			}
 			if path != root && strings.HasPrefix(d.Name(), ".") {

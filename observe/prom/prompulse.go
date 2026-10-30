@@ -23,8 +23,9 @@
 // and exporting them all at zero would bloat every scrape with series
 // that never move.
 //
-// This package lives in its own Go module so the Pulse core module never
-// depends on a Prometheus client. Pulse also ships a dependency-free
+// Import it as github.com/frankbardon/pulse/observe/prom. It is the
+// only root-module library package that imports a Prometheus client;
+// the observe package and the rest of the library stay free of it. Pulse also ships a dependency-free
 // exporter behind `pulse mcp --metrics-addr`; this adapter is for hosts
 // that want Pulse's metrics in their own registry.
 package prompulse
