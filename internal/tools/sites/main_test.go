@@ -294,3 +294,25 @@ func TestMakeTargetCovers(t *testing.T) {
 		t.Errorf("Makefile targets %v lack bench", names)
 	}
 }
+
+// TestRegenForRelocatedTestdata pins the regenerate command for testdata
+// whose writer does not sit beside it: the root testdata/ and the story
+// goldens are rewritten by internal/integration's -update flags, the
+// sharding fixtures by their own generators.
+func TestRegenForRelocatedTestdata(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	for p, want := range map[string]string{
+		"testdata/chain_handoff/digests.json":        "go test -count=1 ./internal/integration/ -update",
+		"testdata/fitted_state/examples.golden.json": "go test -count=1 ./internal/integration/ -update",
+		"internal/examples/testdata/stories/x.json":  "go test -count=1 ./internal/integration/ -update",
+		"testdata/sharding/two_shards.pulse":         "go test -count=1 ./internal/shardfixtures/ -update",
+		"testdata/sharding/two_shards.inspect.json":  "go test -count=1 ./internal/cli/ -update",
+		"descriptor/testdata/payload-schema.json":    "go test -count=1 ./descriptor/ -update",
+	} {
+		if got, _ := r.regenFor(p); got != want {
+			t.Errorf("regenFor(%s) = %q, want %q", p, got, want)
+		}
+	}
+}

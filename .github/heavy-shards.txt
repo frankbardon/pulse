@@ -87,17 +87,17 @@
 3 ./internal/service TestWeightUnityParity
 3 ./internal/service TestWideSetInvariance_Heavy
 
-# shard 4 (17 s local): ., ./internal/sem
-4 . TestExtensionRegressionInvariance_Heavy
-4 . TestExtensions_DeclaredMarginCellFusesCrosstab
-4 . TestFilterToFile_DateRangesMatchesProcess
-4 . TestGroupKMeans_DecodeWorkersAgree
+# shard 4 (17 s local): ., ./internal/integration, ./internal/sem
+4 ./internal/integration TestExtensionRegressionInvariance_Heavy
+4 ./internal/integration TestExtensions_DeclaredMarginCellFusesCrosstab
+4 ./internal/integration TestFilterToFile_DateRangesMatchesProcess
+4 ./internal/integration TestGroupKMeans_DecodeWorkersAgree
 4 . TestPanicRecovery_PoolRepanics
 4 . TestProfileInvisibilityParity
-4 . TestSEMInvariance_Heavy
-4 . TestSEM_BootstrapDerivedSeed
-4 . TestSEM_OrdinalBootstrapDeterministic
-4 . TestVectorInvariance_Heavy
+4 ./internal/integration TestSEMInvariance_Heavy
+4 ./internal/integration TestSEM_BootstrapDerivedSeed
+4 ./internal/integration TestSEM_OrdinalBootstrapDeterministic
+4 ./internal/integration TestVectorInvariance_Heavy
 4 ./internal/sem TestFit_MatchesSemopy
 4 ./internal/sem TestFit_ShapeMatchesSemopy
 4 ./internal/sem TestPolychoric_GoldenBits
@@ -109,20 +109,20 @@
 4 ./internal/sem TestSEM_BootstrapOrdinalDeterministic
 4 ./internal/sem TestSEM_BootstrapOrdinalMatchesLavaanSampling
 
-# shard 5 (19 s local): ., ./internal/tools/sites, ./internal/apigolden, ./internal/processing/regression, ./mcmc, ./mcp/gosdk, ./internal/distlagparams, ./internal/iocore, ./internal/statdist, ./internal/temporal, ./internal/testutil/fmagate, ./linalg/detmath, ./optimize, ./internal/tools/citest
+# shard 5 (19 s local): ., ./internal/integration, ./internal/tools/sites, ./internal/apigolden, ./internal/processing/regression, ./mcmc, ./mcp/gosdk, ./internal/distlagparams, ./internal/iocore, ./internal/statdist, ./internal/temporal, ./internal/testutil/fmagate, ./linalg/detmath, ./optimize, ./internal/tools/citest
 5 . TestExportReference_DefaultDeterministic
-5 . TestLimitsDefaultsNeverTripGoldens
-5 . TestMultiGrouperInvariance_Heavy
-5 . TestMultiGrouper_YoYPerPartition
-5 . TestParams_U64FieldExactAcrossArms
-5 . TestPreviousStateInvariance_Heavy
-5 . TestReferenceDocPointersResolve
-5 . TestSEM_BootstrapProcessMatchesLavaan
-5 . TestScalarOverlayHost_RefusalsMatchPredict
-5 . TestSeriesOverlayField_ScoresNamedAggregation
-5 . TestTallyMerge_ParallelArmsMatchSerial
-5 . TestTimeZoneField_PerRowEqualsSingleZoneSlotsEveryMode
-5 . TestWeight_InferentialRefusalsMatchPredict
+5 ./internal/integration TestLimitsDefaultsNeverTripGoldens
+5 ./internal/integration TestMultiGrouperInvariance_Heavy
+5 ./internal/integration TestMultiGrouper_YoYPerPartition
+5 ./internal/integration TestParams_U64FieldExactAcrossArms
+5 ./internal/integration TestPreviousStateInvariance_Heavy
+5 ./internal/integration TestReferenceDocPointersResolve
+5 ./internal/integration TestSEM_BootstrapProcessMatchesLavaan
+5 ./internal/integration TestScalarOverlayHost_RefusalsMatchPredict
+5 ./internal/integration TestSeriesOverlayField_ScoresNamedAggregation
+5 ./internal/integration TestTallyMerge_ParallelArmsMatchSerial
+5 ./internal/integration TestTimeZoneField_PerRowEqualsSingleZoneSlotsEveryMode
+5 ./internal/integration TestWeight_InferentialRefusalsMatchPredict
 5 ./internal/apigolden TestPublicAPIGolden
 5 ./internal/apigolden TestRootSurfaceNamesNoProcessing
 5 ./internal/distlagparams TestDistLag_NoFMAContraction
@@ -151,19 +151,19 @@
 5 ./mcp/gosdk TestSkills_FacadeMCPParity
 5 ./optimize TestOptimize_NoFMAContraction
 
-# shard 6 (20 s local): ., ./internal/regmmm, ./internal/descriptor
-6 . TestBitExact_Heavy
-6 . TestObservabilityVendorImportBoundaryModule
-6 . TestExamples_RunEndToEnd
+# shard 6 (20 s local): ., ./internal/integration, ./internal/regmmm, ./internal/descriptor
+6 ./internal/integration TestBitExact_Heavy
+6 ./internal/integration TestObservabilityVendorImportBoundaryModule
+6 ./internal/integration TestExamples_RunEndToEnd
 6 . TestExtensionMatrixInvariance_Heavy
-6 . TestExtensions_BuiltinParity
-6 . TestGroupedComponentsInvariance_Heavy
-6 . TestParamsDeclaredMatchRead
+6 ./internal/integration TestExtensions_BuiltinParity
+6 ./internal/integration TestGroupedComponentsInvariance_Heavy
+6 ./internal/integration TestParamsDeclaredMatchRead
 6 . TestProfileExportTreeSweep
 6 . TestSEMShape_OneRequestMatchesSemopy
-6 . TestSEM_BootstrapDeterministic
-6 . TestTimeZoneField_NullZoneCellIsNullLocalValue
-6 . TestTwoPassOrder_Layers
+6 ./internal/integration TestSEM_BootstrapDeterministic
+6 ./internal/integration TestTimeZoneField_NullZoneCellIsNullLocalValue
+6 ./internal/integration TestTwoPassOrder_Layers
 6 ./internal/descriptor TestExamplesSearch_OneWordPinnedToLegacy
 6 ./internal/descriptor TestManifestGuidanceBudget
 6 ./internal/descriptor TestManifestGuidanceBudget_Falsifiers

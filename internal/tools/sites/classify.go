@@ -171,6 +171,34 @@ func classify(p string) string {
 	return "other-go"
 }
 
+// testdataOwners maps a testdata path prefix to the package directory
+// whose tests regenerate it, for testdata that does not sit beside its
+// writer. Longest prefix first. The root testdata/ and the story goldens
+// are written by the black-box suite in internal/integration (it runs from
+// the repository root); testdata/sharding has its own generators.
+var testdataOwners = []struct{ prefix, dir string }{
+	{"testdata/sharding/two_shards.inspect.json", "internal/cli"},
+	{"testdata/sharding/two_shards.process.json", "internal/cli"},
+	{"testdata/sharding/", "internal/shardfixtures"},
+	{"internal/examples/testdata/", "internal/integration"},
+	{"testdata/", "internal/integration"},
+}
+
+// testdataOwner returns the package directory whose tests regenerate
+// testdata path p: an explicit testdataOwners entry, else the directory
+// holding the testdata/ tree (the package beside it).
+func testdataOwner(p string) string {
+	for _, o := range testdataOwners {
+		if strings.HasPrefix(p, o.prefix) {
+			return o.dir
+		}
+	}
+	if i := strings.Index(p, "/testdata/"); i >= 0 {
+		return p[:i]
+	}
+	return "."
+}
+
 // regenFor derives the regeneration command for a golden / generated
 // path: the testdata's owning package, with -update when that
 // package's tests declare the flag.
@@ -185,11 +213,7 @@ func (r *repo) regenFor(p string) (cmd, note string) {
 	case ".py", ".R", ".md", ".sh":
 		return "", "hand-authored fixture / generator source: edit only if the input itself changes"
 	}
-	i := strings.Index(p, "/testdata/")
-	dir := "."
-	if i >= 0 {
-		dir = p[:i]
-	}
+	dir := testdataOwner(p)
 	var flags []string
 	for _, f := range r.files {
 		if path.Dir(f) == dir && strings.HasSuffix(f, "_test.go") {
