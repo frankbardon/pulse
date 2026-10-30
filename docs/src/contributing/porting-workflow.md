@@ -60,7 +60,7 @@ or registered surface.
 Run the hygiene gate before opening the PR and confirm zero matches:
 
 ```bash
-go test . -run TestNoOrbit
+go test ./types/ ./errors/ -run TestNoOrbit
 ```
 
 The gate is non-skippable; CI will catch any leak, but catching it

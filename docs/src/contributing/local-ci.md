@@ -145,7 +145,7 @@ Pulse has a hard rule against leaking strings from its predecessor
 project (legacy "Orbit" naming) into error codes or type constants:
 
 ```bash
-go test . -run TestNoOrbit
+go test ./types/ ./errors/ -run TestNoOrbit
 ```
 
 Should always return zero matches before opening a PR.
@@ -268,7 +268,7 @@ named in Go source must appear there; every non-skippable gate must
 be listed; the current `format_version` must be mentioned:
 
 ```bash
-go test . -run 'TestClaudeMd|TestUpdateDemandTable'
+go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUpdateDemandTable'
 ```
 
 ## Per-change quick reference
@@ -282,7 +282,7 @@ go test . -run 'TestClaudeMd|TestUpdateDemandTable'
 | An error code | `go test ./errors/ -run 'TestCodesHaveFixups\|TestErrorsLookup' && go test ./internal/descriptor/ -run 'TestManifestErrorCodesComplete\|TestManifest_ErrorCodesSlim'` |
 | An MCP tool | `go test ./internal/skills/ -run TestSkillsCoverAllMCPTools && go test ./internal/descriptor/ -run TestManifestMCPToolsComplete && go test ./internal/mcp/ -run TestMCPSchemaBinding` |
 | A field type | `go test ./internal/skills/ -run TestSkillsCoverAllFieldTypes && go test ./encoding/... ./internal/encoding/...` |
-| The Update Demand table or a contract listed in it | `go test . -run TestUpdateDemandTableCovers` |
+| The Update Demand table or a contract listed in it | `go test ./internal/integration/ -run TestUpdateDemandTableCovers` |
 | Any exported identifier in a public package, or a root alias's target | `go test -tags heavy ./internal/apigolden/` (then `-update` only if the change is intended) + `make smoke` |
 | A package move under `internal/io/**` / `internal/iocore` | `go test ./internal/iocore/ -run TestIOImportBoundary` |
 

@@ -51,7 +51,7 @@ add the operator to its `fieldRequired` / `frameRequired` /
 `frameRejected` tables and put any params rule in `paramsRefusal`, so both
 sides refuse with `PULSE_WINDOW_INVALID` and the same rule sentence. Then
 add the operator's row to `windowParityRows` in
-`window_refusal_parity_test.go` — `TestWindowRefusals_PredictMatchesRuntime`
+`internal/integration/window_refusal_parity_test.go` — `TestWindowRefusals_PredictMatchesRuntime`
 fails for a window type without one.
 
 ## 3. Streamability — nothing to do

@@ -50,7 +50,7 @@ go test ./descriptor/ -run TestGoldensNotHandEdited
 ## 4. Tests
 
 Add the rule's case to `internal/mergegate/gate_test.go` and a row to
-`TestChainGate_ValidatorMatchesRuntime` (root `chain_gate_parity_test.go`),
+`TestChainGate_ValidatorMatchesRuntime` (`internal/integration/chain_gate_parity_test.go`),
 which runs each stage through `ProcessChain` and `ValidateChainWithOptions`
 and requires the same code, message and details.
 

@@ -58,7 +58,7 @@ index on `experiment.pulse` (`id`). Every example request has
 | `all_types.pulse` | One column for every one of the 17 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
 | `experiment.pulse` | A/B test cohort: `id` (u32), `treatment`/`region`/`segment`/`converted` (categorical), `revenue`/`session_minutes` (f64), `period` (date). Planted effects across treatment, region, segment, and time so every `TEST_*` example produces a meaningful, non-trivial result. |
 | `survey.pulse` | A six-item rating battery: `id` (u32), `panel` (categorical, `a` / `b`), `q1`-`q6` (f64). Two correlated factors (q1-q3 service, q4-q6 value; q3 / q6 cross-load) for factor-analysis, rotation, vector-fit and population examples. |
-| `subscribers.pulse` | 48 subscriber accounts with binary outcomes stored as flags: `id` (u32), `arm` / `plan` (categorical), `converted` / `churned` / `defaulted` (packed_bool, read as levels `"0"` / `"1"`), `late_payment` (u8 0/1), `signup_date` / `first_repeat_order` (date), `revenue` / `cost` (decimal128, cents). Every value is a closed-form function of the row index (`fixtures/gen.go`), so the flag tests, the logistic fit, calendar retention and exact money examples have hand-derivable answers (`showcase_flags_money_test.go`). |
+| `subscribers.pulse` | 48 subscriber accounts with binary outcomes stored as flags: `id` (u32), `arm` / `plan` (categorical), `converted` / `churned` / `defaulted` (packed_bool, read as levels `"0"` / `"1"`), `late_payment` (u8 0/1), `signup_date` / `first_repeat_order` (date), `revenue` / `cost` (decimal128, cents). Every value is a closed-form function of the row index (`fixtures/gen.go`), so the flag tests, the logistic fit, calendar retention and exact money examples have hand-derivable answers (`internal/integration/showcase_flags_money_test.go`). |
 | `warehouse_orders.pulse` | 8 orders across four warehouses: `id` (u32), `warehouse_tz` (categorical, IANA zone names), `ordered_at` (datetime, UTC instants straddling local midnights), `revenue` (f64). The per-row-zone example (`groupers/13_date_per_row_zone.json`) reads `warehouse_tz` through `time_zone_field`. |
 | `plan_history.pulse` | A long panel of 15 customers at three month-end snapshots (45 rows, not sorted by customer): `id` (u32), `customer_id` (u32), `seen_at` (date), `plan` (categorical, `basic` / `plus` / `pro`). Hand-curated; `attributes/24_previous_state_transitions.json` reads each row's previous plan (`ATTR_PREVIOUS_STATE`) for a from-plan × to-plan crosstab. |
 | `plan_history_wide.pulse` | The wide twin of `plan_history`: one row per move between two consecutive snapshots (30 rows): `id` (u32), `customer_id` (u32), `moved_at` (date, the later snapshot), `plan_before` / `plan_after` (categorical). `overlays/55_crosstab_previous_state_flows.json` runs Markov, symmetry and retention on the long panel; `TestExamples_PreviousStateFlowsMatchWideTwin` holds its answer to the same request over this file. |
@@ -149,7 +149,7 @@ and fails on a missing, extra or differing golden. Never hand-edit one;
 regenerate after changing a story or a fixture:
 
 ```sh
-go test -count=1 . -run TestExamples_StoryGoldens -update
+go test -count=1 ./internal/integration/ -run TestExamples_StoryGoldens -update
 ```
 
 The goldens are embedded: `examples.StoryGolden(name)` returns one, so
@@ -166,18 +166,18 @@ the generated docs quote real figures without executing a request.
    `fixtures/schemas/`. Re-run the generator and check in the new CSV.
 5. Drop in a `run-all.sh` for the category (copy from `features/` and
    adjust the glob).
-6. Optionally add an end-to-end test in `examples_test.go` mirroring
+6. Optionally add an end-to-end test in `internal/integration/examples_test.go` mirroring
    `TestFeatureExamples_RunEndToEnd`.
 
 ## CI coverage
 
-`TestExamples_RunEndToEnd` (in `examples_test.go`) builds the shared
+`TestExamples_RunEndToEnd` (in `internal/integration/examples_test.go`) builds the shared
 fixtures into a temp directory and runs every example across every
 category through `pulse.Process`, asserting no errors. Adding a new
 category is one line in the test's `categories` slice.
 
 ```
-go test -run TestExamples -v .
+go test -run TestExamples -v ./internal/integration/
 ```
 
 One sub-test runs per example file, grouped by category.
