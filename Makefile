@@ -71,8 +71,11 @@ smoke:
 STATICCHECK_VERSION ?= latest
 STATICCHECK=honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
+# cover attributes every package's statements to the whole test run
+# (-coverpkg=./...), so the root package counts the black-box suite in
+# ./internal/integration, not only its own package pulse tests.
 cover:
-	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) test -coverpkg=./... -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out
 
 # gofmt from the selected toolchain (GOTOOLCHAIN), so local `GOTOOLCHAIN=go1.26.1 make lint` matches CI.
@@ -130,8 +133,9 @@ staticcheck-merge:
 # matrix scale benches at their default tier (1M rows x p50 —
 # matrix_scale_bench_test.go; the cohort is generated once into
 # $PULSE_BENCH_DIR, default <tmp>/pulse-bench), the linalg CoMoment
-# benches (p 8 / 50 / 256), the encoding-layer codec benches, and the
-# root-package point-lookup
+# benches (p 8 / 50 / 256), the encoding-layer codec benches, the
+# black-box facade benches in ./internal/integration (compose banner,
+# adapted aggregators), and the root-package point-lookup
 # sidecar-presence benchmark (BenchmarkProcess_SidecarIndexPresence —
 # compares Process with/without a sidecar index present; see
 # no_sidecar_touch_bench_test.go); new bench packages should be added
@@ -142,7 +146,7 @@ staticcheck-merge:
 # no_sidecar_touch_perf_test.go's `-tags=perf` opt-in gate for the one
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
-	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/... ./linalg/...
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/integration/ ./internal/service/... ./encoding/... ./internal/processing/... ./linalg/...
 
 # bench-scale adds the opt-in matrix scale tiers — 1M x p256, 10M x p50
 # and 10M x p256 — to the default 1M x p50 one (-matrix-scale). Manual
