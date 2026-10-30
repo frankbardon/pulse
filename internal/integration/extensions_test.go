@@ -1,0 +1,606 @@
+package integration_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
+	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
+)
+
+// newTestOptions returns a hermetic Options with an in-memory
+// afero FS so pulse.New does not consult PULSE_DATA_DIR. Tests that
+// inspect Extensions validation only need the FS slot populated.
+func newTestOptions(ext pulse.Extensions) pulse.Options {
+	return pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext}
+}
+
+// stubAggregator is a minimal Aggregator + OnlineAggregator used as a
+// probe target in extension tests. It implements both interfaces so a
+// registration declaring Streamable=true OR false validates the same
+// way at the type level.
+type stubAggregator struct{ value float64 }
+
+func (s *stubAggregator) Aggregate(rows extend.Rows, field string) (float64, error) {
+	_, _ = rows, field
+	return s.value, nil
+}
+
+func (s *stubAggregator) UpdateRow(record extend.Record, field string) error {
+	_, _ = record, field
+	return nil
+}
+
+func (s *stubAggregator) Finalize() (float64, error) { return s.value, nil }
+
+func stubAggregatorFactory(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
+	return &stubAggregator{value: 1.0}, nil
+}
+
+// assertCodedError fails the test unless err is a CodedError with the
+// expected Code. The Details map is consulted for context on
+// mismatches so debugging a regression is mechanical.
+func assertCodedError(t *testing.T, err error, want perr.Code) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected error with code %s, got nil", want)
+	}
+	var ce *perr.CodedError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *errors.CodedError with code %s, got %T: %v", want, err, err)
+	}
+	if ce.Code != want {
+		t.Fatalf("expected code %s, got %s (msg=%q details=%v)", want, ce.Code, ce.Message, ce.Details)
+	}
+}
+
+func TestExtensions_ValidRegistrationPasses(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{
+			{
+				Name:        "AGG_ACME_BRAND_SCORE",
+				Description: "ACME brand composite score.",
+				Factory:     stubAggregatorFactory,
+				Streamable:  true,
+				Params: []pulse.ParamMeta{
+					{Name: "weights", JSONType: "array"},
+					{Name: "label", JSONType: "string", Required: true},
+				},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("valid extension registration rejected: %v", err)
+	}
+}
+
+func TestExtensions_NameInvalidRegex(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		label string
+		name  string
+	}{
+		{"missing namespace segment", "AGG_BRANDSCORE"},
+		{"lowercase namespace", "AGG_acme_BRAND"},
+		{"lowercase suffix", "AGG_ACME_brand"},
+		{"leading underscore", "_AGG_ACME_BRAND"},
+		{"trailing underscore", "AGG_ACME_BRAND_"},
+		{"unknown category", "BLAH_ACME_BRAND"},
+		{"empty", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			ext := pulse.Extensions{
+				Aggregators: []pulse.AggregatorRegistration{{
+					Name:    types.AggregationType(tc.name),
+					Factory: stubAggregatorFactory,
+				}},
+			}
+			_, err := pulse.New(newTestOptions(ext))
+			assertCodedError(t, err, perr.PULSE_EXTENSION_NAME_INVALID)
+		})
+	}
+}
+
+func TestExtensions_NameWrongCategoryPrefix(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:    "ATTR_ACME_BRAND",
+			Factory: stubAggregatorFactory,
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_NAME_INVALID)
+}
+
+func TestExtensions_NameReservedNamespace(t *testing.T) {
+	t.Parallel()
+
+	for _, ns := range []string{"BUILTIN", "STANDARD", "CORE", "PULSE"} {
+		t.Run(ns, func(t *testing.T) {
+			t.Parallel()
+
+			ext := pulse.Extensions{
+				Aggregators: []pulse.AggregatorRegistration{{
+					Name:    types.AggregationType("AGG_" + ns + "_FOO"),
+					Factory: stubAggregatorFactory,
+				}},
+			}
+			_, err := pulse.New(newTestOptions(ext))
+			assertCodedError(t, err, perr.PULSE_EXTENSION_NAME_RESERVED)
+		})
+	}
+}
+
+func TestExtensions_CollisionWithBuiltin(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:    types.AGG_COUNT,
+			Factory: stubAggregatorFactory,
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_NAME_COLLISION)
+}
+
+func TestExtensions_DuplicateWithinCategory(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{
+			{Name: "AGG_ACME_BRAND_SCORE", Factory: stubAggregatorFactory},
+			{Name: "AGG_ACME_BRAND_SCORE", Factory: stubAggregatorFactory},
+		},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_DUPLICATE)
+}
+
+func TestExtensions_DuplicateAcrossCategoriesAllowed(t *testing.T) {
+	t.Parallel()
+
+	// Two registrations with parallel names in different categories
+	// have distinct namespaces (different category prefix) and must
+	// both register cleanly.
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:    "AGG_ACME_SAME",
+			Factory: stubAggregatorFactory,
+		}},
+		// Same "namespace_suffix" but different category prefix → no
+		// real collision.
+		Filterers: []pulse.FiltererRegistration{{
+			Name:    "FILTER_ACME_SAME",
+			Factory: stubFiltererFactory,
+		}},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("cross-category parallel names rejected: %v", err)
+	}
+}
+
+func TestExtensions_ParamMetaInvalidJSONType(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:    "AGG_ACME_BRAND_SCORE",
+			Factory: stubAggregatorFactory,
+			Params: []pulse.ParamMeta{
+				{Name: "weights", JSONType: "vector"},
+			},
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_ParamMetaEmptyName(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:    "AGG_ACME_BRAND_SCORE",
+			Factory: stubAggregatorFactory,
+			Params:  []pulse.ParamMeta{{JSONType: "string"}},
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_ParamMetaRequiredWithDefault(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{{
+			Name:    "AGG_ACME_BRAND_SCORE",
+			Factory: stubAggregatorFactory,
+			Params: []pulse.ParamMeta{
+				{Name: "weights", JSONType: "array", Required: true, Default: []float64{1, 2, 3}},
+			},
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_AttributeModeRequired(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Attributes: []pulse.AttributeRegistration{{
+			Name:    "ATTR_ACME_ADJUSTMENT",
+			Factory: stubAttributeFactory,
+			// Mode left empty
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_AttributeModeUnknown(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Attributes: []pulse.AttributeRegistration{{
+			Name:    "ATTR_ACME_ADJUSTMENT",
+			Factory: stubAttributeFactory,
+			Mode:    pulse.AttributeMode("streaming"),
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_TestTierMissingFactory(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Tests: []pulse.TestRegistration{{
+			Name: "TEST_ACME_BRAND_TEST",
+			Tier: pulse.TestTierRow,
+			// RowFactory missing
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_TestTierBothFactoriesSet(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		Tests: []pulse.TestRegistration{{
+			Name:        "TEST_ACME_BRAND_TEST",
+			Tier:        pulse.TestTierRow,
+			RowFactory:  stubRowTestFactory,
+			PostFactory: stubPostTestFactory,
+		}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_ExprFunctionEmptyName(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		ExprFunctions: []pulse.ExprFunction{{Fn: func() float64 { return 1 }}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_ExprFunctionNilFn(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		ExprFunctions: []pulse.ExprFunction{{Name: "rank_familiarity"}},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+func TestExtensions_ExprFunctionDuplicate(t *testing.T) {
+	t.Parallel()
+
+	fn := func(v float64) float64 { return v }
+	ext := pulse.Extensions{
+		ExprFunctions: []pulse.ExprFunction{
+			{Name: "rank_familiarity", Fn: fn},
+			{Name: "rank_familiarity", Fn: fn},
+		},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_DUPLICATE)
+}
+
+func TestExtensions_LookupTableRowsOK(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		LookupTables: map[string]pulse.LookupTable{
+			"adjustments": {
+				Description: "calibration multipliers",
+				Rows:        map[string]float64{"study_a|2025-01-01": 1.07},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("rows-backed lookup table rejected: %v", err)
+	}
+}
+
+func TestExtensions_LookupTableFuncOK(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		LookupTables: map[string]pulse.LookupTable{
+			"adjustments": {
+				Lookup: func(keys ...string) (float64, bool, error) {
+					return 1.0, len(keys) > 0, nil
+				},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("function-backed lookup table rejected: %v", err)
+	}
+}
+
+func TestExtensions_LookupTableNeitherOrBoth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("neither", func(t *testing.T) {
+		ext := pulse.Extensions{
+			LookupTables: map[string]pulse.LookupTable{"x": {}},
+		}
+		_, err := pulse.New(newTestOptions(ext))
+		assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	})
+	t.Run("both", func(t *testing.T) {
+		ext := pulse.Extensions{
+			LookupTables: map[string]pulse.LookupTable{
+				"x": {
+					Rows:   map[string]float64{"k": 1},
+					Lookup: func(keys ...string) (float64, bool, error) { return 1, true, nil },
+				},
+			},
+		}
+		_, err := pulse.New(newTestOptions(ext))
+		assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	})
+}
+
+func TestExtensions_LabelTableRowsOK(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		LabelTables: map[string]pulse.LabelTable{
+			"country_names": {
+				Description: "ISO 3166-1 alpha-2 → display name",
+				Rows:        map[string]string{"US": "United States", "CA": "Canada"},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("rows-backed label table rejected: %v", err)
+	}
+}
+
+func TestExtensions_LabelTableFuncOK(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		LabelTables: map[string]pulse.LabelTable{
+			"country_names": {
+				Lookup: func(key string) (string, bool, error) {
+					return "Resolved " + key, true, nil
+				},
+			},
+		},
+	}
+	if _, err := pulse.New(newTestOptions(ext)); err != nil {
+		t.Fatalf("function-backed label table rejected: %v", err)
+	}
+}
+
+func TestExtensions_LabelTableNeitherOrBoth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("neither", func(t *testing.T) {
+		ext := pulse.Extensions{
+			LabelTables: map[string]pulse.LabelTable{"x": {}},
+		}
+		_, err := pulse.New(newTestOptions(ext))
+		assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	})
+	t.Run("both", func(t *testing.T) {
+		ext := pulse.Extensions{
+			LabelTables: map[string]pulse.LabelTable{
+				"x": {
+					Rows:   map[string]string{"k": "v"},
+					Lookup: func(key string) (string, bool, error) { return "v", true, nil },
+				},
+			},
+		}
+		_, err := pulse.New(newTestOptions(ext))
+		assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+	})
+}
+
+// TestExtensions_LabelTableOrder: LabelTable.Order lists each entry once
+// and, on a Rows table, only keys Rows holds; a Lookup table may order any
+// keys.
+func TestExtensions_LabelTableOrder(t *testing.T) {
+	t.Parallel()
+
+	rows := map[string]string{"a": "A", "b": "B"}
+	lookup := func(key string) (string, bool, error) { return key, true, nil }
+	for _, tc := range []struct {
+		name string
+		tbl  pulse.LabelTable
+		ok   bool
+	}{
+		{"rows order", pulse.LabelTable{Rows: rows, Order: []string{"b", "a"}}, true},
+		{"partial rows order", pulse.LabelTable{Rows: rows, Order: []string{"b"}}, true},
+		{"lookup order", pulse.LabelTable{Lookup: lookup, Order: []string{"z", "y"}}, true},
+		{"repeated entry", pulse.LabelTable{Rows: rows, Order: []string{"a", "a"}}, false},
+		{"repeated lookup entry", pulse.LabelTable{Lookup: lookup, Order: []string{"z", "z"}}, false},
+		{"key rows lacks", pulse.LabelTable{Rows: rows, Order: []string{"a", "c"}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := pulse.New(newTestOptions(pulse.Extensions{LabelTables: map[string]pulse.LabelTable{"t": tc.tbl}}))
+			if tc.ok {
+				if err != nil {
+					t.Fatalf("rejected: %v", err)
+				}
+				return
+			}
+			assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+		})
+	}
+}
+
+func TestExtensions_LabelTableEmptyName(t *testing.T) {
+	t.Parallel()
+
+	ext := pulse.Extensions{
+		LabelTables: map[string]pulse.LabelTable{
+			"": {Rows: map[string]string{"k": "v"}},
+		},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
+}
+
+// TestExtensions_SynthDistributionSlotRetired pins the v1 decision
+// that synthetic-data distributions are not an extension category: the
+// registration slot is gone from pulse.Extensions, and the manifest's
+// extensions block carries no synth_distributions list. Built-in
+// distributions stay in the top-level synth_distributions section.
+func TestExtensions_SynthDistributionSlotRetired(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := reflect.TypeOf(pulse.Extensions{}).FieldByName("SynthDistributions"); ok {
+		t.Error("pulse.Extensions still declares SynthDistributions")
+	}
+	p, err := pulse.New(newTestOptions(pulse.Extensions{}))
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	m := p.Manifest(context.Background())
+	if len(m.SynthDistributions) == 0 {
+		t.Fatal("built-in synth_distributions vanished from the manifest")
+	}
+	raw, err := json.Marshal(m.Extensions)
+	if err != nil {
+		t.Fatalf("marshal extensions: %v", err)
+	}
+	var block map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &block); err != nil {
+		t.Fatalf("unmarshal extensions: %v", err)
+	}
+	if _, ok := block["synth_distributions"]; ok {
+		t.Errorf("manifest extensions block still carries synth_distributions: %s", raw)
+	}
+}
+
+func TestExtensions_ZeroValuePassesThrough(t *testing.T) {
+	t.Parallel()
+
+	// Zero-value Extensions must be a no-op — the existing pulse.New
+	// contract for embedders that do not opt in.
+	if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()}); err != nil {
+		t.Fatalf("zero-value Extensions rejected: %v", err)
+	}
+}
+
+func TestExtensions_ErrorDetailsCarryContext(t *testing.T) {
+	t.Parallel()
+
+	// Error details must surface category + index + name for
+	// debugging; downstream tooling (predict suggestions, MCP error
+	// surface) consumes the structured payload.
+	ext := pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{
+			{Name: "AGG_ACME_BRAND_SCORE", Factory: stubAggregatorFactory},
+			{Name: "BAD_NAME", Factory: stubAggregatorFactory},
+		},
+	}
+	_, err := pulse.New(newTestOptions(ext))
+	var ce *perr.CodedError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *errors.CodedError, got %T", err)
+	}
+	if ce.Details == nil {
+		t.Fatalf("expected details on extension error; got nil")
+	}
+	if !strings.Contains(strings.ToLower(ce.Message), "aggregator") {
+		t.Errorf("expected message to mention aggregator category; got %q", ce.Message)
+	}
+}
+
+// ---- stubs shared across the extension test suite -----------------
+
+// stubTwoPassAttribute implements AttributeComputer + RowLocalAttribute
+// + TwoPassAttribute so it satisfies every AttributeMode probe target.
+// The default stubAttributeFactory returns this to keep simple test
+// cases mode-agnostic.
+type stubTwoPassAttribute struct{}
+
+func (stubTwoPassAttribute) Compute(rows extend.Rows, field string) ([]float64, error) {
+	_ = field
+	return make([]float64, rows.Len()), nil
+}
+func (stubTwoPassAttribute) Row(extend.Record, string) (float64, error) { return 0, nil }
+func (stubTwoPassAttribute) PrePass(extend.Record, string) error        { return nil }
+func (stubTwoPassAttribute) Finalize() error                            { return nil }
+
+func stubAttributeFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
+	return stubTwoPassAttribute{}, nil
+}
+
+type stubFilter struct{}
+
+func (stubFilter) Build(*types.Filterer, *encoding.Schema) (extend.FilterFunc, error) {
+	return func(extend.Record) (bool, error) { return true, nil }, nil
+}
+
+func stubFiltererFactory() extend.FiltererBuilder { return stubFilter{} }
+
+type stubRowTest struct{}
+
+func (stubRowTest) UpdateRow(extend.Record) error        { return nil }
+func (stubRowTest) Finalize() (*types.TestResult, error) { return &types.TestResult{}, nil }
+
+func stubRowTestFactory(*types.Test, *encoding.Schema) (extend.RowTest, error) {
+	return stubRowTest{}, nil
+}
+
+type stubPostTest struct{}
+
+func (stubPostTest) Run(rows []map[string]any) (*types.TestResult, error) {
+	_ = rows
+	return &types.TestResult{}, nil
+}
+
+func stubPostTestFactory(*types.Test, *encoding.Schema) (extend.PostTest, error) {
+	return stubPostTest{}, nil
+}

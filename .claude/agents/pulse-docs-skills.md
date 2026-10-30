@@ -50,7 +50,7 @@ Read the Update Demand table row for the code change you're paired with. Update 
 ```
 go test -count=1 ./internal/skills/... ./internal/examples/...
 go test -count=1 ./descriptor/... ./internal/descriptor/...
-go test -count=1 . -run 'TestClaudeMd|TestSkillsCover|TestUpdateDemand|TestReferenceDoc|TestAgentPersona'
+go test -count=1 . ./internal/integration/ ./internal/skills/ -run 'TestClaudeMd|TestSkillsCover|TestUpdateDemand|TestReferenceDoc|TestAgentPersona'
 go test -tags heavy -count=1 ./... -run TestExamples
 GOTOOLCHAIN=go1.26.1 make lint
 ```

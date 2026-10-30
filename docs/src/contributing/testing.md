@@ -37,6 +37,24 @@ make cover
 go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s
 ```
 
+## Where black-box tests live
+
+The root package holds only in-package (`package pulse`) tests. The black-box
+suite (`package integration_test`) lives in `internal/integration/`: a
+`TestMain` there walks up to the module root's `go.mod` and changes into it
+(so fixture paths like `docs/roadmap/...` resolve), forces panic recovery off,
+and owns that package's `-update` flag. A root gate test moved here is run as
+`go test ./internal/integration/ -run X`; `go test . -run X` matches nothing
+and passes silently, so confirm a gate ran with `-list` or `-v`.
+
+Black-box tests reach the engine handle and the panic-recovery switch through
+`internal/testhook` (`Service`, `ForcePanicRecoveryOff`), which the root's
+`testhook_install.go` fills at init; no root test-only export file exists.
+
+One file stays at the root: `feature_parity_mcp_bridge_test.go`. It imports
+`mcp/gosdk` and shares an in-package harness, so moving it would create an
+import cycle. `TestRootTestGraphExcludesCLI` checks both packages.
+
 ## Non-skippable CI gates
 
 These tests guard structural invariants. If one of them fails, the
@@ -80,10 +98,10 @@ go test ./descriptor/ ./internal/descriptor/ -run 'TestPredictNoExecution|TestDe
 go test ./internal/skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent|TestSkillsFrontmatter'
 
 # CLAUDE.md gates
-go test . -run 'TestClaudeMd|TestUpdateDemandTable'
+go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUpdateDemandTable'
 
 # Predecessor-reference scrub
-go test . -run TestNoOrbitReferences
+go test ./types/ ./errors/ -run TestNoOrbit
 ```
 
 ## Regenerating golden files

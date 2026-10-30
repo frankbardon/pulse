@@ -88,7 +88,7 @@ must match across amd64 and arm64.
 An iterative fit sees `rows extend.Rows` (`Len`, `At(i)`), valid only for the
 call, and may loop over them as often as it needs. The reference extension
 used by Pulse's own tests, `REG_TESTNLS_EXP`
-(`extensions_testnls_exp_test.go`), is a nonlinear least-squares fit of an
+(`internal/integration/extensions_testnls_exp_test.go`), is a nonlinear least-squares fit of an
 exponential approach to an asymptote, `y = a + Σ b_j·(1 − exp(−x_j/τ))`, on
 `optimize.LeastSquares` — it is the pattern to copy for anything iterative:
 
@@ -291,10 +291,10 @@ cohort first and run the regression against that.
 
 Mirror the in-repo suites, which import only public packages:
 
-- `extensions_regression_test.go` — an OLS clone matching `REG_OLS` within
+- `internal/integration/extensions_regression_test.go` — an OLS clone matching `REG_OLS` within
   1e-9 (unweighted, frequency, probability), byte-identical across
   `DecodeWorkers` / `ShardWorkers`.
-- `extensions_regression_nls_test.go` — a nonlinear fit recovering its
+- `internal/integration/extensions_regression_nls_test.go` — a nonlinear fit recovering its
   generating curve, a scorer through `ATTR_REG_PREDICT`, save and reload,
   bootstrap, manifest and profile hiding.
 - `TestExtensions_*` — the parity suites: predict equals runtime for every

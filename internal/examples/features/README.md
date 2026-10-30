@@ -111,13 +111,13 @@ multi-output operators.
 
 ## CI coverage
 
-`TestFeatureExamples_RunEndToEnd` (in `examples_test.go`) builds the
+`TestFeatureExamples_RunEndToEnd` (in `internal/integration/examples_test.go`) builds the
 fixtures into a temp directory and runs every example through
 `pulse.Process`, asserting no errors. Added to catch example bitrot
 (schema drift) and operator regressions.
 
 ```
-go test -run TestFeatureExamples -v .
+go test -run TestFeatureExamples -v ./internal/integration/
 ```
 
 See `pulse skills show feature-engineering` for the full operator

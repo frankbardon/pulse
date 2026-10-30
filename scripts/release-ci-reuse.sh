@@ -27,8 +27,9 @@
 #     internal/processing walks docs/src.
 #   - Tests that read docs/roadmap: internal/descriptor
 #     guidance_exemptions_test.go reads docs/roadmap/units/*.md
-#     frontmatter (status) and formula_total_test.go reads
-#     docs/roadmap/fixtures/** — both are EXCLUDED below.
+#     frontmatter (status) and internal/integration/
+#     formula_total_test.go reads docs/roadmap/fixtures/** — both are
+#     EXCLUDED below.
 #   - Whole-repo walks (zone-math, stride, format-version, panic-recovery,
 #     paramread, iocore, fmagate, invariance, errors, types gates) read
 #     .go files only. internal/tools/sites reads every tracked file, but

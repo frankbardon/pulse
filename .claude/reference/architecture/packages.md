@@ -85,6 +85,7 @@ internal/rake/             the one rim / cell weighting solver behind Pulse.Rake
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go
 internal/profilefile/      ReadOS: the one host-OS-path feature-profile reader (mcpserve.NewPulse + `pulse features`); imports the root, never imported by it
 internal/facadebridge/     init-installed hooks from the root to mcp/gosdk + mcpserve (replaces Service()): ExtensionsSnapshot, CohortScanDisabled
+internal/testhook/         test-only init-installed root hooks for black-box tests: Service (engine handle), ForcePanicRecoveryOff
 internal/processing/       operator engine: operators, crosstab, joins, registry, ExtensionRegistry
 internal/processing/{feature,window}/     FEAT_* pre-filter engineers, WIN_* operators
 internal/processing/{regression,arena}/   REG_* engine, arena allocator
