@@ -113,6 +113,36 @@ nullable field with `!isnull(t) && …`. The effects come back out of a
 query that reads the same clock: `GROUP_DATE` `day` / `day_of_week` /
 `hour_of_day` with `tz_field` set to the zone field.
 
+## Random draws in rules and helper fields
+
+A rule can draw: `uniform()` is a number in `[0, 1)` and `bernoulli(p)` is
+true with probability `p`. Each call site reads its own seeded stream —
+never the stream the fields draw from — so a spec without draws generates
+byte-identically, adding one moves no other column, and a row a constraint
+rejects is redrawn with fresh draws. Draws belong to rules: a constraint
+that calls one, bad arguments or a `p` outside `[0, 1]` is
+`PULSE_SYNTH_RULE_DRAW_INVALID`.
+
+A field declared `"output": false` is a helper: it is drawn, written by
+rules and read by every rule and constraint, but it is not in the output
+file. Together they let an outcome be drawn from a model without shipping
+the model's inputs:
+
+```json
+"fields": [
+  {"name": "true_pd", "type": "f64", "distribution": "constant", "params": {"value": 0}, "output": false},
+  {"name": "default_12m", "type": "packed_bool", "distribution": "bernoulli", "params": {"p": 0}}
+],
+"rules": [
+  {"set_expr": {"true_pd": "1 / (1 + exp(-(-2.4 + 0.04 * (dti - 18))))"}},
+  {"set_expr": {"default_12m": "bernoulli(true_pd)"}}
+]
+```
+
+To use one draw in several rules, store it in a helper
+(`{"set_expr": {"u": "uniform()"}}`) and read the field. Detail:
+`skills/synth-rule-draws.md`.
+
 ## Vector fields
 
 A `vec_f32` / `vec_f64` field is generated as ONE joint draw per row, never

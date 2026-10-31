@@ -1539,6 +1539,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_DRAW_INVALID: {
+		Message: "A synth row expression misuses a random draw: `uniform()` or `bernoulli(p)` is called from a constraint, with the wrong arguments, or `bernoulli(p)` is given a `p` outside [0, 1] (NaN included). Draws are a rule's: each call site reads its own seeded stream, so a constraint that drew would make acceptance itself random.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Call `uniform()` with no arguments and `bernoulli(p)` with one probability in [0, 1]; clamp a computed one (`bernoulli(min(1, max(0, pd)))`). To filter on a draw, store it in a rule (`{\"set_expr\": {\"u\": \"uniform()\"}}` on an `\"output\": false` field) and constrain the field.",
+			},
+		},
+	},
 	PULSE_SYNTH_DST_NONEXISTENT: {
 		Message: "A `uniform_datetime` field drew a local wall-clock time its zone never shows — the skipped hour of a DST spring-forward — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`. A UTC or fixed-offset zone has no transitions and never raises this.",
 		Fixups: []Fixup{

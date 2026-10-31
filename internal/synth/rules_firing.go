@@ -121,6 +121,17 @@ func (a *ruleApplier) setRowOrdinal(n int) {
 	a.nullState.ordinal = n
 }
 
+// setDrawAttempt stamps the rule-draw seed key and the attempt number at
+// the current ordinal that uniform() / bernoulli() hash (row_draw.go).
+// nil-safe like setRowOrdinal.
+func (a *ruleApplier) setDrawAttempt(seedKey uint64, attempt int) {
+	if a == nil {
+		return
+	}
+	a.nullState.drawSeed = seedKey
+	a.nullState.attempt = attempt
+}
+
 // setLag attaches generate's cross-row buffer to the rule host, the
 // one the constraint host also reads. nil-safe like setRowOrdinal.
 func (a *ruleApplier) setLag(b *lagBuffer) {

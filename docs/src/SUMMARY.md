@@ -359,6 +359,7 @@
     - [synth-residual-recovery](guide/skills/synth-residual-recovery.md)
     - [synth-rule-claims](guide/skills/synth-rule-claims.md)
     - [synth-rule-detectors](guide/skills/synth-rule-detectors.md)
+    - [synth-rule-draws](guide/skills/synth-rule-draws.md)
     - [synth-rule-expressions](guide/skills/synth-rule-expressions.md)
     - [synth-rule-nulls](guide/skills/synth-rule-nulls.md)
     - [synth-rule-validation](guide/skills/synth-rule-validation.md)

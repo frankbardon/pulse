@@ -2949,6 +2949,7 @@ pulse/errors: const PULSE_SYNTH_OUTPUT_REQUIRED pulse/errors.Code = "PULSE_SYNTH
 pulse/errors: const PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_SYNTH_RULE_BLOCK_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_BLOCK_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_CONFLICT pulse/errors.Code = "PULSE_SYNTH_RULE_CONFLICT"
+pulse/errors: const PULSE_SYNTH_RULE_DRAW_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_DRAW_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_EMPTY pulse/errors.Code = "PULSE_SYNTH_RULE_EMPTY"
 pulse/errors: const PULSE_SYNTH_RULE_EXPR_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_EXPR_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE pulse/errors.Code = "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE"
@@ -4365,6 +4366,7 @@ pulse/synth: type FieldSpec field Distribution string "json:\"distribution\""
 pulse/synth: type FieldSpec field Name string "json:\"name\""
 pulse/synth: type FieldSpec field NullRate float64 "json:\"null_rate,omitempty\""
 pulse/synth: type FieldSpec field Nullable bool "json:\"nullable,omitempty\""
+pulse/synth: type FieldSpec field Output *bool "json:\"output,omitempty\""
 pulse/synth: type FieldSpec field Params map[string]any "json:\"params,omitempty\""
 pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
@@ -6356,4 +6358,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d39d5c5e4702231aaed138cf0cdc31f7f5e30ff60aed60ffe78eadacd0484ad2
+// golden-hash: 2c26758daf60ce4fbc2b111c86447826b795ee3c12017bba5b950d8a052403f5

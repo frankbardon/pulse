@@ -389,3 +389,60 @@ func ResolveConflicts(s *Spec) (
 	r := resolveConflicts(s)
 	return r.catPairs, r.catNumPairs, r.setCatPairs, r.setNumPairs, r.setSetPairs, r.correlations
 }
+
+// ScoredRelationships is ResolveConflicts for the fidelity report: the
+// same applied relationship lists, minus every relationship that reads a
+// helper (`"output": false`) field. Generation applied those — the helper
+// lived in the row — but the cohort never carries the column, so there is
+// nothing to score them against; each one dropped is said in a warning
+// rather than reported as an empty partition. A spec without helpers gets
+// ResolveConflicts' lists unchanged and no warning.
+func ScoredRelationships(s *Spec) (
+	catPairs []CategoricalPairSpec,
+	catNumPairs []CategoricalNumericPairSpec,
+	setCatPairs []SetCategoricalPairSpec,
+	setNumPairs []SetNumericPairSpec,
+	setSetPairs []SetSetPairSpec,
+	correlations []CorrelationSpec,
+	warnings []string,
+) {
+	catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations = ResolveConflicts(s)
+	helpers := map[string]bool{}
+	for _, f := range s.Fields {
+		if !fieldIsOutput(f) {
+			helpers[f.Name] = true
+		}
+	}
+	if len(helpers) == 0 {
+		return catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations, nil
+	}
+	keep := func(kind, a, b string) bool {
+		for _, name := range []string{a, b} {
+			if helpers[name] {
+				warnings = append(warnings, fmt.Sprintf(
+					"fidelity: %s %s x %s not scored: it reads helper field %q (\"output\": false), which the cohort does not carry",
+					kind, a, b, name))
+				return false
+			}
+		}
+		return true
+	}
+	catPairs = filterRelationships(catPairs, func(p CategoricalPairSpec) bool { return keep("categorical pair", p.A, p.B) })
+	catNumPairs = filterRelationships(catNumPairs, func(p CategoricalNumericPairSpec) bool { return keep("categorical-numeric pair", p.A, p.B) })
+	setCatPairs = filterRelationships(setCatPairs, func(p SetCategoricalPairSpec) bool { return keep("set-categorical pair", p.Set, p.Categorical) })
+	setNumPairs = filterRelationships(setNumPairs, func(p SetNumericPairSpec) bool { return keep("set-numeric pair", p.Set, p.Numeric) })
+	setSetPairs = filterRelationships(setSetPairs, func(p SetSetPairSpec) bool { return keep("set-set pair", p.SetA, p.SetB) })
+	correlations = filterRelationships(correlations, func(p CorrelationSpec) bool { return keep("correlation", p.A, p.B) })
+	return catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations, warnings
+}
+
+// filterRelationships keeps the entries keep accepts, in order.
+func filterRelationships[T any](in []T, keep func(T) bool) []T {
+	var out []T
+	for _, v := range in {
+		if keep(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}

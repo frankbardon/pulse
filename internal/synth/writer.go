@@ -72,6 +72,11 @@ type writerField struct {
 	spec    FieldSpec
 	field   *encoding.Field
 	sampler sampler
+	// helper is true for a `"output": false` field (#364): it is drawn
+	// and lives in the row like any other field, but encodeRow skips it
+	// and field points at a Field outside the written schema. The zero
+	// value is a written field, so a hand-built writerField is one.
+	helper bool
 	// dim is a vector field's element count (0 for every other type):
 	// the encode path needs it to write a null vector's placeholder,
 	// and it is a schema property rather than a Field one.
@@ -82,11 +87,20 @@ type writerField struct {
 	warnings []string
 }
 
-// buildSchema returns the encoding.Schema and per-field samplers laid
-// out in record order. Byte offsets / bit positions are populated.
+// buildSchema returns the WRITTEN encoding.Schema and the per-field
+// samplers for EVERY declared field, in spec order. Byte offsets / bit
+// positions are populated for the written fields.
+//
+// The two are not the same list once a field declares `"output": false`
+// (#364): the samplers still cover it — it draws in its declaration
+// position, so hiding a field moves no other field's value — while the
+// schema, and so the file, carries only the output fields, in spec order
+// with the helpers removed. A helper's writerField points at a Field kept
+// outside the schema (no offset, never encoded).
 func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	fields := make([]encoding.Field, len(s.Fields))
 	wfs := make([]*writerField, len(s.Fields))
+	outIdx := 0
 
 	// Fields whose own null draw a `{"owns_nulls": true}` rule has
 	// claimed. Resolved ONCE, here, because the sampler is built here —
@@ -105,12 +119,18 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 				fmt.Sprintf("unknown field type %q for field %q", fs.Type, fs.Name),
 				map[string]any{"type": fs.Type, "field": fs.Name})
 		}
+		output := fieldIsOutput(fs)
+		idx := -1
+		if output {
+			idx = outIdx
+			outIdx++
+		}
 		field := encoding.Field{
 			Name:         fs.Name,
 			Type:         ft,
 			Nullable:     fs.Nullable,
 			Description:  fs.Description,
-			CsvColumnIdx: i,
+			CsvColumnIdx: idx,
 		}
 		// Bit-packed fields each consume one byte in the importer's writer
 		// pattern (see internal/io/import.go: WriteByte path); replicate here so
@@ -179,8 +199,10 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			if err := validateVectorField(fs); err != nil {
 				return nil, nil, err
 			}
-			vf := vectorFieldFor(fs, i)
-			vectors = append(vectors, vf)
+			vf := vectorFieldFor(fs, idx)
+			if output {
+				vectors = append(vectors, vf)
+			}
 			dim = vf.Dim
 		}
 
@@ -202,7 +224,19 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		}
 
 		fields[i] = field
-		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp, dim: dim, warnings: fieldWarnings}
+		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp, helper: !output, dim: dim, warnings: fieldWarnings}
+	}
+
+	// The written fields, in spec order. With no helper this is the
+	// whole list, so the schema is exactly the one built before the slot.
+	written := fields
+	if outIdx < len(fields) {
+		written = make([]encoding.Field, 0, outIdx)
+		for i := range fields {
+			if !wfs[i].helper {
+				written = append(written, fields[i])
+			}
+		}
 	}
 
 	// Byte offsets / bit positions come from the canonical layout over
@@ -210,17 +244,25 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	// import lays a row out. Vectors must be on the schema BEFORE the
 	// layout: a vector's width is its dim times its element size, and a
 	// schema without its VECTORS entries sizes the field at 0 bytes.
-	schema := &encoding.Schema{Fields: fields, Vectors: vectors}
+	schema := &encoding.Schema{Fields: written, Vectors: vectors}
 	encx.LayoutFields(schema)
+	j := 0
 	for i := range wfs {
-		wfs[i].field = &schema.Fields[i]
+		if !wfs[i].helper {
+			wfs[i].field = &schema.Fields[j]
+			j++
+		}
 	}
 	return schema, wfs, nil
 }
 
 // generate writes synthetic records to a bytes.Buffer, respecting any
 // declared constraints via rejection sampling.
-func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand) (rowsGenerated, rowsRejected int, warnings []string, err error) {
+//
+// seed is the run seed rng was built from; the rules' uniform() /
+// bernoulli() draws derive their own counter-based streams from it
+// (row_draw.go) and never read rng.
+func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand, seed int64) (rowsGenerated, rowsRejected int, warnings []string, err error) {
 	maxRej := s.MaxRejectionRate
 	if maxRej == 0 {
 		maxRej = 0.5
@@ -354,12 +396,18 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// resolved (row_time.go); both hosts read the same stage.
 	cons.datetimes = datetimes
 	rules.setDatetimes(datetimes)
+	// attempt counts the constraint-rejected attempts at the current
+	// ordinal: a rule draw hashes it, so a redrawn row reads fresh draws
+	// rather than replaying the rejected ones (row_draw.go).
+	drawSeed := drawStreamKey(seed, ruleDrawDomain)
+	attempt := 0
 	for rowsGenerated < s.RowCount {
 		// row() reads the ACCEPTED-row ordinal: stamped before every
 		// attempt with the count already accepted, so a rejected attempt
 		// redraws at the same ordinal (rowOrdinalBuiltin).
 		cons.ordinal = rowsGenerated
 		rules.setRowOrdinal(rowsGenerated)
+		rules.setDrawAttempt(drawSeed, attempt)
 		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
@@ -369,6 +417,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		}
 		if !ok {
 			rowsRejected++
+			attempt++
 			total := rowsGenerated + rowsRejected
 			// Enforce only after a sane sample so a few unlucky early
 			// rejections don't trip the threshold.
@@ -404,6 +453,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// rejected attempt is never read as a previous row.
 		lags.commit(row, rowNullMask)
 		rowsGenerated++
+		attempt = 0
 	}
 	// A rule that applied to NO generated row is the one rule fault
 	// nothing else can see — it validates, it compiles, and the cohort
@@ -571,7 +621,13 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 }
 
 func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMask map[string]bool, bitmapSize int) error {
+	// A helper (`"output": false`) field is skipped: it lived in the row
+	// for the rules and constraints, and ends here. Bitmap bits follow
+	// the WRITTEN schema's index, not the spec's.
 	for _, wf := range wfs {
+		if wf.helper {
+			continue
+		}
 		val := row[wf.spec.Name]
 		isNull := nullMask[wf.spec.Name]
 		if err := writeFieldValue(buf, wf, val, isNull); err != nil {
@@ -580,13 +636,15 @@ func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMa
 	}
 	if bitmapSize > 0 {
 		bitmap := make([]byte, bitmapSize)
-		for i, wf := range wfs {
-			if !wf.field.Nullable {
+		i := 0
+		for _, wf := range wfs {
+			if wf.helper {
 				continue
 			}
-			if nullMask[wf.spec.Name] {
+			if wf.field.Nullable && nullMask[wf.spec.Name] {
 				encoding.BitmapSetNull(bitmap, i)
 			}
+			i++
 		}
 		if err := encoding.WriteBitmap(buf, bitmap); err != nil {
 			return err

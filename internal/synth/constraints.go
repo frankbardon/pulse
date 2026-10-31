@@ -61,6 +61,16 @@ type compiledConstraints struct {
 	time      map[string]rowTimeField
 	seasons   []seasonTable
 	datetimes *datetimeStage
+
+	// drawSites is each compiled uniform() / bernoulli() call's stream key
+	// and per-attempt call count, appended by drawPatcher and keyed by the
+	// compiling caller (labelDrawSites); drawSeed is the run's rule-draw
+	// seed key and attempt the constraint-rejected attempts at ordinal,
+	// both stamped by generate (row_draw.go). Empty for every spec that
+	// never draws, which keeps such a spec byte-identical.
+	drawSites []drawSite
+	drawSeed  uint64
+	attempt   int
 }
 
 // rowExprEnv builds the expr environment shape for a set of declared
@@ -115,9 +125,13 @@ func rowExprOptions(env map[string]any, names map[string]bool, times map[string]
 		// rewritten onto internal names carrying the field name and
 		// their baked literals (row_time.go).
 		expr.Patch(timePatcher{declared: names, times: times, host: host}),
+		// uniform() / bernoulli(p) are rewritten onto internal names
+		// carrying their draw-site index (row_draw.go).
+		expr.Patch(drawPatcher{declared: names, host: host}),
 	}
 	opts = append(opts, lagFunctionOptions(host)...)
 	opts = append(opts, timeFunctionOptions(host)...)
+	opts = append(opts, drawFunctionOptions(host)...)
 	// The shared maths (exprenv.MathOptions) and the now() removal: see
 	// row_expr_builtins.go. Appended to every row expression, so
 	// constraints, `when`, `set_expr` and both --suggest-rules detectors
@@ -146,7 +160,7 @@ func compileConstraints(in []ConstraintSpec, wfs []*writerField) (*compiledConst
 	for _, c := range in {
 		// validateSpec refused these already; repeated here for a Spec
 		// that bypassed it (SpecFromProfile), so the code is the same.
-		if r := rowExprStaticRefusal(c.Expr, names, times); r != nil {
+		if r := constraintExprStaticRefusal(c.Expr, names, times); r != nil {
 			return nil, rowExprConstraintRefusal(c.Expr, r)
 		}
 		prog, err := expr.Compile(c.Expr, opts...)

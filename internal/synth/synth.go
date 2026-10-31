@@ -39,7 +39,7 @@ func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error
 	// Stream record bytes into a separate buffer so the dictionary blocks
 	// emitted with the schema are populated before being serialized.
 	var recordsBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng, opts.Seed)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func SynthBytes(spec *Spec, opts Options) ([]byte, *Result, error) {
 	}
 
 	var recordsBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng, opts.Seed)
 	if err != nil {
 		return nil, nil, err
 	}

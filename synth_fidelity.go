@@ -84,7 +84,13 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	// applied, which is misleading rather than merely redundant; the
 	// dropped pair's own conflict warning (already on fidelityWarnings)
 	// is what explains its absence here.
-	catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations := synth.ResolveConflicts(spec)
+	//
+	// ScoredRelationships is that resolution minus the relationships
+	// reading a helper (`"output": false`) field the cohort does not
+	// carry, each named in a warning; it is ResolveConflicts exactly for
+	// a spec without helpers.
+	catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations, helperWarnings := synth.ScoredRelationships(spec)
+	fidelityWarnings = append(fidelityWarnings, helperWarnings...)
 	synth.BuildPairwise(report, schema, records, correlations, fidelityWarnings)
 	synth.BuildCategoricalPairwise(report, schema, records, catPairs)
 	synth.BuildCategoricalNumericPairwise(report, schema, records, catNumPairs)

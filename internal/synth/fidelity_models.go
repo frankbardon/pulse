@@ -324,6 +324,18 @@ func BuildModelFidelity(report *FidelityReport, mergedSchema *encoding.Schema, r
 	// iteration order never reaches a number (E2-S4).
 	residualsOf := make(map[string]*recoveredResiduals, len(drawers))
 	for _, d := range drawers {
+		// A model over a helper (`"output": false`) field drew its value
+		// into the row, but the column never reached the cohort, so there
+		// is nothing to refit. Said, rather than left to the refit's own
+		// "admits fewer than two rows", which would blame the partition.
+		if helper := modelHelperField(d, specOf); helper != "" {
+			report.Models = append(report.Models, &ModelFidelity{
+				Field:    d.field,
+				Error:    fmt.Sprintf("model reads helper field %q (\"output\": false), which the cohort does not carry; nothing to recover", helper),
+				Marginal: len(d.predictors) == 0,
+			})
+			continue
+		}
 		entry, resid := computeModelFidelity(mergedSchema, rows, d, specOf[d.field])
 		report.Models = append(report.Models, entry)
 		if resid != nil {
@@ -331,6 +343,20 @@ func BuildModelFidelity(report *FidelityReport, mergedSchema *encoding.Schema, r
 		}
 	}
 	report.ModelResidualCorrelations = buildModelResidualFidelity(spec, drawers, residualsOf)
+}
+
+// modelHelperField names the first helper (`"output": false`) field a
+// model's target or predictors read, "" when every one is written.
+func modelHelperField(d *modelDrawer, specOf map[string]FieldSpec) string {
+	if fs, ok := specOf[d.field]; ok && !fieldIsOutput(fs) {
+		return d.field
+	}
+	for _, p := range d.predictors {
+		if fs, ok := specOf[p.field]; ok && !fieldIsOutput(fs) {
+			return p.field
+		}
+	}
+	return ""
 }
 
 // recoveryTerm pairs one compiled model term with the design column that

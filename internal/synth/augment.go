@@ -95,7 +95,7 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 	// count — it is always an explicit count of new rows.
 	rng := newRng(opts.Seed)
 	var genBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, genSchema, wfs, &genBuf, rng)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, genSchema, wfs, &genBuf, rng, opts.Seed)
 	if err != nil {
 		return nil, err
 	}

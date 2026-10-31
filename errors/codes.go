@@ -993,6 +993,16 @@ const (
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 
+	// PULSE_SYNTH_RULE_DRAW_INVALID indicates a misused random draw in a
+	// synth row expression: `uniform()` / `bernoulli(p)` called from a
+	// `constraints[]` entry (draws belong to rules; a constraint is a
+	// deterministic acceptance test), called with the wrong arguments, or
+	// `bernoulli(p)` given a `p` outside [0, 1] — a literal is refused at
+	// spec validation, a computed `p` (NaN included) on the row that
+	// produced it. `details.function` names the call, `details.expr` the
+	// expression.
+	PULSE_SYNTH_RULE_DRAW_INVALID Code = "PULSE_SYNTH_RULE_DRAW_INVALID"
+
 	// PULSE_SYNTH_DST_NONEXISTENT indicates a `uniform_datetime` field
 	// drew a local wall-clock time its zone never shows — the skipped
 	// hour of a DST spring-forward — under the default dst_policy
@@ -4671,6 +4681,7 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_RULE_DRAW_INVALID,
 	PULSE_SYNTH_DST_NONEXISTENT,
 	PULSE_SYNTH_DST_AMBIGUOUS,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,

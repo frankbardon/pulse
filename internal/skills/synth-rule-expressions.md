@@ -1,10 +1,10 @@
 ---
 name: synth-rule-expressions
-description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
+description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()` / `uniform()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions, lag, trend, season, between]
+covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions, lag, trend, season, between, uniform, bernoulli]
 requires: [capability:synth]
 ---
 
@@ -14,13 +14,13 @@ requires: [capability:synth]
 
 `constraints[]` reuse `expr-lang/expr`. Any constraint returning false rejects the row; the generator redraws until `row_count`. Reject cap 50% (`max_rejection_rate`); beyond it `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`.
 
-**Env types are the ROW's types** (`sentinelFor`, derived from `fieldTypeFromName` so the two cannot drift): every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal).
+**Env types are the ROW's types**: every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal).
 
 **`isnull(field)`** reads the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value. Takes the field NAME: `isnull(x)` (rewritten to a literal) and `isnull("x")` are equivalent, and an undeclared name in EITHER form is refused before a row exists — bare by expr's unknown-name check, string form by a parse pass (`isnullUnknownField`) applied to rules and `constraints[]` alike, never answered `false`. Only an argument that is a string at RUN time (`isnull(region + "!")`) reaches the loud run-time refusal.
 
 ### Functions
 
-Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula attribute's maths, on portable kernels (same bits on every machine):
+Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula attribute's maths, on portable kernels (same bits everywhere):
 
 | call | |
 |---|---|
@@ -30,6 +30,7 @@ Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula a
 | `pi()` `e()` | calls, not bare names |
 | `row()` | ACCEPTED-row ordinal from 0 (no RNG) |
 | `lag("f", n[, d])` | `f`'s value `n` ACCEPTED rows back (null before row `n` unless `d`); no RNG. Literal name, `n` 1–1024 |
+| `uniform()` `bernoulli(p)` | a seeded draw per call site; rules only (`synth-rule-draws`) |
 | `trend` `season` `between` | a date/datetime field's trend, weekday/hour/month weight, window, on ITS clock (`synth-datetime`) |
 
 `%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.

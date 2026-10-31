@@ -49,10 +49,14 @@ import (
 // rowReservedNames is that set: the maths names plus `row` and `lag`,
 // the cross-row built-ins U58's later stories add, so their collision
 // rule is pinned before they exist, and the time functions `trend`,
-// `season` and `between` (row_time.go, U52).
+// `season` and `between` (row_time.go, U52) and the draws `uniform`
+// and `bernoulli` (row_draw.go, U52).
 var rowReservedNames = func() map[string]bool {
 	m := map[string]bool{"row": true, "lag": true}
 	for _, n := range timeFuncNames {
+		m[n] = true
+	}
+	for _, n := range drawFuncNames {
 		m[n] = true
 	}
 	for _, n := range exprenv.MathNames() {
@@ -156,6 +160,15 @@ func (w *rowExprWalker) Visit(node *ast.Node) {
 			// literals checked here, before a row exists (row_lag.go).
 			if _, _, r := lagCallShape(n, w.declared); r != nil {
 				w.found = r
+			}
+		}
+		if isDrawFuncName(id.Value) {
+			// A draw's arguments are checked here, before a row exists
+			// (row_draw.go); where it may appear is the caller's
+			// (constraintExprStaticRefusal).
+			if r := drawCallShape(n, id.Value); r != nil {
+				w.found = r
+				return
 			}
 		}
 		if isTimeFuncName(id.Value) {

@@ -11187,7 +11187,7 @@
         ]
       }
     ],
-    "error_codes_count": 447,
+    "error_codes_count": 448,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11575,6 +11575,7 @@
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
       "PULSE_SYNTH_RULE_BLOCK_INVALID",
       "PULSE_SYNTH_RULE_CONFLICT",
+      "PULSE_SYNTH_RULE_DRAW_INVALID",
       "PULSE_SYNTH_RULE_EMPTY",
       "PULSE_SYNTH_RULE_EXPR_INVALID",
       "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE",
@@ -14307,8 +14308,12 @@
         "description": "The `--suggest-rules` detector rules that are silent if got backwards — rounded gates, co-missingness, near and always-null blocks, the narrow dependency search and discovered band edges — and why emitted candidate order is applied order."
       },
       {
+        "name": "synth-rule-draws",
+        "description": "Random draws inside synth rules — `uniform()` and `bernoulli(p)` on a seeded stream per call site, what a constraint rejection does to them, and `\"output\": false` helper fields that rules read but the file never carries; the outcome-drawn-from-a-model recipe."
+      },
+      {
         "name": "synth-rule-expressions",
-        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()` / `uniform()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
       },
       {
         "name": "synth-rule-nulls",
@@ -20484,4 +20489,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 97606e886d9e5f68cb6246d8da060cbc6e1f224a3b1af341bc11c445cc5db9f1
+// golden-hash: 167595e7db1cefff45d839a59419f923444badeaf57e972e83658fab888948cd

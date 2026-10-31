@@ -378,6 +378,33 @@ type FieldSpec struct {
 	// default ELEMENT family and Distribution may be empty when every
 	// element names its own.
 	Vector *VectorSpec `json:"vector,omitempty"`
+
+	// Output, when false, makes the field a HELPER (#364): it is drawn,
+	// written by rules and read by every rule and constraint exactly like
+	// any other field, but it is never written — it is absent from the
+	// output schema, the records and therefore from everything read off
+	// the file (inspect, profile, the fidelity report). nil (the wire
+	// default, `omitempty`) and true both mean "write it", so a spec that
+	// never says `output` is byte-identical to one from before the slot.
+	// Dropping a column moves no other column: every field still draws
+	// in declaration order (see fieldIsOutput).
+	Output *bool `json:"output,omitempty"`
+}
+
+// fieldIsOutput reports whether f reaches the written file: every field
+// does unless it declares `"output": false`.
+func fieldIsOutput(f FieldSpec) bool {
+	return f.Output == nil || *f.Output
+}
+
+// specHasOutputField reports whether any field reaches the file.
+func specHasOutputField(fields []FieldSpec) bool {
+	for _, f := range fields {
+		if fieldIsOutput(f) {
+			return true
+		}
+	}
+	return false
 }
 
 // ConstraintSpec wraps an expression evaluated against the in-memory row.
@@ -506,6 +533,11 @@ func validateSpec(s *Spec) error {
 		if err := checkFieldParams(i, f); err != nil {
 			return err
 		}
+	}
+	if !specHasOutputField(s.Fields) {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"spec must declare at least one output field: every field is `\"output\": false`, so the file would have no columns",
+			map[string]any{"fields": len(s.Fields)})
 	}
 	if err := refuseVectorCrossFieldUse(s, vectorFields); err != nil {
 		return err
@@ -669,7 +701,7 @@ func validateSpec(s *Spec) error {
 	// here, at spec validation, before any field is built.
 	times := rowTimeFields(s.Fields)
 	for _, c := range s.Constraints {
-		if r := rowExprStaticRefusal(c.Expr, seen, times); r != nil {
+		if r := constraintExprStaticRefusal(c.Expr, seen, times); r != nil {
 			return rowExprConstraintRefusal(c.Expr, r)
 		}
 	}

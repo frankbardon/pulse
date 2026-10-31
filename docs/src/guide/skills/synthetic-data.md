@@ -27,6 +27,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | Two relationships name one field — which wins? | [`synth-conflicts`](synth-conflicts.md) |
 | Several drivers conditioning one numeric (`--fit-models`) | [`synth-models`](synth-models.md) |
 | Gating, masking, deriving a field, reading earlier rows (`rules[]`, `constraints[]`, `lag`) | [`synth-structural-rules`](synth-structural-rules.md) |
+| Drawing in a rule (`uniform()`, `bernoulli(p)`); helper fields (`"output": false`) | [`synth-rule-draws`](synth-rule-draws.md) |
 | The `_synthetic` top-up and `--fidelity-report` | [`synth-fidelity-report`](synth-fidelity-report.md) |
 | Byte-identical output; why a profile can drift | [`synth-determinism`](synth-determinism.md) |
 | `--fit-shape` mixtures | [`synth-shape-fit`](synth-shape-fit.md) |
@@ -71,7 +72,7 @@ Registry: the manifest's `synth_distributions`; params and clamp semantics per k
 Three carry rules you cannot guess:
 
 - `discrete` — `values` strictly ASCENDING + optional `weights`. The exact per-level histogram of an integer column; what `profile create` reconstructs every capped integer field from ([`synth-marginals`](synth-marginals.md)).
-- `constant` — coerced ONCE at spec parse to the field's ROW shape: bool → 1/0 on a scalar, option-name array or object → a `set_*` mask, string REQUIRED for a categorical, verbatim exact string for `decimal128` (`ParseDecimal128`). The only sampler valued from the document, hence the only one that could put a Go `bool` where the expr environment promises `float64`; a shape the row cannot hold is refused at parse.
+- `constant` — coerced ONCE at spec parse to the field's ROW shape: bool → 1/0 on a scalar, option-name array or object → a `set_*` mask, string REQUIRED for a categorical, verbatim exact string for `decimal128` (`ParseDecimal128`). A shape the row cannot hold is refused at parse.
 - `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. A determinism requirement, not an optimisation ([`synth-set-fields`](synth-set-fields.md)).
 
 Every field type is reachable. A **vector** (`vec_f32` / `vec_f64`) needs a `vector` block and is ONE joint draw, never dim scalars: [`vector-fields`](vector-fields.md). `decimal128` takes field-level `precision` / `scale` (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
