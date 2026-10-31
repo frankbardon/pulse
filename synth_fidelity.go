@@ -75,6 +75,10 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
 	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
+	// A flagged marginal on a field a structural rule writes names the
+	// rules: the rule pass reaches generated rows only, so the difference
+	// may be the rule's own effect. A rules-free spec adds nothing.
+	synth.AttachRuleNotes(report, spec)
 
 	// spec carries the FULL captured relationship set (SpecFromProfile
 	// never prunes it — see internal/synth.ResolveConflicts's own doc). generate()

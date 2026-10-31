@@ -333,12 +333,28 @@ Seeds are `int64`; default `0`.
 `--fidelity-report <path.json>` writes a JSON document after
 generation completes, comparing the newly generated rows against the
 source cohort's rows inside the one tagged output. It reuses the
-existing statistical-test operators rather than new comparison math:
-every **numeric** field is compared with `TEST_KS` (`split_by:
-_synthetic`), and every **categorical** field with `TEST_CHISQ`
-(contingency against `_synthetic`). Fields of any other on-wire type
-(`date`, `datetime`, `packed_bool`, `u4`, `set_*`) are out of scope for
-this section today.
+existing statistical-test operators rather than new comparison math.
+Every scalar field type is scored in `fields[]`, with the statistic
+that fits it:
+
+| Field type | Test | Effect size | Why |
+|---|---|---|---|
+| `u4` … `u64`, `f32`, `f64`, `decimal128` | `TEST_KS` (`split_by: _synthetic`) | Cohen's d (none for `decimal128`) | a `u4` reconstructs from the same per-level histogram a `u8` does, so it reads on the same scale |
+| `date` | `TEST_KS` over epoch days | Cohen's d | |
+| `datetime` | `TEST_KS` over epoch seconds, plus `shape` | Cohen's d | KS and d read instants as one line; a planted schedule lives in the daily and weekly cycle |
+| `categorical_*`, `packed_bool` | `TEST_CHISQ` (contingency against `_synthetic`) | Cramér's V | for a `packed_bool` the 2x2 χ² is the two-sample proportion test, and V = \|phi\| |
+
+A `datetime` entry's `shape` is `{"clock": "utc", "hour_tvd", "weekday_tvd"}`:
+the total variation distance (0 = the same cycle, 1 = no shared bin)
+between the partitions' hour-of-day and ISO-weekday histograms, read
+on the UTC clock — the schema stores instants and no zone, and both
+partitions are read on the same clock. Measured: the same days drawn at
+evening instead of morning hours read d = −0.06 (`very small`) and KS
+p = 0.07, with `hour_tvd` 1.0.
+
+`set_*` fields have their own `set_fields` section (skill `synth-set-fields`): per option
+the selection rate on each side, plus an `effect_size` — V of the
+option's 2x2 table (selected or not, by partition).
 
 A **vector** field (`vec_f32` / `vec_f64`) gets its own `vector_fields`
 section instead: per element the source and synthetic mean, std and NaN
@@ -395,6 +411,23 @@ the magnitude is what says it is trivial. Measured: at 20,000 rows per
 side a 0.05 SD shift rejects `TEST_KS` at p ≈ 0.0002 and reads
 `very small`. d describes location only — the KS `statistic` is the
 largest gap between the two CDFs.
+
+**A rule-induced difference says so.** The rule pass runs last and
+reaches generated rows only — source rows are copied through — so a
+rule that sets, rewrites or nulls a field moves the synthetic marginal
+and never the source one. A marginal flagged at an effect of at least
+`small` on a field a rule writes (`set`, `set_expr`, `set_null`, or a
+`null_together` member after the first) carries `rule_note` naming the
+rules, in declaration order:
+
+```json
+{"field": "flag", "test": "TEST_CHISQ", "effect_size": {"measure": "cramers_v", "value": 0.31, "magnitude": "medium", "convention": "cohen1988_w"},
+ "rule_note": "written by structural rule 0 (set); the rule pass runs last on generated rows only (source rows are copied through), so this difference may be the rule's effect rather than a generation fault"}
+```
+
+A `set_fields` entry carries the same note when any option is flagged.
+The note names the rules that CAN move the field; whether one fired is
+the never-fired warning's job. A spec without rules never carries it.
 
 `pairwise` reports, for every numeric-numeric correlation the profile
 captured (`--conditional`'s `Conditional.NumericPairs`, or the plain

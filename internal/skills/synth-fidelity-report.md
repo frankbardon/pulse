@@ -1,10 +1,10 @@
 ---
 name: synth-fidelity-report
-description: The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals with effect sizes, pairs, set fields, utility against the source — scored only over relationships generation actually applied.
+description: The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — every field type's marginal with effect sizes and rule notes, pairs, set fields, utility against the source — scored only over relationships generation actually applied.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth from-profile, fidelity report, _synthetic, top-up, effect size, utility, --fidelity-model]
+covers: [synth from-profile, fidelity report, _synthetic, top-up, effect size, utility, --fidelity-model, rule_note]
 requires: [capability:synth]
 ---
 
@@ -16,7 +16,7 @@ requires: [capability:synth]
 
 ## Fidelity report
 
-`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. Marginals: numeric via the KS test operator (`split_by: _synthetic`), categorical via the χ² test operator — existing operators, no new stat math. `_synthetic` is on-wire `packed_bool` and both operators need categorical, so the bridge presents it through a `categorical_u8` VIEW schema for that call only. That bridge lives in `pulse.go` (`writeSynthFidelityReport`), not `internal/synth/`, to avoid an import cycle: the internal `BuildFidelityReport` takes an injected `TestRunner`. A failed field test reports `error`, not `result`, without aborting the rest. Sections `omitempty` throughout, so a section whose capture flag was absent leaves the report byte-identical to before it existed.
+`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation, through the existing test operators. `fields[]` scores every scalar type: integers (incl. `u4`), floats and `date` (epoch days) by KS (`split_by: _synthetic`); `datetime` by KS over epoch seconds plus `shape` (UTC hour-of-day and weekday TVD — KS passes a twin with the right days at the wrong hours); categoricals and `packed_bool` by the χ² test. A failed test reports `error` and aborts nothing. Sections are `omitempty`: one whose capture flag was absent leaves the report byte-identical.
 
 **Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair computes a delta against a relationship the generator never modelled — a number that LOOKS like evidence. `internal/synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence (`synth-conflicts`).
 
@@ -24,9 +24,11 @@ requires: [capability:synth]
 
 **A modelled numeric has no numeric-target pair entry, ever.** `categorical_numeric_pairwise` / `set_numeric_pairwise` score the pick-one pair sampler, which does not run for a modelled target; an entry would be a delta for a mechanism that never executed. An unmodelled numeric in the same profile keeps its pair and is scored there. The non-numeric-target pair sections are untouched by models.
 
-**Set fields have their own sections and are never omitted.** `set_fields` is one `{field, options: [{value, source_frequency, synthetic_frequency, delta}]}` per `set_*` column, computed directly (no `TestRunner`: the KS test wants a scalar and the χ² test a partition, and a multi-select is neither), one entry per dictionary member in BIT order up to `MaxSetEntries()`. `set_categorical_pairwise` / `set_numeric_pairwise` / `set_set_pairwise` score the surviving conditional pairs. **All four read masks the same way capture does** — a wide column read through a `uint64` assertion returns an empty mask on BOTH partitions, so every delta comes back exactly `0.0` and the section certifies a generation it never measured. A silently-omitted wide column reads the same way: as nothing wrong (`synth-set-fields`).
+**Set fields have their own sections and are never omitted.** `set_fields` is one `{field, options: [{value, source_frequency, synthetic_frequency, delta, effect_size}]}` per `set_*` column, computed directly, one entry per dictionary member in BIT order up to `MaxSetEntries()`. `set_categorical_pairwise` / `set_numeric_pairwise` / `set_set_pairwise` score the surviving conditional pairs. **All four read masks the same way capture does** — a wide column read through a `uint64` assertion returns an empty mask on BOTH partitions, so every delta comes back exactly `0.0` and the section certifies a generation it never measured. A silently-omitted wide column reads the same way: as nothing wrong (`synth-set-fields`).
 
-**Every marginal carries an effect size beside its p-value.** `fields[].effect_size {measure, value, magnitude, convention}`: Cohen's d (synthetic − source) for a numeric, Cramér's V (the χ² test's own) for a categorical, banded on Cohen (1988) — `very small` / `small` / `medium` / `large`. Thousands of rows reject on trivial gaps: **read the magnitude, not the p-value** — `very small` is real but trivial. d reads location; the KS `statistic` is the largest CDF gap.
+**Every marginal carries an effect size beside its p-value.** `effect_size {measure, value, magnitude, convention}`: Cohen's d (synthetic − source) for a KS field, Cramér's V (the χ² test's own) for a χ² one and per set option (its 2x2 table), banded on Cohen (1988) — `very small` / `small` / `medium` / `large`. At report sizes trivial gaps reject: **read the magnitude, not the p-value**. d reads location; the KS `statistic` is the largest CDF gap.
+
+**A rule-induced difference says so.** Rules reach generated rows only, so a marginal flagged `small` or more on a field a rule writes (`set`, `set_expr`, `set_null`, a non-first `null_together` member) carries `rule_note` naming the rules: the rule may be the cause, not generation. A rule that never fired has its own warning.
 
 ## Utility against the source
 

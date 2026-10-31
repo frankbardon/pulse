@@ -64,6 +64,10 @@ const (
 	EffectMeasureCramersV = isynth.EffectMeasureCramersV
 )
 
+// TimeShapeClockUTC is the clock TimeShapeFidelity.Clock names: a
+// datetime field's hour-of-day and weekday bins are read in UTC.
+const TimeShapeClockUTC = isynth.TimeShapeClockUTC
+
 // Utility verdicts, as they appear on TargetRateFidelity.Verdict, and
 // fit statistics, as they appear on UtilityModelFit.Statistic.
 const (
@@ -308,6 +312,11 @@ type FidelityReport = isynth.FidelityReport
 // not grow with n (Cohen's d for a numeric field, Cramér's V for a
 // categorical one), with its Cohen (1988) magnitude label.
 type FieldEffectSize = isynth.FieldEffectSize
+
+// TimeShapeFidelity is a datetime field's cycle beside its KS entry:
+// the total variation distance between the source and synthetic
+// hour-of-day and weekday histograms (FieldFidelity.Shape).
+type TimeShapeFidelity = isynth.TimeShapeFidelity
 
 // FieldContinuation is one field's run-continuation rate.
 type FieldContinuation = isynth.FieldContinuation

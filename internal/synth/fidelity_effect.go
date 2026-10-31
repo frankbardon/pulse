@@ -34,8 +34,10 @@ import (
 // TestSynthFidelityEffectBandsMatchConventions.
 //
 // The section is built to EXTEND: marginalEffectSize is the one switch a
-// field type's arm is added to, so a later scoring arm (packed_bool, u4,
-// date, set options) brings its effect size with it.
+// field type's arm is added to, so a scoring arm brings its effect size
+// with it. u4, date (epoch days) and datetime (epoch seconds) take d;
+// packed_bool takes V from its 2x2 χ²; a set option's V is computed
+// directly (setOptionEffectSize, internal/synth/fidelity_marginal.go).
 
 // Effect-size measures FieldEffectSize.Measure carries.
 const (
@@ -204,7 +206,7 @@ func computeMarginalMoments(mergedSchema *encoding.Schema, records []byte, field
 // whose measure needs none.
 func marginalEffectSize(f *encoding.Field, result *types.TestResult, moments *[2]marginalMoments) *FieldEffectSize {
 	switch {
-	case f.Type.IsNumeric() && !f.Type.IsDecimal():
+	case cohensDType(f.Type):
 		if moments == nil {
 			return nil
 		}
@@ -213,7 +215,7 @@ func marginalEffectSize(f *encoding.Field, result *types.TestResult, moments *[2
 			return nil
 		}
 		return newFieldEffectSize(EffectMeasureCohensD, d, effectBandsD)
-	case f.Type.IsCategorical():
+	case f.Type.IsCategorical() || f.Type == encoding.FieldTypePackedBool:
 		v, ok := chiSqCramersV(result)
 		if !ok {
 			return nil
@@ -250,7 +252,7 @@ func attachMarginalEffectSizes(report *FidelityReport, mergedSchema *encoding.Sc
 		if e.Result == nil {
 			continue
 		}
-		if f := mergedSchema.Field(e.Field); f != nil && f.Type.IsNumeric() && !f.Type.IsDecimal() {
+		if f := mergedSchema.Field(e.Field); f != nil && cohensDType(f.Type) {
 			numeric = append(numeric, e.Field)
 		}
 	}

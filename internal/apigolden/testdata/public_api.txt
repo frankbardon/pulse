@@ -4337,6 +4337,8 @@ pulse/synth: type FieldFidelity field EffectSize *pulse/internal/synth.FieldEffe
 pulse/synth: type FieldFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type FieldFidelity field Field string "json:\"field\""
 pulse/synth: type FieldFidelity field Result *pulse/types.TestResult "json:\"result,omitempty\""
+pulse/synth: type FieldFidelity field RuleNote string "json:\"rule_note,omitempty\""
+pulse/synth: type FieldFidelity field Shape *pulse/internal/synth.TimeShapeFidelity "json:\"shape,omitempty\""
 pulse/synth: type FieldFidelity field Test pulse/types.TestType "json:\"test\""
 pulse/synth: type FieldModel = pulse/internal/synth.FieldModel
 pulse/synth: type FieldModel underlying struct
@@ -4648,6 +4650,7 @@ pulse/synth: type SetFieldFidelity = pulse/internal/synth.SetFieldFidelity
 pulse/synth: type SetFieldFidelity underlying struct
 pulse/synth: type SetFieldFidelity field Field string "json:\"field\""
 pulse/synth: type SetFieldFidelity field Options []*pulse/internal/synth.SetOptionFidelity "json:\"options,omitempty\""
+pulse/synth: type SetFieldFidelity field RuleNote string "json:\"rule_note,omitempty\""
 pulse/synth: type SetNumericPairFidelity = pulse/internal/synth.SetNumericPairFidelity
 pulse/synth: type SetNumericPairFidelity underlying struct
 pulse/synth: type SetNumericPairFidelity field Categories []*pulse/internal/synth.CategoricalNumericCategoryFidelity "json:\"categories,omitempty\""
@@ -4674,6 +4677,7 @@ pulse/synth: type SetNumericPairSpec field Set string "json:\"set\""
 pulse/synth: type SetOptionFidelity = pulse/internal/synth.SetOptionFidelity
 pulse/synth: type SetOptionFidelity underlying struct
 pulse/synth: type SetOptionFidelity field Delta float64 "json:\"delta,omitempty\""
+pulse/synth: type SetOptionFidelity field EffectSize *pulse/internal/synth.FieldEffectSize "json:\"effect_size,omitempty\""
 pulse/synth: type SetOptionFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type SetOptionFidelity field N int "json:\"n\""
 pulse/synth: type SetOptionFidelity field SourceFrequency float64 "json:\"source_frequency\""
@@ -4756,6 +4760,12 @@ pulse/synth: type TargetRateLevel field SourceMean float64 "json:\"source_mean,o
 pulse/synth: type TargetRateLevel field SourceN int "json:\"source_n\""
 pulse/synth: type TargetRateLevel field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
 pulse/synth: type TargetRateLevel field SyntheticN int "json:\"synthetic_n\""
+pulse/synth: const TimeShapeClockUTC untyped string = "utc"
+pulse/synth: type TimeShapeFidelity = pulse/internal/synth.TimeShapeFidelity
+pulse/synth: type TimeShapeFidelity underlying struct
+pulse/synth: type TimeShapeFidelity field Clock string "json:\"clock\""
+pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
+pulse/synth: type TimeShapeFidelity field WeekdayTVD float64 "json:\"weekday_tvd\""
 pulse/synth: type UtilityCoefficient = pulse/internal/synth.UtilityCoefficient
 pulse/synth: type UtilityCoefficient underlying struct
 pulse/synth: type UtilityCoefficient field Missing string "json:\"missing,omitempty\""
@@ -6429,4 +6439,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d1a75038e8bab55c4fbfd0db4f776f90c7eeb7f85cb02f520b81cb0c28069bda
+// golden-hash: 4d25719ee4248370dc1fd57b7ba8d8c311a3d8401b84fd09cf13691f3c19e117

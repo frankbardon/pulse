@@ -61,7 +61,7 @@ A `set` literal is coerced to the row's Go shape once at compile time via `const
 
 **Declaration order is also ACCEPTED-row order — rows are never shuffled**, which is what lets `row()` / `lag()` ([`synth-cross-row`](synth-cross-row.md)) mean "the previous row".
 
-Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through.
+Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through. So a rule moves the twin's marginal and never the source's: the fidelity report puts a `rule_note` on a flagged marginal a rule writes ([`synth-fidelity-report`](synth-fidelity-report.md)).
 
 ## See
 

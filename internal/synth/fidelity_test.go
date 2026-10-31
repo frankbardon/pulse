@@ -10,7 +10,7 @@ import (
 )
 
 // fidelitySchema builds a minimal merged schema shape: one numeric
-// field, one categorical field, and the appended _synthetic
+// field, one categorical field, one packed_bool, and the appended _synthetic
 // packed_bool tag — exactly what buildMergedSchema produces.
 func fidelitySchema() *encoding.Schema {
 	return &encoding.Schema{Fields: []encoding.Field{
@@ -22,10 +22,10 @@ func fidelitySchema() *encoding.Schema {
 }
 
 // TestBuildFidelityReport_ClassifiesFieldsAndSkipsSynthetic locks in
-// which fields get a TEST_KS vs TEST_CHISQ entry, that the _synthetic
-// column itself is never entered, and that a field of neither numeric
-// nor categorical type (packed_bool "flag") is skipped rather than
-// guessed at.
+// which fields get a TEST_KS vs TEST_CHISQ entry and that the
+// _synthetic column itself is never entered. Every scalar type is
+// scored (E2-S4): the integers including u4, date and datetime ride
+// TEST_KS; a categorical and a packed_bool ride TEST_CHISQ.
 func TestBuildFidelityReport_ClassifiesFieldsAndSkipsSynthetic(t *testing.T) {
 	t.Parallel()
 
@@ -35,29 +35,47 @@ func TestBuildFidelityReport_ClassifiesFieldsAndSkipsSynthetic(t *testing.T) {
 		return &types.TestResult{Type: test.Type, Statistic: 1, PValue: 1}, nil
 	}
 
-	report := synth.BuildFidelityReport(fidelitySchema(), nil, 10, 5, run)
+	schema := fidelitySchema()
+	extra := []encoding.Field{
+		{Name: "level", Type: encoding.FieldTypeU4},
+		{Name: "joined", Type: encoding.FieldTypeDate},
+		{Name: "seen", Type: encoding.FieldTypeDateTime},
+	}
+	schema.Fields = append(extra, schema.Fields...)
+	report := synth.BuildFidelityReport(schema, nil, 10, 5, run)
 
-	if len(report.Fields) != 2 {
-		t.Fatalf("len(Fields) = %d, want 2 (score, country only)", len(report.Fields))
+	want := []struct {
+		field string
+		test  types.TestType
+	}{
+		{"level", types.TEST_KS}, {"joined", types.TEST_KS}, {"seen", types.TEST_KS},
+		{"score", types.TEST_KS}, {"country", types.TEST_CHISQ}, {"flag", types.TEST_CHISQ},
 	}
-	if report.Fields[0].Field != "score" || report.Fields[0].Test != types.TEST_KS {
-		t.Errorf("Fields[0] = %+v, want score/TEST_KS", report.Fields[0])
+	if len(report.Fields) != len(want) {
+		t.Fatalf("len(Fields) = %d, want %d", len(report.Fields), len(want))
 	}
-	if report.Fields[1].Field != "country" || report.Fields[1].Test != types.TEST_CHISQ {
-		t.Errorf("Fields[1] = %+v, want country/TEST_CHISQ", report.Fields[1])
+	for i, w := range want {
+		if got := report.Fields[i]; got.Field != w.field || got.Test != w.test {
+			t.Errorf("Fields[%d] = %s/%s, want %s/%s", i, got.Field, got.Test, w.field, w.test)
+		}
 	}
 	if report.SourceRows != 10 || report.SyntheticRows != 5 {
 		t.Errorf("SourceRows/SyntheticRows = %d/%d, want 10/5", report.SourceRows, report.SyntheticRows)
 	}
 
-	if len(seen) != 2 {
-		t.Fatalf("run called %d times, want 2", len(seen))
+	if len(seen) != len(want) {
+		t.Fatalf("run called %d times, want %d", len(seen), len(want))
 	}
-	if seen[0].Field != "score" || seen[0].SplitBy != synth.SyntheticFieldName {
-		t.Errorf("KS test spec = %+v, want Field=score SplitBy=%s", seen[0], synth.SyntheticFieldName)
-	}
-	if seen[1].Rows != "country" || seen[1].Cols != synth.SyntheticFieldName {
-		t.Errorf("CHISQ test spec = %+v, want Rows=country Cols=%s", seen[1], synth.SyntheticFieldName)
+	for _, s := range seen {
+		if s.Type == types.TEST_KS && s.SplitBy != synth.SyntheticFieldName {
+			t.Errorf("KS test spec = %+v, want SplitBy=%s", s, synth.SyntheticFieldName)
+		}
+		if s.Type == types.TEST_CHISQ && s.Cols != synth.SyntheticFieldName {
+			t.Errorf("CHISQ test spec = %+v, want Cols=%s", s, synth.SyntheticFieldName)
+		}
+		if s.Field == synth.SyntheticFieldName || s.Rows == synth.SyntheticFieldName {
+			t.Errorf("the _synthetic column was scored: %+v", s)
+		}
 	}
 }
 
@@ -76,8 +94,8 @@ func TestBuildFidelityReport_PerFieldErrorDoesNotAbortReport(t *testing.T) {
 
 	report := synth.BuildFidelityReport(fidelitySchema(), nil, 1, 1, run)
 
-	if len(report.Fields) != 2 {
-		t.Fatalf("len(Fields) = %d, want 2", len(report.Fields))
+	if len(report.Fields) != 3 {
+		t.Fatalf("len(Fields) = %d, want 3 (score, country, flag)", len(report.Fields))
 	}
 	ks := report.Fields[0]
 	if ks.Result != nil || ks.Error != "boom" {

@@ -37,7 +37,21 @@ type FieldFidelity struct {
 	// trivial difference. Absent when Result is, or when the measure is
 	// undefined (a constant column). See internal/synth/fidelity_effect.go.
 	EffectSize *FieldEffectSize `json:"effect_size,omitempty"`
-	Error      string           `json:"error,omitempty"`
+	// Shape is a datetime field's daily and weekly cycle beside its KS
+	// test: the total variation distance between the partitions'
+	// hour-of-day and weekday histograms on the UTC clock. KS and
+	// Cohen's d read the instants as one long line, so a twin that
+	// draws the right days at the wrong hours passes both. Absent for
+	// every other type. See internal/synth/fidelity_marginal.go.
+	Shape *TimeShapeFidelity `json:"shape,omitempty"`
+	// RuleNote is set on a FLAGGED marginal (an effect size of at
+	// least "small") whose field a structural rule writes: it names
+	// the rules. The rule pass runs last and reaches generated rows
+	// only, so such a difference may be the rule's doing rather than
+	// a generation fault. Absent for a spec without rules. See
+	// internal/synth/fidelity_rule_note.go.
+	RuleNote string `json:"rule_note,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 // PairwiseFidelity is one row of FidelityReport.Pairwise: the delta
@@ -187,6 +201,10 @@ type CategoricalNumericCategoryFidelity struct {
 type SetFieldFidelity struct {
 	Field   string               `json:"field"`
 	Options []*SetOptionFidelity `json:"options,omitempty"`
+	// RuleNote is FieldFidelity.RuleNote for a set_* field: set when
+	// any option's effect size is at least "small" and a structural
+	// rule writes the field.
+	RuleNote string `json:"rule_note,omitempty"`
 }
 
 // SetOptionFidelity is one dictionary entry (bit position)'s realized
@@ -206,6 +224,12 @@ type SetOptionFidelity struct {
 	SourceFrequency    float64 `json:"source_frequency"`
 	SyntheticFrequency float64 `json:"synthetic_frequency,omitempty"`
 	Delta              float64 `json:"delta,omitempty"`
+	// EffectSize is Cramér's V of the option's 2x2 table (selected or
+	// not, by partition) — |phi| — read on Cohen's w bands, the same
+	// measure and bands a categorical field's χ² entry carries. Absent
+	// when either partition is empty or the option is constant across
+	// both.
+	EffectSize *FieldEffectSize `json:"effect_size,omitempty"`
 	// N is the number of _synthetic=true rows with a non-null Field —
 	// the realized synthetic partition's own denominator for this
 	// option's frequency, shared across every option of the same field.
@@ -386,9 +410,10 @@ type TestRunner func(physicalSchema, presentedSchema *encoding.Schema, records [
 // no run/TestRunner involved) for set_* fields, appended onto
 // report.SetFields instead of report.Fields (E5-S4 — see
 // SetFieldFidelity for why this section does not reuse TEST_KS/
-// TEST_CHISQ). Fields of any other on-wire type (date, datetime,
-// packed_bool, u4) are out of scope for both sections; later stories
-// may widen coverage.
+// TEST_CHISQ). Every scalar type is scored: u4, date (epoch days) and
+// datetime (epoch seconds) ride TEST_KS like the other integers, and
+// packed_bool rides TEST_CHISQ like a categorical (marginalTest,
+// internal/synth/fidelity_marginal.go).
 //
 // A single field's failing test (entry.Error set, entry.Result nil)
 // never aborts the rest of the report — run is called once per field
@@ -416,13 +441,8 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 			continue
 		}
 
-		var test *types.Test
-		switch {
-		case f.Type.IsNumeric():
-			test = &types.Test{Type: types.TEST_KS, Field: f.Name, SplitBy: SyntheticFieldName}
-		case f.Type.IsCategorical():
-			test = &types.Test{Type: types.TEST_CHISQ, Rows: f.Name, Cols: SyntheticFieldName}
-		default:
+		test := marginalTest(f)
+		if test == nil {
 			continue
 		}
 
@@ -436,6 +456,7 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 		report.Fields = append(report.Fields, entry)
 	}
 	attachMarginalEffectSizes(report, mergedSchema, records)
+	attachTimeShapes(report, mergedSchema, records)
 	return report
 }
 
@@ -516,6 +537,7 @@ func computeSetFieldFidelity(mergedSchema *encoding.Schema, records []byte, fiel
 			opt.SyntheticFrequency = float64(synSel[i]) / float64(synN)
 			opt.Delta = math.Abs(opt.SourceFrequency - opt.SyntheticFrequency)
 			opt.N = synN
+			opt.EffectSize = setOptionEffectSize(srcSel[i], srcN, synSel[i], synN)
 		}
 		entry.Options = append(entry.Options, opt)
 	}
