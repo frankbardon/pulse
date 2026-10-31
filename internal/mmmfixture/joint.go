@@ -137,7 +137,7 @@ func JointWithSeed(seed uint64) JointData {
 	}
 	price, promo := make([]float64, n), make([]float64, n)
 	for w := range price {
-		price[w] = 10 + float64(0.6*detmath.Sin(float64(2*math.Pi*float64(w))/52)) + float64(0.3*(rng.Float64()-0.5))
+		price[w] = 10 + float64(0.6*detmath.Sin(float64(2*math.Pi*float64(w))/52)) + float64(0.3*(float64(rng.Float64())-0.5))
 		if rng.Float64() < 0.12 {
 			promo[w] = 1
 		}
