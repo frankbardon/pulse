@@ -106,7 +106,7 @@ func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
 	for _, l := range []string{"none", "row", "column", "total", "matrix", "long", "replace", "augment", "probability", "frequency",
 		// Fixed per-slot vocabularies: regression / regression-attribute
 		// settings and the window frame mode.
-		"l1", "l2", "elasticnet", "binomial", "poisson", "gamma", "jackknife", "bootstrap", "forward", "backward", "stepwise", "aic", "bic", "rows"} {
+		"l1", "l2", "elasticnet", "binomial", "poisson", "gamma", "jackknife", "bootstrap", "forward", "backward", "stepwise", "aic", "bic", "rows", "qr", "normal"} {
 		literals[l] = true
 	}
 	for _, l := range slices.Concat(stringSlice(types.AllReturnPresets()), stringSlice(types.AllMatrixEncodings()), stringSlice(types.AllVectorCoerces()), stringSlice(types.AllCovarianceTypes())) {

@@ -32,12 +32,24 @@
     {
       "dataset": "lls/NoInt1",
       "difficulty": "average",
-      "not_offered": "regression through the origin (no intercept) is not offered by REG_OLS"
+      "digits": {
+        "B1": 14.8,
+        "SE(B1)": 14.1,
+        "r2": 15,
+        "residual_sd": 14.2
+      },
+      "min_digits": 14.1
     },
     {
       "dataset": "lls/NoInt2",
       "difficulty": "average",
-      "not_offered": "regression through the origin (no intercept) is not offered by REG_OLS"
+      "digits": {
+        "B1": 15,
+        "SE(B1)": 15,
+        "r2": 15,
+        "residual_sd": 15
+      },
+      "min_digits": 15
     },
     {
       "dataset": "lls/Filip",
@@ -446,4 +458,4 @@
   "source": "NIST/ITL StRD, https://www.itl.nist.gov/div898/strd/"
 }
 
-// golden-hash: f36965a7d783650d89f94cc1e43f18ad21e19026388cbb96c08f97b0b718bda5
+// golden-hash: f42815118661e59b0588f84a61ccfcd35dd3146f244defcdca1f4c120e85634a

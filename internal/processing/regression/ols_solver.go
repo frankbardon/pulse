@@ -31,6 +31,9 @@ type olsSolveResult struct {
 	slopeCov   func(i, j int) float64
 	sigma2Gram float64
 	variances  []float64
+	// throughOrigin marks a fit with no intercept: the intercept row and
+	// column of the covariance are NaN (not estimated).
+	throughOrigin bool
 }
 
 // solveOLS performs the closed-form OLS fit from the centered
@@ -64,6 +67,9 @@ type olsSolveResult struct {
 // Returns PROCESSING_REGRESSION_INSUFFICIENT_DATA when n < p + 1.
 func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	p := a.p
+	if a.throughOrigin {
+		return solveOLSThroughOrigin(a)
+	}
 	if a.floorN() < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
@@ -168,4 +174,67 @@ func sqrt(x float64) float64 {
 		return 0
 	}
 	return math.Sqrt(x)
+}
+
+// solveOLSThroughOrigin is solveOLS for a fit with no intercept
+// (RegressionSpec.Intercept false), on the QR of the raw √w·[X, y]:
+// β = R_x⁻¹·Qᵀy, Var(β) = σ²·(XᵀWX)⁻¹ with σ² = RSS/(N* − p), and the
+// uncentred R² = Σŷ² / (Σŷ² + RSS) R's lm(y ~ 0 + x) reports. The
+// intercept is pinned to 0 — not estimated — so its variance (and with
+// it its standard error, p-value and interval) is NaN, null on the wire.
+func solveOLSThroughOrigin(a *olsAccumulator) (*olsSolveResult, error) {
+	p := a.p
+	if a.floorN() < float64(p) {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
+			"regression through the origin requires n ≥ p observations after filtering",
+			map[string]any{"n": a.n, "p": p, "required": p},
+		)
+	}
+	a.finalize()
+	beta, rss, ess, rinv, ok := a.qr.solve()
+	if !ok {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
+			"design matrix is rank-deficient (linearly dependent or all-zero predictors)",
+			map[string]any{"n": a.n, "p": p, "intercept": false},
+		)
+	}
+	cov := covInverse(rinv, p)
+	df := a.residualDF()
+	sigma2Gram, sigma2 := a.residualVariances(rss)
+	tss := ess + rss
+	var r2, adjR2 float64
+	if tss > 0 {
+		r2 = ess / tss
+		adjR2 = a.adjustedR2(r2, df)
+	}
+	slopeCov := func(i, j int) float64 { return cov[i*p+j] }
+	stdErrors := make([]float64, p+1)
+	variances := make([]float64, p+1)
+	variances[0], stdErrors[0] = math.NaN(), math.NaN()
+	for j := 0; j < p; j++ {
+		v := sigma2Gram * slopeCov(j, j)
+		if v < 0 {
+			v = 0
+		}
+		variances[j+1] = v
+		stdErrors[j+1] = sqrt(v)
+	}
+	return &olsSolveResult{
+		slopeCov:       slopeCov,
+		sigma2Gram:     sigma2Gram,
+		variances:      variances,
+		throughOrigin:  true,
+		Coefficients:   beta,
+		Intercept:      0,
+		StdErrors:      stdErrors,
+		RSS:            rss,
+		TSS:            tss,
+		R2:             r2,
+		AdjR2:          adjR2,
+		Sigma2:         sigma2,
+		ResidualStdErr: sqrt(sigma2),
+		DF:             df,
+	}, nil
 }

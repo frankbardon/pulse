@@ -54,10 +54,14 @@ func olsVcov(s *olsSolveResult, meanX []float64) [][]float64 {
 		}
 	}
 	for j := 0; j < p; j++ {
-		// Cov(β₀, β_j) = −Σ_k μ_x[k]·σ̂²·C[k, j].
-		c := 0.0
-		for k := 0; k < p; k++ {
-			c -= meanX[k] * (s.sigma2Gram * s.slopeCov(k, j))
+		// Cov(β₀, β_j) = −Σ_k μ_x[k]·σ̂²·C[k, j]; NaN through the origin,
+		// where β₀ is pinned, not estimated.
+		c := math.NaN()
+		if !s.throughOrigin {
+			c = 0
+			for k := 0; k < p; k++ {
+				c -= meanX[k] * (s.sigma2Gram * s.slopeCov(k, j))
+			}
 		}
 		v[0][j+1], v[j+1][0] = c, c
 	}

@@ -120,6 +120,8 @@ var regressionKeyProbes = map[string]string{
 	"selection":        `{"selection":"forward","criterion":"aic"}`,
 	"criterion":        `{"selection":"forward","criterion":"aic"}`,
 	"vcov":             `{"vcov":true}`,
+	"intercept":        `{"intercept":false}`,
+	"solver":           `{"solver":"normal"}`,
 	"covariance":       `{"covariance":{"type":"hc1"}}`,
 	"conf_level":       `{"conf_level":0.9}`,
 	"save":             `{"save":"m.pulse-model.json"}`,

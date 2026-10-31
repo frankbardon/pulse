@@ -37,6 +37,8 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
 | `unpenalized` | []field | — | `l2`: predictors left unshrunk. |
 | `bounds` | object | — | `{nonnegative: [predictors]}`: slopes ≥ 0 (NNLS). |
+| `intercept` | bool | `true` | `false`: no intercept. |
+| `solver` | enum | `qr` | Or `normal`. |
 | `max_iters` | int | — | Penalized cap. |
 | `tol` | float | — | Penalized tolerance. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
@@ -61,7 +63,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). `l1` / `elasticnet` without `resample`: SE / p / CI null + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. Robust `covariance` adds a `Covariance` echo.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). Robust `covariance` adds a `Covariance` echo.
 
 ## Reading the output
 
@@ -78,7 +80,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Gotchas
 
-- `l1` / `elasticnet`: null SE / p / CI is an advisory; use `resample`. The penalty reads raw units ([`regression-spec`](regression-spec.md)).
+- `l1` / `elasticnet`: null SE / p / CI + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`; use `resample`. The penalty reads raw units ([`regression-spec`](regression-spec.md)).
 - `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound nulls SE / p / CI + `PULSE_ADVISORY_CONSTRAINT_ACTIVE` ([`regression-model-options`](regression-model-options.md)).
 - `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.

@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -51,6 +52,11 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	// name a predictor once) — the one rule predict applies too
 	// (internal/regbounds).
 	if cerr := regbounds.Check(spec); cerr != nil {
+		return cerr
+	}
+	// solver / intercept (REG_OLS only; their combinations) — the one
+	// rule predict applies too (internal/regsolve).
+	if cerr := regsolve.Check(spec); cerr != nil {
 		return cerr
 	}
 	// The covariance block: shape, then the robust-type refusals

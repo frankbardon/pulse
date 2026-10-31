@@ -844,7 +844,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#611** Shifted accumulation for `TEST_ANOVA_WELCH` and one-sample `TEST_T` · [U64](units/U64-reference-validation.md)
 - [ ] **#612** Two-sample t / z precision under a large offset without breaking byte parity with the cell overlays (owner decision U64 D4) · [U64](units/U64-reference-validation.md)
 - [x] **#609** `REG_OLS` solves on a streaming Givens QR: NIST Filip fits (7.4 digits), Wampler1–5 reach 9.6–13.3 (5.7 on Wampler5, level with LAPACK and at the double-precision limit) · [U64](units/U64-reference-validation.md)
-- [ ] **#610** Regression through the origin, so NIST NoInt1 / NoInt2 run · [U64](units/U64-reference-validation.md)
+- [x] **#610** Regression through the origin (`intercept: false`) and a `solver` choice (`qr` default, `normal`) on `REG_OLS`; NIST NoInt1 / NoInt2 run (14.1 / 15 digits) · [U64](units/U64-reference-validation.md)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective · [U64](units/U64-reference-validation.md)
 - [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded simulation-based calibration harness · [U64](units/U64-reference-validation.md)
 - [ ] **#596** Studio shows each operator's validation in the inspector (pulse-studio) · [U64](units/U64-reference-validation.md)

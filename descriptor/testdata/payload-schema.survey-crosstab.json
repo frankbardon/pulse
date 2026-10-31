@@ -2158,6 +2158,9 @@
         "family": {
           "type": "string"
         },
+        "intercept": {
+          "type": "boolean"
+        },
         "jackknife_by": {
           "type": "string"
         },
@@ -2219,6 +2222,9 @@
           "type": "integer"
         },
         "selection": {
+          "type": "string"
+        },
+        "solver": {
           "type": "string"
         },
         "target": {
@@ -2949,4 +2955,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ef1a95d9c8506b16f6d610b7ddf09c0475e158fc4b77fa84dc9f570e8dbc0aed
+// golden-hash: 3f22db4b17dabb49ca98c53bb9763c2e4f807a5fccc6f777e766bb336441d9f6

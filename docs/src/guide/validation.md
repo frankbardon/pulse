@@ -67,7 +67,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`REG_GLM`](catalog/regression.md#op-reg_glm) | R 4.6.1 `glm` (binomial-logit, poisson-log, gamma-inverse)<br>R 4.6.1 `glmnet` (penalties)<br>R 4.6.1 `sandwich` (robust standard errors; vcov)<br>weighted reference (see above) | 1e-12 relative | Only the canonical link of each family is implemented, so only those are validated. |
 | [`REG_MMM_BAYES`](catalog/regression.md#op-reg_mmm_bayes) | synthetic data with known true parameters (internal/mmmfixture) | parameter recovery | No external reference implementation; the fit is checked by recovering known parameters only. |
 | [`REG_MMM_HILL`](catalog/regression.md#op-reg_mmm_hill) | synthetic data with known true parameters (internal/mmmfixture) | 0.5% to 15% relative, per parameter | No external reference implementation; the fit is checked by recovering known parameters only. |
-| [`REG_OLS`](catalog/regression.md#op-reg_ols) | NIST StRD certified values (linear regression: Norris, Pontius, Longley, Wampler1–5)<br>R 4.6.1 `lm`<br>R 4.6.1 `glmnet` (penalties), `nnls` (non-negative)<br>R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)<br>weighted reference (see above) | 1e-12 relative | NIST NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin. On Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): that is the double-precision limit for its large residuals. |
+| [`REG_OLS`](catalog/regression.md#op-reg_ols) | NIST StRD certified values (linear regression: Norris, Pontius, NoInt1–2 (intercept: false), Filip, Longley, Wampler1–5)<br>R 4.6.1 `lm`<br>R 4.6.1 `glmnet` (penalties), `nnls` (non-negative)<br>R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)<br>weighted reference (see above) | 1e-12 relative | On NIST Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): the double-precision limit for its large residuals. |
 
 ## Matrix operators
 
@@ -122,8 +122,8 @@ The [NIST Statistical Reference Datasets](https://www.itl.nist.gov/div898/strd/)
 |---|---|---|---|---|
 | Norris | lower | 12.4 | `B0` 12.4, `B1` 14.3, `SE(B0)` 13.0, `SE(B1)` 13.0, `r2` 15.0, `residual_sd` 13.0 | — |
 | Pontius | lower | 11.8 | `B0` 11.8, `B1` 15.0, `B2` 13.8, `SE(B0)` 12.3, `SE(B1)` 12.3, `SE(B2)` 12.3, `r2` 15.0, `residual_sd` 12.3 | — |
-| NoInt1 | average | — | — | regression through the origin (no intercept) is not offered by REG_OLS |
-| NoInt2 | average | — | — | regression through the origin (no intercept) is not offered by REG_OLS |
+| NoInt1 | average | 14.1 | `B1` 14.8, `SE(B1)` 14.1, `r2` 15.0, `residual_sd` 14.2 | — |
+| NoInt2 | average | 15.0 | `B1` 15.0, `SE(B1)` 15.0, `r2` 15.0, `residual_sd` 15.0 | — |
 | Filip | higher | 7.4 | `B0` 8.9, `B1` 9.0, `B10` 8.9, `B2` 9.1, `B3` 9.3, `B4` 9.5, `B5` 10.2, `B6` 9.8, `B7` 9.4, `B8` 9.2, `B9` 9.0, `SE(B0)` 7.4, `SE(B1)` 7.4, `SE(B10)` 7.4, `SE(B2)` 7.4, `SE(B3)` 7.4, `SE(B4)` 7.4, `SE(B5)` 7.4, `SE(B6)` 7.4, `SE(B7)` 7.4, `SE(B8)` 7.4, `SE(B9)` 7.4, `r2` 10.2, `residual_sd` 8.0 | — |
 | Longley | higher | 13.3 | `B0` 15.0, `B1` 13.3, `B2` 14.5, `B3` 14.5, `B4` 14.8, `B5` 13.5, `B6` 14.8, `SE(B0)` 15.0, `SE(B1)` 14.6, `SE(B2)` 15.0, `SE(B3)` 14.6, `SE(B4)` 14.5, `SE(B5)` 15.0, `SE(B6)` 14.8, `r2` 15.0, `residual_sd` 15.0 | — |
 | Wampler1 | higher | 9.6 | `B0` 9.6, `B1` 10.2, `B2` 10.7, `B3` 11.4, `B4` 12.8, `B5` 14.7, `SE(B0)` 10.0, `SE(B1)` 10.0, `SE(B2)` 10.5, `SE(B3)` 11.3, `SE(B4)` 12.6, `SE(B5)` 14.3, `r2` 15.0, `residual_sd` 10.0 | — |

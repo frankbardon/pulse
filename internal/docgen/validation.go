@@ -163,13 +163,13 @@ var validationRegistry = map[string]validation{
 
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{
-		strdRef("linear regression: Norris, Pontius, Longley, Wampler1–5"),
+		strdRef("linear regression: Norris, Pontius, NoInt1–2 (intercept: false), Filip, Longley, Wampler1–5"),
 		r("`lm`", tol10, regDir+"ols_lm_reference_test.go"),
 		r("`glmnet` (penalties), `nnls` (non-negative)", tol10, regDir+"ols_penalty_reference_test.go", regDir+"ols_nnls_reference_test.go"),
 		r("`sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)", tol10, svcCov, svcVcov),
 		weighted,
 	},
-		Gap: "NIST NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin. On Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): that is the double-precision limit for its large residuals.",
+		Gap: "On NIST Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): the double-precision limit for its large residuals.",
 	},
 	"REG_GLM": {
 		Refs: []validationRef{

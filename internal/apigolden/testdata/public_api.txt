@@ -5993,6 +5993,7 @@ pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_le
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionSpec field Holdout string "json:\"holdout,omitempty\""
+pulse/types: type RegressionSpec field Intercept *bool "json:\"intercept,omitempty\""
 pulse/types: type RegressionSpec field JackknifeBy string "json:\"jackknife_by,omitempty\""
 pulse/types: type RegressionSpec field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
@@ -6012,6 +6013,7 @@ pulse/types: type RegressionSpec field RNGSeed int64 "json:\"rng_seed,omitempty\
 pulse/types: type RegressionSpec field Resample string "json:\"resample,omitempty\""
 pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
+pulse/types: type RegressionSpec field Solver string "json:\"solver,omitempty\""
 pulse/types: type RegressionSpec field Target string "json:\"target\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
@@ -6346,4 +6348,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 83a02fea0b7858b82fef9f7d2b4137af969f614be0082d7f5afa8eb4ea4f8583
+// golden-hash: 0b97892b59bd7c98f756b8346b1022d85762404e0288e2f7373999d83abe7d52

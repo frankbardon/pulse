@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -163,6 +164,11 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// (internal/regbounds, shared). An extension model's slot was
 		// judged by the shared-slot table above (Check passes it).
 		if cerr := regbounds.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// solver / intercept: REG_OLS only, their combinations — the
+		// runtime's rule itself (internal/regsolve, shared).
+		if cerr := regsolve.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		// REG_BAYES_LINEAR's knobs — the refused resample / selection

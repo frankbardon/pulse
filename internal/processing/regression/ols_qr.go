@@ -29,8 +29,13 @@ import "math"
 // the rotation's hypotenuse is computed here, not by math.Hypot, whose
 // pure-Go arm64 body is contractible.
 type olsQR struct {
-	m int       // p + 2: intercept, the p predictors, the target
-	r []float64 // m×m upper triangle, row-major
+	m int // lead + p + 1: [intercept,] the p predictors, the target
+	// lead is 1 when the design carries the intercept column, 0 for a
+	// fit through the origin (RegressionSpec.Intercept false), which
+	// rotates the raw √w·[x, y] with no column of ones and no origin
+	// shift (a shift is only invariant with an intercept).
+	lead int
+	r    []float64 // m×m upper triangle, row-major
 	// colSq[j] is Σ w·x_j² of design column j (intercept first): the
 	// scale the rank test reads R's diagonal against.
 	colSq []float64
@@ -40,9 +45,19 @@ type olsQR struct {
 	set    bool
 }
 
-func newOLSQR(p int) *olsQR {
-	m := p + 2
-	return &olsQR{m: m, r: make([]float64, m*m), colSq: make([]float64, p+1), row: make([]float64, m), origin: make([]float64, p+1)}
+func newOLSQR(p int) *olsQR { return newOLSQRWith(p, true) }
+
+// newOLSQRWith is newOLSQR with the intercept column present or not.
+func newOLSQRWith(p int, intercept bool) *olsQR {
+	lead := 0
+	if intercept {
+		lead = 1
+	}
+	m := lead + p + 1
+	q := &olsQR{m: m, lead: lead, r: make([]float64, m*m), colSq: make([]float64, m-1), row: make([]float64, m), origin: make([]float64, p+1)}
+	// Through the origin the origin stays zero: no shift.
+	q.set = !intercept
+	return q
 }
 
 // add rotates one row, weight w > 0, into R.
@@ -53,9 +68,11 @@ func (q *olsQR) add(x []float64, y, w float64) {
 		q.set = true
 	}
 	sw := math.Sqrt(w)
-	q.row[0] = sw
+	if q.lead == 1 {
+		q.row[0] = sw
+	}
 	for j, v := range x {
-		q.row[j+1] = float64(sw * (v - q.origin[j]))
+		q.row[q.lead+j] = float64(sw * (v - q.origin[j]))
 	}
 	q.row[q.m-1] = float64(sw * (y - q.origin[len(x)]))
 	for j := 0; j < q.m-1; j++ {
@@ -123,7 +140,9 @@ func (q *olsQR) solve() (beta []float64, rss, ess float64, rinv []float64, ok bo
 	}
 	last := q.r[n*q.m+n]
 	rss = float64(last * last)
-	for j := 1; j < n; j++ {
+	// Explained sum of squares: about the mean with an intercept (its
+	// row 0 carries ȳ), uncentred Σŷ² through the origin.
+	for j := q.lead; j < n; j++ {
 		v := q.r[j*q.m+n]
 		ess += float64(v * v)
 	}

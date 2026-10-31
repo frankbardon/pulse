@@ -251,13 +251,13 @@ Fits a straight-line model that predicts a numeric outcome from one or more nume
 
 **Validated against:**
 
-- NIST StRD certified values (linear regression: Norris, Pontius, Longley, Wampler1–5) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+- NIST StRD certified values (linear regression: Norris, Pontius, NoInt1–2 (intercept: false), Filip, Longley, Wampler1–5) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
 - R 4.6.1 `lm` — tolerance 1e-10 relative; `internal/processing/regression/ols_lm_reference_test.go`
 - R 4.6.1 `glmnet` (penalties), `nnls` (non-negative) — tolerance 1e-10 relative; `internal/processing/regression/ols_penalty_reference_test.go`, `internal/processing/regression/ols_nnls_reference_test.go`
 - R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov) — tolerance 1e-10 relative; `internal/service/regression_covariance_test.go`, `internal/service/regression_vcov_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
-**Validation gap:** NIST NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin. On Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): that is the double-precision limit for its large residuals.
+**Validation gap:** On NIST Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): the double-precision limit for its large residuals.
 
 See [How Pulse is validated](../validation.md).
 

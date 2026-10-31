@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"github.com/frankbardon/pulse/internal/regsolve"
 	"maps"
 	"slices"
 	"sort"
@@ -1092,6 +1093,8 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"jackknife_by":     map[string]any{"type": "string", "description": "resample jackknife only: field whose distinct values are the delete-a-cluster jackknife's groups; exclusive with jackknife_groups."},
 				"rng_seed":         integer("Bootstrap RNG and jackknife_groups assignment seed."),
 				"selection":        enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
+				"intercept":        map[string]any{"type": "boolean", "description": "REG_OLS only: false fits through the origin (intercept pinned to 0, null inference on it; uncentred R², df N − p). Unpenalized, unbounded, classical covariance only."},
+				"solver":           enumStringField(regsolve.Solvers(), "REG_OLS least-squares method of an unpenalized, unbounded fit: qr (default, streaming QR) or normal (normal equations, pre-alpha.35)."),
 				"criterion":        enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),
 				"vcov":             map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; replicate covariance under resample, the final refit's under selection; refused on l1 / elasticnet."},
 				"covariance": map[string]any{

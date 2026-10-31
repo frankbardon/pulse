@@ -46,6 +46,8 @@ func regSlotValue(t *testing.T, key string, ft reflect.Type) reflect.Value {
 		"prior_precision": types.PrecisionVector([]float64{0, 1}),
 		"unpenalized":     []string{"x"},
 		"bounds":          &types.RegressionBounds{Nonnegative: []string{"x"}},
+		"intercept":       new(bool), // false: fit through the origin
+		"solver":          "normal",
 	}
 	if v, ok := overrides[key]; ok {
 		return reflect.ValueOf(v)

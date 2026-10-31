@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
+	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -109,6 +110,11 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 	weights := newRowWeights(spec)
 	acc := newOLSAccumulator(len(spec.Predictors))
 	acc.basis = weights.basis
+	if !regsolve.FitsIntercept(spec) {
+		// intercept: false (internal/regsolve admits it only unpenalised,
+		// unbounded, classical, on the QR solver).
+		acc.fitThroughOrigin()
+	}
 	return &olsEngine{
 		spec:    spec,
 		schema:  schema,
@@ -340,6 +346,10 @@ func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 		if mask := regbounds.Mask(e.spec, e.spec.Predictors); mask != nil {
 			res, active, err := solveNNLS(e.acc, mask)
 			e.activeBounds = active
+			return res, 0, false, err
+		}
+		if e.spec.Solver == regsolve.SolverNormal {
+			res, err := solveOLSNormal(e.acc)
 			return res, 0, false, err
 		}
 		res, err := solveOLS(e.acc)

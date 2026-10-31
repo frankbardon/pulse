@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -77,6 +78,8 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter, 0 < l1_ratio < 1; only read when penalty == elasticnet (glmnet's alpha).", Slot: true},
 				{Name: "unpenalized", Type: "list", NamesColumn: true, Required: false, Description: "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG).", Slot: true},
 				{Name: "bounds", Type: "object", Required: false, Description: "{nonnegative: [predictors]}: those slopes are constrained >= 0 (Lawson-Hanson non-negative least squares on the centred Gram; intercept and other slopes free), each a listed predictor, once. No bound binding = plain OLS bit for bit; a binding bound keeps the coefficients and R² but nulls every std error, p-value, interval and vcov entry, with advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE] — resample bootstrap refits the bounded model for replicate inference. A penalty, selection or robust covariance refuses it.", Slot: true},
+				{Name: "intercept", Type: "bool", Required: false, Default: true, Description: "false fits through the origin: the intercept is pinned to 0 (its coefficient key stays, 0, with null std_error / p_value / interval), R² is the uncentred Σŷ²/Σy² and df N* − p, as lm(y ~ 0 + x). Unpenalized, unbounded, classical covariance only; not with selection, resample, holdout or solver normal (PROCESSING_CONFIG).", Slot: true},
+				{Name: "solver", Type: "enum", Required: false, EnumValues: regsolve.Solvers(), Default: "qr", Description: "Least-squares method of an unpenalized, unbounded fit: qr (default) solves a streaming Givens QR of the design, at κ(X); normal solves the normal equations by Cholesky on the centred Gram, at κ(X)², the pre-alpha.35 method (reproduce older results). Refused with a penalty or bounds (PROCESSING_CONFIG).", Slot: true},
 				{Name: "max_iters", Type: "int", Required: false, Description: "Coordinate-descent iteration cap for regularized fits.", Slot: true},
 				{Name: "tol", Type: "float", Required: false, Description: "Relative convergence tolerance for regularized fits.", Slot: true},
 				{Name: "resample", Type: "enum", Required: false, EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Orthogonal resampling layer; downgrades streaming.", Slot: true},

@@ -219,6 +219,28 @@ type RegressionSpec struct {
 	// "aic" or "bic". Required when Selection is non-empty.
 	Criterion string `json:"criterion,omitempty"`
 
+	// Intercept, when explicitly false, fits REG_OLS through the origin:
+	// the intercept is pinned to 0, not estimated. The result keeps the
+	// "(intercept)" key with coefficient 0 so a bound fit scores
+	// unchanged; its std_errors / p_values / ci_lower / ci_upper entries
+	// are null. R² is then the uncentred Σŷ² / Σy² and the residual df
+	// N* − p, as R's lm(y ~ 0 + x) reports. Nil or true (the default) fits
+	// the intercept. REG_OLS only, classical covariance only, and not with
+	// a penalty, bounds, selection, resample, holdout or solver "normal"
+	// (internal/regsolve.Check refuses each with PROCESSING_CONFIG).
+	Intercept *bool `json:"intercept,omitempty"`
+
+	// Solver picks REG_OLS's least-squares method for an unpenalised,
+	// unbounded fit: "qr" (the default; empty selects it) solves on a
+	// streaming Givens QR of the design, at κ(X); "normal" solves the
+	// normal equations by Cholesky on the centred Gram matrix, at κ(X)²,
+	// the method Pulse used before v1.0.0-alpha.35 (reproduce an older
+	// result, or match a package that solves the normal equations). Any
+	// other value, a non-REG_OLS type, a penalty or bounds alongside a
+	// non-empty Solver are refused with PROCESSING_CONFIG
+	// (internal/regsolve.Check).
+	Solver string `json:"solver,omitempty"`
+
 	// Vcov opts this regression into the coefficient covariance matrix
 	// (RegressionResult.Vcov) and its diag-scaled correlation
 	// (RegressionResult.Correlation). Off by default, so a fit without

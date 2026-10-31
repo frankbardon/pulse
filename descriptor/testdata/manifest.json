@@ -9041,6 +9041,26 @@
             "slot": true
           },
           {
+            "name": "intercept",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "false fits through the origin: the intercept is pinned to 0 (its coefficient key stays, 0, with null std_error / p_value / interval), R² is the uncentred Σŷ²/Σy² and df N* − p, as lm(y ~ 0 + x). Unpenalized, unbounded, classical covariance only; not with selection, resample, holdout or solver normal (PROCESSING_CONFIG).",
+            "slot": true
+          },
+          {
+            "name": "solver",
+            "type": "enum",
+            "required": false,
+            "default": "qr",
+            "description": "Least-squares method of an unpenalized, unbounded fit: qr (default) solves a streaming Givens QR of the design, at κ(X); normal solves the normal equations by Cholesky on the centred Gram, at κ(X)², the pre-alpha.35 method (reproduce older results). Refused with a penalty or bounds (PROCESSING_CONFIG).",
+            "enum_values": [
+              "qr",
+              "normal"
+            ],
+            "slot": true
+          },
+          {
             "name": "max_iters",
             "type": "int",
             "required": false,
@@ -20419,4 +20439,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 94c97c7a616761c46c117ee269ff97a06bbd455bc615dad1700ec20efcebc719
+// golden-hash: 704431663966afdc06f968d9e7e6eb85bd6a2f8cb8b00f138c5183ea21facc72

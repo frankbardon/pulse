@@ -5132,6 +5132,9 @@
         "holdout": {
           "type": "string"
         },
+        "intercept": {
+          "type": "boolean"
+        },
         "jackknife_by": {
           "type": "string"
         },
@@ -5199,6 +5202,9 @@
           "type": "string"
         },
         "selection": {
+          "type": "string"
+        },
+        "solver": {
           "type": "string"
         },
         "target": {
@@ -6938,4 +6944,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 70175b67aae2e72c0f0d0ee0d1e1bfe2827335479944d12c026ce9733cfbd9eb
+// golden-hash: 5c6b2d596c8ed14bb0c78c3789ad8fea7d71d8176e0fb6c4b995b1532978a540

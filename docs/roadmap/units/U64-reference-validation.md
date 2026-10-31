@@ -56,7 +56,7 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - [x] **#611** Shifted accumulation for the other per-group Welford tests where no parity contract forbids it: `TEST_ANOVA_WELCH` and one-sample `TEST_T`. The rest don't need it: `TEST_BROWN_FORSYTHE` reads deviations, the paired tests read differences, and `TEST_TUKEY_HSD` and the post-tests read materialized means (E3-S7)
 - [ ] **#612** Decide, then do: two-sample `TEST_T` / `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` must stay byte-equal with `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `_VS_REF`, which fold unshifted `AGG_WELFORD` cells. They lose about 3 digits under a 1e12 offset (1e-9 relative at 1e6). Precision there means shifting `AGG_WELFORD` itself, merge across shards included, so both sides move together (owner decision D4)
 - [x] **#609** `REG_OLS` solves on a streaming Givens QR (`ols_qr.go`, AS 274) instead of Cholesky on the normal equations. NIST Filip now fits (7.4 digits; it was refused), and Wampler1–5 reach 9.6 / 13.3 / 9.7 / 7.7 / 5.7 (6.0–6.7 before), level with LAPACK's Householder QR (8.1, and 7.6 / 5.6 on Wampler4 / 5). Wampler5's 7-digit target is beyond double precision for any solver (E3-S5)
-- [ ] **#610** Regression through the origin (no intercept), so NIST NoInt1 / NoInt2 run (E3-S6; a public `RegressionSpec` slot, so it follows the regression Update Demand row)
+- [x] **#610** Regression through the origin, `intercept: false` on `REG_OLS` (default `true`). NIST NoInt1 / NoInt2 reach 14.1 / 15 digits. `solver: "qr" | "normal"` (default `qr`) restores the normal-equations path on request. Both are refused by the shared rule `internal/regsolve`, at predict and at run (E3-S6)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
 - [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded, reproducible simulation-based calibration harness (E4-S2)
 - [ ] **#596** Studio shows each operator's validation in the inspector and links the book page (pulse-studio, E5-S1)
@@ -78,6 +78,13 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 
   Recommended: (a). Survey data rarely sits at 1e12, but revenue in cents or epoch timestamps can.
 - **D3 — v1 timing.** Recommended: E1–E3 land before U32 (they are trust evidence for v1), and E4–E5 may follow v1.0.0.
+
+## Configurability (owner rule, 2026-10-31)
+
+An operator exposes a parameter wherever there is a real methodological choice, and its default is the current behaviour. Every story in this unit records its options and defaults. A pure accuracy fix with no result a user would choose differently (for example the origin shift in the mean tests) is not a knob. A contract between operators (byte parity) is not a per-request knob either. Applied so far:
+
+- `REG_OLS` `intercept` (default `true`) and `solver` (`qr` default, `normal`).
+- `AGG_STDDEV` / `AGG_VARIANCE` `ddof` (0 default, 1 sample).
 
 ## Scope
 
@@ -137,7 +144,7 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
       | Wampler4 | 6.7 | 7.7 |
       | Wampler5 | 6.0 | 5.7 |
     - **Reference points.** numpy/LAPACK Householder QR gets 8.1 on Filip, 7.6 on Wampler4 and 5.6 on Wampler5. Its SVD-based `lstsq` misses Filip entirely, at 0 digits.
-  - S6: #610 (regression through the origin).
+  - S6 *(done)*: #610. `REG_OLS` gained `intercept: false`, which pins the intercept to 0 and gives null inference on it, uncentred R² and df N* − p, as in R's `lm(y ~ 0 + x)`. It also gained `solver` (`qr` default, `normal`). NIST NoInt1 / NoInt2: 14.1 / 15 digits.
   - S7: #611. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
 - **E4 — External references for MMM**
   - S1: `gen_mmm_hill.R` fits the same Hill-adstock objective with `minpack.lm::nlsLM` from the same start and bounds. The test pins coefficients at the tolerance the optimizer oracles already use (`optimize/testdata`).

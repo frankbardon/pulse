@@ -223,14 +223,26 @@ func strdDifficulty(f strdFile) string {
 
 var strdLLS = []string{"Norris", "Pontius", "NoInt1", "NoInt2", "Filip", "Longley", "Wampler1", "Wampler2", "Wampler3", "Wampler4", "Wampler5"}
 
+// strdSpec is the REG_OLS slot of a StRD regression, through the origin
+// when the certified model has no B0.
+func strdSpec(preds []string, intercept bool) *types.RegressionSpec {
+	spec := &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: preds}
+	if !intercept {
+		spec.Intercept = &intercept
+	}
+	return spec
+}
+
 func runStRDRegression(t *testing.T, name string) strdResult {
 	f := loadStRD(t, "lls_"+name)
 	res := strdResult{Dataset: "lls/" + name, Difficulty: strdDifficulty(f)}
+	// NoInt1 / NoInt2 certify a fit through the origin (no B0): run with
+	// intercept: false.
+	first := 0
 	if f.numbers("B0") == nil {
-		res.NotOffered = "regression through the origin (no intercept) is not offered by REG_OLS"
-		return res
+		first = 1
 	}
-	var params int
+	params := first
 	for f.numbers(fmt.Sprintf("B%d", params)) != nil {
 		params++
 	}
@@ -262,7 +274,7 @@ func runStRDRegression(t *testing.T, name string) strdResult {
 	p := strdPulse(t, "strd.pulse", append([]string{"y"}, preds...), rows, nil)
 	resp, err := p.Process(context.Background(), &Request{
 		Cohort:      &types.Cohort{Filename: "strd.pulse"},
-		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: preds}},
+		Regressions: []*types.RegressionSpec{strdSpec(preds, first == 0)},
 	})
 	if err != nil {
 		t.Fatalf("%s: Process: %v", name, err)
@@ -275,7 +287,7 @@ func runStRDRegression(t *testing.T, name string) strdResult {
 		res.NotOffered = "REG_OLS refused the fit: " + string(reg.Error.Code)
 		return res
 	}
-	for k := 0; k < params; k++ {
+	for k := first; k < params; k++ {
 		cert := f.numbers(fmt.Sprintf("B%d", k))
 		key := "(intercept)"
 		if k > 0 {

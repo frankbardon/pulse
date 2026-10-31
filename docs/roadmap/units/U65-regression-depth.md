@@ -68,6 +68,11 @@ Every output this unit adds lands with an R golden at 1e-10 and its row in the U
 - **D3 — marginal-effects surface.** The options are an opt-in `RegressionSpec.Margins` block that adds `RegressionResult.Margins` (additive, `omitempty`), or a post-fit operator over a bound fit. Recommended: the opt-in spec block, mirroring `Vcov`.
 - **D4 — v1 timing.** Everything is additive and `format_version` stays `"1.1"`, but new public slots land before the U02 API freeze golden is final. Recommended: E1–E3 before v1.0.0, and E4 in v1.1 unless the owner pulls it in.
 
+## Configurability (owner rule, 2026-10-31)
+
+An operator exposes a parameter wherever there is a real methodological choice, and its default is the current behaviour. Every story in this unit records its options and defaults. A pure accuracy fix with no result a user would choose differently (for example the origin shift in the mean tests) is not a knob. A contract between operators (byte parity) is not a per-request knob either.
+- In this unit: the GLM `link` and residual `kind`, the influence measures, the marginal-effects `type` (`ame` / `mem`) and the comparison `test`, each with a stated default.
+
 ## Scope
 
 **In scope**

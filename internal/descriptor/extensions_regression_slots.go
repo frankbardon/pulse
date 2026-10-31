@@ -183,6 +183,20 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		slot: "intercept", keys: []string{"intercept"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("intercept", s.Intercept != nil) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no intercept (a REG_OLS knob); pass the model's own intercept handling through params"
+		},
+	},
+	{
+		slot: "solver", keys: []string{"solver"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("solver", s.Solver != "") },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no solver (a REG_OLS knob); pass the model's own solver choice through params"
+		},
+	},
+	{
 		slot: "vcov", keys: []string{"vcov"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("vcov", s.Vcov) },
 		declared: func(d ExtensionRegression, _ *types.RegressionSpec) bool {

@@ -38,6 +38,11 @@ Shared keys:
 - `l1` / `elasticnet` have no analytical inference (the data pick the predictors): `StdErrors` / `PValues` / CIs are null on EVERY key and `Advisories` carries `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` — an advisory, not a warning, never Strict-escalated. `vcov` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. Want uncertainty → `resample` (it refits every replicate penalized and silences the advisory); want p-values → `l2` or no penalty.
 - A penalty with `selection`: predict warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — the penalty already shrinks or selects.
 
+## OLS solver and intercept
+
+- `solver`: `qr` (default) solves a streaming QR of the design at κ(X); `normal` solves the normal equations at κ(X)² (pre-alpha.35 bits). Unpenalized, unbounded fits only.
+- `intercept: false` fits through the origin: `(intercept)` stays 0 with null SE / p / CI, R² is uncentred Σŷ²/Σy², `DF` = N* − p (R `lm(y ~ 0 + x)`). Refused with a penalty, bounds, a modifier, a robust `covariance` or `normal`.
+
 ## Weighted fits
 
 `weight: null` opts a slot out ([`weighting`](weighting.md)). `NObs` stays the raw row count; a weighted fit adds `SumWeights` (+ `NEff` under a probability weight).
