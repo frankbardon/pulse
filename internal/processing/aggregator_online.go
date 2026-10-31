@@ -164,7 +164,7 @@ func (a *varianceAggregator) UpdateRow(r *Record, field string) error {
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
 	delta2 := v - a.mean
-	a.m2 += delta * delta2
+	a.m2 += float64(delta * delta2)
 	return nil
 }
 
@@ -188,7 +188,7 @@ func (a *stdDevAggregator) UpdateRow(r *Record, field string) error {
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
 	delta2 := v - a.mean
-	a.m2 += delta * delta2
+	a.m2 += float64(delta * delta2)
 	return nil
 }
 

@@ -110,11 +110,11 @@ type Welford struct {
 func (b *Welford) Add(x, w float64) {
 	b.N++
 	b.SumW += w
-	b.SumWSq += w * w
+	b.SumWSq += float64(w * w)
 	delta := x - b.Mean
 	wd := w * delta
 	b.Mean += wd / b.SumW
-	b.M2 += wd * (x - b.Mean)
+	b.M2 += float64(wd * (x - b.Mean))
 }
 
 // NStar is the bucket's N* under basis.
@@ -300,16 +300,16 @@ type CoWelford struct {
 func (c *CoWelford) Add(x, y, w float64) {
 	c.N++
 	c.SumW += w
-	c.SumWSq += w * w
+	c.SumWSq += float64(w * w)
 	dx := x - c.MeanX
 	dy := y - c.MeanY
 	wdx := w * dx
 	wdy := w * dy
 	c.MeanX += wdx / c.SumW
 	c.MeanY += wdy / c.SumW
-	c.M2X += wdx * (x - c.MeanX)
-	c.M2Y += wdy * (y - c.MeanY)
-	c.CXY += wdx * (y - c.MeanY)
+	c.M2X += float64(wdx * (x - c.MeanX))
+	c.M2Y += float64(wdy * (y - c.MeanY))
+	c.CXY += float64(wdx * (y - c.MeanY))
 }
 
 // Merge folds o into c: the pooled moments of the two samples' union.
@@ -325,11 +325,11 @@ func (c *CoWelford) Merge(o CoWelford) {
 	dx := o.MeanX - c.MeanX
 	dy := o.MeanY - c.MeanY
 	f := c.SumW * o.SumW / w
-	c.M2X += o.M2X + float64(dx*dx)*f
-	c.M2Y += o.M2Y + float64(dy*dy)*f
-	c.CXY += o.CXY + float64(dx*dy)*f
-	c.MeanX += dx * (o.SumW / w)
-	c.MeanY += dy * (o.SumW / w)
+	c.M2X += o.M2X + float64(float64(dx*dx)*f)
+	c.M2Y += o.M2Y + float64(float64(dy*dy)*f)
+	c.CXY += o.CXY + float64(float64(dx*dy)*f)
+	c.MeanX += float64(dx * (o.SumW / w))
+	c.MeanY += float64(dy * (o.SumW / w))
 	c.N += o.N
 	c.SumW = w
 	c.SumWSq += o.SumWSq

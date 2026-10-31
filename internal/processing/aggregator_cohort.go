@@ -389,7 +389,7 @@ func (a *ciAggregator) foldOne(v float64) {
 	a.n++
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
-	a.m2 += delta * (v - a.mean)
+	a.m2 += float64(delta * (v - a.mean))
 }
 
 func (a *ciAggregator) Finalize() (float64, error) {

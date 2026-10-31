@@ -269,8 +269,8 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	df := nStar - 1
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
-	ciLow := b.Mean - tcrit*se
-	ciHigh := b.Mean + tcrit*se
+	ciLow := b.Mean - float64(tcrit*se)
+	ciHigh := b.Mean + float64(tcrit*se)
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       types.TEST_T,
@@ -354,8 +354,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	df := (num * num) / den
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
-	ciLow := diff - tcrit*se
-	ciHigh := diff + tcrit*se
+	ciLow := diff - float64(tcrit*se)
+	ciHigh := diff + float64(tcrit*se)
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       tt.spec.Type, // honor TEST_T vs TEST_WELCH alias

@@ -130,7 +130,7 @@ func (a *weightedAggregator) fold(x, w float64) {
 	a.runW += w
 	delta := x - a.mean
 	a.mean += (w * delta) / a.runW
-	a.m2 += w * delta * (x - a.mean)
+	a.m2 += float64(w * delta * (x - a.mean))
 }
 
 // UpdateRow folds one record. AGG_COUNT asks for presence (any field

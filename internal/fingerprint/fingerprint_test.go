@@ -62,6 +62,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
@@ -125,6 +126,53 @@ var directFigures = []directFigure{
 	{"statdist.RegularizedGammaP(30.5,12)", func() float64 { return statdist.RegularizedGammaP(30.5, 12) }},
 	{"statdist.StudentTTwoSidedP(2.1,14)", func() float64 { return statdist.StudentTTwoSidedP(2.1, 14) }},
 	{"statdist.StudentTQuantile(0.975,9)", func() float64 { return statdist.StudentTQuantile(0.975, 9) }},
+
+	// internal/weighting (E2-S2): the weighted Welford / co-Welford
+	// recurrences and their Chan merge, folded over welfordSeries.
+	{"weighting.Welford.Mean", func() float64 { return welfordFold().Mean }},
+	{"weighting.Welford.M2", func() float64 { return welfordFold().M2 }},
+	{"weighting.Welford.SumWSq", func() float64 { return welfordFold().SumWSq }},
+	{"weighting.Welford.Variance(frequency)", func() float64 { b := welfordFold(); return b.Variance(weighting.Frequency) }},
+	{"weighting.Welford.Variance(probability)", func() float64 { b := welfordFold(); return b.Variance(weighting.Probability) }},
+	{"weighting.CoWelford.M2X", func() float64 { return coWelfordFold().M2X }},
+	{"weighting.CoWelford.M2Y", func() float64 { return coWelfordFold().M2Y }},
+	{"weighting.CoWelford.CXY", func() float64 { return coWelfordFold().CXY }},
+	{"weighting.CoWelford.MeanX", func() float64 { return coWelfordFold().MeanX }},
+}
+
+// welfordSeries is the (x, y, w) input of the weighting figures; its
+// products are barriered so the inputs are the same on every arch.
+func welfordSeries(i int) (x, y, w float64) {
+	x = float64(float64(i%17)*0.37) + 1.0/float64(i+3)
+	y = float64(float64(i%11)*1.9) - float64(x*0.25)
+	w = 0.5 + float64(i%5)/4
+	return x, y, w
+}
+
+// welfordFold folds 200 rows of welfordSeries into a weighted Welford.
+func welfordFold() weighting.Welford {
+	var b weighting.Welford
+	for i := 0; i < 200; i++ {
+		x, _, w := welfordSeries(i)
+		b.Add(x, w)
+	}
+	return b
+}
+
+// coWelfordFold folds welfordSeries in two uneven partitions and merges
+// them, exercising CoWelford.Add and CoWelford.Merge.
+func coWelfordFold() weighting.CoWelford {
+	var a, b weighting.CoWelford
+	for i := 0; i < 200; i++ {
+		x, y, w := welfordSeries(i)
+		if i < 73 {
+			a.Add(x, y, w)
+		} else {
+			b.Add(x, y, w)
+		}
+	}
+	a.Merge(b)
+	return a
 }
 
 // fixtureCohorts maps a cohort filename (as named in a request) to its
@@ -164,6 +212,35 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.ttest_mpg_mu20", "mtcars.pulse",
 		`{"tests":[{"type":"TEST_T","field":"mpg","params":{"mu":20},"label":"t"}]}`,
 		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high", "tests.0.details.effect_size.cohens_d"}},
+	// E2-S2: Welch two-sample, paired-t and their weighted twins (the
+	// barriered t CI bounds and weighted-Welford moments).
+	{"process.mtcars_am.welch_mpg_by_am", "mtcars_am.pulse",
+		`{"tests":[{"type":"TEST_T","field":"mpg","split_by":"am","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	{"process.mtcars.paired_qsec_drat", "mtcars.pulse",
+		`{"tests":[{"type":"TEST_PAIRED_T","field":"qsec","field2":"drat","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	{"process.mtcars.ttest_mpg_wfreq", "mtcars.pulse",
+		`{"tests":[{"type":"TEST_T","field":"mpg","params":{"mu":20},"label":"t","weight":{"field":"w_freq","kind":"frequency"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	{"process.mtcars.ttest_mpg_wprob", "mtcars.pulse",
+		`{"tests":[{"type":"TEST_T","field":"mpg","params":{"mu":20},"label":"t","weight":{"field":"w_prob","kind":"probability"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	{"process.mtcars_am.welch_mpg_by_am_wprob", "mtcars_am.pulse",
+		`{"tests":[{"type":"TEST_T","field":"mpg","split_by":"am","label":"t","weight":{"field":"w_prob","kind":"probability"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	{"process.mtcars.paired_qsec_drat_wfreq", "mtcars.pulse",
+		`{"tests":[{"type":"TEST_PAIRED_T","field":"qsec","field2":"drat","label":"t","weight":{"field":"w_freq","kind":"frequency"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	{"process.mtcars.welford_hp", "mtcars.pulse",
+		`{"aggregations":[{"type":"AGG_WELFORD","field":"hp","label":"v"}]}`,
+		[]string{"components.aggregations.0.operator.*"}},
+	{"process.mtcars.variance_hp_wprob", "mtcars.pulse",
+		`{"aggregations":[{"type":"AGG_VARIANCE","field":"hp","label":"v","weight":{"field":"w_prob","kind":"probability"}}]}`,
+		[]string{"data.0.v"}},
+	{"process.mtcars.ci_upper_mpg_wprob", "mtcars.pulse",
+		`{"aggregations":[{"type":"AGG_CI_UPPER","field":"mpg","label":"v","weight":{"field":"w_prob","kind":"probability"}}]}`,
+		[]string{"data.0.v"}},
 	// TEST_PEARSON_R r and p (its Fisher-z CI is not yet covered: E2-S3).
 	{"process.mtcars.pearson_mpg_wt", "mtcars.pulse",
 		`{"tests":[{"type":"TEST_PEARSON_R","field":"mpg","field2":"wt","label":"t"}]}`,
@@ -247,14 +324,21 @@ func requestFigureValues(t *testing.T) map[string]float64 {
 			t.Fatal(err)
 		}
 	}
+	for name, build := range generatedCohorts {
+		if err := afero.WriteFile(mem, name, build(t), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	p, err := pulse.New(pulse.Options{FS: mem})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	out := map[string]float64{}
 	for _, rf := range requestFigures {
-		if _, ok := fixtureCohorts[rf.cohort]; !ok {
-			t.Fatalf("%s: cohort %q is not in fixtureCohorts", rf.name, rf.cohort)
+		_, fixed := fixtureCohorts[rf.cohort]
+		_, generated := generatedCohorts[rf.cohort]
+		if !fixed && !generated {
+			t.Fatalf("%s: cohort %q is not in fixtureCohorts or generatedCohorts", rf.name, rf.cohort)
 		}
 		var req types.Request
 		if err := json.Unmarshal([]byte(rf.request), &req); err != nil {

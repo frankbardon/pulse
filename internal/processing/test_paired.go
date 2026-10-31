@@ -104,8 +104,8 @@ func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 	df := nStar - 1
 	pvalue := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(p.alpha, df)
-	ciLow := b.Mean - tcrit*se
-	ciHigh := b.Mean + tcrit*se
+	ciLow := b.Mean - float64(tcrit*se)
+	ciHigh := b.Mean + float64(tcrit*se)
 	res := &types.TestResult{
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PAIRED_T,
