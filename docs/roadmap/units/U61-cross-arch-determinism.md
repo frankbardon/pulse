@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U58, U60]
 blocks: [U32]
-todo_items: [554, 569]
+todo_items: [554, 569, 591]
 branch: cross-arch-determinism
 ---
 
@@ -44,6 +44,7 @@ This unit audits every numeric result path, fixes the drift, and adds a repo-wid
 
 - [x] **#554** remaining core cross-architecture numeric drift: full audit, fixes, and a repo-wide gate banning stdlib transcendentals / contractible products on numeric result paths
 - [x] **#569** the shared MMM test fixture (`internal/mmmfixture`): barrier the flagged products and give the package an FMA gate
+- [x] **#591** `TestMatrixCorrelation_PearsonParity`: drop the amd64-only guard on its bitwise leg (found in E5-S3, fixed in-unit)
 
 ## Scope
 
@@ -105,4 +106,3 @@ Filed as TODO items in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub iss
 | #588 Rename the two repo-wide gates into a prefix-matched non-skippable family once CLAUDE.md has headroom | [U33](U33-v1-release.md) |
 | #589 Route `internal/sem`'s gonum `mat` calls through the FMA-free SPD port to shrink the `MAT_SEM` residual | [U59](U59-sem-extensions.md) |
 | #590 Regression unit tests' generated inputs still differ across architectures (test-only) | [U49](U49-model-workbench.md) |
-| #591 `TestMatrixCorrelation_PearsonParity`'s bitwise leg is still amd64-only | [U16](U16-matrix-result.md) |

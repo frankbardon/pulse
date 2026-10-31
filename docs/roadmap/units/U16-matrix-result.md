@@ -8,7 +8,7 @@ status: done
 depends_on: [U15, U11]
 soft_depends_on: [U07]
 blocks: [U24, U26, U29]
-todo_items: [78, 79, 80, 81, 82, 83, 84, 172, 591]
+todo_items: [78, 79, 80, 81, 82, 83, 84, 172]
 branch: matrix-result
 ---
 
