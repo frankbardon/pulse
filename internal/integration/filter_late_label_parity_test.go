@@ -12,8 +12,9 @@ import (
 )
 
 // TestFilterLateLabel_RefusedLikePredict: a filterer naming a label a
-// LATER pipeline step writes — a window's, or an attribute's other than
-// a before-filters ATTR_PREVIOUS_STATE — is refused once, with the code
+// LATER pipeline step writes — a window's, an aggregation's, or an
+// attribute's other than a before-filters ATTR_PREVIOUS_STATE — is
+// refused once, with the code
 // and message the runtime returns, and the message names the cause
 // (filters run before that step) rather than only an unknown name. The
 // window's own source and order fields exist over the record rows, so
@@ -32,6 +33,9 @@ func TestFilterLateLabel_RefusedLikePredict(t *testing.T) {
 	}
 	zscore := func() []*types.Attribute {
 		return []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "n", Label: "z"}}
+	}
+	sum := func() []*types.Aggregation {
+		return []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "s"}}
 	}
 	expr := func(src string) []*types.Filterer {
 		return []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: src}}
@@ -55,6 +59,12 @@ func TestFilterLateLabel_RefusedLikePredict(t *testing.T) {
 		}},
 		"exclude_attribute": {errors.SERVICE_VALIDATION, "z is the label of attribute[0] (ATTR_ZSCORE); filters run before attributes", func() *types.Request {
 			return &types.Request{Attributes: zscore(), Filterers: []*types.Filterer{{Type: types.FILTER_EXCLUDE, Field: "z", Values: []string{"x"}}}}
+		}},
+		"expression_aggregation": {errors.PULSE_FORMULA_COMPILE_ERROR, "s is the label of aggregation[0] (AGG_SUM); filters run before aggregations", func() *types.Request {
+			return &types.Request{Aggregations: sum(), Filterers: expr("s > 1")}
+		}},
+		"include_aggregation": {errors.SERVICE_VALIDATION, "s is the label of aggregation[0] (AGG_SUM); filters run before aggregations", func() *types.Request {
+			return &types.Request{Aggregations: sum(), Filterers: []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "s", Values: []string{"1"}}}}
 		}},
 	}
 	ctx := context.Background()
@@ -137,7 +147,9 @@ func TestFilterLateLabel_UnrelatedUnknownNameUnchanged(t *testing.T) {
 // window reading the record field n (ordered by d) is refused on its
 // own — predict reports it after the filter's refusal, and the runtime
 // returns that same entry once the filter is dropped. Neither is a
-// false field-missing report caused by the filter.
+// false field-missing report caused by the filter, and the window's
+// refusal names the cause (d IS a record column; the window sees only
+// the aggregated row) rather than claiming d does not exist.
 func TestFilterLateLabel_WindowOverAggregationKeepsItsOwnRefusal(t *testing.T) {
 	t.Parallel()
 
@@ -169,5 +181,77 @@ func TestFilterLateLabel_WindowOverAggregationKeepsItsOwnRefusal(t *testing.T) {
 	we := requireCode(t, werr, errors.PULSE_WINDOW_INVALID)
 	if got := env.Errors[1]; got.Code != string(we.Code) || got.Message != we.Message {
 		t.Fatalf("predict's second error = %s %q, runtime without the filter = %s %q", got.Code, got.Message, we.Code, we.Message)
+	}
+	want := "window[0]: order_by field d is a record column, but windows beside an ungrouped aggregation run over its single aggregated output row, whose columns are the aggregation labels"
+	if we.Message != want {
+		t.Fatalf("window refusal = %q, want %q", we.Message, want)
+	}
+	if we.Details["reason"] != "window_over_output_rows" {
+		t.Fatalf("window refusal details = %v, want reason window_over_output_rows", we.Details)
+	}
+}
+
+// TestWindowOverOutputRows_NamesTheCause: a window run over the
+// grouped / aggregated output rows that names a record column is
+// refused with the cause (the column is a record column the output
+// rows do not carry) on every window reference, with the same code,
+// message and details on predict and the runtime; a name that is no
+// column anywhere keeps the plain does-not-exist refusal.
+func TestWindowOverOutputRows_NamesTheCause(t *testing.T) {
+	t.Parallel()
+
+	fs, cohort := zoneCohort(t)
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const ungrouped = " is a record column, but windows beside an ungrouped aggregation run over its single aggregated output row, whose columns are the aggregation labels"
+	const grouped = " is a record column, but windows beside groupers run over the grouped output rows, whose columns are the group keys and aggregation labels"
+	sum := func() []*types.Aggregation {
+		return []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "s"}}
+	}
+	cases := map[string]struct {
+		code   errors.Code
+		want   string
+		reason bool
+		req    func() *types.Request
+	}{
+		"field_ungrouped": {errors.SERVICE_VALIDATION, "window[0] (WIN_LAG): field n" + ungrouped, true, func() *types.Request {
+			return &types.Request{Aggregations: sum(), Windows: []*types.Window{{Type: types.WIN_LAG, Field: "n", Label: "prev", OrderBy: []types.OrderKey{{Field: "s"}}}}}
+		}},
+		"partition_ungrouped": {errors.PULSE_WINDOW_INVALID, "window[0]: partition_by field cat" + ungrouped, true, func() *types.Request {
+			return &types.Request{Aggregations: sum(), Windows: []*types.Window{{Type: types.WIN_LAG, Field: "s", Label: "prev", OrderBy: []types.OrderKey{{Field: "s"}}, PartitionBy: []string{"cat"}}}}
+		}},
+		"order_by_grouped": {errors.PULSE_WINDOW_INVALID, "window[0]: order_by field d" + grouped, true, func() *types.Request {
+			return &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+				Aggregations: sum(),
+				Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "s", Label: "prev", OrderBy: []types.OrderKey{{Field: "d"}}}},
+			}
+		}},
+		"truly_missing": {errors.PULSE_WINDOW_INVALID, "window[0]: order_by field zz does not exist in schema or upstream pipeline output", false, func() *types.Request {
+			return &types.Request{Aggregations: sum(), Windows: []*types.Window{{Type: types.WIN_LAG, Field: "s", Label: "prev", OrderBy: []types.OrderKey{{Field: "zz"}}}}}
+		}},
+	}
+	ctx := context.Background()
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			req := func() *types.Request {
+				r := c.req()
+				r.Cohort = &types.Cohort{Filename: cohort}
+				return r
+			}
+			_, rerr := p.Process(ctx, req())
+			ce := requireCode(t, rerr, c.code)
+			if ce.Message != c.want {
+				t.Fatalf("runtime message = %q, want %q", ce.Message, c.want)
+			}
+			if _, has := ce.Details["reason"]; has != c.reason {
+				t.Fatalf("details = %v, reason present = %v, want %v", ce.Details, has, c.reason)
+			}
+			env := predictEnvelope(t, p, fs, cohort, req())
+			sameEntry(t, env, rerr)
+		})
 	}
 }

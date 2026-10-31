@@ -53,6 +53,7 @@ A window has no weighted form, so a request-level `weight` on a request with win
 ## Gotchas
 
 - A sort key or post-test naming a window label is refused: the output rows carry only group keys and aggregation labels. So is a window reading an aggregation's output label (`windows_first_reads_aggregate`), a window-label `weight`, and a tier-1 test reading a window label.
+- Not windows-first, a window naming a record column (`field`, `order_by`, `partition_by`) is refused `details.reason: "window_over_output_rows"`: the output rows carry only group keys and aggregation labels.
 - Built-in windows refuse a categorical field, so a grouper cannot key on a lagged category (`PULSE_FIELD_TYPE_UNSUPPORTED`); an extension window writing strings is `PROCESSING_CONFIG` `{field, value_type}`.
 - A window label read only through an extension aggregator's own field inputs does not trigger the mode: it is an unknown field. Name the window label in the slot's `field`.
 - A window label equal to a schema field or vector name is that field, not the window.

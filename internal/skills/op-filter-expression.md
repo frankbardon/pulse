@@ -35,7 +35,7 @@ Row-level predicate. No emitted column.
 - Null binds `nil`: `==` false, `!=` true, `x ?? 0` fills; `>` / `+` / `len` on nil → predicate UNKNOWN, row dropped.
 - A result typed non-bool (`x + 1`) → `PULSE_FORMULA_COMPILE_ERROR` at predict and build; an untyped (`any`) result non-bool on a non-null row, or an eval error → `PROCESSING_RUNTIME`.
 - `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
-- Reads source fields, feature labels<!-- feature: ATTR_PREVIOUS_STATE --> and previous-state labels (`ATTR_PREVIOUS_STATE`)<!-- /feature -->, which run before filters; any later label is an unknown name, its message naming the window or attribute slot.
+- Reads source fields, feature labels<!-- feature: ATTR_PREVIOUS_STATE --> and previous-state labels (`ATTR_PREVIOUS_STATE`)<!-- /feature -->, which run before filters; a later label is unknown, its message naming the window, attribute or aggregation.
 <!-- feature: capability:params -->
 - Pass values as `params`: `panel == params.from_wave` with `"params": {"from_wave": "a"}`, never spliced text (`request-params`).
 <!-- /feature -->

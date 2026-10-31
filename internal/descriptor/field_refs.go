@@ -366,7 +366,10 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		}
 		w.preFilter[label] = true
 	}
-	late := filterLateLabels(req, inst)
+	var late filterLateLabelSet
+	if len(req.Filterers) > 0 {
+		late = filterLateLabels(req, inst)
+	}
 	for _, fil := range req.Filterers {
 		if fil == nil {
 			continue
@@ -637,8 +640,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					continue
 				}
 				winCheck(i, ok.Field, func() *errors.CodedError {
-					return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
-						"window["+idx+"]: order_by field "+ok.Field+" does not exist in schema or upstream pipeline output",
+					return w.windowMissing(req, errors.PULSE_WINDOW_INVALID, "window["+idx+"]: order_by field "+ok.Field, ok.Field,
 						map[string]any{"window_index": i, "field": ok.Field})
 				})
 				// Orderability (IsOrderableType) is judged by the schema
@@ -655,8 +657,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					continue
 				}
 				winCheck(i, p, func() *errors.CodedError {
-					return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
-						"window["+idx+"]: partition_by field "+p+" does not exist in schema or upstream pipeline output",
+					return w.windowMissing(req, errors.PULSE_WINDOW_INVALID, "window["+idx+"]: partition_by field "+p, p,
 						map[string]any{"window_index": i, "field": p})
 				})
 			}
@@ -666,7 +667,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			if win.Field != "" && windowparams.FieldRequired(opRoute(inst, win.Type)) &&
 				!w.arrayRef(win.Field, "window["+idx+"] ("+string(win.Type)+") field", map[string]any{"window_index": i, "type": string(win.Type)}) {
 				winCheck(i, win.Field, func() *errors.CodedError {
-					return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",
+					return w.windowMissing(req, errors.SERVICE_VALIDATION, "window["+idx+"] ("+string(win.Type)+"): field "+win.Field, win.Field,
 						map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
 				})
 			}
@@ -675,7 +676,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				if base := paramString(win.Params, "base"); base != "" &&
 					!w.arrayRef(base, "window["+idx+"] (WIN_LIFT) params.base", map[string]any{"window_index": i, "type": string(win.Type)}) {
 					winCheck(i, base, func() *errors.CodedError {
-						return refusal("window["+idx+"] ("+string(win.Type)+"): params.base "+base+" does not exist in schema or upstream pipeline output",
+						return w.windowMissing(req, errors.SERVICE_VALIDATION, "window["+idx+"] ("+string(win.Type)+"): params.base "+base, base,
 							map[string]any{"window_index": i, "field": base, "type": string(win.Type), "param": "base"})
 					})
 				}
@@ -850,6 +851,9 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				out[label] = true
 				owner[label] = map[string]any{"other_aggregation_index": ai, "other_aggregation": string(agg.Type)}
 			}
+		}
+		if !pw.WindowsFirst {
+			w.rowCols = w.cols
 		}
 		w.cols = out
 	}
@@ -1135,8 +1139,12 @@ func (w *fieldRefWalk) checkFitOn(fil *types.Filterer, attr *types.Attribute, mo
 // pipeline point and the refusals found so far.
 type fieldRefWalk struct {
 	cols map[string]bool
-	open bool
-	snap *ExtensionsSnapshot
+	// rowCols is the record column set when the windows run AFTER the
+	// groupers / aggregations, over their output rows (step 5 swaps
+	// cols for the output-row columns); nil otherwise (windowMissing).
+	rowCols map[string]bool
+	open    bool
+	snap    *ExtensionsSnapshot
 	// inst routes every type-keyed decision (opRoute); nil hides
 	// nothing.
 	inst *InstanceSnapshot
@@ -1647,8 +1655,26 @@ func (w *fieldRefWalk) checkCoef(expr string, models model.Catalog) {
 	}
 }
 
+// windowMissing is the refusal of a window reference (head names the
+// slot and the reference) to a name the window's rows do not carry. A
+// record column the windows cannot read because they run over the
+// output rows (w.rowCols) names that cause, details.reason
+// "window_over_output_rows"; any other name does not exist.
+func (w *fieldRefWalk) windowMissing(req *types.Request, code errors.Code, head, name string, details map[string]any) *errors.CodedError {
+	if !w.rowCols[name] {
+		return errors.NewCodedErrorWithDetails(code, head+" does not exist in schema or upstream pipeline output", details)
+	}
+	details["reason"] = "window_over_output_rows"
+	cause := " is a record column, but windows beside groupers run over the grouped output rows, whose columns are the group keys and aggregation labels"
+	if len(req.Groups) == 0 {
+		cause = " is a record column, but windows beside an ungrouped aggregation run over its single aggregated output row, whose columns are the aggregation labels"
+	}
+	return errors.NewCodedErrorWithDetails(code, head+cause, details)
+}
+
 // lateLabel is one output label a pipeline step AFTER the filters
-// writes: its slot word ("window" / "attribute"), index and type.
+// writes: its slot word ("window" / "attribute" / "aggregation"),
+// index and type.
 type lateLabel struct {
 	slot  string
 	index int
@@ -1659,10 +1685,11 @@ type lateLabel struct {
 // later step writes it to that step (filterLateLabels).
 type filterLateLabelSet map[string]lateLabel
 
-// filterLateLabels is the set of output labels req's windows and
-// attributes write after the filter pass — every window label, and
-// every attribute label save a before-filters attribute's
-// (prevstate.BeforeFilters, which a filter may read). A filter naming
+// filterLateLabels is the set of output labels req's windows,
+// attributes and aggregations write after the filter pass — every
+// window label, every attribute label save a before-filters
+// attribute's (prevstate.BeforeFilters, which a filter may read), and
+// every aggregation label. A filter naming
 // one is refused as an unknown name either way; the set lets the
 // refusal say why (annotate), on both sides, since the runtime returns
 // this walk's first entry.
@@ -1693,6 +1720,11 @@ func filterLateLabels(req *types.Request, inst *InstanceSnapshot) filterLateLabe
 			label = attributeDefaultLabel(attr, inst)
 		}
 		add(label, lateLabel{slot: "attribute", index: i, typ: string(attr.Type)})
+	}
+	for i, agg := range req.Aggregations {
+		if agg != nil {
+			add(types.AggregationLabelOf(agg), lateLabel{slot: "aggregation", index: i, typ: string(agg.Type)})
+		}
 	}
 	return out
 }
