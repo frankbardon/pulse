@@ -354,10 +354,12 @@ var strdOperator = map[string][]string{
 	"univ":  {"AGG_AVERAGE", "AGG_WELFORD"},
 }
 
+// strdFamilyTitle names each family; the heading appends only the
+// operators the instance offers, so a profile hiding one never names it.
 var strdFamilyTitle = map[string]string{
-	"lls":   "Linear regression (`REG_OLS`)",
-	"anova": "One-way ANOVA (`TEST_ANOVA_F`)",
-	"univ":  "Univariate summary statistics (`AGG_AVERAGE`, `AGG_WELFORD`)",
+	"lls":   "Linear regression",
+	"anova": "One-way ANOVA",
+	"univ":  "Univariate summary statistics",
 }
 
 // renderStRD writes the NIST StRD table from the embedded record: one
@@ -383,18 +385,18 @@ func (g *gen) renderStRD(b *strings.Builder) {
 	family := ""
 	for _, r := range doc.Results {
 		fam, set, _ := strings.Cut(r.Dataset, "/")
-		visible := false
+		var ops []string
 		for _, op := range strdOperator[fam] {
 			if g.operatorVisible(op) {
-				visible = true
+				ops = append(ops, "`"+op+"`")
 			}
 		}
-		if !visible {
+		if len(ops) == 0 {
 			continue
 		}
 		if fam != family {
 			family = fam
-			out.WriteString("\n### " + strdFamilyTitle[fam] + "\n\n| Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |\n|---|---|---|---|---|\n")
+			out.WriteString("\n### " + strdFamilyTitle[fam] + " (" + strings.Join(ops, ", ") + ")\n\n| Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |\n|---|---|---|---|---|\n")
 		}
 		diff := r.Difficulty
 		if diff == "" {
