@@ -48,14 +48,15 @@ OF SUCH DAMAGE.
 
 `linalg/detmath` (deterministic transcendental kernels) is a port of the
 pure-Go `exp`, `expm1`, `log`, `log1p`, `sin`, `cos`, `tan`, `trigReduce`,
-`atan`, `atan2`, `asin`, `pow`, `erf`, `erfinv` and `lgamma` sources of the Go 1.26 standard
+`atan`, `atan2`, `asin`, `atanh`, `pow`, `erf`, `erfc`, `erfinv` and `lgamma` sources of the Go 1.26 standard
 library (`src/math/`), and of its ziggurat `NormFloat64` / `ExpFloat64` and
 their `kn` / `wn` / `fn` / `ke` / `we` / `fe` tables (`src/math/rand/v2/normal.go`,
 `exp.go`),
 <https://go.dev/>, with every floating-point product wrapped in an explicit
 `float64(...)` (or, for float32 arithmetic, `float32(...)`) conversion. Those sources in turn carry the FreeBSD msun
 (Sun Microsystems) and Cephes (Stephen L. Moshier) notices reproduced in the
-ported files.
+ported files. Its `Tanh` ports FreeBSD msun's `s_tanh.c` directly, under the
+Sun Microsystems notice reproduced in `linalg/detmath/tanh.go`.
 
 ```
 Copyright 2009 The Go Authors.

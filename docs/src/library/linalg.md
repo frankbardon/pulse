@@ -132,7 +132,7 @@ Arithmetic is FMA-free and left to right, so results are identical on every arch
 
 ## Deterministic math (`linalg/detmath`)
 
-`github.com/frankbardon/pulse/linalg/detmath` holds the transcendental functions whose bits are the same on every architecture: `Exp`, `Expm1`, `Log`, `Log1p`, `Pow`, `Sin`, `Cos`, `Tan`, `Atan2`, `Asin`, `Erf`, `Erfinv` and `Lgamma`, plus the ziggurat variates `NormFloat64` / `ExpFloat64`, which consume a `*rand.Rand` (`math/rand/v2`) exactly as its own methods do. The standard library's versions depend on the machine. `math.Exp` and `math.Log` are assembly, and amd64 picks an FMA path at run time. arm64 also fuses multiply-adds in the pure-Go kernels.
+`github.com/frankbardon/pulse/linalg/detmath` holds the transcendental functions whose bits are the same on every architecture: `Exp`, `Expm1`, `Log`, `Log1p`, `Pow`, `Sin`, `Cos`, `Tan`, `Atan2`, `Asin`, `Atanh`, `Tanh`, `Erf`, `Erfc`, `Erfinv` and `Lgamma`, plus the ziggurat variates `NormFloat64` / `ExpFloat64`, which consume a `*rand.Rand` (`math/rand/v2`) exactly as its own methods do. The standard library's versions depend on the machine. `math.Exp` and `math.Log` are assembly, and amd64 picks an FMA path at run time. arm64 also fuses multiply-adds in the pure-Go kernels.
 
 ```go
 import "github.com/frankbardon/pulse/linalg/detmath"
@@ -141,7 +141,7 @@ w := detmath.Exp(-detmath.Pow(lag/scale, shape)) // same bits on arm64 and amd64
 lg, sign := detmath.Lgamma(x)
 ```
 
-Each function is a line-for-line port of the Go 1.26 pure-Go source with every product wrapped in `float64(...)`. Special cases (`NaN`, `±Inf`, `±0`, subnormals) follow `math.*`. Results sit within the stdlib's own cross-build spread: 1 ulp for most functions, 2 for `Exp`, `Tan` and `Asin`, 3 for `Lgamma`, and 8 for `Pow` and `Erfinv`. Pulse's expression functions, `FEAT_LOG`, `WIN_DISTRIBUTED_LAG` weights, the Student-t p-values, quantiles and confidence bounds, and `optimize` all run on it. Use it in an extension operator or model pack whose output must match across architectures. Also wrap every product that feeds an addition in `float64(...)` in your own code.
+Each function is a line-for-line port of the Go 1.26 pure-Go source with every product wrapped in `float64(...)`. `Tanh` is the exception: it ports fdlibm's `s_tanh.c` on `Expm1`, because the stdlib's version calls `math.Exp`. `Erfc` computes the complementary function directly, not as `1 - Erf`, so its upper tail keeps full relative precision down to subnormal results (`Erfc(27)` is about `5.2e-319`, where `1 - Erf(27)` is `0`). `Atanh` is `0.5·Log1p(…)` on this package's `Log1p`. Special cases (`NaN`, `±Inf`, `±0`, subnormals) follow `math.*`. Results sit within the stdlib's own cross-build spread: 1 ulp for most functions, 2 for `Exp`, `Tan`, `Tanh` and `Asin`, 3 for `Lgamma`, 4 for `Erfc`, and 8 for `Pow` and `Erfinv`. Pulse's expression functions, `FEAT_LOG`, `WIN_DISTRIBUTED_LAG` weights, the Student-t p-values, quantiles and confidence bounds, and `optimize` all run on it. Use it in an extension operator or model pack whose output must match across architectures. Also wrap every product that feeds an addition in `float64(...)` in your own code.
 
 ## Errors
 
