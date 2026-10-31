@@ -48,9 +48,13 @@ import (
 //
 // rowReservedNames is that set: the maths names plus `row` and `lag`,
 // the cross-row built-ins U58's later stories add, so their collision
-// rule is pinned before they exist.
+// rule is pinned before they exist, and the time functions `trend`,
+// `season` and `between` (row_time.go, U52).
 var rowReservedNames = func() map[string]bool {
 	m := map[string]bool{"row": true, "lag": true}
+	for _, n := range timeFuncNames {
+		m[n] = true
+	}
 	for _, n := range exprenv.MathNames() {
 		m[n] = true
 	}
@@ -91,12 +95,15 @@ func (r *rowExprRefusal) Error() string { return r.msg }
 // none or src does not parse (the compile owns that error). PARSED, never
 // substring-matched, like exprReadsIdentifier: `now` inside a string
 // literal or a field named `nowcast` must not trip it.
-func rowExprStaticRefusal(src string, declared map[string]bool) *rowExprRefusal {
+//
+// times is the spec's date / datetime declarations (rowTimeFields), which
+// the time functions' shape check reads.
+func rowExprStaticRefusal(src string, declared map[string]bool, times map[string]rowTimeField) *rowExprRefusal {
 	tree, err := parser.Parse(src)
 	if err != nil || tree == nil || tree.Node == nil {
 		return nil
 	}
-	w := &rowExprWalker{declared: declared, callees: map[ast.Node]bool{}}
+	w := &rowExprWalker{declared: declared, times: times, callees: map[ast.Node]bool{}}
 	// Pass 1 records every callee identifier, so pass 2 can tell a bare
 	// reference from a call. (A `let` cannot bind a built-in's name:
 	// expr-lang refuses the redeclaration itself.)
@@ -116,6 +123,7 @@ func (c rowCalleeCollector) Visit(node *ast.Node) {
 
 type rowExprWalker struct {
 	declared map[string]bool
+	times    map[string]rowTimeField
 	callees  map[ast.Node]bool
 	found    *rowExprRefusal
 }
@@ -147,6 +155,13 @@ func (w *rowExprWalker) Visit(node *ast.Node) {
 			// lag's name and offset size the cross-row state, so both are
 			// literals checked here, before a row exists (row_lag.go).
 			if _, _, r := lagCallShape(n, w.declared); r != nil {
+				w.found = r
+			}
+		}
+		if isTimeFuncName(id.Value) {
+			// The time functions' field, unit, weights and bounds are
+			// literals checked here, before a row exists (row_time.go).
+			if _, r := timeCallShape(n, id.Value, w.declared, w.times); r != nil {
 				w.found = r
 			}
 		}

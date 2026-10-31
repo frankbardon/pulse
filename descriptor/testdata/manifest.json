@@ -14256,7 +14256,7 @@
       },
       {
         "name": "synth-datetime",
-        "description": "Synthetic `datetime` columns — `uniform_datetime` draws a LOCAL wall-clock time by weekday and hour weights in a fixed or per-row zone, resolves DST gaps / overlaps per `dst_policy`, and stores the UTC instant rules then read."
+        "description": "Synthetic `datetime` columns — `uniform_datetime` draws a LOCAL wall-clock time by weekday and hour weights in a fixed or per-row zone, resolves DST gaps / overlaps per `dst_policy`, and stores the UTC instant rules then read; rule functions `trend` / `season` / `between`; profile capture."
       },
       {
         "name": "synth-determinism",
@@ -14308,7 +14308,7 @@
       },
       {
         "name": "synth-rule-expressions",
-        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
       },
       {
         "name": "synth-rule-nulls",
@@ -20484,4 +20484,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ae3bc2ec331330fbb852f877d65603c2e2f8ab7e3037f0dd1bd7cc6538b57907
+// golden-hash: 97606e886d9e5f68cb6246d8da060cbc6e1f224a3b1af341bc11c445cc5db9f1

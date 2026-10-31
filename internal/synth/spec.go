@@ -667,8 +667,9 @@ func validateSpec(s *Spec) error {
 	// the writer fields), so their PARSE-settled refusals — a now() call,
 	// a shadowed or bare built-in (row_expr_builtins.go) — are checked
 	// here, at spec validation, before any field is built.
+	times := rowTimeFields(s.Fields)
 	for _, c := range s.Constraints {
-		if r := rowExprStaticRefusal(c.Expr, seen); r != nil {
+		if r := rowExprStaticRefusal(c.Expr, seen, times); r != nil {
 			return rowExprConstraintRefusal(c.Expr, r)
 		}
 	}

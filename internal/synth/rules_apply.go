@@ -215,6 +215,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		byName[wf.spec.Name] = wf.spec
 	}
 	env, names := rowExprEnv(specs)
+	times := rowTimeFields(specs)
 
 	applier := &ruleApplier{nullState: &compiledConstraints{fields: names}}
 	// Two option sets over ONE environment: a `when` must return a bool
@@ -224,8 +225,8 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	// against the TARGET, and expr.AsBool() here would refuse
 	// `{"set_expr": {"score": "nps * 2"}}` at compile time for returning
 	// the very thing it is supposed to return.
-	whenOpts := rowExprOptions(env, names, applier.nullState, expr.AsBool())
-	valueOpts := rowExprOptions(env, names, applier.nullState)
+	whenOpts := rowExprOptions(env, names, times, applier.nullState, expr.AsBool())
+	valueOpts := rowExprOptions(env, names, times, applier.nullState)
 
 	// What every rule's set_expr says about the fields it writes,
 	// resolved before the loop because a LATER rule's write is just as
@@ -272,7 +273,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 				// validateRuleLiteral for why the rule is not blamed.
 				continue
 			}
-			if rf := rowExprStaticRefusal(r.SetExpr[name], names); rf != nil {
+			if rf := rowExprStaticRefusal(r.SetExpr[name], names, times); rf != nil {
 				return nil, nil, rowExprRuleRefusal(i, "set_expr", name, r.SetExpr[name], rf)
 			}
 			prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
@@ -314,7 +315,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		}
 		if r.When != "" {
 			cr.whenReads = whenFieldsRead(r.When, byName, rewrites, i)
-			if rf := rowExprStaticRefusal(r.When, names); rf != nil {
+			if rf := rowExprStaticRefusal(r.When, names, times); rf != nil {
 				return nil, nil, rowExprRuleRefusal(i, "when", "", r.When, rf)
 			}
 			prog, err := expr.Compile(r.When, whenOpts...)

@@ -568,6 +568,13 @@ type FieldProfile struct {
 	Numeric     *NumericProfile     `json:"numeric,omitempty"`
 	Categorical *CategoricalProfile `json:"categorical,omitempty"`
 	Date        *DateProfile        `json:"date,omitempty"`
+	// Datetime is a `datetime` column's capture (U52): its UTC day range
+	// and UTC weekday / hour histograms, which SpecFromProfile rebuilds
+	// as uniform_datetime. Additive + omitempty — a datetime-free
+	// document is byte-identical. A document captured before it existed
+	// carries the column's Numeric summary instead and still rebuilds
+	// from that.
+	Datetime *DatetimeProfile `json:"datetime,omitempty"`
 	// Set carries per-option marginal selection-frequency stats for a
 	// set_* (multi-select bitmask) field (E5-S1). Populated instead of
 	// Numeric/Categorical/Date — exactly one of the four is non-nil per
@@ -710,6 +717,20 @@ type DateProfile struct {
 	Weekdays [7]int `json:"weekdays"`
 }
 
+// DatetimeProfile is a `datetime` column's marginal on the UTC clock the
+// file stores: the first and last UTC calendar day observed, how many
+// non-null instants fall on each ISO weekday (Monday first — the
+// uniform_datetime `weekday_weights` order) and in each UTC hour.
+// Capture reads instants and the schema carries no zone, so the
+// histograms are UTC; a reconstruction drawn on the UTC clock with these
+// weights reproduces the instants' weekday and hour marginals.
+type DatetimeProfile struct {
+	Start    string  `json:"start"`
+	End      string  `json:"end"`
+	Weekdays [7]int  `json:"weekdays"`
+	Hours    [24]int `json:"hours"`
+}
+
 // CorrelationStat is a captured pairwise correlation entry.
 type CorrelationStat struct {
 	A   string  `json:"a"`
@@ -790,6 +811,25 @@ type dateAcc struct {
 	minDays  int64
 	maxDays  int64
 	weekdays [7]int
+}
+
+// datetimeAcc accumulates a datetime column on the UTC clock.
+type datetimeAcc struct {
+	count, nulls     int
+	minDays, maxDays int64
+	weekdays         [7]int // ISO, Monday first
+	hours            [24]int
+}
+
+func (a *datetimeAcc) observe(v float64) {
+	a.count++
+	sec := int64(math.Floor(v + 0.5))
+	p := temporal.LocalParts(sec, temporal.UTC)
+	day := temporal.DateTimeToDay(sec)
+	a.minDays = min(a.minDays, day)
+	a.maxDays = max(a.maxDays, day)
+	a.weekdays[temporal.ISOWeekdayOf(p.Weekday)-1]++
+	a.hours[p.Hour]++
 }
 
 // setAcc accumulates a set_* field's per-option (bit-position) selection
@@ -982,6 +1022,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	numAccs := make(map[string]*numAcc)
 	catAccs := make(map[string]*catAcc)
 	dateAccs := make(map[string]*dateAcc)
+	datetimeAccs := make(map[string]*datetimeAcc)
 	setAccs := make(map[string]*setAcc)
 	vecAccs := make(map[string]*vecAcc)
 	warnings := []string{}
@@ -1035,6 +1076,13 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			vecAccs[f.Name] = newVecAcc(meta, includeStats || opts.FitShape)
 		case f.Type == encoding.FieldTypeDate:
 			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
+		case f.Type == encoding.FieldTypeDateTime:
+			// A datetime is captured as its own marginal — day range plus
+			// weekday and hour histograms — and never reaches the numeric
+			// branch below: a normal over epoch seconds loses the
+			// weekday / hour shape, and as a "numeric" it would join the
+			// correlations, pairs and models a uniform_datetime cannot.
+			datetimeAccs[f.Name] = &datetimeAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
 		case f.Type.IsCategorical():
 			catAccs[f.Name] = &catAcc{hist: make(map[string]int)}
 			if opts.IncludeConditional {
@@ -1312,6 +1360,12 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 				// []float64 (vec_f32 widened exactly).
 				v, _ := wide[f.Name].([]float64)
 				vecAccs[f.Name].observe(v, isNull)
+			case f.Type == encoding.FieldTypeDateTime:
+				if isNull {
+					datetimeAccs[f.Name].nulls++
+					continue
+				}
+				datetimeAccs[f.Name].observe(values[f.Name])
 			case f.Type == encoding.FieldTypeDate:
 				da := dateAccs[f.Name]
 				if isNull {
@@ -1624,6 +1678,19 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 		switch {
 		case f.Type.IsVector():
 			fp.Vector, fp.NullRate = vecAccs[f.Name].finish(f.Name, includeStats, opts.FitShape, &warnings)
+		case f.Type == encoding.FieldTypeDateTime:
+			da := datetimeAccs[f.Name]
+			if total := da.count + da.nulls; total > 0 {
+				fp.NullRate = float64(da.nulls) / float64(total)
+			}
+			if da.count > 0 {
+				fp.Datetime = &DatetimeProfile{
+					Start:    daysToISO(da.minDays),
+					End:      daysToISO(da.maxDays),
+					Weekdays: da.weekdays,
+					Hours:    da.hours,
+				}
+			}
 		case f.Type == encoding.FieldTypeDate:
 			da := dateAccs[f.Name]
 			total := da.count + da.nulls
@@ -1805,6 +1872,48 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	}
 
 	return pf, nil
+}
+
+// datetimeParamsFromProfile rebuilds a captured datetime as
+// uniform_datetime params on the UTC clock. hour_weights are the hour
+// counts. weekday_weights are a per-DAY intensity (a weekday's share is
+// its weight times its days in range), so each weekday's count is
+// divided by how many such days [start, end] holds — a partial week at
+// either end would otherwise over-weight the weekdays it repeats.
+func datetimeParamsFromProfile(dp *DatetimeProfile) map[string]any {
+	params := map[string]any{"start": dp.Start, "end": dp.End}
+	if start, end, err := parseDayRange(FieldSpec{Params: params}, DistUniformDateTime); err == nil {
+		days := weekdayDayCounts(start, end)
+		weekdays := make([]any, 7)
+		for i := range weekdays {
+			w := 0.0
+			if days[i] > 0 {
+				w = float64(dp.Weekdays[i]) / float64(days[i])
+			}
+			weekdays[i] = w
+		}
+		params["weekday_weights"] = weekdays
+	}
+	hours := make([]any, 24)
+	for h := range hours {
+		hours[h] = float64(dp.Hours[h])
+	}
+	params["hour_weights"] = hours
+	return params
+}
+
+// weekdayDayCounts returns how many days of each ISO weekday (Monday
+// first) the inclusive epoch-day range [start, end] holds.
+func weekdayDayCounts(start, end int64) [7]int64 {
+	var out [7]int64
+	sw := temporal.ISOWeekday(start)
+	for i := range 7 {
+		first := start + (int64(i+1)-sw+7)%7
+		if first <= end {
+			out[i] = (end-first)/7 + 1
+		}
+	}
+	return out
 }
 
 func dayOfWeek(daysSinceEpoch int64) int {
@@ -2572,6 +2681,9 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			fs.Params = map[string]any{
 				"start": fp.Date.Start, "end": fp.Date.End,
 			}
+		case fp.Datetime != nil:
+			fs.Distribution = DistUniformDateTime
+			fs.Params = datetimeParamsFromProfile(fp.Datetime)
 		case fp.Categorical != nil:
 			vals := make([]any, len(fp.Categorical.Top))
 			weights := make([]any, len(fp.Categorical.Top))

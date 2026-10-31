@@ -4267,6 +4267,12 @@ pulse/synth: type DateProfile underlying struct
 pulse/synth: type DateProfile field End string "json:\"end\""
 pulse/synth: type DateProfile field Start string "json:\"start\""
 pulse/synth: type DateProfile field Weekdays [7]int "json:\"weekdays\""
+pulse/synth: type DatetimeProfile = pulse/internal/synth.DatetimeProfile
+pulse/synth: type DatetimeProfile underlying struct
+pulse/synth: type DatetimeProfile field End string "json:\"end\""
+pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
+pulse/synth: type DatetimeProfile field Start string "json:\"start\""
+pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: type DiscreteLevel = pulse/internal/synth.DiscreteLevel
 pulse/synth: type DiscreteLevel underlying struct
 pulse/synth: type DiscreteLevel field Count int "json:\"count\""
@@ -4342,6 +4348,7 @@ pulse/synth: type FieldProfile = pulse/internal/synth.FieldProfile
 pulse/synth: type FieldProfile underlying struct
 pulse/synth: type FieldProfile field Categorical *pulse/internal/synth.CategoricalProfile "json:\"categorical,omitempty\""
 pulse/synth: type FieldProfile field Date *pulse/internal/synth.DateProfile "json:\"date,omitempty\""
+pulse/synth: type FieldProfile field Datetime *pulse/internal/synth.DatetimeProfile "json:\"datetime,omitempty\""
 pulse/synth: type FieldProfile field Description string "json:\"description,omitempty\""
 pulse/synth: type FieldProfile field Name string "json:\"name\""
 pulse/synth: type FieldProfile field NullRate float64 "json:\"null_rate\""
@@ -6349,4 +6356,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 889412c4bd69c9c38f0bc87298754efa9ab9a59dd5e7bf6cf09cff9135761afe
+// golden-hash: d39d5c5e4702231aaed138cf0cdc31f7f5e30ff60aed60ffe78eadacd0484ad2

@@ -1,10 +1,10 @@
 ---
 name: synth-rule-expressions
-description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
+description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions, lag]
+covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions, lag, trend, season, between]
 requires: [capability:synth]
 ---
 
@@ -30,8 +30,9 @@ Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula a
 | `pi()` `e()` | calls, not bare names |
 | `row()` | ACCEPTED-row ordinal from 0 (no RNG) |
 | `lag("f", n[, d])` | `f`'s value `n` ACCEPTED rows back (null before row `n` unless `d`); no RNG. Literal name, `n` 1–1024 |
+| `trend` `season` `between` | a date/datetime field's trend, weekday/hour/month weight, window, on ITS clock (`synth-datetime`) |
 
-A panel resets with `row() % 52 == 0 ? 0 : lag(…)`; profile capture, the fidelity report and `--suggest-rules` ignore `lag`. `%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
+`%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
 
 ### `set_expr` and the coercion matrix
 

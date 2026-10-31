@@ -532,7 +532,7 @@ func modelTargetFields(schema *encoding.Schema) []string {
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
 		switch {
-		case f.Type == encoding.FieldTypeDate, f.Type.IsCategorical(), f.Type.IsSet():
+		case f.Type == encoding.FieldTypeDate, f.Type == encoding.FieldTypeDateTime, f.Type.IsCategorical(), f.Type.IsSet():
 			continue
 		case !f.Type.IsNumericForAnalytics():
 			continue

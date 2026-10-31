@@ -106,37 +106,9 @@ func newUniformDateTimeSampler(f FieldSpec) (sampler, error) {
 	}
 	s := &uniformDateTimeSampler{}
 
-	zoneName, hasZone, err := paramString(f.Name, f.Params, "time_zone", "")
+	s.zone, s.zoneField, err = datetimeZoneParams(f)
 	if err != nil {
 		return nil, err
-	}
-	zoneField, hasZoneField, err := paramString(f.Name, f.Params, "time_zone_field", "")
-	if err != nil {
-		return nil, err
-	}
-	if hasZone && hasZoneField {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: time_zone and time_zone_field are exclusive; name one zone or one zone field", f.Name),
-			map[string]any{"field": f.Name, "time_zone": zoneName, "time_zone_field": zoneField})
-	}
-	if hasZone {
-		z, zerr := synthZones.Load(zoneName)
-		if zerr != nil {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TIMEZONE_UNKNOWN,
-				fmt.Sprintf("field %q: time_zone %q is not \"UTC\" or an IANA Area/Location name in the tz database", f.Name, zoneName),
-				map[string]any{"field": f.Name, errors.DetailTimeZone: zoneName})
-		}
-		if !z.IsUTC() {
-			s.zone = z
-		}
-	}
-	if hasZoneField {
-		if zoneField == "" || zoneField == f.Name {
-			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				fmt.Sprintf("field %q: time_zone_field must name another, categorical field of zone names", f.Name),
-				map[string]any{"field": f.Name, "time_zone_field": zoneField})
-		}
-		s.zoneField = zoneField
 	}
 
 	policyName, _, err := paramString(f.Name, f.Params, "dst_policy", "")
@@ -181,6 +153,48 @@ func newUniformDateTimeSampler(f FieldSpec) (sampler, error) {
 		s.hourCum[h] = s.hourSum
 	}
 	return s, nil
+}
+
+// datetimeZoneParams reads a uniform_datetime field's zone: a fixed
+// non-UTC zone, a per-row zone field, or neither (nil, "") for an
+// unzoned or UTC-equivalent field. The sampler and the rule functions
+// (row_time.go) both read the zone through it, so the zone a rule reads
+// a reading in is the one the reading was drawn in.
+func datetimeZoneParams(f FieldSpec) (zone *temporal.Zone, field string, err error) {
+	zoneName, hasZone, err := paramString(f.Name, f.Params, "time_zone", "")
+	if err != nil {
+		return nil, "", err
+	}
+	zoneField, hasZoneField, err := paramString(f.Name, f.Params, "time_zone_field", "")
+	if err != nil {
+		return nil, "", err
+	}
+	if hasZone && hasZoneField {
+		return nil, "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: time_zone and time_zone_field are exclusive; name one zone or one zone field", f.Name),
+			map[string]any{"field": f.Name, "time_zone": zoneName, "time_zone_field": zoneField})
+	}
+	if hasZone {
+		z, zerr := synthZones.Load(zoneName)
+		if zerr != nil {
+			return nil, "", errors.NewCodedErrorWithDetails(errors.PULSE_TIMEZONE_UNKNOWN,
+				fmt.Sprintf("field %q: time_zone %q is not \"UTC\" or an IANA Area/Location name in the tz database", f.Name, zoneName),
+				map[string]any{"field": f.Name, errors.DetailTimeZone: zoneName})
+		}
+		if !z.IsUTC() {
+			zone = z
+		}
+	}
+	if hasZoneField {
+		if zoneField == "" || zoneField == f.Name {
+			return nil, "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("field %q: time_zone_field must name another, categorical field of zone names", f.Name),
+				map[string]any{"field": f.Name, "time_zone_field": zoneField})
+		}
+		field = zoneField
+	}
+
+	return zone, field, nil
 }
 
 // parseDayRange reads the inclusive [start, end] local calendar-day
@@ -316,6 +330,12 @@ type datetimeField struct {
 	// trace in the reported figure.
 	pendingGap, pendingOverlap int
 	gap, overlap               int
+
+	// rowZone is the zone the CURRENT row's reading was resolved in (a
+	// per-row zone field's value at the stage), read by the rule
+	// functions (row_time.go) so a rule reads the instant on the clock
+	// it was drawn on even when an earlier rule rewrote the zone field.
+	rowZone *temporal.Zone
 }
 
 // datetimeStage converts every zoned datetime field's wall reading to
@@ -391,6 +411,7 @@ func (st *datetimeStage) resolve(row map[string]any, nullMask map[string]bool) e
 	}
 	for _, df := range st.fields {
 		df.pendingGap, df.pendingOverlap = 0, 0
+		df.rowZone = nil
 		if nullMask[df.name] {
 			continue
 		}
@@ -407,6 +428,7 @@ func (st *datetimeStage) resolve(row map[string]any, nullMask map[string]bool) e
 			}
 			zone = z
 		}
+		df.rowZone = zone
 		f := toFloat64(row[df.name])
 		if math.IsNaN(f) || math.IsInf(f, 0) || math.Abs(f) > maxDatetimeSeconds {
 			return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
@@ -451,6 +473,21 @@ func dstVerb(k temporal.LocalKind) string {
 		return "a DST fall-back repeats"
 	}
 	return "a DST spring-forward skips"
+}
+
+// rowZoneOf returns the zone field name's current row was resolved in;
+// ok is false when the stage holds no such field or the row's zone cell
+// was null (the datetime is then null too).
+func (st *datetimeStage) rowZoneOf(name string) (*temporal.Zone, bool) {
+	if st == nil {
+		return nil, false
+	}
+	for _, df := range st.fields {
+		if df.name == name {
+			return df.rowZone, df.rowZone != nil
+		}
+	}
+	return nil, false
 }
 
 // commitAccepted folds the accepted attempt's resolved readings into

@@ -47,6 +47,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 33. Vector fields are ONE joint draw, never dim independent scalars
 34. Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG
 35. A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a stage, not a sampler detail
+36. Time effects read a date-family field on ITS clock, and a profiled `datetime` is a marginal, never a number
 
 ## Section map
 
@@ -58,4 +59,4 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 | `synthetic-data/structural-rules.md` | Structural rules (`Spec.Rules`, additive + `omitempty`); The rule pass runs LAST, and that placement IS the semantics; `owns_nulls`: a rule can be the field's ONLY source of absence, and it ZEROES the own d…; A rule that DETERMINES a field pre-claims it at priority 0; `set_expr` and THE COERCION MATRIX |
 | `synthetic-data/rules-reporting-and-suggest.md` | `null_together` NULLS A BLOCK AS ONE DECISION, and the FIRST named field wins; A rule that NEVER FIRES is reported, as an ATTENTION kind; `constant` is normalised to the field's row shape; The profile-derived spec is inspectable and modifiable (`--emit-spec` / `--rules`); Detecting structural rules from the data (`profile create --suggest-rules`) |
 | `synthetic-data/rule-detection.md` | Co-missing blocks and always-null columns (the second `--suggest-rules` detector); Exact dependencies (the third `--suggest-rules` detector); Detection is calibrated against the motivating cohort, and the candidate file closes th… |
-| `synthetic-data/sets-order-and-vectors.md` | Wide set columns are captured member-for-member, and the mask read is the whole risk; Run-continuation is a row-ORDER measurement that rides the scan, and shard archives pro…; Vector fields are ONE joint draw, never dim independent scalars; Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG; A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a st… |
+| `synthetic-data/sets-order-and-vectors.md` | Wide set columns are captured member-for-member, and the mask read is the whole risk; Run-continuation is a row-ORDER measurement that rides the scan, and shard archives pro…; Vector fields are ONE joint draw, never dim independent scalars; Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG; A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a st…; Time effects read a date-family field on ITS clock, and a profiled `datetime` is a marginal, never… |

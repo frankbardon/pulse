@@ -350,6 +350,10 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	lags := newLagBuffer(s, wfs)
 	cons.lag = lags
 	rules.setLag(lags)
+	// The time functions' per-row zone is the one the conversion stage
+	// resolved (row_time.go); both hosts read the same stage.
+	cons.datetimes = datetimes
+	rules.setDatetimes(datetimes)
 	for rowsGenerated < s.RowCount {
 		// row() reads the ACCEPTED-row ordinal: stamped before every
 		// attempt with the count already accepted, so a rejected attempt

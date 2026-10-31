@@ -30,7 +30,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | The `_synthetic` top-up and `--fidelity-report` | [`synth-fidelity-report`](synth-fidelity-report.md) |
 | Byte-identical output; why a profile can drift | [`synth-determinism`](synth-determinism.md) |
 | `--fit-shape` mixtures | [`synth-shape-fit`](synth-shape-fit.md) |
-| `datetime`: local hours / weekdays, per-row zones, DST | [`synth-datetime`](synth-datetime.md) |
+| `datetime`: local hours / weekdays, per-row zones, DST, trends / seasons / windows | [`synth-datetime`](synth-datetime.md) |
 | One distribution's params | atomic `op-synth-<kind>` |
 
 ## Two modes

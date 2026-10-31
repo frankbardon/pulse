@@ -130,6 +130,16 @@ func (a *ruleApplier) setLag(b *lagBuffer) {
 	a.nullState.lag = b
 }
 
+// setDatetimes attaches generate's datetime conversion stage to the rule
+// host, so the time functions read a per-row zone the way the stage
+// resolved it (row_time.go). nil-safe like setLag.
+func (a *ruleApplier) setDatetimes(st *datetimeStage) {
+	if a == nil {
+		return
+	}
+	a.nullState.datetimes = st
+}
+
 // commitRow folds the just-ACCEPTED row's firings into the totals.
 // generate() calls it after the row has passed the constraint pass and
 // been encoded; a rejected row is simply never committed and its

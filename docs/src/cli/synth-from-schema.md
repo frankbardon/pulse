@@ -86,6 +86,33 @@ the import's spellings: `error` (default) stops the run with
 `later` resolve it and the run warns how many it resolved. A null zone
 cell makes the datetime null. Detail: `skills/synth-datetime.md`.
 
+### Trends, seasons and planted windows
+
+Three rule / constraint functions read a `date` or `datetime` field on its
+own clock — its `time_zone`, the zone each row was drawn in for a
+`time_zone_field`, otherwise UTC — and consume no randomness:
+
+| Call | Returns |
+|---|---|
+| `trend(t, slope)` | `slope` × days (fraction included) since local midnight of the field's `start`; over a number (`trend(row(), 0.01)`) `slope` × it |
+| `season(t, "dow"\|"hour"\|"month", [w…])` | the weight of the local ISO weekday (7, Monday first), hour (24, `datetime` only) or month (12) |
+| `between(t, "a", "b")` | true when `a` ≤ reading ≤ `b`; naive `YYYY-MM-DD` or datetime literals (no `Z` / offset); a date-only `b` covers that whole day |
+
+```json
+"rules": [
+  {"set_expr": {"on_time": "0.80 + trend(scanned_at, 0.15 / 182)"}},
+  {"set_expr": {"volume": "season(scanned_at, \"dow\", [1, 1, 1, 1, 1.2, 0.6, 0])"}},
+  {"when": "between(scanned_at, \"2026-05-12\", \"2026-05-14\")", "set": {"outage": 1}}
+]
+```
+
+`t` must be a bare field name (`trend` alone also takes a number); unit,
+weights and bounds are literals, checked when the spec is parsed
+(`PULSE_SYNTH_RULE_EXPR_INVALID`). A null `t` returns null, so guard a
+nullable field with `!isnull(t) && …`. The effects come back out of a
+query that reads the same clock: `GROUP_DATE` `day` / `day_of_week` /
+`hour_of_day` with `tz_field` set to the zone field.
+
 ## Vector fields
 
 A `vec_f32` / `vec_f64` field is generated as ONE joint draw per row, never

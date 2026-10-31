@@ -22,6 +22,7 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 | Which rules retire a field's model / pairs / residual correlations | `synth-rule-claims` |
 | `--rules` / `--emit-spec`, and detecting rules with `--suggest-rules` | `synth-rules-from-profile` |
 | `row()` / `lag()`, panel reset, recursive adstock | `synth-cross-row` |
+| `trend` / `season` / `between` over a date / datetime | `synth-datetime` |
 | Detector-specific rules and the emitted candidate order | `synth-rule-detectors` |
 
 ## Structural rules

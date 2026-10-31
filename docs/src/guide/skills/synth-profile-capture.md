@@ -16,7 +16,7 @@ Capture via `pulse profile create` (`Pulse.Profile`); synth via `pulse synth fro
 
 Per field:
 
-- Numeric: mean, std, min, max, optional percentiles, null-rate, plus `discrete` (per-level histogram) for a capped integer column ([`synth-marginals`](synth-marginals.md)). Categorical: top-K + frequencies, cardinality, null-rate. Date: range, weekday histogram, null-rate. `set_*`: [`synth-set-fields`](synth-set-fields.md).
+- Numeric: mean, std, min, max, optional percentiles, null-rate, plus `discrete` (per-level histogram) for a capped integer column ([`synth-marginals`](synth-marginals.md)). Categorical: top-K + frequencies, cardinality, null-rate. Date: range, weekday histogram, null-rate. Datetime: UTC range, weekday + hour histograms ([`synth-datetime`](synth-datetime.md)). `set_*`: [`synth-set-fields`](synth-set-fields.md).
 - Pairwise: strongest `|rho|` (capped by `--correlation-top-k`).
 - `--conditional` (all under `conditional.`): `conditional.numeric_pairs` `{a,b,rho,n}` row-aligned, `n` the TRUE co-occurrence count (both fields non-null on one row) — preferred over `pairwise` when present, falling back unchanged when absent, so no older document is invalidated. `conditional.categorical_pairs` `{a,b,cells,n}` over at most 10,000 rows by genuine Algorithm-R reservoir sampling (`--seed`), NOT first-N, so a block-ordered source is unbiased; two caps compose — each field's `--top-k` collapses to `"other"` FIRST, then `ContingencyCellCap` (128) folds the tail into one merged `("other","other")`. `conditional.categorical_numeric_pairs` `{a,b,categories,n}`, one online `{category,mean,std,n}` per category (no reservoir cap, no second joint cap).
 - **Thin-pair warning:** `n < 30` (`internal/synth.MinPairObservations`) still SHIPS — never refused — with a warning naming the pair (`thinPairWarning`). Every pair kind reuses this one mechanism, and thin model levels share its line shape.
@@ -36,6 +36,7 @@ Capture rides ONE cohort scan; no flag adds a read.
 | other numeric | `normal` clamped to observed min/max, or `mixture` when `shape` is present |
 | categorical | `weighted_categorical` |
 | date | `uniform_date` |
+| datetime | `uniform_datetime`, unzoned ([`synth-datetime`](synth-datetime.md)) |
 | `set_*` | `set_bernoulli` |
 | nothing summarised (always-null) | a typed `constant` placeholder with `null_rate` 1.0 — every row null |
 
