@@ -54,7 +54,10 @@ import (
 // statistics over already-decoded record values — but stays in this
 // same bridge so the one JSON document is assembled and written in one
 // place.
-func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.Spec, fidelityWarnings []string) error {
+//
+// foldModels, when non-nil, adds the supplied-model refit
+// (FidelityReport.Utility.ModelFits) after every computed section.
+func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
 	data, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading synth output for fidelity report")
@@ -120,6 +123,15 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	// one finding twice.
 	synth.BuildModelFidelity(report, schema, records, spec)
 
+	// The utility half compares against the SOURCE partition rather than
+	// against the captured model: the target's mean by each applied
+	// model's categorical predictors (target_rates), then the supplied
+	// request's refit (model_fits) when one was given.
+	synth.BuildTargetRates(report, schema, records, spec)
+	if foldModels != nil {
+		foldModels(report)
+	}
+
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return errors.WrapCodedError(err, errors.CLI_OUTPUT, "marshaling fidelity report")
@@ -128,6 +140,77 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 		return errors.WrapCodedError(err, errors.CLI_OUTPUT, "writing fidelity report")
 	}
 	return nil
+}
+
+// fidelityModelRefit is a supplied fidelity model
+// (SynthOptions.FidelityModel) part-way through its two runs: the
+// source fit done before generation, the synthetic fit still to come.
+//
+// Both runs go through the ordinary engine (Service.Process) against a
+// real cohort on this instance's filesystem — the source cohort, then
+// the output cohort filtered to `_synthetic = true` — so features,
+// filters, extensions and the instance's feature profile apply exactly
+// as `pulse process` would apply them. The engine lives here, not in
+// internal/synth, for the TestRunner reason above.
+type fidelityModelRefit struct {
+	p      *Pulse
+	req    *types.Request
+	source *types.Response
+}
+
+// newFidelityModelRefit validates opts.FidelityModel and runs its
+// source fit; nil (no error) when no model was supplied.
+func (p *Pulse) newFidelityModelRefit(ctx context.Context, opts SynthOptions) (*fidelityModelRefit, error) {
+	if opts.FidelityModel == nil {
+		return nil, nil
+	}
+	switch {
+	case opts.SourceCohort == "" || opts.FidelityReportPath == "":
+		return nil, errors.NewCodedError(errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID,
+			"a fidelity model needs a source cohort and a fidelity report path to refit into")
+	case len(opts.FidelityModel.Regressions) == 0:
+		return nil, errors.NewCodedError(errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID,
+			"the fidelity model request carries no regressions to refit")
+	}
+	src, err := p.runFidelityModel(ctx, opts.FidelityModel, opts.SourceCohort, false)
+	if err != nil {
+		return nil, err
+	}
+	return &fidelityModelRefit{p: p, req: opts.FidelityModel, source: src}, nil
+}
+
+// fold returns the report hook that runs the synthetic fit over output
+// and folds both fits into the report; nil when no model was supplied.
+// A synthetic run the engine refuses is recorded on each entry rather
+// than failing a generation that already succeeded.
+func (r *fidelityModelRefit) fold(ctx context.Context, output string) func(*synth.FidelityReport) {
+	if r == nil {
+		return nil
+	}
+	return func(report *synth.FidelityReport) {
+		syn, err := r.p.runFidelityModel(ctx, r.req, output, true)
+		synth.CompareModelFits(report, r.req, r.source, syn, nil, err)
+	}
+}
+
+// runFidelityModel runs a copy of req against cohort — restricted to
+// the `_synthetic = true` rows when synthetic — leaving req untouched
+// (the engine expands items in place). The copy is a JSON round trip of
+// the wire shape, so nothing the caller holds is aliased.
+func (p *Pulse) runFidelityModel(ctx context.Context, req *types.Request, cohort string, synthetic bool) (*types.Response, error) {
+	raw, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID, "copying the fidelity model request")
+	}
+	var run types.Request
+	if err := json.Unmarshal(raw, &run); err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID, "copying the fidelity model request")
+	}
+	run.Cohort = &types.Cohort{Filename: cohort}
+	if synthetic {
+		run.Filterers = append(run.Filterers, &types.Filterer{Type: types.FILTER_TRUE, Field: synth.SyntheticFieldName})
+	}
+	return p.svc.Process(ctx, &run)
 }
 
 // mergeFidelityWarnings folds generation-time warnings into the

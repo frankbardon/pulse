@@ -266,3 +266,65 @@ func TestProfileNumericPredictors_ChurnTwinCapturesNumericDrivers(t *testing.T) 
 		t.Errorf("twin keeps %.0f%% of support_contacts' churn effect, want ≥ 50%%", 100*r)
 	}
 }
+
+// TestFidelityUtility_ChurnTwinPseudoR2RatioIsInTheReport is FR-16's
+// acceptance on the privacy mirror: the churn logit the source and its
+// twin are scored with is supplied as the fidelity model, and the
+// report's utility.model_fits carries both pseudo-R² and their ratio, so
+// a data owner reads the 0.85× bar from the report rather than refitting
+// by hand. target_rates carries churn by contract on both partitions.
+func TestFidelityUtility_ChurnTwinPseudoR2RatioIsInTheReport(t *testing.T) {
+	t.Parallel()
+
+	const n = 20000
+	source := churnFixture(t, n, 42)
+	prof, err := synth.ProfileBytes(source, synth.ProfileOptions{
+		IncludeStats: true, IncludeCorrelations: true, IncludeConditional: true,
+		FitModels: true, FitResidualCorrelations: true, FitShape: true, Seed: 7,
+	})
+	if err != nil {
+		t.Fatalf("ProfileBytes: %v", err)
+	}
+	spec, _ := synth.SpecFromProfile(prof, n)
+
+	var req types.Request
+	if err := json.Unmarshal([]byte(strings.ReplaceAll(churnLogitBody, "$COHORT", "ignored.pulse")), &req); err != nil {
+		t.Fatal(err)
+	}
+	fs := afero.NewMemMapFs()
+	if err := afero.WriteFile(fs, "/source.pulse", source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Synth(context.Background(), spec, "/twin.pulse", pulse.SynthOptions{
+		Seed: 11, SourceCohort: "/source.pulse", FidelityReportPath: "/report.json", FidelityModel: &req,
+	}); err != nil {
+		t.Fatalf("Synth: %v", err)
+	}
+	raw, err := afero.ReadFile(fs, "/report.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report synth.FidelityReport
+	if err := json.Unmarshal(raw, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Utility == nil || len(report.Utility.ModelFits) != 1 {
+		t.Fatalf("utility = %+v", report.Utility)
+	}
+	fit := report.Utility.ModelFits[0]
+	t.Logf("churn_logit pseudo-R² source %.4f twin %.4f ratio %.3f (n %d / %d)",
+		fit.SourceFit, fit.SyntheticFit, fit.FitRatio, fit.SourceNObs, fit.SyntheticNObs)
+	if fit.Statistic != synth.UtilityFitPseudoR2 || fit.SourceNObs != n || fit.SyntheticNObs != n {
+		t.Fatalf("fit = %+v", fit)
+	}
+	if fit.FitRatio < 0.85 {
+		t.Errorf("twin pseudo-R² ratio %.3f < 0.85", fit.FitRatio)
+	}
+	for _, e := range report.Utility.TargetRates {
+		t.Logf("%s by %s: spread %.3f → %.3f (ratio %.2f) %s", e.Target, e.By, e.SourceSpread, e.SyntheticSpread, e.SpreadRatio, e.Verdict)
+	}
+}

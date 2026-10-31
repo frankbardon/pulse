@@ -29,27 +29,28 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 15. Model recovery in the fidelity report (`FidelityReport.Models`)
 16. Residual-correlation recovery + the numeric-arm disjointness (`FidelityReport.ModelResidualCorrelations`)
 17. The terminal warning summary (`internal/synth.GroupWarnings`)
-18. Structural rules (`Spec.Rules`, additive + `omitempty`)
-19. The rule pass runs LAST, and that placement IS the semantics
-20. `owns_nulls`: a rule can be the field's ONLY source of absence, and it ZEROES the own draw rather than applying the residual
-21. A rule that DETERMINES a field pre-claims it at priority 0
-22. `set_expr` and THE COERCION MATRIX
-23. `null_together` NULLS A BLOCK AS ONE DECISION, and the FIRST named field wins
-24. A rule that NEVER FIRES is reported, as an ATTENTION kind
-25. `constant` is normalised to the field's row shape
-26. The profile-derived spec is inspectable and modifiable (`--emit-spec` / `--rules`)
-27. Detecting structural rules from the data (`profile create --suggest-rules`)
-28. Co-missing blocks and always-null columns (the second `--suggest-rules` detector)
-29. Exact dependencies (the third `--suggest-rules` detector)
-30. Detection is calibrated against the motivating cohort, and the candidate file closes the loop
-31. Wide set columns are captured member-for-member, and the mask read is the whole risk
-32. Run-continuation is a row-ORDER measurement that rides the scan, and shard archives profile as one stream
-33. Vector fields are ONE joint draw, never dim independent scalars
-34. Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG
-35. A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a stage, not a sampler detail
-36. Time effects read a date-family field on ITS clock, and a profiled `datetime` is a marginal, never a number
-37. Rule draws read a counter-based stream per call site, never the generation RNG; a helper field is drawn but never written
-38. A contested pair target goes to the strongest association, and the options of one set field depend on each other
+18. Utility against the SOURCE, and effect sizes beside every marginal p-value (`FidelityReport.Utility`, `FieldFidelity.EffectSize`)
+19. Structural rules (`Spec.Rules`, additive + `omitempty`)
+20. The rule pass runs LAST, and that placement IS the semantics
+21. `owns_nulls`: a rule can be the field's ONLY source of absence, and it ZEROES the own draw rather than applying the residual
+22. A rule that DETERMINES a field pre-claims it at priority 0
+23. `set_expr` and THE COERCION MATRIX
+24. `null_together` NULLS A BLOCK AS ONE DECISION, and the FIRST named field wins
+25. A rule that NEVER FIRES is reported, as an ATTENTION kind
+26. `constant` is normalised to the field's row shape
+27. The profile-derived spec is inspectable and modifiable (`--emit-spec` / `--rules`)
+28. Detecting structural rules from the data (`profile create --suggest-rules`)
+29. Co-missing blocks and always-null columns (the second `--suggest-rules` detector)
+30. Exact dependencies (the third `--suggest-rules` detector)
+31. Detection is calibrated against the motivating cohort, and the candidate file closes the loop
+32. Wide set columns are captured member-for-member, and the mask read is the whole risk
+33. Run-continuation is a row-ORDER measurement that rides the scan, and shard archives profile as one stream
+34. Vector fields are ONE joint draw, never dim independent scalars
+35. Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG
+36. A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a stage, not a sampler detail
+37. Time effects read a date-family field on ITS clock, and a profiled `datetime` is a marginal, never a number
+38. Rule draws read a counter-based stream per call site, never the generation RNG; a helper field is drawn but never written
+39. A contested pair target goes to the strongest association, and the options of one set field depend on each other
 
 ## Section map
 
@@ -57,7 +58,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 |---|---|
 | `synthetic-data/capture-and-models.md` | The contract; Thin-pair warning (generic mechanism); Per-numeric linear models (`models` profile section); Predictor selection is automatic, absolute, and has no user-facing override; Thin LEVELS inside an admitted predictor are SHRUNK, never dropped and never refused; `models` retires the numeric-target conditional arms, PER TARGET; Generation: the composed model draw; Shape-fitted numerics accept conditioning; Float fusion: capture and generation are architecture-independent by CONSTRUCTION, not… |
 | `synthetic-data/marginals-and-correlation.md` | Boolean marginals: a `packed_bool` reconstructs as `bernoulli`, never as a clamped normal; Small-integer marginals: a `u4`/`u8`/`u16`/`u32`/`u64` reconstructs from its own per-le…; Correlation reconstruction; Residual correlation capture (`--residual-correlations`) |
-| `synthetic-data/residuals-and-fidelity.md` | The correlated residual draw (`Spec.ResidualCorrelations`); Model recovery in the fidelity report (`FidelityReport.Models`); Residual-correlation recovery + the numeric-arm disjointness (`FidelityReport.ModelResi…; The terminal warning summary (`internal/synth.GroupWarnings`) |
+| `synthetic-data/residuals-and-fidelity.md` | The correlated residual draw (`Spec.ResidualCorrelations`); Model recovery in the fidelity report (`FidelityReport.Models`); Residual-correlation recovery + the numeric-arm disjointness (`FidelityReport.ModelResi…; The terminal warning summary (`internal/synth.GroupWarnings`); Utility against the SOURCE, and effect sizes beside every marginal p-value (`FidelityReport.Utility`, … |
 | `synthetic-data/structural-rules.md` | Structural rules (`Spec.Rules`, additive + `omitempty`); The rule pass runs LAST, and that placement IS the semantics; `owns_nulls`: a rule can be the field's ONLY source of absence, and it ZEROES the own d…; A rule that DETERMINES a field pre-claims it at priority 0; `set_expr` and THE COERCION MATRIX |
 | `synthetic-data/rules-reporting-and-suggest.md` | `null_together` NULLS A BLOCK AS ONE DECISION, and the FIRST named field wins; A rule that NEVER FIRES is reported, as an ATTENTION kind; `constant` is normalised to the field's row shape; The profile-derived spec is inspectable and modifiable (`--emit-spec` / `--rules`); Detecting structural rules from the data (`profile create --suggest-rules`) |
 | `synthetic-data/rule-detection.md` | Co-missing blocks and always-null columns (the second `--suggest-rules` detector); Exact dependencies (the third `--suggest-rules` detector); Detection is calibrated against the motivating cohort, and the candidate file closes th… |

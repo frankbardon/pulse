@@ -101,6 +101,7 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
+			&cli.StringFlag{Name: "fidelity-model", Usage: "Refit a supplied request's regressions (a `pulse process` request JSON; its cohort is ignored) on the source and on the generated rows, and report both fits side by side in the fidelity report's utility.model_fits; needs --fidelity-report"},
 			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
 			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
@@ -114,6 +115,7 @@ func synthFromProfileCmd() *cli.Command {
 			fidelityReport := cmd.String("fidelity-report")
 			rulesPath := cmd.String("rules")
 			emitSpecPath := cmd.String("emit-spec")
+			fidelityModelPath := cmd.String("fidelity-model")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -126,6 +128,22 @@ func synthFromProfileCmd() *cli.Command {
 			prof, err := synth.ParseProfile(raw)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
+			}
+
+			// --fidelity-model is a request file, decoded through the
+			// same strict decoder `pulse api process` uses; the facade
+			// validates it (PULSE_SYNTH_FIDELITY_MODEL_INVALID) and runs
+			// it.
+			var fidelityModel *pulse.Request
+			if fidelityModelPath != "" {
+				data, err := afero.ReadFile(fs, fidelityModelPath)
+				if err != nil {
+					return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
+				}
+				fidelityModel = &pulse.Request{}
+				if err := decodeRequestJSON(data, fidelityModel, "fidelity model request"); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_ERROR", err)
+				}
 			}
 
 			spec, conflictWarnings := synth.SpecFromProfile(prof, rows)
@@ -183,6 +201,7 @@ func synthFromProfileCmd() *cli.Command {
 				SourceCohort:       source,
 				FidelityReportPath: fidelityReport,
 				FidelityWarnings:   fidelityWarnings,
+				FidelityModel:      fidelityModel,
 			})
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)

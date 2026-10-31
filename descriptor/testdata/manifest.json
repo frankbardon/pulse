@@ -11187,7 +11187,7 @@
         ]
       }
     ],
-    "error_codes_count": 448,
+    "error_codes_count": 449,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11568,6 +11568,7 @@
       "PULSE_SYNTH_DST_AMBIGUOUS",
       "PULSE_SYNTH_DST_NONEXISTENT",
       "PULSE_SYNTH_EXPR_NONDETERMINISTIC",
+      "PULSE_SYNTH_FIDELITY_MODEL_INVALID",
       "PULSE_SYNTH_LAG_FIELD_INVALID",
       "PULSE_SYNTH_LAG_OFFSET_INVALID",
       "PULSE_SYNTH_OUTPUT_COLLISION",
@@ -14265,7 +14266,7 @@
       },
       {
         "name": "synth-fidelity-report",
-        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals, pairs, set fields — scored only over relationships generation actually applied."
+        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals with effect sizes, pairs, set fields, utility against the source — scored only over relationships generation actually applied."
       },
       {
         "name": "synth-marginals",
@@ -20489,4 +20490,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4002333a39b9d2abc01380b9c38edafcc2df0e4ca970f6ebfa7af4e433003abf
+// golden-hash: 9fbc420d47fa6faf4cb11b8168ea5fdf0744352321beb0e0342660ea3a5a1fe5

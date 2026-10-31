@@ -2161,6 +2161,13 @@ func (p *Pulse) Synth(ctx context.Context, spec *SynthSpec, output string, opts 
 }
 
 func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
+	// A supplied fidelity model is refit on the source BEFORE generation:
+	// a request the engine refuses fails the call with its own code and
+	// nothing is written. See fidelityModelRefit.
+	refit, err := p.newFidelityModelRefit(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
 	res, err := synth.Synth(p.fsys, spec, output, opts)
 	if err != nil {
 		return nil, err
@@ -2171,7 +2178,7 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 		// ones generation itself raised. See mergeFidelityWarnings for
 		// why the fold lives here rather than at the CLI leaf.
 		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec,
-			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings)); err != nil {
+			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings), refit.fold(ctx, output)); err != nil {
 			return nil, err
 		}
 		res.FidelityReportPath = opts.FidelityReportPath

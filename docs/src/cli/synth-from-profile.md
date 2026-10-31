@@ -17,7 +17,7 @@ from the source; only summary statistics drive generation.
 
 ```
 pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
-                         [--seed N] [--fidelity-report FILE]
+                         [--seed N] [--fidelity-report FILE] [--fidelity-model FILE]
                          [--rules FILE] [--emit-spec FILE] [--json]
 ```
 
@@ -31,6 +31,7 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 | `--rows`    |      | int    | (required) | Number of **new** rows to generate |
 | `--seed`    |      | int    | 0          | Deterministic RNG seed |
 | `--fidelity-report` | | string | (none) | Write a JSON fidelity report to this path after generation completes |
+| `--fidelity-model` | | string | (none) | A `pulse process` request whose `regressions` are refit on the source and on the generated rows into the report's `utility.model_fits`; needs `--fidelity-report` |
 | `--rules`   |      | string | (none) | Load structural rules from a standalone JSON file and apply them to the derived spec |
 | `--emit-spec` |    | string | (none) | Write the derived spec (after any `--rules` merge) to this path as indented JSON |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
@@ -362,8 +363,10 @@ Shape:
   "source_rows": 200,
   "synthetic_rows": 500,
   "fields": [
-    {"field": "score", "test": "TEST_KS", "result": {"type": "TEST_KS", "statistic": 0.04, "p_value": 0.87, "alpha": 0.05, "reject_null": false}},
-    {"field": "country", "test": "TEST_CHISQ", "result": {"type": "TEST_CHISQ", "statistic": 1.2, "df": 2, "p_value": 0.55, "alpha": 0.05, "reject_null": false}}
+    {"field": "score", "test": "TEST_KS", "result": {"type": "TEST_KS", "statistic": 0.04, "p_value": 0.87, "alpha": 0.05, "reject_null": false},
+     "effect_size": {"measure": "cohens_d", "value": 0.03, "magnitude": "very small", "convention": "cohen1988_d"}},
+    {"field": "country", "test": "TEST_CHISQ", "result": {"type": "TEST_CHISQ", "statistic": 1.2, "df": 2, "p_value": 0.55, "alpha": 0.05, "reject_null": false},
+     "effect_size": {"measure": "cramers_v", "value": 0.02, "magnitude": "very small", "convention": "cohen1988_w"}}
   ],
   "pairwise": [
     {"a": "income", "b": "spend", "source_rho": 0.80, "synthetic_rho": 0.79, "delta": 0.01, "n": 20000}
@@ -378,6 +381,20 @@ A field whose test could not run (e.g. a categorical column with only
 one distinct value in one partition) gets `"error"` instead of
 `"result"` — that single field's failure never blocks the report for
 every other field, nor the generated cohort itself.
+
+Every field with a `result` also carries `effect_size` beside its
+p-value: Cohen's d (synthetic − source, in pooled standard deviations)
+for a numeric field, Cramér's V (the χ² test's own
+`details.effect_size.cramers_v`) for a categorical one, with a
+`magnitude` on Cohen's (1988) bands — `very small`, `small`, `medium`,
+`large` (`cohen1988_d`: .2 / .5 / .8; `cohen1988_w`: .1 / .3 / .5, which
+V takes because the test runs against the two-level `_synthetic`
+column). A report compares thousands of rows per partition, where a
+difference no analysis would ever notice still rejects at p < 0.001;
+the magnitude is what says it is trivial. Measured: at 20,000 rows per
+side a 0.05 SD shift rejects `TEST_KS` at p ≈ 0.0002 and reads
+`very small`. d describes location only — the KS `statistic` is the
+largest gap between the two CDFs.
 
 `pairwise` reports, for every numeric-numeric correlation the profile
 captured (`--conditional`'s `Conditional.NumericPairs`, or the plain
@@ -681,6 +698,75 @@ create`](profile-create.md)'s `--conditional` section) verbatim,
 letting a reader see "how well did it match" (`pairwise`) and "which
 parts were built on thin data" (`warnings`) in the one document.
 Absent, not an empty array, when the profile carried no warnings.
+
+### `utility` — does the twin answer questions the way the source does?
+
+`models` compares the twin with the CAPTURED model. `utility` compares
+it with the SOURCE rows the output cohort already carries. The two
+disagree whenever the source carries confounding the capture did not:
+a coefficient is a partial effect, while a churn-by-contract table is
+a marginal contrast that also carries every field contract travels
+with — so `models` can report the captured contract effect recovered
+while the twin's churn-by-contract contrast is compressed.
+
+`target_rates` is automatic for every applied model: for each
+categorical field among its predictors, the target's mean per level
+on each partition (the rate of a `packed_bool` target), the spread
+max − min over levels that carry at least 30 rows on BOTH partitions,
+`spread_ratio` (synthetic ÷ source), ε² on each side (the share of the
+target's variance the levels explain — an effect size) and a
+`verdict`: `compressed` or `inflated` when the spread moves by more
+than 20% AND by more than two standard errors of the two spreads,
+`preserved` otherwise.
+
+`model_fits` is opt-in. `--fidelity-model <request.json>` names a
+`pulse process` request (decoded strictly; its `cohort` is ignored)
+whose `regressions` are fitted twice through the ordinary engine — on
+`--source`, before generation, and on the output's `_synthetic = true`
+rows after it:
+
+```json
+"utility": {
+  "target_rates": [{"target": "churned", "by": "contract",
+    "levels": [{"level": "Two-Year", "source_n": 4006, "source_mean": 0.046,
+                "synthetic_n": 4032, "synthetic_mean": 0.027},
+               {"level": "Monthly", "source_n": 10993, "source_mean": 0.539,
+                "synthetic_n": 10867, "synthetic_mean": 0.542}],
+    "source_spread": 0.493, "synthetic_spread": 0.515, "spread_ratio": 1.045,
+    "source_epsilon_squared": 0.192, "synthetic_epsilon_squared": 0.196,
+    "verdict": "preserved"}],
+  "model_fits": [{"name": "churn_logit", "type": "REG_GLM", "target": "churned",
+    "statistic": "pseudo_r2", "source_fit": 0.2086, "synthetic_fit": 0.2206,
+    "fit_ratio": 1.057, "source_n_obs": 20000, "synthetic_n_obs": 20000,
+    "coefficients": [{"term": "autopay", "source": -0.527, "synthetic": -0.500,
+                      "source_std_error": 0.034, "synthetic_std_error": 0.035, "ratio": 0.950}]}]
+}
+```
+
+(Figures from the 20,000-row churn fixture of
+`TestFidelityUtility_ChurnTwinPseudoR2RatioIsInTheReport`, one level
+and one coefficient shown.)
+
+`statistic` is `pseudo_r2` (McFadden) for a `REG_GLM` and `r2`
+otherwise; `fit_ratio` is the twin's share of the source's explanatory
+power — the figure a "≥ 0.85× the source" bar reads. Coefficients are
+sorted by term; `missing` names a side that did not estimate one. A
+coefficient `ratio` is unstable where the source coefficient is near
+zero (the fixture's `age`, which carries no true effect, reads 16.6) —
+read it beside the two standard errors. A
+regression that fails on one side carries `source_error` /
+`synthetic_error` and the other side still reports. A request the
+engine refuses on the source fails the call under the engine's own
+code before anything is generated; a model with no `regressions`, or
+given without `--fidelity-report`, is `PULSE_SYNTH_FIDELITY_MODEL_INVALID`.
+
+```bash
+jq '.utility.model_fits[] | {name, statistic, source_fit, synthetic_fit, fit_ratio}' out.fidelity.json
+jq '.utility.target_rates[] | select(.verdict != "preserved")' out.fidelity.json
+```
+
+`utility` is absent for a spec with no applied model and no
+`--fidelity-model`.
 
 ### What the report costs
 

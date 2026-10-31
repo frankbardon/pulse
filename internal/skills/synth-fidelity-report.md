@@ -1,10 +1,10 @@
 ---
 name: synth-fidelity-report
-description: The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals, pairs, set fields — scored only over relationships generation actually applied.
+description: The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals with effect sizes, pairs, set fields, utility against the source — scored only over relationships generation actually applied.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth from-profile, fidelity report, _synthetic, top-up]
+covers: [synth from-profile, fidelity report, _synthetic, top-up, effect size, utility, --fidelity-model]
 requires: [capability:synth]
 ---
 
@@ -25,6 +25,15 @@ requires: [capability:synth]
 **A modelled numeric has no numeric-target pair entry, ever.** `categorical_numeric_pairwise` / `set_numeric_pairwise` score the pick-one pair sampler, which does not run for a modelled target; an entry would be a delta for a mechanism that never executed. An unmodelled numeric in the same profile keeps its pair and is scored there. The non-numeric-target pair sections are untouched by models.
 
 **Set fields have their own sections and are never omitted.** `set_fields` is one `{field, options: [{value, source_frequency, synthetic_frequency, delta}]}` per `set_*` column, computed directly (no `TestRunner`: the KS test wants a scalar and the χ² test a partition, and a multi-select is neither), one entry per dictionary member in BIT order up to `MaxSetEntries()`. `set_categorical_pairwise` / `set_numeric_pairwise` / `set_set_pairwise` score the surviving conditional pairs. **All four read masks the same way capture does** — a wide column read through a `uint64` assertion returns an empty mask on BOTH partitions, so every delta comes back exactly `0.0` and the section certifies a generation it never measured. A silently-omitted wide column reads the same way: as nothing wrong (`synth-set-fields`).
+
+**Every marginal carries an effect size beside its p-value.** `fields[].effect_size {measure, value, magnitude, convention}`: Cohen's d (synthetic − source) for a numeric, Cramér's V (the χ² test's own) for a categorical, banded on Cohen (1988) — `very small` / `small` / `medium` / `large`. Thousands of rows reject on trivial gaps: **read the magnitude, not the p-value** — `very small` is real but trivial. d reads location; the KS `statistic` is the largest CDF gap.
+
+## Utility against the source
+
+Recovery sections compare the twin with the CAPTURED model; `utility` compares it with the SOURCE rows. A coefficient is a partial effect, a level table a marginal contrast carrying uncaptured confounders — `models` can call an effect recovered while churn-by-contract is compressed.
+
+- `utility.target_rates` (automatic: applied model × categorical predictor): the target's mean per level on each side (a rate for `packed_bool`), `source_spread` / `synthetic_spread` (max − min, levels ≥ 30 rows on both), `spread_ratio`, ε² and `verdict` — `compressed` / `inflated` past 20% AND 2 SE, else `preserved`.
+- `utility.model_fits` (opt-in `--fidelity-model <request.json>`, `SynthOptions.FidelityModel`): a `pulse process` request's regressions refit on source and generated rows — `statistic` (`r2`<!-- feature: REG_GLM -->; `pseudo_r2` for `REG_GLM`<!-- /feature -->), `source_fit`, `synthetic_fit`, `fit_ratio` and coefficients side by side. The source fit runs first; a refusal fails the call. No regressions or no `--fidelity-report`: `PULSE_SYNTH_FIDELITY_MODEL_INVALID`.
 
 The two structure-recovery sections — `models` and `model_residual_correlations`, asking whether the captured CONDITIONING survived rather than whether the rows look alike — are in `synth-models`.
 

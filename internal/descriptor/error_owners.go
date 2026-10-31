@@ -288,6 +288,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_RULE_DRAW_INVALID:       own(featSynth),
 	errors.PULSE_SYNTH_DST_NONEXISTENT:         own(featSynth),
 	errors.PULSE_SYNTH_DST_AMBIGUOUS:           own(featSynth),
+	errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID:  own(featSynth),
 	errors.PULSE_PROFILE_FIELD_UNSUPPORTED:     own(featSynth),
 
 	// Statistical tests. The unknown-name code is shared (see above);

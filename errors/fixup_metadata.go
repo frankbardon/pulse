@@ -1579,6 +1579,20 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID: {
+		Message: "A supplied fidelity model request cannot be refit: it carries no `regressions`, or the synth call has no source cohort or no fidelity report path to write the refit into. The call is refused before generation and nothing is written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions"},
+				Hint:   "Give the request at least one regression (the same `regressions` array `pulse process` reads); its cohort is ignored, the refit runs on the source cohort and on the generated rows.",
+			},
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass the model together with a source cohort and a fidelity report path (--source and --fidelity-report on synth from-profile; SourceCohort and FidelityReportPath on SynthOptions).",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

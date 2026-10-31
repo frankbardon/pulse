@@ -291,6 +291,7 @@ var flagValues = map[string]valueSource{
 	"spec":            fileValue,
 	"profile":         fileValue,
 	"fidelity-report": fileValue,
+	"fidelity-model":  fileValue,
 	"rules":           fileValue,
 	"emit-spec":       fileValue,
 	"suggest-rules":   fileValue,

@@ -210,6 +210,19 @@ bare array of rule objects, the same shape as a spec's `rules` key — and
 `PULSE_SYNTH_RULE_*` codes with the file path in `details.path`. See
 [synth from-profile](synth-from-profile.md).
 
+### `--fidelity-model`
+
+Available on: `synth from-profile` (with `--fidelity-report`).
+
+`--fidelity-model <path>` names a `pulse process` request (strictly
+decoded; its `cohort` is ignored) whose `regressions` are fitted on
+`--source` before generation and on the generated rows after it; the
+report's `utility.model_fits` carries both fit statistics
+(`pseudo_r2` for `REG_GLM`, `r2` otherwise), their `fit_ratio` and the
+coefficients side by side. No regressions, or no `--fidelity-report`:
+`PULSE_SYNTH_FIDELITY_MODEL_INVALID`. See
+[synth from-profile](synth-from-profile.md).
+
 ### `--suggest-rules`
 
 Available on: `profile create`.
@@ -887,7 +900,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
 | `pulse skills list` | List every built-in embedded skill (embedder skills are served per instance by `pulse_skills_*` and `p.Skills()`) | `--help` |
 | `pulse skills show` | Print one built-in skill's markdown (not profile-scoped, no embedder content) | `--help` |
-| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
+| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns, effect sizes beside the marginal p-values and a `utility` section against the source rows; `--fidelity-model` refits a supplied request's regressions on both | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
 | `pulse version` | Print the build version as `pulse <version>`; `--json` emits the standard envelope whose `data` carries the build version, Go version, VCS commit and commit time (both omitted when the binary carries no VCS metadata) and the envelope `format_version`. Same build version as `pulse --version` and the root manifest | `--help` |
 | `pulse widen` | Widen a set column of a single-file cohort to a wider set rung (`--field`, `--to`), rewriting the cohort in place. Destructive and non-interactive, but atomic — temp file, fsync, rename — so a refusal or a failure leaves the cohort byte-identical. Refuses a narrower or equal target, a non-set column, a column already at `set_u256`, and a shard archive (whose widen spans the canonical schema plus every shard payload, so it is not this leaf's operation); each refusal carries its own error code, usable with `pulse errors lookup`. On success it names any sidecar the rewrite invalidated — the point-lookup index, the SPSS metadata sidecar — and the exact command that rebuilds it (`data.invalidated_sidecars` under `--json`); it rebuilds nothing, and prints nothing when there are none | `--help` |

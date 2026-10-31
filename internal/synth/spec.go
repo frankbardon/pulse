@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Spec is the parsed top-level synthesis request. It is the in-memory
@@ -482,6 +483,19 @@ type Options struct {
 	// Ignored when FidelityReportPath is empty, exactly like every
 	// other Fidelity* field.
 	FidelityWarnings []string
+
+	// FidelityModel, when non-nil, is a Pulse request whose
+	// `regressions` the fidelity report refits on the source cohort and
+	// on the generated partition, reporting each fit statistic
+	// (pseudo-R² for a REG_GLM, R² otherwise), their ratio and the
+	// coefficients side by side (FidelityReport.Utility.ModelFits). Its
+	// cohort is ignored: the facade points it at SourceCohort, then at
+	// the output's `_synthetic = true` rows. The source refit runs
+	// BEFORE generation, so a request the engine refuses fails the call
+	// with the engine's own code and writes nothing. Requires
+	// SourceCohort, FidelityReportPath and at least one regression;
+	// otherwise the call is refused with PULSE_SYNTH_FIDELITY_MODEL_INVALID.
+	FidelityModel *types.Request
 }
 
 // Result is what the writer reports after a successful Synth call.

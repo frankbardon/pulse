@@ -58,6 +58,22 @@ const (
 	PairArbitrationDeclared = isynth.PairArbitrationDeclared
 )
 
+// Effect-size measures, as they appear on FieldEffectSize.Measure.
+const (
+	EffectMeasureCohensD  = isynth.EffectMeasureCohensD
+	EffectMeasureCramersV = isynth.EffectMeasureCramersV
+)
+
+// Utility verdicts, as they appear on TargetRateFidelity.Verdict, and
+// fit statistics, as they appear on UtilityModelFit.Statistic.
+const (
+	UtilityVerdictPreserved  = isynth.UtilityVerdictPreserved
+	UtilityVerdictCompressed = isynth.UtilityVerdictCompressed
+	UtilityVerdictInflated   = isynth.UtilityVerdictInflated
+	UtilityFitPseudoR2       = isynth.UtilityFitPseudoR2
+	UtilityFitR2             = isynth.UtilityFitR2
+)
+
 // RecoveryScaleProbitScore is ModelFidelity.Scale for a target recovered
 // through the calibrated interval-midpoint probit score rather than
 // through a point latent inverse.
@@ -286,6 +302,12 @@ type DiscreteProfile = isynth.DiscreteProfile
 // it match" (the pairwise sections) and "which parts were built on thin
 // data" (Warnings) in one document (FR-18).
 type FidelityReport = isynth.FidelityReport
+
+// FieldEffectSize is the effect size beside a FieldFidelity's p-value:
+// how LARGE the source/synthetic difference is, on a scale that does
+// not grow with n (Cohen's d for a numeric field, Cramér's V for a
+// categorical one), with its Cohen (1988) magnitude label.
+type FieldEffectSize = isynth.FieldEffectSize
 
 // FieldContinuation is one field's run-continuation rate.
 type FieldContinuation = isynth.FieldContinuation
@@ -806,6 +828,27 @@ type ShapeProfile = isynth.ShapeProfile
 // shape of from-schema JSON. A from-profile call builds a Spec internally
 // from the Profile and shares the rest of the writer pipeline.
 type Spec = isynth.Spec
+
+// TargetRateFidelity is one applied model target's mean by the levels
+// of one categorical predictor, source partition beside synthetic, with
+// the spread across levels, its ratio and a verdict.
+type TargetRateFidelity = isynth.TargetRateFidelity
+
+// TargetRateLevel is one level's target mean on each partition — the
+// rate of a packed_bool target.
+type TargetRateLevel = isynth.TargetRateLevel
+
+// UtilityCoefficient is one term's estimate in a UtilityModelFit, on
+// the source and on the synthetic partition.
+type UtilityCoefficient = isynth.UtilityCoefficient
+
+// UtilityFidelity is FidelityReport.Utility: the twin compared against
+// the SOURCE rather than against the captured model.
+type UtilityFidelity = isynth.UtilityFidelity
+
+// UtilityModelFit is one supplied regression (Options.FidelityModel)
+// refit on the source and on the synthetic partition.
+type UtilityModelFit = isynth.UtilityModelFit
 
 // VectorCorrelationSpec is one inter-element correlation: elements A and
 // B (1-based, distinct) at target Pearson correlation in [-1, 1] on the

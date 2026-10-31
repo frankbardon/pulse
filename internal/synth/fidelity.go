@@ -30,7 +30,14 @@ type FieldFidelity struct {
 	Field  string            `json:"field"`
 	Test   types.TestType    `json:"test"`
 	Result *types.TestResult `json:"result,omitempty"`
-	Error  string            `json:"error,omitempty"`
+	// EffectSize sits beside Result's p-value: how LARGE the difference
+	// is, on a scale that does not grow with n (Cohen's d for a numeric
+	// field, Cramér's V for a categorical one, each with its Cohen 1988
+	// magnitude label). A rejected test at "very small" is the large-n
+	// trivial difference. Absent when Result is, or when the measure is
+	// undefined (a constant column). See internal/synth/fidelity_effect.go.
+	EffectSize *FieldEffectSize `json:"effect_size,omitempty"`
+	Error      string           `json:"error,omitempty"`
 }
 
 // PairwiseFidelity is one row of FidelityReport.Pairwise: the delta
@@ -335,7 +342,17 @@ type FidelityReport struct {
 	// `residual_correlations`, which is every spec predating `profile
 	// create --residual-correlations`. See internal/synth/fidelity_residual.go.
 	ModelResidualCorrelations *ModelResidualCorrelationFidelity `json:"model_residual_correlations,omitempty"`
-	Warnings                  []string                          `json:"warnings,omitempty"`
+	// Utility compares the twin against the SOURCE rather than against
+	// the captured model (FR-16): per applied model, the target's mean
+	// by each categorical predictor's levels on both partitions
+	// (target_rates), and, with Options.FidelityModel, a supplied
+	// request's regressions refit on both (model_fits). It is what tells
+	// a twin whose captured partial effect `models` reports recovered
+	// apart from one whose marginal contrast survived. Absent
+	// (omitempty) for a spec with no applied model and no supplied
+	// request. See internal/synth/fidelity_utility.go.
+	Utility  *UtilityFidelity `json:"utility,omitempty"`
+	Warnings []string         `json:"warnings,omitempty"`
 }
 
 // TestRunner executes a single statistical Test against an encoded
@@ -376,6 +393,10 @@ type TestRunner func(physicalSchema, presentedSchema *encoding.Schema, records [
 // A single field's failing test (entry.Error set, entry.Result nil)
 // never aborts the rest of the report — run is called once per field
 // on its own Test, not once for every field on a shared Request.
+//
+// Every entry with a Result then gets its EffectSize beside the p-value
+// (attachMarginalEffectSizes, internal/synth/fidelity_effect.go): at most
+// one extra decode pass, for the numeric fields' moments.
 func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRows, syntheticRows int, run TestRunner) *FidelityReport {
 	presented := SyntheticAsCategoricalSchema(mergedSchema)
 
@@ -414,6 +435,7 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 		}
 		report.Fields = append(report.Fields, entry)
 	}
+	attachMarginalEffectSizes(report, mergedSchema, records)
 	return report
 }
 
