@@ -143,6 +143,43 @@ lg, sign := detmath.Lgamma(x)
 
 Each function is a line-for-line port of the Go 1.26 pure-Go source with every product wrapped in `float64(...)`. `Tanh` is the exception: it ports fdlibm's `s_tanh.c` on `Expm1`, because the stdlib's version calls `math.Exp`. `Erfc` computes the complementary function directly, not as `1 - Erf`, so its upper tail keeps full relative precision down to subnormal results (`Erfc(27)` is about `5.2e-319`, where `1 - Erf(27)` is `0`). `Atanh` is `0.5·Log1p(…)` on this package's `Log1p`. Special cases (`NaN`, `±Inf`, `±0`, subnormals) follow `math.*`. Results sit within the stdlib's own cross-build spread: 1 ulp for most functions, 2 for `Exp`, `Tan`, `Tanh` and `Asin`, 3 for `Lgamma`, 4 for `Erfc`, and 8 for `Pow` and `Erfinv`. Pulse's expression functions, `FEAT_LOG`, `WIN_DISTRIBUTED_LAG` weights, the Student-t p-values, quantiles and confidence bounds, and `optimize` all run on it. Use it in an extension operator or model pack whose output must match across architectures. Also wrap every product that feeds an addition in `float64(...)` in your own code.
 
+### What is covered across architectures
+
+"Covered" means a figure has the same float64 bits on arm64 and amd64 for the same input. Pulse gets there by computing every transcendental with `detmath` and writing every product that feeds an addition as `float64(a*b)`. Where a gonum routine sat on a result path, Pulse replaced it with a port that has no fused multiply-adds.
+
+**Covered:**
+
+- **`detmath` kernels**, including `Erfc`, `Atanh` and `Tanh`.
+- **Pulse's distribution helpers:** the normal quantile, the chi-square CDF and survival function (incomplete gamma), and the Student-t chain. GLM links use a portable port of amd64's FMA-path `math.Exp` (see Not covered for why).
+- **Every `TEST_*` operator**, parametric and nonparametric, including the Fisher-exact, Tukey and Shapiro–Wilk tails.
+- **Aggregators, windows, features, attributes and overlays**, including the Welford family, weighted inference and the `OVERLAY_FISHER_EXACT_CELL` cell test.
+- **Matrix operators' own arithmetic:** co-moments, `MAT_CORRELATION` and its inference, the `MAT_CORRELATION` determinant, partial correlation, distance metrics (`aitchison` included), and the ridge schedule. The factor-analysis ML and rotation steps are FMA-free too, but they start from a gonum eigen decomposition, so `MAT_FACTOR` figures are listed under Not covered.
+- **The `linalg` SPD path:** `FactorSPD` / `SPDFactor` / `Mul`. This is a port of gonum v0.17.0's amd64 operation order with no fused multiply-adds. On amd64 it gives exactly the bits gonum gave; arm64 now gives the same bits.
+- **Regression:** OLS, GLM, ridge, lasso / elastic net, Bayes-linear, HC and cluster standard errors, and Newey–West (HAC). The automatic HAC lag is an exact integer.
+- **`MAT_SEM`'s own arithmetic:** the distribution replacements, the `:=` defined-parameter derivatives, the polychoric and WLSMV weight blocks.
+- **The shared MMM fixture** (`internal/mmmfixture`).
+
+**How it is enforced:**
+
+- **Two repo-wide gates in `internal/testutil/fmagate`.** They scan every non-test package except `cmd/` and `internal/cli`, and fail on any site that the reviewed allowlist `testdata/numeric-allowlist.txt` does not excuse with a reason. They also fail on a stale allowlist entry.
+  - `TestFMAReport_RepoWide` (heavy tier) finds products the compiler fuses.
+  - `TestBannedMathReport_RepoWide` (fast tier) finds banned stdlib transcendentals.
+- **Per-package `*_NoFMAContraction` gates** in `detmath`, `statdist`, `optimize`, `mcmc`, `sem`, `distlagparams`, `regmmm` and `mmmfixture`.
+- **A fingerprint golden.** `internal/fingerprint` pins the exact bits of covered figures, end to end and from direct calls, in the normal test tier. The golden is generated on arm64, and CI's linux/amd64 run checks it.
+- **A tolerance golden.** `TestDecomposition_Tolerance` pins the figures that are not covered (below) at 1e-12 relative.
+
+**Not covered** (accepted residuals; the arm64 vs amd64 spreads below were measured):
+
+- **gonum's eigen, SVD and QR internals.** gonum's amd64 assembly and its arm64 pure Go add in a different order, and no barrier changes that. Ordering, sign and rank decisions are fixed (see Eigen, SVD, QR and rank above), but the values can differ in their last ulps. The same applies to every figure computed from those values: `MAT_PCA`, `MAT_FACTOR`, `TEST_MANOVA`, `MAT_COLLINEARITY`, `ATTR_PC_SCORE` / `ATTR_FACTOR_SCORE` and `OVERLAY_CORRESPONDENCE`. They are pinned at 1e-12 relative, not bit for bit. The scan cannot see fused multiply-adds inside gonum code.
+- **`MAT_SEM` fits.** Every fit runs gonum matrix calls (`Mul`, `Inverse`, `LogDet`, Cholesky), and the optimiser amplifies their last-ulp differences:
+  - A fit that stops early (default SLSQP `ftol` 1e-6) differs by about 7.9e-4 relative. With `ftol` 1e-15 the gap is still 2.9e-8 on a two-factor CFA.
+  - A `fisher` fit can stop on the objective-decrease (`small`) test. It reports `converged: true` on both architectures, but after a different number of iterations (18 vs 20), and its estimates differ by about 3.8e-9. `converged: true` reached this way means the parameters are accurate to about √eps only.
+  - A `fisher` + rank-2 fit can flip its `converged` flag, with 44 vs 43 iterations.
+  - Other spreads: `meanstructure` about 1.3e-2; multi-group fits about 8e-8; `WLSMV` about 3.5e-9; bootstrap figures near zero up to about 1 relative.
+  - A path model that runs the same number of iterations on both architectures differs by 1.3e-12 on z. Only fully converged fits are pinned (at 1e-12).
+- **The stdlib `math.Exp` on amd64 depends on the CPU.** It picks an FMA or a non-FMA code path at run time. Pulse's GLM links use `ExpAMD64FMA`, a portable port that pins the FMA-hardware bits. Any remaining stdlib `Exp` would follow the CI runner's CPU.
+- **Allowlisted sites.** These are the offline example-CSV generator (`internal/examples/fixtures/gen.go`, never compiled into Pulse; every figure reads the committed CSV) and the test helper `invariance.Within`, whose tolerance bound is never a result figure.
+
 ## Errors
 
 Every failure is an `*errors.CodedError`. Look up its prose with `pulse errors lookup CODE`.

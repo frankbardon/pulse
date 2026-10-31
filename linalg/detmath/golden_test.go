@@ -29,8 +29,8 @@ var (
 // exact special value), so the table is architecture-independent. The
 // results were produced by this package — never copied from math.*, whose
 // bits are the architecture-dependent thing detmath replaces — on
-// darwin/arm64 after `-d=fmahash=vy` reported no contraction, and checked
-// identical on linux/amd64 (docker); CI re-runs it on linux/amd64.
+// darwin/arm64 after `-d=fmahash=vy` reported no contraction; CI's
+// linux/amd64 run checks the same bits.
 //
 // The rows cover ordinary values, ±0, ±Inf, NaN, subnormal inputs and
 // results, overflow / underflow edges, Payne-Hanek trig range reduction

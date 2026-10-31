@@ -10,9 +10,9 @@ import (
 // detmath.Erfc, the chi-square survival and the noncentral chi-square
 // mixture on statdist's incomplete gamma, every product barriered, so
 // the pinned bits must hold exactly on every GOARCH. Pinned on
-// darwin/arm64 and checked identical on linux/amd64 (docker); CI
-// re-runs it on linux/amd64. The z inputs are ones where math.Erfc
-// differs from detmath.Erfc by an ulp, so a stdlib regression fails.
+// darwin/arm64; CI's linux/amd64 run checks the same bits. The z inputs
+// are ones where math.Erfc differs from detmath.Erfc by an ulp, so a
+// stdlib regression fails.
 func TestTestStat_BitsPinned(t *testing.T) {
 	t.Parallel()
 

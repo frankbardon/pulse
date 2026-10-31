@@ -120,8 +120,7 @@ func semPinnedFigures(t *testing.T) []pinnedFigure {
 // internal/statdist and explicit float64(...) barriers; with math.Log /
 // Erfc / Pow / Exp, gonum distuv and contractible products they sat
 // apart by an ulp or more between arm64 and amd64. Pinned on
-// darwin/arm64 and checked identical on linux/amd64 (docker); CI
-// re-runs it on linux/amd64.
+// darwin/arm64; CI's linux/amd64 run checks the same bits.
 func TestSEM_ArithmeticBitsPinned(t *testing.T) {
 	t.Parallel()
 

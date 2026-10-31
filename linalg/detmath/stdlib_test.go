@@ -196,7 +196,7 @@ const sweepN = 200_000
 // not a single function: math.* differs across architectures and CPUs,
 // which is the whole reason detmath exists, so the bound is the spread
 // the stdlib itself shows between its own builds, measured on this
-// sweep (darwin/arm64 natively, linux/amd64 with FMA under docker):
+// sweep on darwin/arm64 and on linux/amd64 hardware with FMA:
 //
 //   - Exp 2: amd64's exp_amd64.s takes a run-time FMA path on CPUs that
 //     have it and lands 2 ulp from the pure-Go algorithm (arm64's

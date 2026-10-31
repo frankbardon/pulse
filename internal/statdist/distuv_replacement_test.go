@@ -140,8 +140,8 @@ func TestNormalQuantile_SpecialCases(t *testing.T) {
 
 // TestStatdist_ChiSquareAndNormalQuantileBitsPinned is the
 // cross-architecture gate on the distuv replacements: the pinned bits
-// must hold exactly on every GOARCH. Pinned on darwin/arm64 and checked
-// identical on linux/amd64 (docker); CI re-runs it on linux/amd64.
+// must hold exactly on every GOARCH. Pinned on darwin/arm64; CI's
+// linux/amd64 run checks the same bits.
 func TestStatdist_ChiSquareAndNormalQuantileBitsPinned(t *testing.T) {
 	t.Parallel()
 

@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U24, U40, U42]
 blocks: [U32]
-todo_items: [528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538]
+todo_items: [528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 589]
 branch: sem-extensions
 ---
 

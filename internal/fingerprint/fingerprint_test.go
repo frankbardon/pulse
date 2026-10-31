@@ -34,9 +34,9 @@
 //	go test -count=1 ./internal/fingerprint -run TestFingerprint_Golden -update
 //	go test -count=1 ./internal/fingerprint
 //
-// The golden must then also pass on linux/amd64 (CI runs it; locally:
-// GOOS=linux GOARCH=amd64 go test -c -o fp.amd64 ./internal/fingerprint &&
-// docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/internal/fingerprint golang /w/fp.amd64).
+// The golden is generated on arm64 and CI's linux/amd64 run checks it:
+// pin only figures that hold on both, so the committed golden plus that
+// CI run is the cross-architecture proof.
 // A pinned figure that moves is a contract event: list it (old -> new
 // bits) in the commit body and the migration table; more than the last
 // few ulps is a stop-and-ask.
