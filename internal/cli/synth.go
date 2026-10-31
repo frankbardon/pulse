@@ -101,7 +101,7 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
-			&cli.StringFlag{Name: "fidelity-model", Usage: "Refit a supplied request's regressions (a `pulse process` request JSON; its cohort is ignored) on the source and on the generated rows, and report both fits side by side in the fidelity report's utility.model_fits; needs --fidelity-report"},
+			&cli.StringFlag{Name: "fidelity-model", Usage: "Refit a supplied request's regressions (a pulse process request JSON; its cohort is ignored) on the source and on the generated rows, and report both fits side by side in the fidelity report's utility.model_fits; needs --fidelity-report"},
 			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
 			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
