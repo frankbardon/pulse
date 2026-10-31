@@ -146,7 +146,7 @@ func computeSeriesWelfordPopulation(host *SeriesHostView) (mean, sd float64, pre
 		delta := v - mean
 		mean += delta / float64(n)
 		delta2 := v - mean
-		m2 += delta * delta2
+		m2 += float64(delta * delta2)
 	}
 	if n >= 2 {
 		// Population variance: divide by N, not N-1. See the kind's

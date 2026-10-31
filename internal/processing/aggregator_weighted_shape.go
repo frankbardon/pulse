@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/internal/weighting"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -203,7 +204,7 @@ func quantileOrderIndex(cum []float64, k int) int {
 // half-integer h, and the half case is the unweighted median's mean of
 // the two middles, (lo + hi) / 2, in its operation order.
 func (a *weightedQuantileAggregator) median(total float64, at func(int) float64) {
-	rank := 0.5 * (total - 1)
+	rank := float64(0.5 * (total - 1))
 	low := int(math.Floor(rank))
 	high := int(math.Ceil(rank))
 	a.frozenLow, a.frozenHigh = low, high
@@ -214,18 +215,19 @@ func (a *weightedQuantileAggregator) median(total float64, at func(int) float64)
 	case rank-float64(low) == 0.5:
 		a.frozenValue = (a.frozenLower + a.frozenUpper) / 2
 	default:
-		a.frozenValue = a.frozenLower + (rank-float64(low))*(a.frozenUpper-a.frozenLower)
+		a.frozenValue = a.frozenLower + float64((rank-float64(low))*(a.frozenUpper-a.frozenLower))
 	}
 }
 
 // interpolate is the percentile, h = p·(W − 1), written in the
 // unweighted percentileAggregator's exact statement shape — in
-// particular no clamp reassigning rank: the compiler may fuse the rank
-// product into rank − lower (FMA, on arm64), a reassignment blocks that,
-// and unity parity needs both forms to fuse identically, bit for bit
-// (TestWeightedShape_FrequencyQuantileRaw p95: 37 vs 36.99999999999999).
+// particular rank and the interpolation product each carry an explicit
+// float64 barrier, as the unweighted form does: no FMA on any
+// architecture, so unity parity holds bit for bit on arm64 and amd64
+// alike (TestWeightedShape_FrequencyQuantileRaw p95: 37 vs
+// 36.99999999999999 when only one side fused).
 func (a *weightedQuantileAggregator) interpolate(total float64, at func(int) float64) {
-	rank := a.percentile / 100.0 * (total - 1)
+	rank := float64(a.percentile / 100.0 * (total - 1))
 	lower := int(math.Floor(rank))
 	upper := int(math.Ceil(rank))
 	a.frozenLow, a.frozenHigh = lower, upper
@@ -236,7 +238,7 @@ func (a *weightedQuantileAggregator) interpolate(total float64, at func(int) flo
 		a.frozenValue = lo
 		return
 	}
-	a.frozenValue = lo + (rank-float64(lower))*(hi-lo)
+	a.frozenValue = lo + float64((rank-float64(lower))*(hi-lo))
 }
 
 // Components mirrors the unweighted median / percentile maps (empty
@@ -429,14 +431,14 @@ func (a *weightedMomentAggregator) UpdateRow(r *Record, field string) error {
 	a.sumW += w
 	delta := x - a.mean
 	deltaN := (w * delta) / a.sumW
-	term1 := delta * deltaN * wOld
+	term1 := float64(float64(delta*deltaN) * wOld)
 	if a.kurtosis() {
-		deltaN2 := deltaN * deltaN
-		c4 := (wOld*wOld - wOld*w + w*w) / (w * w)
-		a.m4 += term1*deltaN2*c4 + 6*deltaN2*a.m2 - 4*deltaN*a.m3
+		deltaN2 := float64(deltaN * deltaN)
+		c4 := (float64(wOld*wOld) - float64(wOld*w) + float64(w*w)) / (w * w)
+		a.m4 += float64(float64(term1*deltaN2)*c4) + float64(float64(6*deltaN2)*a.m2) - float64(float64(4*deltaN)*a.m3)
 	}
 	c3 := (wOld - w) / w
-	a.m3 += term1*deltaN*c3 - 3*deltaN*a.m2
+	a.m3 += float64(float64(term1*deltaN)*c3) - float64(float64(3*deltaN)*a.m2)
 	a.m2 += term1
 	a.mean += deltaN
 	return nil
@@ -481,21 +483,21 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 	sumWX := 0.0
 	for _, p := range pairs {
 		st.sumW += p.w
-		sumWX += p.w * p.x
+		sumWX += float64(p.w * p.x)
 	}
 	if st.sumW != 0 {
 		st.mean = sumWX / st.sumW
 	}
 	for _, p := range pairs {
 		d := p.x - st.mean
-		d2 := d * d
-		// (w·d)·d, not w·d2: the unweighted m2 += d2 is fused to
-		// FMA(d, d, m2) where FMA is used, and (w·d)·d fuses to the same
-		// instruction at w = 1.
-		st.m2 += p.w * d * d
-		st.m3 += p.w * d2 * d
+		d2 := float64(d * d)
+		// Every product is rounded before its sum (an explicit float64
+		// barrier, so no FMA on any architecture): (w·d)·d and (w·d2)·d
+		// equal the unweighted d2 and d2·d bit for bit at w = 1.
+		st.m2 += float64(p.w * d * d)
+		st.m3 += float64(p.w * d2 * d)
 		if a.kurtosis() {
-			st.m4 += p.w * d2 * d2
+			st.m4 += float64(p.w * d2 * d2)
 		}
 	}
 	a.frozen = st
@@ -506,7 +508,7 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 	sumSq := 0.0
 	for _, p := range pairs {
 		d := p.x - st.mean
-		sumSq += p.w * d * d
+		sumSq += float64(p.w * d * d)
 	}
 	sd := math.Sqrt(sumSq / st.sumW)
 	if sd == 0 {
@@ -518,7 +520,7 @@ func (a *weightedMomentAggregator) Aggregate(records []*Record, field string) (f
 	}
 	sum := 0.0
 	for _, p := range pairs {
-		sum += p.w * math.Pow((p.x-st.mean)/sd, power)
+		sum += float64(p.w * detmath.Pow((p.x-st.mean)/sd, power))
 	}
 	if a.kurtosis() {
 		return sum/st.sumW - 3, nil

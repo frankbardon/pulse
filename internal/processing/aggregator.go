@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/reprosum"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -129,7 +130,7 @@ func populationVariance(vals []float64) float64 {
 	sumSq := 0.0
 	for _, v := range vals {
 		d := v - m
-		sumSq += d * d
+		sumSq += float64(d * d)
 	}
 	return sumSq / float64(len(vals))
 }
@@ -147,7 +148,7 @@ func sumSquaredDeviations(vals []float64, m float64) float64 {
 	sum := 0.0
 	for _, v := range vals {
 		d := v - m
-		sum += d * d
+		sum += float64(d * d)
 	}
 	return sum
 }
@@ -162,11 +163,11 @@ func sumSquaredDeviations(vals []float64, m float64) float64 {
 func sumDeviationPowers(vals []float64, m float64, wantM4 bool) (m2, m3, m4 float64) {
 	for _, v := range vals {
 		d := v - m
-		d2 := d * d
+		d2 := float64(d * d)
 		m2 += d2
-		m3 += d2 * d
+		m3 += float64(d2 * d)
 		if wantM4 {
-			m4 += d2 * d2
+			m4 += float64(d2 * d2)
 		}
 	}
 	return m2, m3, m4
@@ -776,7 +777,7 @@ func (a *skewnessAggregator) aggregateValues(vals []float64) (float64, error) {
 	n := float64(len(vals))
 	sum := 0.0
 	for _, v := range vals {
-		sum += math.Pow((v-a.frozenMean)/sd, 3)
+		sum += detmath.Pow((v-a.frozenMean)/sd, 3)
 	}
 	return sum / n, nil
 }
@@ -831,7 +832,7 @@ func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 	n := float64(len(vals))
 	sum := 0.0
 	for _, v := range vals {
-		sum += math.Pow((v-a.frozenMean)/sd, 4)
+		sum += detmath.Pow((v-a.frozenMean)/sd, 4)
 	}
 	return sum/n - 3, nil
 }
@@ -956,7 +957,7 @@ func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) 
 		a.frozenValue = work[0]
 		return work[0], nil
 	}
-	rank := a.percentile / 100.0 * float64(n-1)
+	rank := float64(a.percentile / 100.0 * float64(n-1))
 	lower := int(math.Floor(rank))
 	upper := int(math.Ceil(rank))
 	a.frozenPosition = lower
@@ -966,7 +967,7 @@ func (a *percentileAggregator) aggregateValues(vals []float64) (float64, error) 
 		a.frozenValue = work[lower]
 		return work[lower], nil
 	}
-	a.frozenValue = work[lower] + (rank-float64(lower))*(work[upper]-work[lower])
+	a.frozenValue = work[lower] + float64((rank-float64(lower))*(work[upper]-work[lower]))
 	return a.frozenValue, nil
 }
 

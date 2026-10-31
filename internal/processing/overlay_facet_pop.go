@@ -331,7 +331,7 @@ func (v *FacetPopulationView) DiscreteFrequencyStdev() (float64, bool) {
 		delta := freq - mean
 		mean += delta / float64(n)
 		delta2 := freq - mean
-		m2 += delta * delta2
+		m2 += float64(delta * delta2)
 	}
 	if n == 0 {
 		return 0, false

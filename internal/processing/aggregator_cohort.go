@@ -428,7 +428,7 @@ func (a *ciAggregator) bound2() (float64, error) {
 	}
 	stderr := math.Sqrt(sampleVar) / math.Sqrt(size)
 	z := normalCriticalTwoSided(1 - a.confidence)
-	half := z * stderr
+	half := float64(z * stderr)
 	a.frozenMean = mean
 	a.frozenStderr = stderr
 	a.frozenTCritical = z

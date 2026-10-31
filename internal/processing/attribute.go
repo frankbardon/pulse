@@ -151,7 +151,7 @@ func (a *tscoreAttribute) Row(r *Record, field string) (float64, error) {
 	if a.finalStdDev == 0 {
 		return AttributeNull, nil // 0/0: undefined spread
 	}
-	return ((v-a.finalMean)/a.finalStdDev)*10 + 50, nil
+	return float64(((v-a.finalMean)/a.finalStdDev)*10) + 50, nil
 }
 
 func (a *tscoreAttribute) Compute(records []*Record, field string) ([]float64, error) {
