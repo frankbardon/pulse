@@ -15,7 +15,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — must be `row`. `Level`/`Within` must be `0`.
+`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — must be `row`; any other axis → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime). `Level`/`Within` must be `0`. Any other `Ref` arm beside `Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime).
 
 ## Host shape
 

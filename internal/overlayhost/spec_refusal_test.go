@@ -1,6 +1,7 @@
 package overlayhost
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -122,5 +123,48 @@ func TestCrosstabSpecRefusal_AxisLockedShares(t *testing.T) {
 				t.Fatalf("%s axis %s: %v, want the axis-locked refusal", kind, a, cerr)
 			}
 		}
+	}
+}
+
+// TestCrosstabSpecRefusal_MarginKindsRefuseOtherRefArms: a margin kind
+// (DELTA / INDEX / ZSCORE_VS_MARGIN, SHARE_OF_ROW / _COL / _TOTAL) reads
+// only Ref.Margin, so any other populated Ref arm beside a valid margin is
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {index, kind} — before it
+// the arm was silently ignored. Every OverlayRef pointer field is
+// populated in turn (reflection), so a new arm is covered on arrival.
+func TestCrosstabSpecRefusal_MarginKindsRefuseOtherRefArms(t *testing.T) {
+	t.Parallel()
+
+	refType := reflect.TypeOf(types.OverlayRef{})
+	arms := 0
+	for _, kind := range CrosstabSpecKinds() {
+		if specRules[kind].ref != refMargin {
+			continue
+		}
+		axis := types.MarginAxisGrand
+		if a := CrosstabSpecMarginAxis(kind); a != "" {
+			axis = a
+		}
+		for i := 0; i < refType.NumField(); i++ {
+			f := refType.Field(i)
+			if f.Name == "Margin" {
+				continue
+			}
+			if f.Type.Kind() != reflect.Pointer {
+				t.Fatalf("OverlayRef.%s is not a pointer arm", f.Name)
+			}
+			spec := &types.OverlaySpec{Kind: kind, Scope: types.OverlayScopeCell,
+				Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: axis}}}
+			reflect.ValueOf(&spec.Ref).Elem().Field(i).Set(reflect.New(f.Type.Elem()))
+			cerr := CrosstabSpecRefusal(spec, kind, 3)
+			if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ||
+				cerr.Details["index"] != 3 || cerr.Details["kind"] != string(kind) || len(cerr.Details) != 2 {
+				t.Fatalf("%s with Ref.%s: %v, want the other-arm refusal", kind, f.Name, cerr)
+			}
+			arms++
+		}
+	}
+	if arms == 0 {
+		t.Fatal("no margin kind × arm judged")
 	}
 }

@@ -25,7 +25,9 @@ const (
 	// intra-matrix kinds read the host table inline).
 	refEmpty refRule = iota
 	// refMargin: Ref.Margin must be set and name a known MarginAxis
-	// (the axis-margin family). Other arms are not judged.
+	// (the axis-margin family), and every other Ref arm must be unset —
+	// no margin kind reads one, so a populated arm would be silently
+	// ignored.
 	refMargin
 	// refPrior: Ref.Prior or an empty Ref, Ref.Prior.Lag 0 — the
 	// inferential prior-period kinds on a no-column crosstab, judged
@@ -135,7 +137,9 @@ func CrosstabSpecMarginAxis(kind types.OverlayKind) types.MarginAxis {
 //   - refEmpty kinds: any Ref arm set → PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 //     {index, kind}, "must leave Ref empty (<why>)".
 //   - refMargin kinds: Ref.Margin unset → PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-//     {index, kind}; an unknown Margin.Axis → the same code, {index, kind, axis};
+//     {index, kind}; any other Ref arm set beside it (Sibling, Prior,
+//     Stage, Matrix, …) → the same code, {index, kind}; an unknown
+//     Margin.Axis → the same code, {index, kind, axis};
 //     on an axis-locked kind (OVERLAY_SHARE_OF_ROW / _COL) any other
 //     known axis → the same code, {index, kind, axis}.
 //   - a scope outside the kind's set → PULSE_OVERLAY_SCOPE_UNSUPPORTED
@@ -173,6 +177,12 @@ func CrosstabSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index
 		if spec.Ref.Margin == nil {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"overlay "+kind+" requires Ref.Margin (axis-margin reference)", details())
+		}
+		other := spec.Ref
+		other.Margin = nil
+		if other != (types.OverlayRef{}) {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+				"overlay "+kind+" reads only Ref.Margin (axis-margin reference); leave every other Ref arm empty", details())
 		}
 		if axis := spec.Ref.Margin.Axis; !knownMarginAxes[axis] {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

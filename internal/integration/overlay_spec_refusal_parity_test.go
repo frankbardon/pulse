@@ -33,8 +33,8 @@ type specRefusalCase struct {
 }
 
 // specRefusalCases derives the rows from the shared rule table: a bad
-// Ref and a bad Scope per kind (refMargin kinds: Ref.Margin missing and
-// an unknown axis), plus a Ref arm predict's old six-arm check missed.
+// Ref and a bad Scope per kind (refMargin kinds: Ref.Margin missing, an
+// unknown axis and another Ref arm beside the margin), plus a Ref arm predict's old six-arm check missed.
 func specRefusalCases(t *testing.T) []specRefusalCase {
 	t.Helper()
 	kinds := overlayhost.CrosstabSpecKinds()
@@ -82,9 +82,17 @@ func specRefusalCases(t *testing.T) []specRefusalCase {
 			none.Ref = types.OverlayRef{}
 			axis := good
 			axis.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: "diagonal"}}
+			// Another Ref arm beside a valid margin: no margin kind reads
+			// one, so it is refused, never silently ignored.
+			sibling := good
+			sibling.Ref = types.OverlayRef{Margin: good.Ref.Margin, Sibling: &types.OverlaySiblingRef{Field: "g", Value: "a"}}
+			matrix := good
+			matrix.Ref = types.OverlayRef{Margin: good.Ref.Margin, Matrix: &types.OverlayMatrixRef{Name: "m"}}
 			out = append(out,
 				specRefusalCase{string(kind) + "/ref_missing", none, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
-				specRefusalCase{string(kind) + "/ref_axis", axis, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE})
+				specRefusalCase{string(kind) + "/ref_axis", axis, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+				specRefusalCase{string(kind) + "/ref_other_sibling", sibling, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+				specRefusalCase{string(kind) + "/ref_other_matrix", matrix, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE})
 			if locked != "" {
 				// An axis-locked share (SHARE_OF_ROW / _COL): a known
 				// axis other than its own is refused too, never run as
