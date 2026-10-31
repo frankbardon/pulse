@@ -56,13 +56,13 @@ func (e *glmEngine) glmSandwich(xRows, y, eta, mu, prior []float64, keys []robus
 		for a := 0; a < q; a++ {
 			s := 0.0
 			for b := 0; b < q; b++ {
-				s += bread[a][b] * xi[b]
+				s += float64(bread[a][b] * xi[b])
 			}
 			bx[a] = s
 		}
 		quad := 0.0
 		for a := 0; a < q; a++ {
-			quad += xi[a] * bx[a]
+			quad += float64(xi[a] * bx[a])
 		}
 		rows[i] = sandwichRow{
 			score:   score,

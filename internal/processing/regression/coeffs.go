@@ -264,9 +264,9 @@ func LeverageForRow(fit *AttributeFit, x []float64, w float64) float64 {
 	for i := 0; i < p; i++ {
 		row := 0.0
 		for j := 0; j < p; j++ {
-			row += fit.GramInverse.At(i, j) * dx[j]
+			row += float64(fit.GramInverse.At(i, j) * dx[j])
 		}
-		quad += dx[i] * row
+		quad += float64(dx[i] * row)
 	}
 	return w * (1.0/fit.SumW + quad)
 }

@@ -59,7 +59,7 @@ func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolve
 	// The penalty scale is Σw (n unweighted): β is invariant to
 	// rescaling the weights and, under frequency, equals the expanded
 	// rows (glmnet's (1/2Σw)·Σw·r² objective).
-	scaled := a.sumW * alpha
+	scaled := float64(a.sumW * alpha)
 	for i := 0; i < p; i++ {
 		if unpenalized != nil && unpenalized[i] {
 			continue
@@ -90,21 +90,21 @@ func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolve
 	// which avoids re-sweeping the rows.
 	intercept := a.meanY
 	for j := 0; j < p; j++ {
-		intercept -= coeffs[j] * a.meanX[j]
+		intercept -= float64(coeffs[j] * a.meanX[j])
 	}
 
 	// RSS = m2YY − 2·β·m2XY + βᵀ·m2XX·β
 	rss := a.m2YY
 	for j := 0; j < p; j++ {
-		rss -= 2.0 * coeffs[j] * a.m2XY[j]
+		rss -= float64(2.0 * coeffs[j] * a.m2XY[j])
 	}
 	for i := 0; i < p; i++ {
 		// row sum: Σ_j m2XX[i,j] · β_j
 		row := 0.0
 		for j := 0; j < p; j++ {
-			row += a.m2XX[i*p+j] * coeffs[j]
+			row += float64(a.m2XX[i*p+j] * coeffs[j])
 		}
-		rss += coeffs[i] * row
+		rss += float64(coeffs[i] * row)
 	}
 	if rss < 0 {
 		if rss > -1e-9*a.m2YY {
@@ -171,11 +171,11 @@ func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolve
 	for i := 0; i < p; i++ {
 		row := 0.0
 		for j := 0; j < p; j++ {
-			row += sandwich.At(i, j) * a.meanX[j]
+			row += float64(sandwich.At(i, j) * a.meanX[j])
 		}
-		quad += a.meanX[i] * row
+		quad += float64(a.meanX[i] * row)
 	}
-	seInt := sigma2Gram*(1.0/a.sumW) + sigma2Gram*quad
+	seInt := float64(sigma2Gram*(1.0/a.sumW)) + float64(sigma2Gram*quad)
 	if seInt < 0 {
 		seInt = 0
 	}

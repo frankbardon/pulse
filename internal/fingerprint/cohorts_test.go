@@ -21,6 +21,7 @@ var generatedCohorts = map[string]func(*testing.T) []byte{
 	"mtcars_groups.pulse": mtcarsGroupsCohort,
 	"mtcars_rm.pulse":     mtcarsRMCohort,
 	"mtcars_rep7.pulse":   mtcarsRep7Cohort,
+	"mtcars_t.pulse":      mtcarsTimeCohort,
 }
 
 // mtcarsAMCohort is mtcars' mpg (f64), am as a categorical_u8 split
@@ -284,5 +285,30 @@ func mtcarsRep7Cohort(t *testing.T) []byte {
 		{name: "wt"}, {name: "mpg"},
 		{name: "am", levels: []string{"0", "1"}},
 		{name: "parity", levels: []string{"0", "1"}},
+	}, out)
+}
+
+// mtcarsTimeCohort is mtcars' mpg, wt, hp and qsec (f64) plus t, the
+// row index (f64): the order_by key a REG_OLS Newey–West (hac)
+// covariance needs, which mtcars lacks.
+func mtcarsTimeCohort(t *testing.T) []byte {
+	t.Helper()
+	header, rows := readMtcarsCSV(t)
+	col := func(name string) int {
+		for j, h := range header {
+			if h == name {
+				return j
+			}
+		}
+		t.Fatalf("mtcars.csv has no column %q", name)
+		return -1
+	}
+	mpg, wt, hp, qsec := col("mpg"), col("wt"), col("hp"), col("qsec")
+	var out [][]string
+	for i, r := range rows {
+		out = append(out, []string{r[mpg], r[wt], r[hp], r[qsec], strconv.Itoa(i)})
+	}
+	return buildCohort(t, []genColumn{
+		{name: "mpg"}, {name: "wt"}, {name: "hp"}, {name: "qsec"}, {name: "t"},
 	}, out)
 }

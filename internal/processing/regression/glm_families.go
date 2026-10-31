@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // glmFamily bundles the link function, inverse link, link derivative,
@@ -75,9 +76,9 @@ type glmFamily struct {
 // when μ rounds to 1.
 func log1mMu(mu float64) float64 {
 	if mu < 0.5 {
-		return math.Log1p(-mu)
+		return detmath.Log1p(-mu)
 	}
-	return math.Log(math.Max(1-mu, math.SmallestNonzeroFloat64))
+	return detmath.Log(math.Max(1-mu, math.SmallestNonzeroFloat64))
 }
 
 // epsilons used for the link and starting-value clamps (LinkFunc,
@@ -100,7 +101,7 @@ var binomialLogit = glmFamily{
 		} else if mu > 1-binomialEps {
 			mu = 1 - binomialEps
 		}
-		return math.Log(mu / (1 - mu))
+		return detmath.Log(mu / (1 - mu))
 	},
 	InverseLink: func(eta float64) float64 {
 		// 1 / (1 + e^{-η}). Branch on η to keep both tails numerically
@@ -143,10 +144,10 @@ var binomialLogit = glmFamily{
 		// at the smallest positive float so the term stays finite.
 		var a, b float64
 		if y > 0 {
-			a = y * math.Log(y/math.Max(mu, math.SmallestNonzeroFloat64))
+			a = y * detmath.Log(y/math.Max(mu, math.SmallestNonzeroFloat64))
 		}
 		if y < 1 {
-			b = (1 - y) * (math.Log(1-y) - log1mMu(mu))
+			b = (1 - y) * (detmath.Log(1-y) - log1mMu(mu))
 		}
 		return a + b
 	},
@@ -160,7 +161,7 @@ var binomialLogit = glmFamily{
 		return yBar
 	},
 	MuStart: func(y, w float64) float64 {
-		return (w*y + 0.5) / (w + 1)
+		return (float64(w*y) + 0.5) / (w + 1)
 	},
 }
 
@@ -173,7 +174,7 @@ var poissonLog = glmFamily{
 		if mu < poissonEps {
 			mu = poissonEps
 		}
-		return math.Log(mu)
+		return detmath.Log(mu)
 	},
 	InverseLink: func(eta float64) float64 {
 		return math.Exp(eta)
@@ -191,7 +192,7 @@ var poissonLog = glmFamily{
 		// Unclamped but for μ underflowing to 0.
 		var a float64
 		if y > 0 {
-			a = y * math.Log(y/math.Max(mu, math.SmallestNonzeroFloat64))
+			a = y * detmath.Log(y/math.Max(mu, math.SmallestNonzeroFloat64))
 		}
 		return a - (y - mu)
 	},
@@ -259,7 +260,7 @@ var gammaInverse = glmFamily{
 		if y < gammaEps {
 			y = gammaEps
 		}
-		return (y-mu)/mu - math.Log(y/mu)
+		return (y-mu)/mu - detmath.Log(y/mu)
 	},
 	SafeMean: func(yBar float64) float64 {
 		if yBar < gammaEps {

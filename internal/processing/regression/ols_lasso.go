@@ -106,8 +106,8 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 	// Σw in place of n (exactly n unweighted): the objective is
 	// (1/2Σw)·Σw·r² + penalty, scale-free in w.
 	n := a.sumW
-	lambdaL1 := alpha * l1Ratio
-	lambdaL2 := alpha * (1 - l1Ratio)
+	lambdaL1 := float64(alpha * l1Ratio)
+	lambdaL2 := float64(alpha * (1 - l1Ratio))
 
 	// Coordinate descent on the RAW centred Gram (glmnet
 	// standardize = FALSE): the penalty reads each coefficient on its
@@ -134,7 +134,7 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 				if k == j {
 					continue
 				}
-				r -= a.m2XX[j*p+k] * coeffs[k]
+				r -= float64(a.m2XX[j*p+k] * coeffs[k])
 			}
 			newBeta := softThreshold(r/n, lambdaL1) / denom[j]
 			delta := scale[j] * math.Abs(newBeta-coeffs[j])
@@ -164,20 +164,20 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 
 	intercept := a.meanY
 	for j := 0; j < p; j++ {
-		intercept -= coeffs[j] * a.meanX[j]
+		intercept -= float64(coeffs[j] * a.meanX[j])
 	}
 
 	// RSS on the original scale: m2YY − 2·β·m2XY + βᵀ·m2XX·β.
 	rss := a.m2YY
 	for j := 0; j < p; j++ {
-		rss -= 2.0 * coeffs[j] * a.m2XY[j]
+		rss -= float64(2.0 * coeffs[j] * a.m2XY[j])
 	}
 	for i := 0; i < p; i++ {
 		row := 0.0
 		for j := 0; j < p; j++ {
-			row += a.m2XX[i*p+j] * coeffs[j]
+			row += float64(a.m2XX[i*p+j] * coeffs[j])
 		}
-		rss += coeffs[i] * row
+		rss += float64(coeffs[i] * row)
 	}
 	if rss < 0 {
 		if rss > -1e-9*a.m2YY {

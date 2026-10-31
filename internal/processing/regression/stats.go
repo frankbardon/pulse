@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // pValueForCoefficient returns the two-sided p-value of a coefficient
@@ -69,6 +70,6 @@ func waldZTwoSidedP(coef, se float64) float64 {
 	if math.IsInf(z, 0) {
 		return 0
 	}
-	// Two-sided: 2 · (1 − Φ(|z|)) = math.Erfc(|z|/√2).
-	return math.Erfc(math.Abs(z) / math.Sqrt2)
+	// Two-sided: 2 · (1 − Φ(|z|)) = detmath.Erfc(|z|/√2).
+	return detmath.Erfc(math.Abs(z) / math.Sqrt2)
 }

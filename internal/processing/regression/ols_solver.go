@@ -100,14 +100,14 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	intercept := a.meanY
 	betaDotMeanX := 0.0
 	for j := 0; j < p; j++ {
-		intercept -= coeffs[j] * a.meanX[j]
+		intercept -= float64(coeffs[j] * a.meanX[j])
 		betaDotMeanX += coeffs[j] * a.meanX[j]
 	}
 	_ = betaDotMeanX // documented derivation; consumed by SE(intercept) below
 
 	rss := a.m2YY
 	for j := 0; j < p; j++ {
-		rss -= coeffs[j] * a.m2XY[j]
+		rss -= float64(coeffs[j] * a.m2XY[j])
 	}
 	// Numerical floor: tiny negative RSS from cancellation rounds to 0.
 	if rss < 0 {
@@ -164,9 +164,9 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	for i := 0; i < p; i++ {
 		row := 0.0
 		for j := 0; j < p; j++ {
-			row += invXX.At(i, j) * a.meanX[j]
+			row += float64(invXX.At(i, j) * a.meanX[j])
 		}
-		quad += a.meanX[i] * row
+		quad += float64(a.meanX[i] * row)
 	}
 	seInt := sigma2Gram * (1.0/a.sumW + quad)
 	if seInt < 0 {

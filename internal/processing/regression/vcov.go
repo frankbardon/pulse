@@ -57,7 +57,7 @@ func olsVcov(s *olsSolveResult, meanX []float64) [][]float64 {
 		// Cov(β₀, β_j) = −Σ_k μ_x[k]·σ̂²·C[k, j].
 		c := 0.0
 		for k := 0; k < p; k++ {
-			c -= meanX[k] * (s.sigma2Gram * s.slopeCov(k, j))
+			c -= float64(meanX[k] * (s.sigma2Gram * s.slopeCov(k, j)))
 		}
 		v[0][j+1], v[j+1][0] = c, c
 	}
