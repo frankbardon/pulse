@@ -855,7 +855,7 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	sort.Float64s(b)
 	D := ksTwoSampleD(a, b)
 	p := ksTwoSampleP(a, nil, b, nil, D)
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(k.spec),
 		Type:       types.TEST_KS,
 		Variant:    "two_sample_post",
@@ -867,5 +867,7 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"groups": keys,
 			"n":      []int{len(a), len(b)},
 		},
-	}, nil
+	}
+	res.Warnings = append(res.Warnings, ksTiesWarnings(a, nil, b, nil)...)
+	return res, nil
 }

@@ -24,6 +24,7 @@ func overlayOracleCheck(t *testing.T, name string) *oracleCheck {
 
 type chiSqVsPopOracle struct {
 	Name         string    `json:"name"`
+	TruncatedAt  int       `json:"truncated_at"`
 	SubsetValues []string  `json:"subset_values"`
 	SubsetCounts []float64 `json:"subset_counts"`
 	PopValues    []string  `json:"pop_values"`
@@ -58,6 +59,7 @@ func chiSqVsPopOracleLayer(t *testing.T, k chiSqVsPopOracle) (types.OverlayLayer
 		int64(len(k.PopValues)), facetTotal(k.PopCounts), facetTotal(k.PopCounts), 0)
 	host := newFacetResultDiscrete("category", facetCounts(k.SubsetValues, k.SubsetCounts),
 		int64(len(k.SubsetValues)), facetTotal(k.SubsetCounts), facetTotal(k.SubsetCounts), 0)
+	host.Fields["category"].Discrete.TruncatedAt = k.TruncatedAt
 	view, err := ResolveFacetPopulation(pop, "category")
 	if err != nil {
 		t.Fatalf("%s: ResolveFacetPopulation: %v", k.Name, err)
@@ -82,7 +84,9 @@ func chiSqVsPopOracleCase(t *testing.T, name string) chiSqVsPopOracle {
 }
 
 // TestReferenceOracle_OverlayChiSqVsPop: statistic, df and p against R's
-// chisq.test(x[C], p = pop[C], rescale.p = TRUE); the scalar payload is
+// chisq.test(x[C], p = pop[C], rescale.p = TRUE), C carrying a complete
+// listing's missing population categories at observed 0 and a truncated
+// listing's listed values only (E1-S2); the scalar payload is
 // the statistic; a subset value outside C warns PULSE_OVERLAY_REF_ZERO
 // and an expected count below 5 PULSE_OVERLAY_EXPECTED_LOW.
 func TestReferenceOracle_OverlayChiSqVsPop(t *testing.T) {
@@ -106,7 +110,10 @@ func TestReferenceOracle_OverlayChiSqVsPop(t *testing.T) {
 		for _, w := range warnings {
 			codes[w.Code]++
 		}
-		if want := len(k.SubsetValues) - len(k.Compared); codes["PULSE_OVERLAY_REF_ZERO"] != want {
+		if s.Count == nil || *s.Count != len(k.Compared) {
+			t.Errorf("%s: summary count %v, want %d compared categories", k.Name, s.Count, len(k.Compared))
+		}
+		if want := len(k.SubsetValues) - listedCompared(k); codes["PULSE_OVERLAY_REF_ZERO"] != want {
 			t.Errorf("%s: %d PULSE_OVERLAY_REF_ZERO warnings, want %d (subset values outside C)", k.Name, codes["PULSE_OVERLAY_REF_ZERO"], want)
 		}
 		if low := k.ExpectedMin < 5; (codes["PULSE_OVERLAY_EXPECTED_LOW"] > 0) != low {
@@ -114,6 +121,23 @@ func TestReferenceOracle_OverlayChiSqVsPop(t *testing.T) {
 		}
 	}
 	c.done(len(doc.Cases))
+}
+
+// listedCompared counts the compared categories the subset lists; the
+// rest of C are population categories a complete listing lacks
+// (observed 0, E1-S2).
+func listedCompared(k chiSqVsPopOracle) int {
+	listed := map[string]bool{}
+	for _, v := range k.SubsetValues {
+		listed[v] = true
+	}
+	n := 0
+	for _, v := range k.Compared {
+		if listed[v] {
+			n++
+		}
+	}
+	return n
 }
 
 // --------------------------------------------------- OVERLAY_CHISQ_VS_REF

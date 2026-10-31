@@ -22,8 +22,11 @@ import (
 //
 // Math:
 //
-//	C             = subset values whose population count is > 0
-//	observed[v]   = host.Discrete.Values[v].Count            // v ∈ C
+//	C             = subset values whose population count is > 0,
+//	                plus — when the subset listing is complete
+//	                (TruncatedAt == 0) — every population category the
+//	                subset does not list, at observed 0
+//	observed[v]   = host.Discrete.Values[v].Count (0 if unlisted) // v ∈ C
 //	subset_N      = Σ_{v∈C} observed[v]
 //	share[v]      = pop_count[v] / Σ_{u∈C} pop_count[u]      // renormalised
 //	expected[v]   = share[v] * subset_N                       // Σ expected = subset_N
@@ -35,7 +38,10 @@ import (
 // OS-01): population null rows and categories truncated out of a
 // DiscreteTopK listing never shrink the expected counts. A subset value
 // the population lacks is outside C (OS-02) and reported with one
-// PULSE_OVERLAY_REF_ZERO warning per value. Equals R's
+// PULSE_OVERLAY_REF_ZERO warning per value. A population category the
+// complete subset listing lacks is observed 0, not dropped (E1-S2); under
+// DiscreteTopK truncation an unlisted category is unknown, not zero, so
+// only the listed values are compared. Equals R's
 // chisq.test(x, p, rescale.p = TRUE) over C.
 //
 // Discrete arm only: χ² goodness-of-fit requires categorical buckets to
@@ -205,7 +211,7 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 		comparedP []float64
 		observedT float64
 		popCompT  float64
-		observedN int
+		observedN int // compared categories |C|
 	)
 	for i := range values {
 		pc := popByValue[values[i].Value]
@@ -228,6 +234,32 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 		observedT += float64(values[i].Count)
 		popCompT += float64(pc)
 		observedN++
+	}
+	// A complete subset listing (no DiscreteTopK truncation) shows
+	// every category the subset holds, so a population category it does
+	// not list has ZERO subset rows: it enters C with observed 0 and its
+	// share of the expected counts (E1-S2). Leaving it out made the test
+	// blind to a category that went missing. A truncated listing cannot
+	// tell an absent category from one cut below the top K, so it keeps
+	// the listed-values-only comparison. Population order keeps the cells
+	// deterministic.
+	if host.Discrete.TruncatedAt == 0 && observedT > 0 {
+		listed := make(map[string]struct{}, len(values))
+		for i := range values {
+			listed[values[i].Value] = struct{}{}
+		}
+		for _, vc := range popCounts {
+			if vc.Count <= 0 {
+				continue
+			}
+			if _, ok := listed[vc.Value]; ok {
+				continue
+			}
+			comparedX = append(comparedX, 0)
+			comparedP = append(comparedP, float64(vc.Count))
+			popCompT += float64(vc.Count)
+			observedN++
+		}
 	}
 	if observedN == 0 || observedT <= 0 {
 		return chiSqVsPopDegenerate(spec, subsetN, len(values),
@@ -306,8 +338,9 @@ func chiSqVsPopDegenerate(spec *types.OverlaySpec, subsetN int64, valueN int, re
 // renderer-facing test result (Statistic + PValue + Parameters{"df"})
 // rides on the layer-level Summary. expectedMin is the minimum
 // expected-cell value (for forensic debugging via warning Details);
-// observedN is the count of host values that contributed observed
-// counts (used to populate Summary.Count). Pointer arguments for
+// observedN is the count of compared categories, df + 1 — the listed
+// host values the population shows plus, on a complete listing, the
+// population categories at observed 0 (used to populate Summary.Count). Pointer arguments for
 // Statistic / PValue let the caller surface NaN values explicitly
 // (degenerate paths) without conflating "not reported" with "NaN".
 func buildChiSqVsPopLayer(spec *types.OverlaySpec, scalar float64, statPtr *float64, pvPtr *float64, df float64, observedN int, expectedMin float64) types.OverlayLayer {

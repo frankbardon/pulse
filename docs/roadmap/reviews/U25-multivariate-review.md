@@ -110,3 +110,12 @@ Skewness χ² = N·b1p/6 on p(p+1)(p+2)/6 df, times the small-sample factor (p+1
 8. MAT_PCA is singular only when `InverseSPD` fails, while the tests use `SymEigen` against `RankTolerance` (#408).
 
 Follow-ups filed: [TODO](../TODO.md) #401–#415 under "Follow-ups from U25".
+
+## Human sign-off (U33, #206)
+
+Signed off on 2026-10-31 by the owner (@frankbardon), the named statistics
+reviewer. Every open item and owner call in this record is accepted as
+documented; where a call asked whether to change behaviour, the decision is to
+keep the current behaviour. Items already fixed by later units were confirmed
+against the code. Future changes to the paths this record covers need the
+reviewer's approval through `.github/CODEOWNERS`.

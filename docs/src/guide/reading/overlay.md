@@ -106,7 +106,7 @@ Chi-square goodness-of-fit test on a facet: checks whether a subset's category m
 
 #### `scalar`
 
-The chi-square statistic, also in summary.statistic: the subset's category counts against the counts the population's shares predict at the subset's size, with the shares rescaled over the categories both sides show (population nulls and categories cut from a top-K listing are left out). 0 means the subset's mix matches the population's; read summary.p_value rather than the raw value.
+The chi-square statistic, also in summary.statistic: the subset's category counts against the counts the population's shares predict at the subset's size, with the shares rescaled over the compared categories (population nulls are left out). 0 means the subset's mix matches the population's; read summary.p_value rather than the raw value.
 
 **Caveats:**
 
@@ -127,11 +127,11 @@ Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
 #### `summary.parameters.df`
 
-Degrees of freedom: the number of compared categories (the subset's facet values that the population also shows), minus 1.
+Degrees of freedom: the number of compared categories, minus 1. The compared categories are the subset's facet values that the population also shows plus, when the subset's listing is complete, every population category the subset lacks, counted at 0.
 
 **Caveats:**
 
-- A population category that is missing from the subset's facet values is left out of both the statistic and df, which understates a departure made of absent categories.
+- When discrete_top_k cuts the subset's listing (truncated_at above 0), a population category missing from it may still hold subset rows below the top K, so only the listed values are compared; a departure made of absent categories is then understated. Leave discrete_top_k unset to test every category.
 - A subset category the population never shows is impossible under the population's mix, so it cannot be tested: it is left out of the statistic, the subset's total and df, and Pulse warns (PULSE_OVERLAY_REF_ZERO) once per such category. Read those warnings as departures in their own right.
 
 <a id="op-overlay_chisq_vs_ref"></a>

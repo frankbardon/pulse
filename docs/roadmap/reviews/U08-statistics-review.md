@@ -723,3 +723,12 @@ for U36 (reference oracles and runtime fixes) and is not changed here.
 - **No external oracle for the descriptive estimators.** Population g1 / g2,
   type-7 percentiles, Kish n_eff and the hat-matrix leverage are pinned by
   in-repo tests, not by R. This is owned by U36.
+
+## Human sign-off (U33, #206)
+
+Signed off on 2026-10-31 by the owner (@frankbardon), the named statistics
+reviewer. Every open item and owner call in this record is accepted as
+documented; where a call asked whether to change behaviour, the decision is to
+keep the current behaviour. Items already fixed by later units were confirmed
+against the code. Future changes to the paths this record covers need the
+reviewer's approval through `.github/CODEOWNERS`.

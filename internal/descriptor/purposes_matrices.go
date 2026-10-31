@@ -153,7 +153,7 @@ var purposeMatPCA = descriptor.Purpose{
 		{When: "you only want to see which measures go together, pair by pair", Use: "MAT_CORRELATION"},
 	},
 	Assumptions: []string{
-		"The measures are numeric and related by straight-line links; components summarise shared spread, they are not proven causes.",
+		"The measures are numeric and related by straight-line links; components summarise the measures' total spread, they are not proven causes.",
 		"On a covariance the measures with the largest spread dominate; use the correlation unless the units are shared and comparable.",
 		"KMO and Bartlett's test say whether the correlations are strong enough to summarise; read them before the components.",
 		"A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.",
@@ -164,7 +164,7 @@ var purposeMatPCA = descriptor.Purpose{
 
 var purposeMatReliability = descriptor.Purpose{
 	Plain:   "How consistently a set of rating items measures one thing, before you add them up into a score, with a check of how each item fits the rest.",
-	KnownAs: []string{"cronbach's alpha", "scale reliability", "internal consistency", "mcdonald's omega"},
+	KnownAs: []string{"cronbach's alpha", "scale reliability", "internal consistency", "mcdonald's omega", "omega total"},
 	Intents: []string{IntentMeasureConstruct},
 	Questions: []string{
 		"Are these five satisfaction questions reliable enough to average into one score?",
