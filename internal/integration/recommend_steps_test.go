@@ -14,8 +14,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// stepValues fills a materialise plan's placeholders: the derived
-// cohort's path, the model's other role, and the producers' needs.
+// stepValues fills a draft's placeholders: the producers' needs.
 var stepValues = map[string]any{
 	"out":        "derived.pulse",
 	"target":     "y",
@@ -62,12 +61,11 @@ func fillSteps(t *testing.T, v any) any {
 	return v
 }
 
-// TestRecommend_MaterializeStepsRun: bound over a battery cohort, every
-// measure_construct draft carrying Steps runs as its plan says — the
-// pulse_materialize step through Pulse.Materialize, writing the labelled
-// column, then the pulse_process step's model over the written cohort,
-// reading that column.
-func TestRecommend_MaterializeStepsRun(t *testing.T) {
+// TestRecommend_ScoreDraftsNeedNoPlan: bound over a battery cohort, no
+// measure_construct draft carries a materialise plan, and none needs
+// one — each score producer's draft runs with a REG_OLS beside it in
+// the SAME request, the model reading the score's label.
+func TestRecommend_ScoreDraftsNeedNoPlan(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -93,21 +91,23 @@ func TestRecommend_MaterializeStepsRun(t *testing.T) {
 	if _, err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
-	ran := runPlans(t, p, "measure_construct", "battery.pulse", "q1")
-	for _, op := range []string{"ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "ATTR_SCALE_SCORE"} {
+	ran := runInRequest(t, p, "measure_construct", "battery.pulse", "q1", map[string]string{
+		"ATTR_PC_SCORE": "predictors", "ATTR_FACTOR_SCORE": "predictors", "ATTR_SEM_SCORE": "predictors", "ATTR_SCALE_SCORE": "target",
+	})
+	for _, op := range []string{"ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "ATTR_SEM_SCORE", "ATTR_SCALE_SCORE"} {
 		if !ran[op] {
-			t.Errorf("%s: no plan ran", op)
+			t.Errorf("%s: no draft ran with its model", op)
 		}
 	}
 }
 
-// runPlans recommends intent bound to cohort and runs every plan a
-// draft carries — the pulse_materialize step through Pulse.Materialize,
-// which must write exactly the labelled column, then the pulse_process
-// step's model over the written cohort reading that column, with its
-// other role filled by the source field other. It returns the
-// operators whose plan ran.
-func runPlans(t *testing.T, p *pulse.Pulse, intent, cohort, other string) map[string]bool {
+// runInRequest recommends intent bound to cohort, fails on any draft
+// carrying steps, and runs each draft of an operator in roles with one
+// REG_OLS added to the same request: the model reads the draft's
+// derived label (relabelled "derived") in its role, the other role
+// filled by the source field other. It returns the operators whose
+// draft ran with a fitted model.
+func runInRequest(t *testing.T, p *pulse.Pulse, intent, cohort, other string, roles map[string]string) map[string]bool {
 	t.Helper()
 	ctx := context.Background()
 	res, err := p.Recommend(ctx, descriptor.RecommendRequest{Intent: intent, Cohort: &types.Cohort{Filename: cohort}, Limit: 1000})
@@ -116,73 +116,56 @@ func runPlans(t *testing.T, p *pulse.Pulse, intent, cohort, other string) map[st
 	}
 	ran := map[string]bool{}
 	for _, r := range res.Recommendations {
-		if len(r.Steps) == 0 {
+		if wire, _ := json.Marshal(r); strings.Contains(string(wire), `"steps"`) {
+			t.Errorf("%s: draft carries steps: %s", r.Operator, wire)
+		}
+		role, ok := roles[r.Operator]
+		if !ok || ran[r.Operator] {
 			continue
 		}
-		var mat struct {
-			Request types.Request `json:"request"`
-			Out     string        `json:"out"`
-		}
 		var v any
-		if err := json.Unmarshal(r.Steps[0].Request, &v); err != nil {
+		if err := json.Unmarshal(r.Request, &v); err != nil {
 			t.Fatal(err)
 		}
 		raw, _ := json.Marshal(fillSteps(t, v))
-		if err := json.Unmarshal(raw, &mat); err != nil {
+		var req types.Request
+		if err := json.Unmarshal(raw, &req); err != nil {
 			t.Fatalf("%s: %v\n%s", r.Operator, err, raw)
 		}
-		got, err := p.Materialize(ctx, &mat.Request, mat.Out, pulse.MaterializeOptions{Overwrite: true})
+		const label = "derived"
+		switch {
+		case len(req.Attributes) == 1 && len(req.Features) == 0:
+			req.Attributes[0].Label = label
+		case len(req.Features) == 1 && len(req.Attributes) == 0:
+			req.Features[0].Label = label
+		default:
+			t.Fatalf("%s: draft has no single derived entry: %s", r.Operator, raw)
+		}
+		model := &types.RegressionSpec{Type: "REG_OLS", Target: other, Predictors: []string{label}}
+		if role == "target" {
+			model.Target, model.Predictors = label, []string{other}
+		}
+		req.Regressions = append(req.Regressions, model)
+		out, err := p.Process(ctx, &req)
 		if err != nil {
-			t.Fatalf("%s: materialize step: %v\n%s", r.Operator, err, raw)
-		}
-		label := derivedLabel(mat.Request)
-		if len(got.DerivedColumns) != 1 || got.DerivedColumns[0] != label {
-			t.Errorf("%s: derived columns %v, want [%s]", r.Operator, got.DerivedColumns, label)
-		}
-		if err := json.Unmarshal(r.Steps[1].Request, &v); err != nil {
-			t.Fatal(err)
-		}
-		raw, _ = json.Marshal(fillSteps(t, v))
-		// The fixture has no y: the model reads a source field instead.
-		raw = []byte(strings.ReplaceAll(string(raw), `"y"`, `"`+other+`"`))
-		var model types.Request
-		if err := json.Unmarshal(raw, &model); err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(string(raw), `"`+label+`"`) {
-			t.Errorf("%s: model step does not read %s: %s", r.Operator, label, raw)
-		}
-		out, err := p.Process(ctx, &model)
-		if err != nil {
-			t.Fatalf("%s: model step: %v\n%s", r.Operator, err, raw)
+			t.Fatalf("%s: draft + model: %v\n%s", r.Operator, err, raw)
 		}
 		if len(out.Regressions) != 1 || out.Regressions[0].Error != nil {
-			t.Errorf("%s: model step regression %+v", r.Operator, out.Regressions)
+			t.Errorf("%s: model regression %+v", r.Operator, out.Regressions)
+			continue
 		}
 		ran[r.Operator] = true
 	}
 	return ran
 }
 
-// derivedLabel is the label of a materialize request's one derived
-// entry: an attribute's or a feature's.
-func derivedLabel(req types.Request) string {
-	if len(req.Attributes) == 1 {
-		return req.Attributes[0].Label
-	}
-	if len(req.Features) == 1 {
-		return req.Features[0].Label
-	}
-	return ""
-}
-
-// TestRecommend_FeatureMaterializeStepsRun: bound over a cohort with a
-// skewed positive field and a category, the feature producers' plans
-// run end to end — FEAT_LOG and FEAT_SQRT (distribution_shape) and
-// FEAT_FREQUENCY_ENCODE (composition): materialize writes the labelled
-// feature column, then REG_OLS on the derived cohort reads it as a
+// TestRecommend_FeatureDraftsNeedNoPlan: bound over a cohort with a
+// skewed positive field and a category, the feature producers — FEAT_LOG
+// and FEAT_SQRT (distribution_shape), FEAT_FREQUENCY_ENCODE
+// (composition) — carry no materialise plan, and each draft runs with a
+// REG_OLS in the same request reading the feature column as a
 // predictor.
-func TestRecommend_FeatureMaterializeStepsRun(t *testing.T) {
+func TestRecommend_FeatureDraftsNeedNoPlan(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -213,13 +196,14 @@ func TestRecommend_FeatureMaterializeStepsRun(t *testing.T) {
 	if _, err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
-	ran := runPlans(t, p, "distribution_shape", "households.pulse", "spend")
-	for op, ok := range runPlans(t, p, "composition", "households.pulse", "spend") {
+	roles := map[string]string{"FEAT_LOG": "predictors", "FEAT_SQRT": "predictors", "FEAT_FREQUENCY_ENCODE": "predictors"}
+	ran := runInRequest(t, p, "distribution_shape", "households.pulse", "spend", roles)
+	for op, ok := range runInRequest(t, p, "composition", "households.pulse", "spend", roles) {
 		ran[op] = ok
 	}
 	for _, op := range []string{"FEAT_LOG", "FEAT_SQRT", "FEAT_FREQUENCY_ENCODE"} {
 		if !ran[op] {
-			t.Errorf("%s: no plan ran", op)
+			t.Errorf("%s: no draft ran with its model", op)
 		}
 	}
 }

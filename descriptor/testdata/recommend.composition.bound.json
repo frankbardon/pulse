@@ -319,52 +319,6 @@
             "when": "the field has few categories and each should be its own column",
             "use": "FEAT_ONE_HOT"
           }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "cohort": {
-                  "filename": "recommend.pulse"
-                },
-                "features": [
-                  {
-                    "field": "region",
-                    "label": "frequency",
-                    "type": "FEAT_FREQUENCY_ENCODE"
-                  }
-                ]
-              }
-            },
-            "placeholders": [
-              "out"
-            ],
-            "why": "Write the frequency column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "frequency"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading frequency as a predictor."
-          }
         ]
       },
       {
@@ -392,52 +346,6 @@
           {
             "when": "the field has few categories and each should be its own column",
             "use": "FEAT_ONE_HOT"
-          }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "cohort": {
-                  "filename": "recommend.pulse"
-                },
-                "features": [
-                  {
-                    "field": "plan",
-                    "label": "frequency",
-                    "type": "FEAT_FREQUENCY_ENCODE"
-                  }
-                ]
-              }
-            },
-            "placeholders": [
-              "out"
-            ],
-            "why": "Write the frequency column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "frequency"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading frequency as a predictor."
           }
         ]
       },
@@ -467,52 +375,6 @@
             "when": "the field has few categories and each should be its own column",
             "use": "FEAT_ONE_HOT"
           }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "cohort": {
-                  "filename": "recommend.pulse"
-                },
-                "features": [
-                  {
-                    "field": "churned",
-                    "label": "frequency",
-                    "type": "FEAT_FREQUENCY_ENCODE"
-                  }
-                ]
-              }
-            },
-            "placeholders": [
-              "out"
-            ],
-            "why": "Write the frequency column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "frequency"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading frequency as a predictor."
-          }
         ]
       }
     ],
@@ -522,4 +384,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 064fc13bf8cb04c6d7d7cc5cad264be2536022f80a93e9798f18b71149640ef7
+// golden-hash: 76813be82bbd8340ba97da262034a63df9e9131b306f2282486b0821109cb2f6

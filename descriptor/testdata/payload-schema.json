@@ -4702,6 +4702,8 @@
           "type": "object"
         },
         "steps": {
+          "deprecated": true,
+          "description": "Deprecated: always absent. Recommend drafts no multi-request plan; a model reads a label its own request derives.",
           "items": {
             "$ref": "#/$defs/RecommendStep"
           },
@@ -6936,4 +6938,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: f76748eb7ead194a02d8c85ab296bf843803687a40a722b98ba8bf745985ed02
+// golden-hash: 70175b67aae2e72c0f0d0ee0d1e1bfe2827335479944d12c026ce9733cfbd9eb

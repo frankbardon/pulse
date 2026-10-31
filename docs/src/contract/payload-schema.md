@@ -84,10 +84,9 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   entries, the `Response.warnings` shape — `[]string` before U44),
   `LookupResult`, `RecommendResult` (its draft `request`
   is an open object: a `"<placeholder>"` may sit where `Request` takes a
-  number; so is each `steps[].request`, the additive `omitempty`
-  `RecommendStep` plan — `{tool, request, placeholders, why}` — a
-  derived-column producer carries: a `pulse_materialize` draft, then
-  the model request that reads the written column), `ExplainResult` (its `findings[].numbers` values are
+  number; `steps` — the `RecommendStep` plan `{tool, request,
+  placeholders, why}` — is deprecated, marked `deprecated: true`, and
+  always absent: recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
   coded warnings), `MaterializePredictResult` (`Pulse.PredictMaterialize`
   / `pulse api materialize --predict` / `pulse_materialize {predict:

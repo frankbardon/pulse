@@ -58,13 +58,6 @@ type RecommendResult struct {
 // Alternatives come from the operator's not-for guidance and FollowUps
 // from its follow-up guidance; neither names an operator or capability
 // the instance hides.
-//
-// Steps, when set, is a multi-request plan around a draft whose derived
-// column a model reads: a request cannot hand a column it derives to its
-// own regression, so the first step is a pulse_materialize draft that
-// writes the column to a new cohort, and the next is the model request
-// that reads it there. Absent (omitted on the wire) for every other
-// draft, and whenever the instance hides a tool or operator a step needs.
 type Recommendation struct {
 	Operator     string          `json:"operator"`
 	Category     string          `json:"category"`
@@ -77,10 +70,17 @@ type Recommendation struct {
 	Advisories   []Advisory      `json:"advisories,omitempty"`
 	Alternatives []Alternative   `json:"alternatives,omitempty"`
 	FollowUps    []Alternative   `json:"follow_ups,omitempty"`
-	Steps        []RecommendStep `json:"steps,omitempty"`
+
+	// Deprecated: Steps is always nil (absent on the wire). Recommend
+	// once drafted a materialise plan around a derived-column producer;
+	// a model reads a label its own request derives, so no plan is
+	// needed. The field stays for format_version 1.1 compatibility.
+	Steps []RecommendStep `json:"steps,omitempty"`
 }
 
-// RecommendStep is one request of a Recommendation's multi-request plan,
+// RecommendStep is the element of the deprecated, always-nil
+// Recommendation.Steps: Recommend drafts no multi-request plan. It
+// describes one request of such a plan,
 // run in order. Tool names the MCP tool that runs it (pulse_materialize,
 // then pulse_process; the CLI and library twins take the same body).
 // Request is the tool's input as wire JSON — for pulse_materialize the

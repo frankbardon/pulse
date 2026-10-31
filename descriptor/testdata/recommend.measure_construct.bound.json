@@ -84,56 +84,6 @@
             "when": "you want an arbitrary formula of the items",
             "use": "ATTR_FORMULA"
           }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "attributes": [
-                  {
-                    "fields": [
-                      "revenue",
-                      "seats",
-                      "score"
-                    ],
-                    "label": "scale_score",
-                    "type": "ATTR_SCALE_SCORE"
-                  }
-                ],
-                "cohort": {
-                  "filename": "recommend.pulse"
-                }
-              }
-            },
-            "placeholders": [
-              "out"
-            ],
-            "why": "Write the scale_score column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "\u003cpredictors\u003e"
-                  ],
-                  "target": "scale_score",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "predictors"
-            ],
-            "why": "Then fit the model on the new cohort, reading scale_score as the outcome."
-          }
         ]
       },
       {
@@ -314,56 +264,6 @@
             "when": "every item counts equally and you want a plain battery average",
             "use": "ATTR_SCALE_SCORE"
           }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "attributes": [
-                  {
-                    "fields": [
-                      "revenue",
-                      "seats",
-                      "score"
-                    ],
-                    "label": "sem_score",
-                    "type": "ATTR_SEM_SCORE"
-                  }
-                ],
-                "cohort": {
-                  "filename": "recommend.pulse"
-                }
-              }
-            },
-            "placeholders": [
-              "out"
-            ],
-            "why": "Write the sem_score column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "sem_score"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading sem_score as a predictor."
-          }
         ]
       },
       {
@@ -407,60 +307,6 @@
           {
             "when": "you want a summary of all the fields' variance rather than a common trait",
             "use": "ATTR_PC_SCORE"
-          }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "attributes": [
-                  {
-                    "fields": [
-                      "revenue",
-                      "seats",
-                      "score"
-                    ],
-                    "label": "factor_score",
-                    "params": {
-                      "factor": "\u003cfactor\u003e"
-                    },
-                    "type": "ATTR_FACTOR_SCORE"
-                  }
-                ],
-                "cohort": {
-                  "filename": "recommend.pulse"
-                }
-              }
-            },
-            "placeholders": [
-              "factor",
-              "out"
-            ],
-            "why": "Write the factor_score column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "factor_score"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading factor_score as a predictor."
           }
         ]
       },
@@ -506,60 +352,6 @@
             "when": "you want how unusual a row is across the fields",
             "use": "ATTR_MAHALANOBIS"
           }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "attributes": [
-                  {
-                    "fields": [
-                      "revenue",
-                      "seats",
-                      "score"
-                    ],
-                    "label": "pc_score",
-                    "params": {
-                      "component": "\u003ccomponent\u003e"
-                    },
-                    "type": "ATTR_PC_SCORE"
-                  }
-                ],
-                "cohort": {
-                  "filename": "recommend.pulse"
-                }
-              }
-            },
-            "placeholders": [
-              "component",
-              "out"
-            ],
-            "why": "Write the pc_score column to a new cohort first, so the model and every later request read it as an ordinary field."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "pc_score"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading pc_score as a predictor."
-          }
         ]
       }
     ],
@@ -569,4 +361,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4f3cd4ba7d599aa401eb271683505658fea7a403291b07e40e63695730b7cf11
+// golden-hash: 552861acd93de5ef8272bbc536eabb73c3e02ee99d49e6acde7224207cfee687

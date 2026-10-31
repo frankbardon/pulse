@@ -114,16 +114,11 @@ not to use it for) and `follow_ups` (what to ask next). Only operators
 the instance offers appear. CLI: `pulse recommend --intent ID`; MCP:
 `pulse_recommend`.
 
-A draft whose column a model should read next — a component, factor or
-scale score, a fitted model's predictions, or a log, square-root or
-frequency-encoded feature column — also carries `steps`. A
-request cannot hand a column it derives to its own regression, so step
-one is a `pulse_materialize` draft that writes the column (labelled,
-under a name the cohort does not already use) to a new cohort at
-`"<out>"`, and step two is the `pulse_process` model request that
-reads it there. Bound, the materialize draft passes materialize's own
-checks. Every other draft carries no `steps`; nor does any draft when
-the instance hides `pulse_materialize`, `pulse_process` or the model.
+A draft that derives a column — a component, factor or scale score, a
+log, square-root or frequency-encoded feature — needs no extra step for
+a model to use it: label the entry and add the regression that reads
+the label to the same request. `steps` is deprecated and always absent;
+recommend drafts no multi-request plan.
 
 ## Explain: from a request or a result to plain language
 
