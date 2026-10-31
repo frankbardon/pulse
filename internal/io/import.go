@@ -373,6 +373,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		Schema:         written,
 		RowErrors:      rowErrors,
 		PromotedFields: promotedFields,
+		NullWarnings:   nullPromotedWarnings(promotedFields),
 		WidthWarnings:  widthWarnings(schema, conv.widened),
 		SourceWarnings: j.sourceWarnings(),
 		ZoneWarnings:   zones.warnings(),

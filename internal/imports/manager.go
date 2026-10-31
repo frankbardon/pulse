@@ -425,6 +425,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		TTLSeconds:      sidecar.TTLSeconds,
 		Schema:          report.Schema,
 		PromotedFields:  report.PromotedFields,
+		NullWarnings:    report.NullWarnings,
 		WidthWarnings:   report.WidthWarnings,
 		SourceWarnings:  report.SourceWarnings,
 		Groups:          report.Groups,

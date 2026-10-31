@@ -546,6 +546,7 @@ pulse: type ImportResult field Groups []pulse/io.GroupReport "json:\"groups,omit
 pulse: type ImportResult field Handle string "json:\"handle\""
 pulse: type ImportResult field ImportedAt time.Time "json:\"imported_at,omitzero\""
 pulse: type ImportResult field Managed bool "json:\"managed\""
+pulse: type ImportResult field NullWarnings []*pulse/errors.CodedError "json:\"null_warnings,omitempty\""
 pulse: type ImportResult field Path string "json:\"path\""
 pulse: type ImportResult field PromotedFields []string "json:\"promoted_fields,omitempty\""
 pulse: type ImportResult field RowsDropped int "json:\"rows_dropped,omitempty\""
@@ -3429,6 +3430,7 @@ pulse/io: type ImportReport field DroppedWarnings []*pulse/errors.CodedError "js
 pulse/io: type ImportReport field ElidedConstants []string "json:\"elided_constants,omitempty\""
 pulse/io: type ImportReport field GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
 pulse/io: type ImportReport field Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
+pulse/io: type ImportReport field NullWarnings []*pulse/errors.CodedError "json:\"null_warnings,omitempty\""
 pulse/io: type ImportReport field PromotedFields []string "json:\"promoted_fields,omitempty\""
 pulse/io: type ImportReport field RowErrors []pulse/internal/io.RowError "json:\"row_errors,omitempty\""
 pulse/io: type ImportReport field RowsImported int "json:\"rows_imported\""
@@ -6344,4 +6346,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6cf6c36f5c4d5d5c5d374263c23e8654742b805a3e720d0d5858eb12ce422dc0
+// golden-hash: 83a02fea0b7858b82fef9f7d2b4137af969f614be0082d7f5afa8eb4ea4f8583

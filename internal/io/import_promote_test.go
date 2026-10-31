@@ -314,3 +314,51 @@ func TestImportJob_Predict_PromotesOutOfSampleNull(t *testing.T) {
 		t.Fatalf("Predict did not promote v to nullable")
 	}
 }
+
+// TestImportJob_Promote_NullWarningCarried: an out-of-sample null promotion
+// rides ImportReport.NullWarnings as ONE PULSE_IMPORT_NULL_PROMOTED warning
+// whose details name every promoted field (schema order), beside the
+// unchanged PromotedFields; a clean import carries none.
+func TestImportJob_Promote_NullWarningCarried(t *testing.T) {
+	t.Parallel()
+
+	var rows [][]string
+	for i := range 60 {
+		a, b := "1", "2"
+		if i == 59 {
+			a, b = "", ""
+		}
+		rows = append(rows, []string{fmt.Sprintf("%d", i), a, b})
+	}
+	job := NewImportJob(newMockReader([]string{"id", "a", "b"}, rows), "w.pulse")
+	job.FS = afero.NewMemMapFs()
+	job.SampleRows = 50
+	report, err := job.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(report.NullWarnings) != 1 {
+		t.Fatalf("NullWarnings = %v, want one", report.NullWarnings)
+	}
+	w := report.NullWarnings[0]
+	if w.Code != perr.PULSE_IMPORT_NULL_PROMOTED {
+		t.Fatalf("code = %s", w.Code)
+	}
+	got, _ := w.Details["promoted_fields"].([]string)
+	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("details.promoted_fields = %v, want [a b]", w.Details["promoted_fields"])
+	}
+	if len(report.PromotedFields) != 2 {
+		t.Fatalf("PromotedFields = %v, want [a b]", report.PromotedFields)
+	}
+
+	clean := NewImportJob(newMockReader([]string{"id"}, [][]string{{"1"}, {"2"}}), "c.pulse")
+	clean.FS = afero.NewMemMapFs()
+	cr, err := clean.Run(context.Background())
+	if err != nil {
+		t.Fatalf("clean Run: %v", err)
+	}
+	if cr.NullWarnings != nil {
+		t.Fatalf("clean import NullWarnings = %v, want nil", cr.NullWarnings)
+	}
+}

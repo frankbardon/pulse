@@ -263,12 +263,14 @@ func resultWarningCodes(out any) []string {
 		}
 	case *ImportResult:
 		if v != nil {
+			addCoded(v.NullWarnings)
 			addCoded(v.WidthWarnings)
 			addCoded(v.SourceWarnings)
 			addCoded(v.GroupWarnings)
 		}
 	case *pio.ImportReport:
 		if v != nil {
+			addCoded(v.NullWarnings)
 			addCoded(v.WidthWarnings)
 			addCoded(v.ZoneWarnings)
 			addCoded(v.SourceWarnings)
