@@ -10,7 +10,7 @@ requires: [capability:synth]
 
 # Synth disclosure report
 
-A twin carries NO formal privacy guarantee: no noise is added, so a generated row can repeat a real one. The `disclosure` section measures how close the twin sits to the source, so a data owner reads a number before sharing it. It is evidence, not a guarantee.
+A profile-derived twin is NOT differentially private and carries NO formal privacy guarantee: no noise is added, so a generated row can repeat a real one. The `disclosure` section (exact-match rate, DCR) measures how close the twin sits to the source, so a data owner reads a number before sharing it. It is an audit aid, not a guarantee.
 
 ## When it is written
 

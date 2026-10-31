@@ -34,7 +34,7 @@ The option axis never needs a top-K collapse (fixed two-value domain). Bounded b
 
 **A dictionary wider than its own rung's mask is reported, never repaired.** Members past `MaxSetEntries()` get no marginal, no pair capture and no fidelity comparison, which is indistinguishable in the document from an option nobody selects — so capture appends `set field "x": dictionary carries N option(s) but the set_uK mask addresses K …` to `Profile.Warnings`, grouped as its own ATTENTION kind (`set options beyond the mask width`) in the terminal summary. Widening is `pulse widen`'s job; the profiler states the loss and moves on.
 
-**Rules are width-agnostic** — a rule addresses a member by option NAME (the row holds a `map[string]bool`), never by bit. But `set_expr` assigns a WHOLE selection: there is no bit-count, single-member edit or mutual-exclusion primitive, so a cardinality constraint over many members is unstated rather than expressible.
+**Rules are width-agnostic** — a rule addresses a member by option NAME (the row holds a `map[string]bool`, `tags["a"]`), never by bit. **A query formula binds the same field as a sorted `[]string` of labels** (`"a" in tags`, [`expression-language`](expression-language.md)) — never carry an expression between the two. But `set_expr` assigns a WHOLE selection: there is no bit-count, single-member edit or mutual-exclusion primitive, so a cardinality constraint over many members is unstated rather than expressible.
 
 ## Generation
 

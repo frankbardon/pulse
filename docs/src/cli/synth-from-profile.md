@@ -12,6 +12,14 @@ generated rows — or, with `--synthetic-only`, the generated rows
 alone. The profile itself retains **no individual rows** from the
 source; only summary statistics drive generation.
 
+> **Privacy:** a profile-derived twin is not differentially private and
+> carries no formal privacy guarantee — the summary statistics leak rare
+> categorical values, percentile ranges and model structure, and a
+> generated row can repeat a real one. The report's
+> [`disclosure`](#disclosure--how-close-does-the-twin-sit-to-real-records)
+> section (exact-match rate, distance to closest record) is an audit aid,
+> not a guarantee.
+
 > **LLM agents using MCP:** see the `synthetic-data` skill.
 
 ## Synopsis
@@ -860,9 +868,10 @@ jq '.utility.target_rates[] | select(.verdict != "preserved")' out.fidelity.json
 
 ### `disclosure` — how close does the twin sit to real records?
 
-A twin carries **no formal privacy guarantee**: no noise is added, so a
-generated row can repeat a source row. The `disclosure` section is the
-measurement a data owner reads before sharing one. It is written on
+A profile-derived twin is **not differentially private and carries no
+formal privacy guarantee**: no noise is added, so a generated row can
+repeat a source row. The `disclosure` section is an audit aid, not a
+guarantee — the measurement a data owner reads before sharing one. It is written on
 every report (tagged or `--synthetic-only`, byte-identical between the
 two) unless `--no-disclosure` is given:
 

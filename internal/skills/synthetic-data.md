@@ -12,9 +12,9 @@ requires: [capability:synth]
 
 Pulse synthesizes deterministic `.pulse` cohorts via the CLI leaves `pulse synth from-schema` / `pulse synth from-profile` (library `Pulse.Synth`; no MCP tool).
 
-This is the CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. The measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
+This is the CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. Measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
 
-Synth does not emit `Response.Components` — it writes a `.pulse` file.
+Synth writes a `.pulse` file, never `Response.Components`.
 
 ## Which skill answers what
 
@@ -39,10 +39,10 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 
 | Mode | Input | When |
 |---|---|---|
-| `pulse synth from-schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
+| `pulse synth from-schema` | hand-written JSON spec | caller knows the shape — fixtures, CI seeds, demos |
 | `pulse synth from-profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
 
-**Privacy.** Synth does NOT preserve privacy. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles ranges, coefficients structure. Add calibrated noise if the source is sensitive.
+**Privacy.** A profile-derived twin is NOT differentially private and carries NO formal privacy guarantee: no noise is added, so a row can repeat a real one and the profile leaks rare categorical values, percentile ranges and coefficient structure. The `disclosure` section (exact-match rate, DCR) is an audit aid, not a guarantee.
 
 ## Schema-mode spec
 
@@ -80,14 +80,11 @@ Every field type is reachable. A **vector** (`vec_f32` / `vec_f64`) needs a `vec
 
 ## Determinism contract
 
-Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--input, --seed)` MUST produce a byte-identical profile document. Any change breaking either is a contract break. Seed splitting, `Seed == 0`, null-draw order, map-order folds and float fusion: `synth-determinism`.
-
-## Library embedding
-
-`Pulse.Synth` / `Pulse.Profile` use the instance filesystem (`afero.NewMemMapFs()` for hermetic tests).
+Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--input, --seed)` MUST produce a byte-identical profile document. Seed splitting, `Seed == 0`, null-draw order, map-order folds and float fusion: `synth-determinism`.
 
 ## Gotchas
 
+- `Pulse.Synth` / `Pulse.Profile` use the instance filesystem (`afero.NewMemMapFs()` in hermetic tests).
 - `monotonic_from` counts ACCEPTED rows: no gaps under constraints.
 - **A model coefficient is latent-scale** (data units only when `Q` is `normal`); a quantized modelled target attenuates at write time — `synth-models`.
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.
