@@ -29,6 +29,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | Gating, masking, deriving a field, reading earlier rows (`rules[]`, `constraints[]`, `lag`) | `synth-structural-rules` |
 | Drawing in a rule (`uniform()`, `bernoulli(p)`); helper fields (`"output": false`) | `synth-rule-draws` |
 | The `_synthetic` top-up and `--fidelity-report` | `synth-fidelity-report` |
+| How close a twin is to real rows (disclosure) | `synth-disclosure-report` |
 | Byte-identical output; why a profile can drift | `synth-determinism` |
 | `--fit-shape` mixtures | `synth-shape-fit` |
 | `datetime`: local hours / weekdays, per-row zones, DST, trends / seasons / windows | `synth-datetime` |
@@ -41,7 +42,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | `pulse synth from-schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
 | `pulse synth from-profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
 
-**Privacy.** Synth does NOT preserve privacy. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles reveal ranges, coefficients expose structure. Add a calibrated noise mechanism if the source is sensitive.
+**Privacy.** Synth does NOT preserve privacy. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles ranges, coefficients structure. Add calibrated noise if the source is sensitive.
 
 ## Schema-mode spec
 

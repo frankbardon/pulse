@@ -4,7 +4,7 @@ description: The profile-capture and synth-generation CLI flags an agent must kn
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
-covers: [CLI flags, profile create, synth from-profile, --fit-models, --emit-spec, --rules, --suggest-rules, --synthetic-only, --constraints]
+covers: [CLI flags, profile create, synth from-profile, --fit-models, --emit-spec, --rules, --suggest-rules, --synthetic-only, --constraints, --disclosure-sample, --no-disclosure]
 requires: [capability:synth]
 ---
 
@@ -26,7 +26,7 @@ Five independent, additive `pulse profile create` knobs; each adds an `omitempty
 
 ## Synth-generation CLI flags
 
-Four additive `pulse synth from-profile` knobs (all absent reproduces pre-flag output byte-for-byte) plus one on `pulse profile create`. Detail: `synth-structural-rules`, `docs/src/cli/synth-from-profile.md`, `docs/src/cli/profile-create.md`.
+Five `pulse synth from-profile` knobs (absent, the first four reproduce pre-flag output byte-for-byte) plus one on `pulse profile create`. Detail: `synth-structural-rules`, `docs/src/cli/synth-from-profile.md`, `docs/src/cli/profile-create.md`.
 
 | Flag | Must know |
 |---|---|
@@ -34,6 +34,7 @@ Four additive `pulse synth from-profile` knobs (all absent reproduces pre-flag o
 | `--rules <path>` | the only way to reach the `rules[]` layer from the profile path. A **bare JSON array of rule objects — the `rules` key's own value**, so a rule moves between spec and file by cut and paste; `{"rules": […]}` is refused, not read as zero rules. REPLACES `Spec.Rules` (a derived spec carries none). Eager validation naming the FILE — e.g. `PULSE_SYNTH_RULE_FIELD_UNKNOWN` with `details.path`, never a bare parse error |
 | `--synthetic-only` | writes the GENERATED rows alone: no source row, no `_synthetic` column, so the twin has the source's schema — the file to share. `--source` is still required (alignment check + the report's comparison side) and `--fidelity-report` is unchanged, byte for byte |
 | `--constraints <path>` (+ `--max-rejection-rate`) | the `constraints[]` layer on the profile path: a bare array of `{"expr": …}` (the spec key's own value), REPLACES, compiled eagerly naming the FILE. A failing row is re-drawn; past the ceiling (default 0.5, in [0, 1)) the run is `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`. A draw in one is `PULSE_SYNTH_RULE_DRAW_INVALID` |
+| `--disclosure-sample N` / `--no-disclosure` | size or drop the report's `disclosure` section (default ON with `--fidelity-report`): exact-match rate + Gower distance to closest record on a seeded sample (default 10000) that never moves the rows. Its working set is charged to `max_estimated_memory` before generation (`PULSE_LIMIT_EXCEEDED`, nothing written). Detail: `synth-disclosure-report` |
 | `--suggest-rules <path>` (on `pulse profile create`) | DETECTS rules on the same scan (no extra cohort read) and writes the bare array `--rules` consumes unmodified: GATING (`set_null`), CO-MISSING blocks (`null_together`, admitted on identical null PATTERN — an identical null RATE is never enough) and EXACT DEPENDENCIES (`set_expr`; `packed_bool`/`u4` targets, `categorical_*`/`packed_bool`/`u4` source of ≤16 levels, band edges DISCOVERED from the data). Near misses, almost-determined pairs, always-null and constant columns land in `warnings`, never proposed. Gating first, dependency LAST — declaration order is applied order. **PROPOSED, never applied**: detection finds the STATISTICAL gate, a human knows the SEMANTIC one. Measurements ride `_evidence`, a rule's one INERT slot (an evidence-only rule is still `PULSE_SYNTH_RULE_EMPTY`). The profile document gains no section. Numeric gates emit through `round()` — a bare `==` reads the pre-rounding float and under-fires |
 
 **A model coefficient is a LATENT-scale quantity**, not data units: it shifts the standard-normal `μ` in `value = Q(Φ(μ + σ·z))`, so it is non-linear in value space for every non-normal `Q`. Never report one as "this many points on the scale". Detail: `synth-models`.

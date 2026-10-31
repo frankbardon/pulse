@@ -20,6 +20,7 @@ source; only summary statistics drive generation.
 pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
                          [--seed N] [--fidelity-report FILE] [--fidelity-model FILE]
                          [--synthetic-only] [--constraints FILE] [--max-rejection-rate F]
+                         [--disclosure-sample N] [--no-disclosure]
                          [--rules FILE] [--emit-spec FILE] [--json]
 ```
 
@@ -37,6 +38,8 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 | `--synthetic-only` | | bool | false | Write only the generated rows: no source row, no `_synthetic` column |
 | `--constraints` | | string | (none) | Load row constraints from a standalone JSON file (a bare `constraints` array) and apply them to the derived spec |
 | `--max-rejection-rate` | | float | 0 (= 0.5) | Ceiling on the fraction of rows the constraints may reject, in [0, 1) |
+| `--disclosure-sample` | | int | 0 (= 10000) | Cap on the generated rows the report's `disclosure` section measures the distance to closest record over |
+| `--no-disclosure` | | bool | false | Leave the `disclosure` section out of the fidelity report |
 | `--rules`   |      | string | (none) | Load structural rules from a standalone JSON file and apply them to the derived spec |
 | `--emit-spec` |    | string | (none) | Write the derived spec (after any `--rules` merge) to this path as indented JSON |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
@@ -854,6 +857,62 @@ jq '.utility.target_rates[] | select(.verdict != "preserved")' out.fidelity.json
 
 `utility` is absent for a spec with no applied model and no
 `--fidelity-model`.
+
+### `disclosure` — how close does the twin sit to real records?
+
+A twin carries **no formal privacy guarantee**: no noise is added, so a
+generated row can repeat a source row. The `disclosure` section is the
+measurement a data owner reads before sharing one. It is written on
+every report (tagged or `--synthetic-only`, byte-identical between the
+two) unless `--no-disclosure` is given:
+
+```json
+"disclosure": {
+  "distance": "gower", "columns": 4,
+  "source_rows": 40000, "synthetic_rows": 20000,
+  "exact_matches": 0, "exact_match_rate": 0,
+  "sample_rows": 10000,
+  "dcr_median": 0.00313, "dcr_p5": 0.00121
+}
+```
+
+(Figures from a 40,000-row source and a 20,000-row twin of three
+normal columns and a two-level categorical; the section took well under
+a second.)
+
+- `exact_matches` / `exact_match_rate` count the generated rows equal to
+  some source row on **every** output column (null equal to null), over
+  every generated row.
+- `dcr_median` / `dcr_p5` are the median and 5th percentile (type-7
+  interpolation) of each sampled generated row's **Gower distance to its
+  closest source record**, in [0, 1]. An exact copy is 0, so a `dcr_p5`
+  of 0 means at least 5% of the sampled rows copy a source row.
+
+The Gower distance is the mean over the output columns of a per-column
+term in [0, 1]: `|a − b| / range` for numbers, `decimal128`, `u4`,
+`date` and `datetime` (the range over the source rows, clamped at 1; a
+zero range scores 0 for equal values and 1 otherwise); a 0/1 mismatch
+for `categorical_*` and `packed_bool`; the Jaccard distance
+`|A xor B| / |A or B|` for `set_*` (two empty selections score 0); the
+mean of the per-element terms for `vec_*`. Both null scores 0, one null
+scores 1.
+
+The distance reads at most `--disclosure-sample` generated rows (default
+10,000; a negative value is `SERVICE_VALIDATION`). Past the cap the rows
+are drawn from the section's own stream, seeded by `--seed` and
+independent of generation, so the output cohort is byte-identical with
+the section on or off and the section is byte-identical for a fixed
+seed on every architecture. The cost is sample × source row comparisons;
+the working set — every source row decoded plus its exact-match key —
+is charged against the instance's `max_estimated_memory` limit
+([Tuning Limits](../library/tuning-limits.md)) **before** generation. Past
+it the call is refused `PULSE_LIMIT_EXCEEDED` and writes nothing; lower
+`--disclosure-sample`, pass `--no-disclosure`, or raise the limit
+(`--limit max_estimated_memory=…`).
+
+```bash
+jq '.disclosure | {exact_match_rate, dcr_median, dcr_p5}' out.fidelity.json
+```
 
 ### What the report costs
 

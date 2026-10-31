@@ -1182,6 +1182,8 @@ pulse: type StreamTerminator field TotalRows int64
 pulse: type StreamTerminator field Warnings []*pulse/types.ResponseWarning
 pulse: type SynthOptions = pulse/synth.Options
 pulse: type SynthOptions underlying struct
+pulse: type SynthOptions field DisableDisclosure bool
+pulse: type SynthOptions field DisclosureSample int
 pulse: type SynthOptions field FidelityModel *pulse/types.Request
 pulse: type SynthOptions field FidelityReportPath string
 pulse: type SynthOptions field FidelityWarnings []string
@@ -4279,6 +4281,20 @@ pulse/synth: type DatetimeProfile field End string "json:\"end\""
 pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
 pulse/synth: type DatetimeProfile field Start string "json:\"start\""
 pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
+pulse/synth: const DefaultDisclosureSample untyped int = 10000
+pulse/synth: const DisclosureDistanceGower untyped string = "gower"
+pulse/synth: type DisclosureFidelity = pulse/internal/synth.DisclosureFidelity
+pulse/synth: type DisclosureFidelity underlying struct
+pulse/synth: type DisclosureFidelity field Columns int "json:\"columns\""
+pulse/synth: type DisclosureFidelity field DCRMedian float64 "json:\"dcr_median\""
+pulse/synth: type DisclosureFidelity field DCRP5 float64 "json:\"dcr_p5\""
+pulse/synth: type DisclosureFidelity field Distance string "json:\"distance\""
+pulse/synth: type DisclosureFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type DisclosureFidelity field ExactMatchRate float64 "json:\"exact_match_rate\""
+pulse/synth: type DisclosureFidelity field ExactMatches int "json:\"exact_matches\""
+pulse/synth: type DisclosureFidelity field SampleRows int "json:\"sample_rows\""
+pulse/synth: type DisclosureFidelity field SourceRows int "json:\"source_rows\""
+pulse/synth: type DisclosureFidelity field SyntheticRows int "json:\"synthetic_rows\""
 pulse/synth: type DiscreteLevel = pulse/internal/synth.DiscreteLevel
 pulse/synth: type DiscreteLevel underlying struct
 pulse/synth: type DiscreteLevel field Count int "json:\"count\""
@@ -4309,6 +4325,7 @@ pulse/synth: type FidelityReport = pulse/internal/synth.FidelityReport
 pulse/synth: type FidelityReport underlying struct
 pulse/synth: type FidelityReport field CategoricalNumericPairwise []*pulse/internal/synth.CategoricalNumericPairFidelity "json:\"categorical_numeric_pairwise,omitempty\""
 pulse/synth: type FidelityReport field CategoricalPairwise []*pulse/internal/synth.CategoricalPairFidelity "json:\"categorical_pairwise,omitempty\""
+pulse/synth: type FidelityReport field Disclosure *pulse/internal/synth.DisclosureFidelity "json:\"disclosure,omitempty\""
 pulse/synth: type FidelityReport field Fields []*pulse/internal/synth.FieldFidelity "json:\"fields,omitempty\""
 pulse/synth: type FidelityReport field ModelResidualCorrelations *pulse/internal/synth.ModelResidualCorrelationFidelity "json:\"model_residual_correlations,omitempty\""
 pulse/synth: type FidelityReport field Models []*pulse/internal/synth.ModelFidelity "json:\"models,omitempty\""
@@ -4483,6 +4500,8 @@ pulse/synth: type NumericProfile field Shape *pulse/internal/synth.ShapeProfile 
 pulse/synth: type NumericProfile field Std float64 "json:\"std\""
 pulse/synth: type Options = pulse/internal/synth.Options
 pulse/synth: type Options underlying struct
+pulse/synth: type Options field DisableDisclosure bool
+pulse/synth: type Options field DisclosureSample int
 pulse/synth: type Options field FidelityModel *pulse/types.Request
 pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
@@ -6441,4 +6460,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 89c89bf51b525058d5fbd2e331fa02e18b085d806803bef1c73e30b850b473fa
+// golden-hash: b7675b0dddd51805da1c8a68f1d7d558d7be80095329ec8f1aa9cd2d54b74587

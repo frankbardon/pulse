@@ -324,6 +324,7 @@ var flagValues = map[string]valueSource{
 	"sample-rows":        freeValue,
 	"dedup-ratio-floor":  freeValue,
 	"max-rejection-rate": freeValue,
+	"disclosure-sample":  freeValue,
 	"source-tz":          freeValue,
 	"source-tz-field":    freeValue,
 	"tz":                 freeValue,

@@ -56,12 +56,14 @@ import (
 // place.
 //
 // foldModels, when non-nil, adds the supplied-model refit
-// (FidelityReport.Utility.ModelFits) after every computed section.
+// (FidelityReport.Utility.ModelFits) after every computed section; the
+// disclosure section (synth.BuildDisclosure) follows it.
 //
 // data is the TAGGED cohort (synth.SynthWithFidelityCohort): the written
 // output on the tagged path, an in-memory twin of it under SyntheticOnly,
 // whose output carries neither the source rows nor the tag column.
-func writeSynthFidelityReport(fs afero.Fs, data []byte, reportPath string, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
+func writeSynthFidelityReport(fs afero.Fs, data []byte, opts synth.Options, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
+	reportPath := opts.FidelityReportPath
 	if data == nil {
 		return errors.NewCodedError(errors.PULSE_SYNTH_SOURCE_REQUIRED,
 			"the fidelity report needs the source-plus-generated cohort; none was built")
@@ -139,6 +141,12 @@ func writeSynthFidelityReport(fs afero.Fs, data []byte, reportPath string, spec 
 	if foldModels != nil {
 		foldModels(report)
 	}
+	// The disclosure section: exact matches and the Gower distance to
+	// closest record, from the same tagged cohort (both layouts), on a
+	// sample drawn from its own seeded stream. Off with DisableDisclosure.
+	if err := synth.BuildDisclosure(report, schema, records, opts); err != nil {
+		return err
+	}
 
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
@@ -148,6 +156,14 @@ func writeSynthFidelityReport(fs afero.Fs, data []byte, reportPath string, spec 
 		return errors.WrapCodedError(err, errors.CLI_OUTPUT, "writing fidelity report")
 	}
 	return nil
+}
+
+// checkDisclosureBudget is the disclosure section's pre-flight
+// (synth.CheckDisclosureBudget): its working set against the instance's
+// MaxEstimatedMemory, before generation. It lives here for the same
+// reason as synthWithFidelityCohort.
+func checkDisclosureBudget(fs afero.Fs, spec *synth.Spec, opts synth.Options, l Limits) error {
+	return synth.CheckDisclosureBudget(fs, spec, opts, l)
 }
 
 // synthWithFidelityCohort is the facade's generation call: the internal

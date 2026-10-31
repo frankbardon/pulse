@@ -106,6 +106,8 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.BoolFlag{Name: "synthetic-only", Usage: "Write only the generated rows: no source row and no _synthetic column, so the output has the source's schema. The source is still read, and --fidelity-report still compares the generated rows against it"},
 			&cli.StringFlag{Name: "constraints", Usage: "Load row constraints from a standalone JSON file (a bare array of {\"expr\": ...} objects — the same shape as a spec's \"constraints\" key) and apply them to the profile-derived spec; a generated row failing any constraint is re-drawn. REPLACES any constraints the spec carries"},
 			&cli.FloatFlag{Name: "max-rejection-rate", Usage: "Ceiling on the fraction of generated rows --constraints may reject before the run is refused PULSE_SYNTH_CONSTRAINT_INFEASIBLE; in [0, 1), 0 keeps the default 0.5"},
+			&cli.IntFlag{Name: "disclosure-sample", Usage: "Cap on the generated rows the fidelity report's disclosure section measures the Gower distance to closest record over; more rows are sampled from a seeded stream that never moves the generated rows. 0 keeps the default 10000"},
+			&cli.BoolFlag{Name: "no-disclosure", Usage: "Leave the disclosure section (exact-match rate, Gower distance to closest record) out of the fidelity report"},
 			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
@@ -221,6 +223,8 @@ func synthFromProfileCmd() *cli.Command {
 				FidelityWarnings:   fidelityWarnings,
 				FidelityModel:      fidelityModel,
 				SyntheticOnly:      syntheticOnly,
+				DisclosureSample:   int(cmd.Int("disclosure-sample")),
+				DisableDisclosure:  cmd.Bool("no-disclosure"),
 			})
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)

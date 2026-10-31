@@ -517,6 +517,21 @@ type Options struct {
 	// SourceCohort, FidelityReportPath and at least one regression;
 	// otherwise the call is refused with PULSE_SYNTH_FIDELITY_MODEL_INVALID.
 	FidelityModel *types.Request
+
+	// DisclosureSample caps the generated rows the fidelity report's
+	// `disclosure` section measures the Gower distance to closest record
+	// over (`--disclosure-sample`): 0 is DefaultDisclosureSample
+	// (10,000); more generated rows than the cap are sampled from a
+	// seeded stream of their own, so the generated rows never move. A
+	// negative value is refused SERVICE_VALIDATION. The exact-match
+	// count always reads every generated row.
+	DisclosureSample int
+
+	// DisableDisclosure drops the fidelity report's `disclosure` section
+	// (`--no-disclosure`). By default a report written against a source
+	// carries it; its working set is charged to the instance's
+	// MaxEstimatedMemory limit before generation (PULSE_LIMIT_EXCEEDED).
+	DisableDisclosure bool
 }
 
 // Result is what the writer reports after a successful Synth call.

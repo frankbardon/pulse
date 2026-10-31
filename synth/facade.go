@@ -855,6 +855,20 @@ type UtilityCoefficient = isynth.UtilityCoefficient
 // the SOURCE rather than against the captured model.
 type UtilityFidelity = isynth.UtilityFidelity
 
+// DisclosureFidelity is FidelityReport.Disclosure: the twin's closeness
+// to real records — the exact-match rate over every output column and
+// the Gower distance to closest record over a seeded sample. A twin
+// carries no formal privacy guarantee.
+type DisclosureFidelity = isynth.DisclosureFidelity
+
+// DefaultDisclosureSample is the disclosure sample cap
+// Options.DisclosureSample 0 resolves to; DisclosureDistanceGower is
+// DisclosureFidelity.Distance's value.
+const (
+	DefaultDisclosureSample = isynth.DefaultDisclosureSample
+	DisclosureDistanceGower = isynth.DisclosureDistanceGower
+)
+
 // UtilityModelFit is one supplied regression (Options.FidelityModel)
 // refit on the source and on the synthetic partition.
 type UtilityModelFit = isynth.UtilityModelFit

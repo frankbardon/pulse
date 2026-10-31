@@ -336,6 +336,7 @@
     - [synth-cross-row](skills/synth-cross-row.md)
     - [synth-datetime](skills/synth-datetime.md)
     - [synth-determinism](skills/synth-determinism.md)
+    - [synth-disclosure-report](skills/synth-disclosure-report.md)
     - [synth-fidelity-report](skills/synth-fidelity-report.md)
     - [synth-marginals](skills/synth-marginals.md)
     - [synth-model-draw](skills/synth-model-draw.md)

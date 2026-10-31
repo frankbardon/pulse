@@ -14265,6 +14265,10 @@
         "description": "The synth determinism contract — byte-identical `.pulse` output per spec and seed, byte-identical profile documents per input and seed, and the two non-RNG threats to capture (map iteration order, float fusion)."
       },
       {
+        "name": "synth-disclosure-report",
+        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance memory limit."
+      },
+      {
         "name": "synth-fidelity-report",
         "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — every field type's marginal with effect sizes and rule notes, pairs, set fields, utility against the source — scored only over relationships generation actually applied."
       },
@@ -20490,4 +20494,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 39f1fc728d18f1dbdcf565a39b4475f514184e147b45c8edc3d116f82cf96dba
+// golden-hash: b296e83cb0a655142a7bdd208b4ba5a2eb0bdcc4f943ce8523b3f0847c7bd06c

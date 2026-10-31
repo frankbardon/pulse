@@ -375,8 +375,14 @@ type FidelityReport struct {
 	// apart from one whose marginal contrast survived. Absent
 	// (omitempty) for a spec with no applied model and no supplied
 	// request. See internal/synth/fidelity_utility.go.
-	Utility  *UtilityFidelity `json:"utility,omitempty"`
-	Warnings []string         `json:"warnings,omitempty"`
+	Utility *UtilityFidelity `json:"utility,omitempty"`
+	// Disclosure is how close the twin sits to real records (FR-21):
+	// the exact-match rate over every output column and the Gower
+	// distance to closest record (median, 5th percentile) over a seeded
+	// sample. Present on every report written against a source unless
+	// Options.DisableDisclosure. See internal/synth/disclosure.go.
+	Disclosure *DisclosureFidelity `json:"disclosure,omitempty"`
+	Warnings   []string            `json:"warnings,omitempty"`
 }
 
 // TestRunner executes a single statistical Test against an encoded
