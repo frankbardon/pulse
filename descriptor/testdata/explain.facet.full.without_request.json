@@ -90,7 +90,7 @@
       "OVERLAY_KS_VS_POP: The null hypothesis is that both share one distribution; the p-value is two-sided, the one R's ks.test gives: exact for small groups with matching histograms, a large-sample approximation otherwise.",
       "OVERLAY_CHISQ_VS_POP: The subset's figures are counts of independent rows.",
       "OVERLAY_CHISQ_VS_POP: The null hypothesis is that the subset's mix matches the population's. The population mix is treated as known and fixed; when the subset is a large part of the population the two overlap and the p-value is only approximate.",
-      "OVERLAY_CHISQ_VS_POP: Only categories both sides show are compared, and the population's shares are rescaled over them, so population nulls and categories cut from a top-K listing do not distort the expected counts.",
+      "OVERLAY_CHISQ_VS_POP: Every population category is compared, one the subset lacks counted at 0, and the population's shares are rescaled over the compared categories so population nulls do not distort the expected counts. When discrete_top_k cuts the subset's listing, only the listed categories are compared.",
       "OVERLAY_CHISQ_VS_POP: With a very large subset even tiny differences in mix give small p-values; read an OVERLAY_INDEX_VS_POP layer on the same facet for how big each category's shift is.",
       "OVERLAY_CHISQ_VS_POP: Every expected count should be about 5 or more; a warning flags layers where some are lower."
     ]
@@ -98,4 +98,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 00b27329bbedb79661bc2620403dd83a4874652fdd1ebd8d7c1562aa2e9728f5
+// golden-hash: 42cb4a15bcd9014791c8ac45c02930d88b3834627b55f78db45989085e5a6587

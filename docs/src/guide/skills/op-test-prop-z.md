@@ -59,9 +59,10 @@ Use something else:
 
 ## Gotchas
 
-- `success` absent, empty, not an exact dictionary entry (a shard archive's union dictionary) or, on `packed_bool`, anything but `"0"` / `"1"` → `PULSE_TEST_SUCCESS_VALUE_MISSING` (`details.valid_levels`), never a silent zero-success run; `pulse inspect` lists the entries.
+- `success` absent, empty, not an exact dictionary entry (a shard archive's union dictionary) or, on `packed_bool`, anything but `"0"` / `"1"` → `PULSE_TEST_SUCCESS_VALUE_MISSING` (`details.valid_levels`), never a silent zero-success run.
 - No `field`, or no `split_by` without `p0` → `PROCESSING_CONFIG` (predict too).
-- More than two `SplitBy` groups is a `(SplitBy × Field)` contingency-table question, not this test.
+- A group's N*_g·p̂ or N*_g·(1−p̂) `< 5` (p̂ pooled or `p0`) → warns `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
+- More than two `SplitBy` groups: a contingency-table question.
 - Pairs with `OVERLAY_PROP_Z_CELL` for crosstab cell-level proportion tests.
 
 ## See

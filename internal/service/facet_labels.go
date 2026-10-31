@@ -45,16 +45,22 @@ func (s *Service) validateFacetLabels(req *types.FacetRequest, schema *encoding.
 // and one PULSE_LABEL_NOT_APPLIED per caller-authored binding on a field
 // the facet did not tally as discrete values are appended to FacetResult.Warnings as coded {code, message,
 // details} entries — the shape Response.Warnings carries them in.
-func (s *Service) applyFacetLabels(req *types.FacetRequest, result *types.FacetResult) error {
+//
+// It returns the resolver it labelled the host with (nil when no
+// binding applies): the facet overlays relabel the population with
+// that same resolver (relabelPopulationField), so a function-driven
+// table's online collision order, set by the host's values, keys both
+// sides alike.
+func (s *Service) applyFacetLabels(req *types.FacetRequest, result *types.FacetResult) (*processing.LabelResolver, error) {
 	if result == nil || len(req.Labels) == 0 {
-		return nil
+		return nil, nil
 	}
 	resolver, err := processing.BuildLabelResolver(req.Labels, s.extensions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resolver == nil {
-		return nil
+		return nil, nil
 	}
 
 	var notApplied []*types.ResponseWarning
@@ -89,7 +95,45 @@ func (s *Service) applyFacetLabels(req *types.FacetRequest, result *types.FacetR
 		result.Warnings = append(result.Warnings, &types.ResponseWarning{Code: string(w.Code), Message: w.Message, Details: w.Details})
 	}
 	result.Warnings = append(result.Warnings, notApplied...)
-	return nil
+	return resolver, nil
+}
+
+// relabelPopulationField returns the population's copy of field with
+// its discrete values relabelled by the host's resolver when the host
+// labels that field in replace mode — the host's own key space, the
+// one its overlay coordinates use. The resolver already saw every host
+// value, so a function-driven table's online collisions resolve the
+// way they did on the host (the clean label stays with the source the
+// host gave it), never in the population's own value order. Augment,
+// unbound or non-discrete fields come back as is: the host's overlay
+// field keeps its raw values there. The population result is never
+// mutated.
+func relabelPopulationField(pop *types.FacetResult, field string, resolver *processing.LabelResolver) *types.FacetResult {
+	if pop == nil || resolver.Mode(field) != types.LabelModeReplace {
+		return pop
+	}
+	src := pop.Fields[field]
+	if src == nil || src.Discrete == nil {
+		return pop
+	}
+	values := make([]types.FacetValueCount, len(src.Discrete.Values))
+	for i, vc := range src.Discrete.Values {
+		if out, _, ok := resolver.Apply(field, vc.Value); ok {
+			vc.Value = out
+		}
+		values[i] = vc
+	}
+	discrete := *src.Discrete
+	discrete.Values = values
+	ff := *src
+	ff.Discrete = &discrete
+	out := *pop
+	out.Fields = make(map[string]*types.FacetField, len(pop.Fields))
+	for k, v := range pop.Fields {
+		out.Fields[k] = v
+	}
+	out.Fields[field] = &ff
+	return &out
 }
 
 // facetSiblingFromDiscrete copies a FacetField's discrete value list

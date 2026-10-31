@@ -1704,12 +1704,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW: {
-		Message: "A chi-square cell's expected count is below 5; the asymptotic chi-square approximation is unreliable.",
+		Message: "A chi-square cell's expected count, or a two-proportion z-test group's expected successes or failures under the null rate, is below 5; the asymptotic chi-square / normal approximation is unreliable.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"Tests", "*", "Type"},
-				Hint:     "Use TEST_FISHER_EXACT for small 2x2 tables; for larger tables, pool rare levels to raise per-cell expected counts.",
+				Hint:     "Use TEST_FISHER_EXACT for small 2x2 tables (a two-group proportion test is one: split_by x success); for larger tables, pool rare levels to raise per-cell expected counts.",
 				Examples: []any{"TEST_FISHER_EXACT"},
 			},
 		},
@@ -1845,7 +1845,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_TIES_DOMINATE: {
-		Message: "A rank-based test observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
+		Message: "A rank-based test, or a two-sample distribution test on its asymptotic p, observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,

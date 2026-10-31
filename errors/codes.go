@@ -1076,8 +1076,9 @@ const (
 	PULSE_TEST_CONTINGENCY_DEGENERATE Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
 
 	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW warns that a chi-square cell's
-	// expected count is below the conventional threshold of 5, making
-	// the asymptotic χ² approximation unreliable.
+	// expected count — or a TEST_PROP_Z group's expected successes or
+	// failures under the null rate — is below the conventional threshold
+	// of 5, making the asymptotic χ² / normal approximation unreliable.
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
 
 	// PULSE_TEST_FIELD2_NOT_NUMERIC indicates the secondary Field2
@@ -1161,8 +1162,9 @@ const (
 	// pair count differs from the input row count.
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
 
-	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
-	// ties on ≥ 50 % of the input values. The test then mostly compares
+	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test — or TEST_KS
+	// on its asymptotic branch (n₁·n₂ ≥ 10000) — observed ties on ≥ 50 %
+	// of the (pooled) input values. The test then mostly compares
 	// the share of tied values, not their order, and the asymptotic
 	// normal / chi-square approximation used for the p-value loses
 	// accuracy; consider an exact-permutation variant when the count
