@@ -81,7 +81,7 @@ func steps(inst *descx.InstanceSnapshot, rec descriptor.Recommendation, b *Bound
 			Tool:         toolMaterialize,
 			Request:      first,
 			Placeholders: sortedUnique(append(slices.Clone(rec.Placeholders), "out")),
-			Why:          "A model cannot read a column its own request derives, so write the " + column + " column to a new cohort first.",
+			Why:          "Write the " + column + " column to a new cohort first, so the model and every later request read it as an ordinary field.",
 		},
 		{
 			Tool:         toolProcess,

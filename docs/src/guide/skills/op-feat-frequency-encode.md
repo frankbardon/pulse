@@ -51,7 +51,7 @@ One `f64` column written to `Label` (default `FREQ_<field>`). Value per row = `c
 ## Gotchas
 
 - GLOBAL-PASS: PrePass tallies categories cohort-wide, Finalize freezes the denominator, EmitRow serves O(1) per row. Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
-- Frequencies reflect the RAW cohort because FEAT runs PRE-FILTER. To encode within a filtered subset, stage via Compose / ProcessChain.
+- Frequencies reflect the RAW cohort because FEAT runs PRE-FILTER. To encode within a filtered subset, write the subset to a new cohort first (`pulse cohort filter`).
 - Cohort with zero non-null categories → every row emits `null`.
 - Null categories on individual rows emit `null`.
 

@@ -52,7 +52,7 @@ Row-level predicate. No emitted column.
 - Null binds `nil`: `==` false, `!=` true, `x ?? 0` fills; `>` / `+` / `len` on nil → predicate UNKNOWN, row dropped.
 - A result typed non-bool (`x + 1`) → `PULSE_FORMULA_COMPILE_ERROR` at predict and build; an untyped (`any`) result non-bool on a non-null row, or an eval error → `PROCESSING_RUNTIME`.
 - `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
-- No attribute output — filters run first.
+- Reads source fields, feature labels and previous-state labels (`ATTR_PREVIOUS_STATE`), which run before filters; any other derived label is an unknown name (`PULSE_FORMULA_COMPILE_ERROR`).
 - Pass values as `params`: `panel == params.from_wave` with `"params": {"from_wave": "a"}`, never spliced text ([`request-params`](request-params.md)).
 - `coef()` of a compose fit that failed on its data ([`compose-fits`](compose-fits.md)) refuses the request at build with the fit's own code + `details.fit`: a filter verdict cannot be null.
 

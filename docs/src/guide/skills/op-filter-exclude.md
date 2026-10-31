@@ -47,7 +47,7 @@ Row-level predicate. Drop when `Field`'s value is in `Values`; pass otherwise. N
 ## Gotchas
 
 - Null rows PASS this filter (an include filter drops them).
-- Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
+- Unknown categorical label in `Values` → `PROCESSING_CONFIG` when the RUN builds the filter; predict does not check labels (`valid: true`), so read the dictionary (inspect) first.
 
 ## See
 

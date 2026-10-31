@@ -110,7 +110,7 @@
             "placeholders": [
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the scale_score column to a new cohort first."
+            "why": "Write the scale_score column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -340,7 +340,7 @@
             "placeholders": [
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the sem_score column to a new cohort first."
+            "why": "Write the sem_score column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -438,7 +438,7 @@
               "factor",
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the factor_score column to a new cohort first."
+            "why": "Write the factor_score column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -536,7 +536,7 @@
               "component",
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the pc_score column to a new cohort first."
+            "why": "Write the pc_score column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -569,4 +569,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9b6719fd3d172024512d4769fd4e5880ac68d6e7df5e485da88a9d606a959750
+// golden-hash: 4f3cd4ba7d599aa401eb271683505658fea7a403291b07e40e63695730b7cf11

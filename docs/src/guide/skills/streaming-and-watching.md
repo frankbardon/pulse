@@ -11,9 +11,9 @@ covers: [Request.Hash, StreamResult, Watch, WatchDir, FilterToFileWithRequest, C
 
 ## `Request.Hash()`
 
-`Hash() string` returns a 32-char hex digest of canonical-JSON form. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
+`Hash()` is a 32-char hex digest of canonical JSON. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
 
-Guarantees: stable across processes/versions; field-order invariant; default-normalising (`Limit: 0` ≡ omitted); `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash.
+Guarantees: stable across processes/versions; field-order invariant; `null` / zero ≡ omitted, but `"disable_components": false` is not; `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash.
 
 ```go
 key := req.Hash()

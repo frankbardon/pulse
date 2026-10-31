@@ -81,9 +81,8 @@ A formula's result is a scalar (`bool` → `1.0` / `0.0`); a filter's must be `b
 
 ## Gotchas
 
-- A formula sees only source fields, feature output and EARLIER attribute labels.
+- A formula sees source fields, feature output and EARLIER attribute labels; a filter sees source fields and feature (and previous-state) labels, never another attribute or a window.
 - `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`. Weights, the extra scan, recipes: [`formula-totals`](formula-totals.md).
-- Filters run before attributes: a filter cannot read a derived column — restate it over source fields.
 - `params.name` reads a request constant (read-only; refusals, Compose / chain inheritance: [`request-params`](request-params.md)).
 
 ## See

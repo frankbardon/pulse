@@ -341,7 +341,7 @@
             "placeholders": [
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the frequency column to a new cohort first."
+            "why": "Write the frequency column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -415,7 +415,7 @@
             "placeholders": [
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the frequency column to a new cohort first."
+            "why": "Write the frequency column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -489,7 +489,7 @@
             "placeholders": [
               "out"
             ],
-            "why": "A model cannot read a column its own request derives, so write the frequency column to a new cohort first."
+            "why": "Write the frequency column to a new cohort first, so the model and every later request read it as an ordinary field."
           },
           {
             "tool": "pulse_process",
@@ -522,4 +522,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7dcdf9323d3b25733948ba4a2e0d0d09b66d3691c75c41d11411cc6c321f96c3
+// golden-hash: 064fc13bf8cb04c6d7d7cc5cad264be2536022f80a93e9798f18b71149640ef7

@@ -48,9 +48,10 @@ var routes = map[string][]descriptor.Alternative{
 }
 
 // materializeSteps names the derived-column producers whose column a
-// model reads in a LATER request: a request cannot hand a column it
-// derives to its own regression, so a draft of one of these carries
-// Steps — a pulse_materialize draft writing the column (labelled
+// model reads in a LATER request: a regression CAN read a label its own
+// request derives, but a written column is reusable by every later
+// request (and by filters, which run before attributes), so a draft of
+// one of these carries Steps — a pulse_materialize draft writing the column (labelled
 // column) to a new cohort, then a model request reading it there in the
 // role key ("predictors" or "target"; the other role is a placeholder).
 // A written table, like routes: no registry declares that an output

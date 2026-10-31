@@ -10,7 +10,7 @@ requires: [capability:materialize, capability:process]
 
 # Derived cohorts
 
-A derived column — a window, a feature output, an attribute — exists only inside the request that computes it. Features, attributes and (windows-over-records) regressions read same-request labels; groupers, filters, joins and tests read COHORT fields, so they cannot name one (`SERVICE_VALIDATION`: unknown field). Materialising writes the derived columns as ordinary fields of a NEW cohort.
+A derived column — a window, a feature output, an attribute — exists only inside the request that computes it. In its own request, groupers, aggregators and regressions read feature, attribute and window labels; tests feature and attribute labels; filters feature labels only (an expression filter also previous-state ones). No later request can name any. Materialising writes the derived columns as ordinary fields of a NEW cohort.
 
 Surfaces: MCP `pulse_materialize` (`tool-materialize`), CLI `pulse api materialize -r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`, library `Pulse.Materialize`.
 
@@ -18,8 +18,8 @@ Predict first (`predict: true` / `--predict` / `Pulse.PredictMaterialize`): head
 
 ## When to materialise
 
-- A model over a window: a lagged, smoothed or cumulative predictor.
-- Grouping or filtering on a derived value: a log-spend bucket, a rank.
+- Filtering on an attribute or window value: a rank, a z-score.
+- A test over a window: a lagged or cumulative series.
 - One derived column feeding several requests: compute once.
 
 A request that only DISPLAYS a derived value needs no materialise step. A chain stage cannot carry windows or features<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->, so a chain is no substitute.
