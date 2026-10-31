@@ -1,0 +1,423 @@
+{
+  "metric": "log relative error (digits of agreement with the certified value), floored to 0.1, capped at 15",
+  "results": [
+    {
+      "dataset": "lls/Norris",
+      "difficulty": "lower",
+      "digits": {
+        "B0": 12.4,
+        "B1": 14.3,
+        "SE(B0)": 10.7,
+        "SE(B1)": 10.7,
+        "r2": 15,
+        "residual_sd": 10.7
+      },
+      "min_digits": 10.7
+    },
+    {
+      "dataset": "lls/Pontius",
+      "difficulty": "lower",
+      "digits": {
+        "B0": 11.2,
+        "B1": 14.1,
+        "B2": 12.2,
+        "SE(B0)": 8.5,
+        "SE(B1)": 8.5,
+        "SE(B2)": 8.5,
+        "r2": 15,
+        "residual_sd": 8.5
+      },
+      "min_digits": 8.5
+    },
+    {
+      "dataset": "lls/NoInt1",
+      "difficulty": "average",
+      "not_offered": "regression through the origin (no intercept) is not offered by REG_OLS"
+    },
+    {
+      "dataset": "lls/NoInt2",
+      "difficulty": "average",
+      "not_offered": "regression through the origin (no intercept) is not offered by REG_OLS"
+    },
+    {
+      "dataset": "lls/Filip",
+      "difficulty": "higher",
+      "not_offered": "REG_OLS refused the fit: PROCESSING_REGRESSION_RANK_DEFICIENT"
+    },
+    {
+      "dataset": "lls/Longley",
+      "difficulty": "higher",
+      "digits": {
+        "B0": 12.6,
+        "B1": 11.5,
+        "B2": 12,
+        "B3": 12.6,
+        "B4": 12.9,
+        "B5": 11.5,
+        "B6": 12.6,
+        "SE(B0)": 13.2,
+        "SE(B1)": 14.1,
+        "SE(B2)": 12.8,
+        "SE(B3)": 12.9,
+        "SE(B4)": 13.1,
+        "SE(B5)": 13.2,
+        "SE(B6)": 13.3,
+        "r2": 15,
+        "residual_sd": 12.8
+      },
+      "min_digits": 11.5
+    },
+    {
+      "dataset": "lls/Wampler1",
+      "difficulty": "higher",
+      "digits": {
+        "B0": 6.9,
+        "B1": 6.7,
+        "B2": 7.1,
+        "B3": 8,
+        "B4": 9.3,
+        "B5": 11,
+        "SE(B0)": 15,
+        "SE(B1)": 15,
+        "SE(B2)": 15,
+        "SE(B3)": 15,
+        "SE(B4)": 15,
+        "SE(B5)": 15,
+        "r2": 15,
+        "residual_sd": 15
+      },
+      "min_digits": 6.7
+    },
+    {
+      "dataset": "lls/Wampler2",
+      "difficulty": "higher",
+      "digits": {
+        "B0": 12.1,
+        "B1": 10.8,
+        "B2": 10.2,
+        "B3": 10,
+        "B4": 10.3,
+        "B5": 11,
+        "SE(B0)": 6.4,
+        "SE(B1)": 6.4,
+        "SE(B2)": 6.9,
+        "SE(B3)": 7.8,
+        "SE(B4)": 9,
+        "SE(B5)": 10.7,
+        "r2": 15,
+        "residual_sd": 6.4
+      },
+      "min_digits": 6.4
+    },
+    {
+      "dataset": "lls/Wampler3",
+      "difficulty": "higher",
+      "digits": {
+        "B0": 6.6,
+        "B1": 6.3,
+        "B2": 6.7,
+        "B3": 7.6,
+        "B4": 8.9,
+        "B5": 10.6,
+        "SE(B0)": 10.2,
+        "SE(B1)": 10.1,
+        "SE(B2)": 10.1,
+        "SE(B3)": 10.1,
+        "SE(B4)": 10.1,
+        "SE(B5)": 10.1,
+        "r2": 15,
+        "residual_sd": 10.3
+      },
+      "min_digits": 6.3
+    },
+    {
+      "dataset": "lls/Wampler4",
+      "difficulty": "higher",
+      "digits": {
+        "B0": 6.9,
+        "B1": 6.7,
+        "B2": 7.1,
+        "B3": 8,
+        "B4": 9.3,
+        "B5": 11,
+        "SE(B0)": 11.3,
+        "SE(B1)": 10.7,
+        "SE(B2)": 10.6,
+        "SE(B3)": 10.5,
+        "SE(B4)": 10.5,
+        "SE(B5)": 10.6,
+        "r2": 15,
+        "residual_sd": 14.8
+      },
+      "min_digits": 6.7
+    },
+    {
+      "dataset": "lls/Wampler5",
+      "difficulty": "higher",
+      "digits": {
+        "B0": 6.2,
+        "B1": 6,
+        "B2": 6.4,
+        "B3": 7.3,
+        "B4": 8.5,
+        "B5": 10.2,
+        "SE(B0)": 11.3,
+        "SE(B1)": 10.7,
+        "SE(B2)": 10.6,
+        "SE(B3)": 10.5,
+        "SE(B4)": 10.5,
+        "SE(B5)": 10.6,
+        "r2": 13.7,
+        "residual_sd": 14.8
+      },
+      "min_digits": 6
+    },
+    {
+      "dataset": "anova/SiRstv",
+      "difficulty": "lower",
+      "digits": {
+        "f": 12.6,
+        "ms_between": 12.5,
+        "ms_within": 13.3,
+        "r2": 12.7,
+        "residual_sd": 13.6,
+        "ss_between": 12.5,
+        "ss_within": 13.3
+      },
+      "min_digits": 12.5
+    },
+    {
+      "dataset": "anova/SmLs01",
+      "difficulty": "lower",
+      "digits": {
+        "f": 14.9,
+        "ms_between": 14.7,
+        "ms_within": 15,
+        "r2": 15,
+        "residual_sd": 15,
+        "ss_between": 14.7,
+        "ss_within": 15
+      },
+      "min_digits": 14.7
+    },
+    {
+      "dataset": "anova/SmLs02",
+      "difficulty": "lower",
+      "digits": {
+        "f": 14.7,
+        "ms_between": 14.7,
+        "ms_within": 15,
+        "r2": 14.9,
+        "residual_sd": 15,
+        "ss_between": 14.7,
+        "ss_within": 15
+      },
+      "min_digits": 14.7
+    },
+    {
+      "dataset": "anova/SmLs03",
+      "difficulty": "lower",
+      "digits": {
+        "f": 14.7,
+        "ms_between": 14.7,
+        "ms_within": 15,
+        "r2": 15,
+        "residual_sd": 15,
+        "ss_between": 14.7,
+        "ss_within": 15
+      },
+      "min_digits": 14.7
+    },
+    {
+      "dataset": "anova/AtmWtAg",
+      "difficulty": "average",
+      "digits": {
+        "f": 8.8,
+        "ms_between": 8.7,
+        "ms_within": 9.8,
+        "r2": 8.9,
+        "residual_sd": 10.1,
+        "ss_between": 8.7,
+        "ss_within": 9.8
+      },
+      "min_digits": 8.7
+    },
+    {
+      "dataset": "anova/SmLs04",
+      "difficulty": "average",
+      "digits": {
+        "f": 9.3,
+        "ms_between": 9.3,
+        "ms_within": 10.8,
+        "r2": 9.6,
+        "residual_sd": 11.1,
+        "ss_between": 9.3,
+        "ss_within": 10.8
+      },
+      "min_digits": 9.3
+    },
+    {
+      "dataset": "anova/SmLs05",
+      "difficulty": "average",
+      "digits": {
+        "f": 9.2,
+        "ms_between": 9.3,
+        "ms_within": 10.3,
+        "r2": 9.5,
+        "residual_sd": 10.6,
+        "ss_between": 9.3,
+        "ss_within": 10.3
+      },
+      "min_digits": 9.2
+    },
+    {
+      "dataset": "anova/SmLs06",
+      "difficulty": "average",
+      "digits": {
+        "f": 9.2,
+        "ms_between": 9.3,
+        "ms_within": 10.2,
+        "r2": 9.5,
+        "residual_sd": 10.5,
+        "ss_between": 9.3,
+        "ss_within": 10.2
+      },
+      "min_digits": 9.2
+    },
+    {
+      "dataset": "anova/SmLs07",
+      "difficulty": "higher",
+      "digits": {
+        "f": 3.2,
+        "ms_between": 3.3,
+        "ms_within": 4.8,
+        "r2": 3.5,
+        "residual_sd": 5.1,
+        "ss_between": 3.3,
+        "ss_within": 4.8
+      },
+      "min_digits": 3.2
+    },
+    {
+      "dataset": "anova/SmLs08",
+      "difficulty": "higher",
+      "digits": {
+        "f": 3.2,
+        "ms_between": 3.3,
+        "ms_within": 4.3,
+        "r2": 3.5,
+        "residual_sd": 4.6,
+        "ss_between": 3.3,
+        "ss_within": 4.3
+      },
+      "min_digits": 3.2
+    },
+    {
+      "dataset": "anova/SmLs09",
+      "difficulty": "higher",
+      "digits": {
+        "f": 3.2,
+        "ms_between": 3.3,
+        "ms_within": 4.2,
+        "r2": 3.5,
+        "residual_sd": 4.5,
+        "ss_between": 3.3,
+        "ss_within": 4.2
+      },
+      "min_digits": 3.2
+    },
+    {
+      "dataset": "univ/PiDigits",
+      "difficulty": "lower",
+      "digits": {
+        "mean": 15,
+        "sd": 14.9
+      },
+      "min_digits": 14.9,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/Lottery",
+      "difficulty": "lower",
+      "digits": {
+        "mean": 15,
+        "sd": 15
+      },
+      "min_digits": 15,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/Lew",
+      "difficulty": "lower",
+      "digits": {
+        "mean": 15,
+        "sd": 15
+      },
+      "min_digits": 15,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/Mavro",
+      "difficulty": "lower",
+      "digits": {
+        "mean": 15,
+        "sd": 12
+      },
+      "min_digits": 12,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/Michelso",
+      "difficulty": "",
+      "digits": {
+        "mean": 15,
+        "sd": 12.3
+      },
+      "min_digits": 12.3,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/NumAcc1",
+      "difficulty": "lower",
+      "digits": {
+        "mean": 15,
+        "sd": 15
+      },
+      "min_digits": 15,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/NumAcc2",
+      "difficulty": "average",
+      "digits": {
+        "mean": 15,
+        "sd": 15
+      },
+      "min_digits": 15,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/NumAcc3",
+      "difficulty": "average",
+      "digits": {
+        "mean": 15,
+        "sd": 9.4
+      },
+      "min_digits": 9.4,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    },
+    {
+      "dataset": "univ/NumAcc4",
+      "difficulty": "higher",
+      "digits": {
+        "mean": 15,
+        "sd": 8.2
+      },
+      "min_digits": 8.2,
+      "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
+    }
+  ],
+  "source": "NIST/ITL StRD, https://www.itl.nist.gov/div898/strd/"
+}
+
+// golden-hash: 0432f0dfc770b282feeb646df526fd42c18a1f7f64d4a8c4d9ab17e7cb2c23cc

@@ -8,7 +8,7 @@ status: in-progress
 depends_on: []
 soft_depends_on: [U61]
 blocks: [U32, U65]
-todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597]
+todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 608, 609, 610]
 branch: reference-validation
 ---
 
@@ -51,7 +51,10 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - [ ] **#590** The registry gate checks that a cited test actually exercises the operator, not only that the file exists (E1-S3)
 - [ ] **#591** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` (E2-S1)
 - [ ] **#592** R goldens for the unweighted `OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX`; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` (E2-S2)
-- [ ] **#593** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
+- [x] **#593** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
+- [ ] **#608** `TEST_ANOVA_F` reaches 7+ digits on NIST SmLs07–09 (3.2 today: the sums of squares lose precision under a large common offset) (E3-S4)
+- [ ] **#609** `REG_OLS` fits NIST Filip instead of refusing it as rank-deficient (a QR or centred-and-scaled solve in place of Cholesky on the normal equations), and Wampler1–5 coefficients reach 7+ digits (6.0–6.7 today) (E3-S5)
+- [ ] **#610** Regression through the origin (no intercept), so NIST NoInt1 / NoInt2 run (E3-S6; a public `RegressionSpec` slot, so it follows the regression Update Demand row)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
 - [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded, reproducible simulation-based calibration harness (E4-S2)
 - [ ] **#596** Studio shows each operator's validation in the inspector and links the book page (pulse-studio, E5-S1)
@@ -97,6 +100,12 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
   - S1: vendor the StRD data files and certified values under `internal/processing/testdata/strd/`, frozen with hash footers like the other goldens.
   - S2: tests for `REG_OLS` (coefficients, standard errors, residual SD, R²), `TEST_ANOVA_F` (between and within SS, df, MS, F, R², residual SD) and the univariate aggregators (mean, SD, lag-1 autocorrelation). Each test computes LRE = −log10(|x − c| / |c|) and asserts a per-dataset floor recorded in the fixture.
   - S3: docgen renders an "NIST StRD results" table (dataset, difficulty, digits achieved) on `validation.md`, from the same fixture, so the published numbers cannot drift from the tests.
+  - **Findings (first run, 2026-10-31):**
+    - **Regression.** Norris, Pontius and Longley reach 8.5–11.5 digits, and Wampler1–5 reach 6.0–6.7. Filip is refused as rank-deficient, and NoInt1/2 cannot run because there is no no-intercept option.
+    - **ANOVA.** SiRstv, SmLs01–06 and AtmWtAg reach 8.7–14.7 digits; SmLs07–09 reach only 3.2.
+    - **Univariate.** The mean and sample SD reach 8.2–15 digits. The sample SD comes from `AGG_WELFORD`; `AGG_STDDEV` is the population SD by design. The lag-1 autocorrelation is not offered.
+    - **Follow-ups:** #608, #609 and #610 (S4–S6).
+  - S4–S6: the accuracy fixes above. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
 - **E4 — External references for MMM**
   - S1: `gen_mmm_hill.R` fits the same Hill-adstock objective with `minpack.lm::nlsLM` from the same start and bounds. The test pins coefficients at the tolerance the optimizer oracles already use (`optimize/testdata`).
   - S2: `REG_MMM_BAYES` with flat saturation and fixed adstock must reproduce the `REG_BAYES_LINEAR` posterior. A seeded simulation-based calibration run (rank histograms, fixed draw count) becomes a heavy-tier test whose output is published only with its harness, following U63's rule that unreproducible figures are not published.

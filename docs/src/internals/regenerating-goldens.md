@@ -186,6 +186,10 @@ Python. `TestMCMC_*MatchesArviZ` hold `RHat`, `ESSBulk` and `ESSTail` to
 
 **Publish the check.** The book's [How Pulse is validated](../guide/validation.md) page lists, per operator, the external reference, tolerance and test file behind it. It is generated from `validationRegistry` in `internal/docgen/validation.go`. When you add, tighten or remove a reference check, update the operator's row in the same PR and run `make docs`. The gates fail on a cited test file that does not exist and on an inferential built-in with no row.
 
+### NIST StRD certification
+
+`testdata/strd/` vendors the 31 NIST Statistical Reference Datasets verbatim, pinned by `SHA256SUMS` (`TestStRD_FixturesIntact`). `strd_reference_test.go` runs each one through the public API and records the digits achieved (log relative error) in `testdata/strd/lre.json`. `TestStRD_DigitsMatchRecord` fails on any change, better or worse. After an intended accuracy change, run `go test -run TestStRD_DigitsMatchRecord -update`. That rewrites the record and its byte-identical copy `internal/docgen/strd_lre.json`, which the book's NIST table is rendered from. Then run `make docs` and review the digits in the diff. `TestStRD_AccuracyFloors` holds lower- and average-difficulty sets at 7 digits or more.
+
 ### Multivariate goldens and their fixtures
 
 The same `make reference` run also sources

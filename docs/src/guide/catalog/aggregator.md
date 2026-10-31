@@ -114,6 +114,12 @@ Average of a numeric field, over all rows or per group.
 
 **Glossary:** [`mean`](../glossary.md#term-mean), [`median`](../glossary.md#term-median), [`outlier`](../glossary.md#term-outlier), [`skew`](../glossary.md#term-skew)
 
+**Validated against:**
+
+- NIST StRD certified values (univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-agg-average`](../skills/op-agg-average.md)
 
 <a id="op-agg_ci_lower"></a>
@@ -1254,6 +1260,12 @@ Mean, sample variance and row count of a numeric field in one result: what a com
 - [`TEST_WELCH`](test.md#op-test_welch) when you want the comparison itself on raw rows.
 
 **Glossary:** [`mean`](../glossary.md#term-mean), [`variance`](../glossary.md#term-variance), [`sample-size`](../glossary.md#term-sample-size), [`t-statistic`](../glossary.md#term-t-statistic)
+
+**Validated against:**
+
+- NIST StRD certified values (univariate sample standard deviation: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-agg-welford`](../skills/op-agg-welford.md)
 

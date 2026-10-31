@@ -2,7 +2,9 @@ package docgen
 
 import (
 	_ "embed"
+	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -25,6 +27,14 @@ import (
 
 //go:embed validation_intro.md
 var validationIntro string
+
+// strdLRE is the NIST StRD record: a byte-identical copy of
+// testdata/strd/lre.json, written by the root package's
+// TestStRD_DigitsMatchRecord -update and held equal to it by
+// TestStRD_DocgenCopyCurrent.
+//
+//go:embed strd_lre.json
+var strdLRE []byte
 
 const (
 	validationPage    = "validation.md"
@@ -70,6 +80,7 @@ const (
 	svcCovGLM   = "internal/service/regression_covariance_glm_test.go"
 	svcVcov     = "internal/service/regression_vcov_test.go"
 	regDir      = "internal/processing/regression/"
+	strdTest    = "strd_reference_test.go"
 	mmmSynthSrc = "synthetic data with known true parameters (internal/mmmfixture)"
 )
 
@@ -84,6 +95,12 @@ var weighted = validationRef{
 	Weighted: true,
 }
 
+// strdRef is a NIST StRD certification check; its digits achieved are
+// published in the StRD table on validation.md.
+func strdRef(sets string) validationRef {
+	return validationRef{Against: "NIST StRD certified values (" + sets + ")", Tol: "digits achieved per dataset (see the NIST table)", Tests: []string{strdTest}}
+}
+
 func r(fn, tol string, tests ...string) validationRef {
 	return validationRef{Against: rPin + " " + fn, Tol: tol, Tests: tests}
 }
@@ -91,7 +108,10 @@ func r(fn, tol string, tests ...string) validationRef {
 // validationRegistry maps a built-in operator name to its record.
 var validationRegistry = map[string]validation{
 	// Statistical tests.
-	"TEST_ANOVA_F":     {Refs: []validationRef{r("`aov`", tol10, procPost), weighted}},
+	"TEST_ANOVA_F": {
+		Refs: []validationRef{r("`aov`", tol10, procPost), strdRef("one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg"), weighted},
+		Gap:  "On NIST SmLs07–09 (values with a large common offset) the sums of squares agree to only about 3 digits.",
+	},
 	"TEST_ANOVA_RM":    {Refs: []validationRef{r("`aov` with `Error()` strata", tol10, procOutput)}, Gap: "No weighted reference."},
 	"TEST_ANOVA_WELCH": {Refs: []validationRef{r("`oneway.test`", tol10, procPost), weighted}},
 	"TEST_BARTLETT_SPHERICITY": {Refs: []validationRef{
@@ -137,13 +157,20 @@ var validationRegistry = map[string]validation{
 		Gap:  "No unweighted external golden; the unweighted path is checked against Pulse's own Welch test.",
 	},
 
+	// Descriptive operators with a certified reference.
+	"AGG_AVERAGE": {Refs: []validationRef{strdRef("univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
+	"AGG_WELFORD": {Refs: []validationRef{strdRef("univariate sample standard deviation: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
+
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{
+		strdRef("linear regression: Norris, Pontius, Longley, Wampler1–5"),
 		r("`lm`", tol10, regDir+"ols_lm_reference_test.go"),
 		r("`glmnet` (penalties), `nnls` (non-negative)", tol10, regDir+"ols_penalty_reference_test.go", regDir+"ols_nnls_reference_test.go"),
 		r("`sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)", tol10, svcCov, svcVcov),
 		weighted,
-	}},
+	},
+		Gap: "NIST Filip (degree-10 polynomial) is refused as rank-deficient, and NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin.",
+	},
 	"REG_GLM": {
 		Refs: []validationRef{
 			r("`glm` (binomial-logit, poisson-log, gamma-inverse)", tol10, regDir+"glm_irls_test.go", regDir+"glm_gamma_oracle_test.go"),
@@ -316,7 +343,88 @@ func (g *gen) renderValidation(cats []category) string {
 			b.WriteString(" |\n")
 		}
 	}
+	g.renderStRD(&b)
 	return b.String()
+}
+
+// strdOperator maps a StRD dataset family to the operator it checks.
+var strdOperator = map[string][]string{
+	"lls":   {"REG_OLS"},
+	"anova": {"TEST_ANOVA_F"},
+	"univ":  {"AGG_AVERAGE", "AGG_WELFORD"},
+}
+
+var strdFamilyTitle = map[string]string{
+	"lls":   "Linear regression (`REG_OLS`)",
+	"anova": "One-way ANOVA (`TEST_ANOVA_F`)",
+	"univ":  "Univariate summary statistics (`AGG_AVERAGE`, `AGG_WELFORD`)",
+}
+
+// renderStRD writes the NIST StRD table from the embedded record: one
+// row per dataset whose operator the instance offers.
+func (g *gen) renderStRD(b *strings.Builder) {
+	s := string(strdLRE)
+	if i := strings.LastIndex(s, "\n// golden-hash: "); i >= 0 {
+		s = s[:i]
+	}
+	var doc struct {
+		Results []struct {
+			Dataset    string             `json:"dataset"`
+			Difficulty string             `json:"difficulty"`
+			Digits     map[string]float64 `json:"digits"`
+			Min        *float64           `json:"min_digits"`
+			NotOffered string             `json:"not_offered"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(s), &doc); err != nil {
+		panic("docgen: strd_lre.json: " + err.Error())
+	}
+	var out strings.Builder
+	family := ""
+	for _, r := range doc.Results {
+		fam, set, _ := strings.Cut(r.Dataset, "/")
+		visible := false
+		for _, op := range strdOperator[fam] {
+			if g.operatorVisible(op) {
+				visible = true
+			}
+		}
+		if !visible {
+			continue
+		}
+		if fam != family {
+			family = fam
+			out.WriteString("\n### " + strdFamilyTitle[fam] + "\n\n| Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |\n|---|---|---|---|---|\n")
+		}
+		diff := r.Difficulty
+		if diff == "" {
+			diff = "not stated"
+		}
+		least := emptyCell
+		if r.Min != nil {
+			least = strconv.FormatFloat(*r.Min, 'f', 1, 64)
+		}
+		keys := make([]string, 0, len(r.Digits))
+		for k := range r.Digits {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		figs := make([]string, len(keys))
+		for i, k := range keys {
+			figs[i] = "`" + k + "` " + strconv.FormatFloat(r.Digits[k], 'f', 1, 64)
+		}
+		out.WriteString("| " + set + " | " + diff + " | " + least + " | " + cell(strings.Join(figs, ", ")) + " | " + cell(r.NotOffered) + " |\n")
+	}
+	if out.Len() == 0 {
+		return
+	}
+	b.WriteString("\n## NIST StRD certification\n\n")
+	b.WriteString("The [NIST Statistical Reference Datasets](https://www.itl.nist.gov/div898/strd/) carry certified values to 15 significant digits and are the accuracy benchmark statistical packages are measured against. ")
+	b.WriteString("Each dataset runs end to end through Pulse; a figure's *digits* are its log relative error against the certified value, LRE = −log10(|x − c| / |c|), floored to 0.1 and capped at 15. ")
+	b.WriteString("Roughly, 15 is exact in double precision, 7 or more is accurate for any practical use, and under 4 means the figure is unreliable on that data. ")
+	b.WriteString("Lower- and average-difficulty sets must reach 7 digits on every figure; higher-difficulty sets are published as achieved. ")
+	b.WriteString("These numbers are the record the tests assert (`strd_reference_test.go`), so any change in accuracy fails the build until it is reviewed.\n")
+	b.WriteString(out.String())
 }
 
 // tolRank orders tolerance strings by their leading 1e-N exponent

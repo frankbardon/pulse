@@ -79,7 +79,10 @@ Checks whether the average of a numeric measure differs across three or more gro
 **Validated against:**
 
 - R 4.6.1 `aov` — tolerance 1e-10 relative; `internal/processing/test_post_oracle_test.go`
+- NIST StRD certified values (one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** On NIST SmLs07–09 (values with a large common offset) the sums of squares agree to only about 3 digits.
 
 See [How Pulse is validated](../validation.md).
 
