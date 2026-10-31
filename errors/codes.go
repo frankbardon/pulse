@@ -1045,8 +1045,9 @@ const (
 	PULSE_TEST_CONTINGENCY_DEGENERATE Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
 
 	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW warns that a chi-square cell's
-	// expected count is below the conventional threshold of 5, making
-	// the asymptotic χ² approximation unreliable.
+	// expected count — or a TEST_PROP_Z group's expected successes or
+	// failures under the null rate — is below the conventional threshold
+	// of 5, making the asymptotic χ² / normal approximation unreliable.
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
 
 	// PULSE_TEST_FIELD2_NOT_NUMERIC indicates the secondary Field2
