@@ -119,13 +119,19 @@ The orchestrator owns the universal floor `{total_n, n_null}` — the
 post-filter record walker fills it unconditionally. Your `Components()`
 MUST NOT re-emit those keys.
 
-`total_n` is the number of (record, bucket) assignments: the sum of
-your `buckets[].count` when `Components()` returns a `buckets` list of
-`[]map[string]any` with `int` counts (as `GROUP_CATEGORY` and `GROUP_SET_PER_ELEMENT` do), otherwise
-the orchestrator's own assignment count. For single-key groupers that
-is the number of keyed records; for multi-key streaming groupers
-(`GROUP_SET_PER_ELEMENT`) a record contributes once per selected label,
-so `total_n` can exceed the record count.
+`total_n` is the number of post-filter records the grouper keyed into
+at least one bucket, and `n_null` every other post-filter record (null
+key, include rejection). For a single-key grouper `total_n` is the sum
+of your `buckets[].count` when `Components()` returns a `buckets` list
+of `[]map[string]any` with `int` counts (as `GROUP_CATEGORY` does),
+otherwise the orchestrator's own keyed-record count. A fan-out grouper
+(one implementing `MultiKeyStreamingGrouper`, e.g.
+`GROUP_SET_PER_ELEMENT`) puts one record in several buckets, so its
+bucket sum counts label observations and MAY exceed `total_n`; the
+orchestrator counts its keyed records instead (distinct records across
+the buffered partition, one per keyed record on the streaming and
+parallel arms). `GROUP_SET_PER_ELEMENT` also keeps its empty-mask
+records out of `n_null`: skipped, but not null.
 
 ### Merging under the parallel reducers
 

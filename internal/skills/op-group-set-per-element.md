@@ -33,7 +33,7 @@ One string key per set bit per row. Smart default for `set_*`. `GroupType.FansOu
 
 ## Gotchas
 
-- `sum(buckets[].count) > total_n` is CORRECT.
+- `sum(buckets[].count) > total_n` is CORRECT: `total_n` counts records with ≥1 label, once each; `n_null` = null sets + include-rejected rows.
 - Empty-mask rows skipped; do NOT increment `n_null`. Null rows do.
 - A mask bit past the dictionary is corrupt data: `ENCODING_INVALID` (`set_member_out_of_range`), never silently dropped.
 - Crosstab: a null or empty set reaches no cell, so no margin (column % = "% of those asked"). Margins are non-additive: 3 labels count 3× across row margins, once in the grand total.

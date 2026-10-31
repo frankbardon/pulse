@@ -122,17 +122,18 @@ type GroupedTail struct {
 	TotalRows, FilteredRows, NullRecords int64
 	FilterCounters                       []FilterPassCounters
 
-	// Assignments[i] counts grouper i's (record, key) routings — one
-	// per key the grouper gave a record, so a fan-out record counts once
-	// per key, and a record dropped at another position (null key)
-	// still counts here. It is Components.Groupers' TotalN for a
-	// grouper whose MetaGrouper payload carries no "buckets" list (an
-	// extension grouper); built-ins derive TotalN from their buckets
-	// payload. Every caller sets it — the serial path counts it per
-	// record, the parallel reducers sum the per-partition counts — so a
-	// bucket-less grouper's floor is identical whatever the worker
-	// count. One entry per grouper.
-	Assignments []int64
+	// Keyed[i] counts the records grouper i keyed into at least one
+	// bucket — once per record, so a fan-out record counts once however
+	// many keys it gets, and a record dropped at another position (null
+	// key) still counts here. It is Components.Groupers' TotalN for a
+	// fan-out grouper (whose bucket sum counts label observations, #406)
+	// and for a grouper whose MetaGrouper payload carries no "buckets"
+	// list (an extension grouper); single-key built-ins derive TotalN
+	// from their buckets payload, which equals it. Every caller sets it
+	// — the serial path counts it per record, the parallel reducers sum
+	// the per-partition counts — so the floor is identical whatever the
+	// worker count. One entry per grouper.
+	Keyed []int64
 
 	// ShardCount is the archive's shard count (0 for a single file); it
 	// lands on Components.Run.ShardCount.
@@ -181,10 +182,10 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		}
 	}
 
-	if len(t.Groups) != len(t.Groupers) || len(t.Assignments) != len(t.Groupers) || len(t.Groupers) == 0 {
+	if len(t.Groups) != len(t.Groupers) || len(t.Keyed) != len(t.Groupers) || len(t.Groupers) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-			"grouped stream tail: groups, groupers and assignments disagree",
-			map[string]any{"groups": len(t.Groups), "groupers": len(t.Groupers), "assignments": len(t.Assignments)})
+			"grouped stream tail: groups, groupers and keyed counts disagree",
+			map[string]any{"groups": len(t.Groups), "groupers": len(t.Groupers), "keyed": len(t.Keyed)})
 	}
 	composite := t.KeySet != nil
 
@@ -304,12 +305,13 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	}
 	if t.Compute.Groupers {
 		// One GrouperComponents entry per grouper slot, each off that
-		// grouper's own live state; TotalN sums its bucket counts and
-		// NNull is every post-filter record it keyed into no bucket (null
-		// key, include rejection, empty set mask) — whatever the other
-		// groupers gave the record.
+		// grouper's own live state; TotalN sums its bucket counts (a
+		// fan-out grouper's keyed records instead, grouperFloor) and NNull
+		// is every post-filter record it keyed into no bucket (null key,
+		// include rejection, empty set mask — except a fan-out grouper's
+		// empty masks) — whatever the other groupers gave the record.
 		for i, g := range t.Groupers {
-			entry, err := buildStreamingGrouperComponents(g, t.Groups[i], int(t.FilteredRows), t.Assignments[i])
+			entry, err := buildStreamingGrouperComponents(g, t.Groups[i], int(t.FilteredRows), t.Keyed[i])
 			if err != nil {
 				return nil, err
 			}

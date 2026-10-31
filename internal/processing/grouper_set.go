@@ -337,6 +337,11 @@ type setPerElementGrouper struct {
 	// the orchestrator's TotalN (which counts each row once). The
 	// total_label_observations key surfaces that sum verbatim.
 	liveBuckets map[string]setPerElementBucketStat
+
+	// nEmptyMask counts the records whose set carried the empty mask:
+	// skipped (no bucket) yet not null, so the universal floor's n_null
+	// excludes them (emptyMaskSkipper, grouperFloor).
+	nEmptyMask int
 }
 
 func newSetPerElementGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
@@ -405,6 +410,10 @@ func (g *setPerElementGrouper) KeysForRow(r *Record, field string) ([]string, bo
 	if err := encx.SetMemberFault(g.def, m); err != nil {
 		return nil, false, err
 	}
+	if m.IsEmpty() {
+		g.nEmptyMask++
+		return nil, false, nil
+	}
 	labels, indices := resolveMaskLabelsWithIndices(m, g.dict)
 	if g.include.active() {
 		keptLabels := labels[:0]
@@ -432,6 +441,7 @@ func (g *setPerElementGrouper) Group(records []*Record, field string) (map[strin
 	// Reset live state so re-use of the grouper instance does not
 	// surface stale per-label counts.
 	g.liveBuckets = nil
+	g.nEmptyMask = 0
 	for _, r := range records {
 		labels, ok, err := g.KeysForRow(r, field)
 		if err != nil {
@@ -518,6 +528,10 @@ func (g *setPerElementGrouper) Components() (map[string]any, error) {
 		"buckets":                  buckets,
 	}, nil
 }
+
+// emptyMaskSkips implements emptyMaskSkipper: the empty-mask records,
+// which the universal floor's n_null excludes (#406).
+func (g *setPerElementGrouper) emptyMaskSkips() int { return g.nEmptyMask }
 
 // IncludeFilter implements IncludeOrdered.
 func (g *setPerElementGrouper) IncludeFilter() *includeFilter { return g.include }
