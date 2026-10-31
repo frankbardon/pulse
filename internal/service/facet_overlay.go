@@ -70,10 +70,17 @@ import (
 //     Filterers / AdditiveFields so the same-cohort recursion produces
 //     the unfiltered baseline, which is exactly what the population-
 //     comparison family wants.
-//   - Label suppression on population: the population FacetRequest does
-//     NOT carry the host's Labels slot. Labels are display-only and
-//     rewriting the population's per-value keys would break the
-//     resolver's value-name matching against the host's payload.
+//   - Labels mirror the host: applyFacetLabels relabels the host's
+//     discrete values BEFORE the overlays run, so the population
+//     FacetRequest carries the host's bindings on the overlay field
+//     (and only those) — host and population values then share one key
+//     space, the labelled one the caller sees on the host. Without them
+//     a replace-mode binding left every host key unmatched
+//     (PULSE_OVERLAY_REF_ZERO) and the raw population categories looked
+//     absent from the subset. Carrying the field's bindings, augment
+//     ones included, also keeps the population's default-label
+//     injection (applyAutoLabels skips a bound field) in step with the
+//     host's.
 
 // applyFacetOverlays runs the FACET-host overlay dispatch against a
 // finalised FacetResult and attaches the resulting layers in spec
@@ -249,9 +256,11 @@ func newPopulationCache() *populationCache {
 // current FacetSchema call.
 //
 // The recursive FacetSchema call strips overlays / filterers /
-// additive-fields / labels from the population FacetRequest so the
-// population always represents the FLAT, UNFILTERED distribution of the
-// host field over the comparison cohort. The cycle guard documented at
+// additive-fields from the population FacetRequest so the population
+// always represents the FLAT, UNFILTERED distribution of the host field
+// over the comparison cohort. It keeps the host's label bindings on that
+// field (facetFieldLabels) so the population's values are keyed exactly
+// as the host's labelled values are. The cycle guard documented at
 // the top of this file relies on this — the same-cohort recursion path
 // produces the unfiltered baseline by construction.
 func (c *populationCache) populationResult(ctx context.Context, s *Service, cohortName, field string, hostReq *types.FacetRequest) (*types.FacetResult, error) {
@@ -272,6 +281,7 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 		IncludeHistogram:   hostReq.IncludeHistogram,
 		HistogramBins:      hostReq.HistogramBins,
 		HistogramRange:     hostReq.HistogramRange,
+		Labels:             facetFieldLabels(hostReq.Labels, field),
 	}
 	popResult, err := s.FacetSchema(ctx, popReq)
 	if err != nil {
@@ -279,4 +289,17 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 	}
 	c.byKey[key] = popResult
 	return popResult, nil
+}
+
+// facetFieldLabels returns the bindings of labels that name field, in
+// order — the host's bindings the population FacetRequest must carry so
+// its discrete values land in the host's key space. Nil when none do.
+func facetFieldLabels(labels []*types.LabelBinding, field string) []*types.LabelBinding {
+	var out []*types.LabelBinding
+	for _, b := range labels {
+		if b != nil && b.Field == field {
+			out = append(out, b)
+		}
+	}
+	return out
 }

@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -433,5 +436,98 @@ func TestFacetWithOverlays_ChiSqVsPopMissingCategoryObservedZero(t *testing.T) {
 		if got := layer.Summary.Parameters["df"]; got != tc.wantDF {
 			t.Errorf("top_k %d: df = %v, want %v", tc.topK, got, tc.wantDF)
 		}
+	}
+}
+
+// TestFacetWithOverlays_VsPopUnderReplaceLabels runs every discrete
+// *_VS_POP kind with a caller-supplied replace-mode label binding on the
+// host field (E1-S7). The host's values are relabelled before the
+// overlays run, so the population must be keyed the same way: the
+// figures equal the unlabelled run's once each labelled key is mapped
+// back to its raw value, and no spurious PULSE_OVERLAY_REF_ZERO fires.
+// The table leaves "d" unlabelled (a partly labelled host), and the
+// subset drops "a" so CHISQ_VS_POP also compares a population category
+// at observed 0.
+func TestFacetWithOverlays_VsPopUnderReplaceLabels(t *testing.T) {
+	t.Parallel()
+	table := map[string]string{"a": "Alpha", "b": "Beta", "c": "Gamma"}
+	raw := map[string]string{}
+	for k, v := range table {
+		raw[v] = k
+	}
+	run := func(t *testing.T, kind types.OverlayKind, labelled bool) *types.FacetResult {
+		t.Helper()
+		svc, path := buildFacetOverlayCohort(t)
+		attachLabelExtensions(t, svc, map[string]processing.LabelTable{"cat_names": {Rows: table}})
+		req := &types.FacetRequest{
+			Cohort: &types.Cohort{Filename: path},
+			Fields: []string{"category"},
+			Filterers: []*types.Filterer{
+				{Type: types.FILTER_EXCLUDE, Field: "category", Values: []string{"a"}},
+			},
+			Overlays: []types.OverlaySpec{{
+				Kind:  kind,
+				Scope: types.OverlayScopeGroup,
+				Ref:   types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: path}},
+			}},
+		}
+		if labelled {
+			req.Labels = []*types.LabelBinding{{Field: "category", Table: "cat_names", Mode: types.LabelModeReplace}}
+		}
+		res, err := svc.FacetSchema(context.Background(), req)
+		if err != nil {
+			t.Fatalf("FacetSchema(%s, labelled %v): %v", kind, labelled, err)
+		}
+		if len(res.Overlays) != 1 {
+			t.Fatalf("%s: want one layer, got %d", kind, len(res.Overlays))
+		}
+		for _, w := range res.Warnings {
+			if w.Code == string(errors.PULSE_OVERLAY_REF_ZERO) {
+				t.Errorf("%s (labelled %v): spurious %s: %s %v", kind, labelled, w.Code, w.Message, w.Details)
+			}
+		}
+		return res
+	}
+	marshal := func(t *testing.T, v any) string {
+		t.Helper()
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return string(b)
+	}
+	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsPop, types.OverlayKindZScoreVsPop, types.OverlayKindChiSqVsPop} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			plain := run(t, kind, false).Overlays[0]
+			labelled := run(t, kind, true).Overlays[0]
+			if got, want := marshal(t, labelled.Summary), marshal(t, plain.Summary); got != want {
+				t.Errorf("layer summary differs under replace labels:\n labelled: %s\n    plain: %s", got, want)
+			}
+			if plain.Payload.Series == nil {
+				return
+			}
+			if labelled.Payload.Series == nil {
+				t.Fatalf("labelled run lost the series payload")
+			}
+			want := map[string]string{}
+			for _, e := range plain.Payload.Series.Entries {
+				want[fmt.Sprint(e.Key[0])] = marshal(t, e.Summary)
+			}
+			if len(labelled.Payload.Series.Entries) != len(want) {
+				t.Fatalf("entry count = %d, want %d", len(labelled.Payload.Series.Entries), len(want))
+			}
+			for _, e := range labelled.Payload.Series.Entries {
+				key := fmt.Sprint(e.Key[0])
+				if r, ok := raw[key]; ok {
+					key = r
+				} else if _, rawLeak := table[key]; rawLeak {
+					t.Errorf("entry key %q is the raw value of a labelled category", key)
+				}
+				if got := marshal(t, e.Summary); got != want[key] {
+					t.Errorf("entry %q (raw %q): summary %s, want %s", e.Key[0], key, got, want[key])
+				}
+			}
+		})
 	}
 }
