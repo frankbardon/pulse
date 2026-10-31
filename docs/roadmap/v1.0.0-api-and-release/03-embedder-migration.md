@@ -1238,6 +1238,14 @@ Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pu
 | the Pulse root module required no OpenTelemetry or Prometheus module | the root `go.mod` requires OpenTelemetry (v1.47.0, incl. the OTLP/HTTP exporters) and `client_golang`; only `observe/otel`, `observe/prom` and the CLI import them, so a program that imports neither adapter links none of it | dependency change | none; `go mod tidy` may list the new requires in your `go.sum` | observability-adapters (E1-S1, E1-S2) |
 | `pulse mcp` exported metrics only through `--metrics-addr` | `pulse mcp` also exports traces and metrics over OTLP/HTTP when a standard `OTEL_EXPORTER_OTLP_*ENDPOINT` is set (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` and the SDK's other `OTEL_*` apply); a non-http(s) endpoint or a non-`http/protobuf` protocol fails startup with `CLI_INPUT`; export errors only warn | added (opt-in) | none; unset `OTEL_EXPORTER_OTLP_*ENDPOINT` keeps the old behaviour. A host that already sets a gRPC `OTEL_EXPORTER_OTLP_PROTOCOL` with an endpoint for other processes must unset it for `pulse mcp` or switch to `http/protobuf`. `mcpserve` embedders wire `observe/otel` themselves | observability-adapters (E1-S4) |
 
+## Changes from vibe-2026-10-31
+
+Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `ATTR_PERCENTILE` ranked tied rows with an unstable sort, so on a cohort of more than a dozen rows a tied row could read a different percentile from run to run (and tied rows at a cut-off fell either side of it at random) | tied rows still take distinct ranks, now in scan order: of two rows with the same value the earlier record ranks lower, so the same cohort always reads the same percentiles; untied rows and null rows are unchanged. Skill `op-attr-percentile`, the operator's `Purpose` and `Interpretation` state the rule | behaviour change | none; a stored output that relied on a particular tied row's percentile may move once. Cut on the value (`AGG_PERCENTILE`, then a filter) for a split that ignores row order | vibe-2026-10-31 (E1-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

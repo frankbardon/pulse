@@ -109,7 +109,7 @@ var (
 				"The largest value reads 100 and the smallest 100 / n, so for a value no other row shares it is the share of rows at or below this one; " +
 				"tied values break that (see below).",
 			Caveats: []string{
-				"Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read different percentiles, " +
+				"Tied values do not share a percentile: each tied row takes its own rank in scan order (the earlier record lower), so equal values can read different percentiles, " +
 					"far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.",
 				"A row with a missing value gets no percentile (null) and is not counted in n.",
 				"Other tools define it differently (smallest at 0, or ties at their midpoint), so the same row can read a few points apart elsewhere.",
