@@ -102,6 +102,14 @@ The contract is that one answer has the same bits under every concurrency knob.
 
 `MAT_CORRELATION` agrees with `TEST_PEARSON_R` within `1e-12 + 1e-12·|r|`, not byte for byte. Two arithmetics differ on purpose: the matrix is FMA-free and block-merged (arch-independent, worker-invariant), while the test runs its own Welford recurrence. Bitwise parity holds only in one case (unweighted, serial, ≤ 4096 rows, test `field` the earlier member). U61 (E2-S3) barriered `TEST_PEARSON_R`'s recurrence, so its bits are now the same on every architecture (arm64 moved onto amd64); `TestMatrixCorrelation_PearsonParity` asserts the bitwise leg on every architecture. `linalg.CoMoment.Corr` was changed in U16 to the one-root `C / √(M2ii·M2jj)` (two-root `C / (√M2ii·√M2jj)` only when the product leaves the normal float64 range) so that bitwise case holds (public method, no production caller outside the matrix slot; see the embedder-migration doc).
 
+## Cross-architecture detail
+
+- `math/rand/v2` `NormFloat64` / `ExpFloat64` reject-sample through `math.Exp`, which differs between arm64 and amd64; use uniform draws or `detmath.NormFloat64` / `detmath.ExpFloat64` for generator output feeding a bit-exact fixture.
+- Generators fuse too: arm64 turns `rng.NormFloat64()*k + c` into one FMA, amd64 does not. Write `float64(rng.NormFloat64()*k) + c`. A frozen-word test once failed in amd64 CI for this.
+- gonum SymEigen / SVD / QR and their consumers (PCA, `MAT_FACTOR`, `TEST_MANOVA`, `MAT_SEM` fits) keep a few-ulp residual; compare stored fixtures within tolerance. Residual list: `docs/src/library/linalg.md` (Not covered).
+- Proof is the committed `internal/fingerprint` golden (generated on arm64) plus CI's linux/amd64 run. Nothing committed may depend on Docker.
+- Aid only: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64`. Rosetta reproduces the FMA class but emits the arm64-style NaN, so a NaN sign-bit failure shows only in amd64 CI.
+
 ## Open edges (handed on)
 
 U16 closed: matrices on single-file, sharded and grouped cohorts (E4); Sort-ordered buckets; missing modes and `PULSE_MATRIX_NOT_PSD` detection. Every item below has an owner; none is open inside U16.
