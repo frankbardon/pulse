@@ -20,9 +20,22 @@ import (
 // for write. opts.SourceCohort empty (the default) reproduces the
 // unmodified plain-synthesis behavior below, byte-for-byte.
 func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error) {
+	res, _, err := SynthWithFidelityCohort(fs, spec, output, opts)
+	return res, err
+}
+
+// SynthWithFidelityCohort is Synth also returning, on the top-up path,
+// the tagged cohort the fidelity report partitions (see
+// AugmentWithFidelityCohort); nil on the plain path.
+func SynthWithFidelityCohort(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, []byte, error) {
 	if opts.SourceCohort != "" {
-		return AugmentFromProfile(fs, spec, opts.SourceCohort, output, opts)
+		return AugmentWithFidelityCohort(fs, spec, opts.SourceCohort, output, opts)
 	}
+	res, err := synthPlain(fs, spec, output, opts)
+	return res, nil, err
+}
+
+func synthPlain(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error) {
 	if fs == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: fs is required")
 	}
@@ -39,7 +52,7 @@ func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error
 	// Stream record bytes into a separate buffer so the dictionary blocks
 	// emitted with the schema are populated before being serialized.
 	var recordsBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng, opts.Seed)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +91,7 @@ func SynthBytes(spec *Spec, opts Options) ([]byte, *Result, error) {
 	}
 
 	var recordsBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, schema, wfs, &recordsBuf, rng, opts.Seed)
 	if err != nil {
 		return nil, nil, err
 	}

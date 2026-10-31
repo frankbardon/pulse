@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -674,5 +675,37 @@ func TestBuildModelFidelity_IsByteReproducible(t *testing.T) {
 	}
 	if !bytes.Equal(renders[0], renders[1]) {
 		t.Errorf("two builds over identical inputs differ:\n%s\n%s", renders[0], renders[1])
+	}
+}
+
+// TestBuildModelFidelity_HelperFieldModelSaysWhy: a model over a
+// `"output": false` helper drew its value, but the cohort never carries
+// the column, so its entry says so instead of blaming the partition —
+// and the helper rides the tagged top-up without disturbing the merge.
+func TestBuildModelFidelity_HelperFieldModelSaysWhy(t *testing.T) {
+	t.Parallel()
+
+	hidden := false
+	spec := modelFidelitySpec(2000,
+		synth.FieldModelSpec{Field: "spend", Intercept: 100, ResidualStd: 25},
+		synth.FieldModelSpec{Field: "latent", Intercept: 5, ResidualStd: 1},
+	)
+	spec.Fields = append(spec.Fields, synth.FieldSpec{
+		Name: "latent", Type: "f64", Distribution: synth.DistNormal,
+		Params: map[string]any{"mean": 5.0, "std": 1.0}, Output: &hidden,
+	})
+	schema, records := augmentForModelFidelity(t, spec, 2000, 7)
+	if schema.Field("latent") != nil {
+		t.Fatal("the helper reached the merged cohort")
+	}
+
+	report := &synth.FidelityReport{}
+	synth.BuildModelFidelity(report, schema, records, spec)
+	m := findModelFidelity(report, "latent")
+	if m == nil || !strings.Contains(m.Error, `"output": false`) {
+		t.Fatalf("latent entry = %+v, want an error naming the helper", m)
+	}
+	if s := findModelFidelity(report, "spend"); s == nil || s.Error != "" {
+		t.Fatalf("spend entry = %+v, want a clean recovery", s)
 	}
 }

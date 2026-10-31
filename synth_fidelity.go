@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/afero"
 )
 
-// writeSynthFidelityReport re-reads the just-written output cohort at
-// path, drives internal/synth.BuildFidelityReport against its records (TEST_KS
+// writeSynthFidelityReport reads the tagged source-plus-generated
+// cohort data, drives internal/synth.BuildFidelityReport against its records (TEST_KS
 // for numeric fields, TEST_CHISQ for categorical, a direct per-option
 // frequency comparison for set_* fields, all compared against
 // internal/synth.SyntheticFieldName), folds in internal/synth.BuildPairwise's
@@ -54,10 +54,19 @@ import (
 // statistics over already-decoded record values — but stays in this
 // same bridge so the one JSON document is assembled and written in one
 // place.
-func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.Spec, fidelityWarnings []string) error {
-	data, err := afero.ReadFile(fs, path)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading synth output for fidelity report")
+//
+// foldModels, when non-nil, adds the supplied-model refit
+// (FidelityReport.Utility.ModelFits) after every computed section; the
+// disclosure section (synth.BuildDisclosure) follows it.
+//
+// data is the TAGGED cohort (synth.SynthWithFidelityCohort): the written
+// output on the tagged path, an in-memory twin of it under SyntheticOnly,
+// whose output carries neither the source rows nor the tag column.
+func writeSynthFidelityReport(fs afero.Fs, data []byte, opts synth.Options, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
+	reportPath := opts.FidelityReportPath
+	if data == nil {
+		return errors.NewCodedError(errors.PULSE_SYNTH_SOURCE_REQUIRED,
+			"the fidelity report needs the source-plus-generated cohort; none was built")
 	}
 	r := bytes.NewReader(data)
 	pulseVersion, err := encoding.ReadHeader(r)
@@ -72,6 +81,10 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
 	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
+	// A flagged marginal on a field a structural rule writes names the
+	// rules: the rule pass reaches generated rows only, so the difference
+	// may be the rule's own effect. A rules-free spec adds nothing.
+	synth.AttachRuleNotes(report, spec)
 
 	// spec carries the FULL captured relationship set (SpecFromProfile
 	// never prunes it — see internal/synth.ResolveConflicts's own doc). generate()
@@ -84,7 +97,13 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	// applied, which is misleading rather than merely redundant; the
 	// dropped pair's own conflict warning (already on fidelityWarnings)
 	// is what explains its absence here.
-	catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations := synth.ResolveConflicts(spec)
+	//
+	// ScoredRelationships is that resolution minus the relationships
+	// reading a helper (`"output": false`) field the cohort does not
+	// carry, each named in a warning; it is ResolveConflicts exactly for
+	// a spec without helpers.
+	catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations, helperWarnings := synth.ScoredRelationships(spec)
+	fidelityWarnings = append(fidelityWarnings, helperWarnings...)
 	synth.BuildPairwise(report, schema, records, correlations, fidelityWarnings)
 	synth.BuildCategoricalPairwise(report, schema, records, catPairs)
 	synth.BuildCategoricalNumericPairwise(report, schema, records, catNumPairs)
@@ -114,6 +133,21 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	// one finding twice.
 	synth.BuildModelFidelity(report, schema, records, spec)
 
+	// The utility half compares against the SOURCE partition rather than
+	// against the captured model: the target's mean by each applied
+	// model's categorical predictors (target_rates), then the supplied
+	// request's refit (model_fits) when one was given.
+	synth.BuildTargetRates(report, schema, records, spec)
+	if foldModels != nil {
+		foldModels(report)
+	}
+	// The disclosure section: exact matches and the Gower distance to
+	// closest record, from the same tagged cohort (both layouts), on a
+	// sample drawn from its own seeded stream. Off with DisableDisclosure.
+	if err := synth.BuildDisclosure(report, schema, records, opts); err != nil {
+		return err
+	}
+
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return errors.WrapCodedError(err, errors.CLI_OUTPUT, "marshaling fidelity report")
@@ -122,6 +156,98 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 		return errors.WrapCodedError(err, errors.CLI_OUTPUT, "writing fidelity report")
 	}
 	return nil
+}
+
+// checkDisclosureBudget is the disclosure section's pre-flight
+// (synth.CheckDisclosureBudget): its working set against the instance's
+// MaxEstimatedMemory, before generation. It lives here for the same
+// reason as synthWithFidelityCohort.
+func checkDisclosureBudget(fs afero.Fs, spec *synth.Spec, opts synth.Options, l Limits) error {
+	return synth.CheckDisclosureBudget(fs, spec, opts, l)
+}
+
+// synthWithFidelityCohort is the facade's generation call: the internal
+// entry point that also hands back the tagged cohort the report reads
+// (synth.SynthWithFidelityCohort). It lives here, beside the report,
+// because pulse.go imports only the public synth facade and the tagged
+// bytes are not public surface.
+func synthWithFidelityCohort(fs afero.Fs, spec *synth.Spec, output string, opts synth.Options) (*synth.Result, []byte, error) {
+	return synth.SynthWithFidelityCohort(fs, spec, output, opts)
+}
+
+// fidelityModelRefit is a supplied fidelity model
+// (SynthOptions.FidelityModel) part-way through its two runs: the
+// source fit done before generation, the synthetic fit still to come.
+//
+// Both runs go through the ordinary engine (Service.Process) against a
+// real cohort on this instance's filesystem — the source cohort, then
+// the output cohort filtered to `_synthetic = true` — so features,
+// filters, extensions and the instance's feature profile apply exactly
+// as `pulse process` would apply them. The engine lives here, not in
+// internal/synth, for the TestRunner reason above.
+type fidelityModelRefit struct {
+	p      *Pulse
+	req    *types.Request
+	source *types.Response
+}
+
+// newFidelityModelRefit validates opts.FidelityModel and runs its
+// source fit; nil (no error) when no model was supplied.
+func (p *Pulse) newFidelityModelRefit(ctx context.Context, opts SynthOptions) (*fidelityModelRefit, error) {
+	if opts.FidelityModel == nil {
+		return nil, nil
+	}
+	switch {
+	case opts.SourceCohort == "" || opts.FidelityReportPath == "":
+		return nil, errors.NewCodedError(errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID,
+			"a fidelity model needs a source cohort and a fidelity report path to refit into")
+	case len(opts.FidelityModel.Regressions) == 0:
+		return nil, errors.NewCodedError(errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID,
+			"the fidelity model request carries no regressions to refit")
+	}
+	src, err := p.runFidelityModel(ctx, opts.FidelityModel, opts.SourceCohort, false)
+	if err != nil {
+		return nil, err
+	}
+	return &fidelityModelRefit{p: p, req: opts.FidelityModel, source: src}, nil
+}
+
+// fold returns the report hook that runs the synthetic fit over output
+// and folds both fits into the report; nil when no model was supplied.
+// A synthetic run the engine refuses is recorded on each entry rather
+// than failing a generation that already succeeded.
+//
+// syntheticOnly says output holds the generated rows alone and no
+// _synthetic column, so the fit reads the whole file instead of
+// filtering to `_synthetic = true` — the same rows either way.
+func (r *fidelityModelRefit) fold(ctx context.Context, output string, syntheticOnly bool) func(*synth.FidelityReport) {
+	if r == nil {
+		return nil
+	}
+	return func(report *synth.FidelityReport) {
+		syn, err := r.p.runFidelityModel(ctx, r.req, output, !syntheticOnly)
+		synth.CompareModelFits(report, r.req, r.source, syn, nil, err)
+	}
+}
+
+// runFidelityModel runs a copy of req against cohort — restricted to
+// the `_synthetic = true` rows when synthetic — leaving req untouched
+// (the engine expands items in place). The copy is a JSON round trip of
+// the wire shape, so nothing the caller holds is aliased.
+func (p *Pulse) runFidelityModel(ctx context.Context, req *types.Request, cohort string, synthetic bool) (*types.Response, error) {
+	raw, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID, "copying the fidelity model request")
+	}
+	var run types.Request
+	if err := json.Unmarshal(raw, &run); err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID, "copying the fidelity model request")
+	}
+	run.Cohort = &types.Cohort{Filename: cohort}
+	if synthetic {
+		run.Filterers = append(run.Filterers, &types.Filterer{Type: types.FILTER_TRUE, Field: synth.SyntheticFieldName})
+	}
+	return p.svc.Process(ctx, &run)
 }
 
 // mergeFidelityWarnings folds generation-time warnings into the

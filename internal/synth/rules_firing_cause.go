@@ -69,7 +69,7 @@ type whenField struct {
 // DERIVED from the row value by rounding rather than stored as given.
 //
 // It is the set of writeFieldValueForField arms applying Floor(f+0.5)
-// (u4, u8, u16, u32, u64, date) plus packed_bool, whose toBool rounds at
+// (u4, u8, u16, u32, u64, date, datetime) plus packed_bool, whose toBool rounds at
 // 0.5. f32/f64 store the float they are given; decimal128 parses an
 // exact literal; a categorical stores a dictionary ID and a set_* a
 // bitmask, neither of which a numeric comparison reaches at all.
@@ -82,7 +82,7 @@ type whenField struct {
 // the file, which both of those do.
 var quantizingFieldTypes = map[string]bool{
 	"u4": true, "u8": true, "u16": true, "u32": true, "u64": true,
-	"date": true, "packed_bool": true,
+	"date": true, "datetime": true, "packed_bool": true,
 }
 
 // exactValuedDistributions is the set of distributions whose draw is
@@ -112,11 +112,14 @@ var quantizingFieldTypes = map[string]bool{
 // the same staircase — so the exactness is a property of the field, not
 // of which stage last touched it.
 var exactValuedDistributions = map[string]bool{
-	DistDiscrete:      true,
-	DistBernoulli:     true,
-	DistUniformDate:   true,
-	DistPoisson:       true,
-	DistMonotonicFrom: true,
+	DistDiscrete:    true,
+	DistBernoulli:   true,
+	DistUniformDate: true,
+	// uniform_datetime draws whole seconds, and its zone conversion
+	// shifts a reading by a whole-second offset.
+	DistUniformDateTime: true,
+	DistPoisson:         true,
+	DistMonotonicFrom:   true,
 }
 
 // distributionIsExactValued answers exactValuedDistributions' question

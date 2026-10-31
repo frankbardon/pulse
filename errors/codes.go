@@ -993,6 +993,37 @@ const (
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 
+	// PULSE_SYNTH_RULE_DRAW_INVALID indicates a misused random draw in a
+	// synth row expression: `uniform()` / `bernoulli(p)` called from a
+	// `constraints[]` entry (draws belong to rules; a constraint is a
+	// deterministic acceptance test), called with the wrong arguments, or
+	// `bernoulli(p)` given a `p` outside [0, 1] — a literal is refused at
+	// spec validation, a computed `p` (NaN included) on the row that
+	// produced it. `details.function` names the call, `details.expr` the
+	// expression.
+	PULSE_SYNTH_RULE_DRAW_INVALID Code = "PULSE_SYNTH_RULE_DRAW_INVALID"
+
+	// PULSE_SYNTH_DST_NONEXISTENT indicates a `uniform_datetime` field
+	// drew a local wall-clock time its zone never shows — the skipped
+	// hour of a DST spring-forward — under the default dst_policy
+	// "error". Generation stops; nothing is written. Details carry
+	// `field`, `local_time` (naive ISO 8601), `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_NONEXISTENT Code = "PULSE_SYNTH_DST_NONEXISTENT"
+
+	// PULSE_SYNTH_DST_AMBIGUOUS indicates a `uniform_datetime` field drew
+	// a local wall-clock time its zone shows twice — the repeated hour of
+	// a DST fall-back — under the default dst_policy "error". Generation
+	// stops; nothing is written. Details carry `field`, `local_time`,
+	// `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_AMBIGUOUS Code = "PULSE_SYNTH_DST_AMBIGUOUS"
+
+	// PULSE_SYNTH_FIDELITY_MODEL_INVALID indicates a supplied fidelity
+	// model request (SynthOptions.FidelityModel / `synth from-profile
+	// --fidelity-model`) cannot be refit: it carries no `regressions`,
+	// or the call has no source cohort or no fidelity report to put the
+	// refit in. Refused before generation; nothing is written.
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID Code = "PULSE_SYNTH_FIDELITY_MODEL_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -4659,6 +4690,10 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_RULE_DRAW_INVALID,
+	PULSE_SYNTH_DST_NONEXISTENT,
+	PULSE_SYNTH_DST_AMBIGUOUS,
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

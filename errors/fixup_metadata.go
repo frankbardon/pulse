@@ -1539,6 +1539,60 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_DRAW_INVALID: {
+		Message: "A synth row expression misuses a random draw: `uniform()` or `bernoulli(p)` is called from a constraint, with the wrong arguments, or `bernoulli(p)` is given a `p` outside [0, 1] (NaN included). Draws are a rule's: each call site reads its own seeded stream, so a constraint that drew would make acceptance itself random.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Call `uniform()` with no arguments and `bernoulli(p)` with one probability in [0, 1]; clamp a computed one (`bernoulli(min(1, max(0, pd)))`). To filter on a draw, store it in a rule (`{\"set_expr\": {\"u\": \"uniform()\"}}` on an `\"output\": false` field) and constrain the field.",
+			},
+		},
+	},
+	PULSE_SYNTH_DST_NONEXISTENT: {
+		Message: "A `uniform_datetime` field drew a local wall-clock time its zone never shows — the skipped hour of a DST spring-forward — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`. A UTC or fixed-offset zone has no transitions and never raises this.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Set the field's params.dst_policy: \"earlier\" reads the skipped time at the pre-transition offset (Europe/Berlin 2026-03-29 02:30 → 01:30Z), \"later\" at the post-transition offset (→ 00:30Z) — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Or give the transition hour no weight: a 0 in params.hour_weights at the skipped local hour (02 in most of Europe and North America) means no time in it is ever drawn.",
+			},
+		},
+	},
+	PULSE_SYNTH_DST_AMBIGUOUS: {
+		Message: "A `uniform_datetime` field drew a local wall-clock time its zone shows twice — the repeated hour of a DST fall-back — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Set the field's params.dst_policy: \"earlier\" takes the first occurrence (pre-transition offset), \"later\" the second — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Or give the repeated hour no weight: a 0 in params.hour_weights at the repeated local hour (01 in North America, 02 in most of Europe) means no time in it is ever drawn.",
+			},
+		},
+	},
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID: {
+		Message: "A supplied fidelity model request cannot be refit: it carries no `regressions`, or the synth call has no source cohort or no fidelity report path to write the refit into. The call is refused before generation and nothing is written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions"},
+				Hint:   "Give the request at least one regression (the same `regressions` array `pulse process` reads); its cohort is ignored, the refit runs on the source cohort and on the generated rows.",
+			},
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass the model together with a source cohort and a fidelity report path (--source and --fidelity-report on synth from-profile; SourceCohort and FidelityReportPath on SynthOptions).",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

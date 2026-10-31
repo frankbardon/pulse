@@ -648,13 +648,26 @@ func (s *setNumericPairSampler) transform(rng *rand.Rand, row map[string]any) {
 // setSetPairSampler resamples set field B's declared OptionB (bit)
 // conditioned on set field A's declared OptionA — already independently
 // drawn — reproducing the pair's captured 2x2 contingency structure
-// between two DIFFERENT set_* fields.
+// between two set_* fields, or between two options of one set field
+// (setA == setB, where ma and mb are the same selection map).
 type setSetPairSampler struct {
 	setA, optionA, setB, optionB            string
 	pGivenASelected, pGivenANotSelected     float64
 	hasGivenASelected, hasGivenANotSelected bool
 	fallback                                float64
 	hasFallback                             bool
+}
+
+// crossSetPairs and withinSetPairs split the arbitrated set-set pairs
+// into the two drawRow stages, keeping declaration order in each: pairs
+// between two different set fields, and pairs between two options of
+// one set field (see rowStages.setWithinPairs).
+func crossSetPairs(pairs []SetSetPairSpec) []SetSetPairSpec {
+	return filterRelationships(pairs, func(p SetSetPairSpec) bool { return p.SetA != p.SetB })
+}
+
+func withinSetPairs(pairs []SetSetPairSpec) []SetSetPairSpec {
+	return filterRelationships(pairs, func(p SetSetPairSpec) bool { return p.SetA == p.SetB })
 }
 
 func buildSetSetPairSamplers(pairs []SetSetPairSpec) []*setSetPairSampler {

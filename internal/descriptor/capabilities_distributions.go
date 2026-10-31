@@ -120,6 +120,20 @@ func distributionCapabilities() []descriptor.DistributionMeta {
 			},
 		},
 		{
+			Name:        synth.DistUniformDateTime,
+			Description: "Zone-aware datetime samples: a local wall-clock time in [start, end] drawn by weekday and hour-of-day weights, converted to the UTC epoch second it names in a fixed or per-row zone.",
+			AppliesTo:   []string{"datetime"},
+			Params: []descriptor.Param{
+				{Name: "start", Type: "string", Required: true, Description: "First local calendar day (YYYY-MM-DD), inclusive."},
+				{Name: "end", Type: "string", Required: true, Description: "Last local calendar day (YYYY-MM-DD), inclusive; may equal start but not precede it."},
+				{Name: "time_zone", Type: "string", Required: false, Description: "IANA zone (or \"UTC\") the local time is read in; UTC when absent. Exclusive with time_zone_field."},
+				{Name: "time_zone_field", Type: "string", Required: false, Description: "A categorical_* field of IANA zone names: each row's time is read in that row's zone; a null zone cell makes the datetime null."},
+				{Name: "dst_policy", Type: "string", Required: false, Default: "error", Description: "A local time a DST transition skips or repeats: \"error\" stops the run, \"earlier\" takes the pre-transition offset, \"later\" the post-transition one (the import's spellings)."},
+				{Name: "hour_weights", Type: "list", Required: false, Description: "24 non-negative weights for local hours 0..23; uniform when absent."},
+				{Name: "weekday_weights", Type: "list", Required: false, Description: "7 non-negative per-day weights, Monday first (ISO order); a weekday's share is its weight times its days in range. Uniform when absent."},
+			},
+		},
+		{
 			Name:        synth.DistRegex,
 			Description: "String samples generated from a Perl regex pattern; open-ended repeats (*, +, {m,}) are capped at max_repeat.",
 			AppliesTo:   []string{"categorical"},

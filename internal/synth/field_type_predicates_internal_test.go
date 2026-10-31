@@ -47,6 +47,7 @@ func TestFieldTypePredicates_ClassifyEveryDeclarableType(t *testing.T) {
 		"f32":         {numeric: true},
 		"f64":         {numeric: true},
 		"date":        {numeric: true},
+		"datetime":    {numeric: true},
 		"decimal128":  {numeric: true},
 		"packed_bool": {numeric: true, boolean: true},
 		// Dictionary-backed. The row value is a string / map[string]bool,
@@ -107,21 +108,18 @@ func TestFieldTypePredicates_ClassifyEveryDeclarableType(t *testing.T) {
 // the one that actually failed: a predicate must answer false for every
 // name no Spec can declare.
 //
-// `datetime` is the live case — an encoding.FieldType that exists and
-// whose String() is stable, but which fieldTypeFromName cannot build, so
-// a predicate admitting it would gate on a column synth can never
-// produce. The nullable_* spellings are the historical aliases
-// isNumericFieldType and sentinelFor really carried; they are pinned
-// here so neither can come back.
+// Every name in undeclarableFieldTypes is checked (the table is empty
+// since `datetime` became declarable in #362, so the live half is the
+// next encoding type added without a synth write path). The nullable_*
+// spellings are the historical aliases isNumericFieldType and
+// sentinelFor really carried; they are pinned here so neither can come
+// back.
 func TestFieldTypePredicates_RefuseUndeclarableNames(t *testing.T) {
 	t.Parallel()
 
 	names := make([]string, 0, len(undeclarableFieldTypes)+9)
 	for name := range undeclarableFieldTypes {
 		names = append(names, name)
-	}
-	if len(names) == 0 {
-		t.Fatal("undeclarableFieldTypes is empty — the live half of this gate is gone")
 	}
 	names = append(names,
 		"nullable_u4", "nullable_u8", "nullable_u16", "nullable_bool",

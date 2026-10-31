@@ -12,4 +12,4 @@ The operators this instance offers, one page per category. Each page opens with 
 - [Regressions](catalog/regression.md) (5)
 - [Matrix operators](catalog/matrix.md) (9)
 - [Overlays](catalog/overlay.md) (54)
-- [Synth distributions](catalog/synth_distribution.md) (15)
+- [Synth distributions](catalog/synth_distribution.md) (16)

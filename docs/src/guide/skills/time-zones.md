@@ -29,7 +29,7 @@ Expressions (`to_day`, `weekday`) stay request-zone only (`time_zone`), never pe
 
 ## Stored instants
 
-A `datetime` stores whole seconds since the epoch, naive UTC. A fraction floors toward the past (native Arrow / Parquet timestamps warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED`); keep microseconds in a `u64`. An offset-bearing literal is normalised to the same instant and the offset discarded (`…T10:11:12+02:00` → `…T08:11:12Z`); export `--tz` renders it back with a local offset. Truncating to a day floors toward the past (`1969-12-31T23:59:59Z` is day −1 in UTC).
+A `datetime` stores whole seconds since the epoch, naive UTC. Synthetic ones: [`op-synth-uniform-datetime`](op-synth-uniform-datetime.md) (local time, fixed or per-row zone, DST per `dst_policy`). A fraction floors toward the past (native Arrow / Parquet timestamps warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED`); keep microseconds in a `u64`. An offset-bearing literal is normalised to the same instant and the offset discarded (`…T10:11:12+02:00` → `…T08:11:12Z`); export `--tz` renders it back with a local offset. Truncating to a day floors toward the past (`1969-12-31T23:59:59Z` is day −1 in UTC).
 
 ## Local-day semantics
 
