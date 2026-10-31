@@ -711,6 +711,10 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// constructors' codes (internal/fieldaccept).
 	validateFieldAcceptance(env, req, schema, opts.instance(), weightErr)
 
+	// FILTER_INCLUDE / FILTER_EXCLUDE values against the field's full
+	// dictionary — the runtime constructor's rule (valuematch).
+	validateFilterValues(env, req.Filterers, schema, opts.instance())
+
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 
