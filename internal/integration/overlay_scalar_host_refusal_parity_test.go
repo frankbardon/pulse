@@ -36,7 +36,13 @@ func scalarGoodSpec(kind types.OverlayKind, series bool) types.OverlaySpec {
 	}
 	s := types.OverlaySpec{Name: "o", Kind: kind, Scope: overlayhost.CrosstabSpecScopes(kind)[0]}
 	if isMarginKind(kind) {
-		s.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}
+		// An axis-locked share (SHARE_OF_ROW / _COL) carries its own
+		// axis; any other would be refused before the case's target.
+		axis := types.MarginAxisRow
+		if locked := overlayhost.CrosstabSpecMarginAxis(kind); locked != "" {
+			axis = locked
+		}
+		s.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: axis}}
 	}
 	return s
 }
