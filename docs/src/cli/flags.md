@@ -210,6 +210,24 @@ bare array of rule objects, the same shape as a spec's `rules` key — and
 `PULSE_SYNTH_RULE_*` codes with the file path in `details.path`. See
 [synth from-profile](synth-from-profile.md).
 
+### `--synthetic-only` / `--constraints` / `--max-rejection-rate`
+
+Available on: `synth from-profile`.
+
+`--synthetic-only` writes the generated rows alone: no source row and
+no `_synthetic` column, so the output has the source's schema.
+`--source` is still read, and `--fidelity-report` still compares the
+generated rows with it.
+
+`--constraints <path>` loads row constraints from a standalone JSON
+file (a bare array of `{"expr": ...}` objects, the same shape as a
+spec's `constraints` key) and **replaces** the derived spec's
+constraints with them. A failing row is drawn again.
+`--max-rejection-rate` (in [0, 1); 0 keeps the default 0.5) caps the
+fraction of rows they may reject before the run is refused
+`PULSE_SYNTH_CONSTRAINT_INFEASIBLE`. A refusal names the file in
+`details.path`. See [synth from-profile](synth-from-profile.md).
+
 ### `--fidelity-model`
 
 Available on: `synth from-profile` (with `--fidelity-report`).
@@ -900,7 +918,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
 | `pulse skills list` | List every built-in embedded skill (embedder skills are served per instance by `pulse_skills_*` and `p.Skills()`) | `--help` |
 | `pulse skills show` | Print one built-in skill's markdown (not profile-scoped, no embedder content) | `--help` |
-| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns, effect sizes beside the marginal p-values and a `utility` section against the source rows; `--fidelity-model` refits a supplied request's regressions on both | [synth from-profile](synth-from-profile.md) |
+| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it and `--constraints` a row-constraints file; `--synthetic-only` writes the generated rows alone; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns, effect sizes beside the marginal p-values and a `utility` section against the source rows; `--fidelity-model` refits a supplied request's regressions on both | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
 | `pulse version` | Print the build version as `pulse <version>`; `--json` emits the standard envelope whose `data` carries the build version, Go version, VCS commit and commit time (both omitted when the binary carries no VCS metadata) and the envelope `format_version`. Same build version as `pulse --version` and the root manifest | `--help` |
 | `pulse widen` | Widen a set column of a single-file cohort to a wider set rung (`--field`, `--to`), rewriting the cohort in place. Destructive and non-interactive, but atomic — temp file, fsync, rename — so a refusal or a failure leaves the cohort byte-identical. Refuses a narrower or equal target, a non-set column, a column already at `set_u256`, and a shard archive (whose widen spans the canonical schema plus every shard payload, so it is not this leaf's operation); each refusal carries its own error code, usable with `pulse errors lookup`. On success it names any sidecar the rewrite invalidated — the point-lookup index, the SPSS metadata sidecar — and the exact command that rebuilds it (`data.invalidated_sidecars` under `--json`); it rebuilds nothing, and prints nothing when there are none | `--help` |

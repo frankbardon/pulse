@@ -96,13 +96,16 @@ func synthFromProfileCmd() *cli.Command {
 		Usage: "Top up a source cohort with rows generated from a previously-captured profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "profile", Aliases: []string{"p"}, Usage: "Profile JSON path", Required: true},
-			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false; never opened for write", Required: true},
+			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false unless --synthetic-only; never opened for write", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path — must differ from --source", Required: true},
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
 			&cli.StringFlag{Name: "fidelity-model", Usage: "Refit a supplied request's regressions (a pulse process request JSON; its cohort is ignored) on the source and on the generated rows, and report both fits side by side in the fidelity report's utility.model_fits; needs --fidelity-report"},
 			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
+			&cli.BoolFlag{Name: "synthetic-only", Usage: "Write only the generated rows: no source row and no _synthetic column, so the output has the source's schema. The source is still read, and --fidelity-report still compares the generated rows against it"},
+			&cli.StringFlag{Name: "constraints", Usage: "Load row constraints from a standalone JSON file (a bare array of {\"expr\": ...} objects — the same shape as a spec's \"constraints\" key) and apply them to the profile-derived spec; a generated row failing any constraint is re-drawn. REPLACES any constraints the spec carries"},
+			&cli.FloatFlag{Name: "max-rejection-rate", Usage: "Ceiling on the fraction of generated rows --constraints may reject before the run is refused PULSE_SYNTH_CONSTRAINT_INFEASIBLE; in [0, 1), 0 keeps the default 0.5"},
 			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
@@ -116,6 +119,8 @@ func synthFromProfileCmd() *cli.Command {
 			rulesPath := cmd.String("rules")
 			emitSpecPath := cmd.String("emit-spec")
 			fidelityModelPath := cmd.String("fidelity-model")
+			syntheticOnly := cmd.Bool("synthetic-only")
+			constraintsPath := cmd.String("constraints")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -161,6 +166,19 @@ func synthFromProfileCmd() *cli.Command {
 					return cliCodedError(cmd, jsonOut, "SYNTH_RULES_ERROR", err)
 				}
 			}
+			// --constraints and --max-rejection-rate merge at the same
+			// point as --rules and for the same reason; the load and the
+			// eager compile live in synth.ApplyConstraintsFile.
+			if constraintsPath != "" {
+				if err := synth.ApplyConstraintsFile(fs, spec, constraintsPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_CONSTRAINTS_ERROR", err)
+				}
+			}
+			if cmd.IsSet("max-rejection-rate") {
+				if err := synth.ApplyMaxRejectionRate(spec, cmd.Float("max-rejection-rate")); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_CONSTRAINTS_ERROR", err)
+				}
+			}
 			// Emitted BEFORE generation on purpose: the document's
 			// diagnostic value (which models survived translation,
 			// which distribution each field reconstructed to, which
@@ -202,6 +220,7 @@ func synthFromProfileCmd() *cli.Command {
 				FidelityReportPath: fidelityReport,
 				FidelityWarnings:   fidelityWarnings,
 				FidelityModel:      fidelityModel,
+				SyntheticOnly:      syntheticOnly,
 			})
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)

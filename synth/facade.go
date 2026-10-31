@@ -901,7 +901,9 @@ type VectorSpec = isynth.VectorSpec
 // fs. When opts.SourceCohort is non-empty the source cohort's real rows
 // are copied into output tagged _synthetic=false and spec.RowCount new
 // rows are appended tagged _synthetic=true; the source is never opened
-// for write. Output is byte-identical for the same (spec, seed) pair.
+// for write. opts.SyntheticOnly writes the generated rows alone, with
+// no source row and no _synthetic column. Output is byte-identical for
+// the same (spec, seed) pair.
 func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error) {
 	return isynth.Synth(fs, spec, output, opts)
 }

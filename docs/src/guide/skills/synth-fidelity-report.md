@@ -4,7 +4,7 @@ description: The `pulse synth from-profile` tagged top-up contract (`_synthetic`
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth from-profile, fidelity report, _synthetic, top-up, effect size, utility, --fidelity-model, rule_note]
+covers: [synth from-profile, fidelity report, _synthetic, top-up, --synthetic-only, effect size, utility, --fidelity-model, rule_note]
 requires: [capability:synth]
 ```
 
@@ -12,7 +12,7 @@ requires: [capability:synth]
 
 ## Tagged top-up contract
 
-`synth from-profile` (`SynthOptions.SourceCohort` / `--source`) always: (1) appends one `_synthetic` `packed_bool` field, `false` on copied rows, `true` on generated ones; (2) writes a **new** output path, distinct from `--source`, which is opened read-only and never mutated; (3) treats `--rows` as a count of NEW rows, never "top up to N total" (`--rows 500` against 200 source rows → 700 rows). Source records are re-encoded straight through, so structural rules reach GENERATED rows only. `SourceCohort` empty (`synth from-schema`) is the plain path — no tag column. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION`, `PULSE_SYNTH_ALREADY_TAGGED`, `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`.
+`synth from-profile` (`SynthOptions.SourceCohort` / `--source`): (1) appends one `_synthetic` `packed_bool` field, `false` on copied rows, `true` on generated ones (`--synthetic-only`: generated rows alone, no tag; the report still compares to the source); (2) writes a **new** output path, distinct from `--source`, which is opened read-only and never mutated; (3) treats `--rows` as a count of NEW rows, never "top up to N total" (`--rows 500` against 200 source rows → 700 rows). Source records are re-encoded straight through, so structural rules reach GENERATED rows only. `SourceCohort` empty (`synth from-schema`) is the plain path — no tag column. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION`, `PULSE_SYNTH_ALREADY_TAGGED`, `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`.
 
 ## Fidelity report
 
@@ -20,7 +20,7 @@ requires: [capability:synth]
 
 **Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair computes a delta against a relationship the generator never modelled — a number that LOOKS like evidence. `internal/synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence ([`synth-conflicts`](synth-conflicts.md)).
 
-`pairwise` is one `{a, b, source_rho, synthetic_rho, delta, n}` per surviving numeric-numeric pair, via the same `pearson` helper capture uses. It scores VALUE-scale `Spec.Correlations` only; residual correlations have their own section.
+`pairwise` is one `{a, b, source_rho, synthetic_rho, delta, n}` per surviving numeric-numeric pair (capture's `pearson`), VALUE-scale `Spec.Correlations` only.
 
 **A modelled numeric has no numeric-target pair entry, ever.** `categorical_numeric_pairwise` / `set_numeric_pairwise` score the pick-one pair sampler, which does not run for a modelled target; an entry would be a delta for a mechanism that never executed. An unmodelled numeric in the same profile keeps its pair and is scored there. The non-numeric-target pair sections are untouched by models.
 

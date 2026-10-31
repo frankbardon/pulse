@@ -2134,6 +2134,9 @@ func (p *Pulse) filterToFileWithOptions(ctx context.Context, src, dst string, op
 // and SourceCohort itself is never opened for write. Leaving
 // SourceCohort empty (the default) is unchanged plain synthesis, used by
 // `synth from-schema` and any caller that built the Spec directly.
+// opts.SyntheticOnly (`--synthetic-only`) writes the generated rows
+// alone, with no source row and no _synthetic column; the fidelity
+// report still compares them against the source, read separately.
 //
 // Setting opts.FidelityReportPath alongside opts.SourceCohort
 // additionally writes a JSON fidelity report after generation
@@ -2168,7 +2171,10 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 	if err != nil {
 		return nil, err
 	}
-	res, err := synth.Synth(p.fsys, spec, output, opts)
+	// tagged is the source-plus-generated cohort the report partitions:
+	// the written output itself, or — under SyntheticOnly — an in-memory
+	// twin of it that never reaches the filesystem.
+	res, tagged, err := synthWithFidelityCohort(p.fsys, spec, output, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -2177,8 +2183,8 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 		// the caller supplied (capture-time, translation-time) and the
 		// ones generation itself raised. See mergeFidelityWarnings for
 		// why the fold lives here rather than at the CLI leaf.
-		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec,
-			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings), refit.fold(ctx, output)); err != nil {
+		if err := writeSynthFidelityReport(p.fsys, tagged, opts.FidelityReportPath, spec,
+			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings), refit.fold(ctx, output, opts.SyntheticOnly)); err != nil {
 			return nil, err
 		}
 		res.FidelityReportPath = opts.FidelityReportPath

@@ -429,6 +429,15 @@ func specHasOutputField(fields []FieldSpec) bool {
 	return false
 }
 
+// validateMaxRejectionRate bounds Spec.MaxRejectionRate to [0, 1).
+func validateMaxRejectionRate(rate float64) error {
+	if rate < 0 || rate >= 1 {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"max_rejection_rate must be in [0, 1)", map[string]any{"value": rate})
+	}
+	return nil
+}
+
 // ConstraintSpec wraps an expression evaluated against the in-memory row.
 type ConstraintSpec struct {
 	Expr string `json:"expr"`
@@ -458,6 +467,18 @@ type Options struct {
 	// today's behavior exactly — a plain synthesis with no tag column,
 	// used by synth from-schema and any caller building a Spec directly.
 	SourceCohort string
+
+	// SyntheticOnly, alongside SourceCohort, writes ONLY the generated
+	// rows (`synth from-profile --synthetic-only`): no source row and no
+	// _synthetic column, so the output's schema is the source's own
+	// field list. The source is still read — the profile must line up
+	// with it field for field, and the fidelity report (when
+	// FidelityReportPath asks for one) still compares the generated rows
+	// against it, from a tagged cohort built in memory and never written.
+	// Same seed, same generated rows as the tagged run. Ignored when
+	// SourceCohort is empty: plain synthesis already writes generated
+	// rows only.
+	SyntheticOnly bool
 
 	// FidelityReportPath activates the post-generation fidelity report
 	// (`synth from-profile --fidelity-report`) when non-empty: after
@@ -757,9 +778,8 @@ func validateSpec(s *Spec) error {
 			return rowExprConstraintRefusal(c.Expr, r)
 		}
 	}
-	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {
-		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"max_rejection_rate must be in [0, 1)", map[string]any{"value": s.MaxRejectionRate})
+	if err := validateMaxRejectionRate(s.MaxRejectionRate); err != nil {
+		return err
 	}
 	// Rules are validated LAST, so a rule naming a field is reported
 	// only once the field list itself is known good — a duplicate or

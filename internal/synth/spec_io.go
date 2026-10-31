@@ -3,6 +3,7 @@ package synth
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/spf13/afero"
@@ -150,6 +151,96 @@ func ParseRules(raw []byte) ([]RuleSpec, error) {
 	return rules, nil
 }
 
+// ApplyConstraintsFile loads a standalone constraints document from
+// path, REPLACES spec.Constraints with it, and validates every
+// expression against spec's fields — the `synth from-profile
+// --constraints` loader.
+//
+// The format is the Spec.Constraints array itself — a bare JSON array of
+// `{"expr": "..."}` objects, identical to a spec's `constraints` key —
+// exactly as ApplyRulesFile reads the bare `rules` array, and for the
+// same reasons: no translation layer, cut-and-paste between the two
+// places, and REPLACE rather than append (SpecFromProfile derives no
+// constraints). The decode is strict, so a misspelt `exp` key is
+// PULSE_REQUEST_UNKNOWN_FIELD rather than a constraint that is silently
+// always true.
+//
+// Every expression is compiled HERE, against the spec's declared fields,
+// so a typo is refused before `--emit-spec` writes and before any row is
+// drawn, with the file named in details — the same codes generation
+// would raise (a draw is PULSE_SYNTH_RULE_DRAW_INVALID, now() is
+// PULSE_SYNTH_EXPR_NONDETERMINISTIC, anything else SERVICE_VALIDATION).
+// A refused file leaves spec.Constraints as it found it.
+//
+// The rejection-rate ceiling stays a spec field (MaxRejectionRate, set
+// by ApplyMaxRejectionRate); a run that rejects more than it is refused
+// PULSE_SYNTH_CONSTRAINT_INFEASIBLE exactly as on `synth from-schema`.
+func ApplyConstraintsFile(fs afero.Fs, spec *Spec, path string) error {
+	if fs == nil {
+		return errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: fs is required")
+	}
+	if spec == nil {
+		return errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: spec is required")
+	}
+	raw, err := afero.ReadFile(fs, path)
+	if err != nil {
+		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+			fmt.Sprintf("reading constraints file %q: %v", path, err),
+			map[string]any{"path": path})
+	}
+	constraints, err := ParseConstraints(raw)
+	if err != nil {
+		return withDocumentFilePath(err, "constraints", path)
+	}
+	probe := make([]*writerField, len(spec.Fields))
+	for i := range spec.Fields {
+		probe[i] = &writerField{spec: spec.Fields[i]}
+	}
+	if _, err := compileConstraints(constraints, probe); err != nil {
+		return withDocumentFilePath(err, "constraints", path)
+	}
+	spec.Constraints = constraints
+	return nil
+}
+
+// ParseConstraints decodes a standalone constraints document — the bare
+// Spec.Constraints array — WITHOUT compiling it; ApplyConstraintsFile
+// compiles. An empty array means "no constraints". A JSON object
+// (`{"constraints": [...]}`) is refused, as ParseRules refuses one.
+func ParseConstraints(raw []byte) ([]ConstraintSpec, error) {
+	var constraints []ConstraintSpec
+	if ce, err := decodeDocument(raw, &constraints); ce != nil {
+		return nil, ce
+	} else if err != nil {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("parsing constraints file: expected a JSON array of constraint objects (the same shape as a spec's \"constraints\" key): %v", err))
+	}
+	return constraints, nil
+}
+
+// ApplyMaxRejectionRate sets spec.MaxRejectionRate after checking it
+// lies in [0, 1) — the bound validateSpec applies — so `synth
+// from-profile --max-rejection-rate` is refused before `--emit-spec`
+// writes. 0 keeps the default ceiling of 0.5. A refused rate leaves
+// spec unchanged.
+func ApplyMaxRejectionRate(spec *Spec, rate float64) error {
+	if spec == nil {
+		return errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: spec is required")
+	}
+	// NaN passes both comparisons validateSpec makes and would then
+	// disable the ceiling silently (no rate exceeds NaN); a flag can
+	// spell it, a JSON spec cannot.
+	if math.IsNaN(rate) {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"max_rejection_rate must be in [0, 1)", map[string]any{"value": "NaN"})
+	}
+	if err := validateMaxRejectionRate(rate); err != nil {
+		return err
+	}
+	spec.MaxRejectionRate = rate
+	return nil
+}
+
 // withRulesFilePath re-stamps a rule fault with the file it came from,
 // preserving the code, the message and the rule index E1-S2 put on it.
 //
@@ -159,6 +250,12 @@ func ParseRules(raw []byte) ([]RuleSpec, error) {
 // them, and a fault that reached here through two paths would
 // accumulate stamps.
 func withRulesFilePath(err error, path string) error {
+	return withDocumentFilePath(err, "rules", path)
+}
+
+// withDocumentFilePath is withRulesFilePath for any standalone synth
+// document; kind ("rules", "constraints") leads the message.
+func withDocumentFilePath(err error, kind, path string) error {
 	ce, ok := err.(*errors.CodedError)
 	if !ok {
 		return err
@@ -176,7 +273,7 @@ func withRulesFilePath(err error, path string) error {
 	}
 	return &errors.CodedError{
 		Code:    ce.Code,
-		Message: fmt.Sprintf("rules file %q: %s", path, ce.Message),
+		Message: fmt.Sprintf("%s file %q: %s", kind, path, ce.Message),
 		Details: details,
 		Cause:   ce.Cause,
 	}

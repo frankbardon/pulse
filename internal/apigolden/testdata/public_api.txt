@@ -1187,6 +1187,7 @@ pulse: type SynthOptions field FidelityReportPath string
 pulse: type SynthOptions field FidelityWarnings []string
 pulse: type SynthOptions field Seed int64
 pulse: type SynthOptions field SourceCohort string
+pulse: type SynthOptions field SyntheticOnly bool
 pulse: type SynthResult = pulse/synth.Result
 pulse: type SynthResult underlying struct
 pulse: type SynthResult field FidelityReportPath string "json:\"fidelity_report_path,omitempty\""
@@ -4487,6 +4488,7 @@ pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
 pulse/synth: type Options field Seed int64
 pulse/synth: type Options field SourceCohort string
+pulse/synth: type Options field SyntheticOnly bool
 pulse/synth: const PairArbitrationDeclared untyped string = "declared"
 pulse/synth: const PairArbitrationStrength untyped string = "strength"
 pulse/synth: type PairwiseFidelity = pulse/internal/synth.PairwiseFidelity
@@ -6439,4 +6441,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4d25719ee4248370dc1fd57b7ba8d8c311a3d8401b84fd09cf13691f3c19e117
+// golden-hash: 89c89bf51b525058d5fbd2e331fa02e18b085d806803bef1c73e30b850b473fa

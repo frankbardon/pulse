@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/afero"
 )
 
-// writeSynthFidelityReport re-reads the just-written output cohort at
-// path, drives internal/synth.BuildFidelityReport against its records (TEST_KS
+// writeSynthFidelityReport reads the tagged source-plus-generated
+// cohort data, drives internal/synth.BuildFidelityReport against its records (TEST_KS
 // for numeric fields, TEST_CHISQ for categorical, a direct per-option
 // frequency comparison for set_* fields, all compared against
 // internal/synth.SyntheticFieldName), folds in internal/synth.BuildPairwise's
@@ -57,10 +57,14 @@ import (
 //
 // foldModels, when non-nil, adds the supplied-model refit
 // (FidelityReport.Utility.ModelFits) after every computed section.
-func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
-	data, err := afero.ReadFile(fs, path)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading synth output for fidelity report")
+//
+// data is the TAGGED cohort (synth.SynthWithFidelityCohort): the written
+// output on the tagged path, an in-memory twin of it under SyntheticOnly,
+// whose output carries neither the source rows nor the tag column.
+func writeSynthFidelityReport(fs afero.Fs, data []byte, reportPath string, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
+	if data == nil {
+		return errors.NewCodedError(errors.PULSE_SYNTH_SOURCE_REQUIRED,
+			"the fidelity report needs the source-plus-generated cohort; none was built")
 	}
 	r := bytes.NewReader(data)
 	pulseVersion, err := encoding.ReadHeader(r)
@@ -146,6 +150,15 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	return nil
 }
 
+// synthWithFidelityCohort is the facade's generation call: the internal
+// entry point that also hands back the tagged cohort the report reads
+// (synth.SynthWithFidelityCohort). It lives here, beside the report,
+// because pulse.go imports only the public synth facade and the tagged
+// bytes are not public surface.
+func synthWithFidelityCohort(fs afero.Fs, spec *synth.Spec, output string, opts synth.Options) (*synth.Result, []byte, error) {
+	return synth.SynthWithFidelityCohort(fs, spec, output, opts)
+}
+
 // fidelityModelRefit is a supplied fidelity model
 // (SynthOptions.FidelityModel) part-way through its two runs: the
 // source fit done before generation, the synthetic fit still to come.
@@ -187,12 +200,16 @@ func (p *Pulse) newFidelityModelRefit(ctx context.Context, opts SynthOptions) (*
 // and folds both fits into the report; nil when no model was supplied.
 // A synthetic run the engine refuses is recorded on each entry rather
 // than failing a generation that already succeeded.
-func (r *fidelityModelRefit) fold(ctx context.Context, output string) func(*synth.FidelityReport) {
+//
+// syntheticOnly says output holds the generated rows alone and no
+// _synthetic column, so the fit reads the whole file instead of
+// filtering to `_synthetic = true` — the same rows either way.
+func (r *fidelityModelRefit) fold(ctx context.Context, output string, syntheticOnly bool) func(*synth.FidelityReport) {
 	if r == nil {
 		return nil
 	}
 	return func(report *synth.FidelityReport) {
-		syn, err := r.p.runFidelityModel(ctx, r.req, output, true)
+		syn, err := r.p.runFidelityModel(ctx, r.req, output, !syntheticOnly)
 		synth.CompareModelFits(report, r.req, r.source, syn, nil, err)
 	}
 }

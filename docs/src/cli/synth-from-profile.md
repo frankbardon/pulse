@@ -8,8 +8,9 @@ augmentation, not a full anonymised replica.
 [`pulse profile create`](profile-create.md), reads the `--source`
 cohort the profile was captured from, and writes a **new** `.pulse`
 file combining every real row from `--source` with `--rows` newly
-generated rows. The profile itself retains **no individual rows**
-from the source; only summary statistics drive generation.
+generated rows — or, with `--synthetic-only`, the generated rows
+alone. The profile itself retains **no individual rows** from the
+source; only summary statistics drive generation.
 
 > **LLM agents using MCP:** see the `synthetic-data` skill.
 
@@ -18,6 +19,7 @@ from the source; only summary statistics drive generation.
 ```
 pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
                          [--seed N] [--fidelity-report FILE] [--fidelity-model FILE]
+                         [--synthetic-only] [--constraints FILE] [--max-rejection-rate F]
                          [--rules FILE] [--emit-spec FILE] [--json]
 ```
 
@@ -26,12 +28,15 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
 | `--profile` | `-p` | string | (required) | Profile JSON path |
-| `--source`  |      | string | (required) | Source `.pulse` cohort the profile was captured from — copied into the output, never opened for write |
+| `--source`  |      | string | (required) | Source `.pulse` cohort the profile was captured from — copied into the output unless `--synthetic-only`, never opened for write |
 | `--output`  | `-o` | string | (required) | Output `.pulse` file path — must be a distinct path from `--source` |
 | `--rows`    |      | int    | (required) | Number of **new** rows to generate |
 | `--seed`    |      | int    | 0          | Deterministic RNG seed |
 | `--fidelity-report` | | string | (none) | Write a JSON fidelity report to this path after generation completes |
 | `--fidelity-model` | | string | (none) | A `pulse process` request whose `regressions` are refit on the source and on the generated rows into the report's `utility.model_fits`; needs `--fidelity-report` |
+| `--synthetic-only` | | bool | false | Write only the generated rows: no source row, no `_synthetic` column |
+| `--constraints` | | string | (none) | Load row constraints from a standalone JSON file (a bare `constraints` array) and apply them to the derived spec |
+| `--max-rejection-rate` | | float | 0 (= 0.5) | Ceiling on the fraction of rows the constraints may reject, in [0, 1) |
 | `--rules`   |      | string | (none) | Load structural rules from a standalone JSON file and apply them to the derived spec |
 | `--emit-spec` |    | string | (none) | Write the derived spec (after any `--rules` merge) to this path as indented JSON |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
@@ -50,6 +55,28 @@ Every output cohort gains one appended field, `_synthetic`
 on every newly generated row. This is the only schema difference
 between `--source` and the output — every other field is carried
 through unchanged, in order.
+
+### `--synthetic-only`: a twin with no source rows
+
+`--synthetic-only` writes the generated rows alone — the file to share.
+The output has no `_synthetic` column (every row would be `true`) and
+carries the source's own schema: the same fields, in order, with the
+same descriptions. Its dictionaries hold only the values the generated
+rows use, so a category only the source holds is not written. `--rows`
+is then the output's whole row count.
+
+`--source` is still required and still read. The profile must line up
+with it field for field, and `--fidelity-report` still compares the
+generated rows with the source rows. The report is built from a tagged
+cohort held in memory and never written, so it is byte-identical to the
+report the tagged run writes at the same seed. `--fidelity-model` refits
+on the source and on the whole output.
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o twin.pulse --rows 20000 --seed 7 --synthetic-only \
+    --constraints constraints.json --fidelity-report fidelity.json
+```
 
 `--output` must always be a path distinct from `--source`.
 `synth from-profile` never opens `--source` for write and never
@@ -147,6 +174,33 @@ document is wrong:
 The rule-specific codes are E1's own, not a leaf placeholder, so
 `pulse errors lookup PULSE_SYNTH_RULE_FIELD_UNKNOWN` carries the recovery
 prose. A refused file generates nothing.
+
+### `--constraints <path>` and `--max-rejection-rate`
+
+`--constraints` loads row constraints from a standalone JSON file: a
+bare array of `{"expr": "..."}` objects, the same shape as a spec's
+`constraints` key. The constraints **replace** any the derived spec
+carries (a derived spec carries none). A generated row that fails any
+constraint is drawn again. The expressions are the rule-expression
+language (`round`, `isnull`, `row()`, `lag()`), except that a
+constraint cannot draw. Every expression is compiled against the derived
+spec's fields before anything is written. A refusal names the file in
+`details.path`: an unknown field is `SERVICE_VALIDATION`, a `uniform()`
+or `bernoulli()` call is `PULSE_SYNTH_RULE_DRAW_INVALID`, and a
+misspelt key is `PULSE_REQUEST_UNKNOWN_FIELD` (the file rides
+`details.file`).
+
+```json
+[{"expr": "region != \"apac\""}, {"expr": "isnull(spend) || spend > 0"}]
+```
+
+`--max-rejection-rate` sets the ceiling on the fraction of drawn rows
+the constraints may reject, in [0, 1). The default, 0, means 0.5. After
+the first 64 draws, a run that rejects more than the ceiling is refused
+`PULSE_SYNTH_CONSTRAINT_INFEASIBLE`, and nothing is written. Both flags
+merge before `--emit-spec` writes, so the emitted spec carries them and
+`synth from-schema` reproduces the run. Constraints reach generated rows
+only: copied source rows are never tested.
 
 ### What a rule retires from the derived spec
 
