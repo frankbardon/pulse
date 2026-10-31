@@ -255,8 +255,8 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	pb := b.succW / b.w.SumW
 	// Σ(p̂_g·N*_g) is the success mass on w*: Σw_success itself under
 	// frequency, c_g·Σw_success under probability.
-	sa := a.succW * p.basis.Scale(a.w.SumW, a.w.SumWSq)
-	sb := b.succW * p.basis.Scale(b.w.SumW, b.w.SumWSq)
+	sa := float64(a.succW * p.basis.Scale(a.w.SumW, a.w.SumWSq))
+	sb := float64(b.succW * p.basis.Scale(b.w.SumW, b.w.SumWSq))
 	pooled := (sa + sb) / (na + nb)
 	if pooled == 0 || pooled == 1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
@@ -273,8 +273,8 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	seUnpool := math.Sqrt(pa*(1-pa)/na + pb*(1-pb)/nb)
 	// Two-sided normal critical value at alpha/2.
 	zcrit := normalCriticalTwoSided(p.alpha)
-	ciLow := (pa - pb) - zcrit*seUnpool
-	ciHigh := (pa - pb) + zcrit*seUnpool
+	ciLow := (pa - pb) - float64(zcrit*seUnpool)
+	ciHigh := (pa - pb) + float64(zcrit*seUnpool)
 	details := map[string]any{
 		"success":    p.success,
 		"groups":     keys,
@@ -321,7 +321,7 @@ func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, 
 	diff := adjA.Mean - adjB.Mean
 	z := diff / se
 	pvalue := normalTwoSidedP(z)
-	half := normalCriticalTwoSided(p.alpha) * se
+	half := float64(normalCriticalTwoSided(p.alpha) * se)
 	details := map[string]any{
 		"success":    p.success,
 		"groups":     keys,
@@ -369,7 +369,7 @@ func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
 	ph := g.succW / g.w.SumW
 	z := (ph - p.p0) / math.Sqrt(p.p0*(1-p.p0)/nStar)
 	pvalue := normalTwoSidedP(z)
-	half := normalCriticalTwoSided(p.alpha) * math.Sqrt(ph*(1-ph)/nStar)
+	half := float64(normalCriticalTwoSided(p.alpha) * math.Sqrt(ph*(1-ph)/nStar))
 	diff := ph - p.p0
 	details := map[string]any{
 		"success":    p.success,

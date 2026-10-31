@@ -142,16 +142,16 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	ranks, ties := weightedMidRanks(combined.values, combined.weights)
 	var rA float64
 	for i := range nA {
-		rA += combined.weights[i] * ranks[i]
+		rA += float64(combined.weights[i] * ranks[i])
 	}
 	// Σw per group (the row counts unweighted).
 	nAf := a.sumW
 	nBf := b.sumW
 	N := nAf + nBf
-	uA := rA - nAf*(nAf+1)/2
-	uB := nAf*nBf - uA
+	uA := rA - float64(nAf*(nAf+1)/2)
+	uB := float64(nAf*nBf) - uA
 	uMin := math.Min(uA, uB)
-	muU := nAf * nBf / 2
+	muU := float64(nAf * nBf / 2)
 	tc := tieCorrectionW(ties)
 	varU := (nAf * nBf / 12.0) * ((N + 1) - tc/(N*(N-1)))
 	var z, p float64
@@ -193,15 +193,12 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 			"u_b":    uB,
 			"u_min":  uMin,
 			"r_a":    rA,
-			"r_b":    nAf*(N+1) - rA + nBf*(N+1) - (N*(N+1) - rA - (nAf*(N+1) - rA)), // compactness; see r_a/N
+			"r_b":    float64(N*(N+1)/2) - rA, // rB = N(N+1)/2 − rA
 			"mu_u":   muU,
 			"var_u":  varU,
 			"z":      z,
 		},
 	}
-	// The r_b expression above collapses to rB = N(N+1)/2 − rA; rewrite
-	// directly for clarity.
-	res.Details["r_b"] = N*(N+1)/2 - rA
 	noteReference(res.Details, m.reference)
 	// Signed: > 0 ⇒ groups[0] tends larger (same direction as z).
 	setEffectSize(res.Details, "rank_biserial", rankBiserialIndependent(uA, nAf, nBf))

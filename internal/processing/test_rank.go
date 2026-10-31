@@ -70,7 +70,7 @@ func weightedMidRanks(values, weights []float64) ([]float64, []float64) {
 			j++
 			w += weight(idx[j])
 		}
-		r := cum + (w+1)/2
+		r := cum + float64((w+1)/2)
 		for k := i; k <= j; k++ {
 			ranks[idx[k]] = r
 		}
@@ -95,7 +95,7 @@ func tieCorrection(ties []int) float64 {
 func tieCorrectionW(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
-		sum += t*t*t - t
+		sum += float64(t*t*t) - t
 	}
 	return sum
 }

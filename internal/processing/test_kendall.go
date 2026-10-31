@@ -183,7 +183,7 @@ func kendallPairMass(v float64, weighted bool) any {
 func tieKendallSumW(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
-		sum += t * (t - 1) * (2*t + 5)
+		sum += float64(t * (t - 1) * (2*t + 5))
 	}
 	return sum
 }
@@ -193,7 +193,7 @@ func tieKendallSumW(ties []float64) float64 {
 func tieKendallV1W(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
-		sum += t * (t - 1)
+		sum += float64(t * (t - 1))
 	}
 	return sum
 }
@@ -203,7 +203,7 @@ func tieKendallV1W(ties []float64) float64 {
 func tieKendallV2W(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
-		sum += t * (t - 1) * (t - 2)
+		sum += float64(t * (t - 1) * (t - 2))
 	}
 	return sum
 }

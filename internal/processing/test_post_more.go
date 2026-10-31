@@ -156,14 +156,14 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}
 	rx, tiesX := midRanks(xs)
 	ry, tiesY := midRanks(ys)
-	mean := float64(n+1) / 2
+	mean := float64(float64(n+1) / 2)
 	var sxx, syy, sxy float64
 	for i := 0; i < n; i++ {
 		dx := rx[i] - mean
 		dy := ry[i] - mean
-		sxx += dx * dx
-		syy += dy * dy
-		sxy += dx * dy
+		sxx += float64(dx * dx)
+		syy += float64(dy * dy)
+		sxy += float64(dx * dy)
 	}
 	denom := math.Sqrt(sxx * syy)
 	if denom == 0 {
@@ -385,7 +385,7 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		}
 	}
 	nf := float64(n)
-	muW := nf * (nf + 1) / 4
+	muW := float64(nf * (nf + 1) / 4)
 	varW := nf*(nf+1)*(2*nf+1)/24 - tieCorrection(ties)/48
 	var z, p float64
 	if varW <= 0 {

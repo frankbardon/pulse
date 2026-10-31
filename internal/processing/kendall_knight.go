@@ -71,17 +71,17 @@ func kendallCounts(xs, ys, ws []float64) (c, d, tx, ty float64) {
 		i := idx[k]
 		if k > 0 && xs[i] == xs[idx[k-1]] {
 			if ys[i] == ys[idx[k-1]] {
-				txy += w[k] * runXY
+				txy += float64(w[k] * runXY)
 				runXY += w[k]
 			} else {
 				runXY = w[k]
 			}
-			txAll += w[k] * runX
+			txAll += float64(w[k] * runX)
 			runX += w[k]
 		} else {
 			runX, runXY = w[k], w[k]
 		}
-		total += w[k] * cum
+		total += float64(w[k] * cum)
 		cum += w[k]
 	}
 
@@ -93,7 +93,7 @@ func kendallCounts(xs, ys, ws []float64) (c, d, tx, ty float64) {
 	var tyAll, runY float64
 	for k := 0; k < n; k++ {
 		if k > 0 && y[k] == y[k-1] {
-			tyAll += w[k] * runY
+			tyAll += float64(w[k] * runY)
 			runY += w[k]
 		} else {
 			runY = w[k]
@@ -129,7 +129,7 @@ func mergeCountInversions(y, w, by, bw []float64) float64 {
 			i++
 		} else {
 			// y[j] is strictly below every remaining left element.
-			inv += w[j] * leftW
+			inv += float64(w[j] * leftW)
 			by[k], bw[k] = y[j], w[j]
 			j++
 		}

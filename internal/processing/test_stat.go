@@ -62,7 +62,7 @@ func fSurvival(f, df1, df2 float64) float64 {
 // full relative precision in the lower tail (down to z ≈ −37.5), where
 // ½ (1 + erf(z/√2)) cancels to zero.
 func standardNormalCDF(z float64) float64 {
-	return 0.5 * detmath.Erfc(-z/math.Sqrt2)
+	return float64(0.5 * detmath.Erfc(-z/math.Sqrt2))
 }
 
 // normalTwoSidedP returns the two-sided standard normal p-value

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -132,7 +133,7 @@ func (f *fisherExactRow) UpdateRow(record *Record) error {
 	}
 	rowW[ck] += w
 	f.sumW += w
-	f.sumWSq += w * w
+	f.sumWSq += float64(w * w)
 	return nil
 }
 
@@ -228,8 +229,8 @@ func logBinomial(n, k int) float64 {
 	if k < 0 || k > n {
 		return math.Inf(-1)
 	}
-	lgN, _ := math.Lgamma(float64(n + 1))
-	lgK, _ := math.Lgamma(float64(k + 1))
-	lgNK, _ := math.Lgamma(float64(n - k + 1))
+	lgN, _ := detmath.Lgamma(float64(n + 1))
+	lgK, _ := detmath.Lgamma(float64(k + 1))
+	lgNK, _ := detmath.Lgamma(float64(n - k + 1))
 	return lgN - lgK - lgNK
 }

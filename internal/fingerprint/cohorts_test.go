@@ -20,6 +20,7 @@ var generatedCohorts = map[string]func(*testing.T) []byte{
 	"mtcars_am.pulse":     mtcarsAMCohort,
 	"mtcars_groups.pulse": mtcarsGroupsCohort,
 	"mtcars_rm.pulse":     mtcarsRMCohort,
+	"mtcars_rep7.pulse":   mtcarsRep7Cohort,
 }
 
 // mtcarsAMCohort is mtcars' mpg (f64), am as a categorical_u8 split
@@ -190,9 +191,10 @@ func buildCohort(t *testing.T, cols []genColumn, rows [][]string) []byte {
 }
 
 // mtcarsGroupsCohort is mtcars' continuous columns (f64) beside cyl,
-// am and gear as categorical_u8 splits: the k-sample (ANOVA, Brown-
-// Forsythe, MANOVA, Box's M), two-sample (z, CUPED) and multivariate
-// (Mardia, Bartlett) test shapes.
+// am, gear and vs as categorical_u8 splits: the k-sample (ANOVA, Brown-
+// Forsythe, MANOVA, Box's M, Kruskal-Wallis), two-sample (z, CUPED,
+// Mann-Whitney, KS), contingency (chi-square, Fisher exact, proportion
+// z) and multivariate (Mardia, Bartlett) test shapes.
 func mtcarsGroupsCohort(t *testing.T) []byte {
 	t.Helper()
 	header, rows := readMtcarsCSV(t)
@@ -202,6 +204,8 @@ func mtcarsGroupsCohort(t *testing.T) []byte {
 		{name: "cyl", levels: []string{"4", "6", "8"}},
 		{name: "am", levels: []string{"0", "1"}},
 		{name: "gear", levels: []string{"3", "4", "5"}},
+		{name: "vs", levels: []string{"0", "1"}},
+		{name: "carb", levels: []string{"1", "2", "3", "4", "6", "8"}},
 	}
 	idx := make([]int, len(cols))
 	for i, c := range cols {
@@ -249,5 +253,36 @@ func mtcarsRMCohort(t *testing.T) []byte {
 		{name: "subject", levels: subjects},
 		{name: "cond", levels: conds},
 		{name: "y"},
+	}, out)
+}
+
+// mtcarsRep7Cohort is mtcars' wt and mpg repeated seven times beside am
+// and parity (the source row's index mod 2) as categorical_u8 splits:
+// a two-sample size past ks.test's exact limit (m·n ≥ 10000), so
+// TEST_KS runs its asymptotic Kolmogorov arm — wt by parity lands in
+// the x < 1 (Durbin) series, mpg by am in the alternating one.
+func mtcarsRep7Cohort(t *testing.T) []byte {
+	t.Helper()
+	header, rows := readMtcarsCSV(t)
+	col := func(name string) int {
+		for j, h := range header {
+			if h == name {
+				return j
+			}
+		}
+		t.Fatalf("mtcars.csv has no column %q", name)
+		return -1
+	}
+	wt, mpg, am := col("wt"), col("mpg"), col("am")
+	var out [][]string
+	for range 7 {
+		for i, r := range rows {
+			out = append(out, []string{r[wt], r[mpg], r[am], strconv.Itoa(i % 2)})
+		}
+	}
+	return buildCohort(t, []genColumn{
+		{name: "wt"}, {name: "mpg"},
+		{name: "am", levels: []string{"0", "1"}},
+		{name: "parity", levels: []string{"0", "1"}},
 	}, out)
 }
