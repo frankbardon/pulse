@@ -70,22 +70,24 @@ import (
 //     Filterers / AdditiveFields so the same-cohort recursion produces
 //     the unfiltered baseline, which is exactly what the population-
 //     comparison family wants.
-//   - Labels mirror the host: applyFacetLabels relabels the host's
-//     discrete values BEFORE the overlays run, so the population
-//     FacetRequest carries the host's bindings on the overlay field
-//     (and only those) — host and population values then share one key
-//     space, the labelled one the caller sees on the host. Without them
-//     a replace-mode binding left every host key unmatched
-//     (PULSE_OVERLAY_REF_ZERO) and the raw population categories looked
-//     absent from the subset. Carrying the field's bindings, augment
-//     ones included, also keeps the population's default-label
-//     injection (applyAutoLabels skips a bound field) in step with the
-//     host's.
+//   - One resolver labels both sides: applyFacetLabels relabels the
+//     host's discrete values BEFORE the overlays run and hands back
+//     its resolver; the population FacetRequest carries NO labels (and
+//     skips the default-label injection, isPopulationFacet), and its
+//     raw overlay field is relabelled by that same resolver
+//     (relabelPopulationField). Host and population then share the
+//     labelled key space the caller sees on the host. Without it a
+//     replace-mode binding left every host key unmatched
+//     (PULSE_OVERLAY_REF_ZERO), and a resolver per side let a
+//     function-driven table's online collision detection give the
+//     clean label to a different raw value on each side when their
+//     value orders differed.
 
 // applyFacetOverlays runs the FACET-host overlay dispatch against a
 // finalised FacetResult and attaches the resulting layers in spec
 // order. No-op when req.Overlays is empty (additive byte-identity
-// contract).
+// contract). resolver is the one applyFacetLabels labelled the host
+// with (nil when none); it relabels the population too.
 //
 // mult is the overlays' resolved multiplicity
 // (descx.ResolveFacetMultiplicity, index-aligned with req.Overlays; nil
@@ -93,7 +95,7 @@ import (
 // right after dispatch: a facet overlay offers only the per-layer
 // families (`layer`, and `row` / `column` on a MATRIX kind), so no
 // family ever spans two specs.
-func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetRequest, result *types.FacetResult, mult []descx.ResolvedMultiplicity) error {
+func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetRequest, result *types.FacetResult, resolver *processing.LabelResolver, mult []descx.ResolvedMultiplicity) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -134,7 +136,7 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 					"field": hostFieldName,
 				})
 		}
-		popResult, err := cache.populationResult(ctx, s, spec.Ref.Population.Cohort, hostFieldName, req)
+		popResult, err := cache.populationResult(ctx, s, spec.Ref.Population.Cohort, hostFieldName, req, resolver)
 		if err != nil {
 			return err
 		}
@@ -256,14 +258,15 @@ func newPopulationCache() *populationCache {
 // current FacetSchema call.
 //
 // The recursive FacetSchema call strips overlays / filterers /
-// additive-fields from the population FacetRequest so the population
-// always represents the FLAT, UNFILTERED distribution of the host field
-// over the comparison cohort. It keeps the host's label bindings on that
-// field (facetFieldLabels) so the population's values are keyed exactly
-// as the host's labelled values are. The cycle guard documented at
+// additive-fields / labels from the population FacetRequest so the
+// population always represents the FLAT, UNFILTERED distribution of the
+// host field over the comparison cohort. The raw result is then
+// relabelled by the host's resolver (relabelPopulationField) so the
+// population's values are keyed exactly as the host's labelled values
+// are. The cycle guard documented at
 // the top of this file relies on this — the same-cohort recursion path
 // produces the unfiltered baseline by construction.
-func (c *populationCache) populationResult(ctx context.Context, s *Service, cohortName, field string, hostReq *types.FacetRequest) (*types.FacetResult, error) {
+func (c *populationCache) populationResult(ctx context.Context, s *Service, cohortName, field string, hostReq *types.FacetRequest, resolver *processing.LabelResolver) (*types.FacetResult, error) {
 	key := cohortName + "\x00" + field
 	if cached, ok := c.byKey[key]; ok {
 		return cached, nil
@@ -281,25 +284,28 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 		IncludeHistogram:   hostReq.IncludeHistogram,
 		HistogramBins:      hostReq.HistogramBins,
 		HistogramRange:     hostReq.HistogramRange,
-		Labels:             facetFieldLabels(hostReq.Labels, field),
 	}
-	popResult, err := s.FacetSchema(ctx, popReq)
+	popResult, err := s.FacetSchema(withPopulationFacet(ctx), popReq)
 	if err != nil {
 		return nil, err
 	}
+	popResult = relabelPopulationField(popResult, field, resolver)
 	c.byKey[key] = popResult
 	return popResult, nil
 }
 
-// facetFieldLabels returns the bindings of labels that name field, in
-// order — the host's bindings the population FacetRequest must carry so
-// its discrete values land in the host's key space. Nil when none do.
-func facetFieldLabels(labels []*types.LabelBinding, field string) []*types.LabelBinding {
-	var out []*types.LabelBinding
-	for _, b := range labels {
-		if b != nil && b.Field == field {
-			out = append(out, b)
-		}
-	}
-	return out
+// populationFacetKey marks a context as a *_VS_POP population facet.
+type populationFacetKey struct{}
+
+// withPopulationFacet marks ctx so the population facet skips the
+// default-label injection: the host's resolver labels its result.
+func withPopulationFacet(ctx context.Context) context.Context {
+	return context.WithValue(ctx, populationFacetKey{}, true)
+}
+
+// isPopulationFacet reports whether ctx runs a *_VS_POP population
+// facet (withPopulationFacet).
+func isPopulationFacet(ctx context.Context) bool {
+	v, _ := ctx.Value(populationFacetKey{}).(bool)
+	return v
 }

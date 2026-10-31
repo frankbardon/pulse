@@ -531,3 +531,107 @@ func TestFacetWithOverlays_VsPopUnderReplaceLabels(t *testing.T) {
 		})
 	}
 }
+
+// TestFacetWithOverlays_VsPopFuncTableCollisionSharesResolver pins the
+// one-resolver rule (E1-S8): a function-driven label table detects a
+// label collision online, so the first raw value seen renders clean and
+// the next renders "label (raw)". The host filter thins "a" so the host
+// lists d before a while the population lists a before d; were each side
+// labelled by its own resolver, "Same" would name d on the host and a in
+// the population. One resolver labels both, so the figures equal the
+// unlabelled run's under every discrete *_VS_POP kind, with no spurious
+// PULSE_OVERLAY_REF_ZERO.
+func TestFacetWithOverlays_VsPopFuncTableCollisionSharesResolver(t *testing.T) {
+	t.Parallel()
+	table := map[string]string{"a": "Same", "b": "Beta", "c": "Gamma", "d": "Same"}
+	// Host order (by count): b 30, c 30, d 10, a 5 — d claims "Same".
+	raw := map[string]string{"Same": "d", "Same (a)": "a", "Beta": "b", "Gamma": "c"}
+	run := func(t *testing.T, kind types.OverlayKind, labels string) *types.FacetResult {
+		t.Helper()
+		svc, path := buildFacetOverlayCohort(t)
+		attachLabelExtensions(t, svc, map[string]processing.LabelTable{"cat_fn": {Lookup: func(key string) (string, bool, error) {
+			v, ok := table[key]
+			return v, ok, nil
+		}}})
+		req := &types.FacetRequest{
+			Cohort:    &types.Cohort{Filename: path},
+			Fields:    []string{"category"},
+			Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "score >= 25"}},
+			Overlays: []types.OverlaySpec{{
+				Kind:  kind,
+				Scope: types.OverlayScopeGroup,
+				Ref:   types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: path}},
+			}},
+		}
+		binding := []*types.LabelBinding{{Field: "category", Table: "cat_fn", Mode: types.LabelModeReplace}}
+		switch labels {
+		case "request":
+			req.Labels = binding
+		case "auto":
+			svc.SetAutoLabels(binding)
+		}
+		res, err := svc.FacetSchema(context.Background(), req)
+		if err != nil {
+			t.Fatalf("FacetSchema(%s, labels %q): %v", kind, labels, err)
+		}
+		if len(res.Overlays) != 1 {
+			t.Fatalf("%s: want one layer, got %d", kind, len(res.Overlays))
+		}
+		for _, w := range res.Warnings {
+			if w.Code == string(errors.PULSE_OVERLAY_REF_ZERO) {
+				t.Errorf("%s (labels %q): spurious %s: %s %v", kind, labels, w.Code, w.Message, w.Details)
+			}
+		}
+		return res
+	}
+	marshal := func(t *testing.T, v any) string {
+		t.Helper()
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return string(b)
+	}
+	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsPop, types.OverlayKindZScoreVsPop, types.OverlayKindChiSqVsPop} {
+		for _, labels := range []string{"request", "auto"} {
+			t.Run(string(kind)+"/"+labels, func(t *testing.T) {
+				t.Parallel()
+				plain := run(t, kind, "").Overlays[0]
+				labelledRes := run(t, kind, labels)
+				labelled := labelledRes.Overlays[0]
+				hostKeys := map[string]bool{}
+				for _, v := range labelledRes.Fields["category"].Discrete.Values {
+					hostKeys[v.Value] = true
+					if _, ok := raw[v.Value]; !ok {
+						t.Fatalf("host value %q outside the expected labelled key set %v", v.Value, raw)
+					}
+				}
+				if got, want := marshal(t, labelled.Summary), marshal(t, plain.Summary); got != want {
+					t.Errorf("layer summary differs under a colliding function table:\n labelled: %s\n    plain: %s", got, want)
+				}
+				if plain.Payload.Series == nil {
+					return
+				}
+				if labelled.Payload.Series == nil {
+					t.Fatalf("labelled run lost the series payload")
+				}
+				want := map[string]string{}
+				for _, e := range plain.Payload.Series.Entries {
+					want[fmt.Sprint(e.Key[0])] = marshal(t, e.Summary)
+				}
+				if len(labelled.Payload.Series.Entries) != len(want) {
+					t.Fatalf("entry count = %d, want %d", len(labelled.Payload.Series.Entries), len(want))
+				}
+				for _, e := range labelled.Payload.Series.Entries {
+					key := fmt.Sprint(e.Key[0])
+					if !hostKeys[key] {
+						t.Errorf("entry key %q is not a host coordinate", key)
+					}
+					if got := marshal(t, e.Summary); got != want[raw[key]] {
+						t.Errorf("entry %q (raw %q): summary %s, want %s", key, raw[key], got, want[raw[key]])
+					}
+				}
+			})
+		}
+	}
+}
