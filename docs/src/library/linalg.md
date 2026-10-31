@@ -128,7 +128,7 @@ s, err := m.Eval(metric.Similarity, a, b, nil)
 - **Kinds and consumers.** `KindsSuited`, `PoorFit` and `Consumers` (`metric.Accepted`, `metric.ResolveFor`) say which vector kinds a metric suits and which surfaces accept it. `chi_square`'s one consumer is `OVERLAY_CORRESPONDENCE` (`metric.ConsumerCorrespondence`): its `row_distance` / `column_distance` parts are the pairwise chi-square profile distances over the analysis's own masses.
 - **Kind defaults.** `metric.Default(kind, form)` is the metric a vector of that kind defaults to (distance: measure `std_euclidean`, scale `euclidean`, composition `aitchison`, binary `hamming`; similarity: scale `correlation`, composition `cosine`, binary `jaccard`, none for measure). `metric.DefaultFor(consumer, kind, form, admit)` is that default when the consumer accepts it, else the first metric the consumer accepts that suits the kind and is no poor fit. A request's `vectors[i].kind` (`types.VectorKind`) drives the same table: it fills an operator's missing `metric` (smart defaults) and flags an explicit poor fit with `PULSE_VECTOR_METRIC_UNSUITED`. The manifest lists the table under `matrix.vector_kinds`.
 
-Arithmetic is FMA-free and left to right, so results are identical on every architecture; the one exception is `aitchison`, whose logarithm comes from the standard library and may differ in the last bits on amd64.
+Arithmetic is FMA-free and left to right, and `aitchison` takes its logarithm from `linalg/detmath`, so every metric gives identical bits on every architecture.
 
 ## Deterministic math (`linalg/detmath`)
 

@@ -8,10 +8,10 @@
 // metric name through it. The manifest lists the registry under
 // capabilities.matrix.metrics.
 //
-// It is a leaf over the standard library, Pulse's coded-error package
-// and the parent linalg package (for the Sym inverse covariance
-// mahalanobis takes); never anything under internal/
-// (TestMetricImportBoundary).
+// It is a leaf over the standard library, Pulse's coded-error package,
+// the parent linalg package (for the Sym inverse covariance
+// mahalanobis takes) and linalg/detmath (aitchison's logarithm); never
+// anything under internal/ (TestMetricImportBoundary).
 //
 // # The registry
 //
@@ -75,8 +75,8 @@
 // converted product into a fused multiply-add, so arm64 and amd64 give
 // identical bits. Sums run left to right in element order. Never remove
 // a conversion or reorder a loop: the operation order is the contract.
-// One residual is stated rather than hidden: aitchison takes math.Log,
-// which is assembly on amd64 and pure Go on arm64, so its last bits can
-// differ across architectures (math.Sqrt is exempt: IEEE-754 requires
-// correct rounding).
+// Transcendentals come from linalg/detmath (aitchison's logarithm is
+// detmath.Log), never the standard library, whose math.Log is assembly
+// on amd64 and pure Go on arm64; math.Sqrt is exempt: IEEE-754
+// requires correct rounding.
 package metric

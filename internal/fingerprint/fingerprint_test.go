@@ -63,7 +63,9 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/linalg/detmath"
+	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -138,6 +140,60 @@ var directFigures = []directFigure{
 	{"weighting.CoWelford.M2Y", func() float64 { return coWelfordFold().M2Y }},
 	{"weighting.CoWelford.CXY", func() float64 { return coWelfordFold().CXY }},
 	{"weighting.CoWelford.MeanX", func() float64 { return coWelfordFold().MeanX }},
+
+	// E3-S2: linalg/metric aitchison on detmath.Log (no stdlib residual)
+	// and the reference CholeskyRidge on the literal power-of-ten
+	// schedule (a rank-1 input needing one increment, a slightly
+	// indefinite one needing four, so the accumulated ridge is a sum).
+	// logDivergent: parts i/997 where arm64's FMA-contracted stdlib
+	// math.Log differs from detmath.Log (amd64's asm Log agrees), so a
+	// revert to math.Log moves this figure on arm64.
+	{"metric.aitchison(logDivergent)", func() float64 {
+		return aitchison([]float64{296.0 / 997, 642.0 / 997, 861.0 / 997, 1134.0 / 997}, []float64{363.0 / 997, 701.0 / 997, 1018.0 / 997, 804.0 / 997})
+	}},
+	{"metric.aitchison(mtcarsRow1,mtcarsRow3)", func() float64 { return aitchison([]float64{21, 160, 110, 2.62}, []float64{22.8, 108, 93, 2.32}) }},
+	{"linalg.CholeskyRidge(rank1).ridge", func() float64 { _, r := ridgeFactor(rank1Sym); return r }},
+	{"linalg.CholeskyRidge(rank1).L11", func() float64 { l, _ := ridgeFactor(rank1Sym); return l.At(1, 1) }},
+	{"linalg.CholeskyRidge(rank1).L21", func() float64 { l, _ := ridgeFactor(rank1Sym); return l.At(2, 1) }},
+	{"linalg.CholeskyRidge(rank1).L22", func() float64 { l, _ := ridgeFactor(rank1Sym); return l.At(2, 2) }},
+	{"linalg.CholeskyRidge(indefinite).ridge", func() float64 { _, r := ridgeFactor(indefiniteSym); return r }},
+	{"linalg.CholeskyRidge(indefinite).L00", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(0, 0) }},
+	{"linalg.CholeskyRidge(indefinite).L10", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(1, 0) }},
+	{"linalg.CholeskyRidge(indefinite).L11", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(1, 1) }},
+}
+
+// rank1Sym fails the first Cholesky attempt on an exact zero pivot;
+// indefiniteSym (smallest eigenvalue about -5e-4) needs the first four
+// schedule increments (1e-6 + 1e-5 + 1e-4 + 1e-3).
+var (
+	rank1Sym      = [][]float64{{4, 2, 2}, {2, 1, 1}, {2, 1, 1}}
+	indefiniteSym = [][]float64{{1, 1}, {1, 0.999}}
+)
+
+// aitchison evaluates the registry's aitchison distance.
+func aitchison(a, b []float64) float64 {
+	m, err := metric.Resolve("aitchison", metric.Distance)
+	if err != nil {
+		panic(err)
+	}
+	v, err := m.Eval(metric.Distance, a, b, nil)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// ridgeFactor runs CholeskyRidge on the default schedule.
+func ridgeFactor(rows [][]float64) (*linalg.Matrix, float64) {
+	s, err := linalg.NewSymFromRows(rows)
+	if err != nil {
+		panic(err)
+	}
+	l, ridge, err := linalg.CholeskyRidge(s, nil)
+	if err != nil {
+		panic(err)
+	}
+	return l, ridge
 }
 
 // welfordSeries is the (x, y, w) input of the weighting figures; its
@@ -463,6 +519,22 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.corr_mpg_wt_hp", "mtcars.pulse",
 		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m"}]}`,
 		[]string{"matrices.0.primary.values.*"}},
+	// E3-S2: MAT_DISTANCE aitchison centroid distances (detmath.Log in the
+	// metric registry) and the Spearman / Kendall Fisher-z interval
+	// (barriered Bonett-Wright / Fieller zDF).
+	{"process.mtcars_groups.distance_aitchison_by_cyl", "mtcars_groups.pulse",
+		`{"vectors":[{"name":"v","fields":["mpg","disp","hp","wt"]}],"matrices":[{"type":"MAT_DISTANCE","vector":"v","name":"m","params":{"between":{"type":"GROUP_CATEGORY","field":"cyl"},"metric":"aitchison"}}]}`,
+		[]string{"matrices.0.primary.values.*"}},
+	{"process.mtcars.spearman_inference_mpg_wt_hp", "mtcars.pulse",
+		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m","params":{"method":"spearman","inference":true}}]}`,
+		[]string{"matrices.0.primary.values.*", "matrices.0.auxiliary.*"}},
+	{"process.mtcars.kendall_inference_mpg_wt_hp", "mtcars.pulse",
+		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m","params":{"method":"kendall","inference":true}}]}`,
+		[]string{"matrices.0.primary.values.*", "matrices.0.auxiliary.*"}},
+	// MAT_FACTOR (ml / minres, promax / geomin / entropy) is not pinned:
+	// every figure starts from gonum's SymEigen and the ML / GPA
+	// iterations carry its last-ulp differences 1–384 ulp (relative
+	// <= ~1e-13) across arches (E4-S4 pins it at its tolerance).
 }
 
 // TestFingerprint_Golden computes the corpus and compares it, line by
