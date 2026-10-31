@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 )
 
@@ -53,13 +54,42 @@ func TestCovarianceLags_JSON(t *testing.T) {
 	}
 }
 
-// TestAutoHACLags pins the rule ⌊4·(n/100)^(2/9)⌋ at a few sizes.
+// TestAutoHACLags pins the rule ⌊4·(n/100)^(2/9)⌋ at a few sizes,
+// including the exact boundary n = 1968300 (n/100 = 3^9, lag 36) where
+// a floating-point power gives 35, and its neighbours.
 func TestAutoHACLags(t *testing.T) {
 	t.Parallel()
 
-	for n, want := range map[int]int{0: 0, 1: 1, 48: 3, 60: 3, 100: 4, 1000: 6, 10000: 11} {
+	for n, want := range map[int]int{
+		-5: 0, 0: 0, 1: 1, 2: 1, 48: 3, 60: 3, 99: 3, 100: 4, 101: 4,
+		1000: 6, 10000: 11, 51199: 15, 51200: 16,
+		1968299: 35, 1968300: 36, 1968301: 36,
+		26214399: 63, 26214400: 64,
+		1_000_000_000_000: 667, math.MaxInt64: 23552,
+	} {
 		if got := AutoHACLags(n); got != want {
 			t.Errorf("AutoHACLags(%d) = %d, want %d", n, got, want)
+		}
+	}
+}
+
+// TestAutoHACLags_ExactBoundaries: 4·(n/100)^(2/9) is an exact integer
+// at n = 100·m^9 (lag 4·m²); the lag steps there and not one row
+// earlier, for every such n an int64 holds (m ≤ 76).
+func TestAutoHACLags_ExactBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for m := int64(1); m <= 76; m++ {
+		n := int64(100)
+		for range 9 {
+			n *= m
+		}
+		want := int(4 * m * m)
+		if got := AutoHACLags(int(n)); got != want {
+			t.Errorf("AutoHACLags(100·%d^9 = %d) = %d, want %d", m, n, got, want)
+		}
+		if got := AutoHACLags(int(n - 1)); got != want-1 {
+			t.Errorf("AutoHACLags(100·%d^9 − 1 = %d) = %d, want %d", m, n-1, got, want-1)
 		}
 	}
 }

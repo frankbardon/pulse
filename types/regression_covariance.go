@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
+	"math/big"
 )
 
 // CovarianceType names the coefficient covariance estimator a regression
@@ -99,15 +99,43 @@ func (c *RegressionCovariance) Robust() bool {
 }
 
 // AutoHACLags is the "auto" Newey–West truncation lag for a series of n
-// rows: ⌊4·(n/100)^(2/9)⌋ (Newey & West 1994's rule of thumb). The power
-// stays stdlib math.Pow: types is a contracts leaf that may import only
-// the stdlib and errors, and the floored integer lag is the same from
-// math.Pow and detmath.Pow for every n in 1..2e7 on arm64 and amd64.
+// rows: ⌊4·(n/100)^(2/9)⌋ (Newey & West 1994's rule of thumb), computed
+// exactly in integers. For n > 0 and an integer L ≥ 0,
+//
+//	L ≤ 4·(n/100)^(2/9)  ⇔  (L/4)^9 ≤ (n/100)^2  ⇔  100²·L^9 ≤ 4^9·n²
+//	                     ⇔  625·L^9 ≤ 2^14·n²      (both sides ÷ 16)
+//
+// so the lag is the largest L satisfying the last inequality, found by
+// binary search on math/big integers. A floating-point power is off by
+// one wherever 4·(n/100)^(2/9) is an exact integer and the power rounds
+// below it — n = 100·m^9, lag 4·m²: math.Pow gives 35 at n = 1968300
+// (m = 3), where the true lag is 36. types is a contracts leaf, so this
+// stays on the stdlib (math/big), not linalg/detmath.
 func AutoHACLags(n int) int {
 	if n <= 0 {
 		return 0
 	}
-	return int(math.Floor(4 * math.Pow(float64(n)/100, 2.0/9.0)))
+	// rhs = 2^14·n².
+	rhs := new(big.Int).SetInt64(int64(n))
+	rhs.Mul(rhs, rhs)
+	rhs.Lsh(rhs, 14)
+	fits := func(l int64) bool { // 625·l^9 ≤ rhs
+		lhs := new(big.Int).Exp(big.NewInt(l), big.NewInt(9), nil)
+		lhs.Mul(lhs, big.NewInt(625))
+		return lhs.Cmp(rhs) <= 0
+	}
+	// fits(0) always holds; fits(1<<15) never does for an int64 n
+	// (625·2^135 > 2^14·2^126). Invariant: fits(lo) && !fits(hi).
+	lo, hi := int64(0), int64(1)<<15
+	for hi-lo > 1 {
+		mid := lo + (hi-lo)/2
+		if fits(mid) {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return int(lo)
 }
 
 // CovarianceLags is RegressionCovariance.Lags: absent, "auto", or a
