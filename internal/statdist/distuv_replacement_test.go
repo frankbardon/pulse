@@ -9,7 +9,7 @@ import (
 
 // Deterministic replacements for the gonum distuv calls SEM makes
 // (distuv.ChiSquared.CDF, distuv.UnitNormal.Quantile): ChiSquareCDF /
-// ChiSquareSurvival and NormalQuantileDet.
+// ChiSquareSurvival and NormalQuantile.
 //
 // Documented tolerance against gonum, measured across the sweeps below:
 //
@@ -21,11 +21,11 @@ import (
 //   - ChiSquareSurvival: relative 1e-12 against 1 − gonum CDF wherever
 //     that complement is ≥ 1e-3 (below it the complement itself has
 //     lost the digits).
-//   - NormalQuantileDet: relative 1e-13 with an absolute floor of 1e-16
+//   - NormalQuantile: relative 1e-13 with an absolute floor of 1e-16
 //     over p ∈ (0, 1) and p down to 1e-300 (worst seen 2.4e-13
 //     relative = 6e-17 absolute at p = 0.4999, where the quantile is
-//     ~p − ½ and both sides sit within an ulp of it; NormalQuantile's
-//     math.* body shows the same gap).
+//     ~p − ½ and both sides sit within an ulp of it; the pre-detmath
+//     math.* body showed the same gap).
 
 func TestChiSquareCDF_AgreesWithGonum(t *testing.T) {
 	t.Parallel()
@@ -96,14 +96,14 @@ func TestChiSquare_SpecialCases(t *testing.T) {
 	}
 }
 
-func TestNormalQuantileDet_AgreesWithGonum(t *testing.T) {
+func TestNormalQuantile_AgreesWithGonum(t *testing.T) {
 	t.Parallel()
 
 	r := &failReporter{t: t}
 	check := func(p float64) {
 		want := distuv.UnitNormal.Quantile(p)
-		if got := NormalQuantileDet(p); !oracleClose(got, want, 1e-13, 1e-16) {
-			r.errorf("NormalQuantileDet(%g) = %.17g, gonum %.17g", p, got, want)
+		if got := NormalQuantile(p); !oracleClose(got, want, 1e-13, 1e-16) {
+			r.errorf("NormalQuantile(%g) = %.17g, gonum %.17g", p, got, want)
 		}
 	}
 	for i := 1; i < 10000; i++ {
@@ -119,30 +119,30 @@ func TestNormalQuantileDet_AgreesWithGonum(t *testing.T) {
 	r.done()
 }
 
-func TestNormalQuantileDet_SpecialCases(t *testing.T) {
+func TestNormalQuantile_SpecialCases(t *testing.T) {
 	t.Parallel()
 
-	if got := NormalQuantileDet(0); !math.IsInf(got, -1) {
-		t.Errorf("NormalQuantileDet(0) = %v, want -Inf", got)
+	if got := NormalQuantile(0); !math.IsInf(got, -1) {
+		t.Errorf("NormalQuantile(0) = %v, want -Inf", got)
 	}
-	if got := NormalQuantileDet(1); !math.IsInf(got, 1) {
-		t.Errorf("NormalQuantileDet(1) = %v, want +Inf", got)
+	if got := NormalQuantile(1); !math.IsInf(got, 1) {
+		t.Errorf("NormalQuantile(1) = %v, want +Inf", got)
 	}
 	for _, p := range []float64{math.NaN()} {
-		if got := NormalQuantileDet(p); !math.IsNaN(got) {
-			t.Errorf("NormalQuantileDet(NaN) = %v, want NaN", got)
+		if got := NormalQuantile(p); !math.IsNaN(got) {
+			t.Errorf("NormalQuantile(NaN) = %v, want NaN", got)
 		}
 	}
-	if got := NormalQuantileDet(0.5); got != 0 {
-		t.Errorf("NormalQuantileDet(0.5) = %v, want 0", got)
+	if got := NormalQuantile(0.5); got != 0 {
+		t.Errorf("NormalQuantile(0.5) = %v, want 0", got)
 	}
 }
 
-// TestStatdist_ChiSquareAndNormalQuantileDetBitsPinned is the
+// TestStatdist_ChiSquareAndNormalQuantileBitsPinned is the
 // cross-architecture gate on the distuv replacements: the pinned bits
 // must hold exactly on every GOARCH. Pinned on darwin/arm64 and checked
 // identical on linux/amd64 (docker); CI re-runs it on linux/amd64.
-func TestStatdist_ChiSquareAndNormalQuantileDetBitsPinned(t *testing.T) {
+func TestStatdist_ChiSquareAndNormalQuantileBitsPinned(t *testing.T) {
 	t.Parallel()
 
 	chi := []struct {
@@ -184,10 +184,15 @@ func TestStatdist_ChiSquareAndNormalQuantileDetBitsPinned(t *testing.T) {
 		{1e-10, 0xc0197203597a2155},
 		{1e-300, 0xc04286074064c26e},
 		{0.99999, 0x40110f3f8843a851},
+		// Inputs where math.Erfc in the Halley step would move the
+		// answer by an ulp: they pin the detmath.Erfc choice.
+		{0.0014, 0xc007e93b1b2db9a7},
+		{0.0214, 0xc000348b619ca37b},
+		{0.0305, 0xbffdf9d65e56d39a},
 	}
 	for _, c := range quantiles {
-		if got := NormalQuantileDet(c.p); math.Float64bits(got) != c.want {
-			t.Errorf("NormalQuantileDet(%v) = %v (%#016x), want %#016x", c.p, got, math.Float64bits(got), c.want)
+		if got := NormalQuantile(c.p); math.Float64bits(got) != c.want {
+			t.Errorf("NormalQuantile(%v) = %v (%#016x), want %#016x", c.p, got, math.Float64bits(got), c.want)
 		}
 	}
 }

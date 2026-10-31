@@ -105,17 +105,24 @@ var directFigures = []directFigure{
 	{"detmath.Cos(2.2)", func() float64 { return detmath.Cos(2.2) }},
 	{"detmath.Atan2(1.3,-0.4)", func() float64 { return detmath.Atan2(1.3, -0.4) }},
 
-	// internal/statdist (E1-S2: chi-square, NormalQuantileDet; Student-t pre-existing).
+	// internal/statdist (E1-S2: chi-square, NormalQuantile; Student-t pre-existing).
 	{"statdist.ChiSquareCDF(3.84,1)", func() float64 { return statdist.ChiSquareCDF(3.84, 1) }},
 	{"statdist.ChiSquareCDF(12.6,7)", func() float64 { return statdist.ChiSquareCDF(12.6, 7) }},
 	{"statdist.ChiSquareCDF(40,30)", func() float64 { return statdist.ChiSquareCDF(40, 30) }},
 	{"statdist.ChiSquareSurvival(3.84,1)", func() float64 { return statdist.ChiSquareSurvival(3.84, 1) }},
 	{"statdist.ChiSquareSurvival(25.3,12)", func() float64 { return statdist.ChiSquareSurvival(25.3, 12) }},
 	{"statdist.ChiSquareSurvival(150,100)", func() float64 { return statdist.ChiSquareSurvival(150, 100) }},
-	{"statdist.NormalQuantileDet(0.975)", func() float64 { return statdist.NormalQuantileDet(0.975) }},
-	{"statdist.NormalQuantileDet(0.01)", func() float64 { return statdist.NormalQuantileDet(0.01) }},
-	{"statdist.NormalQuantileDet(1e-9)", func() float64 { return statdist.NormalQuantileDet(1e-9) }},
-	{"statdist.NormalQuantileDet(0.6)", func() float64 { return statdist.NormalQuantileDet(0.6) }},
+	{"statdist.NormalQuantile(0.975)", func() float64 { return statdist.NormalQuantile(0.975) }},
+	{"statdist.NormalQuantile(0.01)", func() float64 { return statdist.NormalQuantile(0.01) }},
+	{"statdist.NormalQuantile(1e-9)", func() float64 { return statdist.NormalQuantile(1e-9) }},
+	{"statdist.NormalQuantile(0.6)", func() float64 { return statdist.NormalQuantile(0.6) }},
+	// E2-S1: the Wald / normal-CI and normal-credible quantiles
+	// (statdist.NormalQuantile(0.5 + level/2) at 90 / 95 / 99 %).
+	{"statdist.NormalQuantile(0.95)", func() float64 { return statdist.NormalQuantile(0.95) }},
+	{"statdist.NormalQuantile(0.995)", func() float64 { return statdist.NormalQuantile(0.995) }},
+	{"statdist.NormalQuantile(0.4999)", func() float64 { return statdist.NormalQuantile(0.4999) }},
+	{"statdist.ChiSquareCDF(0.01,7.5)", func() float64 { return statdist.ChiSquareCDF(0.01, 7.5) }},
+	{"statdist.RegularizedGammaP(30.5,12)", func() float64 { return statdist.RegularizedGammaP(30.5, 12) }},
 	{"statdist.StudentTTwoSidedP(2.1,14)", func() float64 { return statdist.StudentTTwoSidedP(2.1, 14) }},
 	{"statdist.StudentTQuantile(0.975,9)", func() float64 { return statdist.StudentTQuantile(0.975, 9) }},
 }
@@ -161,6 +168,18 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.pearson_mpg_wt", "mtcars.pulse",
 		`{"tests":[{"type":"TEST_PEARSON_R","field":"mpg","field2":"wt","label":"t"}]}`,
 		[]string{"tests.0.statistic", "tests.0.p_value"}},
+	// E2-S1: the DeLong normal CI (statdist.NormalQuantile) and the
+	// detmath.Erfc normal two-sided p.
+	{"process.mtcars.auc_qsec_vs", "mtcars.pulse",
+		`{"aggregations":[{"type":"AGG_AUC","field":"qsec","params":{"outcome":"vs"},"label":"v"}]}`,
+		[]string{"data.0.v", "components.aggregations.0.operator.*"}},
+	{"process.mtcars.wilcoxon_qsec_wt", "mtcars.pulse",
+		`{"tests":[{"type":"TEST_WILCOXON_SR","field":"qsec","field2":"wt","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value"}},
+	// REG_BAYES_LINEAR credible intervals (Student-t and, under a
+	// sandwich covariance, NormalQuantile) are not pinned yet: their
+	// standard errors run gonum's FactorSPD and move 1–19 ulp across
+	// arches (E4-S1/E4-S2 add them). Their quantiles are pinned above.
 	// MAT_CORRELATION primary on the FMA-free CoMoment path (its
 	// determinant runs a gonum decomposition: not pinned).
 	{"process.mtcars.corr_mpg_wt_hp", "mtcars.pulse",

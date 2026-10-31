@@ -13,14 +13,12 @@ import (
 // GOARCH (TestStatdist_ChiSquareBitsPinned,
 // TestStatdist_NoFMAContraction).
 //
-// The algorithm is internal/processing's chiSquareSurvival /
-// regularizedGammaQ / gammaPrefactor / bd0 (series for x < a+1,
-// Lentz continued fraction otherwise, Loader's saddle-point prefactor
-// for a ≥ 10), checked against R's pchisq to a relative 1e-10 by
-// reference_oracle_test.go and against gonum's distuv.ChiSquared.CDF by
-// chisquare_test.go. The processing copy keeps its math.* calls (its
-// figures are unchanged) until the TEST_* chi-square sites migrate onto
-// this one.
+// The algorithm (series for x < a+1, Lentz continued fraction
+// otherwise, Loader's saddle-point prefactor for a ≥ 10) is checked
+// against R's pchisq to a relative 1e-10 by reference_oracle_test.go and
+// against gonum's distuv.ChiSquared.CDF by distuv_replacement_test.go.
+// It is the only copy: internal/processing's chiSquareSurvival and
+// noncentralChiSquareCDF call ChiSquareSurvival / RegularizedGammaP.
 
 // ChiSquareCDF returns P(X² ≤ x) for a chi-square variate with df
 // degrees of freedom (R's pchisq(x, df); gonum's distuv.ChiSquared{K:
@@ -36,7 +34,7 @@ func ChiSquareCDF(x, df float64) float64 {
 	if math.IsInf(x, 1) {
 		return 1
 	}
-	return regularizedGammaP(df/2, x/2)
+	return RegularizedGammaP(df/2, x/2)
 }
 
 // ChiSquareSurvival returns P(X² ≥ x) for a chi-square variate with df
@@ -71,10 +69,10 @@ func regularizedGammaQ(a, x float64) float64 {
 	return gammaContinuedFraction(a, x)
 }
 
-// regularizedGammaP returns P(a, x) on the branch that keeps it
-// relatively accurate when small: the series directly for x < a+1,
-// 1 − Q otherwise.
-func regularizedGammaP(a, x float64) float64 {
+// RegularizedGammaP returns P(a, x), the regularized lower incomplete
+// gamma, on the branch that keeps it relatively accurate when small: the
+// series directly for x < a+1, 1 − Q otherwise. NaN for x < 0 or a ≤ 0.
+func RegularizedGammaP(a, x float64) float64 {
 	if x < 0 || a <= 0 {
 		return math.NaN()
 	}

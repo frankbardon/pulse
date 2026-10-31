@@ -155,9 +155,9 @@ func TestReferenceOracle_ChiSquareSurvival(t *testing.T) {
 	r.done()
 }
 
-// TestReferenceOracle_NormalQuantileDet: the deterministic standard
-// normal quantile against R's qnorm, the golden NormalQuantile is held to.
-func TestReferenceOracle_NormalQuantileDet(t *testing.T) {
+// TestReferenceOracle_NormalQuantile: the deterministic standard
+// normal quantile against R's qnorm.
+func TestReferenceOracle_NormalQuantile(t *testing.T) {
 	t.Parallel()
 
 	cases := loadReference[struct {
@@ -166,8 +166,8 @@ func TestReferenceOracle_NormalQuantileDet(t *testing.T) {
 	}](t, "normal_ppf")
 	r := &failReporter{t: t}
 	for _, c := range cases {
-		if got := NormalQuantileDet(c.P); !oracleClose(got, c.Q, oracleRelTol, oracleQuantileAbsFloor) {
-			r.errorf("NormalQuantileDet(p=%g) = %.17g, want %.17g", c.P, got, c.Q)
+		if got := NormalQuantile(c.P); !oracleClose(got, c.Q, oracleRelTol, oracleQuantileAbsFloor) {
+			r.errorf("NormalQuantile(p=%g) = %.17g, want %.17g", c.P, got, c.Q)
 		}
 	}
 	r.done()
