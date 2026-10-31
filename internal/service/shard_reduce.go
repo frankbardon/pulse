@@ -422,15 +422,16 @@ type shardPartial struct {
 	limits limits.Limits
 	// keyers is each partition grouper's resolved key dispatch.
 	keyers []*processing.GroupKeyer
-	// assignments[i] counts grouper i's (record, key) routings — one
-	// per key the grouper gave a record, even when another position's
-	// null key drops the record from every composite bucket — exactly
-	// as the serial streaming-grouped path does. It is
-	// Components.Groupers' TotalN for a grouper whose components carry
-	// no "buckets" list (a bucket-less extension grouper), so the merge
+	// keyed[i] counts the records grouper i keyed into at least one
+	// bucket — once per record, however many keys a fan-out grouper
+	// gives it, even when another position's null key drops the record
+	// from every composite bucket — exactly as the serial
+	// streaming-grouped path does. It is Components.Groupers' TotalN for
+	// a fan-out grouper and for a grouper whose components carry no
+	// "buckets" list (a bucket-less extension grouper), so the merge
 	// sums it slot by slot and hands it to GroupedTail; a merged tail
 	// without it reported total_n 0 and n_null = every filtered record.
-	assignments []int64
+	keyed []int64
 	// keySet is the observed composite keys of a run with two or more
 	// groupers, with their per-grouper tuples (nil for one grouper,
 	// whose buckets are keyed by the plain key). Keys are minted only
@@ -843,7 +844,7 @@ func (sp *shardPartial) initGrouped(groups []*types.Group, groupers []processing
 		}
 		sp.keyers[i] = k
 	}
-	sp.assignments = make([]int64, len(groupers))
+	sp.keyed = make([]int64, len(groupers))
 	if len(groupers) > 1 {
 		sp.keySet = processing.NewCompositeKeySet(len(groupers))
 		sp.keySets = make([][]string, len(groupers))
@@ -870,7 +871,7 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record) error {
 		if err != nil || !ok {
 			return err
 		}
-		sp.assignments[0] += int64(len(keys))
+		sp.keyed[0]++
 		for _, key := range keys {
 			if err := sp.route(key, rec); err != nil {
 				return err
@@ -888,7 +889,7 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record) error {
 			continue
 		}
 		sp.keySets[i] = ks
-		sp.assignments[i] += int64(len(ks))
+		sp.keyed[i]++
 	}
 	sp.cur = rec
 	return sp.keySet.Expand(sp.keySets, sp.emit)
@@ -1219,7 +1220,7 @@ func (m *partialMerger) add(p *shardPartial) error {
 	if merged.groups != nil {
 		// Per grouper slot: its live components state and its
 		// assignment count, folded in partition order.
-		if len(p.groupers) != len(merged.groupers) || len(p.assignments) != len(merged.assignments) {
+		if len(p.groupers) != len(merged.groupers) || len(p.keyed) != len(merged.keyed) {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				"shard partial grouper count mismatch during merge",
 				map[string]any{"merged": len(merged.groupers), "partial": len(p.groupers)})
@@ -1233,7 +1234,7 @@ func (m *partialMerger) add(p *shardPartial) error {
 			if err := m.MergeGrouperState(p.groupers[gi]); err != nil {
 				return err
 			}
-			merged.assignments[gi] += p.assignments[gi]
+			merged.keyed[gi] += p.keyed[gi]
 		}
 		// The composite keys' tuples: a union (a key's tuple is a
 		// function of the key, so which partition minted it is
@@ -1422,7 +1423,7 @@ func finalizeMergedRows(req *types.Request, schema *encoding.Schema, merged *sha
 			TotalRows:      merged.totalRows,
 			FilteredRows:   merged.filteredRows,
 			NullRecords:    merged.nullRecords,
-			Assignments:    merged.assignments,
+			Keyed:          merged.keyed,
 			FilterCounters: merged.filterCounters,
 			ShardCount:     shardCount,
 			Matrices:       merged.groupedMats,

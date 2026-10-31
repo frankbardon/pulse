@@ -91,7 +91,7 @@ func importAutoCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.WidthWarnings...), res.ZoneWarnings...), res.DroppedWarnings...))
+				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append(append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.NullWarnings...), res.WidthWarnings...), res.ZoneWarnings...), res.DroppedWarnings...))
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)

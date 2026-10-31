@@ -21,14 +21,19 @@ import (
 // PromotedFields names the columns an inferred import widened to nullable
 // because a null cell fell outside the bounded inference sample window
 // (see ImportJob.InferredSchema). Empty for explicit-schema imports and
-// for inferred imports with no out-of-sample nulls. Each promotion also
-// surfaces a PULSE_IMPORT_NULL_PROMOTED warning to callers that thread
-// coded warnings.
+// for inferred imports with no out-of-sample nulls. A non-empty list
+// also rides NullWarnings as one PULSE_IMPORT_NULL_PROMOTED warning.
 type ImportReport struct {
 	RowsImported   int              `json:"rows_imported"`
 	Schema         *encoding.Schema `json:"schema"`
 	RowErrors      []RowError       `json:"row_errors,omitempty"`
 	PromotedFields []string         `json:"promoted_fields,omitempty"`
+	// NullWarnings carries the ONE PULSE_IMPORT_NULL_PROMOTED warning an
+	// inferred import raises when PromotedFields is non-empty, its
+	// details.promoted_fields naming the same fields in schema order.
+	// Nil (and omitted from JSON) when nothing was promoted — always, for
+	// an explicit or authoritative schema.
+	NullWarnings []*errors.CodedError `json:"null_warnings,omitempty"`
 	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
 	// field the row pass promoted past its sample-inferred width
 	// (categorical_* rung, integer width, or integer → f64), with

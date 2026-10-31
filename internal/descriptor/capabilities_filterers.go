@@ -125,7 +125,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.FILTER_DATE_RANGES),
 			Category:    "filterer",
-			Description: "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to the UTC calendar day containing its instant before matching. Null dates and out-of-range rows are dropped.",
+			Description: "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to its local calendar day in the resolved zone (slot tz / request time_zone, or the row's tz_field zone; UTC when none applies) before matching; range bounds are local days. Null dates and out-of-range rows are dropped.",
 			Params: []descriptor.Param{
 				{Name: "ranges", Type: "array", Required: false, Description: "Ordered list of {label, start, end} labeled date ranges (ISO date literals; an omitted bound is open; inclusive; non-overlapping, distinct labels). Give exactly one of ranges and table."},
 				{Name: "table", Type: "string", Required: false, Description: "Name of a registered DATE range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds ISO date strings) to filter by instead of inline ranges; give exactly one of ranges and table. A numeric table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."},

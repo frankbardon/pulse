@@ -217,9 +217,14 @@ type Result struct {
 	// PromotedFields names columns an inferred import widened to nullable
 	// because a null fell outside the inference sample window. Empty for
 	// explicit-schema imports and clean inferred imports. Mirrors
-	// io.ImportReport.PromotedFields; each also rides a
-	// PULSE_IMPORT_NULL_PROMOTED warning.
+	// io.ImportReport.PromotedFields; a non-empty list also rides
+	// NullWarnings.
 	PromotedFields []string `json:"promoted_fields,omitempty"`
+	// NullWarnings carries the one PULSE_IMPORT_NULL_PROMOTED warning
+	// (details.promoted_fields) a non-empty PromotedFields raises.
+	// Mirrors io.ImportReport.NullWarnings; omitted when nothing was
+	// promoted.
+	NullWarnings []*perr.CodedError `json:"null_warnings,omitempty"`
 	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
 	// field the import widened past its sample-inferred width
 	// (categorical_* rung, integer width, or integer → f64), each with

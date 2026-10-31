@@ -2277,10 +2277,9 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // The kind is structurally locked to the ROW axis — unlike
 // INDEX_VS_MARGIN (which lets the caller pick row / column / grand),
 // SHARE_OF_ROW is row-share-only by definition. Specs always populate
-// Ref.Margin, but the handler reads MarginFor(MarginAxisRow, ...)
-// regardless of any axis the caller wrote. The validator gate may
-// later evolve to reject mismatched axes; today the handler is the
-// source of truth.
+// Ref.Margin, and the shared spec rule (overlayhost.CrosstabSpecRefusal)
+// refuses any axis but row before the handler runs, at predict and
+// runtime alike.
 //
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
@@ -2288,13 +2287,9 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 // (Present=false) stay absent on the overlay; cells where the row
 // margin is missing become absent overlay cells plus the warning.
 //
-// Summary: Min / Max / Count / Baseline populated. Baseline is always
-// 1 / row_count (the value each cell takes when the row distribution
-// is uniform), but for simplicity and renderer compatibility we
-// surface Baseline = 0 — share ratios cluster near zero on wide rows
-// and renderers centre diverging colour ramps on the population
-// median rather than the uniform baseline. Future renderer-side
-// metadata may refine this.
+// Summary: Min / Max / Count / Baseline populated. Baseline is 1, the
+// raw-share whole every SHARE_OF_* layer reports on every host (the
+// SERIES share-of-total included).
 func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -2404,7 +2399,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 		},
 	}
 
-	baseline := 0.0
+	baseline := 1.0
 	summary := &types.OverlaySummary{Baseline: &baseline}
 	if seen > 0 {
 		mn, mx, count := minV, maxV, seen
@@ -2430,10 +2425,9 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // The kind is structurally locked to the COLUMN axis — unlike
 // INDEX_VS_MARGIN (which lets the caller pick row / column / grand),
 // SHARE_OF_COL is column-share-only by definition. Specs always
-// populate Ref.Margin, but the handler reads MarginFor(MarginAxisColumn,
-// ...) regardless of any axis the caller wrote. The validator gate
-// may later evolve to reject mismatched axes; today the handler is the
-// source of truth (matching the SHARE_OF_ROW followup policy).
+// populate Ref.Margin, and the shared spec rule
+// (overlayhost.CrosstabSpecRefusal) refuses any axis but column before
+// the handler runs, at predict and runtime alike.
 //
 // Output shape: MATRIX payload mirroring the host's RowKeys /
 // ColumnKeys / headers so renderers can lay the overlay on top of the
@@ -2441,10 +2435,8 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // (Present=false) stay absent on the overlay; cells where the column
 // margin is missing become absent overlay cells plus the warning.
 //
-// Summary: Min / Max / Count / Baseline populated. Baseline is set to
-// 0 to match the SHARE_OF_ROW convention — share ratios cluster near
-// zero on tall columns and renderers centre diverging colour ramps on
-// the population median rather than the uniform baseline.
+// Summary: Min / Max / Count / Baseline populated. Baseline is 1 (see
+// applyShareOfRow).
 func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -2549,7 +2541,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 		},
 	}
 
-	baseline := 0.0
+	baseline := 1.0
 	summary := &types.OverlaySummary{Baseline: &baseline}
 	if seen > 0 {
 		mn, mx, count := minV, maxV, seen
@@ -2587,11 +2579,8 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 // total is missing or zero become absent overlay cells plus the
 // warning.
 //
-// Summary: Min / Max / Count / Baseline populated. Baseline is set to
-// 0 to match the SHARE_OF_ROW / SHARE_OF_COL convention — share
-// ratios cluster near zero on populated matrices and renderers centre
-// diverging colour ramps on the population median rather than the
-// uniform baseline.
+// Summary: Min / Max / Count / Baseline populated. Baseline is 1 (see
+// applyShareOfRow).
 //
 // NOTE: the same kind name also routes to a streamable series-shape
 // handler under Process context; this site is the MATRIX dispatch
@@ -2699,7 +2688,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 		},
 	}
 
-	baseline := 0.0
+	baseline := 1.0
 	summary := &types.OverlaySummary{Baseline: &baseline}
 	if seen > 0 {
 		mn, mx, count := minV, maxV, seen

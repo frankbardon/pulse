@@ -92,9 +92,6 @@ func writeRecommendText(cmd *cli.Command, res *descriptor.RecommendResult) {
 		for _, a := range r.Advisories {
 			writeText(w, "   advisory %s: %s\n", a.Code, a.Message)
 		}
-		for j, st := range r.Steps {
-			writeText(w, "   step %d (%s): %s\n     request: %s\n", j+1, st.Tool, st.Why, string(st.Request))
-		}
 	}
 	if len(res.RoutesTo) > 0 {
 		writeText(w, "\nNo operator draft answers this; use instead:\n")

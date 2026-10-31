@@ -105,25 +105,24 @@ func TestCliRecommend(t *testing.T) {
 		}
 	}
 
-	// A derived-column producer's materialise plan passes through: the
-	// pulse_materialize step first, then the model request.
+	// No draft carries a materialise plan: a model reads a label its own
+	// request derives, so recommend drafts no steps, in JSON or text.
 	text, err = runApp(t, "recommend", "--intent", "measure_construct", "--json")
 	if err != nil {
 		t.Fatalf("steps: %v\n%s", err, text)
 	}
 	env = decodeRecommend(t, text)
-	planned := false
 	for _, r := range env.Data.Recommendations {
-		if r.Operator == "ATTR_PC_SCORE" {
-			planned = len(r.Steps) == 2 && r.Steps[0].Tool == "pulse_materialize" && r.Steps[1].Tool == "pulse_process"
+		if r.Steps != nil {
+			t.Errorf("%s carries steps %+v", r.Operator, r.Steps)
 		}
 	}
-	if !planned {
-		t.Errorf("ATTR_PC_SCORE carries no materialise plan: %s", text)
+	if strings.Contains(text, `"steps"`) {
+		t.Errorf("steps key on the wire: %s", text)
 	}
 	text, err = runApp(t, "recommend", "--intent", "measure_construct")
-	if err != nil || !strings.Contains(text, "step 1 (pulse_materialize): ") || !strings.Contains(text, "step 2 (pulse_process): ") {
-		t.Errorf("text output lacks the steps (%v): %s", err, text)
+	if err != nil || strings.Contains(text, "step 1 (") {
+		t.Errorf("text output carries steps (%v): %s", err, text)
 	}
 
 	text, err = runApp(t, "recommend", "--intent", "describe")

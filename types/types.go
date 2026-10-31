@@ -1234,6 +1234,8 @@ type Group struct {
 	//   - GROUP_SET_PER_ELEMENT — matches each fan-out label
 	//                             independently; the row contributes
 	//                             only to surviving labels.
+	//   - GROUP_DATE            — matches the calendar key.
+	//   - GROUP_DATE_RANGES     — matches the range label.
 	//
 	// A non-empty Include is order-significant: output buckets emit in
 	// the order values are listed here — across both the plain grouped
@@ -1246,8 +1248,9 @@ type Group struct {
 	// Empty / nil Include means "no inclusion filter" and preserves the
 	// prior alphabetical bucket order (dict-index order for
 	// GROUP_SET_PER_ELEMENT) — byte-identical to the pre-Include output.
-	// Other grouper types ignore Include — predict / runtime gates flag
-	// misuse.
+	// A non-empty Include on a Request.Groups slot of any other built-in
+	// grouper is refused PROCESSING_CONFIG (predict and runtime alike); a
+	// crosstab axis keeps it on every grouper, where it orders the axis.
 	Include []string `json:"include,omitempty"`
 
 	// TimeZone is the per-slot IANA zone override (`"UTC"` or an

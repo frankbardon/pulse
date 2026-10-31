@@ -944,6 +944,9 @@ func TestMultiGrouper_MaxGroupsCountsCompositeKeys(t *testing.T) {
 // single-grouper run in the same mode — every grouper is driven once per
 // record, even after an earlier position's null key (tier is null for 7
 // records; sex still sees all 30) — and the entries agree across modes.
+// tags is the fan-out grouper: total_n counts RECORDS (12 answered, not
+// their 19 label observations), n_null the 2 null sets; the 16
+// empty-mask records land in neither (#406).
 func TestMultiGrouper_GrouperComponentsPerSlot(t *testing.T) {
 	t.Parallel()
 
@@ -952,7 +955,7 @@ func TestMultiGrouper_GrouperComponentsPerSlot(t *testing.T) {
 	floors := []struct {
 		field         string
 		totalN, nNull int
-	}{{"tier", 23, 7}, {"tags", 19, 11}, {"sex", 30, 0}}
+	}{{"tier", 23, 7}, {"tags", 12, 2}, {"sex", 30, 0}}
 	var first []types.GrouperComponents
 	for _, mode := range mgModes {
 		t.Run(mode.name, func(t *testing.T) {

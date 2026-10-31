@@ -47,6 +47,7 @@ Keys `cluster_1`…`cluster_k`, emitted largest first (ties: lexicographic centr
 - Labels depend only on the member tuples, never on row or shard order.
 - Buffered, never merged; predict `row_buffer_bytes` = n·p·8 + k·p·8.
 - Best start at `max_iter`: `PULSE_MATRIX_NOT_CONVERGED` (solver `kmeans_lloyd`).
+- `include` on `groups`: `PROCESSING_CONFIG`.
 
 ## See
 

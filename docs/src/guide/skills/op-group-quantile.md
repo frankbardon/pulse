@@ -57,7 +57,7 @@ Bucket label per row (`Qk` / `Dk` / `Pk`). Rows emit in bucket order (`D1`, `D2`
 ## Gotchas
 
 - Forces buffered execution — disables fused crosstab.
-- `Group.Include` not honoured — buckets are derived ranks.
+- `Group.Include` on `groups` is refused (`PROCESSING_CONFIG`) — buckets are derived ranks; a crosstab axis keeps it for order.
 
 ## See
 

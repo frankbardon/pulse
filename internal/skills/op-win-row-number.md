@@ -30,7 +30,7 @@ One `int64` per row written to `Label` (default `WIN_ROW_NUMBER`). Counts `1, 2,
 ## Gotchas
 
 - Ties on `order_by`: ROW_NUMBER picks a deterministic but arbitrary order.
-- Common top-N idiom: `WIN_ROW_NUMBER` partitioned by group, then a range filter on the label `[1, N]`. Filter runs BEFORE windows in the pipeline — stage via Compose / ProcessChain.
+- Common top-N idiom: `WIN_ROW_NUMBER` partitioned by group, then a range filter on the label `[1, N]`. Filters run BEFORE windows, and a chain stage refuses windows: write the label first<!-- feature: capability:materialize, capability:process --> with `pulse_materialize` (`derived-cohorts`)<!-- /feature -->, then filter the new cohort.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
 
 ## See

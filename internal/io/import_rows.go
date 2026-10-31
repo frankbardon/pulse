@@ -240,6 +240,18 @@ func (c *rowConverter) writeFields(buf *bytes.Buffer) error {
 }
 
 // promotedNames lists the promoted fields in schema order.
+// nullPromotedWarnings folds the promoted field names into the one
+// PULSE_IMPORT_NULL_PROMOTED warning ImportReport.NullWarnings carries;
+// nil when nothing was promoted.
+func nullPromotedWarnings(fields []string) []*errors.CodedError {
+	if len(fields) == 0 {
+		return nil
+	}
+	return []*errors.CodedError{errors.NewCodedErrorWithDetails(errors.PULSE_IMPORT_NULL_PROMOTED,
+		"fields promoted to nullable (null found past the inference sample): "+strings.Join(fields, ", "),
+		map[string]any{"promoted_fields": append([]string(nil), fields...)})}
+}
+
 func (c *rowConverter) promotedNames() []string {
 	var out []string
 	for i := range c.schema.Fields {

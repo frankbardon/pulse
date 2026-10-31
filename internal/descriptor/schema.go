@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -602,6 +603,19 @@ var fieldOverrides = map[fieldKey]any{
 	},
 }
 
+// fieldAnnotations adds keys (a description, the deprecated flag) to a
+// field's reflected schema without replacing it, so its $ref and type
+// stay generated.
+var fieldAnnotations = map[fieldKey]map[string]any{
+	// Recommend no longer drafts a materialise plan (a model reads a
+	// label its own request derives), so steps is always absent; the
+	// slot stays for format_version 1.1 compatibility.
+	{reflect.TypeFor[descriptor.Recommendation](), "steps"}: {
+		"deprecated":  true,
+		"description": "Deprecated: always absent. Recommend drafts no multi-request plan; a model reads a label its own request derives.",
+	},
+}
+
 // optionalFields are wire keys whose Go field carries no omitempty (the
 // marshalled form always writes them) but that a caller may omit: an
 // aggregation or grouper reads vector / fields instead of field on its
@@ -654,6 +668,13 @@ func (b *schemaBuilder) structSchema(t reflect.Type) any {
 			props[name] = o
 		} else {
 			props[name] = b.schemaFor(f.Type, false)
+		}
+		if ann, ok := fieldAnnotations[fieldKey{t, name}]; ok {
+			if node, isMap := props[name].(map[string]any); isMap {
+				merged := maps.Clone(node)
+				maps.Copy(merged, ann)
+				props[name] = merged
+			}
 		}
 		if !opts["omitempty"] && !opts["omitzero"] && !optionalFields[fieldKey{t, name}] {
 			required = append(required, name)

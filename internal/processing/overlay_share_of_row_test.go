@@ -105,8 +105,8 @@ func TestOverlay_ShareOfRow_CellByCell(t *testing.T) {
 	if layer.Summary.Count == nil || *layer.Summary.Count != 9 {
 		t.Fatalf("summary count = %v, want 9", layer.Summary.Count)
 	}
-	if layer.Summary.Baseline == nil {
-		t.Fatalf("summary baseline nil; want populated")
+	if layer.Summary.Baseline == nil || *layer.Summary.Baseline != 1 {
+		t.Fatalf("summary baseline = %v, want 1 (the raw-share whole)", layer.Summary.Baseline)
 	}
 }
 

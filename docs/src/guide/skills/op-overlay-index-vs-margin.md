@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` (enum, required) — `cell`, `row`, or `column`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
+`Scope` must be `cell`; any other scope → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (predict and runtime). `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Any other `Ref` arm beside `Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime).
 
 ## Host shape
 
@@ -34,7 +34,7 @@ MATRIX crosstab (`Response.Crosstab.Matrix`). Ratio sibling of the margin delta 
 
 ## Output
 
-MATRIX (cell scope) or SERIES (row/column scope). `Cells[r][c].Value = 100 × cell / margin`. Mirrors host RowKeys / ColumnKeys. Absent host cells stay absent. Layer `Baseline = 100` (ratio family centerpoint).
+MATRIX. `Cells[r][c].Value = 100 × cell / margin`. Mirrors host RowKeys / ColumnKeys. Absent host cells stay absent. Layer `Baseline = 100` (ratio family centerpoint).
 
 ## Contract
 

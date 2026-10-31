@@ -249,7 +249,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if jsonOut {
-		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...), report.ZoneWarnings...), report.DroppedWarnings...))
+		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append(append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.NullWarnings...), report.WidthWarnings...), report.ZoneWarnings...), report.DroppedWarnings...))
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)

@@ -322,9 +322,8 @@ type ImportProjection = iio.ImportProjection
 // PromotedFields names the columns an inferred import widened to nullable
 // because a null cell fell outside the bounded inference sample window
 // (see ImportJob.InferredSchema). Empty for explicit-schema imports and
-// for inferred imports with no out-of-sample nulls. Each promotion also
-// surfaces a PULSE_IMPORT_NULL_PROMOTED warning to callers that thread
-// coded warnings.
+// for inferred imports with no out-of-sample nulls. A non-empty list
+// also rides NullWarnings as one PULSE_IMPORT_NULL_PROMOTED warning.
 type ImportReport = iio.ImportReport
 
 // InferenceWarning records a non-fatal observation during inference.

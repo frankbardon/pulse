@@ -31,7 +31,7 @@ Features run **before** filters: `features → filterers → attributes → grou
 
 1. **Order matters.** Later features can reference earlier features' labels.
 2. **Labels unique** within the slot. Collision → `PROCESSING_CONFIG`.
-3. **Naming** — one-to-one ops emit one column (`<PREFIX>_<field>` unless labelled); fan-out ops (one-hot, date parts, polynomial) emit a prefixed column family. The atomic skill names them; predict reports the post-feature schema.
+3. **Naming** — one-to-one ops emit one column (`<PREFIX>_<field>` unless labelled); fan-out ops (one-hot, date parts, polynomial) emit a prefixed column family. The atomic skill names them; predict resolves them but lists only source fields in `schema_info`.
 4. **Two cost classes:**
    - **Per-row** — the value depends only on this row (log / sqrt, one-hot, date parts, polynomial, bucketize with explicit boundaries). One pass.
    - **Global-pass** — the value depends on the whole cohort (frequency / target encoding, train/test assignment, bucketize by quantiles). A precompute sweep, then per-row emit.

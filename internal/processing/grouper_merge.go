@@ -144,8 +144,9 @@ func (g *setValueGrouper) MergeGrouperState(other Grouper) error {
 	return nil
 }
 
-// MergeGrouperState implements MergeableGrouper: counts sum; label and
-// dict index follow the serial tracker's FIRST-write rule.
+// MergeGrouperState implements MergeableGrouper: counts and the
+// empty-mask tally sum; label and dict index follow the serial
+// tracker's FIRST-write rule.
 func (g *setPerElementGrouper) MergeGrouperState(other Grouper) error {
 	o, ok := other.(*setPerElementGrouper)
 	if !ok {
@@ -162,6 +163,7 @@ func (g *setPerElementGrouper) MergeGrouperState(other Grouper) error {
 		s.count += os.count
 		g.liveBuckets[k] = s
 	}
+	g.nEmptyMask += o.nEmptyMask
 	return nil
 }
 

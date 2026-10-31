@@ -47,29 +47,6 @@ var routes = map[string][]descriptor.Alternative{
 	},
 }
 
-// materializeSteps names the derived-column producers whose column a
-// model reads in a LATER request: a request cannot hand a column it
-// derives to its own regression, so a draft of one of these carries
-// Steps — a pulse_materialize draft writing the column (labelled
-// column) to a new cohort, then a model request reading it there in the
-// role key ("predictors" or "target"; the other role is a placeholder).
-// A written table, like routes: no registry declares that an output
-// feeds a model. The feature rows are every drafted FEAT_* operator
-// whose capability declaration emits ONE float column, read as a
-// predictor (TestMaterializeSteps_FeatureTriggersDecided); a bin
-// number, calendar parts, a split code or a column set sized by a
-// param the caller still picks is not a trigger.
-var materializeSteps = map[string]materializeTrigger{
-	"ATTR_PC_SCORE":         {column: "pc_score", model: "REG_OLS", role: "predictors"},
-	"ATTR_FACTOR_SCORE":     {column: "factor_score", model: "REG_OLS", role: "predictors"},
-	"ATTR_SEM_SCORE":        {column: "sem_score", model: "REG_OLS", role: "predictors"},
-	"ATTR_SCALE_SCORE":      {column: "scale_score", model: "REG_OLS", role: "target"},
-	"ATTR_REG_PREDICT":      {column: "predicted", model: "REG_OLS", role: "predictors"},
-	"FEAT_LOG":              {column: "log_value", model: "REG_OLS", role: "predictors"},
-	"FEAT_SQRT":             {column: "sqrt_value", model: "REG_OLS", role: "predictors"},
-	"FEAT_FREQUENCY_ENCODE": {column: "frequency", model: "REG_OLS", role: "predictors"},
-}
-
 // Routes returns a copy of the tooling routes declared for an intent
 // (feature spellings, unfiltered by any instance), or nil when the
 // intent declares none. The MCP author-request prompt reads it to
@@ -192,9 +169,6 @@ func recommend(inst *descx.InstanceSnapshot, req descriptor.RecommendRequest, b 
 			}
 			recs = append(recs, boundRecommendations(info, intent, base, plain, hints, b)...)
 		}
-	}
-	for i := range recs {
-		recs[i].rec.Steps = steps(inst, recs[i].rec, b)
 	}
 	rank(recs, req.Level)
 	out.CandidatesConsidered = len(recs)

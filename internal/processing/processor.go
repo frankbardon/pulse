@@ -1114,8 +1114,8 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	var cur *Record
 	emit := func(key string) error { return route(key, cur) }
 
-	// assignments[i]: grouper i's (record, key) routings.
-	assignments := make([]int64, len(groupers))
+	// keyed[i]: the records grouper i keyed into at least one bucket.
+	keyed := make([]int64, len(groupers))
 	var totalRows, filteredRows int64
 	for iter.Next() {
 		if err := poll.Poll(); err != nil {
@@ -1182,7 +1182,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 					continue
 				}
 				keySets[i] = ks
-				assignments[i] += int64(len(ks))
+				keyed[i]++
 			}
 			cur = r
 			if err := keySet.Expand(keySets, emit); err != nil {
@@ -1198,7 +1198,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		if !ok {
 			continue // null group key — buffered path skips these too
 		}
-		assignments[0] += int64(len(rowKeys))
+		keyed[0]++
 
 		for _, key := range rowKeys {
 			if err := route(key, r); err != nil {
@@ -1222,7 +1222,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		TotalRows:      totalRows,
 		FilteredRows:   filteredRows,
 		NullRecords:    primaryNullRecords,
-		Assignments:    assignments,
+		Keyed:          keyed,
 		FilterCounters: filterCounters,
 		Matrices:       matrices,
 		Compute:        p.compute,
@@ -2495,7 +2495,8 @@ func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, 
 	// Emit GrouperComponents for the single grouper slot.
 	// Universal floor (TotalN = sum of bucket counts, NNull =
 	// post-filter records minus TotalN — the records the grouper
-	// skipped due to null inputs or include-filter rejection) is
+	// skipped due to null inputs or include-filter rejection; a
+	// fan-out grouper's own record tallies win, grouperFloor) is
 	// derived directly from the bucket map; the operator-specific
 	// keys ride off MetaGrouper.Components() when the grouper
 	// implements it.
@@ -2836,23 +2837,29 @@ func attachAggregationComponents(resp *types.Response, entry types.AggregationCo
 // (Operator == nil → marshals as omitempty).
 //
 // Single-key groupers contribute one row to exactly one bucket so
-// TotalN ≤ totalFiltered; the difference equals NNull. Multi-key
-// streaming groupers (GROUP_SET_PER_ELEMENT) contribute one row to
-// every selected label, so TotalN here would over-count. The buffered
-// single-grouper exit never drives a multi-key grouper, so the simple
-// subtraction holds there; requests with two or more groupers build
-// their per-slot entries in composite_groups.go from per-record
-// assignment counts instead.
+// TotalN ≤ totalFiltered; the difference equals NNull. A fan-out
+// grouper (GROUP_SET_PER_ELEMENT) contributes one row to every
+// selected label, so summing its buckets counts label observations:
+// its TotalN is the DISTINCT records across the buckets instead (#406).
+// Every grouped exit — single grouper or composite (composite_groups.go)
+// — builds through here.
 func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[string][]*Record, totalFiltered int) (types.GrouperComponents, error) {
 	workGrouperComponentBuilds.Add(1)
 	totalN := 0
 	for _, bucket := range groups {
 		totalN += len(bucket)
 	}
-	nNull := totalFiltered - totalN
-	if nNull < 0 {
-		nNull = 0
+	keyed := totalN
+	if _, fansOut := grouper.(MultiKeyStreamingGrouper); fansOut {
+		seen := make(map[*Record]struct{}, totalN)
+		for _, bucket := range groups {
+			for _, r := range bucket {
+				seen[r] = struct{}{}
+			}
+		}
+		keyed = len(seen)
 	}
+	totalN, nNull := grouperFloor(grouper, totalN, keyed, totalFiltered)
 	entry := types.GrouperComponents{
 		Field:  slot.Field,
 		TotalN: totalN,
@@ -2872,18 +2879,20 @@ func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[strin
 // from the streaming grouped path: the grouper instance KeyForRow
 // drove, the originating Group slot, the post-filter row count
 // observed by the streaming iterator, and the orchestrator's own count
-// of (record, bucket) assignments. Mirrors buildGrouperComponents:
-// TotalN is derived from MetaGrouper.Components()'s buckets payload
-// when the grouper emits one (every built-in does), and otherwise from
-// assignments — the streaming twin of summing the buffered partition
-// map — so an extension grouper (no buckets payload, or no
-// MetaGrouper at all) reports the same floor on either path.
-func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int, assignments int64) (types.GrouperComponents, error) {
+// of the records the grouper keyed into at least one bucket. Mirrors
+// buildGrouperComponents: TotalN is derived from
+// MetaGrouper.Components()'s buckets payload when the grouper emits
+// one (every built-in does), and otherwise from keyed — the streaming
+// twin of the buffered partition map — so an extension grouper (no
+// buckets payload, or no MetaGrouper at all) reports the same floor on
+// either path. A fan-out grouper's TotalN is always keyed: its bucket
+// sum counts label observations (grouperFloor, #406).
+func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int, keyed int64) (types.GrouperComponents, error) {
 	workGrouperComponentBuilds.Add(1)
 	entry := types.GrouperComponents{
 		Field: slot.Field,
 	}
-	totalN := int(assignments)
+	totalN := int(keyed)
 	if meta, ok := grouper.(MetaGrouper); ok {
 		op, err := meta.Components()
 		if err != nil {
@@ -2903,13 +2912,39 @@ func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFilter
 			}
 		}
 	}
-	entry.TotalN = totalN
-	nNull := totalFiltered - totalN
+	entry.TotalN, entry.NNull = grouperFloor(grouper, totalN, int(keyed), totalFiltered)
+	return entry, nil
+}
+
+// emptyMaskSkipper is implemented by a grouper that skips a record on an
+// empty set mask without counting it null (GROUP_SET_PER_ELEMENT): the
+// tally rides its live state (merged by MergeGrouperState), so the
+// buffered, streaming and parallel / sharded arms agree.
+type emptyMaskSkipper interface {
+	emptyMaskSkips() int
+}
+
+// grouperFloor resolves the universal grouper floor {total_n, n_null}:
+// total_n is the post-filter RECORDS the grouper keyed into at least one
+// bucket, n_null every other post-filter record (null key, include
+// rejection) except an emptyMaskSkipper's empty masks, clamped at 0.
+// totalN is the bucket-derived count, exact for a single-key grouper;
+// a fan-out grouper (MultiKeyStreamingGrouper — an extension declaring
+// FansOut is refused at pulse.New unless it implements it) puts one
+// record in several buckets, so its total_n is keyed instead (#406).
+func grouperFloor(grouper any, totalN, keyed, totalFiltered int) (int, int) {
+	if _, fansOut := grouper.(MultiKeyStreamingGrouper); fansOut {
+		totalN = keyed
+	}
+	skipped := 0
+	if s, ok := grouper.(emptyMaskSkipper); ok {
+		skipped = s.emptyMaskSkips()
+	}
+	nNull := totalFiltered - totalN - skipped
 	if nNull < 0 {
 		nNull = 0
 	}
-	entry.NNull = nNull
-	return entry, nil
+	return totalN, nNull
 }
 
 // attachGrouperComponents appends a freshly-built GrouperComponents

@@ -4790,7 +4790,7 @@
         {
           "name": "FILTER_DATE_RANGES",
           "category": "filterer",
-          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to the UTC calendar day containing its instant before matching. Null dates and out-of-range rows are dropped.",
+          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to its local calendar day in the resolved zone (slot tz / request time_zone, or the row's tz_field zone; UTC when none applies) before matching; range bounds are local days. Null dates and out-of-range rows are dropped.",
           "params": [
             {
               "name": "ranges",
@@ -20419,4 +20419,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 95750d1aaefbe2d8a8d36842cbdeb1d18a2a9d5d32fce0d57aa9f29b237964f1
+// golden-hash: 94c97c7a616761c46c117ee269ff97a06bbd455bc615dad1700ec20efcebc719

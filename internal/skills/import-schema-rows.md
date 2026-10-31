@@ -25,7 +25,7 @@ The same rules hold for every import path: CLI `pulse import <fmt>` / `import au
 ## What inference decides
 
 - Floats infer `f64` — decimals stay exact, money sums never drift. `float: "f32"` (`--float f32`) halves the bytes for the whole import, rounding to ~7 digits; any other value is `PULSE_IMPORT_FLOAT_WIDTH_INVALID`.
-- Nullability comes from the first sampled rows; a later null promotes the field (`promoted_fields` + `PULSE_IMPORT_NULL_PROMOTED`; `cohort-null-states`).
+- Nullability comes from the first sampled rows; a later null promotes the field (`promoted_fields` + one `null_warnings` entry, `PULSE_IMPORT_NULL_PROMOTED`; `cohort-null-states`).
 - Widths: a value past the sampled width promotes the field to the narrowest type holding it — never a dropped row — with one `width_warnings` entry (`PULSE_IMPORT_WIDTH_PROMOTED`: `field`, `from`, `to`, `source_row`; `cohort-width-overflow`).
 - A blank categorical cell: `csv` / `tsv` / `excel` read it as NULL (one spelling for both — a documented gap that always collapses toward null); `ndjson` / `jsonarray` / `arrow` / `parquet` carry their own null channel, so `""` is an empty-string VALUE and only `null` is null. A blank numeric or date cell is null everywhere.
 - SPSS is schema-authoritative: inference and the sampling knobs are skipped, `promoted_fields` stays empty.

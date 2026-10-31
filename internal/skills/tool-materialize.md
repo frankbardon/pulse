@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL WHEN A LATER REQUEST MUST READ A WINDOW, FEATURE OR ATTRIBUTE COLUMN AS AN ORDINARY FIELD.
-A derived value lives only inside the request that computes it: a regression, grouper, filter or join cannot name it. `pulse_materialize` writes it to a new cohort; point the next request at `out`.
+A derived value lives only inside the request that computes it: a later request cannot name it, nor a filter read an attribute or window. `pulse_materialize` writes it to a new cohort; point the next request at `out`.
 
 ## Input
 
@@ -42,4 +42,3 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 
 - `derived-cohorts` — when to materialise, and the two-step recipe.
 - `request-envelope` — the request slots.
-- `tool-recommend` — a score or feature draft's steps are this two-step recipe, drafted.
