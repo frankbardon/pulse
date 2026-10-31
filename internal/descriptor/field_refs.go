@@ -366,6 +366,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		}
 		w.preFilter[label] = true
 	}
+	late := filterLateLabels(req, inst)
 	for _, fil := range req.Filterers {
 		if fil == nil {
 			continue
@@ -376,13 +377,16 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
 			w.checkCoef(fil.Expression, models)
 			w.checkCompile(fil.Expression, false, before)
+			if len(w.out) > before {
+				late.annotateCompile(w.out[len(w.out)-1])
+			}
 		}
 		if fil.Field == "" && !filterFieldRequired(opRoute(inst, fil.Type)) {
 			continue
 		}
 		w.check(fil.Field, func() *errors.CodedError {
-			return refusal("filter references unknown field: "+fil.Field,
-				map[string]any{"field": fil.Field, "filter": string(fil.Type)})
+			return late.annotate(fil.Field, refusal("filter references unknown field: "+fil.Field,
+				map[string]any{"field": fil.Field, "filter": string(fil.Type)}))
 		})
 	}
 
@@ -1641,4 +1645,88 @@ func (w *fieldRefWalk) checkCoef(expr string, models model.Catalog) {
 	if cerr := check(expr, models); cerr != nil {
 		w.out = append(w.out, cerr)
 	}
+}
+
+// lateLabel is one output label a pipeline step AFTER the filters
+// writes: its slot word ("window" / "attribute"), index and type.
+type lateLabel struct {
+	slot  string
+	index int
+	typ   string
+}
+
+// filterLateLabelSet maps each label a filter cannot read because a
+// later step writes it to that step (filterLateLabels).
+type filterLateLabelSet map[string]lateLabel
+
+// filterLateLabels is the set of output labels req's windows and
+// attributes write after the filter pass — every window label, and
+// every attribute label save a before-filters attribute's
+// (prevstate.BeforeFilters, which a filter may read). A filter naming
+// one is refused as an unknown name either way; the set lets the
+// refusal say why (annotate), on both sides, since the runtime returns
+// this walk's first entry.
+func filterLateLabels(req *types.Request, inst *InstanceSnapshot) filterLateLabelSet {
+	var out filterLateLabelSet
+	add := func(label string, l lateLabel) {
+		if label == "" {
+			return
+		}
+		if out == nil {
+			out = filterLateLabelSet{}
+		}
+		if _, dup := out[label]; !dup {
+			out[label] = l
+		}
+	}
+	for i, win := range req.Windows {
+		if win != nil {
+			add(windowLabel(win), lateLabel{slot: "window", index: i, typ: string(win.Type)})
+		}
+	}
+	for i, attr := range req.Attributes {
+		if attr == nil || prevstate.BeforeFilters(opRoute(inst, attr.Type)) {
+			continue
+		}
+		label := attr.Label
+		if label == "" {
+			label = attributeDefaultLabel(attr, inst)
+		}
+		add(label, lateLabel{slot: "attribute", index: i, typ: string(attr.Type)})
+	}
+	return out
+}
+
+// annotate appends the cause to ce when name is a late label: the step
+// that writes it runs after the filters. details gain label_source (the
+// slot word) and <slot>_index.
+func (s filterLateLabelSet) annotate(name string, ce *errors.CodedError) *errors.CodedError {
+	l, ok := s[name]
+	if !ok || ce == nil {
+		return ce
+	}
+	ce.Message += "; " + name + " is the label of " + l.slot + "[" + strconv.Itoa(l.index) + "] (" + l.typ +
+		"); filters run before " + l.slot + "s, so no filter can read it"
+	if ce.Details == nil {
+		ce.Details = map[string]any{}
+	}
+	ce.Details["label_source"] = l.slot
+	ce.Details[l.slot+"_index"] = l.index
+	return ce
+}
+
+// annotateCompile is annotate for a filter expression's compile
+// refusal whose reason is an unknown name (expr-lang's "unknown name
+// <name> (line:col)").
+func (s filterLateLabelSet) annotateCompile(ce *errors.CodedError) {
+	if len(s) == 0 || ce == nil || ce.Code != errors.PULSE_FORMULA_COMPILE_ERROR {
+		return
+	}
+	reason, _ := ce.Details["compile_error"].(string)
+	rest, ok := strings.CutPrefix(reason, "unknown name ")
+	if !ok {
+		return
+	}
+	name, _, _ := strings.Cut(rest, " ")
+	s.annotate(name, ce)
 }
