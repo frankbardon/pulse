@@ -3205,6 +3205,26 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 			want = DistWeightedCategorical
 		case ModelPredictorSetOption:
 			want = DistSetBernoulli
+		case ModelPredictorNumeric:
+			// A numeric predictor is read off the generated row, so any
+			// reconstruction that draws a number serves — normal,
+			// mixture, discrete, bernoulli — and the field only has to
+			// carry a numeric summary. Generation draws it before this
+			// model (drawOrder in internal/synth/model_draw.go).
+			if _, present := distOf[pr.Field]; !present {
+				return FieldModelSpec{}, fmt.Sprintf(
+					"predictor field %q is not present in the profile", pr.Field)
+			}
+			if _, numeric := moments[pr.Field]; !numeric {
+				return FieldModelSpec{}, fmt.Sprintf(
+					"numeric predictor field %q carries no numeric summary", pr.Field)
+			}
+			out.Predictors = append(out.Predictors, ModelPredictorSpec{
+				Kind:        pr.Kind,
+				Field:       pr.Field,
+				Coefficient: pr.Coefficient,
+			})
+			continue
 		default:
 			return FieldModelSpec{}, fmt.Sprintf("predictor %q carries unsupported kind %q", pr.Field, pr.Kind)
 		}

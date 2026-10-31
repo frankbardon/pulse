@@ -601,11 +601,26 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 			wantWarn:   "not present in the profile",
 		},
 		{
-			name: "predictor is a numeric",
+			// A numeric predictor is supported (E2-S1 of synth-realism),
+			// but only on a field that reconstructs to a number; one
+			// naming a categorical has no value to multiply.
+			name: "numeric kind on a categorical field",
 			models: []synth.FieldModel{{
 				Field: "spend", Intercept: 1,
 				Predictors: []synth.ModelPredictor{{
 					Kind: synth.ModelPredictorNumeric, Field: "region", Coefficient: 2,
+				}},
+			}},
+			wantModels: 0,
+			wantPairs:  1,
+			wantWarn:   "carries no numeric summary",
+		},
+		{
+			name: "unknown predictor kind",
+			models: []synth.FieldModel{{
+				Field: "spend", Intercept: 1,
+				Predictors: []synth.ModelPredictor{{
+					Kind: "interaction", Field: "region", Coefficient: 2,
 				}},
 			}},
 			wantModels: 0,

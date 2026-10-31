@@ -122,3 +122,39 @@ func TestSynth_FidelityReportOmitsModelsKey(t *testing.T) {
 		t.Errorf("report JSON carries a \"models\" key for a spec with no models: %s", raw)
 	}
 }
+
+// TestSynth_FidelityReportRecoversNumericPredictor: a numeric model
+// term (E2-S1 of synth-realism) is refitted as the field's own value,
+// not as an indicator, and reported on the latent scale — 2 per visit
+// over spend's marginal std of 20 is 0.1 latent sd per visit.
+func TestSynth_FidelityReportRecoversNumericPredictor(t *testing.T) {
+	t.Parallel()
+
+	spec := modelReportSpec(6000, synth.FieldModelSpec{
+		Field:       "spend",
+		Intercept:   40,
+		Predictors:  []synth.ModelPredictorSpec{{Kind: synth.ModelPredictorNumeric, Field: "visits", Coefficient: 2}},
+		ResidualStd: 8,
+	})
+	spec.Fields = append(spec.Fields, synth.FieldSpec{
+		Name: "visits", Type: "f64", Distribution: synth.DistNormal,
+		Params: map[string]any{"mean": 30.0, "std": 6.0},
+	})
+	report, raw := writeModelFidelityReport(t, spec)
+	if len(report.Models) != 1 || len(report.Models[0].Predictors) != 1 {
+		t.Fatalf("want one model with one term; raw report: %s", raw)
+	}
+	p := report.Models[0].Predictors[0]
+	if p.Kind != synth.ModelPredictorNumeric || p.Error != "" {
+		t.Fatalf("numeric term = %+v", p)
+	}
+	if math.Abs(p.CapturedCoefficient-0.1) > 1e-9 {
+		t.Errorf("CapturedCoefficient = %v, want 0.1 (2/20)", p.CapturedCoefficient)
+	}
+	if math.Abs(p.RecoveredCoefficient-0.1) > 0.01 {
+		t.Errorf("RecoveredCoefficient = %.4f, want ~0.1 (delta %.4f)", p.RecoveredCoefficient, p.Delta)
+	}
+	if p.Flagged {
+		t.Errorf("flagged a faithfully generated numeric term: delta %.4f, se %.4f", p.Delta, p.StdError)
+	}
+}

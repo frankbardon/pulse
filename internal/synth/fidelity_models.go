@@ -371,6 +371,10 @@ type recoveryTerm struct {
 	// see that the term exists and was not estimated, which is a
 	// different statement from "it recovered zero".
 	live bool
+	// first and varied track whether a NUMERIC term's value is constant
+	// over the admitted rows (admitRecoveryRows); unused for indicators.
+	first  float64
+	varied bool
 }
 
 // computeModelFidelity refits one applied model on the cached synthetic
@@ -610,6 +614,10 @@ func expectedResponse(entry *ModelFidelity, terms []*recoveryTerm, score recover
 			if t.col.Name == "" {
 				continue
 			}
+			if t.col.Kind == dummyNumeric {
+				m += float64(t.entry.CapturedCoefficient * row.values[t.col.Field])
+				continue
+			}
 			if recoveryIndicator(row, t.col) == 1 {
 				m += t.entry.CapturedCoefficient
 			}
@@ -641,6 +649,10 @@ func recoveryResidualsFor(rows []syntheticRow, admitted []int, d *modelDrawer, t
 		pred := intercept
 		for _, t := range terms {
 			if !t.live {
+				continue
+			}
+			if t.col.Kind == dummyNumeric {
+				pred += float64(res.Coefficients[t.col.Name] * row.values[t.col.Field])
 				continue
 			}
 			if recoveryIndicator(row, t.col) == 1 {
@@ -675,7 +687,10 @@ func resolveRecoveryTerms(mergedSchema *encoding.Schema, d *modelDrawer, std flo
 	for i := range d.predictors {
 		p := &d.predictors[i]
 		kind := ModelPredictorCategoricalLevel
-		if p.isSet {
+		switch {
+		case p.numeric:
+			kind = ModelPredictorNumeric
+		case p.isSet:
 			kind = ModelPredictorSetOption
 		}
 		t := &recoveryTerm{entry: &ModelPredictorFidelity{
@@ -695,6 +710,20 @@ func resolveRecoveryTerms(mergedSchema *encoding.Schema, d *modelDrawer, std flo
 		f := mergedSchema.Field(p.field)
 		if f == nil {
 			t.entry.Error = "predictor field is not present in the output cohort"
+			continue
+		}
+		if p.numeric {
+			// A numeric term is its field's own value, so the column is
+			// the field itself — the same dummyNumeric pass-through the
+			// capture fit drove (regression_record.go). Its captured
+			// coefficient above is per unit of that value on the latent
+			// scale, exactly as generation applied it.
+			if !isNumericModelCandidate(f.Type) {
+				t.entry.Error = "predictor field's output-cohort type does not match the term's indicator kind"
+				continue
+			}
+			t.col = dummyColumn{Name: p.field, Kind: dummyNumeric, Field: p.field}
+			t.live = true
 			continue
 		}
 		if f.Dictionary == nil {
@@ -766,6 +795,22 @@ func admitRecoveryRows(rows []syntheticRow, d *modelDrawer, terms []*recoveryTer
 			if !t.live {
 				continue
 			}
+			if t.col.Kind == dummyNumeric {
+				// NFired for a numeric term counts the admitted rows on
+				// which its value is non-zero; whether it is constant is
+				// tracked apart, since "always non-zero" is not "always
+				// the same".
+				v := row.values[t.col.Field]
+				if v != 0 {
+					t.entry.NFired++
+				}
+				if len(admitted) == 1 {
+					t.first = v
+				} else if v != t.first {
+					t.varied = true
+				}
+				continue
+			}
 			if recoveryIndicator(row, t.col) == 1 {
 				t.entry.NFired++
 			}
@@ -785,7 +830,11 @@ func admitRecoveryRows(rows []syntheticRow, d *modelDrawer, terms []*recoveryTer
 		if !t.live {
 			continue
 		}
-		if t.entry.NFired == 0 || t.entry.NFired == len(admitted) {
+		constant := t.entry.NFired == 0 || t.entry.NFired == len(admitted)
+		if t.col.Kind == dummyNumeric {
+			constant = !t.varied
+		}
+		if constant {
 			t.live = false
 			t.entry.Error = "design column is constant over the admitted synthetic rows, so its coefficient is not identified"
 		}

@@ -26,13 +26,15 @@ Contract surface for that machinery. Calibration figures and closed design quest
 
 ## Capture (`--fit-models`)
 
-One least-squares linear model per numeric field, regressed on the categorical **levels** and `set_*` **options** selection admitted, through `internal/processing/regression`'s streaming OLS engine.
+One least-squares linear model per numeric field, regressed on the categorical **levels**, `set_*` **options** and **numerics** selection admitted, through `internal/processing/regression`'s streaming OLS engine.
+
+**A numeric predictor enters only a numeric declared AFTER it** (adjusted r², the same 0.01 floor), so models form a DAG and generation draws each before the fields it predicts ([`synth-model-draw`](synth-model-draw.md)). Its term is `coefficient × value`, `level` empty; the fit absorbs what the pair shares, so their residual correlation is ~0.
 
 Cohort read ONCE; fits do NOT run per row. The scan only retains a bounded Algorithm-R snapshot (`modelResidualCap`, 10,000, on its own RNG stream off `--seed` so `--conditional`'s reservoir is never perturbed); selection, fitting and residuals run over that snapshot afterwards — forced, since a frequency ranking does not exist until rows have been seen. **Wire consequence: `n_obs` is the fit's support WITHIN the snapshot (≤10,000), not the cohort's row count** (`Profile.RowCount` is that).
 
 One reference level per categorical drops into the intercept (full level set + intercept is rank-deficient). Set options are all kept — a multi-select is not a partition.
 
-**A `set_*` predictor is read through `setMaskFromWideEntry`, at EVERY rung** — the snapshot holds an `encoding.SetMask`, and a `.(uint64)` assertion on a wide rung reads `present == false`: MISSING, so every row is deleted listwise and the target reports `carries no predictors`, an ordinary outcome that carries no signal. The design-column reader (`dummyRecord`) and the recovery refit's reader (`recoveryIndicator`) share the helper ([`synth-set-fields`](synth-set-fields.md)).
+**A `set_*` predictor is read through `setMaskFromWideEntry` at EVERY rung** — a `.(uint64)` assertion on a wide rung reads MISSING, deletes every row listwise and reports a silent `carries no predictors`. `dummyRecord` and the recovery refit share the helper ([`synth-set-fields`](synth-set-fields.md)).
 
 ```
 {field, intercept, predictors, references, n_obs, r2, residual_std, shrinkage_alpha}
@@ -54,11 +56,11 @@ One reference level per categorical drops into the intercept (full level set + i
 
 ## What models retire
 
-**Numeric-target conditional pairs retire PER TARGET, never per document.** A numeric landing a model on the Spec is left out of `Spec.CategoricalNumericPairs` / `SetNumericPairs` — one additive model already accounts for every predictor, whereas those arms each overwrite the same numeric and all but the first are dropped as conflicts. A model also PRE-CLAIMS its target in `resolveConflicts`, so a hand-authored spec declaring both loses the pair and is told which.
+**Numeric-target conditional pairs retire PER TARGET, never per document.** A numeric landing a model on the Spec is left out of `Spec.CategoricalNumericPairs` / `SetNumericPairs` — one additive model accounts for every predictor, where each pick-one arm overwrites it. A model also PRE-CLAIMS its target in `resolveConflicts`, so a hand-authored spec declaring both loses the pair and is told which.
 
 Those two guards make **`models` and the two numeric-target fidelity sections disjoint by construction**: a modelled numeric has NO entry in `categorical_numeric_pairwise` / `set_numeric_pairwise`, ever, since the pick-one sampler they score never runs for it. `categorical_pairwise` / `set_categorical_pairwise` / `set_set_pairwise` are untouched.
 
-A model **dropped in translation** (unknown predictor kind, or a zero-predictor model) leaves its field's pair STANDING and warns `model for numeric field %q not applied: …`. Under a per-document rule such a field lost the pair too and was reconstructed from nothing at all — strictly worse than before the flag existed.
+A model **dropped in translation** (unknown predictor kind, or a zero-predictor model) leaves its field's pair STANDING and warns `model for numeric field %q not applied: …`. It is never reconstructed from nothing.
 
 The three **non-numeric-target** arms (`CategoricalPairs`, `SetCategoricalPairs`, `SetSetPairs`) still arbitrate pick-one; a linear model targets a numeric and subsumes nothing they describe. `--conditional` + `--fit-models` keeps both halves. Absent `models`, every arm populates exactly as before.
 

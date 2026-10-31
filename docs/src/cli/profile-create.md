@@ -38,7 +38,7 @@ pulse profile create --input PATH --output PATH
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
-| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
+| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels, set options and earlier-declared numeric fields automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
 | `--suggest-rules`        |      | string | (off)      | Detect structural rules on the same scan — GATING relationships (`set_null`) and CO-MISSING question blocks (`null_together`) — and write them to this path as a standalone rules file, the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
 | `--run-continuation`     |      | bool   | false      | Measure per-field run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, i.e. the run-skip decode's hit rate — into the additive `run_continuation` section, with the high-continuation fields and advice on sorting the source upstream (see below) |
@@ -407,10 +407,10 @@ separate conditional mean per category, per categorical field — and
 generation applies those pairs by overwriting the drawn value once per
 claimed pair. `--fit-models` captures the relationship as a single
 **additive linear model** instead: for each numeric field, one
-least-squares fit of that field on the cohort's categorical **levels**
-and `set_*` **options**, so `region`, `tier` and a multi-select all
-contribute to the same prediction rather than competing to be the last
-writer.
+least-squares fit of that field on the cohort's categorical **levels**,
+`set_*` **options** and the **numeric fields declared before it**, so
+`region`, `tier`, a multi-select and `tenure_months` all contribute to
+the same prediction rather than competing to be the last writer.
 
 The cohort is read **once**. What the scan itself does is retain a
 bounded, uniformly sampled row snapshot; the predictors are then
@@ -460,6 +460,22 @@ explains more of the target. That narrowing applies to *unpenalized*
 designs only: a ridge penalty makes a collinear design solvable, so a
 model that carries a thin level (below) keeps both overlapping
 candidates and shrinks them together instead.
+
+**A numeric field predicts only the numerics declared after it.** A
+numeric candidate is scored by the share of the target's variance a
+straight line in it explains (adjusted r²), against the same 1% floor,
+and enters only a target that comes LATER in the schema. Generation
+reads a numeric predictor off the row it is building, so the predictor
+has to be drawn first; schema order is what makes every captured
+dependency drawable, and it loses nothing — the score is symmetric,
+and conditioning each numeric on the ones before it describes the same
+linear structure in any order. Put a cohort's outcome fields (a churn
+flag, a satisfaction score) after their drivers to read the models in
+the natural direction. Two numerics joined this way measure a residual
+correlation of about zero under `--residual-correlations`: the model
+already carries what they share. A cohort with no categorical or `set_*`
+field now fits models whenever its numerics relate; when none relate,
+every numeric is still skipped as having nothing to regress on.
 
 Each admitted categorical contributes one column per retained level
 except one **reference** level, whose effect is absorbed into the
