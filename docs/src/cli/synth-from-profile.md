@@ -253,10 +253,10 @@ hazard.
 | **pre-rounding** | the predicate reads a field that rounds on write *and* draws continuous values | normalise with `round(field)` in an earlier rule, or compare a range |
 | **neutral** | neither | names each field it reads with its type and distribution, and explicitly rules pre-rounding OUT for a field whose row value already *is* the stored value |
 
-A field rounds on write when it is `u4`/`u8`/`u16`/`u32`/`u64`, `date` or
-`packed_bool`. It still draws exact values — so pre-rounding cannot be
-the cause — when its distribution is `discrete`, `bernoulli`,
-`uniform_date`, `poisson` or `monotonic_from`. A small-integer column
+A field rounds on write when it is `u4`/`u8`/`u16`/`u32`/`u64`, `date`,
+`datetime` or `packed_bool`. It still draws exact values — so pre-rounding
+cannot be the cause — when its distribution is `discrete`, `bernoulli`,
+`uniform_date`, `uniform_datetime`, `poisson` or `monotonic_from`. A small-integer column
 reconstructs as `discrete` and a `packed_bool` as `bernoulli`
 automatically, so on a survey cohort the neutral arm is the common one:
 
@@ -920,7 +920,9 @@ stderr summary marks `!` and lists first, so it does not need finding.
   generated normally.)
 - Correlations: pairwise only, and only between SCALAR fields — every
   declarable type that is not `categorical_*` or `set_*`, so `u4` … `u64`,
-  `f32`/`f64`, `date`, `decimal128` and `packed_bool` all qualify. The
+  `f32`/`f64`, `date`, `datetime`, `decimal128` and `packed_bool` all
+  qualify (a `uniform_date` / `uniform_datetime` field is then refused by
+  name: neither has moments). The
   profile capture flag `--include-correlations` (or the more accurate
   `--conditional`) opts in; without either, fields are generated
   independently. Reconstruction uses a conditional-Gaussian

@@ -33,6 +33,8 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeF64, true
 	case "date":
 		return encoding.FieldTypeDate, true
+	case "datetime":
+		return encoding.FieldTypeDateTime, true
 	case "packed_bool":
 		return encoding.FieldTypePackedBool, true
 	case "categorical_u8":
@@ -48,10 +50,12 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 	// than listed above, so the rung ladder lives in exactly one place
 	// (encoding.ParseFieldType + FieldType.MaxSetEntries) and a rung
 	// added to encoding becomes declarable here without an edit. The
-	// IsSet guard is what keeps the delegation narrow: every other name
-	// encoding knows and synth has no write path for — datetime today —
-	// stays undeclarable, which is the property
-	// internal/synth/constraints_internal_test.go's undeclarableFieldTypes pins.
+	// IsSet guard is what keeps the delegation narrow: a name encoding
+	// knows and synth has no write path for stays undeclarable, which is
+	// the property internal/synth/constraints_internal_test.go's
+	// undeclarableFieldTypes pins. datetime left that list in #362: it is
+	// declarable above, written by the writeFieldValueForField arm below
+	// and drawn zone-aware by uniform_datetime (internal/synth/datetime.go).
 	//
 	// The vector types resolve the same way: vec_f32 / vec_f64 are
 	// declarable since #450, through the `vector` block
@@ -289,6 +293,14 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// ones. It reaches every generation path: AugmentFromProfile calls
 	// generate() for its GENERATED partition only, so rules never touch
 	// the copied `_synthetic=false` source rows.
+	// The zoned-datetime conversion stage: compiled before the rules
+	// because it runs before them, and checked here because a per-row
+	// zone field is a cross-field reference only the whole spec resolves.
+	datetimes, err := buildDatetimeStage(s, wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+
 	rules, ruleWarnings, err := compileRules(s.Rules, wfs)
 	if err != nil {
 		return 0, 0, nil, err
@@ -327,6 +339,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		models:      models,
 		residual:    residual,
 		rules:       rules,
+		datetimes:   datetimes,
 	}
 
 	committers := acceptCommitters(wfs)
@@ -376,6 +389,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// was re-drawn and left no trace. See internal/synth/rules_firing.go.
 		rules.commitRow()
 		rules.commitOwnedNulls()
+		datetimes.commitAccepted()
 		// Accept-only sampler state (monotonic_from), committed here for
 		// the same reason as the firing counts: a rejected attempt left
 		// no row, so it must leave no step either.
@@ -393,6 +407,9 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// Reported last because it is a fact about the RUN, not about
 	// compiling the spec, and the warning order in this function is
 	// causal.
+	// DST resolutions are a fact about the accepted rows, and the stage
+	// that made them precedes the rule pass, so they lead the run facts.
+	warnings = append(warnings, datetimes.warnings()...)
 	warnings = append(warnings, rules.neverFiredWarnings(rowsGenerated)...)
 	// The other fact only the RUN can establish: whether each
 	// `{"owns_nulls": true}` claim held. The flag discards a captured
@@ -439,6 +456,13 @@ type rowStages struct {
 	// keeps a rules-free spec byte-identical to output from before the
 	// slot existed. See internal/synth/rules_apply.go for why last is the design.
 	rules *ruleApplier
+	// datetimes converts each ZONED datetime field's local wall-clock
+	// reading to its UTC instant (internal/synth/datetime.go). It runs
+	// after the model stage — so whichever arm last wrote the field, the
+	// zone applies to its reading — and before the rule pass, which reads
+	// and writes instants. It consumes no RNG and is nil for a spec with
+	// no zoned datetime field, which keeps such a spec byte-identical.
+	datetimes *datetimeStage
 }
 
 // drawRow draws one row: every field's own independent sampler first,
@@ -533,6 +557,12 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	// sequence is identical to a spec with no rules at all. The full
 	// rationale, including why the two-phase alternative was rejected,
 	// is on internal/synth/rules_apply.go.
+	//
+	// The datetime stage runs just before it: local readings become UTC
+	// instants, so every rule sees the value the file stores.
+	if err := stages.datetimes.resolve(row, nullMask); err != nil {
+		return err
+	}
 	return stages.rules.apply(row, nullMask)
 }
 
@@ -615,6 +645,23 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 		f := toFloat64(val)
 		days := uint32(int64(math.Floor(f + 0.5)))
 		return encoding.WriteFieldValue(buf, ft, uint64(days))
+	case encoding.FieldTypeDateTime:
+		// Two's-complement int64 epoch SECONDS (UTC). A zoned
+		// uniform_datetime reading has already been converted to its
+		// instant by the datetime stage; anything else is stored as the
+		// instant it already is, rounded half-up like the date arm. A
+		// non-finite or unrepresentable value is refused — int64(NaN) is
+		// platform-dependent, and a silent 1970 row looks like data.
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
+		f := toFloat64(val)
+		if math.IsNaN(f) || math.IsInf(f, 0) || math.Abs(f) > maxDatetimeSeconds {
+			return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+				fmt.Sprintf("field %q: datetime value %v is not a representable epoch-second value", field.Name, f),
+				map[string]any{"field": field.Name})
+		}
+		return encoding.WriteFieldValue(buf, ft, uint64(int64(math.Floor(f+0.5))))
 	case encoding.FieldTypePackedBool:
 		// Single byte holding the flag in bit 0. Matches reader's ReadBit.
 		var b byte

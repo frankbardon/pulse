@@ -60,6 +60,32 @@ Full spec grammar (correlations, regex, …) lives in
 `skills/synthetic-data.md` and the `synth` package; `constraints[]` and the
 `rules[]` structural surface live in `skills/synth-structural-rules.md`.
 
+## Datetime fields
+
+A `datetime` field (UTC epoch seconds) is drawn by `uniform_datetime` in
+LOCAL time: a local day in `[start, end]` weighted by `weekday_weights`
+(7, Monday first), a local hour by `hour_weights` (24), a uniform second.
+The reading is converted to the instant it names in a fixed `time_zone`
+or in each row's own zone (`time_zone_field`, a `categorical_*` field of
+IANA names), and the file stores the instant — which is also what rules
+and constraints read:
+
+```json
+{"name": "site_tz",    "type": "categorical_u8", "distribution": "weighted_categorical",
+ "params": {"values": ["Australia/Sydney", "America/New_York"]}},
+{"name": "scanned_at", "type": "datetime", "distribution": "uniform_datetime",
+ "params": {"start": "2026-01-05", "end": "2026-12-27", "time_zone_field": "site_tz",
+            "dst_policy": "later",
+            "hour_weights": [0,0,0,0,0,0,0.5,1,2,3,3,3,2,2,2,2,1.5,1,0.5,0,0,0,0,0],
+            "weekday_weights": [1, 1, 1, 1, 1.2, 0.6, 0]}}
+```
+
+A local time a DST transition skips or repeats follows `dst_policy`, with
+the import's spellings: `error` (default) stops the run with
+`PULSE_SYNTH_DST_NONEXISTENT` / `PULSE_SYNTH_DST_AMBIGUOUS`, `earlier` /
+`later` resolve it and the run warns how many it resolved. A null zone
+cell makes the datetime null. Detail: `skills/synth-datetime.md`.
+
 ## Vector fields
 
 A `vec_f32` / `vec_f64` field is generated as ONE joint draw per row, never

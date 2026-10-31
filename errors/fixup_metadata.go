@@ -1539,6 +1539,36 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_DST_NONEXISTENT: {
+		Message: "A `uniform_datetime` field drew a local wall-clock time its zone never shows — the skipped hour of a DST spring-forward — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`. A UTC or fixed-offset zone has no transitions and never raises this.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Set the field's params.dst_policy: \"earlier\" reads the skipped time at the pre-transition offset (Europe/Berlin 2026-03-29 02:30 → 01:30Z), \"later\" at the post-transition offset (→ 00:30Z) — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Or give the transition hour no weight: a 0 in params.hour_weights at the skipped local hour (02 in most of Europe and North America) means no time in it is ever drawn.",
+			},
+		},
+	},
+	PULSE_SYNTH_DST_AMBIGUOUS: {
+		Message: "A `uniform_datetime` field drew a local wall-clock time its zone shows twice — the repeated hour of a DST fall-back — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Set the field's params.dst_policy: \"earlier\" takes the first occurrence (pre-transition offset), \"later\" the second — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Or give the repeated hour no weight: a 0 in params.hour_weights at the repeated local hour (01 in North America, 02 in most of Europe) means no time in it is ever drawn.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

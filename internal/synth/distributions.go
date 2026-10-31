@@ -7,10 +7,8 @@ import (
 	"regexp/syntax"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
@@ -26,11 +24,12 @@ const (
 	DistMonotonicFrom       = "monotonic_from"
 	DistWeightedCategorical = "weighted_categorical"
 	DistUniformDate         = "uniform_date"
-	DistRegex               = "regex"
-	DistConstant            = "constant"
-	DistMixture             = "mixture"
-	DistDiscrete            = "discrete"
-	DistSetBernoulli        = "set_bernoulli"
+	// DistUniformDateTime ("uniform_datetime") is declared in datetime.go.
+	DistRegex        = "regex"
+	DistConstant     = "constant"
+	DistMixture      = "mixture"
+	DistDiscrete     = "discrete"
+	DistSetBernoulli = "set_bernoulli"
 )
 
 // AllDistributions returns the registered kind names in sorted order.
@@ -39,7 +38,8 @@ func AllDistributions() []string {
 	out := []string{
 		DistBernoulli, DistConstant, DistDiscrete, DistExponential, DistLogNormal,
 		DistMixture, DistMonotonicFrom, DistNormal, DistPareto, DistPoisson,
-		DistRegex, DistSetBernoulli, DistUniform, DistUniformDate, DistWeightedCategorical,
+		DistRegex, DistSetBernoulli, DistUniform, DistUniformDate, DistUniformDateTime,
+		DistWeightedCategorical,
 	}
 	sort.Strings(out)
 	return out
@@ -110,6 +110,8 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 		return newSetSampler(f)
 	case DistUniformDate:
 		return newUniformDateSampler(f)
+	case DistUniformDateTime:
+		return newUniformDateTimeSampler(f)
 	case DistRegex:
 		return newRegexSampler(f)
 	case DistConstant:
@@ -821,42 +823,18 @@ type uniformDateSampler struct {
 }
 
 func newUniformDateSampler(f FieldSpec) (sampler, error) {
-	startStr, ok, err := paramString(f.Name, f.Params, "start", dateEpoch)
+	if f.Type == datetimeFieldType {
+		// Days drawn into an epoch-SECONDS column would land every row in
+		// the first hours of 1970-01-01: refused rather than written.
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: uniform_date draws epoch days and cannot fill a datetime field; use uniform_datetime", f.Name),
+			map[string]any{"field": f.Name, "type": f.Type})
+	}
+	startDays, endDays, err := parseDayRange(f, DistUniformDate)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: uniform_date requires start", f.Name), nil)
-	}
-	endStr, ok, err := paramString(f.Name, f.Params, "end", "")
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: uniform_date requires end", f.Name), nil)
-	}
-	startT, err := time.Parse("2006-01-02", startStr)
-	if err != nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: invalid start date %q", f.Name, startStr), nil)
-	}
-	endT, err := time.Parse("2006-01-02", endStr)
-	if err != nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: invalid end date %q", f.Name, endStr), nil)
-	}
-	if endT.Before(startT) {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: uniform_date end must not be before start", f.Name), nil)
-	}
-	// Both instants are UTC midnight (time.Parse of a bare date), so the
-	// toward-past truncation equals the old toward-zero division exactly.
-	return &uniformDateSampler{
-		startDays: temporal.TimeToDay(startT),
-		endDays:   temporal.TimeToDay(endT),
-	}, nil
+	return &uniformDateSampler{startDays: startDays, endDays: endDays}, nil
 }
 
 func (u *uniformDateSampler) next(rng *rand.Rand) (any, bool) {

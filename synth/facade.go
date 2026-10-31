@@ -27,6 +27,7 @@ const (
 	DistMonotonicFrom       = isynth.DistMonotonicFrom
 	DistWeightedCategorical = isynth.DistWeightedCategorical
 	DistUniformDate         = isynth.DistUniformDate
+	DistUniformDateTime     = isynth.DistUniformDateTime
 	DistRegex               = isynth.DistRegex
 	DistConstant            = isynth.DistConstant
 	DistMixture             = isynth.DistMixture

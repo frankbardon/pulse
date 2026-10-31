@@ -11108,6 +11108,61 @@
         ]
       },
       {
+        "name": "uniform_datetime",
+        "description": "Zone-aware datetime samples: a local wall-clock time in [start, end] drawn by weekday and hour-of-day weights, converted to the UTC epoch second it names in a fixed or per-row zone.",
+        "applies_to": [
+          "datetime"
+        ],
+        "params": [
+          {
+            "name": "start",
+            "type": "string",
+            "required": true,
+            "description": "First local calendar day (YYYY-MM-DD), inclusive."
+          },
+          {
+            "name": "end",
+            "type": "string",
+            "required": true,
+            "description": "Last local calendar day (YYYY-MM-DD), inclusive; may equal start but not precede it."
+          },
+          {
+            "name": "time_zone",
+            "type": "string",
+            "required": false,
+            "description": "IANA zone (or \"UTC\") the local time is read in; UTC when absent. Exclusive with time_zone_field."
+          },
+          {
+            "name": "time_zone_field",
+            "type": "string",
+            "required": false,
+            "description": "A categorical_* field of IANA zone names: each row's time is read in that row's zone; a null zone cell makes the datetime null."
+          },
+          {
+            "name": "dst_policy",
+            "type": "string",
+            "required": false,
+            "default": "error",
+            "description": "A local time a DST transition skips or repeats: \"error\" stops the run, \"earlier\" takes the pre-transition offset, \"later\" the post-transition one (the import's spellings)."
+          },
+          {
+            "name": "hour_weights",
+            "type": "list",
+            "required": false,
+            "description": "24 non-negative weights for local hours 0..23; uniform when absent."
+          },
+          {
+            "name": "weekday_weights",
+            "type": "list",
+            "required": false,
+            "description": "7 non-negative per-day weights, Monday first (ISO order); a weekday's share is its weight times its days in range. Uniform when absent."
+          }
+        ],
+        "intents": [
+          "simulate"
+        ]
+      },
+      {
         "name": "weighted_categorical",
         "description": "Discrete categorical samples drawn from values with optional weights.",
         "applies_to": [
@@ -11132,7 +11187,7 @@
         ]
       }
     ],
-    "error_codes_count": 445,
+    "error_codes_count": 447,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11510,6 +11565,8 @@
       "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_SYNTH_DST_AMBIGUOUS",
+      "PULSE_SYNTH_DST_NONEXISTENT",
       "PULSE_SYNTH_EXPR_NONDETERMINISTIC",
       "PULSE_SYNTH_LAG_FIELD_INVALID",
       "PULSE_SYNTH_LAG_OFFSET_INVALID",
@@ -13862,6 +13919,10 @@
         "description": "Uniform calendar-date samples in [start, end] inclusive; days-since-epoch internally."
       },
       {
+        "name": "op-synth-uniform-datetime",
+        "description": "Zone-aware datetime samples — a local wall-clock time drawn by weekday and hour-of-day weights, stored as the UTC epoch second it names in a fixed or per-row zone; DST gaps / overlaps per dst_policy."
+      },
+      {
         "name": "op-synth-weighted-categorical",
         "description": "Discrete categorical draws from a values list with optional weights; uniform when weights absent."
       },
@@ -14192,6 +14253,10 @@
       {
         "name": "synth-cross-row",
         "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores."
+      },
+      {
+        "name": "synth-datetime",
+        "description": "Synthetic `datetime` columns — `uniform_datetime` draws a LOCAL wall-clock time by weekday and hour weights in a fixed or per-row zone, resolves DST gaps / overlaps per `dst_policy`, and stores the UTC instant rules then read."
       },
       {
         "name": "synth-determinism",
@@ -20419,4 +20484,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 94c97c7a616761c46c117ee269ff97a06bbd455bc615dad1700ec20efcebc719
+// golden-hash: ae3bc2ec331330fbb852f877d65603c2e2f8ab7e3037f0dd1bd7cc6538b57907

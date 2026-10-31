@@ -11,7 +11,7 @@ import (
 // assembles it with the other category maps.
 //
 // A distribution is the recipe one field of a synthetic cohort is drawn
-// from; it returns rows, not a figure, so all fifteen are self-reading
+// from; it returns rows, not a figure, so every one is self-reading
 // (interpretation_reading.go) and declare only the `simulate` intent.
 //
 // Each Purpose states the distribution as Pulse implements it
@@ -40,6 +40,7 @@ var synthPurposes = map[string]descriptor.Purpose{
 	synth.DistSetBernoulli:        purposeSynthSetBernoulli,
 	synth.DistUniform:             purposeSynthUniform,
 	synth.DistUniformDate:         purposeSynthUniformDate,
+	synth.DistUniformDateTime:     purposeSynthUniformDateTime,
 	synth.DistWeightedCategorical: purposeSynthWeightedCategorical,
 }
 
@@ -451,5 +452,30 @@ var (
 			synthSeeded,
 		},
 		Level: descriptor.LevelBasic,
+	}
+
+	purposeSynthUniformDateTime = descriptor.Purpose{
+		Plain:   "Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.",
+		Intents: []string{IntentSimulate},
+		Questions: []string{
+			"How do I generate delivery times that follow each depot's local business hours?",
+			"How do I make synthetic events that never happen on a Sunday?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Parcel scans across sites in Sydney, New York and London, busiest mid-morning on each site's own clock.",
+			descriptor.DomainHarness: "Timestamps that cross a daylight-saving change, to test time-zone handling.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "only the calendar day matters", Use: synth.DistUniformDate},
+			{When: "every row shares one timestamp", Use: synth.DistConstant},
+		},
+		Assumptions: []string{
+			"start and end are local calendar days written as YYYY-MM-DD, both included.",
+			"A weekday weight scales every such day in the range, so a 0 removes that weekday and over whole weeks the shares follow the weights.",
+			"A local time that a daylight-saving change skips or repeats stops the run unless dst_policy is earlier or later.",
+			synthOnItsOwn,
+			synthSeeded,
+		},
+		Level: descriptor.LevelIntermediate,
 	}
 )

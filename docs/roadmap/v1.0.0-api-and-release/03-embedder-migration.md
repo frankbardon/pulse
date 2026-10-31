@@ -1238,6 +1238,15 @@ Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pu
 | the Pulse root module required no OpenTelemetry or Prometheus module | the root `go.mod` requires OpenTelemetry (v1.47.0, incl. the OTLP/HTTP exporters) and `client_golang`; only `observe/otel`, `observe/prom` and the CLI import them, so a program that imports neither adapter links none of it | dependency change | none; `go mod tidy` may list the new requires in your `go.sum` | observability-adapters (E1-S1, E1-S2) |
 | `pulse mcp` exported metrics only through `--metrics-addr` | `pulse mcp` also exports traces and metrics over OTLP/HTTP when a standard `OTEL_EXPORTER_OTLP_*ENDPOINT` is set (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` and the SDK's other `OTEL_*` apply); a non-http(s) endpoint or a non-`http/protobuf` protocol fails startup with `CLI_INPUT`; export errors only warn | added (opt-in) | none; unset `OTEL_EXPORTER_OTLP_*ENDPOINT` keeps the old behaviour. A host that already sets a gRPC `OTEL_EXPORTER_OTLP_PROTOCOL` with an endpoint for other processes must unset it for `pulse mcp` or switch to `http/protobuf`. `mcpserve` embedders wire `observe/otel` themselves | observability-adapters (E1-S4) |
 
+## Changes from U52 (synth realism)
+
+Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pulse` byte-layout change; a spec using none of the new surface generates byte-identically. Skill: `skills/synth-datetime.md`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a synth spec could not declare `datetime` (`unknown field type "datetime"`) | `datetime` is declarable; distribution `uniform_datetime` (`synth.DistUniformDateTime`) draws a local wall-clock time by `hour_weights` / `weekday_weights` in a fixed `time_zone` or a per-row `time_zone_field`, resolves DST per `dst_policy` (`error` default, `earlier`, `later`) and stores the UTC epoch second; codes `PULSE_SYNTH_DST_NONEXISTENT` / `PULSE_SYNTH_DST_AMBIGUOUS` | added | none; adopt when you need timestamps | U52 (E1-S1) |
+| `synth from-profile` over a profile holding a `datetime` field failed at schema build | it generates the field as the profile's numeric summary reconstructs it — a `normal` over the epoch seconds clamped to the observed range (UTC, no zone) | behaviour change (refusal → generation) | none; zoned datetime capture lands with U52 E1-S2 | U52 (E1-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

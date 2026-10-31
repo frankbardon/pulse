@@ -36,12 +36,31 @@ var paramsGateFields = map[string]FieldSpec{
 		Params: map[string]any{"means": []any{0.0, 5.0}, "stds": []any{1.0, 1.0}, "weights": []any{1.0, 1.0}}},
 	DistUniformDate: {Type: "date",
 		Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31"}},
+	DistUniformDateTime: {Type: "datetime",
+		Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31",
+			"time_zone": "Europe/Berlin", "dst_policy": "later",
+			"hour_weights": oneHot(10), "weekday_weights": []any{1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0}}},
 	DistRegex: {Type: "categorical_u16",
 		Params: map[string]any{"pattern": "[A-C]{2}", "max_repeat": 3.0}},
 	DistConstant: {Type: "set_u8",
 		Params: map[string]any{"value": []any{"a"}, "options": []any{"a", "b"}}},
 	DistSetBernoulli: {Type: "set_u8",
 		Params: map[string]any{"options": []any{"a", "b"}, "frequencies": []any{0.5, 0.2}}},
+}
+
+// paramsGateAltProbes carries the declared keys a distribution's main
+// probe cannot hold because they are EXCLUSIVE with one it does hold
+// (uniform_datetime's time_zone vs time_zone_field). Each entry is a
+// whole valid field list whose FIRST field is the alternate probe; its
+// reads and keys are unioned with the main probe's, so the gate still
+// requires every declared key to be both carried and read.
+var paramsGateAltProbes = map[string][]FieldSpec{
+	DistUniformDateTime: {
+		{Type: "datetime", Params: map[string]any{"start": "2024-01-01", "end": "2024-01-31",
+			"time_zone_field": "zone_for_probe"}},
+		{Name: "zone_for_probe", Type: "categorical_u8", Distribution: DistWeightedCategorical,
+			Params: map[string]any{"values": []any{"Asia/Tokyo"}}},
+	},
 }
 
 // TestDistributionParamsDeclaredMatchRead is the synth twin of
@@ -90,6 +109,22 @@ func TestDistributionParamsDeclaredMatchRead(t *testing.T) {
 				continue
 			}
 		}
+		probeKeys := make([]string, 0, len(probe.Params))
+		for k := range probe.Params {
+			probeKeys = append(probeKeys, k)
+		}
+		if alt, ok := paramsGateAltProbes[dist]; ok {
+			fields := slices.Clone(alt)
+			fields[0].Name, fields[0].Distribution = probe.Name, dist
+			if _, _, err := SynthBytes(&Spec{RowCount: 20, Fields: fields}, Options{Seed: 1}); err != nil {
+				t.Errorf("%s: alternate probe spec must generate: %v", dist, err)
+			}
+			for k := range alt[0].Params {
+				if !slices.Contains(probeKeys, k) {
+					probeKeys = append(probeKeys, k)
+				}
+			}
+		}
 		declared := distributionParamKeys[dist]
 		var got []string
 		for k := range read[probe.Name] {
@@ -105,10 +140,6 @@ func TestDistributionParamsDeclaredMatchRead(t *testing.T) {
 			if !slices.Contains(got, k) {
 				t.Errorf("%s: declares params.%s but no reader reads it (accepted and ignored)", dist, k)
 			}
-		}
-		probeKeys := make([]string, 0, len(probe.Params))
-		for k := range probe.Params {
-			probeKeys = append(probeKeys, k)
 		}
 		sort.Strings(probeKeys)
 		want := slices.Sorted(slices.Values(declared))

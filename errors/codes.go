@@ -993,6 +993,20 @@ const (
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 
+	// PULSE_SYNTH_DST_NONEXISTENT indicates a `uniform_datetime` field
+	// drew a local wall-clock time its zone never shows — the skipped
+	// hour of a DST spring-forward — under the default dst_policy
+	// "error". Generation stops; nothing is written. Details carry
+	// `field`, `local_time` (naive ISO 8601), `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_NONEXISTENT Code = "PULSE_SYNTH_DST_NONEXISTENT"
+
+	// PULSE_SYNTH_DST_AMBIGUOUS indicates a `uniform_datetime` field drew
+	// a local wall-clock time its zone shows twice — the repeated hour of
+	// a DST fall-back — under the default dst_policy "error". Generation
+	// stops; nothing is written. Details carry `field`, `local_time`,
+	// `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_AMBIGUOUS Code = "PULSE_SYNTH_DST_AMBIGUOUS"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -4657,6 +4671,8 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_DST_NONEXISTENT,
+	PULSE_SYNTH_DST_AMBIGUOUS,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

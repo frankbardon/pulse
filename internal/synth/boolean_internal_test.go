@@ -157,6 +157,7 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 		DistRegex:               classRefused,
 		DistSetBernoulli:        classRefused,
 		DistUniformDate:         classRefused,
+		DistUniformDateTime:     classRefused,
 		DistWeightedCategorical: classRefused,
 	}
 	params := map[string]map[string]any{

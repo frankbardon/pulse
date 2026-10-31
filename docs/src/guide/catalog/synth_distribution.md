@@ -18,6 +18,7 @@ The synth distributions this instance offers: what each is for, the questions it
 | [`set_bernoulli`](#op-set_bernoulli) | Fills a multi-select answer: each option is ticked on its own at its own rate, such as 40% picking email and 25% SMS. | How do I simulate a tick-all-that-apply question? | intermediate | [`weighted_categorical`](#op-weighted_categorical) when each row picks exactly one answer.<br>[`bernoulli`](#op-bernoulli) when there is only one yes/no flag. |
 | [`uniform`](#op-uniform) | Draws numbers between a low and a high bound, every value equally likely, for flat filler columns or random noise. | How do I fill a test column with random numbers between 0 and 100? | basic | [`normal`](#op-normal) when values should cluster around a typical value.<br>[`uniform_date`](#op-uniform_date) when the field is a calendar date.<br>[`discrete`](#op-discrete) when the field is a coded scale with a few fixed levels. |
 | [`uniform_date`](#op-uniform_date) | Draws calendar dates between a start and an end date, every day equally likely, both ends included. | How do I spread synthetic orders across 2024? | basic | [`uniform`](#op-uniform) when the field is a plain number, not a date.<br>[`constant`](#op-constant) when every row shares one date. |
+| [`uniform_datetime`](#op-uniform_datetime) | Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own. | How do I generate delivery times that follow each depot's local business hours? | intermediate | [`uniform_date`](#op-uniform_date) when only the calendar day matters.<br>[`constant`](#op-constant) when every row shares one timestamp. |
 | [`weighted_categorical`](#op-weighted_categorical) | Picks one label per row from a list, each at its own share, such as 50% North, 30% South and 20% West. | How do I give synthetic respondents a realistic region mix? | basic | [`bernoulli`](#op-bernoulli) when there are just two outcomes stored as 1 and 0 or true and false.<br>[`set_bernoulli`](#op-set_bernoulli) when each row can pick several options.<br>[`discrete`](#op-discrete) when the levels are numbers on a scale. |
 
 ## Operators
@@ -498,6 +499,39 @@ Draws calendar dates between a start and an end date, every day equally likely, 
 - [`constant`](#op-constant) when every row shares one date.
 
 **Skill:** [`op-synth-uniform-date`](../skills/op-synth-uniform-date.md)
+
+<a id="op-uniform_datetime"></a>
+
+### `uniform_datetime`
+
+Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
+
+**Level:** intermediate
+
+**Questions it answers:**
+
+- How do I generate delivery times that follow each depot's local business hours?
+- How do I make synthetic events that never happen on a Sunday?
+
+**Use cases by domain:**
+
+- *ops:* Parcel scans across sites in Sydney, New York and London, busiest mid-morning on each site's own clock.
+- *harness:* Timestamps that cross a daylight-saving change, to test time-zone handling.
+
+**Assumptions:**
+
+- start and end are local calendar days written as YYYY-MM-DD, both included.
+- A weekday weight scales every such day in the range, so a 0 removes that weekday and over whole weeks the shares follow the weights.
+- A local time that a daylight-saving change skips or repeats stops the run unless dst_policy is earlier or later.
+- The field is drawn on its own unless the spec adds correlations, models or rules that tie it to other fields.
+- The same spec and seed give the same rows every time; change the seed for a fresh draw.
+
+**Use something else:**
+
+- [`uniform_date`](#op-uniform_date) when only the calendar day matters.
+- [`constant`](#op-constant) when every row shares one timestamp.
+
+**Skill:** [`op-synth-uniform-datetime`](../skills/op-synth-uniform-datetime.md)
 
 <a id="op-weighted_categorical"></a>
 

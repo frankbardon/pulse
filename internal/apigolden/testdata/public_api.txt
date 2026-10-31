@@ -2939,6 +2939,8 @@ pulse/errors: const PULSE_SWEEP_SAMPLES_INVALID pulse/errors.Code = "PULSE_SWEEP
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
+pulse/errors: const PULSE_SYNTH_DST_AMBIGUOUS pulse/errors.Code = "PULSE_SYNTH_DST_AMBIGUOUS"
+pulse/errors: const PULSE_SYNTH_DST_NONEXISTENT pulse/errors.Code = "PULSE_SYNTH_DST_NONEXISTENT"
 pulse/errors: const PULSE_SYNTH_EXPR_NONDETERMINISTIC pulse/errors.Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
 pulse/errors: const PULSE_SYNTH_LAG_FIELD_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_FIELD_INVALID"
 pulse/errors: const PULSE_SYNTH_LAG_OFFSET_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
@@ -4287,6 +4289,7 @@ pulse/synth: const DistRegex untyped string = "regex"
 pulse/synth: const DistSetBernoulli untyped string = "set_bernoulli"
 pulse/synth: const DistUniform untyped string = "uniform"
 pulse/synth: const DistUniformDate untyped string = "uniform_date"
+pulse/synth: const DistUniformDateTime untyped string = "uniform_datetime"
 pulse/synth: const DistWeightedCategorical untyped string = "weighted_categorical"
 pulse/synth: type FidelityReport = pulse/internal/synth.FidelityReport
 pulse/synth: type FidelityReport underlying struct
@@ -6346,4 +6349,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 83a02fea0b7858b82fef9f7d2b4137af969f614be0082d7f5afa8eb4ea4f8583
+// golden-hash: 889412c4bd69c9c38f0bc87298754efa9ab9a59dd5e7bf6cf09cff9135761afe

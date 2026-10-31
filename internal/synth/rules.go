@@ -551,6 +551,9 @@ func scalarRange(ft encoding.FieldType) (lo, hi float64, bounded bool) {
 		return math.MinInt32, math.MaxInt32, true
 	case encoding.FieldTypeU64:
 		return 0, math.MaxUint64, true
+	case encoding.FieldTypeDateTime:
+		// Two's-complement int64 epoch seconds, as the writer stores them.
+		return -maxDatetimeSeconds, maxDatetimeSeconds, true
 	}
 	return 0, 0, false
 }

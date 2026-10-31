@@ -353,7 +353,7 @@ func TestValidateRules_UnknownFieldTypeBlamesTheField(t *testing.T) {
 
 	spec := ruleSpecFixture(RuleSpec{Set: map[string]any{"weird": 1.0}})
 	spec.Fields = append(spec.Fields, FieldSpec{
-		Name: "weird", Type: "datetime", Distribution: DistConstant,
+		Name: "weird", Type: "timestamp", Distribution: DistConstant,
 		Params: map[string]any{"value": 1.0},
 	})
 	if err := validateSpec(spec); err != nil {
