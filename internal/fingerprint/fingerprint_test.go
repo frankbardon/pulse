@@ -216,7 +216,7 @@ var requestFigures = []requestFigure{
 	// barriered t CI bounds and weighted-Welford moments).
 	{"process.mtcars_am.welch_mpg_by_am", "mtcars_am.pulse",
 		`{"tests":[{"type":"TEST_T","field":"mpg","split_by":"am","label":"t"}]}`,
-		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high", "tests.0.details.effect_size.cohens_d"}},
 	{"process.mtcars.paired_qsec_drat", "mtcars.pulse",
 		`{"tests":[{"type":"TEST_PAIRED_T","field":"qsec","field2":"drat","label":"t"}]}`,
 		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
@@ -241,10 +241,60 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.ci_upper_mpg_wprob", "mtcars.pulse",
 		`{"aggregations":[{"type":"AGG_CI_UPPER","field":"mpg","label":"v","weight":{"field":"w_prob","kind":"probability"}}]}`,
 		[]string{"data.0.v"}},
-	// TEST_PEARSON_R r and p (its Fisher-z CI is not yet covered: E2-S3).
+	// TEST_PEARSON_R r, p and (E2-S3) the detmath Atanh / Tanh Fisher-z CI.
 	{"process.mtcars.pearson_mpg_wt", "mtcars.pulse",
 		`{"tests":[{"type":"TEST_PEARSON_R","field":"mpg","field2":"wt","label":"t"}]}`,
-		[]string{"tests.0.statistic", "tests.0.p_value"}},
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.ci_low", "tests.0.details.ci_high"}},
+	// E2-S3: the parametric TEST_* family (barriered products, detmath
+	// transcendentals) — weighted Pearson moments, studentized range
+	// (Tukey HSD), ANOVA (+ weighted twin), Welch ANOVA, Brown-Forsythe,
+	// repeated-measures ANOVA, z / CUPED, Box's M, Mardia, Bartlett
+	// sphericity and their effect sizes. MANOVA is left out (below).
+	{"process.mtcars.pearson_mpg_wt_wprob", "mtcars.pulse",
+		`{"tests":[{"type":"TEST_PEARSON_R","field":"mpg","field2":"wt","label":"t","weight":{"field":"w_prob","kind":"probability"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.tukey_mpg_by_cyl", "mtcars_groups.pulse",
+		`{"groups":[{"type":"GROUP_CATEGORY","field":"cyl"}],"aggregations":[{"type":"AGG_AVERAGE","field":"mpg","label":"m"},{"type":"AGG_COUNT","field":"mpg","label":"n"}],"post_tests":[{"type":"TEST_TUKEY_HSD","field":"m","split_by":"cyl","label":"t","params":{"ms_within":9.47,"df_within":29}}]}`,
+		[]string{"post_tests.0.p_value", "post_tests.0.details.*"}},
+	{"process.mtcars_groups.anova_mpg_by_cyl", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_ANOVA_F","field":"mpg","split_by":"cyl","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.anova_mpg_by_cyl_wprob", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_ANOVA_F","field":"mpg","split_by":"cyl","label":"t","weight":{"field":"w_prob","kind":"probability"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.welch_anova_mpg_by_cyl", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_ANOVA_WELCH","field":"mpg","split_by":"cyl","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.brown_forsythe_mpg_by_cyl_wfreq", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_BROWN_FORSYTHE","field":"mpg","split_by":"cyl","label":"t","weight":{"field":"w_freq","kind":"frequency"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_rm.anova_rm_y", "mtcars_rm.pulse",
+		`{"tests":[{"type":"TEST_ANOVA_RM","field":"y","split_by":"cond","subject_field":"subject","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.z_mpg_by_am", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_Z_TWO_SAMPLE","field":"mpg","split_by":"am","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.cuped_mpg_by_am_hp", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_T","field":"mpg","split_by":"am","label":"t","params":{"covariate":"hp"}}]}`,
+		[]string{"tests.0.statistic", "tests.0.df", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.box_m_by_am", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_BOX_M","fields":["mpg","wt","qsec"],"split_by":"am","label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	// TEST_MANOVA is not pinned: its eigenvalues of E⁻¹H run gonum's
+	// SymEigen and move 1–31 ulp across arches (E4-S4 allowlists the
+	// decomposition; pin it at its documented tolerance there).
+	{"process.mtcars_groups.mardia_mpg_wt_qsec", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_MARDIA","fields":["mpg","wt","qsec"],"label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.bartlett_sphericity", "mtcars_groups.pulse",
+		`{"tests":[{"type":"TEST_BARTLETT_SPHERICITY","fields":["mpg","disp","hp","wt"],"label":"t"}]}`,
+		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
+	{"process.mtcars_groups.paired_post_by_gear", "mtcars_groups.pulse",
+		`{"groups":[{"type":"GROUP_CATEGORY","field":"gear"},{"type":"GROUP_CATEGORY","field":"cyl"}],"aggregations":[{"type":"AGG_AVERAGE","field":"qsec","label":"a"},{"type":"AGG_AVERAGE","field":"drat","label":"b"}],"post_tests":[{"type":"TEST_PAIRED_T","field":"a","field2":"b","label":"t","params":{"partition_by":[]}}]}`,
+		[]string{"post_tests.0.statistic", "post_tests.0.p_value", "post_tests.0.details.*"}},
+	{"process.mtcars.corr_inference_mpg_wt_hp", "mtcars.pulse",
+		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m","params":{"inference":true}}]}`,
+		[]string{"matrices.0.auxiliary.*"}},
 	// E2-S1: the DeLong normal CI (statdist.NormalQuantile) and the
 	// detmath.Erfc normal two-sided p.
 	{"process.mtcars.auc_qsec_vs", "mtcars.pulse",

@@ -138,7 +138,7 @@ func (t *tukeyHSDPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			se := math.Sqrt(t.msW * (1/a.n + 1/b.n) / 2)
 			q := math.Abs(diff) / se
 			pAdj := studentizedRangeSurvival(q, k, t.dfW)
-			ciHalf := qCrit * se
+			ciHalf := float64(qCrit * se)
 			rejected := pAdj < t.alpha
 			if pAdj < minP {
 				minP = pAdj

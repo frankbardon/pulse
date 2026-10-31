@@ -150,7 +150,7 @@ func (s *rankSample) add(v, w float64) {
 	s.values = append(s.values, v)
 	s.weights = append(s.weights, w)
 	s.sumW += w
-	s.sumWSq += w * w
+	s.sumWSq += float64(w * w)
 }
 
 // n is the raw row count (the `n` a test reports).

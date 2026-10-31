@@ -95,8 +95,8 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"n":         b.n,
 			"mean_diff": b.mean,
 			"variance":  variance,
-			"ci_low":    b.mean - tcrit*se,
-			"ci_high":   b.mean + tcrit*se,
+			"ci_low":    b.mean - float64(tcrit*se),
+			"ci_high":   b.mean + float64(tcrit*se),
 		},
 	}
 	// Cohen's d for paired samples: mean_diff / sd_diff.
@@ -530,22 +530,22 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	for i := 0; i < k; i++ {
 		weights[i] = float64(ns[i]) / vars_[i]
 		W += weights[i]
-		weightedMean += weights[i] * means[i]
+		weightedMean += float64(weights[i] * means[i])
 	}
 	weightedMean /= W
 	var num, tailSum float64
 	for i := 0; i < k; i++ {
 		diff := means[i] - weightedMean
-		num += weights[i] * diff * diff
+		num += float64(weights[i] * diff * diff)
 		share := 1 - weights[i]/W
 		tailSum += share * share / float64(ns[i]-1)
 	}
 	num /= float64(k - 1)
 	kf := float64(k)
-	den := 1 + 2*(kf-2)/(kf*kf-1)*tailSum
+	den := 1 + float64(2*(kf-2)/(float64(kf*kf)-1)*tailSum)
 	F := num / den
 	df1 := kf - 1
-	df2 := (kf*kf - 1) / (3 * tailSum)
+	df2 := (float64(kf*kf) - 1) / (3 * tailSum)
 	p := fSurvival(F, df1, df2)
 	res := &types.TestResult{
 		Label:      testLabel(a.spec),

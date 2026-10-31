@@ -830,7 +830,7 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		res.Variant, res.Statistic, res.DF = "welch_two_sample", diff/se, (num*num)/den
 		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
 		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
-		pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
+		pooled := math.Sqrt((float64((na-1)*va) + float64((nb-1)*vb)) / (na + nb - 2))
 		var d float64
 		if pooled > 0 {
 			d = diff / pooled
