@@ -9,7 +9,7 @@ covers: [GROUP, Crosstab, groups]
 
 # Grouper design
 
-`groups` partitions records BEFORE aggregation; each `aggregations` entry folds inside the bucket. Per-grouper detail: atomic `op-group-*` skills.
+`groups` partitions records BEFORE aggregation; each `aggregations` entry folds inside the bucket.
 
 ## Slot identity
 
@@ -78,11 +78,11 @@ Other groupers ignore `include`; filter values instead.
 
 ## Fused crosstab eligibility
 
-A crosstab builds its grid in one decode pass (lower peak memory) when every axis grouper keys records one at a time. Every built-in does EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view and forces a buffered crosstab. Fan-out groupers fuse at any axis position. Overlays never prevent fusing.
+A crosstab builds its grid in one decode pass when every axis grouper keys records one at a time. Every built-in does EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view and forces a buffered crosstab. Fan-out groupers fuse at any axis position. Overlays never prevent fusing.
 
 ## Components
 
-Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned) + `n_null` (null / skip path) — ALL post-filter records, unlike the aggregator's non-null `n`. Operator-specific keys ride `operator`; per-grouper lists are in `manifest.components_schemas.groupers` and each atomic skill.
+Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned) + `n_null` (null / skip path) — ALL post-filter records, unlike the aggregator's non-null `n`. Operator-specific keys ride `operator` (`manifest.components_schemas.groupers`, each atomic skill).
 
 Mergeability is in the manifest: `mergeable` groupers fold across streaming chunks; a `none` grouper (equal-count bands) emits at the terminal flush only. With N ≥ 2 there is one entry per slot and `groups[].group_key` is the tuple.
 
@@ -90,7 +90,7 @@ Mergeability is in the manifest: `mergeable` groupers fold across streaming chun
 
 - Fan-out: `sum(buckets[].count) > total_n` is correct; on a crosstab axis its margins are non-additive (a 3-option row counts 3× across row margins, once in the grand total).
 - Empty-mask `set_*`: the combination grouper buckets it under the empty key; the per-option grouper skips it. Neither increments `n_null`.
-- Weekday names lex-sort; sort explicitly.
+- <!-- feature: GROUP_DATE -->`GROUP_DATE` `day_of_week` buckets are Monday-first; a sort on a grouper key keeps its order. Only a free-text weekday column lex-sorts.<!-- /feature -->
 
 ## See
 

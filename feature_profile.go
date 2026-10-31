@@ -21,9 +21,13 @@ import (
 // Options.FeatureProfileFile key for key, so a Go value and a file are
 // interchangeable.
 //
-// pulse.New validates the profile and stores it on the instance. The
-// feature list is not applied yet — no surface is hidden or filtered by
-// it — but the Behaviour switches take effect immediately.
+// pulse.New validates the profile (PULSE_FEATURE_PROFILE_INVALID, then
+// _UNKNOWN, then _DEPENDENCY) and enforces it on the instance: a feature
+// the list omits is hidden and acts as if it had never been registered —
+// a request naming it is refused, and the manifest, payload schema,
+// error list, MCP tools and discovery surfaces (Skills, Skill,
+// Ontology) carry only what the instance keeps. The Behaviour switches
+// take effect the same way.
 //
 // The JSON form is decoded strictly: a key outside profile,
 // written_with, features, behaviour, return and limits — or an unknown
