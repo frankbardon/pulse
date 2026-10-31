@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506, 507, 508, 555]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506, 507, 508, 555, 588, 589, 590, 591, 592, 593]
 branch: v1-release
 ---
 
@@ -109,7 +109,7 @@ U08 shipped Purpose + Interpretation for every `TEST_*`, `OVERLAY_*` and `REG_*`
 
 - **Panel independence.** Two passes of one model family; treat "no finding" as weak evidence. Prioritise what the gates cannot check: `NotFor` routing and assumption completeness.
 - **Convention choices.** `very small` as the label below Cohen's small; the Chinn (2000) odds-ratio conversion; Cohen 1992 f² → R² for `REG_OLS` `r2`; rank-biserial, d_z, RM partial η², rank ε², Cramér's V, ρ and τ left unbanded.
-- **Decisions the record leaves open.** `OVERLAY_PAIRWISE_PROBIT_T` is anti-conservative by design (keep inferential-flagged, warn, or hide behind a feature profile); `OVERLAY_CHISQ_VS_POP` compares only the listed categories (consider a full-dictionary comparison when `DiscreteTopK` does not truncate); the Shiffler (1988) citation for the ZSCORE_VS_TOTAL bound was not fetched; penalised-OLS p-values are plug-in approximations.
+- **Decisions the record leaves open.** `OVERLAY_PAIRWISE_PROBIT_T` is anti-conservative by design (keep inferential-flagged, warn, or hide behind a feature profile); `OVERLAY_CHISQ_VS_POP` compared only the listed categories (E4-5, fixed in vibe-2026-10-31: a population category with no subset rows now enters at observed 0); the Shiffler (1988) citation for the ZSCORE_VS_TOTAL bound was not fetched; penalised-OLS p-values are plug-in approximations.
 - **`OVERLAY_INDEX_VS_MARGIN` declared scopes.** The skill lists `row` / `column` scopes and a SERIES output; the capability declares only `cell` / MATRIX. Not verified against the scope gate in U08 — resolve which is right before sign-off.
 - **Numeric correctness is U36's**, not the reviewer's: the runtime bugs the record lists (infinite Fisher OR / correlation `t`, Brown–Forsythe at zero spread, Shapiro n < 5; the inverse-erf CI was fixed by U12) and the per-output oracles land in [U36](U36-reference-oracles.md) before this unit.
 - **CODEOWNERS.** Point the reviewer's entries at the landed registries: `internal/descriptor/{purposes,purposes_*,interpretations,interpretations_*,conventions,glossary,intents}.go`, `internal/descriptor/testdata/conventions.json`, the effect-size code in `internal/processing/test_*.go`, `internal/statdist/` and `scripts/reference/`. `.github/CODEOWNERS` carries only the default `*` owner today.
@@ -118,7 +118,10 @@ U08 shipped Purpose + Interpretation for every `TEST_*`, `OVERLAY_*` and `REG_*`
 
 U09 gave every descriptive built-in (aggregators, attributes, windows, features, filters, groupers, synth distributions) a Purpose, and every needs-reading one a `value` / `value.*` Interpretation. Its review used the same pattern as U08: binding gates plus an advisory LLM panel (scope A in two passes, scope B in one combined pass). The maintainer accepted all 64 findings and applied them. The record is the **U09 section of the same file**, [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md). #206 signs off both units there:
 
-- **Open items.** Work the "Open items for the U33 human reviewer (U09)" list. Most are runtime behaviours the guidance now describes honestly and that are logged for [U36](U36-reference-oracles.md): truthy filters on category labels, 0 for empty groups, text-order group rows, `AGG_ZSCORE`'s shape, normal-not-t CI bounds, the unstable `ATTR_PERCENTILE` tie order, 0 / 50 for missing attribute inputs, the split-blind target encoder, synth `u4` wraparound, and numeric groupers accepting category fields.
+- **Open items.** Work the "Open items for the U33 human reviewer (U09)" list. They are runtime behaviours the guidance describes honestly; [U36](U36-reference-oracles.md) owned few of them. Status at the stats-review re-check:
+  - **Fixed:** 0 for empty groups (U09-2, [U30](U30-matrix-extensions-hardening.md)); text-order group rows (U09-3, [U49](U49-model-workbench.md)); 0 / 50 for missing attribute inputs (U09-7, [U50](U50-local-time.md)); numeric groupers accepting category fields (U09-10, [U35](U35-predict-runtime-parity.md)); no external oracle for the descriptive estimators (U09-12, [U11](U11-weighting-descriptive.md) / [U12](U12-weighting-inferential.md)).
+  - **Partly fixed:** the split-blind target encoder (U09-8, [U49](U49-model-workbench.md)). `params.fit_on` and out-of-fold encoding are opt-in; the default stays leaky and warns `PULSE_FEAT_TARGET_LEAKAGE_RISK`. Sign off the opt-in default, or change it.
+  - **Still open (TODO entries):** truthy filters on category labels (U09-1, #588), `AGG_ZSCORE`'s shape (U09-4, #589), normal-not-t CI bounds (U09-5, #590), whether `ATTR_PERCENTILE` ties share a mid-rank (U09-6, #591; the tie ORDER became deterministic, scan order, in vibe-2026-10-31), and synth `u4` wraparound (U09-9, #592).
 - **Unbanded shape readings.** Skewness, kurtosis and the descriptive z / T scores carry no bands (fixture `excluded`). Confirm that is right.
 - **CODEOWNERS** covers the descriptive registries too (`purposes_*.go` and `interpretations_*.go` already match the globs above).
 
@@ -126,7 +129,10 @@ U09 gave every descriptive built-in (aggregators, attributes, windows, features,
 
 U12 made the significance tests, regressions, CI bounds, scores, quantile buckets and inferential overlays weight-aware on one rule (N* = Σw or Kish n_eff; the frequency formula on w*). It ran without a human reviewer: binding gates (unity byte parity, exact frequency expansion against stock R, probability scale invariance, external references) plus a one-pass advisory LLM statistician panel. The record is [`reviews/U12-weighting-review.md`](../reviews/U12-weighting-review.md). #206 signs it off there:
 
-- **Open items.** Work its "Open items for the U33 human reviewer (U12)" list — headed by WS-01 (one-way ANOVA F under between-group probability-weight variation) and the undefined-figure cases at tiny n_eff (WS-05 / WS-12). The docs story applied the documentation findings; the engine findings await owner triage.
+- **Open items.** Work its "Open items for the U33 human reviewer (U12)" list. The engine findings that headed it are FIXED: WS-01 (one-way ANOVA F under between-group probability-weight variation, `a18ca0bd`) and the undefined-figure cases at tiny n_eff (WS-05 `216b6903`, WS-12 `e171e014`); the docs story applied the documentation findings. What remains:
+  - **Reviewer decisions:** WS-04 and WS-03 / WS-02.
+  - **WS-13, fixed in vibe-2026-10-31:** `TEST_PROP_Z` now warns `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` when a scaled expected count falls below 5, as `TEST_CHISQ` does.
+  - **WS-10, still open (#593):** no `TEST_KS` branch emits a ties warning today, weighted or unweighted. U36 made the weighted exact branch (Σw₁·Σw₂ < 10000) tie-conditional, but the asymptotic branch applies the limiting p to tie-heavy data silently. The rule and its code are an owner call.
 - **The method itself.** No external software implements Kish-w* inference, so the probability arm is verified for arithmetic and scale invariance only. Sign off (or not) the framing in `.claude/reference/weighting.md` (Weighted inference): unequal-weighting correction only, weights assumed unrelated to the outcome, not design-based, χ² first-order Kish not Rao-Scott.
 - **CODEOWNERS.** Add `internal/weighting/`, the weighted paths of `internal/processing/test_*.go` / `regression/` / `overlay*.go`, and `internal/service/testdata/weight_reference/` to the reviewer's entries.
 

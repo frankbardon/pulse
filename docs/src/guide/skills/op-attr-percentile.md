@@ -55,7 +55,7 @@ One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-pa
 
 - **NOT streamable** — pre-pass sorts the full filter-passing field; cohort-sized memory peak. Predict surfaces this under `streamable_reasons`.
 - Ties do NOT share a percentile: each tied row gets its own rank, in scan order (the earlier record ranks lower), so a rerun on the same cohort reads the same percentiles.
-- Under shard archives the sort runs per-shard along the `Mergeable` path; pass 2 emits global ranks once shards merge.
+- Under shard archives ranks stay cohort-wide, never per shard: a buffered attribute is not mergeable, so the run takes the serial path, one scan across every shard.
 
 ## See
 
