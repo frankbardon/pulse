@@ -134,3 +134,41 @@ func TestReferenceOracle_StudentTQuantile(t *testing.T) {
 	}
 	r.done()
 }
+
+// TestReferenceOracle_ChiSquareSurvival: the deterministic chi-square
+// upper tail against R's pchisq(x, df, lower.tail = FALSE), the same
+// golden internal/processing's chiSquareSurvival is held to.
+func TestReferenceOracle_ChiSquareSurvival(t *testing.T) {
+	t.Parallel()
+
+	cases := loadReference[struct {
+		X  float64 `json:"x"`
+		DF float64 `json:"df"`
+		P  float64 `json:"p"`
+	}](t, "chi_square_survival")
+	r := &failReporter{t: t}
+	for _, c := range cases {
+		if got := ChiSquareSurvival(c.X, c.DF); !oracleClose(got, c.P, oracleRelTol, oracleProbAbsFloor) {
+			r.errorf("ChiSquareSurvival(x=%g, df=%g) = %.17g, want %.17g", c.X, c.DF, got, c.P)
+		}
+	}
+	r.done()
+}
+
+// TestReferenceOracle_NormalQuantileDet: the deterministic standard
+// normal quantile against R's qnorm, the golden NormalQuantile is held to.
+func TestReferenceOracle_NormalQuantileDet(t *testing.T) {
+	t.Parallel()
+
+	cases := loadReference[struct {
+		P float64 `json:"p"`
+		Q float64 `json:"q"`
+	}](t, "normal_ppf")
+	r := &failReporter{t: t}
+	for _, c := range cases {
+		if got := NormalQuantileDet(c.P); !oracleClose(got, c.Q, oracleRelTol, oracleQuantileAbsFloor) {
+			r.errorf("NormalQuantileDet(p=%g) = %.17g, want %.17g", c.P, got, c.Q)
+		}
+	}
+	r.done()
+}
