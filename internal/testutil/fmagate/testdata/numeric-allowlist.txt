@@ -1,0 +1,39 @@
+# Numeric determinism allowlist: the reviewed exceptions to the
+# repo-wide scans in internal/testutil/fmagate (TestFMAReport_RepoWide,
+# heavy tier, and TestBannedMathReport_RepoWide, fast tier).
+#
+# One entry per line:
+#
+#   <kind> <file> <func> <reason...>
+#
+#   kind    "fma"          a multiply-add the arm64 compiler contracts
+#                          (the -d=fmahash=vy report);
+#           "math.<Name>"  a reference to a banned stdlib transcendental
+#                          (fmagate.BannedMath: Exp, Log, Log1p, Expm1,
+#                          Pow, Erf, Erfc, Lgamma, Sin, Cos, Tan, Atan,
+#                          ...; math.Sqrt and the other IEEE-exact
+#                          functions are never findings).
+#   file    module-relative, forward slashes, e.g.
+#           internal/processing/test_stat.go
+#   func    the enclosing TOP-LEVEL declaration: "F" for a function,
+#           "T.M" for a method (pointer and type parameters dropped),
+#           "(package)" for a package-level initialiser. A closure counts
+#           as the function that holds it.
+#   reason  required; why the site cannot or need not be deterministic
+#           (control-only, fixture generator, gonum residual, ...).
+#
+# An entry excuses EVERY finding of its kind in that function of that
+# file, so it survives line drift. An entry whose file is in the scanned
+# scope but excuses no finding is STALE and fails the scan: delete it
+# when the site is fixed. A malformed or duplicate line fails too.
+#
+# Report one package or file set (each story's "clean in the report"):
+#
+#   go test -tags heavy -count=1 -v ./internal/testutil/fmagate \
+#     -run 'TestFMAReport_RepoWide|TestBannedMathReport_RepoWide' \
+#     -fmareport.pkg=./internal/processing/...
+#
+# -fmareport.pkg takes comma-separated patterns: ./... (default),
+# ./a/b/... , ./a/b , or ./a/b/c.go files.
+#
+# Report-only until E5-S2 makes an unlisted finding fail.

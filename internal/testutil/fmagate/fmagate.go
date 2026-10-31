@@ -13,6 +13,10 @@
 // scratch module holding `a + b*c` must report one, or a renamed flag
 // would make every gate silently pass); each caller keeps its own file
 // list and assertion over the returned lines.
+//
+// repo.go adds the repo-wide scans (ScanFMA, BannedCalls) and the
+// reviewed allowlist they apply (testdata/numeric-allowlist.txt);
+// TestFMAReport_RepoWide and TestBannedMathReport_RepoWide report them.
 package fmagate
 
 import (
