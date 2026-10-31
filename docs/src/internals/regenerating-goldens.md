@@ -184,6 +184,8 @@ checks; the script's header has the venv install line. CI never runs
 Python. `TestMCMC_*MatchesArviZ` hold `RHat`, `ESSBulk` and `ESSTail` to
 `1e-9` relative.
 
+**Publish the check.** The book's [How Pulse is validated](../guide/validation.md) page lists, per operator, the external reference, tolerance and test file behind it. It is generated from `validationRegistry` in `internal/docgen/validation.go`. When you add, tighten or remove a reference check, update the operator's row in the same PR and run `make docs`. The gates fail on a cited test file that does not exist and on an inferential built-in with no row.
+
 ### Multivariate goldens and their fixtures
 
 The same `make reference` run also sources

@@ -414,6 +414,7 @@ func (g *gen) renderDetail(b *strings.Builder, e entry, from string) {
 			b.WriteString("\n")
 		}
 	}
+	g.renderValidationDetail(b, e.name)
 	if stem := g.operatorSkill(e.name); stem != "" {
 		b.WriteString("\n**Skill:** [`")
 		b.WriteString(stem)

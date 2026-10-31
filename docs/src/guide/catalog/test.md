@@ -76,6 +76,13 @@ Checks whether the average of a numeric measure differs across three or more gro
 
 **Glossary:** [`effect-size`](../glossary.md#term-effect-size), [`eta-squared`](../glossary.md#term-eta-squared), [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`omega-squared`](../glossary.md#term-omega-squared), [`p-value`](../glossary.md#term-p-value), [`post-hoc-test`](../glossary.md#term-post-hoc-test), [`variance`](../glossary.md#term-variance)
 
+**Validated against:**
+
+- R 4.6.1 `aov` — tolerance 1e-10 relative; `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-anova-f`](../skills/op-test-anova-f.md)
 
 <a id="op-test_anova_rm"></a>
@@ -112,6 +119,14 @@ Checks whether the average differs across conditions when every subject is measu
 - [`TEST_PAIRED_T`](#op-test_paired_t) when there are only two conditions.
 
 **Glossary:** [`f-statistic`](../glossary.md#term-f-statistic), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`partial-eta-squared`](../glossary.md#term-partial-eta-squared), [`repeated-measures`](../glossary.md#term-repeated-measures), [`sphericity`](../glossary.md#term-sphericity)
+
+**Validated against:**
+
+- R 4.6.1 `aov` with `Error()` strata — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+
+**Validation gap:** No weighted reference.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-anova-rm`](../skills/op-test-anova-rm.md)
 
@@ -157,6 +172,13 @@ Checks whether the average of a numeric measure differs across groups when the g
 
 **Glossary:** [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`omega-squared`](../glossary.md#term-omega-squared), [`p-value`](../glossary.md#term-p-value), [`variance`](../glossary.md#term-variance)
 
+**Validated against:**
+
+- R 4.6.1 `oneway.test` — tolerance 1e-10 relative; `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-anova-welch`](../skills/op-test-anova-welch.md)
 
 <a id="op-test_bartlett_sphericity"></a>
@@ -193,6 +215,13 @@ Checks whether a set of numeric fields are related at all, the first check befor
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`correlation`](../glossary.md#term-correlation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`principal-component`](../glossary.md#term-principal-component), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
 
+**Validated against:**
+
+- R 4.6.1 `psych::cortest.bartlett` — tolerance 1e-9 relative; `internal/service/test_bartlett_sphericity_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-bartlett-sphericity`](../skills/op-test-bartlett-sphericity.md)
 
 <a id="op-test_box_m"></a>
@@ -228,6 +257,13 @@ Checks whether several groups share one spread pattern across a set of numeric f
 - [`TEST_MANOVA`](#op-test_manova) when you want whether the average profiles differ.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Validated against:**
+
+- R 4.6.1 `biotools::boxM` — tolerance 1e-10 relative; `internal/processing/test_box_m_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-box-m`](../skills/op-test-box-m.md)
 
@@ -269,6 +305,13 @@ Checks whether the spread of a numeric field differs across groups: a robust tes
 - [`TEST_ANOVA_WELCH`](#op-test_anova_welch) when the spreads differ and you still want to compare group averages.
 
 **Glossary:** [`f-statistic`](../glossary.md#term-f-statistic), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`p-value`](../glossary.md#term-p-value), [`variance`](../glossary.md#term-variance)
+
+**Validated against:**
+
+- R 4.6.1 `anova(lm(abs(x - median) ~ g))` — tolerance 1e-10 relative; `internal/processing/test_undefined_oracle_test.go`, `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-brown-forsythe`](../skills/op-test-brown-forsythe.md)
 
@@ -314,6 +357,15 @@ Checks whether two categorical fields are associated, or whether one categorical
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`continuity-correction`](../glossary.md#term-continuity-correction), [`cramers-v`](../glossary.md#term-cramers-v), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`p-value`](../glossary.md#term-p-value), [`phi`](../glossary.md#term-phi)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- Agresti worked example (R `chisq.test` help) and scipy for the effect size — tolerance 1e-9 to 1e-6; `internal/processing/test_more_test.go`, `internal/processing/test_effect_size_test.go`
+
+**Validation gap:** The unweighted statistic is pinned to hand-computed values, not to an R golden file.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-chisq`](../skills/op-test-chisq.md)
 
 <a id="op-test_fisher_exact"></a>
@@ -350,6 +402,13 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 - [`TEST_PROP_Z`](#op-test_prop_z) when counts are large and you want the difference in rates with a confidence interval.
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`exact-test`](../glossary.md#term-exact-test), [`independence`](../glossary.md#term-independence), [`odds-ratio`](../glossary.md#term-odds-ratio), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `fisher.test` — tolerance 1e-10 relative; `internal/processing/test_fisher_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-fisher-exact`](../skills/op-test-fisher-exact.md)
 
@@ -389,6 +448,13 @@ Checks whether several numeric fields, taken together as one profile, differ fro
 - [`TEST_WELCH`](#op-test_welch) when you want each field compared on its own.
 
 **Glossary:** [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`f-statistic`](../glossary.md#term-f-statistic), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`mean`](../glossary.md#term-mean), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Validated against:**
+
+- R 4.6.1 `Hotelling::hotelling.test` — tolerance 1e-10 relative; `internal/processing/test_hotelling_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-hotelling-t2`](../skills/op-test-hotelling-t2.md)
 
@@ -430,6 +496,13 @@ Measures how often pairs of rows agree in order on two numeric fields: a rank-ba
 - [`REG_OLS`](regression.md#op-reg_ols) when the link looks roughly straight and you want to predict one field from the other.
 
 **Glossary:** [`correlation`](../glossary.md#term-correlation), [`independence`](../glossary.md#term-independence), [`kendall-tau`](../glossary.md#term-kendall-tau), [`monotonic-trend`](../glossary.md#term-monotonic-trend), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `cor.test(method = "kendall")` — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-kendall-tau`](../skills/op-test-kendall-tau.md)
 
@@ -473,6 +546,15 @@ Rank-based check of whether values tend to be larger in some groups than in othe
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`epsilon-squared`](../glossary.md#term-epsilon-squared), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- R 4.6.1 `kruskal.test` help examples (effect size) — tolerance 1e-9 relative; `internal/processing/test_effect_size_rank_test.go`, `internal/processing/test_nonparametric_test.go`
+
+**Validation gap:** The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-kruskal-wallis`](../skills/op-test-kruskal-wallis.md)
 
 <a id="op-test_ks"></a>
@@ -510,6 +592,13 @@ Checks whether a numeric field's values follow the same distribution in two grou
 - [`OVERLAY_KS_VS_POP`](overlay.md#op-overlay_ks_vs_pop) when you compare a subgroup with the whole population.
 
 **Glossary:** [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`statistical-power`](../glossary.md#term-statistical-power), [`statistical-significance`](../glossary.md#term-statistical-significance), [`test-statistic`](../glossary.md#term-test-statistic), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `ks.test` (exact `psmirnov`) — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-ks`](../skills/op-test-ks.md)
 
@@ -549,6 +638,15 @@ Rank-based check of whether values in one of two groups tend to be larger than i
 
 **Glossary:** [`continuity-correction`](../glossary.md#term-continuity-correction), [`independence`](../glossary.md#term-independence), [`median`](../glossary.md#term-median), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`rank-biserial`](../glossary.md#term-rank-biserial), [`test-statistic`](../glossary.md#term-test-statistic), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- R 4.6.1 `wilcox.test` help examples (effect size) — tolerance 1e-9 relative; `internal/processing/test_effect_size_rank_test.go`, `internal/processing/test_nonparametric_test.go`
+
+**Validation gap:** The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-mann-whitney-u`](../skills/op-test-mann-whitney-u.md)
 
 <a id="op-test_manova"></a>
@@ -587,6 +685,13 @@ Checks whether several numeric fields, taken together as one profile, differ acr
 
 **Glossary:** [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`eigenvalue`](../glossary.md#term-eigenvalue), [`f-statistic`](../glossary.md#term-f-statistic), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`mean`](../glossary.md#term-mean), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`test-statistic`](../glossary.md#term-test-statistic)
 
+**Validated against:**
+
+- R 4.6.1 `manova` with `summary.manova` — tolerance 1e-10 relative; `internal/processing/test_manova_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-manova`](../skills/op-test-manova.md)
 
 <a id="op-test_mardia"></a>
@@ -622,6 +727,13 @@ Checks whether a set of numeric fields looks jointly normal, through their combi
 - [`TEST_BOX_M`](#op-test_box_m) when you want whether the groups share one covariance.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`covariance`](../glossary.md#term-covariance), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`kurtosis`](../glossary.md#term-kurtosis), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`skew`](../glossary.md#term-skew), [`test-statistic`](../glossary.md#term-test-statistic)
+
+**Validated against:**
+
+- R 4.6.1 Mardia skewness and kurtosis — tolerance 1e-10 relative; `internal/processing/test_mardia_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-mardia`](../skills/op-test-mardia.md)
 
@@ -660,6 +772,13 @@ Checks whether the average change between two measurements of the same rows, suc
 - [`TEST_ANOVA_RM`](#op-test_anova_rm) when each subject is measured under three or more conditions.
 
 **Glossary:** [`cohens-d`](../glossary.md#term-cohens-d), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`paired-data`](../glossary.md#term-paired-data), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `t.test(paired = TRUE)` — tolerance 1e-10 relative; `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-paired-t`](../skills/op-test-paired-t.md)
 
@@ -706,6 +825,13 @@ Measures how strongly two numeric fields rise and fall together along a straight
 
 **Glossary:** [`confidence-interval`](../glossary.md#term-confidence-interval), [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`outlier`](../glossary.md#term-outlier), [`p-value`](../glossary.md#term-p-value), [`r-squared`](../glossary.md#term-r-squared), [`standard-deviation`](../glossary.md#term-standard-deviation)
 
+**Validated against:**
+
+- R 4.6.1 `cor.test` — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`, `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-pearson-r`](../skills/op-test-pearson-r.md)
 
 <a id="op-test_prop_z"></a>
@@ -742,6 +868,13 @@ Checks whether the rate of one outcome, such as conversion, differs between two 
 - [`TEST_WELCH`](#op-test_welch) when the outcome is a numeric measure rather than a yes/no rate.
 
 **Glossary:** [`cohens-h`](../glossary.md#term-cohens-h), [`confidence-interval`](../glossary.md#term-confidence-interval), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed), [`z-score`](../glossary.md#term-z-score)
+
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- textbook worked example — tolerance 1e-9 relative; `internal/processing/test_parametric_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-prop-z`](../skills/op-test-prop-z.md)
 
@@ -785,6 +918,14 @@ Checks whether a numeric field looks normally distributed, overall or within eac
 
 **Glossary:** [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`kurtosis`](../glossary.md#term-kurtosis), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`skew`](../glossary.md#term-skew), [`statistical-power`](../glossary.md#term-statistical-power), [`statistical-significance`](../glossary.md#term-statistical-significance), [`test-statistic`](../glossary.md#term-test-statistic)
 
+**Validated against:**
+
+- R 4.6.1 `nortest::sf.test` (Shapiro–Francia) — tolerance 1e-10 relative; `internal/processing/test_undefined_oracle_test.go`
+
+**Validation gap:** No weighted reference.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-shapiro-wilk`](../skills/op-test-shapiro-wilk.md)
 
 <a id="op-test_spearman_r"></a>
@@ -827,6 +968,13 @@ Measures how consistently one numeric field rises (or falls) as the other rises,
 
 **Glossary:** [`correlation`](../glossary.md#term-correlation), [`independence`](../glossary.md#term-independence), [`monotonic-trend`](../glossary.md#term-monotonic-trend), [`outlier`](../glossary.md#term-outlier), [`p-value`](../glossary.md#term-p-value), [`rank`](../glossary.md#term-rank), [`spearman-rho`](../glossary.md#term-spearman-rho), [`ties`](../glossary.md#term-ties)
 
+**Validated against:**
+
+- R 4.6.1 `cor.test(method = "spearman")` (exact AS 89) — tolerance 1e-12 relative; `internal/processing/test_nonparametric_test.go`, `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-spearman-r`](../skills/op-test-spearman-r.md)
 
 <a id="op-test_t"></a>
@@ -868,6 +1016,15 @@ Checks whether a numeric field's average differs from a target value, or between
 
 **Glossary:** [`cohens-d`](../glossary.md#term-cohens-d), [`confidence-interval`](../glossary.md#term-confidence-interval), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- scipy `ttest_ind` — tolerance 1e-3 absolute; `internal/processing/test_t_test.go`
+
+**Validation gap:** The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-t`](../skills/op-test-t.md)
 
 <a id="op-test_trend"></a>
@@ -906,6 +1063,12 @@ Checks whether an ordered series, such as monthly totals, tends to keep rising o
 
 **Glossary:** [`independence`](../glossary.md#term-independence), [`kendall-tau`](../glossary.md#term-kendall-tau), [`monotonic-trend`](../glossary.md#term-monotonic-trend), [`non-parametric`](../glossary.md#term-non-parametric), [`p-value`](../glossary.md#term-p-value), [`test-statistic`](../glossary.md#term-test-statistic), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall` — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-trend`](../skills/op-test-trend.md)
 
 <a id="op-test_tukey_hsd"></a>
@@ -943,6 +1106,12 @@ After an ANOVA, compares every pair of group averages to find which ones differ,
 - [`TEST_MANN_WHITNEY_U`](#op-test_mann_whitney_u) when the measure is heavily skewed or only ordered: run pairwise Mann-Whitney tests with multiplicity set on the request to adjust for multiple comparisons.
 
 **Glossary:** [`alpha`](../glossary.md#term-alpha), [`family-wise-error`](../glossary.md#term-family-wise-error), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`p-value`](../glossary.md#term-p-value), [`post-hoc-test`](../glossary.md#term-post-hoc-test), [`studentized-range`](../glossary.md#term-studentized-range)
+
+**Validated against:**
+
+- R 4.6.1 `TukeyHSD`, `ptukey` refined by quadrature — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-tukey-hsd`](../skills/op-test-tukey-hsd.md)
 
@@ -984,6 +1153,15 @@ Checks whether the average of a numeric field differs between two groups, withou
 
 **Glossary:** [`cohens-d`](../glossary.md#term-cohens-d), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- scipy `ttest_ind(equal_var = False)` — tolerance 1e-3 absolute; `internal/processing/test_t_test.go`
+
+**Validation gap:** The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-test-welch`](../skills/op-test-welch.md)
 
 <a id="op-test_wilcoxon_sr"></a>
@@ -1020,6 +1198,13 @@ Rank-based check of whether paired before/after values tend to shift in one dire
 - [`TEST_PAIRED_T`](#op-test_paired_t) when the per-row differences are roughly normal and you want the average change.
 
 **Glossary:** [`continuity-correction`](../glossary.md#term-continuity-correction), [`independence`](../glossary.md#term-independence), [`non-parametric`](../glossary.md#term-non-parametric), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`paired-data`](../glossary.md#term-paired-data), [`rank`](../glossary.md#term-rank), [`rank-biserial`](../glossary.md#term-rank-biserial), [`test-statistic`](../glossary.md#term-test-statistic), [`ties`](../glossary.md#term-ties), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `wilcox.test(paired = TRUE)` — tolerance 1e-10 relative; `internal/processing/test_post_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-wilcoxon-sr`](../skills/op-test-wilcoxon-sr.md)
 
@@ -1058,5 +1243,13 @@ Large-sample check of whether two groups differ in average, with the p-value rea
 - [`TEST_PAIRED_T`](#op-test_paired_t) when the same subjects are measured twice.
 
 **Glossary:** [`independence`](../glossary.md#term-independence), [`normal-distribution`](../glossary.md#term-normal-distribution), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`standard-error`](../glossary.md#term-standard-error), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance), [`z-score`](../glossary.md#term-z-score)
+
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** No unweighted external golden; the unweighted path is checked against Pulse's own Welch test.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-test-z-two-sample`](../skills/op-test-z-two-sample.md)

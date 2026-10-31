@@ -53,6 +53,13 @@ Fits a straight-line model of a numeric outcome under a prior, reporting each co
 
 **Glossary:** [`credible-interval`](../glossary.md#term-credible-interval), [`heteroscedasticity`](../glossary.md#term-heteroscedasticity), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`multicollinearity`](../glossary.md#term-multicollinearity), [`normal-distribution`](../glossary.md#term-normal-distribution), [`posterior`](../glossary.md#term-posterior), [`prior`](../glossary.md#term-prior), [`r-squared`](../glossary.md#term-r-squared), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`residual`](../glossary.md#term-residual)
 
+**Validated against:**
+
+- R 4.6.1 matrix algebra for the normal-inverse-gamma posterior — tolerance 1e-10 relative; `internal/processing/regression/bayes_reference_test.go`, `internal/processing/regression/bayes_precision_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-reg-bayes-linear`](../skills/op-reg-bayes-linear.md)
 
 <a id="op-reg_glm"></a>
@@ -96,6 +103,17 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 
 **Glossary:** [`deviance`](../glossary.md#term-deviance), [`generalized-linear-model`](../glossary.md#term-generalized-linear-model), [`independence`](../glossary.md#term-independence), [`link-function`](../glossary.md#term-link-function), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`logistic-regression`](../glossary.md#term-logistic-regression), [`multicollinearity`](../glossary.md#term-multicollinearity), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`odds-ratio`](../glossary.md#term-odds-ratio), [`overdispersion`](../glossary.md#term-overdispersion), [`p-value`](../glossary.md#term-p-value), [`pseudo-r-squared`](../glossary.md#term-pseudo-r-squared), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`skew`](../glossary.md#term-skew), [`standard-error`](../glossary.md#term-standard-error)
 
+**Validated against:**
+
+- R 4.6.1 `glm` (binomial-logit, poisson-log, gamma-inverse) — tolerance 1e-10 relative; `internal/processing/regression/glm_irls_test.go`, `internal/processing/regression/glm_gamma_oracle_test.go`
+- R 4.6.1 `glmnet` (penalties) — tolerance 1e-10 relative; `internal/processing/regression/glm_penalty_test.go`
+- R 4.6.1 `sandwich` (robust standard errors; vcov) — tolerance 1e-11 relative; `internal/service/regression_covariance_glm_test.go`, `internal/service/regression_vcov_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** Only the canonical link of each family is implemented, so only those are validated.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-reg-glm`](../skills/op-reg-glm.md)
 
 <a id="op-reg_mmm_bayes"></a>
@@ -131,6 +149,14 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 - [`REG_MMM_HILL`](#op-reg_mmm_hill) when a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised.
 
 **Glossary:** [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`regression-coefficient`](../glossary.md#term-regression-coefficient)
+
+**Validated against:**
+
+- synthetic data with known true parameters (internal/mmmfixture) — tolerance parameter recovery; `internal/regmmm/bayes_test.go`
+
+**Validation gap:** No external reference implementation; the fit is checked by recovering known parameters only.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-reg-mmm-bayes`](../skills/op-reg-mmm-bayes.md)
 
@@ -168,6 +194,14 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 - [`REG_OLS`](#op-reg_ols) when the outcome moves in a straight line with spend, with no saturation.
 
 **Glossary:** [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`standard-error`](../glossary.md#term-standard-error)
+
+**Validated against:**
+
+- synthetic data with known true parameters (internal/mmmfixture) — tolerance 0.5% to 15% relative, per parameter; `internal/regmmm/hill_test.go`
+
+**Validation gap:** No external reference implementation; the fit is checked by recovering known parameters only.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-reg-mmm-hill`](../skills/op-reg-mmm-hill.md)
 
@@ -214,5 +248,14 @@ Fits a straight-line model that predicts a numeric outcome from one or more nume
 - [`ATTR_REG_RESIDUAL`](attribute.md#op-attr_reg_residual) when you want each row's residual, to check the residual assumptions or find rows the model fits badly.
 
 **Glossary:** [`adjusted-r-squared`](../glossary.md#term-adjusted-r-squared), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`heteroscedasticity`](../glossary.md#term-heteroscedasticity), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`multicollinearity`](../glossary.md#term-multicollinearity), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`outlier`](../glossary.md#term-outlier), [`overfitting`](../glossary.md#term-overfitting), [`p-value`](../glossary.md#term-p-value), [`r-squared`](../glossary.md#term-r-squared), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`residual`](../glossary.md#term-residual), [`standard-error`](../glossary.md#term-standard-error)
+
+**Validated against:**
+
+- R 4.6.1 `lm` — tolerance 1e-10 relative; `internal/processing/regression/ols_lm_reference_test.go`
+- R 4.6.1 `glmnet` (penalties), `nnls` (non-negative) — tolerance 1e-10 relative; `internal/processing/regression/ols_penalty_reference_test.go`, `internal/processing/regression/ols_nnls_reference_test.go`
+- R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov) — tolerance 1e-10 relative; `internal/service/regression_covariance_test.go`, `internal/service/regression_vcov_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-reg-ols`](../skills/op-reg-ols.md)

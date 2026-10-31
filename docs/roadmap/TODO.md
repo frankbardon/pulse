@@ -829,3 +829,28 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#177** New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`) · [U33](units/U33-v1-release.md)
 - [ ] **#178** CLAUDE.md stays at or under 40,000 bytes (long form moved to `.claude/reference/`; ceiling lowered 50,000 → 40,000 in U18) · [U33](units/U33-v1-release.md)
 - [ ] **#179** `format_version` remains `"1.1"` (every wire change additive) · [U33](units/U33-v1-release.md)
+
+---
+
+## 14. Trust & regression depth ([U64](units/U64-reference-validation.md), [U65](units/U65-regression-depth.md))
+
+- [x] **#588** The book's "How Pulse is validated" page and a "Validated against" list on every inferential operator's catalog entry, generated from a gated registry · [U64](units/U64-reference-validation.md)
+- [ ] **#589** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it · [U64](units/U64-reference-validation.md)
+- [ ] **#590** The registry gate checks that a cited test actually exercises the operator · [U64](units/U64-reference-validation.md)
+- [ ] **#591** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` · [U64](units/U64-reference-validation.md)
+- [ ] **#592** R goldens for the unweighted chi-square overlays; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` · [U64](units/U64-reference-validation.md)
+- [ ] **#593** NIST StRD linear regression, one-way ANOVA and univariate goldens with the certified LRE per dataset published · [U64](units/U64-reference-validation.md)
+- [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective · [U64](units/U64-reference-validation.md)
+- [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded simulation-based calibration harness · [U64](units/U64-reference-validation.md)
+- [ ] **#596** Studio shows each operator's validation in the inspector (pulse-studio) · [U64](units/U64-reference-validation.md)
+- [ ] **#597** Studio's own arithmetic (Stat test, Fit statistics nodes) in a Studio validation table (pulse-studio) · [U64](units/U64-reference-validation.md)
+- [ ] **#598** GLM and Bayesian-linear fits score `ATTR_REG_FITTED` / `ATTR_REG_RESIDUAL` / `ATTR_REG_LEVERAGE` · [U65](units/U65-regression-depth.md)
+- [ ] **#599** Per-row influence diagnostics: standardized and studentized residuals, Cook's distance, DFFITS · [U65](units/U65-regression-depth.md)
+- [ ] **#600** The non-canonical GLM links already named in the spec are implemented, not refused · [U65](units/U65-regression-depth.md)
+- [ ] **#601** Negative binomial family (NB2) for over-dispersed counts (pending U65 D2) · [U65](units/U65-regression-depth.md)
+- [ ] **#602** Average marginal effects and marginal effects at the mean, honouring the chosen `Covariance` · [U65](units/U65-regression-depth.md)
+- [ ] **#603** VIF and tolerance on the regression result · [U65](units/U65-regression-depth.md)
+- [ ] **#604** Nested-model comparison: F (OLS), likelihood-ratio and Wald (GLM) · [U65](units/U65-regression-depth.md)
+- [ ] **#605** Ordinal logistic regression with a proportional-odds check · [U65](units/U65-regression-depth.md)
+- [ ] **#606** Multinomial logistic regression · [U65](units/U65-regression-depth.md)
+- [ ] **#607** Studio regression editors and diagnostics charts (pulse-studio) · [U65](units/U65-regression-depth.md)
