@@ -382,3 +382,56 @@ func TestFacetWithOverlays_MultiFieldRequiresParamsField(t *testing.T) {
 		t.Errorf("unexpected error shape: %v", err)
 	}
 }
+
+// TestFacetWithOverlays_ChiSqVsPopMissingCategoryObservedZero runs E1-S2
+// end to end: the subset filters out "d", so its facet listing is
+// complete (truncated_at 0) without d, and OVERLAY_CHISQ_VS_POP compares
+// d at observed 0 — R chisq.test(c(30,30,30,0), p = c(.3,.3,.3,.1))
+// gives X-squared 10 on 3 df. discrete_top_k 3 still lists every subset
+// value (no truncation), so the result is the same; discrete_top_k 2
+// truncates the listing to {a, b} and the comparison stays over the
+// listed values (X-squared 0 on 1 df), since c is cut, not absent.
+func TestFacetWithOverlays_ChiSqVsPopMissingCategoryObservedZero(t *testing.T) {
+	t.Parallel()
+	svc, path := buildFacetOverlayCohort(t)
+	run := func(topK int) types.OverlayLayer {
+		t.Helper()
+		res, err := svc.FacetSchema(context.Background(), &types.FacetRequest{
+			Cohort:       &types.Cohort{Filename: path},
+			Fields:       []string{"category"},
+			DiscreteTopK: topK,
+			Filterers: []*types.Filterer{
+				{Type: types.FILTER_EXCLUDE, Field: "category", Values: []string{"d"}},
+			},
+			Overlays: []types.OverlaySpec{{
+				Kind:  types.OverlayKindChiSqVsPop,
+				Scope: types.OverlayScopeGroup,
+				Ref:   types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: path}},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("FacetSchema(top_k %d): %v", topK, err)
+		}
+		if len(res.Overlays) != 1 || res.Overlays[0].Summary == nil || res.Overlays[0].Summary.Statistic == nil {
+			t.Fatalf("top_k %d: want one χ² layer with a statistic, got %+v", topK, res.Overlays)
+		}
+		return res.Overlays[0]
+	}
+	for _, tc := range []struct {
+		topK     int
+		wantStat float64
+		wantDF   float64
+	}{
+		{0, 10, 3},
+		{3, 10, 3},
+		{2, 0, 1},
+	} {
+		layer := run(tc.topK)
+		if got := *layer.Summary.Statistic; math.Abs(got-tc.wantStat) > 1e-9 {
+			t.Errorf("top_k %d: statistic = %v, want %v", tc.topK, got, tc.wantStat)
+		}
+		if got := layer.Summary.Parameters["df"]; got != tc.wantDF {
+			t.Errorf("top_k %d: df = %v, want %v", tc.topK, got, tc.wantDF)
+		}
+	}
+}

@@ -84,7 +84,7 @@
       "OVERLAY_KS_VS_POP carries no alpha of its own unless it is adjusted, so its p-values are read here against 0.05.",
       "OVERLAY_CHISQ_VS_POP: The subset's figures are counts of independent rows.",
       "OVERLAY_CHISQ_VS_POP: The null hypothesis is that the subset's mix matches the population's. The population mix is treated as known and fixed; when the subset is a large part of the population the two overlap and the p-value is only approximate.",
-      "OVERLAY_CHISQ_VS_POP: Only categories both sides show are compared, and the population's shares are rescaled over them, so population nulls and categories cut from a top-K listing do not distort the expected counts.",
+      "OVERLAY_CHISQ_VS_POP: Every population category is compared, one the subset lacks counted at 0, and the population's shares are rescaled over the compared categories so population nulls do not distort the expected counts. When discrete_top_k cuts the subset's listing, only the listed categories are compared.",
       "OVERLAY_CHISQ_VS_POP: With a very large subset even tiny differences in mix give small p-values; read an OVERLAY_INDEX_VS_POP layer on the same facet for how big each category's shift is.",
       "OVERLAY_CHISQ_VS_POP: Every expected count should be about 5 or more; a warning flags layers where some are lower.",
       "OVERLAY_KS_VS_POP: The curves are rebuilt from histograms or percentiles, not raw values: request matching histograms (or percentiles) on both arms. With matching histograms, coarse bins understate the gap and make the test conservative. When Pulse falls back to percentiles it interpolates between them, so D can come out too large or too small and the p-value has no guaranteed direction; prefer matching histograms.",
@@ -97,4 +97,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 22aadcdd8a0361871c00596910dbf687089880b7866a55a2f2f23a0efb7385ef
+// golden-hash: 227535cb502585ca40ed6eebc89d7b1f3e7902244777ad018db4640352adae31

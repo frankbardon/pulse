@@ -7,11 +7,12 @@
   },
   "primitive": "OVERLAY_CHISQ_VS_POP",
   "r_function": "chisq.test(x[C], p = pop[C], rescale.p = TRUE)",
-  "note": "C = the subset values whose population count is positive.",
+  "note": "C = the subset values whose population count is positive, plus (when the subset listing is complete, truncated_at 0) every population category the subset lacks, observed 0.",
   "cases": [
     {
       "name": "four_category",
       "note": "the canonical known answer: X-squared = 7.5 on 3 df",
+      "truncated_at": 0,
       "subset_values": ["a", "b", "c", "d"],
       "subset_counts": [
         30,
@@ -35,6 +36,7 @@
     {
       "name": "subset_value_absent",
       "note": "z is outside C (the population never shows it); shares renormalise over a, b, c",
+      "truncated_at": 0,
       "subset_values": ["a", "b", "c", "z"],
       "subset_counts": [
         30,
@@ -57,6 +59,7 @@
     {
       "name": "low_expected",
       "note": "an expected count below 5 (4): the statistic still stands beside the warning",
+      "truncated_at": 0,
       "subset_values": ["a", "b", "c"],
       "subset_counts": [
         50,
@@ -78,6 +81,7 @@
     {
       "name": "two_category",
       "note": "one df",
+      "truncated_at": 0,
       "subset_values": ["a", "b"],
       "subset_counts": [
         7,
@@ -97,6 +101,7 @@
     {
       "name": "far_tail",
       "note": "X-squared = 490 on 2 df: p near 1e-107, the survival tail",
+      "truncated_at": 0,
       "subset_values": ["a", "b", "c"],
       "subset_counts": [
         400,
@@ -114,7 +119,53 @@
       "df": 2,
       "p_value": 3.961429521341682e-107,
       "expected_min": 166.66666666666666
+    },
+    {
+      "name": "pop_value_absent",
+      "note": "d is missing from a complete subset listing: it enters C with observed 0 (3 df)",
+      "truncated_at": 0,
+      "subset_values": ["a", "b", "c"],
+      "subset_counts": [
+        30,
+        25,
+        15
+      ],
+      "pop_values": ["a", "b", "c", "d"],
+      "pop_counts": [
+        40,
+        30,
+        20,
+        10
+      ],
+      "compared": ["a", "b", "c", "d"],
+      "statistic": 7.9761904761904763,
+      "df": 3,
+      "p_value": 0.046506348194761821,
+      "expected_min": 7
+    },
+    {
+      "name": "pop_value_absent_truncated",
+      "note": "the subset listing is cut by DiscreteTopK: d is unlisted, not observed 0, so C = a, b, c (2 df)",
+      "truncated_at": 1,
+      "subset_values": ["a", "b", "c"],
+      "subset_counts": [
+        30,
+        25,
+        15
+      ],
+      "pop_values": ["a", "b", "c", "d"],
+      "pop_counts": [
+        40,
+        30,
+        20,
+        10
+      ],
+      "compared": ["a", "b", "c"],
+      "statistic": 0.17857142857142871,
+      "df": 2,
+      "p_value": 0.91458422646193904,
+      "expected_min": 15.555555555555555
     }
   ]
 }
-// golden-hash: a1fdd50480fc9d367cda8cacb0069725adab03a36f018f7fc3ff71f87e9a1887
+// golden-hash: c97a61a040af792ab8bca5df4e9b84db4a871ab8b53a5c2a6acc58b4de429b24
