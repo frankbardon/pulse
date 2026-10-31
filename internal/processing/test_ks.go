@@ -136,6 +136,7 @@ func (k *ksRow) Finalize() (*types.TestResult, error) {
 		},
 	}
 	k.noteGroupSums(res.Details, []float64{sa.sumW, sb.sumW}, []float64{sa.sumWSq, sb.sumWSq})
+	res.Warnings = append(res.Warnings, ksTiesWarnings(a, wa, b, wb)...)
 	return res, nil
 }
 

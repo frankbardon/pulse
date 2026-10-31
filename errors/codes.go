@@ -1131,8 +1131,9 @@ const (
 	// pair count differs from the input row count.
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
 
-	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
-	// ties on ≥ 50 % of the input values. The test then mostly compares
+	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test — or TEST_KS
+	// on its asymptotic branch (n₁·n₂ ≥ 10000) — observed ties on ≥ 50 %
+	// of the (pooled) input values. The test then mostly compares
 	// the share of tied values, not their order, and the asymptotic
 	// normal / chi-square approximation used for the p-value loses
 	// accuracy; consider an exact-permutation variant when the count

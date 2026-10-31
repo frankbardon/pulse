@@ -1791,7 +1791,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_TIES_DOMINATE: {
-		Message: "A rank-based test observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
+		Message: "A rank-based test, or a two-sample distribution test on its asymptotic p, observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
