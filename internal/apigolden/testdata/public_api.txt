@@ -3763,8 +3763,10 @@ pulse/linalg: type Vec method (*Vec) Slice() []float64
 pulse/linalg/detmath: package detmath
 pulse/linalg/detmath: func Asin(x float64) float64
 pulse/linalg/detmath: func Atan2(y float64, x float64) float64
+pulse/linalg/detmath: func Atanh(x float64) float64
 pulse/linalg/detmath: func Cos(x float64) float64
 pulse/linalg/detmath: func Erf(x float64) float64
+pulse/linalg/detmath: func Erfc(x float64) float64
 pulse/linalg/detmath: func Erfinv(x float64) float64
 pulse/linalg/detmath: func Exp(x float64) float64
 pulse/linalg/detmath: func ExpFloat64(r *math/rand/v2.Rand) float64
@@ -3776,6 +3778,7 @@ pulse/linalg/detmath: func NormFloat64(r *math/rand/v2.Rand) float64
 pulse/linalg/detmath: func Pow(x float64, y float64) float64
 pulse/linalg/detmath: func Sin(x float64) float64
 pulse/linalg/detmath: func Tan(x float64) float64
+pulse/linalg/detmath: func Tanh(x float64) float64
 pulse/linalg/metric: package metric
 pulse/linalg/metric: func Accepted(c pulse/linalg/metric.Consumer) []string
 pulse/linalg/metric: func Accepts(c pulse/linalg/metric.Consumer, name string) bool
@@ -6460,4 +6463,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b7675b0dddd51805da1c8a68f1d7d558d7be80095329ec8f1aa9cd2d54b74587
+// golden-hash: aff89158a22946901e8a92eab2b42220f7a2fc7a20d3cd56d5ef194da393512c
