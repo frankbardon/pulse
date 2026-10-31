@@ -40,6 +40,9 @@ type anovaWelchRow struct {
 	groups map[string]*weighting.Welford
 	order  []string
 
+	// shift: buckets accumulate v − origin (test_origin_shift.go).
+	shift originShift
+
 	// testWeight: weighted, each group's moments are read on its own
 	// w* (N*_j), so v_j = N*_j/s_j² and the tail sum reads N*_j − 1.
 	testWeight
@@ -99,7 +102,7 @@ func (a *anovaWelchRow) UpdateRow(record *Record) error {
 		a.groups[key] = b
 		a.order = append(a.order, key)
 	}
-	b.Add(v, w)
+	b.Add(a.shift.of(v), w)
 	return nil
 }
 
@@ -145,6 +148,12 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 		weightedMean += weights[i] * means[i]
 	}
 	weightedMean /= W
+	// means and weightedMean stay shifted for the arithmetic; the
+	// reported levels add the origin back.
+	levels := make([]float64, k)
+	for i := range means {
+		levels[i] = a.shift.level(means[i])
+	}
 	var num, tailSum float64
 	for i := range k {
 		diff := means[i] - weightedMean
@@ -171,10 +180,10 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 		Details: map[string]any{
 			"groups":          keys,
 			"n":               ns,
-			"group_means":     means,
+			"group_means":     levels,
 			"group_variances": vars_,
 			"weights":         weights,
-			"weighted_mean":   weightedMean,
+			"weighted_mean":   a.shift.level(weightedMean),
 			"df_between":      df1,
 			"df_within":       df2,
 		},
@@ -194,4 +203,5 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 func (a *anovaWelchRow) reset() {
 	a.groups = make(map[string]*weighting.Welford)
 	a.order = nil
+	a.shift.reset()
 }

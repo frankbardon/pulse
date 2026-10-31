@@ -52,7 +52,13 @@ type tTestRow struct {
 	// groups holds per-key weighted Welford state in first-seen
 	// insertion order so Finalize can return groups deterministically.
 	groups map[string]*weighting.Welford
-	order  []string
+
+	// shift: the one-sample group accumulates v − origin
+	// (test_origin_shift.go). The two-sample groups stay unshifted on
+	// purpose: TEST_T / TEST_WELCH are byte-equal with OVERLAY_T_CELL /
+	// OVERLAY_T_VS_REF, which fold unshifted AGG_WELFORD cells (#612).
+	shift originShift
+	order []string
 
 	// testWeight is the slot's stamped weight: unweighted every row
 	// weighs 1; weighted, each group's moments are read on w* (N*_g).
@@ -221,6 +227,9 @@ func (tt *tTestRow) UpdateRow(record *Record) error {
 		tt.groups[key] = b
 		tt.order = append(tt.order, key)
 	}
+	if tt.one {
+		v = tt.shift.of(v)
+	}
 	b.Add(v, w)
 	return nil
 }
@@ -240,6 +249,7 @@ func (tt *tTestRow) Finalize() (*types.TestResult, error) {
 func (tt *tTestRow) reset() {
 	tt.groups = make(map[string]*weighting.Welford)
 	tt.order = nil
+	tt.shift.reset()
 	tt.cuped.reset()
 }
 
@@ -260,17 +270,21 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	if variance == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_T one-sample: sample variance is zero",
-			map[string]any{"n": b.N, "mean": b.Mean})
+			map[string]any{"n": b.N, "mean": tt.shift.level(b.Mean)})
 	}
 	nStar := b.NStar(tt.basis)
 	sd := math.Sqrt(variance)
 	se := sd / math.Sqrt(nStar)
-	tstat := (b.Mean - tt.mu) / se
+	// The deviation from mu is read on the shifted scale: mu − origin
+	// is exact when mu is near the data (Sterbenz), the usual case.
+	mean := tt.shift.level(b.Mean)
+	dev := b.Mean - (tt.mu - tt.shift.origin)
+	tstat := dev / se
 	df := nStar - 1
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
-	ciLow := b.Mean - tcrit*se
-	ciHigh := b.Mean + tcrit*se
+	ciLow := mean - tcrit*se
+	ciHigh := mean + tcrit*se
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       types.TEST_T,
@@ -283,13 +297,13 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 		Details: map[string]any{
 			"mu":       tt.mu,
 			"n":        b.N,
-			"mean":     b.Mean,
+			"mean":     mean,
 			"variance": variance,
 			"ci_low":   ciLow,
 			"ci_high":  ciHigh,
 		},
 	}
-	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.Mean, tt.mu, sd))
+	setEffectSize(res.Details, "cohens_d", cohensDOneSample(dev, 0, sd))
 	tt.noteScalar(res.Details, b.SumW, b.SumWSq)
 	tt.checkNEff(tt.spec, false, "", b.NEff(), 2)
 	return res, nil

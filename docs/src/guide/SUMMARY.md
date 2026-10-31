@@ -34,6 +34,7 @@
     - [Reading descriptive results](reading/descriptive.md)
     - [Reading the components](reading/components.md)
   - [Glossary](glossary.md)
+  - [How Pulse is validated](validation.md)
   - [Skills](skills.md)
     - [aggregation-design](skills/aggregation-design.md)
     - [attribute-composition](skills/attribute-composition.md)

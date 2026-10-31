@@ -95,6 +95,14 @@ Chi-square test per crosstab column: checks whether each column's spread across 
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** The unweighted path has internal checks only; the R pin is the frequency-weighted reference.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-chisq-col`](../skills/op-overlay-chisq-col.md)
 
 <a id="op-overlay_chisq_matrix"></a>
@@ -139,6 +147,14 @@ Chi-square test on a whole crosstab: checks whether the row and column categorie
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** The unweighted path has internal checks only; the R pin is the frequency-weighted reference.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-chisq-matrix`](../skills/op-overlay-chisq-matrix.md)
 
 <a id="op-overlay_chisq_row"></a>
@@ -174,6 +190,14 @@ Chi-square test per crosstab row: checks whether each row's spread across the co
 - [`OVERLAY_FISHER_EXACT_CELL`](#op-overlay_fisher_exact_cell) when you want to know which single cells stand out.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value)
+
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** The unweighted path has internal checks only; the R pin is the frequency-weighted reference.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-chisq-row`](../skills/op-overlay-chisq-row.md)
 
@@ -212,6 +236,12 @@ Chi-square goodness-of-fit test on a facet: checks whether a subset's category m
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`index-value`](../glossary.md#term-index-value), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size)
 
+**Validated against:**
+
+- R 4.6.1 `chisq.test` — tolerance 1e-10 relative; `internal/processing/overlay_reference_oracle_test.go`, `internal/processing/overlay_chisq_vs_pop_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-chisq-vs-pop`](../skills/op-overlay-chisq-vs-pop.md)
 
 <a id="op-overlay_chisq_vs_ref"></a>
@@ -248,6 +278,13 @@ Chi-square test in a Compose request: checks whether a target request's crosstab
 - [`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of each cell's change.
 
 **Glossary:** [`baseline`](../glossary.md#term-baseline), [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value)
+
+**Validated against:**
+
+- R 4.6.1 `chisq.test` — tolerance 1e-10 relative; `internal/processing/overlay_reference_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-chisq-vs-ref`](../skills/op-overlay-chisq-vs-ref.md)
 
@@ -529,6 +566,13 @@ Fisher's exact test for every crosstab cell: checks whether being in that row go
 - [`TEST_FISHER_EXACT`](test.md#op-test_fisher_exact) when you only have one 2x2 table of raw rows.
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`exact-test`](../glossary.md#term-exact-test), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `fisher.test` — tolerance 1e-10 relative; `internal/processing/overlay_reference_oracle_test.go`, `internal/processing/overlay_fisher_exact_cell_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-fisher-exact-cell`](../skills/op-overlay-fisher-exact-cell.md)
 
@@ -906,6 +950,12 @@ Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distributi
 
 **Glossary:** [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`independence`](../glossary.md#term-independence), [`non-parametric`](../glossary.md#term-non-parametric), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`percentile`](../glossary.md#term-percentile), [`statistical-power`](../glossary.md#term-statistical-power), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 `ks.test` / `psmirnov` — tolerance 1e-10 relative; `internal/processing/overlay_reference_oracle_test.go`, `internal/processing/overlay_ks_vs_pop_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-ks-vs-pop`](../skills/op-overlay-ks-vs-pop.md)
 
 <a id="op-overlay_markov"></a>
@@ -1013,6 +1063,14 @@ Pairwise t-tests on probit-transformed shares between rows (or columns) of one c
 
 **Glossary:** [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`probit`](../glossary.md#term-probit), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 evaluation of the design formula — tolerance 1e-10 relative; `internal/processing/overlay_reference_oracle_test.go`
+
+**Validation gap:** No stock implementation exists to compare with; the reference evaluates the published formula.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-pairwise-probit-t`](../skills/op-overlay-pairwise-probit-t.md)
 
 <a id="op-overlay_pairwise_prop_z"></a>
@@ -1048,6 +1106,13 @@ Two-proportion z-tests between every pair of rows (or columns) of one crosstab, 
 - [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want one overall test of whether the rows differ at all.
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `prop.test(correct = FALSE)` — tolerance 1e-10 relative; `internal/processing/overlay_pairwise_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-pairwise-prop-z`](../skills/op-overlay-pairwise-prop-z.md)
 
@@ -1085,6 +1150,12 @@ Large-sample z-tests between every pair of rows (or columns) of one crosstab of 
 
 **Glossary:** [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`standard-error`](../glossary.md#term-standard-error), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 `pnorm` on the Welch standard error — tolerance 1e-10 relative; `internal/processing/overlay_pairwise_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-pairwise-two-means-z`](../skills/op-overlay-pairwise-two-means-z.md)
 
 <a id="op-overlay_pairwise_weighted_two_means_z"></a>
@@ -1119,6 +1190,12 @@ Large-sample z-tests between every pair of rows (or columns) of one crosstab of 
 - [`AGG_WEIGHTED_MEAN`](aggregator.md#op-agg_weighted_mean) when you only need the weighted averages themselves.
 
 **Glossary:** [`effective-sample-size`](../glossary.md#term-effective-sample-size), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`two-tailed`](../glossary.md#term-two-tailed), [`weighting`](../glossary.md#term-weighting)
+
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-pairwise-weighted-two-means-z`](../skills/op-overlay-pairwise-weighted-two-means-z.md)
 
@@ -1156,6 +1233,13 @@ Welch t-tests between every pair of rows (or columns) of one crosstab of average
 - [`TEST_TUKEY_HSD`](test.md#op-test_tukey_hsd) when you compare groups from raw rows and want a post-test whose p-values come already adjusted across every pair, with no multiplicity block.
 
 **Glossary:** [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance)
+
+**Validated against:**
+
+- R 4.6.1 `t.test` — tolerance 1e-10 relative; `internal/processing/overlay_pairwise_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-pairwise-welch-t`](../skills/op-overlay-pairwise-welch-t.md)
 
@@ -1227,6 +1311,13 @@ Two-proportion z-test for every crosstab cell in a Compose request: does the tar
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`standard-error`](../glossary.md#term-standard-error), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 `prop.test(correct = FALSE)` — tolerance 1e-10 relative; `internal/processing/overlay_pairwise_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-prop-z-cell`](../skills/op-overlay-prop-z-cell.md)
 
 <a id="op-overlay_prop_z_panel"></a>
@@ -1262,6 +1353,13 @@ Two-proportion z-tests between every pair of requests in a Compose panel, for ea
 - [`OVERLAY_PAIRWISE_PROP_Z`](#op-overlay_pairwise_prop_z) when the groups are rows or columns of one crosstab.
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`sample-size`](../glossary.md#term-sample-size), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `prop.test(correct = FALSE)` — tolerance 1e-10 relative; `internal/processing/overlay_prop_z_panel_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-prop-z-panel`](../skills/op-overlay-prop-z-panel.md)
 
@@ -1299,6 +1397,13 @@ Two-proportion z-test of each period's share against the period before it: did a
 
 **Glossary:** [`effective-sample-size`](../glossary.md#term-effective-sample-size), [`independence`](../glossary.md#term-independence), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed), [`z-score`](../glossary.md#term-z-score)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- an independent re-implementation of the pooled two-proportion z test — tolerance 1e-9 relative; `internal/integration/overlay_vs_prior_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-prop-z-vs-prior`](../skills/op-overlay-prop-z-vs-prior.md)
 
 <a id="op-overlay_rake"></a>
@@ -1335,6 +1440,12 @@ Rake a crosstab to known row and column totals: the fitted table, per-cell adjus
 - [`OVERLAY_CHISQ_MATRIX`](#op-overlay_chisq_matrix) when you want to test whether rows and columns are associated.
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`margin`](../glossary.md#term-margin), [`raking`](../glossary.md#term-raking), [`weighting`](../glossary.md#term-weighting)
+
+**Validated against:**
+
+- R 4.6.1 `loglin`, cross-checked with `survey::rake` — tolerance 1e-9 relative; `internal/processing/overlay_rake_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-rake`](../skills/op-overlay-rake.md)
 
@@ -1556,6 +1667,13 @@ Adjusted residual for every crosstab cell: how far its count sits above or below
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`margin`](../glossary.md#term-margin), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`residual`](../glossary.md#term-residual), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 `chisq.test()$stdres` — tolerance 1e-12 relative; `internal/processing/overlay_std_residual_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-std-residual`](../skills/op-overlay-std-residual.md)
 
 <a id="op-overlay_symmetry"></a>
@@ -1599,6 +1717,13 @@ Test of symmetry on a before-by-after crosstab of the same units: are moves betw
 
 **Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`continuity-correction`](../glossary.md#term-continuity-correction), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`paired-data`](../glossary.md#term-paired-data)
 
+**Validated against:**
+
+- R 4.6.1 `mcnemar.test` / Bowker — tolerance 1e-12 relative; `internal/processing/overlay_symmetry_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-symmetry`](../skills/op-overlay-symmetry.md)
 
 <a id="op-overlay_t_cell"></a>
@@ -1636,6 +1761,13 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance)
 
+**Validated against:**
+
+- R 4.6.1 `t.test` / `pt` — tolerance 1e-10 relative; `internal/processing/overlay_t_cell_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-t-cell`](../skills/op-overlay-t-cell.md)
 
 <a id="op-overlay_t_vs_prior"></a>
@@ -1672,6 +1804,13 @@ Welch t-test of each period against the period before it: did the average really
 
 **Glossary:** [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- an independent re-implementation of the Welch t test — tolerance 1e-9 relative; `internal/integration/overlay_vs_prior_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-t-vs-prior`](../skills/op-overlay-t-vs-prior.md)
 
 <a id="op-overlay_t_vs_ref"></a>
@@ -1707,6 +1846,13 @@ Welch t-test for every group of a grouped result in a Compose request: does the 
 - [`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value.
 
 **Glossary:** [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`homogeneity-of-variance`](../glossary.md#term-homogeneity-of-variance), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`t-statistic`](../glossary.md#term-t-statistic), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance)
+
+**Validated against:**
+
+- R 4.6.1 `t.test` / `pt` — tolerance 1e-10 relative; `internal/integration/overlay_welford_series_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-t-vs-ref`](../skills/op-overlay-t-vs-ref.md)
 
@@ -1917,6 +2063,13 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`standard-error`](../glossary.md#term-standard-error), [`two-tailed`](../glossary.md#term-two-tailed)
 
+**Validated against:**
+
+- R 4.6.1 `pnorm` on the Welch standard error — tolerance 1e-10 relative; `internal/processing/overlay_z_cell_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-z-cell`](../skills/op-overlay-z-cell.md)
 
 <a id="op-overlay_z_vs_prior"></a>
@@ -1953,6 +2106,13 @@ Large-sample z-test of each period's mean against the period before it: did the 
 
 **Glossary:** [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`two-tailed`](../glossary.md#term-two-tailed), [`variance`](../glossary.md#term-variance), [`z-score`](../glossary.md#term-z-score)
 
+**Validated against:**
+
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+- an independent re-implementation of the Welch z test — tolerance 1e-9 relative; `internal/integration/overlay_vs_prior_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-overlay-z-vs-prior`](../skills/op-overlay-z-vs-prior.md)
 
 <a id="op-overlay_z_vs_ref"></a>
@@ -1988,5 +2148,12 @@ Large-sample z-test for every group of a grouped result in a Compose request: do
 - [`OVERLAY_DELTA_VS_REF`](#op-overlay_delta_vs_ref) when you want the size of the change rather than a p-value.
 
 **Glossary:** [`false-discovery-rate`](../glossary.md#term-false-discovery-rate), [`family-wise-error`](../glossary.md#term-family-wise-error), [`independence`](../glossary.md#term-independence), [`mean`](../glossary.md#term-mean), [`multiple-comparisons`](../glossary.md#term-multiple-comparisons), [`normal-distribution`](../glossary.md#term-normal-distribution), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`standard-error`](../glossary.md#term-standard-error), [`two-tailed`](../glossary.md#term-two-tailed)
+
+**Validated against:**
+
+- R 4.6.1 `pnorm` on the Welch standard error — tolerance 1e-10 relative; `internal/integration/overlay_welford_series_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-overlay-z-vs-ref`](../skills/op-overlay-z-vs-ref.md)

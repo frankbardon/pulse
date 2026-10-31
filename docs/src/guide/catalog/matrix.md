@@ -50,6 +50,12 @@ Whether candidate predictors overlap so much that a regression on them would giv
 
 **Glossary:** [`multicollinearity`](../glossary.md#term-multicollinearity), [`correlation`](../glossary.md#term-correlation), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
 
+**Validated against:**
+
+- R 4.6.1 `car::vif`, `perturb::colldiag` — tolerance 1e-9 relative; `internal/service/matrix_collinearity_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-mat-collinearity`](../skills/op-mat-collinearity.md)
 
 <a id="op-mat_correlation"></a>
@@ -91,6 +97,13 @@ How closely every pair of numeric fields moves together, in a line or in rank or
 
 **Glossary:** [`correlation`](../glossary.md#term-correlation), [`covariance`](../glossary.md#term-covariance), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`outlier`](../glossary.md#term-outlier), [`rank`](../glossary.md#term-rank), [`spearman-rho`](../glossary.md#term-spearman-rho), [`kendall-tau`](../glossary.md#term-kendall-tau)
 
+**Validated against:**
+
+- numpy / statsmodels — tolerance 1e-12 relative; `internal/service/matrix_correlation_test.go`
+- R 4.6.1 `cor` and `cor.test` (p-values, intervals) — tolerance 1e-10 relative; `internal/service/matrix_inference_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-mat-correlation`](../skills/op-mat-correlation.md)
 
 <a id="op-mat_covariance"></a>
@@ -125,6 +138,12 @@ How every pair in a set of numeric fields varies together, as one square table w
 - [`AGG_WELFORD`](aggregator.md#op-agg_welford) when you want the spread of one field on its own.
 
 **Glossary:** [`covariance`](../glossary.md#term-covariance), [`variance`](../glossary.md#term-variance), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- numpy `cov` / statsmodels `DescrStatsW` — tolerance 1e-12 relative; `internal/service/matrix_covariance_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-mat-covariance`](../skills/op-mat-covariance.md)
 
@@ -164,6 +183,12 @@ How far apart segments are across several numbers at once: the gap between each 
 - [`GROUP_KMEANS`](grouper.md#op-group_kmeans) when the segments still need finding.
 
 **Glossary:** [`centroid`](../glossary.md#term-centroid), [`distance`](../glossary.md#term-distance), [`z-score`](../glossary.md#term-z-score), [`covariance`](../glossary.md#term-covariance), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- R 4.6.1 `dist` — tolerance 1e-9 relative; `internal/processing/matrix_distance_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-mat-distance`](../skills/op-mat-distance.md)
 
@@ -205,6 +230,12 @@ Which hidden qualities a set of related measures reflects, and how strongly each
 
 **Glossary:** [`factor`](../glossary.md#term-factor), [`loading`](../glossary.md#term-loading), [`eigenvalue`](../glossary.md#term-eigenvalue), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
 
+**Validated against:**
+
+- R 4.6.1 `psych::fa`, `GPArotation` — tolerance 1e-9 exact paths; 1e-4 to 2e-3 vs psych iterations; `internal/processing/matrix_factor_test.go`, `internal/processing/matrix_minres_test.go`, `internal/service/matrix_factor_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-mat-factor`](../skills/op-mat-factor.md)
 
 <a id="op-mat_partial_correlation"></a>
@@ -243,6 +274,12 @@ How closely each pair of numeric fields moves together once other fields are hel
 
 **Glossary:** [`partial-correlation`](../glossary.md#term-partial-correlation), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion), [`multicollinearity`](../glossary.md#term-multicollinearity)
 
+**Validated against:**
+
+- R 4.6.1 `ppcor` / `corpcor` — tolerance 1e-10 relative; `internal/service/matrix_partial_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-mat-partial-correlation`](../skills/op-mat-partial-correlation.md)
 
 <a id="op-mat_pca"></a>
@@ -279,6 +316,12 @@ How many underlying dimensions a set of related measures covers and which measur
 
 **Glossary:** [`principal-component`](../glossary.md#term-principal-component), [`eigenvalue`](../glossary.md#term-eigenvalue), [`loading`](../glossary.md#term-loading), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
 
+**Validated against:**
+
+- R 4.6.1 `eigen` / `prcomp`, `psych::KMO` — tolerance 1e-9 relative; `internal/service/matrix_pca_test.go`
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-mat-pca`](../skills/op-mat-pca.md)
 
 <a id="op-mat_reliability"></a>
@@ -314,6 +357,12 @@ How consistently a set of rating items measures one thing, before you add them u
 - [`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you want a p-value for one pair of items.
 
 **Glossary:** [`reliability`](../glossary.md#term-reliability), [`correlation`](../glossary.md#term-correlation), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`pairwise-deletion`](../glossary.md#term-pairwise-deletion)
+
+**Validated against:**
+
+- R 4.6.1 `psych::alpha`, `psych::omega` — tolerance 1e-10 relative; omega 1e-5; `internal/service/matrix_reliability_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-mat-reliability`](../skills/op-mat-reliability.md)
 
@@ -358,5 +407,11 @@ Whether a theory of how measures hang together holds: the hidden qualities they 
 - [`MAT_FACTOR`](#op-mat_factor) when the fit is poor and the structure needs exploring.
 
 **Glossary:** [`factor`](../glossary.md#term-factor), [`loading`](../glossary.md#term-loading), [`covariance`](../glossary.md#term-covariance), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`chi-square`](../glossary.md#term-chi-square), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`goodness-of-fit`](../glossary.md#term-goodness-of-fit), [`standard-error`](../glossary.md#term-standard-error), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- R 4.6.1 `lavaan` (ML, WLSMV, DWLS, bootstrap, multi-group), cross-checked with semopy — tolerance estimates 1e-4, fit indices 1e-3; `internal/sem/lavaan_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-mat-sem`](../skills/op-mat-sem.md)
