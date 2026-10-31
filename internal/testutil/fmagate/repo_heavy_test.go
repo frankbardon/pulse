@@ -8,13 +8,18 @@ import (
 	"testing"
 )
 
-// TestFMAReport_RepoWide is the repo-wide contraction scan: every
-// non-test package minus cmd/ and internal/cli (or -fmareport.pkg) is
-// cross-compiled for linux/arm64 with -d=fmahash=vy over the whole
-// module (~30 s uncached). It LOGS each contracted position outside the
-// allowlist with per-package counts (see -v; an inlined site shows its
-// chain) and fails only on a stale or malformed allowlist entry.
-// Report-only until E5-S2. Command for one package: see reportScope.
+// TestFMAReport_RepoWide is the BINDING repo-wide contraction scan:
+// every non-test package minus cmd/ and internal/cli (or
+// -fmareport.pkg) is cross-compiled for linux/arm64 with -d=fmahash=vy
+// over the whole module (~30 s uncached; a plain GOARCH=arm64 cross
+// build, so it runs on any host). Every contracted position outside the
+// allowlist fails (failUnlisted; an inlined site shows its chain), as
+// does a stale, malformed or duplicate allowlist entry. The full
+// per-package report is logged (see -v). Command for one package: see
+// reportScope.
+// fixFMA is the remedy failUnlisted names for a contraction.
+const fixFMA = "barrier the product so the compiler cannot fuse it: write a + float64(b*c) (or a - float64(b*c)); for an inlined chain, barrier inside the callee named last — arm64 fuses a + b*c into one FMA, amd64 does not"
+
 func TestFMAReport_RepoWide(t *testing.T) {
 	t.Parallel()
 
@@ -22,6 +27,7 @@ func TestFMAReport_RepoWide(t *testing.T) {
 	findings := ScanFMA(t, root, scope)
 	listed, unlisted, stale := Apply(loadAllowlist(t), findings, scope, func(k string) bool { return k == KindFMA })
 	t.Log("\n" + Report("arm64 FMA contractions", listed, unlisted))
+	failUnlisted(t, unlisted, fixFMA)
 	for _, e := range stale {
 		t.Errorf("stale %s: the compiler contracts nothing in that function any more; delete the entry", e)
 	}

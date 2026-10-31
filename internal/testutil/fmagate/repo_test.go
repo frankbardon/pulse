@@ -48,11 +48,26 @@ func repoScope(t *testing.T) (string, Scope) {
 	return root, scope
 }
 
-// TestBannedMathReport_RepoWide is the banned-transcendental source
-// scan over every non-test package minus cmd/ and internal/cli (or
-// -fmareport.pkg): it LOGS each math.<Name> reference outside the
-// allowlist with per-package counts (see -v) and fails only on a stale
-// or malformed allowlist entry. Report-only until E5-S2.
+// failUnlisted makes a repo-wide scan binding: one t.Errorf per site
+// outside the allowlist, naming file:line:col, the enclosing function,
+// the finding and how to resolve it (fix, then the allowlist route).
+func failUnlisted(t *testing.T, unlisted []Finding, fix string) {
+	t.Helper()
+	for _, f := range unlisted {
+		t.Errorf("unlisted %s\n\tfix: %s\n\tor, if the site cannot or need not be deterministic, add `%s %s %s <reason>` to %s (reviewed; the reason is required)",
+			f, fix, f.Kind, f.File, f.Func, "internal/testutil/fmagate/"+allowlistPath)
+	}
+}
+
+// fixBanned is the remedy failUnlisted names for a banned call.
+const fixBanned = "call the linalg/detmath twin (detmath.Exp, detmath.Log, detmath.Pow, ...) — stdlib transcendentals differ in the last ulp across arm64 and amd64 (and amd64 math.Exp follows the runner CPU)"
+
+// TestBannedMathReport_RepoWide is the BINDING banned-transcendental
+// source scan over every non-test package minus cmd/ and internal/cli
+// (or -fmareport.pkg): every math.<Name> reference outside the
+// allowlist fails (failUnlisted), as does a stale, malformed or
+// duplicate allowlist entry. The full per-package report is logged
+// (see -v).
 func TestBannedMathReport_RepoWide(t *testing.T) {
 	t.Parallel()
 
@@ -63,6 +78,7 @@ func TestBannedMathReport_RepoWide(t *testing.T) {
 	}
 	listed, unlisted, stale := Apply(loadAllowlist(t), findings, scope, func(k string) bool { return k != KindFMA })
 	t.Log("\n" + Report("banned stdlib transcendentals", listed, unlisted))
+	failUnlisted(t, unlisted, fixBanned)
 	for _, e := range stale {
 		t.Errorf("stale %s: no banned call left in that function; delete the entry", e)
 	}

@@ -16,7 +16,8 @@
 //
 // repo.go adds the repo-wide scans (ScanFMA, BannedCalls) and the
 // reviewed allowlist they apply (testdata/numeric-allowlist.txt);
-// TestFMAReport_RepoWide and TestBannedMathReport_RepoWide report them.
+// TestFMAReport_RepoWide and TestBannedMathReport_RepoWide fail on any
+// finding the allowlist does not excuse.
 package fmagate
 
 import (
