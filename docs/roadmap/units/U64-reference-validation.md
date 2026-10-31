@@ -8,7 +8,7 @@ status: in-progress
 depends_on: []
 soft_depends_on: [U61]
 blocks: [U32, U65]
-todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 608, 609, 610]
+todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 608, 609, 610, 611]
 branch: reference-validation
 ---
 
@@ -52,7 +52,8 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - [ ] **#591** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` (E2-S1)
 - [ ] **#592** R goldens for the unweighted `OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX`; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` (E2-S2)
 - [x] **#593** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
-- [ ] **#608** `TEST_ANOVA_F` reaches 7+ digits on NIST SmLs07–09 (3.2 today: the sums of squares lose precision under a large common offset) (E3-S4)
+- [x] **#608** `TEST_ANOVA_F` reaches the double-precision ceiling on NIST SmLs07–09: 4.0 / 3.9 / 3.9 digits (3.2 before). The original 7-digit target is impossible from float64 input; see E3-S4 (E3-S4)
+- [ ] **#611** The other split tests that keep per-group Welford means at the data's magnitude (`TEST_ANOVA_WELCH`, `TEST_BROWN_FORSYTHE`, `TEST_T` / `TEST_WELCH` split, `TEST_TUKEY_HSD`, the ANOVA post-tests) get the same shifted accumulation, each with an offset test (E3-S7)
 - [ ] **#609** `REG_OLS` fits NIST Filip instead of refusing it as rank-deficient (a QR or centred-and-scaled solve in place of Cholesky on the normal equations), and Wampler1–5 coefficients reach 7+ digits (6.0–6.7 today) (E3-S5)
 - [ ] **#610** Regression through the origin (no intercept), so NIST NoInt1 / NoInt2 run (E3-S6; a public `RegressionSpec` slot, so it follows the regression Update Demand row)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
@@ -105,7 +106,13 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
     - **ANOVA.** SiRstv, SmLs01–06 and AtmWtAg reach 8.7–14.7 digits; SmLs07–09 reach only 3.2.
     - **Univariate.** The mean and sample SD reach 8.2–15 digits. The sample SD comes from `AGG_WELFORD`; `AGG_STDDEV` is the population SD by design. The lag-1 autocorrelation is not offered.
     - **Follow-ups:** #608, #609 and #610 (S4–S6).
-  - S4–S6: the accuracy fixes above. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
+  - S4 *(done)*: #608.
+    - **The 7-digit target is impossible.** SmLs07–09 hold values such as 1000000000000.4, which float64 cannot represent (the spacing near 1e12 is 1.2e-4). Exact rational arithmetic on the parsed doubles reaches only 4.03, 3.92 and 3.91 digits. R, Stata and SPSS read the same doubles, so no double-precision package can do better.
+    - **The arithmetic loss is fixed.** Pulse lost a further 0.8 digits because each group's Welford mean was held at magnitude 1e12. `TEST_ANOVA_F` now accumulates v minus the first observed value, which is exact and shift-invariant for the sums of squares. It reaches the ceiling (4.0 / 3.9 / 3.9). Every other ANOVA set gained 0.5–1.4 digits; for example, AtmWtAg went from 8.7 to 10.1.
+    - **Pinned by** `TestAnovaF_LargeOffsetMatchesExact`, which compares against exact `math/big` sums of squares on the input doubles.
+    - **Exact results would need exact input.** Getting past the ceiling would need decimal-aware accumulation on `decimal128` cohorts. That is out of scope.
+  - S5–S6: the remaining accuracy fixes above.
+  - S7: #611. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
 - **E4 — External references for MMM**
   - S1: `gen_mmm_hill.R` fits the same Hill-adstock objective with `minpack.lm::nlsLM` from the same start and bounds. The test pins coefficients at the tolerance the optimizer oracles already use (`optimize/testdata`).
   - S2: `REG_MMM_BAYES` with flat saturation and fixed adstock must reproduce the `REG_BAYES_LINEAR` posterior. A seeded simulation-based calibration run (rank histograms, fixed draw count) becomes a heavy-tier test whose output is published only with its harness, following U63's rule that unreproducible figures are not published.

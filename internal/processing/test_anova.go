@@ -13,7 +13,8 @@ import (
 // anovaRow implements TEST_ANOVA_F as a streaming row test: one-way
 // analysis of variance via online per-group Welford buckets.
 //
-// State is k Welford accumulators keyed by SplitBy. Finalize computes:
+// State is k Welford accumulators keyed by SplitBy, over v − shift (the
+// first observed value; see shift). Finalize computes:
 //
 //	grand_mean = Σ n_i μ_i / N
 //	SSB        = Σ n_i (μ_i - grand_mean)²
@@ -36,6 +37,15 @@ type anovaRow struct {
 
 	groups map[string]*weighting.Welford
 	order  []string
+
+	// shift is the first observed value; every bucket accumulates
+	// v − shift. The sums of squares are shift-invariant, but a Welford
+	// mean held at the data's magnitude rounds to that magnitude's ulp:
+	// under a large common offset (NIST SmLs07–09, 1e12 + deviations of
+	// 0.1) that cost the deviations three digits. Rows stream in a fixed
+	// order and the state never merges, so the shift is deterministic.
+	shift    float64
+	shiftSet bool
 
 	// testWeight: weighted, each group is rescaled to w* by its own
 	// c_g = N*_g/Σw_g, so N* = Σ_g N*_g and df_within = N* − k.
@@ -96,7 +106,10 @@ func (a *anovaRow) UpdateRow(record *Record) error {
 		a.groups[key] = b
 		a.order = append(a.order, key)
 	}
-	b.Add(v, w)
+	if !a.shiftSet {
+		a.shift, a.shiftSet = v, true
+	}
+	b.Add(v-a.shift, w)
 	return nil
 }
 
@@ -109,6 +122,9 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": a.order, "min_required": 2})
 	}
 	stats := summariseWeightedANOVA(a.order, a.groups, a.basis)
+	for i := range stats.Means {
+		stats.Means[i] += a.shift
+	}
 	// Σw (= N*) under frequency, the raw N otherwise (Basis.FloorN).
 	if a.basis.FloorN(stats.N, stats.NStar) < float64(k+1) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
@@ -179,6 +195,7 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 func (a *anovaRow) reset() {
 	a.groups = make(map[string]*weighting.Welford)
 	a.order = nil
+	a.shift, a.shiftSet = 0, false
 }
 
 // weightedANOVAStats is anovaStats on w* plus N*, the sample size the

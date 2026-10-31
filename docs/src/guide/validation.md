@@ -32,7 +32,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 
 | Operator | Validated against | Tightest tolerance | Gap |
 |---|---|---|---|
-| [`TEST_ANOVA_F`](catalog/test.md#op-test_anova_f) | R 4.6.1 `aov`<br>NIST StRD certified values (one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg)<br>weighted reference (see above) | 1e-12 relative | On NIST SmLs07–09 (values with a large common offset) the sums of squares agree to only about 3 digits. |
+| [`TEST_ANOVA_F`](catalog/test.md#op-test_anova_f) | R 4.6.1 `aov`<br>NIST StRD certified values (one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg)<br>weighted reference (see above) | 1e-12 relative | On NIST SmLs07–09 the figures agree to about 4 digits. That is the ceiling for any double-precision package: values such as 1000000000000.4 are not exactly representable, and exact arithmetic on the parsed doubles reaches only 4.0, 3.9 and 3.9 digits. Pulse reaches that ceiling. |
 | [`TEST_ANOVA_RM`](catalog/test.md#op-test_anova_rm) | R 4.6.1 `aov` with `Error()` strata | 1e-10 relative | No weighted reference. |
 | [`TEST_ANOVA_WELCH`](catalog/test.md#op-test_anova_welch) | R 4.6.1 `oneway.test`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_BARTLETT_SPHERICITY`](catalog/test.md#op-test_bartlett_sphericity) | R 4.6.1 `psych::cortest.bartlett`<br>weighted reference (see above) | 1e-12 relative | — |
@@ -136,17 +136,17 @@ The [NIST Statistical Reference Datasets](https://www.itl.nist.gov/div898/strd/)
 
 | Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |
 |---|---|---|---|---|
-| SiRstv | lower | 12.5 | `f` 12.6, `ms_between` 12.5, `ms_within` 13.3, `r2` 12.7, `residual_sd` 13.6, `ss_between` 12.5, `ss_within` 13.3 | — |
-| SmLs01 | lower | 14.7 | `f` 14.9, `ms_between` 14.7, `ms_within` 15.0, `r2` 15.0, `residual_sd` 15.0, `ss_between` 14.7, `ss_within` 15.0 | — |
-| SmLs02 | lower | 14.7 | `f` 14.7, `ms_between` 14.7, `ms_within` 15.0, `r2` 14.9, `residual_sd` 15.0, `ss_between` 14.7, `ss_within` 15.0 | — |
-| SmLs03 | lower | 14.7 | `f` 14.7, `ms_between` 14.7, `ms_within` 15.0, `r2` 15.0, `residual_sd` 15.0, `ss_between` 14.7, `ss_within` 15.0 | — |
-| AtmWtAg | average | 8.7 | `f` 8.8, `ms_between` 8.7, `ms_within` 9.8, `r2` 8.9, `residual_sd` 10.1, `ss_between` 8.7, `ss_within` 9.8 | — |
-| SmLs04 | average | 9.3 | `f` 9.3, `ms_between` 9.3, `ms_within` 10.8, `r2` 9.6, `residual_sd` 11.1, `ss_between` 9.3, `ss_within` 10.8 | — |
-| SmLs05 | average | 9.2 | `f` 9.2, `ms_between` 9.3, `ms_within` 10.3, `r2` 9.5, `residual_sd` 10.6, `ss_between` 9.3, `ss_within` 10.3 | — |
-| SmLs06 | average | 9.2 | `f` 9.2, `ms_between` 9.3, `ms_within` 10.2, `r2` 9.5, `residual_sd` 10.5, `ss_between` 9.3, `ss_within` 10.2 | — |
-| SmLs07 | higher | 3.2 | `f` 3.2, `ms_between` 3.3, `ms_within` 4.8, `r2` 3.5, `residual_sd` 5.1, `ss_between` 3.3, `ss_within` 4.8 | — |
-| SmLs08 | higher | 3.2 | `f` 3.2, `ms_between` 3.3, `ms_within` 4.3, `r2` 3.5, `residual_sd` 4.6, `ss_between` 3.3, `ss_within` 4.3 | — |
-| SmLs09 | higher | 3.2 | `f` 3.2, `ms_between` 3.3, `ms_within` 4.2, `r2` 3.5, `residual_sd` 4.5, `ss_between` 3.3, `ss_within` 4.2 | — |
+| SiRstv | lower | 13.0 | `f` 13.0, `ms_between` 14.0, `ms_within` 13.1, `r2` 13.1, `residual_sd` 13.4, `ss_between` 14.0, `ss_within` 13.1 | — |
+| SmLs01 | lower | 15.0 | `f` 15.0, `ms_between` 15.0, `ms_within` 15.0, `r2` 15.0, `residual_sd` 15.0, `ss_between` 15.0, `ss_within` 15.0 | — |
+| SmLs02 | lower | 15.0 | `f` 15.0, `ms_between` 15.0, `ms_within` 15.0, `r2` 15.0, `residual_sd` 15.0, `ss_between` 15.0, `ss_within` 15.0 | — |
+| SmLs03 | lower | 14.9 | `f` 14.9, `ms_between` 15.0, `ms_within` 15.0, `r2` 15.0, `residual_sd` 15.0, `ss_between` 15.0, `ss_within` 15.0 | — |
+| AtmWtAg | average | 10.1 | `f` 10.1, `ms_between` 10.2, `ms_within` 10.9, `r2` 10.2, `residual_sd` 11.2, `ss_between` 10.2, `ss_within` 10.9 | — |
+| SmLs04 | average | 10.0 | `f` 10.4, `ms_between` 10.0, `ms_within` 10.2, `r2` 10.7, `residual_sd` 10.5, `ss_between` 10.0, `ss_within` 10.2 | — |
+| SmLs05 | average | 9.9 | `f` 10.2, `ms_between` 9.9, `ms_within` 10.2, `r2` 10.4, `residual_sd` 10.5, `ss_between` 9.9, `ss_within` 10.2 | — |
+| SmLs06 | average | 9.9 | `f` 10.1, `ms_between` 9.9, `ms_within` 10.2, `r2` 10.4, `residual_sd` 10.5, `ss_between` 9.9, `ss_within` 10.2 | — |
+| SmLs07 | higher | 4.0 | `f` 4.4, `ms_between` 4.0, `ms_within` 4.2, `r2` 4.6, `residual_sd` 4.5, `ss_between` 4.0, `ss_within` 4.2 | — |
+| SmLs08 | higher | 3.9 | `f` 4.1, `ms_between` 3.9, `ms_within` 4.2, `r2` 4.4, `residual_sd` 4.5, `ss_between` 3.9, `ss_within` 4.2 | — |
+| SmLs09 | higher | 3.9 | `f` 4.1, `ms_between` 3.9, `ms_within` 4.2, `r2` 4.4, `residual_sd` 4.5, `ss_between` 3.9, `ss_within` 4.2 | — |
 
 ### Univariate summary statistics (`AGG_AVERAGE`, `AGG_WELFORD`)
 

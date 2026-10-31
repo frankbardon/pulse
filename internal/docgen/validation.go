@@ -110,7 +110,7 @@ var validationRegistry = map[string]validation{
 	// Statistical tests.
 	"TEST_ANOVA_F": {
 		Refs: []validationRef{r("`aov`", tol10, procPost), strdRef("one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg"), weighted},
-		Gap:  "On NIST SmLs07–09 (values with a large common offset) the sums of squares agree to only about 3 digits.",
+		Gap:  "On NIST SmLs07–09 the figures agree to about 4 digits. That is the ceiling for any double-precision package: values such as 1000000000000.4 are not exactly representable, and exact arithmetic on the parsed doubles reaches only 4.0, 3.9 and 3.9 digits. Pulse reaches that ceiling.",
 	},
 	"TEST_ANOVA_RM":    {Refs: []validationRef{r("`aov` with `Error()` strata", tol10, procOutput)}, Gap: "No weighted reference."},
 	"TEST_ANOVA_WELCH": {Refs: []validationRef{r("`oneway.test`", tol10, procPost), weighted}},
