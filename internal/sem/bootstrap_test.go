@@ -350,7 +350,11 @@ func TestSEM_BootstrapFiguresFromReplicates(t *testing.T) {
 		if math.Abs(b.SE[j]-sd) > 1e-12*sd {
 			t.Errorf("%s SE %g, replicates' sample SD %g", e.Key(), b.SE[j], sd)
 		}
-		if lo, hi := normInter(col, (1-level)/2), normInter(col, (1+level)/2); b.CILower[j] != lo || b.CIUpper[j] != hi {
+		// The alphas at run time, as RunBootstrap forms them: the untyped
+		// constant (1-level)/2 folds exactly to 0.1, one ulp off the
+		// float64 (1-0.8)/2 the production code computes.
+		lv := float64(level)
+		if lo, hi := normInter(col, (1-lv)/2), normInter(col, (1+lv)/2); b.CILower[j] != lo || b.CIUpper[j] != hi {
 			t.Errorf("%s bounds [%g, %g], norm.inter [%g, %g]", e.Key(), b.CILower[j], b.CIUpper[j], lo, hi)
 		}
 		r := rows[j]

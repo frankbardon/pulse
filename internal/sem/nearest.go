@@ -82,7 +82,7 @@ func CovNearest(s *mat.SymDense, threshold float64) (*Nearest, error) {
 			for j := range x[i] {
 				acc := 0.0
 				for k := 0; k < p; k++ {
-					acc += float64(vecs.At(i, k)*lam[k]) * vecs.At(j, k)
+					acc += float64(float64(vecs.At(i, k)*lam[k]) * vecs.At(j, k))
 				}
 				x[i][j] = acc
 			}

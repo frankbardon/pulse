@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"gonum.org/v1/gonum/mat"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // defined.go is lavaan's defined parameters: a model line
@@ -300,7 +302,7 @@ func evalDefined(defs []*definedParam, labels map[string]labelValue, x []float64
 			e.SE = math.Sqrt(quadDense(vcov, v.d))
 			e.Z = e.Value / e.SE
 			e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
-			e.CILower, e.CIUpper = e.Value-crit*e.SE, e.Value+crit*e.SE
+			e.CILower, e.CIUpper = e.Value-float64(crit*e.SE), e.Value+float64(crit*e.SE)
 		}
 		out[i] = e
 	}
@@ -342,10 +344,10 @@ func combine(a float64, x dual, b float64, y dual) []float64 {
 	out := make([]float64, n)
 	for i := range out {
 		if x.d != nil {
-			out[i] += a * x.d[i]
+			out[i] += float64(a * x.d[i])
 		}
 		if y.d != nil {
-			out[i] += b * y.d[i]
+			out[i] += float64(b * y.d[i])
 		}
 	}
 	return out
@@ -392,17 +394,17 @@ func (n binNode) eval(env func(string) dual, k int) dual {
 	case '*':
 		return dual{v: x.v * y.v, d: combine(y.v, x, x.v, y)}
 	case '/':
-		return dual{v: x.v / y.v, d: combine(1/y.v, x, -x.v/(y.v*y.v), y)}
+		return dual{v: x.v / y.v, d: combine(1/y.v, x, -x.v/float64(y.v*y.v), y)}
 	}
 	// '^': d(x^y) = y·x^(y−1)·dx + x^y·ln(x)·dy (the second term only
 	// when the exponent varies, so a constant power of a negative base
 	// stays defined).
-	v := math.Pow(x.v, y.v)
+	v := detmath.Pow(x.v, y.v)
 	var b float64
 	if y.d != nil {
-		b = v * math.Log(x.v)
+		b = float64(v * detmath.Log(x.v))
 	}
-	return dual{v: v, d: combine(y.v*math.Pow(x.v, y.v-1), x, b, y)}
+	return dual{v: v, d: combine(float64(y.v*detmath.Pow(x.v, y.v-1)), x, b, y)}
 }
 
 func (n binNode) refs(visit func(string)) { n.a.refs(visit); n.b.refs(visit) }
@@ -422,10 +424,10 @@ func (n callNode) eval(env func(string) dual, k int) dual {
 		v := math.Sqrt(x.v)
 		return dual{v: v, d: scale(0.5/v, x)}
 	case "exp":
-		v := math.Exp(x.v)
+		v := detmath.Exp(x.v)
 		return dual{v: v, d: scale(v, x)}
 	case "log":
-		return dual{v: math.Log(x.v), d: scale(1/x.v, x)}
+		return dual{v: detmath.Log(x.v), d: scale(1/x.v, x)}
 	}
 	// abs: the derivative is the sign (0 at 0).
 	s := 0.0

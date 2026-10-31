@@ -222,7 +222,7 @@ func NewScorer(m *Model, p Params, latent string, method ScoreMethod) (*Scorer, 
 		for i := 0; i < nObs; i++ {
 			v := 0.0
 			for k := 0; k < nIn; k++ {
-				v += mm.At(i, k) * cpsi.At(j, k)
+				v += float64(mm.At(i, k) * cpsi.At(j, k))
 			}
 			cov[i] = v
 		}
@@ -303,7 +303,7 @@ func symMulVec(a *mat.SymDense, x []float64) []float64 {
 	for i := 0; i < n; i++ {
 		v := 0.0
 		for k := 0; k < n; k++ {
-			v += a.At(i, k) * x[k]
+			v += float64(a.At(i, k) * x[k])
 		}
 		out[i] = v
 	}
@@ -446,7 +446,7 @@ func glsRow(l *mat.Dense, cols []int, sinv *mat.SymDense, j int) ([]float64, err
 	for i := 0; i < nObs; i++ {
 		v := 0.0
 		for a := 0; a < k; a++ {
-			v += tinv.At(row, a) * ls.At(a, i)
+			v += float64(tinv.At(row, a) * ls.At(a, i))
 		}
 		out[i] = v
 	}
