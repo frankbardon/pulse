@@ -14,16 +14,19 @@
 // architecture, and a caller with a bit-level contract (same seed, same
 // bytes) can rely on it.
 //
+// The SPD path the regression engine runs — FactorSPD (an SPDFactor
+// solved against and inverted, with its condition estimate) and the
+// dense product Mul — is also pure Go and FMA-free, but in a different
+// operation order: it is a port of the order gonum v0.17.0's
+// mat.Cholesky and mat.Dense.Mul run on linux/amd64 (LAPACK Dpotrf,
+// Dpocon, Dpotrs, Dpotri over gonum's BLAS and SSE2 assembly kernels).
+// Its output is bit-identical on every architecture AND equal to the raw
+// gonum call on amd64, so moving it off gonum moved no amd64 figure.
+//
 // Routines with no bit contract — SymEigen, SVD, QR, Rank and
-// ConditionNumber, plus the gonum-backed SPD path FactorSPD (an
-// SPDFactor solved against and inverted) and the dense product Mul —
-// are backed by gonum and may differ in the last ulps across
-// architectures. On one machine the SPD path and Mul equal the raw gonum
-// calls bit for bit (they are thin wrappers, with no policy layered on
-// top), which is what lets the regression engine route through them
-// with byte-identical output. No gonum type ever appears on this
-// package's exported surface: gonum is pre-1.0, and Pulse's public API
-// is frozen.
+// ConditionNumber — are backed by gonum and may differ in the last ulps
+// across architectures. No gonum type ever appears on this package's
+// exported surface: gonum is pre-1.0, and Pulse's public API is frozen.
 //
 // # Order, sign and rank policy
 //

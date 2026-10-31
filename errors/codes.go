@@ -3750,7 +3750,7 @@ const (
 	// ceiling, or — from a gonum-backed decomposition — a NaN / infinite
 	// element or an iteration that did not converge. Details carry
 	// "reason" where the routine classifies the failure
-	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
+	// (not_positive_definite, ill_conditioned, non_finite,
 	// no_convergence), "pivot" for a reference Cholesky failure,
 	// "attempts" / "ridge" when a ridge schedule was exhausted, and
 	// "condition_number" from the SPD solve / inverse. A failed

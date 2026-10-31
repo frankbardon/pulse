@@ -23,10 +23,10 @@ Accessors: `At`, `Set`, `Rows` / `Cols` / `N` / `Len`, `ToRows`, `RowMajor`, `Sl
 | Factor, solve or invert a symmetric positive-definite matrix, with reproducible output | `Cholesky`, `CholeskyRidge`, `SolveSPD`, `InverseSPD` | **yes**: pure Go, FMA-free |
 | Solve a general (non-symmetric or indefinite) square system, with reproducible output | `Solve`, `FactorLU` → `LUFactor.Solve` / `SolveMatrix` / `Inverse` / `ConditionNumber` | **yes** for the values: pure Go, FMA-free (the singularity decision uses the rank tolerance) |
 | Running means and covariances, mergeable | `CoMoment`, `MergeTree` | **yes**: pure Go, FMA-free |
-| Factor once, then solve many right-hand sides, with a condition check | `FactorSPD` → `SPDFactor.Solve` / `Inverse` / `ConditionNumber`; `Mul` | no; gonum-backed, but identical bits run to run on one machine |
+| Factor once, then solve many right-hand sides, with a condition check | `FactorSPD` → `SPDFactor.Solve` / `Inverse` / `ConditionNumber`; `Mul` | **yes**: pure Go, FMA-free, in gonum's amd64 operation order (equal to gonum bit for bit on amd64) |
 | Eigen, singular value, QR, rank, condition number | `SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber` | values may differ in the last ulps; order, sign and rank decisions are fixed |
 
-The reference routines write every product that feeds an addition as an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. That is why arm64 and amd64 agree bit for bit. Use them when "same input, same seed, same bytes" matters to you.
+The reference routines and the SPD path write every product that feeds an addition as an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. That is why arm64 and amd64 agree bit for bit. The SPD path keeps the operation order of the gonum calls it replaced (LAPACK `Dpotrf` / `Dpocon` / `Dpotrs` / `Dpotri` and gonum's amd64 assembly kernels), so its factor, solve, inverse, condition estimate and refusals are exactly what gonum gave on amd64; the reference `Cholesky` is a different algorithm order and gives different last bits. Use them when "same input, same seed, same bytes" matters to you.
 
 ## Cholesky with a ridge
 

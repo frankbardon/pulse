@@ -140,8 +140,9 @@ func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolve
 			map[string]any{"gonum_error": backendErrorText(err)},
 		)
 	}
-	// sandwich = invAug · M2_xx · invAug, both products gonum-backed on
-	// the full (both-triangle) dense copy of the inverse.
+	// sandwich = invAug · M2_xx · invAug, both products linalg.Mul
+	// (gonum's Dgemm order) on the full (both-triangle) dense copy of the
+	// inverse.
 	sandwich, err := ridgeSandwich(invAug, p, a.m2XX)
 	if err != nil {
 		return nil, err
@@ -206,7 +207,7 @@ func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolve
 }
 
 // ridgeSandwich returns inv · M · inv for the symmetric inv and the p×p
-// row-major M, through linalg's gonum-backed Mul.
+// row-major M, through linalg's Mul (gonum's Dgemm order).
 func ridgeSandwich(inv *linalg.Sym, p int, m []float64) (*linalg.Matrix, error) {
 	invDense, err := linalg.NewMatrixFromRows(inv.ToRows())
 	if err != nil {
