@@ -105,6 +105,7 @@ process.mtcars.corr_mpg_wt_hp:matrices.0.primary.values.1.2 0x3fe51476730e8dfd 0
 process.mtcars.corr_mpg_wt_hp:matrices.0.primary.values.2.0 0xbfe8d65f0da5e985 -0.77616837182658627
 process.mtcars.corr_mpg_wt_hp:matrices.0.primary.values.2.1 0x3fe51476730e8dfd 0.65874788734475909
 process.mtcars.corr_mpg_wt_hp:matrices.0.primary.values.2.2 0x3ff0000000000000 1
+process.mtcars.corr_mpg_wt_hp:matrices.0.scalars.determinant 0x3fb919b19d996f68 0.098048306442647282
 process.mtcars.ewma_mpg:data.0.v 0x4083912ce2cd3109 626.14691696458715
 process.mtcars.ewma_qsec:data.0.v 0x4081d088f3480f1e 570.06687027259954
 process.mtcars.ewma_qsec:data.0.var 0x3fe324b37d8e0bc6 0.59823011896548262
@@ -989,4 +990,4 @@ weighting.Welford.SumWSq 0x406c200000000000 225
 weighting.Welford.Variance(frequency) 0x4009ab02dbc8da8c 3.2085015459700283
 weighting.Welford.Variance(probability) 0x4009af242aed5831 3.2105182031328003
 
-// golden-hash: 23c70be7bf20b22f110900cd9bd6a4c37a035624917806314c41209c6c619096
+// golden-hash: 1bc9a660c5a5de519422342b0ac7be05fb2c171cba26a2303d04aed9975559bb

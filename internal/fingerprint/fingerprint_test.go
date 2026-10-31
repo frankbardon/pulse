@@ -234,7 +234,10 @@ func coWelfordFold() weighting.CoWelford {
 // fixtureCohorts maps a cohort filename (as named in a request) to its
 // in-repo .pulse file, relative to this package.
 var fixtureCohorts = map[string]string{
-	"mtcars.pulse": "../processing/testdata/reference/fixtures/mtcars.pulse",
+	"mtcars.pulse":          "../processing/testdata/reference/fixtures/mtcars.pulse",
+	"attitude.pulse":        "../processing/testdata/reference/fixtures/attitude.pulse",
+	"two_factor.pulse":      "../processing/testdata/reference/fixtures/two_factor.pulse",
+	"nonpsd_pairwise.pulse": "../processing/testdata/reference/fixtures/nonpsd_pairwise.pulse",
 }
 
 // requestFigure is one Process request and the figures read from its
@@ -336,9 +339,9 @@ var requestFigures = []requestFigure{
 	{"process.mtcars_groups.box_m_by_am", "mtcars_groups.pulse",
 		`{"tests":[{"type":"TEST_BOX_M","fields":["mpg","wt","qsec"],"split_by":"am","label":"t"}]}`,
 		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
-	// TEST_MANOVA is not pinned: its eigenvalues of E⁻¹H run gonum's
-	// SymEigen and move 1–31 ulp across arches (E4-S4 allowlists the
-	// decomposition; pin it at its documented tolerance there).
+	// TEST_MANOVA is not pinned here: its eigenvalues of E⁻¹H run
+	// gonum's SymEigen and move 1–31 ulp across arches; it is pinned at
+	// 1e-12 relative in decomposition_test.go (E4-S4).
 	{"process.mtcars_groups.mardia_mpg_wt_qsec", "mtcars_groups.pulse",
 		`{"tests":[{"type":"TEST_MARDIA","fields":["mpg","wt","qsec"],"label":"t"}]}`,
 		[]string{"tests.0.statistic", "tests.0.p_value", "tests.0.details.*"}},
@@ -549,11 +552,12 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.reg_glm_poisson", "mtcars.pulse",
 		`{"regressions":[{"type":"REG_GLM","name":"r","target":"carb","predictors":["wt","hp"],"family":"poisson","link":"log"}]}`,
 		[]string{"regressions.0.coefficients.*", "regressions.0.std_errors.*", "regressions.0.p_values.*", "regressions.0.deviance"}},
-	// MAT_CORRELATION primary on the FMA-free CoMoment path (its
-	// determinant runs a gonum decomposition: not pinned).
+	// MAT_CORRELATION primary on the FMA-free CoMoment path and its
+	// determinant (E4-S4: determinantSPD runs the FMA-free reference
+	// Cholesky, bit-identical across arches).
 	{"process.mtcars.corr_mpg_wt_hp", "mtcars.pulse",
 		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m"}]}`,
-		[]string{"matrices.0.primary.values.*"}},
+		[]string{"matrices.0.primary.values.*", "matrices.0.scalars.determinant"}},
 	// E3-S2: MAT_DISTANCE aitchison centroid distances (detmath.Log in the
 	// metric registry) and the Spearman / Kendall Fisher-z interval
 	// (barriered Bonett-Wright / Fieller zDF).
@@ -566,10 +570,13 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.kendall_inference_mpg_wt_hp", "mtcars.pulse",
 		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m","params":{"method":"kendall","inference":true}}]}`,
 		[]string{"matrices.0.primary.values.*", "matrices.0.auxiliary.*"}},
-	// MAT_FACTOR (ml / minres, promax / geomin / entropy) is not pinned:
-	// every figure starts from gonum's SymEigen and the ML / GPA
+	// MAT_FACTOR (ml / minres, promax / geomin / entropy) is not pinned
+	// here: every figure starts from gonum's SymEigen and the ML / GPA
 	// iterations carry its last-ulp differences 1–384 ulp (relative
-	// <= ~1e-13) across arches (E4-S4 pins it at its tolerance).
+	// <= ~1e-13) across arches. It, MAT_PCA, MAT_COLLINEARITY,
+	// ATTR_PC_SCORE / ATTR_FACTOR_SCORE, OVERLAY_CORRESPONDENCE and a
+	// converged MAT_SEM fit are pinned at 1e-12 relative in
+	// decomposition_test.go (E4-S4).
 }
 
 // facetFigures: end-to-end figures through pulse.FacetSchema (E3-S3:
@@ -606,7 +613,7 @@ func TestFingerprint_Golden(t *testing.T) {
 	for _, f := range directFigures {
 		add(f.name, f.fn())
 	}
-	for name, v := range requestFigureValues(t) {
+	for name, v := range requestFigureValues(t, requestFigures, facetFigures) {
 		add(name, v)
 	}
 
@@ -633,9 +640,9 @@ func TestFingerprint_Golden(t *testing.T) {
 	}
 }
 
-// requestFigureValues runs every requestFigures entry through one Pulse
-// instance over an in-memory copy of the fixture cohorts.
-func requestFigureValues(t *testing.T) map[string]float64 {
+// requestFigureValues runs every process and facet entry through one
+// Pulse instance over an in-memory copy of the fixture cohorts.
+func requestFigureValues(t *testing.T, process, facet []requestFigure) map[string]float64 {
 	t.Helper()
 	mem := afero.NewMemMapFs()
 	for name, src := range fixtureCohorts {
@@ -662,7 +669,7 @@ func requestFigureValues(t *testing.T) map[string]float64 {
 		run func(rf requestFigure) (any, error)
 	}
 	var runs []figureRun
-	for _, rf := range requestFigures {
+	for _, rf := range process {
 		runs = append(runs, figureRun{rf, func(rf requestFigure) (any, error) {
 			var req types.Request
 			if err := json.Unmarshal([]byte(rf.request), &req); err != nil {
@@ -672,7 +679,7 @@ func requestFigureValues(t *testing.T) map[string]float64 {
 			return p.Process(context.Background(), &req)
 		}})
 	}
-	for _, rf := range facetFigures {
+	for _, rf := range facet {
 		runs = append(runs, figureRun{rf, func(rf requestFigure) (any, error) {
 			var req types.FacetRequest
 			if err := json.Unmarshal([]byte(rf.request), &req); err != nil {
