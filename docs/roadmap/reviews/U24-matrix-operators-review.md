@@ -87,3 +87,12 @@ You are an adversarial statistician reviewing the PURPOSE and INTERPRETATION tex
 ## Panel independence
 
 One pass of one model family that also wrote the texts. The deterministic layers above are the stronger guarantee: for `frequency` and unweighted input every figure is pinned to stock R and the named CRAN packages at the stated tolerance; for `probability` they guarantee the one-rule arithmetic and scale invariance only (no software implements Kish-w* inference).
+
+## Human sign-off (U33, #206)
+
+Signed off on 2026-10-31 by the owner (@frankbardon), the named statistics
+reviewer. Every open item and owner call in this record is accepted as
+documented; where a call asked whether to change behaviour, the decision is to
+keep the current behaviour. Items already fixed by later units were confirmed
+against the code. Future changes to the paths this record covers need the
+reviewer's approval through `.github/CODEOWNERS`.
