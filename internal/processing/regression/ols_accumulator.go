@@ -48,6 +48,12 @@ type olsAccumulator struct {
 	m2XY []float64 // length p
 	m2YY float64
 
+	// qr is the streaming QR factorization of the same rows
+	// (ols_qr.go): the plain OLS solve reads it instead of factoring
+	// m2XX, at κ(X) rather than κ(X)². The penalized, bounded and Bayes
+	// solvers keep reading the moments.
+	qr *olsQR
+
 	// xScratch is a per-row buffer of (xᵢ − μ_x(n−1)) deltas, reused to
 	// keep the inner loop allocation-free.
 	xScratch []float64
@@ -60,6 +66,7 @@ func newOLSAccumulator(p int) *olsAccumulator {
 		meanX:    make([]float64, p),
 		m2XX:     make([]float64, p*p),
 		m2XY:     make([]float64, p),
+		qr:       newOLSQR(p),
 		xScratch: make([]float64, p),
 	}
 }
@@ -125,6 +132,7 @@ func (a *olsAccumulator) UpdateRowWeighted(x []float64, y, w float64) {
 		a.m2XY[i] += wdxi * dyPost
 	}
 	a.m2YY += wdy * dyPost
+	a.qr.add(x, y, w)
 }
 
 // nStar is the inference sample size N*: Σw (= n unweighted, Σw under

@@ -169,7 +169,7 @@ var validationRegistry = map[string]validation{
 		r("`sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)", tol10, svcCov, svcVcov),
 		weighted,
 	},
-		Gap: "NIST Filip (degree-10 polynomial) is refused as rank-deficient, and NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin.",
+		Gap: "NIST NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin. On Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): that is the double-precision limit for its large residuals.",
 	},
 	"REG_GLM": {
 		Refs: []validationRef{

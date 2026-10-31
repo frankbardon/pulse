@@ -55,7 +55,7 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - [x] **#608** `TEST_ANOVA_F` reaches the double-precision ceiling on NIST SmLs07–09: 4.0 / 3.9 / 3.9 digits (3.2 before). The original 7-digit target is impossible from float64 input; see E3-S4 (E3-S4)
 - [x] **#611** Shifted accumulation for the other per-group Welford tests where no parity contract forbids it: `TEST_ANOVA_WELCH` and one-sample `TEST_T`. The rest don't need it: `TEST_BROWN_FORSYTHE` reads deviations, the paired tests read differences, and `TEST_TUKEY_HSD` and the post-tests read materialized means (E3-S7)
 - [ ] **#612** Decide, then do: two-sample `TEST_T` / `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` must stay byte-equal with `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `_VS_REF`, which fold unshifted `AGG_WELFORD` cells. They lose about 3 digits under a 1e12 offset (1e-9 relative at 1e6). Precision there means shifting `AGG_WELFORD` itself, merge across shards included, so both sides move together (owner decision D4)
-- [ ] **#609** `REG_OLS` fits NIST Filip instead of refusing it as rank-deficient (a QR or centred-and-scaled solve in place of Cholesky on the normal equations), and Wampler1–5 coefficients reach 7+ digits (6.0–6.7 today) (E3-S5)
+- [x] **#609** `REG_OLS` solves on a streaming Givens QR (`ols_qr.go`, AS 274) instead of Cholesky on the normal equations. NIST Filip now fits (7.4 digits; it was refused), and Wampler1–5 reach 9.6 / 13.3 / 9.7 / 7.7 / 5.7 (6.0–6.7 before), level with LAPACK's Householder QR (8.1, and 7.6 / 5.6 on Wampler4 / 5). Wampler5's 7-digit target is beyond double precision for any solver (E3-S5)
 - [ ] **#610** Regression through the origin (no intercept), so NIST NoInt1 / NoInt2 run (E3-S6; a public `RegressionSpec` slot, so it follows the regression Update Demand row)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
 - [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded, reproducible simulation-based calibration harness (E4-S2)
@@ -118,7 +118,26 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
     - **The arithmetic loss is fixed.** Pulse lost a further 0.8 digits because each group's Welford mean was held at magnitude 1e12. `TEST_ANOVA_F` now accumulates v minus the first observed value, which is exact and shift-invariant for the sums of squares. It reaches the ceiling (4.0 / 3.9 / 3.9). Every other ANOVA set gained 0.5–1.4 digits; for example, AtmWtAg went from 8.7 to 10.1.
     - **Pinned by** `TestAnovaF_LargeOffsetMatchesExact`, which compares against exact `math/big` sums of squares on the input doubles.
     - **Exact results would need exact input.** Getting past the ceiling would need decimal-aware accumulation on `decimal128` cohorts. That is out of scope.
-  - S5–S6: the remaining accuracy fixes above.
+  - S5 *(done)*: #609.
+    - **The change.** Plain `REG_OLS` (no penalty, no bounds) now solves on an incremental Givens QR of √w·[1, x − x⁰, y − y⁰], where the origin is the first row. It is still streaming, at O(p²) per row and O(p²) memory. The solve works at κ(X) instead of the normal equations' κ(X)², and the origin keeps an offset predictor from aligning with the intercept column. The intercept and its SE still come from the Welford means.
+    - **R².** It is computed as ESS / (ESS + RSS), as R's `summary.lm` does, so there is no cancellation when R² is near 0.
+    - **Unchanged solvers.** Ridge, lasso, NNLS's bounded solve and Bayes keep reading the moments. Every caller of `solveOLS` (refit, coefficient scoring, NNLS's first pass) moves together.
+    - **Checks.** The `lm` goldens still pass at 1e-10, and `TestOLSQR_NoFMAContraction` holds `ols_qr.go` FMA-free.
+    - **NIST, before → after (digits):**
+
+      | Dataset | Before | After |
+      |---|---|---|
+      | Filip | refused | 7.4 |
+      | Longley | 11.5 | 13.3 |
+      | Norris | 10.7 | 12.4 |
+      | Pontius | 8.5 | 11.8 |
+      | Wampler1 | 6.7 | 9.6 |
+      | Wampler2 | 6.4 | 13.3 |
+      | Wampler3 | 6.3 | 9.7 |
+      | Wampler4 | 6.7 | 7.7 |
+      | Wampler5 | 6.0 | 5.7 |
+    - **Reference points.** numpy/LAPACK Householder QR gets 8.1 on Filip, 7.6 on Wampler4 and 5.6 on Wampler5. Its SVD-based `lstsq` misses Filip entirely, at 0 digits.
+  - S6: #610 (regression through the origin).
   - S7: #611. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
 - **E4 — External references for MMM**
   - S1: `gen_mmm_hill.R` fits the same Hill-adstock objective with `minpack.lm::nlsLM` from the same start and bounds. The test pins coefficients at the tolerance the optimizer oracles already use (`optimize/testdata`).

@@ -843,7 +843,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#608** `TEST_ANOVA_F` reaches the double-precision ceiling on NIST SmLs07–09 (4.0 / 3.9 / 3.9 digits; 7 is impossible from float64 input) · [U64](units/U64-reference-validation.md)
 - [x] **#611** Shifted accumulation for `TEST_ANOVA_WELCH` and one-sample `TEST_T` · [U64](units/U64-reference-validation.md)
 - [ ] **#612** Two-sample t / z precision under a large offset without breaking byte parity with the cell overlays (owner decision U64 D4) · [U64](units/U64-reference-validation.md)
-- [ ] **#609** `REG_OLS` fits NIST Filip instead of refusing it, and Wampler1–5 coefficients reach 7+ digits · [U64](units/U64-reference-validation.md)
+- [x] **#609** `REG_OLS` solves on a streaming Givens QR: NIST Filip fits (7.4 digits), Wampler1–5 reach 9.6–13.3 (5.7 on Wampler5, level with LAPACK and at the double-precision limit) · [U64](units/U64-reference-validation.md)
 - [ ] **#610** Regression through the origin, so NIST NoInt1 / NoInt2 run · [U64](units/U64-reference-validation.md)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective · [U64](units/U64-reference-validation.md)
 - [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded simulation-based calibration harness · [U64](units/U64-reference-validation.md)

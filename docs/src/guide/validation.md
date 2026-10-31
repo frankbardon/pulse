@@ -67,7 +67,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`REG_GLM`](catalog/regression.md#op-reg_glm) | R 4.6.1 `glm` (binomial-logit, poisson-log, gamma-inverse)<br>R 4.6.1 `glmnet` (penalties)<br>R 4.6.1 `sandwich` (robust standard errors; vcov)<br>weighted reference (see above) | 1e-12 relative | Only the canonical link of each family is implemented, so only those are validated. |
 | [`REG_MMM_BAYES`](catalog/regression.md#op-reg_mmm_bayes) | synthetic data with known true parameters (internal/mmmfixture) | parameter recovery | No external reference implementation; the fit is checked by recovering known parameters only. |
 | [`REG_MMM_HILL`](catalog/regression.md#op-reg_mmm_hill) | synthetic data with known true parameters (internal/mmmfixture) | 0.5% to 15% relative, per parameter | No external reference implementation; the fit is checked by recovering known parameters only. |
-| [`REG_OLS`](catalog/regression.md#op-reg_ols) | NIST StRD certified values (linear regression: Norris, Pontius, Longley, Wampler1–5)<br>R 4.6.1 `lm`<br>R 4.6.1 `glmnet` (penalties), `nnls` (non-negative)<br>R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)<br>weighted reference (see above) | 1e-12 relative | NIST Filip (degree-10 polynomial) is refused as rank-deficient, and NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin. |
+| [`REG_OLS`](catalog/regression.md#op-reg_ols) | NIST StRD certified values (linear regression: Norris, Pontius, Longley, Wampler1–5)<br>R 4.6.1 `lm`<br>R 4.6.1 `glmnet` (penalties), `nnls` (non-negative)<br>R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)<br>weighted reference (see above) | 1e-12 relative | NIST NoInt1 / NoInt2 cannot run: REG_OLS has no regression through the origin. On Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): that is the double-precision limit for its large residuals. |
 
 ## Matrix operators
 
@@ -120,17 +120,17 @@ The [NIST Statistical Reference Datasets](https://www.itl.nist.gov/div898/strd/)
 
 | Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |
 |---|---|---|---|---|
-| Norris | lower | 10.7 | `B0` 12.4, `B1` 14.3, `SE(B0)` 10.7, `SE(B1)` 10.7, `r2` 15.0, `residual_sd` 10.7 | — |
-| Pontius | lower | 8.5 | `B0` 11.2, `B1` 14.1, `B2` 12.2, `SE(B0)` 8.5, `SE(B1)` 8.5, `SE(B2)` 8.5, `r2` 15.0, `residual_sd` 8.5 | — |
+| Norris | lower | 12.4 | `B0` 12.4, `B1` 14.3, `SE(B0)` 13.0, `SE(B1)` 13.0, `r2` 15.0, `residual_sd` 13.0 | — |
+| Pontius | lower | 11.8 | `B0` 11.8, `B1` 15.0, `B2` 13.8, `SE(B0)` 12.3, `SE(B1)` 12.3, `SE(B2)` 12.3, `r2` 15.0, `residual_sd` 12.3 | — |
 | NoInt1 | average | — | — | regression through the origin (no intercept) is not offered by REG_OLS |
 | NoInt2 | average | — | — | regression through the origin (no intercept) is not offered by REG_OLS |
-| Filip | higher | — | — | REG_OLS refused the fit: PROCESSING_REGRESSION_RANK_DEFICIENT |
-| Longley | higher | 11.5 | `B0` 12.6, `B1` 11.5, `B2` 12.0, `B3` 12.6, `B4` 12.9, `B5` 11.5, `B6` 12.6, `SE(B0)` 13.2, `SE(B1)` 14.1, `SE(B2)` 12.8, `SE(B3)` 12.9, `SE(B4)` 13.1, `SE(B5)` 13.2, `SE(B6)` 13.3, `r2` 15.0, `residual_sd` 12.8 | — |
-| Wampler1 | higher | 6.7 | `B0` 6.9, `B1` 6.7, `B2` 7.1, `B3` 8.0, `B4` 9.3, `B5` 11.0, `SE(B0)` 15.0, `SE(B1)` 15.0, `SE(B2)` 15.0, `SE(B3)` 15.0, `SE(B4)` 15.0, `SE(B5)` 15.0, `r2` 15.0, `residual_sd` 15.0 | — |
-| Wampler2 | higher | 6.4 | `B0` 12.1, `B1` 10.8, `B2` 10.2, `B3` 10.0, `B4` 10.3, `B5` 11.0, `SE(B0)` 6.4, `SE(B1)` 6.4, `SE(B2)` 6.9, `SE(B3)` 7.8, `SE(B4)` 9.0, `SE(B5)` 10.7, `r2` 15.0, `residual_sd` 6.4 | — |
-| Wampler3 | higher | 6.3 | `B0` 6.6, `B1` 6.3, `B2` 6.7, `B3` 7.6, `B4` 8.9, `B5` 10.6, `SE(B0)` 10.2, `SE(B1)` 10.1, `SE(B2)` 10.1, `SE(B3)` 10.1, `SE(B4)` 10.1, `SE(B5)` 10.1, `r2` 15.0, `residual_sd` 10.3 | — |
-| Wampler4 | higher | 6.7 | `B0` 6.9, `B1` 6.7, `B2` 7.1, `B3` 8.0, `B4` 9.3, `B5` 11.0, `SE(B0)` 11.3, `SE(B1)` 10.7, `SE(B2)` 10.6, `SE(B3)` 10.5, `SE(B4)` 10.5, `SE(B5)` 10.6, `r2` 15.0, `residual_sd` 14.8 | — |
-| Wampler5 | higher | 6.0 | `B0` 6.2, `B1` 6.0, `B2` 6.4, `B3` 7.3, `B4` 8.5, `B5` 10.2, `SE(B0)` 11.3, `SE(B1)` 10.7, `SE(B2)` 10.6, `SE(B3)` 10.5, `SE(B4)` 10.5, `SE(B5)` 10.6, `r2` 13.7, `residual_sd` 14.8 | — |
+| Filip | higher | 7.4 | `B0` 8.9, `B1` 9.0, `B10` 8.9, `B2` 9.1, `B3` 9.3, `B4` 9.5, `B5` 10.2, `B6` 9.8, `B7` 9.4, `B8` 9.2, `B9` 9.0, `SE(B0)` 7.4, `SE(B1)` 7.4, `SE(B10)` 7.4, `SE(B2)` 7.4, `SE(B3)` 7.4, `SE(B4)` 7.4, `SE(B5)` 7.4, `SE(B6)` 7.4, `SE(B7)` 7.4, `SE(B8)` 7.4, `SE(B9)` 7.4, `r2` 10.2, `residual_sd` 8.0 | — |
+| Longley | higher | 13.3 | `B0` 15.0, `B1` 13.3, `B2` 14.5, `B3` 14.5, `B4` 14.8, `B5` 13.5, `B6` 14.8, `SE(B0)` 15.0, `SE(B1)` 14.6, `SE(B2)` 15.0, `SE(B3)` 14.6, `SE(B4)` 14.5, `SE(B5)` 15.0, `SE(B6)` 14.8, `r2` 15.0, `residual_sd` 15.0 | — |
+| Wampler1 | higher | 9.6 | `B0` 9.6, `B1` 10.2, `B2` 10.7, `B3` 11.4, `B4` 12.8, `B5` 14.7, `SE(B0)` 10.0, `SE(B1)` 10.0, `SE(B2)` 10.5, `SE(B3)` 11.3, `SE(B4)` 12.6, `SE(B5)` 14.3, `r2` 15.0, `residual_sd` 10.0 | — |
+| Wampler2 | higher | 13.3 | `B0` 14.7, `B1` 14.7, `B2` 13.5, `B3` 13.3, `B4` 13.6, `B5` 14.3, `SE(B0)` 14.7, `SE(B1)` 14.7, `SE(B2)` 15.0, `SE(B3)` 15.0, `SE(B4)` 15.0, `SE(B5)` 15.0, `r2` 15.0, `residual_sd` 14.7 | — |
+| Wampler3 | higher | 9.7 | `B0` 9.9, `B1` 9.7, `B2` 10.2, `B3` 11.1, `B4` 12.3, `B5` 14.1, `SE(B0)` 12.5, `SE(B1)` 14.3, `SE(B2)` 13.9, `SE(B3)` 13.8, `SE(B4)` 13.7, `SE(B5)` 13.6, `r2` 15.0, `residual_sd` 15.0 | — |
+| Wampler4 | higher | 7.7 | `B0` 8.0, `B1` 7.7, `B2` 8.1, `B3` 9.0, `B4` 10.3, `B5` 12.0, `SE(B0)` 12.5, `SE(B1)` 14.6, `SE(B2)` 13.9, `SE(B3)` 13.9, `SE(B4)` 13.7, `SE(B5)` 13.7, `r2` 15.0, `residual_sd` 14.9 | — |
+| Wampler5 | higher | 5.7 | `B0` 6.0, `B1` 5.7, `B2` 6.1, `B3` 7.0, `B4` 8.3, `B5` 10.0, `SE(B0)` 12.5, `SE(B1)` 14.5, `SE(B2)` 13.9, `SE(B3)` 13.9, `SE(B4)` 13.7, `SE(B5)` 13.7, `r2` 14.4, `residual_sd` 14.8 | — |
 
 ### One-way ANOVA (`TEST_ANOVA_F`)
 
