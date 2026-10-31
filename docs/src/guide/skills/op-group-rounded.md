@@ -55,7 +55,7 @@ Floored numeric key per row. Each value rounds DOWN to a multiple of `Interval` 
 ## Gotchas
 
 - Same partition as `GROUP_RANGE` at equal width; only the key differs (`"10"` vs `"10-20"`).
-- `Group.Include` not honoured — filter source field instead.
+- `Group.Include` on `groups` is refused (`PROCESSING_CONFIG`) — filter the source field; a crosstab axis keeps it for order.
 
 ## See
 

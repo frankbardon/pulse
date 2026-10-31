@@ -546,6 +546,15 @@ func (c *paramsChecker) request(req *types.Request) *errors.CodedError {
 	if ce := c.groups("groups", req.Groups); ce != nil {
 		return ce
 	}
+	// The advisory pass refuses nothing, so it skips the include gate.
+	for i, g := range req.Groups {
+		if c.undeclared != nil {
+			break
+		}
+		if ce := groupIncludeRefusal(slotPath("groups", i), g, c.inst); ce != nil {
+			return ce
+		}
+	}
 	for i, w := range req.Windows {
 		if w != nil {
 			if ce := c.check("windows", i, paramread.Window, string(w.Type), w.Params); ce != nil {

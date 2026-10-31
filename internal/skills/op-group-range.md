@@ -44,7 +44,7 @@ String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Rows emit by num
 
 - Half-open `[low, high)` — upper edge belongs to next bucket.
 - Explicit `"type":"GROUP_RANGE"` without `interval` buckets at width 1; a numeric slot with no `type` gets the smart default GROUP_RANGE with `interval` 10 (`defaults_applied`).
-- `Group.Include` not honoured.
+- `Group.Include` on `groups` is refused (`PROCESSING_CONFIG`); a crosstab axis keeps it for order.
 
 ## See
 
