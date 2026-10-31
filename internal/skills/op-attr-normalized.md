@@ -37,7 +37,7 @@ One `float64` per record in `[0, 1]`. Null source → `null` (counted in `n_null
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
 - Constant field (`max == min`, or one non-null row) → `null` per row (0/0), counted in `n_null`.
 - Outlier-sensitive — one extreme value compresses the rest of the range.
-- Feeds a downstream formula: a LATER formula attribute reads its label; materialise it (`derived-cohorts`) for a later request.
+- Feeds a downstream formula: a LATER formula attribute reads its label<!-- feature: capability:materialize, capability:process -->; materialise it (`derived-cohorts`) for a later request<!-- /feature -->.
 
 ## See
 

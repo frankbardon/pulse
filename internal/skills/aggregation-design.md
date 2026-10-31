@@ -75,7 +75,7 @@ Numeric-only ops on a categorical field (its dictionary index) are refused `PULS
 
 - Defaults never cross categories — a categorical `field` with `type` omitted gets the modal count, never a sum.
 - Filterers chain in declared order; reordering changes per-stage counters but not the final row set.
-- Filterers can't see attribute output (`filterers` runs before `attributes`). To filter one, restate it as an expression over source fields, or materialise it first (`derived-cohorts`).
+- Filterers can't see attribute output (`filterers` runs before `attributes`). To filter one, restate it as an expression over source fields<!-- feature: capability:materialize, capability:process -->, or materialise it first (`derived-cohorts`)<!-- /feature -->.
 - Forced-buffered ops (order statistics, decimal paths) materialize the union of shards on a shard archive — memory scales with shard count.
 - Tiny groups produce unstable stats. Pair non-trivial aggregations with a row count; higher moments need `n ≥ 2`.
 
