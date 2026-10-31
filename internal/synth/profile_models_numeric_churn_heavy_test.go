@@ -204,18 +204,17 @@ func churnTwin(t *testing.T, source []byte, rows int) ([]byte, *synth.Profile) {
 //
 // Measured on this fixture (20,000 rows, arm64):
 //
-//	                         source   twin before   twin after
-//	McFadden pseudo-R²       0.209    0.107         0.125
-//	support_contacts β       +0.436   +0.035        +0.355
-//	autopay β                −0.527   −0.267        −0.358
-//	tenure_months β          −0.0276  −0.0066       −0.0089
+//	                         source   numeric (E2-S1)   probit (E2-S2)
+//	McFadden pseudo-R²       0.209    0.125             0.221
+//	support_contacts β       +0.436   +0.355            +0.475
+//	autopay β                −0.527   −0.358            −0.500
+//	tenure_months β          −0.0276  −0.0088           −0.0248
 //
-// "before" is the tree prior to numeric candidates, when `churned` was
-// modelled on contract alone. The remaining gap — tenure above all — is
-// the linear-probability fit behind a 0/1 target being read as a
-// probit: a driver whose effect saturates near p = 0 is attenuated by
-// the LPM slope. The pseudo-R² bar (≥ 0.85× the source's) belongs to
-// the next story, so it is reported here, not asserted.
+// "numeric" is numeric predictors alone, with `churned` still fitted as
+// a linear-probability model and read as a probit: a driver whose effect
+// saturates near p = 0 was attenuated by the LPM slope. Since E2-S2 a
+// packed_bool target is fitted as a real probit (profile_probit.go), and
+// the twin's pseudo-R² must reach 0.85× the source's — the binding bar.
 func TestProfileNumericPredictors_ChurnTwinCapturesNumericDrivers(t *testing.T) {
 	t.Parallel()
 
@@ -247,6 +246,12 @@ func TestProfileNumericPredictors_ChurnTwinCapturesNumericDrivers(t *testing.T) 
 	src := churnLogit(t, source)
 	tw := churnLogit(t, twin)
 	t.Logf("churn logit pseudo-R² source %.4f twin %.4f (ratio %.3f)", src.PseudoR2, tw.PseudoR2, tw.PseudoR2/src.PseudoR2)
+	if churn.Link != synth.ModelLinkProbit {
+		t.Errorf("churned (packed_bool) model link %q, want probit", churn.Link)
+	}
+	if ratio := tw.PseudoR2 / src.PseudoR2; ratio < 0.85 {
+		t.Errorf("twin churn pseudo-R² %.4f is %.2f× the source's %.4f, want ≥ 0.85×", tw.PseudoR2, ratio, src.PseudoR2)
+	}
 	for _, driver := range []string{"tenure_months", "support_contacts", "autopay"} {
 		s, w := src.Coefficients[driver], tw.Coefficients[driver]
 		t.Logf("%s: source β %.4f twin β %.4f", driver, s, w)

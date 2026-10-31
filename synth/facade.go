@@ -43,6 +43,12 @@ const (
 	ModelPredictorNumeric          = isynth.ModelPredictorNumeric
 )
 
+// ModelLinkProbit is FieldModel.Link for a packed_bool target fitted as a
+// probit: its intercept and coefficients are probit coefficients,
+// P(1 | row) = Φ(intercept + Σ coefficient·x). An empty Link is an
+// ordinary least-squares fit.
+const ModelLinkProbit = isynth.ModelLinkProbit
+
 // Pair arbitration modes, as they appear on Spec.PairArbitration: which
 // captured relationship keeps a target several of them name. Strength
 // (the default; an empty value means it) keeps the strongest

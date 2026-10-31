@@ -272,6 +272,12 @@ type FieldModel struct {
 	// NObs rows, so alpha·NObs recovers the pseudo-count. See
 	// profile_models_shrink.go for the construction.
 	ShrinkageAlpha float64 `json:"shrinkage_alpha,omitempty"`
+	// Link is "probit" (ModelLinkProbit) for a packed_bool target, whose
+	// Intercept and coefficients are then PROBIT coefficients —
+	// P(1 | row) = Φ(intercept + Σ coefficient·x) — R2 is McFadden's
+	// pseudo-R² and ResidualStd is 1, the latent error's unit scale.
+	// Absent for every other target: an ordinary least-squares fit.
+	Link string `json:"link,omitempty"`
 	// Residuals is the row-aligned fitted residual (observed − predicted)
 	// for each row retained in the capture's residual reservoir, and
 	// ResidualPresent[i] reports whether row i contributed one at all —
@@ -430,6 +436,16 @@ type fieldFit struct {
 	// model is populated at finish() when the fit succeeds; a nil model
 	// means the field was skipped and has already been warned about.
 	model *FieldModel
+
+	// probit marks a packed_bool target: its generation draw is a
+	// probit, so the linear fit's slopes are replaced by a real probit
+	// fit over the same design and rows (profile_probit.go). px/py are
+	// that fit's design rows (intercept first) and 0/1 targets, gathered
+	// on the same listwise admission the linear engine applies.
+	// probitFailure is why the probit fit fell back to the linear one.
+	probit        bool
+	px, py        []float64
+	probitFailure string
 }
 
 // interceptAcc is the sufficient statistic of an intercept-only fit:
@@ -887,14 +903,18 @@ func (f *modelFitter) newFieldFit(target string, choices []predictorChoice) (*fi
 		return nil, fmt.Sprintf("design matrix would be %d columns wide (cap %d)",
 			len(columns), maxModelColumns)
 	}
-	return &fieldFit{
+	fit := &fieldFit{
 		target:     target,
 		plan:       plan,
 		columns:    columns,
 		references: references,
 		rec:        plan.newRecord(),
 		choices:    choices,
-	}, ""
+	}
+	if tf := f.schema.Field(target); tf != nil && tf.Type == encoding.FieldTypePackedBool {
+		fit.probit = true
+	}
+	return fit, ""
 }
 
 // dropWeakestChoice returns this fit's admitted predictors with the
@@ -1303,6 +1323,9 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 				}
 				if why == "" {
 					fit.model = model
+					if fit.probitFailure != "" {
+						*warnings = append(*warnings, probitFallbackWarning(fit.target, fit.probitFailure))
+					}
 					if len(fit.columns) == 0 {
 						*warnings = append(*warnings, modelNoPredictorWarning(fit.target))
 					}
@@ -1383,6 +1406,9 @@ func (f *modelFitter) drive(fits []*fieldFit, values map[string]float64, nulls m
 				}
 				continue
 			}
+			if fit.probit {
+				fit.gatherProbitRow()
+			}
 			if err := fit.engine.UpdateRow(fit.rec); err != nil {
 				// UpdateRow's only error is a post-Finalize call, which
 				// cannot happen here; treat it as this field's failure
@@ -1437,6 +1463,11 @@ func (f *fieldFit) finalize() (*FieldModel, string) {
 	res, err := f.engine.Finalize()
 	if err != nil {
 		return nil, err.Error()
+	}
+	if f.probit {
+		if model, ok := f.probitModel(res.NObs); ok {
+			return model, ""
+		}
 	}
 	model := &FieldModel{
 		Field:          f.target,
@@ -1550,6 +1581,12 @@ func (f *fieldFit) residual() (float64, bool) {
 	}
 	if math.IsNaN(pred) || math.IsInf(pred, 0) {
 		return 0, false
+	}
+	if f.model.Link == ModelLinkProbit {
+		// The response residual y − Φ(η): on the same 0/1 scale the
+		// linear fit's residual was measured on.
+		_, cdf := probitPdfCdf(pred)
+		return y - cdf, true
 	}
 	return y - pred, true
 }

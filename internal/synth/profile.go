@@ -3219,6 +3219,19 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 		HasClamp:    true,
 		Predictors:  make([]ModelPredictorSpec, 0, len(m.Predictors)),
 	}
+	// scale maps a captured coefficient onto the spec's: 1 for a linear
+	// fit, and for a probit fit the bernoulli target's std, with the
+	// intercept and residual moved to match (probitSpecScale).
+	scale := 1.0
+	if m.Link != "" {
+		if m.Link != ModelLinkProbit || dist != DistBernoulli {
+			return FieldModelSpec{}, fmt.Sprintf("model link %q does not apply to a %q target", m.Link, dist)
+		}
+		var ok bool
+		if scale, out.Intercept, out.ResidualStd, ok = probitSpecScale(m.Intercept, num.Mean); !ok {
+			return FieldModelSpec{}, "probit target has a degenerate prevalence"
+		}
+	}
 	for _, pr := range m.Predictors {
 		want := ""
 		switch pr.Kind {
@@ -3243,7 +3256,7 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 			out.Predictors = append(out.Predictors, ModelPredictorSpec{
 				Kind:        pr.Kind,
 				Field:       pr.Field,
-				Coefficient: pr.Coefficient,
+				Coefficient: float64(scale * pr.Coefficient),
 			})
 			continue
 		default:
@@ -3262,7 +3275,7 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 			Kind:        pr.Kind,
 			Field:       pr.Field,
 			Level:       pr.Level,
-			Coefficient: pr.Coefficient,
+			Coefficient: float64(scale * pr.Coefficient),
 		})
 	}
 	if len(out.Predictors) == 0 {

@@ -94,13 +94,16 @@ max 0.0116, nothing off by more than 0.05). Two details follow from it:
   a 0/1 column very well by BIC — two near-zero-variance spikes — and
   reproduces the prevalence no better while costing a numeric inversion per
   draw. A boolean's shape is one number, not something to discover.
-- **A modelled boolean is a probit.** `--fit-models` on a boolean target
-  still works, and its coefficients still order rows, but the composed draw
-  is `P(1 | row) = Φ((μ − Φ⁻¹(1−p)) / σ)`. A coefficient is **not** a
-  change in probability. See "Reading a coefficient" below; the fidelity
-  report reports these targets as unidentified rather than fabricating a
-  recovered figure, because a 0/1 value does not determine the latent that
-  produced it.
+- **A modelled boolean is a probit.** `--fit-models` fits a boolean
+  target by probit maximum likelihood: its `models` entry carries
+  `"link": "probit"`, probit-scale `intercept` and coefficients,
+  `residual_std` 1 and McFadden's pseudo-R² as `r2`, and the twin draws
+  `P(1 | row) = Φ(intercept + Σ coefficient·x)`. A coefficient is a probit
+  slope, **not** a change in probability. A predictor that separates the
+  target (decides it outright) either settles at a near-step or keeps the
+  linear fit with a `kept its linear fit` warning. See "Reading a
+  coefficient" below; the fidelity report recovers these targets on the
+  calibrated probit score.
 
 ## Small-integer fields
 

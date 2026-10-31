@@ -12,7 +12,7 @@ requires: [capability:synth]
 
 `--fit-models` = **several drivers conditioning one numeric at once**. The conditional-pair arms ([`synth-profile-capture`](synth-profile-capture.md)) are pick-one: each overwrites its target, so on a wide cohort every categorical claims the same numeric and all but the first are dropped. One additive model accounts for all of them in one expression.
 
-Contract surface for that machinery. Calibration figures and closed design questions: `docs/src/cli/synth-calibration.md`.
+Calibration figures and closed design questions: `docs/src/cli/synth-calibration.md`.
 
 | Question | Skill |
 |---|---|
@@ -26,7 +26,7 @@ Contract surface for that machinery. Calibration figures and closed design quest
 
 ## Capture (`--fit-models`)
 
-One least-squares linear model per numeric field, regressed on the categorical **levels**, `set_*` **options** and **numerics** selection admitted, through `internal/processing/regression`'s streaming OLS engine.
+One linear model per numeric field (a probit for a `packed_bool`, [`synth-marginals`](synth-marginals.md)), regressed on the categorical **levels**, `set_*` **options** and **numerics** selection admitted, through `internal/processing/regression`'s streaming OLS engine.
 
 **A numeric predictor enters only a numeric declared AFTER it** (adjusted r², the same 0.01 floor), so models form a DAG and generation draws each before the fields it predicts ([`synth-model-draw`](synth-model-draw.md)). Its term is `coefficient × value`, `level` empty; the fit absorbs what the pair shares, so their residual correlation is ~0.
 
@@ -37,7 +37,7 @@ One reference level per categorical drops into the intercept (full level set + i
 **A `set_*` predictor is read through `setMaskFromWideEntry` at EVERY rung** — a `.(uint64)` assertion on a wide rung reads MISSING, deletes every row listwise and reports a silent `carries no predictors`. `dummyRecord` and the recovery refit share the helper ([`synth-set-fields`](synth-set-fields.md)).
 
 ```
-{field, intercept, predictors, references, n_obs, r2, residual_std, shrinkage_alpha}
+{field, intercept, predictors, references, n_obs, r2, residual_std, shrinkage_alpha, link}
   predictors[] = {kind, field, level, coefficient}    kind ∈ categorical_level | set_option | numeric
   references[] = the level each categorical dropped into the intercept
 ```

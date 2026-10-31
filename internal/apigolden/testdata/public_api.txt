@@ -4330,6 +4330,7 @@ pulse/synth: type FieldModel = pulse/internal/synth.FieldModel
 pulse/synth: type FieldModel underlying struct
 pulse/synth: type FieldModel field Field string "json:\"field\""
 pulse/synth: type FieldModel field Intercept float64 "json:\"intercept\""
+pulse/synth: type FieldModel field Link string "json:\"link,omitempty\""
 pulse/synth: type FieldModel field NObs int "json:\"n_obs\""
 pulse/synth: type FieldModel field Predictors []pulse/internal/synth.ModelPredictor "json:\"predictors\""
 pulse/synth: type FieldModel field R2 float64 "json:\"r2\""
@@ -4389,6 +4390,7 @@ pulse/synth: type ModelFidelity field Predictors []*pulse/internal/synth.ModelPr
 pulse/synth: type ModelFidelity field R2 float64 "json:\"r2,omitempty\""
 pulse/synth: type ModelFidelity field RecoveredIntercept float64 "json:\"recovered_intercept,omitempty\""
 pulse/synth: type ModelFidelity field Scale string "json:\"scale,omitempty\""
+pulse/synth: const ModelLinkProbit untyped string = "probit"
 pulse/synth: type ModelPredictor = pulse/internal/synth.ModelPredictor
 pulse/synth: type ModelPredictor underlying struct
 pulse/synth: type ModelPredictor field Coefficient float64 "json:\"coefficient\""
@@ -6363,4 +6365,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7f8e319e67307db64b0a345dddcb32ae711311b2ed9241b2baf3e75fd2994529
+// golden-hash: 6f640f53c1144075ccb39e3be888fa11c5a82eed120c2f9bc4744d3a9ad123e4
