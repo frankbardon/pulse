@@ -29,6 +29,9 @@
 // chi-square CDF / survival (chisquare.go) and NormalQuantile
 // (normal.go), each agreeing with gonum's distuv within the tolerance
 // distuv_replacement_test.go documents
-// (TestStatdist_ChiSquareAndNormalQuantileBitsPinned). No file is
+// (TestStatdist_ChiSquareAndNormalQuantileBitsPinned). ExpAMD64FMA
+// (exp_amd64fma.go) is the one Exp that is not detmath's: a portable
+// port of Go's amd64 FMA-path math.Exp for the REG_GLM logit / poisson
+// links, pinned by TestStatdist_ExpAMD64FMA. No file is
 // exempt: TestStatdist_NoFMAContraction holds the whole package.
 package statdist

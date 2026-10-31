@@ -537,10 +537,18 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.reg_bayes_credible_hc0", "mtcars.pulse",
 		`{"regressions":[{"type":"REG_BAYES_LINEAR","name":"r","target":"mpg","predictors":["wt","hp"],"prior":"nig","covariance":{"type":"hc0"}}]}`,
 		[]string{"regressions.0.credible_intervals.*"}},
-	// REG_GLM binomial-logit and poisson-log are not pinned: their links
-	// run math.Exp, whose amd64 assembly differs from arm64's (and from
-	// detmath.Exp) by an ulp that IRLS carries to ~1e-12 relative — an
-	// owner decision (E4-S2 needs-decision) before they can be pinned.
+	// REG_GLM binomial-logit and poisson-log: their links run
+	// statdist.ExpAMD64FMA (a portable port of amd64's FMA-path
+	// math.Exp), so IRLS sees the same Exp bits on every arch.
+	{"process.mtcars.reg_glm_logit", "mtcars.pulse",
+		`{"regressions":[{"type":"REG_GLM","name":"r","target":"vs","predictors":["mpg","disp"],"family":"binomial","link":"logit"}]}`,
+		[]string{"regressions.0.coefficients.*", "regressions.0.std_errors.*", "regressions.0.p_values.*", "regressions.0.deviance"}},
+	{"process.mtcars.reg_glm_logit_l2", "mtcars.pulse",
+		`{"regressions":[{"type":"REG_GLM","name":"r","target":"am","predictors":["wt","qsec","hp"],"family":"binomial","link":"logit","penalty":"l2","alpha":0.1}]}`,
+		[]string{"regressions.0.coefficients.*", "regressions.0.std_errors.*"}},
+	{"process.mtcars.reg_glm_poisson", "mtcars.pulse",
+		`{"regressions":[{"type":"REG_GLM","name":"r","target":"carb","predictors":["wt","hp"],"family":"poisson","link":"log"}]}`,
+		[]string{"regressions.0.coefficients.*", "regressions.0.std_errors.*", "regressions.0.p_values.*", "regressions.0.deviance"}},
 	// MAT_CORRELATION primary on the FMA-free CoMoment path (its
 	// determinant runs a gonum decomposition: not pinned).
 	{"process.mtcars.corr_mpg_wt_hp", "mtcars.pulse",

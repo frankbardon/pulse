@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
@@ -108,10 +109,10 @@ var binomialLogit = glmFamily{
 		// stable: for very negative η, e^η is small and we use that
 		// form directly; for very positive η, e^{-η} is small.
 		if eta >= 0 {
-			z := math.Exp(-eta)
+			z := statdist.ExpAMD64FMA(-eta)
 			return 1.0 / (1.0 + z)
 		}
-		z := math.Exp(eta)
+		z := statdist.ExpAMD64FMA(eta)
 		return z / (1.0 + z)
 	},
 	DmuDeta: func(eta float64) float64 {
@@ -119,10 +120,10 @@ var binomialLogit = glmFamily{
 		// trick (avoiding the eta → ±∞ overflow path).
 		var mu float64
 		if eta >= 0 {
-			z := math.Exp(-eta)
+			z := statdist.ExpAMD64FMA(-eta)
 			mu = 1.0 / (1.0 + z)
 		} else {
-			z := math.Exp(eta)
+			z := statdist.ExpAMD64FMA(eta)
 			mu = z / (1.0 + z)
 		}
 		return mu * (1 - mu)
@@ -177,10 +178,10 @@ var poissonLog = glmFamily{
 		return detmath.Log(mu)
 	},
 	InverseLink: func(eta float64) float64 {
-		return math.Exp(eta)
+		return statdist.ExpAMD64FMA(eta)
 	},
 	DmuDeta: func(eta float64) float64 {
-		return math.Exp(eta)
+		return statdist.ExpAMD64FMA(eta)
 	},
 	Variance: func(mu float64) float64 {
 		// μ, unclamped (R's poisson variance): the working weight
