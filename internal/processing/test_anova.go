@@ -13,8 +13,8 @@ import (
 // anovaRow implements TEST_ANOVA_F as a streaming row test: one-way
 // analysis of variance via online per-group Welford buckets.
 //
-// State is k Welford accumulators keyed by SplitBy, over v − shift (the
-// first observed value; see shift). Finalize computes:
+// State is k Welford accumulators keyed by SplitBy, over v − origin
+// (test_origin_shift.go). Finalize computes:
 //
 //	grand_mean = Σ n_i μ_i / N
 //	SSB        = Σ n_i (μ_i - grand_mean)²
@@ -38,14 +38,8 @@ type anovaRow struct {
 	groups map[string]*weighting.Welford
 	order  []string
 
-	// shift is the first observed value; every bucket accumulates
-	// v − shift. The sums of squares are shift-invariant, but a Welford
-	// mean held at the data's magnitude rounds to that magnitude's ulp:
-	// under a large common offset (NIST SmLs07–09, 1e12 + deviations of
-	// 0.1) that cost the deviations three digits. Rows stream in a fixed
-	// order and the state never merges, so the shift is deterministic.
-	shift    float64
-	shiftSet bool
+	// shift: buckets accumulate v − origin (test_origin_shift.go).
+	shift originShift
 
 	// testWeight: weighted, each group is rescaled to w* by its own
 	// c_g = N*_g/Σw_g, so N* = Σ_g N*_g and df_within = N* − k.
@@ -106,10 +100,7 @@ func (a *anovaRow) UpdateRow(record *Record) error {
 		a.groups[key] = b
 		a.order = append(a.order, key)
 	}
-	if !a.shiftSet {
-		a.shift, a.shiftSet = v, true
-	}
-	b.Add(v-a.shift, w)
+	b.Add(a.shift.of(v), w)
 	return nil
 }
 
@@ -123,7 +114,7 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 	}
 	stats := summariseWeightedANOVA(a.order, a.groups, a.basis)
 	for i := range stats.Means {
-		stats.Means[i] += a.shift
+		stats.Means[i] = a.shift.level(stats.Means[i])
 	}
 	// Σw (= N*) under frequency, the raw N otherwise (Basis.FloorN).
 	if a.basis.FloorN(stats.N, stats.NStar) < float64(k+1) {
@@ -195,7 +186,7 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 func (a *anovaRow) reset() {
 	a.groups = make(map[string]*weighting.Welford)
 	a.order = nil
-	a.shift, a.shiftSet = 0, false
+	a.shift.reset()
 }
 
 // weightedANOVAStats is anovaStats on w* plus N*, the sample size the

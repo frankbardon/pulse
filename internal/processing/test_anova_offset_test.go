@@ -90,3 +90,118 @@ func TestAnovaF_LargeOffsetMatchesExact(t *testing.T) {
 		}
 	}
 }
+
+// exactMoments returns each group's mean minus ref and its sample
+// variance, computed exactly on the given doubles and rounded once.
+func exactMoments(groups [][]float64, ref float64) (meansMinusRef, variances []float64) {
+	r := new(big.Rat).SetFloat64(ref)
+	for _, g := range groups {
+		var s big.Rat
+		for _, v := range g {
+			s.Add(&s, new(big.Rat).SetFloat64(v))
+		}
+		m := new(big.Rat).Quo(&s, new(big.Rat).SetInt64(int64(len(g))))
+		var ss big.Rat
+		for _, v := range g {
+			e := new(big.Rat).Sub(new(big.Rat).SetFloat64(v), m)
+			ss.Add(&ss, e.Mul(e, e))
+		}
+		vr, _ := new(big.Rat).Quo(&ss, new(big.Rat).SetInt64(int64(len(g)-1))).Float64()
+		d, _ := new(big.Rat).Sub(m, r).Float64()
+		meansMinusRef = append(meansMinusRef, d)
+		variances = append(variances, vr)
+	}
+	return meansMinusRef, variances
+}
+
+// offsetGroups feeds devs (+ offset) to rt, split by g1, g2, ... and
+// returns the doubles it fed.
+func offsetGroups(t *testing.T, rt RowTest, offset float64, devs [][]float64) [][]float64 {
+	t.Helper()
+	schema := twoSampleFixtureSchema()
+	groups := make([][]float64, len(devs))
+	for i, ds := range devs {
+		for _, d := range ds {
+			v := offset + d
+			groups[i] = append(groups[i], v)
+			split := ""
+			if len(devs) > 1 {
+				split = []string{"g1", "g2", "g3"}[i]
+			}
+			var r *Record
+			if split == "" {
+				r = newTestRecord(t, schema, map[string]float64{"revenue": v}, "", "")
+			} else {
+				r = newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", split)
+			}
+			if err := rt.UpdateRow(r); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return groups
+}
+
+func offsetClose(t *testing.T, what string, got, want, tol float64) {
+	t.Helper()
+	if math.Abs(got-want) > tol*math.Max(math.Abs(want), 1e-300) {
+		t.Errorf("%s = %.17g, exact on the input %.17g (rel %.2g)", what, got, want, math.Abs(got-want)/math.Abs(want))
+	}
+}
+
+// TestMeanTests_LargeOffsetMatchesExact: the one-sample t statistic and
+// the Welch ANOVA F hold their precision under a large common offset
+// (#611), against exact moments of the input doubles. The two-sample t
+// and z keep byte parity with their overlays instead (#612).
+func TestMeanTests_LargeOffsetMatchesExact(t *testing.T) {
+	t.Parallel()
+	one := [][]float64{{0.3, 0.5, 0.4, 0.6, 0.2, 0.45}}
+	three := [][]float64{{0.3, 0.5, 0.4, 0.6, 0.2}, {0.4, 0.6, 0.5, 0.75, 0.3}, {0.5, 0.7, 0.65, 0.8, 0.4}}
+	schema := twoSampleFixtureSchema()
+	for _, offset := range []float64{0, 1e6, 1e12} {
+		// One-sample t against mu = offset + 0.45.
+		mu := offset + 0.45
+		rt, err := newTTestRow(&types.Test{Type: types.TEST_T, Field: "revenue", Alpha: 0.05, Params: []byte(`{"mu":` + big.NewFloat(mu).Text('g', 17) + `}`)}, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		groups := offsetGroups(t, rt, offset, one)
+		res, err := rt.Finalize()
+		if err != nil {
+			t.Fatalf("one-sample offset %g: %v", offset, err)
+		}
+		m, v := exactMoments(groups, mu)
+		offsetClose(t, "one-sample statistic", res.Statistic, m[0]/math.Sqrt(v[0]/float64(len(groups[0]))), 1e-9)
+
+		// Welch ANOVA F from exact moments.
+		rw, err := newAnovaWelchRow(&types.Test{Type: types.TEST_ANOVA_WELCH, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		groups = offsetGroups(t, rw, offset, three)
+		res, err = rw.Finalize()
+		if err != nil {
+			t.Fatalf("welch anova offset %g: %v", offset, err)
+		}
+		m, v = exactMoments(groups, offset)
+		k := float64(len(groups))
+		var W, wm float64
+		w := make([]float64, len(groups))
+		for i := range groups {
+			w[i] = float64(len(groups[i])) / v[i]
+			W += w[i]
+			wm += w[i] * m[i]
+		}
+		wm /= W
+		var num, tail float64
+		for i := range groups {
+			d := m[i] - wm
+			num += w[i] * d * d
+			sh := 1 - w[i]/W
+			tail += sh * sh / float64(len(groups[i])-1)
+		}
+		num /= k - 1
+		offsetClose(t, "welch anova F", res.Statistic, num/(1+2*(k-2)/(k*k-1)*tail), 1e-9)
+		offsetClose(t, "welch anova weighted_mean", res.Details["weighted_mean"].(float64), offset+wm, 1e-15)
+	}
+}

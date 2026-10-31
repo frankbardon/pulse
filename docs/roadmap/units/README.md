@@ -101,7 +101,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U61 | [cross-arch-determinism](U61-cross-arch-determinism.md): Every numeric result path gives identical bits on arm64 and amd64, and a repo-wide gate keeps it that way | API & release | L | — (U58, U60 soft) | 554, 569 |
 | U62 | [bayesian-mmm](U62-bayesian-mmm.md): A media-mix practitioner fits a Bayesian model and gets return-on-spend intervals that include adstock uncertainty | Vector & matrix | L | — (U60 soft) | 552 (narrowed), 561–568 |
 | U63 | [mmm-followups](U63-mmm-followups.md): A media-mix run is one Compose call on the stock CLI, and a request aggregates window-derived columns | Vector & matrix | L | — (U40, U53, U57, U60, U62 soft) | 549, 297, 570–581 |
-| U64 | [reference-validation](U64-reference-validation.md): Every inferential number is traceable to an external reference, the gaps are closed, and users can see the evidence | Statistical integrity | L | — (U61 soft) | 588–597, 608–611 |
+| U64 | [reference-validation](U64-reference-validation.md): Every inferential number is traceable to an external reference, the gaps are closed, and users can see the evidence | Statistical integrity | L | — (U61 soft) | 588–597, 608–612 |
 | U65 | [regression-depth](U65-regression-depth.md): A fit can be diagnosed, interpreted and compared the way an analyst does it in Stata or SPSS | Statistical integrity | L | U64 (U53, U57 soft) | 598–607 |
 
 ## Dependency graph

@@ -8,7 +8,7 @@ status: in-progress
 depends_on: []
 soft_depends_on: [U61]
 blocks: [U32, U65]
-todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 608, 609, 610, 611]
+todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 608, 609, 610, 611, 612]
 branch: reference-validation
 ---
 
@@ -53,7 +53,8 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - [ ] **#592** R goldens for the unweighted `OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX`; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` (E2-S2)
 - [x] **#593** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
 - [x] **#608** `TEST_ANOVA_F` reaches the double-precision ceiling on NIST SmLs07–09: 4.0 / 3.9 / 3.9 digits (3.2 before). The original 7-digit target is impossible from float64 input; see E3-S4 (E3-S4)
-- [ ] **#611** The other split tests that keep per-group Welford means at the data's magnitude (`TEST_ANOVA_WELCH`, `TEST_BROWN_FORSYTHE`, `TEST_T` / `TEST_WELCH` split, `TEST_TUKEY_HSD`, the ANOVA post-tests) get the same shifted accumulation, each with an offset test (E3-S7)
+- [x] **#611** Shifted accumulation for the other per-group Welford tests where no parity contract forbids it: `TEST_ANOVA_WELCH` and one-sample `TEST_T`. The rest don't need it: `TEST_BROWN_FORSYTHE` reads deviations, the paired tests read differences, and `TEST_TUKEY_HSD` and the post-tests read materialized means (E3-S7)
+- [ ] **#612** Decide, then do: two-sample `TEST_T` / `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` must stay byte-equal with `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `_VS_REF`, which fold unshifted `AGG_WELFORD` cells. They lose about 3 digits under a 1e12 offset (1e-9 relative at 1e6). Precision there means shifting `AGG_WELFORD` itself, merge across shards included, so both sides move together (owner decision D4)
 - [ ] **#609** `REG_OLS` fits NIST Filip instead of refusing it as rank-deficient (a QR or centred-and-scaled solve in place of Cholesky on the normal equations), and Wampler1–5 coefficients reach 7+ digits (6.0–6.7 today) (E3-S5)
 - [ ] **#610** Regression through the origin (no intercept), so NIST NoInt1 / NoInt2 run (E3-S6; a public `RegressionSpec` slot, so it follows the regression Update Demand row)
 - [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
@@ -70,6 +71,12 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 
   Recommended: (a). It is pulled rather than pushed, and Studio already embeds Pulse as a library.
 - **D2 — NIST failure policy.** If a hard dataset (Filip, Wampler 4–5) is below the certified accuracy, is that a published known limitation or a blocker? Recommended: publish the LRE either way, and fix anything under 7 digits on the "average" and "lower" difficulty datasets.
+- **D4 — two-sample precision versus overlay parity (#612).** The two-sample mean tests are byte-equal with their cell overlays by contract. Both read Welford means held at the data's magnitude, so both lose precision under a large common offset. The options:
+  - (a) Shift `AGG_WELFORD` and the overlay fold together, keeping parity and gaining precision. This touches the aggregator, its shard merge and every overlay golden.
+  - (b) Keep parity, and keep the loss.
+  - (c) Shift only the tests, and drop byte parity for a 1e-12 tolerance.
+
+  Recommended: (a). Survey data rarely sits at 1e12, but revenue in cents or epoch timestamps can.
 - **D3 — v1 timing.** Recommended: E1–E3 land before U32 (they are trust evidence for v1), and E4–E5 may follow v1.0.0.
 
 ## Scope
