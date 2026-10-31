@@ -71,6 +71,12 @@ func profileAndTwinHashes(t *testing.T, data []byte) (string, string, *synth.Pro
 		t.Fatalf("json.Marshal(profile): %v", err)
 	}
 	spec, _ := synth.SpecFromProfile(prof, 600)
+	// Generated under first-declared arbitration, the rule the pinned
+	// tree had: strength arbitration (synth-realism E2-S2) deliberately
+	// moves which competing pair draws a target, which is a change this
+	// pin does not exist to catch. Under "declared" every other byte of
+	// the twin must still be the pre-change one.
+	spec.PairArbitration = synth.PairArbitrationDeclared
 	out, _, err := synth.SynthBytes(spec, synth.Options{Seed: 11})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)

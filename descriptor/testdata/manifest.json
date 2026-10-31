@@ -14245,7 +14245,7 @@
       },
       {
         "name": "synth-conflicts",
-        "description": "Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface."
+        "description": "Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, strength arbitration between competing pairs, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface."
       },
       {
         "name": "synth-correlations",
@@ -14329,7 +14329,7 @@
       },
       {
         "name": "synth-set-fields",
-        "description": "How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair, read safely on the wide rungs, and generated deterministically with a pre-registered dictionary."
+        "description": "How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair (within one field too), read safely on the wide rungs, and generated deterministically with a pre-registered dictionary."
       },
       {
         "name": "synth-shape-fit",
@@ -20489,4 +20489,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 167595e7db1cefff45d839a59419f923444badeaf57e972e83658fab888948cd
+// golden-hash: 4002333a39b9d2abc01380b9c38edafcc2df0e4ca970f6ebfa7af4e433003abf

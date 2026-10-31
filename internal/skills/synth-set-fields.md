@@ -1,6 +1,6 @@
 ---
 name: synth-set-fields
-description: How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair, read safely on the wide rungs, and generated deterministically with a pre-registered dictionary.
+description: How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair (within one field too), read safely on the wide rungs, and generated deterministically with a pre-registered dictionary.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
@@ -22,7 +22,9 @@ requires: [capability:synth]
 |---|---|---|
 | `conditional.set_categorical_pairs` | (set option, categorical field) | `{set, option, categorical, cells, n}`; `a_value` fixed `"selected"`/`"not_selected"`, `b_value` the categorical value (own `--top-k` collapse) |
 | `conditional.set_numeric_pairs` | (set option, numeric field) | `{set, option, numeric, categories, n}`; `categories` keyed `"selected"`/`"not_selected"` |
-| `conditional.set_set_pairs` | option pair between two DIFFERENT set fields (never two options of one field) | `{set_a, option_a, set_b, option_b, cells, n}`, a 2x2 table |
+| `conditional.set_set_pairs` | option pair between two set fields, or two options of ONE field (`set_a == set_b`) | `{set_a, option_a, set_b, option_b, cells, n}`, a 2x2 table |
+
+**Within-set dependencies.** For each option `j`, capture keeps at most ONE pair from one field: from the earlier option (dictionary order) with the strongest bias-corrected Cramér's V, and only at V ≥ 0.1 (φ² ≥ 0.01, the model selection floor). One per target is all generation can use, and it bounds a 256-member set at 255 pairs, not 32,640. A combination the source never shows is an ABSENT cell, read as probability 0, so "tv requires broadband" generates zero tv-without-broadband rows.
 
 The option axis never needs a top-K collapse (fixed two-value domain). Bounded by `FieldType.MaxSetEntries()` (8/16/32/64/128/256) and `ContingencyCellCap` (128). Thin cells reuse `thinPairWarning`.
 
@@ -36,7 +38,7 @@ The option axis never needs a top-K collapse (fixed two-value domain). Bounded b
 
 ## Generation
 
-Each pair resamples ONE option's bit conditioned on the paired field's already-drawn value, in the fixed order set-set → set-categorical → set-numeric, after categorical joint structure and before the correlator. Two options on the SAME set field are two DIFFERENT claim targets, never a conflict (`synth-conflicts`).
+Each pair resamples ONE option's bit conditioned on the paired field's already-drawn value, in the fixed order set-set (two fields) → set-categorical → within-set → set-numeric, after categorical joint structure and before the correlator. Within-set runs after set-categorical because its source option may itself be resampled there (broadband from region); read earlier, the impossible combinations come back. Two options on the SAME set field are two DIFFERENT claim targets, never a conflict (`synth-conflicts`).
 
 **A `set_*` dictionary is pre-populated ONCE from `params.options`' declared order at schema-build time, never lazily during generation** — the row value is a `map[string]bool` and Go randomizes map iteration per process, so pre-registration is what keeps bit assignment (hence determinism) independent of it. `AugmentFromProfile` requires both dictionaries to name the identical option universe in the identical ORDER (`PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`). A marginal-only profile still generates correctly — joint structure is additive, never required.
 

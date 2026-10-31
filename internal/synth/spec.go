@@ -74,13 +74,25 @@ type Spec struct {
 	SetNumericPairs []SetNumericPairSpec `json:"set_numeric_pairs,omitempty"`
 
 	// SetSetPairs lists optional option x option joint structure between
-	// two DIFFERENT set_* fields to reproduce during generation (E5-S3):
+	// two set_* fields — or two options of ONE set field (a within-set
+	// dependency, set_a == set_b) — to reproduce during generation:
 	// for each pair, set B's declared OptionB (bit) is resampled from
 	// Bernoulli(P(selected | set A's OptionA drawn state)) using the
 	// captured 2x2 contingency cells. Populated by SpecFromProfile from
 	// ConditionalProfile.SetSetPairs when present; absent (nil)
 	// reproduces the independent per-option marginal behavior exactly.
 	SetSetPairs []SetSetPairSpec `json:"set_set_pairs,omitempty"`
+
+	// PairArbitration decides which relationship keeps a target two or
+	// more of the pair lists above name: "strength" (the default, also
+	// meant by an empty value) keeps the strongest association —
+	// bias-corrected Cramér's V for a categorical or set-option target,
+	// adjusted η² for a numeric one — and "declared" keeps the
+	// first-declared, the rule every spec followed before strength
+	// arbitration. A target whose strength cannot be measured (a
+	// hand-authored numeric pair without per-category `n`) is arbitrated
+	// first-declared under either mode. See resolveConflicts.
+	PairArbitration string `json:"pair_arbitration,omitempty"`
 
 	// Models lists optional per-numeric ADDITIVE linear predictors to
 	// drive generation with, the Spec-facing counterpart of the profile
@@ -278,8 +290,11 @@ type SetNumericPairSpec struct {
 }
 
 // SetSetPairSpec is one option x option pair's generation-time
-// reconstruction input between two DIFFERENT set_* fields — the
-// Spec-facing counterpart of SetSetPairProfile. Cells reuse
+// reconstruction input — the Spec-facing counterpart of
+// SetSetPairProfile. SetA == SetB declares a WITHIN-set dependency (two
+// options of one multi-select, e.g. tv requiring broadband); it runs in
+// its own stage after the set-categorical pairs, so the option it reads
+// is already settled when it draws (see drawRow). Cells reuse
 // CategoricalPairCellSpec verbatim: AValue is SetA's OptionA state
 // ("selected"/"not_selected"), BValue is SetB's OptionB state.
 type SetSetPairSpec struct {
@@ -351,6 +366,12 @@ type CategoricalNumericCategorySpec struct {
 	Category string  `json:"category"`
 	Mean     float64 `json:"mean"`
 	Std      float64 `json:"std"`
+	// N is the captured observation count behind Mean/Std. Generation
+	// never reads it; strength arbitration (Spec.PairArbitration) does,
+	// to weigh the category in the pair's adjusted η². A pair with any
+	// category lacking N has no measured strength, and its target falls
+	// back to first-declared arbitration.
+	N int `json:"n,omitempty"`
 }
 
 // FieldSpec is a single column declaration.
@@ -621,10 +642,20 @@ func validateSpec(s *Spec) error {
 				map[string]any{"set": snp.Set, "numeric": snp.Numeric})
 		}
 	}
+	switch s.PairArbitration {
+	case "", PairArbitrationStrength, PairArbitrationDeclared:
+	default:
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"pair_arbitration must be \"strength\" or \"declared\"",
+			map[string]any{"pair_arbitration": s.PairArbitration})
+	}
 	for _, ssp := range s.SetSetPairs {
-		if ssp.SetA == ssp.SetB {
+		// One set field on both sides is a within-set dependency and is
+		// legal; one OPTION on both sides is a pair with itself.
+		if ssp.SetA == ssp.SetB && ssp.OptionA == ssp.OptionB {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"set-set pair set_a and set_b must differ", map[string]any{"set_a": ssp.SetA})
+				"set-set pair option_a and option_b must differ within one set field",
+				map[string]any{"set_a": ssp.SetA, "option_a": ssp.OptionA})
 		}
 		if !seen[ssp.SetA] || !seen[ssp.SetB] {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,

@@ -1202,6 +1202,7 @@ pulse: type SynthSpec field Correlations []pulse/internal/synth.CorrelationSpec 
 pulse: type SynthSpec field Fields []pulse/internal/synth.FieldSpec "json:\"fields\""
 pulse: type SynthSpec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse: type SynthSpec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
+pulse: type SynthSpec field PairArbitration string "json:\"pair_arbitration,omitempty\""
 pulse: type SynthSpec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse: type SynthSpec field RowCount int "json:\"row_count\""
 pulse: type SynthSpec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -4179,6 +4180,7 @@ pulse/synth: type CategoricalNumericCategorySpec = pulse/internal/synth.Categori
 pulse/synth: type CategoricalNumericCategorySpec underlying struct
 pulse/synth: type CategoricalNumericCategorySpec field Category string "json:\"category\""
 pulse/synth: type CategoricalNumericCategorySpec field Mean float64 "json:\"mean\""
+pulse/synth: type CategoricalNumericCategorySpec field N int "json:\"n,omitempty\""
 pulse/synth: type CategoricalNumericCategorySpec field Std float64 "json:\"std\""
 pulse/synth: type CategoricalNumericCategoryStat = pulse/internal/synth.CategoricalNumericCategoryStat
 pulse/synth: type CategoricalNumericCategoryStat underlying struct
@@ -4468,6 +4470,8 @@ pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
 pulse/synth: type Options field Seed int64
 pulse/synth: type Options field SourceCohort string
+pulse/synth: const PairArbitrationDeclared untyped string = "declared"
+pulse/synth: const PairArbitrationStrength untyped string = "strength"
 pulse/synth: type PairwiseFidelity = pulse/internal/synth.PairwiseFidelity
 pulse/synth: type PairwiseFidelity underlying struct
 pulse/synth: type PairwiseFidelity field A string "json:\"a\""
@@ -4707,6 +4711,7 @@ pulse/synth: type Spec field Correlations []pulse/internal/synth.CorrelationSpec
 pulse/synth: type Spec field Fields []pulse/internal/synth.FieldSpec "json:\"fields\""
 pulse/synth: type Spec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse/synth: type Spec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
+pulse/synth: type Spec field PairArbitration string "json:\"pair_arbitration,omitempty\""
 pulse/synth: type Spec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse/synth: type Spec field RowCount int "json:\"row_count\""
 pulse/synth: type Spec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -6358,4 +6363,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2c26758daf60ce4fbc2b111c86447826b795ee3c12017bba5b950d8a052403f5
+// golden-hash: 7f8e319e67307db64b0a345dddcb32ae711311b2ed9241b2baf3e75fd2994529

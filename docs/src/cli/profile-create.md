@@ -326,8 +326,12 @@ OPTION rather than once per field:
   `conditional.categorical_numeric_pairs` uses per category.
 - `conditional.set_set_pairs`: one `{set_a, option_a, set_b, option_b,
   cells, n}` entry per option pair between two DIFFERENT `set_*`
-  fields — a bounded 2x2 contingency table. Never captured between two
-  options of the same field.
+  fields — a bounded 2x2 contingency table — plus, within ONE field
+  (`set_a == set_b`), at most one entry per option: from the earlier
+  option it is most strongly associated with (bias-corrected Cramér's
+  V ≥ 0.1). That is how a dependency such as "tv requires broadband"
+  survives into the twin: the never-observed combination is an absent
+  cell, generated with probability 0.
 
 Cardinality stays bounded without a new, separate cap: a set field's
 option count is capped by its own type (8/16/32/64/128/256 for
@@ -336,8 +340,8 @@ still bounds every individual cell table exactly as it does for two
 plain categorical fields. Thin combinations (`n` below
 `internal/synth.MinPairObservations`, 30) still ship — never dropped —
 appending the same warning shape every other pair kind uses. `synth
-from-profile` does not yet sample from any of these three sections — a
-later addition.
+from-profile` samples from all three (`skills/synth-set-fields.md`,
+Generation).
 
 ## `--fit-shape`: mixture-of-normals shape fitting for numeric fields
 

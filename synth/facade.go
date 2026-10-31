@@ -43,6 +43,15 @@ const (
 	ModelPredictorNumeric          = isynth.ModelPredictorNumeric
 )
 
+// Pair arbitration modes, as they appear on Spec.PairArbitration: which
+// captured relationship keeps a target several of them name. Strength
+// (the default; an empty value means it) keeps the strongest
+// association, Declared the first-declared.
+const (
+	PairArbitrationStrength = isynth.PairArbitrationStrength
+	PairArbitrationDeclared = isynth.PairArbitrationDeclared
+)
+
 // RecoveryScaleProbitScore is ModelFidelity.Scale for a target recovered
 // through the calibrated interval-midpoint probit score rather than
 // through a point latent inverse.

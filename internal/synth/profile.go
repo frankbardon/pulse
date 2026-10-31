@@ -509,13 +509,12 @@ type SetNumericPairProfile struct {
 }
 
 // SetSetPairProfile is one captured option x option pair's
-// reconstruction input between two DIFFERENT set_* fields (E5-S2): a
-// bounded 2x2-cell contingency table of
+// reconstruction input: a bounded 2x2-cell contingency table of
 // {"selected","not_selected"} x {"selected","not_selected"}
-// co-occurrence counts for one option of each field. Never captured
-// between two options of the SAME set field — E5-S2's scope is
-// cross-field option association only, per the PRD's "do two different
-// set_* fields' option selections correlate with each other?" framing.
+// co-occurrence counts for one option of each side. The two sides are
+// either two DIFFERENT set_* fields (every option pair is captured) or
+// two options of ONE set field (SetA == SetB, a within-set dependency:
+// see computeWithinSetPairs for which pairs are kept).
 type SetSetPairProfile struct {
 	SetA    string            `json:"set_a"`
 	OptionA string            `json:"option_a"`
@@ -1164,6 +1163,10 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	trackSetCatJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 1 && len(jointCatFieldNames) >= 1
 	trackSetNumJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 1 && len(jointFieldNames) >= 1
 	trackSetSetJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 2
+	// trackSetWithin gates the within-set capture: dependencies between
+	// two options of ONE set field (tv requiring broadband), which needs
+	// only the set field itself.
+	trackSetWithin := opts.IncludeConditional && len(jointSetFieldNames) >= 1
 	needCatRow := trackCatJoint || trackCatNumJoint || trackSetCatJoint
 
 	// catNumAccs accumulates condCatNumAcc keyed
@@ -1267,6 +1270,14 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 				}
 			}
 			setSetAccs[sfA] = perOptA
+		}
+	}
+
+	var withinSetAccs map[string]*withinSetAcc
+	if trackSetWithin {
+		withinSetAccs = make(map[string]*withinSetAcc, len(jointSetFieldNames))
+		for _, sf := range jointSetFieldNames {
+			withinSetAccs[sf] = newWithinSetAcc(len(setOptionNames[sf]))
 		}
 	}
 
@@ -1625,6 +1636,14 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 				}
 			}
 		}
+		if trackSetWithin {
+			for _, sf := range jointSetFieldNames {
+				if nulls[sf] {
+					continue
+				}
+				withinSetAccs[sf].add(setMaskFromWide(wide[sf]))
+			}
+		}
 		if trackSetSetJoint {
 			for ai := 0; ai < len(jointSetFieldNames); ai++ {
 				sfA := jointSetFieldNames[ai]
@@ -1782,6 +1801,8 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			jointSetFieldNames, setOptionNames, setNumAccs, jointFieldNames, &warnings)
 		setSetPairs := computeSetSetPairs(
 			jointSetFieldNames, setOptionNames, setSetAccs, &warnings)
+		setSetPairs = append(setSetPairs, computeWithinSetPairs(
+			jointSetFieldNames, setOptionNames, withinSetAccs, &warnings)...)
 		if len(numericPairs) > 0 || len(categoricalPairs) > 0 || len(catNumericPairs) > 0 ||
 			len(setCategoricalPairs) > 0 || len(setNumericPairs) > 0 || len(setSetPairs) > 0 {
 			pf.Conditional = &ConditionalProfile{
@@ -3029,7 +3050,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			}
 			cats := make([]CategoricalNumericCategorySpec, len(cnp.Categories))
 			for i, c := range cnp.Categories {
-				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
+				cats[i] = CategoricalNumericCategorySpec(c)
 			}
 			// No `bernoulli` key: the flag is RETIRED and the
 			// conditional draw resolves the target's own marginal from
@@ -3082,7 +3103,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			}
 			cats := make([]CategoricalNumericCategorySpec, len(snp.Categories))
 			for i, c := range snp.Categories {
-				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
+				cats[i] = CategoricalNumericCategorySpec(c)
 			}
 			s.SetNumericPairs = append(s.SetNumericPairs, SetNumericPairSpec{
 				Set: snp.Set, Option: snp.Option, Numeric: snp.Numeric, Categories: cats,

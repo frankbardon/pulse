@@ -194,7 +194,7 @@ JSON without ever running `profile create --conditional`:
 | `CategoricalNumericPairs` | `categorical_numeric_pairs` | numeric field B resampled from `Normal(mean, std)` per observed category of categorical field A |
 | `SetCategoricalPairs` | `set_categorical_pairs` | a `set_*` field's option (bit) resampled from `Bernoulli(P(selected \| categorical A's value))` |
 | `SetNumericPairs` | `set_numeric_pairs` | numeric field B resampled from `Normal(mean, std)` conditioned on a `set_*` field's option state |
-| `SetSetPairs` | `set_set_pairs` | one `set_*` field's option resampled conditioned on a DIFFERENT `set_*` field's option state |
+| `SetSetPairs` | `set_set_pairs` | one `set_*` field's option resampled conditioned on another option's state — of a DIFFERENT `set_*` field, or of the same one (`set_a == set_b`, `option_a != option_b`) |
 
 Each entry runs as a generation-time **resample** step, applied after
 every field's own independent draw and before the numeric-numeric
@@ -260,7 +260,11 @@ wins by a fixed priority order and every other claimant on that field
 is dropped with a warning on `Result.Warnings`
 (`data.warnings` under `--json`); see [`pulse profile
 create`](profile-create.md) ("`--fit-shape`" section) for the full
-priority order.
+priority order. Among the pairs themselves the **strongest association**
+wins (bias-corrected Cramér's V for a categorical or set-option target,
+adjusted η² for a numeric one, which reads each category's `n`); set
+`"pair_arbitration": "declared"` at the top level of the spec to keep
+the first-declared pair instead.
 
 ## Structural rules
 

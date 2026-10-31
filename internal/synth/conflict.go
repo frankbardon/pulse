@@ -140,6 +140,17 @@ type conflictResolution struct {
 // it was always going to be — but now names "linear model" as the
 // owner, which is the truthful answer.
 //
+// Among the five pair stages, a target several pairs name goes to the
+// STRONGEST association (Spec.PairArbitration, default "strength"), not
+// to the first-declared. Capture declares pairs in field order, so
+// first-declared meant the earliest field in the schema drove every
+// later one — on a customer cohort, a noise `region` conditioned every
+// product option while `plan` and the other options that really drive
+// them were dropped. "declared" keeps the old rule for an author who
+// ordered the pairs on purpose. Capture order is still a topological
+// order for whichever pairs win: a pair's source is declared before its
+// target, so the winner for the source runs before any pair reading it.
+//
 // Spec.Correlations is treated as ONE combined claimant across all of
 // its participant fields — it resolves jointly via a single
 // Cholesky-based draw, not one draw per pair, so losing one participant
@@ -237,54 +248,97 @@ func resolveConflicts(s *Spec) conflictResolution {
 		}
 	}
 
+	// The five pair stages. Every pair is one CANDIDATE for its target,
+	// in this fixed kind order and declaration order within a kind; a
+	// target named by several candidates is won by exactly one, picked
+	// by pairWinners (strongest association by default, first-declared
+	// under `"pair_arbitration": "declared"`). Winners claim first, so
+	// every loser's warning names the pair that actually kept the
+	// target, whichever of the two was declared first.
+	var cands []pairCandidate
 	for _, p := range s.CategoricalPairs {
-		t := claimTarget{field: p.B}
-		desc := fmt.Sprintf("categorical pair (%s -> %s)", p.A, p.B)
-		if claim(t, desc) {
-			res.catPairs = append(res.catPairs, p)
-		} else {
-			conflict(t, desc)
-		}
+		cands = append(cands, pairCandidate{
+			target: claimTarget{field: p.B},
+			desc:   fmt.Sprintf("categorical pair (%s -> %s)", p.A, p.B),
+			strength: func() (float64, bool) {
+				return contingencyStrength(p.Cells), true
+			},
+		})
 	}
-
 	for _, p := range s.CategoricalNumericPairs {
-		t := claimTarget{field: p.B}
-		desc := fmt.Sprintf("categorical-numeric pair (%s -> %s)", p.A, p.B)
-		if claim(t, desc) {
-			res.catNumPairs = append(res.catNumPairs, p)
-		} else {
-			conflict(t, desc)
-		}
+		cands = append(cands, pairCandidate{
+			target:   claimTarget{field: p.B},
+			desc:     fmt.Sprintf("categorical-numeric pair (%s -> %s)", p.A, p.B),
+			strength: func() (float64, bool) { return groupedStrength(p.Categories) },
+		})
 	}
-
 	for _, p := range s.SetSetPairs {
-		t := claimTarget{field: p.SetB, option: p.OptionB}
-		desc := fmt.Sprintf("set-set pair (%s.%s -> %s.%s)", p.SetA, p.OptionA, p.SetB, p.OptionB)
-		if claim(t, desc) {
-			res.setSetPairs = append(res.setSetPairs, p)
-		} else {
-			conflict(t, desc)
-		}
+		cands = append(cands, pairCandidate{
+			target: claimTarget{field: p.SetB, option: p.OptionB},
+			desc:   fmt.Sprintf("set-set pair (%s.%s -> %s.%s)", p.SetA, p.OptionA, p.SetB, p.OptionB),
+			strength: func() (float64, bool) {
+				return contingencyStrength(p.Cells), true
+			},
+		})
 	}
-
 	for _, p := range s.SetCategoricalPairs {
-		t := claimTarget{field: p.Set, option: p.Option}
-		desc := fmt.Sprintf("set-categorical pair (%s.%s <- %s)", p.Set, p.Option, p.Categorical)
-		if claim(t, desc) {
-			res.setCatPairs = append(res.setCatPairs, p)
-		} else {
-			conflict(t, desc)
+		cands = append(cands, pairCandidate{
+			target: claimTarget{field: p.Set, option: p.Option},
+			desc:   fmt.Sprintf("set-categorical pair (%s.%s <- %s)", p.Set, p.Option, p.Categorical),
+			strength: func() (float64, bool) {
+				return contingencyStrength(p.Cells), true
+			},
+		})
+	}
+	for _, p := range s.SetNumericPairs {
+		cands = append(cands, pairCandidate{
+			target:   claimTarget{field: p.Numeric},
+			desc:     fmt.Sprintf("set-numeric pair (%s.%s -> %s)", p.Set, p.Option, p.Numeric),
+			strength: func() (float64, bool) { return groupedStrength(p.Categories) },
+		})
+	}
+	won := pairWinners(cands, s.PairArbitration == PairArbitrationDeclared, claimedBy)
+	for i, c := range cands {
+		if won[i] {
+			claim(c.target, c.desc)
 		}
 	}
-
-	for _, p := range s.SetNumericPairs {
-		t := claimTarget{field: p.Numeric}
-		desc := fmt.Sprintf("set-numeric pair (%s.%s -> %s)", p.Set, p.Option, p.Numeric)
-		if claim(t, desc) {
-			res.setNumPairs = append(res.setNumPairs, p)
-		} else {
-			conflict(t, desc)
+	keep := func(i int) bool {
+		if !won[i] {
+			conflict(cands[i].target, cands[i].desc)
 		}
+		return won[i]
+	}
+	i := 0
+	for _, p := range s.CategoricalPairs {
+		if keep(i) {
+			res.catPairs = append(res.catPairs, p)
+		}
+		i++
+	}
+	for _, p := range s.CategoricalNumericPairs {
+		if keep(i) {
+			res.catNumPairs = append(res.catNumPairs, p)
+		}
+		i++
+	}
+	for _, p := range s.SetSetPairs {
+		if keep(i) {
+			res.setSetPairs = append(res.setSetPairs, p)
+		}
+		i++
+	}
+	for _, p := range s.SetCategoricalPairs {
+		if keep(i) {
+			res.setCatPairs = append(res.setCatPairs, p)
+		}
+		i++
+	}
+	for _, p := range s.SetNumericPairs {
+		if keep(i) {
+			res.setNumPairs = append(res.setNumPairs, p)
+		}
+		i++
 	}
 
 	if len(s.Correlations) > 0 {
@@ -434,6 +488,68 @@ func ScoredRelationships(s *Spec) (
 	setSetPairs = filterRelationships(setSetPairs, func(p SetSetPairSpec) bool { return keep("set-set pair", p.SetA, p.SetB) })
 	correlations = filterRelationships(correlations, func(p CorrelationSpec) bool { return keep("correlation", p.A, p.B) })
 	return catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations, warnings
+}
+
+// pairCandidate is one pair relationship bidding for its target in
+// resolveConflicts. strength is evaluated lazily, and only for a target
+// that more than one unclaimed candidate names, so a spec without
+// competing pairs computes nothing.
+type pairCandidate struct {
+	target   claimTarget
+	desc     string
+	strength func() (float64, bool)
+}
+
+// pairWinners marks, per candidate, whether it keeps its target. A
+// target an earlier stage (a rule, a model, a captured shape) already
+// owns is won by nobody. Otherwise a target named by one candidate is
+// won by it; one named by several is won by the strongest — ties, and
+// every target where any candidate's strength is unknown, going to the
+// first-declared — or, when declared is set, always by the
+// first-declared.
+//
+// Under declared this reproduces the pre-strength arbitration exactly:
+// the first candidate in stage order then declaration order won, which
+// is the lowest index here.
+func pairWinners(cands []pairCandidate, declared bool, claimedBy func(claimTarget) (string, bool)) []bool {
+	won := make([]bool, len(cands))
+	byTarget := map[claimTarget][]int{}
+	var order []claimTarget
+	for i, c := range cands {
+		if _, taken := claimedBy(c.target); taken {
+			continue
+		}
+		if _, seen := byTarget[c.target]; !seen {
+			order = append(order, c.target)
+		}
+		byTarget[c.target] = append(byTarget[c.target], i)
+	}
+	for _, t := range order {
+		idx := byTarget[t]
+		best := idx[0]
+		if !declared && len(idx) > 1 {
+			strengths := make([]float64, len(idx))
+			measured := true
+			for j, ci := range idx {
+				v, ok := cands[ci].strength()
+				if !ok {
+					measured = false
+					break
+				}
+				strengths[j] = v
+			}
+			if measured {
+				bestV := strengths[0]
+				for j := 1; j < len(idx); j++ {
+					if strengths[j] > bestV {
+						best, bestV = idx[j], strengths[j]
+					}
+				}
+			}
+		}
+		won[best] = true
+	}
+	return won
 }
 
 // filterRelationships keeps the entries keep accepts, in order.

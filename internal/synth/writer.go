@@ -372,16 +372,17 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		bernoulliFlagWarnings(conflicts.catNumPairs, conflicts.setNumPairs, bernoulliTargets)...)
 
 	stages := &rowStages{
-		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
-		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets, bernoulliTargets),
-		setSetPairs: buildSetSetPairSamplers(conflicts.setSetPairs),
-		setCatPairs: buildSetCategoricalPairSamplers(conflicts.setCatPairs),
-		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets, bernoulliTargets),
-		corr:        corr,
-		models:      models,
-		residual:    residual,
-		rules:       rules,
-		datetimes:   datetimes,
+		catPairs:       buildCategoricalPairSamplers(conflicts.catPairs),
+		catNumPairs:    buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets, bernoulliTargets),
+		setSetPairs:    buildSetSetPairSamplers(crossSetPairs(conflicts.setSetPairs)),
+		setCatPairs:    buildSetCategoricalPairSamplers(conflicts.setCatPairs),
+		setWithinPairs: buildSetSetPairSamplers(withinSetPairs(conflicts.setSetPairs)),
+		setNumPairs:    buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets, bernoulliTargets),
+		corr:           corr,
+		models:         models,
+		residual:       residual,
+		rules:          rules,
+		datetimes:      datetimes,
 	}
 
 	committers := acceptCommitters(wfs)
@@ -494,9 +495,19 @@ type rowStages struct {
 	catNumPairs []*categoricalNumericPairSampler
 	setSetPairs []*setSetPairSampler
 	setCatPairs []*setCategoricalPairSampler
-	setNumPairs []*setNumericPairSampler
-	corr        *correlator
-	models      []*modelDrawer
+	// setWithinPairs are the set-set pairs between two options of ONE
+	// set field (tv conditioned on broadband). They run after the
+	// set-categorical stage, not with the cross-field set-set pairs:
+	// the option a within-set pair reads may itself be resampled by a
+	// set-categorical pair (broadband from region), and reading it
+	// before that would draw tv against a broadband state the row does
+	// not keep — leaving exactly the impossible combinations the pair
+	// exists to remove. Empty for every spec without one, so such a spec
+	// draws the same RNG sequence as before the stage existed.
+	setWithinPairs []*setSetPairSampler
+	setNumPairs    []*setNumericPairSampler
+	corr           *correlator
+	models         []*modelDrawer
 	// residual carries the correlation structure among the MODELS'
 	// residuals. It is not a stage of its own — nothing it produces
 	// reaches the row directly — it is the shared source of randomness
@@ -524,7 +535,7 @@ type rowStages struct {
 // overwrite an already-drawn field's value in place — categorical joint
 // structure (categorical-categorical, then categorical-numeric) applied
 // before set-field joint structure (set-set, then set-categorical, then
-// set-numeric), before the numeric-numeric correlator, so a numeric or
+// within-set, then set-numeric), before the numeric-numeric correlator, so a numeric or
 // set field's final value reflects whichever categorical/set value it
 // ends up conditioned on before any requested Pearson correlation is
 // layered on top. set-set runs before set-categorical/set-numeric so a
@@ -581,6 +592,9 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	}
 	for _, scp := range stages.setCatPairs {
 		scp.transform(rng, row)
+	}
+	for _, wsp := range stages.setWithinPairs {
+		wsp.transform(rng, row)
 	}
 	for _, snp := range stages.setNumPairs {
 		snp.transform(rng, row)

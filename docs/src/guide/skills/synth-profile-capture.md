@@ -40,7 +40,7 @@ Capture rides ONE cohort scan; no flag adds a read.
 | `set_*` | `set_bernoulli` |
 | nothing summarised (always-null) | a typed `constant` placeholder with `null_rate` 1.0 — every row null |
 
-Unsupported → `PULSE_PROFILE_FIELD_UNSUPPORTED`. Captured pairs land on `Spec.CategoricalPairs`, `Spec.CategoricalNumericPairs`, the set pair slots and `Spec.Correlations`; which of them actually run is arbitrated once ([`synth-conflicts`](synth-conflicts.md)). A numeric that lands a model keeps NO numeric-target conditional pair — the model replaces it, per target ([`synth-models`](synth-models.md)). A numeric predictor is drawn before the field it predicts ([`synth-model-draw`](synth-model-draw.md)).
+Unsupported → `PULSE_PROFILE_FIELD_UNSUPPORTED`. Captured pairs land on `Spec.CategoricalPairs`, `Spec.CategoricalNumericPairs`, the set pair slots and `Spec.Correlations`; which of them actually run is arbitrated once, the strongest association winning a contested target ([`synth-conflicts`](synth-conflicts.md)). Categorical-numeric and set-numeric categories carry their capture `n`, which that arbitration weighs. A numeric that lands a model keeps NO numeric-target conditional pair — the model replaces it, per target ([`synth-models`](synth-models.md)). A numeric predictor is drawn before the field it predicts ([`synth-model-draw`](synth-model-draw.md)).
 
 `synth from-profile --emit-spec <path>` writes the spec that actually generated — the one place to read which distribution each field reconstructed to ([`synth-rules-from-profile`](synth-rules-from-profile.md)).
 
