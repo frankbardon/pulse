@@ -27,6 +27,7 @@ const (
 	DistMonotonicFrom       = isynth.DistMonotonicFrom
 	DistWeightedCategorical = isynth.DistWeightedCategorical
 	DistUniformDate         = isynth.DistUniformDate
+	DistUniformDateTime     = isynth.DistUniformDateTime
 	DistRegex               = isynth.DistRegex
 	DistConstant            = isynth.DistConstant
 	DistMixture             = isynth.DistMixture
@@ -40,6 +41,41 @@ const (
 	ModelPredictorCategoricalLevel = isynth.ModelPredictorCategoricalLevel
 	ModelPredictorSetOption        = isynth.ModelPredictorSetOption
 	ModelPredictorNumeric          = isynth.ModelPredictorNumeric
+)
+
+// ModelLinkProbit is FieldModel.Link for a packed_bool target fitted as a
+// probit: its intercept and coefficients are probit coefficients,
+// P(1 | row) = Φ(intercept + Σ coefficient·x). An empty Link is an
+// ordinary least-squares fit.
+const ModelLinkProbit = isynth.ModelLinkProbit
+
+// Pair arbitration modes, as they appear on Spec.PairArbitration: which
+// captured relationship keeps a target several of them name. Strength
+// (the default; an empty value means it) keeps the strongest
+// association, Declared the first-declared.
+const (
+	PairArbitrationStrength = isynth.PairArbitrationStrength
+	PairArbitrationDeclared = isynth.PairArbitrationDeclared
+)
+
+// Effect-size measures, as they appear on FieldEffectSize.Measure.
+const (
+	EffectMeasureCohensD  = isynth.EffectMeasureCohensD
+	EffectMeasureCramersV = isynth.EffectMeasureCramersV
+)
+
+// TimeShapeClockUTC is the clock TimeShapeFidelity.Clock names: a
+// datetime field's hour-of-day and weekday bins are read in UTC.
+const TimeShapeClockUTC = isynth.TimeShapeClockUTC
+
+// Utility verdicts, as they appear on TargetRateFidelity.Verdict, and
+// fit statistics, as they appear on UtilityModelFit.Statistic.
+const (
+	UtilityVerdictPreserved  = isynth.UtilityVerdictPreserved
+	UtilityVerdictCompressed = isynth.UtilityVerdictCompressed
+	UtilityVerdictInflated   = isynth.UtilityVerdictInflated
+	UtilityFitPseudoR2       = isynth.UtilityFitPseudoR2
+	UtilityFitR2             = isynth.UtilityFitR2
 )
 
 // RecoveryScaleProbitScore is ModelFidelity.Scale for a target recovered
@@ -230,6 +266,10 @@ type CorrelationStat = isynth.CorrelationStat
 // histogram for Mode-A reconstruction.
 type DateProfile = isynth.DateProfile
 
+// DatetimeProfile is a datetime column's capture: its UTC day range and
+// UTC weekday (Monday first) and hour histograms.
+type DatetimeProfile = isynth.DatetimeProfile
+
 // DiscreteLevel is one observed integer level and its support.
 type DiscreteLevel = isynth.DiscreteLevel
 
@@ -266,6 +306,17 @@ type DiscreteProfile = isynth.DiscreteProfile
 // it match" (the pairwise sections) and "which parts were built on thin
 // data" (Warnings) in one document (FR-18).
 type FidelityReport = isynth.FidelityReport
+
+// FieldEffectSize is the effect size beside a FieldFidelity's p-value:
+// how LARGE the source/synthetic difference is, on a scale that does
+// not grow with n (Cohen's d for a numeric field, Cramér's V for a
+// categorical one), with its Cohen (1988) magnitude label.
+type FieldEffectSize = isynth.FieldEffectSize
+
+// TimeShapeFidelity is a datetime field's cycle beside its KS entry:
+// the total variation distance between the source and synthetic
+// hour-of-day and weekday histograms (FieldFidelity.Shape).
+type TimeShapeFidelity = isynth.TimeShapeFidelity
 
 // FieldContinuation is one field's run-continuation rate.
 type FieldContinuation = isynth.FieldContinuation
@@ -787,6 +838,41 @@ type ShapeProfile = isynth.ShapeProfile
 // from the Profile and shares the rest of the writer pipeline.
 type Spec = isynth.Spec
 
+// TargetRateFidelity is one applied model target's mean by the levels
+// of one categorical predictor, source partition beside synthetic, with
+// the spread across levels, its ratio and a verdict.
+type TargetRateFidelity = isynth.TargetRateFidelity
+
+// TargetRateLevel is one level's target mean on each partition — the
+// rate of a packed_bool target.
+type TargetRateLevel = isynth.TargetRateLevel
+
+// UtilityCoefficient is one term's estimate in a UtilityModelFit, on
+// the source and on the synthetic partition.
+type UtilityCoefficient = isynth.UtilityCoefficient
+
+// UtilityFidelity is FidelityReport.Utility: the twin compared against
+// the SOURCE rather than against the captured model.
+type UtilityFidelity = isynth.UtilityFidelity
+
+// DisclosureFidelity is FidelityReport.Disclosure: the twin's closeness
+// to real records — the exact-match rate over every output column and
+// the Gower distance to closest record over a seeded sample. A twin
+// carries no formal privacy guarantee.
+type DisclosureFidelity = isynth.DisclosureFidelity
+
+// DefaultDisclosureSample is the disclosure sample cap
+// Options.DisclosureSample 0 resolves to; DisclosureDistanceGower is
+// DisclosureFidelity.Distance's value.
+const (
+	DefaultDisclosureSample = isynth.DefaultDisclosureSample
+	DisclosureDistanceGower = isynth.DisclosureDistanceGower
+)
+
+// UtilityModelFit is one supplied regression (Options.FidelityModel)
+// refit on the source and on the synthetic partition.
+type UtilityModelFit = isynth.UtilityModelFit
+
 // VectorCorrelationSpec is one inter-element correlation: elements A and
 // B (1-based, distinct) at target Pearson correlation in [-1, 1] on the
 // latent (copula) scale; its wire key is `rho`.
@@ -829,7 +915,9 @@ type VectorSpec = isynth.VectorSpec
 // fs. When opts.SourceCohort is non-empty the source cohort's real rows
 // are copied into output tagged _synthetic=false and spec.RowCount new
 // rows are appended tagged _synthetic=true; the source is never opened
-// for write. Output is byte-identical for the same (spec, seed) pair.
+// for write. opts.SyntheticOnly writes the generated rows alone, with
+// no source row and no _synthetic column. Output is byte-identical for
+// the same (spec, seed) pair.
 func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error) {
 	return isynth.Synth(fs, spec, output, opts)
 }

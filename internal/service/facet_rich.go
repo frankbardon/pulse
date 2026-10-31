@@ -102,7 +102,9 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// Inject configured default label bindings (schema-filtered) for the
 	// fields being faceted so registered tables render in facet output
 	// without per-call bindings.
-	if len(s.autoLabels) > 0 {
+	// A *_VS_POP population facet skips it: the host's resolver labels
+	// that result (relabelPopulationField).
+	if len(s.autoLabels) > 0 && !isPopulationFacet(ctx) {
 		faceted := make(map[string]bool, len(req.Fields))
 		for _, f := range req.Fields {
 			faceted[f] = true
@@ -231,7 +233,8 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		}
 	}
 
-	if err := s.applyFacetLabels(req, result); err != nil {
+	resolver, err := s.applyFacetLabels(req, result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -240,7 +243,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// resulting layers in spec order. The hook is a no-op when
 	// req.Overlays is empty so the overlay-free shape stays byte-
 	// identical (additive byte-identity contract).
-	if err := s.applyFacetOverlays(ctx, req, result, mult); err != nil {
+	if err := s.applyFacetOverlays(ctx, req, result, resolver, mult); err != nil {
 		return nil, err
 	}
 

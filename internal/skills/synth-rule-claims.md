@@ -28,7 +28,9 @@ A whole-field claim SUBSUMES that field's `set_*` OPTIONS, so an unconditional r
 | `null_together` | no | copies one null decision; supplies no value |
 | `set_expr` reading its OWN target | no | transforms what generation produced rather than determining it |
 
-The last is why the pre-rounding remedy `{"set_expr": {"nps": "round(nps)"}}` is safe: claiming there would leave the rounding applied to a bare marginal draw — the documented fix for one silent fault causing a larger one. Self-reference is detected on the PARSED expression, never by substring (`nps_reason` is not `nps`), and an unparseable expression answers "reads", the direction that cannot lose structure.
+**A determined categorical needs no sampler.** A `categorical_*` a claiming rule writes may omit `distribution` (and then `params`): it draws nothing, consumes no RNG, and only a rule declared EARLIER reads its placeholder `""`. Any other empty distribution — a `when`-gated, `set_null` or self-reading rule, or a non-categorical — stays `SERVICE_VALIDATION`.
+
+The last exclusion is why the pre-rounding remedy `{"set_expr": {"nps": "round(nps)"}}` is safe: claiming there would leave the rounding applied to a bare marginal draw — the documented fix for one silent fault causing a larger one. Self-reference is detected on the PARSED expression, never by substring (`nps_reason` is not `nps`), and an unparseable expression answers "reads", the direction that cannot lose structure.
 
 **One contract narrows.** The pass still consumes no RNG, but a CLAIMING rule retires a model and a retired model stops drawing its own per-row normal, so the stream shifts — for a reason a warning names. No rules, or rules claiming nothing ⇒ byte-identical.
 

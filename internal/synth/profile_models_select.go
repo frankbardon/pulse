@@ -18,7 +18,10 @@ import (
 //     folded into a single otherCategoryLabel bucket).
 //  2. STATISTICAL — which candidate FIELDS enter a given numeric
 //     target's model. Answered by variance explained against an
-//     absolute floor (minVarianceExplained).
+//     absolute floor (minVarianceExplained). A numeric candidate is
+//     scored the same way (adjusted r², numericCell) and may enter only
+//     a target declared after it in the schema — the generation-order
+//     rule selectionFor states.
 //
 // The order is not cosmetic. Before the collapse existed, a cohort with
 // a 1,906-level `brand` beside fifteen other categoricals expanded to
@@ -272,6 +275,11 @@ func varianceExplained(groups []groupScore) float64 {
 type predictorChoice struct {
 	field string
 	isSet bool
+	// isNumeric marks a scalar numeric candidate: one design column
+	// carrying the field's own value (dummyNumeric), no levels, no
+	// reference. See numericCell for how it is scored and
+	// selectionFor for the generation-order rule that admits it.
+	isNumeric bool
 	// score is the candidate's adjusted variance explained for this
 	// target. Retained past the admission decision because it is also
 	// the ORDER in which candidates are given up: a design the solver
@@ -303,6 +311,10 @@ type predictorChoice struct {
 // a level the fitted rows actually carry.
 type candidateSurvey struct {
 	targets []string
+	// targetPos is each target's schema index, parallel to targets. A
+	// numeric candidate enters only targets declared AFTER it — see
+	// selectionFor.
+	targetPos []int
 
 	fields []surveyField
 }
@@ -311,6 +323,14 @@ type candidateSurvey struct {
 type surveyField struct {
 	name  string
 	isSet bool
+	// isNumeric marks a scalar numeric candidate. It carries no groups,
+	// counts, labels or cells — its statistic is num, one numericCell
+	// per target.
+	isNumeric bool
+	// pos is the field's schema index; read only for a numeric
+	// candidate, by the generation-order rule in selectionFor.
+	pos int
+	num []numericCell
 	// groups is the number of level/option slots this field expands to:
 	// the dictionary count for a categorical, the option count for a set.
 	groups int
@@ -332,16 +352,36 @@ type surveyField struct {
 	cells []varCell
 }
 
-func newCandidateSurvey(targets []string, fields []surveyField) *candidateSurvey {
+func newCandidateSurvey(targets []string, targetPos []int, fields []surveyField) *candidateSurvey {
 	nt := len(targets)
 	for i := range fields {
+		if fields[i].isNumeric {
+			fields[i].num = make([]numericCell, nt)
+			continue
+		}
 		width := fields[i].groups
 		if fields[i].isSet {
 			width *= 2
 		}
 		fields[i].cells = make([]varCell, width*nt)
 	}
-	return &candidateSurvey{targets: targets, fields: fields}
+	return &candidateSurvey{targets: targets, targetPos: targetPos, fields: fields}
+}
+
+// observeNumeric folds one retained row's numeric candidate value and
+// target values into the survey. Pairwise: a target null on this row
+// contributes nothing to its cell, exactly as the categorical arm
+// treats it.
+func (s *candidateSurvey) observeNumeric(fi int, x float64, targets []float64, present []bool) {
+	f := &s.fields[fi]
+	for ti := range s.targets {
+		if !present[ti] || s.targetPos[ti] <= f.pos {
+			// Only targets declared after the candidate can admit it,
+			// so nothing else is worth accumulating.
+			continue
+		}
+		f.num[ti].add(x, targets[ti])
+	}
 }
 
 // observeCategorical folds one retained row's (level, target values) into
@@ -450,6 +490,32 @@ func (s *candidateSurvey) selectionFor(ti, topK int) []predictorChoice {
 	nt := len(s.targets)
 	for fi := range s.fields {
 		f := &s.fields[fi]
+		if f.isNumeric {
+			// THE GENERATION-ORDER RULE. A numeric predictor is read off
+			// the generated row, so it must be drawn before the field it
+			// predicts — and a model target is itself drawn by the model
+			// stage, so two numerics predicting each other would be a
+			// cycle no draw order satisfies. Admitting a numeric only
+			// into targets declared AFTER it in the schema makes the
+			// capture a DAG by construction: schema order is a
+			// topological order of every edge it can emit.
+			//
+			// The direction is not a loss of information. The score
+			// below is symmetric (r² of x on y equals r² of y on x), so
+			// either direction would be equally justified, and the
+			// sequential factorisation p(x1)·p(x2|x1)·p(x3|x1,x2)…
+			// carries the whole linear dependence structure whatever
+			// the order — schema order is simply the one ordering that
+			// is a property of the cohort rather than of a tie-break.
+			if f.pos >= s.targetPos[ti] {
+				continue
+			}
+			score := f.num[ti].score()
+			if score >= minVarianceExplained {
+				out = append(out, predictorChoice{field: f.name, isNumeric: true, score: score})
+			}
+			continue
+		}
 		if f.isSet {
 			// A set field's score is its BEST option: the field is a
 			// bundle of independent indicators, so one option carrying
@@ -555,12 +621,100 @@ func mergeCells(a, b varCell) varCell {
 	return out
 }
 
+// numericCell is one (numeric candidate, numeric target) pair's
+// pairwise co-moment accumulator — count, shifted sums and shifted sums
+// of squares and cross-products — over the rows where both are present.
+//
+// Shifted for the same reason varCell is: the first observation is
+// subtracted from every later one, so a spend column in cents does not
+// cost the centred sums their significant digits. Every product feeding
+// a sum is an explicit float64(a*b), the package's FMA barrier
+// (internal/synth/moments.go), so the score is the same bits on every
+// architecture.
+type numericCell struct {
+	n      int
+	ox, oy float64
+	sx, sy float64
+	sxx    float64
+	syy    float64
+	sxy    float64
+}
+
+func (c *numericCell) add(x, y float64) {
+	if c.n == 0 {
+		c.ox, c.oy = x, y
+	}
+	dx := x - c.ox
+	dy := y - c.oy
+	c.n++
+	c.sx += dx
+	c.sy += dy
+	c.sxx += float64(dx * dx)
+	c.syy += float64(dy * dy)
+	c.sxy += float64(dx * dy)
+}
+
+// score is the ADJUSTED share of the target's variance a straight line
+// in the candidate explains: r² corrected for the one degree of freedom
+// the slope spends, 1 − (1 − r²)(N − 1)/(N − 2) — the same correction
+// varianceExplained applies with k = 2. It is therefore directly
+// comparable with a categorical candidate's adjusted η² and is held to
+// the same absolute floor, minVarianceExplained, for the same reason:
+// it is n-invariant, so admission does not drift with the row count.
+//
+// Zero — "clears no positive floor" — whenever the question cannot be
+// answered: too few pairwise observations, or a candidate or target
+// that does not vary.
+func (c *numericCell) score() float64 {
+	if c.n < minSelectionObservations || c.n <= 2 {
+		return 0
+	}
+	n := float64(c.n)
+	cxx := c.sxx - float64(c.sx*c.sx)/n
+	cyy := c.syy - float64(c.sy*c.sy)/n
+	cxy := c.sxy - float64(c.sx*c.sy)/n
+	if cxx <= 0 || cyy <= 0 {
+		return 0
+	}
+	r2 := float64(cxy*cxy) / float64(cxx*cyy)
+	adj := 1 - float64((1-r2)*float64(c.n-1))/float64(c.n-2)
+	if math.IsNaN(adj) || math.IsInf(adj, 0) || adj < 0 {
+		return 0
+	}
+	return adj
+}
+
+// isNumericModelCandidate reports whether a field of type ft may enter
+// a model as a NUMERIC predictor: a scalar the generated row holds as a
+// plain number, so the composed draw can read it back
+// (modelDrawer.transform). It is the target set (modelTargetFields)
+// minus decimal128, whose generated row value is not a float the draw
+// can multiply by a coefficient.
+func isNumericModelCandidate(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16,
+		encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64,
+		encoding.FieldTypePackedBool:
+		return true
+	}
+	return false
+}
+
 // buildSurveyFields describes each candidate predictor field to the
 // survey, in the caller's (schema) order.
 func buildSurveyFields(schema *encoding.Schema, candidates []string) []surveyField {
 	out := make([]surveyField, 0, len(candidates))
+	pos := make(map[string]int, len(schema.Fields))
+	for i := range schema.Fields {
+		pos[schema.Fields[i].Name] = i
+	}
 	for _, name := range candidates {
 		f := schema.Field(name)
+		if f != nil && isNumericModelCandidate(f.Type) {
+			out = append(out, surveyField{name: name, isNumeric: true, pos: pos[name]})
+			continue
+		}
 		if f == nil || f.Dictionary == nil {
 			continue
 		}

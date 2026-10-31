@@ -253,7 +253,8 @@ func (a *ruleApplier) commitOwnedNulls() {
 // A gate that produces MORE absence than the field declared is reported
 // by the same test — `{"owns_nulls": true}` over a field whose captured
 // rate is 0 is a rule inventing missingness the source does not have,
-// which is exactly as worth saying.
+// which is exactly as worth saying — but in its own sentence, since its
+// remedy is the opposite one (see ownedNullDivergenceWarning).
 //
 // Ordered worst-first and bounded, matching the thin-support listings:
 // the tail of a 50-field block is the same finding continued, and the
@@ -317,7 +318,25 @@ func (a *ruleApplier) ownershipWarnings(rows int) []string {
 // realised rate is out of, and the rule indices that made the claim —
 // everything needed to decide without re-reading the cohort, and the
 // indices because a rule has no name of its own.
+//
+// The gap has a DIRECTION and so does its remedy, so the two get
+// different sentences. Under-firing (realised below declared) means the
+// gate explains only part of the missingness: widen it, or add the
+// block it misses. Over-firing (realised above declared) means the gate
+// nulls rows the source holds a value on — typically because the gate
+// field's GENERATED rate drifted from the source's (a modelled or
+// clamped gate field moves it): narrow the gate, or fix that field.
+// Telling an over-firing gate to widen its `when` is the #365 misfire
+// this split removes — following it adds still more nulls.
 func ownedNullDivergenceWarning(o ownedNullField, realised float64, rows int) string {
+	if realised > o.declared {
+		return fmt.Sprintf("%s the nulls of field %q: its own null_rate %.4g was discarded, "+
+			"but the rule(s) nulled it on %.4g of %d generated row(s) — "+
+			"the gate fires on more rows than the field's captured missingness; "+
+			"narrow its when, check the gate field's generated rate against the source's, "+
+			"or drop owns_nulls if the gate was never the field's only source of absence",
+			ownedNullClaimant(o.rules), o.field, o.declared, realised, rows)
+	}
 	return fmt.Sprintf("%s the nulls of field %q: its own null_rate %.4g was discarded, "+
 		"but the rule(s) nulled it on %.4g of %d generated row(s) — "+
 		"the gate accounts for only part of the field's missingness; "+

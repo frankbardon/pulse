@@ -22,6 +22,8 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 | Which rules retire a field's model / pairs / residual correlations | [`synth-rule-claims`](synth-rule-claims.md) |
 | `--rules` / `--emit-spec`, and detecting rules with `--suggest-rules` | [`synth-rules-from-profile`](synth-rules-from-profile.md) |
 | `row()` / `lag()`, panel reset, recursive adstock | [`synth-cross-row`](synth-cross-row.md) |
+| Random draws in a rule; `"output": false` helper fields | [`synth-rule-draws`](synth-rule-draws.md) |
+| `trend` / `season` / `between` over a date / datetime | [`synth-datetime`](synth-datetime.md) |
 | Detector-specific rules and the emitted candidate order | [`synth-rule-detectors`](synth-rule-detectors.md) |
 
 ## Structural rules
@@ -59,7 +61,7 @@ A `set` literal is coerced to the row's Go shape once at compile time via `const
 
 **Declaration order is also ACCEPTED-row order — rows are never shuffled**, which is what lets `row()` / `lag()` ([`synth-cross-row`](synth-cross-row.md)) mean "the previous row".
 
-Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through.
+Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through. So a rule moves the twin's marginal and never the source's: the fidelity report puts a `rule_note` on a flagged marginal a rule writes ([`synth-fidelity-report`](synth-fidelity-report.md)).
 
 ## See
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Spec is the parsed top-level synthesis request. It is the in-memory
@@ -74,13 +75,25 @@ type Spec struct {
 	SetNumericPairs []SetNumericPairSpec `json:"set_numeric_pairs,omitempty"`
 
 	// SetSetPairs lists optional option x option joint structure between
-	// two DIFFERENT set_* fields to reproduce during generation (E5-S3):
+	// two set_* fields — or two options of ONE set field (a within-set
+	// dependency, set_a == set_b) — to reproduce during generation:
 	// for each pair, set B's declared OptionB (bit) is resampled from
 	// Bernoulli(P(selected | set A's OptionA drawn state)) using the
 	// captured 2x2 contingency cells. Populated by SpecFromProfile from
 	// ConditionalProfile.SetSetPairs when present; absent (nil)
 	// reproduces the independent per-option marginal behavior exactly.
 	SetSetPairs []SetSetPairSpec `json:"set_set_pairs,omitempty"`
+
+	// PairArbitration decides which relationship keeps a target two or
+	// more of the pair lists above name: "strength" (the default, also
+	// meant by an empty value) keeps the strongest association —
+	// bias-corrected Cramér's V for a categorical or set-option target,
+	// adjusted η² for a numeric one — and "declared" keeps the
+	// first-declared, the rule every spec followed before strength
+	// arbitration. A target whose strength cannot be measured (a
+	// hand-authored numeric pair without per-category `n`) is arbitrated
+	// first-declared under either mode. See resolveConflicts.
+	PairArbitration string `json:"pair_arbitration,omitempty"`
 
 	// Models lists optional per-numeric ADDITIVE linear predictors to
 	// drive generation with, the Spec-facing counterpart of the profile
@@ -278,8 +291,11 @@ type SetNumericPairSpec struct {
 }
 
 // SetSetPairSpec is one option x option pair's generation-time
-// reconstruction input between two DIFFERENT set_* fields — the
-// Spec-facing counterpart of SetSetPairProfile. Cells reuse
+// reconstruction input — the Spec-facing counterpart of
+// SetSetPairProfile. SetA == SetB declares a WITHIN-set dependency (two
+// options of one multi-select, e.g. tv requiring broadband); it runs in
+// its own stage after the set-categorical pairs, so the option it reads
+// is already settled when it draws (see drawRow). Cells reuse
 // CategoricalPairCellSpec verbatim: AValue is SetA's OptionA state
 // ("selected"/"not_selected"), BValue is SetB's OptionB state.
 type SetSetPairSpec struct {
@@ -351,6 +367,12 @@ type CategoricalNumericCategorySpec struct {
 	Category string  `json:"category"`
 	Mean     float64 `json:"mean"`
 	Std      float64 `json:"std"`
+	// N is the captured observation count behind Mean/Std. Generation
+	// never reads it; strength arbitration (Spec.PairArbitration) does,
+	// to weigh the category in the pair's adjusted η². A pair with any
+	// category lacking N has no measured strength, and its target falls
+	// back to first-declared arbitration.
+	N int `json:"n,omitempty"`
 }
 
 // FieldSpec is a single column declaration.
@@ -378,6 +400,42 @@ type FieldSpec struct {
 	// default ELEMENT family and Distribution may be empty when every
 	// element names its own.
 	Vector *VectorSpec `json:"vector,omitempty"`
+
+	// Output, when false, makes the field a HELPER (#364): it is drawn,
+	// written by rules and read by every rule and constraint exactly like
+	// any other field, but it is never written — it is absent from the
+	// output schema, the records and therefore from everything read off
+	// the file (inspect, profile, the fidelity report). nil (the wire
+	// default, `omitempty`) and true both mean "write it", so a spec that
+	// never says `output` is byte-identical to one from before the slot.
+	// Dropping a column moves no other column: every field still draws
+	// in declaration order (see fieldIsOutput).
+	Output *bool `json:"output,omitempty"`
+}
+
+// fieldIsOutput reports whether f reaches the written file: every field
+// does unless it declares `"output": false`.
+func fieldIsOutput(f FieldSpec) bool {
+	return f.Output == nil || *f.Output
+}
+
+// specHasOutputField reports whether any field reaches the file.
+func specHasOutputField(fields []FieldSpec) bool {
+	for _, f := range fields {
+		if fieldIsOutput(f) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateMaxRejectionRate bounds Spec.MaxRejectionRate to [0, 1).
+func validateMaxRejectionRate(rate float64) error {
+	if rate < 0 || rate >= 1 {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"max_rejection_rate must be in [0, 1)", map[string]any{"value": rate})
+	}
+	return nil
 }
 
 // ConstraintSpec wraps an expression evaluated against the in-memory row.
@@ -410,6 +468,18 @@ type Options struct {
 	// used by synth from-schema and any caller building a Spec directly.
 	SourceCohort string
 
+	// SyntheticOnly, alongside SourceCohort, writes ONLY the generated
+	// rows (`synth from-profile --synthetic-only`): no source row and no
+	// _synthetic column, so the output's schema is the source's own
+	// field list. The source is still read — the profile must line up
+	// with it field for field, and the fidelity report (when
+	// FidelityReportPath asks for one) still compares the generated rows
+	// against it, from a tagged cohort built in memory and never written.
+	// Same seed, same generated rows as the tagged run. Ignored when
+	// SourceCohort is empty: plain synthesis already writes generated
+	// rows only.
+	SyntheticOnly bool
+
 	// FidelityReportPath activates the post-generation fidelity report
 	// (`synth from-profile --fidelity-report`) when non-empty: after
 	// generation completes, AugmentFromProfile drives TEST_KS (numeric
@@ -434,6 +504,34 @@ type Options struct {
 	// Ignored when FidelityReportPath is empty, exactly like every
 	// other Fidelity* field.
 	FidelityWarnings []string
+
+	// FidelityModel, when non-nil, is a Pulse request whose
+	// `regressions` the fidelity report refits on the source cohort and
+	// on the generated partition, reporting each fit statistic
+	// (pseudo-R² for a REG_GLM, R² otherwise), their ratio and the
+	// coefficients side by side (FidelityReport.Utility.ModelFits). Its
+	// cohort is ignored: the facade points it at SourceCohort, then at
+	// the output's `_synthetic = true` rows. The source refit runs
+	// BEFORE generation, so a request the engine refuses fails the call
+	// with the engine's own code and writes nothing. Requires
+	// SourceCohort, FidelityReportPath and at least one regression;
+	// otherwise the call is refused with PULSE_SYNTH_FIDELITY_MODEL_INVALID.
+	FidelityModel *types.Request
+
+	// DisclosureSample caps the generated rows the fidelity report's
+	// `disclosure` section measures the Gower distance to closest record
+	// over (`--disclosure-sample`): 0 is DefaultDisclosureSample
+	// (10,000); more generated rows than the cap are sampled from a
+	// seeded stream of their own, so the generated rows never move. A
+	// negative value is refused SERVICE_VALIDATION. The exact-match
+	// count always reads every generated row.
+	DisclosureSample int
+
+	// DisableDisclosure drops the fidelity report's `disclosure` section
+	// (`--no-disclosure`). By default a report written against a source
+	// carries it; its working set is charged to the instance's
+	// MaxEstimatedMemory limit before generation (PULSE_LIMIT_EXCEEDED).
+	DisableDisclosure bool
 }
 
 // Result is what the writer reports after a successful Synth call.
@@ -496,8 +594,15 @@ func validateSpec(s *Spec) error {
 			vectorFields[f.Name] = true
 		}
 		if f.Distribution == "" && !isVectorFieldType(f.Type) {
-			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"field has empty distribution", map[string]any{"name": f.Name})
+			if !ruleDeterminesCategorical(s.Rules, f) {
+				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					"field has empty distribution", map[string]any{"name": f.Name})
+			}
+			if len(f.Params) > 0 {
+				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					"field without a distribution takes no params: a structural rule determines its value, so nothing would read them",
+					map[string]any{"name": f.Name})
+			}
 		}
 		if f.NullRate < 0 || f.NullRate > 1 {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -506,6 +611,11 @@ func validateSpec(s *Spec) error {
 		if err := checkFieldParams(i, f); err != nil {
 			return err
 		}
+	}
+	if !specHasOutputField(s.Fields) {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"spec must declare at least one output field: every field is `\"output\": false`, so the file would have no columns",
+			map[string]any{"fields": len(s.Fields)})
 	}
 	if err := refuseVectorCrossFieldUse(s, vectorFields); err != nil {
 		return err
@@ -582,10 +692,20 @@ func validateSpec(s *Spec) error {
 				map[string]any{"set": snp.Set, "numeric": snp.Numeric})
 		}
 	}
+	switch s.PairArbitration {
+	case "", PairArbitrationStrength, PairArbitrationDeclared:
+	default:
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"pair_arbitration must be \"strength\" or \"declared\"",
+			map[string]any{"pair_arbitration": s.PairArbitration})
+	}
 	for _, ssp := range s.SetSetPairs {
-		if ssp.SetA == ssp.SetB {
+		// One set field on both sides is a within-set dependency and is
+		// legal; one OPTION on both sides is a pair with itself.
+		if ssp.SetA == ssp.SetB && ssp.OptionA == ssp.OptionB {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"set-set pair set_a and set_b must differ", map[string]any{"set_a": ssp.SetA})
+				"set-set pair option_a and option_b must differ within one set field",
+				map[string]any{"set_a": ssp.SetA, "option_a": ssp.OptionA})
 		}
 		if !seen[ssp.SetA] || !seen[ssp.SetB] {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -667,14 +787,14 @@ func validateSpec(s *Spec) error {
 	// the writer fields), so their PARSE-settled refusals — a now() call,
 	// a shadowed or bare built-in (row_expr_builtins.go) — are checked
 	// here, at spec validation, before any field is built.
+	times := rowTimeFields(s.Fields)
 	for _, c := range s.Constraints {
-		if r := rowExprStaticRefusal(c.Expr, seen); r != nil {
+		if r := constraintExprStaticRefusal(c.Expr, seen, times); r != nil {
 			return rowExprConstraintRefusal(c.Expr, r)
 		}
 	}
-	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {
-		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"max_rejection_rate must be in [0, 1)", map[string]any{"value": s.MaxRejectionRate})
+	if err := validateMaxRejectionRate(s.MaxRejectionRate); err != nil {
+		return err
 	}
 	// Rules are validated LAST, so a rule naming a field is reported
 	// only once the field list itself is known good — a duplicate or

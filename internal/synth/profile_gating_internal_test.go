@@ -695,3 +695,35 @@ func TestSuggestRules_UncompilablePredicateIsDroppedNotWritten(t *testing.T) {
 		t.Fatalf("the written candidates do not survive rule validation: %v", err)
 	}
 }
+
+// TestSuggestRules_GateNoteMatchesTheOwnsNullsItEmits is the second
+// half of the #365(b) repro. Every gating candidate carries
+// `"owns_nulls": true` — the privacy showcase's end_date candidate is
+// `{"when": "round(churned) == 0", "set_null": ["end_date"],
+// "owns_nulls": true}` — yet its note warned that the target's own
+// null_rate "still fires beneath the gate, raising its marginal null
+// rate above the captured one". That is the double count the flag
+// REMOVES: the note warned in the direction the candidate cannot go.
+func TestSuggestRules_GateNoteMatchesTheOwnsNullsItEmits(t *testing.T) {
+	t.Parallel()
+
+	prof := gateFixtureProfile(t, 400, 40)
+	got, ok := candidateByGate(prof.RuleCandidates, "aware")
+	if !ok {
+		t.Fatal("aware not proposed")
+	}
+	if !got.OwnsNulls {
+		t.Fatal("a gating candidate must carry owns_nulls")
+	}
+	note := got.Evidence.Note
+	for _, banned := range []string{"still fires beneath the gate", "above the captured one"} {
+		if strings.Contains(note, banned) {
+			t.Errorf("note warns %q, the double count owns_nulls removes:\n%s", banned, note)
+		}
+	}
+	for _, want := range []string{"owns_nulls", "discards", "below"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("note does not state %q:\n%s", want, note)
+		}
+	}
+}

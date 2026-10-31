@@ -601,8 +601,10 @@ func (p *Processor) bindAttribute(computer AttributeComputer) error {
 }
 
 // percentileAttribute is ATTR_PERCENTILE: rank / n * 100 over the rows
-// with a value (n counts them; ties take distinct ranks). A null source
-// cell is not ranked and scores AttributeNull.
+// with a value (n counts them; ties take distinct ranks, in scan order:
+// of two tied rows the earlier record ranks lower, so a run is
+// reproducible). A null source cell is not ranked and scores
+// AttributeNull.
 type percentileAttribute struct{}
 
 func newPercentileAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -639,8 +641,9 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 		return result, nil
 	}
 
-	// Sort by value
-	sort.Slice(indexed, func(i, j int) bool {
+	// Sort by value. indexed is in scan order and the sort is stable, so
+	// tied rows keep it: the tie rule is deterministic, never the sort's.
+	sort.SliceStable(indexed, func(i, j int) bool {
 		return indexed[i].val < indexed[j].val
 	})
 

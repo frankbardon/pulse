@@ -61,6 +61,64 @@ func ksTwoSampleP(a, wa, b, wb []float64, D float64) float64 {
 	return math.Min(1, math.Max(0, p))
 }
 
+// ksTiesWarnings is TEST_KS's PULSE_TEST_TIES_DOMINATE warning: on the
+// ASYMPTOTIC arm only (ksUsesExact false — the exact arm conditions on
+// the tie pattern, so ties cost it nothing), when tied observations
+// make up at least half of the pooled sample — the rank tests' rule
+// (tiesDominateW) and message. The limiting distribution assumes a
+// continuous variable, so a tie-heavy sample makes its p conservative.
+// Weighted, a run's size is its total weight and a row of weight w > 1
+// is itself a tie of size w: the expansion's tie runs, so the weighted
+// verdict equals the unweighted one on the expanded rows. a / b are
+// sorted (NaN first), wa / wb nil at unit weights; NaN runs count as
+// one value, as ksTieBoundaries does. The row test and two_sample_post
+// call it; OVERLAY_KS_VS_POP does not.
+func ksTiesWarnings(a, wa, b, wb []float64) []string {
+	if ksUsesExact(float64(ksSampleSize(a, wa)), float64(ksSampleSize(b, wb))) {
+		return nil
+	}
+	weight := func(ws []float64, i int) float64 {
+		if ws == nil {
+			return 1
+		}
+		return ws[i]
+	}
+	same := func(x, y float64) bool { return x == y || (x != x && y != y) }
+	var ties []float64
+	var total float64
+	i, j := 0, 0
+	for i < len(a) || j < len(b) {
+		var v float64
+		switch {
+		case j >= len(b):
+			v = a[i]
+		case i >= len(a):
+			v = b[j]
+		case !(a[i] > b[j]):
+			v = a[i]
+		default:
+			v = b[j]
+		}
+		var run float64
+		for i < len(a) && same(a[i], v) {
+			run += weight(wa, i)
+			i++
+		}
+		for j < len(b) && same(b[j], v) {
+			run += weight(wb, j)
+			j++
+		}
+		if run > 1 {
+			ties = append(ties, run)
+		}
+		total += run
+	}
+	if !tiesDominateW(ties, total) {
+		return nil
+	}
+	return []string{tiesDominateWarning("values")}
+}
+
 // ksAsymptoticP is ks.test's limiting two-sided p for sizes m, n —
 // psmirnov(D, c(m, n), exact = FALSE, lower.tail = FALSE): 1 at D ≤ 0,
 // 0 past 1, else the limiting Kolmogorov survival at √(mn/(m+n))·D

@@ -295,8 +295,8 @@ Adds to every row its percentile rank, rank / n * 100: the share of rows at or b
 **Assumptions:**
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
-- Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read tens of points apart.
-- Rows tied at a cut-off are split across it arbitrarily and can change between runs; cut on the value (AGG_PERCENTILE, then a filter) for a reproducible top tenth.
+- Tied values do not share a percentile: each tied row takes its own rank in scan order (the earlier record lower), so equal values can read tens of points apart.
+- Rows tied at a cut-off are split across it by record order, not by anything in the data; cut on the value (AGG_PERCENTILE, then a filter) for a top tenth that ignores row order.
 - Not streamable: every value is sorted before the first row is ready.
 - A missing value gets no percentile (null) and is not counted in n.
 

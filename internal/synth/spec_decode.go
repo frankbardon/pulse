@@ -89,9 +89,11 @@ var distributionParamKeys = map[string][]string{
 	DistDiscrete:            {"values", "weights"},
 	DistMixture:             {"means", "stds", "weights"},
 	DistUniformDate:         {"start", "end"},
-	DistRegex:               {"pattern", "max_repeat"},
-	DistConstant:            {"value", "options"}, // options: set_* fields only (setOnlyParam)
-	DistSetBernoulli:        {"options", "frequencies"},
+	DistUniformDateTime: {"start", "end", "time_zone", "time_zone_field", "dst_policy",
+		"hour_weights", "weekday_weights"},
+	DistRegex:        {"pattern", "max_repeat"},
+	DistConstant:     {"value", "options"}, // options: set_* fields only (setOnlyParam)
+	DistSetBernoulli: {"options", "frequencies"},
 }
 
 // setOnlyParam is the params key a set_* field reads whatever its

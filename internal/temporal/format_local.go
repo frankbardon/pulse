@@ -44,3 +44,20 @@ func FormatLocal(sec int64, z *Zone) string {
 	b = append(b, sign, byte('0'+h/10), byte('0'+h%10), ':', byte('0'+m/10), byte('0'+m%10))
 	return string(b)
 }
+
+// FormatWall renders a wall-clock reading — seconds since
+// 1970-01-01T00:00:00 on some zone's clock, the input ResolveLocal takes
+// — as a naive ISO 8601 literal with no offset (2026-03-29T02:30:00).
+// It names no instant: the reading belongs to whichever zone produced
+// it, which is why it carries no `Z`.
+func FormatWall(wall int64) string {
+	return time.Unix(wall, 0).UTC().Format(localWallLayout)
+}
+
+// WallSeconds returns the wall-clock reading for local calendar day day
+// (epoch days) at hour:00:00 plus sec seconds, counted as seconds since
+// 1970-01-01T00:00:00 on that clock — the input ResolveLocal takes. The
+// reading is zone-free: it is what a clock shows, not an instant.
+func WallSeconds(day, hour, sec int64) int64 {
+	return DayToUnix(day) + hour*SecondsPerHour + sec
+}

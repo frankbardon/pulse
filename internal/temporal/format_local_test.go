@@ -71,3 +71,32 @@ func TestFormatLocal_MatchesStdlibAndRoundTrips(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatWall_NaiveLiteral(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		wall int64
+		want string
+	}{
+		{0, "1970-01-01T00:00:00"},
+		{-1, "1969-12-31T23:59:59"},
+		{WallSeconds(20541, 2, 1800), "2026-03-29T02:30:00"},
+	}
+	for _, c := range cases {
+		if got := FormatWall(c.wall); got != c.want {
+			t.Errorf("FormatWall(%d) = %q, want %q", c.wall, got, c.want)
+		}
+	}
+}
+
+func TestWallSeconds_DayHourSecond(t *testing.T) {
+	t.Parallel()
+
+	if got, want := WallSeconds(1, 1, 1), int64(SecondsPerDay+SecondsPerHour+1); got != want {
+		t.Errorf("WallSeconds(1, 1, 1) = %d, want %d", got, want)
+	}
+	if got, want := WallSeconds(-1, 23, 3599), int64(-1); got != want {
+		t.Errorf("WallSeconds(-1, 23, 3599) = %d, want %d", got, want)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	mrand "math/rand/v2"
 	"sort"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/linalg/detmath"
 )
@@ -171,7 +172,8 @@ func (c float64Clamp) apply(v float64) float64 {
 	return v
 }
 
-// modelPredictor is one compiled (field, level) indicator term.
+// modelPredictor is one compiled term: a (field, level) indicator, or a
+// numeric field's own value.
 type modelPredictor struct {
 	// isSet distinguishes the two indicator semantics carried on
 	// ModelPredictorSpec.Kind. A categorical_level term reads the row's
@@ -179,9 +181,46 @@ type modelPredictor struct {
 	// set_option term reads the row's selection map for a set_* field
 	// and fires when that option's bit is on.
 	isSet bool
-	field string
-	level string
-	coef  float64
+	// numeric marks a ModelPredictorNumeric term: it contributes
+	// coef × the field's value as the file will STORE it (storedScalar
+	// over store, the field's declared type), because the fit read the
+	// stored value — an integer field's rounded draw, a packed_bool's
+	// 0/1.
+	numeric bool
+	store   encoding.FieldType
+	field   string
+	level   string
+	coef    float64
+}
+
+// storedScalar projects a drawn row value onto the number the encoder
+// will store for a field of type ft — the same rounding and clamping
+// writeFieldValueForField applies — so a numeric model term reads the
+// value the generated cohort will carry, not the sampler's unrounded
+// draw.
+func storedScalar(ft encoding.FieldType, v any) float64 {
+	switch ft {
+	case encoding.FieldTypePackedBool:
+		if toBool(v) {
+			return 1
+		}
+		return 0
+	case encoding.FieldTypeU4:
+		f := toFloat64(v)
+		if math.IsNaN(f) {
+			f = 0
+		}
+		return float64(clampU4(math.Floor(f + 0.5)))
+	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
+		f := toFloat64(v)
+		if f < 0 || math.IsNaN(f) {
+			f = 0
+		}
+		return float64(clampUnsigned(uint64(math.Floor(f+0.5)), ft))
+	case encoding.FieldTypeF32:
+		return float64(toFloat32(v))
+	}
+	return toFloat64(v)
 }
 
 // buildModelDrawers compiles the SURVIVING models — the subset
@@ -311,6 +350,23 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 				d.predictors = append(d.predictors, modelPredictor{
 					isSet: true, field: pr.Field, level: pr.Level, coef: pr.Coefficient,
 				})
+			case ModelPredictorNumeric:
+				// Read off the generated row, so the field has to be a
+				// scalar the row holds as a number. Anything else — a
+				// categorical, a set, a date — has no value a
+				// coefficient could multiply and is refused like any
+				// other term generation cannot evaluate.
+				ppos, known := idx[pr.Field]
+				if known && isNumericModelCandidate(wfs[ppos].field.Type) {
+					d.predictors = append(d.predictors, modelPredictor{
+						numeric: true, store: wfs[ppos].field.Type,
+						field: pr.Field, coef: pr.Coefficient,
+					})
+					break
+				}
+				return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					fmt.Sprintf("field %q: model predictor kind %q cannot be evaluated at generation time on field %q, which is not a scalar numeric", m.Field, pr.Kind, pr.Field),
+					map[string]any{"field": m.Field, "predictor": pr.Field, "kind": pr.Kind})
 			default:
 				return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 					fmt.Sprintf("field %q: model predictor kind %q cannot be evaluated at generation time", m.Field, pr.Kind),
@@ -326,7 +382,84 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 	// the stable sort is belt-and-braces for a spec that reached this
 	// point unvalidated.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].order < out[j].order })
-	return out, warnings, nil
+	ordered, err := drawOrder(out)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ordered, warnings, nil
+}
+
+// drawOrder returns the drawers in GENERATION order: every drawer after
+// the drawers of the modelled numerics it reads, and otherwise in schema
+// order.
+//
+// A numeric predictor is read off the row, so when it is itself a model
+// target its drawer must run first — otherwise the dependent reads the
+// predictor's MARGINAL draw, which the model stage then overwrites, and
+// the relationship the coefficient describes never reaches the cohort.
+// The order is Kahn's algorithm with the lowest schema index taken
+// first among the ready drawers, which makes it a function of the Spec
+// alone and makes the common case free: with no numeric predictor
+// naming a modelled field every drawer is ready at once, the result IS
+// schema order, and the per-row RNG sequence (one draw per independent
+// drawer, in drawer order) is unchanged byte for byte. A capture never
+// emits a cycle — selection admits a numeric only into targets declared
+// after it — so a cycle here is a hand-authored spec, refused by name.
+func drawOrder(drawers []*modelDrawer) ([]*modelDrawer, error) {
+	at := make(map[string]int, len(drawers))
+	for i, d := range drawers {
+		at[d.field] = i
+	}
+	deps := make([][]int, len(drawers))
+	waiting := make([]int, len(drawers))
+	linked := false
+	for i, d := range drawers {
+		seen := make(map[int]bool)
+		for _, p := range d.predictors {
+			if !p.numeric {
+				continue
+			}
+			if j, modelled := at[p.field]; modelled && !seen[j] {
+				seen[j] = true
+				deps[j] = append(deps[j], i)
+				waiting[i]++
+				linked = true
+			}
+		}
+	}
+	if !linked {
+		return drawers, nil
+	}
+	done := make([]bool, len(drawers))
+	out := make([]*modelDrawer, 0, len(drawers))
+	for len(out) < len(drawers) {
+		next := -1
+		// drawers is already in schema order, so the first ready index
+		// is the lowest schema position among the ready drawers.
+		for i := range drawers {
+			if !done[i] && waiting[i] == 0 {
+				next = i
+				break
+			}
+		}
+		if next < 0 {
+			var cycle []string
+			for i, d := range drawers {
+				if !done[i] {
+					cycle = append(cycle, d.field)
+				}
+			}
+			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("models form a cycle through numeric predictors (%v): each would have to be drawn before another, so no generation order exists", cycle),
+				map[string]any{"fields": cycle})
+		}
+		done[next] = true
+		out = append(out, drawers[next])
+		for _, j := range deps[next] {
+			waiting[j]--
+		}
+	}
+	return out, nil
 }
 
 // transform replaces row[field] with the composed model draw described
@@ -374,6 +507,10 @@ func (d *modelDrawer) transform(rng *mrand.Rand, row map[string]any, nullMask ma
 	for i := range d.predictors {
 		p := &d.predictors[i]
 		if nullMask[p.field] {
+			continue
+		}
+		if p.numeric {
+			prediction += float64(p.coef * storedScalar(p.store, row[p.field]))
 			continue
 		}
 		if p.isSet {

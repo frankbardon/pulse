@@ -53,11 +53,17 @@ import (
 //
 // # Determinism
 //
-// The pass consumes NO RNG. It is pure assignment over the two maps
+// The pass consumes NO generation RNG. It is assignment over the two maps
 // drawRow already owns, so a spec carrying rules draws exactly the same
 // per-row random sequence as the same spec with the rules removed, and a
 // spec declaring no rules produces byte-identical output to a build from
 // before the slot existed (TestRules_RulesFreeSpecIsByteIdenticalToPreStory).
+// A rule MAY draw — uniform() / bernoulli(p) (#364) — but each call site
+// reads its own counter-based stream keyed on (seed, site, accepted-row
+// ordinal, attempt, call), never the generation RNG, so a draw moves no
+// other field and a draw-free rule set is byte-identical to one from
+// before the functions existed; a rejected attempt's draws are discarded
+// and the redraw reads fresh ones (internal/synth/row_draw.go).
 // It also allocates nothing per row: every `set` literal is coerced to
 // its row shape ONCE at compile time, and both the rule order and each
 // rule's assignment order are fixed slices rather than Go map walks.
@@ -215,6 +221,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		byName[wf.spec.Name] = wf.spec
 	}
 	env, names := rowExprEnv(specs)
+	times := rowTimeFields(specs)
 
 	applier := &ruleApplier{nullState: &compiledConstraints{fields: names}}
 	// Two option sets over ONE environment: a `when` must return a bool
@@ -224,8 +231,8 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	// against the TARGET, and expr.AsBool() here would refuse
 	// `{"set_expr": {"score": "nps * 2"}}` at compile time for returning
 	// the very thing it is supposed to return.
-	whenOpts := rowExprOptions(env, names, applier.nullState, expr.AsBool())
-	valueOpts := rowExprOptions(env, names, applier.nullState)
+	whenOpts := rowExprOptions(env, names, times, applier.nullState, expr.AsBool())
+	valueOpts := rowExprOptions(env, names, times, applier.nullState)
 
 	// What every rule's set_expr says about the fields it writes,
 	// resolved before the loop because a LATER rule's write is just as
@@ -272,9 +279,10 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 				// validateRuleLiteral for why the rule is not blamed.
 				continue
 			}
-			if rf := rowExprStaticRefusal(r.SetExpr[name], names); rf != nil {
+			if rf := rowExprStaticRefusal(r.SetExpr[name], names, times); rf != nil {
 				return nil, nil, rowExprRuleRefusal(i, "set_expr", name, r.SetExpr[name], rf)
 			}
+			sites := len(applier.nullState.drawSites)
 			prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
 			if err != nil {
 				// Unreachable via validateSpec, which compiles the same
@@ -282,6 +290,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 				return nil, nil, ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, i, "set_expr", name,
 					fmt.Sprintf("rule set_expr[%q] = %q does not compile: %v", name, r.SetExpr[name], err))
 			}
+			applier.nullState.labelDrawSites(sites, fmt.Sprintf("rule/%d/set_expr/%s", i, name))
 			cr.setExpr = append(cr.setExpr, ruleExprAssign{
 				field: name, spec: f, ft: ft, prog: prog, src: r.SetExpr[name],
 			})
@@ -314,9 +323,10 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		}
 		if r.When != "" {
 			cr.whenReads = whenFieldsRead(r.When, byName, rewrites, i)
-			if rf := rowExprStaticRefusal(r.When, names); rf != nil {
+			if rf := rowExprStaticRefusal(r.When, names, times); rf != nil {
 				return nil, nil, rowExprRuleRefusal(i, "when", "", r.When, rf)
 			}
+			sites := len(applier.nullState.drawSites)
 			prog, err := expr.Compile(r.When, whenOpts...)
 			if err != nil {
 				// Unreachable via validateSpec, which compiles the same
@@ -326,6 +336,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 				return nil, nil, ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, i, "when", "",
 					fmt.Sprintf("rule when %q does not compile: %v", r.When, err))
 			}
+			applier.nullState.labelDrawSites(sites, fmt.Sprintf("rule/%d/when", i))
 			cr.when = prog
 		}
 		applier.rules = append(applier.rules, cr)
@@ -530,12 +541,18 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 	// Same reasoning for the firing scratch: it describes the row being
 	// drawn, and the row it described may have been rejected.
 	clear(a.rowFired)
+	// And for the draw sites' call counts: each attempt starts its
+	// sites' streams at call 0 (row_draw.go).
+	a.nullState.beginDrawAttempt()
 
 	for i := range a.rules {
 		r := &a.rules[i]
 		if r.when != nil {
 			out, err := expr.Run(r.when, row)
 			if err != nil {
+				if de := ruleDrawError(err, r.index, "when", "", r.whenSrc); de != nil {
+					return de
+				}
 				return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
 					fmt.Sprintf("rule %d: evaluating when %q: %v", r.index, r.whenSrc, err),
 					map[string]any{
@@ -569,6 +586,9 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 			ea := &r.setExpr[j]
 			out, err := expr.Run(ea.prog, row)
 			if err != nil {
+				if de := ruleDrawError(err, r.index, "set_expr", ea.field, ea.src); de != nil {
+					return de
+				}
 				return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
 					fmt.Sprintf("rule %d: evaluating set_expr[%q] = %q: %v", r.index, ea.field, ea.src, err),
 					map[string]any{

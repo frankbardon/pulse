@@ -172,8 +172,9 @@ func writeSuggestedRulesCaveat(w io.Writer, count int, path string) {
 	fmt.Fprintf(w, "  reads VALUES but only for packed_bool and u4 TARGETS, only from a SINGLE\n")
 	fmt.Fprintf(w, "  categorical_*/packed_bool/u4 source of at most 16 observed levels, and never\n")
 	fmt.Fprintf(w, "  jointly from two. Wider numerics, date and set_* are in neither role.\n")
-	fmt.Fprintf(w, "  A set_null gate repairs co-missingness only: each target's own null_rate still\n")
-	fmt.Fprintf(w, "  fires beneath the gate, so the targets' marginal null rate rises above the\n")
-	fmt.Fprintf(w, "  captured one.\n")
+	fmt.Fprintf(w, "  Every gating candidate carries owns_nulls: it discards each target's own null\n")
+	fmt.Fprintf(w, "  draw, so the gate is the only source of absence and the generated null rate\n")
+	fmt.Fprintf(w, "  is the gate's firing rate. Drop owns_nulls and a set_null gate repairs\n")
+	fmt.Fprintf(w, "  co-missingness only: the target's own null_rate fires beneath it as well.\n")
 	fmt.Fprintf(w, "  Apply with: pulse synth from-profile --rules %s …\n", path)
 }

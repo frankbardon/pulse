@@ -35,7 +35,8 @@ SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Par
 
 ## Gotchas
 
-- Pop shares renormalise over the compared categories (pop nulls / top-K tail ignored): R `chisq.test(x, p, rescale.p=TRUE)`. A subset value the pop lacks is dropped from χ², N, `df` + one `PULSE_OVERLAY_REF_ZERO`. Byte-equal survival to the χ² test.
+- Pop shares renormalise over the compared categories (pop nulls ignored): R `chisq.test(x, p, rescale.p=TRUE)`. A subset value the pop lacks is dropped from χ², N, `df` + one `PULSE_OVERLAY_REF_ZERO`. Byte-equal survival to the χ² test.
+- Complete host listing (`truncated_at` 0): a pop category the subset lacks enters at observed 0 (counts in `df` + the low-expected check). `discrete_top_k` truncation → listed values only (an unlisted category is unknown, not 0).
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer, carrying the low-expected category count.
 - Empty host distribution, empty population, or no compared category → NaN statistic + `PULSE_OVERLAY_REF_ZERO`. Single category (`df = 0`) → NaN p-value.
 - Buffered (inferential — FacetSchema post-finalize hook; byte-identical streaming vs buffered).

@@ -16,7 +16,9 @@ import (
 // This file is the profile-time model CAPTURE stage: under
 // ProfileOptions.FitModels (`profile create --fit-models`) it fits one
 // linear model per eligible numeric field — the field regressed on the
-// cohort's categorical LEVELS and set OPTIONS — and retains the fitted
+// cohort's categorical LEVELS, set OPTIONS and the NUMERIC fields
+// declared before it (see selectionFor's generation-order rule) — and
+// retains the fitted
 // coefficients, the residual scale and a bounded row-aligned residual
 // vector in memory.
 //
@@ -270,6 +272,12 @@ type FieldModel struct {
 	// NObs rows, so alpha·NObs recovers the pseudo-count. See
 	// profile_models_shrink.go for the construction.
 	ShrinkageAlpha float64 `json:"shrinkage_alpha,omitempty"`
+	// Link is "probit" (ModelLinkProbit) for a packed_bool target, whose
+	// Intercept and coefficients are then PROBIT coefficients —
+	// P(1 | row) = Φ(intercept + Σ coefficient·x) — R2 is McFadden's
+	// pseudo-R² and ResidualStd is 1, the latent error's unit scale.
+	// Absent for every other target: an ordinary least-squares fit.
+	Link string `json:"link,omitempty"`
 	// Residuals is the row-aligned fitted residual (observed − predicted)
 	// for each row retained in the capture's residual reservoir, and
 	// ResidualPresent[i] reports whether row i contributed one at all —
@@ -355,6 +363,12 @@ type modelFitter struct {
 	rows []modelRow
 	rng  *mrand.Rand
 	seen int
+
+	// numericOnly and warnAt implement the absent-is-unchanged rule for
+	// a cohort whose only candidates are numerics: see newModelFitter
+	// and finish.
+	numericOnly bool
+	warnAt      int
 }
 
 // modelRow is one retained row of the snapshot: the decoded value, null
@@ -422,6 +436,16 @@ type fieldFit struct {
 	// model is populated at finish() when the fit succeeds; a nil model
 	// means the field was skipped and has already been warned about.
 	model *FieldModel
+
+	// probit marks a packed_bool target: its generation draw is a
+	// probit, so the linear fit's slopes are replaced by a real probit
+	// fit over the same design and rows (profile_probit.go). px/py are
+	// that fit's design rows (intercept first) and 0/1 targets, gathered
+	// on the same listwise admission the linear engine applies.
+	// probitFailure is why the probit fit fell back to the linear one.
+	probit        bool
+	px, py        []float64
+	probitFailure string
 }
 
 // interceptAcc is the sufficient statistic of an intercept-only fit:
@@ -473,11 +497,11 @@ func newModelFitter(schema *encoding.Schema, topK int, seed int64, warnings *[]s
 	if len(targets) == 0 {
 		return nil
 	}
-	candidates := modelCandidateFields(schema)
-	if len(candidates) == 0 {
+	indicators := modelCandidateFields(schema)
+	numerics := modelNumericCandidateFields(schema)
+	if len(indicators) == 0 && len(numerics) < 2 {
 		for _, target := range targets {
-			*warnings = append(*warnings, modelSkipWarning(target,
-				"no categorical or set_* candidate predictors in the cohort"))
+			*warnings = append(*warnings, noCandidateWarning(target))
 		}
 		return nil
 	}
@@ -486,9 +510,18 @@ func newModelFitter(schema *encoding.Schema, topK int, seed int64, warnings *[]s
 		schema:     schema,
 		topK:       topK,
 		targets:    targets,
-		candidates: candidates,
+		candidates: mergeSchemaOrder(schema, indicators, numerics),
 		rng:        newRng(seed),
+		// A cohort with numerics but no categorical or set_* field has
+		// candidates only because numerics may now predict each other.
+		// If selection admits none, the capture must read exactly as it
+		// did before numeric candidates existed — every target skipped
+		// for having nothing to regress on, warned at the position the
+		// warning always occupied — so the position is recorded here.
+		numericOnly: len(indicators) == 0,
+		warnAt:      len(*warnings),
 	}
+	candidates := f.candidates
 
 	// Snapshot fields are taken in SCHEMA order, not in the order the
 	// target and candidate scans happened to name them, so the
@@ -532,7 +565,7 @@ func modelTargetFields(schema *encoding.Schema) []string {
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
 		switch {
-		case f.Type == encoding.FieldTypeDate, f.Type.IsCategorical(), f.Type.IsSet():
+		case f.Type == encoding.FieldTypeDate, f.Type == encoding.FieldTypeDateTime, f.Type.IsCategorical(), f.Type.IsSet():
 			continue
 		case !f.Type.IsNumericForAnalytics():
 			continue
@@ -565,6 +598,51 @@ func modelCandidateFields(schema *encoding.Schema) []string {
 		out = append(out, f.Name)
 	}
 	return out
+}
+
+// modelNumericCandidateFields lists the fields eligible to enter a
+// model as a NUMERIC predictor (isNumericModelCandidate), in schema
+// order. Which target each may enter is decided by selection's
+// generation-order rule, not here.
+func modelNumericCandidateFields(schema *encoding.Schema) []string {
+	var out []string
+	for i := range schema.Fields {
+		if isNumericModelCandidate(schema.Fields[i].Type) {
+			out = append(out, schema.Fields[i].Name)
+		}
+	}
+	return out
+}
+
+// mergeSchemaOrder returns the union of two candidate lists in schema
+// order. The design's column order follows the candidate order, so the
+// merge must not move an indicator candidate relative to another: an
+// interleaved numeric that selection does not admit then leaves the
+// design exactly as it was before numeric candidates existed.
+func mergeSchemaOrder(schema *encoding.Schema, a, b []string) []string {
+	want := make(map[string]bool, len(a)+len(b))
+	for _, n := range a {
+		want[n] = true
+	}
+	for _, n := range b {
+		want[n] = true
+	}
+	out := make([]string, 0, len(want))
+	for i := range schema.Fields {
+		if want[schema.Fields[i].Name] {
+			out = append(out, schema.Fields[i].Name)
+		}
+	}
+	return out
+}
+
+// noCandidateWarning is the skip a target gets when the cohort offers
+// nothing to regress on. Its text predates numeric candidates and is
+// kept byte-for-byte: it is emitted only when no numeric predictor can
+// be (fewer than two numerics) or was (selection admitted none) found,
+// which is exactly the situation it always described.
+func noCandidateWarning(target string) string {
+	return modelSkipWarning(target, "no categorical or set_* candidate predictors in the cohort")
 }
 
 // modelColumns chooses which of a plan's expanded columns enter the
@@ -754,7 +832,15 @@ func (f *modelFitter) retain(values map[string]float64, nulls map[string]bool, w
 // residual replay uses, so a retained row is reconstituted from its
 // parallel slices exactly once here.
 func (f *modelFitter) buildSurvey() *candidateSurvey {
-	survey := newCandidateSurvey(f.targets, buildSurveyFields(f.schema, f.candidates))
+	pos := make(map[string]int, len(f.schema.Fields))
+	for i := range f.schema.Fields {
+		pos[f.schema.Fields[i].Name] = i
+	}
+	targetPos := make([]int, len(f.targets))
+	for i, n := range f.targets {
+		targetPos[i] = pos[n]
+	}
+	survey := newCandidateSurvey(f.targets, targetPos, buildSurveyFields(f.schema, f.candidates))
 	targetVals := make([]float64, len(f.targets))
 	targetOK := make([]bool, len(f.targets))
 
@@ -775,6 +861,10 @@ func (f *modelFitter) buildSurvey() *candidateSurvey {
 					continue
 				}
 				survey.observeSet(ci, row.masks[si], targetVals, targetOK)
+				continue
+			}
+			if survey.fields[ci].isNumeric {
+				survey.observeNumeric(ci, row.values[si], targetVals, targetOK)
 				continue
 			}
 			survey.observeCategorical(ci, uint32(row.values[si]), targetVals, targetOK)
@@ -800,7 +890,7 @@ func (f *modelFitter) newFieldFit(target string, choices []predictorChoice) (*fi
 			continue
 		}
 		fields = append(fields, c.field)
-		if !c.isSet {
+		if !c.isSet && !c.isNumeric {
 			filters[c.field] = dummyLevelFilter{keep: c.levels, other: c.other}
 		}
 	}
@@ -813,14 +903,18 @@ func (f *modelFitter) newFieldFit(target string, choices []predictorChoice) (*fi
 		return nil, fmt.Sprintf("design matrix would be %d columns wide (cap %d)",
 			len(columns), maxModelColumns)
 	}
-	return &fieldFit{
+	fit := &fieldFit{
 		target:     target,
 		plan:       plan,
 		columns:    columns,
 		references: references,
 		rec:        plan.newRecord(),
 		choices:    choices,
-	}, ""
+	}
+	if tf := f.schema.Field(target); tf != nil && tf.Type == encoding.FieldTypePackedBool {
+		fit.probit = true
+	}
+	return fit, ""
 }
 
 // dropWeakestChoice returns this fit's admitted predictors with the
@@ -940,6 +1034,12 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 		refOf   []int
 		refHits []int
 		contrib int
+		// first and varied answer "is this NUMERIC column constant over
+		// the admitted rows" — the scalar counterpart of the indicator
+		// columns' hits == 0 / hits == contrib test, which for a
+		// numeric would read "always non-zero" as "always one".
+		first  []float64
+		varied []bool
 	}
 	states := make([]colState, len(fits))
 	maxRefs := 0
@@ -958,6 +1058,8 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 			hits:    make([]int, len(fit.columns)),
 			refOf:   refOf,
 			refHits: make([]int, len(fit.references)),
+			first:   make([]float64, len(fit.columns)),
+			varied:  make([]bool, len(fit.columns)),
 		}
 		if len(fit.references) > maxRefs {
 			maxRefs = len(fit.references)
@@ -1004,6 +1106,13 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 			st.contrib++
 			clear(refSeen[:len(fit.references)])
 			for ci := range fit.columns {
+				if fit.columns[ci].Kind == dummyNumeric {
+					if st.contrib == 1 {
+						st.first[ci] = scratch[ci]
+					} else if scratch[ci] != st.first[ci] {
+						st.varied[ci] = true
+					}
+				}
 				if scratch[ci] == 0 {
 					continue
 				}
@@ -1022,7 +1131,7 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 
 	kept := fits[:0]
 	for i, fit := range fits {
-		fit.prune(states[i].hits, states[i].refOf, states[i].refHits, states[i].contrib)
+		fit.prune(states[i].hits, states[i].refOf, states[i].refHits, states[i].varied, states[i].contrib)
 		// Shrinkage is planned between the prune and the engine: it
 		// reads the support prune measured, and it decides a spec field
 		// buildEngine is about to freeze.
@@ -1055,10 +1164,15 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 //     admitted row, so the first surviving one becomes the new
 //     reference and its ModelReference entry is rewritten to name it.
 //
+// A NUMERIC column (dummyNumeric) is judged on varied[ci] instead: it
+// survives iff its value is not the same on every admitted row. Its hit
+// count is "rows where the value was non-zero", so the indicator test
+// would drop every strictly-positive numeric as "identically one".
+//
 // A field left with no columns loses its reference entry outright: a
 // baseline is only meaningful as the arm some other coefficient is read
 // against.
-func (f *fieldFit) prune(hits []int, refOf []int, refHits []int, contrib int) {
+func (f *fieldFit) prune(hits []int, refOf []int, refHits []int, varied []bool, contrib int) {
 	f.contrib = contrib
 	f.support = f.support[:0]
 	if len(f.columns) == 0 {
@@ -1068,6 +1182,10 @@ func (f *fieldFit) prune(hits []int, refOf []int, refHits []int, contrib int) {
 	keep := make([]bool, len(f.columns))
 	surviving := make([]int, len(f.references))
 	for ci := range f.columns {
+		if f.columns[ci].Kind == dummyNumeric {
+			keep[ci] = varied[ci]
+			continue
+		}
 		if hits[ci] == 0 || hits[ci] == contrib {
 			continue
 		}
@@ -1139,6 +1257,10 @@ func (f *fieldFit) prune(hits []int, refOf []int, refHits []int, contrib int) {
 // conditional pair, so a skip costs the field its model and not its
 // structure.
 func (f *modelFitter) finish(warnings *[]string) []FieldModel {
+	if len(f.rows) == 0 && f.numericOnly {
+		f.restoreNoCandidateSkips(warnings)
+		return nil
+	}
 	if len(f.rows) == 0 {
 		for _, target := range f.targets {
 			*warnings = append(*warnings, modelSkipWarning(target,
@@ -1152,9 +1274,25 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 	nulls := make(map[string]bool, len(f.snapFields))
 	wide := make(map[string]any, len(f.snapFields))
 
+	selected := make([][]predictorChoice, len(f.targets))
+	admittedAny := false
+	for ti := range f.targets {
+		selected[ti] = survey.selectionFor(ti, f.topK)
+		if len(selected[ti]) > 0 {
+			admittedAny = true
+		}
+	}
+	if f.numericOnly && !admittedAny {
+		// Numerics were the only candidates and none predicts another:
+		// the capture is exactly the pre-numeric-candidate one, which
+		// skipped every target as having nothing to regress on.
+		f.restoreNoCandidateSkips(warnings)
+		return nil
+	}
+
 	var pending []*fieldFit
 	for ti, target := range f.targets {
-		choices := survey.selectionFor(ti, f.topK)
+		choices := selected[ti]
 		fit, why := f.newFieldFit(target, choices)
 		if why != "" {
 			*warnings = append(*warnings, modelSkipWarning(target, why))
@@ -1185,6 +1323,9 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 				}
 				if why == "" {
 					fit.model = model
+					if fit.probitFailure != "" {
+						*warnings = append(*warnings, probitFallbackWarning(fit.target, fit.probitFailure))
+					}
 					if len(fit.columns) == 0 {
 						*warnings = append(*warnings, modelNoPredictorWarning(fit.target))
 					}
@@ -1237,6 +1378,20 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 	return out
 }
 
+// restoreNoCandidateSkips writes the pre-numeric-candidate outcome of a
+// numeric-only cohort: one "nothing to regress on" skip per target,
+// inserted at the position newModelFitter recorded — where that warning
+// was always emitted — so the document matches the one the capture
+// produced before numerics could predict each other, byte for byte.
+func (f *modelFitter) restoreNoCandidateSkips(warnings *[]string) {
+	skips := make([]string, 0, len(f.targets))
+	for _, target := range f.targets {
+		skips = append(skips, noCandidateWarning(target))
+	}
+	tail := append([]string(nil), (*warnings)[f.warnAt:]...)
+	*warnings = append(append((*warnings)[:f.warnAt], skips...), tail...)
+}
+
 // drive folds every retained snapshot row into each fit. The row loop is
 // OUTER and the fit loop INNER so a retained row is reconstituted into
 // the decode maps exactly once regardless of how many targets are in
@@ -1250,6 +1405,9 @@ func (f *modelFitter) drive(fits []*fieldFit, values map[string]float64, nulls m
 					fit.only.add(y)
 				}
 				continue
+			}
+			if fit.probit {
+				fit.gatherProbitRow()
 			}
 			if err := fit.engine.UpdateRow(fit.rec); err != nil {
 				// UpdateRow's only error is a post-Finalize call, which
@@ -1305,6 +1463,11 @@ func (f *fieldFit) finalize() (*FieldModel, string) {
 	res, err := f.engine.Finalize()
 	if err != nil {
 		return nil, err.Error()
+	}
+	if f.probit {
+		if model, ok := f.probitModel(res.NObs); ok {
+			return model, ""
+		}
 	}
 	model := &FieldModel{
 		Field:          f.target,
@@ -1418,6 +1581,12 @@ func (f *fieldFit) residual() (float64, bool) {
 	}
 	if math.IsNaN(pred) || math.IsInf(pred, 0) {
 		return 0, false
+	}
+	if f.model.Link == ModelLinkProbit {
+		// The response residual y − Φ(η): on the same 0/1 scale the
+		// linear fit's residual was measured on.
+		_, cdf := probitPdfCdf(pred)
+		return y - cdf, true
 	}
 	return y - pred, true
 }
