@@ -126,7 +126,7 @@ func (d *RegressionDriver) admit(rec extend.Record) (float64, bool) {
 	}
 	d.n++
 	d.sumW += w
-	d.sumWSq += w * w
+	d.sumWSq += float64(w * w)
 	return w, true
 }
 

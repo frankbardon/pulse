@@ -537,6 +537,21 @@ var requestFigures = []requestFigure{
 	// <= ~1e-13) across arches (E4-S4 pins it at its tolerance).
 }
 
+// facetFigures: end-to-end figures through pulse.FacetSchema (E3-S3:
+// the barriered numeric facet Welford M2 and linear percentiles of
+// internal/service/facet_rich.go). The request is a FacetRequest; the
+// paths address the FacetResult --json shape.
+var facetFigures = []requestFigure{
+	{"facet.mtcars.numeric", "mtcars.pulse",
+		`{"fields":["mpg","wt","qsec","drat"],"numeric_percentiles":[0.1,0.25,0.333,0.5,0.9]}`,
+		[]string{
+			"fields.mpg.numeric.mean", "fields.mpg.numeric.stddev", "fields.mpg.numeric.percentiles.*",
+			"fields.wt.numeric.stddev", "fields.wt.numeric.percentiles.*",
+			"fields.qsec.numeric.stddev", "fields.qsec.numeric.percentiles.*",
+			"fields.drat.numeric.stddev", "fields.drat.numeric.percentiles.*",
+		}},
+}
+
 // TestFingerprint_Golden computes the corpus and compares it, line by
 // line, with testdata/fingerprint.golden (or rewrites it under -update).
 func TestFingerprint_Golden(t *testing.T) {
@@ -607,20 +622,41 @@ func requestFigureValues(t *testing.T) map[string]float64 {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	out := map[string]float64{}
+	type figureRun struct {
+		rf  requestFigure
+		run func(rf requestFigure) (any, error)
+	}
+	var runs []figureRun
 	for _, rf := range requestFigures {
+		runs = append(runs, figureRun{rf, func(rf requestFigure) (any, error) {
+			var req types.Request
+			if err := json.Unmarshal([]byte(rf.request), &req); err != nil {
+				return nil, fmt.Errorf("decoding request: %w", err)
+			}
+			req.Cohort = &types.Cohort{Filename: rf.cohort}
+			return p.Process(context.Background(), &req)
+		}})
+	}
+	for _, rf := range facetFigures {
+		runs = append(runs, figureRun{rf, func(rf requestFigure) (any, error) {
+			var req types.FacetRequest
+			if err := json.Unmarshal([]byte(rf.request), &req); err != nil {
+				return nil, fmt.Errorf("decoding facet request: %w", err)
+			}
+			req.Cohort = &types.Cohort{Filename: rf.cohort}
+			return p.FacetSchema(context.Background(), &req)
+		}})
+	}
+	for _, r := range runs {
+		rf := r.rf
 		_, fixed := fixtureCohorts[rf.cohort]
 		_, generated := generatedCohorts[rf.cohort]
 		if !fixed && !generated {
 			t.Fatalf("%s: cohort %q is not in fixtureCohorts or generatedCohorts", rf.name, rf.cohort)
 		}
-		var req types.Request
-		if err := json.Unmarshal([]byte(rf.request), &req); err != nil {
-			t.Fatalf("%s: decoding request: %v", rf.name, err)
-		}
-		req.Cohort = &types.Cohort{Filename: rf.cohort}
-		resp, err := p.Process(context.Background(), &req)
+		resp, err := r.run(rf)
 		if err != nil {
-			t.Fatalf("%s: Process: %v", rf.name, err)
+			t.Fatalf("%s: %v", rf.name, err)
 		}
 		wire, err := json.Marshal(resp)
 		if err != nil {

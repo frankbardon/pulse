@@ -37,3 +37,11 @@
 # ./a/b/... , ./a/b , or ./a/b/c.go files.
 #
 # Report-only until E5-S2 makes an unlisted finding fail.
+
+math.Exp internal/examples/fixtures/gen.go writeExperiment offline //go:build ignore generator of the checked-in example CSVs (go run, never linked into Pulse); its output is frozen in the repo, so engine figures read the same bytes on every arch, and stdlib math/rand drives it anyway
+math.Exp internal/examples/fixtures/gen.go writeTransactions offline //go:build ignore generator of the checked-in example CSVs (go run, never linked into Pulse); its output is frozen in the repo, so engine figures read the same bytes on every arch, and stdlib math/rand drives it anyway
+math.Exp internal/examples/fixtures/gen.go writeCustomers offline //go:build ignore generator of the checked-in example CSVs (go run, never linked into Pulse); its output is frozen in the repo, so engine figures read the same bytes on every arch, and stdlib math/rand drives it anyway
+math.Exp internal/examples/fixtures/gen.go writeOrders offline //go:build ignore generator of the checked-in example CSVs (go run, never linked into Pulse); its output is frozen in the repo, so engine figures read the same bytes on every arch, and stdlib math/rand drives it anyway
+math.Exp internal/examples/fixtures/gen.go writeTrainingData offline //go:build ignore generator of the checked-in example CSVs (go run, never linked into Pulse); its output is frozen in the repo, so engine figures read the same bytes on every arch, and stdlib math/rand drives it anyway
+math.Exp internal/examples/fixtures/gen.go writeIntake offline //go:build ignore generator of the checked-in example CSVs (go run, never linked into Pulse); its output is frozen in the repo, so engine figures read the same bytes on every arch, and stdlib math/rand drives it anyway
+fma internal/testutil/invariance/invariance.go Within test-only tolerance comparator (|a-b| <= abs + rel*max) in a test helper (internal/testutil, imported only by _test files); it computes no result figure, only the pass/fail bound of a documented-tolerance comparison

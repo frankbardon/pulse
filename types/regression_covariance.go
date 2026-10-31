@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // CovarianceType names the coefficient covariance estimator a regression
@@ -99,12 +101,14 @@ func (c *RegressionCovariance) Robust() bool {
 }
 
 // AutoHACLags is the "auto" Newey–West truncation lag for a series of n
-// rows: ⌊4·(n/100)^(2/9)⌋ (Newey & West 1994's rule of thumb).
+// rows: ⌊4·(n/100)^(2/9)⌋ (Newey & West 1994's rule of thumb). The power
+// is detmath.Pow so the lag, and every HAC standard error built on it,
+// is the same on every architecture.
 func AutoHACLags(n int) int {
 	if n <= 0 {
 		return 0
 	}
-	return int(math.Floor(4 * math.Pow(float64(n)/100, 2.0/9.0)))
+	return int(math.Floor(4 * detmath.Pow(float64(n)/100, 2.0/9.0)))
 }
 
 // CovarianceLags is RegressionCovariance.Lags: absent, "auto", or a

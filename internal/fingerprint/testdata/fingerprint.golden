@@ -22,6 +22,31 @@ detmath.Sin(2.2) 0x3fe9df33d9aad708 0.80849640381959009
 detmath.Tanh(-12.5) 0xbfeffffffffc2eb9 -0.99999999997222411
 detmath.Tanh(0.2) 0x3fc9439830b3a590 0.19737532022490401
 detmath.Tanh(1.7) 0x3fedeedf00d3e7f5 0.93540907060309897
+facet.mtcars.numeric:fields.drat.numeric.percentiles.p10 0x40080e5604189375 3.0070000000000001
+facet.mtcars.numeric:fields.drat.numeric.percentiles.p25 0x4008a3d70a3d70a4 3.0800000000000001
+facet.mtcars.numeric:fields.drat.numeric.percentiles.p33.300000000000004 0x40095ae3e6c4c597 3.1693799999999999
+facet.mtcars.numeric:fields.drat.numeric.percentiles.p50 0x400d8f5c28f5c290 3.6950000000000003
+facet.mtcars.numeric:fields.drat.numeric.percentiles.p90 0x4010d604189374bc 4.2089999999999996
+facet.mtcars.numeric:fields.drat.numeric.stddev 0x3fe11c1694a95376 0.53467873607097149
+facet.mtcars.numeric:fields.mpg.numeric.mean 0x4034173333333334 20.090625000000003
+facet.mtcars.numeric:fields.mpg.numeric.percentiles.p10 0x402cae147ae147ae 14.34
+facet.mtcars.numeric:fields.mpg.numeric.percentiles.p25 0x402ed9999999999a 15.425000000000001
+facet.mtcars.numeric:fields.mpg.numeric.percentiles.p33.300000000000004 0x4030b0d1b71758e2 16.6907
+facet.mtcars.numeric:fields.mpg.numeric.percentiles.p50 0x4033333333333333 19.199999999999999
+facet.mtcars.numeric:fields.mpg.numeric.percentiles.p90 0x403e170a3d70a3d8 30.090000000000003
+facet.mtcars.numeric:fields.mpg.numeric.stddev 0x40181b984529a787 6.0269480520891028
+facet.mtcars.numeric:fields.qsec.numeric.percentiles.p10 0x402f116872b020c5 15.534000000000001
+facet.mtcars.numeric:fields.qsec.numeric.percentiles.p25 0x4030e47ae147ae14 16.892499999999998
+facet.mtcars.numeric:fields.qsec.numeric.percentiles.p33.300000000000004 0x40310799c38b04ab 17.029689999999999
+facet.mtcars.numeric:fields.qsec.numeric.percentiles.p50 0x4031b5c28f5c28f6 17.710000000000001
+facet.mtcars.numeric:fields.qsec.numeric.percentiles.p90 0x4033fd70a3d70a3d 19.989999999999998
+facet.mtcars.numeric:fields.qsec.numeric.stddev 0x3ffc9751ca6d8275 1.7869432360968436
+facet.mtcars.numeric:fields.wt.numeric.percentiles.p10 0x3fff49ba5e353f7d 1.9555
+facet.mtcars.numeric:fields.wt.numeric.percentiles.p25 0x4004a66666666666 2.5812499999999998
+facet.mtcars.numeric:fields.wt.numeric.percentiles.p33.300000000000004 0x40067c486ad2dcb1 2.8106849999999999
+facet.mtcars.numeric:fields.wt.numeric.percentiles.p50 0x400a99999999999a 3.3250000000000002
+facet.mtcars.numeric:fields.wt.numeric.percentiles.p90 0x401030a3d70a3d72 4.0475000000000012
+facet.mtcars.numeric:fields.wt.numeric.stddev 0x3fef4f85fbc5649e 0.97845744298969684
 linalg.CholeskyRidge(indefinite).L00 0x3ff00246528079d6 1.0005553457955236
 linalg.CholeskyRidge(indefinite).L10 0x3feffb74007aecdd 0.99944496244225045
 linalg.CholeskyRidge(indefinite).L11 0x3fa1e3964d96de81 0.034939476939539034
@@ -857,4 +882,4 @@ weighting.Welford.SumWSq 0x406c200000000000 225
 weighting.Welford.Variance(frequency) 0x4009ab02dbc8da8c 3.2085015459700283
 weighting.Welford.Variance(probability) 0x4009af242aed5831 3.2105182031328003
 
-// golden-hash: 4799b7170f15c54b6f31e0514e87ef276f75c539d798c8ec3e248d3447f76ec0
+// golden-hash: 13e469b102a2a50e3f798794db76cb4c37fb3990337673f634c6c06a5c9b6241
