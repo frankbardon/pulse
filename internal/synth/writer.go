@@ -733,13 +733,18 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 		_, err := buf.Write([]byte{b})
 		return err
 	case encoding.FieldTypeU4:
+		// Clamped to [0, 15] like the u8–u64 arm, never masked: a draw
+		// of 16 used to wrap to 0 (and -1 to 15), turning a sampler's
+		// upper tail into its lowest value. Clamping BEFORE the float
+		// conversion also keeps a negative draw off Go's
+		// implementation-defined float-to-unsigned conversion.
 		var v uint8
 		if !isNull {
 			f := toFloat64(val)
 			if math.IsNaN(f) {
 				f = 0
 			}
-			v = uint8(math.Floor(f+0.5)) & 0x0F
+			v = clampU4(math.Floor(f + 0.5))
 		}
 		_, err := buf.Write([]byte{v})
 		return err
@@ -934,6 +939,17 @@ func toBool(v any) bool {
 		return s == "true" || s == "1" || s == "yes" || s == "y" || s == "t"
 	}
 	return false
+}
+
+// clampU4 clamps a rounded draw to the u4 range [0, 15].
+func clampU4(r float64) uint8 {
+	if r < 0 {
+		return 0
+	}
+	if r > 0x0F {
+		return 0x0F
+	}
+	return uint8(r)
 }
 
 func clampUnsigned(v uint64, ft encoding.FieldType) uint64 {

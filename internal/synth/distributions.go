@@ -84,6 +84,10 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 		return newVectorSampler(f)
 	}
 	switch f.Distribution {
+	case "":
+		// Reached only for a categorical a priority-0 rule determines
+		// (validateSpec refuses every other empty distribution).
+		return ruleDeterminedSampler{}, nil
 	case DistUniform:
 		return newUniformSampler(f)
 	case DistNormal:
@@ -122,6 +126,15 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 			map[string]any{"distribution": f.Distribution, "field": f.Name})
 	}
 }
+
+// ruleDeterminedSampler is the sampler of a categorical declared with
+// no distribution because an unconditional structural rule writes it on
+// every row (#365a). It consumes NO RNG and yields the empty string,
+// which the rule pass overwrites; only a rule declared EARLIER than the
+// determining one can read that placeholder.
+type ruleDeterminedSampler struct{}
+
+func (ruleDeterminedSampler) next(*rand.Rand) (any, bool) { return "", false }
 
 type nullableSampler struct {
 	inner sampler

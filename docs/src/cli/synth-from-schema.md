@@ -326,6 +326,24 @@ same per-row sequence as the same spec without them, and a spec
 declaring no rules generates byte-identical output to one written before
 the slot existed.
 
+A `categorical_*` field that an unconditional rule writes on every row
+needs **no distribution**. Declare it with `name` and `type` only (no
+`params` either) when a `set` or `set_expr` with no `when`, that does not
+read the field itself, determines it:
+
+```json
+{"fields": [{"name": "score", "type": "u8", "distribution": "uniform", "params": {"min": 0, "max": 9.999}},
+            {"name": "band",  "type": "categorical_u8"}],
+ "rules":  [{"set_expr": {"band": "round(score) >= 5 ? \"high\" : \"low\""}}]}
+```
+
+The field draws nothing and consumes no randomness, so every other
+field is identical to a spec without it. A rule declared *earlier* than
+the one that writes it reads an empty string. Any other empty
+`distribution` is still `SERVICE_VALIDATION`: a rule gated by `when`, a
+`set_null`, a `set_expr` reading its own target, or a field that is not
+categorical all leave rows the field's own generation has to fill.
+
 <!-- ANCHOR-PINNED: two pages link to this heading by its generated anchor
      (#owns_nulls-the-rule-owns-the-fields-absence) — profile-create.md and
      synth-from-profile.md. No link checker runs in CI, so a rename here breaks
@@ -369,6 +387,16 @@ realised null rate misses its discarded `null_rate` by more than 0.02
 rates, the row count and every rule that claimed it. The second term is
 not decoration — at 200 rows a correct claim on a 0.25 field misses by
 more than 0.02 about half the time.
+
+The warning names the **direction** of the gap, because the two remedies
+are opposite. Realised BELOW the discarded rate: the gate explains only
+part of the field's missingness — widen its `when`, or add the co-missing
+block it does not capture. Realised ABOVE it: the gate fires on rows the
+source holds a value on — narrow it, or check the gate field's generated
+rate against the source's. The second is what a drifted gate field
+produces: an `end_date` owned by `round(churned) == 0` and captured at
+0.809 comes back at 0.90 when `churned` is generated at 0.10, and widening
+that gate would only add nulls.
 
 Two rules may own one field. Ownership is a **union**, not an exclusive
 claim: `set_null` removes a value rather than supplying one, so it never

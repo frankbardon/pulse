@@ -523,8 +523,15 @@ func validateSpec(s *Spec) error {
 			vectorFields[f.Name] = true
 		}
 		if f.Distribution == "" && !isVectorFieldType(f.Type) {
-			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"field has empty distribution", map[string]any{"name": f.Name})
+			if !ruleDeterminesCategorical(s.Rules, f) {
+				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					"field has empty distribution", map[string]any{"name": f.Name})
+			}
+			if len(f.Params) > 0 {
+				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					"field without a distribution takes no params: a structural rule determines its value, so nothing would read them",
+					map[string]any{"name": f.Name})
+			}
 		}
 		if f.NullRate < 0 || f.NullRate > 1 {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,

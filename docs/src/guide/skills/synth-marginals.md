@@ -28,7 +28,7 @@ Consequences: `p` of exactly 0 or 1 has zero variance, so a model on it is DROPP
 
 ### Small-integer marginals
 
-**An integer column with at most 64 observed levels reconstructs as `discrete` — its own exact per-level histogram.** The boolean defect one type wider: the writer stores `floor(v+0.5)`, so a clamped normal is QUANTIZED on the way to the file — the bell flattens the scale's real shape and the clamp piles asymmetric mass on the near bound, while the MEAN comes back roughly right, which is how it survived. A level's observed count IS its weight.
+**An integer column with at most 64 observed levels reconstructs as `discrete` — its own exact per-level histogram.** The boolean defect one type wider: the writer stores `floor(v+0.5)`, so a clamped normal is QUANTIZED on the way to the file — the bell flattens the scale's real shape and the clamp piles asymmetric mass on the near bound, while the MEAN comes back roughly right, which is how it survived. A level's observed count IS its weight. An out-of-range draw CLAMPS to its type's range at every unsigned width, `u4` (0–15) included — never wraps to the low nibble.
 
 **Which types claim the arm is not a taste judgement.** `isIntegerQuantizedFieldType` is exactly the set of `writeFieldValueForField` arms applying `Floor(f+0.5)` — so `f32`/`f64` (the float is stored), `decimal128` (exact at its scale), `date` / `datetime` (own `uniform_date` / `uniform_datetime`) and `packed_bool` (`bernoulli` runs ahead) are excluded. A type list ALONE is insufficient (a `u16` share-of-wallet is in the defect, a `u64` ID must not be), so the observed-level cap separates them.
 
