@@ -76,6 +76,9 @@ func goodScalarSpec(kind types.OverlayKind, grouped bool) *types.OverlaySpec {
 		s.Scope = rule.scopes[0]
 		if rule.ref == refMargin {
 			s.Ref.Margin = &types.OverlayMarginRef{Axis: types.MarginAxisColumn}
+			if a := CrosstabSpecMarginAxis(kind); a != "" {
+				s.Ref.Margin.Axis = a
+			}
 		}
 	}
 	return s
@@ -113,7 +116,7 @@ func TestScalarSpecRefusal_Rules(t *testing.T) {
 				t.Fatalf("%s: message %q, want the %s host wording", kind, cerr.Message, shape)
 			}
 			_, axis := cerr.Details["axis"]
-			if wantAxis := shape == types.OverlayShapeMatrix && specRules[kind].ref == refMargin; axis != wantAxis || (axis && cerr.Details["axis"] != "column") {
+			if wantAxis := shape == types.OverlayShapeMatrix && specRules[kind].ref == refMargin; axis != wantAxis || (axis && cerr.Details["axis"] != string(good.Ref.Margin.Axis)) {
 				t.Fatalf("%s: axis %v in %v, want %v", kind, axis, cerr.Details, wantAxis)
 			}
 			if got := cerr.Details["host"]; (got == "series") != (dual && shape == types.OverlayShapeSeries) {

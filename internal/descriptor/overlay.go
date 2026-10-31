@@ -2278,12 +2278,11 @@ func validateOverlayFisherExactCell(env *descriptor.Envelope, req *types.Request
 
 // validateOverlayShareOfRow enforces the per-kind contract for
 // OVERLAY_SHARE_OF_ROW: Ref must populate Margin (the row-margin
-// reference family), Margin.Axis must be a known MarginAxis (the
-// runtime handler is row-axis-locked, but the validator accepts any
-// known axis at predict time so a misconfigured caller fails closed
-// with a single shape-mismatch code rather than a stricter "must be
-// row" code), the host result must be MATRIX-shaped (i.e.
-// Request.Crosstab is non-nil), and Scope must be CELL.
+// reference family), Margin.Axis must be row (the kind is
+// row-axis-locked; any other axis is
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, the runtime's refusal
+// too), the host result must be MATRIX-shaped (i.e. Request.Crosstab
+// is non-nil), and Scope must be CELL.
 func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
 	// raises too (overlayhost.CrosstabSpecRefusal).
@@ -2302,13 +2301,11 @@ func validateOverlayShareOfRow(env *descriptor.Envelope, req *types.Request, spe
 
 // validateOverlayShareOfCol enforces the per-kind contract for
 // OVERLAY_SHARE_OF_COL: Ref must populate Margin (the column-margin
-// reference family), Margin.Axis must be a known MarginAxis (the
-// runtime handler is column-axis-locked, but the validator accepts
-// any known axis at predict time so a misconfigured caller fails
-// closed with a single shape-mismatch code rather than a stricter
-// "must be column" code — matches the SHARE_OF_ROW followup policy),
-// the host result must be MATRIX-shaped (i.e. Request.Crosstab is
-// non-nil), and Scope must be CELL.
+// reference family), Margin.Axis must be column (the kind is
+// column-axis-locked; any other axis is
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, the runtime's refusal
+// too), the host result must be MATRIX-shaped (i.e. Request.Crosstab
+// is non-nil), and Scope must be CELL.
 func validateOverlayShareOfCol(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
 	// raises too (overlayhost.CrosstabSpecRefusal).

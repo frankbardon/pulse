@@ -87,6 +87,15 @@ var specRules = map[types.OverlayKind]specRule{
 	types.OverlayKindPropZVsPrior: {refPrior, "", scopeGroup},
 }
 
+// lockedMarginAxes is the one MarginAxis an axis-locked refMargin kind
+// accepts; a refMargin kind absent here accepts any known axis.
+// OVERLAY_SHARE_OF_TOTAL is grand-axis by definition but documents its
+// axis as ignored, so it stays unlocked.
+var lockedMarginAxes = map[types.OverlayKind]types.MarginAxis{
+	types.OverlayKindShareOfRow: types.MarginAxisRow,
+	types.OverlayKindShareOfCol: types.MarginAxisColumn,
+}
+
 // knownMarginAxes is the MarginAxis set a refMargin kind accepts.
 var knownMarginAxes = map[types.MarginAxis]bool{
 	types.MarginAxisRow:    true,
@@ -110,6 +119,13 @@ func CrosstabSpecScopes(kind types.OverlayKind) []types.OverlayScope {
 	return append([]types.OverlayScope(nil), specRules[kind].scopes...)
 }
 
+// CrosstabSpecMarginAxis returns the one MarginAxis an axis-locked
+// refMargin kind accepts (OVERLAY_SHARE_OF_ROW → row, OVERLAY_SHARE_OF_COL
+// → column), or "" when the kind accepts any known axis or has no rule.
+func CrosstabSpecMarginAxis(kind types.OverlayKind) types.MarginAxis {
+	return lockedMarginAxes[kind]
+}
+
 // CrosstabSpecRefusal is the Ref / Scope refusal of the crosstab (MATRIX
 // host) spec at index of Request.Overlays (index < 0 leaves it out of
 // details). route is the kind every decision keys on (the empty route of
@@ -119,7 +135,9 @@ func CrosstabSpecScopes(kind types.OverlayKind) []types.OverlayScope {
 //   - refEmpty kinds: any Ref arm set → PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 //     {index, kind}, "must leave Ref empty (<why>)".
 //   - refMargin kinds: Ref.Margin unset → PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-//     {index, kind}; an unknown Margin.Axis → the same code, {index, kind, axis}.
+//     {index, kind}; an unknown Margin.Axis → the same code, {index, kind, axis};
+//     on an axis-locked kind (OVERLAY_SHARE_OF_ROW / _COL) any other
+//     known axis → the same code, {index, kind, axis}.
 //   - a scope outside the kind's set → PULSE_OVERLAY_SCOPE_UNSUPPORTED
 //     {index, kind, scope}, "(supports: a, b)".
 //
@@ -159,6 +177,10 @@ func CrosstabSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index
 		if axis := spec.Ref.Margin.Axis; !knownMarginAxes[axis] {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"overlay "+kind+" Ref.Margin.Axis is not a known MarginAxis: "+string(axis), details("axis", string(axis)))
+		}
+		if axis := spec.Ref.Margin.Axis; lockedMarginAxes[route] != "" && axis != lockedMarginAxes[route] {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+				"overlay "+kind+" Ref.Margin.Axis must be "+string(lockedMarginAxes[route])+" (the kind is "+string(lockedMarginAxes[route])+"-axis-locked), got: "+string(axis), details("axis", string(axis)))
 		}
 	}
 	for _, s := range rule.scopes {

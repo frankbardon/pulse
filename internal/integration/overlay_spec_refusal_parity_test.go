@@ -66,8 +66,13 @@ func specRefusalCases(t *testing.T) []specRefusalCase {
 			}
 		}
 		margin := isMarginKind(kind)
+		locked := overlayhost.CrosstabSpecMarginAxis(kind)
 		if margin {
-			good.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}
+			axis := types.MarginAxisRow
+			if locked != "" {
+				axis = locked
+			}
+			good.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: axis}}
 		}
 		scope := good
 		scope.Scope = bad
@@ -80,6 +85,19 @@ func specRefusalCases(t *testing.T) []specRefusalCase {
 			out = append(out,
 				specRefusalCase{string(kind) + "/ref_missing", none, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 				specRefusalCase{string(kind) + "/ref_axis", axis, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE})
+			if locked != "" {
+				// An axis-locked share (SHARE_OF_ROW / _COL): a known
+				// axis other than its own is refused too, never run as
+				// the locked share.
+				for _, a := range []types.MarginAxis{types.MarginAxisRow, types.MarginAxisColumn, types.MarginAxisGrand} {
+					if a == locked {
+						continue
+					}
+					wrong := good
+					wrong.Ref = types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: a}}
+					out = append(out, specRefusalCase{string(kind) + "/ref_axis_" + string(a), wrong, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE})
+				}
+			}
 			continue
 		}
 		ref := good
