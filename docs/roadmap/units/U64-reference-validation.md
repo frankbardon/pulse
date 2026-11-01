@@ -118,7 +118,7 @@ An operator exposes a parameter wherever there is a real methodological choice, 
   - **Findings (first run, 2026-10-31):**
     - **Regression.** Norris, Pontius and Longley reach 8.5–11.5 digits, and Wampler1–5 reach 6.0–6.7. Filip is refused as rank-deficient, and NoInt1/2 cannot run because there is no no-intercept option.
     - **ANOVA.** SiRstv, SmLs01–06 and AtmWtAg reach 8.7–14.7 digits; SmLs07–09 reach only 3.2.
-    - **Univariate.** The mean and sample SD reach 8.2–15 digits. The sample SD comes from `AGG_WELFORD`; `AGG_STDDEV` is the population SD by design. The lag-1 autocorrelation is not offered.
+    - **Univariate.** The mean and sample SD reach 8.2–15 digits. The sample SD came from `AGG_WELFORD`, since `AGG_STDDEV` was then the population SD only (it now takes `ddof`, below). The lag-1 autocorrelation is not offered.
     - **Follow-ups:** #608, #609 and #610 (S4–S6).
   - S4 *(done)*: #608.
     - **The 7-digit target is impossible.** SmLs07–09 hold values such as 1000000000000.4, which float64 cannot represent (the spacing near 1e12 is 1.2e-4). Exact rational arithmetic on the parsed doubles reaches only 4.03, 3.92 and 3.91 digits. R, Stata and SPSS read the same doubles, so no double-precision package can do better.
@@ -146,6 +146,7 @@ An operator exposes a parameter wherever there is a real methodological choice, 
     - **Reference points.** numpy/LAPACK Householder QR gets 8.1 on Filip, 7.6 on Wampler4 and 5.6 on Wampler5. Its SVD-based `lstsq` misses Filip entirely, at 0 digits.
   - S6 *(done)*: #610. `REG_OLS` gained `intercept: false`, which pins the intercept to 0 and gives null inference on it, uncentred R² and df N* − p, as in R's `lm(y ~ 0 + x)`. It also gained `solver` (`qr` default, `normal`). NIST NoInt1 / NoInt2: 14.1 / 15 digits.
   - S7: #611. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
+  - *(done)* **`ddof` on `AGG_STDDEV` / `AGG_VARIANCE`.** Both gained an optional `params.ddof`: `0` (the default, the population figure m2 / n, byte-identical when absent) or `1` (the sample figure m2 / (n − 1); weighted, `AGG_WELFORD`'s m2_w / (Σw − 1)). Any other value is `PROCESSING_CONFIG`, raised identically by predict and the runtime (`internal/ddofspec`). Every path honours it: buffered, streaming, merged shards, decimal128, weighted, crosstab cells and margins, and the components (`variance` / `stddev` equal the scalar; `m2` and `n` stay raw). One row (or Σw ≤ 1) under ddof 1 is `null`, never 0. The univariate StRD sample SD now comes from `AGG_STDDEV` with `ddof: 1`, with `AGG_WELFORD`'s `stddev` component held to the same digits; the recorded digits did not change, and the registry gains an `AGG_STDDEV` row.
 - **E4 — External references for MMM**
   - S1: `gen_mmm_hill.R` fits the same Hill-adstock objective with `minpack.lm::nlsLM` from the same start and bounds. The test pins coefficients at the tolerance the optimizer oracles already use (`optimize/testdata`).
   - S2: `REG_MMM_BAYES` with flat saturation and fixed adstock must reproduce the `REG_BAYES_LINEAR` posterior. A seeded simulation-based calibration run (rank histograms, fixed draw count) becomes a heavy-tier test whose output is published only with its harness, following U63's rule that unreproducible figures are not published.

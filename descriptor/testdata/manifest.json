@@ -2545,8 +2545,16 @@
         {
           "name": "AGG_STDDEV",
           "category": "aggregator",
-          "description": "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
-          "params": null,
+          "description": "Standard deviation via Welford's online algorithm: the population form (n denominator) by default, the sample form (n - 1) with params.ddof 1. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+          "params": [
+            {
+              "name": "ddof",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "Delta degrees of freedom: the variance divides m2 by n - ddof. 0 = population (m2 / n), 1 = sample (m2 / (n - 1); weighted, m2_w / (Σw - 1); null when n - ddof \u003c= 0). Any other value is refused with PROCESSING_CONFIG."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -2600,17 +2608,17 @@
               {
                 "name": "m2",
                 "type": "float64",
-                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says."
               },
               {
                 "name": "variance",
                 "type": "float64",
-                "description": "Population variance derived from m2 / n."
+                "description": "Variance m2 / (n - ddof): the population m2 / n by default (weighted: Σw in place of n)."
               },
               {
                 "name": "stddev",
                 "type": "float64",
-                "description": "Population standard deviation (square root of variance)."
+                "description": "Standard deviation (square root of variance), equal to the scalar."
               }
             ],
             "mergeability": "mergeable"
@@ -2696,8 +2704,16 @@
         {
           "name": "AGG_VARIANCE",
           "category": "aggregator",
-          "description": "Population variance via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
-          "params": null,
+          "description": "Variance via Welford's online algorithm: the population form (n denominator) by default, the sample form (n - 1) with params.ddof 1. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+          "params": [
+            {
+              "name": "ddof",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "Delta degrees of freedom: the variance divides m2 by n - ddof. 0 = population (m2 / n), 1 = sample (m2 / (n - 1); weighted, m2_w / (Σw - 1); null when n - ddof \u003c= 0). Any other value is refused with PROCESSING_CONFIG."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -2751,12 +2767,12 @@
               {
                 "name": "m2",
                 "type": "float64",
-                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says."
               },
               {
                 "name": "variance",
                 "type": "float64",
-                "description": "Population variance derived from m2 / n."
+                "description": "Variance m2 / (n - ddof), equal to the scalar: the population m2 / n by default (weighted: Σw in place of n)."
               }
             ],
             "mergeability": "mergeable"
@@ -13303,7 +13319,7 @@
       },
       {
         "name": "op-agg-stddev",
-        "description": "Population standard deviation via Welford's online algorithm."
+        "description": "Standard deviation via Welford's online algorithm, population by default (ddof 0), sample with ddof 1."
       },
       {
         "name": "op-agg-sum",
@@ -13311,7 +13327,7 @@
       },
       {
         "name": "op-agg-variance",
-        "description": "Population variance via Welford's online algorithm."
+        "description": "Variance via Welford's online algorithm, population by default (ddof 0), sample with ddof 1."
       },
       {
         "name": "op-agg-vec-mean",
@@ -18548,17 +18564,17 @@
             {
               "name": "m2",
               "type": "float64",
-              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says."
             },
             {
               "name": "variance",
               "type": "float64",
-              "description": "Population variance derived from m2 / n."
+              "description": "Variance m2 / (n - ddof): the population m2 / n by default (weighted: Σw in place of n)."
             },
             {
               "name": "stddev",
               "type": "float64",
-              "description": "Population standard deviation (square root of variance)."
+              "description": "Standard deviation (square root of variance), equal to the scalar."
             }
           ],
           "mergeability": "mergeable"
@@ -18639,12 +18655,12 @@
             {
               "name": "m2",
               "type": "float64",
-              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says."
             },
             {
               "name": "variance",
               "type": "float64",
-              "description": "Population variance derived from m2 / n."
+              "description": "Variance m2 / (n - ddof), equal to the scalar: the population m2 / n by default (weighted: Σw in place of n)."
             }
           ],
           "mergeability": "mergeable"
@@ -20439,4 +20455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 704431663966afdc06f968d9e7e6eb85bd6a2f8cb8b00f138c5183ea21facc72
+// golden-hash: 8c5d979032277d86f7aa2f4372733eb221786ed3172f939a5222f26f29e662ff

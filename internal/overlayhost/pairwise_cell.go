@@ -30,7 +30,9 @@ func ComponentsRequiredMessage(kind types.OverlayKind) string {
 
 // PopulationVarianceCell reports whether a built-in crosstab cell type
 // emits the POPULATION variance m2 / n under its `variance` component
-// key: AGG_VARIANCE and AGG_STDDEV. AGG_WELFORD emits the sample
+// key by default: AGG_VARIANCE and AGG_STDDEV (params.ddof 1 makes it
+// m2 / (n - 1); the conversion reads m2, which both always emit raw,
+// so the leg is the sample variance under either ddof). AGG_WELFORD emits the sample
 // variance m2 / (n - 1) the moment pairwise kinds
 // (OVERLAY_PAIRWISE_WELCH_T / _TWO_MEANS_Z) are defined on, so their
 // leg reader (processing.CrosstabHostView.MeanLeg) converts an

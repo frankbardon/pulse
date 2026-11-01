@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/ddofspec"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
@@ -130,10 +131,35 @@ func (r *ExtensionRegistry) decimalSlotRefusal(agg *types.Aggregation, schema *e
 	return r.decimalAggregationRefusal(agg.Type, agg.Field, f.Type)
 }
 
+// AggregateDecimalSlot runs the decimal-aware aggregator for the slot
+// agg over the given records. Used by the orchestrator (ungrouped,
+// grouped and crosstab cells) when the field type is decimal128 or
+// nullable_decimal128: the decimal dispatch runs before any factory, so
+// it resolves AGG_VARIANCE / AGG_STDDEV's params.ddof itself, refusing
+// an invalid one with the constructor's own PROCESSING_CONFIG
+// (ddofspec.Resolve).
+func AggregateDecimalSlot(agg *types.Aggregation, records []*Record, scale uint8) (decimalAggResult, error) {
+	dof := 0
+	if ddofspec.Applies(agg.Type) {
+		d, cerr := ddofspec.Resolve(agg.Type, agg.Params)
+		if cerr != nil {
+			return decimalAggResult{}, cerr
+		}
+		dof = d
+	}
+	return aggregateDecimal(agg.Type, dof, records, agg.Field, scale)
+}
+
 // AggregateDecimalField runs the decimal-aware aggregator for `agg` over
-// the given records, reading the wide map for `field`. Used by the
-// orchestrator when the field type is decimal128 or nullable_decimal128.
+// the given records, reading the wide map for `field`, with no params
+// (AGG_VARIANCE / AGG_STDDEV at the default ddof 0).
 func AggregateDecimalField(agg types.AggregationType, records []*Record, field string, scale uint8) (decimalAggResult, error) {
+	return aggregateDecimal(agg, 0, records, field, scale)
+}
+
+// aggregateDecimal is the decimal arm table; ddof is the variance
+// denominator offset (0 or 1), read by AGG_VARIANCE / AGG_STDDEV only.
+func aggregateDecimal(agg types.AggregationType, ddof int, records []*Record, field string, scale uint8) (decimalAggResult, error) {
 	if agg == types.AGG_NULL_COUNT {
 		// The null bitmap only: no decimal math, so the count is the
 		// floor's n_null question (FieldPresent), asked per record.
@@ -242,12 +268,13 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		}
 		return decimalAggResult{Value: out, Scale: resScale}, nil
 	case types.AGG_VARIANCE, types.AGG_STDDEV:
-		if len(values) == 0 {
+		// No row, or one row under ddof 1: undefined, never 0.
+		if len(values) <= ddof {
 			return undefinedDecimal(), nil
 		}
-		// Two-pass population variance in decimal:
+		// Two-pass variance in decimal:
 		//   μ = (1/N) Σ x_i  at meanScale = max(scale, MIN_SCALE)
-		//   σ² = (1/N) Σ (x_i - μ)²  at varScale = 2 * meanScale
+		//   σ² = (1/(N − ddof)) Σ (x_i - μ)²  at varScale = 2 * meanScale
 		// STDDEV applies decimal Sqrt to bring the result back to meanScale.
 		meanScale := scale
 		if meanScale < encoding.MinDecimalScale {
@@ -269,13 +296,13 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 			sum = next
 		}
 		if fellBack {
-			return decimalVarianceFloat64(values, scale, agg), nil
+			return decimalVarianceFloat64(values, scale, agg, ddof), nil
 		}
 		divisor := encoding.NewDecimal128FromInt(int64(len(values)))
 		mean, err := sum.Div(divisor, scale, 0, meanScale)
 		if err != nil {
 			if isOverflow(err) {
-				return decimalVarianceFloat64(values, scale, agg), nil
+				return decimalVarianceFloat64(values, scale, agg, ddof), nil
 			}
 			return decimalAggResult{}, err
 		}
@@ -284,44 +311,48 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		varScale := 2 * meanScale
 		if varScale > encoding.MaxDecimalPrecision {
 			// Result scale alone fills the 38-digit budget — fall back.
-			return decimalVarianceFloat64(values, scale, agg), nil
+			return decimalVarianceFloat64(values, scale, agg, ddof), nil
 		}
 		sumSq := encoding.ZeroDecimal128()
 		for _, v := range values {
 			vScaled, err := v.Rescale(scale, meanScale)
 			if err != nil {
 				if isOverflow(err) {
-					return decimalVarianceFloat64(values, scale, agg), nil
+					return decimalVarianceFloat64(values, scale, agg, ddof), nil
 				}
 				return decimalAggResult{}, err
 			}
 			diff, err := vScaled.Sub(mean)
 			if err != nil {
 				if isOverflow(err) {
-					return decimalVarianceFloat64(values, scale, agg), nil
+					return decimalVarianceFloat64(values, scale, agg, ddof), nil
 				}
 				return decimalAggResult{}, err
 			}
 			sq, err := diff.Mul(diff)
 			if err != nil {
 				if isOverflow(err) {
-					return decimalVarianceFloat64(values, scale, agg), nil
+					return decimalVarianceFloat64(values, scale, agg, ddof), nil
 				}
 				return decimalAggResult{}, err
 			}
 			next, err := sumSq.Add(sq)
 			if err != nil {
 				if isOverflow(err) {
-					return decimalVarianceFloat64(values, scale, agg), nil
+					return decimalVarianceFloat64(values, scale, agg, ddof), nil
 				}
 				return decimalAggResult{}, err
 			}
 			sumSq = next
 		}
-		variance, err := sumSq.Div(divisor, varScale, 0, varScale)
+		varDivisor := divisor
+		if ddof != 0 {
+			varDivisor = encoding.NewDecimal128FromInt(int64(len(values) - ddof))
+		}
+		variance, err := sumSq.Div(varDivisor, varScale, 0, varScale)
 		if err != nil {
 			if isOverflow(err) {
-				return decimalVarianceFloat64(values, scale, agg), nil
+				return decimalVarianceFloat64(values, scale, agg, ddof), nil
 			}
 			return decimalAggResult{}, err
 		}
@@ -332,7 +363,7 @@ func AggregateDecimalField(agg types.AggregationType, records []*Record, field s
 		stddev, err := variance.Sqrt(varScale, meanScale)
 		if err != nil {
 			if isOverflow(err) {
-				return decimalVarianceFloat64(values, scale, agg), nil
+				return decimalVarianceFloat64(values, scale, agg, ddof), nil
 			}
 			return decimalAggResult{}, err
 		}
@@ -353,11 +384,19 @@ func isOverflow(err error) bool {
 // decimalVarianceFloat64 is the f64 fallback for variance / stddev when
 // any intermediate decimal computation would overflow. The result
 // reports FellBack=true so the orchestrator can emit a
-// PULSE_DECIMAL_PRECISION_LOSS warning.
-func decimalVarianceFloat64(values []encoding.Decimal128, scale uint8, agg types.AggregationType) decimalAggResult {
+// PULSE_DECIMAL_PRECISION_LOSS warning. ddof 1 divides the two-pass m2
+// by n − 1 (undefined below two values), as the float64 aggregator does.
+func decimalVarianceFloat64(values []encoding.Decimal128, scale uint8, agg types.AggregationType, ddof int) decimalAggResult {
 	fs := make([]float64, len(values))
 	for i, v := range values {
 		fs[i] = v.Float64(scale)
+	}
+	if ddof != 0 {
+		v := ddofspec.Variance(sumSquaredDeviations(fs, mean(fs)), float64(len(fs)), ddof)
+		if agg == types.AGG_STDDEV {
+			v = math.Sqrt(v)
+		}
+		return decimalAggResult{FellBack: true, Float: v}
 	}
 	if agg == types.AGG_STDDEV {
 		return decimalAggResult{FellBack: true, Float: populationStdDev(fs)}

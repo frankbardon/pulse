@@ -39,7 +39,7 @@ Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordT
 
 - `value.*`: Three columns per group: mean (the average), variance (the SAMPLE variance, dividing by n - 1, in the field's units squared) and n (the rows with a value). Together they are what a t or z comparison of group means needs; the components add stddev, the square root of variance.
   - Caveat: variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.
-  - Caveat: variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).
+  - Caveat: variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE at its default (which divides by n).
 
 ## Components
 

@@ -159,7 +159,8 @@ var validationRegistry = map[string]validation{
 
 	// Descriptive operators with a certified reference.
 	"AGG_AVERAGE": {Refs: []validationRef{strdRef("univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
-	"AGG_WELFORD": {Refs: []validationRef{strdRef("univariate sample standard deviation: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
+	"AGG_STDDEV":  {Refs: []validationRef{strdRef("univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
+	"AGG_WELFORD": {Refs: []validationRef{strdRef("univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
 
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{
@@ -351,7 +352,7 @@ func (g *gen) renderValidation(cats []category) string {
 var strdOperator = map[string][]string{
 	"lls":   {"REG_OLS"},
 	"anova": {"TEST_ANOVA_F"},
-	"univ":  {"AGG_AVERAGE", "AGG_WELFORD"},
+	"univ":  {"AGG_AVERAGE", "AGG_STDDEV", "AGG_WELFORD"},
 }
 
 // strdFamilyTitle names each family; the heading appends only the

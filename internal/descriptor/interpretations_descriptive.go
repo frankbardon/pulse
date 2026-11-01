@@ -38,12 +38,13 @@ var descriptiveInterpretations = map[string][]descriptor.Interpretation{
 // Shared caveat sentences, so sibling operators say the same thing the
 // same way.
 const (
-	descPopulationSpread = "Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. " +
-		"The gap matters only on small groups; AGG_WELFORD gives the sample form."
-	descSingleRowZero = "A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree."
-	descShapeZero     = "It reads null when no row has a value, when n is 1 or when the variance is zero (every value the same): no shape can be seen there. A 0 is a real, balanced reading; on a tiny group check components n before trusting it."
-	descCIAboutMean   = "The interval is about the MEAN, not about individual rows: most rows can, and usually do, fall outside it."
-	descCIMethod      = "The confidence level describes the method: over repeated samples, intervals built this way capture the true mean that share of the time. " +
+	descPopulationSpread = "By default Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. " +
+		"The gap matters only on small groups; params.ddof 1 gives the sample form."
+	descSingleRowZero = "A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree. " +
+		"With params.ddof 1 it reads null instead (weighted: when the weights sum to 1 or less)."
+	descShapeZero   = "It reads null when no row has a value, when n is 1 or when the variance is zero (every value the same): no shape can be seen there. A 0 is a real, balanced reading; on a tiny group check components n before trusting it."
+	descCIAboutMean = "The interval is about the MEAN, not about individual rows: most rows can, and usually do, fall outside it."
+	descCIMethod    = "The confidence level describes the method: over repeated samples, intervals built this way capture the true mean that share of the time. " +
 		"Any one interval either contains it or not."
 	descCINormal = "Pulse uses the normal critical value (1.96 at 95%), not Student's t, so on small groups (under about 30 rows) the interval is too narrow; " +
 		"on a strongly skewed or heavy-tailed field it can stay too narrow, and lopsided, on much larger groups, so check AGG_SKEWNESS first. " +
@@ -77,7 +78,7 @@ var (
 			Means: "One standard deviation per item, in member order, each in that item's own units: how far a typical row sits from the group's mean on that item. " +
 				"0 means every row gave the item the same value.",
 			Caveats: []string{
-				"It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n), so on a small group it reads larger than AGG_STDDEV of the same item.",
+				"It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n unless its params.ddof is 1), so on a small group it reads larger than AGG_STDDEV of the same item.",
 				"Each item counts only the rows that answered it; compare components element_n before comparing items.",
 				"An item answered by one row or none reads null (weighted: when the sum of weights, or Kish's n_eff under kind probability, is 1 or less), never 0.",
 			},
@@ -90,7 +91,7 @@ var (
 			Means: "The average squared distance of a value from the group's mean, in the field's units squared (dollars squared, minutes squared). " +
 				"Its square root is AGG_STDDEV, which is in the field's own units and easier to read.",
 			Caveats: []string{
-				"Squared units make the size hard to judge directly. For pooling or planning a study's size use AGG_WELFORD's variance (dividing by n - 1), which those formulas expect.",
+				"Squared units make the size hard to judge directly. For pooling or planning a study's size use the sample form (params.ddof 1, or AGG_WELFORD's variance), which those formulas expect.",
 				descPopulationSpread,
 				"Extreme values weigh heavily, since each distance is squared.",
 				descSingleRowZero,
@@ -106,7 +107,7 @@ var (
 				"the components add stddev, the square root of variance.",
 			Caveats: []string{
 				"variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.",
-				"variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).",
+				"variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE at its default (which divides by n).",
 				"With no rows the result is empty, not zeros.",
 			},
 		},

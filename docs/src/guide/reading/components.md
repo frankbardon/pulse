@@ -433,9 +433,9 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `mean` | float64 | always | Running Welford mean of non-null field values. |
-| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
-| `variance` | float64 | always | Population variance derived from m2 / n. |
-| `stddev` | float64 | always | Population standard deviation (square root of variance). |
+| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says. |
+| `variance` | float64 | always | Variance m2 / (n - ddof): the population m2 / n by default (weighted: Σw in place of n). |
+| `stddev` | float64 | always | Standard deviation (square root of variance), equal to the scalar. |
 
 <a id="op-agg_sum"></a>
 
@@ -456,8 +456,8 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `mean` | float64 | always | Running Welford mean of non-null field values. |
-| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
-| `variance` | float64 | always | Population variance derived from m2 / n. |
+| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says. |
+| `variance` | float64 | always | Variance m2 / (n - ddof), equal to the scalar: the population m2 / n by default (weighted: Σw in place of n). |
 
 <a id="op-agg_vec_mean"></a>
 

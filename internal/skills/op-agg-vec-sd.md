@@ -29,7 +29,7 @@ Members: see `## Contract`; source columns only.
 
 ## Output
 
-Rich `[]float64`, one SAMPLE standard deviation per member (n − 1<!-- feature: AGG_STDDEV -->; `AGG_STDDEV` is the population form<!-- /feature -->); a null member skips only that element. An element with N* ≤ 1 — one answering row, none, or all weight on one row — is NaN (`null`), never 0.
+Rich `[]float64`, one SAMPLE standard deviation per member (n − 1<!-- feature: AGG_STDDEV -->; `AGG_STDDEV` is the population form unless `ddof: 1`<!-- /feature -->); a null member skips only that element. An element with N* ≤ 1 — one answering row, none, or all weight on one row — is NaN (`null`), never 0.
 
 <!-- generated: reading-the-output -->
 

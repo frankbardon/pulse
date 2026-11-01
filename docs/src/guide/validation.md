@@ -26,7 +26,8 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | Operator | Validated against | Tightest tolerance | Gap |
 |---|---|---|---|
 | [`AGG_AVERAGE`](catalog/aggregator.md#op-agg_average) | NIST StRD certified values (univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
-| [`AGG_WELFORD`](catalog/aggregator.md#op-agg_welford) | NIST StRD certified values (univariate sample standard deviation: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
+| [`AGG_STDDEV`](catalog/aggregator.md#op-agg_stddev) | NIST StRD certified values (univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
+| [`AGG_WELFORD`](catalog/aggregator.md#op-agg_welford) | NIST StRD certified values (univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
 
 ## Statistical tests
 
@@ -148,7 +149,7 @@ The [NIST Statistical Reference Datasets](https://www.itl.nist.gov/div898/strd/)
 | SmLs08 | higher | 3.9 | `f` 4.1, `ms_between` 3.9, `ms_within` 4.2, `r2` 4.4, `residual_sd` 4.5, `ss_between` 3.9, `ss_within` 4.2 | — |
 | SmLs09 | higher | 3.9 | `f` 4.1, `ms_between` 3.9, `ms_within` 4.2, `r2` 4.4, `residual_sd` 4.5, `ss_between` 3.9, `ss_within` 4.2 | — |
 
-### Univariate summary statistics (`AGG_AVERAGE`, `AGG_WELFORD`)
+### Univariate summary statistics (`AGG_AVERAGE`, `AGG_STDDEV`, `AGG_WELFORD`)
 
 | Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |
 |---|---|---|---|---|

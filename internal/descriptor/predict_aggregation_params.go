@@ -7,13 +7,16 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/ddofspec"
 	"github.com/frankbardon/pulse/types"
 )
 
 // validateAggregationParams reports a built-in aggregation slot missing
 // a param its factory requires, with the runtime's code and message, so
 // predict refuses what Process would refuse at operator construction.
-// Today that is AGG_FREQUENCY without params.value: the slot once named
+// That is AGG_STDDEV / AGG_VARIANCE with a params.ddof other than 0 / 1
+// (internal/ddofspec, the constructors' rule), and AGG_FREQUENCY
+// without params.value: the slot once named
 // the modal count, so the message also points at AGG_MODE_COUNT —
 // unless the instance hides it (a refusal never names a hidden
 // feature). Walks every aggregation slot a Request carries: the
@@ -23,7 +26,19 @@ func validateAggregationParams(env *descriptor.Envelope, req *types.Request, ins
 		return
 	}
 	check := func(agg *types.Aggregation, slot string) {
-		if agg == nil || opRoute(inst, agg.Type) != types.AGG_FREQUENCY {
+		if agg == nil {
+			return
+		}
+		// AGG_STDDEV / AGG_VARIANCE params.ddof: the constructors' own
+		// rule (internal/ddofspec), on every field type — the decimal
+		// dispatch resolves it too.
+		if route := opRoute(inst, agg.Type); ddofspec.Applies(route) {
+			if _, cerr := ddofspec.Resolve(route, agg.Params); cerr != nil {
+				addCodedError(env, cerr)
+			}
+			return
+		}
+		if opRoute(inst, agg.Type) != types.AGG_FREQUENCY {
 			return
 		}
 		if frequencyValuePresent(agg.Params) {

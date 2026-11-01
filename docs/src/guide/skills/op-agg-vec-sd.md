@@ -38,12 +38,12 @@ Members: see `## Contract`; source columns only.
 
 ## Output
 
-Rich `[]float64`, one SAMPLE standard deviation per member (n − 1; `AGG_STDDEV` is the population form); a null member skips only that element. An element with N* ≤ 1 — one answering row, none, or all weight on one row — is NaN (`null`), never 0.
+Rich `[]float64`, one SAMPLE standard deviation per member (n − 1; `AGG_STDDEV` is the population form unless `ddof: 1`); a null member skips only that element. An element with N* ≤ 1 — one answering row, none, or all weight on one row — is NaN (`null`), never 0.
 
 ## Reading the output
 
 - `value`: One standard deviation per item, in member order, each in that item's own units: how far a typical row sits from the group's mean on that item. 0 means every row gave the item the same value.
-  - Caveat: It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n), so on a small group it reads larger than AGG_STDDEV of the same item.
+  - Caveat: It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n unless its params.ddof is 1), so on a small group it reads larger than AGG_STDDEV of the same item.
   - Caveat: Each item counts only the rows that answered it; compare components element_n before comparing items.
 
 ## Components

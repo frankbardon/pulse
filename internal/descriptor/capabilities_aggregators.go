@@ -63,6 +63,17 @@ var numericFieldTypesAnalytics = []string{
 	"u8",
 }
 
+// ddofParam is AGG_STDDEV / AGG_VARIANCE's params.ddof, read and refused
+// by internal/ddofspec (runtime constructors and predict alike).
+var ddofParam = descriptor.Param{
+	Name:     "ddof",
+	Type:     "int",
+	Required: false,
+	Default:  0,
+	Description: "Delta degrees of freedom: the variance divides m2 by n - ddof. 0 = population (m2 / n), 1 = sample (m2 / (n - 1); weighted, " +
+		"m2_w / (Σw - 1); null when n - ddof <= 0). Any other value is refused with PROCESSING_CONFIG.",
+}
+
 // numericFieldTypesAnalyticsNoDecimal mirrors numericFieldTypesAnalytics
 // without decimal128 — for aggregators that operate purely in float64
 // (skewness, kurtosis, zscore, the weighted and interval family) and for
@@ -321,7 +332,8 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_STDDEV),
 			Category:    "aggregator",
-			Description: "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+			Description: "Standard deviation via Welford's online algorithm: the population form (n denominator) by default, the sample form (n - 1) with params.ddof 1. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+			Params:      []descriptor.Param{ddofParam},
 			// decimal128 included: predict permits the pairing
 			// (fieldaccept.HasDecimalArm) and
 			// internal/processing/aggregator_decimal.go implements it.
@@ -331,9 +343,9 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
-				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Population variance derived from m2 / n."},
-				descriptor.ComponentKey{Name: "stddev", Type: "float64", Description: "Population standard deviation (square root of variance)."},
+				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says."},
+				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Variance m2 / (n - ddof): the population m2 / n by default (weighted: Σw in place of n)."},
+				descriptor.ComponentKey{Name: "stddev", Type: "float64", Description: "Standard deviation (square root of variance), equal to the scalar."},
 			),
 		},
 		{
@@ -422,15 +434,16 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_VARIANCE),
 			Category:    "aggregator",
-			Description: "Population variance via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+			Description: "Variance via Welford's online algorithm: the population form (n denominator) by default, the sample form (n - 1) with params.ddof 1. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+			Params:      []descriptor.Param{ddofParam},
 			// decimal128 included — see AGG_STDDEV.
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_VARIANCE),
 			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
-				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Population variance derived from m2 / n."},
+				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says."},
+				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Variance m2 / (n - ddof), equal to the scalar: the population m2 / n by default (weighted: Σw in place of n)."},
 			),
 		},
 		{

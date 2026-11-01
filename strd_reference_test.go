@@ -381,6 +381,7 @@ func runStRDUnivariate(t *testing.T, name string) strdResult {
 		Cohort: &types.Cohort{Filename: "strd.pulse"},
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_AVERAGE, Field: "y", Label: "mean"},
+			{Type: types.AGG_STDDEV, Field: "y", Label: "sd", Params: json.RawMessage(`{"ddof":1}`)},
 			{Type: types.AGG_WELFORD, Field: "y", Label: "w"},
 		},
 	})
@@ -391,21 +392,27 @@ func runStRDUnivariate(t *testing.T, name string) strdResult {
 		t.Fatalf("%s: %d data rows", name, len(resp.Data))
 	}
 	res.add("mean", resp.Data[0]["mean"].(float64), f.value(t, "ybar:"))
-	// NIST certifies the sample SD (n-1). AGG_STDDEV is the population
-	// SD by design; AGG_WELFORD's sample stddev component is the n-1 figure.
-	var sd float64
+	// NIST certifies the sample SD (n-1): AGG_STDDEV with params.ddof 1
+	// (its default ddof 0 is the population SD). AGG_WELFORD's stddev
+	// component is the same n-1 figure and must reach the same digits.
+	certSD := f.value(t, "(denom. = n-1)")
+	sd := resp.Data[0]["sd"].(float64)
+	res.add("sd", sd, certSD)
+	var wsd float64
 	found := false
 	if resp.Components != nil {
 		for _, a := range resp.Components.Aggregations {
 			if a.Label == "w" {
-				sd, found = a.Operator["stddev"].(float64)
+				wsd, found = a.Operator["stddev"].(float64)
 			}
 		}
 	}
 	if !found {
 		t.Fatalf("%s: no AGG_WELFORD stddev component", name)
 	}
-	res.add("sd", sd, f.value(t, "(denom. = n-1)"))
+	if got, want := math.Floor(strdLRE(wsd, certSD)*10)/10, res.Digits["sd"]; got != want {
+		t.Errorf("%s: AGG_WELFORD stddev reaches %.1f digits, AGG_STDDEV ddof 1 %.1f", name, got, want)
+	}
 	res.NotOffered = "lag-1 autocorrelation: no built-in aggregator computes it"
 	return res
 }

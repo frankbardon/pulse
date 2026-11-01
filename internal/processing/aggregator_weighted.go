@@ -3,6 +3,7 @@ package processing
 import (
 	"math"
 
+	"github.com/frankbardon/pulse/internal/ddofspec"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -91,6 +92,10 @@ func (st *weightedState) figures() weightedFigures {
 type weightedAggregator struct {
 	op     types.AggregationType
 	weight types.WeightSpec
+	// ddof is AGG_VARIANCE / AGG_STDDEV's params.ddof: 0 divides m2 by
+	// Σw (the population form), 1 by Σw − 1 (AGG_WELFORD's sample
+	// form, undefined when Σw ≤ 1). Zero for every other operator.
+	ddof int
 
 	weightedState
 	frozen weightedFigures
@@ -100,6 +105,13 @@ func newWeightedAggregator(op types.AggregationType, spec *types.WeightSpec) *we
 	w := *spec
 	w.Kind = spec.EffectiveKind()
 	return &weightedAggregator{op: op, weight: w}
+}
+
+// withDDOF sets the variance denominator offset (AGG_VARIANCE /
+// AGG_STDDEV only) and returns a.
+func (a *weightedAggregator) withDDOF(ddof int) *weightedAggregator {
+	a.ddof = ddof
+	return a
 }
 
 // weightedMeanAggregator is AGG_WEIGHTED_MEAN's name for the shared
@@ -213,11 +225,13 @@ func (a *weightedAggregator) Aggregate(records []*Record, field string) (float64
 func (a *weightedAggregator) Finalize() (float64, error) {
 	a.frozen = a.weightedState.figures()
 	a.reset()
-	return a.frozen.scalar(a.op), nil
+	return a.frozen.scalar(a.op, a.ddof), nil
 }
 
-// scalar is the operator's figure over st.
-func (st *weightedFigures) scalar(op types.AggregationType) float64 {
+// scalar is the operator's figure over st; ddof is AGG_VARIANCE /
+// AGG_STDDEV's denominator offset (ddofspec.Variance: m2 / (Σw − ddof),
+// undefined when that is not positive — Σw = 0 under the default 0).
+func (st *weightedFigures) scalar(op types.AggregationType, ddof int) float64 {
 	sumW := st.sumW
 	switch op {
 	case types.AGG_COUNT:
@@ -225,15 +239,9 @@ func (st *weightedFigures) scalar(op types.AggregationType) float64 {
 	case types.AGG_SUM:
 		return st.sumWX
 	case types.AGG_VARIANCE:
-		if sumW == 0 {
-			return math.NaN()
-		}
-		return st.m2 / sumW
+		return ddofspec.Variance(st.m2, sumW, ddof)
 	case types.AGG_STDDEV:
-		if sumW == 0 {
-			return math.NaN()
-		}
-		return math.Sqrt(st.m2 / sumW)
+		return math.Sqrt(ddofspec.Variance(st.m2, sumW, ddof))
 	case types.AGG_WELFORD:
 		if st.rows == 0 {
 			return math.NaN()
@@ -261,7 +269,7 @@ func (st *weightedFigures) sampleVariance() float64 {
 // weighted Chan-Welford merge over the running Σw.
 func (a *weightedAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*weightedAggregator)
-	if !ok || b.op != a.op {
+	if !ok || b.op != a.op || b.ddof != a.ddof {
 		return mergeTypeMismatch(string(a.op))
 	}
 	mergeWelfordWeighted(&a.runW, &a.mean, &a.m2, b.runW, b.mean, b.m2)
@@ -322,7 +330,7 @@ func (a *weightedAggregator) Components() (map[string]any, error) {
 			}
 			return out, nil
 		}
-		variance := st.m2 / sumW
+		variance := ddofspec.Variance(st.m2, sumW, a.ddof)
 		out := map[string]any{"mean": st.mean, "m2": st.m2, "variance": variance}
 		if a.op == types.AGG_STDDEV {
 			out["stddev"] = math.Sqrt(variance)

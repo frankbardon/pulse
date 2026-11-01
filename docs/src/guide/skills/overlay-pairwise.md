@@ -52,7 +52,7 @@ The proportion kinds (pooled z, probit t) read a share and an n per leg.
 The two-means z and Welch t read the `{mean, variance, n}` triple per cell of an `AGG_WELFORD` cell.
 
 - A cell type whose declared `ComponentSchema` (built-in or extension) lacks `mean` + `variance` (a sum or mode cell, …) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, predict and runtime alike.
-- The test reads the SAMPLE variance m2 / (n − 1): an unweighted population-variance cell (`AGG_VARIANCE`, `AGG_STDDEV`: m2 / n) is converted, so it scores as the Welford cell to the accumulators' last-bit rounding; an extension cell is read as is and must expose the sample variance.
+- The test reads the SAMPLE variance m2 / (n − 1): an unweighted population-variance cell (`AGG_VARIANCE`, `AGG_STDDEV`: m2 / n by default) is converted — from m2, so any `ddof` reads the same leg — so it scores as the Welford cell to the accumulators' last-bit rounding; an extension cell is read as is and must expose the sample variance.
 - `n_source` / `p_source` would be silent no-ops (n comes from the triple): predict refuses both for EVERY mode (`PULSE_OVERLAY_PARAM_MISSING`); runtime leaves them inert. `n_within_depth` stays accepted and inert.
 - Either leg with `n <= 1`, or an undefined (`null`) variance (n < 2 / Σw ≤ 1), skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`) — never scored off a 0 variance.
 - The HOST is buffered too: the Welford cell is non-mergeable, so the fused-crosstab check rejects on the cell-aggregator arm.

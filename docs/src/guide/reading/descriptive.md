@@ -222,9 +222,9 @@ The typical distance of a value from the group's mean, in the field's own units.
 **Caveats:**
 
 - It is the spread of the rows, not the precision of the mean: for how precisely the average is known, read AGG_CI_LOWER / AGG_CI_UPPER.
-- Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. The gap matters only on small groups; AGG_WELFORD gives the sample form.
+- By default Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. The gap matters only on small groups; params.ddof 1 gives the sample form.
 - Each distance is squared before averaging, so a few extreme values inflate it; for a skewed field a percentile range describes the spread better.
-- A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree.
+- A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree. With params.ddof 1 it reads null instead (weighted: when the weights sum to 1 or less).
 
 <a id="op-agg_variance"></a>
 
@@ -238,10 +238,10 @@ The average squared distance of a value from the group's mean, in the field's un
 
 **Caveats:**
 
-- Squared units make the size hard to judge directly. For pooling or planning a study's size use AGG_WELFORD's variance (dividing by n - 1), which those formulas expect.
-- Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. The gap matters only on small groups; AGG_WELFORD gives the sample form.
+- Squared units make the size hard to judge directly. For pooling or planning a study's size use the sample form (params.ddof 1, or AGG_WELFORD's variance), which those formulas expect.
+- By default Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. The gap matters only on small groups; params.ddof 1 gives the sample form.
 - Extreme values weigh heavily, since each distance is squared.
-- A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree.
+- A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree. With params.ddof 1 it reads null instead (weighted: when the weights sum to 1 or less).
 
 <a id="op-agg_vec_sd"></a>
 
@@ -255,7 +255,7 @@ One standard deviation per item, in member order, each in that item's own units:
 
 **Caveats:**
 
-- It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n), so on a small group it reads larger than AGG_STDDEV of the same item.
+- It is the sample form, dividing by n - 1 (AGG_STDDEV divides by n unless its params.ddof is 1), so on a small group it reads larger than AGG_STDDEV of the same item.
 - Each item counts only the rows that answered it; compare components element_n before comparing items.
 - An item answered by one row or none reads null (weighted: when the sum of weights, or Kish's n_eff under kind probability, is 1 or less), never 0.
 
@@ -289,7 +289,7 @@ Three columns per group: mean (the average), variance (the SAMPLE variance, divi
 **Caveats:**
 
 - variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.
-- variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).
+- variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE at its default (which divides by n).
 - With no rows the result is empty, not zeros.
 
 <a id="op-agg_zscore"></a>

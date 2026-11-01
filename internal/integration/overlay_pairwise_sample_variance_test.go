@@ -3,11 +3,40 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/types"
 )
+
+// ddofCellsMatchWelford: a ddof 1 AGG_VARIANCE / AGG_STDDEV cell's
+// components variance is AGG_WELFORD's sample variance of the same cell
+// (within ULP: two-pass vs recurrence, or merged shards), its m2 raw.
+func ddofCellsMatchWelford(t *testing.T, label string, got, ref *types.Response) {
+	t.Helper()
+	if got.Components == nil || got.Components.Crosstab == nil || ref.Components == nil || ref.Components.Crosstab == nil {
+		t.Fatalf("%s: crosstab components missing", label)
+	}
+	g, w := got.Components.Crosstab.CellComponents, ref.Components.Crosstab.CellComponents
+	checked := 0
+	for r := range w {
+		for c := range w[r] {
+			wv, ok := w[r][c]["variance"].(float64)
+			if !ok || math.IsNaN(wv) {
+				continue
+			}
+			gv, _ := g[r][c]["variance"].(float64)
+			if math.Abs(gv-wv) > 1e-12*math.Abs(wv) {
+				t.Errorf("%s cell (%d,%d) variance %v, AGG_WELFORD %v", label, r, c, gv, wv)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatalf("%s: no cell with a defined sample variance", label)
+	}
+}
 
 // TestPairwiseMoment_PopulationVarianceCellsMatchWelford (E4-S3):
 // OVERLAY_PAIRWISE_WELCH_T / _TWO_MEANS_Z read {mean, variance, n} off
@@ -27,13 +56,20 @@ func TestPairwiseMoment_PopulationVarianceCellsMatchWelford(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	host := func(kind types.OverlayKind, scope types.OverlayScope, cell types.AggregationType, cohort string) *types.Request {
+	// params is the cell's params: "" or params.ddof (reference-validation
+	// E3) — a ddof 1 cell already carries the sample variance, and the
+	// leg reader's m2 conversion yields the same leg either way.
+	host := func(kind types.OverlayKind, scope types.OverlayScope, cell types.AggregationType, cohort string, params ...string) *types.Request {
+		agg := &types.Aggregation{Type: cell, Field: "score", Label: "v"}
+		if len(params) > 0 && params[0] != "" {
+			agg.Params = json.RawMessage(params[0])
+		}
 		return &types.Request{
 			Cohort: &types.Cohort{Filename: cohort},
 			Crosstab: &types.CrosstabSpec{
 				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "sex"}},
-				Cell:    &types.Aggregation{Type: cell, Field: "score", Label: "v"},
+				Cell:    agg,
 			},
 			Overlays: []types.OverlaySpec{{Name: "pw", Kind: kind, Scope: scope}},
 		}
@@ -78,23 +114,28 @@ func TestPairwiseMoment_PopulationVarianceCellsMatchWelford(t *testing.T) {
 				}
 				want := payload(t, ref)
 				for _, cell := range []types.AggregationType{types.AGG_VARIANCE, types.AGG_STDDEV} {
-					req := host(kind, scope, cell, arm.cohort)
-					if env := predictEnvelope(t, arm.inst, f.fs, arm.cohort, req); len(env.Errors) != 0 {
-						t.Fatalf("%s %s: predict %v", kind, cell, envCodes(env))
-					}
-					resp, err := arm.inst.Process(ctx, req)
-					if err != nil {
-						t.Fatalf("%s %s %s: %v", arm.name, kind, cell, err)
-					}
-					if got := payload(t, resp); got != want {
-						t.Errorf("%s %s %s over %s:\n got %s\nwant %s (AGG_WELFORD)", arm.name, kind, scope, cell, got, want)
-					}
-					out, err := arm.inst.Compose(ctx, &types.ComposedRequest{Requests: []*types.Request{host(kind, scope, cell, arm.cohort)}})
-					if err != nil {
-						t.Fatalf("compose: %v", err)
-					}
-					if got := payload(t, out.Responses[0]); got != want {
-						t.Errorf("%s compose slot %s %s over %s differs from AGG_WELFORD", arm.name, kind, scope, cell)
+					for _, params := range []string{"", `{"ddof":1}`} {
+						req := host(kind, scope, cell, arm.cohort, params)
+						if env := predictEnvelope(t, arm.inst, f.fs, arm.cohort, req); len(env.Errors) != 0 {
+							t.Fatalf("%s %s: predict %v", kind, cell, envCodes(env))
+						}
+						resp, err := arm.inst.Process(ctx, req)
+						if err != nil {
+							t.Fatalf("%s %s %s: %v", arm.name, kind, cell, err)
+						}
+						if got := payload(t, resp); got != want {
+							t.Errorf("%s %s %s over %s %s:\n got %s\nwant %s (AGG_WELFORD)", arm.name, kind, scope, cell, params, got, want)
+						}
+						if params != "" {
+							ddofCellsMatchWelford(t, arm.name+" "+string(cell), resp, ref)
+						}
+						out, err := arm.inst.Compose(ctx, &types.ComposedRequest{Requests: []*types.Request{host(kind, scope, cell, arm.cohort, params)}})
+						if err != nil {
+							t.Fatalf("compose: %v", err)
+						}
+						if got := payload(t, out.Responses[0]); got != want {
+							t.Errorf("%s compose slot %s %s over %s %s differs from AGG_WELFORD", arm.name, kind, scope, cell, params)
+						}
 					}
 				}
 			}

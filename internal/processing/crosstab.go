@@ -1489,7 +1489,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 				return cellAggregationResult{}, nil, 0, 0, cerr
 			}
 		} else if f != nil && f.Type.IsDecimal() {
-			out, err := AggregateDecimalField(slot.Type, bucket, slot.Field, f.Scale)
+			out, err := AggregateDecimalSlot(slot, bucket, f.Scale)
 			if err != nil {
 				return cellAggregationResult{}, nil, 0, 0, err
 			}
