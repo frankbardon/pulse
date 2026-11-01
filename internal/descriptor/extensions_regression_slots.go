@@ -131,6 +131,13 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		slot: "theta", keys: []string{"theta"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("theta", s.Theta != 0) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no theta (the REG_GLM negative_binomial knob); pass the model's own configuration through params"
+		},
+	},
+	{
 		slot: "max_iters", keys: []string{"max_iters"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("max_iters", s.MaxIters != 0) },
 		refusal: func(*types.RegressionSpec) string {

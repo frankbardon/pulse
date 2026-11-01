@@ -311,6 +311,30 @@ from its closed form (it stops on a mismatch). It needs `sandwich`
 `TestReferenceOracle_GLMLinksMatchR` (`internal/processing/regression`)
 and `TestGLMLinks_BoundFitMatchesR` (root) hold it at relative `1e-9`.
 
+`scripts/reference/gen_glm_nb.R` writes `glm_nb.json`: the `REG_GLM`
+negative binomial family (NB2) with θ estimated on the log, sqrt and
+identity links, θ fixed (`glm(family = negative.binomial(1.7))`), a
+frequency-weighted case pinned to its `rep()`-expanded fit and an
+influence case. `glm.nb`'s own convergence is loose (`theta.ml` stops at
+a Newton step of eps^0.25 ≈ 1.2e-4 absolute, the alternation at a
+log-likelihood change of 1e-8), so the script runs `glm.nb`, then pushes
+the same alternation to its fixed point with MASS's own pieces
+(`glm.fit` under `negative.binomial(theta)` refitted from its optimum,
+`theta.ml` at eps 1e-12·θ) until β and θ move under 1e-13 relative,
+keeping the `glm.nb` fit as a 1e-5 cross-check. It pins coefficients,
+SEs and `vcov` at dispersion 1 (`summary.negbin`), θ, SE(θ), 2·loglik,
+AIC (θ counted when estimated), deviance, null deviance, df, per row the
+fitted mean, Pearson / deviance / working residuals and `hatvalues`,
+`sandwich::vcovHC` HC0 / HC1 / HC3, and on the influence case
+`rstandard` (both types), `cooks.distance` and `rstudent` / `dffits`
+with `family$dispersion <- 1` (`stats:::estDisp` is TRUE for a family
+whose dispersion slot is NULL, so on a bare negbin fit those two read
+the leave-one-out σ instead of `summary.negbin`'s φ = 1), each
+re-derived from its closed form. It needs MASS 7.3-66 and `sandwich`
+3.1-3 and refuses any other R than 4.6.1.
+`TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
+and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -374,6 +398,7 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 | nearest-PD repair, `gen_singularity.R` rank (recommended package, ships with R) |
+| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; a recommended package — install it into the user library where the R build omits it) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
 | `car` | 3.1-5 | VIF |
 | `ppcor` | 1.1 | partial correlation |
@@ -413,7 +438,7 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
-            Hmisc = "5.3-0")
+            Hmisc = "5.3-0", MASS = "7.3-66")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

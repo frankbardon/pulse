@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -98,17 +100,18 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 		},
 		{
 			Name:           string(types.REG_GLM),
-			Description:    "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links, and l1/l2/elasticnet regularization on binomial and poisson.",
+			Description:    "Generalized linear model via IRLS; supports binomial (logistic), poisson, gamma and negative_binomial (NB2, theta by maximum likelihood) families with family-appropriate links, and l1/l2/elasticnet regularization on binomial and poisson.",
 			AcceptsTypes:   acceptsTypes(types.REG_GLM),
-			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo.",
+			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits; negative_binomial: Wald z at dispersion 1 and theta-hat, plus theta, theta_std_err (theta estimated), two_log_lik and aic); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_GLM.Streamable(),
 			StreamableHint: "Always buffered; IRLS requires multiple passes over the data.",
 			Params: append([]descriptor.Param{
 				{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Response variable field name.", Slot: true},
 				{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names (numeric only in v1).", Slot: true},
-				{Name: "family", Type: "enum", Required: true, EnumValues: []string{"binomial", "gamma", "poisson"}, Description: "GLM error family.", Slot: true},
-				{Name: "link", Type: "enum", Required: false, EnumValues: reglink.All(), EnumBy: "family", EnumValuesBy: reglink.ByFamily(), Description: "Link function, one of the family's (enum_values_by, canonical default first): binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity. Any other pair is PROCESSING_REGRESSION_INVALID_LINK. Off the canonical link IRLS is Fisher scoring (linear convergence: coefficients within ~1e-7 of the MLE at the default tol); vcov and SEs read the expected information, as R glm. An identity or sqrt link whose mean would leave its range halves the step.", Slot: true},
-				{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme (binomial / poisson; gamma refuses it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.", Slot: true},
+				{Name: "family", Type: "enum", Required: true, EnumValues: slices.Sorted(slices.Values(reglink.Families())), Description: "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); penalty, selection and resample are refused (PROCESSING_CONFIG, details.requires).", Slot: true},
+				{Name: "link", Type: "enum", Required: false, EnumValues: reglink.All(), EnumBy: "family", EnumValuesBy: reglink.ByFamily(), Description: "Link function, one of the family's (enum_values_by, default first): binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity; negative_binomial log (default), identity, sqrt. Any other pair is PROCESSING_REGRESSION_INVALID_LINK. Off the canonical link IRLS is Fisher scoring (linear convergence: coefficients within ~1e-7 of the MLE at the default tol); vcov and SEs read the expected information, as R glm. An identity or sqrt link whose mean would leave its range halves the step.", Slot: true},
+				{Name: "theta", Type: "float", Required: false, Description: "negative_binomial only: a fixed theta > 0, R's glm(family = negative.binomial(theta)) — IRLS for the coefficients only, no theta_std_err, aic without theta's parameter. Absent estimates theta. Any other family, or theta <= 0, is PROCESSING_CONFIG.", Slot: true},
+				{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme (binomial / poisson; gamma and negative_binomial refuse it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.", Slot: true},
 				{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set; glmnet's lambda).", Slot: true},
 				{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter, 0 < l1_ratio < 1; only read when penalty == elasticnet (glmnet's alpha).", Slot: true},
 				{Name: "max_iters", Type: "int", Required: false, Description: "IRLS iteration cap.", Slot: true},

@@ -5405,6 +5405,7 @@ pulse/types: const FitKindSEM pulse/types.FitKind = "sem"
 pulse/types: const FitKindVector pulse/types.FitKind = "vector"
 pulse/types: type FitResult struct
 pulse/types: type FitResult embed *pulse/types.RegressionResult
+pulse/types: type FitResult field RegressionResult.AIC float64 "json:\"aic,omitempty\""
 pulse/types: type FitResult field RegressionResult.ActiveBounds []string "json:\"-\""
 pulse/types: type FitResult field RegressionResult.AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type FitResult field RegressionResult.Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
@@ -5450,6 +5451,9 @@ pulse/types: type FitResult field RegressionResult.SignificantAdjusted map[strin
 pulse/types: type FitResult field RegressionResult.Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type FitResult field RegressionResult.Theta float64 "json:\"theta,omitempty\""
+pulse/types: type FitResult field RegressionResult.ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
+pulse/types: type FitResult field RegressionResult.TwoLogLik float64 "json:\"two_log_lik,omitempty\""
 pulse/types: type FitResult field RegressionResult.Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type FitResult field RegressionResult.Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
 pulse/types: type FitResult field RegressionResult.Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
@@ -6056,6 +6060,7 @@ pulse/types: type RegressionMultiplicity field Family pulse/types.MultiplicityFa
 pulse/types: type RegressionMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method,omitempty\""
 pulse/types: type RegressionMultiplicity method (*RegressionMultiplicity) Block() *pulse/types.Multiplicity
 pulse/types: type RegressionResult struct
+pulse/types: type RegressionResult field AIC float64 "json:\"aic,omitempty\""
 pulse/types: type RegressionResult field ActiveBounds []string "json:\"-\""
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
@@ -6101,6 +6106,9 @@ pulse/types: type RegressionResult field SignificantAdjusted map[string]bool "js
 pulse/types: type RegressionResult field Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type RegressionResult field Theta float64 "json:\"theta,omitempty\""
+pulse/types: type RegressionResult field ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
+pulse/types: type RegressionResult field TwoLogLik float64 "json:\"two_log_lik,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type RegressionResult field Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
 pulse/types: type RegressionResult field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
@@ -6137,6 +6145,7 @@ pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionSpec field Solver string "json:\"solver,omitempty\""
 pulse/types: type RegressionSpec field Target string "json:\"target\""
+pulse/types: type RegressionSpec field Theta float64 "json:\"theta,omitempty\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type RegressionSpec field Unpenalized []string "json:\"unpenalized,omitempty\""
@@ -6470,4 +6479,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ab11705569a2c7f2c15925787d603083027b79893fbcf081799587b2544804a0
+// golden-hash: 5792987559f3fd8ba645fb7cd0aa206a74ad3d711f750666622c129cc4803ee9

@@ -25,7 +25,8 @@ import (
 // measures for the fit's own rows (a scoring row that is one of them),
 // and the same formulas extended to any other row. φ is
 // RegressionResult.Dispersion where it is estimated (REG_OLS σ̂², gamma)
-// and 1 under binomial / poisson; model.CheckFitDesign refused every fit
+// and 1 under binomial / poisson / negative binomial (V(μ) at the fit's
+// θ, RegressionResult.Theta); model.CheckFitDesign refused every fit
 // that carries no such design (no vcov, robust, penalized, selection,
 // resample, weighted, …) before this is built.
 //
@@ -68,7 +69,7 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 	case types.REG_OLS:
 		d.gaussian, d.estimated = true, true
 	case types.REG_GLM:
-		fam, err := selectFamily(b.Family, b.Link)
+		fam, err := familyAtTheta(b.Family, b.Link, b.Result.Theta)
 		if err != nil {
 			return nil, err
 		}

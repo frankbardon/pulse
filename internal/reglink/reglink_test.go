@@ -1,6 +1,7 @@
 package reglink
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestCheck_Pairs(t *testing.T) {
 func TestTable(t *testing.T) {
 	t.Parallel()
 
-	for fam, want := range map[string]string{"binomial": "logit", "poisson": "log", "gamma": "inverse"} {
+	for fam, want := range map[string]string{"binomial": "logit", "poisson": "log", "gamma": "inverse", NegativeBinomial: "log"} {
 		if Canonical(fam) != want || Resolve(fam, "") != want || Resolve(fam, "identity") != "identity" {
 			t.Errorf("%s canonical %q", fam, Canonical(fam))
 		}
@@ -59,6 +60,57 @@ func TestTable(t *testing.T) {
 	b["binomial"][0] = "x"
 	if Links("binomial")[0] != "logit" {
 		t.Error("ByFamily shares its slices")
+	}
+}
+
+// TestCheckTheta: theta is the negative binomial's knob only, finite and
+// > 0 there (absent estimates it); the family refuses a penalty, a
+// selection and a resample; each refusal is PROCESSING_CONFIG naming
+// details.requires. An extension type is the slot table's, never this
+// rule's.
+func TestCheckTheta(t *testing.T) {
+	t.Parallel()
+
+	nb := func(edit func(*types.RegressionSpec)) *types.RegressionSpec {
+		s := &types.RegressionSpec{Type: types.REG_GLM, Family: NegativeBinomial}
+		edit(s)
+		return s
+	}
+	for name, s := range map[string]*types.RegressionSpec{
+		"estimated":    nb(func(*types.RegressionSpec) {}),
+		"fixed":        nb(func(s *types.RegressionSpec) { s.Theta = 0.3 }),
+		"robust":       nb(func(s *types.RegressionSpec) { s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0} }),
+		"poisson":      {Type: types.REG_GLM, Family: "poisson", Penalty: "l2", Selection: "forward", Resample: "bootstrap"},
+		"extension":    {Type: "REG_X_CUSTOM", Theta: 2},
+		"model regr.":  {Type: types.REG_MMM_HILL, Theta: 2},
+		"nil-safe ols": {Type: types.REG_OLS},
+	} {
+		if cerr := CheckTheta(s); cerr != nil {
+			t.Errorf("%s refused: %v", name, cerr)
+		}
+	}
+	if CheckTheta(nil) != nil {
+		t.Error("nil spec refused")
+	}
+	for _, tc := range []struct {
+		name     string
+		spec     *types.RegressionSpec
+		requires string
+	}{
+		{"theta on poisson", &types.RegressionSpec{Type: types.REG_GLM, Family: "poisson", Theta: 2}, "family negative_binomial"},
+		{"theta on REG_OLS", &types.RegressionSpec{Type: types.REG_OLS, Theta: 2}, "family negative_binomial"},
+		{"theta on REG_BAYES_LINEAR", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Theta: 2}, "family negative_binomial"},
+		{"negative theta", nb(func(s *types.RegressionSpec) { s.Theta = -1 }), "theta > 0"},
+		{"infinite theta", nb(func(s *types.RegressionSpec) { s.Theta = math.Inf(1) }), "theta > 0"},
+		{"NaN theta", nb(func(s *types.RegressionSpec) { s.Theta = math.NaN() }), "theta > 0"},
+		{"penalty", nb(func(s *types.RegressionSpec) { s.Penalty = "l1" }), "unpenalized"},
+		{"selection", nb(func(s *types.RegressionSpec) { s.Selection = "backward" }), "no_selection"},
+		{"resample", nb(func(s *types.RegressionSpec) { s.Resample = "bootstrap"; s.Theta = 2 }), "no_resample"},
+	} {
+		cerr := CheckTheta(tc.spec)
+		if cerr == nil || cerr.Code != errors.PROCESSING_CONFIG || cerr.Details["requires"] != tc.requires {
+			t.Errorf("%s: %v, want PROCESSING_CONFIG requires %q", tc.name, cerr, tc.requires)
+		}
 	}
 }
 

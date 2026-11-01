@@ -156,7 +156,7 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 		Field: "coefficients.*",
 		Means: "The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding " +
 			"the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), " +
-			"the inverse of the expected value for gamma (inverse link).",
+			"the inverse of the expected value for gamma (inverse link), the log of the expected count for negative_binomial (log link).",
 		Sign: map[string]string{
 			"+": "higher predictor values are associated with a higher probability (binomial) or expected count (Poisson); " +
 				"under gamma's inverse link, with a LOWER expected value",
@@ -177,9 +177,10 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "std_errors.*",
 		Means: "How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: " +
-			"with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.",
+			"with the dispersion fixed at 1 for binomial, Poisson and negative_binomial (at the fitted theta), and scaled by the estimated dispersion for gamma.",
 		Caveats: []string{
-			"With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.",
+			"With overdispersion (counts varying more than their mean) the Poisson standard errors are too small; negative_binomial models it through theta.",
+			"negative_binomial treats the coefficients and theta as independent (MASS summary.negbin), so its standard errors ignore theta's uncertainty.",
 			"The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors " +
 				"need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.",
 			"Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), " +
@@ -240,10 +241,36 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 			"Compare it only across models of the same outcome and family.",
 		},
 	},
+	{
+		Field: "theta",
+		Means: "negative_binomial only: the shape theta in Var = mu + mu^2 / theta, the maximum-likelihood estimate (MASS glm.nb) or the fixed theta param. " +
+			"Smaller theta means more overdispersion; a very large theta is the Poisson.",
+		Caveats: []string{
+			"A fit whose estimate runs off to infinity (counts no more variable than Poisson) is refused: fit family poisson instead.",
+		},
+	},
+	{
+		Field: "theta_std_err",
+		Means: "negative_binomial with theta estimated: the standard error of theta, from its observed information at the fitted means (MASS's SE.theta).",
+		Caveats: []string{
+			"Theta's sampling distribution is skewed; a Wald interval from this standard error can reach below 0.",
+		},
+	},
+	{
+		Field: "two_log_lik",
+		Means: "negative_binomial only: twice the maximised log-likelihood (MASS glm.nb's twologlik); higher is a closer fit.",
+	},
+	{
+		Field: "aic",
+		Means: "negative_binomial only: -two_log_lik + 2 x the parameter count, theta counted when it is estimated (MASS glm.nb's AIC), not when fixed; lower is better.",
+		Caveats: []string{
+			"Compare it only across models of the same outcome fitted to the same rows.",
+		},
+	},
 	regNObs,
 	{
 		Field: "converged_iters",
-		Means: "Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps.",
+		Means: "Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps, a negative_binomial fit with theta estimated the steps of every round.",
 		Caveats: []string{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},

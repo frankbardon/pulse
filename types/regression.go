@@ -131,18 +131,31 @@ type RegressionSpec struct {
 	Bounds *RegressionBounds `json:"bounds,omitempty"`
 
 	// Family is the GLM error family. One of "binomial" (logistic),
-	// "poisson", or "gamma". Required for REG_GLM.
+	// "poisson", "gamma", or "negative_binomial" (NB2, Var = μ + μ²/θ:
+	// over-dispersed counts; θ estimated by maximum likelihood,
+	// alternating IRLS for β with a Newton step for θ as MASS glm.nb
+	// does, unless Theta fixes it). Required for REG_GLM.
 	Family string `json:"family,omitempty"`
 
 	// Link is the GLM link function, one of the family's: binomial
 	// "logit" (default), "probit", "cloglog"; poisson "log" (default),
 	// "identity", "sqrt"; gamma "inverse" (default), "log", "identity"
-	// — R's glm families. Empty selects the family's canonical default;
+	// — R's glm families; negative_binomial "log" (default), "identity",
+	// "sqrt" (MASS's). Empty selects the family's default;
 	// another family's link is PROCESSING_REGRESSION_INVALID_LINK. Every
 	// link fits by IRLS (Fisher scoring) with the expected-information
 	// covariance; the manifest lists the pairs (link param
 	// enum_values_by).
 	Link string `json:"link,omitempty"`
+
+	// Theta fixes the negative_binomial family's θ (> 0, finite): the fit
+	// is R's glm(family = MASS::negative.binomial(theta)) — IRLS for β
+	// only, RegressionResult.Theta echoing it and no ThetaStdErr. Zero
+	// (absent) estimates θ by maximum likelihood (MASS glm.nb). On any
+	// other family or regression, or ≤ 0, it is refused with
+	// PROCESSING_CONFIG (details.requires; internal/reglink.CheckTheta,
+	// shared with predict).
+	Theta float64 `json:"theta,omitempty"`
 
 	// MaxIters caps the IRLS / coordinate-descent iteration count for
 	// iterative fits. Defaults to a registry-specific value when zero.
@@ -524,6 +537,30 @@ type RegressionResult struct {
 
 	// PseudoR2 is a McFadden-style 1 − Deviance/NullDeviance (REG_GLM).
 	PseudoR2 float64 `json:"pseudo_r2,omitempty"`
+
+	// Theta is the negative_binomial family's θ (Var = μ + μ²/θ): its
+	// maximum-likelihood estimate θ̂ (MASS glm.nb's theta), or the
+	// RegressionSpec.Theta the fit held fixed. Deviance, NullDeviance,
+	// Vcov and the standard errors are evaluated at it, with the
+	// dispersion fixed at 1 (MASS summary.negbin: β and θ treated as
+	// orthogonal). Absent on every other family.
+	Theta float64 `json:"theta,omitempty"`
+
+	// ThetaStdErr is θ̂'s standard error 1/√I(θ̂), I the observed
+	// information of θ at the fitted means (MASS theta.ml's SE.theta);
+	// present only when θ was estimated (null if I(θ̂) ≤ 0).
+	ThetaStdErr float64 `json:"theta_std_err,omitempty"`
+
+	// TwoLogLik is twice the maximised negative binomial log-likelihood
+	// at θ (MASS glm.nb's twologlik), prior-weighted; negative_binomial
+	// only.
+	TwoLogLik float64 `json:"two_log_lik,omitempty"`
+
+	// AIC is −TwoLogLik + 2·(p + 1) — plus 2 more when θ was estimated
+	// (MASS glm.nb's aic, counting θ as a parameter), not when it was
+	// fixed (AIC of R's glm(family = negative.binomial(theta)));
+	// negative_binomial only.
+	AIC float64 `json:"aic,omitempty"`
 
 	// NObs is the number of observations used to fit the model — the
 	// raw row count, weighted or not (a row whose weight is invalid or

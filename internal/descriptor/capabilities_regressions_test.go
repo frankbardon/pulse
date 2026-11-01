@@ -104,6 +104,7 @@ var regressionKeyProbes = map[string]string{
 	"bounds":           `{"bounds":{"nonnegative":["a"]}}`,
 	"family":           `{"family":"binomial"}`,
 	"link":             `{"family":"binomial","link":"logit"}`,
+	"theta":            `{"family":"negative_binomial","theta":1.5}`,
 	"max_iters":        `{"max_iters":10}`,
 	"tol":              `{"tol":1e-6}`,
 	"prior":            `{"prior":"nig"}`,

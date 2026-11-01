@@ -41,6 +41,11 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	if err := validateRegressionSpec(spec); err != nil {
 		return err
 	}
+	// theta and the negative binomial's refused modifiers — the one
+	// rule predict applies too (internal/reglink.CheckTheta).
+	if cerr := reglink.CheckTheta(spec); cerr != nil {
+		return cerr
+	}
 	if spec != nil {
 		if err := validateConfLevel(spec); err != nil {
 			return err
@@ -137,8 +142,9 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 // validateGLMSpec enforces REG_GLM-specific spec invariants. Phase 3
 // rules:
 //
-//   - Family ∈ {"binomial", "poisson", "gamma"}. Empty / unknown values
-//     surface PROCESSING_REGRESSION_INVALID_FAMILY.
+//   - Family ∈ {"binomial", "poisson", "gamma", "negative_binomial"}
+//     (internal/reglink.Families). Empty / unknown values surface
+//     PROCESSING_REGRESSION_INVALID_FAMILY.
 //   - Link, when set, must be one of the family's links (binomial
 //     logit / probit / cloglog, poisson log / identity / sqrt, gamma
 //     inverse / log / identity; internal/reglink.Check, shared with
@@ -152,21 +158,15 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 //   - MaxIters / Tol must be ≥ 0; zero selects the engine default
 //     (50 / 1e-8 respectively).
 func validateGLMSpec(spec *types.RegressionSpec) error {
-	switch spec.Family {
-	case "binomial", "poisson", "gamma":
-		// ok
-	case "":
+	switch {
+	case spec.Family == "":
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INVALID_FAMILY,
-			"REG_GLM requires Family (binomial | poisson | gamma)",
+			"REG_GLM requires Family (binomial | poisson | gamma | negative_binomial)",
 			map[string]any{"family": spec.Family},
 		)
-	default:
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_INVALID_FAMILY,
-			"REG_GLM Family must be one of binomial, poisson, gamma; got "+spec.Family,
-			map[string]any{"family": spec.Family, "allowed": []string{"binomial", "poisson", "gamma"}},
-		)
+	case !reglink.KnownFamily(spec.Family):
+		return reglink.FamilyRefusal(spec.Family)
 	}
 
 	// Link: empty selects the family's canonical link; otherwise it

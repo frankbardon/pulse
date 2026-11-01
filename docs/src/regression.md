@@ -46,7 +46,7 @@ The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Mult
 | `REG_OLS` no penalty                              | yes        | O(p²)   | sufficient stats: n, Σx, Σy, XᵀX, Xᵀy, Σy²                     |
 | `REG_OLS` + l1 / l2 / elasticnet                  | yes        | O(p²)   | streaming Gram; regularized solve at finalize                   |
 | `REG_BAYES_LINEAR` (conjugate NIG)                | yes        | O(p²)   | streaming sufficient stats + closed-form posterior update       |
-| `REG_GLM` (binomial / poisson / gamma)            | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
+| `REG_GLM` (binomial / poisson / gamma / NB)       | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
 | Any regression with `Resample != ""`              | no         | O(n·p)  | LOO / bootstrap refit                                           |
 | Any regression with `Selection != ""`             | no         | O(n·p)  | refit per candidate subset                                      |
 | `REG_OLS` / `REG_BAYES_LINEAR` with a robust `covariance` (not `classical`) | no | O(n·p) | second pass for residuals / leverage                |
@@ -102,11 +102,12 @@ Generalized linear model via iteratively-reweighted least squares.
 |---------------|----------|----------------------------------------------------------------------------------------|
 | `target`      | yes      | Numeric response.                                                                      |
 | `predictors`  | yes      | One or more numeric predictor fields.                                                  |
-| `family`      | yes      | `"binomial"`, `"poisson"`, or `"gamma"`.                                               |
-| `link`        | no       | One of the family's links, the canonical one the default when empty: `binomial` `logit` / `probit` / `cloglog`, `poisson` `log` / `identity` / `sqrt`, `gamma` `inverse` / `log` / `identity`. Another family's link is `PROCESSING_REGRESSION_INVALID_LINK` (predict too). |
+| `family`      | yes      | `"binomial"`, `"poisson"`, `"gamma"`, or `"negative_binomial"` (NB2, below).                       |
+| `link`        | no       | One of the family's links, the canonical one the default when empty: `binomial` `logit` / `probit` / `cloglog`, `poisson` `log` / `identity` / `sqrt`, `gamma` `inverse` / `log` / `identity`, `negative_binomial` `log` / `identity` / `sqrt`. Another family's link is `PROCESSING_REGRESSION_INVALID_LINK` (predict too). |
+| `theta`       | no       | `negative_binomial` only: a fixed θ > 0 (R `glm(family = negative.binomial(theta))`); absent estimates θ. Elsewhere, or ≤ 0, `PROCESSING_CONFIG`. |
 | `max_iters`   | no       | IRLS iteration cap (default 50).                                                       |
 | `tol`         | no       | Convergence tolerance (default `1e-8`).                                                |
-| `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma refuses it).            |
+| `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma and negative_binomial refuse it). |
 | `alpha`       | no       | Penalty strength, `> 0` when `penalty` is set.                                         |
 | `l1_ratio`    | no       | Elastic-net mix, `0 < l1_ratio < 1`; `elasticnet` only.                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`; `jackknife_groups` / `jackknife_by` as for REG_OLS.         |
@@ -123,6 +124,8 @@ Always buffered.
 The fit is R's `glm.fit` IRLS: per-row starting values (binomial `(w·y + 0.5)/(w + 1)`, poisson `y + 0.1`, gamma `y`), the step halved back toward the previous coefficients whenever the deviance rises, and convergence on the relative change in the coefficients. An up-front QR rank check of the (weighted) design is the only source of `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns` names the aliased columns). A binomial fit whose fitted probabilities reach numerically 0 or 1 while a predictor's coefficient keeps climbing is separated — the maximum-likelihood estimate is at infinity — and is refused `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`) rather than reporting wherever the loop stopped.
 
 **Links.** Every link is R's (`stats` `make.link`): probit `μ = Φ(η)` and cloglog `μ = 1 − exp(−e^η)` clamp μ to [ε, 1 − ε] and floor dμ/dη at ε as R does; the poisson and gamma identity links and the poisson sqrt link keep μ positive, so a step that would push a fitted mean through 0 is halved, as `glm.fit` does. Nothing assumes a canonical link: the working weight is `(dμ/dη)²/V(μ)`, the score `x·(y − μ)·(dμ/dη)/V(μ)`, so `vcov` is φ·(XᵀWX)⁻¹ at the expected information (R's `summary.glm`), the robust sandwich reads those scores (R `sandwich`), the working residual is `(y − μ)·g′(μ)`, the leverage is `W½X(XᵀWX)⁻¹XᵀW½`, and DFFITS carries the sign of g′(μ). Off the canonical link IRLS is Fisher scoring, which converges linearly: at the default `tol` the coefficients sit within about 1e-7 (relative) of the MLE; `tol: 1e-12` reaches R's to 1e-13. A first step that lands outside the link's range (R's glm stops there, "no valid set of coefficients") is halved toward the intercept-only fit instead. Defaults are unchanged: an omitted link is the canonical one, byte for byte. Penalties, `selection`, `resample`, `covariance`, the per-row attributes over a bound fit and model files all take every link; the file's `link` key carries it. Oracle: R 4.6.1 `glm(family = <family>(link = <link>))` and `sandwich` 3.1-3 (`scripts/reference/gen_glm_links.R`).
+
+**Negative binomial.** `family: "negative_binomial"` is NB2, Var = μ + μ²/θ, for counts more variable than a poisson allows. θ is estimated by maximum likelihood as MASS `glm.nb` does: a poisson fit on the same link, then rounds of θ ← the Newton root of the θ score at the fitted means (MASS `theta.ml`, from the moment estimate, then the previous θ) and β ← IRLS at that θ (warm-started), until a round moves θ by at most `tol` relative and β by less than `tol`; one more IRLS fit at the final θ makes β, the deviances and `vcov` those at θ̂. That is the joint MLE `glm.nb` approximates (its own stopping rule leaves it ~1e-6 off; the oracle pushes it to the fixed point). `theta` fixes θ instead: R's `glm(family = negative.binomial(theta))`. The result adds `theta`, `theta_std_err` (1/√I(θ̂), estimated θ only), `two_log_lik` and `aic` (−2ℓ + 2·(p + 1), + 2 when θ is estimated: MASS's AIC counts θ). Standard errors and `vcov` are (XᵀWX)⁻¹ at θ̂ with φ = 1, Wald z (`summary.negbin`, which treats β and θ as orthogonal — also for a fixed θ, where R's `summary.glm` would estimate a dispersion). `deviance` / `null_deviance` are at θ̂. A robust `covariance` holds θ̂ fixed (as `sandwich` on a `glm.nb` fit); the residual kinds, leverage and influence over a bound fit read V(μ) at θ̂ with φ = 1; scoring needs only the link. Weights (frequency and probability) enter as prior weights like every family; a frequency fit is the `rep()` expansion's. `penalty`, `selection` and `resample` are refused (`PROCESSING_CONFIG`, `details.requires` `unpenalized` / `no_selection` / `no_resample`: their refit drivers hold θ fixed). Counts no more variable than a poisson put θ̂ at infinity: `PROCESSING_REGRESSION_NO_CONVERGE` `details.reason` `theta_unbounded` (fit `poisson`). A model file carries θ (`model_format_version` 5). Oracle: R 4.6.1, MASS 7.3-66, `sandwich` 3.1-3 (`scripts/reference/gen_glm_nb.R`).
 
 Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SEPARATION`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
 
@@ -143,7 +146,7 @@ Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior.
 | `conf_level`      | no       | Mass of `ci_lower` / `ci_upper` (the same posterior t interval). Defaults to `credible_level`. |
 | `covariance`      | no       | As `REG_OLS`. Keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹): `std_errors`, `credible_intervals`, `ci_lower` / `ci_upper` (normal, no `df`) and `vcov` follow it. A substitution, not the conjugate posterior. Downgrades streaming. |
 
-Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`) for binomial / poisson and t on the residual df for gamma, Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
+Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`) for binomial / poisson / negative binomial and t on the residual df for gamma, Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
 
 Modifier compatibility: `Resample` and `Selection` are **rejected** for `REG_BAYES_LINEAR` at spec validation, by predict and the runtime alike (`internal/regbayes`) — the posterior already conveys uncertainty via credible intervals, and stepwise feature selection on a Bayesian model is a posterior-based question the conjugate-NIG engine doesn't support.
 
@@ -243,18 +246,18 @@ Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha`
 
 ### Influence over a bound fit
 
-`ATTR_REG_LEVERAGE`, `ATTR_REG_INFLUENCE` and `ATTR_REG_RESIDUAL` kind `standardized` / `studentized` with `params.fit` read the bound `REG_OLS` / `REG_GLM` fit's design — its `vcov`, its `dispersion` and its `n_obs` — exactly as R 4.6.1's `hatvalues` / `rstandard` / `rstudent` / `cooks.distance` / `dffits` read an `lm` or `glm`. With `x̃ = [1, x…]`, `μ` the fitted mean, `w = (dμ/dη)²/V(μ)` the working weight (1 under OLS), `rP = (y − μ)/√V(μ)` the Pearson residual, `φ` the dispersion (1 for binomial / poisson; `RegressionResult.dispersion` — σ̂² on OLS, the Pearson χ²/df on gamma — where it is estimated), `p′` the coefficient count and `df = n_obs − p′`:
+`ATTR_REG_LEVERAGE`, `ATTR_REG_INFLUENCE` and `ATTR_REG_RESIDUAL` kind `standardized` / `studentized` with `params.fit` read the bound `REG_OLS` / `REG_GLM` fit's design — its `vcov`, its `dispersion` and its `n_obs` — exactly as R 4.6.1's `hatvalues` / `rstandard` / `rstudent` / `cooks.distance` / `dffits` read an `lm` or `glm`. With `x̃ = [1, x…]`, `μ` the fitted mean, `w = (dμ/dη)²/V(μ)` the working weight (1 under OLS), `rP = (y − μ)/√V(μ)` the Pearson residual, `φ` the dispersion (1 for binomial / poisson / negative binomial, whose V(μ) reads the fit's `theta`; `RegressionResult.dispersion` — σ̂² on OLS, the Pearson χ²/df on gamma — where it is estimated), `p′` the coefficient count and `df = n_obs − p′`:
 
 | Figure | Formula |
 |---|---|
 | leverage `h` | `w · x̃ᵀ(vcov/φ)x̃` |
 | standardized | `rP / (√φ·√(1 − h))`; with `params.residual_type` `deviance`, `rD / (√φ·√(1 − h))`, `rD = sign(y − μ)·√dᵢ` the deviance residual (R `rstandard(type = "deviance")`; equal to the Pearson form on a Gaussian fit) |
 | σ₍ᵢ₎ (φ estimated) | `√((φ·df − rP²/(1 − h))/(df − 1))` |
-| studentized | `rP / (σ₍ᵢ₎·√(1 − h))`; the standardized under binomial / poisson |
+| studentized | `rP / (σ₍ᵢ₎·√(1 − h))`; the standardized under binomial / poisson / negative binomial |
 | Cook's distance | `(rP/(1 − h))²·h/(φ·p′)` |
 | DFFITS | `sign(g′(μ))·rP·√h/(σ·(1 − h))`, σ = σ₍ᵢ₎ or √φ |
 
-`residual_type` is kind `standardized`'s alone (`pearson` default, `deviance`): the studentized residual, Cook's distance and DFFITS stay Pearson-based, as in R, and any other kind refuses it (`PULSE_MODEL_SCORE_INVALID` `params_invalid`). DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (`model_format_version` 4); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
+`residual_type` is kind `standardized`'s alone (`pearson` default, `deviance`): the studentized residual, Cook's distance and DFFITS stay Pearson-based, as in R, and any other kind refuses it (`PULSE_MODEL_SCORE_INVALID` `params_invalid`). DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (`model_format_version` 4) or a negative binomial's θ (5); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
 
 ## Error codes
 
@@ -276,13 +279,13 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_SEPARATION`            | Binomial `REG_GLM` is separated (a predictor splits the outcome); `details.predictors`. |
 | `PROCESSING_REGRESSION_NO_CONVERGE`           | IRLS or coordinate descent failed within `MaxIters`.                          |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`         | XᵀX non-invertible even after regularization; increase `alpha`.               |
-| `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma}`.                        |
+| `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma, negative_binomial}`.     |
 | `PROCESSING_REGRESSION_INVALID_LINK`          | Link not one of the chosen Family's (`details.allowed`).                      |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | Advisory: l1 / elasticnet SEs, p-values and intervals are `null` (no valid analytical form); set `resample` for replicate ones. |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | Advisory: a `REG_OLS` `bounds` constraint binds, so SEs, p-values, intervals and `vcov` are `null`; set `resample: bootstrap` for replicate ones. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |
-| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty).        |
+| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty, `theta` off negative_binomial). |
 
 ## Worked examples
 

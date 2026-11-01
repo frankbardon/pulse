@@ -183,7 +183,7 @@ func TestReferenceOracle_GLMLinksMatchR(t *testing.T) {
 			if len(mu) != len(c.Fitted) || len(c.Working) != len(c.Fitted) {
 				t.Fatalf("%d fitted rows, R %d / %d", len(mu), len(c.Fitted), len(c.Working))
 			}
-			rf, err := NewResidualFamily(c.Family, c.Link)
+			rf, err := NewResidualFamily(c.Family, c.Link, 0)
 			if err != nil {
 				t.Fatal(err)
 			}

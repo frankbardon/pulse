@@ -119,13 +119,18 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 	if p.Kind != "" && p.Kind != model.ResidualResponse {
 		// CheckFitReference admitted the kind on a built-in type, so the
 		// family / link are the engine's own echo.
-		fam, err := regression.NewResidualFamily(b.Family, b.Link)
+		// The negative binomial's variance and deviance read its θ.
+		theta := 0.0
+		if b.Result != nil {
+			theta = b.Result.Theta
+		}
+		fam, err := regression.NewResidualFamily(b.Family, b.Link, theta)
 		if err != nil {
 			return err
 		}
 		a.family = fam
 	} else {
-		a.family, _ = regression.NewResidualFamily("", "")
+		a.family, _ = regression.NewResidualFamily("", "", 0)
 	}
 	return nil
 }

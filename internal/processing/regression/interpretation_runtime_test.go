@@ -32,6 +32,9 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial"},
 		// gamma estimates its dispersion: df (its t reference) is emitted.
 		{Type: types.REG_GLM, Target: "g", Predictors: []string{"x1", "x2"}, Family: "gamma"},
+		// negative_binomial with θ estimated: theta, theta_std_err,
+		// two_log_lik and aic are emitted (k an over-dispersed count).
+		{Type: types.REG_GLM, Target: "k", Predictors: []string{"x1", "x2"}, Family: "negative_binomial"},
 	},
 	types.REG_BAYES_LINEAR: {
 		{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"}},
@@ -65,7 +68,8 @@ func probeRows() []regression.Record {
 		c := 60 + 50*math.Sin(0.53*float64(i))
 		out[i] = probeRecord{"x1": x1, "x2": x2, "y": 3 + 2*x1 - x2 + noise, "b": b,
 			"g": 1 / (0.8 + 0.05*x1 + 0.1*x2) * (1 + 0.3*noise),
-			"c": c, "t": float64(i + 1), "m": 5 + 8*c/(c+40) - 0.5*x2 + 0.3*noise}
+			"c": c, "t": float64(i + 1), "m": 5 + 8*c/(c+40) - 0.5*x2 + 0.3*noise,
+			"k": math.Floor(math.Exp(1 + 0.3*x1 + 0.4*x2 + 1.2*math.Sin(2.3*float64(i))))}
 	}
 	return out
 }

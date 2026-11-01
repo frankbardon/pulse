@@ -3,7 +3,6 @@ package regression
 import (
 	"math"
 
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/linalg/detmath"
@@ -15,7 +14,8 @@ import (
 // interface without branching on the family name; the families table
 // (selectFamily) wires concrete implementations for every pair
 // internal/reglink lists: binomial logit / probit / cloglog, poisson
-// log / identity / sqrt, gamma inverse / log / identity.
+// log / identity / sqrt, gamma inverse / log / identity, and the
+// negative binomial (negBinFamily, one per θ) on log / identity / sqrt.
 //
 // All methods operate scalar-wise. Numerical care:
 //
@@ -88,6 +88,12 @@ type glmFamily struct {
 	// (aicBICFromGamma, R's AIC(glm)), not deviance + 2k. A new family
 	// that sets it must give aicBICFromGamma's place its own density.
 	EstimatesDispersion bool
+
+	// Theta is the negative binomial family's θ (negBinFamily), whose
+	// Variance and Deviance read it; 0 on every other family, NaN on a
+	// negative binomial resolved without one (selectFamily: its link
+	// functions only — scoring needs no θ).
+	Theta float64
 }
 
 // log1mMu is log(1 − μ) for a probability μ: log1p(−μ) where that is
@@ -406,23 +412,66 @@ var glmFamilies = map[string]map[string]glmFamily{
 	"gamma":    {"inverse": gammaInverse, "log": gammaLog, "identity": gammaIdentity},
 }
 
+// negBinFamily is the negative binomial (NB2) family at a fixed θ on
+// link (log, identity or sqrt) — MASS's negative.binomial(theta, link):
+// the link functions and their valid range are poisson's (R make.link;
+// μ must stay positive), and
+//
+//	V(μ)    = μ + μ²/θ
+//	d(y, μ) = y·log(max(1, y)/μ) − (y + θ)·log((y + θ)/(μ + θ))
+//	μ⁰      = y + (y = 0)/6
+//
+// (d is half R's dev.resids, as every Deviance here). It never estimates
+// a dispersion: φ = 1 (MASS summary.negbin). Not Canonical — the log
+// link is canonical for poisson only — so a first IRLS step landing
+// invalid halves toward the intercept-only fit (irlsFit).
+func negBinFamily(link string, theta float64) glmFamily {
+	f := glmFamilies["poisson"][link]
+	f.Name, f.Canonical, f.Theta = reglink.NegativeBinomial, false, theta
+	f.Variance = func(mu float64) float64 {
+		return mu + float64(mu*mu)/theta
+	}
+	f.Deviance = func(y, mu float64) float64 {
+		mu = math.Max(mu, math.SmallestNonzeroFloat64)
+		var a float64
+		if y > 0 {
+			a = float64(y * detmath.Log(math.Max(1, y)/mu))
+		}
+		return a - float64((y+theta)*detmath.Log((y+theta)/(mu+theta)))
+	}
+	f.MuStart = func(y, _ float64) float64 {
+		if y == 0 {
+			return 1.0 / 6
+		}
+		return y
+	}
+	return f
+}
+
 // selectFamily resolves a (family, link) pair to a glmFamily. Empty
-// Link picks the family's canonical default (binomial → logit, poisson
-// → log, gamma → inverse). An unknown family is
+// Link picks the family's default (binomial → logit, poisson → log,
+// gamma → inverse, negative_binomial → log). An unknown family is
 // PROCESSING_REGRESSION_INVALID_FAMILY; a link outside the family's set
 // is PROCESSING_REGRESSION_INVALID_LINK (internal/reglink, the rule
-// predict applies too).
+// predict applies too). A negative binomial resolves at θ = NaN — its
+// link functions are whole, its variance and deviance undefined; a fit
+// or a bound fit's residuals take selectFamilyTheta.
 func selectFamily(family, link string) (glmFamily, error) {
-	links, ok := glmFamilies[family]
-	if !ok {
-		return glmFamily{}, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_INVALID_FAMILY,
-			"REG_GLM Family must be one of binomial, poisson, gamma; got "+family,
-			map[string]any{"family": family, "allowed": []string{"binomial", "poisson", "gamma"}},
-		)
+	return selectFamilyTheta(family, link, math.NaN())
+}
+
+// selectFamilyTheta is selectFamily with the negative binomial's θ
+// (ignored by every other family).
+func selectFamilyTheta(family, link string, theta float64) (glmFamily, error) {
+	if !reglink.KnownFamily(family) {
+		return glmFamily{}, reglink.FamilyRefusal(family)
 	}
 	if cerr := reglink.CheckPair(family, link); cerr != nil {
 		return glmFamily{}, cerr
 	}
-	return links[reglink.Resolve(family, link)], nil
+	link = reglink.Resolve(family, link)
+	if family == reglink.NegativeBinomial {
+		return negBinFamily(link, theta), nil
+	}
+	return glmFamilies[family][link], nil
 }

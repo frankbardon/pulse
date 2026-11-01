@@ -113,7 +113,7 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 
 #### `coefficients.*`
 
-The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link).
+The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link), the log of the expected count for negative_binomial (log link).
 
 **Sign:**
 
@@ -131,11 +131,12 @@ The change in the linear predictor, on the link scale, for a one-unit increase i
 
 #### `std_errors.*`
 
-How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.
+How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial, Poisson and negative_binomial (at the fitted theta), and scaled by the estimated dispersion for gamma.
 
 **Caveats:**
 
-- With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.
+- With overdispersion (counts varying more than their mean) the Poisson standard errors are too small; negative_binomial models it through theta.
+- negative_binomial treats the coefficients and theta as independent (MASS summary.negbin), so its standard errors ignore theta's uncertainty.
 - The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.
 - Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.
 - On an l2 fit it is the penalized sandwich, which treats the shrinkage as fixed; on an l1 or elasticnet fit it is null on every coefficient (the data pick the predictors, so no analytical standard error is valid); request resample for replicate ones.
@@ -210,6 +211,34 @@ The deviance of the intercept-only model, which predicts the overall mean for ev
 - It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model, so OLS rules of thumb do not apply; there are no published bands for it, so none are attached.
 - Compare it only across models of the same outcome and family.
 
+#### `theta`
+
+negative_binomial only: the shape theta in Var = mu + mu^2 / theta, the maximum-likelihood estimate (MASS glm.nb) or the fixed theta param. Smaller theta means more overdispersion; a very large theta is the Poisson.
+
+**Caveats:**
+
+- A fit whose estimate runs off to infinity (counts no more variable than Poisson) is refused: fit family poisson instead.
+
+#### `theta_std_err`
+
+negative_binomial with theta estimated: the standard error of theta, from its observed information at the fitted means (MASS's SE.theta).
+
+**Caveats:**
+
+- Theta's sampling distribution is skewed; a Wald interval from this standard error can reach below 0.
+
+#### `two_log_lik`
+
+negative_binomial only: twice the maximised log-likelihood (MASS glm.nb's twologlik); higher is a closer fit.
+
+#### `aic`
+
+negative_binomial only: -two_log_lik + 2 x the parameter count, theta counted when it is estimated (MASS glm.nb's AIC), not when fixed; lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
 #### `n_obs`
 
 Rows used in the fit, after rows with a null target or predictor were dropped.
@@ -221,7 +250,7 @@ Rows used in the fit, after rows with a null target or predictor were dropped.
 
 #### `converged_iters`
 
-Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps.
+Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps, a negative_binomial fit with theta estimated the steps of every round.
 
 **Caveats:**
 

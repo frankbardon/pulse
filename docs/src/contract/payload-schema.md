@@ -950,6 +950,16 @@ so `vcov / dispersion` is (XᵀWX)⁻¹ (`null` when the residual df is ≤ 0;
 absent on binomial / poisson, whose φ is 1, and on every robust,
 resampled, penalized or Bayesian fit). The influence figures over a
 bound fit read it.
+A `REG_GLM` `negative_binomial` fit (NB2, Var = μ + μ²/θ) adds four
+additive `omitempty` numbers: `theta` — θ̂, the maximum-likelihood
+estimate (MASS `glm.nb`), or the spec's fixed `theta` (an additive
+`omitempty` `RegressionSpec` number, > 0) — `theta_std_err` (θ̂'s
+standard error 1/√I(θ̂), present only when θ was estimated; `null` when
+the information is not positive), `two_log_lik` (twice the maximised
+log-likelihood) and `aic` (−`two_log_lik` + 2·(p + 1), plus 2 when θ was
+estimated). Its `vcov` is (XᵀWX)⁻¹ at θ̂ with φ = 1 (MASS
+`summary.negbin`), so no `dispersion` rides it; every other family
+leaves the four absent, byte-identical.
 Under `resample` it is the replicate covariance (jackknife
 (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
 leave-one-out; bootstrap the B−1 sample covariance of the
@@ -1479,7 +1489,8 @@ written as a model file (`model_format_version` 1, or 2 — adding the
 errors, or 3 — adding the fit's `outputs`, its coefficients named by the
 model — for an extension regression whose registration supplies a
 scorer, or 4 — adding the fit's `dispersion` — for a classical `vcov`
-fit that carries one; `.pulse-model.json`;
+fit that carries one, or 5 — adding the fit's `theta` — for a `REG_GLM`
+`negative_binomial` fit; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

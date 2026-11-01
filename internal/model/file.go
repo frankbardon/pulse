@@ -27,6 +27,10 @@ import (
 // is the JSON string "+Inf" / "-Inf". NaN payload bits are not kept —
 // every NaN in a fit means "undefined".
 
+// negativeBinomial is the REG_GLM family whose fits carry a theta
+// (internal/reglink.NegativeBinomial; the leaf imports no rule package).
+const negativeBinomial = "negative_binomial"
+
 // FileSuffix is the model file name suffix every save path carries. The
 // label- and range-table directory loaders skip it (a model file beside
 // a table is not a table).
@@ -34,7 +38,11 @@ const FileSuffix = ".pulse-model.json"
 
 // FileFormatVersion is the newest model_format_version this build
 // writes. The version is a function of the content, never a flag (the
-// .pulse header's rule): a built-in fit carrying its estimated
+// .pulse header's rule): a REG_GLM negative_binomial fit writes 5 —
+// version 1 plus its `theta`, the θ̂ (or fixed θ) its residuals and
+// influence figures read through V(μ) = μ + μ²/θ (U65 E2-S2), with the
+// `covariance` echo optional (a robust fit), never a `dispersion` (φ is
+// 1); a built-in fit carrying its estimated
 // `dispersion` (a classical vcov fit whose φ is estimated: REG_OLS,
 // REG_GLM gamma — RegressionResult.Dispersion) writes 4 — version 1
 // plus `dispersion`, what a bound fit's influence figures read (U65
@@ -45,21 +53,25 @@ const FileSuffix = ".pulse-model.json"
 // RegressionSpec.Covariance writes 2 — version 1 plus the `covariance`
 // echo — and every other fit writes 1, byte-identical to the files
 // earlier builds wrote. All stay readable (FileFormatVersions).
-const FileFormatVersion = 4
+const FileFormatVersion = fileFormatV5
 
 // fileFormatV1 is the version a built-in fit without a robust
-// covariance or a dispersion writes; fileFormatV2 a built-in fit with a
-// robust covariance; fileFormatV3 an extension regression's fit.
+// covariance, a dispersion or a theta writes; fileFormatV2 a built-in
+// fit with a robust covariance; fileFormatV3 an extension regression's
+// fit; fileFormatV4 a classical vcov fit with its estimated dispersion;
+// fileFormatV5 a negative binomial fit with its theta.
 const (
 	fileFormatV1 = 1
 	fileFormatV2 = 2
 	fileFormatV3 = 3
+	fileFormatV4 = 4
+	fileFormatV5 = 5
 )
 
 // FileFormatVersions are the model_format_version values this build
 // reads, oldest first.
 func FileFormatVersions() []int {
-	return []int{fileFormatV1, fileFormatV2, fileFormatV3, FileFormatVersion}
+	return []int{fileFormatV1, fileFormatV2, fileFormatV3, fileFormatV4, fileFormatV5}
 }
 
 // The PULSE_MODEL_SAVE_INVALID reasons.
@@ -77,13 +89,14 @@ const (
 	ReasonFileSchema         = "schema"
 )
 
-// File is one model file document (model_format_version 1 to 4): the
+// File is one model file document (model_format_version 1 to 5): the
 // fitted regression's scoring figures at full float64 precision plus
 // informational provenance. Maps are keyed like RegressionResult's
 // (InterceptKey included); a term absent from a map has no figure.
 type File struct {
-	// ModelFormatVersion is 3 for an extension regression's fit, else 2
-	// when Covariance is set, else 4 when Dispersion is, else 1.
+	// ModelFormatVersion is 5 for a negative binomial fit (Theta), else
+	// 3 for an extension regression's fit, else 2 when Covariance is
+	// set, else 4 when Dispersion is, else 1.
 	ModelFormatVersion int `json:"model_format_version"`
 	// Name is the name the model was saved under (informational: a load
 	// binds the name the loading request gives it).
@@ -123,6 +136,11 @@ type File struct {
 	// beside a classical vcov whose φ is estimated (REG_OLS σ̂², REG_GLM
 	// gamma's Pearson χ²/df); null when undefined (df ≤ 0).
 	Dispersion Float `json:"dispersion,omitempty"`
+	// Theta (version 5 only, where it is required) is a REG_GLM
+	// negative_binomial fit's θ — RegressionResult.Theta, its estimate or
+	// the fixed θ: the variance μ + μ²/θ its residual kinds and influence
+	// figures read. Finite and > 0.
+	Theta Float `json:"theta,omitempty"`
 	// Covariance (required on version 2, optional on version 3, absent
 	// on version 1) names the robust
 	// estimator the standard errors, intervals, df and vcov came from —
@@ -265,7 +283,7 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 	if res.Dispersion != 0 && BuiltinRegression(res.Type) && res.Covariance == nil {
 		// The engine sets it beside a classical vcov only.
 		f.Dispersion = Float(res.Dispersion)
-		f.ModelFormatVersion = FileFormatVersion
+		f.ModelFormatVersion = fileFormatV4
 	}
 	if res.Covariance != nil {
 		c := *res.Covariance
@@ -275,6 +293,12 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 		}
 		f.Covariance = &c
 		f.ModelFormatVersion = fileFormatV2
+	}
+	if res.Theta != 0 && BuiltinRegression(res.Type) {
+		// A negative binomial fit (its θ; a robust fit keeps its
+		// covariance echo beside it).
+		f.Theta = Float(res.Theta)
+		f.ModelFormatVersion = fileFormatV5
 	}
 	if !BuiltinRegression(res.Type) {
 		f.ModelFormatVersion = fileFormatV3
@@ -356,14 +380,24 @@ func (f *File) check() string {
 		return fmt.Sprintf("is model_format_version 3, which only an extension or model regression's fit writes, but its type is the built-in %s", f.Type)
 	case f.ModelFormatVersion != fileFormatV3 && !BuiltinRegression(f.Type):
 		return fmt.Sprintf("has type %s, which names its own coefficients; only model_format_version 3 carries an extension or model regression's fit", f.Type)
-	case f.ModelFormatVersion == FileFormatVersion && f.Dispersion == 0:
+	case f.ModelFormatVersion == fileFormatV4 && f.Dispersion == 0:
 		return "is model_format_version 4 without a dispersion"
-	case f.ModelFormatVersion == FileFormatVersion && f.Vcov == nil:
+	case f.ModelFormatVersion == fileFormatV4 && f.Vcov == nil:
 		return "is model_format_version 4 without a vcov (the dispersion rides a classical vcov)"
-	case f.ModelFormatVersion != FileFormatVersion && f.Dispersion != 0:
+	case f.ModelFormatVersion != fileFormatV4 && f.Dispersion != 0:
 		return fmt.Sprintf("carries a dispersion, which model_format_version %d does not have", f.ModelFormatVersion)
-	case f.ModelFormatVersion == FileFormatVersion && f.Covariance != nil:
+	case f.ModelFormatVersion == fileFormatV4 && f.Covariance != nil:
 		return "carries a covariance, which model_format_version 4 does not have"
+	case f.ModelFormatVersion == fileFormatV5 && f.Theta == 0:
+		return "is model_format_version 5 without a theta"
+	case f.ModelFormatVersion != fileFormatV5 && f.Theta != 0:
+		return fmt.Sprintf("carries a theta, which model_format_version %d does not have", f.ModelFormatVersion)
+	case f.ModelFormatVersion == fileFormatV5 && f.Family != negativeBinomial:
+		return "is model_format_version 5, which only a REG_GLM negative_binomial fit writes, but its family is " + strconv.Quote(f.Family)
+	case f.ModelFormatVersion != fileFormatV5 && f.Family == negativeBinomial:
+		return fmt.Sprintf("is a negative_binomial fit, which only model_format_version 5 carries (with its theta); got version %d", f.ModelFormatVersion)
+	case f.ModelFormatVersion == fileFormatV5 && !(f.Theta > 0 && !math.IsInf(float64(f.Theta), 1)):
+		return "has a theta that is not a finite number > 0"
 	}
 	if c := f.Covariance; c != nil {
 		robust := &types.RegressionCovariance{Type: c.Type}
@@ -444,6 +478,7 @@ func (f *File) Result() *types.RegressionResult {
 		SumWeights:   float64(f.SumWeights),
 		NEff:         float64(f.NEff),
 		Dispersion:   float64(f.Dispersion),
+		Theta:        float64(f.Theta),
 	}
 	if f.Selection != "" {
 		res.SelectedFeatures = append([]string(nil), f.Predictors...)

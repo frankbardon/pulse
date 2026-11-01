@@ -31,7 +31,10 @@ func TestSelectFamily_MatchesRegLink(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s/%s: %v", fam, link, err)
 			}
-			if f.Name != fam || f.Link != link || f.Canonical != (link == reglink.Canonical(fam)) {
+			// The negative binomial is Canonical on no link (its default,
+			// log, is not its canonical link).
+			canonical := link == reglink.Canonical(fam) && fam != reglink.NegativeBinomial
+			if f.Name != fam || f.Link != link || f.Canonical != canonical {
 				t.Errorf("%s/%s resolved to %s/%s canonical=%v", fam, link, f.Name, f.Link, f.Canonical)
 			}
 			n++
@@ -41,7 +44,9 @@ func TestSelectFamily_MatchesRegLink(t *testing.T) {
 			t.Errorf("%s default link %q (%v)", fam, def.Link, err)
 		}
 	}
-	total := 0
+	// glmFamilies holds the fixed-family pairs; the negative binomial is
+	// built per θ on poisson's links (negBinFamily).
+	total := len(reglink.Links(reglink.NegativeBinomial))
 	for _, links := range glmFamilies {
 		total += len(links)
 	}

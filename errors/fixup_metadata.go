@@ -177,8 +177,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Family"},
-				Hint:     "Set Family to one of binomial (logistic), poisson, or gamma; check the regression-modeling skill for the family / link compatibility matrix.",
-				Examples: []any{"binomial", "poisson", "gamma"},
+				Hint:     "Set Family to one of binomial (logistic), poisson, gamma, or negative_binomial (over-dispersed counts); check the regression-modeling skill for the family / link compatibility matrix.",
+				Examples: []any{"binomial", "poisson", "gamma", "negative_binomial"},
 			},
 		},
 	},

@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -34,6 +35,10 @@ import (
 // Gamma estimates it (glmFamily.EstimatesDispersion, reference-oracles
 // E2-S3): φ̂ = Pearson χ² / (N* − k), Cov(β) = φ̂·(XᵀWX)⁻¹ and β/SE on a
 // Student t with N* − k df — R's summary.glm on a Gamma glm.
+//
+// The negative binomial (negbin.go) estimates θ by alternating this loop
+// with a Newton step for θ (MASS glm.nb), or holds RegressionSpec.Theta;
+// its dispersion is 1, so it reads the binomial / poisson Wald path at θ̂.
 //
 // Weighted (U12 E4-S2, .claude/reference/weighting.md): the slot's row
 // weights enter as R glm prior weights on w* = w·N*/Σw — the working
@@ -197,7 +202,19 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	if pen != nil {
 		pr.Penalty = pen
 	}
-	sol, err := irlsFit(pr)
+	// The negative binomial estimates θ around the loop (negbin.go) and
+	// leaves e.family at θ̂, so the dispersion, sandwich and null
+	// deviance below read the variance and deviance at θ̂.
+	var nb *negBinFit
+	var sol *irlsSolution
+	var err error
+	if e.family.Name == reglink.NegativeBinomial {
+		if nb, err = fitNegBin(pr, e.spec.Theta); err == nil {
+			sol, e.family = nb.sol, nb.fam
+		}
+	} else {
+		sol, err = irlsFit(pr)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -296,6 +313,9 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		PseudoR2:       pseudoR2,
 		NObs:           n,
 		ConvergedIters: convergedIters,
+	}
+	if nb != nil {
+		attachNegBin(res, nb, yVec, mu, prior)
 	}
 	rw.note(res, sumW, sumWSq)
 	// Intervals on the p-values' basis: Wald normal, or gamma's Student

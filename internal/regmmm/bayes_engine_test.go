@@ -213,7 +213,7 @@ func errorsAs(err error, ce **perr.CodedError) bool { return stderrors.As(err, c
 // model may refuse; holdout and save ride the Scorer.
 var sharedSlotValues = map[string]string{
 	"penalty": `"l2"`, "alpha": `0.5`, "l1_ratio": `0.5`, "unpenalized": `["price"]`,
-	"bounds": `{"nonnegative":["tv"]}`, "family": `"gaussian"`, "link": `"identity"`, "max_iters": `10`, "tol": `0.001`,
+	"bounds": `{"nonnegative":["tv"]}`, "family": `"gaussian"`, "link": `"identity"`, "theta": `2`, "max_iters": `10`, "tol": `0.001`,
 	"prior": `"normal"`, "prior_mu": `[0,0]`, "prior_precision": `1`, "prior_shape": `1`, "prior_rate": `1`, "credible_level": `0.9`,
 	"resample": `"bootstrap"`, "jackknife_groups": `5`, "jackknife_by": `"geo"`, "bootstrap_iters": `10`,
 	"selection": `"forward"`, "criterion": `"aic"`, "covariance": `{"type":"hc1"}`, "save": `"m.pulse-model.json"`,

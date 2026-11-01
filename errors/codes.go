@@ -78,7 +78,7 @@ const (
 
 	// PROCESSING_REGRESSION_INVALID_FAMILY indicates REG_GLM was
 	// requested with a Family outside the supported set
-	// ({"binomial", "poisson", "gamma"}).
+	// ({"binomial", "poisson", "gamma", "negative_binomial"}).
 	PROCESSING_REGRESSION_INVALID_FAMILY Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 
 	// PROCESSING_REGRESSION_INVALID_LINK indicates the requested Link

@@ -1914,6 +1914,12 @@
             "null"
           ]
         },
+        "aic": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "alpha": {
           "type": [
             "number",
@@ -2116,6 +2122,24 @@
             "null"
           ]
         },
+        "theta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "theta_std_err": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "type": {
           "$ref": "#/$defs/RegressionType"
         },
@@ -2235,6 +2259,9 @@
         },
         "target": {
           "type": "string"
+        },
+        "theta": {
+          "type": "number"
         },
         "tol": {
           "type": "number"
@@ -2961,4 +2988,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b6bc1e55c00fb4f14ed84333b1b3840c5dfdae78d53ee3b535fc9e3db9ae1b66
+// golden-hash: 7777dba717dcb24bfdb4b7dba36e35f90d3d3fdb4d92215a67f66bfc2dcbed8a

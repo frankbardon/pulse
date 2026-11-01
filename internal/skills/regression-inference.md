@@ -42,7 +42,7 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 |---|---|
 | OLS | σ̂²(XᵀX)⁻¹, intercept cross terms included (−μᵀCov) |
 | Ridge (`l2`) | the sandwich estimator (GLM: H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·α·D) |
-| GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson), gamma's Pearson χ²/df estimate |
+| GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson, negative binomial at θ̂), gamma's Pearson χ²/df estimate |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
 
 | Resample `jackknife` | (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete-group refits (g = n leave-one-out) |
@@ -77,6 +77,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 
 - `vcov(lm)` and `vcov(ridge)` agree to rounding.
 - `vcov(glm)` uses weights one IRLS iteration behind its coefficients; Pulse inverts at the converged fixed point, matching R refined to that point to 1e-11 (raw `vcov(glm)` only to about 1e-6).
+- Negative binomial: θ̂ is MASS `glm.nb`'s ML estimate pushed to its fixed point (glm.nb stops ~1e-6 off it); SEs and `vcov` are `summary.negbin`'s (β, θ orthogonal), `ThetaStdErr` its `SE.theta`, `AIC` counts an estimated θ; a robust `covariance` holds θ̂ fixed, as `sandwich` does (oracle `glm_nb.json`).
 - Gamma GLM: dispersion estimated as R does (Pearson χ²/df), so `vcov`, SEs, t p-values and `df` match `summary.glm` / `vcov(glm)` (oracle `glm_gamma.json`); gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (oracle `glm_gamma_selection.json`).
 
 ## Response shaping

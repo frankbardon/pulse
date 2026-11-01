@@ -127,7 +127,7 @@ frequency weights have a standard weighted form — with
 | the rank tests — Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis, Spearman ρ, Kendall τ-b — plus Fisher's exact test, the two-sample Kolmogorov-Smirnov test and Brown-Forsythe | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | the mean-comparison overlays — cell and reference t and z, pairwise Welch t — and the χ² (row, column, matrix, vs reference) and proportion z (cell, panel, pairwise) overlays | weighted (both kinds) | weighted |
 | the Fisher exact cell overlay | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
-| ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
+| ordinary least squares (plain, ridge, lasso, elastic net), the GLM (binomial, poisson, gamma, negative binomial), the regression attributes (fitted value, residual, leverage) | weighted (both kinds) | weighted |
 | the z-score and t-score attributes, the quantile grouper (on `groups` and both crosstab axes) | weighted (both kinds) | weighted |
 | Bayesian linear regression | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |
 | a formula attribute (`ATTR_FORMULA`) that calls `total(expr)` — the total is Σw·expr, the expanded-row total | `kind: frequency`: weighted; `kind: probability`: `PULSE_WEIGHT_UNSUPPORTED` | same, by the default's kind |

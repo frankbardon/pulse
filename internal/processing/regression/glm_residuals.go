@@ -1,6 +1,11 @@
 package regression
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reglink"
+)
 
 // glm_residuals.go is ATTR_REG_RESIDUAL params.kind (U65 E1-S1) over a
 // bound fit: the residual of one row on the fit's response scale, read
@@ -26,17 +31,32 @@ type ResidualFamily struct {
 }
 
 // NewResidualFamily resolves family / link (a GLM fit's echo; empty for
-// OLS and Bayesian-linear fits, which are Gaussian / identity). An
-// unknown pair is the engine's own refusal.
-func NewResidualFamily(family, link string) (ResidualFamily, error) {
+// OLS and Bayesian-linear fits, which are Gaussian / identity) at the
+// fit's θ (RegressionResult.Theta: the negative binomial's variance and
+// deviance read it; ignored by every other family). An unknown pair is
+// the engine's own refusal; a negative binomial without a positive θ is
+// PROCESSING_INTERNAL (every such fit, and every model file of one,
+// carries it).
+func NewResidualFamily(family, link string, theta float64) (ResidualFamily, error) {
 	if family == "" {
 		return ResidualFamily{gaussian: true}, nil
 	}
-	fam, err := selectFamily(family, link)
+	fam, err := familyAtTheta(family, link, theta)
 	if err != nil {
 		return ResidualFamily{}, err
 	}
 	return ResidualFamily{fam: fam}, nil
+}
+
+// familyAtTheta is selectFamilyTheta for a bound fit's echo, refusing a
+// negative binomial whose θ is not positive.
+func familyAtTheta(family, link string, theta float64) (glmFamily, error) {
+	if family == reglink.NegativeBinomial && !(theta > 0) {
+		return glmFamily{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"a negative_binomial fit carries no theta; its residuals and influence cannot be read",
+			map[string]any{"family": family, "link": link})
+	}
+	return selectFamilyTheta(family, link, theta)
 }
 
 // Residual returns y's residual of kind ("response" / "" , "pearson",

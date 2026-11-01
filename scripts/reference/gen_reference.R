@@ -517,3 +517,13 @@ source(file.path(script_dir, "gen_glm_influence.R"), local = FALSE)
 # against the rep() expansion; each figure re-derived from its closed
 # form); base stats + jsonlite + sandwich 3.1-3. Seeded RNG.
 source(file.path(script_dir, "gen_glm_links.R"), local = FALSE)
+
+# The REG_GLM negative binomial golden (glm_nb.json: NB2 with theta
+# estimated on the log / sqrt / identity links — glm.nb's joint MLE
+# pushed to its fixed point — or fixed through negative.binomial(theta):
+# coefficients, SEs, vcov at dispersion 1, theta, SE(theta), 2 loglik,
+# AIC, deviances, sandwich vcovHC HC0 / HC1 / HC3, per-row residuals and
+# hat values, an influence case, and a frequency-weighted case against
+# the rep() expansion; each figure re-derived from its closed form);
+# base stats + jsonlite + MASS 7.3-66 + sandwich 3.1-3. Seeded RNG.
+source(file.path(script_dir, "gen_glm_nb.R"), local = FALSE)
