@@ -314,9 +314,11 @@ type RegressionSpec struct {
 	// distribution. REG_OLS and REG_GLM only; refused with
 	// PROCESSING_CONFIG (details.requires, the one rule predict applies:
 	// internal/regmargins) beside a Penalty, Selection, Resample or
-	// Bounds, on another type, or when a predictor is a derived column
-	// (no chain rule through it). Absent is byte-identical. See
-	// RegressionMargins.
+	// Bounds, on another type, or when a predictor is derived from
+	// another predictor of the same regression (a feature, attribute or
+	// window reading it, transitively). Any other derived predictor is
+	// differentiated as given: its effect is that of a unit change in
+	// that column. Absent is byte-identical. See RegressionMargins.
 	Margins *RegressionMargins `json:"margins,omitempty"`
 
 	// ConfLevel is the coverage of the coefficient confidence intervals

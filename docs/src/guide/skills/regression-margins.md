@@ -53,9 +53,9 @@ OLS needs no extra pass (the effect is β), so it streams with the fit. A GLM is
 | a term not a predictor, or repeated | `a predictor` |
 | `REG_BAYES_LINEAR`, an extension or model regression | `type REG_OLS or REG_GLM` |
 | `penalty` / `selection` / `resample` / `bounds` | `unpenalized` / `no_selection` / `no_resample` / `unbounded` |
-| a predictor that is a derived column (feature, attribute output) | `schema_predictors` |
+| a predictor derived from another predictor of the same fit (feature / attribute / window inputs, transitively) | `independent_predictors` |
 
-The derived-column refusal exists because the effect is not chain-ruled through, say, a polynomial or interaction term. A 0/1 dummy gets a slope, not the discrete contrast between its levels (no factor predictors in Pulse regressions).
+A derived predictor (a log column, a one-hot dummy) is differentiated as given: its effect is that of a unit change in that column. One built from another predictor (x² beside x, an interaction beside its factors) is refused: holding the other fixed is not defined. A 0/1 dummy gets a slope, not the discrete 1 − 0 contrast `marginaleffects` reports for a binary column.
 
 ## Against R
 

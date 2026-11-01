@@ -4,7 +4,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regbounds"
-	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
@@ -72,11 +71,6 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 	// even constructed.
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
-	}
-	// Margins over a derived predictor (no chain rule through it) — the
-	// schema half of the rule predict applies too (internal/regmargins).
-	if cerr := regmargins.CheckDerived(spec, schema); cerr != nil {
-		return nil, cerr
 	}
 	if spec.Resample != "" || spec.Selection != "" {
 		// Phase 5: resample / selection modifiers dispatch through the

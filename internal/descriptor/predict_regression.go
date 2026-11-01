@@ -213,13 +213,12 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		// margins: the block's shape, the regression type and the fits
-		// it refuses, then a derived predictor (no chain rule through it)
-		// — the runtime's rule itself (internal/regmargins, shared). An
-		// extension model's block was judged by the shared-slot table
+		// it refuses — the runtime's rule itself (internal/regmargins,
+		// shared). A predictor derived from another predictor is the
+		// field-reference walk's (regmargins.CheckDependent, both sides).
+		// An extension model's block was judged by the shared-slot table
 		// above (both pass it).
 		if cerr := regmargins.Check(reg); cerr != nil {
-			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
-		} else if cerr := regmargins.CheckDerived(reg, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 

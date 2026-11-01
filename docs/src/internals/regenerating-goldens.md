@@ -361,7 +361,11 @@ on `lm` and the binomial logit / probit / cloglog, poisson log, gamma
 inverse / log and negative binomial `glm`, under the classical vcov,
 `sandwich::vcovHC` HC3 and `vcovCL` (HC1 over a cluster), plus a
 frequency-weighted `ame` / `mem` pair asserted equal to its
-`rep()`-expanded fit. The primary figures are analytic closed forms in
+`rep()`-expanded fit, and a derived-predictor case (`logit_ame_derived`:
+a pre-computed `log1p(z)` column and a 0/1 dummy, with the raw `z` / `g`
+recorded so the root test builds them through `FEAT_LOG` /
+`FEAT_ONE_HOT`; `marginaleffects` reports the dummy as a 1 − 0 contrast,
+flagged `me_binary_terms`, so its cross-check skips that term). The primary figures are analytic closed forms in
 base R at the fit's fixed point (glm refitted from its optimum; the
 negative binomial pushed to its joint fixed point as `gen_glm_nb.R`
 does): AME = Σw·β·μ′(η)/Σw, MEM at the weighted means, the delta-method

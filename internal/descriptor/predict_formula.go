@@ -149,6 +149,12 @@ func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) 
 // the filterer's own, refusal) and when the walk recorded a refusal for
 // src since before.
 func (w *fieldRefWalk) checkCompile(src string, formula bool, before int) {
+	if w.rec != nil && src != "" {
+		// The expression's free names are the item's reads (the
+		// dependency graph regmargins.CheckDependent walks).
+		names, _, _ := exprident.Free(src)
+		w.record(names...)
+	}
 	if src == "" || len(w.out) > before {
 		return
 	}

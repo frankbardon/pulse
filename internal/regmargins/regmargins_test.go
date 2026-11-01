@@ -4,7 +4,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -69,31 +68,52 @@ func TestCheck_Refusals(t *testing.T) {
 	}
 }
 
-// TestCheckDerived: a predictor the schema lacks (a derived column) is
-// refused schema_predictors; cohort fields, a nil schema, no block and
-// a non-OLS / GLM type pass.
-func TestCheckDerived(t *testing.T) {
+// TestCheckDependent: a predictor derived from another predictor of the
+// same regression — directly (x² from x) or through other derived
+// columns — is refused independent_predictors with the path; a derived
+// predictor reading only non-predictors (a dummy, a log of another
+// column) passes, as do no block, no derived columns and a non-OLS / GLM
+// type.
+func TestCheckDependent(t *testing.T) {
 	t.Parallel()
 
-	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "y", Type: encoding.FieldTypeF64}, {Name: "a", Type: encoding.FieldTypeF64}}}
-	s := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"a"}, Margins: &types.RegressionMargins{}}
-	if cerr := CheckDerived(s, schema); cerr != nil {
-		t.Errorf("cohort predictor refused: %v", cerr)
+	reads := map[string][]string{
+		"x_pow2":  {"x"},
+		"x_log":   {"z"},
+		"is_a":    {"channel"},
+		"x2_lag":  {"x_pow2", "t"},
+		"w_scale": {"w_raw"},
 	}
-	s.Predictors = []string{"a", "a_log"}
-	cerr := CheckDerived(s, schema)
-	if cerr == nil || cerr.Details["requires"] != "schema_predictors" || cerr.Details["predictor"] != "a_log" {
-		t.Errorf("derived predictor: %v", cerr)
+	s := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x_log", "is_a", "w_scale"}, Margins: &types.RegressionMargins{}}
+	if cerr := CheckDependent(s, reads); cerr != nil {
+		t.Errorf("independent derived predictors refused: %v", cerr)
 	}
-	if CheckDerived(s, nil) != nil {
-		t.Error("nil schema judged")
+	for _, tc := range []struct {
+		predictors []string
+		p, q       string
+		path       []string
+	}{
+		{[]string{"x", "x_pow2"}, "x_pow2", "x", []string{"x_pow2", "x"}},
+		{[]string{"x2_lag", "x"}, "x2_lag", "x", []string{"x2_lag", "x_pow2", "x"}},
+		{[]string{"x2_lag", "x_pow2"}, "x2_lag", "x_pow2", []string{"x2_lag", "x_pow2"}},
+	} {
+		s.Predictors = tc.predictors
+		cerr := CheckDependent(s, reads)
+		if cerr == nil || cerr.Code != errors.PROCESSING_CONFIG || cerr.Details["requires"] != "independent_predictors" ||
+			cerr.Details["predictor"] != tc.p || cerr.Details["depends_on"] != tc.q || !slices.Equal(cerr.Details["path"].([]string), tc.path) {
+			t.Errorf("%v: %v (details %v)", tc.predictors, cerr, cerr.Details)
+		}
+	}
+	s.Predictors = []string{"x", "x_pow2"}
+	if CheckDependent(s, nil) != nil {
+		t.Error("no derived columns judged")
 	}
 	s.Type = types.REG_BAYES_LINEAR
-	if CheckDerived(s, schema) != nil {
+	if CheckDependent(s, reads) != nil {
 		t.Error("REG_BAYES_LINEAR judged (Check refuses it first)")
 	}
 	s.Type, s.Margins = types.REG_OLS, nil
-	if CheckDerived(s, schema) != nil {
+	if CheckDependent(s, reads) != nil {
 		t.Error("no block judged")
 	}
 }

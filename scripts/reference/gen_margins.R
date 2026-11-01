@@ -313,6 +313,26 @@ d$f <- sample(1:4, 50, replace = TRUE)
 mg_case("logit_ame_freq", "glm", binomial("logit"), "logit", d, weighted = TRUE)
 mg_case("logit_mem_freq", "glm", binomial("logit"), "logit", d, type = "mem", weighted = TRUE)
 
+# Derived predictors, differentiated as given (Pulse margins over a
+# feature output): x1 is a pre-computed log1p(z) (Pulse FEAT_LOG's
+# formula) and x2 a 0/1 dummy of a two-level category g (FEAT_ONE_HOT's
+# "b" column). Each effect is the slope in the column itself (a unit
+# change at the derivative, Stata's dydx on a continuous-coded dummy),
+# so the fit and its effects are an ordinary logit on (x1, x2); the case
+# also carries the raw z and g ("raw": [z, g index], g "a" = 0, "b" = 1)
+# so the root test builds the same columns through the features.
+d <- data.frame(z = round(runif(120, 0, 6), 3), g = sample(0:1, 120, replace = TRUE))
+d$x1 <- log1p(d$z)
+d$x2 <- as.numeric(d$g == 1)
+d$y <- rbinom(120, 1, plogis(-0.8 + 0.7 * d$x1 - 0.9 * d$x2))
+mg_case("logit_ame_derived", "glm", binomial("logit"), "logit", d)
+mg_cases[[length(mg_cases)]]$raw <- lapply(seq_len(nrow(d)), function(i) mg_g17(c(d$z[i], d$g[i])))
+# marginaleffects detects a 0/1 column and reports its discrete 1 - 0
+# contrast, not the slope Pulse (and the closed form above) reports for
+# it: its x2 cross-check figure is that contrast, flagged so the Go test
+# compares x1 only (the slope is pinned by the closed form).
+mg_cases[[length(mg_cases)]]$me_binary_terms <- I("x2")
+
 pk <- list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite")),
   MASS = as.character(packageVersion("MASS")), sandwich = as.character(packageVersion("sandwich")))
 if (mg_have_me) {
@@ -332,6 +352,7 @@ write_golden("margins", list(
     "df present where the statistic is a Student t (lm; gamma under the classical vcov).",
     "vcov: the covariance the effects read (vcov | sandwich vcovHC HC3 | vcovCL HC1 over g).",
     "me_estimates / me_std_errors: marginaleffects avg_slopes / slopes(newdata = 'mean'), numerical derivatives.",
-    "_freq: glm(weights = f), equal to its rep() expansion (checked)."),
+    "_freq: glm(weights = f), equal to its rep() expansion (checked).",
+    "_derived: x1 = log1p(z), x2 = (g == 'b'), pre-computed; raw carries [z, g index] per row."),
   cases = mg_cases
 ))

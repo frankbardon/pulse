@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -206,7 +208,10 @@ func TestMargins_AbsentIsByteIdentical(t *testing.T) {
 }
 
 // TestMargins_PredictMatchesRuntime: every margins refusal is the same
-// coded error — code, message and details — at predict and at run.
+// coded error — code, message and details — at predict and at run,
+// the dependent-predictor rule (the field-reference walk's step 13)
+// included; a derived predictor that reads no other predictor passes
+// both.
 func TestMargins_PredictMatchesRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -234,11 +239,27 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 		{"resample", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Resample = "jackknife" })), "no_resample"},
 		{"bounds", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{},
 			Bounds: &types.RegressionBounds{Nonnegative: []string{"x1"}}}), "unbounded"},
-		{"derived predictor", func() *Request {
-			r := marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Predictors = []string{"x1", "x2_log"} }))
-			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "c", Label: "x2_log"}}
+		{"predictor derived from a predictor", func() *Request {
+			r := marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Predictors = []string{"x1", "x1_log"} }))
+			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x1", Label: "x1_log"}}
 			return r
-		}(), "schema_predictors"},
+		}(), "independent_predictors"},
+		{"interaction of predictors", func() *Request {
+			r := marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Predictors = []string{"x1", "x2", "x12"} }))
+			r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "x12", Expression: "x1 * x2"}}
+			return r
+		}(), "independent_predictors"},
+		{"window over a predictor", func() *Request {
+			r := marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Predictors = []string{"x1", "x1_lag"} }))
+			r.Windows = []*types.Window{{Type: types.WIN_LAG, Field: "x1", Label: "x1_lag", OrderBy: []types.OrderKey{{Field: "id"}}}}
+			return r
+		}(), "independent_predictors"},
+		{"chained dependence", func() *Request {
+			r := marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Predictors = []string{"x2", "lc2"} }))
+			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x2", Label: "lx2"}}
+			r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "lc2", Expression: "lx2 + c"}}
+			return r
+		}(), "independent_predictors"},
 		{"extension model", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_MMM_HILL, Target: "y", Predictors: xs,
 			Params: json.RawMessage(`{"channels":["x1"]}`), Margins: &types.RegressionMargins{}}), "type REG_OLS or REG_GLM"},
 	} {
@@ -262,6 +283,114 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 				t.Errorf("predict errors %+v do not carry the runtime refusal %q %v", pr.Errors, ce.Message, ce.Details)
 			}
 		})
+	}
+}
+
+// TestMargins_DerivedPredictorAllowed: a derived predictor that reads
+// no other predictor of the regression (FEAT_LOG of a non-predictor, a
+// one-hot dummy, a formula over non-predictors) gets its effect — the
+// slope in that column, as given — at predict and run alike; on the
+// identity link of REG_OLS that is the coefficient, bit for bit.
+func TestMargins_DerivedPredictorAllowed(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	single, _ := marginsModes(t)
+	p := single[0].p
+	req := marginsReq(marginsCohort,
+		&types.RegressionSpec{Type: types.REG_OLS, Name: "ols", Target: "y", Predictors: []string{"x1", "c_log", "cb"}, Margins: &types.RegressionMargins{}},
+		&types.RegressionSpec{Type: types.REG_GLM, Name: "logit", Family: "binomial", Target: "b", Predictors: []string{"x1", "c_log"}, Margins: &types.RegressionMargins{}})
+	req.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "c", Label: "c_log"}}
+	req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "cb", Expression: "c > 2 ? 1.0 : 0.0"}}
+	pr, err := p.Predict(ctx, req)
+	if err != nil || !pr.Valid {
+		t.Fatalf("predict: %v %+v", err, pr.Errors)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ols, logit := resp.Regressions[0], resp.Regressions[1]
+	for _, k := range []string{"x1", "c_log", "cb"} {
+		if ols.Margins.Estimates[k] != ols.Coefficients[k] || ols.Margins.StdErrors[k] != ols.StdErrors[k] {
+			t.Errorf("OLS margin %s = %v (se %v), coefficient %v (se %v)", k, ols.Margins.Estimates[k], ols.Margins.StdErrors[k], ols.Coefficients[k], ols.StdErrors[k])
+		}
+	}
+	if e := logit.Margins.Estimates["c_log"]; math.IsNaN(e) || e == 0 {
+		t.Errorf("logit margin over the derived column: %v", e)
+	}
+}
+
+// TestMargins_DerivedPredictorsMatchR: margins over a FEAT_LOG output
+// (log1p of a raw column) and a FEAT_ONE_HOT dummy equal R's analytic
+// AME on the same pre-computed columns (margins.json logit_ame_derived)
+// at 1e-9 relative: the effect of a unit change in each column, as
+// given.
+func TestMargins_DerivedPredictorsMatchR(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("internal/processing/testdata/reference/margins.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	body = body[:strings.LastIndex(body, "\n// golden-hash: ")]
+	type derivedCase struct {
+		Name      string      `json:"name"`
+		Rows      [][]float64 `json:"rows"`
+		Raw       [][]float64 `json:"raw"`
+		Estimates []float64   `json:"estimates"`
+		StdErrors []float64   `json:"std_errors"`
+		PValues   []float64   `json:"p_values"`
+		CILower   []float64   `json:"ci_lower"`
+		CIUpper   []float64   `json:"ci_upper"`
+	}
+	var doc struct {
+		Cases []derivedCase `json:"cases"`
+	}
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatal(err)
+	}
+	idx := slices.IndexFunc(doc.Cases, func(c derivedCase) bool {
+		return c.Name == "logit_ame_derived"
+	})
+	if idx < 0 {
+		t.Fatal("margins.json has no logit_ame_derived case")
+	}
+	c := doc.Cases[idx]
+	var rows [][]string
+	for i, r := range c.Raw {
+		rows = append(rows, []string{strconv.FormatFloat(r[0], 'g', 17, 64), []string{"a", "b"}[int(r[1])], strconv.FormatFloat(c.Rows[i][2], 'g', 17, 64)})
+	}
+	fsys := afero.NewMemMapFs()
+	createTestPulseFile(t, fsys, "derived.pulse", []string{"z", "g", "y"}, rows)
+	p, err := New(Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := marginsReq("derived.pulse", &types.RegressionSpec{Type: types.REG_GLM, Name: "m", Family: "binomial", Target: "y",
+		Predictors: []string{"z_log", "g_b"}, Margins: &types.RegressionMargins{}, Tol: 1e-13, MaxIters: 200})
+	req.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "z", Label: "z_log"}, {Type: types.FEAT_ONE_HOT, Field: "g"}}
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mg := resp.Regressions[0].Margins
+	if mg == nil {
+		t.Fatalf("no margins: %+v", resp.Regressions[0].Error)
+	}
+	for i, k := range []string{"z_log", "g_b"} {
+		for _, f := range []struct {
+			what      string
+			got, want float64
+		}{{"estimate", mg.Estimates[k], c.Estimates[i]}, {"std_error", mg.StdErrors[k], c.StdErrors[i]}, {"p_value", mg.PValues[k], c.PValues[i]},
+			{"ci_lower", mg.CILower[k], c.CILower[i]}, {"ci_upper", mg.CIUpper[k], c.CIUpper[i]}} {
+			if e := relErr(f.got, f.want); e > 1e-9 {
+				t.Errorf("%s[%s] = %.17g, R %.17g (rel %.3g)", f.what, k, f.got, f.want, e)
+			} else {
+				t.Logf("%s[%s]: rel error %.3g", f.what, k, e)
+			}
+		}
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,6 +55,12 @@ type marginsCase struct {
 	At           []float64   `json:"at"`
 	MEEstimates  []float64   `json:"me_estimates"`
 	MEStdErrors  []float64   `json:"me_std_errors"`
+	// MEBinaryTerms are the 0/1 columns marginaleffects reports as a
+	// discrete 1 − 0 contrast, not a slope: no cross-check for them.
+	MEBinaryTerms []string `json:"me_binary_terms"`
+	// Raw is a derived case's source columns per row ([z, g index]):
+	// x1 = log1p(z), x2 = (g == 1) (TestMargins_DerivedPredictorsMatchR).
+	Raw [][]float64 `json:"raw"`
 }
 
 // loadMargins reads margins.json, checking its golden-hash footer.
@@ -81,7 +88,7 @@ func loadMargins(t *testing.T) []marginsCase {
 		t.Fatalf("decode margins.json: %v", err)
 	}
 	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["MASS"] != "7.3.66" || doc.Packages["sandwich"] != "3.1.3" ||
-		doc.Packages["marginaleffects"] != "1.0.0" || doc.Packages["Matrix"] != "1.7.6" || len(doc.Cases) != 17 {
+		doc.Packages["marginaleffects"] != "1.0.0" || doc.Packages["Matrix"] != "1.7.6" || len(doc.Cases) != 18 {
 		t.Fatalf("margins.json: R %q, packages %v, %d cases", doc.RVersion, doc.Packages, len(doc.Cases))
 	}
 	return doc.Cases
@@ -197,6 +204,9 @@ func TestReferenceOracle_MarginsMatchMarginaleffects(t *testing.T) {
 			mg := c.fit(t).Margins
 			worstEst, worstSE := 0.0, 0.0
 			for i, k := range mg.Terms {
+				if slices.Contains(c.MEBinaryTerms, k) {
+					continue
+				}
 				for _, p := range []struct {
 					what      string
 					got, want float64
