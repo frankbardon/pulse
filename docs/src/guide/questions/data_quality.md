@@ -37,6 +37,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | Use | In plain words | Level |
 |---|---|---|
 | [`ATTR_MAHALANOBIS`](../catalog/attribute.md#op-attr_mahalanobis) | Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together. | advanced |
+| [`ATTR_REG_INFLUENCE`](../catalog/attribute.md#op-attr_reg_influence) | Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out. | advanced |
 | [`ATTR_REG_LEVERAGE`](../catalog/attribute.md#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | advanced |
 | [`ATTR_REG_RESIDUAL`](../catalog/attribute.md#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | advanced |
 

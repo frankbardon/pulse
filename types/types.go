@@ -385,6 +385,14 @@ const (
 	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
 	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
 
+	// ATTR_REG_INFLUENCE emits a per-row influence measure of an
+	// unpenalized OLS refit: params.measure "cooks" (the default, R
+	// cooks.distance) or "dffits" (R dffits). Same spec keys and rules
+	// as ATTR_REG_LEVERAGE (Target, Predictors, slot weight; any Penalty
+	// is PROCESSING_CONFIG); a frequency weight reads each row as w
+	// identical observations, a probability weight is refused.
+	ATTR_REG_INFLUENCE AttributeType = "ATTR_REG_INFLUENCE"
+
 	// ATTR_REG_PREDICT scores each row from a BOUND model — a fit named
 	// in the request (ComposedRequest `fits`) — instead of refitting:
 	// intercept + Σ coefficient·predictor at the fit's full precision,
@@ -529,6 +537,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_PREVIOUS_STATE,
 		ATTR_PROFILE_SIMILARITY,
 		ATTR_REG_FITTED,
+		ATTR_REG_INFLUENCE,
 		ATTR_REG_LEVERAGE,
 		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
@@ -1348,9 +1357,10 @@ type Attribute struct {
 
 	// Penalty selects the OLS regularization scheme for ATTR_REG_FITTED /
 	// ATTR_REG_RESIDUAL. One of "" (unpenalized), "l1" (lasso), "l2"
-	// (ridge), or "elasticnet". ATTR_REG_LEVERAGE rejects any non-empty
-	// Penalty (penalized leverage and GLM leverage are deferred to a
-	// later phase).
+	// (ridge), or "elasticnet". ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE
+	// (and ATTR_REG_RESIDUAL's standardized / studentized kinds) reject
+	// any non-empty Penalty (penalized leverage and GLM leverage are
+	// deferred to a later phase).
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for the regression-attribute

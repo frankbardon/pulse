@@ -32,7 +32,10 @@ type FitParams struct {
 	// (y − μ)/√V(μ), "deviance" sign(y − μ)·√d(y, μ) or "working"
 	// (y − μ)·g′(μ). On an OLS or Bayesian-linear fit (Gaussian,
 	// identity) all four are y − μ. Not on ATTR_REG_FITTED, and not on
-	// a registered or media-mix regression (no family to read).
+	// a registered or media-mix regression (no family to read). The OLS
+	// refit (no Fit) also takes "standardized" (R rstandard) and
+	// "studentized" (R rstudent), which read the refit's leverage and σ
+	// (refit.go); a bound fit refuses those two.
 	Kind string `json:"kind,omitempty"`
 }
 
@@ -42,11 +45,41 @@ const (
 	ResidualPearson  = "pearson"
 	ResidualDeviance = "deviance"
 	ResidualWorking  = "working"
+	// ResidualStandardized / ResidualStudentized are the OLS refit's
+	// internally (R rstandard) and externally (R rstudent) studentized
+	// residuals; they read the refit's design (ScaledResidualKind).
+	ResidualStandardized = "standardized"
+	ResidualStudentized  = "studentized"
 )
 
 // ResidualKinds lists the accepted FitParams.Kind values.
 func ResidualKinds() []string {
-	return []string{ResidualResponse, ResidualPearson, ResidualDeviance, ResidualWorking}
+	return []string{ResidualResponse, ResidualPearson, ResidualDeviance, ResidualWorking, ResidualStandardized, ResidualStudentized}
+}
+
+// ScaledResidualKind reports whether kind is one the OLS refit alone
+// computes: it divides by σ·√(1 − h), so it needs the refit's leverage
+// and residual variance — a bound fit carries neither.
+func ScaledResidualKind(kind string) bool {
+	return kind == ResidualStandardized || kind == ResidualStudentized
+}
+
+// knownResidualKind reports whether kind is one of ResidualKinds.
+func knownResidualKind(kind string) bool {
+	for _, k := range ResidualKinds() {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// unknownResidualKind is the PULSE_MODEL_SCORE_INVALID params_invalid
+// refusal of a params.kind outside ResidualKinds.
+func unknownResidualKind(t types.AttributeType, fit, kind string) *errors.CodedError {
+	return scoreInvalidFor(t, fit, ReasonParamsInvalid,
+		"params.kind must be response, pearson, deviance, working, standardized or studentized; got "+kind,
+		map[string]any{"kind": kind, "allowed": ResidualKinds()})
 }
 
 // familyResidualType reports whether a fit of type t carries the family
@@ -184,9 +217,10 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 	return p, sig, nil
 }
 
-// checkResidualKind is params.kind's rule: an ATTR_REG_RESIDUAL key,
-// one of ResidualKinds, and — any kind but response — over a fit whose
-// family the residual reads (familyResidualType).
+// checkResidualKind is params.kind's rule over a bound fit: an
+// ATTR_REG_RESIDUAL key, one of ResidualKinds but not a scaled kind
+// (ScaledResidualKind: the refit's alone), and — any kind but response
+// — over a fit whose family the residual reads (familyResidualType).
 func checkResidualKind(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
 	if p.Kind == "" {
 		return nil
@@ -195,14 +229,14 @@ func checkResidualKind(t types.AttributeType, p FitParams, sig Signature) *error
 		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
 			"params.kind is an ATTR_REG_RESIDUAL key (the residual scale); drop it", map[string]any{"kind": p.Kind})
 	}
-	known := false
-	for _, k := range ResidualKinds() {
-		known = known || k == p.Kind
+	if !knownResidualKind(p.Kind) {
+		return unknownResidualKind(t, p.Fit, p.Kind)
 	}
-	if !known {
+	if ScaledResidualKind(p.Kind) {
+		// U65 E1-S2: the bound-fit form is a later story.
 		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
-			"params.kind must be response, pearson, deviance or working; got "+p.Kind,
-			map[string]any{"kind": p.Kind, "allowed": ResidualKinds()})
+			"params.kind "+p.Kind+" needs the refit's design (its leverage and residual variance), which a bound fit does not carry; drop params.fit to refit OLS on the slot's own target and predictors, or use kind response, pearson, deviance or working",
+			map[string]any{"kind": p.Kind})
 	}
 	if p.Kind != ResidualResponse && !familyResidualType(sig.Type) {
 		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,

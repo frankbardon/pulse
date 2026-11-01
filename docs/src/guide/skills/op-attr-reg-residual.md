@@ -35,8 +35,8 @@ Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Regularization strength. |
 | `l1_ratio` | float | — | Elasticnet mix. |
-| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y the fit's target (a GLM's response residual); no refit keys beside it. |
-| `kind` | enum | `response` | With `fit`: `pearson`, `deviance`, `working`. |
+| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y its target; no refit keys beside it. |
+| `kind` | enum | `response` | `pearson`, `deviance`, `working`; refit only `standardized`, `studentized`. |
 | `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs
@@ -64,7 +64,7 @@ One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target 
 ## Gotchas
 
 - Two-pass: each slot refits on its own. With `params.fit` it is row-local and fits nothing; refusals and a failed fit (`PULSE_FIT_UNAVAILABLE`, every row null): [`regression-row-scores`](regression-row-scores.md).
-- Penalized residuals are bias-shrunk; diagnose on unpenalized fits. `kind` scales: [`regression-row-scores`](regression-row-scores.md).
+- Penalized residuals are bias-shrunk; diagnose on unpenalized fits. `kind` scales and refusals: [`regression-row-scores`](regression-row-scores.md).
 
 ## See
 

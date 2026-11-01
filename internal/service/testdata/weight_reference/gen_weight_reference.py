@@ -1919,6 +1919,11 @@ def overlay_cases():
 #     against statsmodels OLS influence on the √w-whitened design. A row with a
 #     null predictor emits 0; a zero / invalid weight keeps the row out
 #     of the refit and gives it leverage 0.
+#   * ATTR_REG_INFLUENCE (U65 E1-S2) — frequency only (a probability
+#     weight is refused): one copy's Cook's distance / DFFITS of the OLS
+#     fit on the expansion, the closed form on the grouped rows
+#     cross-checked with statsmodels OLSInfluence on np.repeat
+#     (influence_closed_form); rows outside the fit are null, omitted.
 
 REG_PREDICTORS = ["x1", "x2"]
 REG_TERMS = ["(intercept)", "x1", "x2"]
@@ -2244,6 +2249,49 @@ def attr_closed_form(ws, kind):
         out["attr_fitted"][rid] = fv
         out["attr_residual"][rid] = rv
         out["attr_leverage"][rid] = lv
+    return out
+
+
+# ATTR_REG_INFLUENCE (U65 E1-S2) is frequency-only: (case, params.measure).
+INFLUENCE_SPECS = [("attr_influence_cooks", "cooks"), ("attr_influence_dffits", "dffits")]
+
+
+def influence_closed_form(ws):
+    """ATTR_REG_INFLUENCE per row id in the frequency fit: ONE copy's
+    Cook's distance / DFFITS of the OLS fit on the np.repeat expansion.
+    Closed form on the grouped rows — h = 1/Σw + (x − μ_w)'M2_w⁻¹(x − μ_w),
+    df = Σw − p′, s² = Σw·e²/df, r = e/(s·√(1 − h)),
+    t = r·√((df − 1)/(df − r²)) — cross-checked (1e-9) with statsmodels
+    OLSInfluence on the expanded rows at each row's first copy. A row
+    outside the fit (null predictor, invalid or zero weight) is null in
+    Pulse and omitted here."""
+    idx = reg_fit_rows(ws, "frequency")
+    X = reg_design(idx)
+    y = np.array([REG_ROWS[i][3] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    beta = np.linalg.solve(X.T @ (w[:, None] * X), X.T @ (w * y))
+    e = y - X @ beta
+    sw = float(w.sum())
+    p1 = X.shape[1]
+    df = sw - p1
+    s2 = float((w * e * e).sum()) / df
+    mu, _ = weighted_scales(X[:, 1:], w)
+    xc = X[:, 1:] - mu
+    m2inv = np.linalg.inv(xc.T @ (w[:, None] * xc))
+    rep = np.repeat(np.arange(len(idx)), w.astype(int))
+    infl = SmOLS(y[rep], X[rep]).fit().get_influence()
+    first = np.searchsorted(rep, np.arange(len(idx)))
+    out = {"attr_influence_cooks": {}, "attr_influence_dffits": {}}
+    for k, i in enumerate(idx):
+        h = 1 / sw + float(xc[k] @ m2inv @ xc[k])
+        r = float(e[k]) / math.sqrt(s2 * (1 - h))
+        t = r * math.sqrt((df - 1) / (df - r * r))
+        cooks = r * r * h / (p1 * (1 - h))
+        dffits = t * math.sqrt(h / (1 - h))
+        assert close(cooks, float(infl.cooks_distance[0][first[k]]), 1e-9), (REG_ROWS[i][0], cooks)
+        assert close(dffits, float(infl.dffits[0][first[k]]), 1e-9), (REG_ROWS[i][0], dffits)
+        out["attr_influence_cooks"][REG_ROWS[i][0]] = cooks
+        out["attr_influence_dffits"][REG_ROWS[i][0]] = dffits
     return out
 
 
@@ -2617,6 +2665,17 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name=case, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        if not prob:
+            infl = influence_closed_form(ws)
+            for case, measure in INFLUENCE_SPECS:
+                req = {"attributes": [{"type": "ATTR_REG_INFLUENCE", "label": "attr", "target": "y",
+                                       "predictors": REG_PREDICTORS, "params": {"measure": measure}}],
+                       "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+                       "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+                out.append(dict(weight=wname, kind=kind, name=case, request=req,
+                                figs={f"data[{rid}].v": v for rid, v in infl[case].items()},
+                                src=("closed form on the grouped rows (one copy's h, df = Σw − p′), cross-checked with "
+                                     "statsmodels " + statsmodels.__version__ + " OLSInfluence on the np.repeat expansion")))
         scores = score_closed_form(ws, kind)
         for case, typ in SCORE_SPECS:
             figs = scores[case]

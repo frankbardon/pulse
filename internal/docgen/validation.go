@@ -166,7 +166,20 @@ var validationRegistry = map[string]validation{
 	"ATTR_REG_RESIDUAL": {Refs: []validationRef{{
 		Against: "statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`)",
 		Tol:     "1e-8 relative", Tests: []string{"glm_residual_kinds_reference_test.go"},
-	}}, Gap: "The refit path (no params.fit) has no external golden yet; it is checked against Pulse's own OLS. An R residuals.glm cross-check is added once R 4.6.1 is available."},
+	}, {
+		Against: "statsmodels 0.14.5 `OLSInfluence.resid_studentized_internal` / `resid_studentized_external` (the OLS refit, `params.kind` standardized / studentized; R `rstandard` / `rstudent`)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
+	}, {
+		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
+	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. An R residuals.glm / rstudent cross-check is added once R 4.6.1 is available."},
+	"ATTR_REG_INFLUENCE": {Refs: []validationRef{{
+		Against: "statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
+	}, {
+		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
+	}}, Gap: "An R cooks.distance / dffits cross-check is added once R 4.6.1 is available."},
 
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{

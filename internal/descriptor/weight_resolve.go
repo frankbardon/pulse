@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -102,6 +103,10 @@ type weightSlot struct {
 	// (weighting.AttributeClassOf: frequency-only), echoed in the
 	// refusal with its reason.
 	specTotal bool
+	// specResidualKind is the params.kind of an ATTR_REG_RESIDUAL whose
+	// standardized / studentized kind made it frequency-only
+	// (weighting.AttributeClassOf), echoed in the refusal.
+	specResidualKind string
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
 	// aggregated rows), a regression carrying a bootstrap resample
@@ -263,6 +268,10 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 		op += " calling total()"
 		details["function"] = "total"
 	}
+	if s.specResidualKind != "" {
+		op += " (params.kind " + strconv.Quote(s.specResidualKind) + ")"
+		details["residual_kind"] = s.specResidualKind
+	}
 	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, op, types.WeightKindFrequency, kind), details
 }
 
@@ -273,6 +282,9 @@ func weightKindUnsupported(s weightSlot, spec *types.WeightSpec) error {
 	reason := weighting.KindRefusalReason(s.operator)
 	if s.specTotal {
 		reason = weighting.FormulaTotalKindReason
+	}
+	if s.specResidualKind != "" {
+		reason = weighting.ObservationKindReason
 	}
 	if reason != "" && !s.hidden {
 		// A permanent kind refusal states why (GROUP_KMEANS).
@@ -478,6 +490,9 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 				s := &slots[len(slots)-1]
 				s.specClass, s.specSet = c, true
 				s.specTotal = a.Type == types.ATTR_FORMULA
+				if a.Type == types.ATTR_REG_RESIDUAL && c == weighting.ClassFrequencyOnly {
+					s.specResidualKind = model.RefitResidualKind(a)
+				}
 			}
 		}
 	}

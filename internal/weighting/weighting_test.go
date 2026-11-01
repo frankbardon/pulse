@@ -73,6 +73,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	}
 	// U59 E3-S1: the inline SEM fit is MAT_SEM's frequency-only fit.
 	want[string(types.ATTR_SEM_SCORE)] = ClassFrequencyOnly
+	// U65 E1-S2: one observation's influence figure (the expansion).
+	want[string(types.ATTR_REG_INFLUENCE)] = ClassFrequencyOnly
 	// U27 E3-S2: the fitted metrics read ATTR_MAHALANOBIS's weighted fit.
 	want[string(types.ATTR_VEC_DISTANCE)] = ClassAware
 	// U30 E3-S1: a centroid reference is the weighted per-element mean.
@@ -315,5 +317,23 @@ func TestAttributeClassOf(t *testing.T) {
 	}
 	if got := AttributeClassOf(&types.Attribute{Type: types.ATTR_REG_LEVERAGE, Params: []byte(`{"fit":"m"}`)}); got != ClassAware {
 		t.Errorf("ATTR_REG_LEVERAGE = %v, want ClassAware", got)
+	}
+	// U65 E1-S2: a standardized / studentized refit residual is one
+	// observation's figure — frequency-only per spec, like
+	// ATTR_REG_INFLUENCE; every other kind keeps the refit's class.
+	for kind, want := range map[string]Class{
+		"standardized": ClassFrequencyOnly, "studentized": ClassFrequencyOnly,
+		"response": ClassAware, "pearson": ClassAware, "deviance": ClassAware, "working": ClassAware,
+	} {
+		a := &types.Attribute{Type: types.ATTR_REG_RESIDUAL, Target: "y", Predictors: []string{"x"}, Params: []byte(`{"kind":"` + kind + `"}`)}
+		if got := AttributeClassOf(a); got != want {
+			t.Errorf("ATTR_REG_RESIDUAL kind %s = %v, want %v", kind, got, want)
+		}
+	}
+	if got := AttributeClassOf(&types.Attribute{Type: types.ATTR_REG_INFLUENCE, Target: "y", Predictors: []string{"x"}}); got != ClassFrequencyOnly {
+		t.Errorf("ATTR_REG_INFLUENCE = %v, want ClassFrequencyOnly", got)
+	}
+	if KindRefusalReason(string(types.ATTR_REG_INFLUENCE)) != ObservationKindReason {
+		t.Error("ATTR_REG_INFLUENCE states no probability-refusal reason")
 	}
 }

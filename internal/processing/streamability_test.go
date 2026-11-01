@@ -402,7 +402,7 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 			spec.Expression = "1"
 		case types.ATTR_DATE_PART:
 			spec.Params = []byte(`{"part":"year"}`)
-		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE:
 			spec.Target = "y"
 			spec.Predictors = []string{"p1"}
 		case types.ATTR_SET_POPCOUNT:

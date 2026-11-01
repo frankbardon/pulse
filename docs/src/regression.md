@@ -17,7 +17,7 @@ Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Res
 - `Resample ∈ {jackknife, bootstrap}` — replaces analytical SE / p-values with resample-based estimates. Forces buffered.
 - `Selection ∈ {forward, backward, stepwise}` — drives AIC- or BIC-based greedy subset search. Requires `Criterion`. Forces buffered.
 
-One upstream feature operator (`FEAT_POLY`) extends the linear core to polynomial regression. Per-row attributes (`ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_LEVERAGE`) attach per-record diagnostics in the output row stream.
+One upstream feature operator (`FEAT_POLY`) extends the linear core to polynomial regression. Per-row attributes (`ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_LEVERAGE`, `ATTR_REG_INFLUENCE`) attach per-record diagnostics in the output row stream.
 
 ## The 13 textbook names → Pulse specs
 
@@ -215,13 +215,27 @@ The two slots are intentionally independent; Pulse does not pipe slot-1 results 
 
 ## Per-row regression attributes
 
-Three attribute operators emit per-record diagnostics from a fitted regression onto the row stream.
+Four attribute operators emit per-record diagnostics from a fitted regression onto the row stream.
 
 | Attribute             | Emits per row                                                              |
 |-----------------------|-----------------------------------------------------------------------------|
 | `ATTR_REG_FITTED`     | `ŷ_i = Xᵢ β` — the model's prediction at each row.                          |
-| `ATTR_REG_RESIDUAL`   | `y_i − ŷ_i` — the per-row residual.                                         |
+| `ATTR_REG_RESIDUAL`   | `y_i − ŷ_i` — the per-row residual; `params.kind` `standardized` / `studentized` on the refit (R `rstandard` / `rstudent`). |
 | `ATTR_REG_LEVERAGE`   | `h_ii = Xᵢ (XᵀX)⁻¹ Xᵢᵀ` — the i-th diagonal of the hat matrix.              |
+| `ATTR_REG_INFLUENCE`  | Cook's distance (`params.measure` `cooks`, the default) or DFFITS (`dffits`), R `cooks.distance` / `dffits`. |
+
+### Studentized residuals and influence
+
+With `h` the leverage, `p′ = p + 1` coefficients, `df = n − p′`, `s² = RSS/df` and `e = y − ŷ`:
+
+| Figure | Formula |
+|---|---|
+| standardized `r` | `e / (s·√(1 − h))` |
+| studentized `t` | `r·√((df − 1)/(df − r²))` |
+| Cook's distance | `r²·h / (p′·(1 − h))` |
+| DFFITS | `t·√(h/(1 − h))` |
+
+They read the refit's design, so they take unpenalized OLS only (`PROCESSING_CONFIG` otherwise) and no `params.fit`. A frequency weight reads each record as `w` identical observations and reports one copy's figure (`h/w`, `df = Σw − p′`, the weighted RSS: statsmodels `OLSInfluence` on the `rep()` expansion); a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. A row outside the fit, or a figure the fit leaves undefined (`df ≤ 1`, `h ≥ 1`), is null.
 
 Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md` and `skills/op-attr-reg-residual.md` for the parameter tables.
 

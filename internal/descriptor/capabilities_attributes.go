@@ -173,6 +173,17 @@ func attributeCapabilities() []descriptor.Operator {
 			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
 		},
 		{
+			Name:           string(types.ATTR_REG_INFLUENCE),
+			Category:       "attribute",
+			Description:    "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused.",
+			Params:         append(regAttributeParams(false), influenceMeasureParam),
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_INFLUENCE), fieldaccept.SlotPredictor),
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
+			Streamable:     true,
+			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+		},
+		{
 			Name:        string(types.ATTR_REG_PREDICT),
 			Category:    "attribute",
 			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
@@ -629,7 +640,11 @@ func otherForm(f metric.Form) metric.Form {
 // take none of the refit's fields: target and predictors stay Required
 // (the refit is the default form a draft writes) and say so.
 // residualKindParam is ATTR_REG_RESIDUAL's params.kind (U65 E1-S1).
-var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "With params.fit only: the residual scale, as R residuals.glm. response y − μ (default); pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ). On an OLS or Bayesian-linear fit all four are y − μ; a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID)."}
+// U65 E1-S2 adds the refit's standardized / studentized kinds.
+var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED), refused with params.fit."}
+
+// influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
+var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. Any other value is PROCESSING_CONFIG."}
 
 func regAttributeParams(penalized bool) []descriptor.Param {
 	if !penalized {

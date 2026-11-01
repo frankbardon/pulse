@@ -140,7 +140,7 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 		}
 		// A categorical regression-attribute predictor, and any
 		// categorical / set target.
-		for _, op := range []string{"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE"} {
+		for _, op := range []string{"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE"} {
 			if ft.IsCategorical() {
 				fill(op, acceptanceTemplates[op], ft)
 			}

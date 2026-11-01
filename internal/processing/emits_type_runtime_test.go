@@ -449,6 +449,17 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Type: types.ATTR_REG_LEVERAGE, Label: "out", Target: "y", Predictors: []string{"x1", "x2"},
 		}, s, emitsRegRecords(s))
 	},
+	string(types.ATTR_REG_INFLUENCE): func(t *testing.T) emitted {
+		s := regSchema()
+		cooks := attrEmitted(t, &types.Attribute{
+			Type: types.ATTR_REG_INFLUENCE, Label: "out", Target: "y", Predictors: []string{"x1", "x2"},
+		}, s, emitsRegRecords(s))
+		dffits := attrEmitted(t, &types.Attribute{
+			Type: types.ATTR_REG_INFLUENCE, Label: "out", Target: "y", Predictors: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"measure":"dffits"}`),
+		}, s, emitsRegRecords(s))
+		return append(cooks, dffits...)
+	},
 	string(types.ATTR_REG_PREDICT): func(t *testing.T) emitted {
 		// Scores a bound model: bind one by hand, then score the rows.
 		s := regSchema()

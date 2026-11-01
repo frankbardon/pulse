@@ -390,7 +390,7 @@ func init() {
 	// AGG_RATIO ignores its own field and sums its two params columns.
 	add(analyticsValue, unsupported, []Slot{SlotNumerator, SlotDenominator}, "AGG_RATIO")
 	add(analyticsValue, unsupported, []Slot{SlotTarget, SlotPredictor},
-		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE")
+		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE")
 	add(setValue, unsupported, field,
 		"AGG_SET_CARDINALITY_AVG", "AGG_SET_CARDINALITY_SUM", "AGG_SET_DISTINCT_VALUES", "AGG_SET_FREQUENCY",
 		"AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",

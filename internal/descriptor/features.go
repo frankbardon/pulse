@@ -396,6 +396,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_PREVIOUS_STATE"),
 	op("ATTR_PROFILE_SIMILARITY"),
 	op("ATTR_REG_FITTED"),
+	op("ATTR_REG_INFLUENCE"),
 	op("ATTR_REG_LEVERAGE"),
 	op("ATTR_REG_PREDICT"),
 	op("ATTR_REG_RESIDUAL"),
@@ -886,6 +887,7 @@ var hardEdges = map[string][]string{
 	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"},
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
+	"ATTR_REG_INFLUENCE":                    {"REG_OLS"},
 	// Scores a bound fit of any scorable regression type.
 	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_HILL", "REG_OLS"},
 	"ATTR_REG_RESIDUAL": {"REG_OLS"},

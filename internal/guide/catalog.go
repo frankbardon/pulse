@@ -70,9 +70,10 @@ var topLevelParams = map[string]map[string]bool{
 // the Attribute — and read no field: every declared param of theirs is
 // a top-level key, drafted like a regression's.
 var regressionAttributes = map[string]bool{
-	string(types.ATTR_REG_FITTED):   true,
-	string(types.ATTR_REG_RESIDUAL): true,
-	string(types.ATTR_REG_LEVERAGE): true,
+	string(types.ATTR_REG_FITTED):    true,
+	string(types.ATTR_REG_RESIDUAL):  true,
+	string(types.ATTR_REG_LEVERAGE):  true,
+	string(types.ATTR_REG_INFLUENCE): true,
 }
 
 // regressionShaped reports whether op takes a regression's target /

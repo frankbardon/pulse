@@ -126,6 +126,7 @@
     - [op-attr-previous-state](skills/op-attr-previous-state.md)
     - [op-attr-profile-similarity](skills/op-attr-profile-similarity.md)
     - [op-attr-reg-fitted](skills/op-attr-reg-fitted.md)
+    - [op-attr-reg-influence](skills/op-attr-reg-influence.md)
     - [op-attr-reg-leverage](skills/op-attr-reg-leverage.md)
     - [op-attr-reg-predict](skills/op-attr-reg-predict.md)
     - [op-attr-reg-residual](skills/op-attr-reg-residual.md)

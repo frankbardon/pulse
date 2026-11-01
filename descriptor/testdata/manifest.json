@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:0db8e6f718ad65aa16c7b10cd79c2f9aeb8c13feac370a5f6f8d16af57f548ed",
+    "feature_set_digest": "fs1:beacb008263c35d684ff22301a4f2fbabb344e32ca44ccaff6fd9593b6d6dc12",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -4062,6 +4062,68 @@
           ]
         },
         {
+          "name": "ATTR_REG_INFLUENCE",
+          "category": "attribute",
+          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused.",
+          "params": [
+            {
+              "name": "target",
+              "type": "field",
+              "required": true,
+              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "field_filter": "numeric",
+              "slot": true,
+              "names_column": true
+            },
+            {
+              "name": "predictors",
+              "type": "list",
+              "required": true,
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "slot": true,
+              "names_column": true
+            },
+            {
+              "name": "measure",
+              "type": "enum",
+              "required": false,
+              "default": "cooks",
+              "description": "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. Any other value is PROCESSING_CONFIG.",
+              "enum_values": [
+                "cooks",
+                "dffits"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
+          "streamable": true,
+          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency"
+          ],
+          "intents": [
+            "data_quality"
+          ]
+        },
+        {
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
           "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
@@ -4240,12 +4302,14 @@
               "type": "enum",
               "required": false,
               "default": "response",
-              "description": "With params.fit only: the residual scale, as R residuals.glm. response y − μ (default); pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ). On an OLS or Bayesian-linear fit all four are y − μ; a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID).",
+              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED), refused with params.fit.",
               "enum_values": [
                 "response",
                 "pearson",
                 "deviance",
-                "working"
+                "working",
+                "standardized",
+                "studentized"
               ]
             }
           ],
@@ -11791,6 +11855,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -11885,6 +11950,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -11979,6 +12045,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12073,6 +12140,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12166,6 +12234,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12259,6 +12328,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12352,6 +12422,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12434,6 +12505,7 @@
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12526,6 +12598,7 @@
           "ATTR_PREVIOUS_STATE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12690,6 +12763,7 @@
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12906,6 +12980,7 @@
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -13409,6 +13484,10 @@
       {
         "name": "op-attr-reg-fitted",
         "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass."
+      },
+      {
+        "name": "op-attr-reg-influence",
+        "description": "Per-row Cook's distance or DFFITS from an unpenalized OLS refit — influence diagnostic."
       },
       {
         "name": "op-attr-reg-leverage",
@@ -14120,7 +14199,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual and leverage attributes run, scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -14551,7 +14630,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 266,
+    "examples_count": 267,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -20468,4 +20547,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1d6bc836228b18992c020db6996761e357a1f0cc16d041fcc93bd12d6a25d589
+// golden-hash: 1b47f1039e1eb7f55483c780ad06bf716ced2e7c4211cb6cdcfc34c381092add

@@ -231,6 +231,7 @@ reference-optimize:
 UV ?= uv
 reference-statsmodels:
 	$(UV) run --no-project scripts/reference/statsmodels/gen_glm_residuals.py testdata/statsmodels/glm_residuals.json
+	$(UV) run --no-project scripts/reference/statsmodels/gen_ols_influence.py testdata/statsmodels/ols_influence.json
 
 # reference-mcmc regenerates the mcmc package's ArviZ oracles
 # (mcmc/testdata/diagnostics.json: RHat / ESSBulk / ESSTail vs

@@ -64,4 +64,4 @@ One `float64` per record — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ �
 ## See
 
 - `pulse_examples_search tags=[regression, outlier-detection]`
-- Skills: [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-residual`](op-attr-reg-residual.md)
+- Skills: [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-residual`](op-attr-reg-residual.md), [`op-attr-reg-influence`](op-attr-reg-influence.md)

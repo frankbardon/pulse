@@ -126,6 +126,7 @@ skills/op-attr-percentile.md
 skills/op-attr-previous-state.md
 skills/op-attr-profile-similarity.md
 skills/op-attr-reg-fitted.md
+skills/op-attr-reg-influence.md
 skills/op-attr-reg-leverage.md
 skills/op-attr-reg-predict.md
 skills/op-attr-reg-residual.md

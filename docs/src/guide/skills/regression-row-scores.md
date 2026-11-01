@@ -1,10 +1,10 @@
 ```yaml
 name: regression-row-scores
-description: Per-row regression columns — the two-pass refit the fitted, residual and leverage attributes run, scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills.
+description: Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [ATTR_REG, fitted value, residual, leverage, scoring, params.fit, bound fit, save, load, no_scorer, slot_fields, PULSE_FIT_UNAVAILABLE]
+covers: [ATTR_REG, fitted value, residual, leverage, influence, Cook's distance, DFFITS, studentized residual, scoring, params.fit, bound fit, save, load, no_scorer, slot_fields, PULSE_FIT_UNAVAILABLE]
 ```
 
 # Per-row regression scores
@@ -16,11 +16,22 @@ Model coefficients come from a regression slot ([`regression-modeling`](regressi
 - `ATTR_REG_FITTED` — the prediction ŷᵢ.
 - `ATTR_REG_RESIDUAL` — yᵢ − ŷᵢ.
 - `ATTR_REG_LEVERAGE` — the hat-matrix diagonal.
+- `ATTR_REG_INFLUENCE` — Cook's distance (`params.measure` `cooks`) or DFFITS (`dffits`).
 
 - `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` are top-level keys of the attribute entry, not `params`; `field` is unread. `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 - Two-pass: each slot runs its own OLS fit in the prepass — no fit sharing between slots. Mergeable per shard; predict reports streamability.
 - A weight follows OLS's kinds: a WLS refit. The residual stays the raw y − ŷ.
 - A penalty reuses the same machinery: a mis-tuned `alpha` / `l1_ratio` shrinks coefficients toward zero, and penalized residuals are bias-shrunk — prefer an unpenalized fit for diagnostics.
+
+**Studentized residuals.** On the refit `params.kind` `pearson` / `deviance` / `working` equal y − ŷ (OLS is Gaussian, identity). `standardized` (R `rstandard`) is e / (s·√(1 − h)) and `studentized` (R `rstudent`) r·√((df − 1)/(df − r²)), with h the leverage, df = n − p − 1 and s² = RSS/df.
+
+**Design-reading figures** — the hat diagonal and σ: leverage, influence and the two studentized kinds.
+
+- Unpenalized only: a `penalty` is `PROCESSING_CONFIG` at predict and runtime alike.
+- A frequency weight is w identical observations, so the influence and studentized figures are ONE copy's: h/w, df = Σw − p − 1, RSS the weighted sum. Leverage stays the record's summed h.
+- A probability weight refuses the per-observation figures (`PULSE_WEIGHT_UNSUPPORTED`; `weight: null` fits unweighted); leverage takes either kind.
+- Null outside the fit (a null input, an excluded weight) and where undefined (df ≤ 1, h ≥ 1).
+- With `params.fit` the two studentized kinds are `PULSE_MODEL_SCORE_INVALID` `params_invalid`: a bound fit carries no design.
 
 ## Scoring a bound fit
 

@@ -449,7 +449,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				w.out = append(w.out, refusal(string(attr.Type)+" "+string(ref.Slot)+" references unknown cohort field: "+ref.Name+" (it reads source columns only)",
 					map[string]any{"field": ref.Name, "attribute": string(attr.Type), "slot": string(ref.Slot)}))
 			}
-		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE:
 			if model.FitReferenced(attrRoute, attr) {
 				// params.fit scores a bound fit (internal/model.
 				// CheckFitReference — the rule the attribute's bind
@@ -473,6 +473,11 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					}
 				}
 				break
+			}
+			// The refit's params and penalty rule — the one the
+			// attribute's factory runs (model.CheckRefit).
+			if cerr := model.CheckRefit(attrRoute, attr); cerr != nil {
+				w.out = append(w.out, cerr)
 			}
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {

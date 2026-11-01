@@ -173,7 +173,7 @@ one name in every group must be enabled:
 | `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | `AGG_WEIGHTED_MEAN` or `AGG_AVERAGE` (either one) |
 | `OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR` | `AGG_WELFORD`, `AGG_VARIANCE` or `AGG_STDDEV` (any one) |
 | `OVERLAY_PROP_Z_VS_PRIOR` | `AGG_AVERAGE` |
-| `ATTR_REG_FITTED`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
+| `ATTR_REG_FITTED`, `ATTR_REG_INFLUENCE`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
 | `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
