@@ -93,6 +93,20 @@ func FitReference(typ types.AttributeType, a *types.Attribute) (string, bool) {
 // anything but an object of the FitParams keys is
 // PULSE_MODEL_SCORE_INVALID reason params_invalid.
 func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.CodedError) {
+	// ATTR_REG_FITTED reads {fit} only; kind is ATTR_REG_RESIDUAL's.
+	if attr != types.ATTR_REG_RESIDUAL {
+		var f fittedParams
+		paramread.Declare(paramread.Attribute, string(attr), &f)
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+			return FitParams{}, nil
+		}
+		if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &f); err != nil {
+			return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
+				"params must be an object {fit}: "+err.Error(), nil)
+		}
+		return FitParams{Fit: f.Fit}, nil
+	}
 	var p FitParams
 	paramread.Declare(paramread.Attribute, string(attr), &p)
 	trimmed := bytes.TrimSpace(raw)
@@ -104,6 +118,11 @@ func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.C
 			"params must be an object {fit, kind}: "+err.Error(), nil)
 	}
 	return p, nil
+}
+
+// fittedParams is ATTR_REG_FITTED's params block: the bound fit only.
+type fittedParams struct {
+	Fit string `json:"fit"`
 }
 
 // DefaultFitLabel is a params.fit slot's output label when it sets
