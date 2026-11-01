@@ -1299,6 +1299,18 @@ Most moves are arm64 figures converging onto the amd64 bits CI already saw. A fe
 | the example cohort `mmm_weekly.csv` was generated with stdlib `math.Sin` / `Pow` / `Cos` | generated with `detmath`; 7 spend values moved −1 ulp (relative ≤ 1.9e-16): east wk21 tv `637.0959796156368` → `637.0959796156367`, east wk24 radio `184.55892789750314` → `184.5589278975031`, east wk36 social `62.00751874438746` → `62.007518744387454`, east wk44 social `62.38849491337266` → `62.388494913372654`, west wk1 radio `196.55892789750314` → `196.5589278975031`, west wk13 social `38.00751874438746` → `38.007518744387454`, west wk21 social `38.38849491337266` → `38.388494913372654`; no sales / price / promo value and no example expectation moved | figure change (fixture bytes) | none | U61 (E5-S1) |
 | — | a numeric result path cannot regain a stdlib transcendental or an unbarriered product: `TestBannedMathReport_RepoWide` and `TestFMAReport_RepoWide` fail on any site not in the reviewed allowlist | additive (gate) | an embedder's own extension code is not scanned; use `linalg/detmath` and `float64(a*b)` where its output must match across architectures | U61 (E5-S2) |
 
+## Changes from U64 / U65 (reference validation, regression depth)
+
+Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pulse` byte-layout change. Figures below moved deliberately, as the price of the accuracy work, and are re-pinned in `internal/fingerprint/testdata/fingerprint.golden`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `REG_OLS` solved the normal equations (Cholesky of XᵀWX) | a streaming Givens QR on the centred design (NIST Filip 7.4 digits, Wampler1–5 9.6–13.3). The fingerprint's mtcars OLS, HC3 and Newey–West figures moved up to 149 ulp (relative ≤ 2.7e-14) | figure change (last bits) | none; a bit-for-bit diff of a stored result may show the last digits | U64 (#634) |
+| `TEST_T`, `TEST_ANOVA_F` and the Welch ANOVA read moments on the raw scale | moments on a data-shifted scale, exact for offset data (NIST SmLs). The fingerprint's mtcars t-test, ANOVA and Welch ANOVA figures moved up to 308 ulp (relative ≤ 3.6e-14, Cohen's d) | figure change (last bits) | none | U64 (#636) |
+| `REG_OLS` always fitted an intercept on one solver | `intercept: false` fits through the origin; `solver` picks `qr` (default) or `normal` | added | none; absent is byte-identical to `qr` with an intercept | U64 (#635) |
+| `ATTR_REG_RESIDUAL` returned response residuals only; no influence measures | `params.kind` (`response` default, `pearson`, `deviance`, `working`, `standardized`, `studentized`), `params.residual_type` (`pearson` default, `deviance`) for `standardized`, new `ATTR_REG_INFLUENCE` (`cooks` default, `dffits`), `params.fit` on `ATTR_REG_LEVERAGE` / `ATTR_REG_INFLUENCE` | added | none; defaults are byte-identical | U65 (#623, #624) |
+| `RegressionResult` had no dispersion; a model file was v1–v3 | `RegressionResult.Dispersion` (`dispersion`, omitempty, set beside a classical vcov when φ is estimated); a model file carrying it is `model_format_version` 4 | added | an OLS / gamma vcov model saved by an earlier build has no dispersion: bound-fit influence over it is refused (`requires: dispersion`) until it is re-saved | U65 (#624) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

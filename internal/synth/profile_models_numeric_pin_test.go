@@ -112,6 +112,9 @@ func numericOnlyFixture(t *testing.T, rowCount int, seed int64) []byte {
 }
 
 // pinnedHashes is one fixture's pre-change (document, twin) hash pair.
+// The categorical-driven pair was re-pinned when REG_OLS moved to the
+// streaming Givens QR (U64): its captured fits moved in the last ulps;
+// the numeric-predictor capture it guards is unchanged.
 type pinnedHashes [2]string
 
 // TestProfileNumericPredictors_AbsentIsByteIdenticalToPreChange pins
@@ -130,7 +133,7 @@ func TestProfileNumericPredictors_AbsentIsByteIdenticalToPreChange(t *testing.T)
 		{
 			name: "categorical-driven",
 			data: func(t *testing.T) []byte { return modelFlagFixture(t, 1200, 7) },
-			want: pinnedHashes{"98682b8e61dca16412a6a0dd88c78f100c6b4d948b0358b58eda660121f095de", "ebebeee74d8301a1a02ac144c24e3fbe043839115a207a645eabc46f11bb1ddd"},
+			want: pinnedHashes{"528830382e86ad6a8a639c29fde4458eaaded000c98655303f0d1a69ec8999fa", "08e7c22dd5e9850209b3547603afab2dc998543c71e2f77a9391fa160397e200"},
 		},
 		{
 			name: "numeric-only",
