@@ -246,6 +246,11 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
+	// The marginal effects' adjusted twins.
+	reflect.TypeOf(types.RegressionMarginsResult{}): {
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
 	// The matrix results ride capability:matrices with the request
 	// slots that produce them; the overlay layers ride the same gate
 	// as the request `overlays` slot that produces them.

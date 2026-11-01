@@ -565,6 +565,13 @@ var glossaryRegistry = []descriptor.Term{
 		Jargon:  true, Forms: []string{"link function", "link functions"},
 	},
 	{
+		ID:      "marginal-effect",
+		Short:   "How much a model's expected outcome changes, in the outcome's own units, when one predictor goes up by one unit — averaged over the rows (average marginal effect) or taken at the predictors' means.",
+		WhyCare: "It turns a logistic or count model's link-scale coefficient into probability points or counts, the figure a reader can act on; the average and the at-the-mean versions differ when the link is not linear.",
+		SeeAlso: []string{"link-function", "regression-coefficient", "odds-ratio"},
+		Jargon:  true, Forms: []string{"marginal effect", "marginal effects", "average marginal effect", "average marginal effects"},
+	},
+	{
 		ID:      "logistic-regression",
 		Short:   "A regression for a yes/no outcome that models the log-odds of yes as a straight-line function of the predictors.",
 		WhyCare: "Each coefficient is a change in log-odds; raised to the power e it becomes an odds ratio. Odds are not probabilities, so a constant odds ratio means different probability shifts at different starting points.",

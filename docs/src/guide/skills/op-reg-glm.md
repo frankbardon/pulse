@@ -50,7 +50,8 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `conf_level` | float | `0.95` | CI level. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
 | `covariance` | object | — | Robust SEs. |
-| `weight` | slot weight | — | IRLS prior weights. |
+| `margins` | object | — | AME / MEM ([`regression-margins`](regression-margins.md)). |
+| `weight` | slot weight | — | Prior weights. |
 | `multiplicity` | object | — | p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
@@ -58,7 +59,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 
 ## Inputs
 
-See `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null, NaN or ±Inf drops the row.
+See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf drops the row.
 
 ## Output
 
@@ -78,12 +79,12 @@ See `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null, NaN or
 
 ## Gotchas
 
-- Binomial separation (a predictor splits the outcome) → `PROCESSING_REGRESSION_SEPARATION` naming `details.predictors`; the slot fails alone. Add `penalty: l2`, or drop it.
+- Binomial separation → `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`); the slot fails alone. Add `penalty: l2`, or drop it.
 - Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`, rescale; NB `theta_unbounded`: fit poisson. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`.
-- Poisson fixes the dispersion at 1: overdispersed counts get too-small SEs — fit `negative_binomial` or a robust `covariance`.
-- Collinear or constant predictor → `PROCESSING_REGRESSION_RANK_DEFICIENT` naming `details.columns`. Other refusals: [`regression-spec`](regression-spec.md).
+- Poisson fixes dispersion at 1: overdispersed counts get too-small SEs; fit `negative_binomial` or a robust `covariance`.
+- Collinear / constant → `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns`). Other refusals: [`regression-spec`](regression-spec.md).
 
 ## See
 
 - `pulse_examples_search tags=[glm]`
-- Skills: [`regression-spec`](regression-spec.md), [`regression-modeling`](regression-modeling.md), [`regression-inference`](regression-inference.md), [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md)
+- Skills: [`regression-spec`](regression-spec.md), [`regression-modeling`](regression-modeling.md), [`regression-margins`](regression-margins.md), [`regression-inference`](regression-inference.md), [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md)

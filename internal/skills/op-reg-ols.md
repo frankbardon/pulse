@@ -15,16 +15,16 @@ Fits ride `Response.Regressions[i]`; no `Response.Components`.
 
 ## Params
 
-Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regression-spec`.
+Flat keys (`params` is refused); shared: `regression-spec`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
-| `predictors` | []field | (required) | ≥1 numeric predictor. |
+| `predictors` | []field | (required) | ≥1 numeric. |
 | `penalty` | enum | `""` | `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Strength, > 0. |
 | `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
-| `unpenalized` | []field | — | `l2`: predictors left unshrunk. |
+| `unpenalized` | []field | — | `l2`: left unshrunk. |
 | `bounds` | object | — | `{nonnegative: [predictors]}`: slopes ≥ 0 (NNLS). |
 | `intercept` | bool | `true` | `false`: no intercept. |
 | `solver` | enum | `qr` | Or `normal`. |
@@ -40,12 +40,13 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 | `conf_level` | float | `0.95` | CI coverage. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
 | `covariance` | object | — | Robust SEs (`regression-inference`). |
+| `margins` | object | — | Effects = βs (`regression-margins`). |
 | `weight` | slot weight | — | `null` opts out; WLS. |
 <!-- feature: capability:multiplicity -->
-| `multiplicity` | object | — | Coefficient p-values join a family; adds `PAdjusted`. |
+| `multiplicity` | object | — | p-values join a family; adds `PAdjusted`. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
-| `holdout` | expr | — | Bool expr; held-out rows → `Holdout`. |
+| `holdout` | expr | — | Held-out rows → `Holdout`. |
 <!-- /feature -->
 <!-- feature: capability:model_save -->
 | `save` | string | — | Writes a model file. |
@@ -54,7 +55,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 ## Inputs
 
-`target` / `predictors`: see `## Contract`; null / NaN / ±Inf drops the row from `n_obs`.
+See `## Contract`; null / NaN / ±Inf drops the row (not in `n_obs`).
 
 ## Output
 
@@ -69,11 +70,11 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 - `l1` / `elasticnet`: null SE / p / CI + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`; use `resample`. The penalty reads raw units (`regression-spec`).
 - `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound nulls SE / p / CI + `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`regression-model-options`).
 - `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
-- Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
-- Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one or `l2`.
+- Weighted `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
+- Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one, or `l2`.
 - Per-row fitted / residual / leverage: `ATTR_REG_*`.
 
 ## See
 
 - `pulse_examples_search tags=[ols]`
-- Skills: `regression-spec`, `regression-modeling`, `regression-model-options`, `regression-inference`, `op-reg-mod-resample`, `op-reg-mod-selection`
+- Skills: `regression-spec`, `regression-modeling`, `regression-margins`, `regression-model-options`, `regression-inference`, `op-reg-mod-resample`, `op-reg-mod-selection`

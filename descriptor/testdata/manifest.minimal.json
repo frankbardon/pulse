@@ -887,6 +887,10 @@
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
+        "name": "regression-margins",
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-model-options",
         "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
       },
@@ -1317,6 +1321,7 @@
           "regressions[*].vcov",
           "regressions[*].correlation",
           "regressions[*].covariance",
+          "regressions[*].margins",
           "regressions[*].advisories",
           "regressions[*].statistics",
           "regressions[*].outputs"
@@ -1411,4 +1416,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 22680fd44c1fe0d6d7cf483bbdad30441da9e58f65afed9dce59a4e03f007a2c
+// golden-hash: 026ecb51119bd66677d8f6ee26f0142f0d330dc4045f780f95e749507d563a6e

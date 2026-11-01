@@ -121,6 +121,7 @@ var regressionKeyProbes = map[string]string{
 	"selection":        `{"selection":"forward","criterion":"aic"}`,
 	"criterion":        `{"selection":"forward","criterion":"aic"}`,
 	"vcov":             `{"vcov":true}`,
+	"margins":          `{"margins":{}}`,
 	"intercept":        `{"intercept":false}`,
 	"solver":           `{"solver":"normal"}`,
 	"covariance":       `{"covariance":{"type":"hc1"}}`,

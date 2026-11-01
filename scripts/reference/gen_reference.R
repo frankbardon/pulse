@@ -527,3 +527,13 @@ source(file.path(script_dir, "gen_glm_links.R"), local = FALSE)
 # the rep() expansion; each figure re-derived from its closed form);
 # base stats + jsonlite + MASS 7.3-66 + sandwich 3.1-3. Seeded RNG.
 source(file.path(script_dir, "gen_glm_nb.R"), local = FALSE)
+
+# The regression marginal-effects golden (margins.json: average marginal
+# effects and marginal effects at the mean on lm and the binomial logit /
+# probit / cloglog, poisson log, gamma inverse / log and negative binomial
+# glm — response and link scale, classical / HC3 / cluster vcov, and a
+# frequency-weighted pair against the rep() expansion; the analytic
+# closed forms with their delta-method SEs, cross-checked against
+# marginaleffects 1.0.0); base stats + jsonlite + MASS 7.3-66 + sandwich
+# 3.1-3 (+ marginaleffects, skipped with a message when absent). Seeded RNG.
+source(file.path(script_dir, "gen_margins.R"), local = FALSE)

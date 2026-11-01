@@ -1114,6 +1114,16 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					"required":             []string{"type"},
 					"additionalProperties": false,
 				},
+				"margins": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS / REG_GLM only: report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
+					"properties": map[string]any{
+						"type":  enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
+						"terms": map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
+						"scale": enumStringField(types.AllMarginsScales(), "response (default): d mean / dx; link: d eta / dx (the coefficient)."),
+					},
+					"additionalProperties": false,
+				},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),
 				"params": map[string]any{

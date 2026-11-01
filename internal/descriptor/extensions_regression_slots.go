@@ -77,6 +77,9 @@ type regressionSlotRule struct {
 	// opts out (RegressionFieldOptOut) — declared then reads the
 	// opt-out's absence.
 	optOut bool
+	// requires, when set, rides the refusal as details.requires (the
+	// built-in rule's word for what the request must change).
+	requires string
 }
 
 // setKeys returns the keys whose present() is true, in order.
@@ -214,6 +217,17 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		// margins: the built-ins' delta-method effects need the model's
+		// link derivatives and its coefficient covariance, which no
+		// registration declares, so no extension model honours it.
+		slot: "margins", keys: []string{"margins"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("margins", s.Margins != nil) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no margins (the REG_OLS / REG_GLM marginal effects); compute the model's own effects through params or its outputs"
+		},
+		requires: "type REG_OLS or REG_GLM",
+	},
+	{
 		slot: "covariance", keys: []string{"covariance"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("covariance", s.Covariance != nil) },
 		declared: func(d ExtensionRegression, s *types.RegressionSpec) bool {
@@ -309,6 +323,9 @@ func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRe
 		}
 		if spec.Name != "" {
 			details["name"] = spec.Name
+		}
+		if r.requires != "" {
+			details["requires"] = r.requires
 		}
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"regression "+string(spec.Type)+" "+r.refusal(spec), details)

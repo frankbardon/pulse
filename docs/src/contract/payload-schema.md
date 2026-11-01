@@ -960,6 +960,16 @@ log-likelihood) and `aic` (−`two_log_lik` + 2·(p + 1), plus 2 when θ was
 estimated). Its `vcov` is (XᵀWX)⁻¹ at θ̂ with φ = 1 (MASS
 `summary.negbin`), so no `dispersion` rides it; every other family
 leaves the four absent, byte-identical.
+An additive `omitempty` `RegressionSpec` object `margins` (`{type,
+terms, scale}`, `REG_OLS` / `REG_GLM`) adds the additive `omitempty`
+object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
+(`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
+the term-keyed number maps `estimates`, `std_errors`, `statistics`,
+`p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
+`conf_level` and `df` (present only for a Student t; `null` when ≤ 0),
+and — gated on `capability:multiplicity` like the coefficient twins —
+`p_adjusted` / `significant_adjusted`. An undefined figure is `null`,
+key kept. A request without `margins` is byte-identical.
 Under `resample` it is the replicate covariance (jackknife
 (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
 leave-one-out; bootstrap the B−1 sample covariance of the

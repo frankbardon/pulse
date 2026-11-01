@@ -315,6 +315,7 @@
     - [predict-advisories](guide/skills/predict-advisories.md)
     - [process-chain](guide/skills/process-chain.md)
     - [regression-inference](guide/skills/regression-inference.md)
+    - [regression-margins](guide/skills/regression-margins.md)
     - [regression-model-options](guide/skills/regression-model-options.md)
     - [regression-modeling](guide/skills/regression-modeling.md)
     - [regression-row-scores](guide/skills/regression-row-scores.md)

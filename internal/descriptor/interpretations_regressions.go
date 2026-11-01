@@ -61,6 +61,11 @@ var (
 		Field: "conf_level",
 		Means: "The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).",
 	}
+	regMarginsCommon = []string{
+		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.",
+		regCoefCausal,
+		"A multiplicity block corrects these p-values in the regression's family, beside its member coefficients.",
+	}
 )
 
 // regCI is the ci_lower.* / ci_upper.* pair for one type: means names
@@ -149,7 +154,43 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 			"A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.",
 		},
 	},
-})
+}, interpRegOLSMargins)
+
+// regMargins is the margins block's readings for one type: means is the
+// estimate's reading, caveats the type's own.
+func regMargins(means string, caveats ...string) []descriptor.Interpretation {
+	return []descriptor.Interpretation{
+		{
+			Field:   "margins.estimates.*",
+			Means:   "The marginal effect of this term (requested by margins): " + means,
+			Sign:    regLinearSign,
+			Caveats: append(caveats, regMarginsCommon...),
+		},
+		{
+			Field: "margins.std_errors.*",
+			Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+		},
+		{
+			Field:  "margins.p_values.*",
+			Shared: SharedPValue,
+			Caveats: []string{
+				"The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).",
+			},
+		},
+	}
+}
+
+// interpRegOLSMargins reads REG_OLS's margins block.
+var interpRegOLSMargins = regMargins("the change in the expected outcome per unit of the predictor, in outcome units. " +
+	"On OLS the model is linear, so every effect, ame or mem, response or link scale, equals the coefficient, with its standard error, p-value and interval.")
+
+// interpRegGLMMargins reads REG_GLM's margins block.
+var interpRegGLMMargins = regMargins("the change in the expected outcome per unit of the predictor on the response scale — "+
+	"probability units for binomial, expected counts for Poisson and negative_binomial — averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). "+
+	"On the link scale, and on an identity link, it is the coefficient itself.",
+	"Unlike a coefficient, a response-scale effect depends on where it is evaluated: ame and mem differ, and the ame describes these rows, not a typical one.",
+	"Standard errors are delta-method (first order); with few rows or fitted values near 0 or 1 they can understate the uncertainty.",
+)
 
 var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	{
@@ -275,7 +316,7 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-})
+}, interpRegGLMMargins)
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{

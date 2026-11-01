@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -209,6 +210,16 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// jackknife_groups / jackknife_by — the runtime's rule itself
 		// (internal/regresample.Check, shared).
 		if cerr := regresample.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// margins: the block's shape, the regression type and the fits
+		// it refuses, then a derived predictor (no chain rule through it)
+		// — the runtime's rule itself (internal/regmargins, shared). An
+		// extension model's block was judged by the shared-slot table
+		// above (both pass it).
+		if cerr := regmargins.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		} else if cerr := regmargins.CheckDerived(reg, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 

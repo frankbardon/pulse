@@ -77,6 +77,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 ## See
 
 - [`regression-modeling`](regression-modeling.md) — choosing a model and modifiers.
+- [`regression-margins`](regression-margins.md) — marginal effects on these SEs.
 - [`op-reg-ols`](op-reg-ols.md) — the `vcov` Param for OLS and ridge.
 - [`op-reg-glm`](op-reg-glm.md) — the `vcov` Param for GLM.
 - [`op-reg-bayes-linear`](op-reg-bayes-linear.md) — the `vcov` Param for the Bayesian linear model.

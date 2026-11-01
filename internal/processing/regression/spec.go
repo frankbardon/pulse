@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -74,6 +75,12 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	// The jackknife knobs (jackknife_groups / jackknife_by) — the one
 	// rule predict applies too (internal/regresample).
 	if cerr := regresample.Check(spec); cerr != nil {
+		return cerr
+	}
+	// The margins block (shape, type, the fits it refuses) — the one
+	// rule predict applies too (internal/regmargins); its derived-
+	// predictor half reads the schema (BuildWith).
+	if cerr := regmargins.Check(spec); cerr != nil {
 		return cerr
 	}
 	return nil

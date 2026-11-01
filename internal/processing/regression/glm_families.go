@@ -55,6 +55,12 @@ type glmFamily struct {
 	// DmuDeta returns ∂μ/∂η evaluated at the current η.
 	DmuDeta func(eta float64) float64
 
+	// D2muDeta2 returns ∂²μ/∂η² at η: the marginal effects' delta-method
+	// gradient (margins.go) reads it — ∂(β_j·μ′(η))/∂β_k = δ_jk·μ′(η) +
+	// β_j·μ″(η)·x_k. R's make.link has no second derivative; each is the
+	// closed form of the link's own mu.eta.
+	D2muDeta2 func(eta float64) float64
+
 	// Variance returns V(μ) — the variance function of the family.
 	Variance func(mu float64) float64
 
@@ -153,6 +159,18 @@ var binomialLogit = glmFamily{
 		}
 		return mu * (1 - mu)
 	},
+	D2muDeta2: func(eta float64) float64 {
+		// μ(1−μ)(1−2μ), μ through the InverseLink tail split.
+		var mu float64
+		if eta >= 0 {
+			z := statdist.ExpAMD64FMA(-eta)
+			mu = 1.0 / (1.0 + z)
+		} else {
+			z := statdist.ExpAMD64FMA(eta)
+			mu = z / (1.0 + z)
+		}
+		return float64(float64(mu*(1-mu)) * (1 - 2*mu))
+	},
 	Variance: func(mu float64) float64 {
 		// μ(1−μ), unclamped (R's binomial variance): the working weight
 		// μ'(η)²/V(μ) is then exactly μ(1−μ) — DmuDeta computes the
@@ -207,6 +225,9 @@ var poissonLog = glmFamily{
 		return statdist.ExpAMD64FMA(eta)
 	},
 	DmuDeta: func(eta float64) float64 {
+		return statdist.ExpAMD64FMA(eta)
+	},
+	D2muDeta2: func(eta float64) float64 {
 		return statdist.ExpAMD64FMA(eta)
 	},
 	Variance: func(mu float64) float64 {
@@ -274,6 +295,18 @@ var gammaInverse = glmFamily{
 		mu := 1.0 / eta
 		return -mu * mu
 	},
+	D2muDeta2: func(eta float64) float64 {
+		// d(−1/η²)/dη = 2/η³ = 2μ³, η clamped as DmuDeta clamps it.
+		if math.Abs(eta) < gammaEps {
+			if eta >= 0 {
+				eta = gammaEps
+			} else {
+				eta = -gammaEps
+			}
+		}
+		mu := 1.0 / eta
+		return 2 * float64(float64(mu*mu)*mu)
+	},
 	Variance: func(mu float64) float64 {
 		if mu < gammaEps {
 			mu = gammaEps
@@ -334,12 +367,17 @@ func positiveEta(eta float64) bool { return eta > 0 }
 // withLink is base (a canonical family) on a non-canonical link: the
 // family's variance, deviance, starting means and dispersion rule, the
 // link's own g, g⁻¹, μ'(η) and valid range (nil: every finite η).
-func withLink(base glmFamily, link string, g, inv, dmu func(float64) float64, valid func(float64) bool) glmFamily {
+func withLink(base glmFamily, link string, g, inv, dmu, d2mu func(float64) float64, valid func(float64) bool) glmFamily {
 	f := base
 	f.Link, f.Canonical = link, false
-	f.LinkFunc, f.InverseLink, f.DmuDeta, f.ValidEta = g, inv, dmu, valid
+	f.LinkFunc, f.InverseLink, f.DmuDeta, f.D2muDeta2, f.ValidEta = g, inv, dmu, d2mu, valid
 	return f
 }
+
+// zeroD2 is an identity link's μ″(η) = 0; twoD2 the sqrt link's
+// (μ = η², μ″ = 2).
+func zeroD2(float64) float64 { return 0 }
+func twoD2(float64) float64  { return 2 }
 
 // binomialProbit: μ = Φ(η), R's binomial(link = "probit").
 var binomialProbit = withLink(binomialLogit, "probit",
@@ -351,6 +389,10 @@ var binomialProbit = withLink(binomialLogit, "probit",
 	func(eta float64) float64 {
 		// φ(η) = e^{−η²/2}/√(2π), floored at ε.
 		return math.Max(detmath.Exp(float64(-0.5*eta)*eta)/math.Sqrt(2*math.Pi), machineEps)
+	},
+	func(eta float64) float64 {
+		// −η·φ(η).
+		return -float64(eta * (detmath.Exp(float64(-0.5*eta)*eta) / math.Sqrt(2*math.Pi)))
 	},
 	nil,
 )
@@ -365,6 +407,11 @@ var binomialCloglog = withLink(binomialLogit, "cloglog",
 		e := detmath.Exp(math.Min(eta, 700))
 		return math.Max(float64(e*detmath.Exp(-e)), machineEps)
 	},
+	func(eta float64) float64 {
+		// e^η·exp(−e^η)·(1 − e^η).
+		e := detmath.Exp(math.Min(eta, 700))
+		return float64(float64(e*detmath.Exp(-e)) * (1 - e))
+	},
 	nil,
 )
 
@@ -374,6 +421,7 @@ var poissonIdentity = withLink(poissonLog, "identity",
 	func(mu float64) float64 { return mu },
 	func(eta float64) float64 { return eta },
 	func(float64) float64 { return 1 },
+	zeroD2,
 	positiveEta,
 )
 
@@ -383,12 +431,14 @@ var poissonSqrt = withLink(poissonLog, "sqrt",
 	func(mu float64) float64 { return math.Sqrt(math.Max(mu, 0)) },
 	func(eta float64) float64 { return float64(eta * eta) },
 	func(eta float64) float64 { return 2 * eta },
+	twoD2,
 	positiveEta,
 )
 
 // gammaLog: μ = e^η floored at ε, R's Gamma(link = "log").
 var gammaLog = withLink(gammaInverse, "log",
 	func(mu float64) float64 { return detmath.Log(math.Max(mu, gammaEps)) },
+	func(eta float64) float64 { return math.Max(detmath.Exp(eta), machineEps) },
 	func(eta float64) float64 { return math.Max(detmath.Exp(eta), machineEps) },
 	func(eta float64) float64 { return math.Max(detmath.Exp(eta), machineEps) },
 	nil,
@@ -400,6 +450,7 @@ var gammaIdentity = withLink(gammaInverse, "identity",
 	func(mu float64) float64 { return mu },
 	func(eta float64) float64 { return eta },
 	func(float64) float64 { return 1 },
+	zeroD2,
 	positiveEta,
 )
 

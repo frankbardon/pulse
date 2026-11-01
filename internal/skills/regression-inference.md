@@ -87,6 +87,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 ## See
 
 - `regression-modeling` — choosing a model and modifiers.
+- `regression-margins` — marginal effects on these SEs.
 <!-- feature: REG_OLS -->
 - `op-reg-ols` — the `vcov` Param for OLS and ridge.
 <!-- /feature -->

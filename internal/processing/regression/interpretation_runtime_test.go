@@ -27,9 +27,12 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	types.REG_OLS: {
 		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}},
 		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}, Penalty: "l1", Alpha: 0.01},
+		// The opt-in marginal effects.
+		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}, Margins: &types.RegressionMargins{}},
 	},
 	types.REG_GLM: {
 		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial"},
+		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial", Margins: &types.RegressionMargins{}},
 		// gamma estimates its dispersion: df (its t reference) is emitted.
 		{Type: types.REG_GLM, Target: "g", Predictors: []string{"x1", "x2"}, Family: "gamma"},
 		// negative_binomial with θ estimated: theta, theta_std_err,

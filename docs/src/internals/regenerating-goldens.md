@@ -335,6 +335,29 @@ re-derived from its closed form. It needs MASS 7.3-66 and `sandwich`
 `TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
 and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
 
+`scripts/reference/gen_margins.R` writes `margins.json`: the regression
+marginal effects (`margins`) — `ame` / `mem`, response and link scale —
+on `lm` and the binomial logit / probit / cloglog, poisson log, gamma
+inverse / log and negative binomial `glm`, under the classical vcov,
+`sandwich::vcovHC` HC3 and `vcovCL` (HC1 over a cluster), plus a
+frequency-weighted `ame` / `mem` pair asserted equal to its
+`rep()`-expanded fit. The primary figures are analytic closed forms in
+base R at the fit's fixed point (glm refitted from its optimum; the
+negative binomial pushed to its joint fixed point as `gen_glm_nb.R`
+does): AME = Σw·β·μ′(η)/Σw, MEM at the weighted means, the delta-method
+Jacobian written out (μ″ checked against a central difference of
+`mu.eta`), statistic, p-value and interval on the coefficient table's
+t or normal. The external cross-check is `marginaleffects` 1.0.0
+(`avg_slopes`, `slopes` at the means, the same vcov, `wts` for the
+weighted `ame`), whose numerical derivatives agree to about 1e-8; the
+script passes the data frame explicitly (`insight::get_data` would
+re-evaluate the formula's data name). It needs MASS 7.3-66, `sandwich`
+3.1-3 and `marginaleffects` 1.0.0 (skipped with a message when absent,
+which the Go loader then refuses) and refuses any other R than 4.6.1.
+`TestReferenceOracle_MarginsMatchR` holds the analytic figures at
+relative `1e-9`, `TestReferenceOracle_MarginsMatchMarginaleffects` the
+`marginaleffects` ones at `1e-7` (both `internal/processing/regression`).
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -407,7 +430,8 @@ is the whole list in one place.
 | `Hotelling` | 1.0-8 | `TEST_HOTELLING_T2` (`gen_multivariate_tests.R`) |
 | `biotools` | 4.3 | `TEST_BOX_M` |
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
-| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`) |
+| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`) |
+| `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (which supersedes the 1.7-5 row above in the user library; the golden records each) |
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |

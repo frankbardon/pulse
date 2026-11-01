@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -82,6 +83,11 @@ func newGLMEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 	}
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
+	}
+	// Margins over a derived predictor (no chain rule through it) — the
+	// schema half of the rule predict applies too (internal/regmargins).
+	if cerr := regmargins.CheckDerived(spec, schema); cerr != nil {
+		return nil, cerr
 	}
 	if spec.Resample != "" || spec.Selection != "" {
 		// Phase 5: route through modifierEngine which orchestrates the
@@ -321,6 +327,30 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	// Intervals on the p-values' basis: Wald normal, or gamma's Student
 	// t on N* − k (DF set, null when N* − k ≤ 0).
 	attachIntervals(res, resolvedConfLevel(e.spec), df, studentT)
+	// Cov(β) as the standard errors read it: the robust sandwich, or
+	// φ·(XᵀWX)⁻¹ at the converged weights (φ = 1 but for gamma), its
+	// diagonal the clamped variances.
+	coefCov := func() [][]float64 {
+		if robust != nil {
+			return robust.fit.v
+		}
+		return symVcov(p+1, lastInvXtWX.At, phi, variances)
+	}
+	if e.spec.Margins != nil {
+		// Marginal effects on the coefficient table's reference
+		// distribution (margins.go).
+		inf := marginsInference{level: resolvedConfLevel(e.spec), df: df, studentT: studentT}
+		switch {
+		case e.spec.Margins.EffectiveScale() == types.MarginsScaleLink || identityLink(e.family):
+			var at []float64
+			if e.spec.Margins.EffectiveType() == types.MarginsMEM {
+				at = designMeans(xRows, prior, p+1)[1:]
+			}
+			res.Margins = coefficientMargins(e.spec, res, inf, at)
+		default:
+			res.Margins = glmMargins(e.spec, e.family, xRows, prior, eta, beta, coefCov(), inf)
+		}
+	}
 	if robust != nil {
 		res.Covariance = robust.fit.info
 		if e.spec.Vcov {
@@ -330,7 +360,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		// Cov(β) = φ·(XᵀWX)⁻¹ at the converged weights (φ = 1 but for
 		// gamma), its diagonal the clamped variances the standard errors
 		// read.
-		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, phi, variances))
+		attachVcov(res, predictors, coefCov())
 		if studentT {
 			// The estimated φ̂ the vcov is scaled by (gamma).
 			res.Dispersion = phi

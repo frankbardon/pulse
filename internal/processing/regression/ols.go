@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regbounds"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
@@ -71,6 +72,11 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 	// even constructed.
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
+	}
+	// Margins over a derived predictor (no chain rule through it) — the
+	// schema half of the rule predict applies too (internal/regmargins).
+	if cerr := regmargins.CheckDerived(spec, schema); cerr != nil {
+		return nil, cerr
 	}
 	if spec.Resample != "" || spec.Selection != "" {
 		// Phase 5: resample / selection modifiers dispatch through the
@@ -312,6 +318,13 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 	// on every key (their standard errors are).
 	// A cluster fit reads G − 1 df instead.
 	attachIntervals(res, resolvedConfLevel(e.spec), infDF, true)
+	if e.spec.Margins != nil {
+		// OLS's identity link: every marginal effect is its coefficient,
+		// on the coefficient table's t (margins.go) — no row pass, so the
+		// block streams with the fit; mem's point is the accumulator's
+		// (weighted) predictor means.
+		res.Margins = coefficientMargins(e.spec, res, marginsInference{level: resolvedConfLevel(e.spec), df: infDF, studentT: true}, e.acc.meanX)
+	}
 	if len(e.activeBounds) != 0 {
 		// A binding bound (RegressionSpec.Bounds): the standard errors,
 		// p-values and intervals above are NaN on every key; the service

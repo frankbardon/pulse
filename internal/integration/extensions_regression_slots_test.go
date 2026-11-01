@@ -48,6 +48,7 @@ func regSlotValue(t *testing.T, key string, ft reflect.Type) reflect.Value {
 		"bounds":          &types.RegressionBounds{Nonnegative: []string{"x"}},
 		"intercept":       new(bool), // false: fit through the origin
 		"solver":          "normal",
+		"margins":         &types.RegressionMargins{},
 	}
 	if v, ok := overrides[key]; ok {
 		return reflect.ValueOf(v)
@@ -124,6 +125,11 @@ func TestExtensions_RegressionSharedSlotsRefused(t *testing.T) {
 			want := map[string]any{"regression": string(regStreamName), "slot": slot, "name": "fit"}
 			if key != slot {
 				want["key"] = key
+			}
+			if slot == "margins" {
+				// The built-in rule's word for the fix
+				// (internal/regmargins), on the table's refusal too.
+				want["requires"] = "type REG_OLS or REG_GLM"
 			}
 			if !reflect.DeepEqual(ce.Details, want) {
 				t.Errorf("runtime details = %v, want %v", ce.Details, want)

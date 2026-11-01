@@ -107,6 +107,10 @@ All additive, present only when a correction ran:
   per member coefficient) and `significant_adjusted` (against the block's
   `alpha`, 0.05 by default) beside `p_values`, plus a `multiplicity` echo
   on the regression result.
+  A regression with a `margins` block adds its marginal effects to the
+  same family, one p-value per term after the member coefficients (`m`
+  counts both): `margins.p_adjusted` / `margins.significant_adjusted`
+  beside `margins.p_values`.
 
 `m` is the number of defined p-values corrected together. An undefined
 (NaN) p is left out of `m` and shows `p_adjusted: null`. Field shapes:
@@ -130,7 +134,8 @@ All additive, present only when a correction ran:
 and reports `p_values {total, uncorrected, basis, threshold}`: how many
 inferential p-values the request emits (a `REG_OLS` / `REG_GLM`
 regression counts one per non-intercept predictor, none on an `l1` /
-`elasticnet` fit without `resample`, whose p-values are `null`) and how
+`elasticnet` fit without `resample`, whose p-values are `null`, plus one
+per `margins` term) and how
 many no block reaches.
 `threshold` is 10 (`descriptor.MultiplicityTriggerThreshold`); an
 `uncorrected` count at or above it is the cue to add a block. `basis` is

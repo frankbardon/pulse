@@ -76,6 +76,7 @@ Ordinary least squares with optional regularization.
 | `intercept`   | no       | `true` (default) fits the intercept. `false` fits through the origin; see "Solver and intercept" below. |
 | `solver`      | no       | `qr` (default) or `normal`; see "Solver and intercept" below. |
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
+| `margins`     | no       | `{type, terms, scale}`: marginal effects — on OLS every one is its coefficient, with its SE, t and interval; streams. See [Marginal effects](#marginal-effects-margins). |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 
@@ -114,6 +115,7 @@ Generalized linear model via iteratively-reweighted least squares.
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper` (Wald z; gamma t on `df`), `0 < c < 1`. Default 0.95. |
 | `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Dispersion-free; inference stays Wald z, `cluster` and gamma included. |
+| `margins`     | no       | `{type, terms, scale}`: marginal effects with delta-method SEs — see [Marginal effects](#marginal-effects-margins). |
 
 Always buffered.
 
@@ -128,6 +130,28 @@ The fit is R's `glm.fit` IRLS: per-row starting values (binomial `(w·y + 0.5)/(
 **Negative binomial.** `family: "negative_binomial"` is NB2, Var = μ + μ²/θ, for counts more variable than a poisson allows. θ is estimated by maximum likelihood as MASS `glm.nb` does: a poisson fit on the same link, then rounds of θ ← the Newton root of the θ score at the fitted means (MASS `theta.ml`, from the moment estimate, then the previous θ) and β ← IRLS at that θ (warm-started), until a round moves θ by at most `tol` relative and β by less than `tol`; one more IRLS fit at the final θ makes β, the deviances and `vcov` those at θ̂. That is the joint MLE `glm.nb` approximates (its own stopping rule leaves it ~1e-6 off; the oracle pushes it to the fixed point). `theta` fixes θ instead: R's `glm(family = negative.binomial(theta))`. The result adds `theta`, `theta_std_err` (1/√I(θ̂), estimated θ only), `two_log_lik` and `aic` (−2ℓ + 2·(p + 1), + 2 when θ is estimated: MASS's AIC counts θ). Standard errors and `vcov` are (XᵀWX)⁻¹ at θ̂ with φ = 1, Wald z (`summary.negbin`, which treats β and θ as orthogonal — also for a fixed θ, where R's `summary.glm` would estimate a dispersion). `deviance` / `null_deviance` are at θ̂. A robust `covariance` holds θ̂ fixed (as `sandwich` on a `glm.nb` fit); the residual kinds, leverage and influence over a bound fit read V(μ) at θ̂ with φ = 1; scoring needs only the link. Weights (frequency and probability) enter as prior weights like every family; a frequency fit is the `rep()` expansion's. `penalty`, `selection` and `resample` are refused (`PROCESSING_CONFIG`, `details.requires` `unpenalized` / `no_selection` / `no_resample`: their refit drivers hold θ fixed). Counts no more variable than a poisson put θ̂ at infinity: `PROCESSING_REGRESSION_NO_CONVERGE` `details.reason` `theta_unbounded` (fit `poisson`). A model file carries θ (`model_format_version` 5). Oracle: R 4.6.1, MASS 7.3-66, `sandwich` 3.1-3 (`scripts/reference/gen_glm_nb.R`).
 
 Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SEPARATION`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
+
+### Marginal effects (`margins`)
+
+`"margins": {type, terms, scale}` on a `REG_OLS` or `REG_GLM` entry adds `regressions[i].margins`: per term the effect of a unit change in the predictor on the expected outcome, with a delta-method standard error. It mirrors `vcov` — opt-in, additive, absent byte-identical — and every knob has a default, so `"margins": {}` reports the average marginal effect of every predictor on the response scale (Stata `margins, dydx(*)`; R `marginaleffects::avg_slopes`).
+
+| Knob | Values | Default | Meaning |
+|---|---|---|---|
+| `type` | `ame`, `mem` | `ame` | `ame`: the (weighted) mean over the fitted rows of β_j·μ′(η_i). `mem`: β_j·μ′(x̄ᵀβ) at the (weighted) predictor means (Stata `atmeans`; `marginaleffects::slopes(newdata = "mean")`), echoed as `at`. |
+| `terms` | predictors | every predictor | Each a listed predictor, once. |
+| `scale` | `response`, `link` | `response` | `response`: ∂μ/∂x through the inverse link. `link`: ∂η/∂x — the coefficient itself. |
+
+The result is `{type, scale, terms, estimates, std_errors, statistics, p_values, ci_lower, ci_upper, df, conf_level, at}`, the maps keyed by term like the coefficient table (`df` only for a Student t, `at` only for `mem`).
+
+- **Delta method.** Var = J·V·Jᵀ, V the fit's own coefficient covariance — the one `std_errors` reads, so `hc0`–`hc3`, `cluster` and `hac` carry through. For `ame`, J_jk = δ_jk·m̄ + β_j·Σw·μ″(η_i)·x_ik/Σw with m̄ = Σw·μ′(η_i)/Σw (x_i0 = 1); for `mem`, J_jk = δ_jk·μ′(η̄) + β_j·μ″(η̄)·x̄_k. On the link scale, and on any identity link (all of `REG_OLS`; poisson, gamma and negative binomial `identity`), J = e_j: the effect, its standard error, p-value and interval are the coefficient's, bit for bit.
+- **Reference distribution** is the coefficient table's: a Student t on the fit's `df` for `REG_OLS` (the cluster fit's G − 1 included) and a classical gamma fit, Wald z otherwise (binomial, poisson, negative binomial, any robust GLM). Intervals at the fit's `conf_level`.
+- **Weights.** The mean is weighted by the fit's row weight (marginaleffects `wts`), and `mem`'s point is the weighted means; a frequency-weighted block equals the `rep()` expansion's.
+- **Multiplicity.** Under the regression's own `multiplicity` block the terms join its family after the member coefficients (`m` counts both) and the block gains `p_adjusted` / `significant_adjusted`; the raw `p_values` never move.
+- **Execution.** `REG_OLS`'s effects are its coefficients, so the block needs no row and streams (and merges across shards) with the fit; `mem`'s `at` is the accumulator's weighted means. `REG_GLM` is buffered: one pass over the fitted rows in record order after IRLS converges, so the block answers bit for bit the same under every `DecodeWorkers` / `ShardWorkers` count, as the fit does.
+- **Refusals** (`PROCESSING_CONFIG`, `details.requires`, identical at predict and run — `internal/regmargins`): a `type` / `scale` outside its values; a term that is not a predictor or repeats (`a predictor`); `REG_BAYES_LINEAR`, an extension or model regression (`type REG_OLS or REG_GLM`); a `penalty` (`unpenalized`), `selection` (`no_selection`), `resample` (`no_resample` — the replicate covariance is not the effect's) or `bounds` (`unbounded`); a predictor that is a derived column — a feature, attribute or window output (`schema_predictors`), since it may be a function of another predictor (FEAT_POLY's x², an interaction) and the effect is not chain-ruled through it.
+- **Factors.** Pulse regressions take numeric predictors only (a categorical's dictionary index is refused), so there are no factor terms to contrast; a 0/1 dummy gets a slope, not the discrete difference between its levels.
+
+Oracle: R 4.6.1 analytic closed forms (MASS 7.3-66, `sandwich` 3.1-3 `vcovHC` / `vcovCL`) at 1e-9 — lm, logit, probit, cloglog, poisson, gamma inverse / log, negative binomial; HC3 and cluster; link scale; `mem`; a frequency-weighted pair against the `rep()` expansion — and `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = "mean")` at 1e-7, its numerical-derivative accuracy (measured within 7e-9) (`scripts/reference/gen_margins.R`, `margins.json`).
 
 ### `REG_BAYES_LINEAR`
 

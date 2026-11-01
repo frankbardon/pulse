@@ -93,6 +93,11 @@ var precisionClass = map[string]string{
 	"regressions[*].credible_intervals.*[*]":  "round",
 	"regressions[*].vcov.values[*][*]":        "round",
 	"regressions[*].correlation.values[*][*]": "round",
+	"regressions[*].margins.estimates.*":      "round", "regressions[*].margins.std_errors.*": "round",
+	"regressions[*].margins.statistics.*": "round", "regressions[*].margins.p_values.*": "round",
+	"regressions[*].margins.ci_lower.*": "round", "regressions[*].margins.ci_upper.*": "round",
+	"regressions[*].margins.df": "round", "regressions[*].margins.conf_level": "round",
+	"regressions[*].margins.at.*": "round", "regressions[*].margins.p_adjusted.*": "round",
 	// Matrices: primary rounds; auxiliary is keyed — `n` (the pairwise
 	// N, integer counts) is exempt, any future companion rounds.
 	"matrices[*].primary.values[*][*]":     "round",

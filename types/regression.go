@@ -285,6 +285,25 @@ type RegressionSpec struct {
 	// Resample or a Selection. See RegressionCovariance.
 	Covariance *RegressionCovariance `json:"covariance,omitempty"`
 
+	// Margins opts this regression into marginal effects
+	// (RegressionResult.Margins): per predictor term the average
+	// marginal effect (type ame, the default: the (weighted) mean over
+	// the fitted rows of ∂μ/∂x — marginaleffects avg_slopes, Stata
+	// margins, dydx) or the marginal effect at the mean (type mem: at the
+	// (weighted) predictor means — slopes(newdata = "mean"), Stata
+	// margins, dydx atmeans), on the response scale (scale response, the
+	// default: ∂μ/∂x through the inverse link) or the link scale (scale
+	// link: ∂η/∂x, which is the coefficient), with delta-method standard
+	// errors on the fit's own coefficient covariance (classical or the
+	// robust Covariance) and the coefficient table's reference
+	// distribution. REG_OLS and REG_GLM only; refused with
+	// PROCESSING_CONFIG (details.requires, the one rule predict applies:
+	// internal/regmargins) beside a Penalty, Selection, Resample or
+	// Bounds, on another type, or when a predictor is a derived column
+	// (no chain rule through it). Absent is byte-identical. See
+	// RegressionMargins.
+	Margins *RegressionMargins `json:"margins,omitempty"`
+
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
 	// selects 0.95. REG_OLS uses a Student-t critical value on the
@@ -363,6 +382,126 @@ type RegressionBounds struct {
 // empty Nonnegative list constrains none).
 func (b *RegressionBounds) Active() bool {
 	return b != nil && len(b.Nonnegative) != 0
+}
+
+// Marginal-effect types (RegressionMargins.Type).
+const (
+	// MarginsAME is the average marginal effect: the per-row effect
+	// averaged over the fitted rows (weighted by the fit's row weight).
+	MarginsAME = "ame"
+	// MarginsMEM is the marginal effect at the mean: the effect at the
+	// (weighted) means of the predictors.
+	MarginsMEM = "mem"
+)
+
+// Marginal-effect scales (RegressionMargins.Scale).
+const (
+	// MarginsScaleResponse differentiates the mean μ = g⁻¹(η) — the
+	// change in the expected outcome per unit of the predictor.
+	MarginsScaleResponse = "response"
+	// MarginsScaleLink differentiates the linear predictor η; the effect
+	// is the coefficient itself.
+	MarginsScaleLink = "link"
+)
+
+// AllMarginsTypes lists the RegressionMargins.Type values, the default
+// first.
+func AllMarginsTypes() []string { return []string{MarginsAME, MarginsMEM} }
+
+// AllMarginsScales lists the RegressionMargins.Scale values, the
+// default first.
+func AllMarginsScales() []string { return []string{MarginsScaleResponse, MarginsScaleLink} }
+
+// RegressionMargins is RegressionSpec.Margins: which marginal effects a
+// REG_OLS / REG_GLM fit reports. Every field has a default, so
+// `"margins": {}` asks for the average marginal effect of every
+// predictor on the response scale.
+type RegressionMargins struct {
+	// Type is ame (the default; empty selects it) or mem.
+	Type string `json:"type,omitempty"`
+
+	// Terms names the predictors to report, each a member of
+	// Predictors, once; empty means every predictor in Predictors order.
+	Terms []string `json:"terms,omitempty"`
+
+	// Scale is response (the default; empty selects it) or link.
+	Scale string `json:"scale,omitempty"`
+}
+
+// EffectiveType is m's type, MarginsAME when unset.
+func (m *RegressionMargins) EffectiveType() string {
+	if m == nil || m.Type == "" {
+		return MarginsAME
+	}
+	return m.Type
+}
+
+// EffectiveScale is m's scale, MarginsScaleResponse when unset.
+func (m *RegressionMargins) EffectiveScale() string {
+	if m == nil || m.Scale == "" {
+		return MarginsScaleResponse
+	}
+	return m.Scale
+}
+
+// RegressionMarginsResult is RegressionResult.Margins: one marginal
+// effect per term with its delta-method inference. The maps are keyed by
+// term (a predictor name), like the coefficient table; Terms keeps the
+// order. An undefined figure is null on the wire, key kept.
+type RegressionMarginsResult struct {
+	// Type and Scale echo the resolved RegressionMargins.
+	Type  string `json:"type"`
+	Scale string `json:"scale"`
+
+	// Terms lists the reported predictors in their resolved order.
+	Terms []string `json:"terms"`
+
+	// Estimates maps each term to its marginal effect: under type ame
+	// the (weighted) mean over the fitted rows of β_j·μ′(η_i) (response
+	// scale) — under type mem β_j·μ′(x̄ᵀβ) — or β_j (link scale; and on
+	// every identity link, REG_OLS included, where μ′ = 1).
+	Estimates map[string]float64 `json:"estimates"`
+
+	// StdErrors maps each term to its delta-method standard error
+	// √(J·V·Jᵀ), V the fit's coefficient covariance (the one StdErrors
+	// reads: classical or the robust Covariance) and J the gradient of
+	// the effect in β. On the link scale and on an identity link it is
+	// the coefficient's standard error.
+	StdErrors map[string]float64 `json:"std_errors"`
+
+	// Statistics maps each term to Estimate / StdError: a Student t on DF
+	// when the coefficient table reads one (REG_OLS, REG_GLM gamma), else
+	// a Wald z.
+	Statistics map[string]float64 `json:"statistics"`
+
+	// PValues maps each term to its two-sided p-value under the null of
+	// no effect, on the statistic's reference distribution.
+	PValues map[string]float64 `json:"p_values"`
+
+	// CILower and CIUpper bound each effect's two-sided confidence
+	// interval at ConfLevel: estimate ∓ q·StdError, q the Student-t (on
+	// DF) or normal critical value.
+	CILower map[string]float64 `json:"ci_lower"`
+	CIUpper map[string]float64 `json:"ci_upper"`
+
+	// DF is the Student-t degrees of freedom the statistics read — the
+	// coefficient table's DF; absent on a Wald z (null when ≤ 0).
+	DF float64 `json:"df,omitempty"`
+
+	// ConfLevel is the interval coverage, the regression's conf_level.
+	ConfLevel float64 `json:"conf_level"`
+
+	// At maps each predictor (every one of Predictors, not only Terms)
+	// to the (weighted) mean the effects are evaluated at; type mem only.
+	At map[string]float64 `json:"at,omitempty"`
+
+	// PAdjusted and SignificantAdjusted carry the multiplicity-adjusted
+	// p-value of each term, present only when the regression's own
+	// multiplicity block resolved to a method other than none: the terms
+	// join the regression's correction family beside its member
+	// coefficients (RegressionResult.Multiplicity echoes the family).
+	PAdjusted           map[string]float64 `json:"p_adjusted,omitempty"`
+	SignificantAdjusted map[string]bool    `json:"significant_adjusted,omitempty"`
 }
 
 // RegressionMultiplicity is a regression's own multiple-comparison
@@ -627,6 +766,10 @@ type RegressionResult struct {
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
 	// "auto" lags resolved; absent on a classical fit.
 	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
+
+	// Margins carries the marginal effects RegressionSpec.Margins asked
+	// for (see RegressionMarginsResult); absent otherwise.
+	Margins *RegressionMarginsResult `json:"margins,omitempty"`
 
 	// Outputs holds an extension regression's own named extras, each key
 	// declared in its registration's OutputSchema; a non-finite float is

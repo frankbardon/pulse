@@ -256,6 +256,35 @@ Iteratively reweighted least squares steps taken before the coefficients stopped
 
 - A fit that cannot converge within max_iters is refused rather than reported.
 
+#### `margins.estimates.*`
+
+The marginal effect of this term (requested by margins): the change in the expected outcome per unit of the predictor on the response scale — probability units for binomial, expected counts for Poisson and negative_binomial — averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). On the link scale, and on an identity link, it is the coefficient itself.
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with a higher outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with a lower outcome, other predictors held fixed
+
+**Caveats:**
+
+- Unlike a coefficient, a response-scale effect depends on where it is evaluated: ame and mem differ, and the ame describes these rows, not a typical one.
+- Standard errors are delta-method (first order); with few rows or fitted values near 0 or 1 they can understate the uncertainty.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values in the regression's family, beside its member coefficients.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
 <a id="op-reg_mmm_bayes"></a>
 
 ### `REG_MMM_BAYES`
@@ -580,3 +609,30 @@ Coordinate-descent iterations an l1 or elasticnet fit took to converge; absent f
 **Caveats:**
 
 - A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.
+
+#### `margins.estimates.*`
+
+The marginal effect of this term (requested by margins): the change in the expected outcome per unit of the predictor, in outcome units. On OLS the model is linear, so every effect, ame or mem, response or link scale, equals the coefficient, with its standard error, p-value and interval.
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with a higher outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with a lower outcome, other predictors held fixed
+
+**Caveats:**
+
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values in the regression's family, beside its member coefficients.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).

@@ -175,7 +175,38 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 				},
 			})
 		}
+		// The marginal effects (RegressionSpec.Margins) join the same
+		// family after the coefficients, one site per term in the block's
+		// order; an undefined (null) p is excluded from m. The echo is the
+		// regression's, so m counts them.
+		if mg := r.Margins; mg != nil {
+			for _, term := range mg.Terms {
+				fams.add(multFamilyKey(scope, family), family, method, multSite{
+					p: mg.PValues[term],
+					write: func(adjusted float64, m, excluded int) {
+						writeMarginsAdjusted(r, echo, term, adjusted, m, excluded)
+					},
+				})
+			}
+		}
 	}
+}
+
+// writeMarginsAdjusted records one marginal effect's adjusted p beside
+// its raw one (RegressionMarginsResult.PAdjusted /
+// SignificantAdjusted) and stamps the regression's shared echo.
+func writeMarginsAdjusted(r *types.RegressionResult, echo *types.AppliedMultiplicity, term string, adjusted float64, m, excluded int) {
+	mg := r.Margins
+	if mg.PAdjusted == nil {
+		mg.PAdjusted = map[string]float64{}
+		mg.SignificantAdjusted = map[string]bool{}
+	}
+	mg.PAdjusted[term] = adjusted
+	if !math.IsNaN(adjusted) {
+		mg.SignificantAdjusted[term] = adjusted < echo.Alpha
+	}
+	echo.M, echo.Excluded = m, excluded
+	r.Multiplicity = echo
 }
 
 // pValuedCoefficients is the default family of an extension REG_* model

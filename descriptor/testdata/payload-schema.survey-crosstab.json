@@ -1896,6 +1896,135 @@
       ],
       "type": "object"
     },
+    "RegressionMargins": {
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RegressionMarginsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "conf_level": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "estimates": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "p_values": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "std_errors": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ci_lower",
+        "ci_upper",
+        "conf_level",
+        "estimates",
+        "p_values",
+        "scale",
+        "statistics",
+        "std_errors",
+        "terms",
+        "type"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -2027,6 +2156,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "margins": {
+          "$ref": "#/$defs/RegressionMarginsResult"
         },
         "n_eff": {
           "type": [
@@ -2202,6 +2334,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "margins": {
+          "$ref": "#/$defs/RegressionMargins"
         },
         "max_iters": {
           "type": "integer"
@@ -2988,4 +3123,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7777dba717dcb24bfdb4b7dba36e35f90d3d3fdb4d92215a67f66bfc2dcbed8a
+// golden-hash: 6518eba23cbad38c480098eae4f2cbaa90034419f106e80c963da69af139332f

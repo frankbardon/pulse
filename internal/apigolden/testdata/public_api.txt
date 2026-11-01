@@ -4996,6 +4996,8 @@ pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
 pulse/types: func AllGroupTypes() []pulse/types.GroupType
 pulse/types: func AllLabelModes() []pulse/types.LabelMode
 pulse/types: func AllLookupMultiplicities() []pulse/types.LookupMultiplicity
+pulse/types: func AllMarginsScales() []string
+pulse/types: func AllMarginsTypes() []string
 pulse/types: func AllMatrixEncodings() []pulse/types.MatrixEncoding
 pulse/types: func AllMatrixKinds() []pulse/types.MatrixKind
 pulse/types: func AllMatrixTypes() []pulse/types.MatrixType
@@ -5430,6 +5432,7 @@ pulse/types: type FitResult field RegressionResult.Holdout *pulse/types.Regressi
 pulse/types: type FitResult field RegressionResult.JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
+pulse/types: type FitResult field RegressionResult.Margins *pulse/types.RegressionMarginsResult "json:\"margins,omitempty\""
 pulse/types: type FitResult field RegressionResult.Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type FitResult field RegressionResult.NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type FitResult field RegressionResult.NObs int "json:\"n_obs,omitempty\""
@@ -5574,6 +5577,10 @@ pulse/types: const MarginMeanReducible pulse/types.MarginReducibility = "mean_re
 pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
+pulse/types: const MarginsAME untyped string = "ame"
+pulse/types: const MarginsMEM untyped string = "mem"
+pulse/types: const MarginsScaleLink untyped string = "link"
+pulse/types: const MarginsScaleResponse untyped string = "response"
 pulse/types: func MarshalFinite(v any) ([]byte, error)
 pulse/types: type MaterializeBucket struct
 pulse/types: type MaterializeBucket field RangeTable string "json:\"range_table,omitempty\""
@@ -6053,6 +6060,27 @@ pulse/types: type RegressionHoldout field N int "json:\"n\""
 pulse/types: type RegressionHoldout field NNull int "json:\"n_null\""
 pulse/types: type RegressionHoldout field R2 float64 "json:\"r2\""
 pulse/types: type RegressionHoldout field RMSE float64 "json:\"rmse\""
+pulse/types: type RegressionMargins struct
+pulse/types: type RegressionMargins field Scale string "json:\"scale,omitempty\""
+pulse/types: type RegressionMargins field Terms []string "json:\"terms,omitempty\""
+pulse/types: type RegressionMargins field Type string "json:\"type,omitempty\""
+pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveScale() string
+pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveType() string
+pulse/types: type RegressionMarginsResult struct
+pulse/types: type RegressionMarginsResult field At map[string]float64 "json:\"at,omitempty\""
+pulse/types: type RegressionMarginsResult field CILower map[string]float64 "json:\"ci_lower\""
+pulse/types: type RegressionMarginsResult field CIUpper map[string]float64 "json:\"ci_upper\""
+pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_level\""
+pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
+pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
+pulse/types: type RegressionMarginsResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
+pulse/types: type RegressionMarginsResult field PValues map[string]float64 "json:\"p_values\""
+pulse/types: type RegressionMarginsResult field Scale string "json:\"scale\""
+pulse/types: type RegressionMarginsResult field SignificantAdjusted map[string]bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type RegressionMarginsResult field Statistics map[string]float64 "json:\"statistics\""
+pulse/types: type RegressionMarginsResult field StdErrors map[string]float64 "json:\"std_errors\""
+pulse/types: type RegressionMarginsResult field Terms []string "json:\"terms\""
+pulse/types: type RegressionMarginsResult field Type string "json:\"type\""
 pulse/types: type RegressionMultiplicity struct
 pulse/types: type RegressionMultiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionMultiplicity field Coefficients []string "json:\"coefficients,omitempty\""
@@ -6085,6 +6113,7 @@ pulse/types: type RegressionResult field Holdout *pulse/types.RegressionHoldout 
 pulse/types: type RegressionResult field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
+pulse/types: type RegressionResult field Margins *pulse/types.RegressionMarginsResult "json:\"margins,omitempty\""
 pulse/types: type RegressionResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionResult field NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type RegressionResult field NObs int "json:\"n_obs,omitempty\""
@@ -6128,6 +6157,7 @@ pulse/types: type RegressionSpec field JackknifeBy string "json:\"jackknife_by,o
 pulse/types: type RegressionSpec field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionSpec field Link string "json:\"link,omitempty\""
+pulse/types: type RegressionSpec field Margins *pulse/types.RegressionMargins "json:\"margins,omitempty\""
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
 pulse/types: type RegressionSpec field Multiplicity *pulse/types.RegressionMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionSpec field Name string "json:\"name,omitempty\""
@@ -6479,4 +6509,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5792987559f3fd8ba645fb7cd0aa206a74ad3d711f750666622c129cc4803ee9
+// golden-hash: 27f4463581f6b81ce2846d062f15979d7f47a5b21a8edb6c54deaf0a940d8943
