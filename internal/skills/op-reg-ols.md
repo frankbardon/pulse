@@ -23,7 +23,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `predictors` | []field | (required) | ≥1 numeric. |
 | `penalty` | enum | `""` | `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Strength, > 0. |
-| `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
+| `l1_ratio` | float | — | Mix, `0<r<1`. |
 | `unpenalized` | []field | — | `l2`: left unshrunk. |
 | `bounds` | object | — | `{nonnegative: [predictors]}`: slopes ≥ 0 (NNLS). |
 | `intercept` | bool | `true` | `false`: no intercept. |
@@ -39,7 +39,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `criterion` | enum | — | `aic`, `bic`. |
 | `conf_level` | float | `0.95` | CI coverage. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
-| `covariance` | object | — | Robust SEs (`regression-inference`). |
+| `covariance` | object | — | Robust SEs. |
 | `margins` | object | — | Effects = βs (`regression-margins`). |
 | `weight` | slot weight | — | `null` opts out; WLS. |
 <!-- feature: capability:multiplicity -->
@@ -59,7 +59,7 @@ See `## Contract`; null / NaN / ±Inf drops the row (not in `n_obs`).
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). Robust `covariance` adds a `Covariance` echo.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `TwoLogLik` / `AIC` (R `logLik`), `NObs` (+ weighted `SumWeights`). Robust `covariance` adds a `Covariance` echo.
 
 <!-- generated: reading-the-output -->
 

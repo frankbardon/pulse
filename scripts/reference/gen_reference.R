@@ -537,3 +537,10 @@ source(file.path(script_dir, "gen_glm_nb.R"), local = FALSE)
 # marginaleffects 1.0.0); base stats + jsonlite + MASS 7.3-66 + sandwich
 # 3.1-3 (+ marginaleffects, skipped with a message when absent). Seeded RNG.
 source(file.path(script_dir, "gen_margins.R"), local = FALSE)
+
+# The regression log-likelihood golden (loglik.json: logLik / AIC of lm
+# with and without an intercept and of the binomial-logit, poisson-log
+# and gamma-inverse glm, each with a frequency-weighted case against the
+# rep() expansion; each figure re-derived from its closed form); base
+# stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_loglik.R"), local = FALSE)

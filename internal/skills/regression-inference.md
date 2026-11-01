@@ -77,8 +77,9 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 
 - `vcov(lm)` and `vcov(ridge)` agree to rounding.
 - `vcov(glm)` uses weights one IRLS iteration behind its coefficients; Pulse inverts at the converged fixed point, matching R refined to that point to 1e-11 (raw `vcov(glm)` only to about 1e-6).
-- Negative binomial: θ̂ is MASS `glm.nb`'s ML estimate pushed to its fixed point (glm.nb stops ~1e-6 off it); SEs and `vcov` are `summary.negbin`'s (β, θ orthogonal), `ThetaStdErr` its `SE.theta`, `AIC` counts an estimated θ; a robust `covariance` holds θ̂ fixed, as `sandwich` does (oracle `glm_nb.json`).
-- Gamma GLM: dispersion estimated as R does (Pearson χ²/df), so `vcov`, SEs, t p-values and `df` match `summary.glm` / `vcov(glm)` (oracle `glm_gamma.json`); gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (oracle `glm_gamma_selection.json`).
+- Negative binomial: θ̂ is MASS `glm.nb`'s MLE at its fixed point; SEs and `vcov` are `summary.negbin`'s (β, θ orthogonal), `ThetaStdErr` its `SE.theta`, `AIC` counts an estimated θ; a robust `covariance` holds θ̂ fixed, as `sandwich` does (oracle `glm_nb.json`).
+- `TwoLogLik` / `AIC`: R's `logLik` / `AIC` (σ, gamma's φ at D/n, NB's estimated θ counted); absent if probability-weighted, penalized or a bound binds.
+- Gamma GLM: dispersion estimated as R does (Pearson χ²/df), so `vcov`, SEs, t p-values and `df` match `summary.glm` / `vcov(glm)` (`glm_gamma.json`); gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (`glm_gamma_selection.json`).
 
 ## Response shaping
 

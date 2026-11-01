@@ -237,12 +237,29 @@ func regUnityParity(t *testing.T, store *parityStore) {
 				}
 				stripSteer(base)
 				want := mustMarshal(t, base)
+				// A probability-weighted fit reports no likelihood (a
+				// pseudo-likelihood): its unity twin is the unweighted fit
+				// without two_log_lik / aic.
+				type ll struct{ two, aic float64 }
+				kept := make([]ll, len(base.Regressions))
+				for i, r := range base.Regressions {
+					kept[i] = ll{r.TwoLogLik, r.AIC}
+					r.TwoLogLik, r.AIC = 0, 0
+				}
+				wantProb := mustMarshal(t, base)
+				for i, r := range base.Regressions {
+					r.TwoLogLik, r.AIC = kept[i].two, kept[i].aic
+				}
 				for _, src := range sourcesFor(row.kinds()) {
 					t.Run(src.name, func(t *testing.T) {
 						got := runArmRequest(t, store, mode, path, row.build(path), &src)
 						stripSteer(got)
+						want := want
 						if row.reg != nil {
 							shedRegUnity(t, got, src.kind)
+							if src.kind == types.WeightKindProbability {
+								want = wantProb
+							}
 						}
 						if g := mustMarshal(t, got); string(g) != string(want) {
 							t.Errorf("unity weight changed the answer:\n weighted   %s\n unweighted %s", g, want)
@@ -259,7 +276,8 @@ func regUnityParity(t *testing.T, store *parityStore) {
 
 // shedRegUnity asserts each fit's weight keys carry their unity values
 // (sum_weights = n_obs; n_eff = n_obs under probability, absent under
-// frequency) and removes them.
+// frequency) and removes them; a probability fit carries no
+// two_log_lik / aic.
 func shedRegUnity(t *testing.T, resp *types.Response, kind types.WeightKind) {
 	t.Helper()
 	if len(resp.Regressions) == 0 {
@@ -278,6 +296,9 @@ func shedRegUnity(t *testing.T, resp *types.Response, kind types.WeightKind) {
 			t.Errorf("%s: unity n_eff %v, want n_obs %v", r.Name, r.NEff, n)
 		case kind == types.WeightKindFrequency && r.NEff != 0:
 			t.Errorf("%s: n_eff %v under kind frequency", r.Name, r.NEff)
+		}
+		if kind == types.WeightKindProbability && (r.TwoLogLik != 0 || r.AIC != 0) {
+			t.Errorf("%s: two_log_lik %v / aic %v under kind probability (a pseudo-likelihood is not reported)", r.Name, r.TwoLogLik, r.AIC)
 		}
 		r.SumWeights, r.NEff = 0, 0
 	}

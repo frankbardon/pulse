@@ -341,6 +341,20 @@ p-values, Wald-t intervals, and the influence measures on the bare
 `TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
 and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
 
+`scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
+log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
+(`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and
+without an intercept) and the binomial-logit, poisson-log and
+gamma-inverse `glm`, each re-derived from its closed form (`logLik.lm`;
+the family's `aic`, gamma's at dispersion deviance / n with φ counted),
+with `logLik`'s df recorded, plus a frequency-weighted case per model
+asserted against its `rep()`-expanded fit (`glm(weights = f)` agrees;
+`lm(weights = f)` does not, so the lm golden is the expansion's). Base
+R + jsonlite, R 4.6.1 only. `TestReferenceOracle_LogLikMatchesR`
+(`internal/processing/regression`) holds it at relative `1e-10`; the
+non-canonical links' and the negative binomial's AIC are held against
+`glm_links.json` and `glm_nb.json`.
+
 `scripts/reference/gen_margins.R` writes `margins.json`: the regression
 marginal effects (`margins`) — `ame` / `mem`, response and link scale —
 on `lm` and the binomial logit / probit / cloglog, poisson log, gamma

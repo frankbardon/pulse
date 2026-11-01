@@ -49,7 +49,7 @@ func aicBICFromOLS(rss float64, n int, k0 int) (aic, bic, logL float64) {
 		return veryGoodCrit, veryGoodCrit, math.MaxFloat64 / 4
 	}
 	// Maximised Gaussian log-likelihood at MLE σ² = RSS/n.
-	logL = float64(-0.5*nf*detmath.Log(2*math.Pi*rss/nf)) - float64(0.5*nf)
+	logL = gaussianLogLik(rss, nf)
 	k := float64(k0 + 2) // slopes + intercept + σ²
 	aic = float64(-2*logL) + float64(2*k)
 	bic = float64(-2*logL) + float64(detmath.Log(nf)*k)
@@ -138,14 +138,7 @@ func aicBICFromGamma(y, mu, prior []float64, deviance float64, k0 int) (aic, bic
 		const veryGoodCrit = -math.MaxFloat64 / 4
 		return veryGoodCrit, veryGoodCrit, math.MaxFloat64 / 4
 	}
-	disp := deviance / nStar
-	for i := 0; i < n; i++ {
-		w := 1.0
-		if prior != nil {
-			w = prior[i]
-		}
-		logL += float64(w * gammaLogDensity(y[i], mu[i], disp))
-	}
+	logL = gammaLogLik(y, mu, prior, deviance)
 	k := float64(k0 + 2) // slopes + intercept + φ
 	aic = float64(-2*logL) + float64(2*k)
 	bic = float64(-2*logL) + float64(detmath.Log(nStar)*k)

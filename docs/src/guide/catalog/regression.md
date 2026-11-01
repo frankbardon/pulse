@@ -108,6 +108,8 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 - R 4.6.1 `glm` (binomial-logit, poisson-log, gamma-inverse) — tolerance 1e-10 relative; `internal/processing/regression/glm_irls_test.go`, `internal/processing/regression/glm_gamma_oracle_test.go`
 - R 4.6.1 `glm` (binomial probit / cloglog, poisson identity / sqrt, gamma log / identity: coefficients, standard errors, vcov, deviance, null deviance, AIC, dispersion, fitted means, working residuals), refitted to its fixed point — tolerance 1e-9 relative; `internal/processing/regression/glm_links_oracle_test.go`
 - R 4.6.1 `glm(weights = f)` against its `rep()`-expanded fit (probit, poisson sqrt, gamma log; frequency weights) — tolerance 1e-9 relative; `internal/processing/regression/glm_links_oracle_test.go`
+- R 4.6.1 `logLik` / `AIC` of binomial-logit, poisson-log and gamma-inverse `glm` (two_log_lik, aic; gamma's dispersion at deviance / n counted); the non-canonical links' `AIC` against `glm_links.json`, the negative binomial's against `glm_nb.json` — tolerance 1e-10 relative; `internal/processing/regression/loglik_oracle_test.go`, `internal/processing/regression/glm_links_oracle_test.go`
+- R 4.6.1 `logLik` / `AIC` of `glm(weights = f)` against its `rep()`-expanded fit (binomial, poisson, gamma; frequency weights) — tolerance 1e-10 relative; `internal/processing/regression/loglik_oracle_test.go`
 - R 4.6.1 `glmnet` (penalties) — tolerance 1e-10 relative; `internal/processing/regression/glm_penalty_test.go`
 - R 4.6.1 `sandwich` (robust standard errors; vcov) — tolerance 1e-11 relative; `internal/service/regression_covariance_glm_test.go`, `internal/service/regression_vcov_test.go`
 - R 4.6.1 `sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3 on the non-canonical links — tolerance 1e-9 relative; `internal/processing/regression/glm_links_oracle_test.go`
@@ -264,6 +266,8 @@ Fits a straight-line model that predicts a numeric outcome from one or more nume
 - R 4.6.1 `lm` — tolerance 1e-10 relative; `internal/processing/regression/ols_lm_reference_test.go`
 - R 4.6.1 `glmnet` (penalties), `nnls` (non-negative) — tolerance 1e-10 relative; `internal/processing/regression/ols_penalty_reference_test.go`, `internal/processing/regression/ols_nnls_reference_test.go`
 - R 4.6.1 `sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov) — tolerance 1e-10 relative; `internal/service/regression_covariance_test.go`, `internal/service/regression_vcov_test.go`
+- R 4.6.1 `logLik` / `AIC` of `lm` with and without an intercept (two_log_lik, aic; σ counted) — tolerance 1e-10 relative; `internal/processing/regression/loglik_oracle_test.go`
+- R 4.6.1 `logLik` / `AIC` of the `rep()`-expanded `lm` (frequency weights; `lm(weights = f)` reads them as precision weights) — tolerance 1e-10 relative; `internal/processing/regression/loglik_oracle_test.go`
 - R 4.6.1 + MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`, ame / mem) of `lm` with their delta-method standard errors, t statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = "mean")` at 1e-7 — tolerance 1e-9 relative; `internal/processing/regression/margins_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 

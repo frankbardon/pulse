@@ -14,6 +14,7 @@ import (
 // the negative binomial fit — θ̂, SE(θ̂), β, the vcov and the
 // log-likelihood — equals the unweighted one (to the round-off of the
 // rescale); a frequency weight of 1 everywhere is the unweighted fit too.
+// The probability fit reports no two_log_lik / aic (loglik.go).
 func TestNegBin_ProbabilityWeightsConstantAreUnweighted(t *testing.T) {
 	t.Parallel()
 
@@ -42,13 +43,21 @@ func TestNegBin_ProbabilityWeightsConstantAreUnweighted(t *testing.T) {
 			got, want float64
 		}{
 			{"theta", res.Theta, plain.Theta}, {"theta_std_err", res.ThetaStdErr, plain.ThetaStdErr},
-			{"two_log_lik", res.TwoLogLik, plain.TwoLogLik}, {"aic", res.AIC, plain.AIC},
 			{"deviance", res.Deviance, plain.Deviance},
 			{"x1", res.Coefficients["x1"], plain.Coefficients["x1"]}, {"se x2", res.StdErrors["x2"], plain.StdErrors["x2"]},
 		} {
 			if !oracleClose(f.got, f.want, 1e-12) {
 				t.Errorf("%s %s = %.17g, unweighted %.17g", kind, f.name, f.got, f.want)
 			}
+		}
+		// The likelihood: the expansion's under frequency, absent under
+		// probability (a pseudo-likelihood; loglik.go).
+		wantLL, wantAIC := plain.TwoLogLik, plain.AIC
+		if kind == types.WeightKindProbability {
+			wantLL, wantAIC = 0, 0
+		}
+		if !oracleClose(res.TwoLogLik, wantLL, 1e-12) || !oracleClose(res.AIC, wantAIC, 1e-12) {
+			t.Errorf("%s two_log_lik %v aic %v, want %v %v", kind, res.TwoLogLik, res.AIC, wantLL, wantAIC)
 		}
 	}
 }
@@ -80,8 +89,8 @@ func TestNegBin_UnderdispersedIsRefused(t *testing.T) {
 }
 
 // TestNegBin_DoesNotTouchOtherFamilies: the negative binomial's knobs
-// stay off the other families' results — no theta, theta_std_err,
-// two_log_lik or aic on a poisson fit.
+// stay off the other families' results — no theta or theta_std_err on
+// a poisson fit (two_log_lik / aic are every family's since loglik.go).
 func TestNegBin_DoesNotTouchOtherFamilies(t *testing.T) {
 	t.Parallel()
 
@@ -92,7 +101,7 @@ func TestNegBin_DoesNotTouchOtherFamilies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Theta != 0 || res.ThetaStdErr != 0 || res.TwoLogLik != 0 || res.AIC != 0 {
-		t.Fatalf("poisson fit carries θ %v, SE %v, 2ℓ %v, AIC %v", res.Theta, res.ThetaStdErr, res.TwoLogLik, res.AIC)
+	if res.Theta != 0 || res.ThetaStdErr != 0 {
+		t.Fatalf("poisson fit carries θ %v, SE %v", res.Theta, res.ThetaStdErr)
 	}
 }

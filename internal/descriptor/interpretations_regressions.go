@@ -146,6 +146,19 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 		Field: "residual_std_err",
 		Means: regRSE + " It divides the residual sum of squares by n - p - 1.",
 	},
+	{
+		Field: "two_log_lik",
+		Means: "Twice the maximised Gaussian log-likelihood (R's logLik on lm), at the residual variance RSS / n; higher is a closer fit.",
+		Caveats: []string{
+			regLogLikAbsent,
+			"With a frequency weight it is the expanded rows' figure, which R's lm(weights = f) does not report (it reads them as precision weights).",
+		},
+	},
+	{
+		Field:   "aic",
+		Means:   "-two_log_lik + 2 x (coefficients + 1, the residual variance counted): R's AIC on lm; lower is better.",
+		Caveats: []string{regAICCompare},
+	},
 	regNObs,
 	{
 		Field: "converged_iters",
@@ -155,6 +168,13 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 		},
 	},
 }, interpRegOLSMargins)
+
+// regLogLikAbsent and regAICCompare are the likelihood caveats OLS and
+// GLM share.
+const (
+	regLogLikAbsent = "Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood), a penalized fit, and an OLS fit whose bound binds."
+	regAICCompare   = "Compare it only across models of the same outcome fitted to the same rows."
+)
 
 // regMargins is the margins block's readings for one type: means is the
 // estimate's reading, caveats the type's own.
@@ -301,14 +321,17 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	},
 	{
 		Field: "two_log_lik",
-		Means: "negative_binomial only: twice the maximised log-likelihood (MASS glm.nb's twologlik); higher is a closer fit.",
+		Means: "Twice the maximised log-likelihood of the family at the fitted means (R's logLik on glm; MASS glm.nb's twologlik); higher is a closer fit.",
+		Caveats: []string{
+			regLogLikAbsent,
+			"A Poisson or binomial outcome that is not a whole count has no likelihood: it is null (R's -Inf).",
+		},
 	},
 	{
 		Field: "aic",
-		Means: "negative_binomial only: -two_log_lik + 2 x the parameter count, theta counted when it is estimated (MASS glm.nb's AIC), not when fixed; lower is better.",
-		Caveats: []string{
-			"Compare it only across models of the same outcome fitted to the same rows.",
-		},
+		Means: "-two_log_lik + 2 x the parameter count: the coefficients, plus the dispersion for gamma (at deviance / n, as R's Gamma family) " +
+			"and theta for a negative_binomial fit that estimated it (MASS glm.nb's AIC); lower is better.",
+		Caveats: []string{regAICCompare},
 	},
 	regNObs,
 	{

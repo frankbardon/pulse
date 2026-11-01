@@ -162,20 +162,15 @@ func fitNegBin(pr *irlsProblem, fixed float64) (*negBinFit, error) {
 }
 
 // attachNegBin stamps a negative binomial fit's own figures on res: θ,
-// SE(θ̂) when estimated, 2·log-likelihood and AIC (MASS glm.nb's aic
+// SE(θ̂) when estimated, and the IRLS iterations summed over the
+// alternation. Its 2·log-likelihood and AIC (MASS glm.nb's aic
 // −2ℓ + 2·rank + 2 counting θ; R's AIC(glm) −2ℓ + 2·rank when θ is
-// fixed), and the IRLS iterations summed over the alternation.
-func attachNegBin(res *types.RegressionResult, nb *negBinFit, y, mu, prior []float64) {
+// fixed) are every family's (loglik.go glmLogLik).
+func attachNegBin(res *types.RegressionResult, nb *negBinFit) {
 	res.Theta = nb.theta
 	if nb.estimated {
 		res.ThetaStdErr = nb.thetaSE
 	}
-	res.TwoLogLik = negBinTwoLogLik(nb.theta, y, mu, prior)
-	params := float64(len(res.Coefficients))
-	if nb.estimated {
-		params++
-	}
-	res.AIC = -res.TwoLogLik + float64(2*params)
 	res.ConvergedIters = nb.iters
 }
 

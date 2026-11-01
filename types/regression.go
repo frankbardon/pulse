@@ -719,15 +719,24 @@ type RegressionResult struct {
 	// present only when θ was estimated (null if I(θ̂) ≤ 0).
 	ThetaStdErr float64 `json:"theta_std_err,omitempty"`
 
-	// TwoLogLik is twice the maximised negative binomial log-likelihood
-	// at θ (MASS glm.nb's twologlik), prior-weighted; negative_binomial
-	// only.
+	// TwoLogLik is twice the maximised log-likelihood 2ℓ of a plain
+	// REG_OLS or REG_GLM fit, R 4.6.1's logLik(): REG_OLS logLik.lm
+	// (−N*·(log(2π·RSS/N*) + 1)); binomial / poisson / gamma their
+	// family's density at the fitted means (gamma at the dispersion
+	// deviance / N*, Gamma()$aic's); negative_binomial MASS glm.nb's
+	// twologlik at θ. Unweighted, or under a frequency weight the
+	// rep()-expanded fit's. Absent under a probability weight (a
+	// weighted pseudo-likelihood is not a likelihood), on a penalized
+	// fit, an OLS fit whose bound binds, and on REG_BAYES_LINEAR; −Inf
+	// (null on the wire) for a poisson / binomial response that is not a
+	// count, +Inf for an exact OLS fit.
 	TwoLogLik float64 `json:"two_log_lik,omitempty"`
 
-	// AIC is −TwoLogLik + 2·(p + 1) — plus 2 more when θ was estimated
-	// (MASS glm.nb's aic, counting θ as a parameter), not when it was
-	// fixed (AIC of R's glm(family = negative.binomial(theta)));
-	// negative_binomial only.
+	// AIC is −TwoLogLik + 2·k, k logLik's df (R's AIC()): the
+	// coefficients, plus σ on REG_OLS, the dispersion on gamma, and θ on
+	// a negative_binomial fit that estimated it (MASS glm.nb's aic; a
+	// fixed θ is not counted, AIC of glm(family = negative.binomial(θ))).
+	// Present exactly when TwoLogLik is.
 	AIC float64 `json:"aic,omitempty"`
 
 	// NObs is the number of observations used to fit the model — the

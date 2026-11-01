@@ -62,7 +62,7 @@ func fitWeightedGLM(t *testing.T, family string, rows []wGLMRow, kind types.Weig
 
 // TestWeightedGLM_UnityBitIdentical: all-ones weights under either kind
 // reproduce the unweighted fit bit for bit once SumWeights / NEff are
-// shed.
+// shed (and, under probability, TwoLogLik / AIC, which it leaves absent).
 func TestWeightedGLM_UnityBitIdentical(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +81,18 @@ func TestWeightedGLM_UnityBitIdentical(t *testing.T) {
 				t.Fatalf("%s/%s: sum_weights %v", family, kind, got.SumWeights)
 			}
 			got.SumWeights, got.NEff = 0, 0
-			if !reflect.DeepEqual(got, base) {
+			want := base
+			if kind == types.WeightKindProbability {
+				// No two_log_lik / aic under a probability weight
+				// (loglik.go: a pseudo-likelihood).
+				if got.TwoLogLik != 0 || got.AIC != 0 {
+					t.Fatalf("%s/%s: two_log_lik %v / aic %v under a probability weight", family, kind, got.TwoLogLik, got.AIC)
+				}
+				shed := *base
+				shed.TwoLogLik, shed.AIC = 0, 0
+				want = &shed
+			}
+			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("%s/%s: unity differs from unweighted:\n%+v\n%+v", family, kind, got, base)
 			}
 		}

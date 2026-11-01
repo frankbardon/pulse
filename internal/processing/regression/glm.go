@@ -328,7 +328,17 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		ConvergedIters: convergedIters,
 	}
 	if nb != nil {
-		attachNegBin(res, nb, yVec, mu, prior)
+		attachNegBin(res, nb)
+	}
+	if logLikDefined(rw.basis) {
+		// The maximised log-likelihood and AIC, R's (loglik.go); absent
+		// under a probability weight (a pseudo-likelihood).
+		theta, est := 0.0, false
+		if nb != nil {
+			theta, est = nb.theta, nb.estimated
+		}
+		ll, df := glmLogLik(e.family, yVec, mu, prior, deviance, p+1, theta, est)
+		attachLogLik(res, ll, df)
 	}
 	rw.note(res, sumW, sumWSq)
 	// Intervals on the p-values' basis: Wald normal, or gamma's Student

@@ -161,6 +161,9 @@ func TestReferenceOracle_GLMLinksMatchR(t *testing.T) {
 					prior[i] = r[3]
 				}
 			}
+			// The fit's own AIC (loglik.go) is R's AIC(glm), every link,
+			// the frequency cases the rep() expansion's.
+			w.near(t, "result_aic", res.AIC, c.AIC[0])
 			if c.Family == "gamma" {
 				w.near(t, "dispersion", res.Dispersion, c.Dispersion[0])
 				w.near(t, "df_residual", res.DF, c.DFResidual[0])

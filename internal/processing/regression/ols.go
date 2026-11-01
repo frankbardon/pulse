@@ -313,6 +313,19 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		ConvergedIters: e.convergedIters,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	if e.spec.Penalty == "" && len(e.activeBounds) == 0 && logLikDefined(e.weights.basis) {
+		// logLik.lm's maximised Gaussian likelihood and AIC (loglik.go):
+		// the coefficients plus σ, on N* (n, or Σw — the rep() expansion
+		// — under a frequency weight); absent under a probability weight,
+		// a penalty or a binding bound (a bounds fit no bound binds is
+		// the plain fit, bit for bit).
+		rank := len(predictors) + 1
+		if solve.throughOrigin {
+			rank--
+		}
+		ll, df := olsLogLik(solve.RSS, e.acc.nStar(), rank)
+		attachLogLik(res, ll, df)
+	}
 	// t on the residual df N* − p − 1 (the N* rule, weighting.md): the
 	// same df the p-values read. Lasso / elastic net intervals are NaN
 	// on every key (their standard errors are).

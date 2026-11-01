@@ -59,7 +59,7 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Output
 
-`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; `regression-spec`); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr`, `TwoLogLik`, `AIC`. `l1` / `elasticnet` without `resample`: SE / p / CI null + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
+`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; `regression-spec`); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr`. `l1` / `elasticnet` without `resample`: SE / p / CI null + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
 
 <!-- generated: reading-the-output -->
 

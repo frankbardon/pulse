@@ -384,6 +384,12 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 		ResidualStdErr: residualStdErr,
 	}
 	attachIntervals(res, resolvedConfLevel(e.spec), float64(n-1), true)
+	if e.spec.Penalty == "" && !newRowWeights(e.spec).weighted() {
+		// The intercept-only lm's logLik / AIC (loglik.go); selection
+		// refuses a weight, so the fit is unweighted.
+		ll, df := olsLogLik(fit.RSS, float64(n), 1)
+		attachLogLik(res, ll, df)
+	}
 	if e.spec.Vcov {
 		// The 1×1 covariance of β₀ = ȳ: the variance se0 is the root of.
 		v0 := 0.0
@@ -402,7 +408,7 @@ func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.Regressio
 	if err != nil {
 		return nil, err
 	}
-	return &types.RegressionResult{
+	res := &types.RegressionResult{
 		Name:         e.spec.Name,
 		Type:         types.REG_GLM,
 		Family:       e.glmFam.Name,
@@ -414,5 +420,13 @@ func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.Regressio
 		NullDeviance: fit.Deviance,
 		PseudoR2:     0,
 		NObs:         fit.N,
-	}, nil
+	}
+	if e.spec.Penalty == "" && fit.Y != nil && !newRowWeights(e.spec).weighted() {
+		// The intercept-only glm's logLik / AIC (loglik.go); selection
+		// refuses a weight and the negative binomial (θ), so the fit is
+		// unweighted on a fixed-dispersion or gamma family.
+		ll, df := glmLogLik(e.glmFam, fit.Y, fit.Mu, fit.Prior, fit.Deviance, 1, 0, false)
+		attachLogLik(res, ll, df)
+	}
+	return res, nil
 }

@@ -129,6 +129,8 @@ The result:
       "conf_level": 0.95,
       "r2": 0.9566,
       "adj_r2": 0.9564,
+      "two_log_lik": -3513,
+      "aic": 3521,
       "n_obs": 400,
       "residual_std_err": 19.61,
       "covariance": {
@@ -261,6 +263,23 @@ R-squared corrected for the number of predictors: 1 - (1 - r2) * (n - 1) / (n - 
 **`residual_std_err`**
 
 Typical size of a residual, in the outcome's units: how far actual values sit from the fitted line on a typical row. It divides the residual sum of squares by n - p - 1.
+
+**`two_log_lik`**
+
+Twice the maximised Gaussian log-likelihood (R's logLik on lm), at the residual variance RSS / n; higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood), a penalized fit, and an OLS fit whose bound binds.
+- With a frequency weight it is the expanded rows' figure, which R's lm(weights = f) does not report (it reads them as precision weights).
+
+**`aic`**
+
+-two_log_lik + 2 x (coefficients + 1, the residual variance counted): R's AIC on lm; lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
 
 **`n_obs`**
 

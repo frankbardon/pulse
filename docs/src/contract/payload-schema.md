@@ -950,20 +950,24 @@ so `vcov / dispersion` is (XᵀWX)⁻¹ (`null` when the residual df is ≤ 0;
 absent on binomial / poisson, whose φ is 1, and on every robust,
 resampled, penalized or Bayesian fit). The influence figures over a
 bound fit read it.
-A `REG_GLM` `negative_binomial` fit (NB2, Var = μ + μ²/θ) adds four
-additive `omitempty` numbers: `theta` — θ̂, the maximum-likelihood
-estimate (MASS `glm.nb`), or the spec's fixed `theta` (an additive
-`omitempty` `RegressionSpec` number, > 0) — `theta_std_err` (θ̂'s
-standard error 1/√I(θ̂), present only when θ was estimated; `null` when
-the information is not positive), `two_log_lik` (twice the maximised
-log-likelihood) and `aic` (−`two_log_lik` + 2·(p + 1), plus 2 when θ was
-estimated). Its `vcov` is (XᵀWX)⁻¹ at θ̂ with φ = 1 (MASS
+Every plain `REG_OLS` / `REG_GLM` fit carries the additive `omitempty`
+numbers `two_log_lik` (twice the maximised log-likelihood, R's
+`logLik()`) and `aic` (−`two_log_lik` + 2·k, k `logLik`'s df: σ counted
+on OLS, the dispersion on gamma, an estimated θ on negative binomial),
+absent under a probability weight, a penalty, a binding OLS bound and on
+`REG_BAYES_LINEAR`; `null` when infinite (a non-count poisson /
+binomial response). A `REG_GLM` `negative_binomial` fit (NB2, Var = μ +
+μ²/θ) adds two more additive `omitempty` numbers: `theta` — θ̂, the
+maximum-likelihood estimate (MASS `glm.nb`), or the spec's fixed `theta`
+(an additive `omitempty` `RegressionSpec` number, > 0) — and
+`theta_std_err` (θ̂'s standard error 1/√I(θ̂), present only when θ was
+estimated; `null` when the information is not positive). Its `vcov` is (XᵀWX)⁻¹ at θ̂ with φ = 1 (MASS
 `summary.negbin`), so no `dispersion` rides it — unless a fixed θ sets
 the additive `omitempty` `RegressionSpec` string `dispersion`
 (`fixed` | `estimated`) to `estimated`: then its `vcov` is
 φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/df, carried as `dispersion` with `df` (R's
-`summary.glm`). Every other family leaves the four absent,
-byte-identical.
+`summary.glm`). Every other family leaves `theta` and `theta_std_err`
+absent.
 An additive `omitempty` `RegressionSpec` object `margins` (`{type,
 terms, scale}`, `REG_OLS` / `REG_GLM`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
