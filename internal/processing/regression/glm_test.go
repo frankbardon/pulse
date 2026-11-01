@@ -326,10 +326,10 @@ func TestRegGLM_InvalidFamily(t *testing.T) {
 	}
 }
 
-// TestRegGLM_InvalidLink covers all the link-rejection paths: every
-// reserved-but-not-implemented value (binomial probit/cloglog, poisson
-// identity/sqrt, gamma log/identity) plus a cross-family combo
-// (binomial+log) plus unknown links.
+// TestRegGLM_InvalidLink covers the link-rejection paths: a link of
+// another family (binomial+log, poisson+logit, gamma+sqrt, …) and an
+// unknown one. Every family's own three links are implemented
+// (glm_links_test.go, U65 E2-S1).
 func TestRegGLM_InvalidLink(t *testing.T) {
 	t.Parallel()
 
@@ -338,16 +338,16 @@ func TestRegGLM_InvalidLink(t *testing.T) {
 		family string
 		link   string
 	}{
-		{"binomial+probit (reserved)", "binomial", "probit"},
-		{"binomial+cloglog (reserved)", "binomial", "cloglog"},
 		{"binomial+log (wrong family)", "binomial", "log"},
-		{"binomial+sqrt (unknown)", "binomial", "sqrt"},
-		{"poisson+identity (reserved)", "poisson", "identity"},
-		{"poisson+sqrt (reserved)", "poisson", "sqrt"},
+		{"binomial+sqrt (wrong family)", "binomial", "sqrt"},
+		{"binomial+identity (wrong family)", "binomial", "identity"},
 		{"poisson+logit (wrong family)", "poisson", "logit"},
-		{"gamma+log (reserved)", "gamma", "log"},
-		{"gamma+identity (reserved)", "gamma", "identity"},
+		{"poisson+probit (wrong family)", "poisson", "probit"},
+		{"poisson+inverse (wrong family)", "poisson", "inverse"},
 		{"gamma+logit (wrong family)", "gamma", "logit"},
+		{"gamma+sqrt (wrong family)", "gamma", "sqrt"},
+		{"gamma+cloglog (wrong family)", "gamma", "cloglog"},
+		{"binomial+loglog (unknown)", "binomial", "loglog"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -188,8 +188,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Link"},
-				Hint:     "Use the family-default Link (binomial → logit, poisson → log, gamma → log) or pick a Link from the family's supported set in the regression-modeling skill.",
-				Examples: []any{"logit", "log", "identity"},
+				Hint:     "Pick a Link from the family's own set (details.allowed): binomial logit / probit / cloglog, poisson log / identity / sqrt, gamma inverse / log / identity — or omit it for the family's canonical default (logit, log, inverse).",
+				Examples: []any{"logit", "probit", "identity"},
 			},
 		},
 	},

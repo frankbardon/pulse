@@ -867,7 +867,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#622** Studio's own arithmetic (Stat test, Fit statistics nodes) in a Studio validation table (pulse-studio) · [U64](units/U64-reference-validation.md)
 - [x] **#623** `ATTR_REG_RESIDUAL` `params.kind` (`response` default, `pearson`, `deviance`, `working`) over a bound fit, pinned to statsmodels · [U65](units/U65-regression-depth.md)
 - [x] **#624** Per-row influence diagnostics: standardized and studentized residuals, Cook's distance, DFFITS · [U65](units/U65-regression-depth.md)
-- [ ] **#625** The non-canonical GLM links already named in the spec are implemented, not refused · [U65](units/U65-regression-depth.md)
+- [x] **#625** The non-canonical GLM links already named in the spec are implemented, not refused: binomial probit / cloglog, poisson identity / sqrt, gamma log / identity, pinned to R 4.6.1 `glm` + `sandwich` · [U65](units/U65-regression-depth.md)
 - [ ] **#626** Negative binomial family (NB2) for over-dispersed counts (pending U65 D2) · [U65](units/U65-regression-depth.md)
 - [ ] **#627** Average marginal effects and marginal effects at the mean, honouring the chosen `Covariance` · [U65](units/U65-regression-depth.md)
 - [ ] **#628** VIF and tolerance on the regression result · [U65](units/U65-regression-depth.md)

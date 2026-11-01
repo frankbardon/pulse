@@ -39,7 +39,18 @@ import (
 //     non-finite, its η invalid for the family, or the objective did not
 //     decrease (up to the round-off allowance stepHalvingTol), β_new
 //     moves halfway back toward the previous β — at most
-//     maxStepHalvings times; exhaustion stops the fit (step 6).
+//     maxStepHalvings times; exhaustion stops the fit (step 6). An η
+//     is invalid where the link's μ leaves the family's range
+//     (glmFamily.ValidEta: gamma inverse, and the identity / sqrt
+//     links of poisson and gamma — R's valideta / validmu). Under a
+//     non-canonical link a FIRST step that lands invalid (no previous
+//     β; R's glm.fit gives up there) is halved toward the
+//     intercept-only fit (g(ȳ), 0, …) instead; the canonical links keep
+//     their first step as before. Every working weight and response
+//     reads μ'(η) and V(μ) (step 3), never a canonical shortcut, so the
+//     fixed point is the MLE under any link — Fisher scoring, which
+//     converges linearly rather than quadratically off the canonical
+//     link.
 //  6. A fit that stops without converging (the iteration cap, a
 //     collapsed working Gram, halving exhausted) is classified: a
 //     binomial fit with fitted probabilities numerically 0 or 1 while a
@@ -232,6 +243,18 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 		// round-off in the objective can never stall a fit that has
 		// already arrived. The first step (no previous β) never converges.
 		converged := beta != nil && relativeChange(betaNew, beta) < tol && pr.valid(obj, etaNew)
+		if beta == nil && !fam.Canonical && !pr.valid(obj, etaNew) {
+			// A non-canonical link's first step left η (or the
+			// objective) invalid — an identity link pushing a fitted
+			// mean through 0. There is no previous β to halve toward
+			// (R's glm.fit stops: "no valid set of coefficients has been
+			// found"), so the step is halved toward the intercept-only
+			// fit β = (g(ȳ), 0, …), valid for every family; the MLE the
+			// loop converges to is the same.
+			beta = pr.nullStart(prior)
+			objOld = pr.candidate(beta, eta, mu, prior)
+			obj = pr.candidate(betaNew, etaNew, mu, prior)
+		}
 		halvings := 0
 		if beta != nil && !converged {
 			for !pr.acceptable(obj, objOld, etaNew) {
@@ -273,6 +296,15 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 		}
 	}
 	return nil, stop("max_iters")
+}
+
+// nullStart is the intercept-only fit β = (g(ȳ), 0, …, 0), ȳ the
+// prior-weighted mean of y clamped into the family's interior
+// (SafeMean): every row's η is g(ȳ), valid under every link.
+func (pr *irlsProblem) nullStart(prior []float64) []float64 {
+	b := make([]float64, pr.K)
+	b[0] = pr.Family.LinkFunc(pr.Family.SafeMean(weightedMean(pr.Y, prior)))
+	return b
 }
 
 func (pr *irlsProblem) columnName(j int) string {

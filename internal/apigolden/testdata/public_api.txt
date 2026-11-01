@@ -1979,7 +1979,9 @@ pulse/descriptor: type PValueFamily field Method pulse/types.MultiplicityMethod 
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
+pulse/descriptor: type Param field EnumBy string "json:\"enum_by,omitempty\""
 pulse/descriptor: type Param field EnumValues []string "json:\"enum_values,omitempty\""
+pulse/descriptor: type Param field EnumValuesBy map[string][]string "json:\"enum_values_by,omitempty\""
 pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type Param field Example any "json:\"example,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
@@ -6468,4 +6470,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: dc31f3e4834852d5da39e1d6fe9175b3a4993d9548cca8a016e4408bd1e6c68b
+// golden-hash: ab11705569a2c7f2c15925787d603083027b79893fbcf081799587b2544804a0

@@ -82,7 +82,8 @@ const (
 	PROCESSING_REGRESSION_INVALID_FAMILY Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 
 	// PROCESSING_REGRESSION_INVALID_LINK indicates the requested Link
-	// function is incompatible with the chosen Family.
+	// function is not one of the chosen Family's (details.allowed: the
+	// family's three links, canonical first).
 	PROCESSING_REGRESSION_INVALID_LINK Code = "PROCESSING_REGRESSION_INVALID_LINK"
 
 	// PROCESSING_REGRESSION_INSUFFICIENT_DATA indicates the filtered

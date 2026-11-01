@@ -509,3 +509,11 @@ source(file.path(script_dir, "gen_distributed_lag.R"), local = FALSE)
 # canonical-link GLMs, each re-derived from its R 4.6.1 closed form);
 # base stats + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_glm_influence.R"), local = FALSE)
+
+# The non-canonical REG_GLM links golden (glm_links.json: probit,
+# cloglog, poisson identity / sqrt, gamma log / identity — coefficients,
+# SEs, vcov, deviances, AIC, dispersion, per-row fitted / working / hat /
+# dffits, sandwich vcovHC HC0 / HC1 / HC3, and frequency-weighted cases
+# against the rep() expansion; each figure re-derived from its closed
+# form); base stats + jsonlite + sandwich 3.1-3. Seeded RNG.
+source(file.path(script_dir, "gen_glm_links.R"), local = FALSE)

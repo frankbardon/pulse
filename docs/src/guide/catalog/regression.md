@@ -106,11 +106,14 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 **Validated against:**
 
 - R 4.6.1 `glm` (binomial-logit, poisson-log, gamma-inverse) — tolerance 1e-10 relative; `internal/processing/regression/glm_irls_test.go`, `internal/processing/regression/glm_gamma_oracle_test.go`
+- R 4.6.1 `glm` (binomial probit / cloglog, poisson identity / sqrt, gamma log / identity: coefficients, standard errors, vcov, deviance, null deviance, AIC, dispersion, fitted means, working residuals), refitted to its fixed point — tolerance 1e-9 relative; `internal/processing/regression/glm_links_oracle_test.go`
+- R 4.6.1 `glm(weights = f)` against its `rep()`-expanded fit (probit, poisson sqrt, gamma log; frequency weights) — tolerance 1e-9 relative; `internal/processing/regression/glm_links_oracle_test.go`
 - R 4.6.1 `glmnet` (penalties) — tolerance 1e-10 relative; `internal/processing/regression/glm_penalty_test.go`
 - R 4.6.1 `sandwich` (robust standard errors; vcov) — tolerance 1e-11 relative; `internal/service/regression_covariance_glm_test.go`, `internal/service/regression_vcov_test.go`
+- R 4.6.1 `sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3 on the non-canonical links — tolerance 1e-9 relative; `internal/processing/regression/glm_links_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
-**Validation gap:** Only the canonical link of each family is implemented, so only those are validated.
+**Validation gap:** Penalized fits on a non-canonical link are checked by their KKT conditions, not against glmnet. Off the canonical link IRLS converges linearly, so at the default tol (1e-8) the coefficients sit within about 1e-7 of the MLE; the oracle fits at tol 1e-13.
 
 See [How Pulse is validated](../validation.md).
 

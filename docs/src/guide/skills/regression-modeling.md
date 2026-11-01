@@ -9,7 +9,7 @@ covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY
 
 # Regression modeling
 
-Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names. Per-model detail: atomic `op-reg-*` skills.
+Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names.
 
 No `Response.Components`; fits ride `Response.Regressions[i]`.
 
@@ -68,7 +68,7 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | Lasso | `REG_OLS{Penalty:"l1", Alpha:λ}` |
 | Elastic Net | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}` |
 | Non-negative (NNLS) | `REG_OLS{Bounds:{nonnegative:[…]}}` |
-| Logistic (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"}` (+ `Penalty`, `Alpha`) |
+| Logistic / probit (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"\|"probit"}` (+ `Penalty`, `Alpha`) |
 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
 | Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |
 | Jackknife | an OLS / GLM spec with `Resample:"jackknife"` |

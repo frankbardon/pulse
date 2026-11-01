@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -131,6 +132,11 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 					"REG_GLM family must be one of binomial, poisson, gamma; got "+reg.Family,
 					map[string]any{"family": reg.Family},
 				)
+			}
+			// Link: one of the family's three (empty = canonical) — the
+			// runtime's rule itself (internal/reglink, shared).
+			if cerr := reglink.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 

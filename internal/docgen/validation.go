@@ -175,10 +175,16 @@ var validationRegistry = map[string]validation{
 	}, {
 		Against: rPin + " `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}, {
+		Against: rPin + " `residuals(type = \"working\")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
 	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated."},
 	"ATTR_REG_LEVERAGE": {Refs: []validationRef{{
 		Against: rPin + " `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}, {
+		Against: rPin + " `hatvalues` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
 	}}, Gap: "The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated."},
 	"ATTR_REG_INFLUENCE": {Refs: []validationRef{{
 		Against: "statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`)",
@@ -189,6 +195,9 @@ var validationRegistry = map[string]validation{
 	}, {
 		Against: rPin + " `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}, {
+		Against: rPin + " `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ))",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
 	}}, Gap: "Over a weighted bound fit the figures are refused, not validated."},
 
 	// Regressions.
@@ -204,11 +213,14 @@ var validationRegistry = map[string]validation{
 	"REG_GLM": {
 		Refs: []validationRef{
 			r("`glm` (binomial-logit, poisson-log, gamma-inverse)", tol10, regDir+"glm_irls_test.go", regDir+"glm_gamma_oracle_test.go"),
+			r("`glm` (binomial probit / cloglog, poisson identity / sqrt, gamma log / identity: coefficients, standard errors, vcov, deviance, null deviance, AIC, dispersion, fitted means, working residuals), refitted to its fixed point", tol9, regDir+"glm_links_oracle_test.go"),
+			{Against: rPin + " `glm(weights = f)` against its `rep()`-expanded fit (probit, poisson sqrt, gamma log; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_links_oracle_test.go"}, Weighted: true},
 			r("`glmnet` (penalties)", tol10, regDir+"glm_penalty_test.go"),
 			r("`sandwich` (robust standard errors; vcov)", "1e-11 relative", svcCovGLM, svcVcov),
+			r("`sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3 on the non-canonical links", tol9, regDir+"glm_links_oracle_test.go"),
 			weighted,
 		},
-		Gap: "Only the canonical link of each family is implemented, so only those are validated.",
+		Gap: "Penalized fits on a non-canonical link are checked by their KKT conditions, not against glmnet. Off the canonical link IRLS converges linearly, so at the default tol (1e-8) the coefficients sit within about 1e-7 of the MLE; the oracle fits at tol 1e-13.",
 	},
 	"REG_BAYES_LINEAR": {Refs: []validationRef{
 		r("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),

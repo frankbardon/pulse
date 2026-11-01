@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/linalg/detmath"
 )
@@ -12,21 +13,38 @@ import (
 // variance function, and deviance contribution for a single GLM error
 // family + link combination. The IRLS loop in glm_irls.go consumes this
 // interface without branching on the family name; the families table
-// (selectFamily) wires concrete implementations for binomial+logit,
-// poisson+log, and gamma+inverse.
+// (selectFamily) wires concrete implementations for every pair
+// internal/reglink lists: binomial logit / probit / cloglog, poisson
+// log / identity / sqrt, gamma inverse / log / identity.
 //
 // All methods operate scalar-wise. Numerical care:
 //
 //   - logit / log links can saturate; we clamp mu away from the
 //     boundaries (0/1 for binomial; > eps for poisson/gamma) before
 //     evaluating the link so the working response stays finite.
+//   - The non-canonical links are R's (stats 4.6 make.link): probit
+//     and cloglog clamp η / μ and floor dμ/dη at machine epsilon as R
+//     does, and an identity / sqrt link whose μ must stay positive
+//     reports η ≤ 0 invalid (ValidEta), so the IRLS loop halves the
+//     step there as glm.fit does.
 //   - The deviance term y·log(y/mu) uses the convention 0·log0 = 0.
+//
+// Nothing downstream may assume a canonical link: the score is
+// x·(y − μ)·μ'(η)/V(μ) and the working weight μ'(η)²/V(μ) under every
+// link (on a canonical one they reduce to x·(y − μ) and V(μ)), so the
+// IRLS system, the covariance, the sandwich, the leverage and the
+// residuals all read DmuDeta and Variance, never the shortcut.
 type glmFamily struct {
 	// Name and link echo the resolved family / link strings so the
 	// engine can populate RegressionResult.Family / .Link without
 	// re-parsing the spec.
 	Name string
 	Link string
+
+	// Canonical marks the family's canonical link (binomial logit,
+	// poisson log, gamma inverse) — the pre-U65 links, whose IRLS path
+	// is kept byte-identical (see irlsFit's first-step restart).
+	Canonical bool
 
 	// LinkFunc returns g(mu) on the linear-predictor scale (η).
 	LinkFunc func(mu float64) float64
@@ -94,8 +112,9 @@ const (
 // binomialLogit is the Family("binomial"), Link("logit") combination
 // that produces logistic regression. μ ∈ (0, 1).
 var binomialLogit = glmFamily{
-	Name: "binomial",
-	Link: "logit",
+	Name:      "binomial",
+	Link:      "logit",
+	Canonical: true,
 	LinkFunc: func(mu float64) float64 {
 		if mu < binomialEps {
 			mu = binomialEps
@@ -169,8 +188,9 @@ var binomialLogit = glmFamily{
 // poissonLog is the Family("poisson"), Link("log") combination —
 // Poisson regression with the canonical log link. μ > 0.
 var poissonLog = glmFamily{
-	Name: "poisson",
-	Link: "log",
+	Name:      "poisson",
+	Link:      "log",
+	Canonical: true,
 	LinkFunc: func(mu float64) float64 {
 		if mu < poissonEps {
 			mu = poissonEps
@@ -215,6 +235,7 @@ var poissonLog = glmFamily{
 var gammaInverse = glmFamily{
 	Name:                "gamma",
 	Link:                "inverse",
+	Canonical:           true,
 	EstimatesDispersion: true,
 	LinkFunc: func(mu float64) float64 {
 		if mu < gammaEps {
@@ -278,74 +299,130 @@ var gammaInverse = glmFamily{
 	},
 }
 
+const (
+	// machineEps is R's .Machine$double.eps, the floor make.link puts
+	// under the probit / cloglog / log μ'(η) and μ.
+	machineEps = 2.220446049250313e-16
+	// probitThresh is −qnorm(machineEps): R's probit linkinv clamps η
+	// to ±probitThresh, so μ stays inside [ε, 1 − ε].
+	probitThresh = 8.125890664701906
+)
+
+// clampProb keeps a starting probability off 0 and 1 (the logit link's
+// clamp) so g(μ) stays finite.
+func clampProb(mu float64) float64 {
+	if mu < binomialEps {
+		return binomialEps
+	}
+	if mu > 1-binomialEps {
+		return 1 - binomialEps
+	}
+	return mu
+}
+
+// positiveEta is the ValidEta of a link whose μ must stay positive and
+// whose η is μ (identity) or √μ (sqrt): R's poisson / Gamma validmu
+// (identity) and the sqrt link's valideta.
+func positiveEta(eta float64) bool { return eta > 0 }
+
+// withLink is base (a canonical family) on a non-canonical link: the
+// family's variance, deviance, starting means and dispersion rule, the
+// link's own g, g⁻¹, μ'(η) and valid range (nil: every finite η).
+func withLink(base glmFamily, link string, g, inv, dmu func(float64) float64, valid func(float64) bool) glmFamily {
+	f := base
+	f.Link, f.Canonical = link, false
+	f.LinkFunc, f.InverseLink, f.DmuDeta, f.ValidEta = g, inv, dmu, valid
+	return f
+}
+
+// binomialProbit: μ = Φ(η), R's binomial(link = "probit").
+var binomialProbit = withLink(binomialLogit, "probit",
+	func(mu float64) float64 { return statdist.NormalQuantile(clampProb(mu)) },
+	func(eta float64) float64 {
+		eta = math.Max(math.Min(eta, probitThresh), -probitThresh)
+		return float64(0.5 * detmath.Erfc(-eta/math.Sqrt2))
+	},
+	func(eta float64) float64 {
+		// φ(η) = e^{−η²/2}/√(2π), floored at ε.
+		return math.Max(detmath.Exp(float64(-0.5*eta)*eta)/math.Sqrt(2*math.Pi), machineEps)
+	},
+	nil,
+)
+
+// binomialCloglog: μ = 1 − exp(−e^η), R's binomial(link = "cloglog").
+var binomialCloglog = withLink(binomialLogit, "cloglog",
+	func(mu float64) float64 { return detmath.Log(-log1mMu(clampProb(mu))) },
+	func(eta float64) float64 {
+		return math.Max(math.Min(-detmath.Expm1(-detmath.Exp(eta)), 1-machineEps), machineEps)
+	},
+	func(eta float64) float64 {
+		e := detmath.Exp(math.Min(eta, 700))
+		return math.Max(float64(e*detmath.Exp(-e)), machineEps)
+	},
+	nil,
+)
+
+// poissonIdentity: μ = η, R's poisson(link = "identity"); μ must stay
+// positive.
+var poissonIdentity = withLink(poissonLog, "identity",
+	func(mu float64) float64 { return mu },
+	func(eta float64) float64 { return eta },
+	func(float64) float64 { return 1 },
+	positiveEta,
+)
+
+// poissonSqrt: μ = η², R's poisson(link = "sqrt"); η must stay
+// positive (its valideta).
+var poissonSqrt = withLink(poissonLog, "sqrt",
+	func(mu float64) float64 { return math.Sqrt(math.Max(mu, 0)) },
+	func(eta float64) float64 { return float64(eta * eta) },
+	func(eta float64) float64 { return 2 * eta },
+	positiveEta,
+)
+
+// gammaLog: μ = e^η floored at ε, R's Gamma(link = "log").
+var gammaLog = withLink(gammaInverse, "log",
+	func(mu float64) float64 { return detmath.Log(math.Max(mu, gammaEps)) },
+	func(eta float64) float64 { return math.Max(detmath.Exp(eta), machineEps) },
+	func(eta float64) float64 { return math.Max(detmath.Exp(eta), machineEps) },
+	nil,
+)
+
+// gammaIdentity: μ = η, R's Gamma(link = "identity"); μ must stay
+// positive.
+var gammaIdentity = withLink(gammaInverse, "identity",
+	func(mu float64) float64 { return mu },
+	func(eta float64) float64 { return eta },
+	func(float64) float64 { return 1 },
+	positiveEta,
+)
+
+// glmFamilies is every (family, link) pair the engine fits, keyed
+// family then link — exactly internal/reglink's table
+// (TestSelectFamily_MatchesRegLink).
+var glmFamilies = map[string]map[string]glmFamily{
+	"binomial": {"logit": binomialLogit, "probit": binomialProbit, "cloglog": binomialCloglog},
+	"poisson":  {"log": poissonLog, "identity": poissonIdentity, "sqrt": poissonSqrt},
+	"gamma":    {"inverse": gammaInverse, "log": gammaLog, "identity": gammaIdentity},
+}
+
 // selectFamily resolves a (family, link) pair to a glmFamily. Empty
 // Link picks the family's canonical default (binomial → logit, poisson
-// → log, gamma → inverse). Unsupported (family, link) combinations
-// surface as PROCESSING_REGRESSION_INVALID_FAMILY or
-// PROCESSING_REGRESSION_INVALID_LINK.
-//
-// Reserved enum values (binomial probit/cloglog, poisson identity/sqrt,
-// gamma log/identity) parse correctly at the descriptor layer but the
-// engine surfaces INVALID_LINK until those links ship with their own
-// numerical fixtures in a later phase.
+// → log, gamma → inverse). An unknown family is
+// PROCESSING_REGRESSION_INVALID_FAMILY; a link outside the family's set
+// is PROCESSING_REGRESSION_INVALID_LINK (internal/reglink, the rule
+// predict applies too).
 func selectFamily(family, link string) (glmFamily, error) {
-	switch family {
-	case "binomial":
-		switch link {
-		case "", "logit":
-			return binomialLogit, nil
-		case "probit", "cloglog":
-			return glmFamily{}, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INVALID_LINK,
-				"REG_GLM Family=binomial Link="+link+" is a reserved enum value but not yet implemented; use Link=logit",
-				map[string]any{"family": family, "link": link, "supported": []string{"logit"}},
-			)
-		default:
-			return glmFamily{}, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INVALID_LINK,
-				"REG_GLM Family=binomial requires Link in {logit, probit, cloglog}; got "+link,
-				map[string]any{"family": family, "link": link, "allowed": []string{"logit", "probit", "cloglog"}},
-			)
-		}
-	case "poisson":
-		switch link {
-		case "", "log":
-			return poissonLog, nil
-		case "identity", "sqrt":
-			return glmFamily{}, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INVALID_LINK,
-				"REG_GLM Family=poisson Link="+link+" is a reserved enum value but not yet implemented; use Link=log",
-				map[string]any{"family": family, "link": link, "supported": []string{"log"}},
-			)
-		default:
-			return glmFamily{}, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INVALID_LINK,
-				"REG_GLM Family=poisson requires Link in {log, identity, sqrt}; got "+link,
-				map[string]any{"family": family, "link": link, "allowed": []string{"log", "identity", "sqrt"}},
-			)
-		}
-	case "gamma":
-		switch link {
-		case "", "inverse":
-			return gammaInverse, nil
-		case "log", "identity":
-			return glmFamily{}, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INVALID_LINK,
-				"REG_GLM Family=gamma Link="+link+" is a reserved enum value but not yet implemented; use Link=inverse",
-				map[string]any{"family": family, "link": link, "supported": []string{"inverse"}},
-			)
-		default:
-			return glmFamily{}, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INVALID_LINK,
-				"REG_GLM Family=gamma requires Link in {inverse, log, identity}; got "+link,
-				map[string]any{"family": family, "link": link, "allowed": []string{"inverse", "log", "identity"}},
-			)
-		}
-	default:
+	links, ok := glmFamilies[family]
+	if !ok {
 		return glmFamily{}, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INVALID_FAMILY,
 			"REG_GLM Family must be one of binomial, poisson, gamma; got "+family,
 			map[string]any{"family": family, "allowed": []string{"binomial", "poisson", "gamma"}},
 		)
 	}
+	if cerr := reglink.CheckPair(family, link); cerr != nil {
+		return glmFamily{}, cerr
+	}
+	return links[reglink.Resolve(family, link)], nil
 }

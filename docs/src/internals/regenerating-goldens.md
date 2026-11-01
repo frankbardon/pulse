@@ -295,6 +295,22 @@ greedy search (`TestReferenceOracle_GLMGammaAICMatchesR`,
 `TestRegOLS_PenaltyMatchesGlmnet` (`internal/processing/regression`)
 hold every figure at relative `1e-10`.
 
+`scripts/reference/gen_glm_links.R` writes `glm_links.json`: the
+non-canonical `REG_GLM` links (binomial probit / cloglog, poisson
+identity / sqrt, gamma log / identity), unweighted plus a
+frequency-weighted case per family pinned to its `rep()`-expanded fit.
+Off the canonical link IRLS is Fisher scoring and converges only
+linearly, while glm's deviance test stops early (its coefficients sit
+~1e-9 off the MLE), so the script refits from `start = coef(m)` until
+the coefficients reach their fixed point (relative 1e-14). It pins
+coefficients, SEs, `vcov`, deviance, null deviance, `AIC`, dispersion,
+df and per row the fitted mean, working residual, `hatvalues` and
+`dffits`, plus `sandwich::vcovHC` HC0 / HC1 / HC3 SEs, each re-derived
+from its closed form (it stops on a mismatch). It needs `sandwich`
+3.1-3 and refuses any other R than 4.6.1.
+`TestReferenceOracle_GLMLinksMatchR` (`internal/processing/regression`)
+and `TestGLMLinks_BoundFitMatchesR` (root) hold it at relative `1e-9`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision

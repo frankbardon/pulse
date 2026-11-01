@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -138,11 +139,10 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 //
 //   - Family ∈ {"binomial", "poisson", "gamma"}. Empty / unknown values
 //     surface PROCESSING_REGRESSION_INVALID_FAMILY.
-//   - Link, when set, must belong to the family's allowed enum set.
-//     Reserved-but-not-implemented values (binomial probit/cloglog,
-//     poisson identity/sqrt, gamma log/identity) surface
-//     PROCESSING_REGRESSION_INVALID_LINK with a "not yet implemented"
-//     hint so callers can fall back to the family default. The engine
+//   - Link, when set, must be one of the family's links (binomial
+//     logit / probit / cloglog, poisson log / identity / sqrt, gamma
+//     inverse / log / identity; internal/reglink.Check, shared with
+//     predict), else PROCESSING_REGRESSION_INVALID_LINK. The engine
 //     constructor (newGLMEngine) re-runs the same family/link check via
 //     selectFamily; validating here keeps the error reachable from spec
 //     introspection tests that never instantiate the engine.
@@ -169,64 +169,11 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 		)
 	}
 
-	// Link validation: empty selects the family default; otherwise the
-	// link must belong to the family's allowed set. Reserved-but-not-
-	// implemented links are surfaced as INVALID_LINK so the caller can
-	// drop back to the family default.
-	if spec.Link != "" {
-		switch spec.Family {
-		case "binomial":
-			switch spec.Link {
-			case "logit":
-				// ok — implemented this phase
-			case "probit", "cloglog":
-				return errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_INVALID_LINK,
-					"REG_GLM Family=binomial Link="+spec.Link+" is a reserved enum value but not yet implemented; use Link=logit",
-					map[string]any{"family": spec.Family, "link": spec.Link, "supported": []string{"logit"}},
-				)
-			default:
-				return errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_INVALID_LINK,
-					"REG_GLM Family=binomial requires Link in {logit, probit, cloglog}; got "+spec.Link,
-					map[string]any{"family": spec.Family, "link": spec.Link, "allowed": []string{"logit", "probit", "cloglog"}},
-				)
-			}
-		case "poisson":
-			switch spec.Link {
-			case "log":
-				// ok — implemented this phase
-			case "identity", "sqrt":
-				return errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_INVALID_LINK,
-					"REG_GLM Family=poisson Link="+spec.Link+" is a reserved enum value but not yet implemented; use Link=log",
-					map[string]any{"family": spec.Family, "link": spec.Link, "supported": []string{"log"}},
-				)
-			default:
-				return errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_INVALID_LINK,
-					"REG_GLM Family=poisson requires Link in {log, identity, sqrt}; got "+spec.Link,
-					map[string]any{"family": spec.Family, "link": spec.Link, "allowed": []string{"log", "identity", "sqrt"}},
-				)
-			}
-		case "gamma":
-			switch spec.Link {
-			case "inverse":
-				// ok — wired this phase, numerical tests deferred
-			case "log", "identity":
-				return errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_INVALID_LINK,
-					"REG_GLM Family=gamma Link="+spec.Link+" is a reserved enum value but not yet implemented; use Link=inverse",
-					map[string]any{"family": spec.Family, "link": spec.Link, "supported": []string{"inverse"}},
-				)
-			default:
-				return errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_REGRESSION_INVALID_LINK,
-					"REG_GLM Family=gamma requires Link in {inverse, log, identity}; got "+spec.Link,
-					map[string]any{"family": spec.Family, "link": spec.Link, "allowed": []string{"inverse", "log", "identity"}},
-				)
-			}
-		}
+	// Link: empty selects the family's canonical link; otherwise it
+	// must be one of the family's three (internal/reglink, the rule
+	// predict applies too).
+	if cerr := reglink.Check(spec); cerr != nil {
+		return cerr
 	}
 
 	// Penalty / Alpha / L1Ratio (gamma refuses a penalty): the rule

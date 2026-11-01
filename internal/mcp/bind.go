@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regsolve"
 	"maps"
 	"slices"
@@ -1074,7 +1075,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					"additionalProperties": false,
 				},
 				"family":    enumStringField([]string{"binomial", "poisson", "gamma"}, "REG_GLM error family (required for REG_GLM)."),
-				"link":      map[string]any{"type": "string", "description": "REG_GLM link; defaults per family (logit, log, inverse)."},
+				"link":      enumStringField(reglink.All(), "REG_GLM link, one of the family's: binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity."),
 				"max_iters": integer("Iteration cap for iterative fits; 0 uses the operator default."),
 				"tol":       num("Relative convergence tolerance; 0 uses the operator default."),
 				"prior":     map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},

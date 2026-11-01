@@ -22,7 +22,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | ≥1 numeric predictor. |
 | `family` | enum | (required) | `binomial`, `poisson`, `gamma`. |
-| `link` | enum | — | `binomial→logit`, `poisson→log`, `gamma→inverse`. |
+| `link` | enum | — | `logit/probit/cloglog`; `log/identity/sqrt`; `inverse/log/identity`; 1st default. |
 | `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). |
 | `alpha` | float | — | Strength, > 0. |
 | `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
@@ -65,7 +65,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 ## Gotchas
 
 - Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION` naming `details.predictors`; the slot fails alone. Add `penalty: l2`, or drop / merge it.
-- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`, rescale. Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.
+- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`, rescale. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`.
 - Binomial / poisson fix the dispersion at 1: overdispersed counts get too-small SEs — use a robust `covariance`.
 - Collinear or constant predictor → `PROCESSING_REGRESSION_RANK_DEFICIENT` naming `details.columns`. Other refusals: `regression-spec`.
 

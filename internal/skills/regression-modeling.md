@@ -9,7 +9,7 @@ covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY
 
 # Regression modeling
 
-Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names. Per-model detail: atomic `op-reg-*` skills.
+Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names.
 
 No `Response.Components`; fits ride `Response.Regressions[i]`.
 
@@ -71,7 +71,7 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | Non-negative (NNLS) | `REG_OLS{Bounds:{nonnegative:[…]}}` |
 <!-- /feature -->
 <!-- feature: REG_GLM -->
-| Logistic (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"}` (+ `Penalty`, `Alpha`) |
+| Logistic / probit (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"\|"probit"}` (+ `Penalty`, `Alpha`) |
 <!-- /feature -->
 <!-- feature: FEAT_POLY, REG_OLS -->
 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |

@@ -459,6 +459,7 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 - statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
 - statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
 - R 4.6.1 `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+- R 4.6.1 `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ)) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 
 **Validation gap:** Over a weighted bound fit the figures are refused, not validated.
 
@@ -502,6 +503,7 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 **Validated against:**
 
 - R 4.6.1 `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+- R 4.6.1 `hatvalues` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 
 **Validation gap:** The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated.
 
@@ -584,6 +586,7 @@ Adds to every row its residual: the actual target value minus the value a straig
 - statsmodels 0.14.5 `OLSInfluence.resid_studentized_internal` / `resid_studentized_external` (the OLS refit, `params.kind` standardized / studentized; R `rstandard` / `rstudent`) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
 - statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
 - R 4.6.1 `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+- R 4.6.1 `residuals(type = "working")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 
 **Validation gap:** The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated.
 

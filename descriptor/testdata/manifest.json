@@ -8505,7 +8505,7 @@
             "name": "link",
             "type": "enum",
             "required": false,
-            "description": "Link function; family-specific default when empty. Implemented this phase: binomial→logit, poisson→log, gamma→inverse. Other enum values are reserved for future phases and surface PROCESSING_REGRESSION_INVALID_LINK if requested.",
+            "description": "Link function, one of the family's (enum_values_by, canonical default first): binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity. Any other pair is PROCESSING_REGRESSION_INVALID_LINK. Off the canonical link IRLS is Fisher scoring (linear convergence: coefficients within ~1e-7 of the MLE at the default tol); vcov and SEs read the expected information, as R glm. An identity or sqrt link whose mean would leave its range halves the step.",
             "enum_values": [
               "cloglog",
               "identity",
@@ -8515,6 +8515,24 @@
               "probit",
               "sqrt"
             ],
+            "enum_by": "family",
+            "enum_values_by": {
+              "binomial": [
+                "logit",
+                "probit",
+                "cloglog"
+              ],
+              "gamma": [
+                "inverse",
+                "log",
+                "identity"
+              ],
+              "poisson": [
+                "log",
+                "identity",
+                "sqrt"
+              ]
+            },
             "slot": true
           },
           {
@@ -20645,4 +20663,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 572ce90f5035f5cdc8fb914c6b0d44daf3e6bb171478dcfa25c784f149acbdb1
+// golden-hash: 4f9998545d7b35d74a4008c5748600b1fd8ce2e34d8cbe4dd0c7285d445f0fb0

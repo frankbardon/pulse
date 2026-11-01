@@ -67,7 +67,7 @@ Shared keys:
 - Gamma estimates φ̂ = Pearson χ²/`DF`, `DF` = N* − p − 1 (N* = n, Σw or n_eff): t p-values and β ∓ t·SE (R `summary.glm`); φ̂ itself is not emitted; `DF` ≤ 0 nulls SE / p / CI / `DF`. Gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (φ = D/n counted), not D + 2k.
 - `PseudoR2` = 1 − D/D₀ (McFadden only for a 0/1 binomial target); `Deviance`, `NullDeviance` beside it.
 - `ConvergedIters` counts IRLS steps (R's per-row start, step-halving). Non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, loosen `tol` or rescale.
-- `link` defaults per family: `binomial→logit`, `poisson→log`, `gamma→inverse`; `identity`, `probit`, `cloglog`, `sqrt` are reserved (`PROCESSING_REGRESSION_INVALID_LINK`).
+- `link` per family, canonical default first: `binomial` `logit` / `probit` / `cloglog`; `poisson` `log` / `identity` / `sqrt`; `gamma` `inverse` / `log` / `identity`. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`. Every link's SEs read the expected information φ·(XᵀWX)⁻¹, W = μ′(η)²/V(μ) (R `summary.glm`); off the canonical link IRLS converges linearly (β ~1e-7 relative of the MLE at the default `tol`).
 - Binomial separation: the MLE is infinite, so no coefficients. Check the separating predictor is not recorded after the outcome; a strong but unseparated predictor converges.
 - Always buffered: IRLS needs several passes.
 

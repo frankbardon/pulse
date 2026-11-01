@@ -134,9 +134,14 @@ type RegressionSpec struct {
 	// "poisson", or "gamma". Required for REG_GLM.
 	Family string `json:"family,omitempty"`
 
-	// Link is the GLM link function. Defaults are family-specific
-	// ("logit" for binomial, "log" for poisson, "inverse" for gamma —
-	// the only gamma link implemented today).
+	// Link is the GLM link function, one of the family's: binomial
+	// "logit" (default), "probit", "cloglog"; poisson "log" (default),
+	// "identity", "sqrt"; gamma "inverse" (default), "log", "identity"
+	// — R's glm families. Empty selects the family's canonical default;
+	// another family's link is PROCESSING_REGRESSION_INVALID_LINK. Every
+	// link fits by IRLS (Fisher scoring) with the expected-information
+	// covariance; the manifest lists the pairs (link param
+	// enum_values_by).
 	Link string `json:"link,omitempty"`
 
 	// MaxIters caps the IRLS / coordinate-descent iteration count for
