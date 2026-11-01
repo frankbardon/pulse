@@ -1647,7 +1647,8 @@ const (
 	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
 
 	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot (or an
-	// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's params.fit) whose
+	// ATTR_REG_FITTED / _RESIDUAL / _LEVERAGE / _INFLUENCE slot's
+	// params.fit) whose
 	// scoring parameters do not fit: params that are not an object of
 	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
 	// ("fit_missing"), a field / target / predictors / penalty set on the
@@ -1658,7 +1659,12 @@ const (
 	// a fit of a regression type it cannot score ("type_unsupported"),
 	// a bound other than point|lower|upper ("bound_unknown") or a
 	// lower / upper bound without exactly one predictor term
-	// ("bound_terms"). Refused identically by predict and the
+	// ("bound_terms"); a leverage / influence / standardized /
+	// studentized params.fit slot over a fit without the design it reads
+	// ("params_invalid" with "requires": vcov, dispersion, unweighted,
+	// classical_covariance, unpenalized, no_selection, no_resample,
+	// unconstrained, intercept; "type_unsupported" on a type other than
+	// REG_OLS / REG_GLM). Refused identically by predict and the
 	// runtime before any record is read. Details carry "attribute",
 	// "reason" and, when known, "fit".
 	PULSE_MODEL_SCORE_INVALID Code = "PULSE_MODEL_SCORE_INVALID"

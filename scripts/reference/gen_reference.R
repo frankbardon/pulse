@@ -503,3 +503,9 @@ source(file.path(script_dir, "gen_overlays.R"), local = FALSE)
 # a two-partition series with nulls, via stats::filter); base stats +
 # jsonlite. Deterministic rows, no RNG.
 source(file.path(script_dir, "gen_distributed_lag.R"), local = FALSE)
+
+# The bound-fit influence golden (glm_influence.json: hatvalues,
+# rstandard, rstudent, cooks.distance and dffits over lm and the
+# canonical-link GLMs, each re-derived from its R 4.6.1 closed form);
+# base stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_glm_influence.R"), local = FALSE)

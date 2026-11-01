@@ -54,16 +54,28 @@ func DecodeInfluenceParams(raw []byte) (InfluenceParams, *errors.CodedError) {
 				map[string]any{"attribute": op})
 		}
 	}
-	switch p.Measure {
-	case "":
-		p.Measure = InfluenceCooks
-	case InfluenceCooks, InfluenceDFFITS:
-	default:
-		return InfluenceParams{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			op+" params.measure must be cooks or dffits; got "+p.Measure,
-			map[string]any{"attribute": op, "measure": p.Measure, "allowed": InfluenceMeasures()})
+	m, cerr := checkInfluenceMeasure(p.Measure)
+	if cerr != nil {
+		return InfluenceParams{}, cerr
 	}
+	p.Measure = m
 	return p, nil
+}
+
+// checkInfluenceMeasure is params.measure's rule, the refit's and a
+// params.fit slot's alike: empty selects cooks, anything outside
+// InfluenceMeasures is PROCESSING_CONFIG. Returns the resolved measure.
+func checkInfluenceMeasure(m string) (string, *errors.CodedError) {
+	op := string(types.ATTR_REG_INFLUENCE)
+	switch m {
+	case "":
+		return InfluenceCooks, nil
+	case InfluenceCooks, InfluenceDFFITS:
+		return m, nil
+	}
+	return "", errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		op+" params.measure must be cooks or dffits; got "+m,
+		map[string]any{"attribute": op, "measure": m, "allowed": InfluenceMeasures()})
 }
 
 // refitDesignUnpenalized is the PROCESSING_CONFIG refusal of a penalty

@@ -137,7 +137,7 @@ func TestGLMResidualKinds_Refusals(t *testing.T) {
 		attr *types.Attribute
 	}{
 		{"kind on fitted", fitRefAttr(types.ATTR_REG_FITTED, "f", `{"fit":"m","kind":"pearson"}`)},
-		{"unknown kind", fitRefAttr(types.ATTR_REG_RESIDUAL, "r", `{"fit":"m","kind":"studentized"}`)},
+		{"unknown kind", fitRefAttr(types.ATTR_REG_RESIDUAL, "r", `{"fit":"m","kind":"partial"}`)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := p.Compose(context.Background(), &ComposedRequest{Fits: fit(glm), Requests: []*Request{fitRefSlot("glm.pulse", "id", tc.attr)}})

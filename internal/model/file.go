@@ -34,25 +34,33 @@ const FileSuffix = ".pulse-model.json"
 
 // FileFormatVersion is the newest model_format_version this build
 // writes. The version is a function of the content, never a flag (the
-// .pulse header's rule): an extension regression's fit (a type outside
+// .pulse header's rule): a built-in fit carrying its estimated
+// `dispersion` (a classical vcov fit whose φ is estimated: REG_OLS,
+// REG_GLM gamma — RegressionResult.Dispersion) writes 4 — version 1
+// plus `dispersion`, what a bound fit's influence figures read (U65
+// E1-S2); an extension regression's fit (a type outside
 // types.AllRegressionTypes) writes 3 — version 2 plus the `outputs` of
 // the fit, its coefficients named by the model rather than intercept +
 // predictors; a built-in fit whose standard errors came from a robust
 // RegressionSpec.Covariance writes 2 — version 1 plus the `covariance`
 // echo — and every other fit writes 1, byte-identical to the files
 // earlier builds wrote. All stay readable (FileFormatVersions).
-const FileFormatVersion = 3
+const FileFormatVersion = 4
 
 // fileFormatV1 is the version a built-in fit without a robust
-// covariance writes; fileFormatV2 a built-in fit with one.
+// covariance or a dispersion writes; fileFormatV2 a built-in fit with a
+// robust covariance; fileFormatV3 an extension regression's fit.
 const (
 	fileFormatV1 = 1
 	fileFormatV2 = 2
+	fileFormatV3 = 3
 )
 
 // FileFormatVersions are the model_format_version values this build
 // reads, oldest first.
-func FileFormatVersions() []int { return []int{fileFormatV1, fileFormatV2, FileFormatVersion} }
+func FileFormatVersions() []int {
+	return []int{fileFormatV1, fileFormatV2, fileFormatV3, FileFormatVersion}
+}
 
 // The PULSE_MODEL_SAVE_INVALID reasons.
 const (
@@ -69,13 +77,13 @@ const (
 	ReasonFileSchema         = "schema"
 )
 
-// File is one model file document (model_format_version 1, 2 or 3): the
+// File is one model file document (model_format_version 1 to 4): the
 // fitted regression's scoring figures at full float64 precision plus
 // informational provenance. Maps are keyed like RegressionResult's
 // (InterceptKey included); a term absent from a map has no figure.
 type File struct {
 	// ModelFormatVersion is 3 for an extension regression's fit, else 2
-	// when Covariance is set, else 1.
+	// when Covariance is set, else 4 when Dispersion is, else 1.
 	ModelFormatVersion int `json:"model_format_version"`
 	// Name is the name the model was saved under (informational: a load
 	// binds the name the loading request gives it).
@@ -110,6 +118,11 @@ type File struct {
 	ConfLevel Float `json:"conf_level,omitempty"`
 	// Vcov is the coefficient covariance when the fit computed one.
 	Vcov *FileMatrix `json:"vcov,omitempty"`
+	// Dispersion (version 4 only, where it is required) is the fit's
+	// estimated dispersion φ̂ — RegressionResult.Dispersion, present
+	// beside a classical vcov whose φ is estimated (REG_OLS σ̂², REG_GLM
+	// gamma's Pearson χ²/df); null when undefined (df ≤ 0).
+	Dispersion Float `json:"dispersion,omitempty"`
 	// Covariance (required on version 2, optional on version 3, absent
 	// on version 1) names the robust
 	// estimator the standard errors, intervals, df and vcov came from —
@@ -249,6 +262,11 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 	if res.Vcov != nil {
 		f.Vcov = toFileMatrix(res.Vcov)
 	}
+	if res.Dispersion != 0 && BuiltinRegression(res.Type) && res.Covariance == nil {
+		// The engine sets it beside a classical vcov only.
+		f.Dispersion = Float(res.Dispersion)
+		f.ModelFormatVersion = FileFormatVersion
+	}
 	if res.Covariance != nil {
 		c := *res.Covariance
 		if c.Lags != nil {
@@ -259,7 +277,7 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 		f.ModelFormatVersion = fileFormatV2
 	}
 	if !BuiltinRegression(res.Type) {
-		f.ModelFormatVersion = FileFormatVersion
+		f.ModelFormatVersion = fileFormatV3
 		outs, err := encodeOutputs(res.Outputs)
 		if err != nil {
 			return nil, err
@@ -332,12 +350,20 @@ func (f *File) check() string {
 		return "carries a covariance, which model_format_version 1 does not have"
 	case f.ModelFormatVersion == fileFormatV2 && f.Covariance == nil:
 		return "is model_format_version 2 without a covariance"
-	case f.ModelFormatVersion != FileFormatVersion && f.Outputs != nil:
+	case f.ModelFormatVersion != fileFormatV3 && f.Outputs != nil:
 		return fmt.Sprintf("carries outputs, which model_format_version %d does not have", f.ModelFormatVersion)
-	case f.ModelFormatVersion == FileFormatVersion && BuiltinRegression(f.Type):
+	case f.ModelFormatVersion == fileFormatV3 && BuiltinRegression(f.Type):
 		return fmt.Sprintf("is model_format_version 3, which only an extension or model regression's fit writes, but its type is the built-in %s", f.Type)
-	case f.ModelFormatVersion != FileFormatVersion && !BuiltinRegression(f.Type):
+	case f.ModelFormatVersion != fileFormatV3 && !BuiltinRegression(f.Type):
 		return fmt.Sprintf("has type %s, which names its own coefficients; only model_format_version 3 carries an extension or model regression's fit", f.Type)
+	case f.ModelFormatVersion == FileFormatVersion && f.Dispersion == 0:
+		return "is model_format_version 4 without a dispersion"
+	case f.ModelFormatVersion == FileFormatVersion && f.Vcov == nil:
+		return "is model_format_version 4 without a vcov (the dispersion rides a classical vcov)"
+	case f.ModelFormatVersion != FileFormatVersion && f.Dispersion != 0:
+		return fmt.Sprintf("carries a dispersion, which model_format_version %d does not have", f.ModelFormatVersion)
+	case f.ModelFormatVersion == FileFormatVersion && f.Covariance != nil:
+		return "carries a covariance, which model_format_version 4 does not have"
 	}
 	if c := f.Covariance; c != nil {
 		robust := &types.RegressionCovariance{Type: c.Type}
@@ -347,7 +373,7 @@ func (f *File) check() string {
 	}
 	// An extension regression's coefficients are named by its model
 	// (version 3): no intercept, nor one per predictor, is required.
-	builtin := f.ModelFormatVersion != FileFormatVersion
+	builtin := f.ModelFormatVersion != fileFormatV3
 	if _, ok := f.Coefficients[InterceptKey]; !ok && builtin {
 		return fmt.Sprintf("has no %q coefficient", InterceptKey)
 	}
@@ -417,6 +443,7 @@ func (f *File) Result() *types.RegressionResult {
 		NObs:         f.NObs,
 		SumWeights:   float64(f.SumWeights),
 		NEff:         float64(f.NEff),
+		Dispersion:   float64(f.Dispersion),
 	}
 	if f.Selection != "" {
 		res.SelectedFeatures = append([]string(nil), f.Predictors...)

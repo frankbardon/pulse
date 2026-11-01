@@ -182,9 +182,9 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"regression attribute requires a non-nil spec")
 	}
-	if (kind == regAttrFitted || kind == regAttrResidual) && model.FitReferenced(attr.Type, attr) {
+	if model.FitReferenced(attr.Type, attr) {
 		// params.fit scores a bound fit instead of the OLS refit
-		// (attribute_reg_fit.go).
+		// (attribute_reg_fit.go) — all four kinds.
 		return newRegFitScoreAttribute(attr, schema, kind), nil
 	}
 	// The refit's params and penalty rule, shared with predict's

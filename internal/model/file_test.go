@@ -273,6 +273,54 @@ func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
 	}
 }
 
+// TestModelFile_DispersionRoundTrip: a classical vcov fit carrying its
+// estimated dispersion (RegressionResult.Dispersion — REG_OLS σ̂², a
+// gamma GLM's Pearson χ²/df; NaN when undefined) saves as
+// model_format_version 4 and reads it back bit-exactly, so the loaded
+// fit's influence face carries it as the in-request fit's does; a fit
+// without one stays version 1, and its loaded OLS face has no
+// dispersion (an earlier build's file: CheckFitDesign refuses it).
+func TestModelFile_DispersionRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, phi := range []float64{1.2575235440954267, math.NaN()} {
+		spec, res := fullFit()
+		res.Dispersion = phi
+		f, err := NewFile("m", spec, res, Provenance{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, data := roundTrip(t, f)
+		if got.ModelFormatVersion != 4 || !strings.Contains(string(data), `"dispersion": `) {
+			t.Fatalf("version %d, want 4 with a dispersion key:\n%s", got.ModelFormatVersion, data)
+		}
+		if r := got.Result(); !sameBits(r.Dispersion, phi) {
+			t.Fatalf("dispersion read back %v, want %v", r.Dispersion, phi)
+		}
+		want, _ := Bind("m", spec, res)
+		loaded, err := got.Bind("m")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !loaded.Design.Dispersion || loaded.Design != want.Design {
+			t.Fatalf("loaded face %+v, in-request face %+v", loaded.Design, want.Design)
+		}
+		sig := CatalogWithModels(nil, []types.ModelRef{{Name: "m", Path: "m" + FileSuffix}}, []*File{got})["m"]
+		if sig.Influence != want.Design {
+			t.Fatalf("predict face %+v, runtime face %+v", sig.Influence, want.Design)
+		}
+	}
+	spec, res := fullFit()
+	f, _ := NewFile("m", spec, res, Provenance{})
+	if f.ModelFormatVersion != 1 {
+		t.Fatalf("a fit without a dispersion writes version %d, want 1", f.ModelFormatVersion)
+	}
+	b, _ := f.Bind("m")
+	if spec.Type == types.REG_OLS && b.Design.Dispersion {
+		t.Fatal("a version-1 OLS file reports a dispersion it does not carry")
+	}
+}
+
 // TestModelFile_SelectionResampleGLM: each fit shape saves what scoring
 // needs — selection the retained predictors (with the candidate set as
 // terms, a dropped candidate scoring 0), resample its Wald figures
@@ -382,7 +430,19 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		{"no version", edit(func(m map[string]any) { delete(m, "model_format_version") }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"null version", edit(func(m map[string]any) { m["model_format_version"] = nil }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"string version", edit(func(m map[string]any) { m["model_format_version"] = "1" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 4 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 5 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"v4 without dispersion", edit(func(m map[string]any) { m["model_format_version"] = 4 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v1 with dispersion", edit(func(m map[string]any) { m["dispersion"] = 1.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v4 without vcov", edit(func(m map[string]any) {
+			m["model_format_version"] = 4
+			m["dispersion"] = 1.5
+			delete(m, "vcov")
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v4 with covariance", edit(func(m map[string]any) {
+			m["model_format_version"] = 4
+			m["dispersion"] = 1.5
+			m["covariance"] = map[string]any{"type": "hc3"}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v3 with a built-in type", edit(func(m map[string]any) { m["model_format_version"] = 3 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v1 with an extension type", edit(func(m map[string]any) { m["type"] = "REG_X_CUSTOM" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v1 with outputs", edit(func(m map[string]any) { m["outputs"] = map[string]any{"k": 1} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
@@ -436,7 +496,7 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		t.Fatalf("the unedited file must decode: %v", err)
 	}
 	_, err := DecodeFile("p", []byte(edit(func(m map[string]any) { m["model_format_version"] = 7 })))
-	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2, 3}) || ce.Details["version"] != 7 {
+	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2, 3, 4}) || ce.Details["version"] != 7 {
 		t.Fatalf("version details = %v", ce.Details)
 	}
 }

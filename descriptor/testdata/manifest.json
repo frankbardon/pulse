@@ -4064,13 +4064,13 @@
         {
           "name": "ATTR_REG_INFLUENCE",
           "category": "attribute",
-          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused.",
+          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight).",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true,
               "names_column": true
@@ -4079,16 +4079,22 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true,
               "names_column": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             },
             {
               "name": "measure",
               "type": "enum",
               "required": false,
               "default": "cooks",
-              "description": "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. Any other value is PROCESSING_CONFIG.",
+              "description": "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG.",
               "enum_values": [
                 "cooks",
                 "dffits"
@@ -4126,13 +4132,13 @@
         {
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
-          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true).",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true,
               "names_column": true
@@ -4141,9 +4147,15 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true,
               "names_column": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             }
           ],
           "accepts_types": [
@@ -4302,7 +4314,7 @@
               "type": "enum",
               "required": false,
               "default": "response",
-              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED), refused with params.fit.",
+              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit.",
               "enum_values": [
                 "response",
                 "pearson",
@@ -13487,11 +13499,11 @@
       },
       {
         "name": "op-attr-reg-influence",
-        "description": "Per-row Cook's distance or DFFITS from an unpenalized OLS refit — influence diagnostic."
+        "description": "Per-row Cook's distance or DFFITS from an unpenalized OLS refit or a bound fit's design — influence diagnostic."
       },
       {
         "name": "op-attr-reg-leverage",
-        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic."
+        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit or a bound fit's design — leverage diagnostic."
       },
       {
         "name": "op-attr-reg-predict",
@@ -14199,7 +14211,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -14630,7 +14642,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 267,
+    "examples_count": 268,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -20547,4 +20559,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1b47f1039e1eb7f55483c780ad06bf716ced2e7c4211cb6cdcfc34c381092add
+// golden-hash: 29cba74b0a7106be3e6bd4c33e8e53a6994acd1d16a3ce11dd0a962879411eba

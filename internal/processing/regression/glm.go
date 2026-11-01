@@ -311,6 +311,10 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		// gamma), its diagonal the clamped variances the standard errors
 		// read.
 		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, phi, variances))
+		if studentT {
+			// The estimated φ̂ the vcov is scaled by (gamma).
+			res.Dispersion = phi
+		}
 	}
 	return res, nil
 }

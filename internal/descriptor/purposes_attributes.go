@@ -420,7 +420,7 @@ var (
 		Assumptions: []string{
 			attrRegListwise,
 			attrRegOwnFit,
-			"Unpenalized least squares only: any penalty is refused.",
+			"Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.",
 			"It looks at the predictors only, never at the target.",
 		},
 		Level:    descriptor.LevelAdvanced,
@@ -446,7 +446,7 @@ var (
 		Assumptions: []string{
 			attrRegListwise,
 			attrRegOwnFit,
-			"Unpenalized least squares only: any penalty is refused.",
+			"Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.",
 			"A frequency weight counts a row as that many identical rows and reports one copy's figure; a probability weight is refused.",
 		},
 		Level:    descriptor.LevelAdvanced,

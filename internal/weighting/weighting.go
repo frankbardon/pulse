@@ -313,10 +313,11 @@ func DistanceClassOf(between types.GroupType) Class {
 // arbitrary, would make the total (and every share read off it) move
 // with the weight scale, so it is refused rather than given that
 // figure. A row-local formula stays ClassNone (the weight is skipped).
-// An ATTR_REG_FITTED / ATTR_REG_RESIDUAL naming params.fit
-// (model.FitReferenced; custom-regressions D2) scores a bound fit
-// whose own weight applied when the fit ran — ClassNone, skipped, the
-// ATTR_REG_PREDICT rule; without params.fit it is the weighted OLS
+// A regression attribute naming params.fit (model.FitReferenced;
+// custom-regressions D2, and ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE
+// since U65 E1-S2) scores a bound fit whose own weight applied when the
+// fit ran — ClassNone, skipped, the ATTR_REG_PREDICT rule (a
+// design-reading slot refuses a weighted fit: model.CheckFitDesign); without params.fit it is the weighted OLS
 // refit (ClassAware) — ClassFrequencyOnly when an ATTR_REG_RESIDUAL's
 // params.kind is standardized / studentized (model.PerObservationRefit:
 // one observation's figure, as ATTR_REG_INFLUENCE).

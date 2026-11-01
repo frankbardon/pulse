@@ -172,14 +172,24 @@ var validationRegistry = map[string]validation{
 	}, {
 		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
 		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
-	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. An R residuals.glm / rstudent cross-check is added once R 4.6.1 is available."},
+	}, {
+		Against: rPin + " `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated."},
+	"ATTR_REG_LEVERAGE": {Refs: []validationRef{{
+		Against: rPin + " `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}}, Gap: "The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated."},
 	"ATTR_REG_INFLUENCE": {Refs: []validationRef{{
 		Against: "statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`)",
 		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
 	}, {
 		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
 		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
-	}}, Gap: "An R cooks.distance / dffits cross-check is added once R 4.6.1 is available."},
+	}, {
+		Against: rPin + " `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}}, Gap: "Over a weighted bound fit the figures are refused, not validated."},
 
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{

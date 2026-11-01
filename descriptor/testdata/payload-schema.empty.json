@@ -1199,6 +1199,12 @@
             "null"
           ]
         },
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "error": {
           "$ref": "#/$defs/SlotError"
         },
@@ -2075,4 +2081,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 8bdc3b625d332da7875204bc9f8e751f252ca9d7df1f8c94864d9b7725ec4911
+// golden-hash: 187e2aca6b228b5a2b19f609d68c7c431df806e90f0f5770b49f3e7f142789f0

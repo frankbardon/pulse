@@ -36,14 +36,14 @@ Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-
 | `alpha` | float | — | Regularization strength. |
 | `l1_ratio` | float | — | Elasticnet mix. |
 | `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y its target; no refit keys beside it. |
-| `kind` | enum | `response` | `pearson`, `deviance`, `working`; refit only `standardized`, `studentized`. |
+| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized` (with `fit`: needs `vcov: true`). |
 | `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs
 
 `target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
 
-- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
+- `Label` — default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 

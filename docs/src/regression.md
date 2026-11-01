@@ -235,9 +235,24 @@ With `h` the leverage, `p′ = p + 1` coefficients, `df = n − p′`, `s² = RS
 | Cook's distance | `r²·h / (p′·(1 − h))` |
 | DFFITS | `t·√(h/(1 − h))` |
 
-They read the refit's design, so they take unpenalized OLS only (`PROCESSING_CONFIG` otherwise) and no `params.fit`. A frequency weight reads each record as `w` identical observations and reports one copy's figure (`h/w`, `df = Σw − p′`, the weighted RSS: statsmodels `OLSInfluence` on the `rep()` expansion); a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. A row outside the fit, or a figure the fit leaves undefined (`df ≤ 1`, `h ≥ 1`), is null.
+On the refit they read its design, so they take unpenalized OLS only (`PROCESSING_CONFIG` otherwise). A frequency weight reads each record as `w` identical observations and reports one copy's figure (`h/w`, `df = Σw − p′`, the weighted RSS: statsmodels `OLSInfluence` on the `rep()` expansion); a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. A row outside the fit, or a figure the fit leaves undefined (`df ≤ 1`, `h ≥ 1`), is null.
 
-Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md` and `skills/op-attr-reg-residual.md` for the parameter tables.
+Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. All four take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md`, `skills/op-attr-reg-residual.md`, `skills/op-attr-reg-leverage.md` and `skills/op-attr-reg-influence.md` for the parameter tables.
+
+### Influence over a bound fit
+
+`ATTR_REG_LEVERAGE`, `ATTR_REG_INFLUENCE` and `ATTR_REG_RESIDUAL` kind `standardized` / `studentized` with `params.fit` read the bound `REG_OLS` / `REG_GLM` fit's design — its `vcov`, its `dispersion` and its `n_obs` — exactly as R 4.6.1's `hatvalues` / `rstandard` / `rstudent` / `cooks.distance` / `dffits` read an `lm` or `glm`. With `x̃ = [1, x…]`, `μ` the fitted mean, `w = (dμ/dη)²/V(μ)` the working weight (1 under OLS), `rP = (y − μ)/√V(μ)` the Pearson residual, `φ` the dispersion (1 for binomial / poisson; `RegressionResult.dispersion` — σ̂² on OLS, the Pearson χ²/df on gamma — where it is estimated), `p′` the coefficient count and `df = n_obs − p′`:
+
+| Figure | Formula |
+|---|---|
+| leverage `h` | `w · x̃ᵀ(vcov/φ)x̃` |
+| standardized | `rP / (√φ·√(1 − h))` |
+| σ₍ᵢ₎ (φ estimated) | `√((φ·df − rP²/(1 − h))/(df − 1))` |
+| studentized | `rP / (σ₍ᵢ₎·√(1 − h))`; the standardized under binomial / poisson |
+| Cook's distance | `(rP/(1 − h))²·h/(φ·p′)` |
+| DFFITS | `sign(g′(μ))·rP·√h/(σ·(1 − h))`, σ = σ₍ᵢ₎ or √φ |
+
+DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (`model_format_version` 4); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
 
 ## Error codes
 

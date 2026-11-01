@@ -943,6 +943,13 @@ a_n ≤ 1), whose diagonal is `std_errors`²·a_n/(a_n−1). A weighted fit
 reads the inference size N* (Σw frequency, n_eff probability), as its
 standard errors do. `correlation` is `vcov` scaled to a unit diagonal
 (R's `cov2cor`); an entry with a zero or undefined variance is `null`.
+Beside a classical `vcov` whose dispersion is estimated — unpenalized
+`REG_OLS` (σ̂² = RSS/df) and `REG_GLM` gamma (the Pearson χ²/df) —
+`RegressionResult` carries the additive `omitempty` number `dispersion`,
+so `vcov / dispersion` is (XᵀWX)⁻¹ (`null` when the residual df is ≤ 0;
+absent on binomial / poisson, whose φ is 1, and on every robust,
+resampled, penalized or Bayesian fit). The influence figures over a
+bound fit read it.
 Under `resample` it is the replicate covariance (jackknife
 (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
 leave-one-out; bootstrap the B−1 sample covariance of the
@@ -1471,7 +1478,8 @@ written as a model file (`model_format_version` 1, or 2 — adding the
 `covariance` echo — when a robust covariance produced the fit's standard
 errors, or 3 — adding the fit's `outputs`, its coefficients named by the
 model — for an extension regression whose registration supplies a
-scorer; `.pulse-model.json`;
+scorer, or 4 — adding the fit's `dispersion` — for a classical `vcov`
+fit that carries one; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

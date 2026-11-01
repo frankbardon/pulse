@@ -443,7 +443,7 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- Unpenalized least squares only: any penalty is refused.
+- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
 - A frequency weight counts a row as that many identical rows and reports one copy's figure; a probability weight is refused.
 
 **Use something else:**
@@ -458,8 +458,9 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 
 - statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
 - statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
+- R 4.6.1 `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 
-**Validation gap:** An R cooks.distance / dffits cross-check is added once R 4.6.1 is available.
+**Validation gap:** Over a weighted bound fit the figures are refused, not validated.
 
 See [How Pulse is validated](../validation.md).
 
@@ -487,7 +488,7 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- Unpenalized least squares only: any penalty is refused.
+- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
 - It looks at the predictors only, never at the target.
 
 **Use something else:**
@@ -497,6 +498,14 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 - [`REG_OLS`](regression.md#op-reg_ols) when you want the model itself.
 
 **Glossary:** [`outlier`](../glossary.md#term-outlier), [`residual`](../glossary.md#term-residual), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- R 4.6.1 `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+
+**Validation gap:** The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-attr-reg-leverage`](../skills/op-attr-reg-leverage.md)
 
@@ -574,8 +583,9 @@ Adds to every row its residual: the actual target value minus the value a straig
 - statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`) — tolerance 1e-8 relative; `glm_residual_kinds_reference_test.go`
 - statsmodels 0.14.5 `OLSInfluence.resid_studentized_internal` / `resid_studentized_external` (the OLS refit, `params.kind` standardized / studentized; R `rstandard` / `rstudent`) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
 - statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
+- R 4.6.1 `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 
-**Validation gap:** The refit's response residual is checked against Pulse's own OLS. An R residuals.glm / rstudent cross-check is added once R 4.6.1 is available.
+**Validation gap:** The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated.
 
 See [How Pulse is validated](../validation.md).
 

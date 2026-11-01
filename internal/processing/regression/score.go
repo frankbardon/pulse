@@ -28,6 +28,16 @@ func LinearPredictor(intercept float64, coefs, x []float64) float64 {
 	return s
 }
 
+// linearPredictorOutOfLine is LinearPredictor kept out of line: a
+// caller in an FMA-gated file (bound_influence.go) reads the scorer's
+// very expression — so its μ is the bound fit's score bit for bit —
+// without inlining the multiply-add the compiler may fuse here.
+//
+//go:noinline
+func linearPredictorOutOfLine(intercept float64, coefs, x []float64) float64 {
+	return LinearPredictor(intercept, coefs, x)
+}
+
 // InverseLink returns g⁻¹ for a REG_GLM family / link pair as the fit
 // reported them (RegressionResult.Family / .Link) — the very function
 // the engine computes its fitted means with.

@@ -329,8 +329,16 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		}
 	case e.spec.Vcov && len(e.activeBounds) != 0:
 		attachVcov(res, predictors, boundedVcov(len(predictors)))
+		// σ̂² stays defined under a binding bound: the face predict
+		// reads off the spec (model.FitDesign) carries it either way.
+		res.Dispersion = solve.sigma2Gram
 	case e.spec.Vcov:
 		attachVcov(res, predictors, olsVcov(solve, e.acc.meanX))
+		if e.spec.Penalty == "" && res.Vcov != nil {
+			// The σ̂² the classical vcov is scaled by (Vcov/φ̂ =
+			// (XᵀX)⁻¹ — what a bound fit's influence figures read).
+			res.Dispersion = solve.sigma2Gram
+		}
 	}
 	return res, nil
 }

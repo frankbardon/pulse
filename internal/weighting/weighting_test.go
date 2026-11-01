@@ -306,17 +306,19 @@ func TestAttributeClassOf(t *testing.T) {
 	// custom-regressions D2 (#5): an ATTR_REG_FITTED / ATTR_REG_RESIDUAL
 	// naming params.fit scores a bound fit (row-local, ClassNone, the
 	// ATTR_REG_PREDICT rule); without it the slot is the weighted OLS
-	// refit (ClassAware). ATTR_REG_LEVERAGE takes no params.fit.
-	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL} {
+	// refit (ClassAware). ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE take it
+	// too (U65 E1-S2): the bound fit's design, refused when weighted.
+	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
 		if got := AttributeClassOf(&types.Attribute{Type: typ, Params: []byte(`{"fit":"m"}`)}); got != ClassNone {
 			t.Errorf("%s params.fit = %v, want ClassNone", typ, got)
 		}
-		if got := AttributeClassOf(&types.Attribute{Type: typ, Target: "y", Predictors: []string{"x"}}); got != ClassAware {
-			t.Errorf("%s refit = %v, want ClassAware", typ, got)
+		refit := ClassAware
+		if typ == types.ATTR_REG_INFLUENCE {
+			refit = ClassFrequencyOnly
 		}
-	}
-	if got := AttributeClassOf(&types.Attribute{Type: types.ATTR_REG_LEVERAGE, Params: []byte(`{"fit":"m"}`)}); got != ClassAware {
-		t.Errorf("ATTR_REG_LEVERAGE = %v, want ClassAware", got)
+		if got := AttributeClassOf(&types.Attribute{Type: typ, Target: "y", Predictors: []string{"x"}}); got != refit {
+			t.Errorf("%s refit = %v, want %v", typ, got, refit)
+		}
 	}
 	// U65 E1-S2: a standardized / studentized refit residual is one
 	// observation's figure — frequency-only per spec, like

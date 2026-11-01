@@ -896,7 +896,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -1411,4 +1411,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 556b8d67675ceb60647521bdc5892e0df7249bab7163c7a0f4a3473891ee1ab7
+// golden-hash: 22680fd44c1fe0d6d7cf483bbdad30441da9e58f65afed9dce59a4e03f007a2c

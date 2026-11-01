@@ -38,7 +38,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 24. Projected buffered decode
 25. Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import transfer`)
 26. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`
-27. Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3)
+27. Model file — `.pulse-model.json` (`model_format_version` 1, 2, 3 or 4)
 28. Population file — `.pulse-population.json` (`population_format_version` 1)
 29. SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3)
 30. CLAUDE.md's sidecar contract sentence, pre-compression
@@ -55,5 +55,5 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 | `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS…; Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage |
 | `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran…; Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`… |
 | `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType` (cohort-reshape E6-S2); Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4) |
-| `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3); Population file — `.pulse-population.json` (`population_format_version` 1); SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3) |
+| `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1, 2, 3 or 4); Population file — `.pulse-population.json` (`population_format_version` 1); SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3) |
 | `byte-layout/history.md` (not loaded by default) | CLAUDE.md's sidecar contract sentence, pre-compression (relocated verbatim at weighting…; Contract: `.claude/reference/byte-layout.md` — load it before touching any of these. No… |

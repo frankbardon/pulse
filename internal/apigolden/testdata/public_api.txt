@@ -5303,6 +5303,7 @@ pulse/types: type FitResult field RegressionResult.CredibleIntervals map[string]
 pulse/types: type FitResult field RegressionResult.Criterion string "json:\"criterion,omitempty\""
 pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitempty\""
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.Dispersion float64 "json:\"dispersion,omitempty\""
 pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
 pulse/types: type FitResult field RegressionResult.Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
@@ -5953,6 +5954,7 @@ pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type RegressionResult field Dispersion float64 "json:\"dispersion,omitempty\""
 pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
@@ -6349,4 +6351,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ffb427c31d2c5a6e34caf37af44f3b6f75eba87fbc16ed52f119025c385d1adf
+// golden-hash: 1ab48d17f6bf863fb065550bfe874d6162882fbd72865364cc989130b82de0bc

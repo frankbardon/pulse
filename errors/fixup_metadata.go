@@ -2386,7 +2386,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or residual attribute's `params.fit` takes `{fit}` alone. Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit}`, a residual's `{fit, kind}`, an influence attribute's `{fit, measure}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares or generalized-linear fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported`). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2397,6 +2397,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"attributes", "*", "params", "scale"},
 				Hint:   "Drop params.scale unless the fit is generalized-linear; a least-squares or Bayesian score is already on the target's scale.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions", "*", "vcov"},
+				Hint:   "For a leverage / influence / standardized / studentized slot (details.requires vcov), set vcov: true on the bound fit's regression; for requires unweighted set its weight to null.",
 			},
 		},
 	},

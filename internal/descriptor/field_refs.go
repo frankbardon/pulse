@@ -454,7 +454,8 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				// params.fit scores a bound fit (internal/model.
 				// CheckFitReference — the rule the attribute's bind
 				// re-runs), then every column the score reads: the
-				// fit's terms and, for a residual, its target.
+				// fit's terms and, for a residual or influence slot
+				// (model.FitReadsTarget), its target.
 				p, sig, cerr := model.CheckFitReference(attr, models, scorableRegression(w.inst, w.snap))
 				if cerr != nil {
 					w.out = append(w.out, cerr)
@@ -466,7 +467,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 						w.out = append(w.out, model.PredictorNotNumericFor(attr.Type, p.Fit, col, f.Type.String()))
 					}
 				}
-				if attrRoute == types.ATTR_REG_RESIDUAL && sig.Target != "" {
+				if model.FitReadsTarget(attrRoute) && sig.Target != "" {
 					w.check(sig.Target, func() *errors.CodedError { return model.TargetMissing(attr.Type, p.Fit, sig.Target) })
 					if f := schema.Field(sig.Target); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
 						w.out = append(w.out, model.TargetNotNumeric(attr.Type, p.Fit, sig.Target, f.Type.String()))

@@ -1342,7 +1342,10 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
 	// A sweep-bound fit's sweep_axis() axes are the batch's sweep's.
-	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries).WithSweepAxes(sweepAxes))
+	// A fit whose regression inherits the instance default weight is
+	// weighted (the influence face, model.CheckFitDesign).
+	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries).WithSweepAxes(sweepAxes).
+		WithDefaultWeight(req.Fits, opts != nil && opts.DefaultWeight != nil))
 	normalized := make([]*types.Request, len(req.Requests))
 	postWindows := make([]*descriptor.PostWindowPlan, len(req.Requests))
 	catalogs := make([]model.Catalog, len(req.Requests))

@@ -569,6 +569,18 @@ type RegressionResult struct {
 	// exactly when Vcov is.
 	Correlation *MatrixValues `json:"correlation,omitempty"`
 
+	// Dispersion is the ESTIMATED dispersion φ̂ the classical Vcov
+	// carries — Vcov = φ̂·(XᵀWX)⁻¹ — on a fit that set Vcov: σ̂² =
+	// RSS/df on an unpenalized REG_OLS fit, the Pearson χ²/df on a
+	// REG_GLM gamma fit, on the N* basis of a weighted fit (as Vcov).
+	// Absent wherever φ is not estimated (binomial / poisson fix it at
+	// 1) and on every robust, resampled, penalized or Bayesian fit,
+	// whose Vcov is no φ-scaled (XᵀWX)⁻¹. Null when the residual df is
+	// ≤ 0. The influence figures over a bound fit read it
+	// (ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE / ATTR_REG_RESIDUAL kind
+	// standardized / studentized with params.fit).
+	Dispersion float64 `json:"dispersion,omitempty"`
+
 	// Covariance echoes the robust estimator the standard errors,
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
 	// "auto" lags resolved; absent on a classical fit.

@@ -208,7 +208,9 @@ func TestOLSInfluence_RefusalsMatchPredict(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	t.Run("studentized over a bound fit", func(t *testing.T) {
+	t.Run("studentized over a bound fit without vcov", func(t *testing.T) {
+		// The bound-fit form reads the fit's vcov (U65 E1-S2,
+		// glm_influence_reference_test.go); a fit without one refuses.
 		creq := func() *ComposedRequest {
 			return &ComposedRequest{
 				Fits: []types.FitSpec{{Name: "m", Request: &Request{Cohort: &types.Cohort{Filename: "influence.pulse"},
@@ -218,8 +220,8 @@ func TestOLSInfluence_RefusalsMatchPredict(t *testing.T) {
 		}
 		_, err := p.Compose(ctx, creq())
 		ce := codedOf(t, err)
-		if ce.Code != errors.PULSE_MODEL_SCORE_INVALID || ce.Details["reason"] != "params_invalid" {
-			t.Fatalf("Compose err = %v, want PULSE_MODEL_SCORE_INVALID params_invalid", err)
+		if ce.Code != errors.PULSE_MODEL_SCORE_INVALID || ce.Details["reason"] != "params_invalid" || ce.Details["requires"] != "vcov" {
+			t.Fatalf("Compose err = %v, want PULSE_MODEL_SCORE_INVALID params_invalid requires vcov", err)
 		}
 		env, perr := p.PredictCompose(ctx, creq())
 		if perr != nil {
