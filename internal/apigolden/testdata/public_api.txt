@@ -4820,6 +4820,7 @@ pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_PREVIOUS_STATE pulse/types.AttributeType = "ATTR_PREVIOUS_STATE"
 pulse/types: const ATTR_PROFILE_SIMILARITY pulse/types.AttributeType = "ATTR_PROFILE_SIMILARITY"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
+pulse/types: const ATTR_REG_INFLUENCE pulse/types.AttributeType = "ATTR_REG_INFLUENCE"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
 pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
 pulse/types: const ATTR_REG_RESIDUAL pulse/types.AttributeType = "ATTR_REG_RESIDUAL"
@@ -6348,4 +6349,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0b97892b59bd7c98f756b8346b1022d85762404e0288e2f7373999d83abe7d52
+// golden-hash: ffb427c31d2c5a6e34caf37af44f3b6f75eba87fbc16ed52f119025c385d1adf

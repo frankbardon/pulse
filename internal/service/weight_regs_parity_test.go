@@ -85,6 +85,10 @@ var regParityOps = []regParityOp{
 	{name: "attr_fitted", attr: types.ATTR_REG_FITTED, tol: 1e-10},
 	{name: "attr_residual", attr: types.ATTR_REG_RESIDUAL, tol: 1e-10},
 	{name: "attr_leverage", attr: types.ATTR_REG_LEVERAGE, tol: 1e-10},
+	// ATTR_REG_INFLUENCE (U65 E1-S2, default measure cooks) reports one
+	// observation of the rep() expansion, so a record's figure is each of
+	// its copies' and the weighted read-back is the expansion's.
+	{name: "attr_influence", attr: types.ATTR_REG_INFLUENCE, tol: 1e-10},
 	// The weighted population-sd scores (U12 E5-S2) on y: scale-free, so
 	// the scale arm answers the same figures; a row's score is its
 	// copies' score, so the weighted per-k mean is the expanded one.
