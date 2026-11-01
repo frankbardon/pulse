@@ -79,6 +79,13 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
   Recommended: (a). Survey data rarely sits at 1e12, but revenue in cents or epoch timestamps can.
 - **D3 — v1 timing.** Recommended: E1–E3 land before U32 (they are trust evidence for v1), and E4–E5 may follow v1.0.0.
 
+**Decided 2026-11-01** (the owner delegated these choices):
+
+- **D1 → (a).** Validation is a read-time surface on `Explain` (`pulse explain OP`, `pulse_explain`). It adds no manifest bytes and moves the registry into `internal/descriptor`.
+- **D2 → publish the digits either way.** Fix anything under 7 digits on the lower- and average-difficulty datasets. Applied: SmLs07–09 and Wampler5 sit at the double-precision ceiling and are published as such.
+- **D3 → E1–E3 before U32; E4–E5 may follow v1.0.0.**
+- **D4 → (a).** Shift `AGG_WELFORD` and the moment-overlay fold together, keeping byte parity and gaining the precision. This includes the shard merge, so that partials with different origins combine exactly. It ships as #612, after U65 E1.
+
 ## Configurability (owner rule, 2026-10-31)
 
 An operator exposes a parameter wherever there is a real methodological choice, and its default is the current behaviour. Every story in this unit records its options and defaults. A pure accuracy fix with no result a user would choose differently (for example the origin shift in the mean tests) is not a knob. A contract between operators (byte parity) is not a per-request knob either. Applied so far:

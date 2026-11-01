@@ -68,6 +68,14 @@ Every output this unit adds lands with an R golden at 1e-10 and its row in the U
 - **D3 — marginal-effects surface.** The options are an opt-in `RegressionSpec.Margins` block that adds `RegressionResult.Margins` (additive, `omitempty`), or a post-fit operator over a bound fit. Recommended: the opt-in spec block, mirroring `Vcov`.
 - **D4 — v1 timing.** Everything is additive and `format_version` stays `"1.1"`, but new public slots land before the U02 API freeze golden is final. Recommended: E1–E3 before v1.0.0, and E4 in v1.1 unless the owner pulls it in.
 
+**Decided 2026-11-01** (the owner delegated these choices):
+
+- **D1 → new operators** `REG_ORDINAL` and `REG_MULTINOMIAL`.
+- **D2 → negative binomial is in scope** (#601).
+- **D3 → an opt-in `RegressionSpec.Margins` block**, mirroring `Vcov`.
+- **D4 → E1–E3 before v1.0.0; E4 in v1.1** unless the owner pulls it in.
+- **Reference oracle while R 4.6.1 is unavailable in the working environment.** The goldens come from a pinned PEP 723 `uv` script with numpy 2.3.3, scipy 1.16.2 and statsmodels 0.14.5, the versions the weighted-reference harness pins. Each script also carries the R calls that reproduce it. An R cross-check through `make reference` is added when R is available, and it never replaces the statsmodels pin silently.
+
 ## Configurability (owner rule, 2026-10-31)
 
 An operator exposes a parameter wherever there is a real methodological choice, and its default is the current behaviour. Every story in this unit records its options and defaults. A pure accuracy fix with no result a user would choose differently (for example the origin shift in the mean tests) is not a knob. A contract between operators (byte parity) is not a per-request knob either.
