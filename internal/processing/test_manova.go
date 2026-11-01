@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -149,8 +150,8 @@ func manovaP(f, df1, df2 float64) float64 {
 func manovaStatistics(eig []float64, q, dfr float64) (pillai, wilks, hl, roy manovaStatistic) {
 	p := float64(len(eig))
 	s := math.Min(p, q)
-	n := 0.5 * (dfr - p - 1)
-	mm := 0.5 * (math.Abs(p-q) - 1)
+	n := float64(0.5 * (dfr - p - 1))
+	mm := float64(0.5 * (math.Abs(p-q) - 1))
 
 	v, prod, u, mx := 0.0, 1.0, 0.0, 0.0
 	for _, l := range eig {
@@ -160,22 +161,22 @@ func manovaStatistics(eig []float64, q, dfr float64) (pillai, wilks, hl, roy man
 		mx = math.Max(mx, l)
 	}
 
-	t1 := 2*mm + s + 1
-	t2 := 2*n + s + 1
+	t1 := float64(2*mm) + s + 1
+	t2 := float64(2*n) + s + 1
 	pillai = manovaStatistic{stat: v, f: (t2 / t1 * v) / (s - v), df1: s * t1, df2: s * t2}
 
-	w1 := dfr - 0.5*(p-q+1)
-	w2 := (p*q - 2) / 4
-	w3 := p*p + q*q - 5
+	w1 := dfr - float64(0.5*(p-q+1))
+	w2 := float64((float64(p*q) - 2) / 4)
+	w3 := float64(p*p) + float64(q*q) - 5
 	if w3 > 0 {
-		w3 = math.Sqrt((p*q*p*q - 4) / w3)
+		w3 = math.Sqrt((float64(p*q*p*q) - 4) / w3)
 	} else {
 		w3 = 1
 	}
-	wdf2 := w1*w3 - 2*w2
-	wilks = manovaStatistic{stat: prod, f: ((math.Pow(prod, -1/w3) - 1) * wdf2) / p / q, df1: p * q, df2: wdf2}
+	wdf2 := float64(w1*w3) - float64(2*w2)
+	wilks = manovaStatistic{stat: prod, f: ((detmath.Pow(prod, -1/w3) - 1) * wdf2) / p / q, df1: p * q, df2: wdf2}
 
-	h2 := 2 * (s*n + 1)
+	h2 := 2 * (float64(s*n) + 1)
 	hl = manovaStatistic{stat: u, f: (h2 * u) / s / s / t1, df1: s * t1, df2: h2}
 
 	r1 := math.Max(p, q)

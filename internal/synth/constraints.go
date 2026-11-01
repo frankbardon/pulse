@@ -52,6 +52,25 @@ type compiledConstraints struct {
 	// and the rule host; nil when no expression calls lag, and on every
 	// validation-only probe.
 	lag *lagBuffer
+
+	// time is the spec's date / datetime declarations the time functions
+	// read (row_time.go), set by rowExprOptions; seasons is each compiled
+	// season() call's weights, appended by its patcher; datetimes is
+	// generate's conversion stage, read for a per-row zone (nil on every
+	// validation-only probe and for a spec with no zoned datetime).
+	time      map[string]rowTimeField
+	seasons   []seasonTable
+	datetimes *datetimeStage
+
+	// drawSites is each compiled uniform() / bernoulli() call's stream key
+	// and per-attempt call count, appended by drawPatcher and keyed by the
+	// compiling caller (labelDrawSites); drawSeed is the run's rule-draw
+	// seed key and attempt the constraint-rejected attempts at ordinal,
+	// both stamped by generate (row_draw.go). Empty for every spec that
+	// never draws, which keeps such a spec byte-identical.
+	drawSites []drawSite
+	drawSeed  uint64
+	attempt   int
 }
 
 // rowExprEnv builds the expr environment shape for a set of declared
@@ -88,7 +107,11 @@ func rowExprEnv(fields []FieldSpec) (env map[string]any, names map[string]bool) 
 // predicate or a constraint) adds it and a caller compiling a value
 // expression (`set_expr`, whose return type is the coercion matrix's
 // business, not the compiler's) does not.
-func rowExprOptions(env map[string]any, names map[string]bool, host *compiledConstraints, extra ...expr.Option) []expr.Option {
+//
+// times (rowTimeFields over the same fields) is stored on host, which the
+// time functions read at run time, and feeds their patcher.
+func rowExprOptions(env map[string]any, names map[string]bool, times map[string]rowTimeField, host *compiledConstraints, extra ...expr.Option) []expr.Option {
+	host.time = times
 	opts := []expr.Option{
 		expr.Env(env),
 		expr.Function(isnullFuncName, host.isnullBuiltin, new(func(string) bool)),
@@ -98,8 +121,17 @@ func rowExprOptions(env map[string]any, names map[string]bool, host *compiledCon
 		// rewriting each well-formed call onto an internal name before
 		// the type check (row_lag.go).
 		expr.Patch(lagPatcherFor(env, names)),
+		// trend / season / between over a date or datetime field are
+		// rewritten onto internal names carrying the field name and
+		// their baked literals (row_time.go).
+		expr.Patch(timePatcher{declared: names, times: times, host: host}),
+		// uniform() / bernoulli(p) are rewritten onto internal names
+		// carrying their draw-site index (row_draw.go).
+		expr.Patch(drawPatcher{declared: names, host: host}),
 	}
 	opts = append(opts, lagFunctionOptions(host)...)
+	opts = append(opts, timeFunctionOptions(host)...)
+	opts = append(opts, drawFunctionOptions(host)...)
 	// The shared maths (exprenv.MathOptions) and the now() removal: see
 	// row_expr_builtins.go. Appended to every row expression, so
 	// constraints, `when`, `set_expr` and both --suggest-rules detectors
@@ -117,17 +149,18 @@ func compileConstraints(in []ConstraintSpec, wfs []*writerField) (*compiledConst
 		specs = append(specs, wf.spec)
 	}
 	env, names := rowExprEnv(specs)
+	times := rowTimeFields(specs)
 
 	out := &compiledConstraints{
 		progs:  make([]*vm.Program, 0, len(in)),
 		exprs:  make([]string, 0, len(in)),
 		fields: names,
 	}
-	opts := rowExprOptions(env, names, out, expr.AsBool())
+	opts := rowExprOptions(env, names, times, out, expr.AsBool())
 	for _, c := range in {
 		// validateSpec refused these already; repeated here for a Spec
 		// that bypassed it (SpecFromProfile), so the code is the same.
-		if r := rowExprStaticRefusal(c.Expr, names); r != nil {
+		if r := constraintExprStaticRefusal(c.Expr, names, times); r != nil {
 			return nil, rowExprConstraintRefusal(c.Expr, r)
 		}
 		prog, err := expr.Compile(c.Expr, opts...)

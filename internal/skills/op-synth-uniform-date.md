@@ -37,8 +37,8 @@ Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `d
 - Both bounds inclusive — `uniform_date(2024-01-01, 2024-12-31)` can emit either.
 - Unparseable dates → `SERVICE_VALIDATION` ("invalid start date" / "invalid end date"). `end == start` is legal (every draw on that day); only `end < start` → `SERVICE_VALIDATION` ("end must not be before start").
 - Epoch is 1970-01-01; pre-epoch dates are legal — `date` stores signed `int32` days, so they are negative.
-- For sub-day granularity model the timestamp as `u64` seconds-since-epoch via `uniform`.
+- For a timestamp use a `datetime` field with `uniform_datetime` (zone-aware, hour / weekday weights); `uniform_date` is refused on `datetime`.
 
 ## See
 
-- Skills: `synthetic-data`, `op-synth-uniform`, `op-synth-monotonic-from`
+- Skills: `synthetic-data`, `op-synth-uniform`, `op-synth-monotonic-from`, `op-synth-uniform-datetime`

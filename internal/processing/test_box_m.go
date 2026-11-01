@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -145,7 +146,7 @@ func logDetSPD(s [][]float64) (float64, bool) {
 	}
 	acc := 0.0
 	for i := 0; i < len(s); i++ {
-		acc += math.Log(l.At(i, i))
+		acc += detmath.Log(l.At(i, i))
 	}
 	return 2 * acc, true
 }
@@ -153,7 +154,7 @@ func logDetSPD(s [][]float64) (float64, bool) {
 // boxMF is Box's F approximation to M (see boxMRow): F, df2 and its p,
 // all NaN when A2 = A1².
 func boxMF(m, a1, a2, df1 float64) (f, df2, p float64) {
-	d := a2 - a1*a1
+	d := a2 - float64(a1*a1)
 	switch {
 	case d > 0:
 		df2 = (df1 + 2) / d
@@ -273,8 +274,8 @@ func (m *boxMRow) Finalize() (*types.TestResult, error) {
 		bm -= float64(nu[g] * logDets[g])
 	}
 	pf, qf := float64(p), float64(k-1)
-	a1 := (2*pf*pf + 3*pf - 1) / (6 * (pf + 1) * qf) * (inv - 1/sumNu)
-	a2 := (pf - 1) * (pf + 2) / (6 * qf) * (inv2 - 1/(sumNu*sumNu))
+	a1 := float64((float64(2*pf*pf) + float64(3*pf) - 1) / (6 * (pf + 1) * qf) * (inv - 1/sumNu))
+	a2 := float64((pf-1)*(pf+2)) / (6 * qf) * (inv2 - 1/(sumNu*sumNu))
 	chi := bm * (1 - a1)
 	f, df2, fp := boxMF(bm, a1, a2, df1)
 	res.Statistic = chi

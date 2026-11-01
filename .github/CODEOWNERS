@@ -2,3 +2,27 @@
 # Required-code-owner-review on branch protection enforces a review from
 # the listed owner(s) before any PR can merge into main.
 *       @frankbardon
+
+# Statistical review (U33, #206). The owner is the named statistics reviewer.
+# Guidance registries
+/internal/descriptor/purposes*.go               @frankbardon
+/internal/descriptor/interpretations*.go        @frankbardon
+/internal/descriptor/conventions.go             @frankbardon
+/internal/descriptor/glossary.go                @frankbardon
+/internal/descriptor/intents.go                 @frankbardon
+/internal/descriptor/testdata/conventions.json  @frankbardon
+# Inferential code and distributions
+/internal/processing/test_*.go                  @frankbardon
+/internal/processing/regression/                @frankbardon
+/internal/processing/overlay_pairwise*.go       @frankbardon
+/internal/processing/overlay_chisq*.go          @frankbardon
+/internal/processing/matrix_*.go                @frankbardon
+/internal/statdist/                             @frankbardon
+/internal/weighting/                            @frankbardon
+# External reference oracles
+/scripts/reference/                             @frankbardon
+/internal/processing/testdata/reference/        @frankbardon
+/internal/service/testdata/weight_reference/    @frankbardon
+# Contract prose under statistical review
+/.claude/reference/weighting.md                 @frankbardon
+/.claude/reference/guided-analysis.md           @frankbardon

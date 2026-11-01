@@ -90,7 +90,7 @@ func sandwich(spec *types.RegressionSpec, bread [][]float64, rows []sandwichRow,
 				sums[r.cluster] = s
 			}
 			for j := range s {
-				s[j] += r.weight * r.score[j]
+				s[j] += float64(r.weight * r.score[j])
 			}
 		}
 		g := len(sums)
@@ -185,7 +185,7 @@ func addOuter(m [][]float64, a, b []float64, s float64) {
 	for i := range m {
 		sa := s * a[i]
 		for j := range m[i] {
-			m[i][j] += sa * b[j]
+			m[i][j] += float64(sa * b[j])
 		}
 	}
 }
@@ -199,7 +199,7 @@ func sandwichProduct(b, m [][]float64, adj float64) [][]float64 {
 		for j := 0; j < k; j++ {
 			s := 0.0
 			for l := 0; l < k; l++ {
-				s += m[i][l] * b[l][j]
+				s += float64(m[i][l] * b[l][j])
 			}
 			mb[i][j] = s
 		}
@@ -209,7 +209,7 @@ func sandwichProduct(b, m [][]float64, adj float64) [][]float64 {
 		for j := i; j < k; j++ {
 			s := 0.0
 			for l := 0; l < k; l++ {
-				s += b[i][l] * mb[l][j]
+				s += float64(b[i][l] * mb[l][j])
 			}
 			s *= adj
 			v[i][j], v[j][i] = s, s

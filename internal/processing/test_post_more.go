@@ -95,8 +95,8 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"n":         b.n,
 			"mean_diff": b.mean,
 			"variance":  variance,
-			"ci_low":    b.mean - tcrit*se,
-			"ci_high":   b.mean + tcrit*se,
+			"ci_low":    b.mean - float64(tcrit*se),
+			"ci_high":   b.mean + float64(tcrit*se),
 		},
 	}
 	// Cohen's d for paired samples: mean_diff / sd_diff.
@@ -156,14 +156,14 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}
 	rx, tiesX := midRanks(xs)
 	ry, tiesY := midRanks(ys)
-	mean := float64(n+1) / 2
+	mean := float64(float64(n+1) / 2)
 	var sxx, syy, sxy float64
 	for i := 0; i < n; i++ {
 		dx := rx[i] - mean
 		dy := ry[i] - mean
-		sxx += dx * dx
-		syy += dy * dy
-		sxy += dx * dy
+		sxx += float64(dx * dx)
+		syy += float64(dy * dy)
+		sxy += float64(dx * dy)
 	}
 	denom := math.Sqrt(sxx * syy)
 	if denom == 0 {
@@ -385,7 +385,7 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		}
 	}
 	nf := float64(n)
-	muW := nf * (nf + 1) / 4
+	muW := float64(nf * (nf + 1) / 4)
 	varW := nf*(nf+1)*(2*nf+1)/24 - tieCorrection(ties)/48
 	var z, p float64
 	if varW <= 0 {
@@ -530,22 +530,22 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	for i := 0; i < k; i++ {
 		weights[i] = float64(ns[i]) / vars_[i]
 		W += weights[i]
-		weightedMean += weights[i] * means[i]
+		weightedMean += float64(weights[i] * means[i])
 	}
 	weightedMean /= W
 	var num, tailSum float64
 	for i := 0; i < k; i++ {
 		diff := means[i] - weightedMean
-		num += weights[i] * diff * diff
+		num += float64(weights[i] * diff * diff)
 		share := 1 - weights[i]/W
 		tailSum += share * share / float64(ns[i]-1)
 	}
 	num /= float64(k - 1)
 	kf := float64(k)
-	den := 1 + 2*(kf-2)/(kf*kf-1)*tailSum
+	den := 1 + float64(2*(kf-2)/(float64(kf*kf)-1)*tailSum)
 	F := num / den
 	df1 := kf - 1
-	df2 := (kf*kf - 1) / (3 * tailSum)
+	df2 := (float64(kf*kf) - 1) / (3 * tailSum)
 	p := fSurvival(F, df1, df2)
 	res := &types.TestResult{
 		Label:      testLabel(a.spec),
@@ -855,7 +855,7 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	sort.Float64s(b)
 	D := ksTwoSampleD(a, b)
 	p := ksTwoSampleP(a, nil, b, nil, D)
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(k.spec),
 		Type:       types.TEST_KS,
 		Variant:    "two_sample_post",
@@ -867,5 +867,7 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"groups": keys,
 			"n":      []int{len(a), len(b)},
 		},
-	}, nil
+	}
+	res.Warnings = append(res.Warnings, ksTiesWarnings(a, nil, b, nil)...)
+	return res, nil
 }

@@ -30,13 +30,14 @@ Each rule's reason comes from a failure this repo already shipped.
 
 ## Cross-architecture numerics
 
-- Values from gonum decompositions (SymEigen, SVD, QR), rotations or math-library tails (chi-square and similar) can differ by a few ulps between amd64 (CI) and arm64 (local); `.claude/reference/matrix-and-vectors.md` permits this.
+- Values from gonum decompositions (SymEigen, SVD, QR) and everything seeded by them (PCA, `MAT_FACTOR` rotations, `TEST_MANOVA`, `MAT_SEM` fits) can differ by a few ulps between amd64 (CI) and arm64 (local); `.claude/reference/matrix-and-vectors.md` permits this; residuals: `docs/src/library/linalg.md` (Not covered).
 - Never store the exact bits of such a value in a golden or an oracle fixture. Compare stored fixtures within the documented tolerance. *Why: a fixture that matched bit for bit on arm64 failed in amd64 CI.*
 - Keep bit-exact checks only in two cases: (a) both sides are computed live in the same process, for example across `DecodeWorkers` or `ShardWorkers` counts; (b) the path is declared FMA-free (`CoMoment`, the SPD reference kernels, the metric registry).
 - In an FMA-free kernel, write the barrier as an explicit `float64(x*y)`.
-- Test-input generators too: arm64 fuses `a*b + c` into one FMA instruction and amd64 does not, so `rng.NormFloat64()*k + c` yields different inputs on each. Wrap the product as `float64(rng.NormFloat64()*k) + c` in any generator whose output feeds frozen words or a bit-exact fixture. *Why: a frozen-word test generated its inputs this way, passed on arm64 and failed in amd64 CI.*
+- Test-input generators too: arm64 fuses `a*b + c`, amd64 does not. Write `float64(rng.NormFloat64()*k) + c` wherever the output feeds a bit-exact fixture. *Why: a frozen-word test passed on arm64, failed in amd64 CI.*
 - Never call `math.Signbit`, or compare raw bits, on a value that can be NaN. Guard NaN explicitly first. A runtime 0/0 is `0x7ff8…` (sign clear) on arm64 and `0xfff8…` (sign set) on x86 SSE. *Why: a sign check on a possibly-NaN statistic passed locally and failed in amd64 CI.*
-- To reproduce on amd64: `GOOS=linux GOARCH=amd64 go test -c -o t.amd64 ./<pkg>`, then `docker run --rm --platform linux/amd64 -v "$PWD":/w -w /w/<pkg> golang ./t.amd64`. Rosetta reproduces the FMA class but emits the arm64-style NaN, so a NaN sign-bit failure shows only in amd64 CI.
+- `math/rand/v2` `NormFloat64` / `ExpFloat64` differ across arches: use uniform draws or `detmath` variates for bit-exact fixtures.
+- Cross-arch proof = the committed fingerprint golden (`internal/fingerprint`) plus CI's linux/amd64 run, never a container. Detail: `matrix-and-vectors/linalg.md` (Cross-architecture detail).
 
 ## Test tiers and parallelism
 

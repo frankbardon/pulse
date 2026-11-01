@@ -118,7 +118,7 @@ var selfReadingOperators = []string{
 	// synth_distribution
 	"bernoulli", "constant", "discrete", "exponential", "lognormal", "mixture",
 	"monotonic_from", "normal", "pareto", "poisson", "regex", "set_bernoulli", "uniform",
-	"uniform_date", "weighted_categorical",
+	"uniform_date", "uniform_datetime", "weighted_categorical",
 }
 
 // valueField returns the path an operator's primary result is read

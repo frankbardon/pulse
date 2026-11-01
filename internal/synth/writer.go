@@ -33,6 +33,8 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeF64, true
 	case "date":
 		return encoding.FieldTypeDate, true
+	case "datetime":
+		return encoding.FieldTypeDateTime, true
 	case "packed_bool":
 		return encoding.FieldTypePackedBool, true
 	case "categorical_u8":
@@ -48,10 +50,12 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 	// than listed above, so the rung ladder lives in exactly one place
 	// (encoding.ParseFieldType + FieldType.MaxSetEntries) and a rung
 	// added to encoding becomes declarable here without an edit. The
-	// IsSet guard is what keeps the delegation narrow: every other name
-	// encoding knows and synth has no write path for — datetime today —
-	// stays undeclarable, which is the property
-	// internal/synth/constraints_internal_test.go's undeclarableFieldTypes pins.
+	// IsSet guard is what keeps the delegation narrow: a name encoding
+	// knows and synth has no write path for stays undeclarable, which is
+	// the property internal/synth/constraints_internal_test.go's
+	// undeclarableFieldTypes pins. datetime left that list in #362: it is
+	// declarable above, written by the writeFieldValueForField arm below
+	// and drawn zone-aware by uniform_datetime (internal/synth/datetime.go).
 	//
 	// The vector types resolve the same way: vec_f32 / vec_f64 are
 	// declarable since #450, through the `vector` block
@@ -68,6 +72,11 @@ type writerField struct {
 	spec    FieldSpec
 	field   *encoding.Field
 	sampler sampler
+	// helper is true for a `"output": false` field (#364): it is drawn
+	// and lives in the row like any other field, but encodeRow skips it
+	// and field points at a Field outside the written schema. The zero
+	// value is a written field, so a hand-built writerField is one.
+	helper bool
 	// dim is a vector field's element count (0 for every other type):
 	// the encode path needs it to write a null vector's placeholder,
 	// and it is a schema property rather than a Field one.
@@ -78,11 +87,20 @@ type writerField struct {
 	warnings []string
 }
 
-// buildSchema returns the encoding.Schema and per-field samplers laid
-// out in record order. Byte offsets / bit positions are populated.
+// buildSchema returns the WRITTEN encoding.Schema and the per-field
+// samplers for EVERY declared field, in spec order. Byte offsets / bit
+// positions are populated for the written fields.
+//
+// The two are not the same list once a field declares `"output": false`
+// (#364): the samplers still cover it — it draws in its declaration
+// position, so hiding a field moves no other field's value — while the
+// schema, and so the file, carries only the output fields, in spec order
+// with the helpers removed. A helper's writerField points at a Field kept
+// outside the schema (no offset, never encoded).
 func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	fields := make([]encoding.Field, len(s.Fields))
 	wfs := make([]*writerField, len(s.Fields))
+	outIdx := 0
 
 	// Fields whose own null draw a `{"owns_nulls": true}` rule has
 	// claimed. Resolved ONCE, here, because the sampler is built here —
@@ -101,12 +119,18 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 				fmt.Sprintf("unknown field type %q for field %q", fs.Type, fs.Name),
 				map[string]any{"type": fs.Type, "field": fs.Name})
 		}
+		output := fieldIsOutput(fs)
+		idx := -1
+		if output {
+			idx = outIdx
+			outIdx++
+		}
 		field := encoding.Field{
 			Name:         fs.Name,
 			Type:         ft,
 			Nullable:     fs.Nullable,
 			Description:  fs.Description,
-			CsvColumnIdx: i,
+			CsvColumnIdx: idx,
 		}
 		// Bit-packed fields each consume one byte in the importer's writer
 		// pattern (see internal/io/import.go: WriteByte path); replicate here so
@@ -175,8 +199,10 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			if err := validateVectorField(fs); err != nil {
 				return nil, nil, err
 			}
-			vf := vectorFieldFor(fs, i)
-			vectors = append(vectors, vf)
+			vf := vectorFieldFor(fs, idx)
+			if output {
+				vectors = append(vectors, vf)
+			}
 			dim = vf.Dim
 		}
 
@@ -198,7 +224,19 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		}
 
 		fields[i] = field
-		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp, dim: dim, warnings: fieldWarnings}
+		wfs[i] = &writerField{spec: fs, field: &fields[i], sampler: smp, helper: !output, dim: dim, warnings: fieldWarnings}
+	}
+
+	// The written fields, in spec order. With no helper this is the
+	// whole list, so the schema is exactly the one built before the slot.
+	written := fields
+	if outIdx < len(fields) {
+		written = make([]encoding.Field, 0, outIdx)
+		for i := range fields {
+			if !wfs[i].helper {
+				written = append(written, fields[i])
+			}
+		}
 	}
 
 	// Byte offsets / bit positions come from the canonical layout over
@@ -206,17 +244,25 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	// import lays a row out. Vectors must be on the schema BEFORE the
 	// layout: a vector's width is its dim times its element size, and a
 	// schema without its VECTORS entries sizes the field at 0 bytes.
-	schema := &encoding.Schema{Fields: fields, Vectors: vectors}
+	schema := &encoding.Schema{Fields: written, Vectors: vectors}
 	encx.LayoutFields(schema)
+	j := 0
 	for i := range wfs {
-		wfs[i].field = &schema.Fields[i]
+		if !wfs[i].helper {
+			wfs[i].field = &schema.Fields[j]
+			j++
+		}
 	}
 	return schema, wfs, nil
 }
 
 // generate writes synthetic records to a bytes.Buffer, respecting any
 // declared constraints via rejection sampling.
-func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand) (rowsGenerated, rowsRejected int, warnings []string, err error) {
+//
+// seed is the run seed rng was built from; the rules' uniform() /
+// bernoulli() draws derive their own counter-based streams from it
+// (row_draw.go) and never read rng.
+func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand, seed int64) (rowsGenerated, rowsRejected int, warnings []string, err error) {
 	maxRej := s.MaxRejectionRate
 	if maxRej == 0 {
 		maxRej = 0.5
@@ -289,6 +335,14 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// ones. It reaches every generation path: AugmentFromProfile calls
 	// generate() for its GENERATED partition only, so rules never touch
 	// the copied `_synthetic=false` source rows.
+	// The zoned-datetime conversion stage: compiled before the rules
+	// because it runs before them, and checked here because a per-row
+	// zone field is a cross-field reference only the whole spec resolves.
+	datetimes, err := buildDatetimeStage(s, wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+
 	rules, ruleWarnings, err := compileRules(s.Rules, wfs)
 	if err != nil {
 		return 0, 0, nil, err
@@ -318,15 +372,17 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		bernoulliFlagWarnings(conflicts.catNumPairs, conflicts.setNumPairs, bernoulliTargets)...)
 
 	stages := &rowStages{
-		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
-		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets, bernoulliTargets),
-		setSetPairs: buildSetSetPairSamplers(conflicts.setSetPairs),
-		setCatPairs: buildSetCategoricalPairSamplers(conflicts.setCatPairs),
-		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets, bernoulliTargets),
-		corr:        corr,
-		models:      models,
-		residual:    residual,
-		rules:       rules,
+		catPairs:       buildCategoricalPairSamplers(conflicts.catPairs),
+		catNumPairs:    buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets, bernoulliTargets),
+		setSetPairs:    buildSetSetPairSamplers(crossSetPairs(conflicts.setSetPairs)),
+		setCatPairs:    buildSetCategoricalPairSamplers(conflicts.setCatPairs),
+		setWithinPairs: buildSetSetPairSamplers(withinSetPairs(conflicts.setSetPairs)),
+		setNumPairs:    buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets, bernoulliTargets),
+		corr:           corr,
+		models:         models,
+		residual:       residual,
+		rules:          rules,
+		datetimes:      datetimes,
 	}
 
 	committers := acceptCommitters(wfs)
@@ -337,12 +393,22 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	lags := newLagBuffer(s, wfs)
 	cons.lag = lags
 	rules.setLag(lags)
+	// The time functions' per-row zone is the one the conversion stage
+	// resolved (row_time.go); both hosts read the same stage.
+	cons.datetimes = datetimes
+	rules.setDatetimes(datetimes)
+	// attempt counts the constraint-rejected attempts at the current
+	// ordinal: a rule draw hashes it, so a redrawn row reads fresh draws
+	// rather than replaying the rejected ones (row_draw.go).
+	drawSeed := drawStreamKey(seed, ruleDrawDomain)
+	attempt := 0
 	for rowsGenerated < s.RowCount {
 		// row() reads the ACCEPTED-row ordinal: stamped before every
 		// attempt with the count already accepted, so a rejected attempt
 		// redraws at the same ordinal (rowOrdinalBuiltin).
 		cons.ordinal = rowsGenerated
 		rules.setRowOrdinal(rowsGenerated)
+		rules.setDrawAttempt(drawSeed, attempt)
 		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
@@ -352,6 +418,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		}
 		if !ok {
 			rowsRejected++
+			attempt++
 			total := rowsGenerated + rowsRejected
 			// Enforce only after a sane sample so a few unlucky early
 			// rejections don't trip the threshold.
@@ -376,6 +443,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// was re-drawn and left no trace. See internal/synth/rules_firing.go.
 		rules.commitRow()
 		rules.commitOwnedNulls()
+		datetimes.commitAccepted()
 		// Accept-only sampler state (monotonic_from), committed here for
 		// the same reason as the firing counts: a rejected attempt left
 		// no row, so it must leave no step either.
@@ -386,6 +454,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// rejected attempt is never read as a previous row.
 		lags.commit(row, rowNullMask)
 		rowsGenerated++
+		attempt = 0
 	}
 	// A rule that applied to NO generated row is the one rule fault
 	// nothing else can see — it validates, it compiles, and the cohort
@@ -393,6 +462,9 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// Reported last because it is a fact about the RUN, not about
 	// compiling the spec, and the warning order in this function is
 	// causal.
+	// DST resolutions are a fact about the accepted rows, and the stage
+	// that made them precedes the rule pass, so they lead the run facts.
+	warnings = append(warnings, datetimes.warnings()...)
 	warnings = append(warnings, rules.neverFiredWarnings(rowsGenerated)...)
 	// The other fact only the RUN can establish: whether each
 	// `{"owns_nulls": true}` claim held. The flag discards a captured
@@ -423,9 +495,19 @@ type rowStages struct {
 	catNumPairs []*categoricalNumericPairSampler
 	setSetPairs []*setSetPairSampler
 	setCatPairs []*setCategoricalPairSampler
-	setNumPairs []*setNumericPairSampler
-	corr        *correlator
-	models      []*modelDrawer
+	// setWithinPairs are the set-set pairs between two options of ONE
+	// set field (tv conditioned on broadband). They run after the
+	// set-categorical stage, not with the cross-field set-set pairs:
+	// the option a within-set pair reads may itself be resampled by a
+	// set-categorical pair (broadband from region), and reading it
+	// before that would draw tv against a broadband state the row does
+	// not keep — leaving exactly the impossible combinations the pair
+	// exists to remove. Empty for every spec without one, so such a spec
+	// draws the same RNG sequence as before the stage existed.
+	setWithinPairs []*setSetPairSampler
+	setNumPairs    []*setNumericPairSampler
+	corr           *correlator
+	models         []*modelDrawer
 	// residual carries the correlation structure among the MODELS'
 	// residuals. It is not a stage of its own — nothing it produces
 	// reaches the row directly — it is the shared source of randomness
@@ -439,6 +521,13 @@ type rowStages struct {
 	// keeps a rules-free spec byte-identical to output from before the
 	// slot existed. See internal/synth/rules_apply.go for why last is the design.
 	rules *ruleApplier
+	// datetimes converts each ZONED datetime field's local wall-clock
+	// reading to its UTC instant (internal/synth/datetime.go). It runs
+	// after the model stage — so whichever arm last wrote the field, the
+	// zone applies to its reading — and before the rule pass, which reads
+	// and writes instants. It consumes no RNG and is nil for a spec with
+	// no zoned datetime field, which keeps such a spec byte-identical.
+	datetimes *datetimeStage
 }
 
 // drawRow draws one row: every field's own independent sampler first,
@@ -446,7 +535,7 @@ type rowStages struct {
 // overwrite an already-drawn field's value in place — categorical joint
 // structure (categorical-categorical, then categorical-numeric) applied
 // before set-field joint structure (set-set, then set-categorical, then
-// set-numeric), before the numeric-numeric correlator, so a numeric or
+// within-set, then set-numeric), before the numeric-numeric correlator, so a numeric or
 // set field's final value reflects whichever categorical/set value it
 // ends up conditioned on before any requested Pearson correlation is
 // layered on top. set-set runs before set-categorical/set-numeric so a
@@ -504,6 +593,9 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	for _, scp := range stages.setCatPairs {
 		scp.transform(rng, row)
 	}
+	for _, wsp := range stages.setWithinPairs {
+		wsp.transform(rng, row)
+	}
 	for _, snp := range stages.setNumPairs {
 		snp.transform(rng, row)
 	}
@@ -533,11 +625,23 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	// sequence is identical to a spec with no rules at all. The full
 	// rationale, including why the two-phase alternative was rejected,
 	// is on internal/synth/rules_apply.go.
+	//
+	// The datetime stage runs just before it: local readings become UTC
+	// instants, so every rule sees the value the file stores.
+	if err := stages.datetimes.resolve(row, nullMask); err != nil {
+		return err
+	}
 	return stages.rules.apply(row, nullMask)
 }
 
 func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMask map[string]bool, bitmapSize int) error {
+	// A helper (`"output": false`) field is skipped: it lived in the row
+	// for the rules and constraints, and ends here. Bitmap bits follow
+	// the WRITTEN schema's index, not the spec's.
 	for _, wf := range wfs {
+		if wf.helper {
+			continue
+		}
 		val := row[wf.spec.Name]
 		isNull := nullMask[wf.spec.Name]
 		if err := writeFieldValue(buf, wf, val, isNull); err != nil {
@@ -546,13 +650,15 @@ func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMa
 	}
 	if bitmapSize > 0 {
 		bitmap := make([]byte, bitmapSize)
-		for i, wf := range wfs {
-			if !wf.field.Nullable {
+		i := 0
+		for _, wf := range wfs {
+			if wf.helper {
 				continue
 			}
-			if nullMask[wf.spec.Name] {
+			if wf.field.Nullable && nullMask[wf.spec.Name] {
 				encoding.BitmapSetNull(bitmap, i)
 			}
+			i++
 		}
 		if err := encoding.WriteBitmap(buf, bitmap); err != nil {
 			return err
@@ -615,6 +721,23 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 		f := toFloat64(val)
 		days := uint32(int64(math.Floor(f + 0.5)))
 		return encoding.WriteFieldValue(buf, ft, uint64(days))
+	case encoding.FieldTypeDateTime:
+		// Two's-complement int64 epoch SECONDS (UTC). A zoned
+		// uniform_datetime reading has already been converted to its
+		// instant by the datetime stage; anything else is stored as the
+		// instant it already is, rounded half-up like the date arm. A
+		// non-finite or unrepresentable value is refused — int64(NaN) is
+		// platform-dependent, and a silent 1970 row looks like data.
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
+		f := toFloat64(val)
+		if math.IsNaN(f) || math.IsInf(f, 0) || math.Abs(f) > maxDatetimeSeconds {
+			return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+				fmt.Sprintf("field %q: datetime value %v is not a representable epoch-second value", field.Name, f),
+				map[string]any{"field": field.Name})
+		}
+		return encoding.WriteFieldValue(buf, ft, uint64(int64(math.Floor(f+0.5))))
 	case encoding.FieldTypePackedBool:
 		// Single byte holding the flag in bit 0. Matches reader's ReadBit.
 		var b byte
@@ -624,13 +747,18 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 		_, err := buf.Write([]byte{b})
 		return err
 	case encoding.FieldTypeU4:
+		// Clamped to [0, 15] like the u8–u64 arm, never masked: a draw
+		// of 16 used to wrap to 0 (and -1 to 15), turning a sampler's
+		// upper tail into its lowest value. Clamping BEFORE the float
+		// conversion also keeps a negative draw off Go's
+		// implementation-defined float-to-unsigned conversion.
 		var v uint8
 		if !isNull {
 			f := toFloat64(val)
 			if math.IsNaN(f) {
 				f = 0
 			}
-			v = uint8(math.Floor(f+0.5)) & 0x0F
+			v = clampU4(math.Floor(f + 0.5))
 		}
 		_, err := buf.Write([]byte{v})
 		return err
@@ -825,6 +953,17 @@ func toBool(v any) bool {
 		return s == "true" || s == "1" || s == "yes" || s == "y" || s == "t"
 	}
 	return false
+}
+
+// clampU4 clamps a rounded draw to the u4 range [0, 15].
+func clampU4(r float64) uint8 {
+	if r < 0 {
+		return 0
+	}
+	if r > 0x0F {
+		return 0x0F
+	}
+	return uint8(r)
 }
 
 func clampUnsigned(v uint64, ft encoding.FieldType) uint64 {

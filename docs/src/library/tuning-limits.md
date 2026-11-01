@@ -20,7 +20,7 @@ coded error, `PULSE_LIMIT_EXCEEDED`, with no partial result.
 | `RequestTimeout` | `request_timeout` | none (`Unlimited`) | duration | a call that runs far longer than intended | runtime, an inner deadline |
 | `MaxGroups` | `max_groups` | `10,000,000` | distinct groups | grouping on a high-cardinality field | predict (`possible`) + every bucket mint at runtime |
 | `MaxCrosstabCells` | `max_crosstab_cells` | `10,000,000` | rows x columns | a huge crosstab grid | predict (`possible`) + both crosstab arms |
-| `MaxEstimatedMemory` | `max_estimated_memory` | none (`Unlimited`) | bytes | a run whose buffered state cannot fit | predict (`certain`) and the same pre-flight before any record decodes; a 1:N join also predict (`possible`) + a check after the join build |
+| `MaxEstimatedMemory` | `max_estimated_memory` | none (`Unlimited`) | bytes | a run whose buffered state cannot fit | predict (`certain`) and the same pre-flight before any record decodes; a 1:N join also predict (`possible`) + a check after the join build; a synth fidelity report's `disclosure` working set, before generation |
 | `MaxMatrixDim` | `max_matrix_dim` | `2,048` | columns `p` | a quadratic matrix output | predict (`certain`) + pre-flight |
 | `MaxComposeSlots` | `max_compose_slots` | `1,000` | requests | fan-out through Compose; a `sweep` or `banner` counts its EXPANDED slots plus the explicit ones (a `random` / `lhs` sweep: its `samples`) | up front, serial and parallel, and in `PredictCompose` |
 | `MaxChainStages` | `max_chain_stages` | `1,000` | stages | fan-out through ProcessChain | up front, and in `PredictChain` |
@@ -292,6 +292,18 @@ is), so the extra rows are judged twice:
 
 With the limit Unlimited (the default) nothing is counted and the join
 runs unchanged.
+
+**Synth disclosure.** `Synth` with a fidelity report against a source
+(`synth from-profile --fidelity-report`) writes a `disclosure` section
+by default, and charges its working set before generation: every source
+row decoded into its distance slots (1 byte per column plus 8 per
+scalar, 32 per set and 8 per vector element) and its exact-match key
+(about as wide again, 41 bytes for a `decimal128`) plus 64 bytes of map
+entry, and every sampled generated row (at most the sample cap, default
+10,000) once more with 16 bytes of index and distance. Past
+`MaxEstimatedMemory` the call is refused before any row is generated;
+the section is off with `SynthOptions.DisableDisclosure`
+(`--no-disclosure`). There is no predict root for `Synth`.
 
 **Shard archives.** An archive is read by random access: opening it
 reads only the zip central directory and the headers, and the run reads

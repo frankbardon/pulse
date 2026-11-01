@@ -76,8 +76,8 @@ func newGLMPenalty(spec *types.RegressionSpec, nStar float64) *glmPenalty {
 	return p
 }
 
-func (p *glmPenalty) lambda2() float64 { return p.nStar * p.alpha * (1 - p.l1Ratio) }
-func (p *glmPenalty) lambda1() float64 { return p.nStar * p.alpha * p.l1Ratio }
+func (p *glmPenalty) lambda2() float64 { return float64(p.nStar * p.alpha * (1 - p.l1Ratio)) }
+func (p *glmPenalty) lambda1() float64 { return float64(p.nStar * p.alpha * p.l1Ratio) }
 
 // approximateSE reports whether the fit selects its predictors from the
 // data (l1 / elasticnet), so its standard errors are undefined (NaN).
@@ -88,10 +88,10 @@ func (p *glmPenalty) approximateSE() bool { return p != nil && p.l1Ratio > 0 }
 func (p *glmPenalty) value(beta []float64) float64 {
 	var sq, abs float64
 	for _, b := range beta[1:] {
-		sq += b * b
+		sq += float64(b * b)
 		abs += math.Abs(b)
 	}
-	return p.lambda2()*sq + 2*p.lambda1()*abs
+	return float64(p.lambda2()*sq) + float64(2*p.lambda1()*abs)
 }
 
 // solve returns the penalised working least-squares solution (a fresh
@@ -132,7 +132,7 @@ func (p *glmPenalty) descend(k int, a, b, start []float64) ([]float64, bool) {
 			row := a[j*k : (j+1)*k]
 			for c := 0; c < k; c++ {
 				if c != j {
-					r -= row[c] * beta[c]
+					r -= float64(row[c] * beta[c])
 				}
 			}
 			var next float64
@@ -142,7 +142,7 @@ func (p *glmPenalty) descend(k int, a, b, start []float64) ([]float64, bool) {
 				next = softThreshold(r, l1) / d
 			}
 			s := math.Sqrt(math.Max(row[j], 0))
-			if s*math.Abs(next-beta[j]) > glmCDTol*(1+s*math.Abs(next)) {
+			if s*math.Abs(next-beta[j]) > glmCDTol*(1+float64(s*math.Abs(next))) {
 				converged = false
 			}
 			beta[j] = next
@@ -189,7 +189,7 @@ func (p *glmPenalty) activeSetSolve(k int, a, b, beta []float64) ([]float64, boo
 		rhs[u] = b[ju]
 		if ju > 0 {
 			m[u*q+u] += l2
-			rhs[u] -= l1 * sign(beta[ju])
+			rhs[u] -= float64(l1 * sign(beta[ju]))
 		}
 	}
 	sol, ok := solveEquilibrated(q, m, rhs)
@@ -209,7 +209,7 @@ func (p *glmPenalty) activeSetSolve(k int, a, b, beta []float64) ([]float64, boo
 		}
 		r := b[j]
 		for _, c := range active {
-			r -= a[j*k+c] * out[c]
+			r -= float64(a[j*k+c] * out[c])
 		}
 		if math.Abs(r) > l1*(1+glmKKTSlack) {
 			return nil, false

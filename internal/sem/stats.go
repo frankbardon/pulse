@@ -6,7 +6,8 @@ import (
 
 	"gonum.org/v1/gonum/mat"
 
-	"gonum.org/v1/gonum/stat/distuv"
+	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Stats are semopy.calc_stats' figures, with semopy's definitions —
@@ -55,16 +56,16 @@ func ComputeStats(fit *Fit, desc string) error {
 	}
 	p := float64(len(fit.Model.Observed))
 	k := float64(len(fit.theta))
-	moments := p * (p + 1) / 2
+	moments := float64(float64(p*(p+1)) / 2)
 	st := Stats{NParams: len(fit.theta)}
 	st.DoF = moments - k
 	st.DoFBaseline = moments - float64(len(bfit.theta))
-	st.Chi2 = fit.N * fit.Objective
+	st.Chi2 = float64(fit.N * fit.Objective)
 	st.Chi2P = 1 - chiCDF(st.Chi2, st.DoF)
-	st.Chi2Baseline = fit.N * bfit.Objective
+	st.Chi2Baseline = float64(fit.N * bfit.Objective)
 	st.LogLik = fit.Objective
 	st.AIC = 2 * (k - st.LogLik)
-	st.BIC = math.Log(fit.N)*k - 2*st.LogLik
+	st.BIC = float64(detmath.Log(fit.N)*k) - 2*st.LogLik
 	if st.Chi2 < st.DoF {
 		st.RMSEA = 0
 	} else {
@@ -75,7 +76,7 @@ func ComputeStats(fit *Fit, desc string) error {
 	if st.DoF == 0 {
 		st.AGFI = math.NaN()
 	} else {
-		st.AGFI = 1 - st.DoFBaseline/st.DoF*(1-st.GFI)
+		st.AGFI = 1 - float64(st.DoFBaseline/st.DoF*(1-st.GFI))
 	}
 	if st.Chi2Baseline == 0 {
 		st.NFI = math.NaN()
@@ -96,7 +97,7 @@ func chiCDF(x, dof float64) float64 {
 	if dof <= 0 {
 		return math.NaN()
 	}
-	return distuv.ChiSquared{K: dof}.CDF(x)
+	return statdist.ChiSquareCDF(x, dof)
 }
 
 // lavaanStats fills fit.Stats with lavaan's (0.7) ML figures, under
@@ -147,9 +148,9 @@ func lavaanGroupPart(m *Model, s, implied *mat.SymDense, sampleMean, impliedMean
 		}
 	}
 	nx, ny := float64(len(xIdx)), float64(len(yIdx))
-	ndat := pf * (pf + 1) / 2
+	ndat := float64(float64(pf*(pf+1)) / 2)
 	nel := ndat
-	xMoments := nx * (nx + 1) / 2
+	xMoments := float64(float64(nx*(nx+1)) / 2)
 	baseParams := ny
 	if m.MeanStructure {
 		ndat += pf
@@ -167,7 +168,7 @@ func lavaanGroupPart(m *Model, s, implied *mat.SymDense, sampleMean, impliedMean
 	fb := -ldS
 	ldSxx := 0.0
 	for _, i := range yIdx {
-		fb += math.Log(s.At(i, i))
+		fb += detmath.Log(s.At(i, i))
 	}
 	if len(xIdx) > 0 {
 		sxx := mat.NewSymDense(len(xIdx), nil)
@@ -193,7 +194,7 @@ func lavaanGroupPart(m *Model, s, implied *mat.SymDense, sampleMean, impliedMean
 	tr := 0.0
 	for i := 0; i < p; i++ {
 		for j := 0; j < p; j++ {
-			tr += s.At(i, j) * inv.At(j, i)
+			tr += float64(s.At(i, j) * inv.At(j, i))
 		}
 	}
 	var r []float64
@@ -204,11 +205,11 @@ func lavaanGroupPart(m *Model, s, implied *mat.SymDense, sampleMean, impliedMean
 		}
 		tr += quad(inv, r, r)
 	}
-	part.logLik = -n / 2 * (pf*math.Log(2*math.Pi) + ldSigma + tr)
+	part.logLik = float64(-n / 2 * (float64(pf*detmath.Log(2*math.Pi)) + ldSigma + tr))
 	if len(xIdx) > 0 {
 		// fixed.x: lavaan's logl is conditional on the exogenous block,
 		// so its (saturated) marginal log-likelihood leaves it.
-		part.logLik += n / 2 * (nx*math.Log(2*math.Pi) + ldSxx + nx)
+		part.logLik += float64(n / 2 * (float64(nx*detmath.Log(2*math.Pi)) + ldSxx + nx))
 	}
 	part.gfi = gfiLisrel(s, implied, sampleMean, inv, xIdx, r)
 	return part, nil
@@ -229,9 +230,9 @@ func lavaanCombine(parts []lavaanPart, chi2 []float64, nParams int) Stats {
 		baseParams += pt.baseParams
 		n += pt.n
 		chi += chi2[g]
-		chiB += pt.n * pt.fb
+		chiB += float64(pt.n * pt.fb)
 		ll += pt.logLik
-		gfi += pt.n * pt.gfi
+		gfi += float64(pt.n * pt.gfi)
 	}
 	if len(parts) == 1 {
 		gfi = parts[0].gfi
@@ -245,14 +246,14 @@ func lavaanCombine(parts []lavaanPart, chi2 []float64, nParams int) Stats {
 	st.Chi2P = 1 - chiCDF(st.Chi2, st.DoF)
 	st.Chi2Baseline = chiB
 	st.LogLik = ll
-	st.AIC = -2*st.LogLik + 2*k
-	st.BIC = -2*st.LogLik + k*math.Log(n)
+	st.AIC = float64(-2*st.LogLik) + float64(2*k)
+	st.BIC = float64(-2*st.LogLik) + float64(k*detmath.Log(n))
 
 	st.CFI, st.TLI, st.RMSEA = lavaanIndices(st.Chi2, st.DoF, st.Chi2Baseline, st.DoFBaseline, n, len(parts))
 	st.NFI = lavaanNFI(st.Chi2, st.DoF, st.Chi2Baseline, st.DoFBaseline)
 	st.GFI = gfi
 	if st.DoF > 0 {
-		st.AGFI = 1 - nel/st.DoF*(1-st.GFI)
+		st.AGFI = 1 - float64(nel/st.DoF*(1-st.GFI))
 	} else {
 		st.AGFI = 1
 	}
@@ -276,7 +277,7 @@ func lavaanIndices(x2, df, x2b, dfb, n float64, g int) (cfi, tli, rmsea float64)
 	} else {
 		cfi = 1 - t1/t2
 	}
-	a, b := (x2-df)*dfb, (x2b-dfb)*df
+	a, b := float64((x2-df)*dfb), float64((x2b-dfb)*df)
 	switch {
 	case df > 0 && math.Abs(b) > 0:
 		tli = 1 - a/b
@@ -321,7 +322,7 @@ func gfiLisrel(sample, implied *mat.SymDense, sampleMean []float64, inv *mat.Sym
 		var ka, kaka mat.Dense
 		ka.Mul(inv, a)
 		kaka.Mul(&ka, &ka)
-		v := 0.5 * mat.Trace(&kaka)
+		v := float64(0.5 * mat.Trace(&kaka))
 		if d != nil {
 			v += quad(inv, d, d)
 		}

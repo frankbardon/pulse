@@ -50,28 +50,28 @@ Every output this unit adds lands with an R golden at 1e-10 and its row in the U
 
 **TODO items delivered** (tick in [`TODO.md`](../TODO.md)):
 
-- [x] **#598** `ATTR_REG_RESIDUAL` `params.kind` over a bound fit (`params.fit`): `response` (default), `pearson`, `deviance` and `working`, as R's `residuals.glm`. Bound GLM and Bayesian-linear fits already scored fitted values and response residuals. GLM leverage moves to #599 with the influence measures, since it needs the fit's (XᵀWX)⁻¹ (E1-S1)
-- [x] **#599** Influence diagnostics per row: standardized and studentized residuals, Cook's distance and DFFITS, for OLS and GLM (E1-S2). On the OLS refit (`ATTR_REG_RESIDUAL` kind `standardized` / `studentized`, new `ATTR_REG_INFLUENCE` `measure` `cooks` / `dffits`; statsmodels `OLSInfluence` at 1e-9, frequency weights on the `rep()` expansion) and over a bound `REG_OLS` / `REG_GLM` fit (`params.fit` on the residual kinds, `ATTR_REG_LEVERAGE` and `ATTR_REG_INFLUENCE`; GLM leverage from the fit's `vcov` and new `RegressionResult.dispersion`, model file version 4; R 4.6.1 `hatvalues` / `rstandard` / `rstudent` / `cooks.distance` / `dffits` at 1e-9, `glm_influence.json`). Follow-up: weighted bound fits are refused (`requires: unweighted`) — the prior-weighted form is not built yet
-- [ ] **#600** The non-canonical GLM links already named in the spec are implemented, not refused: binomial probit and cloglog, poisson identity and sqrt, gamma log and identity (E2-S1)
-- [ ] **#601** Negative binomial family (NB2, theta estimated) for over-dispersed counts (E2-S2, pending D2)
-- [ ] **#602** Average marginal effects and marginal effects at the mean, with delta-method standard errors that honour the chosen `Covariance` (E3-S1)
-- [ ] **#603** VIF and tolerance on the regression result, for fits with two or more predictors (E3-S2)
-- [ ] **#604** Nested-model comparison between two fits on the same rows: F test (OLS), likelihood-ratio and Wald tests (GLM) (E3-S3)
-- [ ] **#605** Ordinal logistic regression (proportional odds), with a Brant-style check of the proportional-odds assumption (E4-S1)
-- [ ] **#606** Multinomial logistic regression (E4-S2)
-- [ ] **#607** Studio: regression editors and diagnostics charts for all of the above (pulse-studio, E5)
+- [x] **#623** `ATTR_REG_RESIDUAL` `params.kind` over a bound fit (`params.fit`): `response` (default), `pearson`, `deviance` and `working`, as R's `residuals.glm`. Bound GLM and Bayesian-linear fits already scored fitted values and response residuals. GLM leverage moves to #624 with the influence measures, since it needs the fit's (XᵀWX)⁻¹ (E1-S1)
+- [x] **#624** Influence diagnostics per row: standardized and studentized residuals, Cook's distance and DFFITS, for OLS and GLM (E1-S2). On the OLS refit (`ATTR_REG_RESIDUAL` kind `standardized` / `studentized`, new `ATTR_REG_INFLUENCE` `measure` `cooks` / `dffits`; statsmodels `OLSInfluence` at 1e-9, frequency weights on the `rep()` expansion) and over a bound `REG_OLS` / `REG_GLM` fit (`params.fit` on the residual kinds, `ATTR_REG_LEVERAGE` and `ATTR_REG_INFLUENCE`; GLM leverage from the fit's `vcov` and new `RegressionResult.dispersion`, model file version 4; R 4.6.1 `hatvalues` / `rstandard` / `rstudent` / `cooks.distance` / `dffits` at 1e-9, `glm_influence.json`). Follow-up: weighted bound fits are refused (`requires: unweighted`) — the prior-weighted form is not built yet
+- [ ] **#625** The non-canonical GLM links already named in the spec are implemented, not refused: binomial probit and cloglog, poisson identity and sqrt, gamma log and identity (E2-S1)
+- [ ] **#626** Negative binomial family (NB2, theta estimated) for over-dispersed counts (E2-S2, pending D2)
+- [ ] **#627** Average marginal effects and marginal effects at the mean, with delta-method standard errors that honour the chosen `Covariance` (E3-S1)
+- [ ] **#628** VIF and tolerance on the regression result, for fits with two or more predictors (E3-S2)
+- [ ] **#629** Nested-model comparison between two fits on the same rows: F test (OLS), likelihood-ratio and Wald tests (GLM) (E3-S3)
+- [ ] **#630** Ordinal logistic regression (proportional odds), with a Brant-style check of the proportional-odds assumption (E4-S1)
+- [ ] **#631** Multinomial logistic regression (E4-S2)
+- [ ] **#632** Studio: regression editors and diagnostics charts for all of the above (pulse-studio, E5)
 
 ## Decisions (owner, open)
 
 - **D1 — new operators or GLM families for ordinal and multinomial (E4).** Their results are vector-valued: thresholds, and one coefficient set per category. Recommended: new operators `REG_ORDINAL` and `REG_MULTINOMIAL`. That keeps `RegressionResult`'s GLM shape unchanged and gives each its own atomic skill, Purpose and Interpretation.
-- **D2 — negative binomial (#601).** Is it in scope for this unit or a follow-up? Recommended: in scope. Over-dispersed counts are common in the marketing and ops data Pulse targets.
+- **D2 — negative binomial (#626).** Is it in scope for this unit or a follow-up? Recommended: in scope. Over-dispersed counts are common in the marketing and ops data Pulse targets.
 - **D3 — marginal-effects surface.** The options are an opt-in `RegressionSpec.Margins` block that adds `RegressionResult.Margins` (additive, `omitempty`), or a post-fit operator over a bound fit. Recommended: the opt-in spec block, mirroring `Vcov`.
 - **D4 — v1 timing.** Everything is additive and `format_version` stays `"1.1"`, but new public slots land before the U02 API freeze golden is final. Recommended: E1–E3 before v1.0.0, and E4 in v1.1 unless the owner pulls it in.
 
 **Decided 2026-11-01** (the owner delegated these choices):
 
 - **D1 → new operators** `REG_ORDINAL` and `REG_MULTINOMIAL`.
-- **D2 → negative binomial is in scope** (#601).
+- **D2 → negative binomial is in scope** (#626).
 - **D3 → an opt-in `RegressionSpec.Margins` block**, mirroring `Vcov`.
 - **D4 → E1–E3 before v1.0.0; E4 in v1.1** unless the owner pulls it in.
 - **Reference oracle while R 4.6.1 is unavailable in the working environment.** The goldens come from a pinned PEP 723 `uv` script with numpy 2.3.3, scipy 1.16.2 and statsmodels 0.14.5, the versions the weighted-reference harness pins. Each script also carries the R calls that reproduce it. An R cross-check through `make reference` is added when R is available, and it never replaces the statsmodels pin silently.

@@ -26,7 +26,7 @@ The largest of Belsley's condition indices: how close the predictors (with the i
 
 **Caveats:**
 
-- No convention bands it. Belsley, Kuh and Welsch's guideline (an index above about 30 where two or more variables put a large share of their variance on that dimension) is a rule of thumb; read the variance-decomposition proportions to see which variables are involved.
+- No convention bands it. Belsley, Kuh and Welsch's guideline (an index of about 30 or more where two or more variables have variance-decomposition proportions above 0.5 on that dimension) is a rule of thumb; read the variance-decomposition proportions to see which variables are involved.
 - With the intercept included (the default) a predictor whose values sit far from zero relative to their spread raises it even when the predictors are unrelated; params.center true removes that part.
 
 #### `primary.values`
@@ -71,7 +71,7 @@ Each off-diagonal cell is the correlation of its row and column members under pa
 - Correlation is not causation: a third factor may drive both fields.
 - A null cell means a member had no spread (constant, or too few rows), so its correlation is undefined, not 0.
 - A Pearson r near zero rules out only a straight-line link; a curved relationship can still be strong.
-- The bands are Cohen's for r; Kendall's tau-b runs smaller than r or rho for the same strength (about two thirds of rho), so read a kendall cell against lower cut-offs.
+- The bands are Cohen's for r; Kendall's tau-b runs smaller than r or rho for the same strength (about a third smaller at moderate strength, the gap narrowing as the association strengthens; Kendall 1970; Gibbons & Chakraborti 2011), so read a kendall cell against lower cut-offs.
 - Set params.inference for each pair's p-value and interval (every method).
 
 #### `auxiliary.p`
@@ -314,7 +314,7 @@ Each cell is a loading: how strongly the row's measure is tied to the column's c
 **Caveats:**
 
 - Unrotated, a measure loading on several components at once is common and does not mean it measures several things; params.rotation varimax redistributes the kept variance into a cleaner pattern without changing the communalities.
-- Components summarise shared spread; they do not show that an underlying cause exists.
+- Components summarise the measures' total spread; they do not show that an underlying cause exists.
 - On a covariance input the loadings are in the measures' own units, so they are not comparable across measures.
 
 #### `scalars.kmo`
@@ -375,7 +375,7 @@ Cronbach's alpha: how consistently the items measure one shared quality, from th
 
 - Alpha rises with the number of items, so a long battery can reach a high alpha with weakly related items.
 - A high alpha does not show the items measure only one thing.
-- Alpha assumes every item is equally tied to the shared quality; when the ties differ it understates reliability, which omega allows for.
+- Alpha assumes every item is equally tied to the shared quality; when the ties differ it understates reliability, which omega allows for; when item errors correlate (shared wording, method effects) it overstates reliability instead (Sijtsma 2009; Green & Yang 2009).
 
 #### `scalars.alpha_standardized`
 

@@ -111,13 +111,13 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 	var wPlus, wMinus float64
 	for i, d := range w.diffs.values {
 		if d > 0 {
-			wPlus += w.diffs.weights[i] * ranks[i]
+			wPlus += float64(w.diffs.weights[i] * ranks[i])
 		} else {
-			wMinus += w.diffs.weights[i] * ranks[i]
+			wMinus += float64(w.diffs.weights[i] * ranks[i])
 		}
 	}
 	nf := w.diffs.sumW // the pair count unweighted
-	muW := nf * (nf + 1) / 4
+	muW := float64(nf * (nf + 1) / 4)
 	varW := nf*(nf+1)*(2*nf+1)/24 - tieCorrectionW(ties)/48
 	var z, p float64
 	if varW <= 0 {

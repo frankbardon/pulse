@@ -394,7 +394,7 @@ The row's position among the sorted values, as a percentage: rank / n * 100, whe
 
 **Caveats:**
 
-- Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read different percentiles, far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.
+- Tied values do not share a percentile: each tied row takes its own rank in scan order (the earlier record lower), so equal values can read different percentiles, far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.
 - A row with a missing value gets no percentile (null) and is not counted in n.
 - Other tools define it differently (smallest at 0, or ties at their midpoint), so the same row can read a few points apart elsewhere.
 - Equal steps in percentile are not equal steps in the value: near the middle of a bell-shaped field a small change in value moves the percentile a lot.

@@ -377,7 +377,8 @@ var (
 )
 
 // Linear-algebra core: Pulse-owned matrix types, the FMA-free
-// reference kernels and the gonum-backed routines. No gonum type may appear in any of these spellings.
+// reference kernels, the gonum-order SPD path and the gonum-backed
+// decompositions. No gonum type may appear in any of these spellings.
 var (
 	_ func(int, int, []float64) (*linalg.Matrix, error)                        = linalg.NewMatrix
 	_ func([][]float64) (*linalg.Matrix, error)                                = linalg.NewMatrixFromRows

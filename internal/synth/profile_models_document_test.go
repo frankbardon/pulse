@@ -601,11 +601,26 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 			wantWarn:   "not present in the profile",
 		},
 		{
-			name: "predictor is a numeric",
+			// A numeric predictor is supported (E2-S1 of synth-realism),
+			// but only on a field that reconstructs to a number; one
+			// naming a categorical has no value to multiply.
+			name: "numeric kind on a categorical field",
 			models: []synth.FieldModel{{
 				Field: "spend", Intercept: 1,
 				Predictors: []synth.ModelPredictor{{
 					Kind: synth.ModelPredictorNumeric, Field: "region", Coefficient: 2,
+				}},
+			}},
+			wantModels: 0,
+			wantPairs:  1,
+			wantWarn:   "carries no numeric summary",
+		},
+		{
+			name: "unknown predictor kind",
+			models: []synth.FieldModel{{
+				Field: "spend", Intercept: 1,
+				Predictors: []synth.ModelPredictor{{
+					Kind: "interaction", Field: "region", Coefficient: 2,
 				}},
 			}},
 			wantModels: 0,
@@ -833,7 +848,27 @@ func TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel(t *testing.T) {
 // Spec re-marshalled with `rho` spelled back as `correlation` hashes to
 // the previous value e3f5d34a7a7a9c9ab7b6ee006098e87e exactly — no
 // figure and no other key moved.
-const preModelsSpecHash = "f1bc8393db6927cadfc89168901a4b76"
+//
+// It MOVED A THIRD TIME at synth-realism E2-S2: every categorical-
+// numeric and set-numeric category now carries its captured `n`, which
+// strength arbitration weighs in the pair's adjusted η². Checked by
+// TestSpecFromProfile_PreModelsDocumentUnchanged itself rather than in
+// prose: the Spec with every category `n` stripped hashes to the
+// previous value (preModelsSpecHashBeforeCounts) exactly.
+const preModelsSpecHash = "47df25c5102286408f02a5ca95656c6a"
+
+// preModelsSpecHashBeforeCounts is preModelsSpecHash before the
+// per-category counts; see its third move.
+const preModelsSpecHashBeforeCounts = "f1bc8393db6927cadfc89168901a4b76"
+
+// withoutCounts returns cats with every captured `n` zeroed.
+func withoutCounts(cats []synth.CategoricalNumericCategorySpec) []synth.CategoricalNumericCategorySpec {
+	out := append([]synth.CategoricalNumericCategorySpec(nil), cats...)
+	for i := range out {
+		out[i].N = 0
+	}
+	return out
+}
 
 // preModelsCaptureOptions are the exact options testdata/
 // profile_pre_models.json was captured with. They are named here rather
@@ -957,6 +992,18 @@ func TestSpecFromProfile_PreModelsDocumentUnchanged(t *testing.T) {
 	}
 	if got := spec.Hash(); got != preModelsSpecHash {
 		t.Errorf("an old document now means something different\n got: %s\nwant: %s", got, preModelsSpecHash)
+	}
+	stripped := *spec
+	stripped.CategoricalNumericPairs = append([]synth.CategoricalNumericPairSpec(nil), spec.CategoricalNumericPairs...)
+	for i := range stripped.CategoricalNumericPairs {
+		stripped.CategoricalNumericPairs[i].Categories = withoutCounts(stripped.CategoricalNumericPairs[i].Categories)
+	}
+	stripped.SetNumericPairs = append([]synth.SetNumericPairSpec(nil), spec.SetNumericPairs...)
+	for i := range stripped.SetNumericPairs {
+		stripped.SetNumericPairs[i].Categories = withoutCounts(stripped.SetNumericPairs[i].Categories)
+	}
+	if got := stripped.Hash(); got != preModelsSpecHashBeforeCounts {
+		t.Errorf("beyond the per-category counts, an old document now translates differently\n got: %s\nwant: %s", got, preModelsSpecHashBeforeCounts)
 	}
 
 	// And it still generates: same spec, same seed, byte-identical file.

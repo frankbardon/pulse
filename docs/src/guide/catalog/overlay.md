@@ -224,7 +224,7 @@ Chi-square goodness-of-fit test on a facet: checks whether a subset's category m
 
 - The subset's figures are counts of independent rows.
 - The null hypothesis is that the subset's mix matches the population's. The population mix is treated as known and fixed; when the subset is a large part of the population the two overlap and the p-value is only approximate.
-- Only categories both sides show are compared, and the population's shares are rescaled over them, so population nulls and categories cut from a top-K listing do not distort the expected counts.
+- Every population category is compared, one the subset lacks counted at 0, and the population's shares are rescaled over the compared categories so population nulls do not distort the expected counts. When discrete_top_k cuts the subset's listing, only the listed categories are compared.
 - With a very large subset even tiny differences in mix give small p-values; read an OVERLAY_INDEX_VS_POP layer on the same facet for how big each category's shift is.
 - Every expected count should be about 5 or more; a warning flags layers where some are lower.
 

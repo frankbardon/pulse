@@ -61,6 +61,12 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 			attention: true,
 		},
 		{
+			name:      "probitFallbackWarning",
+			warning:   probitFallbackWarning("churned", "the probit fit did not converge"),
+			wantKind:  "probit fit fell back to a linear fit",
+			attention: true,
+		},
+		{
 			name:      "modelNoPredictorWarning",
 			warning:   modelNoPredictorWarning("nps"),
 			wantKind:  "model carries no predictors",

@@ -174,17 +174,17 @@ func (a *anovaRMRow) Finalize() (*types.TestResult, error) {
 		row := a.cells[subj]
 		for _, cond := range conditions {
 			d := row[cond] - grand
-			ssTotal += d * d
+			ssTotal += float64(d * d)
 		}
 		ds := subjectMeans[i] - grand
-		ssBetween += ds * ds
+		ssBetween += float64(ds * ds)
 	}
-	ssBetween *= float64(k)
+	ssBetween = float64(ssBetween * float64(k))
 	for _, cm := range conditionMeans {
 		dc := cm - grand
-		ssCond += dc * dc
+		ssCond += float64(dc * dc)
 	}
-	ssCond *= float64(n)
+	ssCond = float64(ssCond * float64(n))
 	ssError := ssTotal - ssBetween - ssCond
 	dfCond := float64(k - 1)
 	dfError := float64((n - 1) * (k - 1))

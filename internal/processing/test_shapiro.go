@@ -2,13 +2,13 @@ package processing
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -226,9 +226,9 @@ func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	var ssX, ssM, num float64
 	for i, v := range sorted {
 		dx, dm := v-meanX, m[i]-meanM
-		ssX += dx * dx
-		ssM += dm * dm
-		num += dx * dm
+		ssX += float64(dx * dx)
+		ssM += float64(dm * dm)
+		num += float64(dx * dm)
 	}
 	if ssM == 0 {
 		return 0, 0, 1, "degenerate Blom coefficients"
@@ -237,13 +237,13 @@ func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	if W > 1 {
 		W = 1
 	}
-	u := math.Log(float64(n))
-	muZ := -1.2725 + 1.0521*(math.Log(u)-u)
-	sigmaZ := 1.0308 - 0.26758*(math.Log(u)+2/u)
+	u := detmath.Log(float64(n))
+	muZ := -1.2725 + float64(1.0521*(detmath.Log(u)-u))
+	sigmaZ := 1.0308 - float64(0.26758*(detmath.Log(u)+2/u))
 	if sigmaZ <= 0 {
 		return W, 0, 1, "Royston σ_z non-positive"
 	}
-	logOne := math.Log(1 - W)
+	logOne := detmath.Log(1 - W)
 	z = (logOne - muZ) / sigmaZ
 	p = normalUpperTailP(z)
 	return W, z, p, warn

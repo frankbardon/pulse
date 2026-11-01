@@ -66,7 +66,7 @@ func TestFMAGate_TestOnlyImporters(t *testing.T) {
 	}
 	for _, dir := range []string{
 		"linalg/detmath", "mcmc", "optimize", "internal/statdist",
-		"internal/distlagparams", "internal/sem", "internal/regmmm",
+		"internal/distlagparams", "internal/sem", "internal/regmmm", "internal/mmmfixture",
 	} {
 		if !testers[dir] {
 			t.Errorf("%s has no FMA gate through fmagate", dir)

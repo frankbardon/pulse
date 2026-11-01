@@ -173,8 +173,8 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	zstat := diff / se
 	p := normalTwoSidedP(zstat)
 	zcrit := normalCriticalTwoSided(zt.alpha)
-	ciLow := diff - zcrit*se
-	ciHigh := diff + zcrit*se
+	ciLow := diff - float64(zcrit*se)
+	ciHigh := diff + float64(zcrit*se)
 	res := &types.TestResult{
 		Label:      testLabel(zt.spec),
 		Type:       types.TEST_Z_TWO_SAMPLE,

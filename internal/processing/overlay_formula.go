@@ -352,20 +352,20 @@ func computeMatrixWelfordSDs(host *CrosstabHostView, needRow, needCol, needGrand
 				acc.n++
 				delta := v - acc.mean
 				acc.mean += delta / float64(acc.n)
-				acc.m2 += delta * (v - acc.mean)
+				acc.m2 += float64(delta * (v - acc.mean))
 			}
 			if needCol {
 				acc := &colAcc[j]
 				acc.n++
 				delta := v - acc.mean
 				acc.mean += delta / float64(acc.n)
-				acc.m2 += delta * (v - acc.mean)
+				acc.m2 += float64(delta * (v - acc.mean))
 			}
 			if needGrand {
 				grand.n++
 				delta := v - grand.mean
 				grand.mean += delta / float64(grand.n)
-				grand.m2 += delta * (v - grand.mean)
+				grand.m2 += float64(delta * (v - grand.mean))
 			}
 		}
 	}

@@ -18,12 +18,13 @@ import (
 // ATTR_REG_FITTED / RESIDUAL / LEVERAGE, ATTR_REG_PREDICT — and the GLM
 // engine's own η evaluate it, so a scored row equals the fit's own
 // fitted value bit for bit on every platform: one expression, one
-// summation order, one place the compiler may fuse a multiply-add.
+// summation order, each product rounded before its sum (an explicit
+// float64 barrier, so no FMA contraction on any architecture).
 // len(x) must be at least len(coefs).
 func LinearPredictor(intercept float64, coefs, x []float64) float64 {
 	s := intercept
 	for i, c := range coefs {
-		s += c * x[i]
+		s += float64(c * x[i])
 	}
 	return s
 }

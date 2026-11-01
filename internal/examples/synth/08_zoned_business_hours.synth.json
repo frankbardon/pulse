@@ -1,0 +1,27 @@
+{
+  "row_count": 500,
+  "fields": [
+    {
+      "name": "site_tz",
+      "type": "categorical_u8",
+      "distribution": "weighted_categorical",
+      "params": {
+        "values": ["Australia/Sydney", "America/New_York", "Europe/London"],
+        "weights": [0.3, 0.4, 0.3]
+      }
+    },
+    {
+      "name": "scanned_at",
+      "type": "datetime",
+      "distribution": "uniform_datetime",
+      "params": {
+        "start": "2026-01-05",
+        "end": "2026-12-27",
+        "time_zone_field": "site_tz",
+        "dst_policy": "later",
+        "hour_weights": [0, 0, 0, 0, 0, 0, 0.5, 1, 2, 3, 3, 3, 2, 2, 2, 2, 1.5, 1, 0.5, 0, 0, 0, 0, 0],
+        "weekday_weights": [1, 1, 1, 1, 1.2, 0.6, 0]
+      }
+    }
+  ]
+}

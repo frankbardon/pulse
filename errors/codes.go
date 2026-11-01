@@ -993,6 +993,37 @@ const (
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 
+	// PULSE_SYNTH_RULE_DRAW_INVALID indicates a misused random draw in a
+	// synth row expression: `uniform()` / `bernoulli(p)` called from a
+	// `constraints[]` entry (draws belong to rules; a constraint is a
+	// deterministic acceptance test), called with the wrong arguments, or
+	// `bernoulli(p)` given a `p` outside [0, 1] — a literal is refused at
+	// spec validation, a computed `p` (NaN included) on the row that
+	// produced it. `details.function` names the call, `details.expr` the
+	// expression.
+	PULSE_SYNTH_RULE_DRAW_INVALID Code = "PULSE_SYNTH_RULE_DRAW_INVALID"
+
+	// PULSE_SYNTH_DST_NONEXISTENT indicates a `uniform_datetime` field
+	// drew a local wall-clock time its zone never shows — the skipped
+	// hour of a DST spring-forward — under the default dst_policy
+	// "error". Generation stops; nothing is written. Details carry
+	// `field`, `local_time` (naive ISO 8601), `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_NONEXISTENT Code = "PULSE_SYNTH_DST_NONEXISTENT"
+
+	// PULSE_SYNTH_DST_AMBIGUOUS indicates a `uniform_datetime` field drew
+	// a local wall-clock time its zone shows twice — the repeated hour of
+	// a DST fall-back — under the default dst_policy "error". Generation
+	// stops; nothing is written. Details carry `field`, `local_time`,
+	// `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_AMBIGUOUS Code = "PULSE_SYNTH_DST_AMBIGUOUS"
+
+	// PULSE_SYNTH_FIDELITY_MODEL_INVALID indicates a supplied fidelity
+	// model request (SynthOptions.FidelityModel / `synth from-profile
+	// --fidelity-model`) cannot be refit: it carries no `regressions`,
+	// or the call has no source cohort or no fidelity report to put the
+	// refit in. Refused before generation; nothing is written.
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID Code = "PULSE_SYNTH_FIDELITY_MODEL_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -1045,8 +1076,9 @@ const (
 	PULSE_TEST_CONTINGENCY_DEGENERATE Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
 
 	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW warns that a chi-square cell's
-	// expected count is below the conventional threshold of 5, making
-	// the asymptotic χ² approximation unreliable.
+	// expected count — or a TEST_PROP_Z group's expected successes or
+	// failures under the null rate — is below the conventional threshold
+	// of 5, making the asymptotic χ² / normal approximation unreliable.
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
 
 	// PULSE_TEST_FIELD2_NOT_NUMERIC indicates the secondary Field2
@@ -1130,8 +1162,9 @@ const (
 	// pair count differs from the input row count.
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
 
-	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
-	// ties on ≥ 50 % of the input values. The test then mostly compares
+	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test — or TEST_KS
+	// on its asymptotic branch (n₁·n₂ ≥ 10000) — observed ties on ≥ 50 %
+	// of the (pooled) input values. The test then mostly compares
 	// the share of tied values, not their order, and the asymptotic
 	// normal / chi-square approximation used for the p-value loses
 	// accuracy; consider an exact-permutation variant when the count
@@ -3756,7 +3789,7 @@ const (
 	// ceiling, or — from a gonum-backed decomposition — a NaN / infinite
 	// element or an iteration that did not converge. Details carry
 	// "reason" where the routine classifies the failure
-	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
+	// (not_positive_definite, ill_conditioned, non_finite,
 	// no_convergence), "pivot" for a reference Cholesky failure,
 	// "attempts" / "ridge" when a ridge schedule was exhausted, and
 	// "condition_number" from the SPD solve / inverse. A failed
@@ -4663,6 +4696,10 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_RULE_DRAW_INVALID,
+	PULSE_SYNTH_DST_NONEXISTENT,
+	PULSE_SYNTH_DST_AMBIGUOUS,
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

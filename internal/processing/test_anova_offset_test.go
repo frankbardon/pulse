@@ -151,8 +151,8 @@ func offsetClose(t *testing.T, what string, got, want, tol float64) {
 
 // TestMeanTests_LargeOffsetMatchesExact: the one-sample t statistic and
 // the Welch ANOVA F hold their precision under a large common offset
-// (#611), against exact moments of the input doubles. The two-sample t
-// and z keep byte parity with their overlays instead (#612).
+// (#636), against exact moments of the input doubles. The two-sample t
+// and z keep byte parity with their overlays instead (#637).
 func TestMeanTests_LargeOffsetMatchesExact(t *testing.T) {
 	t.Parallel()
 	one := [][]float64{{0.3, 0.5, 0.4, 0.6, 0.2, 0.45}}

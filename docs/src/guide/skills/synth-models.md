@@ -10,9 +10,7 @@ requires: [capability:synth]
 
 # Multi-predictor synthetic models
 
-`--fit-models` = **several drivers conditioning one numeric at once**. The conditional-pair arms ([`synth-profile-capture`](synth-profile-capture.md)) are pick-one: each overwrites its target, so on a wide cohort every categorical claims the same numeric and all but the first are dropped. One additive model accounts for all of them in one expression.
-
-Contract surface for that machinery. Calibration figures and closed design questions: `docs/src/cli/synth-calibration.md`.
+`--fit-models` = **several drivers conditioning one numeric at once**. The conditional-pair arms ([`synth-profile-capture`](synth-profile-capture.md)) are pick-one: each overwrites its target, so on a wide cohort every categorical claims the same numeric and all but the first are dropped. One additive model accounts for all of them.
 
 | Question | Skill |
 |---|---|
@@ -26,21 +24,23 @@ Contract surface for that machinery. Calibration figures and closed design quest
 
 ## Capture (`--fit-models`)
 
-One least-squares linear model per numeric field, regressed on the categorical **levels** and `set_*` **options** selection admitted, through `internal/processing/regression`'s streaming OLS engine.
+One linear model per numeric field (a probit for a `packed_bool`, [`synth-marginals`](synth-marginals.md)), regressed on the categorical **levels**, `set_*` **options** and **numerics** selection admitted, through `internal/processing/regression`'s streaming OLS engine.
 
-Cohort read ONCE; fits do NOT run per row. The scan only retains a bounded Algorithm-R snapshot (`modelResidualCap`, 10,000, on its own RNG stream off `--seed` so `--conditional`'s reservoir is never perturbed); selection, fitting and residuals run over that snapshot afterwards — forced, since a frequency ranking does not exist until rows have been seen. **Wire consequence: `n_obs` is the fit's support WITHIN the snapshot (≤10,000), not the cohort's row count** (`Profile.RowCount` is that).
+**A numeric predictor enters only a numeric declared AFTER it** (adjusted r², the same 0.01 floor), so models form a DAG and generation draws each before the fields it predicts ([`synth-model-draw`](synth-model-draw.md)). Its term is `coefficient × value`, `level` empty; the fit absorbs what the pair shares, so their residual correlation is ~0.
+
+Cohort read ONCE; fits do NOT run per row. The scan retains a bounded Algorithm-R snapshot (`modelResidualCap`, 10,000, on its own RNG stream off `--seed` so `--conditional`'s reservoir is never perturbed); selection, fitting and residuals run over that snapshot afterwards (a frequency ranking needs the rows first). **Wire consequence: `n_obs` is the fit's support WITHIN the snapshot (≤10,000), not the cohort's row count** (`Profile.RowCount` is that).
 
 One reference level per categorical drops into the intercept (full level set + intercept is rank-deficient). Set options are all kept — a multi-select is not a partition.
 
-**A `set_*` predictor is read through `setMaskFromWideEntry`, at EVERY rung** — the snapshot holds an `encoding.SetMask`, and a `.(uint64)` assertion on a wide rung reads `present == false`: MISSING, so every row is deleted listwise and the target reports `carries no predictors`, an ordinary outcome that carries no signal. The design-column reader (`dummyRecord`) and the recovery refit's reader (`recoveryIndicator`) share the helper ([`synth-set-fields`](synth-set-fields.md)).
+**A `set_*` predictor is read through `setMaskFromWideEntry` at EVERY rung** — a `.(uint64)` assertion on a wide rung reads MISSING, deletes every row listwise and reports a silent `carries no predictors`. `dummyRecord` and the recovery refit share the helper ([`synth-set-fields`](synth-set-fields.md)).
 
 ```
-{field, intercept, predictors, references, n_obs, r2, residual_std, shrinkage_alpha}
+{field, intercept, predictors, references, n_obs, r2, residual_std, shrinkage_alpha, link}
   predictors[] = {kind, field, level, coefficient}    kind ∈ categorical_level | set_option | numeric
   references[] = the level each categorical dropped into the intercept
 ```
 
-- Coefficients are addressed by **(field, level)**. The solver's internal design-column name is `json:"-"` — serialising it would freeze that encoding into the file format.
+- Coefficients are addressed by **(field, level)**. The solver's design-column name is `json:"-"`: serialising it would freeze that encoding.
 - `references[]` is why a reader holding *k−1* of *k* levels need not guess the baseline. Set-only model ⇒ none.
 - `shrinkage_alpha` `omitempty`; absent ⇔ unpenalized OLS ([`synth-model-selection`](synth-model-selection.md)).
 - Fitted **residual reservoir** (`FieldModel.Residuals` / `ResidualPresent`) also `json:"-"` — reach it via `synth.Profile.FittedModels()`, never a re-read document.
@@ -48,23 +48,25 @@ One reference level per categorical drops into the intercept (full level set + i
 - A vector field is never a target or predictor; a spec naming one in a model is refused.
 - Spec `residual_correlations` entries: `{a, b, rho}`.
 
+**Privacy.** A profile-derived twin is NOT differentially private and carries NO formal privacy guarantee (coefficients restate source structure); the `disclosure` section (exact-match rate, DCR) is an audit aid, not a guarantee.
+
 ## Latent-scale effects
 
-**A coefficient shifts the LATENT Gaussian, not the value** — the draw is `value = Q(Φ(μ + σ·z))`. Only an affine `Q` (`normal`) carries it to the data scale unchanged. **Direction and monotonicity hold; magnitude in data units does not**: a coefficient of 0.556 on a 0–10 NPS field is NOT "0.556 points". Never multiply one into data units or compare coefficients across targets with different `Q`s. Restate this wherever a coefficient is surfaced. Full reading: [`synth-model-draw`](synth-model-draw.md).
+**A coefficient shifts the LATENT Gaussian, not the value** — the draw is `value = Q(Φ(μ + σ·z))`. Only an affine `Q` (`normal`) carries it to the data scale unchanged. **Direction and monotonicity hold; magnitude in data units does not**: a coefficient of 0.556 on a 0–10 NPS field is NOT "0.556 points". Never multiply one into data units or compare coefficients across targets with different `Q`s. Restate this wherever a coefficient is surfaced.
 
 ## What models retire
 
-**Numeric-target conditional pairs retire PER TARGET, never per document.** A numeric landing a model on the Spec is left out of `Spec.CategoricalNumericPairs` / `SetNumericPairs` — one additive model already accounts for every predictor, whereas those arms each overwrite the same numeric and all but the first are dropped as conflicts. A model also PRE-CLAIMS its target in `resolveConflicts`, so a hand-authored spec declaring both loses the pair and is told which.
+**Numeric-target conditional pairs retire PER TARGET, never per document.** A numeric landing a model on the Spec is left out of `Spec.CategoricalNumericPairs` / `SetNumericPairs` — one additive model accounts for every predictor, where each pick-one arm overwrites it. A model also PRE-CLAIMS its target in `resolveConflicts`, so a hand-authored spec declaring both loses the pair and is told which.
 
-Those two guards make **`models` and the two numeric-target fidelity sections disjoint by construction**: a modelled numeric has NO entry in `categorical_numeric_pairwise` / `set_numeric_pairwise`, ever, since the pick-one sampler they score never runs for it. `categorical_pairwise` / `set_categorical_pairwise` / `set_set_pairwise` are untouched.
+Both guards make **`models` and the two numeric-target fidelity sections disjoint by construction**: a modelled numeric has NO entry in `categorical_numeric_pairwise` / `set_numeric_pairwise`, since the pick-one sampler they score never runs for it. `categorical_pairwise` / `set_categorical_pairwise` / `set_set_pairwise` are untouched.
 
-A model **dropped in translation** (unknown predictor kind, or a zero-predictor model) leaves its field's pair STANDING and warns `model for numeric field %q not applied: …`. Under a per-document rule such a field lost the pair too and was reconstructed from nothing at all — strictly worse than before the flag existed.
+A model **dropped in translation** (unknown predictor kind, or zero predictors) leaves its field's pair STANDING and warns `model for numeric field %q not applied: …`. It is never reconstructed from nothing.
 
-The three **non-numeric-target** arms (`CategoricalPairs`, `SetCategoricalPairs`, `SetSetPairs`) still arbitrate pick-one; a linear model targets a numeric and subsumes nothing they describe. `--conditional` + `--fit-models` keeps both halves. Absent `models`, every arm populates exactly as before.
+The three **non-numeric-target** arms (`CategoricalPairs`, `SetCategoricalPairs`, `SetSetPairs`) still arbitrate pick-one: a model targets a numeric only. `--conditional` + `--fit-models` keeps both halves. Absent `models`, every arm populates exactly as before.
 
 ## See
 
 - The focused skills in the table above.
-- [`synthetic-data`](synthetic-data.md) — modes, distributions, the determinism rule; [`synth-fidelity-report`](synth-fidelity-report.md) — the rest of the report.
-- [`regression-modeling`](regression-modeling.md) — the OLS engine both capture and the recovery refit drive.
-- `docs/src/cli/profile-create.md` / `docs/src/cli/synth-from-profile.md` — the CLI surface.
+- [`synthetic-data`](synthetic-data.md) — modes, distributions, determinism; [`synth-fidelity-report`](synth-fidelity-report.md) — the rest of the report.
+- [`regression-modeling`](regression-modeling.md) — the OLS engine capture and the recovery refit drive.
+- `docs/src/cli/profile-create.md` / `docs/src/cli/synth-from-profile.md` — the CLI; `docs/src/cli/synth-calibration.md` — calibration figures, closed questions.

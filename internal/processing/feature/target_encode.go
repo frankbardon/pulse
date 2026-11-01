@@ -371,7 +371,7 @@ func encodedValue(per map[string]*targetStat, s string, globalMean, smoothing fl
 	}
 	mean := st.sum / float64(st.count)
 	if smoothing > 0 {
-		return (float64(st.count)*mean + smoothing*globalMean) / (float64(st.count) + smoothing)
+		return (float64(float64(st.count)*mean) + float64(smoothing*globalMean)) / (float64(st.count) + smoothing)
 	}
 	return mean
 }

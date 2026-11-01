@@ -1,0 +1,27 @@
+{
+  "row_count": 4000,
+  "fields": [
+    { "name": "fico_score", "type": "u16", "distribution": "normal", "params": { "mean": 690, "std": 50, "min": 300, "max": 850 } },
+    { "name": "dti", "type": "f64", "distribution": "normal", "params": { "mean": 18, "std": 8 } },
+    { "name": "credit_band", "type": "categorical_u8", "distribution": "weighted_categorical", "params": { "values": ["A", "B", "C", "D"], "weights": [0.25, 0.25, 0.25, 0.25] } },
+    { "name": "true_pd", "type": "f64", "distribution": "constant", "params": { "value": 0 }, "output": false },
+    { "name": "draw", "type": "f64", "distribution": "constant", "params": { "value": 0 }, "output": false },
+    { "name": "default_12m", "type": "packed_bool", "distribution": "bernoulli", "params": { "p": 0 } },
+    { "name": "collections_flag", "type": "packed_bool", "distribution": "bernoulli", "params": { "p": 0 } },
+    { "name": "recovery_amount", "type": "f64", "nullable": true, "distribution": "uniform", "params": { "min": 0, "max": 1 } }
+  ],
+  "constraints": [
+    { "expr": "dti >= 0" },
+    { "expr": "true_pd <= 0.6" }
+  ],
+  "max_rejection_rate": 0.5,
+  "rules": [
+    { "set_expr": { "credit_band": "fico_score >= 740 ? \"A\" : fico_score >= 690 ? \"B\" : fico_score >= 640 ? \"C\" : \"D\"" } },
+    { "set_expr": { "true_pd": "1 / (1 + exp(-(-2.4 + ({\"A\": -1.2, \"B\": -0.5, \"C\": 0.3, \"D\": 0.9}[credit_band]) + 0.04 * (dti - 18))))" } },
+    { "set_expr": { "draw": "uniform()" } },
+    { "set_expr": { "default_12m": "bernoulli(true_pd)" } },
+    { "set_expr": { "collections_flag": "default_12m == 1 ? draw < 0.85 : bernoulli(0.008)" } },
+    { "when": "default_12m == 0", "set_null": ["recovery_amount"] },
+    { "when": "default_12m == 1", "set_expr": { "recovery_amount": "round(1000 * (0.10 + 0.35 * draw)) / 100" } }
+  ]
+}

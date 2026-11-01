@@ -4,7 +4,7 @@
 
 CLAUDE.md names `linalg` in the public package list and points here. This file is the long form of the numerical contract every matrix and vector feature builds on. **Load it before touching `linalg/`, a caller of it (synth's correlator, the regression SPD path), `internal/processing/block_merge.go`, the parallel-decode segment split, or any future `MAT_*` / vector surface.** Package layout and the import gates: `.claude/reference/architecture.md` (Public vs internal, Surface guards). Engine wiring of the blocked merge: `.claude/reference/execution-modes.md` (Blocked merge). Embedder-facing guide: `docs/src/library/linalg.md`.
 
-U15 shipped no request slot, response slot, operator, manifest block or skill. The only user-visible addition is two error codes in the manifest error list. Synth and regression output did not move by one bit.
+U15 shipped no request slot, response slot, operator, manifest block or skill. The only user-visible addition is two error codes in the manifest error list. Synth and regression output did not move by one bit. (U61 later moved the SPD path off gonum onto a port of its amd64 order: amd64 figures did not move; arm64 converged onto them — linalg slice, Backend policy.)
 
 ## Package surface
 
@@ -16,7 +16,7 @@ U15 shipped no request slot, response slot, operator, manifest block or skill. T
 | Reference general solve (U28) | `Solve`, `FactorLU` → `LUFactor` (`Solve`, `SolveMatrix`, `Inverse`, `ConditionNumber`, `N`) | pure Go, FMA-free; the singular decision rides gonum singular values | values identical bits on every architecture; refusal portable except within an ulp of the rank tolerance |
 | Co-moments | `CoMoment` (`NewCoMoment`, `Add`, `Merge`, `Clone`, `N`, `W`, `NEff`, `NWeightInvalid`, `PairN`, `PairNMass`, `PairW`, `PairW2`, `PairNEff`, `PairM2`, `Mean`, `Cov`, `Corr`, `ListwiseState`; modes `Listwise` / `Pairwise`), `ListwiseState` + `NewCoMomentFromListwise`, `MergeBlockSize`, `MergeTree` | pure Go, FMA-free | identical bits on every architecture |
 | Decompositions | `SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber` | gonum, canonicalised | decisions (order, sign, rank) portable; values may differ in the last ulps across architectures |
-| Gonum SPD path | `FactorSPD` → `SPDFactor` (`Solve`, `Inverse`, `ConditionNumber`, `N`), `Mul`, `ConditionTolerance` | thin gonum wrappers | equal to the raw gonum call bit for bit on ONE machine; not across architectures |
+| Gonum-order SPD path | `FactorSPD` → `SPDFactor` (`Solve`, `Inverse`, `ConditionNumber`, `N`), `Mul`, `ConditionTolerance` | pure Go, FMA-free port of gonum v0.17.0's amd64 operation order | identical bits on every architecture; equal to the raw gonum call on amd64 |
 
 No gonum type appears on the exported surface: gonum is pre-1.0 and the surface is frozen. `TestLinalgSurfaceNamesNoGonum` (`internal/apigolden`) asserts the golden's `linalg` section carries no `gonum` token; `TestLinalgImportBoundary` (`linalg/boundary_test.go`) keeps the package a leaf over the standard library, gonum and Pulse's `errors`.
 

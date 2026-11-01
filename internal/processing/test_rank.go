@@ -70,7 +70,7 @@ func weightedMidRanks(values, weights []float64) ([]float64, []float64) {
 			j++
 			w += weight(idx[j])
 		}
-		r := cum + (w+1)/2
+		r := cum + float64((w+1)/2)
 		for k := i; k <= j; k++ {
 			ranks[idx[k]] = r
 		}
@@ -95,7 +95,7 @@ func tieCorrection(ties []int) float64 {
 func tieCorrectionW(ties []float64) float64 {
 	sum := 0.0
 	for _, t := range ties {
-		sum += t*t*t - t
+		sum += float64(t*t*t) - t
 	}
 	return sum
 }
@@ -150,7 +150,7 @@ func (s *rankSample) add(v, w float64) {
 	s.values = append(s.values, v)
 	s.weights = append(s.weights, w)
 	s.sumW += w
-	s.sumWSq += w * w
+	s.sumWSq += float64(w * w)
 }
 
 // n is the raw row count (the `n` a test reports).

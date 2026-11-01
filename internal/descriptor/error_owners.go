@@ -285,6 +285,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC:   own(featSynth),
 	errors.PULSE_SYNTH_LAG_FIELD_INVALID:       own(featSynth),
 	errors.PULSE_SYNTH_LAG_OFFSET_INVALID:      own(featSynth),
+	errors.PULSE_SYNTH_RULE_DRAW_INVALID:       own(featSynth),
+	errors.PULSE_SYNTH_DST_NONEXISTENT:         own(featSynth),
+	errors.PULSE_SYNTH_DST_AMBIGUOUS:           own(featSynth),
+	errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID:  own(featSynth),
 	errors.PULSE_PROFILE_FIELD_UNSUPPORTED:     own(featSynth),
 
 	// Statistical tests. The unknown-name code is shared (see above);
@@ -297,7 +301,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_SPLIT_GROUPS_LT_2:        ownAllTests,
 	errors.PULSE_TEST_PARTITION_INVALID:        ownAllTests,
 	errors.PULSE_TEST_CONTINGENCY_DEGENERATE:   ownChiSq,
-	errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW:   ownChiSq,
+	errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW:   append(own("TEST_PROP_Z"), ownChiSq...),
 	errors.PULSE_TEST_FIELD2_NOT_NUMERIC:       own("TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "TEST_PAIRED_T", "TEST_WILCOXON_SR"),
 	errors.PULSE_TEST_SUCCESS_VALUE_MISSING:    own("TEST_PROP_Z"),
 	errors.PULSE_TEST_EXPECTED_INVALID:         own("TEST_CHISQ"),

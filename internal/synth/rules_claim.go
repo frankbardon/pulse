@@ -164,3 +164,24 @@ func (p *identifierProbe) Visit(node *ast.Node) {
 		p.found = true
 	}
 }
+
+// ruleDeterminesCategorical reports whether a categorical field may be
+// declared WITHOUT a distribution (#365a): exactly when a rule
+// pre-claims it at priority 0, i.e. an unconditional `set` / `set_expr`
+// that does not read the field writes it on every row. That is the same
+// ruleClaims test resolveConflicts applies, so "needs no sampler" and
+// "nothing upstream may write it" cannot disagree. A `when`-gated rule,
+// a `set_null` or a self-reading `set_expr` leaves rows the field's own
+// generation must fill, so the empty distribution stays refused.
+func ruleDeterminesCategorical(rules []RuleSpec, f FieldSpec) bool {
+	ft, ok := fieldTypeFromName(f.Type)
+	if !ok || !ft.IsCategorical() {
+		return false
+	}
+	for _, c := range ruleClaims(rules) {
+		if c.target.field == f.Name && c.target.option == "" {
+			return true
+		}
+	}
+	return false
+}

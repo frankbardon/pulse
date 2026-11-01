@@ -1,14 +1,26 @@
 package statdist
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // NormalQuantile returns Φ⁻¹(p), the standard normal quantile:
 // Acklam's rational approximation (~1e-9 relative) polished by one
 // Halley step against the erfc-based Φ, which brings it to full double
 // precision across the support (p down to ~1e-300; checked against R's
-// qnorm by internal/processing's reference_oracle_test.go through its
-// standardNormalPPF wrapper). The upper half is solved as −Φ⁻¹(1 − p),
-// 1 − p being exact there. ±Inf at p∈{0,1}; NaN for NaN.
+// qnorm by reference_oracle_test.go here and internal/processing's
+// through its standardNormalPPF wrapper). The upper half is solved as
+// −Φ⁻¹(1 − p), 1 − p being exact there. ±Inf at p∈{0,1}; NaN for NaN.
+//
+// It is on the bit contract (doc.go): linalg/detmath's Erfc / Exp / Log,
+// never math.*, and every product that feeds an add or subtract an
+// explicit float64(...) barrier, so its bits are the same on every
+// GOARCH (TestStatdist_ChiSquareAndNormalQuantileBitsPinned,
+// TestStatdist_NoFMAContraction). It is also the deterministic
+// replacement for gonum's distuv.UnitNormal.Quantile (agreement:
+// distuv_replacement_test.go).
 func NormalQuantile(p float64) float64 {
 	switch {
 	case math.IsNaN(p):
@@ -23,16 +35,17 @@ func NormalQuantile(p float64) float64 {
 	x := acklamNormalQuantile(p)
 	// Halley step on Φ(x) − p, with Φ(x) = ½ erfc(−x/√2) accurate to a
 	// relative few ulp in this (lower) half.
-	e := 0.5*math.Erfc(-x/math.Sqrt2) - p
-	u := e * math.Sqrt(2*math.Pi) * math.Exp(0.5*x*x)
+	e := float64(0.5*detmath.Erfc(-x/math.Sqrt2)) - p
+	u := e * math.Sqrt(2*math.Pi) * detmath.Exp(0.5*x*x)
 	if !math.IsInf(u, 0) && !math.IsNaN(u) {
-		x -= u / (1 + 0.5*x*u)
+		x -= u / (1 + float64(0.5*x*u))
 	}
 	return x
 }
 
 // acklamNormalQuantile is Acklam's rational approximation to Φ⁻¹(p) (~1e-9
-// relative), the seed for NormalQuantile.
+// relative), the seed for NormalQuantile, for p in (0, 0.5]: barriered
+// Horner steps and detmath.Log.
 func acklamNormalQuantile(p float64) float64 {
 	a := [...]float64{
 		-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
@@ -51,24 +64,24 @@ func acklamNormalQuantile(p float64) float64 {
 		3.754408661907416e+00,
 	}
 	const pLow = 0.02425
-	const pHigh = 1 - pLow
-	switch {
-	case p <= 0:
-		return math.Inf(-1)
-	case p >= 1:
-		return math.Inf(1)
-	case p < pLow:
-		q := math.Sqrt(-2 * math.Log(p))
-		return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q + c[5]) /
-			((((d[0]*q+d[1])*q+d[2])*q+d[3])*q + 1)
-	case p <= pHigh:
-		q := p - 0.5
-		r := q * q
-		return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r + a[5]) * q /
-			(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r + 1)
-	default:
-		q := math.Sqrt(-2 * math.Log(1-p))
-		return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q + c[5]) /
-			((((d[0]*q+d[1])*q+d[2])*q+d[3])*q + 1)
+	if p < pLow {
+		q := math.Sqrt(-2 * detmath.Log(p))
+		num := horner(c[:], q)
+		den := float64(horner(d[:], q)*q) + 1
+		return num / den
 	}
+	q := p - 0.5
+	r := q * q
+	num := horner(a[:], r) * q
+	den := float64(horner(b[:], r)*r) + 1
+	return num / den
+}
+
+// horner evaluates c[0]·xⁿ⁻¹ + … + c[n−1] with each product barriered.
+func horner(c []float64, x float64) float64 {
+	s := c[0]
+	for _, k := range c[1:] {
+		s = float64(s*x) + k
+	}
+	return s
 }

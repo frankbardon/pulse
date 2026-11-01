@@ -48,6 +48,8 @@ func representativeFieldSpecs() map[string]FieldSpec {
 			Params: map[string]any{"mean": 0.0, "std": 1.0}},
 		"date": {Name: "x", Type: "date", Distribution: DistUniformDate,
 			Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31"}},
+		"datetime": {Name: "x", Type: "datetime", Distribution: DistUniformDateTime,
+			Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31"}},
 		"packed_bool": {Name: "x", Type: "packed_bool", Distribution: DistBernoulli,
 			Params: map[string]any{"p": 0.5}},
 		"categorical_u8":  cat("categorical_u8"),
@@ -67,8 +69,11 @@ func representativeFieldSpecs() map[string]FieldSpec {
 }
 
 // undeclarableFieldTypes names the encoding field types a Spec cannot
-// declare today, with the reason. datetime has no fieldTypeFromName case
-// (see skills/synthetic-data.md) so no spec reaches the writer with it.
+// declare today, with the reason. It is EMPTY: every encoding type is
+// declarable. datetime was the last entry; it left in #362, written by
+// the writer's datetime arm and drawn by uniform_datetime
+// (internal/synth/datetime.go). A type added to encoding without a synth
+// write path must be listed here, or declarableTypeNames fails.
 //
 // The vector types (vec_f32 / vec_f64) USED to be listed here too, as
 // refused up front; they are declarable since #450 through the `vector`
@@ -79,9 +84,7 @@ func representativeFieldSpecs() map[string]FieldSpec {
 // encoding.ParseFieldType, so a rung added to encoding becomes
 // declarable without an edit here and lands in the sentinel table via
 // representativeFieldSpecs above.
-var undeclarableFieldTypes = map[string]string{
-	"datetime": "fieldTypeFromName has no case for it",
-}
+var undeclarableFieldTypes = map[string]string{}
 
 // declarableTypeNames walks the encoding.FieldType enum by value so a
 // type added to encoding shows up here without anyone editing a list.

@@ -48,7 +48,7 @@ func WelfordStdDev(values []float64) float64 {
 		delta := v - mean
 		mean += delta / float64(i+1)
 		delta2 := v - mean
-		m2 += delta * delta2
+		m2 += float64(delta * delta2)
 	}
 	variance := m2 / float64(n)
 	return math.Sqrt(variance)

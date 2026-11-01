@@ -263,7 +263,7 @@ Cronbach's alpha: how consistently the items measure one shared quality, from th
 
 - Alpha rises with the number of items, so a long battery can reach a high alpha with weakly related items.
 - A high alpha does not show the items measure only one thing.
-- Alpha assumes every item is equally tied to the shared quality; when the ties differ it understates reliability, which omega allows for.
+- Alpha assumes every item is equally tied to the shared quality; when the ties differ it understates reliability, which omega allows for; when item errors correlate (shared wording, method effects) it overstates reliability instead (Sijtsma 2009; Green & Yang 2009).
 
 **`scalars.alpha_standardized`**
 

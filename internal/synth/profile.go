@@ -509,13 +509,12 @@ type SetNumericPairProfile struct {
 }
 
 // SetSetPairProfile is one captured option x option pair's
-// reconstruction input between two DIFFERENT set_* fields (E5-S2): a
-// bounded 2x2-cell contingency table of
+// reconstruction input: a bounded 2x2-cell contingency table of
 // {"selected","not_selected"} x {"selected","not_selected"}
-// co-occurrence counts for one option of each field. Never captured
-// between two options of the SAME set field — E5-S2's scope is
-// cross-field option association only, per the PRD's "do two different
-// set_* fields' option selections correlate with each other?" framing.
+// co-occurrence counts for one option of each side. The two sides are
+// either two DIFFERENT set_* fields (every option pair is captured) or
+// two options of ONE set field (SetA == SetB, a within-set dependency:
+// see computeWithinSetPairs for which pairs are kept).
 type SetSetPairProfile struct {
 	SetA    string            `json:"set_a"`
 	OptionA string            `json:"option_a"`
@@ -568,6 +567,13 @@ type FieldProfile struct {
 	Numeric     *NumericProfile     `json:"numeric,omitempty"`
 	Categorical *CategoricalProfile `json:"categorical,omitempty"`
 	Date        *DateProfile        `json:"date,omitempty"`
+	// Datetime is a `datetime` column's capture (U52): its UTC day range
+	// and UTC weekday / hour histograms, which SpecFromProfile rebuilds
+	// as uniform_datetime. Additive + omitempty — a datetime-free
+	// document is byte-identical. A document captured before it existed
+	// carries the column's Numeric summary instead and still rebuilds
+	// from that.
+	Datetime *DatetimeProfile `json:"datetime,omitempty"`
 	// Set carries per-option marginal selection-frequency stats for a
 	// set_* (multi-select bitmask) field (E5-S1). Populated instead of
 	// Numeric/Categorical/Date — exactly one of the four is non-nil per
@@ -710,6 +716,20 @@ type DateProfile struct {
 	Weekdays [7]int `json:"weekdays"`
 }
 
+// DatetimeProfile is a `datetime` column's marginal on the UTC clock the
+// file stores: the first and last UTC calendar day observed, how many
+// non-null instants fall on each ISO weekday (Monday first — the
+// uniform_datetime `weekday_weights` order) and in each UTC hour.
+// Capture reads instants and the schema carries no zone, so the
+// histograms are UTC; a reconstruction drawn on the UTC clock with these
+// weights reproduces the instants' weekday and hour marginals.
+type DatetimeProfile struct {
+	Start    string  `json:"start"`
+	End      string  `json:"end"`
+	Weekdays [7]int  `json:"weekdays"`
+	Hours    [24]int `json:"hours"`
+}
+
 // CorrelationStat is a captured pairwise correlation entry.
 type CorrelationStat struct {
 	A   string  `json:"a"`
@@ -790,6 +810,25 @@ type dateAcc struct {
 	minDays  int64
 	maxDays  int64
 	weekdays [7]int
+}
+
+// datetimeAcc accumulates a datetime column on the UTC clock.
+type datetimeAcc struct {
+	count, nulls     int
+	minDays, maxDays int64
+	weekdays         [7]int // ISO, Monday first
+	hours            [24]int
+}
+
+func (a *datetimeAcc) observe(v float64) {
+	a.count++
+	sec := int64(math.Floor(v + 0.5))
+	p := temporal.LocalParts(sec, temporal.UTC)
+	day := temporal.DateTimeToDay(sec)
+	a.minDays = min(a.minDays, day)
+	a.maxDays = max(a.maxDays, day)
+	a.weekdays[temporal.ISOWeekdayOf(p.Weekday)-1]++
+	a.hours[p.Hour]++
 }
 
 // setAcc accumulates a set_* field's per-option (bit-position) selection
@@ -982,6 +1021,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	numAccs := make(map[string]*numAcc)
 	catAccs := make(map[string]*catAcc)
 	dateAccs := make(map[string]*dateAcc)
+	datetimeAccs := make(map[string]*datetimeAcc)
 	setAccs := make(map[string]*setAcc)
 	vecAccs := make(map[string]*vecAcc)
 	warnings := []string{}
@@ -1035,6 +1075,13 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			vecAccs[f.Name] = newVecAcc(meta, includeStats || opts.FitShape)
 		case f.Type == encoding.FieldTypeDate:
 			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
+		case f.Type == encoding.FieldTypeDateTime:
+			// A datetime is captured as its own marginal — day range plus
+			// weekday and hour histograms — and never reaches the numeric
+			// branch below: a normal over epoch seconds loses the
+			// weekday / hour shape, and as a "numeric" it would join the
+			// correlations, pairs and models a uniform_datetime cannot.
+			datetimeAccs[f.Name] = &datetimeAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
 		case f.Type.IsCategorical():
 			catAccs[f.Name] = &catAcc{hist: make(map[string]int)}
 			if opts.IncludeConditional {
@@ -1116,6 +1163,10 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	trackSetCatJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 1 && len(jointCatFieldNames) >= 1
 	trackSetNumJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 1 && len(jointFieldNames) >= 1
 	trackSetSetJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 2
+	// trackSetWithin gates the within-set capture: dependencies between
+	// two options of ONE set field (tv requiring broadband), which needs
+	// only the set field itself.
+	trackSetWithin := opts.IncludeConditional && len(jointSetFieldNames) >= 1
 	needCatRow := trackCatJoint || trackCatNumJoint || trackSetCatJoint
 
 	// catNumAccs accumulates condCatNumAcc keyed
@@ -1222,6 +1273,14 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 		}
 	}
 
+	var withinSetAccs map[string]*withinSetAcc
+	if trackSetWithin {
+		withinSetAccs = make(map[string]*withinSetAcc, len(jointSetFieldNames))
+		for _, sf := range jointSetFieldNames {
+			withinSetAccs[sf] = newWithinSetAcc(len(setOptionNames[sf]))
+		}
+	}
+
 	values := make(map[string]float64, len(schema.Fields))
 	nulls := make(map[string]bool, len(schema.Fields))
 	wide := make(map[string]any, len(schema.Fields))
@@ -1312,6 +1371,12 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 				// []float64 (vec_f32 widened exactly).
 				v, _ := wide[f.Name].([]float64)
 				vecAccs[f.Name].observe(v, isNull)
+			case f.Type == encoding.FieldTypeDateTime:
+				if isNull {
+					datetimeAccs[f.Name].nulls++
+					continue
+				}
+				datetimeAccs[f.Name].observe(values[f.Name])
 			case f.Type == encoding.FieldTypeDate:
 				da := dateAccs[f.Name]
 				if isNull {
@@ -1571,6 +1636,14 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 				}
 			}
 		}
+		if trackSetWithin {
+			for _, sf := range jointSetFieldNames {
+				if nulls[sf] {
+					continue
+				}
+				withinSetAccs[sf].add(setMaskFromWide(wide[sf]))
+			}
+		}
 		if trackSetSetJoint {
 			for ai := 0; ai < len(jointSetFieldNames); ai++ {
 				sfA := jointSetFieldNames[ai]
@@ -1624,6 +1697,19 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 		switch {
 		case f.Type.IsVector():
 			fp.Vector, fp.NullRate = vecAccs[f.Name].finish(f.Name, includeStats, opts.FitShape, &warnings)
+		case f.Type == encoding.FieldTypeDateTime:
+			da := datetimeAccs[f.Name]
+			if total := da.count + da.nulls; total > 0 {
+				fp.NullRate = float64(da.nulls) / float64(total)
+			}
+			if da.count > 0 {
+				fp.Datetime = &DatetimeProfile{
+					Start:    daysToISO(da.minDays),
+					End:      daysToISO(da.maxDays),
+					Weekdays: da.weekdays,
+					Hours:    da.hours,
+				}
+			}
 		case f.Type == encoding.FieldTypeDate:
 			da := dateAccs[f.Name]
 			total := da.count + da.nulls
@@ -1715,6 +1801,8 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			jointSetFieldNames, setOptionNames, setNumAccs, jointFieldNames, &warnings)
 		setSetPairs := computeSetSetPairs(
 			jointSetFieldNames, setOptionNames, setSetAccs, &warnings)
+		setSetPairs = append(setSetPairs, computeWithinSetPairs(
+			jointSetFieldNames, setOptionNames, withinSetAccs, &warnings)...)
 		if len(numericPairs) > 0 || len(categoricalPairs) > 0 || len(catNumericPairs) > 0 ||
 			len(setCategoricalPairs) > 0 || len(setNumericPairs) > 0 || len(setSetPairs) > 0 {
 			pf.Conditional = &ConditionalProfile{
@@ -1805,6 +1893,48 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	}
 
 	return pf, nil
+}
+
+// datetimeParamsFromProfile rebuilds a captured datetime as
+// uniform_datetime params on the UTC clock. hour_weights are the hour
+// counts. weekday_weights are a per-DAY intensity (a weekday's share is
+// its weight times its days in range), so each weekday's count is
+// divided by how many such days [start, end] holds — a partial week at
+// either end would otherwise over-weight the weekdays it repeats.
+func datetimeParamsFromProfile(dp *DatetimeProfile) map[string]any {
+	params := map[string]any{"start": dp.Start, "end": dp.End}
+	if start, end, err := parseDayRange(FieldSpec{Params: params}, DistUniformDateTime); err == nil {
+		days := weekdayDayCounts(start, end)
+		weekdays := make([]any, 7)
+		for i := range weekdays {
+			w := 0.0
+			if days[i] > 0 {
+				w = float64(dp.Weekdays[i]) / float64(days[i])
+			}
+			weekdays[i] = w
+		}
+		params["weekday_weights"] = weekdays
+	}
+	hours := make([]any, 24)
+	for h := range hours {
+		hours[h] = float64(dp.Hours[h])
+	}
+	params["hour_weights"] = hours
+	return params
+}
+
+// weekdayDayCounts returns how many days of each ISO weekday (Monday
+// first) the inclusive epoch-day range [start, end] holds.
+func weekdayDayCounts(start, end int64) [7]int64 {
+	var out [7]int64
+	sw := temporal.ISOWeekday(start)
+	for i := range 7 {
+		first := start + (int64(i+1)-sw+7)%7
+		if first <= end {
+			out[i] = (end-first)/7 + 1
+		}
+	}
+	return out
 }
 
 func dayOfWeek(daysSinceEpoch int64) int {
@@ -2572,6 +2702,9 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			fs.Params = map[string]any{
 				"start": fp.Date.Start, "end": fp.Date.End,
 			}
+		case fp.Datetime != nil:
+			fs.Distribution = DistUniformDateTime
+			fs.Params = datetimeParamsFromProfile(fp.Datetime)
 		case fp.Categorical != nil:
 			vals := make([]any, len(fp.Categorical.Top))
 			weights := make([]any, len(fp.Categorical.Top))
@@ -2917,7 +3050,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			}
 			cats := make([]CategoricalNumericCategorySpec, len(cnp.Categories))
 			for i, c := range cnp.Categories {
-				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
+				cats[i] = CategoricalNumericCategorySpec(c)
 			}
 			// No `bernoulli` key: the flag is RETIRED and the
 			// conditional draw resolves the target's own marginal from
@@ -2970,7 +3103,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			}
 			cats := make([]CategoricalNumericCategorySpec, len(snp.Categories))
 			for i, c := range snp.Categories {
-				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
+				cats[i] = CategoricalNumericCategorySpec(c)
 			}
 			s.SetNumericPairs = append(s.SetNumericPairs, SetNumericPairSpec{
 				Set: snp.Set, Option: snp.Option, Numeric: snp.Numeric, Categories: cats,
@@ -3086,6 +3219,19 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 		HasClamp:    true,
 		Predictors:  make([]ModelPredictorSpec, 0, len(m.Predictors)),
 	}
+	// scale maps a captured coefficient onto the spec's: 1 for a linear
+	// fit, and for a probit fit the bernoulli target's std, with the
+	// intercept and residual moved to match (probitSpecScale).
+	scale := 1.0
+	if m.Link != "" {
+		if m.Link != ModelLinkProbit || dist != DistBernoulli {
+			return FieldModelSpec{}, fmt.Sprintf("model link %q does not apply to a %q target", m.Link, dist)
+		}
+		var ok bool
+		if scale, out.Intercept, out.ResidualStd, ok = probitSpecScale(m.Intercept, num.Mean); !ok {
+			return FieldModelSpec{}, "probit target has a degenerate prevalence"
+		}
+	}
 	for _, pr := range m.Predictors {
 		want := ""
 		switch pr.Kind {
@@ -3093,6 +3239,26 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 			want = DistWeightedCategorical
 		case ModelPredictorSetOption:
 			want = DistSetBernoulli
+		case ModelPredictorNumeric:
+			// A numeric predictor is read off the generated row, so any
+			// reconstruction that draws a number serves — normal,
+			// mixture, discrete, bernoulli — and the field only has to
+			// carry a numeric summary. Generation draws it before this
+			// model (drawOrder in internal/synth/model_draw.go).
+			if _, present := distOf[pr.Field]; !present {
+				return FieldModelSpec{}, fmt.Sprintf(
+					"predictor field %q is not present in the profile", pr.Field)
+			}
+			if _, numeric := moments[pr.Field]; !numeric {
+				return FieldModelSpec{}, fmt.Sprintf(
+					"numeric predictor field %q carries no numeric summary", pr.Field)
+			}
+			out.Predictors = append(out.Predictors, ModelPredictorSpec{
+				Kind:        pr.Kind,
+				Field:       pr.Field,
+				Coefficient: float64(scale * pr.Coefficient),
+			})
+			continue
 		default:
 			return FieldModelSpec{}, fmt.Sprintf("predictor %q carries unsupported kind %q", pr.Field, pr.Kind)
 		}
@@ -3109,7 +3275,7 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 			Kind:        pr.Kind,
 			Field:       pr.Field,
 			Level:       pr.Level,
-			Coefficient: pr.Coefficient,
+			Coefficient: float64(scale * pr.Coefficient),
 		})
 	}
 	if len(out.Predictors) == 0 {

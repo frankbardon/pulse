@@ -155,7 +155,7 @@ func (c *rollingCarrier) push(v float64) {
 		delta := v - c.mean
 		c.mean += delta / float64(c.count)
 		delta2 := v - c.mean
-		c.m2 += delta * delta2
+		c.m2 += float64(delta * delta2)
 		return
 	}
 	// Ring at capacity: evict the value at head (oldest) before the
@@ -178,7 +178,7 @@ func (c *rollingCarrier) push(v float64) {
 		cMinus := float64(c.count - 1)
 		c.mean -= deltaOut / cMinus
 		deltaOut2 := evicted - c.mean
-		c.m2 -= deltaOut * deltaOut2
+		c.m2 -= float64(deltaOut * deltaOut2)
 		c.count--
 	}
 	// Welford-forwards: insert v into the resulting sample.
@@ -186,7 +186,7 @@ func (c *rollingCarrier) push(v float64) {
 	c.count++
 	c.mean += deltaIn / float64(c.count)
 	deltaIn2 := v - c.mean
-	c.m2 += deltaIn * deltaIn2
+	c.m2 += float64(deltaIn * deltaIn2)
 	// Store the new value at head and advance.
 	c.buf[c.head] = v
 	c.head = (c.head + 1) % c.window

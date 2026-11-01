@@ -322,11 +322,11 @@ func applyZScoreVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, po
 		// Bin label: lower edge of the bin (matches the INDEX_VS_POP
 		// numeric-arm convention so parallel-slice rendering against a
 		// sibling INDEX_VS_POP layer aligns key-for-key).
-		binLower := hostHist.Min + float64(i)*step
+		binLower := hostHist.Min + float64(float64(i)*step)
 		// Bin centre: midpoint of the bin (lower + half-step). Used as
 		// the per-entry value being standardised against the population
 		// Welford summary.
-		binCenter := binLower + 0.5*step
+		binCenter := binLower + float64(0.5*step)
 		key := types.AxisKey{strconv.FormatFloat(binLower, 'f', -1, 64)}
 
 		zscore := (binCenter - popNum.Mean) / popNum.StdDev

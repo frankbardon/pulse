@@ -304,7 +304,7 @@ How many underlying dimensions a set of related measures covers and which measur
 
 **Assumptions:**
 
-- The measures are numeric and related by straight-line links; components summarise shared spread, they are not proven causes.
+- The measures are numeric and related by straight-line links; components summarise the measures' total spread, they are not proven causes.
 - On a covariance the measures with the largest spread dominate; use the correlation unless the units are shared and comparable.
 - KMO and Bartlett's test say whether the correlations are strong enough to summarise; read them before the components.
 - A row with any measure missing is dropped from every figure (listwise deletion) unless pairwise deletion is chosen.
@@ -332,7 +332,7 @@ How consistently a set of rating items measures one thing, before you add them u
 
 **Level:** intermediate
 
-**Also known as:** `cronbach's alpha`, `scale reliability`, `internal consistency`, `mcdonald's omega`
+**Also known as:** `cronbach's alpha`, `scale reliability`, `internal consistency`, `mcdonald's omega`, `omega total`
 
 **Questions it answers:**
 

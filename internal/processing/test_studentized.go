@@ -3,6 +3,8 @@ package processing
 import (
 	"math"
 	"sort"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Studentized-range distribution helpers used by TEST_TUKEY_HSD.
@@ -52,18 +54,18 @@ func normalRangeSurvival(t float64, k int) float64 {
 	}
 	km1 := float64(k - 1)
 	f := func(z float64) float64 {
-		a := 0.5 * math.Erfc(z/math.Sqrt2)
+		a := 0.5 * detmath.Erfc(z/math.Sqrt2)
 		if a == 0 {
 			return 0
 		}
-		c := 0.5 * math.Erfc((z+t)/math.Sqrt2)
-		phi := math.Exp(-0.5*z*z) / math.Sqrt(2*math.Pi)
-		return -float64(k) * phi * math.Pow(a, km1) * math.Expm1(km1*math.Log1p(-c/a))
+		c := 0.5 * detmath.Erfc((z+t)/math.Sqrt2)
+		phi := detmath.Exp(-0.5*z*z) / math.Sqrt(2*math.Pi)
+		return -float64(k) * phi * detmath.Pow(a, km1) * detmath.Expm1(km1*detmath.Log1p(-c/a))
 	}
 	// The integrand mass sits near the midpoint z = −t/2 (the minimum
 	// and maximum straddle zero); outside [−t−9, 9] it is below 1e-17
 	// of the total.
-	center := -t / 2
+	center := float64(-t / 2)
 	lo, hi := -t-9, 9.0
 	return adaptiveGK15(f, dyadicBreaks(center, 1, lo, hi), 1e-12)
 }
@@ -79,30 +81,30 @@ func studentizedRangeSurvival(q float64, k int, df float64) float64 {
 	if math.IsInf(df, 1) {
 		return normalRangeSurvival(q, k)
 	}
-	lgHalfNu, _ := math.Lgamma(df / 2)
+	lgHalfNu, _ := detmath.Lgamma(df / 2)
 	// log of the leading constant in h(s; ν): 2 · (ν/2)^{ν/2} / Γ(ν/2),
 	// kept in log space to avoid overflow at large ν.
-	lnLeading := math.Log(2) + (df/2)*math.Log(df/2) - lgHalfNu
+	lnLeading := detmath.Log(2) + float64((df/2)*detmath.Log(df/2)) - lgHalfNu
 	integrand := func(s float64) float64 {
 		if s <= 0 {
 			return 0
 		}
-		lnH := lnLeading + (df-1)*math.Log(s) - df*s*s/2
+		lnH := lnLeading + float64((df-1)*detmath.Log(s)) - float64(df*s*s/2)
 		if lnH < -745 {
 			return 0
 		}
-		return math.Exp(lnH) * normalRangeSurvival(q*s, k)
+		return detmath.Exp(lnH) * normalRangeSurvival(q*s, k)
 	}
 	// The chi density peaks at s = 1 with width σ = 1/√(2ν); in the far
 	// tail the integrand's mass shifts to s* ≈ ν / (ν + q²/4), where the
 	// density and S_R(q·s) ≈ exp(−q²s²/4) balance. Break around both
 	// so no Kronrod panel can straddle a narrow peak unseen.
 	sigma := math.Min(1/math.Sqrt(2*df), 0.5)
-	sHi := 1 + 40*sigma
-	sStar := df / (df + q*q/4)
-	sigmaStar := math.Min(1/math.Sqrt(2*(df+q*q/4)), 0.5)
+	sHi := 1 + float64(40*sigma)
+	sStar := df / (df + float64(q*q/4))
+	sigmaStar := math.Min(1/math.Sqrt(2*(df+float64(q*q/4))), 0.5)
 	breaks := dyadicBreaks(1, sigma, 0, sHi)
-	if math.Abs(sStar-1) > 2*sigma {
+	if math.Abs(sStar-1) > float64(2*sigma) {
 		breaks = append(breaks, dyadicBreaks(sStar, sigmaStar, 0, sHi)...)
 	}
 	p := adaptiveGK15(integrand, breaks, 1e-11)
@@ -120,9 +122,9 @@ func studentizedRangeInverse(alpha float64, k int, df float64) float64 {
 	if math.IsNaN(alpha) || alpha <= 0 || alpha >= 1 || k < 2 {
 		return math.NaN()
 	}
-	logAlpha := math.Log(alpha)
+	logAlpha := detmath.Log(alpha)
 	g := func(q float64) float64 {
-		return math.Log(studentizedRangeSurvival(q, k, df)) - logAlpha
+		return detmath.Log(studentizedRangeSurvival(q, k, df)) - logAlpha
 	}
 	lo, hi := 0.0, 4.0
 	glo, ghi := math.Inf(1), g(hi)
@@ -140,17 +142,17 @@ func studentizedRangeInverse(alpha float64, k int, df float64) float64 {
 	side := 0
 	for range 200 {
 		if math.IsInf(glo, 1) {
-			x = 0.5 * (lo + hi)
+			x = float64(0.5 * (lo + hi))
 		} else {
-			x = (lo*ghi - hi*glo) / (ghi - glo)
+			x = (float64(lo*ghi) - float64(hi*glo)) / (ghi - glo)
 			if !(x > lo && x < hi) {
-				x = 0.5 * (lo + hi)
+				x = float64(0.5 * (lo + hi))
 			}
 		}
 		gx := g(x)
 		// |g| is the relative error in the survival; 1e-13 of it moves q
 		// by far less than the 1e-10 the oracle allows.
-		if math.Abs(gx) <= 1e-13 || hi-lo <= 4*epsilon*hi {
+		if math.Abs(gx) <= 1e-13 || hi-lo <= float64(4*epsilon*hi) {
 			return x
 		}
 		if gx > 0 {
@@ -166,11 +168,11 @@ func studentizedRangeInverse(alpha float64, k int, df float64) float64 {
 			}
 			side = -1
 		}
-		if hi-lo <= 1e-14*hi {
+		if hi-lo <= float64(1e-14*hi) {
 			break
 		}
 	}
-	return 0.5 * (lo + hi)
+	return float64(0.5 * (lo + hi))
 }
 
 // dyadicBreaks returns breakpoints center ± w·{0, 1, 3, 9, …} clipped
@@ -229,30 +231,30 @@ var (
 // mean absolute deviation (resasc · min(1, (200·|K−G|/resasc)^1.5)),
 // which tracks the true Kronrod error far more closely than |K−G|.
 func gk15(f func(float64) float64, a, b float64) (float64, float64) {
-	c := 0.5 * (a + b)
+	c := float64(0.5 * (a + b))
 	h := 0.5 * (b - a)
 	var fv [15]float64
 	fv[14] = f(c)
-	kron := fv[14] * gk15KronrodWeights[7]
-	gauss := fv[14] * gk7GaussWeights[3]
+	kron := float64(fv[14] * gk15KronrodWeights[7])
+	gauss := float64(fv[14] * gk7GaussWeights[3])
 	for i := range 7 {
-		dx := h * gk15Nodes[i]
+		dx := float64(h * gk15Nodes[i])
 		fv[2*i], fv[2*i+1] = f(c-dx), f(c+dx)
 		s := fv[2*i] + fv[2*i+1]
-		kron += gk15KronrodWeights[i] * s
+		kron += float64(gk15KronrodWeights[i] * s)
 		if i%2 == 1 {
-			gauss += gk7GaussWeights[i/2] * s
+			gauss += float64(gk7GaussWeights[i/2] * s)
 		}
 	}
-	mean := 0.5 * kron
-	resasc := gk15KronrodWeights[7] * math.Abs(fv[14]-mean)
+	mean := float64(0.5 * kron)
+	resasc := float64(gk15KronrodWeights[7] * math.Abs(fv[14]-mean))
 	for i := range 7 {
-		resasc += gk15KronrodWeights[i] * (math.Abs(fv[2*i]-mean) + math.Abs(fv[2*i+1]-mean))
+		resasc += float64(gk15KronrodWeights[i] * (math.Abs(fv[2*i]-mean) + math.Abs(fv[2*i+1]-mean)))
 	}
 	resasc *= math.Abs(h)
 	err := math.Abs((kron - gauss) * h)
 	if resasc != 0 && err != 0 {
-		err = resasc * math.Min(1, math.Pow(200*err/resasc, 1.5))
+		err = resasc * math.Min(1, detmath.Pow(200*err/resasc, 1.5))
 	}
 	return kron * h, err
 }
@@ -288,7 +290,7 @@ func adaptiveGK15(f func(float64) float64, breaks []float64, relTol float64) flo
 			return total
 		}
 		w := panels[worst]
-		m := 0.5 * (w.a + w.b)
+		m := float64(0.5 * (w.a + w.b))
 		if m <= w.a || m >= w.b {
 			return total
 		}
