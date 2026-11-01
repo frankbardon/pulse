@@ -81,7 +81,7 @@ func loadMargins(t *testing.T) []marginsCase {
 		t.Fatalf("decode margins.json: %v", err)
 	}
 	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["MASS"] != "7.3.66" || doc.Packages["sandwich"] != "3.1.3" ||
-		doc.Packages["marginaleffects"] != "1.0.0" || len(doc.Cases) != 17 {
+		doc.Packages["marginaleffects"] != "1.0.0" || doc.Packages["Matrix"] != "1.7.6" || len(doc.Cases) != 17 {
 		t.Fatalf("margins.json: R %q, packages %v, %d cases", doc.RVersion, doc.Packages, len(doc.Cases))
 	}
 	return doc.Cases

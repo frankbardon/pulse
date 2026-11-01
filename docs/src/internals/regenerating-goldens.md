@@ -440,7 +440,7 @@ is the whole list in one place.
 | Package | Version | Used by |
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
-| `Matrix` | 1.7-5 | nearest-PD repair, `gen_singularity.R` rank (recommended package, ships with R) |
+| `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
 | `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; a recommended package — install it into the user library where the R build omits it) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
 | `car` | 3.1-5 | VIF |
@@ -451,7 +451,7 @@ is the whole list in one place.
 | `biotools` | 4.3 | `TEST_BOX_M` |
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
 | `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`) |
-| `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (which supersedes the 1.7-5 row above in the user library; the golden records each) |
+| `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |

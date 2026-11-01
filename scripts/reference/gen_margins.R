@@ -15,8 +15,9 @@
 # (stats) + jsonlite, MASS 7.3-66 (glm.nb, theta.ml), sandwich 3.1-3
 # (vcovHC, vcovCL) and, for the external cross-check only,
 # marginaleffects 1.0.0 (with insight 1.7.0, data.table 1.18.6.1,
-# generics 0.1.4 and Matrix 1.7-6, installed from the Posit noble binary
-# repo; versions recorded in the golden).
+# generics 0.1.4 and Matrix 1.7-6 — Matrix pinned, the version
+# marginaleffects resolves — installed from the Posit noble binary repo;
+# versions recorded in the golden).
 #
 # The PRIMARY figures are analytic closed forms in base R, at the fit's
 # fixed point (glm refitted from its own optimum until the coefficients
@@ -72,6 +73,12 @@ if (as.character(packageVersion("MASS")) != "7.3.66") stop("gen_margins.R pins M
 if (as.character(packageVersion("sandwich")) != "3.1.3") stop("gen_margins.R pins sandwich 3.1-3, got ", packageVersion("sandwich"))
 mg_have_me <- requireNamespace("marginaleffects", quietly = TRUE)
 if (mg_have_me && as.character(packageVersion("marginaleffects")) != "1.0.0") stop("gen_margins.R pins marginaleffects 1.0.0, got ", packageVersion("marginaleffects"))
+# The Matrix marginaleffects resolves (its import, from the user library):
+# pinned like the others and recorded in the golden. gen_multivariate.R
+# pins its own Matrix (1.7-5), so the two regenerate under separate
+# library setups (docs/src/internals/regenerating-goldens.md, The R
+# toolchain).
+if (mg_have_me && as.character(packageVersion("Matrix")) != "1.7.6") stop("gen_margins.R pins Matrix 1.7-6 (marginaleffects' import), got ", packageVersion("Matrix"))
 if (!mg_have_me) message("gen_margins.R: marginaleffects not installed; the external cross-check is skipped")
 
 mg_g17 <- function(v) {
