@@ -875,3 +875,6 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#630** Ordinal logistic regression with a proportional-odds check · [U65](units/U65-regression-depth.md)
 - [ ] **#631** Multinomial logistic regression · [U65](units/U65-regression-depth.md)
 - [ ] **#632** Studio regression editors and diagnostics charts (pulse-studio) · [U65](units/U65-regression-depth.md)
+- [ ] **#638** `penalty` / `selection` / `resample` on the negative binomial: θ re-estimated inside each refit driver (penalized fit, every selection candidate, every jackknife / bootstrap replicate), pinned to a `MASS::stepAIC` and a jackknife oracle; the refusals (`requires: unpenalized` / `no_selection` / `no_resample`) stay until then · [U65](units/U65-regression-depth.md)
+- [ ] **#639** A bootstrap of the marginal effects under `resample`: replicate the AME / MEM itself (not the coefficient covariance), so `margins` stops refusing `resample` (`requires: no_resample`) · [U65](units/U65-regression-depth.md)
+- [ ] **#640** Influence over a weighted bound fit: the prior-weighted working weight w, Pearson residual rP and dispersion φ for `ATTR_REG_LEVERAGE` / `ATTR_REG_INFLUENCE` / `ATTR_REG_RESIDUAL` kind `standardized` / `studentized` with `params.fit` (frequency against the `rep()` expansion), lifting `requires: unweighted` · [U65](units/U65-regression-depth.md)

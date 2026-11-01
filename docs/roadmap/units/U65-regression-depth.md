@@ -70,6 +70,15 @@ Every output this unit adds lands with an R golden at 1e-10 and its row in the U
 
 **Decided 2026-11-01** (the owner delegated these choices):
 
+- **E2-S1:** keep the link param's `enum_by` / `enum_values_by` pair; keep the default `tol` (1e-8) and document it (non-canonical coefficients within ~1e-7 of the MLE); leave the gamma-inverse first step unchanged (owner-delegated, 2026-11-01)
+- **E2-S2:** a `dispersion` param (`fixed` default, `estimated` = Pearson χ²/df) on a fixed-θ negative binomial, refused elsewhere and with θ estimated (owner-delegated, 2026-11-01)
+- **E2-S2:** `two_log_lik` / `aic` on every GLM family and `REG_OLS`, R's `logLik()` / `AIC()`; frequency = the `rep()` expansion; absent under probability weights (owner-delegated, 2026-11-01)
+- **E2-S2:** the negative binomial keeps refusing `penalty` / `selection` / `resample`; follow-up #638 (owner-delegated, 2026-11-01)
+- **E3-S1:** margins form their own multiplicity family per regression (echo family `margins`), so the coefficients' `p_adjusted` never move with `margins` (owner-delegated, 2026-11-01)
+- **E3-S1:** a weighted `mem` evaluates at the weighted means (Stata `atmeans`) (owner-delegated, 2026-11-01)
+- **E3-S1:** margins over a derived predictor differentiate the column as given; only a predictor derived from another predictor of the same regression is refused (`requires: independent_predictors`) (owner-delegated, 2026-11-01)
+- **E3-S1:** `resample` stays refused for margins; follow-up #639 (owner-delegated, 2026-11-01)
+
 - **D1 → new operators** `REG_ORDINAL` and `REG_MULTINOMIAL`.
 - **D2 → negative binomial is in scope** (#626).
 - **D3 → an opt-in `RegressionSpec.Margins` block**, mirroring `Vcov`.
@@ -175,4 +184,7 @@ An operator exposes a parameter wherever there is a real methodological choice, 
 
 ## Handed on to later work
 
+- **#638** — `penalty` / `selection` / `resample` on the negative binomial, θ re-estimated inside those refit drivers, with a `MASS::stepAIC` / jackknife oracle (the E2-S2 refusals stay until then).
+- **#639** — a bootstrap of the AME / MEM under `resample` (E3-S1 refuses `resample`: the replicate coefficient covariance is not the effect's).
+- **#640** — influence over a weighted bound fit (prior-weighted w, rP, φ), lifting the E1-S2 `requires: unweighted` refusal.
 - Mixed models, panel fixed and random effects, time-series models (ARIMA / state space), and complex-sample design variance, each a separate unit.
