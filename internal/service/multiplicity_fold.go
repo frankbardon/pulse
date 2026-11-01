@@ -175,16 +175,21 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 				},
 			})
 		}
-		// The marginal effects (RegressionSpec.Margins) join the same
-		// family after the coefficients, one site per term in the block's
-		// order; an undefined (null) p is excluded from m. The echo is the
-		// regression's, so m counts them.
+		// The marginal effects (RegressionSpec.Margins) form a family of
+		// their own, one per regression (keyed by the regression's index
+		// in its scope, never pooled — a `compose` block pools the
+		// coefficients only), so a coefficient's p_adjusted is the same
+		// with margins or without. One site per term in the block's order;
+		// an undefined (null) p is excluded from m. Its echo is the
+		// margins block's own.
 		if mg := r.Margins; mg != nil {
+			mecho := &types.AppliedMultiplicity{Method: method, Family: types.MultiplicityFamilyMargins, Alpha: alpha}
+			key := scope + "regressions[" + strconv.Itoa(i) + "]#" + string(types.MultiplicityFamilyMargins)
 			for _, term := range mg.Terms {
-				fams.add(multFamilyKey(scope, family), family, method, multSite{
+				fams.add(key, types.MultiplicityFamilyMargins, method, multSite{
 					p: mg.PValues[term],
 					write: func(adjusted float64, m, excluded int) {
-						writeMarginsAdjusted(r, echo, term, adjusted, m, excluded)
+						writeMarginsAdjusted(mg, mecho, term, adjusted, m, excluded)
 					},
 				})
 			}
@@ -194,9 +199,9 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 
 // writeMarginsAdjusted records one marginal effect's adjusted p beside
 // its raw one (RegressionMarginsResult.PAdjusted /
-// SignificantAdjusted) and stamps the regression's shared echo.
-func writeMarginsAdjusted(r *types.RegressionResult, echo *types.AppliedMultiplicity, term string, adjusted float64, m, excluded int) {
-	mg := r.Margins
+// SignificantAdjusted) and stamps the margins family's echo
+// (RegressionMarginsResult.Multiplicity).
+func writeMarginsAdjusted(mg *types.RegressionMarginsResult, echo *types.AppliedMultiplicity, term string, adjusted float64, m, excluded int) {
 	if mg.PAdjusted == nil {
 		mg.PAdjusted = map[string]float64{}
 		mg.SignificantAdjusted = map[string]bool{}
@@ -206,7 +211,7 @@ func writeMarginsAdjusted(r *types.RegressionResult, echo *types.AppliedMultipli
 		mg.SignificantAdjusted[term] = adjusted < echo.Alpha
 	}
 	echo.M, echo.Excluded = m, excluded
-	r.Multiplicity = echo
+	mg.Multiplicity = echo
 }
 
 // pValuedCoefficients is the default family of an extension REG_* model

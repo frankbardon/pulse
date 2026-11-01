@@ -107,10 +107,14 @@ All additive, present only when a correction ran:
   per member coefficient) and `significant_adjusted` (against the block's
   `alpha`, 0.05 by default) beside `p_values`, plus a `multiplicity` echo
   on the regression result.
-  A regression with a `margins` block adds its marginal effects to the
-  same family, one p-value per term after the member coefficients (`m`
-  counts both): `margins.p_adjusted` / `margins.significant_adjusted`
-  beside `margins.p_values`.
+  A regression with a `margins` block corrects its marginal effects as a
+  family of their own, one per regression (one p-value per term; family
+  `margins`, never pooled into `request` or `compose`), so adding
+  `margins` never moves a coefficient's `p_adjusted`:
+  `margins.p_adjusted` / `margins.significant_adjusted` beside
+  `margins.p_values`, plus a `margins.multiplicity` echo (`family:
+  "margins"`, `m` the terms). `margins` is an echo-only family: a block
+  naming it is `PULSE_MULTIPLICITY_INVALID`.
 
 `m` is the number of defined p-values corrected together. An undefined
 (NaN) p is left out of `m` and shows `p_adjusted: null`. Field shapes:

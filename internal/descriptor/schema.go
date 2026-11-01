@@ -245,7 +245,10 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// capability:multiplicity drops the slots that reach them, and the
 	// defs with them).
 	m[reflect.TypeFor[types.MultiplicityMethod]()] = stringify(types.AllMultiplicityMethods())
-	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(types.AllMultiplicityFamilies())
+	// The family enum adds the echo-only `margins` (a regression's
+	// marginal effects' own family, AppliedMultiplicity.Family): the
+	// resolver refuses it in every request block.
+	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(append(types.AllMultiplicityFamilies(), types.MultiplicityFamilyMargins))
 	// Likewise the vector coercions, kinds and standardizations and the matrix encodings / kinds (a
 	// hidden capability:matrices drops the `vectors` and `matrices`
 	// slots, and VectorSpec / MatrixSpec with them).

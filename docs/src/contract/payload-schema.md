@@ -379,7 +379,9 @@ member regression's `RegressionResult` gains the additive `p_adjusted`
 map) and `multiplicity` (`AppliedMultiplicity`) beside `p_values`. `method` is the closed enum
 `MultiplicityMethod` (`none`, `bonferroni`, `holm`, `bh`, `by`) and
 `family` the closed enum `MultiplicityFamily` (`layer`, `row`, `column`,
-`request`, `compose`, `matrix`);
+`request`, `compose`, `matrix`, and the echo-only `margins` — the family
+a regression's marginal effects form on their own, which a block naming
+it is refused);
 both are full vocabularies on every instance (not features). `alpha` is a
 number in (0, 1).
 
@@ -976,7 +978,10 @@ the term-keyed number maps `estimates`, `std_errors`, `statistics`,
 `p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
 `conf_level` and `df` (present only for a Student t; `null` when ≤ 0),
 and — gated on `capability:multiplicity` like the coefficient twins —
-`p_adjusted` / `significant_adjusted`. An undefined figure is `null`,
+`p_adjusted` / `significant_adjusted` and a `multiplicity`
+(`AppliedMultiplicity`, `family: "margins"`) echo: under the
+regression's own block the terms form one family per regression, apart
+from the coefficients'. An undefined figure is `null`,
 key kept. A request without `margins` is byte-identical.
 Under `resample` it is the replicate covariance (jackknife
 (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on

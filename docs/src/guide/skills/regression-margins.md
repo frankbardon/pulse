@@ -37,7 +37,7 @@ A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports
 - **Delta method** on the fit's own coefficient covariance: Var = J·V·Jᵀ with J_jk = δ_jk·m̄ + β_j·mean(μ″(η_i)·x_ik) (ame). V is whatever `std_errors` used, so a robust `covariance` (`hc0`–`hc3`, `cluster`, `hac`) carries through.
 - **Reference distribution** = the coefficient table's: Student t on `df` for OLS and classical gamma, Wald z otherwise (binomial, poisson, negative binomial, any robust GLM). Intervals at the fit's `conf_level`.
 - **Weights**: the average is weighted by the fit's row weight (marginaleffects `wts`); `mem`'s point is the weighted means. Frequency weights equal the `rep()` expansion.
-- **Multiplicity**: with the regression's own `multiplicity` block the effects join its family after the member coefficients (`m` counts both; `margins.p_adjusted` / `significant_adjusted`).
+- **Multiplicity**: with the regression's own `multiplicity` block the effects form their own family per regression (`margins.p_adjusted` / `significant_adjusted`, echo `margins.multiplicity` family `margins`); the coefficients' `p_adjusted` never move.
 
 ## Execution
 

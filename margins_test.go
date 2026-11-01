@@ -19,8 +19,8 @@ import (
 // every refusal is the same coded error at predict and at run
 // (internal/regmargins), the block answers bit for bit the same under
 // every DecodeWorkers / ShardWorkers count and on OLS's streaming and
-// buffered arms, a multiplicity block corrects the effects in the
-// regression's family (and predict counts them), and an absent block is
+// buffered arms, a multiplicity block corrects the effects in a family
+// of their own (and predict counts them), and an absent block is
 // byte-identical. The figures themselves are pinned to R by
 // internal/processing/regression/margins_oracle_test.go.
 
@@ -265,11 +265,15 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 	}
 }
 
-// TestMargins_MultiplicityJoinsRegressionFamily: under the regression's
-// own multiplicity block the effects join its family after the member
-// coefficients — m counts both, each adjusted p is the method's over the
-// pooled family — and predict counts the same p-values.
-func TestMargins_MultiplicityJoinsRegressionFamily(t *testing.T) {
+// TestMargins_MultiplicityOwnFamily: under the regression's own
+// multiplicity block the effects form a family of their own (one per
+// regression, echo family "margins", m the terms), so the coefficients'
+// p_adjusted, significant_adjusted and echo are byte-identical with
+// margins and without; each effect's adjusted p is the method over the
+// effects alone; predict counts every one as corrected and lists the
+// margins family apart; a request block naming the echo-only family is
+// refused alike at predict and run.
+func TestMargins_MultiplicityOwnFamily(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -284,23 +288,44 @@ func TestMargins_MultiplicityJoinsRegressionFamily(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := resp.Regressions[0]
-	ps := []float64{r.PValues["x1"], r.PValues["x2"], r.Margins.PValues["x1"], r.Margins.PValues["x2"]}
-	adj, err := multiplicity.Adjust(multiplicity.Method(types.MultiplicityMethodHolm), ps)
+	adj, err := multiplicity.Adjust(multiplicity.Method(types.MultiplicityMethodHolm), []float64{r.Margins.PValues["x1"], r.Margins.PValues["x2"]})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := []float64{r.PAdjusted["x1"], r.PAdjusted["x2"], r.Margins.PAdjusted["x1"], r.Margins.PAdjusted["x2"]}
-	if !slices.Equal(got, adj) {
-		t.Errorf("adjusted %v, Holm over the pooled family %v", got, adj)
+	if got := []float64{r.Margins.PAdjusted["x1"], r.Margins.PAdjusted["x2"]}; !slices.Equal(got, adj) {
+		t.Errorf("margins adjusted %v, Holm over the effects alone %v", got, adj)
 	}
-	if r.Multiplicity == nil || r.Multiplicity.M != 4 {
-		t.Errorf("echo %+v, want m = 4", r.Multiplicity)
+	if e := r.Margins.Multiplicity; e == nil || e.Family != types.MultiplicityFamilyMargins || e.M != 2 || e.Method != types.MultiplicityMethodHolm {
+		t.Errorf("margins echo %+v, want holm / margins / m = 2", e)
 	}
 	for _, k := range []string{"x1", "x2"} {
-		if r.Margins.SignificantAdjusted[k] != (r.Margins.PAdjusted[k] < r.Multiplicity.Alpha) {
+		if r.Margins.SignificantAdjusted[k] != (r.Margins.PAdjusted[k] < r.Margins.Multiplicity.Alpha) {
 			t.Errorf("significant_adjusted[%s] = %v", k, r.Margins.SignificantAdjusted[k])
 		}
 	}
+
+	// The coefficients' correction is the one without margins, byte for
+	// byte.
+	bare := *spec
+	bare.Margins = nil
+	without, err := p.Process(ctx, marginsReq(marginsCohort, &bare))
+	if err != nil {
+		t.Fatal(err)
+	}
+	coefFold := func(r *types.RegressionResult) string {
+		b, err := json.Marshal(map[string]any{"p_adjusted": r.PAdjusted, "significant_adjusted": r.SignificantAdjusted, "multiplicity": r.Multiplicity})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	if g, w := coefFold(r), coefFold(without.Regressions[0]); g != w {
+		t.Errorf("coefficients' correction moved with margins:\n with    %s\n without %s", g, w)
+	}
+	if r.Multiplicity == nil || r.Multiplicity.M != 2 || r.Multiplicity.Family != types.MultiplicityFamilyRequest {
+		t.Errorf("coefficient echo %+v, want request / m = 2", r.Multiplicity)
+	}
+
 	pr, err := p.Predict(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -314,8 +339,74 @@ func TestMargins_MultiplicityJoinsRegressionFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plain.Regressions[0].Margins.PAdjusted != nil {
-		t.Error("an uncorrected regression's margins carry p_adjusted")
+	if plain.Regressions[0].Margins.PAdjusted != nil || plain.Regressions[0].Margins.Multiplicity != nil {
+		t.Error("an uncorrected regression's margins carry p_adjusted or an echo")
+	}
+
+	// "margins" is an echo: a block naming it is refused, alike.
+	spec.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyMargins}
+	_, err = p.Process(ctx, req)
+	ce := codedOf(t, err)
+	if ce.Code != errors.PULSE_MULTIPLICITY_INVALID {
+		t.Fatalf("family margins: %v, want PULSE_MULTIPLICITY_INVALID", err)
+	}
+	pr, err = p.Predict(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matched := false
+	for _, e := range pr.Errors {
+		if e.Code == string(ce.Code) && e.Message == ce.Message {
+			matched = true
+		}
+	}
+	if pr.Valid || !matched {
+		t.Errorf("predict errors %+v do not carry the runtime refusal %q", pr.Errors, ce.Message)
+	}
+}
+
+// TestMargins_MultiplicityComposeFamilies: inside Compose the margins
+// family stays per regression — never pooled into `compose` — and
+// predict's per-slot families list it apart from the coefficients'.
+func TestMargins_MultiplicityComposeFamilies(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	single, _ := marginsModes(t)
+	p := single[0].p
+	slot := func(name string) *Request {
+		spec := &types.RegressionSpec{Type: types.REG_GLM, Name: name, Family: "binomial", Target: "b", Predictors: []string{"x1", "x2"},
+			Margins:      &types.RegressionMargins{},
+			Multiplicity: &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyCompose}}
+		return marginsReq(marginsCohort, spec)
+	}
+	creq := &ComposedRequest{Requests: []*Request{slot("a"), slot("b")}}
+	out, err := p.Compose(ctx, creq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, resp := range out.Responses {
+		r := resp.Regressions[0]
+		if r.Multiplicity == nil || r.Multiplicity.M != 4 || r.Multiplicity.Family != types.MultiplicityFamilyCompose {
+			t.Errorf("slot %d coefficient echo %+v, want compose / m = 4", i, r.Multiplicity)
+		}
+		if e := r.Margins.Multiplicity; e == nil || e.M != 2 || e.Family != types.MultiplicityFamilyMargins {
+			t.Errorf("slot %d margins echo %+v, want margins / m = 2", i, e)
+		}
+	}
+	env, err := p.PredictCompose(ctx, creq)
+	if err != nil || len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose: %v %+v", err, env.Errors)
+	}
+	for i, s := range env.Data.(*ComposePredictResult).Slots {
+		var fams []string
+		for _, f := range s.Families {
+			fams = append(fams, f.ID+"="+strconv.Itoa(f.Count))
+		}
+		want := []string{"compose=2", "requests[" + strconv.Itoa(i) + "].regressions[0]#margins=2"}
+		if !slices.Equal(fams, want) {
+			t.Errorf("slot %d predict families %v, want %v", i, fams, want)
+		}
 	}
 }
 

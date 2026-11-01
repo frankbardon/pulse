@@ -189,6 +189,7 @@ func (s multSurface) families(inCompose, matrix bool) []types.MultiplicityFamily
 const (
 	multReasonUnknownMethod  = "unknown method"
 	multReasonUnknownFamily  = "unknown family"
+	multReasonMarginsFamily  = "the margins family is the one a regression's marginal effects form on their own (an echo); it is never requested"
 	multReasonAlphaRange     = "alpha must lie in the open interval (0, 1)"
 	multReasonTestAlpha      = "a test reads its own alpha; set the test's alpha instead of multiplicity.alpha"
 	multReasonComposeOutside = "the compose family exists only inside Compose"
@@ -242,6 +243,9 @@ func ValidateMultiplicitySpec(m *types.Multiplicity, where string) error {
 	}
 	if m.Method != "" && !slices.Contains(types.AllMultiplicityMethods(), m.Method) {
 		return multInvalid(where, "method", string(m.Method), multReasonUnknownMethod, stringsOf(types.AllMultiplicityMethods()))
+	}
+	if m.Family == types.MultiplicityFamilyMargins {
+		return multInvalid(where, "family", string(m.Family), multReasonMarginsFamily, stringsOf(types.AllMultiplicityFamilies()))
 	}
 	if m.Family != "" && !slices.Contains(types.AllMultiplicityFamilies(), m.Family) {
 		return multInvalid(where, "family", string(m.Family), multReasonUnknownFamily, stringsOf(types.AllMultiplicityFamilies()))

@@ -232,15 +232,24 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 			}
 		}
 		// A margins block adds one p-value per term (internal/regmargins
-		// resolves the list), joining the member regression's family
-		// beside its coefficients — the runtime fold's
-		// collectRegressionSites — else uncorrected.
+		// resolves the list): under the member regression's block they
+		// form a family of their own, one per regression
+		// (MultiplicityFamilyMargins — the runtime fold's
+		// collectRegressionSites), else uncorrected.
 		effects := 0
 		if r.Margins != nil && regmargins.Check(r) == nil {
 			effects = len(regmargins.Terms(r))
 		}
 		if member {
-			addAt(len(corrected)+effects, descriptor.PValueBasisExact, regressions, i)
+			addAt(len(corrected), descriptor.PValueBasisExact, regressions, i)
+			if effects > 0 {
+				addPValues(out, effects, descriptor.PValueBasisExact, true)
+				if visit != nil {
+					mrm := regressions[i]
+					mrm.Family = types.MultiplicityFamilyMargins
+					visit(effects, descriptor.PValueBasisExact, mrm)
+				}
+			}
 		} else {
 			uncorrected += effects
 		}

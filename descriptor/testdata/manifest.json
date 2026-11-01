@@ -8688,7 +8688,7 @@
             "name": "margins",
             "type": "object",
             "required": false,
-            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is a derived column (no chain rule through it). A multiplicity block corrects the effects with the coefficients. On REG_GLM the response-scale effect reads mu'(eta) per fitted row (one pass after IRLS); an identity link's, and every link-scale one, is the coefficient. t on df for gamma (classical), Wald z otherwise.",
+            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is a derived column (no chain rule through it). A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_GLM the response-scale effect reads mu'(eta) per fitted row (one pass after IRLS); an identity link's, and every link-scale one, is the coefficient. t on df for gamma (classical), Wald z otherwise.",
             "slot": true
           },
           {
@@ -9326,7 +9326,7 @@
             "name": "margins",
             "type": "object",
             "required": false,
-            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is a derived column (no chain rule through it). A multiplicity block corrects the effects with the coefficients. On REG_OLS every effect is its coefficient (identity link) with its standard error and t on df; streams with the fit.",
+            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is a derived column (no chain rule through it). A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_OLS every effect is its coefficient (identity link) with its standard error and t on df; streams with the fit.",
             "slot": true
           },
           {
@@ -20707,4 +20707,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a1edbf067a2ba4500f06cd657d1d99716ac63b8b92297fbb002cfca41733c398
+// golden-hash: 4b5c59f5e2da8c11f296cc12765547d048db23bde8217b97d003bc77697d7d0c

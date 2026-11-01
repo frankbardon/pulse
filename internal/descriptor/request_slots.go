@@ -246,8 +246,9 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
-	// The marginal effects' adjusted twins.
+	// The marginal effects' adjusted twins and their family's echo.
 	reflect.TypeOf(types.RegressionMarginsResult{}): {
+		multiplicitySlotGate,
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},

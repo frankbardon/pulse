@@ -527,10 +527,17 @@ type RegressionMarginsResult struct {
 	// PAdjusted and SignificantAdjusted carry the multiplicity-adjusted
 	// p-value of each term, present only when the regression's own
 	// multiplicity block resolved to a method other than none: the terms
-	// join the regression's correction family beside its member
-	// coefficients (RegressionResult.Multiplicity echoes the family).
+	// form a family of their own, one per regression
+	// (MultiplicityFamilyMargins), apart from the coefficients' — so the
+	// coefficients' PAdjusted are the same with margins or without.
 	PAdjusted           map[string]float64 `json:"p_adjusted,omitempty"`
 	SignificantAdjusted map[string]bool    `json:"significant_adjusted,omitempty"`
+
+	// Multiplicity echoes the margins family's correction beside
+	// PAdjusted: the regression block's method and alpha, family
+	// "margins", m the number of terms with a defined p-value (excluded
+	// the rest). Absent when no correction ran.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // RegressionMultiplicity is a regression's own multiple-comparison

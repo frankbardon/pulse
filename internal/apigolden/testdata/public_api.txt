@@ -5711,6 +5711,7 @@ pulse/types: type MultiplicityFamily string
 pulse/types: const MultiplicityFamilyColumn pulse/types.MultiplicityFamily = "column"
 pulse/types: const MultiplicityFamilyCompose pulse/types.MultiplicityFamily = "compose"
 pulse/types: const MultiplicityFamilyLayer pulse/types.MultiplicityFamily = "layer"
+pulse/types: const MultiplicityFamilyMargins pulse/types.MultiplicityFamily = "margins"
 pulse/types: const MultiplicityFamilyMatrix pulse/types.MultiplicityFamily = "matrix"
 pulse/types: const MultiplicityFamilyRequest pulse/types.MultiplicityFamily = "request"
 pulse/types: const MultiplicityFamilyRow pulse/types.MultiplicityFamily = "row"
@@ -6076,6 +6077,7 @@ pulse/types: type RegressionMarginsResult field CIUpper map[string]float64 "json
 pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_level\""
 pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
+pulse/types: type RegressionMarginsResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionMarginsResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type RegressionMarginsResult field PValues map[string]float64 "json:\"p_values\""
 pulse/types: type RegressionMarginsResult field Scale string "json:\"scale\""
@@ -6513,4 +6515,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7a4b48d277461b8e937a19dad73785252324ccfc59930ac4a78823e71170e385
+// golden-hash: ffb1ab288b2cc838cf2c56736a64a24e79b78b4223602443f99dff48ff75b2ca
