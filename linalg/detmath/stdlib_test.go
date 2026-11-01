@@ -82,6 +82,29 @@ func kernels1() []kernel1 {
 			}
 			return r.scaled(-6, 2) // every rational arm and the |x| ≥ 6 saturation
 		}},
+		{"Erfc", Erfc, math.Erfc, func(r *sweepRand) float64 {
+			if r.next()%8 == 0 { // the |x| < 2^-56 identity and the small-|x| arm
+				return r.scaled(-1074, -29)
+			}
+			// every rational arm, the x < -6 saturation, the upper tail
+			// down to subnormal results and the x ≥ 28 underflow to 0.
+			return r.scaled(-6, 4)
+		}},
+		{"Atanh", Atanh, math.Atanh, func(r *sweepRand) float64 {
+			switch r.next() % 4 {
+			case 0: // the |x| < 2^-28 identity, subnormals included
+				return r.scaled(-1074, -29)
+			case 1: // toward ±1: 1 - 2^-k, the 2x/(1-x) arm's pole
+				return signOf(r) * (1 - math.Ldexp(r.unit(), -int(r.next()%52)-2))
+			}
+			return r.scaled(-28, -1) // both Log1p arms
+		}},
+		{"Tanh", Tanh, math.Tanh, func(r *sweepRand) float64 {
+			if r.next()%8 == 0 { // the |x| < 2^-55 x·(1+x) arm, subnormals included
+				return r.scaled(-1074, -56)
+			}
+			return r.scaled(-55, 5) // both Expm1 arms and the |x| ≥ 22 saturation
+		}},
 		{"Erfinv", Erfinv, math.Erfinv, func(r *sweepRand) float64 {
 			if r.next()&1 == 1 { // the log tail: 1 - 2^-k, both r ≤ 5 and r > 5
 				return signOf(r) * (1 - math.Ldexp(r.unit(), -int(r.next()%52)-2))
@@ -173,7 +196,7 @@ const sweepN = 200_000
 // not a single function: math.* differs across architectures and CPUs,
 // which is the whole reason detmath exists, so the bound is the spread
 // the stdlib itself shows between its own builds, measured on this
-// sweep (darwin/arm64 natively, linux/amd64 with FMA under docker):
+// sweep on darwin/arm64 and on linux/amd64 hardware with FMA:
 //
 //   - Exp 2: amd64's exp_amd64.s takes a run-time FMA path on CPUs that
 //     have it and lands 2 ulp from the pure-Go algorithm (arm64's
@@ -191,6 +214,18 @@ const sweepN = 200_000
 //     agreed with detmath's on every sweep input).
 //   - Erf 1: arm64 contracts the rational arms; on amd64 the |x| ≥ 1.25
 //     arms call the FMA-path exp_amd64.s, 1 ulp from detmath.Exp.
+//   - Erfc 4: arm64 contracts the 0.25 ≤ |x| < 0.84375 arm's
+//     0.5 + (x·y + (x − 0.5)), and 1 − that cancels toward 0.245, so the
+//     fused rounding is magnified (worst measured: 4 ulp at x = 0.82196;
+//     detmath is 1 ulp from the 400-bit erfc there, math.Erfc 3). On
+//     amd64 the |x| ≥ 1.25 arms call the FMA-path exp_amd64.s twice and
+//     r/x does not compress the difference the way Erf's 1 − r/x does
+//     (worst measured: 3 ulp at x = 6.1075).
+//   - Tanh 2: math.Tanh is the Cephes rational / Exp formulation and
+//     detmath.Tanh fdlibm's Expm1 one — two independent roundings of the
+//     same function, not a port (worst measured: 2 ulp on both arches).
+//   - Atanh 1 off amd64 (bit-exact there): only math.Log1p's
+//     contraction separates them.
 //   - Asin 2: arm64 contracts 1 − x·x and satan's rational kernel; the
 //     sqrt argument and the quotient both move (sweep held to |x| < 0.95,
 //     see its input comment).
@@ -200,7 +235,8 @@ const sweepN = 200_000
 //   - every other kernel 1.
 var ulpBound = map[string]uint64{
 	"Exp": 2, "Log": 1, "Log1p": 1, "Sin": 1, "Cos": 1, "Tan": 2, "Atan2": 1, "Pow": 8,
-	"Expm1": 1, "Erf": 1, "Erfinv": 8, "Asin": 2, "Lgamma": 3,
+	"Expm1": 1, "Erf": 1, "Erfc": 4, "Erfinv": 8, "Asin": 2, "Lgamma": 3,
+	"Atanh": 1, "Tanh": 2,
 }
 
 // lgammaValue is Lgamma's value alone, for the one-argument sweep.
@@ -210,7 +246,7 @@ func lgammaValue(x float64) float64 { v, _ := Lgamma(x); return v }
 // source detmath ports, compiled without contraction on amd64. There the
 // two must agree BIT FOR BIT: any difference is a mis-ported line, not
 // rounding, so this is the port-fidelity check CI runs on linux/amd64.
-var exactOnAMD64 = map[string]bool{"Expm1": true, "Log1p": true, "Sin": true, "Cos": true, "Tan": true, "Atan2": true, "Asin": true}
+var exactOnAMD64 = map[string]bool{"Expm1": true, "Log1p": true, "Sin": true, "Cos": true, "Tan": true, "Atan2": true, "Asin": true, "Atanh": true}
 
 func boundFor(name string) uint64 {
 	if runtime.GOARCH == "amd64" && exactOnAMD64[name] {
@@ -333,6 +369,9 @@ func TestDetmath_SpecialCasesMatchStdlib(t *testing.T) {
 		"Pow":    math.Pow,
 		"Expm1":  func(x, _ float64) float64 { return math.Expm1(x) },
 		"Erf":    func(x, _ float64) float64 { return math.Erf(x) },
+		"Erfc":   func(x, _ float64) float64 { return math.Erfc(x) },
+		"Atanh":  func(x, _ float64) float64 { return math.Atanh(x) },
+		"Tanh":   func(x, _ float64) float64 { return math.Tanh(x) },
 		"Erfinv": func(x, _ float64) float64 { return math.Erfinv(x) },
 		"Asin":   func(x, _ float64) float64 { return math.Asin(x) },
 		"Lgamma": func(x, _ float64) float64 { v, _ := math.Lgamma(x); return v },

@@ -314,10 +314,10 @@ func (pr *irlsProblem) workingSystem(eta, prior, w, z, xtwx, xtwz []float64) {
 		xi := pr.X[i*k : (i+1)*k]
 		for a := 0; a < k; a++ {
 			wa := wi * xi[a]
-			xtwz[a] += wa * zi
+			xtwz[a] += float64(wa * zi)
 			row := a * k
 			for b := a; b < k; b++ {
-				xtwx[row+b] += wa * xi[b]
+				xtwx[row+b] += float64(wa * xi[b])
 			}
 		}
 	}
@@ -392,7 +392,7 @@ func (pr *irlsProblem) objective(eta, mu, prior, beta []float64) float64 {
 func (pr *irlsProblem) deviance(mu, prior []float64) float64 {
 	d := 0.0
 	for i := range mu {
-		d += prior[i] * pr.Family.Deviance(pr.Y[i], mu[i])
+		d += float64(prior[i] * pr.Family.Deviance(pr.Y[i], mu[i]))
 	}
 	return d * 2.0
 }
@@ -425,8 +425,8 @@ func relativeChange(next, prev []float64) float64 {
 	var dnum, dnorm float64
 	for a := range next {
 		d := next[a] - prev[a]
-		dnum += d * d
-		dnorm += prev[a] * prev[a]
+		dnum += float64(d * d)
+		dnorm += float64(prev[a] * prev[a])
 	}
 	return math.Sqrt(dnum) / (math.Sqrt(dnorm) + convergenceEps)
 }
@@ -523,23 +523,23 @@ func aliasedColumns(x, prior []float64, n, k int) []int {
 		norm0 := 0.0
 		for i := 0; i < n; i++ {
 			v[i] = sw[i] * x[i*k+j]
-			norm0 += v[i] * v[i]
+			norm0 += float64(v[i] * v[i])
 		}
 		norm0 = math.Sqrt(norm0)
 		for pass := 0; pass < 2; pass++ {
 			for _, q := range basis {
 				d := 0.0
 				for i := range v {
-					d += q[i] * v[i]
+					d += float64(q[i] * v[i])
 				}
 				for i := range v {
-					v[i] -= d * q[i]
+					v[i] -= float64(d * q[i])
 				}
 			}
 		}
 		norm := 0.0
 		for i := range v {
-			norm += v[i] * v[i]
+			norm += float64(v[i] * v[i])
 		}
 		norm = math.Sqrt(norm)
 		if norm0 == 0 || norm <= rankTol*norm0 {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -25,18 +24,15 @@ import (
 // captures no numeric predictor is exactly the regression this file
 // exists to catch.
 //
-// # Why the profile hash is per architecture
+// # One hash on every architecture
 //
 // The OLS engine behind `--fit-models` (internal/processing/regression)
-// is not fusion-free — .claude/reference/synthetic-data/capture-and-models.md
-// (Float fusion) states that residual — so a captured coefficient can
-// differ by an ulp between arm64 and amd64, and so can the document
-// bytes, and so can a twin generated from them. Each profiled
-// fixture's hashes are therefore recorded once per GOARCH they were
-// measured on (amd64 via a linux/amd64 container). The hand-authored
-// spec's hash is a single value: generation is portable by
-// construction (TestSynthZiggurat_GenerationBytesPortable), and that
-// spec carries fixed coefficients, so nothing arch-specific feeds it.
+// runs on the FMA-free SPD port since cross-arch-determinism (U61), so a
+// captured coefficient, the document bytes and the twin generated from
+// them are identical on arm64 and amd64. The pinned values are the
+// pre-change amd64 hashes: amd64 did not move under U61, and arm64 now
+// reproduces them. A per-architecture split here would be a regression
+// of that contract.
 
 // numericPinOptions is the widest capture the pin is taken under —
 // every flag that interacts with models, so a stray numeric candidate
@@ -115,9 +111,8 @@ func numericOnlyFixture(t *testing.T, rowCount int, seed int64) []byte {
 	return importCSVFixture(t, buf.String(), rowCount)
 }
 
-// pinnedHashes is one fixture's pre-change (document, twin) hash pair
-// per GOARCH.
-type pinnedHashes map[string][2]string
+// pinnedHashes is one fixture's pre-change (document, twin) hash pair.
+type pinnedHashes [2]string
 
 // TestProfileNumericPredictors_AbsentIsByteIdenticalToPreChange pins
 // the pre-change bytes of fixtures whose numerics are mutually
@@ -135,18 +130,12 @@ func TestProfileNumericPredictors_AbsentIsByteIdenticalToPreChange(t *testing.T)
 		{
 			name: "categorical-driven",
 			data: func(t *testing.T) []byte { return modelFlagFixture(t, 1200, 7) },
-			want: pinnedHashes{
-				"arm64": {"b7383fa29f55e0446274769fd9cb1d9a32268f1bb5ef148f142ec85795fbe5a3", "dc649f7ff2c0ea800ec8f235ed68dab9423124b0593bb0d2accdf63353c84ffa"},
-				"amd64": {"98682b8e61dca16412a6a0dd88c78f100c6b4d948b0358b58eda660121f095de", "ebebeee74d8301a1a02ac144c24e3fbe043839115a207a645eabc46f11bb1ddd"},
-			},
+			want: pinnedHashes{"98682b8e61dca16412a6a0dd88c78f100c6b4d948b0358b58eda660121f095de", "ebebeee74d8301a1a02ac144c24e3fbe043839115a207a645eabc46f11bb1ddd"},
 		},
 		{
 			name: "numeric-only",
 			data: func(t *testing.T) []byte { return numericOnlyFixture(t, 1000, 3) },
-			want: pinnedHashes{
-				"arm64": {"bba91476a767bce34538df804576bd7001c9448f36af499005be4704bcee8028", "f89dd3cdd16cfc3e5ef3875e0711a8257b81adc0685abeb17a21dfe1260c21f3"},
-				"amd64": {"bba91476a767bce34538df804576bd7001c9448f36af499005be4704bcee8028", "f89dd3cdd16cfc3e5ef3875e0711a8257b81adc0685abeb17a21dfe1260c21f3"},
-			},
+			want: pinnedHashes{"bba91476a767bce34538df804576bd7001c9448f36af499005be4704bcee8028", "f89dd3cdd16cfc3e5ef3875e0711a8257b81adc0685abeb17a21dfe1260c21f3"},
 		},
 	}
 	for _, tc := range cases {
@@ -155,11 +144,7 @@ func TestProfileNumericPredictors_AbsentIsByteIdenticalToPreChange(t *testing.T)
 			if capturedNumericPredictor(prof) {
 				t.Fatalf("fixture captured a numeric predictor; it no longer tests the absent case: %+v", prof.Models)
 			}
-			want, ok := tc.want[runtime.GOARCH]
-			if !ok {
-				t.Logf("no pre-change hashes recorded for GOARCH=%s (got doc %s twin %s)", runtime.GOARCH, doc, twin)
-				return
-			}
+			want := tc.want
 			if doc != want[0] {
 				t.Errorf("profile document moved with no numeric predictor captured:\n got %s\nwant %s", doc, want[0])
 			}

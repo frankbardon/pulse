@@ -24,10 +24,12 @@ func controlMoments(vals []float64) (n int, m, m2, m3, m4 float64) {
 	m = sum / float64(len(vals))
 	for _, v := range vals {
 		d := v - m
-		d2 := d * d
+		// Barriered like the production helper: every product rounds
+		// before its sum, so no FMA contraction on any architecture.
+		d2 := float64(d * d)
 		m2 += d2
-		m3 += d2 * d
-		m4 += d2 * d2
+		m3 += float64(d2 * d)
+		m4 += float64(d2 * d2)
 	}
 	return len(vals), m, m2, m3, m4
 }

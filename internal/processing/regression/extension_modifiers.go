@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/internal/slotfail"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -118,7 +119,7 @@ func extensionSelection(ctx context.Context, spec *types.RegressionSpec, records
 	crit := func(f *refitResult, _ int) float64 {
 		k := float64(f.Params)
 		if wantBIC {
-			return f.Deviance + math.Log(float64(f.N))*k
+			return f.Deviance + float64(detmath.Log(float64(f.N))*k)
 		}
 		return f.Deviance + 2*k
 	}

@@ -345,7 +345,7 @@ func (e *glmEngine) nullDeviance(yVec, prior []float64, deviance float64) (float
 	nullMu := e.family.SafeMean(weightedMean(yVec, prior))
 	nullDeviance := 0.0
 	for i := range yVec {
-		nullDeviance += prior[i] * e.family.Deviance(yVec[i], nullMu)
+		nullDeviance += float64(prior[i] * e.family.Deviance(yVec[i], nullMu))
 	}
 	nullDeviance *= 2.0
 	pseudoR2 := 0.0
@@ -499,7 +499,7 @@ func buildWeightedDesign(records []Record, predictors []string, target string, r
 		yVec = append(yVec, y)
 		prior = append(prior, w)
 		sumW += w
-		sumWSq += w * w
+		sumWSq += float64(w * w)
 	}
 	if c := rw.basis.Scale(sumW, sumWSq); c != 1 {
 		for i := range prior {
@@ -516,7 +516,7 @@ func weightedMean(x, w []float64) float64 {
 	}
 	s, sw := 0.0, 0.0
 	for i, v := range x {
-		s += w[i] * v
+		s += float64(w[i] * v)
 		sw += w[i]
 	}
 	return s / sw

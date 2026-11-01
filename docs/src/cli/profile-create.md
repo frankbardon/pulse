@@ -1661,17 +1661,11 @@ A third cause, the transcendental kernels, is closed too: `math.Exp` /
 `--fit-shape`'s EM fit (and every exp / log / erf the generator evaluates)
 runs on portable ports with identical bits on every machine.
 
-One residual remains, and it is stated rather than papered over:
-
-- `--fit-models` solves its least squares in `internal/processing/regression`,
-  which has not been made fusion-free. A `models` coefficient's last
-  bits can differ between machines. Every other section is
-  architecture-independent.
-
-It does not affect a value you would read or report — the divergence is
-at the 1e-15 relative level — but a byte-for-byte `diff` of two
-documents captured with `--fit-models` on different CPUs may still show
-movement.
+`--fit-models` solves its least squares in `internal/processing/regression`,
+which runs on an FMA-free port of the SPD solver since the
+cross-architecture determinism work, so a `models` coefficient has the
+same bits on every machine too. A document captured with `--fit-models`
+diffs clean across CPUs.
 
 ### Text mode summary
 

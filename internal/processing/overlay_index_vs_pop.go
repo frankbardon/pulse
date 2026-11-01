@@ -403,7 +403,7 @@ func applyIndexVsPopNumeric(spec *types.OverlaySpec, host *types.FacetField, pop
 		// metadata (not surfaced here — the SeriesEntry key carries
 		// just the lower-edge ordinal so the parallel-slice contract
 		// holds).
-		binLower := hostHist.Min + float64(i)*step
+		binLower := hostHist.Min + float64(float64(i)*step)
 		key := types.AxisKey{strconv.FormatFloat(binLower, 'f', -1, 64)}
 
 		var subsetFreq, popFreq float64

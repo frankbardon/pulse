@@ -222,7 +222,7 @@ func summariseWeightedANOVA(order []string, groups map[string]*weighting.Welford
 	for _, key := range order {
 		b := groups[key]
 		diff := b.Mean - grandMean
-		ssb += b.NStar(basis) * diff * diff
+		ssb += float64(b.NStar(basis) * diff * diff)
 		ssw += b.ScaledM2(basis)
 	}
 	return weightedANOVAStats{
@@ -265,7 +265,7 @@ func summariseANOVA(order []string, groups map[string]*welfordBucket) anovaStats
 	var ssb, ssw float64
 	for _, b := range bucketsInOrder(order, groups) {
 		diff := b.mean - grandMean
-		ssb += float64(b.n) * diff * diff
+		ssb += float64(float64(b.n) * diff * diff)
 		ssw += b.m2
 	}
 	return anovaStats{

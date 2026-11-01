@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math"
 
-	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/stat/distuv"
+
+	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Solver selects the optimiser.
@@ -65,7 +66,7 @@ func (o Options) waldCrit() float64 {
 	if o.Level == 0 || o.Level == 0.95 {
 		return waldZ975
 	}
-	return distuv.UnitNormal.Quantile((1 + o.Level) / 2)
+	return statdist.NormalQuantile((1 + o.Level) / 2)
 }
 
 func (o Options) withDefaults() Options {
@@ -352,7 +353,7 @@ func (st *state) meanStarts() {
 		}
 		v := st.ybar[l.i]
 		for j := 0; j < st.nIn; j++ {
-			v -= mm.At(l.i, j) * st.mats[mAlpha].At(j, 0)
+			v -= float64(mm.At(l.i, j) * st.mats[mAlpha].At(j, 0))
 		}
 		st.starts[p] = v
 		st.setParam(p, v)
@@ -365,7 +366,7 @@ func (st *state) mu(mm *mat.Dense) []float64 {
 	for i := range out {
 		v := st.mats[mNu].At(i, 0)
 		for j := 0; j < st.nIn; j++ {
-			v += mm.At(i, j) * st.mats[mAlpha].At(j, 0)
+			v += float64(mm.At(i, j) * st.mats[mAlpha].At(j, 0))
 		}
 		out[i] = v
 	}
@@ -390,7 +391,7 @@ func (st *state) meanGrad(mm, c *mat.Dense) [][]float64 {
 	ca := make([]float64, st.nIn)
 	for i := range ca {
 		for j := 0; j < st.nIn; j++ {
-			ca[i] += c.At(i, j) * st.mats[mAlpha].At(j, 0)
+			ca[i] += float64(c.At(i, j) * st.mats[mAlpha].At(j, 0))
 		}
 	}
 	n := st.nObs
@@ -409,7 +410,7 @@ func (st *state) meanGrad(mm, c *mat.Dense) [][]float64 {
 				g[l.i] += ca[l.j]
 			case mBeta:
 				for a := 0; a < n; a++ {
-					g[a] += mm.At(a, l.i) * ca[l.j]
+					g[a] += float64(mm.At(a, l.i) * ca[l.j])
 				}
 			}
 		}
@@ -488,7 +489,7 @@ func (st *state) objective(x []float64) float64 {
 	tr := 0.0
 	for i := 0; i < st.nObs; i++ {
 		for j := 0; j < st.nObs; j++ {
-			tr += st.s.At(i, j) * inv.At(j, i)
+			tr += float64(st.s.At(i, j) * inv.At(j, i))
 		}
 	}
 	loss := tr - float64(st.nObs) + ld - st.sInvLogDet
@@ -521,7 +522,7 @@ func (st *state) sigmaGrad(mm, c *mat.Dense) []*mat.Dense {
 						continue
 					}
 					for b := 0; b < n; b++ {
-						v := u * d.At(l.j, b)
+						v := float64(u * d.At(l.j, b))
 						g.Set(a, b, g.At(a, b)+v)
 						g.Set(b, a, g.At(b, a)+v)
 					}
@@ -540,7 +541,7 @@ func (st *state) sigmaGrad(mm, c *mat.Dense) []*mat.Dense {
 							continue
 						}
 						for b := 0; b < n; b++ {
-							g.Set(a, b, g.At(a, b)+u*mm.At(b, j))
+							g.Set(a, b, g.At(a, b)+float64(u*mm.At(b, j)))
 						}
 					}
 				}
@@ -584,7 +585,7 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 		sr := mat.NewDense(st.nObs, st.nObs, nil)
 		for a := 0; a < st.nObs; a++ {
 			for b := 0; b < st.nObs; b++ {
-				sr.Set(a, b, st.s.At(a, b)+r[a]*r[b])
+				sr.Set(a, b, st.s.At(a, b)+float64(r[a]*r[b]))
 			}
 		}
 		t.Mul(inv, sr)
@@ -601,7 +602,7 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 	g := make([]float64, k)
 	wd := w.RawMatrix().Data
 	for i, dg := range grads {
-		g[i] = floats.Dot(wd, dg.RawMatrix().Data) // tr(W∂Σ), both symmetric
+		g[i] = dot(wd, dg.RawMatrix().Data) // tr(W∂Σ), both symmetric
 	}
 	if !needH {
 		st.addMeanDerivatives(mm, c, inv, r, g, nil)
@@ -626,7 +627,7 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 	h := mat.NewSymDense(k, nil)
 	for i := 0; i < k; i++ {
 		for j := i; j < k; j++ {
-			h.SetSym(i, j, floats.Dot(as[i], bs[j]))
+			h.SetSym(i, j, dot(as[i], bs[j]))
 		}
 	}
 	st.addMeanDerivatives(mm, c, inv, r, g, h)
@@ -642,14 +643,14 @@ func (st *state) addMeanDerivatives(mm, c *mat.Dense, inv *mat.SymDense, r, g []
 	}
 	dm := st.meanGrad(mm, c)
 	for k := range g {
-		g[k] -= 2 * quad(inv, dm[k], r)
+		g[k] -= float64(2 * quad(inv, dm[k], r))
 	}
 	if h == nil {
 		return
 	}
 	for i := range dm {
 		for j := i; j < len(dm); j++ {
-			h.SetSym(i, j, h.At(i, j)+2*quad(inv, dm[i], dm[j]))
+			h.SetSym(i, j, h.At(i, j)+float64(2*quad(inv, dm[i], dm[j])))
 		}
 	}
 }
@@ -664,9 +665,9 @@ func quad(k *mat.SymDense, a, b []float64) float64 {
 		}
 		row := 0.0
 		for j := 0; j < n; j++ {
-			row += k.At(i, j) * b[j]
+			row += float64(k.At(i, j) * b[j])
 		}
-		s += a[i] * row
+		s += float64(a[i] * row)
 	}
 	return s
 }
@@ -789,7 +790,7 @@ func solveLM(h *mat.SymDense, g []float64, idx []int, mu float64) []float64 {
 		if d <= 0 {
 			d = 1e-12
 		}
-		a.SetSym(p, p, h.At(i, i)+mu*d)
+		a.SetSym(p, p, h.At(i, i)+float64(mu*d))
 	}
 	var ch mat.Cholesky
 	if !ch.Factorize(a) {
@@ -1100,7 +1101,7 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense, crit
 					e.SE = se[k]
 					if m.lavaan {
 						e.Z = e.Value / e.SE
-						e.CILower, e.CIUpper = e.Value-crit*e.SE, e.Value+crit*e.SE
+						e.CILower, e.CIUpper = e.Value-float64(crit*e.SE), e.Value+float64(crit*e.SE)
 					} else {
 						e.Z = e.Value / (e.SE + 1e-12)
 					}
@@ -1145,7 +1146,7 @@ func (p *parameter) userLabel() string {
 	return ""
 }
 
-func normCDF(z float64) float64 { return 0.5 * math.Erfc(-z/math.Sqrt2) }
+func normCDF(z float64) float64 { return float64(0.5 * detmath.Erfc(-z/math.Sqrt2)) }
 
 // SpecifiedRows lists the parameter-table rows of an unfitted model,
 // in Fit.Estimates' order, with every figure NaN: the rows an undefined

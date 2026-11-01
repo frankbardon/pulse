@@ -190,7 +190,7 @@ func scoreLabel(rawQ, nq string, qTri map[string]int, key, val string) float64 {
 		score = 0.9
 	case strings.Contains(nv, nq):
 		// Substring: scale by how much of the label the query covers.
-		score = 0.7 + 0.15*ratioLen(nq, nv)
+		score = 0.7 + float64(0.15*ratioLen(nq, nv))
 	}
 
 	qr, vr := []rune(nq), []rune(nv)

@@ -1,6 +1,10 @@
 package processing
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // The two-sample Kolmogorov-Smirnov p-value, ported from R 4.6.1's
 // ks.test.default and src/library/stats/src/ks.c (GPL-2 | GPL-3,
@@ -204,7 +208,7 @@ func psmirnovExactUpper(q float64, m, n int, z []bool) float64 {
 	md, nd := float64(m), float64(n)
 	// q has about 0.5/mn subtracted so rounding error never turns an
 	// equality into an inequality (R's comment, verbatim arithmetic).
-	q = (0.5 + math.Floor(q*md*nd-1e-7)) / (md * nd)
+	q = (0.5 + math.Floor(float64(q*md*nd)-1e-7)) / (md * nd)
 	test := func(r, s float64) bool { return math.Abs(r-s) >= q }
 	u := make([]float64, n+1)
 	u[0] = 0
@@ -245,23 +249,23 @@ func kolmogorovTwoLimitUpper(x, tol float64) float64 {
 	}
 	if x < 1 {
 		const m1Sqrt2Pi = 0.398942280401432677939946059934 // R's M_1_SQRT_2PI
-		kMax := int(math.Sqrt(2 - math.Log(tol)))
-		w := math.Log(x)
+		kMax := int(math.Sqrt(2 - detmath.Log(tol)))
+		w := detmath.Log(x)
 		piOver2, piOver4 := math.Pi/2, math.Pi/4 // M_PI_2, M_PI_4: multiplied at run time, as in C
 		z := -(piOver2 * piOver4) / (x * x)
 		s := 0.0
 		for k := 1; k < kMax; k += 2 {
-			s += math.Exp(float64(k*k)*z - w)
+			s += detmath.Exp(float64(float64(k*k)*z) - w)
 		}
 		return 1 - s/m1Sqrt2Pi
 	}
 	z := -2 * x * x
 	s := -1.0
 	k := 2
-	old, cur := 0.0, 2*math.Exp(z)
+	old, cur := 0.0, 2*detmath.Exp(z)
 	for math.Abs(old-cur) > tol {
 		old = cur
-		cur += 2 * s * math.Exp(z*float64(k)*float64(k)) // C's z * k * k, left to right
+		cur += float64(2 * s * detmath.Exp(z*float64(k)*float64(k))) // C's z * k * k, left to right
 		s = -s
 		k++
 	}

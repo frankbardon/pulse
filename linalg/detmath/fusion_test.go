@@ -41,8 +41,8 @@ import (
 //     see a dropped barrier), while TestDetmath_GoldenBits holds the
 //     production kernels to the barriered bits. On amd64 the twin is not
 //     actually fused, so this gate can only detect on a contracting
-//     architecture and logs which case it is in. For Expm1 / Erf /
-//     Erfinv the contracted stdlib itself serves as the twin.
+//     architecture and logs which case it is in. For Expm1 / Erf / Erfc /
+//     Erfinv / Asin / Atanh the contracted stdlib itself serves as the twin.
 
 // parseKernel parses the package's non-test files.
 func parseKernel(t *testing.T) (*token.FileSet, []*ast.File) {
@@ -328,17 +328,21 @@ func TestDetmath_FusedTwinsDiverge(t *testing.T) {
 		}
 		t.Logf("%s: unbarriered twin differs from the pinned bits on %d rows", name, diverged)
 	}
-	// Expm1 / Erf / Erfinv / Asin need no hand-copied twin: off s390x (the
-	// one GOARCH with assembly for them) math.Expm1 / Erf / Erfinv / Asin ARE the
+	// Expm1 / Erf / Erfc / Erfinv / Asin / Atanh need no hand-copied twin:
+	// off s390x (the one GOARCH with assembly for them) their math.* ARE the
 	// unbarriered pure-Go sources, so on a contracting build the stdlib
-	// itself is the fused twin. On amd64 it is not fused, and math.Erf
+	// itself is the fused twin (Atanh's own products feed no add; its
+	// contraction lives in the Log1p it calls). Tanh has no twin: math.Tanh
+	// is a different algorithm, and Tanh's products feed no add either, so
+	// a dropped barrier can only matter inside Expm1, whose rows see it. On amd64 it is not fused, and math.Erf
 	// also calls the FMA-path exp assembly, so this half runs only where
 	// it can detect.
 	if !obs || runtime.GOARCH == "s390x" {
 		return
 	}
 	for name, twin := range map[string]func(float64) float64{
-		"Expm1": math.Expm1, "Erf": math.Erf, "Erfinv": math.Erfinv, "Asin": math.Asin,
+		"Expm1": math.Expm1, "Erf": math.Erf, "Erfc": math.Erfc, "Erfinv": math.Erfinv,
+		"Asin": math.Asin, "Atanh": math.Atanh,
 	} {
 		diverged := 0
 		for _, c := range goldenCases {

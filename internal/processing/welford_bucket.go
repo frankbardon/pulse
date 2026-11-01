@@ -21,7 +21,7 @@ func (b *welfordBucket) add(v float64) {
 	delta := v - b.mean
 	b.mean += delta / float64(b.n)
 	delta2 := v - b.mean
-	b.m2 += delta * delta2
+	b.m2 += float64(delta * delta2)
 }
 
 // sampleVariance returns the unbiased sample variance s² = M2 / (n - 1).

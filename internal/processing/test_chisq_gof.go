@@ -119,7 +119,7 @@ func (g *chiSqGOFRow) UpdateRow(record *Record) error {
 	g.cellW[i] += w
 	g.n++
 	g.sumW += w
-	g.sumWSq += w * w
+	g.sumWSq += float64(w * w)
 	return nil
 }
 
@@ -162,7 +162,7 @@ func (g *chiSqGOFRow) Finalize() (*types.TestResult, error) {
 	expectedMin := math.Inf(1)
 	lowExpectedCells := 0
 	for i := range k {
-		expected := N * g.props[i]
+		expected := float64(N * g.props[i])
 		if expected < expectedMin {
 			expectedMin = expected
 		}

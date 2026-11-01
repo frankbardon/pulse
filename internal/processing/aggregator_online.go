@@ -164,7 +164,7 @@ func (a *varianceAggregator) UpdateRow(r *Record, field string) error {
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
 	delta2 := v - a.mean
-	a.m2 += delta * delta2
+	a.m2 += float64(delta * delta2)
 	return nil
 }
 
@@ -188,7 +188,7 @@ func (a *stdDevAggregator) UpdateRow(r *Record, field string) error {
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
 	delta2 := v - a.mean
-	a.m2 += delta * delta2
+	a.m2 += float64(delta * delta2)
 	return nil
 }
 
@@ -224,8 +224,8 @@ func (a *skewnessAggregator) UpdateRow(r *Record, field string) error {
 	n := float64(a.n)
 	delta := v - a.mean
 	deltaN := delta / n
-	term1 := delta * deltaN * (n - 1)
-	a.m3 += term1*deltaN*(n-2) - 3*deltaN*a.m2
+	term1 := float64(float64(delta*deltaN) * (n - 1))
+	a.m3 += float64(float64(term1*deltaN)*(n-2)) - float64(float64(3*deltaN)*a.m2)
 	a.m2 += term1
 	a.mean += deltaN
 	return nil
@@ -276,10 +276,10 @@ func (a *kurtosisAggregator) UpdateRow(r *Record, field string) error {
 	n := float64(a.n)
 	delta := v - a.mean
 	deltaN := delta / n
-	deltaN2 := deltaN * deltaN
-	term1 := delta * deltaN * (n - 1)
-	a.m4 += term1*deltaN2*(n*n-3*n+3) + 6*deltaN2*a.m2 - 4*deltaN*a.m3
-	a.m3 += term1*deltaN*(n-2) - 3*deltaN*a.m2
+	deltaN2 := float64(deltaN * deltaN)
+	term1 := float64(float64(delta*deltaN) * (n - 1))
+	a.m4 += float64(float64(term1*deltaN2)*(float64(n*n)-float64(3*n)+3)) + float64(float64(6*deltaN2)*a.m2) - float64(float64(4*deltaN)*a.m3)
+	a.m3 += float64(float64(term1*deltaN)*(n-2)) - float64(float64(3*deltaN)*a.m2)
 	a.m2 += term1
 	a.mean += deltaN
 	return nil

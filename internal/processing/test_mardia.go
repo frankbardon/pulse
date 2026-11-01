@@ -175,7 +175,7 @@ func (m *mardiaRow) Finalize() (*types.TestResult, error) {
 
 	skew := bigN * b1p / 6
 	if bigN < 20 {
-		skew *= float64(p+1) * (bigN + 1) * (bigN + 3) / (bigN * ((bigN+1)*float64(p+1) - 6))
+		skew *= float64(p+1) * (bigN + 1) * (bigN + 3) / (bigN * (float64((bigN+1)*float64(p+1)) - 6))
 	}
 	pp2 := float64(p * (p + 2))
 	z := (b2p - pp2) / math.Sqrt(8*pp2/bigN)

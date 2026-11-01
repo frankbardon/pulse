@@ -3,6 +3,8 @@ package processing
 import (
 	"math"
 	"sync"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // rank_cortest.go is the ONE two-sided p-value of a rank correlation —
@@ -64,7 +66,7 @@ func kendallCorTestP(tau, c, d, n float64, tiesX, tiesY []float64) float64 {
 // tie correction (Kendall 1948; R cor.test's var_S): n = Σw, tie-group
 // sizes expanded. TEST_KENDALL_TAU and the matrix's Kendall p share it.
 func kendallVarS(n float64, tiesX, tiesY []float64) float64 {
-	v0 := n * (n - 1) * (2*n + 5)
+	v0 := float64(n * (n - 1) * (2*n + 5))
 	vt := tieKendallSumW(tiesX)
 	vu := tieKendallSumW(tiesY)
 	v1 := 0.0
@@ -91,10 +93,10 @@ func spearmanCorTestP(rho float64, rx, ry []float64, n float64, tiesX, tiesY []f
 		var q float64
 		for i := range rx {
 			d := rx[i] - ry[i]
-			q += d * d
+			q += float64(d * d)
 		}
 		var p float64
-		if q > (n*n*n-n)/6 {
+		if q > (float64(n*n*n)-n)/6 {
 			p = pRho(q, nn, false)
 		} else {
 			p = pRho(q+2, nn, true)
@@ -204,7 +206,7 @@ func pRho(is float64, n int, lower bool) float64 {
 		return pv
 	}
 	n3 := float64(n)
-	n3 *= (n3*n3 - 1) / 3
+	n3 *= (float64(n3*n3) - 1) / 3
 	if is > n3 {
 		return 1 - pv
 	}
@@ -224,13 +226,16 @@ func pRho(is float64, n int, lower bool) float64 {
 	}
 	b := 1 / float64(n)
 	nf := float64(n)
-	x := (6*(is-1)*b/(nf*nf-1) - 1) * math.Sqrt(1/b-1)
+	x := (6*(is-1)*b/(float64(nf*nf)-1) - 1) * math.Sqrt(1/b-1)
 	y := x * x
-	u := x * b * (rhoC1 + b*(rhoC2+rhoC3*b) +
-		y*(-rhoC4+b*(rhoC5+rhoC6*b)-
-			y*b*(rhoC7+rhoC8*b-
-				y*(rhoC9-rhoC10*b+y*b*(rhoC11-rhoC12*y)))))
-	y = u / math.Exp(y/2)
+	// Edgeworth series, innermost bracket first; every product feeding
+	// an add is barriered (float64) so arm64 cannot fuse it.
+	inner4 := rhoC11 - float64(rhoC12*y)
+	inner3 := rhoC9 - float64(rhoC10*b) + float64(float64(y*b)*inner4)
+	inner2 := rhoC7 + float64(rhoC8*b) - float64(y*inner3)
+	inner1 := -rhoC4 + float64(b*(rhoC5+float64(rhoC6*b))) - float64(float64(y*b)*inner2)
+	u := x * b * (rhoC1 + float64(b*(rhoC2+float64(rhoC3*b))) + float64(y*inner1))
+	y = u / detmath.Exp(y/2)
 	up := y + normalUpperTailP(x)
 	up = math.Max(0, math.Min(1, up))
 	if lower {

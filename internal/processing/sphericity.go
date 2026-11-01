@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // sphericity.go is the one Bartlett sphericity core (psych::
@@ -85,7 +86,7 @@ func bartlettSphericity(r *linalg.Sym, nStar float64) sphericity {
 		return st
 	}
 	st.Det = determinantSPD(r)
-	st.ChiSq = -math.Log(st.Det) * mult
+	st.ChiSq = -detmath.Log(st.Det) * mult
 	st.PValue = chiSquareSurvival(st.ChiSq, st.DF)
 	return st
 }

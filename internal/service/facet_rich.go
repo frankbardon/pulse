@@ -634,11 +634,13 @@ func (a *numericAccumulator) update(r *processing.Record, field string) error {
 	if v > a.max {
 		a.max = v
 	}
-	// Welford recurrence for running mean + M2.
+	// Welford recurrence for running mean + M2; the float64() barriers
+	// here and in linearPercentile / percentileLabel stop the arm64
+	// compiler fusing a product into the add (cross-arch bits).
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
 	delta2 := v - a.mean
-	a.m2 += delta * delta2
+	a.m2 += float64(delta * delta2)
 
 	if a.includeHist {
 		idx := histogramBin(v, a.histRange[0], a.histRange[1], a.bins)
@@ -724,14 +726,14 @@ func linearPercentile(sorted []float64, p float64) float64 {
 	if n == 1 {
 		return sorted[0]
 	}
-	rank := p * float64(n-1)
+	rank := float64(p * float64(n-1))
 	lo := int(math.Floor(rank))
 	hi := int(math.Ceil(rank))
 	if lo == hi {
 		return sorted[lo]
 	}
 	frac := rank - float64(lo)
-	return sorted[lo] + frac*(sorted[hi]-sorted[lo])
+	return sorted[lo] + float64(frac*(sorted[hi]-sorted[lo]))
 }
 
 // percentileLabel formats a percentile value as "p<integer>" when the
@@ -739,7 +741,7 @@ func linearPercentile(sorted []float64, p float64) float64 {
 // p=0.5 → "p50"), and as a fixed-precision form otherwise so requests
 // with exotic fractions remain key-stable.
 func percentileLabel(p float64) string {
-	pct := p * 100
+	pct := float64(p * 100)
 	if math.Abs(pct-math.Round(pct)) < 1e-9 {
 		return fmt.Sprintf("p%d", int(math.Round(pct)))
 	}

@@ -1,7 +1,6 @@
 package sem
 
 import (
-	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -84,7 +83,7 @@ func (st *state) rank2Derivatives(mm, c *mat.Dense, k *mat.SymDense, w *mat.Dens
 		s := 0.0
 		for _, t := range ts {
 			mat.NewVecDense(n, wb).MulVec(w, mat.NewVecDense(n, t.b))
-			s += 2 * floats.Dot(t.a, wb)
+			s += float64(2 * dot(t.a, wb))
 		}
 		g[q] = s
 	}
@@ -97,7 +96,7 @@ func (st *state) rank2Derivatives(mm, c *mat.Dense, k *mat.SymDense, w *mat.Dens
 			s := 0.0
 			for _, x := range ti {
 				for _, y := range terms[j] {
-					s += 2 * (floats.Dot(x.ka, y.a)*floats.Dot(x.kb, y.b) + floats.Dot(x.ka, y.b)*floats.Dot(x.kb, y.a))
+					s += float64(2 * (float64(dot(x.ka, y.a)*dot(x.kb, y.b)) + float64(dot(x.ka, y.b)*dot(x.kb, y.a))))
 				}
 			}
 			h.SetSym(i, j, s)

@@ -1,6 +1,10 @@
 package processing
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // effectSizeDetailsKey is the TestResult.Details key every statistical
 // test nests its effect sizes under: Details["effect_size"] is a
@@ -55,7 +59,7 @@ func cohensH(p1, p2 float64) float64 {
 	if !(p1 >= 0 && p1 <= 1 && p2 >= 0 && p2 <= 1) {
 		return math.NaN()
 	}
-	return 2*math.Asin(math.Sqrt(p1)) - 2*math.Asin(math.Sqrt(p2))
+	return float64(2*detmath.Asin(math.Sqrt(p1))) - float64(2*detmath.Asin(math.Sqrt(p2)))
 }
 
 // cohensDOneSample returns the one-sample Cohen's d: (mean − mu) / sd,
@@ -81,7 +85,7 @@ func cohensDTwoSample(diff, na, va, nb, vb float64) float64 {
 	if !(dof > 0) {
 		return math.NaN()
 	}
-	pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / dof)
+	pooled := math.Sqrt((float64((na-1)*va) + float64((nb-1)*vb)) / dof)
 	if !(pooled > 0) || math.IsInf(pooled, 0) {
 		return math.NaN()
 	}
@@ -102,7 +106,7 @@ func omegaSquared(ssBetween, ssWithin, dfBetween, msWithin float64) float64 {
 	if !(den > 0) || math.IsInf(den, 0) {
 		return math.NaN()
 	}
-	return max(0, (ssBetween-dfBetween*msWithin)/den)
+	return max(0, (ssBetween-float64(dfBetween*msWithin))/den)
 }
 
 // welchOmegaSquared returns the Welch-adjusted ω² estimate from the
@@ -120,7 +124,7 @@ func welchOmegaSquared(fStar, dfBetween, n float64) float64 {
 	if math.IsNaN(fStar) || math.IsInf(fStar, 0) || !(n > 0) {
 		return math.NaN()
 	}
-	num := dfBetween * (fStar - 1)
+	num := float64(dfBetween * (fStar - 1))
 	den := num + n
 	if !(den > 0) {
 		return math.NaN()
@@ -155,7 +159,7 @@ func epsilonSquared(h, n float64) float64 {
 	if !(n >= 2) || !(h >= 0) || math.IsInf(h, 0) {
 		return math.NaN()
 	}
-	return h / ((n*n - 1) / (n + 1))
+	return h / ((float64(n*n) - 1) / (n + 1))
 }
 
 // rankBiserialIndependent returns the signed Glass / Kerby (2014)

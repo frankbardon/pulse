@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -231,5 +232,26 @@ func TestResolveLabel_NotEnumerable(t *testing.T) {
 	_, err := p.ResolveLabel("live_only", "x", 10)
 	if !errors.HasCode(err, errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE) {
 		t.Fatalf("expected PULSE_LABEL_TABLE_NOT_ENUMERABLE; got %v", err)
+	}
+}
+
+// TestScoreLabel_SubstringScoreBarriered: the substring score
+// 0.7 + 0.15·ratio is computed with an explicit float64() barrier on the
+// product, so the arm64 compiler cannot fuse it and a label's match
+// confidence (and so the result order) is the same bits on arm64 and
+// amd64. The 4-of-13 ratio is one where a fused multiply-add rounds
+// differently.
+func TestScoreLabel_SubstringScoreBarriered(t *testing.T) {
+	t.Parallel()
+
+	r := 4.0 / 13.0
+	want := 0.7 + float64(0.15*r)
+	if math.FMA(0.15, r, 0.7) == want {
+		t.Fatal("ratio does not separate a fused score from the barriered one; pick another")
+	}
+	nq := "abcd"
+	got := scoreLabel(nq, nq, trigrams(nq), "k", "xxxxabcdyyyyy")
+	if math.Float64bits(got) != math.Float64bits(want) {
+		t.Fatalf("scoreLabel = %v (%#x), want %v (%#x)", got, math.Float64bits(got), want, math.Float64bits(want))
 	}
 }

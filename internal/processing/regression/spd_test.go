@@ -3,6 +3,7 @@ package regression
 import (
 	"math"
 	"math/rand/v2"
+	"runtime"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
@@ -46,6 +47,9 @@ func bitsEqual(a, b float64) bool { return math.Float64bits(a) == math.Float64bi
 func TestSPDBridge_MatchesDirectGonum(t *testing.T) {
 	t.Parallel()
 
+	// gonum's bits are the amd64 assembly order only; off amd64 the
+	// bridge still runs (and the lower-triangle check binds).
+	compare := runtime.GOARCH == "amd64"
 	rng := rand.New(rand.NewPCG(19, 23))
 	for _, p := range []int{1, 2, 3, 4, 6, 9} {
 		for trial := 0; trial < 5; trial++ {
@@ -82,7 +86,7 @@ func TestSPDBridge_MatchesDirectGonum(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i := 0; i < p; i++ {
+			for i := 0; i < p && compare; i++ {
 				if !bitsEqual(got[i], beta.AtVec(i)) {
 					t.Fatalf("p=%d: beta[%d] %x, gonum %x", p, i, math.Float64bits(got[i]), math.Float64bits(beta.AtVec(i)))
 				}
@@ -95,7 +99,7 @@ func TestSPDBridge_MatchesDirectGonum(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i := 0; i < p; i++ {
+			for i := 0; i < p && compare; i++ {
 				for j := 0; j < p; j++ {
 					if !bitsEqual(gotInv.At(i, j), inv.At(i, j)) {
 						t.Fatalf("p=%d: inv[%d][%d] %x, gonum %x", p, i, j,

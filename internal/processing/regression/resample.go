@@ -326,11 +326,11 @@ func replicateCov(replicates [][]float64, mean []float64, full bool, finish func
 		for i := 0; i < q; i++ {
 			di := r[i] - mean[i]
 			if !full {
-				out[i][i] += di * di
+				out[i][i] += float64(di * di)
 				continue
 			}
 			for j := i; j < q; j++ {
-				out[i][j] += di * (r[j] - mean[j])
+				out[i][j] += float64(di * (r[j] - mean[j]))
 			}
 		}
 	}

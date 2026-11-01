@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -86,20 +85,14 @@ func pearsonParityRows(n int) [][5]float64 {
 // other way) the operation order differs, so agreement is to
 // tolerance only.
 //
-// The bitwise leg is asserted on amd64 only (CI's architecture). The
-// matrix is FMA-free everywhere (linalg's reference co-moment), but
-// TEST_PEARSON_R's recurrence is plain Go, which the compiler fuses
-// into multiply-adds on arm64 (and other FMA targets), so there its
-// last bits differ; its bits must not change, so the tolerance leg is
-// what holds on every architecture.
+// The bitwise leg holds on every architecture: the matrix is FMA-free
+// (linalg's reference co-moment) and TEST_PEARSON_R's recurrence is
+// barriered (every product written float64(a*b), U61), so neither side
+// fuses into multiply-adds on arm64 or other FMA targets.
 func TestMatrixCorrelation_PearsonParity(t *testing.T) {
 	t.Parallel()
 
 	members := []string{"x1", "x2", "x3"}
-	pearsonUnfused := runtime.GOARCH == "amd64"
-	if !pearsonUnfused {
-		t.Logf("GOARCH=%s fuses TEST_PEARSON_R's recurrence into multiply-adds: bitwise leg skipped, tolerance leg asserted", runtime.GOARCH)
-	}
 	for _, n := range []int{40, 4096, 4097, 3*4096 + 17} {
 		cfg := writeMatrixCohort(t, "parity.pulse", pearsonParityRows(n))
 		for _, w := range []string{"", "f", "p"} {
@@ -127,7 +120,7 @@ func TestMatrixCorrelation_PearsonParity(t *testing.T) {
 					t.Fatalf("%d test results, want %d", len(resp.Tests), len(tests))
 				}
 				vals := resp.Matrices[0].Primary.Values
-				bitwise := pearsonUnfused && w == "" && n <= 4096
+				bitwise := w == "" && n <= 4096
 				k := 0
 				for i := range members {
 					for j := range members {

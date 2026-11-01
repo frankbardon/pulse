@@ -270,7 +270,7 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 	expectedMin := math.Inf(1)
 	var lowExpectedCells int
 	for i := range comparedX {
-		expected := comparedP[i] / popCompT * observedT
+		expected := float64(comparedP[i] / popCompT * observedT)
 		if expected < expectedMin {
 			expectedMin = expected
 		}

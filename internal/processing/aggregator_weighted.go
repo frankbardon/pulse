@@ -130,7 +130,7 @@ func (a *weightedAggregator) fold(x, w float64) {
 	a.runW += w
 	delta := x - a.mean
 	a.mean += (w * delta) / a.runW
-	a.m2 += w * delta * (x - a.mean)
+	a.m2 += float64(w * delta * (x - a.mean))
 }
 
 // UpdateRow folds one record. AGG_COUNT asks for presence (any field
@@ -194,7 +194,7 @@ func (a *weightedAggregator) Aggregate(records []*Record, field string) (float64
 		a.sumWX.AddWeighted(w, x)
 		a.sumWSq.AddWeighted(w, w)
 		seqW += w
-		seqWX += w * x
+		seqWX += float64(w * x)
 	}
 	if seqW == 0 {
 		return a.Finalize()
@@ -203,7 +203,7 @@ func (a *weightedAggregator) Aggregate(records []*Record, field string) (float64
 	a.mean = seqWX / seqW
 	for _, p := range pairs {
 		d := p.x - a.mean
-		a.m2 += p.w * d * d
+		a.m2 += float64(p.w * d * d)
 	}
 	return a.Finalize()
 }

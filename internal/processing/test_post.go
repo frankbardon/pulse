@@ -283,7 +283,7 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	// cor(seq_along(y), y, method = "kendall"). Undefined (NaN, null on
 	// the wire) when every value ties.
 	n := float64(len(values))
-	n0 := 0.5 * n * (n - 1)
+	n0 := float64(0.5 * n * (n - 1))
 	tau := S / math.Sqrt(n0*(n0-tiedPairs))
 	var warnings []string
 	if len(values) < 8 {
@@ -335,7 +335,7 @@ func mannKendall(x []float64) (float64, float64, float64) {
 		if t > 1 {
 			tf := float64(t)
 			varS -= tf * (tf - 1) * (2*tf + 5) / 18.0
-			tiedPairs += tf * (tf - 1) / 2
+			tiedPairs += float64(tf * (tf - 1) / 2)
 		}
 	}
 	if varS < 0 {

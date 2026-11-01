@@ -163,15 +163,15 @@ func (e *olsEngine) olsSandwich(solve *olsSolveResult, records []Record) (*olsRo
 		resid := y - a.meanY
 		for j := 0; j < p; j++ {
 			d[j] = x[j] - a.meanX[j]
-			resid -= solve.Coefficients[j] * d[j]
+			resid -= float64(solve.Coefficients[j] * d[j])
 		}
 		quad := 0.0
 		for i := 0; i < p; i++ {
 			row := 0.0
 			for j := 0; j < p; j++ {
-				row += solve.slopeCov(i, j) * d[j]
+				row += float64(solve.slopeCov(i, j) * d[j])
 			}
-			quad += d[i] * row
+			quad += float64(d[i] * row)
 		}
 		score := make([]float64, k)
 		score[0] = resid
@@ -204,16 +204,16 @@ func (e *olsEngine) olsSandwich(solve *olsSolveResult, records []Record) (*olsRo
 	for j := 1; j < k; j++ {
 		s := vc[0][j]
 		for m := 1; m < k; m++ {
-			s -= a.meanX[m-1] * vc[m][j]
+			s -= float64(a.meanX[m-1] * vc[m][j])
 		}
 		v[0][j], v[j][0] = s, s
 	}
 	// Var(β₀) = V_c[0][0] − 2·Σ_m μ_m·V_c[0][m] + Σ_{m,l} μ_m·μ_l·V_c[m][l].
 	s := vc[0][0]
 	for m := 1; m < k; m++ {
-		s -= 2 * a.meanX[m-1] * vc[0][m]
+		s -= float64(2 * a.meanX[m-1] * vc[0][m])
 		for l := 1; l < k; l++ {
-			s += a.meanX[m-1] * a.meanX[l-1] * vc[m][l]
+			s += float64(a.meanX[m-1] * a.meanX[l-1] * vc[m][l])
 		}
 	}
 	v[0][0] = s

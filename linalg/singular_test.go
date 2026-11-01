@@ -106,7 +106,7 @@ func TestCholesky_SingularDiagnostics(t *testing.T) {
 	}
 }
 
-// TestFactorSPD_SingularDiagnostics: the gonum-backed factor carries the
+// TestFactorSPD_SingularDiagnostics: the SPD-path factor carries the
 // same diagnostics beside its reason and n.
 func TestFactorSPD_SingularDiagnostics(t *testing.T) {
 	t.Parallel()

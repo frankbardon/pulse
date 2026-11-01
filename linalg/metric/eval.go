@@ -3,6 +3,8 @@ package metric
 import (
 	"math"
 	"slices"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Eval is the metric between a and b in form f, under the package's
@@ -277,7 +279,7 @@ func evalAitchison(d *definition, _ Form, a, b []float64, _ *Stats) (float64, er
 				return math.NaN(), &DomainError{Metric: d.name, Index: i, Value: v, Reason: ReasonZero}
 			}
 		}
-		sr += math.Log(a[i]) - math.Log(b[i])
+		sr += detmath.Log(a[i]) - detmath.Log(b[i])
 		n++
 	}
 	if n == 0 {
@@ -289,7 +291,7 @@ func evalAitchison(d *definition, _ Form, a, b []float64, _ *Stats) (float64, er
 		if missing(a, b, i) {
 			continue
 		}
-		diff := math.Log(a[i]) - math.Log(b[i]) - mr
+		diff := detmath.Log(a[i]) - detmath.Log(b[i]) - mr
 		s += float64(diff * diff)
 	}
 	return math.Sqrt(s), nil
