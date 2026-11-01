@@ -157,6 +157,21 @@ type RegressionSpec struct {
 	// shared with predict).
 	Theta float64 `json:"theta,omitempty"`
 
+	// Dispersion picks a fixed-θ negative_binomial fit's dispersion φ
+	// (NegBinDispersionFixed / NegBinDispersionEstimated): "fixed" (the
+	// default when empty) holds φ = 1 — Wald z, MASS summary.negbin's
+	// treatment; "estimated" reads φ̂ = Pearson χ²/(N* − p − 1), R's
+	// summary(glm(family = negative.binomial(theta))): Vcov = φ̂·(XᵀWX)⁻¹,
+	// Student-t p-values and intervals on DF, RegressionResult.Dispersion
+	// beside a classical Vcov, and the bound-fit influence figures on φ̂
+	// (studentized residuals and DFFITS on the leave-one-out σ, R's
+	// rstudent / dffits). A robust Covariance stays dispersion-free.
+	// Refused with PROCESSING_CONFIG (details.requires; the one rule
+	// predict applies, internal/reglink.CheckTheta) on any other family
+	// or regression, with θ estimated (Theta absent), or another value.
+	// Absent is byte-identical.
+	Dispersion string `json:"dispersion,omitempty"`
+
 	// MaxIters caps the IRLS / coordinate-descent iteration count for
 	// iterative fits. Defaults to a registry-specific value when zero.
 	MaxIters int `json:"max_iters,omitempty"`
@@ -382,6 +397,20 @@ type RegressionBounds struct {
 // empty Nonnegative list constrains none).
 func (b *RegressionBounds) Active() bool {
 	return b != nil && len(b.Nonnegative) != 0
+}
+
+// Negative binomial dispersion methods (RegressionSpec.Dispersion).
+const (
+	// NegBinDispersionFixed holds φ = 1 (the default).
+	NegBinDispersionFixed = "fixed"
+	// NegBinDispersionEstimated estimates φ̂ = Pearson χ²/df.
+	NegBinDispersionEstimated = "estimated"
+)
+
+// AllNegBinDispersions lists the RegressionSpec.Dispersion values, the
+// default first.
+func AllNegBinDispersions() []string {
+	return []string{NegBinDispersionFixed, NegBinDispersionEstimated}
 }
 
 // Marginal-effect types (RegressionMargins.Type).

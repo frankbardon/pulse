@@ -330,8 +330,14 @@ fitted mean, Pearson / deviance / working residuals and `hatvalues`,
 with `family$dispersion <- 1` (`stats:::estDisp` is TRUE for a family
 whose dispersion slot is NULL, so on a bare negbin fit those two read
 the leave-one-out σ instead of `summary.negbin`'s φ = 1), each
-re-derived from its closed form. It needs MASS 7.3-66 and `sandwich`
-3.1-3 and refuses any other R than 4.6.1.
+re-derived from its closed form. Three fixed-θ cases set the dispersion
+estimated (Pulse `dispersion: estimated`; log and sqrt links, one
+frequency-weighted against the `rep()` expansion, whose df is Σf − p′):
+`summary.glm`'s φ̂ = Pearson χ²/df, `vcov` and SEs scaled by it, t
+p-values, Wald-t intervals, and the influence measures on the bare
+`glm(negative.binomial(θ))` fit — `rstandard` / `cooks.distance` at φ̂,
+`rstudent` / `dffits` on the leave-one-out σ. It needs MASS 7.3-66 and
+`sandwich` 3.1-3 and refuses any other R than 4.6.1.
 `TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
 and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
 

@@ -958,8 +958,12 @@ standard error 1/√I(θ̂), present only when θ was estimated; `null` when
 the information is not positive), `two_log_lik` (twice the maximised
 log-likelihood) and `aic` (−`two_log_lik` + 2·(p + 1), plus 2 when θ was
 estimated). Its `vcov` is (XᵀWX)⁻¹ at θ̂ with φ = 1 (MASS
-`summary.negbin`), so no `dispersion` rides it; every other family
-leaves the four absent, byte-identical.
+`summary.negbin`), so no `dispersion` rides it — unless a fixed θ sets
+the additive `omitempty` `RegressionSpec` string `dispersion`
+(`fixed` | `estimated`) to `estimated`: then its `vcov` is
+φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/df, carried as `dispersion` with `df` (R's
+`summary.glm`). Every other family leaves the four absent,
+byte-identical.
 An additive `omitempty` `RegressionSpec` object `margins` (`{type,
 terms, scale}`, `REG_OLS` / `REG_GLM`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
@@ -1500,7 +1504,8 @@ errors, or 3 — adding the fit's `outputs`, its coefficients named by the
 model — for an extension regression whose registration supplies a
 scorer, or 4 — adding the fit's `dispersion` — for a classical `vcov`
 fit that carries one, or 5 — adding the fit's `theta` — for a `REG_GLM`
-`negative_binomial` fit; `.pulse-model.json`;
+`negative_binomial` fit, or 6 — `theta` and `dispersion` — for a fixed-θ
+`negative_binomial` fit whose dispersion is estimated; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

@@ -461,6 +461,7 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 - R 4.6.1 `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 - R 4.6.1 `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ)) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `cooks.distance` and `dffits` at dispersion 1 (`family$dispersion <- 1`) over a bound negative binomial fit (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `cooks.distance` at `summary.glm`'s φ̂ and `dffits` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
 
 **Validation gap:** Over a weighted bound fit the figures are refused, not validated.
 
@@ -590,6 +591,7 @@ Adds to every row its residual: the actual target value minus the value a straig
 - R 4.6.1 `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 - R 4.6.1 `residuals(type = "working")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `residuals` (pearson / deviance / working), `rstandard` (both types) and `rstudent` at dispersion 1 over a bound negative binomial fit (`glm.nb`, θ estimated or fixed; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `rstandard` (both types) at `summary.glm`'s φ̂ and `rstudent` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`glm(negative.binomial(θ))`; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
 
 **Validation gap:** The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated.
 

@@ -19,7 +19,9 @@ import (
 // log, sqrt and identity links (glm.nb's joint MLE pushed to its fixed
 // point), θ fixed (glm(family = negative.binomial(1.7))), a
 // frequency-weighted case equal to the rep() expansion and an influence
-// case. Pulse runs tol 1e-13 (Fisher scoring off the canonical link and
+// case, and fixed-θ cases with the dispersion estimated (dispersion
+// "estimated": summary.glm's φ̂ = Pearson χ²/df, t inference; one
+// frequency-weighted against rep()). Pulse runs tol 1e-13 (Fisher scoring off the canonical link and
 // the θ alternation converge linearly).
 
 type glmNBCase struct {
@@ -27,6 +29,7 @@ type glmNBCase struct {
 	Link                 string      `json:"link"`
 	ThetaFixed           bool        `json:"theta_fixed"`
 	Weighted             bool        `json:"weighted"`
+	DispersionMethod     string      `json:"dispersion_method"`
 	Rows                 [][]float64 `json:"rows"`
 	Coefficients         []float64   `json:"coefficients"`
 	StdErrors            []float64   `json:"std_errors"`
@@ -38,6 +41,10 @@ type glmNBCase struct {
 	Deviance             []float64   `json:"deviance"`
 	NullDeviance         []float64   `json:"null_deviance"`
 	DFResidual           []float64   `json:"df_residual"`
+	Dispersion           []float64   `json:"dispersion"`
+	PValues              []float64   `json:"p_values"`
+	CILower              []float64   `json:"ci_lower"`
+	CIUpper              []float64   `json:"ci_upper"`
 	HC0StdErrors         []float64   `json:"hc0_std_errors"`
 	HC1StdErrors         []float64   `json:"hc1_std_errors"`
 	HC3StdErrors         []float64   `json:"hc3_std_errors"`
@@ -77,7 +84,7 @@ func loadGLMNB(t *testing.T) []glmNBCase {
 	if err := json.Unmarshal([]byte(body), &doc); err != nil {
 		t.Fatalf("decode glm_nb.json: %v", err)
 	}
-	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["MASS"] != "7.3.66" || doc.Packages["sandwich"] != "3.1.3" || len(doc.Cases) != 6 {
+	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["MASS"] != "7.3.66" || doc.Packages["sandwich"] != "3.1.3" || len(doc.Cases) != 9 {
 		t.Fatalf("glm_nb.json: R %q, MASS %q, sandwich %q, %d cases", doc.RVersion, doc.Packages["MASS"], doc.Packages["sandwich"], len(doc.Cases))
 	}
 	return doc.Cases
@@ -102,6 +109,7 @@ func (c glmNBCase) spec() *types.RegressionSpec {
 	if c.ThetaFixed {
 		s.Theta = c.Theta[0]
 	}
+	s.Dispersion = c.DispersionMethod
 	if c.Weighted {
 		s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
 	}
@@ -115,7 +123,9 @@ func (c glmNBCase) spec() *types.RegressionSpec {
 // sandwich standard errors (sandwich 3.1-3, θ held at θ̂) and every
 // row's fitted mean and pearson / deviance / working residual agree with
 // R at 1e-9 relative; the frequency-weighted case equals the
-// rep()-expanded glm.nb. Leverage and influence over a bound fit:
+// rep()-expanded glm.nb. Under dispersion "estimated" the vcov and SEs
+// are φ̂·(XᵀWX)⁻¹ and φ̂, DF, the t p-values and the Wald-t intervals are
+// summary.glm's (the HC SEs stay dispersion-free). Leverage and influence over a bound fit:
 // TestGLMNegBin_BoundFitMatchesR (root package).
 func TestReferenceOracle_GLMNegBinMatchesR(t *testing.T) {
 	t.Parallel()
@@ -155,7 +165,16 @@ func TestReferenceOracle_GLMNegBinMatchesR(t *testing.T) {
 			w.near(t, "aic", res.AIC, c.AIC[0])
 			w.near(t, "deviance", res.Deviance, c.Deviance[0])
 			w.near(t, "null_deviance", res.NullDeviance, c.NullDeviance[0])
-			if res.Dispersion != 0 || res.DF != 0 {
+			if c.DispersionMethod == types.NegBinDispersionEstimated {
+				// summary.glm's φ̂ = Pearson χ²/df: t on df.residual.
+				w.near(t, "dispersion", res.Dispersion, c.Dispersion[0])
+				w.near(t, "df", res.DF, c.DFResidual[0])
+				for i, k := range terms {
+					w.near(t, "p_value["+k+"]", res.PValues[k], c.PValues[i])
+					w.near(t, "ci_lower["+k+"]", res.CILower[k], c.CILower[i])
+					w.near(t, "ci_upper["+k+"]", res.CIUpper[k], c.CIUpper[i])
+				}
+			} else if res.Dispersion != 0 || res.DF != 0 {
 				t.Errorf("dispersion %v, df %v: φ is fixed at 1 (Wald z)", res.Dispersion, res.DF)
 			}
 

@@ -1524,6 +1524,9 @@
         "criterion": {
           "type": "string"
         },
+        "dispersion": {
+          "type": "string"
+        },
         "family": {
           "type": "string"
         },
@@ -2249,4 +2252,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3b12a8bbb81e33346f59c6c2ead037fbeb80916267cccc5fd08640f6af239a25
+// golden-hash: 9d5335c179d45ed828d05323e6caf66023fe89950232114e3847aa90e4b6e0d9

@@ -49,6 +49,7 @@ func regSlotValue(t *testing.T, key string, ft reflect.Type) reflect.Value {
 		"intercept":       new(bool), // false: fit through the origin
 		"solver":          "normal",
 		"margins":         &types.RegressionMargins{},
+		"dispersion":      types.NegBinDispersionEstimated,
 	}
 	if v, ok := overrides[key]; ok {
 		return reflect.ValueOf(v)

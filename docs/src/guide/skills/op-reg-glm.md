@@ -35,9 +35,10 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `family` | enum | (required) | `binomial`, `poisson`, `gamma`, `negative_binomial`. |
 | `link` | enum | — | `logit/probit/cloglog`; `log/identity/sqrt` (poisson, NB); `inverse/log/identity`; 1st default. |
 | `theta` | float | — | NB fixed θ > 0; else ML. |
+| `dispersion` | enum | `fixed` | NB + `theta`: `estimated` φ̂. |
 | `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). |
 | `alpha` | float | — | Strength, > 0. |
-| `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
+| `l1_ratio` | float | — | Mix, `0<r<1`. |
 | `max_iters` | int | — | IRLS cap. |
 | `tol` | float | — | IRLS tolerance. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
@@ -79,10 +80,10 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Gotchas
 
-- Binomial separation → `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`); the slot fails alone. Add `penalty: l2`, or drop it.
-- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`, rescale; NB `theta_unbounded`: fit poisson. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`.
-- Poisson fixes dispersion at 1: overdispersed counts get too-small SEs; fit `negative_binomial` or a robust `covariance`.
-- Collinear / constant → `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns`). Other refusals: [`regression-spec`](regression-spec.md).
+- Binomial separation → `PROCESSING_REGRESSION_SEPARATION`; the slot fails alone. Add `penalty: l2`, or drop it.
+- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`; NB `theta_unbounded`: fit poisson. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`.
+- Poisson fixes φ = 1: overdispersed counts get too-small SEs; fit `negative_binomial` or a robust `covariance`.
+- Collinear / constant → `PROCESSING_REGRESSION_RANK_DEFICIENT`. Other refusals: [`regression-spec`](regression-spec.md).
 
 ## See
 

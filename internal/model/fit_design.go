@@ -29,8 +29,9 @@ type FitDesign struct {
 	Vcov bool
 	// Dispersion reports that the fit has the dispersion its figures
 	// read: φ fixed at 1 (binomial, poisson), or its estimate carried
-	// (RegressionResult.Dispersion, REG_OLS / gamma beside a classical
-	// vcov). A model file written before the field existed carries a
+	// (RegressionResult.Dispersion, REG_OLS / gamma / a fixed-θ
+	// negative binomial under dispersion "estimated" beside a classical
+	// vcov; the negative binomial's φ is otherwise 1). A model file written before the field existed carries a
 	// vcov without it.
 	Dispersion bool
 	// Robust: the covariance is a robust sandwich, not φ·(XᵀWX)⁻¹.

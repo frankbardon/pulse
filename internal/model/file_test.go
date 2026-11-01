@@ -313,6 +313,40 @@ func TestModelFile_ThetaRoundTrip(t *testing.T) {
 	}
 }
 
+// TestModelFile_NegBinDispersionRoundTrip: a fixed-θ negative binomial
+// fit whose dispersion is estimated (RegressionSpec.Dispersion
+// "estimated") saves as model_format_version 6 carrying θ and φ̂ beside
+// its classical vcov, reads both back bit-exactly, and the loaded fit's
+// influence face equals the in-request fit's.
+func TestModelFile_NegBinDispersionRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	spec, res := fullFit()
+	spec.Type, spec.Family, spec.Link, spec.Theta, spec.Dispersion = types.REG_GLM, "negative_binomial", "log", 1.7, types.NegBinDispersionEstimated
+	res.Type, res.Family, res.Link = types.REG_GLM, "negative_binomial", "log"
+	res.Theta, res.Dispersion = 1.7, 1.2832190573164217
+	f, err := NewFile("m", spec, res, Provenance{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, data := roundTrip(t, f)
+	if got.ModelFormatVersion != 6 || !strings.Contains(string(data), `"theta": `) || !strings.Contains(string(data), `"dispersion": `) {
+		t.Fatalf("version %d, want 6 with its theta and dispersion:\n%s", got.ModelFormatVersion, data)
+	}
+	r := got.Result()
+	if !sameBits(r.Theta, res.Theta) || !sameBits(r.Dispersion, res.Dispersion) {
+		t.Fatalf("read back θ %v φ %v, want %v %v", r.Theta, r.Dispersion, res.Theta, res.Dispersion)
+	}
+	want, _ := Bind("m", spec, res)
+	loaded, err := got.Bind("m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Design != want.Design || !loaded.Design.Dispersion {
+		t.Fatalf("loaded face %+v, in-request face %+v", loaded.Design, want.Design)
+	}
+}
+
 // TestModelFile_DispersionRoundTrip: a classical vcov fit carrying its
 // estimated dispersion (RegressionResult.Dispersion — REG_OLS σ̂², a
 // gamma GLM's Pearson χ²/df; NaN when undefined) saves as
@@ -470,7 +504,14 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		{"no version", edit(func(m map[string]any) { delete(m, "model_format_version") }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"null version", edit(func(m map[string]any) { m["model_format_version"] = nil }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"string version", edit(func(m map[string]any) { m["model_format_version"] = "1" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 6 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 7 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"v6 without dispersion", edit(func(m map[string]any) {
+			m["model_format_version"], m["type"], m["family"], m["theta"] = 6, "REG_GLM", "negative_binomial", 2.5
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v5 with dispersion", edit(func(m map[string]any) {
+			m["model_format_version"], m["type"], m["family"], m["theta"], m["dispersion"] = 5, "REG_GLM", "negative_binomial", 2.5, 1.3
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v6 not negative binomial", edit(func(m map[string]any) { m["model_format_version"], m["theta"], m["dispersion"] = 6, 2.5, 1.3 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v5 without theta", edit(func(m map[string]any) { m["model_format_version"] = 5; m["family"] = "negative_binomial" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v1 with theta", edit(func(m map[string]any) { m["theta"] = 2.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v5 not negative binomial", edit(func(m map[string]any) { m["model_format_version"] = 5; m["theta"] = 2.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
@@ -546,7 +587,7 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		t.Fatalf("the unedited file must decode: %v", err)
 	}
 	_, err := DecodeFile("p", []byte(edit(func(m map[string]any) { m["model_format_version"] = 7 })))
-	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2, 3, 4, 5}) || ce.Details["version"] != 7 {
+	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2, 3, 4, 5, 6}) || ce.Details["version"] != 7 {
 		t.Fatalf("version details = %v", ce.Details)
 	}
 }

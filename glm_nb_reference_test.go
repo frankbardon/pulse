@@ -39,6 +39,8 @@ type glmNBRefCase struct {
 	Link                 string      `json:"link"`
 	ThetaFixed           bool        `json:"theta_fixed"`
 	Weighted             bool        `json:"weighted"`
+	DispersionMethod     string      `json:"dispersion_method"`
+	Dispersion           []float64   `json:"dispersion"`
 	Rows                 [][]float64 `json:"rows"`
 	Coefficients         []float64   `json:"coefficients"`
 	Theta                []float64   `json:"theta"`
@@ -81,8 +83,8 @@ func loadGLMNBRef(t *testing.T) []glmNBRefCase {
 			out = append(out, c)
 		}
 	}
-	if len(out) != 5 {
-		t.Fatalf("%d unweighted cases, want 5", len(out))
+	if len(out) != 7 {
+		t.Fatalf("%d unweighted cases, want 7", len(out))
 	}
 	return out
 }
@@ -117,6 +119,7 @@ func glmNBRefSpec(c glmNBRefCase) *types.RegressionSpec {
 	if c.ThetaFixed {
 		s.Theta = c.Theta[0]
 	}
+	s.Dispersion = c.DispersionMethod
 	return s
 }
 
@@ -143,9 +146,12 @@ func glmNBRefSlot() *Request {
 // the influence case so do the standardized (Pearson and deviance) and
 // studentized residuals, Cook's distance and DFFITS at dispersion 1
 // (rstandard / cooks.distance on the negbin fit; rstudent / dffits with
-// family$dispersion = 1). A model file saved from the fit is
-// model_format_version 5 carrying θ̂, and the loaded model scores every
-// column bit for bit as the in-request fit does.
+// family$dispersion = 1) — or, on a fixed-θ fit under dispersion
+// "estimated", at summary.glm's φ̂ with rstudent / dffits on the
+// leave-one-out σ (R on the bare glm(negative.binomial(θ)) fit). A model
+// file saved from the fit is model_format_version 5 carrying θ̂ (6 with
+// its φ̂ too), and the loaded model scores every column bit for bit as
+// the in-request fit does.
 func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 	t.Parallel()
 
@@ -203,7 +209,8 @@ func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 				}
 			}
 
-			// The model file carries θ (version 5) and scores bit for bit.
+			// The model file carries θ (version 5; 6 with its estimated
+			// dispersion φ̂ beside it) and scores bit for bit.
 			raw, err := fsys.Open("m.pulse-model.json")
 			if err != nil {
 				t.Fatal(err)
@@ -212,13 +219,21 @@ func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 				Version int     `json:"model_format_version"`
 				Family  string  `json:"family"`
 				Theta   float64 `json:"theta"`
+				Disp    float64 `json:"dispersion"`
 			}
 			if err := json.NewDecoder(raw).Decode(&file); err != nil {
 				t.Fatal(err)
 			}
 			_ = raw.Close()
-			if file.Version != 5 || file.Family != "negative_binomial" || file.Theta != fit.Theta {
-				t.Errorf("model file version %d family %s θ %v, fit θ %v", file.Version, file.Family, file.Theta, fit.Theta)
+			wantVersion, wantDisp := 5, 0.0
+			if c.DispersionMethod == types.NegBinDispersionEstimated {
+				wantVersion, wantDisp = 6, fit.Dispersion
+				if e := relErr(fit.Dispersion, c.Dispersion[0]); e > tol {
+					t.Errorf("dispersion = %.17g, R %.17g (rel %.3g)", fit.Dispersion, c.Dispersion[0], e)
+				}
+			}
+			if file.Version != wantVersion || file.Family != "negative_binomial" || file.Theta != fit.Theta || file.Disp != wantDisp {
+				t.Errorf("model file version %d family %s θ %v φ %v, fit θ %v φ %v", file.Version, file.Family, file.Theta, file.Disp, fit.Theta, wantDisp)
 			}
 			loaded := glmNBRefSlot()
 			loaded.Models = []types.ModelRef{{Name: "m", Path: "m.pulse-model.json"}}
@@ -238,11 +253,12 @@ func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 }
 
 // TestGLMNegBin_PredictMatchesRuntime: every negative binomial refusal —
-// theta off the family (REG_GLM poisson, REG_OLS), theta ≤ 0, and a
-// penalty, selection or resample on the family — is the same
+// theta off the family (REG_GLM poisson, REG_OLS), theta ≤ 0, a
+// penalty, selection or resample on the family, and dispersion off the
+// family, with θ estimated or of an unknown value — is the same
 // PROCESSING_CONFIG code, message and details.requires at predict and
-// at run; a valid request (θ estimated or fixed, classical or robust
-// covariance, weighted) passes predict and runs.
+// at run; a valid request (θ estimated or fixed, φ fixed or estimated
+// with a fixed θ, classical or robust covariance, weighted) passes predict and runs.
 func TestGLMNegBin_PredictMatchesRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -257,6 +273,8 @@ func TestGLMNegBin_PredictMatchesRuntime(t *testing.T) {
 	for name, edit := range map[string]func(*types.RegressionSpec){
 		"estimated": func(*types.RegressionSpec) {},
 		"fixed":     func(r *types.RegressionSpec) { r.Theta = 2 },
+		"fixed φ̂":  func(r *types.RegressionSpec) { r.Theta, r.Dispersion = 2, types.NegBinDispersionEstimated },
+		"fixed φ=1": func(r *types.RegressionSpec) { r.Theta, r.Dispersion = 2, types.NegBinDispersionFixed },
 		"sqrt":      func(r *types.RegressionSpec) { r.Link = "sqrt" },
 		"robust":    func(r *types.RegressionSpec) { r.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC3} },
 		"weighted": func(r *types.RegressionSpec) {
@@ -289,6 +307,12 @@ func TestGLMNegBin_PredictMatchesRuntime(t *testing.T) {
 		{"penalty", func(r *types.RegressionSpec) { r.Penalty, r.Alpha = "l2", 0.1 }, "unpenalized"},
 		{"selection", func(r *types.RegressionSpec) { r.Selection, r.Criterion = "forward", "aic" }, "no_selection"},
 		{"resample", func(r *types.RegressionSpec) { r.Resample = "jackknife" }, "no_resample"},
+		{"dispersion on poisson", func(r *types.RegressionSpec) { r.Family, r.Dispersion = "poisson", types.NegBinDispersionEstimated }, "family negative_binomial"},
+		{"dispersion on REG_OLS", func(r *types.RegressionSpec) {
+			r.Type, r.Family, r.Dispersion = types.REG_OLS, "", types.NegBinDispersionFixed
+		}, "family negative_binomial"},
+		{"dispersion with θ estimated", func(r *types.RegressionSpec) { r.Dispersion = types.NegBinDispersionEstimated }, "theta"},
+		{"unknown dispersion", func(r *types.RegressionSpec) { r.Theta, r.Dispersion = 2, "quasi" }, "dispersion fixed or estimated"},
 	} {
 		_, err := p.Process(ctx, req(tc.edit))
 		ce := codedOf(t, err)

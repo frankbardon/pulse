@@ -8549,6 +8549,18 @@
             "slot": true
           },
           {
+            "name": "dispersion",
+            "type": "enum",
+            "required": false,
+            "default": "fixed",
+            "description": "negative_binomial with a fixed theta only: fixed (default) holds the dispersion at 1 (Wald z, summary.negbin); estimated reads phi-hat = Pearson chi-square / df (R's summary(glm(family = negative.binomial(theta)))): vcov and SEs scaled by it, t p-values and intervals on df, dispersion beside a classical vcov, and bound-fit influence on phi-hat (studentized and DFFITS on the leave-one-out sigma). Another family, theta estimated or another value is PROCESSING_CONFIG (details.requires).",
+            "enum_values": [
+              "fixed",
+              "estimated"
+            ],
+            "slot": true
+          },
+          {
             "name": "penalty",
             "type": "enum",
             "required": false,
@@ -20695,4 +20707,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ea9b04bdae83fd3046efc3f88f778bc4697b0f27fdc617bdfcacad6b5df451b8
+// golden-hash: a1edbf067a2ba4500f06cd657d1d99716ac63b8b92297fbb002cfca41733c398

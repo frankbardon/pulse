@@ -139,6 +139,11 @@ func CheckPair(family, link string) *errors.CodedError {
 //     other built-in regression or family it is refused (details.requires
 //     "family negative_binomial"); there it must be finite and > 0
 //     (details.requires "theta > 0"). Zero is absent: θ is estimated.
+//   - Dispersion (fixed | estimated) is a fixed-θ negative_binomial
+//     knob: on any other regression or family it is refused
+//     (details.requires "family negative_binomial"), another value
+//     ("dispersion fixed or estimated"), and with θ estimated — Theta
+//     absent — too ("theta"): glm.nb's φ is 1.
 //   - negative_binomial refuses a penalty (details.requires
 //     "unpenalized"), a selection ("no_selection") and a resample
 //     ("no_resample"): their refit drivers hold the family's θ fixed, so
@@ -165,6 +170,13 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 			map[string]any{"theta": spec.Theta, "type": t, "family": spec.Family, "requires": "family " + NegativeBinomial},
 		)
 	}
+	if spec.Dispersion != "" && !nb {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			t+" dispersion is the REG_GLM negative_binomial family's fixed-θ dispersion knob; set family negative_binomial (with theta), or drop dispersion",
+			map[string]any{"dispersion": spec.Dispersion, "type": t, "family": spec.Family, "requires": "family " + NegativeBinomial},
+		)
+	}
 	if !nb {
 		return nil
 	}
@@ -174,6 +186,22 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 			"REG_GLM negative_binomial theta must be a finite number > 0 (omit it to estimate θ by maximum likelihood)",
 			map[string]any{"theta": spec.Theta, "type": t, "family": spec.Family, "requires": "theta > 0"},
 		)
+	}
+	if d := spec.Dispersion; d != "" {
+		if !slices.Contains(types.AllNegBinDispersions(), d) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_CONFIG,
+				"REG_GLM negative_binomial dispersion must be one of "+strings.Join(types.AllNegBinDispersions(), ", ")+" (empty selects fixed); got "+d,
+				map[string]any{"dispersion": d, "type": t, "family": spec.Family, "allowed": types.AllNegBinDispersions(), "requires": "dispersion fixed or estimated"},
+			)
+		}
+		if spec.Theta == 0 {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_CONFIG,
+				"REG_GLM negative_binomial dispersion applies to a fixed theta only (with θ estimated by maximum likelihood the dispersion is 1, MASS glm.nb); set theta, or drop dispersion",
+				map[string]any{"dispersion": d, "type": t, "family": spec.Family, "requires": "theta"},
+			)
+		}
 	}
 	refuse := func(knob, requires, value string) *errors.CodedError {
 		return errors.NewCodedErrorWithDetails(

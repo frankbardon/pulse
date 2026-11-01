@@ -74,6 +74,9 @@
 #                                   dispersion flag), the phi = 1 forms
 #                                   Pulse reads (rstudent = the Pearson
 #                                   rstandard, dffits at sigma 1)
+# The "_disp" cases fix theta with the dispersion ESTIMATED (Pulse
+# dispersion "estimated"; see nb_disp_figures below): summary.glm's
+# phi-hat, its t inference and the influence measures on the bare fit.
 # The frequency-weighted case ("_freq") is glm.nb(weights = f) and its
 # figures are the rep()-expanded fit's (the one weighting rule): the
 # script asserts the weighted coefficients, theta, deviances and
@@ -337,6 +340,107 @@ d$y <- rnbinom(40, size = 2, mu = exp(0.3 + 0.5 * d$x1 + 0.4 * d$x2))
 d$y[40] <- 3 * d$y[40] + 25
 nb_case("nb_log_influence", "log", d, influence = TRUE)
 
+# Fixed-theta cases with the dispersion ESTIMATED (Pulse dispersion
+# "estimated"): R's summary(glm(family = negative.binomial(theta))), whose
+# summary.glm estimates phi-hat = Pearson chi-square / df.residual (the
+# family carries no dispersion slot, so stats:::estDisp is TRUE): vcov =
+# phi-hat (X'WX)^-1, t p-values on df.residual, Wald-t intervals coef -/+
+# qt(1 - a/2, df) se (confint.glm would profile), and the influence
+# measures on the bare fit — rstandard / cooks.distance on phi-hat,
+# rstudent / dffits on lm.influence's leave-one-out sigma,
+# sqrt((phi-hat df - rP^2 / (1 - h)) / (df - 1)). The HC standard errors
+# are dispersion-free (sandwich's bread.glm / estfun.glm fix it at 1 for
+# a "Negative Binomial" family), so nb_rows pins them unchanged.
+nb_disp_figures <- function(name, m, df) {
+  inv <- summary(m)$cov.unscaled
+  pres <- residuals(m, type = "pearson")
+  phi <- sum(m$prior.weights * (m$y - fitted(m))^2 / m$family$variance(fitted(m))) / df
+  vc <- phi * inv
+  se <- sqrt(diag(vc))
+  b <- coef(m)
+  q <- qt(0.975, df)
+  list(dispersion = phi, vcov = vc, std_errors = se, p_values = 2 * pt(-abs(b / se), df),
+    ci_lower = b - q * se, ci_upper = b + q * se)
+}
+
+nb_case_fixed_disp <- function(name, link, th, d) {
+  d$.f <- rep(1, nrow(d))
+  m <- nb_glm(th, link, d, NULL)
+  m$theta <- th
+  f <- nb_figures(name, m, th, FALSE)
+  rows <- nb_rows(name, m, f)
+  s <- summary(m)
+  df <- m$df.residual
+  g <- nb_disp_figures(name, m, df)
+  nb_check(paste(name, "summary dispersion"), g$dispersion, s$dispersion)
+  nb_check(paste(name, "summary vcov"), g$vcov, vcov(m))
+  nb_check(paste(name, "summary p-values"), g$p_values, s$coefficients[, 4])
+  h <- rows$hatv; p1 <- m$rank
+  std <- rows$pres / sqrt(g$dispersion * (1 - h))
+  nb_check(paste(name, "rstandard"), std, rstandard(m))
+  stdd <- rows$dres / sqrt(g$dispersion * (1 - h))
+  nb_check(paste(name, "rstandard deviance"), stdd, rstandard(m, type = "deviance"))
+  cook <- (rows$pres / (1 - h))^2 * h / (g$dispersion * p1)
+  nb_check(paste(name, "cooks"), cook, cooks.distance(m))
+  sig <- sqrt((g$dispersion * df - rows$pres^2 / (1 - h)) / (df - 1))
+  stud <- rows$pres / (sig * sqrt(1 - h))
+  nb_check(paste(name, "rstudent"), stud, rstudent(m))
+  dff <- sign(f$me) * rows$pres * sqrt(h) / (sig * (1 - h))
+  nb_check(paste(name, "dffits"), dff, dffits(m))
+  f$vcov <- nb_mat(g$vcov)
+  f$std_errors <- nb_g17(g$std_errors)
+  out <- c(list(name = name, link = link, theta_fixed = TRUE, weighted = FALSE, dispersion_method = "estimated",
+    rows = lapply(seq_len(nrow(d)), function(i) nb_g17(c(d$x1[i], d$x2[i], d$y[i])))),
+    f[intersect(nb_keep, names(f))], rows[1:8],
+    list(dispersion = nb_g17(g$dispersion), p_values = nb_g17(g$p_values), ci_lower = nb_g17(g$ci_lower), ci_upper = nb_g17(g$ci_upper),
+      standardized = nb_g17(std), standardized_deviance = nb_g17(stdd), studentized = nb_g17(stud), cooks = nb_g17(cook), dffits = nb_g17(dff)))
+  nb_cases[[length(nb_cases) + 1]] <<- out
+}
+
+# The frequency-weighted twin: glm(negative.binomial(theta), weights = f)
+# against the rep() expansion, whose summary.glm reads df = sum(f) - p'
+# (R's weighted glm would read nrow - p').
+nb_case_fixed_disp_freq <- function(name, link, th, d, fw) {
+  dw <- d; dw$.f <- fw
+  mw <- nb_glm(th, link, dw, NULL)
+  ex <- d[rep(seq_len(nrow(d)), fw), ]
+  ex$.f <- rep(1, nrow(ex))
+  me <- nb_glm(th, link, ex, NULL)
+  me$theta <- th
+  nb_check(paste(name, "weighted vs expanded coefficients"), coef(mw), coef(me))
+  nb_check(paste(name, "weighted vs expanded deviance"), deviance(mw), deviance(me))
+  fe <- nb_figures(paste(name, "expanded"), me, th, FALSE)
+  df <- me$df.residual
+  if (df != sum(fw) - me$rank) stop(name, ": expanded df")
+  g <- nb_disp_figures(name, me, df)
+  s <- summary(me)
+  nb_check(paste(name, "summary dispersion"), g$dispersion, s$dispersion)
+  nb_check(paste(name, "summary vcov"), g$vcov, vcov(me))
+  nb_check(paste(name, "summary p-values"), g$p_values, s$coefficients[, 4])
+  fe$vcov <- nb_mat(g$vcov)
+  fe$std_errors <- nb_g17(g$std_errors)
+  eta <- drop(model.matrix(mw) %*% coef(me))
+  out <- c(list(name = name, link = link, theta_fixed = TRUE, weighted = TRUE, dispersion_method = "estimated",
+    rows = lapply(seq_len(nrow(d)), function(i) nb_g17(c(d$x1[i], d$x2[i], d$y[i], fw[i])))),
+    fe[intersect(nb_keep, names(fe))], list(fitted = nb_g17(mw$family$linkinv(eta)),
+      dispersion = nb_g17(g$dispersion), p_values = nb_g17(g$p_values), ci_lower = nb_g17(g$ci_lower), ci_upper = nb_g17(g$ci_upper)))
+  nb_cases[[length(nb_cases) + 1]] <<- out
+}
+
+d <- nb_design(70)
+d$y <- rnbinom(70, size = 1.2, mu = exp(0.5 + 0.5 * d$x1 - 0.4 * d$x2))
+nb_case_fixed_disp("nb_log_theta_fixed_disp", "log", 3, d)
+
+d <- nb_design(40)
+d$x1[40] <- 4.5
+d$y <- rnbinom(40, size = 2, mu = (1.2 + 0.6 * d$x1 + 0.3 * d$x2)^2)
+d$y[40] <- 2 * d$y[40] + 15
+nb_case_fixed_disp("nb_sqrt_influence_theta_fixed_disp", "sqrt", 2.5, d)
+
+d <- nb_design(40)
+d$y <- rnbinom(40, size = 2, mu = exp(0.5 + 0.4 * d$x1 - 0.5 * d$x2))
+nb_case_fixed_disp_freq("nb_log_theta_fixed_disp_freq", "log", 2, d, sample(1:4, 40, replace = TRUE))
+
 write_golden("glm_nb", list(
   generator = "scripts/reference/gen_glm_nb.R",
   r_version = R.version.string,
@@ -347,6 +451,8 @@ write_golden("glm_nb", list(
     "terms (intercept), x1, x2. rows are [x1, x2, y] or [x1, x2, y, f]; per-row figures in row order.",
     "vcov / std_errors at dispersion 1 (summary.negbin). aic counts theta when it is estimated.",
     "_freq: glm.nb(weights = f), every fit-level figure the rep()-expanded fit's; fitted per distinct row.",
-    "hc*_std_errors: sandwich::vcovHC (unweighted cases). influence case: rstudent / dffits at family$dispersion = 1."),
+    "hc*_std_errors: sandwich::vcovHC (unweighted cases). influence case: rstudent / dffits at family$dispersion = 1.",
+    "dispersion_method estimated: theta fixed, summary.glm's phi-hat = Pearson chi-square / df: vcov, std_errors, t p_values and",
+    "Wald-t ci_lower / ci_upper (0.95) on it, influence on the bare fit (rstudent / dffits on the leave-one-out sigma); _freq against rep()."),
   cases = nb_cases
 ))

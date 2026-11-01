@@ -18,7 +18,7 @@ Every param is a FLAT top-level key of the regression entry (manifest `slot: tru
 Knobs belong to their engine; another engine's knob is `PROCESSING_CONFIG`, at predict and at runtime alike:
 
 - a `penalty` on a gamma GLM, or `alpha` / `l1_ratio` without a `penalty`;
-- `theta` off a `negative_binomial` GLM, and its `penalty` / `selection` / `resample` (`details.requires`);
+- `theta` off a `negative_binomial` GLM, `dispersion` off it or without `theta`, and its `penalty` / `selection` / `resample` (`details.requires`);
 - `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on the Bayesian fit;
 - `resample` / `selection` on the Bayesian fit (not advertised; credible intervals already convey uncertainty).
 
@@ -60,12 +60,12 @@ Shared keys:
 
 ## GLM details
 
-- Dispersion φ = 1 for binomial / poisson: Wald z, `CILower` / `CIUpper` = β ∓ z·SE (R `confint.default`), no `DF`. Overdispersed counts get too-small SEs — use `negative_binomial`, a robust `covariance` or a resample.
-- Gamma estimates φ̂ = Pearson χ²/`DF`, `DF` = N* − p − 1 (N* = n, Σw or n_eff): t p-values and β ∓ t·SE (R `summary.glm`); φ̂ itself is not emitted; `DF` ≤ 0 nulls SE / p / CI / `DF`. Gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (φ = D/n counted), not D + 2k.
+- Dispersion φ = 1 for binomial / poisson / NB: Wald z, `CILower` / `CIUpper` = β ∓ z·SE (R `confint.default`), no `DF`. Overdispersed counts: `negative_binomial` or a robust `covariance`.
+- Gamma (and NB with `theta` + `dispersion: estimated`) estimates φ̂ = Pearson χ²/`DF`, `DF` = N* − p − 1 (N* = n, Σw or n_eff): t p-values and β ∓ t·SE (R `summary.glm`); φ̂ itself is not emitted; `DF` ≤ 0 nulls SE / p / CI / `DF`. Gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (φ = D/n counted), not D + 2k.
 - `PseudoR2` = 1 − D/D₀ (McFadden only for a 0/1 binomial target); `Deviance`, `NullDeviance` beside it.
-- `ConvergedIters` counts IRLS steps (R's per-row start, step-halving). Non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, loosen `tol` or rescale.
-- `link` per family, canonical default first: `binomial` `logit` / `probit` / `cloglog`; `poisson` `log` / `identity` / `sqrt`; `gamma` `inverse` / `log` / `identity`; `negative_binomial` `log` / `identity` / `sqrt`. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`. Every link's SEs read the expected information φ·(XᵀWX)⁻¹, W = μ′(η)²/V(μ) (R `summary.glm`); off the canonical link IRLS converges linearly (β ~1e-7 relative of the MLE at the default `tol`).
-- Binomial separation: the MLE is infinite, so no coefficients. Check the separating predictor is not recorded after the outcome.
+- `ConvergedIters` counts IRLS steps (R's start, step-halving). Non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, loosen `tol`, rescale.
+- `link` per family, canonical default first: `binomial` `logit` / `probit` / `cloglog`; `poisson` `log` / `identity` / `sqrt`; `gamma` `inverse` / `log` / `identity`; `negative_binomial` `log` / `identity` / `sqrt`. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`. SEs read the expected information φ·(XᵀWX)⁻¹, W = μ′(η)²/V(μ); off the canonical link IRLS converges linearly (β ~1e-7 off the MLE at default `tol`).
+- Binomial separation: the MLE is infinite, so no coefficients; check the separating predictor is not recorded after the outcome.
 
 ## See
 

@@ -32,6 +32,11 @@ import (
 // the fixed point, glm_nb.json). θ's Newton runs to a relative step of
 // thetaNewtonTol (quadratic convergence), never glm.nb's absolute 1e-4.
 //
+// A fixed θ may instead estimate the dispersion (RegressionSpec
+// Dispersion "estimated": glm.go flags the family EstimatesDispersion,
+// so φ̂ = Pearson χ²/df scales the vcov as gamma's does — R's
+// summary.glm on glm(family = negative.binomial(θ))).
+//
 // β and θ are treated as orthogonal (MASS summary.negbin): the
 // coefficient covariance is (XᵀWX)⁻¹ at θ̂ with the dispersion fixed at
 // 1, W = w*·μ'²/(μ + μ²/θ̂), and SE(θ̂) = 1/√I(θ̂), I the observed

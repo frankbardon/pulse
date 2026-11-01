@@ -131,7 +131,7 @@ The change in the linear predictor, on the link scale, for a one-unit increase i
 
 #### `std_errors.*`
 
-How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial, Poisson and negative_binomial (at the fitted theta), and scaled by the estimated dispersion for gamma.
+How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial, Poisson and negative_binomial (at the fitted theta), and scaled by the estimated dispersion for gamma (and for a fixed-theta negative_binomial under dispersion estimated).
 
 **Caveats:**
 
@@ -145,14 +145,14 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 
 **Caveats:**
 
-- Binomial and Poisson: Wald z at dispersion fixed to 1, so with overdispersed counts the Poisson p-values come out too small. Gamma: a Student t on df, because its dispersion is estimated (R's summary.glm); a robust covariance makes it Wald z again.
+- Binomial and Poisson: Wald z at dispersion fixed to 1, so with overdispersed counts the Poisson p-values come out too small. Gamma (and a fixed-theta negative_binomial under dispersion estimated): a Student t on df, because its dispersion is estimated (R's summary.glm); a robust covariance makes it Wald z again.
 - The request's alpha param is the penalty strength, not a significance level; on an l2 fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading, and on an l1 or elasticnet fit they are null.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
 #### `ci_lower.*`
 
-Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma and a negative_binomial under dispersion estimated.
 
 **Caveats:**
 
@@ -164,7 +164,7 @@ Lower bound of the coefficient's two-sided confidence interval at conf_level: th
 
 #### `ci_upper.*`
 
-Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma and a negative_binomial under dispersion estimated.
 
 **Caveats:**
 
@@ -180,7 +180,7 @@ The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95
 
 #### `df`
 
-Gamma only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) that the estimated dispersion divides by and the p-values' and intervals' Student t reads.
+Gamma (and a fixed-theta negative_binomial under dispersion estimated) only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) that the estimated dispersion divides by and the p-values' and intervals' Student t reads.
 
 **Caveats:**
 

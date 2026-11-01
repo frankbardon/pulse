@@ -5003,6 +5003,7 @@ pulse/types: func AllMatrixKinds() []pulse/types.MatrixKind
 pulse/types: func AllMatrixTypes() []pulse/types.MatrixType
 pulse/types: func AllMultiplicityFamilies() []pulse/types.MultiplicityFamily
 pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
+pulse/types: func AllNegBinDispersions() []string
 pulse/types: func AllOptimizeActiveBounds() []pulse/types.OptimizeActiveBound
 pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintType
 pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
@@ -5719,6 +5720,8 @@ pulse/types: const MultiplicityMethodBY pulse/types.MultiplicityMethod = "by"
 pulse/types: const MultiplicityMethodBonferroni pulse/types.MultiplicityMethod = "bonferroni"
 pulse/types: const MultiplicityMethodHolm pulse/types.MultiplicityMethod = "holm"
 pulse/types: const MultiplicityMethodNone pulse/types.MultiplicityMethod = "none"
+pulse/types: const NegBinDispersionEstimated untyped string = "estimated"
+pulse/types: const NegBinDispersionFixed untyped string = "fixed"
 pulse/types: func NormalizedString(mode string) pulse/types.CrosstabNormalize
 pulse/types: func NullSlotWeight() pulse/types.SlotWeight
 pulse/types: type OnPair struct
@@ -6150,6 +6153,7 @@ pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omit
 pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovariance "json:\"covariance,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
+pulse/types: type RegressionSpec field Dispersion string "json:\"dispersion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionSpec field Holdout string "json:\"holdout,omitempty\""
 pulse/types: type RegressionSpec field Intercept *bool "json:\"intercept,omitempty\""
@@ -6509,4 +6513,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 27f4463581f6b81ce2846d062f15979d7f47a5b21a8edb6c54deaf0a940d8943
+// golden-hash: 7a4b48d277461b8e937a19dad73785252324ccfc59930ac4a78823e71170e385

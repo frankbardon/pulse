@@ -141,6 +141,13 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		slot: "dispersion", keys: []string{"dispersion"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("dispersion", s.Dispersion != "") },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no dispersion (the REG_GLM negative_binomial fixed-θ knob); pass the model's own configuration through params"
+		},
+	},
+	{
 		slot: "max_iters", keys: []string{"max_iters"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("max_iters", s.MaxIters != 0) },
 		refusal: func(*types.RegressionSpec) string {

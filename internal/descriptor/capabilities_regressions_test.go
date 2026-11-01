@@ -105,6 +105,7 @@ var regressionKeyProbes = map[string]string{
 	"family":           `{"family":"binomial"}`,
 	"link":             `{"family":"binomial","link":"logit"}`,
 	"theta":            `{"family":"negative_binomial","theta":1.5}`,
+	"dispersion":       `{"family":"negative_binomial","theta":1.5,"dispersion":"estimated"}`,
 	"max_iters":        `{"max_iters":10}`,
 	"tol":              `{"tol":1e-6}`,
 	"prior":            `{"prior":"nig"}`,

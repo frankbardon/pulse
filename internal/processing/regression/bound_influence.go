@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -24,9 +25,10 @@ import (
 // estimated, sign g′(μ)) — exactly R 4.6.1's lm / glm influence
 // measures for the fit's own rows (a scoring row that is one of them),
 // and the same formulas extended to any other row. φ is
-// RegressionResult.Dispersion where it is estimated (REG_OLS σ̂², gamma)
-// and 1 under binomial / poisson / negative binomial (V(μ) at the fit's
-// θ, RegressionResult.Theta); model.CheckFitDesign refused every fit
+// RegressionResult.Dispersion where it is estimated (REG_OLS σ̂², gamma,
+// a fixed-θ negative binomial under dispersion "estimated") and 1 under
+// binomial / poisson / negative binomial (V(μ) at the fit's θ,
+// RegressionResult.Theta); model.CheckFitDesign refused every fit
 // that carries no such design (no vcov, robust, penalized, selection,
 // resample, weighted, …) before this is built.
 //
@@ -73,7 +75,10 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 		if err != nil {
 			return nil, err
 		}
-		d.fam, d.estimated = fam, fam.EstimatesDispersion
+		// A fixed-θ negative binomial fit under dispersion "estimated"
+		// carries its φ̂ (RegressionResult.Dispersion, set only where φ
+		// is estimated); every other one reads φ = 1.
+		d.fam, d.estimated = fam, fam.EstimatesDispersion || b.Family == reglink.NegativeBinomial && b.Result.Dispersion != 0
 	default:
 		return nil, internalDesign(b, "is not a REG_OLS or REG_GLM fit")
 	}

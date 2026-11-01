@@ -39,7 +39,9 @@ import (
 //
 // The negative binomial (negbin.go) estimates θ by alternating this loop
 // with a Newton step for θ (MASS glm.nb), or holds RegressionSpec.Theta;
-// its dispersion is 1, so it reads the binomial / poisson Wald path at θ̂.
+// its dispersion is 1, so it reads the binomial / poisson Wald path at θ̂
+// — unless a fixed θ sets RegressionSpec.Dispersion "estimated", which
+// reads gamma's estimated-φ̂ path (Student t on N* − k).
 //
 // Weighted (U12 E4-S2, .claude/reference/weighting.md): the slot's row
 // weights enter as R glm prior weights on w* = w·N*/Σw — the working
@@ -217,6 +219,10 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	if e.family.Name == reglink.NegativeBinomial {
 		if nb, err = fitNegBin(pr, e.spec.Theta); err == nil {
 			sol, e.family = nb.sol, nb.fam
+			// dispersion "estimated" (a fixed θ only, reglink.CheckTheta):
+			// φ̂ = Pearson χ²/df as gamma's, R's summary.glm on a
+			// glm(family = negative.binomial(θ)) fit.
+			e.family.EstimatesDispersion = e.spec.Dispersion == types.NegBinDispersionEstimated
 		}
 	} else {
 		sol, err = irlsFit(pr)
@@ -232,7 +238,8 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	lastInvXtWX := sol.Inverse
 
 	// The dispersion the classical covariance reads: 1 (binomial,
-	// poisson), or gamma's estimate φ̂ = Pearson χ² / (N* − k) with the
+	// poisson, negative binomial), or gamma's (and a fixed-θ negative
+	// binomial's under dispersion "estimated") estimate φ̂ = Pearson χ² / (N* − k) with the
 	// Student-t df N* − k (estimatedDispersion). A robust covariance is
 	// dispersion-free — φ cancels between bread and meat, as in R's
 	// sandwich — and stays Wald z, so it never reads φ̂.
