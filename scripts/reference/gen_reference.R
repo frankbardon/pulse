@@ -544,3 +544,13 @@ source(file.path(script_dir, "gen_margins.R"), local = FALSE)
 # rep() expansion; each figure re-derived from its closed form); base
 # stats + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_loglik.R"), local = FALSE)
+
+# The regression variance-inflation golden (vif.json: car::vif's GVIF,
+# Df and GVIF^(1/(2*Df)) on lm and the binomial logit, poisson log,
+# fixed-theta negative binomial and gamma log glm — ungrouped and with a
+# factor's dummies as one term, on the fit (basis model) and on lm over
+# the prior weights (basis predictors), frequency weights against the
+# rep() expansion and probability weights; each figure re-derived from
+# the weighted design's closed form); base stats + jsonlite + MASS
+# 7.3-66 + car 3.1-5. Seeded RNG.
+source(file.path(script_dir, "gen_vif.R"), local = FALSE)

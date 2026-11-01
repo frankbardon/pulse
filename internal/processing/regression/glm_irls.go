@@ -140,6 +140,10 @@ type irlsProblem struct {
 	Start []float64
 	// WantInverse asks for (XᵀWX)⁻¹ at the converged working weights.
 	WantInverse bool
+	// WantWeights, beside WantInverse, also returns those working weights
+	// per row (irlsSolution.Weights): the collinearity block's model
+	// basis reads them.
+	WantWeights bool
 
 	// onStep, when set, sees every accepted iteration: its 0-based
 	// index, the objective at the accepted β and the halvings it took.
@@ -160,6 +164,10 @@ type irlsSolution struct {
 	// Gram is XᵀWX (row-major K × K, both triangles) at the converged
 	// weights; nil unless WantInverse.
 	Gram []float64
+	// Weights are the working weights W (prior × μ'(η)²/V(μ)) per row at
+	// the converged β — the ones Gram is formed with; nil unless
+	// WantInverse and WantWeights.
+	Weights []float64
 	// Deviance is 2·Σ w*ᵢ·d(yᵢ, μᵢ) at Beta.
 	Deviance float64
 }
@@ -282,6 +290,9 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 			if pr.WantInverse {
 				pr.workingSystem(eta, prior, w, z, xtwx, xtwz)
 				sol.Gram = append([]float64(nil), xtwx...)
+				if pr.WantWeights {
+					sol.Weights = append([]float64(nil), w...)
+				}
 				// A penalised fit's covariance is its penalty's sandwich
 				// over Gram (glmPenalty.covariance), never (XᵀWX)⁻¹.
 				if pr.Penalty == nil {

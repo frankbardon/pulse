@@ -24,7 +24,7 @@ Present exactly where `std_errors` is: lasso / elastic net null on every key (no
 
 ## Covariance
 
-Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default: `Vcov` / `Correlation` are then absent and the response is byte-identical.
+Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default (absent, byte-identical).
 
 <!-- feature: REG_OLS -->
 ```json
@@ -89,6 +89,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 
 - `regression-modeling` — choosing a model and modifiers.
 - `regression-margins` — marginal effects on these SEs.
+- `regression-collinearity` — VIF on the fit.
 <!-- feature: REG_OLS -->
 - `op-reg-ols` — the `vcov` Param for OLS and ridge.
 <!-- /feature -->

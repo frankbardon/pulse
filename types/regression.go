@@ -321,6 +321,22 @@ type RegressionSpec struct {
 	// that column. Absent is byte-identical. See RegressionMargins.
 	Margins *RegressionMargins `json:"margins,omitempty"`
 
+	// Collinearity opts this regression into its variance inflation
+	// factors (RegressionResult.Collinearity): per term the VIF — Fox &
+	// Monette's generalized VIF for a term spanning several predictor
+	// columns (Groups: a one-hot block, a spline basis) — its tolerance
+	// 1/VIF and, when a group is declared, GVIF^(1/(2·df)), read off the
+	// fit's own design (basis model, the default: the information XᵀWX at
+	// the fitted weights, car::vif on the fit) or the predictors alone
+	// (basis predictors: the prior-weighted predictor correlation, the
+	// MAT_COLLINEARITY figure). REG_OLS and REG_GLM only, with an
+	// intercept and two or more terms; refused with PROCESSING_CONFIG
+	// (details.requires, the one rule predict applies:
+	// internal/collinearity) beside a Selection, a REG_GLM Penalty under
+	// basis model, on another type, or a malformed block. Absent is
+	// byte-identical. See RegressionCollinearity.
+	Collinearity *RegressionCollinearity `json:"collinearity,omitempty"`
+
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
 	// selects 0.95. REG_OLS uses a Student-t critical value on the
@@ -473,6 +489,93 @@ func (m *RegressionMargins) EffectiveScale() string {
 		return MarginsScaleResponse
 	}
 	return m.Scale
+}
+
+// Collinearity bases (RegressionCollinearity.Basis).
+const (
+	// CollinearityBasisModel reads the fit's own information matrix XᵀWX
+	// at the fitted weights (prior × IRLS working weights on REG_GLM; the
+	// prior weights on REG_OLS), centered on its intercept — car::vif on
+	// the fitted model.
+	CollinearityBasisModel = "model"
+	// CollinearityBasisPredictors reads the predictors' prior-weighted
+	// correlation over the fitted rows, whatever the model — car::vif on
+	// lm over the same predictors and weights, MAT_COLLINEARITY's VIF. On
+	// REG_OLS it is the model basis exactly.
+	CollinearityBasisPredictors = "predictors"
+)
+
+// AllCollinearityBases lists the RegressionCollinearity.Basis values,
+// the default first.
+func AllCollinearityBases() []string {
+	return []string{CollinearityBasisModel, CollinearityBasisPredictors}
+}
+
+// RegressionCollinearity is RegressionSpec.Collinearity: how a REG_OLS /
+// REG_GLM fit reports its variance inflation factors. Every field has a
+// default, so `"collinearity": {}` asks for the VIF of every predictor
+// on the model basis.
+type RegressionCollinearity struct {
+	// Basis is model (the default; empty selects it) or predictors.
+	Basis string `json:"basis,omitempty"`
+
+	// Groups declares the multi-column terms: each names a term and the
+	// predictors (columns of Predictors — a one-hot block's dummies, a
+	// spline basis) that make it up, judged together by the generalized
+	// VIF. A predictor joins at most one group; every
+	// predictor no group names is a term of its own, named after itself.
+	// A group's name must differ from every other term's. Empty: every
+	// predictor is its own term.
+	Groups []RegressionTermGroup `json:"groups,omitempty"`
+}
+
+// RegressionTermGroup is one multi-column term of
+// RegressionCollinearity.Groups.
+type RegressionTermGroup struct {
+	// Name is the term's key in RegressionCollinearityResult.
+	Name string `json:"name"`
+	// Predictors are the term's columns, each one of Predictors, once.
+	Predictors []string `json:"predictors"`
+}
+
+// EffectiveBasis is c's basis, CollinearityBasisModel when unset.
+func (c *RegressionCollinearity) EffectiveBasis() string {
+	if c == nil || c.Basis == "" {
+		return CollinearityBasisModel
+	}
+	return c.Basis
+}
+
+// RegressionCollinearityResult is RegressionResult.Collinearity: the
+// variance inflation of each term. The maps are keyed by term (a
+// predictor, or a group's name); Terms keeps the order (a group at its
+// first predictor's position). An undefined figure is null on the wire,
+// key kept.
+type RegressionCollinearityResult struct {
+	// Basis echoes the resolved RegressionCollinearity.Basis.
+	Basis string `json:"basis"`
+
+	// Terms lists the terms in their resolved order.
+	Terms []string `json:"terms"`
+
+	// DF maps each term to its column count: 1 for a predictor, the
+	// group's size for a group.
+	DF map[string]int `json:"df"`
+
+	// VIF maps each term to its variance inflation factor: (R⁻¹)_jj for
+	// a single column, Fox & Monette's generalized VIF
+	// det(R_SS)·det(R_−S,−S)/det(R) for a group S, R the basis's
+	// correlation of the predictor columns (car::vif's GVIF). 1 when a
+	// term is uncorrelated with the others.
+	VIF map[string]float64 `json:"vif"`
+
+	// Tolerance maps each term to 1/VIF.
+	Tolerance map[string]float64 `json:"tolerance"`
+
+	// GVIFScaled maps each term to VIF^(1/(2·df)) — car's
+	// GVIF^(1/(2*Df)), comparable across terms of different df as √VIF
+	// is for one column; present only when Groups declares a group.
+	GVIFScaled map[string]float64 `json:"gvif_scaled,omitempty"`
 }
 
 // RegressionMarginsResult is RegressionResult.Margins: one marginal
@@ -817,6 +920,11 @@ type RegressionResult struct {
 	// Margins carries the marginal effects RegressionSpec.Margins asked
 	// for (see RegressionMarginsResult); absent otherwise.
 	Margins *RegressionMarginsResult `json:"margins,omitempty"`
+
+	// Collinearity carries the variance inflation factors
+	// RegressionSpec.Collinearity asked for (see
+	// RegressionCollinearityResult); absent otherwise.
+	Collinearity *RegressionCollinearityResult `json:"collinearity,omitempty"`
 
 	// Outputs holds an extension regression's own named extras, each key
 	// declared in its registration's OutputSchema; a non-finite float is

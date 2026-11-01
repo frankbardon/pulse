@@ -248,8 +248,8 @@ func isScalarOutput(t reflect.Type) bool {
 // path. TestRegressionOutputs_AreResultTags pins every key to a real
 // struct tag.
 var regressionOutputs = map[string][]string{
-	string(types.REG_OLS):          {"adj_r2", "aic", "ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "df", "margins", "n_obs", "p_values", "r2", "residual_std_err", "std_errors", "two_log_lik"},
-	string(types.REG_GLM):          {"aic", "ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "deviance", "df", "margins", "n_obs", "null_deviance", "p_values", "pseudo_r2", "std_errors", "theta", "theta_std_err", "two_log_lik"},
+	string(types.REG_OLS):          {"adj_r2", "aic", "ci_lower", "ci_upper", "coefficients", "conf_level", "collinearity", "converged_iters", "df", "margins", "n_obs", "p_values", "r2", "residual_std_err", "std_errors", "two_log_lik"},
+	string(types.REG_GLM):          {"aic", "ci_lower", "ci_upper", "coefficients", "collinearity", "conf_level", "converged_iters", "deviance", "df", "margins", "n_obs", "null_deviance", "p_values", "pseudo_r2", "std_errors", "theta", "theta_std_err", "two_log_lik"},
 	string(types.REG_BAYES_LINEAR): {"adj_r2", "ci_lower", "ci_upper", "coefficients", "conf_level", "credible_intervals", "df", "n_obs", "r2", "residual_std_err", "std_errors"},
 	string(types.REG_MMM_BAYES):    {"ci_lower", "ci_upper", "coefficients", "conf_level", "n_obs", "outputs", "p_values", "statistics", "std_errors"},
 	string(types.REG_MMM_HILL):     {"ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "deviance", "df", "n_obs", "outputs", "p_values", "r2", "residual_std_err", "statistics", "std_errors"},
@@ -420,7 +420,7 @@ func regressionResultResolver(name string, keys []string) OutputResolver {
 			return FieldUnknown, fmt.Sprintf("%s does not emit %q", name, head)
 		}
 		if t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Struct && nested {
-			// An opt-in block (margins): its own per-term maps and
+			// An opt-in block (margins, collinearity): its own per-term maps and
 			// scalars, one level down.
 			sub, subRest, subNested := strings.Cut(rest, ".")
 			st, ok := jsonTags(t.Elem())[sub]

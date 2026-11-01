@@ -235,6 +235,16 @@ var regressionSlotRules = []regressionSlotRule{
 		requires: "type REG_OLS or REG_GLM",
 	},
 	{
+		// collinearity: the built-ins' VIF reads the fit's own design
+		// matrix and working weights, which no registration exposes.
+		slot: "collinearity", keys: []string{"collinearity"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("collinearity", s.Collinearity != nil) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no collinearity (the REG_OLS / REG_GLM variance inflation factors); run MAT_COLLINEARITY over the predictors instead"
+		},
+		requires: "type REG_OLS or REG_GLM",
+	},
+	{
 		slot: "covariance", keys: []string{"covariance"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("covariance", s.Covariance != nil) },
 		declared: func(d ExtensionRegression, s *types.RegressionSpec) bool {

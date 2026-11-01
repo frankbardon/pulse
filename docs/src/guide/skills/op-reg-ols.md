@@ -36,7 +36,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `alpha` | float | — | Strength, > 0. |
 | `l1_ratio` | float | — | Mix, `0<r<1`. |
 | `unpenalized` | []field | — | `l2`: left unshrunk. |
-| `bounds` | object | — | `{nonnegative: [predictors]}`: slopes ≥ 0 (NNLS). |
+| `bounds` | object | — | `{nonnegative: [...]}`: slopes ≥ 0. |
 | `intercept` | bool | `true` | `false`: no intercept. |
 | `solver` | enum | `qr` | Or `normal`. |
 | `max_iters` | int | — | Penalized cap. |
@@ -52,6 +52,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
 | `covariance` | object | — | Robust SEs. |
 | `margins` | object | — | Effects = βs ([`regression-margins`](regression-margins.md)). |
+| `collinearity` | object | — | VIFs ([`regression-collinearity`](regression-collinearity.md)). |
 | `weight` | slot weight | — | `null` opts out; WLS. |
 | `multiplicity` | object | — | p-values join a family; adds `PAdjusted`. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
@@ -60,11 +61,11 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 
 ## Inputs
 
-See `## Contract`; null / NaN / ±Inf drops the row (not in `n_obs`).
+See `## Contract`; null / NaN / ±Inf drops the row.
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `TwoLogLik` / `AIC` (R `logLik`), `NObs` (+ weighted `SumWeights`). Robust `covariance` adds a `Covariance` echo.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `TwoLogLik` / `AIC`, `NObs` (+ weighted `SumWeights`). Robust `covariance` adds a `Covariance` echo.
 
 ## Reading the output
 
@@ -86,7 +87,7 @@ See `## Contract`; null / NaN / ±Inf drops the row (not in `n_obs`).
 - `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Weighted `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
 - Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one, or `l2`.
-- Per-row fitted / residual / leverage: `ATTR_REG_*`.
+- Per-row diagnostics: `ATTR_REG_*`.
 
 ## See
 

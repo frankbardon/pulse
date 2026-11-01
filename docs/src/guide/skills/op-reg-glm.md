@@ -52,6 +52,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
 | `covariance` | object | — | Robust SEs. |
 | `margins` | object | — | AME / MEM ([`regression-margins`](regression-margins.md)). |
+| `collinearity` | object | — | VIFs ([`regression-collinearity`](regression-collinearity.md)). |
 | `weight` | slot weight | — | Prior weights. |
 | `multiplicity` | object | — | p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
@@ -64,7 +65,7 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Output
 
-`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr`. `l1` / `elasticnet` without `resample`: SE / p / CI null + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
+`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr`.
 
 ## Reading the output
 

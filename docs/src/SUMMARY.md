@@ -314,6 +314,7 @@
     - [panel-n-sources](guide/skills/panel-n-sources.md)
     - [predict-advisories](guide/skills/predict-advisories.md)
     - [process-chain](guide/skills/process-chain.md)
+    - [regression-collinearity](guide/skills/regression-collinearity.md)
     - [regression-inference](guide/skills/regression-inference.md)
     - [regression-margins](guide/skills/regression-margins.md)
     - [regression-model-options](guide/skills/regression-model-options.md)

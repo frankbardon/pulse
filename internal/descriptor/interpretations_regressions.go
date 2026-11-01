@@ -64,7 +64,7 @@ var (
 	regMarginsCommon = []string{
 		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.",
 		regCoefCausal,
-		"A multiplicity block corrects these p-values in the regression's family, beside its member coefficients.",
+		"A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.",
 	}
 )
 
@@ -167,7 +167,7 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 			"A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.",
 		},
 	},
-}, interpRegOLSMargins)
+}, interpRegOLSMargins, interpRegCollinearity)
 
 // regLogLikAbsent and regAICCompare are the likelihood caveats OLS and
 // GLM share.
@@ -198,6 +198,30 @@ func regMargins(means string, caveats ...string) []descriptor.Interpretation {
 			},
 		},
 	}
+}
+
+// interpRegCollinearity reads the collinearity block (REG_OLS and
+// REG_GLM alike). Unbanded, as MAT_COLLINEARITY's VIF: 5 and 10 are
+// rules of thumb, not verified conventions (O'Brien 2007).
+var interpRegCollinearity = []descriptor.Interpretation{
+	{
+		Field: "collinearity.vif.*",
+		Means: "The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. " +
+			"For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.",
+		Caveats: []string{
+			"No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.",
+			"It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.",
+			"A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.",
+		},
+	},
+	{
+		Field: "collinearity.tolerance.*",
+		Means: "The reciprocal of vif: the share of the term's spread the other predictors do not explain. Near 0 means the term is close to a combination of the others.",
+	},
+	{
+		Field: "collinearity.gvif_scaled.*",
+		Means: "vif^(1/(2 df)): the generalized VIF on the scale of a standard error, so terms of different column counts compare; for a single column it is the square root of vif.",
+	},
 }
 
 // interpRegOLSMargins reads REG_OLS's margins block.
@@ -341,7 +365,7 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-}, interpRegGLMMargins)
+}, interpRegGLMMargins, interpRegCollinearity)
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{

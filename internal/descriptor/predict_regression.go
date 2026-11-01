@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/collinearity"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbayes"
@@ -219,6 +220,12 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// An extension model's block was judged by the shared-slot table
 		// above (both pass it).
 		if cerr := regmargins.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// collinearity: the block's shape, the regression type and the
+		// fits it refuses — the runtime's rule itself
+		// (internal/collinearity, shared).
+		if cerr := collinearity.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 

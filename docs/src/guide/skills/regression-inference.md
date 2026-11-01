@@ -24,7 +24,7 @@ Present exactly where `std_errors` is: lasso / elastic net null on every key (no
 
 ## Covariance
 
-Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default: `Vcov` / `Correlation` are then absent and the response is byte-identical.
+Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default (absent, byte-identical).
 
 ```json
 {"regressions": [{"type": "REG_OLS", "target": "mpg", "predictors": ["wt", "hp"], "vcov": true}]}
@@ -79,6 +79,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 
 - [`regression-modeling`](regression-modeling.md) — choosing a model and modifiers.
 - [`regression-margins`](regression-margins.md) — marginal effects on these SEs.
+- [`regression-collinearity`](regression-collinearity.md) — VIF on the fit.
 - [`op-reg-ols`](op-reg-ols.md) — the `vcov` Param for OLS and ridge.
 - [`op-reg-glm`](op-reg-glm.md) — the `vcov` Param for GLM.
 - [`op-reg-bayes-linear`](op-reg-bayes-linear.md) — the `vcov` Param for the Bayesian linear model.

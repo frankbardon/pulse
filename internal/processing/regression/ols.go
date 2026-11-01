@@ -332,6 +332,13 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		// (weighted) predictor means.
 		res.Margins = coefficientMargins(e.spec, res, marginsInference{level: resolvedConfLevel(e.spec), df: infDF, studentT: true}, e.acc.meanX)
 	}
+	if e.spec.Collinearity != nil {
+		// The design's VIF off the accumulator's centered moments — the
+		// same fold the fit reads, so the block streams with it (vif.go);
+		// a penalty, a bound or a robust covariance leaves the design,
+		// and so every figure, unchanged.
+		res.Collinearity = olsCollinearity(e.spec, e.acc)
+	}
 	if len(e.activeBounds) != 0 {
 		// A binding bound (RegressionSpec.Bounds): the standard errors,
 		// p-values and intervals above are NaN on every key; the service

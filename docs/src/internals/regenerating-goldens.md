@@ -382,6 +382,25 @@ which the Go loader then refuses) and refuses any other R than 4.6.1.
 relative `1e-9`, `TestReferenceOracle_MarginsMatchMarginaleffects` the
 `marginaleffects` ones at `1e-7` (both `internal/processing/regression`).
 
+`scripts/reference/gen_vif.R` writes `vif.json`: the variance
+inflation factors a regression reports (`collinearity`) — `car::vif`'s
+GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson
+log, fixed-θ negative binomial and gamma log `glm` (refitted to their
+fixed point), ungrouped (`y ~ x1 + x2 + x3`) and with a three-level
+factor's treatment dummies as one term (`y ~ x1 + g + x2`, the rows
+carrying the dummies `gb`, `gc`), on basis `model` (car on the fit)
+and basis `predictors` (car on `lm` over the same predictors and prior
+weights), unweighted, frequency-weighted (asserted equal to the
+`rep()`-expanded fit) and probability-weighted. Each figure is
+re-derived in the script from the centered weighted cross-product
+(`m$weights` on a glm), which pins what basis `model` means. It needs
+MASS 7.3-66 and `car` 3.1-5 (with `carData` 3.0-6, from the Posit
+noble binary repo; the golden records the versions) and refuses any
+other R than 4.6.1. `TestReferenceOracle_VIFMatchesCar`
+(`internal/processing/regression`) holds every figure at relative
+`1e-10`; `TestCollinearity_OneHotMatchesCar` (root) runs the grouped
+logit case end to end through `FEAT_ONE_HOT`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -447,7 +466,7 @@ is the whole list in one place.
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
 | `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; a recommended package — install it into the user library where the R build omits it) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
-| `car` | 3.1-5 | VIF |
+| `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |
 | `ppcor` | 1.1 | partial correlation |
 | `perturb` | 2.10 | collinearity diagnostics (archived on CRAN; needs `gdata`) |
 | `corpcor` | 1.6.10 | `cor2pcor`; a `Hotelling` dependency |

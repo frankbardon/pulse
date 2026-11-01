@@ -1125,6 +1125,27 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					},
 					"additionalProperties": false,
 				},
+				"collinearity": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS / REG_GLM only: report each term's variance inflation factor (collinearity: vif, tolerance, df; gvif_scaled with groups); {} = the VIF of every predictor on the fit's design. Refused without an intercept, beside selection, under fewer than two terms, and on REG_GLM with a penalty unless basis is predictors.",
+					"properties": map[string]any{
+						"basis": enumStringField(types.AllCollinearityBases(), "model (default): the fit's weighted design (car::vif on the fit; IRLS working weights on REG_GLM); predictors: the prior-weighted predictor correlation alone."),
+						"groups": map[string]any{
+							"type":        "array",
+							"description": "Multi-column terms judged together by the generalized VIF (e.g. a one-hot block's dummies); every other predictor is its own term.",
+							"items": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"name":       map[string]any{"type": "string", "description": "The term's key in the result; unlike every other term's."},
+									"predictors": map[string]any{"type": "array", "description": "The term's columns, each a listed predictor in at most one group.", "items": enumStringField(c.Numeric, "")},
+								},
+								"required":             []string{"name", "predictors"},
+								"additionalProperties": false,
+							},
+						},
+					},
+					"additionalProperties": false,
+				},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),
 				"params": map[string]any{

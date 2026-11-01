@@ -983,6 +983,15 @@ and — gated on `capability:multiplicity` like the coefficient twins —
 regression's own block the terms form one family per regression, apart
 from the coefficients'. An undefined figure is `null`,
 key kept. A request without `margins` is byte-identical.
+An additive `omitempty` `RegressionSpec` object `collinearity`
+(`{basis, groups}`, `REG_OLS` / `REG_GLM`; `basis` `model` |
+`predictors`, `groups` an array of `{name, predictors}`) adds the
+additive `omitempty` object `RegressionResult.collinearity`
+(`RegressionCollinearityResult`): `basis`, `terms` (string array), the
+term-keyed maps `df` (integers), `vif` and `tolerance` (numbers), and
+`gvif_scaled` (numbers, present only when `groups` is set). An
+undefined figure is `null`, key kept. A request without `collinearity`
+is byte-identical.
 Under `resample` it is the replicate covariance (jackknife
 (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
 leave-one-out; bootstrap the B−1 sample covariance of the

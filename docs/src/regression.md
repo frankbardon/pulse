@@ -77,6 +77,7 @@ Ordinary least squares with optional regularization.
 | `solver`      | no       | `qr` (default) or `normal`; see "Solver and intercept" below. |
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 | `margins`     | no       | `{type, terms, scale}`: marginal effects — on OLS every one is its coefficient, with its SE, t and interval; streams. See [Marginal effects](#marginal-effects-margins). |
+| `collinearity` | no     | `{basis, groups}`: each term's variance inflation factor and tolerance (generalized VIF for a group of columns), off the weighted predictor moments the fit streams. See [Variance inflation factors](#variance-inflation-factors-collinearity). |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 
@@ -117,6 +118,7 @@ Generalized linear model via iteratively-reweighted least squares.
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper` (Wald z; gamma t on `df`), `0 < c < 1`. Default 0.95. |
 | `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Dispersion-free; inference stays Wald z, `cluster` and gamma included. |
 | `margins`     | no       | `{type, terms, scale}`: marginal effects with delta-method SEs — see [Marginal effects](#marginal-effects-margins). |
+| `collinearity` | no     | `{basis, groups}`: variance inflation factors on the fit's working-weighted design (`basis: model`) or the predictors alone (`basis: predictors`) — see [Variance inflation factors](#variance-inflation-factors-collinearity). |
 
 Always buffered.
 
@@ -171,6 +173,25 @@ The result is `{type, scale, terms, estimates, std_errors, statistics, p_values,
 - **Factors.** Pulse regressions take numeric predictors only (a categorical's dictionary index is refused), so there are no factor terms to contrast; a 0/1 dummy gets a slope, not the discrete difference between its levels.
 
 Oracle: R 4.6.1 analytic closed forms (MASS 7.3-66, `sandwich` 3.1-3 `vcovHC` / `vcovCL`) at 1e-9 — lm, logit, probit, cloglog, poisson, gamma inverse / log, negative binomial; HC3 and cluster; link scale; `mem`; a frequency-weighted pair against the `rep()` expansion — and `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = "mean")` at 1e-7, its numerical-derivative accuracy (measured within 7e-9) (`scripts/reference/gen_margins.R`, `margins.json`).
+
+### Variance inflation factors (`collinearity`)
+
+`"collinearity": {basis, groups}` on a `REG_OLS` or `REG_GLM` entry adds `regressions[i].collinearity`: per term its variance inflation factor (VIF) — how many times its coefficient variance is inflated by overlap with the other predictors — and tolerance 1/VIF. It is R's `car::vif(model)` (Stata `estat vif`) on the fit itself; `MAT_COLLINEARITY` gives the same VIF (plus Belsley's diagnostics) for a candidate predictor set before any model. Opt-in, additive, absent byte-identical; `"collinearity": {}` reports every predictor on the model basis.
+
+| Knob | Values | Default | Meaning |
+|---|---|---|---|
+| `basis` | `model`, `predictors` | `model` | `model`: the fit's information matrix XᵀWX at the fitted weights, centered on its intercept — the prior weights on `REG_OLS`, prior × IRLS working weights at the converged β on `REG_GLM` — which is what `car::vif` reads through `vcov(model)` (φ cancels). `predictors`: the prior-weighted predictor correlation alone, `car::vif` on `lm` over the same predictors and weights, `MAT_COLLINEARITY`'s VIF. On `REG_OLS` the two are one matrix. |
+| `groups` | `[{name, predictors}]` | none | Multi-column terms: each group's predictors (a `FEAT_ONE_HOT` block's dummies, a spline basis) are judged together; every other predictor is a term of its own, named after itself. A predictor joins at most one group; a group's name must differ from every other term's. |
+
+The result is `{basis, terms, df, vif, tolerance, gvif_scaled}`, the maps keyed by term (a predictor or a group's name), `terms` in order (a group at its first predictor's position), `gvif_scaled` only when `groups` is set.
+
+- **Generalized VIF.** For a term S the figure is Fox & Monette's (1992) GVIF det(R_SS)·det(R_−S,−S)/det(R), R the basis's correlation of the predictor columns — computed as det(R_SS)·det((R⁻¹)_SS), one inverse for every term; on one column it is (R⁻¹)_jj, the classical VIF. `df` is the term's column count and `gvif_scaled` = GVIF^(1/(2·df)), car's `GVIF^(1/(2*Df))`, comparable across terms of different size as √VIF is for one column (a group's GVIF itself grows with its df). The arithmetic is `MAT_COLLINEARITY`'s, shared (`internal/collinearity`): its VIF did not move a bit.
+- **A design figure.** The VIF reads the predictors and, on a GLM's model basis, the fitted weights — not the estimator: a `REG_OLS` `penalty`, `bounds`, a robust `covariance`, `resample` and `holdout` leave it the plain fit's on the same rows; dispersion and the sandwich never enter. Unbanded: 5 and 10 are rules of thumb (O'Brien 2007).
+- **Weights.** The fit's prior weights; a frequency-weighted block is the `rep()` expansion's, and both kinds give the same figures (the correlation is scale-free).
+- **Execution.** `REG_OLS` reads its streaming accumulator's centered moments, so the block streams and merges across shards with the fit; `REG_GLM` takes one two-pass weighted pass over the fitted rows in record order after IRLS converges. Both answer bit for bit the same under every `DecodeWorkers` / `ShardWorkers` count. A correlation that is not positive definite in double precision nulls every figure (the fit stands).
+- **Refusals** (`PROCESSING_CONFIG`, `details.requires`, identical at predict and run — `internal/collinearity`): a `basis` outside its values; a group with no name (`a group name`), no predictor, a member that is not a predictor or sits in two groups (`a predictor`), a name clashing with another term (`a unique term name`); `REG_BAYES_LINEAR`, an extension or model regression (`type REG_OLS or REG_GLM`); `intercept: false` (`intercept` — an uncentered VIF measures distance from 0, which car warns "may not be sensible"); `selection` (`no_selection`); a `REG_GLM` `penalty` on basis `model` (`unpenalized` — the working weights would be the shrunken fit's; basis `predictors` is allowed); fewer than two terms (`two_or_more_terms`, car's own floor).
+
+Oracle: `car` 3.1-5 `vif` on R 4.6.1 at 1e-10 (measured within 2e-15) — lm, binomial logit, poisson log, fixed-θ negative binomial and gamma log; ungrouped and with a three-level factor's dummies as one term; both bases; frequency weights against the `rep()` expansion and probability weights — each re-derived in the script from the weighted design's closed form (`scripts/reference/gen_vif.R`, `vif.json`), and end to end through `FEAT_ONE_HOT` (`TestCollinearity_OneHotMatchesCar`).
 
 ### `REG_BAYES_LINEAR`
 

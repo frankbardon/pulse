@@ -44,4 +44,4 @@ Integer / float members.
 ## See
 
 - `pulse_examples_search tags=[matrix, correlation-analysis]`
-- Skills: `matrix-results`, `op-mat-correlation`, `op-reg-ols`, `weighting`
+- Skills: `matrix-results`, `op-mat-correlation`, `op-reg-ols`, `regression-collinearity`, `weighting`

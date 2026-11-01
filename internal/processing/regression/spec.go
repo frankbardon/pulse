@@ -2,6 +2,7 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/collinearity"
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
@@ -81,6 +82,11 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	// rule predict applies too (internal/regmargins); its derived-
 	// predictor half reads the schema (BuildWith).
 	if cerr := regmargins.Check(spec); cerr != nil {
+		return cerr
+	}
+	// The collinearity block (shape, type, the fits it refuses) — the one
+	// rule predict applies too (internal/collinearity).
+	if cerr := collinearity.Check(spec); cerr != nil {
 		return cerr
 	}
 	return nil

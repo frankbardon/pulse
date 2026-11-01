@@ -870,7 +870,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#625** The non-canonical GLM links already named in the spec are implemented, not refused: binomial probit / cloglog, poisson identity / sqrt, gamma log / identity, pinned to R 4.6.1 `glm` + `sandwich` · [U65](units/U65-regression-depth.md)
 - [x] **#626** Negative binomial family (NB2) for over-dispersed counts: θ by maximum likelihood (MASS `glm.nb`) or fixed, log / identity / sqrt links, pinned to R 4.6.1 + MASS 7.3-66 + `sandwich` · [U65](units/U65-regression-depth.md)
 - [x] **#627** Average marginal effects and marginal effects at the mean, honouring the chosen `Covariance` · [U65](units/U65-regression-depth.md)
-- [ ] **#628** VIF and tolerance on the regression result · [U65](units/U65-regression-depth.md)
+- [x] **#628** VIF and tolerance on the regression result · [U65](units/U65-regression-depth.md)
 - [ ] **#629** Nested-model comparison: F (OLS), likelihood-ratio and Wald (GLM) · [U65](units/U65-regression-depth.md)
 - [ ] **#630** Ordinal logistic regression with a proportional-odds check · [U65](units/U65-regression-depth.md)
 - [ ] **#631** Multinomial logistic regression · [U65](units/U65-regression-depth.md)
@@ -878,3 +878,4 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#638** `penalty` / `selection` / `resample` on the negative binomial: θ re-estimated inside each refit driver (penalized fit, every selection candidate, every jackknife / bootstrap replicate), pinned to a `MASS::stepAIC` and a jackknife oracle; the refusals (`requires: unpenalized` / `no_selection` / `no_resample`) stay until then · [U65](units/U65-regression-depth.md)
 - [ ] **#639** A bootstrap of the marginal effects under `resample`: replicate the AME / MEM itself (not the coefficient covariance), so `margins` stops refusing `resample` (`requires: no_resample`) · [U65](units/U65-regression-depth.md)
 - [ ] **#640** Influence over a weighted bound fit: the prior-weighted working weight w, Pearson residual rP and dispersion φ for `ATTR_REG_LEVERAGE` / `ATTR_REG_INFLUENCE` / `ATTR_REG_RESIDUAL` kind `standardized` / `studentized` with `params.fit` (frequency against the `rep()` expansion), lifting `requires: unweighted` · [U65](units/U65-regression-depth.md)
+- [ ] **#641** An opt-in `contrast` mode in `RegressionMargins` that reports a 0/1 predictor as its discrete 1 − 0 contrast (μ at 1 minus μ at 0, the other predictors as observed or at their means, with a delta-method SE), as `marginaleffects` does for a binary column; today the dummy gets its slope, and the oracle's `me_binary_terms` cross-check skips it. The default (slope) stays · [U65](units/U65-regression-depth.md)

@@ -217,7 +217,7 @@ var sharedSlotValues = map[string]string{
 	"prior": `"normal"`, "prior_mu": `[0,0]`, "prior_precision": `1`, "prior_shape": `1`, "prior_rate": `1`, "credible_level": `0.9`,
 	"resample": `"bootstrap"`, "jackknife_groups": `5`, "jackknife_by": `"geo"`, "bootstrap_iters": `10`,
 	"selection": `"forward"`, "criterion": `"aic"`, "covariance": `{"type":"hc1"}`, "save": `"m.pulse-model.json"`,
-	"holdout": `"week > 50"`, "intercept": `false`, "solver": `"normal"`, "margins": `{}`, "dispersion": `"estimated"`,
+	"holdout": `"week > 50"`, "intercept": `false`, "solver": `"normal"`, "margins": `{}`, "collinearity": `{}`, "dispersion": `"estimated"`,
 }
 
 // TestMMMBayes_SharedSlotsRefusedLikePredict: every shared slot the

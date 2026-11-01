@@ -883,6 +883,10 @@
         "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort, a lasso fit with no valid standard errors); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
+        "name": "regression-collinearity",
+        "description": "Variance inflation factors on a fitted regression — VIF and tolerance per term, the generalized VIF (GVIF and GVIF^(1/(2 df))) for a multi-column term such as a one-hot block, read off the fit's own weighted design or the predictors alone, execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-inference",
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
@@ -1322,6 +1326,7 @@
           "regressions[*].correlation",
           "regressions[*].covariance",
           "regressions[*].margins",
+          "regressions[*].collinearity",
           "regressions[*].advisories",
           "regressions[*].statistics",
           "regressions[*].outputs"
@@ -1416,4 +1421,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 026ecb51119bd66677d8f6ee26f0142f0d330dc4045f780f95e749507d563a6e
+// golden-hash: d227525a75ae09d79505e66437113583ca41f71fe74183045f9fd1fed3d69b6d

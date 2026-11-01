@@ -1058,6 +1058,82 @@
       },
       "type": "object"
     },
+    "RegressionCollinearity": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/RegressionTermGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "RegressionCollinearityResult": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "df": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "gvif_scaled": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tolerance": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "vif": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "basis",
+        "df",
+        "terms",
+        "tolerance",
+        "vif"
+      ],
+      "type": "object"
+    },
     "RegressionCovariance": {
       "additionalProperties": false,
       "properties": {
@@ -1295,6 +1371,9 @@
           },
           "type": "object"
         },
+        "collinearity": {
+          "$ref": "#/$defs/RegressionCollinearityResult"
+        },
         "conf_level": {
           "type": [
             "number",
@@ -1512,6 +1591,9 @@
         "bounds": {
           "$ref": "#/$defs/RegressionBounds"
         },
+        "collinearity": {
+          "$ref": "#/$defs/RegressionCollinearity"
+        },
         "conf_level": {
           "type": "number"
         },
@@ -1630,6 +1712,28 @@
       "required": [
         "target",
         "type"
+      ],
+      "type": "object"
+    },
+    "RegressionTermGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "predictors": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "predictors"
       ],
       "type": "object"
     },
@@ -2252,4 +2356,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 9d5335c179d45ed828d05323e6caf66023fe89950232114e3847aa90e4b6e0d9
+// golden-hash: e83c056ec24d6ed6b1d5fe7e39271bfbb0a251f9b40f293722df5ea10b658a6d

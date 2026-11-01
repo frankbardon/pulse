@@ -98,6 +98,8 @@ var precisionClass = map[string]string{
 	"regressions[*].margins.ci_lower.*": "round", "regressions[*].margins.ci_upper.*": "round",
 	"regressions[*].margins.df": "round", "regressions[*].margins.conf_level": "round",
 	"regressions[*].margins.at.*": "round", "regressions[*].margins.p_adjusted.*": "round",
+	"regressions[*].collinearity.vif.*": "round", "regressions[*].collinearity.tolerance.*": "round",
+	"regressions[*].collinearity.gvif_scaled.*": "round",
 	"regressions[*].margins.multiplicity.alpha": "round",
 	// Matrices: primary rounds; auxiliary is keyed — `n` (the pairwise
 	// N, integer counts) is exempt, any future companion rounds.

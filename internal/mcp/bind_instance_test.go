@@ -109,7 +109,7 @@ func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
 		"l1", "l2", "elasticnet", "binomial", "poisson", "gamma", "negative_binomial", "logit", "probit", "cloglog", "log", "identity", "sqrt", "inverse", "jackknife", "bootstrap", "forward", "backward", "stepwise", "aic", "bic", "rows", "qr", "normal"} {
 		literals[l] = true
 	}
-	for _, l := range slices.Concat(stringSlice(types.AllReturnPresets()), stringSlice(types.AllMatrixEncodings()), stringSlice(types.AllVectorCoerces()), stringSlice(types.AllCovarianceTypes()), types.AllMarginsTypes(), types.AllMarginsScales(), types.AllNegBinDispersions()) {
+	for _, l := range slices.Concat(stringSlice(types.AllReturnPresets()), stringSlice(types.AllMatrixEncodings()), stringSlice(types.AllVectorCoerces()), stringSlice(types.AllCovarianceTypes()), types.AllMarginsTypes(), types.AllMarginsScales(), types.AllNegBinDispersions(), types.AllCollinearityBases()) {
 		literals[l] = true
 	}
 	for _, tc := range []struct {

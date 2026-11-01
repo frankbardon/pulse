@@ -198,6 +198,9 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		Family:   e.family,
 		MaxIters: maxIters, Tol: tol,
 		WantInverse: true,
+		// The collinearity block's model basis reads the converged
+		// working weights (vif.go).
+		WantWeights: e.spec.Collinearity != nil && e.spec.Collinearity.EffectiveBasis() == types.CollinearityBasisModel,
 	}
 	// A penalty's N* is Σw* (n unweighted): glmnet's −loglik/N*.
 	pen := newGLMPenalty(e.spec, sum(prior))
@@ -225,7 +228,13 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		return nil, err
 	}
 	if pen != nil {
-		return e.penalizedResult(pen, sol, yVec, prior, sumW, sumWSq, rw)
+		res, err := e.penalizedResult(pen, sol, yVec, prior, sumW, sumWSq, rw)
+		if err == nil && e.spec.Collinearity != nil {
+			// basis predictors only (internal/collinearity refuses the
+			// model basis beside a penalty): the prior-weighted design.
+			res.Collinearity = glmCollinearity(e.spec, xRows, prior, p+1)
+		}
+		return res, err
 	}
 	beta, eta, mu := sol.Beta, sol.Eta, sol.Mu
 	convergedIters := sol.Iters
@@ -361,6 +370,15 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		default:
 			res.Margins = glmMargins(e.spec, e.family, xRows, prior, eta, beta, coefCov(), inf)
 		}
+	}
+	if e.spec.Collinearity != nil {
+		// The VIF of the fitted design (vif.go): on the converged working
+		// weights (basis model) or the prior weights (basis predictors).
+		w := prior
+		if e.spec.Collinearity.EffectiveBasis() == types.CollinearityBasisModel {
+			w = sol.Weights
+		}
+		res.Collinearity = glmCollinearity(e.spec, xRows, w, p+1)
 	}
 	if robust != nil {
 		res.Covariance = robust.fit.info

@@ -4990,6 +4990,7 @@ pulse/types: type AggregationType method (AggregationType) Mergeable() bool
 pulse/types: type AggregationType method (AggregationType) Streamable() bool
 pulse/types: func AllAggregationTypes() []pulse/types.AggregationType
 pulse/types: func AllAttributeTypes() []pulse/types.AttributeType
+pulse/types: func AllCollinearityBases() []string
 pulse/types: func AllCovarianceTypes() []pulse/types.CovarianceType
 pulse/types: func AllFeatureTypes() []pulse/types.FeatureType
 pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
@@ -5150,6 +5151,8 @@ pulse/types: func CheckPanelSlabPartitionWith(slots []pulse/types.PanelSlabParti
 pulse/types: type Cohort struct
 pulse/types: type Cohort field DataDir string "json:\"data_dir,omitempty\""
 pulse/types: type Cohort field Filename string "json:\"filename\""
+pulse/types: const CollinearityBasisModel untyped string = "model"
+pulse/types: const CollinearityBasisPredictors untyped string = "predictors"
 pulse/types: type ComponentsMergeability string
 pulse/types: const ComponentsMergeable pulse/types.ComponentsMergeability = "mergeable"
 pulse/types: const ComponentsNone pulse/types.ComponentsMergeability = "none"
@@ -5418,6 +5421,7 @@ pulse/types: type FitResult field RegressionResult.BootstrapSucceeded int "json:
 pulse/types: type FitResult field RegressionResult.CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type FitResult field RegressionResult.CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type FitResult field RegressionResult.Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type FitResult field RegressionResult.Collinearity *pulse/types.RegressionCollinearityResult "json:\"collinearity,omitempty\""
 pulse/types: type FitResult field RegressionResult.ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type FitResult field RegressionResult.ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type FitResult field RegressionResult.Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
@@ -6045,6 +6049,17 @@ pulse/types: type ReferenceVectorTable field Profiles map[string][]float64
 pulse/types: type RegressionBounds struct
 pulse/types: type RegressionBounds field Nonnegative []string "json:\"nonnegative,omitempty\""
 pulse/types: type RegressionBounds method (*RegressionBounds) Active() bool
+pulse/types: type RegressionCollinearity struct
+pulse/types: type RegressionCollinearity field Basis string "json:\"basis,omitempty\""
+pulse/types: type RegressionCollinearity field Groups []pulse/types.RegressionTermGroup "json:\"groups,omitempty\""
+pulse/types: type RegressionCollinearity method (*RegressionCollinearity) EffectiveBasis() string
+pulse/types: type RegressionCollinearityResult struct
+pulse/types: type RegressionCollinearityResult field Basis string "json:\"basis\""
+pulse/types: type RegressionCollinearityResult field DF map[string]int "json:\"df\""
+pulse/types: type RegressionCollinearityResult field GVIFScaled map[string]float64 "json:\"gvif_scaled,omitempty\""
+pulse/types: type RegressionCollinearityResult field Terms []string "json:\"terms\""
+pulse/types: type RegressionCollinearityResult field Tolerance map[string]float64 "json:\"tolerance\""
+pulse/types: type RegressionCollinearityResult field VIF map[string]float64 "json:\"vif\""
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
@@ -6103,6 +6118,7 @@ pulse/types: type RegressionResult field BootstrapSucceeded int "json:\"bootstra
 pulse/types: type RegressionResult field CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type RegressionResult field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type RegressionResult field Collinearity *pulse/types.RegressionCollinearityResult "json:\"collinearity,omitempty\""
 pulse/types: type RegressionResult field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
@@ -6151,6 +6167,7 @@ pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
 pulse/types: type RegressionSpec field Bounds *pulse/types.RegressionBounds "json:\"bounds,omitempty\""
+pulse/types: type RegressionSpec field Collinearity *pulse/types.RegressionCollinearity "json:\"collinearity,omitempty\""
 pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovariance "json:\"covariance,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
@@ -6189,6 +6206,9 @@ pulse/types: type RegressionSpec field Vcov bool "json:\"vcov,omitempty\""
 pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
 pulse/types: type RegressionSpec method (RegressionSpec) StreamableAs(typeStreamable bool) bool
+pulse/types: type RegressionTermGroup struct
+pulse/types: type RegressionTermGroup field Name string "json:\"name\""
+pulse/types: type RegressionTermGroup field Predictors []string "json:\"predictors\""
 pulse/types: type RegressionType string
 pulse/types: type RegressionType method (RegressionType) Streamable() bool
 pulse/types: type Request struct
@@ -6515,4 +6535,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ffb1ab288b2cc838cf2c56736a64a24e79b78b4223602443f99dff48ff75b2ca
+// golden-hash: 2285d7c44936be779eb28e981b0a4946a839ea157bf0541caa43f1e6f810b2ec
