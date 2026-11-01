@@ -142,16 +142,27 @@ func (d *BoundInfluence) Row(row model.Row, y float64) (RowInfluence, bool) {
 		return RowInfluence{}, false
 	}
 	h, mu, sign := d.at(x)
-	rP := y - mu
-	if !d.gaussian {
-		v := d.fam.Variance(mu)
-		if !(v > 0) {
-			nan := math.NaN()
-			return RowInfluence{Leverage: h, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan}, true
-		}
-		rP = rP / math.Sqrt(v)
+	e := y - mu
+	if d.gaussian {
+		return InfluenceFigures(e, h, d.phi, d.df, d.p1, d.estimated, sign), true
 	}
-	return InfluenceFigures(rP, h, d.phi, d.df, d.p1, d.estimated, sign), true
+	v := d.fam.Variance(mu)
+	if !(v > 0) {
+		nan := math.NaN()
+		return RowInfluence{Leverage: h, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan, StandardizedDeviance: nan}, true
+	}
+	out := InfluenceFigures(e/math.Sqrt(v), h, d.phi, d.df, d.p1, d.estimated, sign)
+	if !math.IsNaN(out.Standardized) {
+		// The deviance residual sign(y − μ)·√dᵢ (2× the unit deviance,
+		// residuals.glm's), standardized as the Pearson one is.
+		dv := 2 * d.fam.Deviance(y, mu)
+		if dv < 0 {
+			dv = 0 // rounding residue at y = μ
+		}
+		rD := math.Copysign(math.Sqrt(dv), e)
+		out.StandardizedDeviance = finiteOrNaN(rD / float64(math.Sqrt(d.phi)*math.Sqrt(1-h)))
+	}
+	return out, true
 }
 
 // read is row's predictor values in fit order.

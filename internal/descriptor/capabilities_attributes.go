@@ -155,7 +155,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
 			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
-			Params:        append(regAttributeParams(true), residualKindParam),
+			Params:        append(regAttributeParams(true), residualKindParam, residualTypeParam),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one residual per record",
@@ -647,6 +647,10 @@ var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: f
 // design (ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE; U65 E1-S2,
 // model.CheckFitDesign).
 var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is <TYPE>_<fit>; row-local once bound. Absent, the slot refits OLS."}
+
+// residualTypeParam is ATTR_REG_RESIDUAL's params.residual_type (U65
+// E1-S2): the residual kind standardized starts from.
+var residualTypeParam = descriptor.Param{Name: "residual_type", Type: "enum", Required: false, Default: model.ResidualTypePearson, EnumValues: model.ResidualTypes(), Description: "With kind standardized only (any other kind refuses it, PULSE_MODEL_SCORE_INVALID): pearson (default) standardizes the Pearson residual, deviance the deviance residual sign(y − μ)·√d — R 4.6.1 rstandard(type = \"deviance\"), dev.res/(√φ·√(1 − h)). Equal on a least-squares (Gaussian) fit; studentized, Cook's distance and DFFITS stay Pearson-based, as in R."}
 
 // influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
 var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG."}

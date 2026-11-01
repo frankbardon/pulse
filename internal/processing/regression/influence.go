@@ -39,6 +39,11 @@ type RowInfluence struct {
 	Studentized  float64
 	Cooks        float64
 	DFFITS       float64
+	// StandardizedDeviance is the deviance residual standardized the
+	// same way, rD/(√φ·√(1 − h)) (R rstandard type "deviance"); on a
+	// Gaussian fit it equals Standardized (InfluenceFigures sets it so;
+	// BoundInfluence replaces it under a GLM family).
+	StandardizedDeviance float64
 }
 
 // InfluenceForRow computes the influence figures of one observation
@@ -49,7 +54,7 @@ type RowInfluence struct {
 // is e, φ = s² = RSS/df estimated, s = +1.
 func InfluenceForRow(fit *AttributeFit, x []float64, e float64) RowInfluence {
 	nan := math.NaN()
-	out := RowInfluence{Leverage: nan, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan}
+	out := RowInfluence{Leverage: nan, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan, StandardizedDeviance: nan}
 	if fit == nil || fit.GramInverse == nil || fit.NObs == 0 {
 		return out
 	}
@@ -85,12 +90,13 @@ func InfluenceForRow(fit *AttributeFit, x []float64, e float64) RowInfluence {
 // σ₍ᵢ₎², ±Inf) is NaN.
 func InfluenceFigures(rP, h, phi, df, p1 float64, estimated bool, sign float64) RowInfluence {
 	nan := math.NaN()
-	out := RowInfluence{Leverage: h, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan}
+	out := RowInfluence{Leverage: h, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan, StandardizedDeviance: nan}
 	if !(h < 1) || !(phi > 0) {
 		return out
 	}
 	omh := 1 - h
 	out.Standardized = finiteOrNaN(rP / float64(math.Sqrt(phi)*math.Sqrt(omh)))
+	out.StandardizedDeviance = out.Standardized
 	q := rP / omh
 	out.Cooks = finiteOrNaN(float64(float64(q*q)*h) / float64(phi*p1))
 	sigma := math.Sqrt(phi)

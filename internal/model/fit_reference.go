@@ -40,6 +40,12 @@ type FitParams struct {
 	// the refit's leverage and σ (refit.go) or, with Fit, the bound
 	// fit's design (CheckFitDesign: a REG_OLS / REG_GLM fit with vcov).
 	Kind string `json:"kind,omitempty"`
+	// ResidualType is a kind standardized ATTR_REG_RESIDUAL's residual
+	// the standardization starts from (R rstandard.glm's type):
+	// "pearson" (the default; empty selects it) or "deviance". Any value
+	// on another kind is refused (checkResidualType); on a Gaussian fit
+	// the two are equal.
+	ResidualType string `json:"residual_type,omitempty"`
 	// Measure is ATTR_REG_INFLUENCE's figure (InfluenceMeasures; empty
 	// selects cooks) — that attribute's key only.
 	Measure string `json:"measure,omitempty"`
@@ -158,9 +164,9 @@ func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.C
 		}
 		if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &p); err != nil {
 			return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
-				"params must be an object {fit, kind}: "+err.Error(), nil)
+				"params must be an object {fit, kind, residual_type}: "+err.Error(), nil)
 		}
-		return FitParams{Fit: p.Fit, Kind: p.Kind}, nil
+		return FitParams{Fit: p.Fit, Kind: p.Kind, ResidualType: p.ResidualType}, nil
 	case types.ATTR_REG_INFLUENCE:
 		var p influenceFitParams
 		paramread.Declare(paramread.Attribute, string(attr), &p)
@@ -194,8 +200,9 @@ type fittedParams struct {
 
 // residualParams is ATTR_REG_RESIDUAL's params block.
 type residualParams struct {
-	Fit  string `json:"fit"`
-	Kind string `json:"kind,omitempty"`
+	Fit          string `json:"fit"`
+	Kind         string `json:"kind,omitempty"`
+	ResidualType string `json:"residual_type,omitempty"`
 }
 
 // influenceFitParams is a params.fit ATTR_REG_INFLUENCE's params block.
@@ -283,6 +290,9 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 // response — over a fit whose family the residual reads
 // (familyResidualType). A scaled kind's design rule is CheckFitDesign.
 func checkResidualKind(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
+	if cerr := checkResidualType(t, p); cerr != nil {
+		return cerr
+	}
 	if p.Kind == "" {
 		return nil
 	}
@@ -297,6 +307,39 @@ func checkResidualKind(t types.AttributeType, p FitParams, sig Signature) *error
 		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
 			"params.kind "+p.Kind+" reads the fit's error family, which a "+string(sig.Type)+" fit does not declare; use kind response",
 			map[string]any{"kind": p.Kind, "type": string(sig.Type)})
+	}
+	return nil
+}
+
+// The ATTR_REG_RESIDUAL residual types of kind standardized
+// (FitParams.ResidualType).
+const (
+	ResidualTypePearson  = "pearson"
+	ResidualTypeDeviance = "deviance"
+)
+
+// ResidualTypes lists the accepted FitParams.ResidualType values, the
+// default first.
+func ResidualTypes() []string { return []string{ResidualTypePearson, ResidualTypeDeviance} }
+
+// checkResidualType is params.residual_type's rule, the refit's and a
+// params.fit slot's alike: one of ResidualTypes, and only beside kind
+// standardized — R's studentized residual, Cook's distance and DFFITS
+// read the Pearson residual alone (PULSE_MODEL_SCORE_INVALID
+// params_invalid).
+func checkResidualType(t types.AttributeType, p FitParams) *errors.CodedError {
+	if p.ResidualType == "" {
+		return nil
+	}
+	if p.ResidualType != ResidualTypePearson && p.ResidualType != ResidualTypeDeviance {
+		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
+			"params.residual_type must be pearson or deviance; got "+p.ResidualType,
+			map[string]any{"residual_type": p.ResidualType, "allowed": ResidualTypes()})
+	}
+	if p.Kind != ResidualStandardized {
+		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
+			"params.residual_type applies to kind standardized only (the studentized residual, Cook's distance and DFFITS read the Pearson residual); drop it, or set kind standardized",
+			map[string]any{"residual_type": p.ResidualType, "kind": p.Kind})
 	}
 	return nil
 }

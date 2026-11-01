@@ -152,6 +152,9 @@ func CheckRefit(t types.AttributeType, a *types.Attribute) *errors.CodedError {
 		if p.Kind != "" && !knownResidualKind(p.Kind) {
 			return unknownResidualKind(t, "", p.Kind)
 		}
+		if cerr := checkResidualType(t, p); cerr != nil {
+			return cerr
+		}
 		if ScaledResidualKind(p.Kind) && a.Penalty != "" {
 			return refitDesignUnpenalized(t, a.Penalty, " params.kind "+p.Kind)
 		}

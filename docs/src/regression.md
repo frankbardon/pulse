@@ -246,13 +246,13 @@ Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha`
 | Figure | Formula |
 |---|---|
 | leverage `h` | `w · x̃ᵀ(vcov/φ)x̃` |
-| standardized | `rP / (√φ·√(1 − h))` |
+| standardized | `rP / (√φ·√(1 − h))`; with `params.residual_type` `deviance`, `rD / (√φ·√(1 − h))`, `rD = sign(y − μ)·√dᵢ` the deviance residual (R `rstandard(type = "deviance")`; equal to the Pearson form on a Gaussian fit) |
 | σ₍ᵢ₎ (φ estimated) | `√((φ·df − rP²/(1 − h))/(df − 1))` |
 | studentized | `rP / (σ₍ᵢ₎·√(1 − h))`; the standardized under binomial / poisson |
 | Cook's distance | `(rP/(1 − h))²·h/(φ·p′)` |
 | DFFITS | `sign(g′(μ))·rP·√h/(σ·(1 − h))`, σ = σ₍ᵢ₎ or √φ |
 
-DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (`model_format_version` 4); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
+`residual_type` is kind `standardized`'s alone (`pearson` default, `deviance`): the studentized residual, Cook's distance and DFFITS stay Pearson-based, as in R, and any other kind refuses it (`PULSE_MODEL_SCORE_INVALID` `params_invalid`). DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (`model_format_version` 4); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
 
 ## Error codes
 

@@ -37,6 +37,7 @@ type glmInfluenceCase struct {
 	Dispersion   []float64   `json:"dispersion"`
 	Hat          []float64   `json:"hat"`
 	Standardized []float64   `json:"standardized"`
+	StdDeviance  []float64   `json:"standardized_deviance"`
 	Studentized  []float64   `json:"studentized"`
 	Cooks        []float64   `json:"cooks"`
 	DFFITS       []float64   `json:"dffits"`
@@ -99,6 +100,7 @@ func glmInfluenceSlot() *Request {
 	return fitRefSlot("glm.pulse", "id",
 		fitRefAttr(types.ATTR_REG_LEVERAGE, "hat", `{"fit":"m"}`),
 		fitRefAttr(types.ATTR_REG_RESIDUAL, "standardized", `{"fit":"m","kind":"standardized"}`),
+		fitRefAttr(types.ATTR_REG_RESIDUAL, "standardized_deviance", `{"fit":"m","kind":"standardized","residual_type":"deviance"}`),
 		fitRefAttr(types.ATTR_REG_RESIDUAL, "studentized", `{"fit":"m","kind":"studentized"}`),
 		fitRefAttr(types.ATTR_REG_INFLUENCE, "cooks", `{"fit":"m"}`),
 		fitRefAttr(types.ATTR_REG_INFLUENCE, "dffits", `{"fit":"m","measure":"dffits"}`),
@@ -149,7 +151,11 @@ func TestGLMInfluence_MatchesR(t *testing.T) {
 			if len(data) != len(c.Rows) {
 				t.Fatalf("%d rows, want %d", len(data), len(c.Rows))
 			}
-			want := map[string][]float64{"hat": c.Hat, "standardized": c.Standardized, "studentized": c.Studentized, "cooks": c.Cooks, "dffits": c.DFFITS}
+			want := map[string][]float64{"hat": c.Hat, "standardized": c.Standardized, "standardized_deviance": c.StdDeviance,
+				"studentized": c.Studentized, "cooks": c.Cooks, "dffits": c.DFFITS}
+			if len(c.StdDeviance) != len(c.Rows) {
+				t.Fatalf("oracle has %d standardized_deviance rows", len(c.StdDeviance))
+			}
 			for col, ws := range want {
 				worst := 0.0
 				for i, row := range data {
@@ -165,6 +171,15 @@ func TestGLMInfluence_MatchesR(t *testing.T) {
 				}
 				t.Logf("%s %s: max rel error %.3g", c.Name, col, worst)
 			}
+			if c.Family == "gaussian" {
+				// Gaussian: the deviance residual is the Pearson one, so
+				// the two standardizations agree bit for bit.
+				for i, row := range data {
+					if row["standardized"] != row["standardized_deviance"] {
+						t.Errorf("row %d: deviance standardized %v ≠ pearson %v on a Gaussian fit", i, row["standardized_deviance"], row["standardized"])
+					}
+				}
+			}
 		})
 	}
 	t.Run("gaussian GLM is lm", func(t *testing.T) {
@@ -178,7 +193,7 @@ func TestGLMInfluence_MatchesR(t *testing.T) {
 				gauss = c
 			}
 		}
-		pairs := [][2][]float64{{ols.Hat, gauss.Hat}, {ols.Standardized, gauss.Standardized}, {ols.Studentized, gauss.Studentized},
+		pairs := [][2][]float64{{ols.Hat, gauss.Hat}, {ols.Standardized, gauss.Standardized}, {gauss.Standardized, gauss.StdDeviance}, {ols.Studentized, gauss.Studentized},
 			{ols.Cooks, gauss.Cooks}, {ols.DFFITS, gauss.DFFITS}, {ols.Coefficients, gauss.Coefficients}, {ols.Dispersion, gauss.Dispersion}}
 		for k, pr := range pairs {
 			if len(pr[0]) != len(pr[1]) || len(pr[0]) == 0 {
@@ -358,6 +373,47 @@ func TestGLMInfluence_RefusalsMatchPredict(t *testing.T) {
 			})
 		}
 	}
+	t.Run("residual_type", func(t *testing.T) {
+		t.Parallel()
+		// residual_type is kind standardized's alone; an unknown value
+		// or any other kind (studentized, an influence measure's
+		// Pearson base) refuses — runtime and predict alike.
+		fits := glmInfluenceFits(glm(func(*types.RegressionSpec) {}))
+		for _, params := range []string{
+			`{"fit":"m","kind":"studentized","residual_type":"deviance"}`,
+			`{"fit":"m","kind":"pearson","residual_type":"pearson"}`,
+			`{"fit":"m","residual_type":"deviance"}`,
+			`{"fit":"m","kind":"standardized","residual_type":"anscombe"}`,
+		} {
+			req := &ComposedRequest{Fits: fits, Requests: []*Request{fitRefSlot("glm.pulse", "id", fitRefAttr(types.ATTR_REG_RESIDUAL, "r", params))}}
+			_, err := p.Compose(ctx, req)
+			ce := codedOf(t, err)
+			if ce.Code != errors.PULSE_MODEL_SCORE_INVALID || ce.Details["reason"] != "params_invalid" {
+				t.Fatalf("%s: Compose err = %v, want PULSE_MODEL_SCORE_INVALID params_invalid", params, err)
+			}
+			env, perr := p.PredictCompose(ctx, req)
+			if perr != nil {
+				t.Fatal(perr)
+			}
+			matched := false
+			for _, e := range env.Errors {
+				matched = matched || (e.Code == string(ce.Code) && e.Message == ce.Message)
+			}
+			if !matched {
+				t.Errorf("%s: predict errors %+v do not carry %q", params, env.Errors, ce.Message)
+			}
+		}
+		// On the OLS refit it is accepted beside kind standardized only.
+		refit := &types.Attribute{Type: types.ATTR_REG_RESIDUAL, Label: "r", Target: "y", Predictors: []string{"x1", "x2"},
+			Params: json.RawMessage(`{"kind":"studentized","residual_type":"deviance"}`)}
+		if _, err := p.Process(ctx, fitRefSlot("glm.pulse", "id", refit)); codedOf(t, err).Details["reason"] != "params_invalid" {
+			t.Fatalf("refit studentized + residual_type: %v", err)
+		}
+		refit.Params = json.RawMessage(`{"kind":"standardized","residual_type":"deviance"}`)
+		if _, err := p.Process(ctx, fitRefSlot("glm.pulse", "id", refit)); err != nil {
+			t.Fatalf("refit standardized + deviance: %v", err)
+		}
+	})
 	t.Run("default weight", func(t *testing.T) {
 		t.Parallel()
 		// A fit whose regression names no weight inherits

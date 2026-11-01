@@ -23,6 +23,10 @@
 #                                    IRLS working weights
 #   standardized  rstandard(m)       rP / (√φ·√(1 − h)) (type "pearson",
 #                                    the 4.6.1 default)
+#   standardized_deviance
+#                 rstandard(m, type = "deviance")
+#                                    rD / (√φ·√(1 − h)), rD = sign(y − μ)·√dᵢ
+#                                    the deviance residual (lm: = standardized)
 #   studentized   rstudent(m)        rP / (σ₍ᵢ₎·√(1 − h)) when φ is
 #                                    estimated, else the standardized
 #   cooks         cooks.distance(m)  (rP/(1 − h))²·h/(φ·p′)
@@ -58,10 +62,11 @@ check <- function(name, got, want) {
 influence_case <- function(name, family, link, d, m) {
   h <- hatvalues(m)
   rs <- rstandard(m)
+  rsd <- if (inherits(m, "glm")) rstandard(m, type = "deviance") else rstandard(m)
   rt <- rstudent(m)
   cd <- cooks.distance(m)
   df <- dffits(m)
-  if (any(!is.finite(c(h, rs, rt, cd, df)))) stop(name, ": non-finite figure")
+  if (any(!is.finite(c(h, rs, rsd, rt, cd, df)))) stop(name, ": non-finite figure")
   # Re-derive from the closed forms (the formulas Pulse implements).
   phi <- if (inherits(m, "glm")) summary(m)$dispersion else summary(m)$sigma^2
   pres <- residuals(m, type = "pearson")
@@ -72,6 +77,8 @@ influence_case <- function(name, family, link, d, m) {
   sig_i <- sqrt((sum(pres^2) - pres^2 / (1 - h)) / (dfr - 1))
   std <- pres / (sqrt(phi) * sqrt(1 - h))
   check(paste(name, "standardized"), std, rs)
+  dres <- if (inherits(m, "glm")) residuals(m, type = "deviance") else residuals(m)
+  check(paste(name, "standardized_deviance"), dres / (sqrt(phi) * sqrt(1 - h)), rsd)
   check(paste(name, "studentized"), if (est) pres / (sig_i * sqrt(1 - h)) else std, rt)
   check(paste(name, "cooks"), (pres / (1 - h))^2 * h / (phi * p1), cd)
   # dffits reads the weighted working residual √w·(y − μ)·g′(μ) =
@@ -84,7 +91,8 @@ influence_case <- function(name, family, link, d, m) {
     rows = lapply(seq_len(n), function(i) g17(c(d$x1[i], d$x2[i], d$y[i]))),
     coefficients = g17(unname(coef(m))),
     dispersion = g17(phi),
-    hat = g17(unname(h)), standardized = g17(unname(rs)), studentized = g17(unname(rt)),
+    hat = g17(unname(h)), standardized = g17(unname(rs)), standardized_deviance = g17(unname(rsd)),
+    studentized = g17(unname(rt)),
     cooks = g17(unname(cd)), dffits = g17(unname(df))
   )
 }

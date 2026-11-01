@@ -53,6 +53,8 @@ type regFitScoreAttribute struct {
 	// model.FitDesignKind).
 	measure string
 	design  *regression.BoundInfluence
+	// residualType is a kind standardized RESIDUAL's params.residual_type.
+	residualType string
 	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
 	// fit failed on its data (nil otherwise): no scorer, every row null.
 	unavailable *types.ResponseWarning
@@ -106,7 +108,7 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	a.scorer, a.target, a.residualKind, a.measure = scorer, b.Target, p.Kind, p.Measure
+	a.scorer, a.target, a.residualKind, a.measure, a.residualType = scorer, b.Target, p.Kind, p.Measure, p.ResidualType
 	if model.FitDesignKind(a.attr.Type, p) {
 		d, err := regression.NewBoundInfluence(b)
 		if err != nil {
@@ -193,6 +195,8 @@ func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 		return inf.Cooks, nil
 	case a.residualKind == model.ResidualStudentized:
 		return inf.Studentized, nil
+	case a.residualType == model.ResidualTypeDeviance:
+		return inf.StandardizedDeviance, nil
 	}
 	return inf.Standardized, nil
 }

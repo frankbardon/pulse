@@ -46,10 +46,10 @@ With `fit` (GLM forms: `regression-row-scores`) **dffits is signed by g′(μ): 
 
 ## Gotchas
 
-- Refit: unpenalized OLS only (`penalty`, an unknown `measure`: `PROCESSING_CONFIG`); two-pass.
-- `fit`: an unweighted, unpenalized OLS / GLM fit with `vcov: true`, else `PULSE_MODEL_SCORE_INVALID` (`details.requires`). Row-local.
+- Refit: unpenalized OLS (`penalty`, a bad `measure`: `PROCESSING_CONFIG`); two-pass.
+- `fit`: an unweighted, unpenalized OLS / GLM fit with `vcov: true`, else `PULSE_MODEL_SCORE_INVALID` (`details.requires`).
 - A frequency weight: one copy's figure (h/w, df = Σw − p′); probability: `PULSE_WEIGHT_UNSUPPORTED`.
-- Screens (D > 1, 4/n, |DFFITS| > 2√(p′/n)) are rules of thumb.
+- Pearson-based, as R. Screens (D > 1, 4/n, |DFFITS| > 2√(p′/n)): rules of thumb.
 
 ## See
 

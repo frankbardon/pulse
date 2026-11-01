@@ -26,17 +26,18 @@ Use something else:
 
 ## Params
 
-Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-scores`](regression-row-scores.md)).
+Refit keys are top-level; `fit` is `params.fit` ([`regression-row-scores`](regression-row-scores.md)).
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | (required) | Dependent field; absent with `fit`. |
 | `predictors` | list | (required) | Independent fields; absent with `fit`. |
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
-| `alpha` | float | — | Regularization strength. |
+| `alpha` | float | — | Penalty strength. |
 | `l1_ratio` | float | — | Elasticnet mix. |
-| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y its target; no refit keys beside it. |
-| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized` (with `fit`: needs `vcov: true`). |
+| `fit` | string | — | Score a bound fit (`fits` / `models` entry), no refit: `y − score`. |
+| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized` (`fit` needs `vcov`). |
+| `residual_type` | enum | `pearson` | kind `standardized` only; or `deviance`. |
 | `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs

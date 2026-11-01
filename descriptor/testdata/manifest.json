@@ -4323,6 +4323,17 @@
                 "standardized",
                 "studentized"
               ]
+            },
+            {
+              "name": "residual_type",
+              "type": "enum",
+              "required": false,
+              "default": "pearson",
+              "description": "With kind standardized only (any other kind refuses it, PULSE_MODEL_SCORE_INVALID): pearson (default) standardizes the Pearson residual, deviance the deviance residual sign(y − μ)·√d — R 4.6.1 rstandard(type = \"deviance\"), dev.res/(√φ·√(1 − h)). Equal on a least-squares (Gaussian) fit; studentized, Cook's distance and DFFITS stay Pearson-based, as in R.",
+              "enum_values": [
+                "pearson",
+                "deviance"
+              ]
             }
           ],
           "accepts_types": [
@@ -20559,4 +20570,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 29cba74b0a7106be3e6bd4c33e8e53a6994acd1d16a3ce11dd0a962879411eba
+// golden-hash: baa14de347889655f6809c7ef7208ed111792c0cefefd2e19838ed51784957cb
