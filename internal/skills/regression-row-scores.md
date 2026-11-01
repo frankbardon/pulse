@@ -38,6 +38,17 @@ Model coefficients come from a regression slot (`regression-modeling`); these at
 - Refusals, predict identically: an unknown name `PULSE_MODEL_UNKNOWN`; a refit field (`target`, `predictors`, `penalty`, …) beside it `slot_fields`; a registered model without a scorer `PULSE_MODEL_SCORE_INVALID` reason `no_scorer`.
 - A fit that failed on its data (its `fits` entry carries `error`): every row null + `PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; the response's other slots compute normally, and strict mode fails the batch with the fit's code first. Predict cannot foresee a failed fit.
 
+<!-- feature: ATTR_REG_RESIDUAL -->
+**Residual scale.** `ATTR_REG_RESIDUAL` over a bound fit takes `params.kind`, as R's `residuals.glm`:
+
+- `response` (the default): y − μ.
+- `pearson`: (y − μ)/√V(μ).
+- `deviance`: sign(y − μ)·√d(y, μ).
+- `working`: (y − μ)·g′(μ).
+
+The slot carries no prior weight, so these are the unweighted forms. OLS and Bayesian-linear fits are Gaussian, so every kind equals y − μ. A registered or media-mix fit takes `response` only.
+<!-- /feature -->
+
 ## The fit's predictor list is authoritative
 
 Build the same columns (same features) in the scoring slot. An absent one-hot column is the reference level — scoring never infers a level. Under selection a dropped predictor scores 0. A predictor null on a row nulls that row.

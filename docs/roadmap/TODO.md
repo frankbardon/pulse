@@ -849,7 +849,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded simulation-based calibration harness · [U64](units/U64-reference-validation.md)
 - [ ] **#596** Studio shows each operator's validation in the inspector (pulse-studio) · [U64](units/U64-reference-validation.md)
 - [ ] **#597** Studio's own arithmetic (Stat test, Fit statistics nodes) in a Studio validation table (pulse-studio) · [U64](units/U64-reference-validation.md)
-- [ ] **#598** GLM and Bayesian-linear fits score `ATTR_REG_FITTED` / `ATTR_REG_RESIDUAL` / `ATTR_REG_LEVERAGE` · [U65](units/U65-regression-depth.md)
+- [x] **#598** `ATTR_REG_RESIDUAL` `params.kind` (`response` default, `pearson`, `deviance`, `working`) over a bound fit, pinned to statsmodels · [U65](units/U65-regression-depth.md)
 - [ ] **#599** Per-row influence diagnostics: standardized and studentized residuals, Cook's distance, DFFITS · [U65](units/U65-regression-depth.md)
 - [ ] **#600** The non-canonical GLM links already named in the spec are implemented, not refused · [U65](units/U65-regression-depth.md)
 - [ ] **#601** Negative binomial family (NB2) for over-dispersed counts (pending U65 D2) · [U65](units/U65-regression-depth.md)

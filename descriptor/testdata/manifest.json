@@ -4234,6 +4234,19 @@
               "type": "string",
               "required": false,
               "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+            },
+            {
+              "name": "kind",
+              "type": "enum",
+              "required": false,
+              "default": "response",
+              "description": "With params.fit only: the residual scale, as R residuals.glm. response y − μ (default); pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ). On an OLS or Bayesian-linear fit all four are y − μ; a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID).",
+              "enum_values": [
+                "response",
+                "pearson",
+                "deviance",
+                "working"
+              ]
             }
           ],
           "accepts_types": [
@@ -20455,4 +20468,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8c5d979032277d86f7aa2f4372733eb221786ed3172f939a5222f26f29e662ff
+// golden-hash: 1d6bc836228b18992c020db6996761e357a1f0cc16d041fcc93bd12d6a25d589

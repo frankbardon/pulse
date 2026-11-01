@@ -522,6 +522,14 @@ Adds to every row its residual: the actual target value minus the value a straig
 
 **Glossary:** [`residual`](../glossary.md#term-residual), [`heteroscedasticity`](../glossary.md#term-heteroscedasticity), [`outlier`](../glossary.md#term-outlier), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
 
+**Validated against:**
+
+- statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`) — tolerance 1e-8 relative; `glm_residual_kinds_reference_test.go`
+
+**Validation gap:** The refit path (no params.fit) has no external golden yet; it is checked against Pulse's own OLS. An R residuals.glm cross-check is added once R 4.6.1 is available.
+
+See [How Pulse is validated](../validation.md).
+
 **Skill:** [`op-attr-reg-residual`](../skills/op-attr-reg-residual.md)
 
 <a id="op-attr_scale_score"></a>

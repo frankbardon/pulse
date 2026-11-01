@@ -38,6 +38,10 @@ type regFitScoreAttribute struct {
 	scorer model.RowScorer
 	// target is the bound fit's response column (RESIDUAL reads it).
 	target string
+	// residualKind / family: RESIDUAL's params.kind and the bound fit's
+	// error family and link it reads (regression.ResidualFamily).
+	residualKind string
+	family       regression.ResidualFamily
 	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
 	// fit failed on its data (nil otherwise): no scorer, every row null.
 	unavailable *types.ResponseWarning
@@ -91,7 +95,18 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	a.scorer, a.target = scorer, b.Target
+	a.scorer, a.target, a.residualKind = scorer, b.Target, p.Kind
+	if p.Kind != "" && p.Kind != model.ResidualResponse {
+		// CheckFitReference admitted the kind on a built-in type, so the
+		// family / link are the engine's own echo.
+		fam, err := regression.NewResidualFamily(b.Family, b.Link)
+		if err != nil {
+			return err
+		}
+		a.family = fam
+	} else {
+		a.family, _ = regression.NewResidualFamily("", "")
+	}
 	return nil
 }
 
@@ -137,7 +152,7 @@ func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 	if !ok {
 		return math.NaN(), nil
 	}
-	return y - yhat, nil
+	return a.family.Residual(a.residualKind, y, yhat), nil
 }
 
 // Compute is Row over every record (the buffered arm).

@@ -27,6 +27,33 @@ import (
 type FitParams struct {
 	// Fit names the bound fit the slot scores through.
 	Fit string `json:"fit"`
+	// Kind is ATTR_REG_RESIDUAL's residual scale (R residuals.glm's
+	// type): "response" (the default; empty selects it) y − μ, "pearson"
+	// (y − μ)/√V(μ), "deviance" sign(y − μ)·√d(y, μ) or "working"
+	// (y − μ)·g′(μ). On an OLS or Bayesian-linear fit (Gaussian,
+	// identity) all four are y − μ. Not on ATTR_REG_FITTED, and not on
+	// a registered or media-mix regression (no family to read).
+	Kind string `json:"kind,omitempty"`
+}
+
+// The ATTR_REG_RESIDUAL residual kinds (FitParams.Kind).
+const (
+	ResidualResponse = "response"
+	ResidualPearson  = "pearson"
+	ResidualDeviance = "deviance"
+	ResidualWorking  = "working"
+)
+
+// ResidualKinds lists the accepted FitParams.Kind values.
+func ResidualKinds() []string {
+	return []string{ResidualResponse, ResidualPearson, ResidualDeviance, ResidualWorking}
+}
+
+// familyResidualType reports whether a fit of type t carries the family
+// a non-response residual reads: the built-in OLS, GLM and
+// Bayesian-linear regressions.
+func familyResidualType(t types.RegressionType) bool {
+	return t == types.REG_OLS || t == types.REG_GLM || t == types.REG_BAYES_LINEAR
 }
 
 // fitReferenceTypes are the refit attributes that take params.fit.
@@ -74,7 +101,7 @@ func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.C
 	}
 	if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &p); err != nil {
 		return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
-			"params must be an object {fit}: "+err.Error(), nil)
+			"params must be an object {fit, kind}: "+err.Error(), nil)
 	}
 	return p, nil
 }
@@ -132,7 +159,38 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 		}
 		return p, sig, typeUnsupportedFor(t, p.Fit, sig.Type)
 	}
+	if cerr := checkResidualKind(t, p, sig); cerr != nil {
+		return p, sig, cerr
+	}
 	return p, sig, nil
+}
+
+// checkResidualKind is params.kind's rule: an ATTR_REG_RESIDUAL key,
+// one of ResidualKinds, and — any kind but response — over a fit whose
+// family the residual reads (familyResidualType).
+func checkResidualKind(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
+	if p.Kind == "" {
+		return nil
+	}
+	if t != types.ATTR_REG_RESIDUAL {
+		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
+			"params.kind is an ATTR_REG_RESIDUAL key (the residual scale); drop it", map[string]any{"kind": p.Kind})
+	}
+	known := false
+	for _, k := range ResidualKinds() {
+		known = known || k == p.Kind
+	}
+	if !known {
+		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
+			"params.kind must be response, pearson, deviance or working; got "+p.Kind,
+			map[string]any{"kind": p.Kind, "allowed": ResidualKinds()})
+	}
+	if p.Kind != ResidualResponse && !familyResidualType(sig.Type) {
+		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
+			"params.kind "+p.Kind+" reads the fit's error family, which a "+string(sig.Type)+" fit does not declare; use kind response",
+			map[string]any{"kind": p.Kind, "type": string(sig.Type)})
+	}
+	return nil
 }
 
 // FitColumns are the scoring-frame columns a params.fit slot over sig

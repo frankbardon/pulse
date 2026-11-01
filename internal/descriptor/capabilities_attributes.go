@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -154,7 +155,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
 			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
-			Params:        regAttributeParams(true),
+			Params:        append(regAttributeParams(true), residualKindParam),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one residual per record",
@@ -627,6 +628,9 @@ func otherForm(f metric.Form) metric.Form {
 // fit instead of the refit (internal/model.CheckFitReference), and then
 // take none of the refit's fields: target and predictors stay Required
 // (the refit is the default form a draft writes) and say so.
+// residualKindParam is ATTR_REG_RESIDUAL's params.kind (U65 E1-S1).
+var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "With params.fit only: the residual scale, as R residuals.glm. response y − μ (default); pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ). On an OLS or Bayesian-linear fit all four are y − μ; a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID)."}
+
 func regAttributeParams(penalized bool) []descriptor.Param {
 	if !penalized {
 		return []descriptor.Param{

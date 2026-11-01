@@ -162,6 +162,12 @@ var validationRegistry = map[string]validation{
 	"AGG_STDDEV":  {Refs: []validationRef{strdRef("univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
 	"AGG_WELFORD": {Refs: []validationRef{strdRef("univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
 
+	// Per-row regression scores with an external reference.
+	"ATTR_REG_RESIDUAL": {Refs: []validationRef{{
+		Against: "statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`)",
+		Tol:     "1e-8 relative", Tests: []string{"glm_residual_kinds_reference_test.go"},
+	}}, Gap: "The refit path (no params.fit) has no external golden yet; it is checked against Pulse's own OLS. An R residuals.glm cross-check is added once R 4.6.1 is available."},
+
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{
 		strdRef("linear regression: Norris, Pontius, NoInt1–2 (intercept: false), Filip, Longley, Wampler1–5"),

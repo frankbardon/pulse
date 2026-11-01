@@ -472,6 +472,7 @@ Actual minus predicted: the row's target value minus the value the straight-line
 - A residual is what this model leaves unexplained, not a measurement error and not the effect of any one thing left out: another set of predictors gives other residuals.
 - It is in the target's units, so there are no sourced cut-offs for a large one; compare it with the model's typical miss (REG_OLS residual_std_err) times sqrt(1 - leverage) from ATTR_REG_LEVERAGE, since a high-leverage row's residual varies less, for a row-fair comparison.
 - A row with high leverage (ATTR_REG_LEVERAGE) pulls the line toward itself, so its residual can be small even when the row is unusual.
+- Over a bound fit, params.kind changes the scale: pearson divides by the family's standard deviation at the fitted mean, deviance is the row's signed share of the model deviance, and working is on the linear-predictor scale. Pearson and deviance residuals of a count or 0/1 model are comparable across rows; response residuals are not.
 - Patterns across rows (a curve, or spread that grows with the predicted value) point to a missing term or heteroscedasticity, not to rows that are wrong.
 - The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
 - A row missing the target or any predictor gets null, never 0.

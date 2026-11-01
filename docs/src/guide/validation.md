@@ -29,6 +29,12 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`AGG_STDDEV`](catalog/aggregator.md#op-agg_stddev) | NIST StRD certified values (univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
 | [`AGG_WELFORD`](catalog/aggregator.md#op-agg_welford) | NIST StRD certified values (univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
 
+## Attributes
+
+| Operator | Validated against | Tightest tolerance | Gap |
+|---|---|---|---|
+| [`ATTR_REG_RESIDUAL`](catalog/attribute.md#op-attr_reg_residual) | statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`) | 1e-8 relative | The refit path (no params.fit) has no external golden yet; it is checked against Pulse's own OLS. An R residuals.glm cross-check is added once R 4.6.1 is available. |
+
 ## Statistical tests
 
 | Operator | Validated against | Tightest tolerance | Gap |
