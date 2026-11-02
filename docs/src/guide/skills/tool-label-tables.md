@@ -17,7 +17,7 @@ No arguments.
 
 ## Output
 
-`descriptor.Envelope` wrapping `[]LabelTableInfo`: `name`, `row_count`, `enumerable` (bool — whether reverse-searchable). Empty array when no tables registered (never null). Tables are loaded from `$PULSE_LABEL_TABLES_DIR/*.json` at `pulse.New` time, or supplied programmatically via `Options.LabelTables`.
+`{tables: []LabelTableInfo}` (the bare object, no envelope), each `name`, `row_count`, `enumerable` (bool — whether reverse-searchable). `tables: []` when none registered (never null). Tables are loaded from `$PULSE_LABEL_TABLES_DIR/*.json` at `pulse.New` time, or supplied programmatically via `Options.Extensions.LabelTables`.
 
 ## Gotchas
 

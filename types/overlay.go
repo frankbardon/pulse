@@ -466,8 +466,10 @@ const (
 	//
 	// Registered tables reach the FORMULA env through the built-ins
 	// formulaident.AllowedFuncs admits: `lookup(...)` when the instance
-	// registers a LookupTable, and `range_label(...)` always (its
-	// unknown table is a run-time refusal).
+	// registers a LookupTable (none while `capability:lookup_tables` is
+	// hidden), and `range_label(...)` always. A literal unknown table or
+	// off-axis key is refused by predict and by the run before any cell
+	// (PULSE_LOOKUP_* / PULSE_RANGE_TABLE_*, details `index` / `kind`).
 	OverlayKindFormula OverlayKind = "OVERLAY_FORMULA"
 
 	// OverlayKindDeltaVsBaseline emits a per-point additive delta against a

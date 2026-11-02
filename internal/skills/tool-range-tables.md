@@ -17,7 +17,7 @@ No arguments.
 
 ## Output
 
-`descriptor.Envelope` wrapping `{tables: []RangeTableInfo}`, each `RangeTableInfo`: `name`, `kind` (`date` | `numeric`), `range_count`, and the ordered `{label, start, end}` entries — `ranges` on a date table (ISO date literals), `numeric_ranges` on a numeric one (numbers); a bound is omitted when open. Empty array when none registered (never null). Tables are supplied programmatically via `Options.Extensions.RangeTables` or loaded from `$PULSE_RANGE_TABLES_DIR/*.json` at `pulse.New` time.
+`{tables: []RangeTableInfo}` (the bare object, no envelope), each `RangeTableInfo`: `name`, `kind` (`date` | `numeric`), `range_count`, and the ordered `{label, start, end}` entries — `ranges` on a date table (ISO date literals), `numeric_ranges` on a numeric one (numbers); a bound is omitted when open. Empty array when none registered (never null). Tables are supplied programmatically via `Options.Extensions.RangeTables` or loaded from `$PULSE_RANGE_TABLES_DIR/*.json` at `pulse.New` time.
 
 ## Gotchas
 
