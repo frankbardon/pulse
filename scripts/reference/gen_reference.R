@@ -574,3 +574,9 @@ source(file.path(script_dir, "gen_nested.R"), local = FALSE)
 # deviation form, prop.test with correct = FALSE; each definitional
 # choice stated in its header); base stats + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_unweighted_tests.R"), local = FALSE)
+
+# The unweighted chi-square crosstab overlay golden (U64 E2-S2:
+# overlay_chisq_axes.json: OVERLAY_CHISQ_MATRIX as chisq.test(table,
+# correct = FALSE), OVERLAY_CHISQ_ROW / _COL as each row's / column's
+# chisq.test(x, p = other margin / N)); base stats + jsonlite. No RNG.
+source(file.path(script_dir, "gen_overlay_chisq.R"), local = FALSE)

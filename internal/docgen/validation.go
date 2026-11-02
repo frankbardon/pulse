@@ -59,6 +59,13 @@ type validation struct {
 	Refs []validationRef
 	// Gap is a known validation gap in plain words; "" when none.
 	Gap string
+	// WeightRefused names the tests pinning that a weight on the operator
+	// is refused (PULSE_WEIGHT_UNSUPPORTED, the permanent reason from
+	// descx.OperatorWeightRefusal) at predict and at run, never ignored: the
+	// stated alternative to a weighted reference for an operator with no
+	// weighted form. Dropped, like a Weighted reference, when the
+	// instance does not offer weighting.
+	WeightRefused []string
 }
 
 // Shared sources and test files, named once so entries stay short.
@@ -69,18 +76,22 @@ const (
 	tol9   = "1e-9 relative"
 	wrVals = "internal/service/weight_reference_values_test.go"
 	wrTest = "internal/service/weight_reference_tests_test.go"
+	// wRefusal pins the permanent weight refusals (WeightRefused).
+	wRefusal = "internal/integration/weight_refusal_pin_test.go"
 
 	procOutput = "internal/processing/test_output_oracle_test.go"
 	procUnw    = "internal/processing/test_unweighted_oracle_test.go"
 	procPost   = "internal/processing/test_post_oracle_test.go"
 	procUndef  = "internal/processing/test_undefined_oracle_test.go"
 	ovOracle   = "internal/processing/overlay_reference_oracle_test.go"
-	ovPairwise = "internal/processing/overlay_pairwise_test.go"
-	vsPrior    = "internal/integration/overlay_vs_prior_test.go"
-	svcCov     = "internal/service/regression_covariance_test.go"
-	svcCovGLM  = "internal/service/regression_covariance_glm_test.go"
-	svcVcov    = "internal/service/regression_vcov_test.go"
-	regDir     = "internal/processing/regression/"
+	// ovChiSqAxes is the chi-square row / column / matrix overlay oracle.
+	ovChiSqAxes = "internal/processing/overlay_chisq_axes_oracle_test.go"
+	ovPairwise  = "internal/processing/overlay_pairwise_test.go"
+	vsPrior     = "internal/integration/overlay_vs_prior_test.go"
+	svcCov      = "internal/service/regression_covariance_test.go"
+	svcCovGLM   = "internal/service/regression_covariance_glm_test.go"
+	svcVcov     = "internal/service/regression_vcov_test.go"
+	regDir      = "internal/processing/regression/"
 	// svcCompareOracle is the nested-model comparison's R oracle test.
 	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
 	strdTest         = "strd_reference_test.go"
@@ -115,7 +126,7 @@ var validationRegistry = map[string]validation{
 		Refs: []validationRef{r("`aov`", tol10, procPost), strdRef("one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg"), weighted},
 		Gap:  "On NIST SmLs07–09 the figures agree to about 4 digits. That is the ceiling for any double-precision package: values such as 1000000000000.4 are not exactly representable, and exact arithmetic on the parsed doubles reaches only 4.0, 3.9 and 3.9 digits. Pulse reaches that ceiling.",
 	},
-	"TEST_ANOVA_RM":    {Refs: []validationRef{r("`aov` with `Error()` strata", tol10, procOutput)}, Gap: "No weighted reference."},
+	"TEST_ANOVA_RM":    {Refs: []validationRef{r("`aov` with `Error()` strata", tol10, procOutput)}, WeightRefused: []string{wRefusal}},
 	"TEST_ANOVA_WELCH": {Refs: []validationRef{r("`oneway.test`", tol10, procPost), weighted}},
 	"TEST_BARTLETT_SPHERICITY": {Refs: []validationRef{
 		r("`psych::cortest.bartlett`", tol9, "internal/service/test_bartlett_sphericity_test.go"), weighted}},
@@ -152,7 +163,7 @@ var validationRegistry = map[string]validation{
 		weighted,
 		{Against: "textbook worked example", Tol: tol9, Tests: []string{"internal/processing/test_parametric_test.go"}},
 	}},
-	"TEST_SHAPIRO_WILK": {Refs: []validationRef{r("`nortest::sf.test` (Shapiro–Francia)", tol10, procUndef)}, Gap: "No weighted reference."},
+	"TEST_SHAPIRO_WILK": {Refs: []validationRef{r("`nortest::sf.test` (Shapiro–Francia)", tol10, procUndef)}, WeightRefused: []string{wRefusal}},
 	"TEST_SPEARMAN_R":   {Refs: []validationRef{r("`cor.test(method = \"spearman\")` (exact AS 89)", "1e-12 relative", "internal/processing/test_nonparametric_test.go", procPost), weighted}},
 	"TEST_T":            {Refs: []validationRef{r("`t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances", tol10, procUnw), weighted}},
 	"TEST_TREND":        {Refs: []validationRef{r("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}},
@@ -290,9 +301,9 @@ var validationRegistry = map[string]validation{
 	}},
 
 	// Inferential overlays.
-	"OVERLAY_CHISQ_COL":         {Refs: []validationRef{weighted}, Gap: "The unweighted path has internal checks only; the R pin is the frequency-weighted reference."},
-	"OVERLAY_CHISQ_MATRIX":      {Refs: []validationRef{weighted}, Gap: "The unweighted path has internal checks only; the R pin is the frequency-weighted reference."},
-	"OVERLAY_CHISQ_ROW":         {Refs: []validationRef{weighted}, Gap: "The unweighted path has internal checks only; the R pin is the frequency-weighted reference."},
+	"OVERLAY_CHISQ_COL":         {Refs: []validationRef{r("`chisq.test(table[, j], p = rowSums / N)` per column", tol10, ovChiSqAxes), weighted}},
+	"OVERLAY_CHISQ_MATRIX":      {Refs: []validationRef{r("`chisq.test(correct = FALSE)` (Pulse applies no Yates correction)", tol10, ovChiSqAxes), weighted}},
+	"OVERLAY_CHISQ_ROW":         {Refs: []validationRef{r("`chisq.test(table[i, ], p = colSums / N)` per row", tol10, ovChiSqAxes), weighted}},
 	"OVERLAY_CHISQ_VS_POP":      {Refs: []validationRef{r("`chisq.test`", tol10, ovOracle, "internal/processing/overlay_chisq_vs_pop_test.go")}},
 	"OVERLAY_CHISQ_VS_REF":      {Refs: []validationRef{r("`chisq.test`", tol10, ovOracle), weighted}},
 	"OVERLAY_FISHER_EXACT_CELL": {Refs: []validationRef{r("`fisher.test`", tol10, ovOracle, "internal/processing/overlay_fisher_exact_cell_test.go"), weighted}},
@@ -330,6 +341,9 @@ func (g *gen) validationFor(name string) (validation, bool) {
 	}
 	weightingOn := g.inst.Enabled(descx.FeatureWeighting)
 	out := validation{Gap: v.Gap}
+	if weightingOn {
+		out.WeightRefused = v.WeightRefused
+	}
 	for _, ref := range v.Refs {
 		if ref.Weighted && !weightingOn {
 			continue
@@ -350,6 +364,9 @@ func (g *gen) renderValidationDetail(b *strings.Builder, name string) {
 	for _, ref := range v.Refs {
 		items = append(items, refLine(ref))
 	}
+	if len(v.WeightRefused) > 0 {
+		items = append(items, weightRefusalLine(name, v.WeightRefused))
+	}
 	if len(items) == 0 {
 		items = append(items, "No external reference yet.")
 	}
@@ -360,6 +377,19 @@ func (g *gen) renderValidationDetail(b *strings.Builder, name string) {
 		b.WriteString("\n")
 	}
 	b.WriteString("\nSee [How Pulse is validated](../" + validationPage + ").\n")
+}
+
+// weightRefusalLine states a pinned permanent weight refusal: the
+// operator has no weighted form, so a weight is refused rather than
+// validated, for the reason the refusal itself carries.
+func weightRefusalLine(name string, tests []string) string {
+	quoted := make([]string, len(tests))
+	for i, t := range tests {
+		quoted[i] = "`" + t + "`"
+	}
+	reason, _ := descx.OperatorWeightRefusal(name)
+	return "Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because " +
+		reason + "; " + strings.Join(quoted, ", ")
 }
 
 func refLine(ref validationRef) string {
@@ -404,6 +434,9 @@ func (g *gen) renderValidation(cats []category) string {
 				if i == 0 || tolRank(ref.Tol) < tolRank(tightest) {
 					tightest = ref.Tol
 				}
+			}
+			if len(v.WeightRefused) > 0 {
+				against = append(against, "weights refused, not validated (see the catalog entry)")
 			}
 			if len(against) == 0 {
 				against = []string{"No external reference yet."}

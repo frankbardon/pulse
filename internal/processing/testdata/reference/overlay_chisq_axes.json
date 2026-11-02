@@ -1,0 +1,381 @@
+{
+  "generator": "scripts/reference/gen_overlay_chisq.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "OVERLAY_CHISQ_ROW, OVERLAY_CHISQ_COL, OVERLAY_CHISQ_MATRIX",
+  "r_function": "chisq.test(table, correct = FALSE); chisq.test(table[i, ], p = colSums / N); chisq.test(table[, j], p = rowSums / N)",
+  "note": "Unweighted count hosts; Pulse applies no Yates correction (the corrected 2 x 2 matrix figure is kept as r_yates_*).",
+  "cases": [
+    {
+      "name": "two_by_two",
+      "table": [
+        [12, 5],
+        [7, 16]
+      ],
+      "matrix": {
+        "statistic": 6.319891801114041,
+        "df": 1,
+        "p_value": 0.011939091377912265,
+        "expected_min": 8.0749999999999993,
+        "r_yates_statistic": 4.8122864706523361,
+        "r_yates_p_value": 0.028257528526361309
+      },
+      "rows": [
+        {
+          "statistic": 3.6339377856405735,
+          "df": 1,
+          "p_value": 0.056612719453835024,
+          "expected_min": 8.0749999999999993
+        },
+        {
+          "statistic": 2.6859540154734649,
+          "df": 1,
+          "p_value": 0.10123657850184788,
+          "expected_min": 10.924999999999999
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 3.3179431955848706,
+          "df": 1,
+          "p_value": 0.068527512268280244,
+          "expected_min": 8.0749999999999993
+        },
+        {
+          "statistic": 3.0019486055291678,
+          "df": 1,
+          "p_value": 0.083164436132216718,
+          "expected_min": 8.9249999999999989
+        }
+      ]
+    },
+    {
+      "name": "two_by_three",
+      "table": [
+        [10, 20, 30],
+        [20, 20, 20]
+      ],
+      "matrix": {
+        "statistic": 5.3333333333333339,
+        "df": 2,
+        "p_value": 0.069483451222801515,
+        "expected_min": 15
+      },
+      "rows": [
+        {
+          "statistic": 2.666666666666667,
+          "df": 2,
+          "p_value": 0.26359713811572671,
+          "expected_min": 15
+        },
+        {
+          "statistic": 2.666666666666667,
+          "df": 2,
+          "p_value": 0.26359713811572671,
+          "expected_min": 15
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 3.3333333333333335,
+          "df": 1,
+          "p_value": 0.067889154861829101,
+          "expected_min": 15
+        },
+        {
+          "statistic": 0,
+          "df": 1,
+          "p_value": 1,
+          "expected_min": 20
+        },
+        {
+          "statistic": 2,
+          "df": 1,
+          "p_value": 0.15729920705028447,
+          "expected_min": 25
+        }
+      ]
+    },
+    {
+      "name": "three_by_four",
+      "table": [
+        [10, 14, 8, 20],
+        [12, 9, 15, 11],
+        [6, 18, 13, 7]
+      ],
+      "matrix": {
+        "statistic": 13.475661048703751,
+        "df": 6,
+        "p_value": 0.036074421802517569,
+        "expected_min": 8.615384615384615
+      },
+      "rows": [
+        {
+          "statistic": 4.8040273447847266,
+          "df": 3,
+          "p_value": 0.18672267110183874,
+          "expected_min": 10.181818181818182
+        },
+        {
+          "statistic": 3.3624015279506483,
+          "df": 3,
+          "p_value": 0.33905151869880495,
+          "expected_min": 9.2027972027972034
+        },
+        {
+          "statistic": 5.3092321759683756,
+          "df": 3,
+          "p_value": 0.15050444973521726,
+          "expected_min": 8.615384615384615
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 1.6474164133738618,
+          "df": 2,
+          "p_value": 0.43880146730319791,
+          "expected_min": 8.6153846153846168
+        },
+        {
+          "statistic": 3.8401660612350788,
+          "df": 2,
+          "p_value": 0.14659478976909521,
+          "expected_min": 12.615384615384617
+        },
+        {
+          "statistic": 3.1617907801418448,
+          "df": 2,
+          "p_value": 0.20579075268998157,
+          "expected_min": 11.076923076923077
+        },
+        {
+          "statistic": 4.8262877939529671,
+          "df": 2,
+          "p_value": 0.089533367945550196,
+          "expected_min": 11.692307692307693
+        }
+      ]
+    },
+    {
+      "name": "zero_cell_low_expected",
+      "table": [
+        [0, 4, 9],
+        [6, 3, 2],
+        [1, 7, 5]
+      ],
+      "matrix": {
+        "statistic": 15.778596403596403,
+        "df": 4,
+        "p_value": 0.0033311086654951761,
+        "expected_min": 2.0810810810810811
+      },
+      "rows": [
+        {
+          "statistic": 4.6614010989010985,
+          "df": 2,
+          "p_value": 0.097227610476688375,
+          "expected_min": 2.4594594594594597
+        },
+        {
+          "statistic": 9.3019480519480524,
+          "df": 2,
+          "p_value": 0.0095522932161106328,
+          "expected_min": 2.0810810810810811
+        },
+        {
+          "statistic": 1.8152472527472525,
+          "df": 2,
+          "p_value": 0.40348190944209666,
+          "expected_min": 2.4594594594594597
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 10.705294705294705,
+          "df": 2,
+          "p_value": 0.0047355975932713307,
+          "expected_min": 2.0810810810810811
+        },
+        {
+          "statistic": 1.3766233766233764,
+          "df": 2,
+          "p_value": 0.50242360105380102,
+          "expected_min": 4.1621621621621623
+        },
+        {
+          "statistic": 3.6966783216783217,
+          "df": 2,
+          "p_value": 0.1574985289375429,
+          "expected_min": 4.756756756756757
+        }
+      ]
+    },
+    {
+      "name": "tiny_p",
+      "table": [
+        [180, 20, 15],
+        [30, 170, 25]
+      ],
+      "matrix": {
+        "statistic": 227.95438207922911,
+        "df": 2,
+        "p_value": 3.1647169176263002e-50,
+        "expected_min": 19.545454545454547
+      },
+      "rows": [
+        {
+          "statistic": 116.56758174506031,
+          "df": 2,
+          "p_value": 4.871595713404147e-26,
+          "expected_min": 19.545454545454547
+        },
+        {
+          "statistic": 111.38680033416875,
+          "df": 2,
+          "p_value": 6.4962634500204536e-25,
+          "expected_min": 20.454545454545457
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 114.12846068660022,
+          "df": 1,
+          "p_value": 1.2213422437722532e-26,
+          "expected_min": 102.61363636363636
+        },
+        {
+          "statistic": 111.75873793009657,
+          "df": 1,
+          "p_value": 4.0354785330151164e-26,
+          "expected_min": 92.840909090909093
+        },
+        {
+          "statistic": 2.0671834625323013,
+          "df": 1,
+          "p_value": 0.15049923625515649,
+          "expected_min": 19.545454545454547
+        }
+      ]
+    },
+    {
+      "name": "five_by_two",
+      "table": [
+        [5, 9],
+        [12, 7],
+        [7, 8],
+        [11, 6],
+        [3, 14]
+      ],
+      "matrix": {
+        "statistic": 10.731982750289742,
+        "df": 4,
+        "p_value": 0.029747166324697108,
+        "expected_min": 6.4878048780487809
+      },
+      "rows": [
+        {
+          "statistic": 0.635850991114149,
+          "df": 1,
+          "p_value": 0.42521721894555559,
+          "expected_min": 6.4878048780487809
+        },
+        {
+          "statistic": 2.1607907328128939,
+          "df": 1,
+          "p_value": 0.14157182020237954,
+          "expected_min": 8.8048780487804876
+        },
+        {
+          "statistic": 0.00063795853269537587,
+          "df": 1,
+          "p_value": 0.97984930119009228,
+          "expected_min": 6.9512195121951219
+        },
+        {
+          "statistic": 2.305657191106107,
+          "df": 1,
+          "p_value": 0.12890375015600047,
+          "expected_min": 7.8780487804878057
+        },
+        {
+          "statistic": 5.6290458767238949,
+          "df": 1,
+          "p_value": 0.017665244118295238,
+          "expected_min": 7.8780487804878057
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 5.758624890399374,
+          "df": 4,
+          "p_value": 0.21791406043346567,
+          "expected_min": 6.4878048780487809
+        },
+        {
+          "statistic": 4.9733578598903687,
+          "df": 4,
+          "p_value": 0.29004208588490099,
+          "expected_min": 7.51219512195122
+        }
+      ]
+    },
+    {
+      "name": "independent_like",
+      "table": [
+        [25, 26, 24],
+        [50, 49, 51],
+        [75, 74, 76]
+      ],
+      "matrix": {
+        "statistic": 0.13333925952264555,
+        "df": 4,
+        "p_value": 0.99787393256350931,
+        "expected_min": 24.833333333333332
+      },
+      "rows": [
+        {
+          "statistic": 0.10889372861016033,
+          "df": 2,
+          "p_value": 0.94700882749309945,
+          "expected_min": 24.833333333333336
+        },
+        {
+          "statistic": 0.017778567936352789,
+          "df": 2,
+          "p_value": 0.99115010890532884,
+          "expected_min": 49.666666666666671
+        },
+        {
+          "statistic": 0.0066669629761322725,
+          "df": 2,
+          "p_value": 0.9966720683928284,
+          "expected_min": 74.5
+        }
+      ],
+      "cols": [
+        {
+          "statistic": 0,
+          "df": 2,
+          "p_value": 1,
+          "expected_min": 25
+        },
+        {
+          "statistic": 0.067114093959731599,
+          "df": 2,
+          "p_value": 0.96699974524289423,
+          "expected_min": 24.833333333333332
+        },
+        {
+          "statistic": 0.066225165562913815,
+          "df": 2,
+          "p_value": 0.96742963753831546,
+          "expected_min": 25.166666666666664
+        }
+      ]
+    }
+  ]
+}
+// golden-hash: 08f4216d77b71f53d428b8f118f720a5b19fd718bc36793f9610ce79ce259e7a

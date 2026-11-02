@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/weighting"
 )
 
 // validationCovered is every catalog category whose built-in operators
@@ -80,14 +81,77 @@ func TestValidationReferencesExist(t *testing.T) {
 				t.Errorf("%s: reference %+v needs Against, Tol and at least one test file", name, ref)
 			}
 			for _, f := range ref.Tests {
-				if !strings.HasSuffix(f, "_test.go") {
-					t.Errorf("%s: %s is not a test file", name, f)
-					continue
-				}
-				if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(f))); err != nil {
-					t.Errorf("%s: cited test file %s: %v", name, f, err)
-				}
+				checkCitedTest(t, root, name, f)
 			}
+		}
+		for _, f := range v.WeightRefused {
+			checkCitedTest(t, root, name, f)
+		}
+	}
+}
+
+func checkCitedTest(t *testing.T, root, name, f string) {
+	t.Helper()
+	if !strings.HasSuffix(f, "_test.go") {
+		t.Errorf("%s: %s is not a test file", name, f)
+		return
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(f))); err != nil {
+		t.Errorf("%s: cited test file %s: %v", name, f, err)
+	}
+}
+
+// TestValidationWeightRefusalIsPermanent: a record claiming a pinned
+// weight refusal names an operator the weighting table refuses
+// permanently, with a stated reason; once the operator gains a weighted
+// form the claim fails here instead of going stale.
+func TestValidationWeightRefusalIsPermanent(t *testing.T) {
+	t.Parallel()
+	for name, v := range validationRegistry {
+		if len(v.WeightRefused) == 0 {
+			continue
+		}
+		if reason, ok := descx.OperatorWeightRefusal(name); !ok || reason != weighting.RefusalReason(name) {
+			t.Errorf("%s: WeightRefused, but weighting does not refuse it permanently (class %v, reason %q)",
+				name, weighting.ClassOf(name), weighting.RefusalReason(name))
+		}
+		for _, ref := range v.Refs {
+			if ref.Weighted {
+				t.Errorf("%s: both a weighted reference and a weight refusal", name)
+			}
+		}
+	}
+}
+
+// TestValidationWeightRefusalRenders: the refusal line, with its reason
+// and pinning test, renders in the catalog block on an instance that
+// offers weighting and is absent on one that does not.
+func TestValidationWeightRefusalRenders(t *testing.T) {
+	t.Parallel()
+	var all, enabled, hidden []string
+	for _, n := range descx.FeatureNames() {
+		all = append(all, n)
+		if n == descx.FeatureWeighting {
+			hidden = append(hidden, n)
+			continue
+		}
+		enabled = append(enabled, n)
+	}
+	on := newGen(descx.NewInstanceSnapshot(nil, descx.FeatureSet{Enabled: all}), Options{})
+	off := newGen(descx.NewInstanceSnapshot(nil, descx.FeatureSet{Enabled: enabled, Hidden: hidden}), Options{})
+	for _, op := range []string{"TEST_ANOVA_RM", "TEST_SHAPIRO_WILK"} {
+		var b strings.Builder
+		on.renderValidationDetail(&b, op)
+		got := b.String()
+		for _, want := range []string{"`PULSE_WEIGHT_UNSUPPORTED`", weighting.RefusalReason(op), "weight_refusal_pin_test.go"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s: catalog block lacks %q:\n%s", op, want, got)
+			}
+		}
+		b.Reset()
+		off.renderValidationDetail(&b, op)
+		if strings.Contains(b.String(), "PULSE_WEIGHT_UNSUPPORTED") {
+			t.Errorf("%s: weighting hidden but the weight refusal renders:\n%s", op, b.String())
 		}
 	}
 }

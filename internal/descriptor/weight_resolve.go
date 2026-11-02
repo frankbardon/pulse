@@ -221,6 +221,20 @@ func permanentReason(s weightSlot) string {
 	return weighting.RefusalReason(s.operator)
 }
 
+// OperatorWeightRefusal is the reason a built-in operator in a request's
+// own slot (not a post-test or regression modifier, which carry their
+// slot's reason) is refused PERMANENTLY under any weight — the
+// details.reason its PULSE_WEIGHT_UNSUPPORTED states — and false when it
+// is not permanently refused. It lets read-only renderers (docgen's
+// validation page) quote the engine's own reason instead of a copy.
+func OperatorWeightRefusal(op string) (string, bool) {
+	if weighting.ClassOf(op) != weighting.ClassRefuse {
+		return "", false
+	}
+	reason := weighting.RefusalReason(op)
+	return reason, reason != ""
+}
+
 // refusalHead is the shared head of a refused slot's
 // PULSE_WEIGHT_UNSUPPORTED: "<slot>: <op> ..." naming the permanent
 // reason or the pending gap, its details ({slot, operator, field}, plus

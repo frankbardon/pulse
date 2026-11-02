@@ -12,6 +12,7 @@ Pulse checks its inferential figures (test statistics, p-values, intervals, regr
 - *Validated against* names the reference and its version.
 - *Tightest tolerance* is the strictest comparison the tests apply.
 - *Gap* says plainly where the evidence is weaker: a loose or hand-computed check, no weighted check, or no external implementation at all.
+- An operator with no weighted form says so instead of citing a weighted check: a weight on it is refused (`PULSE_WEIGHT_UNSUPPORTED`), never ignored, and a test pins that refusal at predict and at run.
 
 The registry behind this page is gated: every test file it cites must exist, and every built-in test, regression, matrix operator and inferential overlay must have a row. An operator is never silently missing from this page.
 

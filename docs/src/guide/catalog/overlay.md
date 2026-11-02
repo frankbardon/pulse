@@ -97,9 +97,8 @@ Chi-square test per crosstab column: checks whether each column's spread across 
 
 **Validated against:**
 
+- R 4.6.1 `chisq.test(table[, j], p = rowSums / N)` per column — tolerance 1e-10 relative; `internal/processing/overlay_chisq_axes_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
-
-**Validation gap:** The unweighted path has internal checks only; the R pin is the frequency-weighted reference.
 
 See [How Pulse is validated](../validation.md).
 
@@ -149,9 +148,8 @@ Chi-square test on a whole crosstab: checks whether the row and column categorie
 
 **Validated against:**
 
+- R 4.6.1 `chisq.test(correct = FALSE)` (Pulse applies no Yates correction) — tolerance 1e-10 relative; `internal/processing/overlay_chisq_axes_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
-
-**Validation gap:** The unweighted path has internal checks only; the R pin is the frequency-weighted reference.
 
 See [How Pulse is validated](../validation.md).
 
@@ -193,9 +191,8 @@ Chi-square test per crosstab row: checks whether each row's spread across the co
 
 **Validated against:**
 
+- R 4.6.1 `chisq.test(table[i, ], p = colSums / N)` per row — tolerance 1e-10 relative; `internal/processing/overlay_chisq_axes_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
-
-**Validation gap:** The unweighted path has internal checks only; the R pin is the frequency-weighted reference.
 
 See [How Pulse is validated](../validation.md).
 

@@ -1172,3 +1172,28 @@ func TestResolveWeights_AwareTestsApplied(t *testing.T) {
 		}
 	}
 }
+
+// TestOperatorWeightRefusal: the read-only accessor answers the engine's
+// permanent reason for a refused row operator, and false for a
+// weight-aware one, a pending refusal and an unknown name.
+func TestOperatorWeightRefusal(t *testing.T) {
+	t.Parallel()
+
+	for _, op := range []string{"TEST_ANOVA_RM", "TEST_SHAPIRO_WILK"} {
+		if got, ok := OperatorWeightRefusal(op); !ok || got == "" || got != weighting.RefusalReason(op) {
+			t.Errorf("%s: (%q, %v), want (%q, true)", op, got, ok, weighting.RefusalReason(op))
+		}
+	}
+	for _, op := range []string{"TEST_T", "AGG_SUM", "NOT_AN_OPERATOR"} {
+		if got, ok := OperatorWeightRefusal(op); ok || got != "" {
+			t.Errorf("%s: (%q, %v), want (\"\", false)", op, got, ok)
+		}
+	}
+	for _, op := range types.AllTestTypes() {
+		if weighting.ClassOf(string(op)) == weighting.ClassRefuse && weighting.RefusalReason(string(op)) == "" {
+			if _, ok := OperatorWeightRefusal(string(op)); ok {
+				t.Errorf("%s: a pending refusal reported as permanent", op)
+			}
+		}
+	}
+}

@@ -488,6 +488,12 @@ samples (histogram path) or `psmirnov(D, c(m, n), exact = FALSE)`
 `psmirnov` at D = 1 and `ks.test`'s value stays beside as
 `r_ks_test_p`. The pre-U36 Stephens figure is kept as `r_stephens_p`,
 history only.
+`scripts/reference/gen_overlay_chisq.R` (U64 E2-S2; base R + `jsonlite`,
+runnable on its own) writes `overlay_chisq_axes.json`: count hosts
+with `OVERLAY_CHISQ_MATRIX` as `chisq.test(table, correct = FALSE)`
+(the corrected 2 × 2 figure kept as `r_yates_*`) and each row's
+(`OVERLAY_CHISQ_ROW`) or column's (`_COL`) `chisq.test(x, p = margin /
+N)`, the goodness of fit to the other margin's distribution.
 `TestReferenceOracle_Overlay*` (`internal/processing`) and
 `TestReferenceOracle_ComposeWelfordSeriesVsRef` (root) hold every
 figure at relative `1e-10`.

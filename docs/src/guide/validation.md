@@ -15,6 +15,7 @@ Pulse checks its inferential figures (test statistics, p-values, intervals, regr
 - *Validated against* names the reference and its version.
 - *Tightest tolerance* is the strictest comparison the tests apply.
 - *Gap* says plainly where the evidence is weaker: a loose or hand-computed check, no weighted check, or no external implementation at all.
+- An operator with no weighted form says so instead of citing a weighted check: a weight on it is refused (`PULSE_WEIGHT_UNSUPPORTED`), never ignored, and a test pins that refusal at predict and at run.
 
 The registry behind this page is gated: every test file it cites must exist, and every built-in test, regression, matrix operator and inferential overlay must have a row. An operator is never silently missing from this page.
 
@@ -42,7 +43,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | Operator | Validated against | Tightest tolerance | Gap |
 |---|---|---|---|
 | [`TEST_ANOVA_F`](catalog/test.md#op-test_anova_f) | R 4.6.1 `aov`<br>NIST StRD certified values (one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg)<br>weighted reference (see above) | 1e-12 relative | On NIST SmLs07–09 the figures agree to about 4 digits. That is the ceiling for any double-precision package: values such as 1000000000000.4 are not exactly representable, and exact arithmetic on the parsed doubles reaches only 4.0, 3.9 and 3.9 digits. Pulse reaches that ceiling. |
-| [`TEST_ANOVA_RM`](catalog/test.md#op-test_anova_rm) | R 4.6.1 `aov` with `Error()` strata | 1e-10 relative | No weighted reference. |
+| [`TEST_ANOVA_RM`](catalog/test.md#op-test_anova_rm) | R 4.6.1 `aov` with `Error()` strata<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
 | [`TEST_ANOVA_WELCH`](catalog/test.md#op-test_anova_welch) | R 4.6.1 `oneway.test`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_BARTLETT_SPHERICITY`](catalog/test.md#op-test_bartlett_sphericity) | R 4.6.1 `psych::cortest.bartlett`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_BOX_M`](catalog/test.md#op-test_box_m) | R 4.6.1 `biotools::boxM`<br>weighted reference (see above) | 1e-12 relative | — |
@@ -59,7 +60,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`TEST_PAIRED_T`](catalog/test.md#op-test_paired_t) | R 4.6.1 `t.test(paired = TRUE)`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_PEARSON_R`](catalog/test.md#op-test_pearson_r) | R 4.6.1 `cor.test`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_PROP_Z`](catalog/test.md#op-test_prop_z) | R 4.6.1 `prop.test(correct = FALSE)` (z as the signed root of X-squared, p; the two-proportion Wald interval). The one-proportion interval is Pulse's Wald interval on p − p0, evaluated in R, not `prop.test`'s Wilson interval<br>weighted reference (see above)<br>textbook worked example | 1e-12 relative | — |
-| [`TEST_SHAPIRO_WILK`](catalog/test.md#op-test_shapiro_wilk) | R 4.6.1 `nortest::sf.test` (Shapiro–Francia) | 1e-10 relative | No weighted reference. |
+| [`TEST_SHAPIRO_WILK`](catalog/test.md#op-test_shapiro_wilk) | R 4.6.1 `nortest::sf.test` (Shapiro–Francia)<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
 | [`TEST_SPEARMAN_R`](catalog/test.md#op-test_spearman_r) | R 4.6.1 `cor.test(method = "spearman")` (exact AS 89)<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_T`](catalog/test.md#op-test_t) | R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_TREND`](catalog/test.md#op-test_trend) | R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall` | 1e-10 relative | — |
@@ -96,9 +97,9 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 
 | Operator | Validated against | Tightest tolerance | Gap |
 |---|---|---|---|
-| [`OVERLAY_CHISQ_COL`](catalog/overlay.md#op-overlay_chisq_col) | weighted reference (see above) | 1e-12 relative | The unweighted path has internal checks only; the R pin is the frequency-weighted reference. |
-| [`OVERLAY_CHISQ_MATRIX`](catalog/overlay.md#op-overlay_chisq_matrix) | weighted reference (see above) | 1e-12 relative | The unweighted path has internal checks only; the R pin is the frequency-weighted reference. |
-| [`OVERLAY_CHISQ_ROW`](catalog/overlay.md#op-overlay_chisq_row) | weighted reference (see above) | 1e-12 relative | The unweighted path has internal checks only; the R pin is the frequency-weighted reference. |
+| [`OVERLAY_CHISQ_COL`](catalog/overlay.md#op-overlay_chisq_col) | R 4.6.1 `chisq.test(table[, j], p = rowSums / N)` per column<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_CHISQ_MATRIX`](catalog/overlay.md#op-overlay_chisq_matrix) | R 4.6.1 `chisq.test(correct = FALSE)` (Pulse applies no Yates correction)<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_CHISQ_ROW`](catalog/overlay.md#op-overlay_chisq_row) | R 4.6.1 `chisq.test(table[i, ], p = colSums / N)` per row<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_CHISQ_VS_POP`](catalog/overlay.md#op-overlay_chisq_vs_pop) | R 4.6.1 `chisq.test` | 1e-10 relative | — |
 | [`OVERLAY_CHISQ_VS_REF`](catalog/overlay.md#op-overlay_chisq_vs_ref) | R 4.6.1 `chisq.test`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_FISHER_EXACT_CELL`](catalog/overlay.md#op-overlay_fisher_exact_cell) | R 4.6.1 `fisher.test`<br>weighted reference (see above) | 1e-12 relative | — |

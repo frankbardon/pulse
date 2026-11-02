@@ -126,8 +126,7 @@ Checks whether the average differs across conditions when every subject is measu
 **Validated against:**
 
 - R 4.6.1 `aov` with `Error()` strata — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
-
-**Validation gap:** No weighted reference.
+- Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because a per-row weight has no defined meaning in the subject-by-condition table repeated-measures ANOVA reads; `internal/integration/weight_refusal_pin_test.go`
 
 See [How Pulse is validated](../validation.md).
 
@@ -924,8 +923,7 @@ Checks whether a numeric field looks normally distributed, overall or within eac
 **Validated against:**
 
 - R 4.6.1 `nortest::sf.test` (Shapiro–Francia) — tolerance 1e-10 relative; `internal/processing/test_undefined_oracle_test.go`
-
-**Validation gap:** No weighted reference.
+- Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because a frequency-weighted W' would need the expected normal order statistics of all Σw expanded rows and Royston's p-value calibration on a tie-heavy sample, and no probability-weighted form exists; `internal/integration/weight_refusal_pin_test.go`
 
 See [How Pulse is validated](../validation.md).
 
