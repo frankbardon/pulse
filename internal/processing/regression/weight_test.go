@@ -153,7 +153,8 @@ func mapsClose(t *testing.T, what string, got, want map[string]float64, tol floa
 
 // TestWeightedRegression_UnityBitIdentical: all-ones weights under
 // either kind reproduce the unweighted fit bit for bit, with
-// SumWeights = n and (probability) NEff = n.
+// SumWeights = n and (probability) NEff = n — and, under probability,
+// no TwoLogLik / AIC (a pseudo-likelihood is not reported).
 func TestWeightedRegression_UnityBitIdentical(t *testing.T) {
 	t.Parallel()
 
@@ -173,7 +174,18 @@ func TestWeightedRegression_UnityBitIdentical(t *testing.T) {
 				t.Fatalf("%s/%s: n_eff %v", name, kind, got.NEff)
 			}
 			got.SumWeights, got.NEff = 0, 0
-			if !sameFit(t, got, base) {
+			want := base
+			if kind == types.WeightKindProbability {
+				// A probability-weighted likelihood is a pseudo-likelihood:
+				// no two_log_lik / aic (loglik.go).
+				if got.TwoLogLik != 0 || got.AIC != 0 {
+					t.Fatalf("%s/%s: two_log_lik %v / aic %v under a probability weight", name, kind, got.TwoLogLik, got.AIC)
+				}
+				shed := *base
+				shed.TwoLogLik, shed.AIC = 0, 0
+				want = &shed
+			}
+			if !sameFit(t, got, want) {
 				t.Fatalf("%s/%s: unity differs from unweighted:\n%+v\n%+v", name, kind, got, base)
 			}
 		}

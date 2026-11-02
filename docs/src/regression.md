@@ -11,13 +11,15 @@ Pulse exposes regression through a compact, composable surface. A small set of `
 | `REG_BAYES_LINEAR` | Bayesian linear regression (conjugate NIG)   | Streams sufficient statistics (Phase 4)    |
 | `REG_MMM_HILL`     | Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls | Always buffered |
 | `REG_MMM_BAYES`    | Bayesian media-mix model: raw spend adstocked in the model, Hill saturation, linear controls, posterior sampled by NUTS | Always buffered |
+| `REG_MULTINOMIAL`  | Multinomial (baseline-category) logit of a categorical target by Newton-Raphson | Always buffered |
+| `REG_ORDINAL`      | Ordinal (proportional-odds, cumulative link) regression, MASS `polr`'s model: logit / probit / cloglog, Newton on the analytic information | Always buffered |
 
 Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Resample` only; its own knobs ride `params`, and it names its own curve coefficients `k:<channel>` / `s:<channel>` — skill `op-reg-mmm-hill`, example `internal/examples/regression/19_mmm_hill.json`). `REG_MMM_BAYES` takes neither: its sampler, priors and model-owned holdout (`holdout_from`) ride `params`, it has no scorer (no `save`, engine `holdout` or `ATTR_REG_PREDICT`), and it names `decay:<channel>`, `k:<channel>`, `s:<channel>` and `sigma` beside the predictors, its ROI / mROI / contribution intervals and sampler diagnostics riding `outputs` — skill `op-reg-mmm-bayes`, example `internal/examples/regression/20_mmm_bayes.json`, design guide `mmm-workflow`. The modifiers:
 
 - `Resample ∈ {jackknife, bootstrap}` — replaces analytical SE / p-values with resample-based estimates. Forces buffered.
 - `Selection ∈ {forward, backward, stepwise}` — drives AIC- or BIC-based greedy subset search. Requires `Criterion`. Forces buffered.
 
-One upstream feature operator (`FEAT_POLY`) extends the linear core to polynomial regression. Per-row attributes (`ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_LEVERAGE`) attach per-record diagnostics in the output row stream.
+One upstream feature operator (`FEAT_POLY`) extends the linear core to polynomial regression. Per-row attributes (`ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_LEVERAGE`, `ATTR_REG_INFLUENCE`) attach per-record diagnostics in the output row stream.
 
 ## The 13 textbook names → Pulse specs
 
@@ -46,7 +48,9 @@ The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Mult
 | `REG_OLS` no penalty                              | yes        | O(p²)   | sufficient stats: n, Σx, Σy, XᵀX, Xᵀy, Σy²                     |
 | `REG_OLS` + l1 / l2 / elasticnet                  | yes        | O(p²)   | streaming Gram; regularized solve at finalize                   |
 | `REG_BAYES_LINEAR` (conjugate NIG)                | yes        | O(p²)   | streaming sufficient stats + closed-form posterior update       |
-| `REG_GLM` (binomial / poisson / gamma)            | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
+| `REG_GLM` (binomial / poisson / gamma / NB)       | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
+| `REG_MULTINOMIAL`                                 | no         | O(n·p)  | Newton-Raphson requires multiple passes                         |
+| `REG_ORDINAL`                                     | no         | O(n·p)  | Newton–Raphson over every admitted row                          |
 | Any regression with `Resample != ""`              | no         | O(n·p)  | LOO / bootstrap refit                                           |
 | Any regression with `Selection != ""`             | no         | O(n·p)  | refit per candidate subset                                      |
 | `REG_OLS` / `REG_BAYES_LINEAR` with a robust `covariance` (not `classical`) | no | O(n·p) | second pass for residuals / leverage                |
@@ -73,7 +77,11 @@ Ordinary least squares with optional regularization.
 | `selection`   | no       | `"forward"`, `"backward"`, or `"stepwise"`. Requires `criterion`. Downgrades streaming. |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95. Student t on the residual df. |
 | `bounds`      | no       | `{nonnegative: [predictors]}`: those slopes are constrained `>= 0` (non-negative least squares); see "Non-negative slopes" below. |
+| `intercept`   | no       | `true` (default) fits the intercept. `false` fits through the origin; see "Solver and intercept" below. |
+| `solver`      | no       | `qr` (default) or `normal`; see "Solver and intercept" below. |
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
+| `margins`     | no       | `{type, terms, scale}`: marginal effects — on OLS every one is its coefficient, with its SE, t and interval; streams. See [Marginal effects](#marginal-effects-margins). |
+| `collinearity` | no     | `{basis, groups}`: each term's variance inflation factor and tolerance (generalized VIF for a group of columns), off the weighted predictor moments the fit streams. See [Variance inflation factors](#variance-inflation-factors-collinearity). |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 
@@ -82,6 +90,13 @@ Unpenalized, `coefficients`, `std_errors`, `p_values`, `ci_lower` / `ci_upper`, 
 Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and the same one `REG_GLM` uses: `(1/2N*)·Σw·(y − β₀ − Xβ)² + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]` (`l2` is `l1_ratio = 0`, `l1` is `1`), `N*` the sum of the weights, the intercept unpenalized and the predictors on their own units — so `l2` at `alpha` is the elastic net's limit at `l1_ratio → 0` at the same `alpha`, and a predictor on a large scale is barely shrunk (divide it by its SD upstream to penalize all alike). `l2` is solved in closed form, `l1` / `elasticnet` by coordinate descent on the centred Gram. `l2` standard errors are the closed-form ridge sandwich σ̂²·A⁻¹·G·A⁻¹ (`A = G + N*·alpha·I`, `G` the centred Gram, σ̂² = RSS / (N* − p − 1)) with Student-t p-values on N* − p − 1 df; `l1` / `elasticnet` report `std_errors`, `p_values` and intervals `null` on every coefficient (the data pick the predictors, so no analytical inference is valid) with the advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. `unpenalized` (`l2` only) lists predictors the ridge term skips — glmnet's `penalty.factor` 0, `A = G + N*·alpha·diag(pf)` in the sandwich — for controls or dummies that should stay unshrunk; `l1` / `elasticnet` (and no penalty) refuse it with `PROCESSING_CONFIG`. Oracle: R `glmnet` for the coefficients (with `penalty.factor` for `unpenalized`) and R matrix algebra for the ridge covariance (`scripts/reference/gen_ols_penalty.R`).
 
 **Non-negative slopes.** `bounds.nonnegative` lists predictors whose coefficient must be `>= 0`; the intercept and every other slope stay free. Pulse solves the bounded least-squares problem by Lawson–Hanson's active-set method on the centred Gram (so it streams and takes weights). When the unconstrained fit already satisfies every bound, the result is that fit byte for byte. When a bound binds — a coefficient is held at exactly `0` — the estimator is constrained and its classical inference is not valid: `coefficients`, `r2`, `adj_r2` and `residual_std_err` stand, while `std_errors`, `p_values`, `ci_lower` / `ci_upper` and every `vcov` entry are `null`, and the result carries the advisory `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`details.active` names the held predictors). It is result-only: predict cannot know whether a bound will bind. For intervals of the bounded fit set `resample: bootstrap` — each replicate refits the bounded model. `bounds` is refused `PROCESSING_CONFIG` with any `penalty` or `selection`, on `REG_GLM` / `REG_BAYES_LINEAR`, or for an unknown or repeated name; a robust `covariance` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: bounds`). Oracle: R `nnls` (`scripts/reference/gen_ols_nnls.R`), including a near-collinear case.
+
+**Solver and intercept.**
+
+- **`solver: "qr"` (the default).** An unpenalized, unbounded fit solves a streaming QR factorization of the weighted design (Givens rotations, as in R's `biglm`). The design is shifted to its first row, so a predictor with a large offset stays well separated from the intercept column. The solve works at κ(X), so ill-conditioned designs keep their digits: NIST Filip fits to 7.4 digits, and Wampler1–5 reach 5.7–13.3 (see "How Pulse is validated").
+- **`solver: "normal"`.** Solves the normal equations by Cholesky on the centred Gram matrix, at κ(X)², the method used before v1.0.0-alpha.35. Use it to reproduce an older result bit for bit, or to match a package that solves the normal equations. Both solvers stream.
+- **`intercept: false`.** Fits through the origin. The intercept is pinned to 0, not estimated: `coefficients["(intercept)"]` is `0`, so a bound fit scores unchanged, and its `std_errors`, `p_values`, `ci_lower` / `ci_upper` and `vcov` row are `null`. As R's `lm(y ~ 0 + x)` reports, `r2` is the uncentred Σŷ² / Σy², the residual `df` is N* − p, and `adj_r2` is 1 − (1 − R²)·N*/df. NIST NoInt1 and NoInt2 agree to 14 and 15 digits.
+- **Refusals.** Both knobs are `REG_OLS` only and are refused `PROCESSING_CONFIG` (predict too) on another type. `solver` is also refused beside a penalty or `bounds`. `intercept: false` is also refused beside a penalty, `bounds`, `selection`, `resample`, `holdout`, a robust `covariance` or `solver: "normal"`.
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` (advisory, l1/elasticnet without resample: null SEs / p-values), `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (advisory, a binding `bounds` without resample: null SEs / p-values), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
 
@@ -93,17 +108,21 @@ Generalized linear model via iteratively-reweighted least squares.
 |---------------|----------|----------------------------------------------------------------------------------------|
 | `target`      | yes      | Numeric response.                                                                      |
 | `predictors`  | yes      | One or more numeric predictor fields.                                                  |
-| `family`      | yes      | `"binomial"`, `"poisson"`, or `"gamma"`.                                               |
-| `link`        | no       | Family-specific default when empty (`binomial`→`logit`, `poisson`→`log`, `gamma`→`inverse`). |
+| `family`      | yes      | `"binomial"`, `"poisson"`, `"gamma"`, or `"negative_binomial"` (NB2, below).                       |
+| `link`        | no       | One of the family's links, the canonical one the default when empty: `binomial` `logit` / `probit` / `cloglog`, `poisson` `log` / `identity` / `sqrt`, `gamma` `inverse` / `log` / `identity`, `negative_binomial` `log` / `identity` / `sqrt`. Another family's link is `PROCESSING_REGRESSION_INVALID_LINK` (predict too). |
+| `theta`       | no       | `negative_binomial` only: a fixed θ > 0 (R `glm(family = negative.binomial(theta))`); absent estimates θ. Elsewhere, or ≤ 0, `PROCESSING_CONFIG`. |
+| `dispersion`  | no       | `negative_binomial` with a fixed `theta` only: `"fixed"` (default, φ = 1) or `"estimated"` (φ̂ = Pearson χ²/df, R's `summary.glm`). Elsewhere, with θ estimated, or another value, `PROCESSING_CONFIG`. |
 | `max_iters`   | no       | IRLS iteration cap (default 50).                                                       |
 | `tol`         | no       | Convergence tolerance (default `1e-8`).                                                |
-| `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma refuses it).            |
+| `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma and negative_binomial refuse it). |
 | `alpha`       | no       | Penalty strength, `> 0` when `penalty` is set.                                         |
 | `l1_ratio`    | no       | Elastic-net mix, `0 < l1_ratio < 1`; `elasticnet` only.                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`; `jackknife_groups` / `jackknife_by` as for REG_OLS.         |
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper` (Wald z; gamma t on `df`), `0 < c < 1`. Default 0.95. |
 | `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Dispersion-free; inference stays Wald z, `cluster` and gamma included. |
+| `margins`     | no       | `{type, terms, scale}`: marginal effects with delta-method SEs — see [Marginal effects](#marginal-effects-margins). |
+| `collinearity` | no     | `{basis, groups}`: variance inflation factors on the fit's working-weighted design (`basis: model`) or the predictors alone (`basis: predictors`) — see [Variance inflation factors](#variance-inflation-factors-collinearity). |
 
 Always buffered.
 
@@ -113,7 +132,92 @@ Always buffered.
 
 The fit is R's `glm.fit` IRLS: per-row starting values (binomial `(w·y + 0.5)/(w + 1)`, poisson `y + 0.1`, gamma `y`), the step halved back toward the previous coefficients whenever the deviance rises, and convergence on the relative change in the coefficients. An up-front QR rank check of the (weighted) design is the only source of `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns` names the aliased columns). A binomial fit whose fitted probabilities reach numerically 0 or 1 while a predictor's coefficient keeps climbing is separated — the maximum-likelihood estimate is at infinity — and is refused `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`) rather than reporting wherever the loop stopped.
 
+**Links.** Every link is R's (`stats` `make.link`): probit `μ = Φ(η)` and cloglog `μ = 1 − exp(−e^η)` clamp μ to [ε, 1 − ε] and floor dμ/dη at ε as R does; the poisson and gamma identity links and the poisson sqrt link keep μ positive, so a step that would push a fitted mean through 0 is halved, as `glm.fit` does. Nothing assumes a canonical link: the working weight is `(dμ/dη)²/V(μ)`, the score `x·(y − μ)·(dμ/dη)/V(μ)`, so `vcov` is φ·(XᵀWX)⁻¹ at the expected information (R's `summary.glm`), the robust sandwich reads those scores (R `sandwich`), the working residual is `(y − μ)·g′(μ)`, the leverage is `W½X(XᵀWX)⁻¹XᵀW½`, and DFFITS carries the sign of g′(μ). Off the canonical link IRLS is Fisher scoring, which converges linearly: at the default `tol` the coefficients sit within about 1e-7 (relative) of the MLE; `tol: 1e-12` reaches R's to 1e-13. A first step that lands outside the link's range (R's glm stops there, "no valid set of coefficients") is halved toward the intercept-only fit instead. Defaults are unchanged: an omitted link is the canonical one, byte for byte. Penalties, `selection`, `resample`, `covariance`, the per-row attributes over a bound fit and model files all take every link; the file's `link` key carries it. Oracle: R 4.6.1 `glm(family = <family>(link = <link>))` and `sandwich` 3.1-3 (`scripts/reference/gen_glm_links.R`).
+
+**Negative binomial.** `family: "negative_binomial"` is NB2, Var = μ + μ²/θ, for counts more variable than a poisson allows. θ is estimated by maximum likelihood as MASS `glm.nb` does: a poisson fit on the same link, then rounds of θ ← the Newton root of the θ score at the fitted means (MASS `theta.ml`, from the moment estimate, then the previous θ) and β ← IRLS at that θ (warm-started), until a round moves θ by at most `tol` relative and β by less than `tol`; one more IRLS fit at the final θ makes β, the deviances and `vcov` those at θ̂. That is the joint MLE `glm.nb` approximates (its own stopping rule leaves it ~1e-6 off; the oracle pushes it to the fixed point). `theta` fixes θ instead: R's `glm(family = negative.binomial(theta))`. The result adds `theta` and `theta_std_err` (1/√I(θ̂), estimated θ only); its `two_log_lik` and `aic` count θ when it is estimated (MASS's AIC; below). Standard errors and `vcov` are (XᵀWX)⁻¹ at θ̂ with φ = 1, Wald z (`summary.negbin`, which treats β and θ as orthogonal — also for a fixed θ, where R's `summary.glm` would estimate a dispersion). `deviance` / `null_deviance` are at θ̂. A robust `covariance` holds θ̂ fixed (as `sandwich` on a `glm.nb` fit); the residual kinds, leverage and influence over a bound fit read V(μ) at θ̂ with φ = 1; scoring needs only the link. Weights (frequency and probability) enter as prior weights like every family; a frequency fit is the `rep()` expansion's. `penalty`, `selection` and `resample` are refused (`PROCESSING_CONFIG`, `details.requires` `unpenalized` / `no_selection` / `no_resample`: their refit drivers hold θ fixed). Counts no more variable than a poisson put θ̂ at infinity: `PROCESSING_REGRESSION_NO_CONVERGE` `details.reason` `theta_unbounded` (fit `poisson`). A model file carries θ (`model_format_version` 5).
+
+**Fixed-θ dispersion.** With a fixed `theta`, `dispersion` chooses φ: `"fixed"` (the default, φ = 1, Wald z — the behaviour above) or `"estimated"`, which is R's `summary(glm(family = negative.binomial(theta)))`: φ̂ = Pearson χ²/(N* − p − 1), `vcov` and the standard errors scaled by it, Student-t p-values and intervals on `df`, `dispersion` beside a classical `vcov`, and the influence figures over a bound fit on φ̂ — standardized residuals and Cook's distance at φ̂, studentized residuals and DFFITS on the leave-one-out σ, as R's `rstudent` / `dffits` on that fit. A robust `covariance` stays dispersion-free (Wald z). Such a fit's model file adds its `dispersion` beside θ (`model_format_version` 6). Refused (`PROCESSING_CONFIG`, `details.requires`): `dispersion` on another family or regression (`family negative_binomial`), with θ estimated (`theta`: `glm.nb`'s φ is 1), or another value (`dispersion fixed or estimated`).
+
+Oracle: R 4.6.1, MASS 7.3-66, `sandwich` 3.1-3 (`scripts/reference/gen_glm_nb.R`).
+
 Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SEPARATION`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
+
+### Log-likelihood and AIC
+
+Every plain `REG_OLS` and `REG_GLM` fit reports `two_log_lik` (2ℓ, the maximised log-likelihood) and `aic` (−2ℓ + 2k), R 4.6.1's `logLik()` / `AIC()` exactly, k being `logLik`'s df:
+
+| Fit | ℓ | k |
+|---|---|---|
+| `REG_OLS` | `logLik.lm`: −N*/2·(log(2π·RSS/N*) + 1) | coefficients + 1 (σ) |
+| binomial, poisson | Σw·log f(y; μ) (the family's `aic`) | coefficients |
+| gamma | Σw·log dgamma(y; 1/φ, μφ) at φ = deviance / N* (`Gamma()$aic`, not `summary.glm`'s Pearson φ̂) | coefficients + 1 (φ) |
+| negative binomial | MASS `glm.nb`'s log-likelihood at θ | coefficients, + 1 when θ is estimated |
+
+Unweighted, and under a frequency weight the `rep()`-expanded fit's figure (R's `glm(weights = f)` agrees; `lm(weights = f)` does not, reading the weights as precision weights). **Absent** under a probability weight — a weighted pseudo-likelihood is not a likelihood — and on a penalized fit, an OLS fit whose `bounds` bind, and `REG_BAYES_LINEAR`. A poisson or binomial response that is not a whole count has likelihood 0 (R's `dpois` / `dbinom`), so 2ℓ is −Inf and `aic` +Inf, both `null` on the wire. Selection scores OLS and gamma candidates by these same likelihoods; binomial and poisson candidates by deviance + 2k, which differs from `aic` by a constant every candidate on the same rows shares. Oracle: `scripts/reference/gen_loglik.R` (lm with and without an intercept, the canonical-link GLMs, frequency weights against `rep()`), with the non-canonical links in `gen_glm_links.R` and the negative binomial in `gen_glm_nb.R`.
+
+### Marginal effects (`margins`)
+
+`"margins": {type, terms, scale}` on a `REG_OLS` or `REG_GLM` entry adds `regressions[i].margins`: per term the effect of a unit change in the predictor on the expected outcome, with a delta-method standard error. It mirrors `vcov` — opt-in, additive, absent byte-identical — and every knob has a default, so `"margins": {}` reports the average marginal effect of every predictor on the response scale (Stata `margins, dydx(*)`; R `marginaleffects::avg_slopes`).
+
+| Knob | Values | Default | Meaning |
+|---|---|---|---|
+| `type` | `ame`, `mem` | `ame` | `ame`: the (weighted) mean over the fitted rows of β_j·μ′(η_i). `mem`: β_j·μ′(x̄ᵀβ) at the (weighted) predictor means (Stata `atmeans`; `marginaleffects::slopes(newdata = "mean")`), echoed as `at`. |
+| `terms` | predictors | every predictor | Each a listed predictor, once. |
+| `scale` | `response`, `link` | `response` | `response`: ∂μ/∂x through the inverse link. `link`: ∂η/∂x — the coefficient itself. |
+
+The result is `{type, scale, terms, estimates, std_errors, statistics, p_values, ci_lower, ci_upper, df, conf_level, at}`, the maps keyed by term like the coefficient table (`df` only for a Student t, `at` only for `mem`).
+
+- **Delta method.** Var = J·V·Jᵀ, V the fit's own coefficient covariance — the one `std_errors` reads, so `hc0`–`hc3`, `cluster` and `hac` carry through. For `ame`, J_jk = δ_jk·m̄ + β_j·Σw·μ″(η_i)·x_ik/Σw with m̄ = Σw·μ′(η_i)/Σw (x_i0 = 1); for `mem`, J_jk = δ_jk·μ′(η̄) + β_j·μ″(η̄)·x̄_k. On the link scale, and on any identity link (all of `REG_OLS`; poisson, gamma and negative binomial `identity`), J = e_j: the effect, its standard error, p-value and interval are the coefficient's, bit for bit.
+- **Reference distribution** is the coefficient table's: a Student t on the fit's `df` for `REG_OLS` (the cluster fit's G − 1 included) and a classical gamma fit, Wald z otherwise (binomial, poisson, negative binomial, any robust GLM). Intervals at the fit's `conf_level`.
+- **Weights.** The mean is weighted by the fit's row weight (marginaleffects `wts`), and `mem`'s point is the weighted means; a frequency-weighted block equals the `rep()` expansion's.
+- **Multiplicity.** Under the regression's own `multiplicity` block the terms form a family of their own, one per regression — never pooled with the coefficients' `request` / `compose` family, so a coefficient's `p_adjusted` is byte-identical with `margins` and without — and the block gains `p_adjusted` / `significant_adjusted` and a `multiplicity` echo (`family: "margins"`, `m` the terms); the raw `p_values` never move. `margins` is echo-only: a block naming it is `PULSE_MULTIPLICITY_INVALID`.
+- **Execution.** `REG_OLS`'s effects are its coefficients, so the block needs no row and streams (and merges across shards) with the fit; `mem`'s `at` is the accumulator's weighted means. `REG_GLM` is buffered: one pass over the fitted rows in record order after IRLS converges, so the block answers bit for bit the same under every `DecodeWorkers` / `ShardWorkers` count, as the fit does.
+- **Refusals** (`PROCESSING_CONFIG`, `details.requires`, identical at predict and run — `internal/regmargins`): a `type` / `scale` outside its values; a term that is not a predictor or repeats (`a predictor`); `REG_BAYES_LINEAR`, an extension or model regression (`type REG_OLS or REG_GLM`); a `penalty` (`unpenalized`), `selection` (`no_selection`), `resample` (`no_resample` — the replicate covariance is not the effect's) or `bounds` (`unbounded`); a predictor derived from another predictor of the same regression (`independent_predictors`, `details.predictor` / `depends_on` / `path`) — the field-reference walk records what every feature, attribute and window reads (its field, params columns, expression names, order / partition keys, vector members) and follows those reads transitively, at predict and run alike — since the effect of one holding the other fixed (x² beside x, an interaction beside its factors) is not defined.
+- **Derived predictors** are differentiated with respect to the column as given: the effect of a `FEAT_LOG` output is that of a unit change in log1p(z), a one-hot dummy's (or any 0/1 column's) is its slope — Stata's `dydx` on a continuous-coded dummy — not the discrete 1 − 0 contrast `marginaleffects` reports for a binary column. Oracle: `logit_ame_derived` (a pre-computed log1p column and a dummy) in `gen_margins.R`, matched end to end through the features by `TestMargins_DerivedPredictorsMatchR`.
+- **Factors.** Pulse regressions take numeric predictors only (a categorical's dictionary index is refused), so there are no factor terms to contrast; a 0/1 dummy gets a slope, not the discrete difference between its levels.
+
+Oracle: R 4.6.1 analytic closed forms (MASS 7.3-66, `sandwich` 3.1-3 `vcovHC` / `vcovCL`) at 1e-9 — lm, logit, probit, cloglog, poisson, gamma inverse / log, negative binomial; HC3 and cluster; link scale; `mem`; a frequency-weighted pair against the `rep()` expansion — and `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = "mean")` at 1e-7, its numerical-derivative accuracy (measured within 7e-9) (`scripts/reference/gen_margins.R`, `margins.json`).
+
+### Variance inflation factors (`collinearity`)
+
+`"collinearity": {basis, groups}` on a `REG_OLS` or `REG_GLM` entry adds `regressions[i].collinearity`: per term its variance inflation factor (VIF) — how many times its coefficient variance is inflated by overlap with the other predictors — and tolerance 1/VIF. It is R's `car::vif(model)` (Stata `estat vif`) on the fit itself; `MAT_COLLINEARITY` gives the same VIF (plus Belsley's diagnostics) for a candidate predictor set before any model. Opt-in, additive, absent byte-identical; `"collinearity": {}` reports every predictor on the model basis.
+
+| Knob | Values | Default | Meaning |
+|---|---|---|---|
+| `basis` | `model`, `predictors` | `model` | `model`: the fit's information matrix XᵀWX at the fitted weights, centered on its intercept — the prior weights on `REG_OLS`, prior × IRLS working weights at the converged β on `REG_GLM` — which is what `car::vif` reads through `vcov(model)` (φ cancels). `predictors`: the prior-weighted predictor correlation alone, `car::vif` on `lm` over the same predictors and weights, `MAT_COLLINEARITY`'s VIF. On `REG_OLS` the two are one matrix. |
+| `groups` | `[{name, predictors}]` | none | Multi-column terms: each group's predictors (a `FEAT_ONE_HOT` block's dummies, a spline basis) are judged together; every other predictor is a term of its own, named after itself. A predictor joins at most one group; a group's name must differ from every other term's. |
+
+The result is `{basis, terms, df, vif, tolerance, gvif_scaled}`, the maps keyed by term (a predictor or a group's name), `terms` in order (a group at its first predictor's position), `gvif_scaled` only when `groups` is set.
+
+- **Generalized VIF.** For a term S the figure is Fox & Monette's (1992) GVIF det(R_SS)·det(R_−S,−S)/det(R), R the basis's correlation of the predictor columns — computed as det(R_SS)·det((R⁻¹)_SS), one inverse for every term; on one column it is (R⁻¹)_jj, the classical VIF. `df` is the term's column count and `gvif_scaled` = GVIF^(1/(2·df)), car's `GVIF^(1/(2*Df))`, comparable across terms of different size as √VIF is for one column (a group's GVIF itself grows with its df). The arithmetic is `MAT_COLLINEARITY`'s, shared (`internal/collinearity`): its VIF did not move a bit.
+- **A design figure.** The VIF reads the predictors and, on a GLM's model basis, the fitted weights — not the estimator: a `REG_OLS` `penalty`, `bounds`, a robust `covariance`, `resample` and `holdout` leave it the plain fit's on the same rows; dispersion and the sandwich never enter. Unbanded: 5 and 10 are rules of thumb (O'Brien 2007).
+- **Weights.** The fit's prior weights; a frequency-weighted block is the `rep()` expansion's, and both kinds give the same figures (the correlation is scale-free).
+- **Execution.** `REG_OLS` reads its streaming accumulator's centered moments, so the block streams and merges across shards with the fit; `REG_GLM` takes one two-pass weighted pass over the fitted rows in record order after IRLS converges. Both answer bit for bit the same under every `DecodeWorkers` / `ShardWorkers` count. A correlation that is not positive definite in double precision nulls every figure (the fit stands).
+- **Refusals** (`PROCESSING_CONFIG`, `details.requires`, identical at predict and run — `internal/collinearity`): a `basis` outside its values; a group with no name (`a group name`), no predictor, a member that is not a predictor or sits in two groups (`a predictor`), a name clashing with another term (`a unique term name`); `REG_BAYES_LINEAR`, an extension or model regression (`type REG_OLS or REG_GLM`); `intercept: false` (`intercept` — an uncentered VIF measures distance from 0, which car warns "may not be sensible"); `selection` (`no_selection`); a `REG_GLM` `penalty` on basis `model` (`unpenalized` — the working weights would be the shrunken fit's; basis `predictors` is allowed); fewer than two terms (`two_or_more_terms`, car's own floor).
+
+Oracle: `car` 3.1-5 `vif` on R 4.6.1 at 1e-10 (measured within 2e-15) — lm, binomial logit, poisson log, fixed-θ negative binomial and gamma log; ungrouped and with a three-level factor's dummies as one term; both bases; frequency weights against the `rep()` expansion and probability weights — each re-derived in the script from the weighted design's closed form (`scripts/reference/gen_vif.R`, `vif.json`), and end to end through `FEAT_ONE_HOT` (`TestCollinearity_OneHotMatchesCar`).
+
+### Nested-model comparison (Compose `compare`)
+
+A Compose batch's `compare` list tests two of its regression `fits` against each other: does the full model's extra terms improve on the restricted model it contains? It is R's `anova(m0, m1)` (`test = "F" | "Chisq" | "LRT"`), MASS's `anova.negbin` and `lmtest::waldtest(m0, m1, vcov = V)`; Stata's `lrtest` / `test`. Each entry `{name, restricted, full, test, multiplicity}` runs once the fits have run, reading no record; the results are `ComposedResponse.comparisons`, in declaration order, outside the Compose `return`. Opt-in, additive, absent byte-identical; gated by `capability:compose_compare` (which depends on `capability:compose_fits` and `REG_OLS` or `REG_GLM`, so a feature profile can keep fits and hide comparisons).
+
+| `test` | Statistic | Reference distribution |
+|---|---|---|
+| `f` | ((D₀ − D₁)/q) / φ̂₁ | F on (q, df₁) |
+| `lrt` | (D₀ − D₁) / φ₁; a θ-estimated negative binomial 2ℓ₁ − 2ℓ₀ | χ² on q |
+| `wald` | b_Sᵀ V_SS⁻¹ b_S over the full fit's covariance V | F = W/q on the coefficient table's df where its p-values are Student t, else χ² on q |
+
+D is each fit's residual deviance (the weighted RSS on `REG_OLS`, `deviance` on `REG_GLM`), df its residual df N* − rank, q the number of tested terms, φ̂₁ the full fit's estimated dispersion (σ̂² = RSS₁/df₁; the Pearson χ²/df₁ on gamma and on a fixed-θ negative binomial under `dispersion: estimated`, computed under a robust `covariance` too, as `anova.glm` reads `summary.glm`'s), φ₁ = 1 on a family that fixes it. V is the covariance the full fit's standard errors read — classical, or the HC / cluster / HAC sandwich its `covariance` chose — and the df the coefficient table's (G − 1 on a cluster-robust `REG_OLS` fit, where `waldtest` would read n − k; Stata's `test` after `regress, vce(cluster)` reads G − 1). Omitted, `test` takes R's anova default: `f` on `REG_OLS` and on a family that estimates its dispersion, `lrt` on every other family. A classical `REG_OLS` Wald test equals its F test.
+
+- **Nesting is verified, never assumed** (`internal/regcompare`, shared by predict and the runtime): both names bind request-bound regression fits of one type, `REG_OLS` or `REG_GLM`, not the same fit twice (a vector or SEM fit, or a `from_sweep` one, is refused: nesting is not defined on a battery, and a sweep-bound fit's request is the winner's); every restricted term — its predictors, and `(intercept)` when it fits one — is a full-fit term, and the full fit adds at least one (the result's `terms`, in the full fit's order). A restricted fit through the origin is nested in one with an intercept; the reverse is not.
+- **Same rows.** The two fit requests must be equal but for the regression's `predictors`, `intercept` and reporting knobs (`name`, `vcov`, `conf_level`, `margins`, `collinearity`, `save`, `multiplicity`) and the request's `label`, `return`, `disable_components` and `multiplicity` — so the cohort, filters, features, attributes, windows, weight, `holdout`, family, link (an omitted link equals its family's default), `theta`, `dispersion` and `covariance` agree (`request_mismatch`, `details.keys` names the differences; declare a feature only the full model reads in both requests). The full fit's rows, listwise over a superset of columns, are then a subset of the restricted fit's, so equal row counts mean the same rows: once fitted, unequal counts fail the comparison alone with `PULSE_COMPARISON_ROWS_DIFFER` (R's anova stops on unequal sizes the same way).
+- **Weights.** The fits' own (equal) weight. A frequency weight is the `rep()` expansion's (df = Σw − rank). A probability weight refuses `f` and `lrt` (`requires: no_probability_weight`, `alternative: wald`): the fits' deviances are pseudo-likelihoods there, as `two_log_lik` is absent; the Wald test on a robust covariance is the design-consistent comparison.
+- **Multiplicity.** A comparison is one hypothesis: it inherits like a test (its own `multiplicity` → the batch's → `Options.DefaultMultiplicity`), in the batch's `compose` family (the only one it offers), `p_adjusted` / `significant_adjusted` / `multiplicity` beside the raw `p_value`.
+- **Result.** `{name, restricted, full, test, distribution, terms, statistic, df, df_residual (F only), p_value, n_obs, restricted_df_residual, full_df_residual, restricted_deviance, full_deviance, dispersion (the φ divided by; absent on Wald and a θ-estimated negative binomial), restricted_two_log_lik / full_two_log_lik (a θ-estimated negative binomial's LR only)}`; an undefined figure (a residual df ≤ 0, a V_SS not positive definite) is `null`.
+- **Fails alone.** A fit the comparison reads that failed on its data (its own code, `details.fit`), or unequal rows, keep the entry's `{name, restricted, full, test, error}` and lift `PULSE_SLOT_FAILED` (`slot_kind: comparisons`); `Strict` fails the batch with the code. `--stream` ends with one `{"comparisons": [...]}` line.
+- **Refusals** (`PULSE_COMPARISON_INVALID`, `details.reason`, `details.compare` the entry index, identical at predict and run): `name_missing`, `name_duplicate`, `fit_missing`, `fit_unknown` (`available`), `fit_kind`, `from_sweep`, `same_fit`, `type_unsupported`, `type_mismatch`, `test_unknown`, `not_nested` (`missing`), `no_extra_terms`, `request_mismatch` (`keys`) and `requires` — `unpenalized` (a penalty), `no_selection`, `unbounded` (`bounds`), `no_resample` (Wald: a replicate covariance is not the test's), `estimated_dispersion` (`f` on a fixed dispersion), `no_probability_weight`. Predict's `compare` summary lists each valid entry's resolved `test`, `distribution` and `terms`.
+
+Oracle: R 4.6.1 `anova` with MASS 7.3-66, `sandwich` 3.1-3 and `lmtest` 0.9-40 at 1e-10 (measured within 2.2e-14) — `lm` (F, Chisq, classical and HC3 Wald, a restricted fit through the origin, frequency weights against the `rep()` expansion), binomial logit (LRT, Wald, HC3 Wald) and probit, poisson (LRT, Wald, frequency LRT), gamma inverse (F, LRT, Wald) and log (frequency F), negative binomial with θ estimated (`anova.negbin`, Wald) and fixed (LRT at dispersion 1, F at the Pearson dispersion) — each statistic re-derived in the script from its closed form (`scripts/reference/gen_nested.R`, `nested.json`, `TestReferenceOracle_NestedMatchesR`).
 
 ### `REG_BAYES_LINEAR`
 
@@ -132,13 +236,61 @@ Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior.
 | `conf_level`      | no       | Mass of `ci_lower` / `ci_upper` (the same posterior t interval). Defaults to `credible_level`. |
 | `covariance`      | no       | As `REG_OLS`. Keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹): `std_errors`, `credible_intervals`, `ci_lower` / `ci_upper` (normal, no `df`) and `vcov` follow it. A substitution, not the conjugate posterior. Downgrades streaming. |
 
-Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`) for binomial / poisson and t on the residual df for gamma, Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
+Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`) for binomial / poisson / negative binomial and t on the residual df for gamma, Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
 
 Modifier compatibility: `Resample` and `Selection` are **rejected** for `REG_BAYES_LINEAR` at spec validation, by predict and the runtime alike (`internal/regbayes`) — the posterior already conveys uncertainty via credible intervals, and stepwise feature selection on a Bayesian model is a posterior-based question the conjugate-NIG engine doesn't support.
 
 Setting `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on a Bayes spec is rejected with `PROCESSING_CONFIG`.
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
+
+### `REG_MULTINOMIAL`
+
+Multinomial logistic regression (the baseline-category logit; R `nnet::multinom`, Stata `mlogit`, SPSS NOMREG) of a **categorical** target on numeric predictors. With L fitted levels and the reference r, each other level k has its own coefficients β_k: log(π_k / π_r) = xᵀβ_k.
+
+| Param        | Required | Notes |
+|--------------|----------|-------|
+| `target`     | yes      | A categorical cohort field (`categorical_u8/u16/u32`): its dictionary labels are the categories, in dictionary order. A numeric field is `PULSE_FIELD_TYPE_UNSUPPORTED`; a derived column carries no dictionary and is `PROCESSING_CONFIG` (`requires: categorical_target`). |
+| `predictors` | yes      | One or more numeric predictor fields. |
+| `reference`  | no       | The baseline category, one of the target's labels; default the first level, in dictionary order, that a fitted row carries (multinom's first factor level). A label outside the dictionary is `PROCESSING_CONFIG` (`requires: a level of the target`), at predict and run. |
+| `max_iters`  | no       | Newton-Raphson cap, default 50. |
+| `tol`        | no       | Relative step tolerance, default 1e-8. Convergence is quadratic, so the returned β is the MLE to double precision (nnet's BFGS stops some 1e-8 short). |
+| `conf_level` | no       | Wald normal intervals. |
+| `vcov`       | no       | The inverse information I⁻¹ at β̂ (multinom's `solve(Hessian)`) and its correlation. |
+| `weight`     | no       | Frequency (the `rep()` expansion's fit) or probability (prior weights w* = w·n_eff/Σw, REG_GLM's rule; no `two_log_lik` / `aic`). |
+| `multiplicity` | no     | Default family: every non-intercept coefficient of every non-reference level; `coefficients` lists `<level>:<term>` keys (each counted, as an extension model's list is). Predict counts (levels − 1) × predictors on the `dictionary` basis. |
+
+**Result.** `reference`, `categories` (the fitted levels in dictionary order, the reference among them), and `coefficients` / `std_errors` / `p_values` (Wald z) / `ci_lower` / `ci_upper` keyed `"<level>:<term>"` per non-reference level, category-major — nnet's `vcov` row names, the intercept `"<level>:(intercept)"`; `deviance` (−2ℓ), `null_deviance` (the intercept-only model's, every row at the category shares), `pseudo_r2` (McFadden), `two_log_lik` and `aic` (−2ℓ + 2·K·(p + 1), multinom's), `n_obs`, `converged_iters`. e^β is a relative risk ratio.
+
+**Fit.** Newton-Raphson on the full multinomial likelihood from the intercept-only MLE, halving a step that lowers ℓ; I = Σw*·(diag(π) − ππᵀ) ⊗ xxᵀ. Every product is barriered and every transcendental is `detmath`'s, so the fit is bit-identical on every GOARCH and across `DecodeWorkers` / `ShardWorkers` (buffered rows in record order).
+
+**Data-dependent refusals** (the slot fails alone): fewer than two fitted levels or a named reference no fitted row carries (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason: one_category` / `reference_empty`); a collinear design (`PROCESSING_REGRESSION_RANK_DEFICIENT`); separation — fitted probabilities numerically 1 while coefficients keep growing (`PROCESSING_REGRESSION_SEPARATION`, `details.coefficients`); `PROCESSING_REGRESSION_NO_CONVERGE`. A dictionary level no fitted row carries is dropped with its coefficients, as multinom drops an empty group.
+
+**Not offered** (`PROCESSING_CONFIG`, `details.slot` + `details.requires`, identical at predict and run — `internal/regmultinom`): `family` / `link` / `theta` / `dispersion` (`no_family`), `penalty` / `alpha` / `l1_ratio` / `unpenalized` (`unpenalized`), `bounds` (`unbounded`), `selection` / `criterion` (`no_selection`), `resample` and its knobs (`no_resample`), a prior (`no_prior`), `solver` (`no_solver`), `intercept: false` (`intercept`), a robust `covariance` (`classical_covariance`), `margins` (`no_margins`), `collinearity` (`no_collinearity`), `save` (`no_save`). Nothing scores a multinomial fit, so `holdout` is `PULSE_MODEL_SCORE_INVALID` (`no_scorer`) and a Compose `fits` entry `PULSE_FIT_INVALID` (`reason: regression_type`). `reference` on any other regression is `PROCESSING_CONFIG` (`requires: type REG_MULTINOMIAL`).
+
+Oracle: R 4.6.1 `nnet` 7.3-21 `multinom`, Newton-polished to the MLE (`scripts/reference/gen_multinomial.R`, `multinomial.json`, `TestReferenceOracle_MultinomialMatchesR`) at 1e-10 — three levels at 0.95 and 0.90, four levels in a non-alphabetical dictionary order with a named reference, frequency weights against the `rep()` expansion, probability weights on w*, an empty dictionary level; measured within 1e-13 (coefficients 1.5e-15, SEs 6.7e-16, vcov 2.9e-14, p-values 7.3e-15, intervals 9.7e-14, deviances 1.3e-15, AIC 1.2e-16, fitted probabilities 1.8e-15). The weighted reference harness pins it under both kinds (`internal/service/testdata/weight_reference`).
+
+### `REG_ORDINAL`
+
+Ordinal regression of an ordered response, MASS `polr`'s proportional-odds (cumulative link) model: `P(Y ≤ k | x) = F(ζ_k − xᵀβ)`, `k = 1..K−1`, one coefficient per predictor shifting every threshold alike. Authored on the extension contract (a model regression, `internal/regordinal`): its own knobs ride `params`.
+
+| Param        | Required | Notes |
+|--------------|----------|-------|
+| `target`     | yes      | The ordered response: a categorical (its labels) or a numeric field (its values, formatted as R's `as.character`: `"3"`, `"2.5"`). 3 to 100 levels on the fitted rows (polr's floor; a continuous target is no ordinal scale). |
+| `predictors` | yes      | Numeric predictors. No intercept: the thresholds carry it. |
+| `params.link`   | no    | `logit` (default; polr `"logistic"`, proportional odds), `probit`, `cloglog` (`1 − exp(−exp(q))`, proportional hazards). |
+| `params.levels` | no    | The level order, lowest first, each once (3 to 100). A fitted row whose response it does not list is dropped, as R's `factor(y, levels =)` makes it `NA` and polr drops it; a listed level no fitted row carries fails the slot (`INSUFFICIENT_DATA`, `reason: empty_level`). Absent: a categorical's dictionary order (the import order — pass `levels` for a scale imported out of order), a numeric target's ascending values, over the levels the fitted rows carry. |
+| `params.brant`  | no    | `{}`: adds `outputs.brant`, the Brant test of the proportional-odds assumption. Logit only (`PROCESSING_CONFIG`, `details.requires: link logit`). |
+| `conf_level`, `vcov`, `multiplicity`, `weight` | no | As the built-ins. |
+| `covariance` | no | `hc0` / `hc1` (the score sandwich H⁻¹·Σw*·s·sᵀ·H⁻¹, hc1 scaled N*/(N* − q)) or `cluster` (CR1, G/(G − 1)·(N* − 1)/(N* − q)), q = p + K − 1 — `sandwich::sandwich` / `vcovCL` on polr. `hc2` / `hc3` (no row-wise hat matrix for a cumulative link) and `hac` are refused. |
+
+- **Result.** `coefficients` are the predictors (spec order) then the thresholds `"<level>|<next level>"` (polr's `zeta` names). `std_errors` from the inverse observed (analytic) information, or the sandwich; `statistics` z; `p_values` two-sided normal on the predictors only — a threshold's `ζ = 0` is no hypothesis, its p-value is `null` (so a `multiplicity` block corrects the predictors); Wald `ci_lower` / `ci_upper` at `conf_level`. `deviance` = −2ℓ (polr's), `null_deviance` the thresholds-only fit's (each row at the weighted level shares), `pseudo_r2` McFadden's, `two_log_lik` / `aic` (q parameters; R's `logLik` / `AIC` on polr), `converged_iters`. `outputs`: `link`, `levels` (the fitted order), `thresholds` (the threshold names), `fitted_probabilities` (the weighted mean over the fitted rows of P(Y = level | x), R `colMeans(fitted(polr))`) and, with `params.brant`, `brant`.
+- **Brant test.** The K − 1 binary logits of `1{y > m}` (prior weights w*) fitted to their fixed point; their slopes' covariance Var(β*_m) = (X̃ᵀW_mX̃)⁻¹, Cov(β*_m, β*_l) = (X̃ᵀW_mX̃)⁻¹(X̃ᵀW_mlX̃)(X̃ᵀW_lX̃)⁻¹ (intercept rows dropped, W_ml = w*·π_l(1 − π_m), m < l) and its transpose at (l, m); the Wald χ² of β*_1 = β*_m for every m — `{statistic, df, p_value}` omnibus on (K − 2)·p df and `terms` per predictor on K − 2. A binary split a predictor separates leaves the figures `null`; the fit stands. The `brant` 0.3.0 package stores the (m, l) block untransposed at (l, m), so its omnibus statistic differs from this symmetric (covariance) one — its per-predictor statistics agree; the oracle script reproduces the package's figure exactly.
+- **Weights** (`REG_GLM`'s rule): prior weights w* in the likelihood — frequency w* = w, the fit equal to the `rep()`-expanded one (Brant test included); probability w* = w·n_eff/Σw (Kish), the frequency formulas on w*, `two_log_lik` / `aic` absent.
+- **Refused** (identical at predict and run; the shared-slot table's `PROCESSING_CONFIG` `{regression, slot}`): `penalty`, `selection`, `resample` (no oracle yet), `margins` / `collinearity` (`requires: type REG_OLS or REG_GLM`), the top-level `link` / `family` / `theta` / `dispersion` / `max_iters` / `tol` / `prior` / `intercept` / `solver` / `bounds` / `unpenalized`, `save` (no scorer: a fit predicts a distribution over levels, not one score) and `holdout` (`PULSE_MODEL_SCORE_INVALID`, `no_scorer`).
+- **Fails alone** (`PULSE_SLOT_FAILED`): fewer than 3 or more than 100 levels, an empty listed level, no more rows (N*) than parameters (`INSUFFICIENT_DATA`, `details.reason`), a singular information (`RANK_DEFICIENT`), no convergence — a predictor that separates the levels (`NO_CONVERGE`). One cluster is the built-ins' fatal `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: clusters`).
+
+Oracle: R 4.6.1 + MASS 7.3-66 `polr` polished by Newton to its MLE on the analytic gradient and information (polr's BFGS stops ~1e-6 off it and differentiates its Hessian numerically), `sandwich` 3.1-3, `brant` 0.3.0, at 1e-10 (measured within 2e-12; `scripts/reference/gen_ordinal.R`, `ordinal.json`, `internal/regordinal` `TestOrdinalOracle_Design` and `TestRegOrdinal_MatchesPolrEndToEnd`); the weighted-reference harness pins frequency and probability fits at 1e-12 (`TestWeightReferenceValues`). Example `internal/examples/regression/22_ordinal.json`; skill `op-reg-ordinal`.
 
 ## Modifiers
 
@@ -206,15 +358,44 @@ The two slots are intentionally independent; Pulse does not pipe slot-1 results 
 
 ## Per-row regression attributes
 
-Three attribute operators emit per-record diagnostics from a fitted regression onto the row stream.
+Four attribute operators emit per-record diagnostics from a fitted regression onto the row stream.
 
 | Attribute             | Emits per row                                                              |
 |-----------------------|-----------------------------------------------------------------------------|
 | `ATTR_REG_FITTED`     | `ŷ_i = Xᵢ β` — the model's prediction at each row.                          |
-| `ATTR_REG_RESIDUAL`   | `y_i − ŷ_i` — the per-row residual.                                         |
+| `ATTR_REG_RESIDUAL`   | `y_i − ŷ_i` — the per-row residual; `params.kind` `standardized` / `studentized` on the refit (R `rstandard` / `rstudent`). |
 | `ATTR_REG_LEVERAGE`   | `h_ii = Xᵢ (XᵀX)⁻¹ Xᵢᵀ` — the i-th diagonal of the hat matrix.              |
+| `ATTR_REG_INFLUENCE`  | Cook's distance (`params.measure` `cooks`, the default) or DFFITS (`dffits`), R `cooks.distance` / `dffits`. |
 
-Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md` and `skills/op-attr-reg-residual.md` for the parameter tables.
+### Studentized residuals and influence
+
+With `h` the leverage, `p′ = p + 1` coefficients, `df = n − p′`, `s² = RSS/df` and `e = y − ŷ`:
+
+| Figure | Formula |
+|---|---|
+| standardized `r` | `e / (s·√(1 − h))` |
+| studentized `t` | `r·√((df − 1)/(df − r²))` |
+| Cook's distance | `r²·h / (p′·(1 − h))` |
+| DFFITS | `t·√(h/(1 − h))` |
+
+On the refit they read its design, so they take unpenalized OLS only (`PROCESSING_CONFIG` otherwise). A frequency weight reads each record as `w` identical observations and reports one copy's figure (`h/w`, `df = Σw − p′`, the weighted RSS: statsmodels `OLSInfluence` on the `rep()` expansion); a probability weight is `PULSE_WEIGHT_UNSUPPORTED`. A row outside the fit, or a figure the fit leaves undefined (`df ≤ 1`, `h ≥ 1`), is null.
+
+Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. All four take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md`, `skills/op-attr-reg-residual.md`, `skills/op-attr-reg-leverage.md` and `skills/op-attr-reg-influence.md` for the parameter tables.
+
+### Influence over a bound fit
+
+`ATTR_REG_LEVERAGE`, `ATTR_REG_INFLUENCE` and `ATTR_REG_RESIDUAL` kind `standardized` / `studentized` with `params.fit` read the bound `REG_OLS` / `REG_GLM` fit's design — its `vcov`, its `dispersion` and its `n_obs` — exactly as R 4.6.1's `hatvalues` / `rstandard` / `rstudent` / `cooks.distance` / `dffits` read an `lm` or `glm`. With `x̃ = [1, x…]`, `μ` the fitted mean, `w = (dμ/dη)²/V(μ)` the working weight (1 under OLS), `rP = (y − μ)/√V(μ)` the Pearson residual, `φ` the dispersion (1 for binomial / poisson / negative binomial, whose V(μ) reads the fit's `theta`; `RegressionResult.dispersion` — σ̂² on OLS, the Pearson χ²/df on gamma — where it is estimated), `p′` the coefficient count and `df = n_obs − p′`:
+
+| Figure | Formula |
+|---|---|
+| leverage `h` | `w · x̃ᵀ(vcov/φ)x̃` |
+| standardized | `rP / (√φ·√(1 − h))`; with `params.residual_type` `deviance`, `rD / (√φ·√(1 − h))`, `rD = sign(y − μ)·√dᵢ` the deviance residual (R `rstandard(type = "deviance")`; equal to the Pearson form on a Gaussian fit) |
+| σ₍ᵢ₎ (φ estimated) | `√((φ·df − rP²/(1 − h))/(df − 1))` |
+| studentized | `rP / (σ₍ᵢ₎·√(1 − h))`; the standardized under binomial / poisson / negative binomial |
+| Cook's distance | `(rP/(1 − h))²·h/(φ·p′)` |
+| DFFITS | `sign(g′(μ))·rP·√h/(σ·(1 − h))`, σ = σ₍ᵢ₎ or √φ |
+
+`residual_type` is kind `standardized`'s alone (`pearson` default, `deviance`): the studentized residual, Cook's distance and DFFITS stay Pearson-based, as in R, and any other kind refuses it (`PULSE_MODEL_SCORE_INVALID` `params_invalid`). DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (`model_format_version` 4) or a negative binomial's θ (5); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
 
 ## Error codes
 
@@ -236,13 +417,13 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_SEPARATION`            | Binomial `REG_GLM` is separated (a predictor splits the outcome); `details.predictors`. |
 | `PROCESSING_REGRESSION_NO_CONVERGE`           | IRLS or coordinate descent failed within `MaxIters`.                          |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`         | XᵀX non-invertible even after regularization; increase `alpha`.               |
-| `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma}`.                        |
-| `PROCESSING_REGRESSION_INVALID_LINK`          | Link incompatible with the chosen Family.                                     |
+| `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma, negative_binomial}`.     |
+| `PROCESSING_REGRESSION_INVALID_LINK`          | Link not one of the chosen Family's (`details.allowed`).                      |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | Advisory: l1 / elasticnet SEs, p-values and intervals are `null` (no valid analytical form); set `resample` for replicate ones. |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | Advisory: a `REG_OLS` `bounds` constraint binds, so SEs, p-values, intervals and `vcov` are `null`; set `resample: bootstrap` for replicate ones. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |
-| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty).        |
+| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty, `theta` off negative_binomial). |
 
 ## Worked examples
 

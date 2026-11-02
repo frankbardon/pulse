@@ -141,6 +141,15 @@ type Signature struct {
 	SweepBound     bool
 	SweepAxes      []string
 	SweepAxesKnown bool
+
+	// Influence is a regression fit's influence face (fit_design.go):
+	// what a design-reading params.fit slot (ATTR_REG_LEVERAGE,
+	// ATTR_REG_INFLUENCE, a standardized / studentized ATTR_REG_RESIDUAL)
+	// requires of it, judged by CheckFitDesign. The runtime takes it off
+	// the bound result, predict off the fit request (CatalogFromFits +
+	// WithDefaultWeight) or the loaded model file, so both judge one
+	// reference the same way.
+	Influence FitDesign
 }
 
 // EffectiveKind is Kind, types.FitKindRegression when unset.
@@ -188,6 +197,7 @@ func (v *VectorFit) Signature() Signature {
 // Signature is b's static face.
 func (b *Bound) Signature() Signature {
 	sig := Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
+	sig.Influence = b.Design
 	if !BuiltinRegression(b.Type) && b.Result != nil {
 		sig.Coefficients, sig.CoefficientsKnown = sortedKeys(b.Result.Coefficients), true
 	}
@@ -248,7 +258,8 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		switch FitKindOf(f.Request) {
 		case types.FitKindRegression:
 			reg := f.Request.Regressions[0]
-			sig := Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			sig := Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression,
+				Influence: designFromSpec(f.Request, reg)}
 			if terms, ok := ModelRegressionTerms(reg); ok {
 				// A model regression declares its own coefficient names
 				// (the term catalog), so predict judges a coef() term as

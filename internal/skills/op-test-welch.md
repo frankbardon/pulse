@@ -30,7 +30,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Output
 
-`Statistic` = t; `DF` = Welch-Satterthwaite; `PValue` two-sided Student-t. `Details.per_group` = `{n, mean, variance}` per arm; effect size = mean diff / pooled SE.
+`Statistic` = t on the unpooled SE √(s²_a/n_a + s²_b/n_b); `DF` = Welch-Satterthwaite; `PValue` two-sided Student-t (R `t.test(var.equal = FALSE)`). `Details`: `groups`, per-arm `n` / `mean` / `variance` (sample, n − 1), `diff`, `ci_low`/`ci_high` on `diff`, pooled-SD `effect_size.cohens_d`.
 
 <!-- generated: reading-the-output -->
 

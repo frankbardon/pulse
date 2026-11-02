@@ -143,7 +143,7 @@ func TestQuantityReaders_TypeVerdicts(t *testing.T) {
 	for _, op := range []string{"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE"} {
 		shapes = append(shapes, shape{op, `{"attributes":[{"type":"` + op + `","field":"$F","label":"o"}],` + aggs + `}`})
 	}
-	for _, op := range []string{"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE"} {
+	for _, op := range []string{"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE"} {
 		shapes = append(shapes,
 			shape{op, `{"attributes":[{"type":"` + op + `","target":"y","predictors":["$F"],"label":"o"}],` + aggs + `}`},
 			shape{op, `{"attributes":[{"type":"` + op + `","target":"$F","predictors":["y"],"label":"o"}],` + aggs + `}`})

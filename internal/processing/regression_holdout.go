@@ -46,7 +46,7 @@ func (p *Processor) fitRegressions(ctx context.Context, req *types.Request, filt
 		}
 	}
 	if !holdout {
-		fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, specs, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
+		fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, specs, p.schema, recordsAsRegressionRecords(filtered), p.regressionResolver())
 		if err != nil {
 			return nil, err
 		}
@@ -64,7 +64,7 @@ func (p *Processor) fitRegressions(ctx context.Context, req *types.Request, filt
 		}
 	}
 	if len(plain) > 0 {
-		pf, pe, err := regression.FitEachBufferedWithContext(ctx, plain, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
+		pf, pe, err := regression.FitEachBufferedWithContext(ctx, plain, p.schema, recordsAsRegressionRecords(filtered), p.regressionResolver())
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 	}
 	fitSpec := *spec
 	fitSpec.Holdout = ""
-	fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, []*types.RegressionSpec{&fitSpec}, p.schema, train, p.exts.LookupRegression)
+	fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, []*types.RegressionSpec{&fitSpec}, p.schema, train, p.regressionResolver())
 	if err != nil {
 		return nil, nil, err
 	}

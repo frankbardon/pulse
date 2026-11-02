@@ -46,26 +46,60 @@ func makeParityStream(mu, sd float64, n int) []float64 {
 	return out
 }
 
-// bucketFromStream runs the welfordBucket over a value stream and
-// returns the final state. Equivalent to driving TEST_T's UpdateRow
-// over the same stream, then snapshotting the (n, mean, m2) triple.
-func bucketFromStream(values []float64) welfordBucket {
-	var b welfordBucket
-	for _, v := range values {
-		b.add(v)
-	}
-	return b
+// welfordParityCell is one AGG_WELFORD cell as the aggregator emits it: the
+// Rich triple and the operator components map (mean, m2, variance,
+// stddev, origin, shifted_mean) the moment overlays read.
+type welfordParityCell struct {
+	triple WelfordTriple
+	comps  map[string]any
 }
 
-// tripleFromBucket folds a welfordBucket into the WelfordTriple shape
-// AGG_WELFORD emits — identical conversion to aggregator_welford.go's
-// Rich() method.
-func tripleFromBucket(b welfordBucket) WelfordTriple {
-	return WelfordTriple{
-		Mean:     b.mean,
-		Variance: b.sampleVariance(),
-		N:        uint64(b.n),
+// bucketFromStream runs the production AGG_WELFORD aggregator over a
+// value stream (UpdateRow per record, then Finalize) — the cell a
+// crosstab or grouped slot carries. Equivalent to driving TEST_T's
+// UpdateRow over the same stream: both accumulate about the stream's
+// first value.
+func bucketFromStream(values []float64) *welfordAggregator {
+	schema := numericFixtureSchema("revenue")
+	agg, err := newWelfordAggregator(&types.Aggregation{Type: types.AGG_WELFORD, Field: "revenue"}, schema)
+	if err != nil {
+		panic(err)
 	}
+	a := agg.(*welfordAggregator)
+	for _, v := range values {
+		if err := a.UpdateRow(NewRecord(schema, map[string]float64{"revenue": v}), "revenue"); err != nil {
+			panic(err)
+		}
+	}
+	if _, err := a.Finalize(); err != nil {
+		panic(err)
+	}
+	return a
+}
+
+// tripleFromBucket reads the aggregator's Rich triple and components.
+func tripleFromBucket(a *welfordAggregator) welfordParityCell {
+	rich, _ := a.Rich()
+	comps, _ := a.Components()
+	triple, _ := rich.(WelfordTriple)
+	return welfordParityCell{triple: triple, comps: comps}
+}
+
+// cellComponents is the cell's components map plus the universal floor.
+func (c welfordParityCell) cellComponents() map[string]any {
+	out := map[string]any{"n": int(c.triple.N), "n_null": 0}
+	for k, v := range c.comps {
+		out[k] = v
+	}
+	return out
+}
+
+// directDiff is the cells' difference of means as the overlays read it
+// (meanLeg.diff over the components' origin and shifted_mean).
+func directDiff(target, ref welfordParityCell) float64 {
+	tl, _ := readMeanLeg(target.cellComponents())
+	rl, _ := readMeanLeg(ref.cellComponents())
+	return tl.diff(rl)
 }
 
 // nativeWelchP runs the TEST_WELCH row-test surface for one tuple and
@@ -111,7 +145,7 @@ func nativeWelchP(t *testing.T, targetStream, refStream []float64) (float64, boo
 
 // overlayWelchPFromTriples drives the OVERLAY_T_CELL handler against
 // a 1×1 triple-bearing crosstab and returns the per-cell p-value.
-func overlayWelchPFromTriples(t *testing.T, target, ref WelfordTriple) (float64, bool) {
+func overlayWelchPFromTriples(t *testing.T, target, ref welfordParityCell) (float64, bool) {
 	t.Helper()
 	targetResp := makeSingleCellTripleResponse(target)
 	refResp := makeSingleCellTripleResponse(ref)
@@ -140,10 +174,10 @@ func overlayWelchPFromTriples(t *testing.T, target, ref WelfordTriple) (float64,
 // overlayWelchPFromTriplesSeries drives the OVERLAY_T_VS_REF series
 // handler against a 1-entry triple-bearing series and returns the
 // per-group p-value.
-func overlayWelchPFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (float64, bool) {
+func overlayWelchPFromTriplesSeries(t *testing.T, target, ref welfordParityCell) (float64, bool) {
 	t.Helper()
-	targetResp := makeSeriesResponseTriples([]string{"cohort"}, []WelfordTriple{target})
-	refResp := makeSeriesResponseTriples([]string{"cohort"}, []WelfordTriple{ref})
+	targetResp := makeSeriesResponseCells([]string{"cohort"}, []welfordParityCell{target})
+	refResp := makeSeriesResponseCells([]string{"cohort"}, []welfordParityCell{ref})
 	spec := composeSpecSeriesRef(types.OverlayKindTVsRef, nil)
 	layer, _, err := applyTVsRef(&spec, refResp, []*types.Response{targetResp}, 0, []int{1})
 	if err != nil {
@@ -162,8 +196,8 @@ func overlayWelchPFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (fl
 	return *stat, true
 }
 
-func makeSingleCellTripleResponse(triple WelfordTriple) *types.Response {
-	cells := [][]types.MatrixCell{{{Value: triple, Present: true}}}
+func makeSingleCellTripleResponse(c welfordParityCell) *types.Response {
+	cells := [][]types.MatrixCell{{{Value: c.triple.Mean, Present: true}}}
 	return &types.Response{
 		Crosstab: &types.CrosstabResult{
 			Matrix: &types.MatrixPayload{
@@ -176,19 +210,20 @@ func makeSingleCellTripleResponse(triple WelfordTriple) *types.Response {
 		},
 		Components: &types.ResponseComponents{
 			Crosstab: &types.CrosstabComponents{
-				CellComponents: [][]map[string]any{
-					{
-						{
-							"n":        int(triple.N),
-							"n_null":   0,
-							"mean":     triple.Mean,
-							"variance": triple.Variance,
-						},
-					},
-				},
+				CellComponents: [][]map[string]any{{c.cellComponents()}},
 			},
 		},
 	}
+}
+
+// makeSeriesResponseCells is makeSeriesResponseTriples over parity
+// cells: each row's value column is the cell's components map.
+func makeSeriesResponseCells(keys []string, cells []welfordParityCell) *types.Response {
+	rows := make([]map[string]any, len(keys))
+	for i, k := range keys {
+		rows[i] = map[string]any{"region": k, "welch": cells[i].cellComponents()}
+	}
+	return &types.Response{Data: rows}
 }
 
 // parityTuples returns the ≥10 (target, ref) input pairs the parity
@@ -256,6 +291,19 @@ func parityTuples() []parityTuple {
 			name:         "treatment_vs_control_pairwise_survey",
 			targetStream: makeParityStream(3.85, 1.2, 50),
 			refStream:    makeParityStream(3.60, 1.1, 50),
+		},
+		// Large common offsets (#637): both sides accumulate about their
+		// first value and difference through both origins, so parity
+		// holds where the levels' difference would lose digits.
+		{
+			name:         "offset_1e8",
+			targetStream: makeParityStream(1e8+0.4, 1.0, 40),
+			refStream:    makeParityStream(1e8, 1.3, 45),
+		},
+		{
+			name:         "offset_1e12",
+			targetStream: makeParityStream(1e12+0.4, 1.0, 40),
+			refStream:    makeParityStream(1e12, 1.3, 45),
 		},
 	}
 }
@@ -391,10 +439,10 @@ func TestOverlayTCell_HelpersReused(t *testing.T) {
 	targetTriple := tripleFromBucket(targetBucket)
 	refTriple := tripleFromBucket(refBucket)
 
-	// Direct invocation of welchTTest (the helper applyTCell consumes).
-	pDirect, ok := welchTTest(
-		targetTriple.Mean, targetTriple.Variance, float64(targetTriple.N),
-		refTriple.Mean, refTriple.Variance, float64(refTriple.N))
+	// Direct invocation of welchTTestDiff (the helper applyTCell consumes).
+	pDirect, ok := welchTTestDiff(directDiff(targetTriple, refTriple),
+		targetTriple.triple.Variance, float64(targetTriple.triple.N),
+		refTriple.triple.Variance, float64(refTriple.triple.N))
 	if !ok {
 		t.Fatal("welchTTest direct invocation failed for non-degenerate inputs")
 	}

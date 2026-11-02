@@ -104,6 +104,8 @@ var regressionKeyProbes = map[string]string{
 	"bounds":           `{"bounds":{"nonnegative":["a"]}}`,
 	"family":           `{"family":"binomial"}`,
 	"link":             `{"family":"binomial","link":"logit"}`,
+	"theta":            `{"family":"negative_binomial","theta":1.5}`,
+	"dispersion":       `{"family":"negative_binomial","theta":1.5,"dispersion":"estimated"}`,
 	"max_iters":        `{"max_iters":10}`,
 	"tol":              `{"tol":1e-6}`,
 	"prior":            `{"prior":"nig"}`,
@@ -120,12 +122,17 @@ var regressionKeyProbes = map[string]string{
 	"selection":        `{"selection":"forward","criterion":"aic"}`,
 	"criterion":        `{"selection":"forward","criterion":"aic"}`,
 	"vcov":             `{"vcov":true}`,
+	"margins":          `{"margins":{}}`,
+	"collinearity":     `{"collinearity":{}}`,
+	"intercept":        `{"intercept":false}`,
+	"solver":           `{"solver":"normal"}`,
 	"covariance":       `{"covariance":{"type":"hc1"}}`,
 	"conf_level":       `{"conf_level":0.9}`,
 	"save":             `{"save":"m.pulse-model.json"}`,
 	"weight":           `{"weight":{"field":"w","kind":"frequency"}}`,
 	"multiplicity":     `{"multiplicity":{"method":"holm"}}`,
 	"holdout":          `{"holdout":"a > 1"}`,
+	"reference":        `{"reference":"lo"}`,
 }
 
 // regressionKeysAcceptedUnread is the ledger of top-level keys a
@@ -173,6 +180,7 @@ func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
 		{Name: "b", Type: encoding.FieldTypeF64, Description: "Second predictor value"},
 		{Name: "w", Type: encoding.FieldTypeF64, Description: "Row weight value"},
 		{Name: "g", Type: encoding.FieldTypeU8, Description: "Group code value"},
+		{Name: "c", Type: encoding.FieldTypeCategoricalU8, Description: "Outcome category value", Dictionary: makeDictionary(t, "lo", "mid", "hi")},
 	}}
 	data := buildTestPulseFile(t, schema)
 	for _, c := range regressionCapabilities() {
@@ -181,6 +189,10 @@ func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
 			body := map[string]any{"type": c.Name, "target": "y", "predictors": []string{"a", "b"}}
 			if c.Name == string(types.REG_GLM) {
 				body["family"] = "binomial"
+			}
+			if c.Name == string(types.REG_MULTINOMIAL) {
+				// A categorical target: its dictionary is the categories.
+				body["target"] = "c"
 			}
 			if c.Name == string(types.REG_MMM_HILL) {
 				body["params"] = map[string]any{"channels": []string{"a"}}

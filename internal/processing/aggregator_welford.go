@@ -47,8 +47,13 @@ type WelfordTriple struct {
 }
 
 type welfordAggregator struct {
-	field  string
+	field string
+	// bucket accumulates v − shift.origin (test_origin_shift.go): the
+	// mean is held at the deviations' magnitude, so a large common
+	// offset costs a difference of two cells' means nothing (#637).
+	// Every reported mean is the level shift.level(bucket.mean).
 	bucket welfordBucket
+	shift  originShift
 }
 
 func newWelfordAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
@@ -91,17 +96,18 @@ func newWelfordAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggr
 // scalar path.
 func (a *welfordAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.bucket = welfordBucket{}
+	a.shift.reset()
 	for _, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
 			continue
 		}
-		a.bucket.add(v)
+		a.bucket.add(a.shift.of(v))
 	}
 	if a.bucket.n == 0 {
 		return math.NaN(), nil
 	}
-	return a.bucket.mean, nil
+	return a.shift.level(a.bucket.mean), nil
 }
 
 // UpdateRow / Finalize implement OnlineAggregator so the streaming
@@ -115,7 +121,7 @@ func (a *welfordAggregator) UpdateRow(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	a.bucket.add(v)
+	a.bucket.add(a.shift.of(v))
 	return nil
 }
 
@@ -123,7 +129,7 @@ func (a *welfordAggregator) Finalize() (float64, error) {
 	if a.bucket.n == 0 {
 		return math.NaN(), nil
 	}
-	return a.bucket.mean, nil
+	return a.shift.level(a.bucket.mean), nil
 }
 
 // MergeOnline applies the Chan-Welford parallel reduction so the
@@ -131,12 +137,27 @@ func (a *welfordAggregator) Finalize() (float64, error) {
 // per-segment parallel decode in internal/service/parallel_decode.go can fold
 // independent partials byte-equal to the single-pass result on
 // well-conditioned inputs.
+//
+// Each partial holds its moments about its own origin (its first
+// value). The merge keeps the receiver's origin — the single pass's,
+// since partials merge in row order — and re-expresses the other
+// partial's mean about it: (o_b − o_a) is exact under a common offset
+// (Sterbenz), so partials with different origins combine without the
+// offset's rounding. An empty receiver adopts the other partial whole.
 func (a *welfordAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*welfordAggregator)
 	if !ok {
 		return mergeTypeMismatch("AGG_WELFORD")
 	}
-	mergeWelford(&a.bucket.n, &a.bucket.mean, &a.bucket.m2, b.bucket.n, b.bucket.mean, b.bucket.m2)
+	if b.bucket.n == 0 {
+		return nil
+	}
+	if a.bucket.n == 0 {
+		a.bucket, a.shift = b.bucket, b.shift
+		return nil
+	}
+	meanB := b.bucket.mean + (b.shift.origin - a.shift.origin)
+	mergeWelford(&a.bucket.n, &a.bucket.mean, &a.bucket.m2, b.bucket.n, meanB, b.bucket.m2)
 	return nil
 }
 
@@ -148,7 +169,7 @@ func (a *welfordAggregator) Rich() (any, error) {
 		return nil, nil
 	}
 	return WelfordTriple{
-		Mean:     a.bucket.mean,
+		Mean:     a.shift.level(a.bucket.mean),
 		Variance: a.bucket.sampleVariance(),
 		N:        uint64(a.bucket.n),
 	}, nil
@@ -174,12 +195,23 @@ func (a *welfordAggregator) Components() (map[string]any, error) {
 		return nil, nil
 	}
 	variance := a.bucket.sampleVariance()
+	return welfordComponents(a.shift.origin, a.bucket.mean, a.bucket.m2, variance), nil
+}
+
+// welfordComponents is AGG_WELFORD's components map, unweighted and
+// weighted alike: the level mean, m2, variance and stddev, plus the
+// accumulation origin and the mean about it (shifted_mean), which a
+// moment overlay reads to take a difference of two cells' means at the
+// deviations' precision (shiftedMeanDiff, #637).
+func welfordComponents(origin, shiftedMean, m2, variance float64) map[string]any {
 	return map[string]any{
-		"mean":     a.bucket.mean,
-		"m2":       a.bucket.m2,
-		"variance": variance,
-		"stddev":   math.Sqrt(variance),
-	}, nil
+		"mean":         shiftedMean + origin,
+		"m2":           m2,
+		"variance":     variance,
+		"stddev":       math.Sqrt(variance),
+		"origin":       origin,
+		"shifted_mean": shiftedMean,
+	}
 }
 
 // Compile-time interface lock — keeps the MetaAggregator wiring

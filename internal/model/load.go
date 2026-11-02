@@ -276,6 +276,9 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			Terms:  append([]string(nil), files[j].Terms...),
 			Source: ModelSource(j, r.Path),
 			Kind:   types.FitKindRegression,
+			// The file's figures are the fit's: the face the bound
+			// model's Signature reads off the same Result.
+			Influence: designFromResult(files[j].Result()),
 		}
 		if !BuiltinRegression(files[j].Type) {
 			// The file names the fit's coefficients, so predict judges a

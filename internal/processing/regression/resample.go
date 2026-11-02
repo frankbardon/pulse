@@ -447,7 +447,9 @@ func packageResampleResult(
 	// the resample p-values use — replacing the base fit's t intervals.
 	attachIntervals(&out, resolvedConfLevel(spec), 0, false)
 	out.Resample = spec.Resample
-	out.Vcov, out.Correlation = nil, nil
+	// The replicate covariance is no φ̂-scaled (XᵀWX)⁻¹: drop the base
+	// fit's dispersion with its vcov.
+	out.Vcov, out.Correlation, out.Dispersion = nil, nil, 0
 	if spec.Vcov {
 		attachVcov(&out, predictors, cov)
 	}

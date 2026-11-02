@@ -70,11 +70,17 @@ const sweepSeedKey = "sweep_seed"
 // emitted at full precision.
 const optimizationsKey = "optimizations"
 
+// comparisonsKey is the ComposedResponse.Comparisons JSON key: like
+// `fits`, outside the plan's path space, so a set list is always
+// emitted at full precision.
+const comparisonsKey = "comparisons"
+
 // pinnedRootKey reports whether name is a root key the plan never
 // prunes: the `returned` marker, the sweep `ranking` and `sweep_seed`,
-// the Compose `fits`, the stitched `banner` and the `optimizations`.
+// the Compose `fits`, the stitched `banner`, the `optimizations` and the
+// `comparisons`.
 func pinnedRootKey(name string) bool {
-	return name == returnedKey || name == rankingKey || name == sweepSeedKey || name == fitsKey || name == bannerKey || name == optimizationsKey
+	return name == returnedKey || name == rankingKey || name == sweepSeedKey || name == fitsKey || name == bannerKey || name == optimizationsKey || name == comparisonsKey
 }
 
 // structuralTypes are the result types whose MarshalJSON is exactly
@@ -645,7 +651,7 @@ func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment, w
 	buf.WriteByte('{')
 	first := true
 	for _, f := range jsonFields(v) {
-		if len(path) == 0 && (f.name == rankingKey || f.name == fitsKey || f.name == optimizationsKey) {
+		if len(path) == 0 && (f.name == rankingKey || f.name == fitsKey || f.name == optimizationsKey || f.name == comparisonsKey) {
 			if isEmptyJSONValue(f.value) {
 				continue
 			}

@@ -433,9 +433,9 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `mean` | float64 | always | Running Welford mean of non-null field values. |
-| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
-| `variance` | float64 | always | Population variance derived from m2 / n. |
-| `stddev` | float64 | always | Population standard deviation (square root of variance). |
+| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says. |
+| `variance` | float64 | always | Variance m2 / (n - ddof): the population m2 / n by default (weighted: Σw in place of n). |
+| `stddev` | float64 | always | Standard deviation (square root of variance), equal to the scalar. |
 
 <a id="op-agg_sum"></a>
 
@@ -456,8 +456,8 @@ Only the floor keys.
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
 | `mean` | float64 | always | Running Welford mean of non-null field values. |
-| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
-| `variance` | float64 | always | Population variance derived from m2 / n. |
+| `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean); raw whatever ddof says. |
+| `variance` | float64 | always | Variance m2 / (n - ddof), equal to the scalar: the population m2 / n by default (weighted: Σw in place of n). |
 
 <a id="op-agg_vec_mean"></a>
 
@@ -523,10 +523,12 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `mean` | float64 | always | Running Welford mean of non-null field values. |
+| `mean` | float64 | always | Running Welford mean of non-null field values (origin + shifted_mean). |
 | `m2` | float64 | always | Welford second-moment accumulator (sum of squared deviations from the running mean). |
 | `variance` | float64 | always | Unbiased sample variance derived from m2 / (n-1); null (NaN) when n < 2 (weighted: sum_weights <= 1). |
 | `stddev` | float64 | always | Sample standard deviation (square root of variance). |
+| `origin` | float64 | always | Accumulation origin: the first value folded (0 when that value is not finite); the moments accumulate value − origin, so a large common offset costs no precision. Merged partials keep the first partial's origin. |
+| `shifted_mean` | float64 | always | Mean minus origin, held at the deviations' magnitude; the two-sample moment overlays difference two cells as (origin_a − origin_b) + (shifted_mean_a − shifted_mean_b), as TEST_T / TEST_Z_TWO_SAMPLE do. |
 
 <a id="op-agg_zscore"></a>
 

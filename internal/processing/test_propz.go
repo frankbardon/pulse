@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/testopts"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -64,6 +66,10 @@ type propZRow struct {
 	// cuped is the params.covariate adjustment's state (two-proportion;
 	// nil without a covariate), folded beside groups.
 	cuped *cupedArms
+	// correct / wilson are params.correct and params.interval "wilson"
+	// (testopts, #644): prop.test's continuity correction and the
+	// one-proportion Wilson score interval.
+	correct, wilson bool
 
 	groups map[string]*propGroup
 	order  []string
@@ -86,6 +92,10 @@ type propZParams struct {
 	P0        *float64 `json:"p0"`
 	Reference string   `json:"reference"`
 	Covariate string   `json:"covariate"`
+	// Interval / Correct are params.interval and params.correct, read
+	// (and judged) by testopts.Parse.
+	Interval json.RawMessage `json:"interval"`
+	Correct  json.RawMessage `json:"correct"`
 }
 
 func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -153,7 +163,13 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	if cerr := fieldaccept.CovariateRefusal(string(spec.Type), spec.Field, spec.SplitBy, params.Covariate, schema); cerr != nil {
 		return nil, cerr
 	}
+	opts, cerr := testopts.Parse(spec)
+	if cerr != nil {
+		return nil, cerr
+	}
 	return &propZRow{
+		correct:    opts.Correct,
+		wilson:     opts.Wilson,
 		spec:       spec,
 		schema:     schema,
 		field:      spec.Field,
@@ -269,13 +285,26 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	}
 	sePool := math.Sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 	z := (pa - pb) / sePool
+	// params.correct: prop.test's Yates term Y = min(0.5, D), D the
+	// table's |O − E| = |Δ| / (1/n_a + 1/n_b), shrinks every cell's
+	// deviation, so z scales by (D − Y)/D; the Wald interval widens by
+	// Y·(1/n_a + 1/n_b). Y stays 0 without the param.
+	var yates float64
+	if p.correct {
+		sumInv := 1/na + 1/nb
+		z, yates = yatesZ(z, math.Abs(pa-pb)/sumInv)
+	}
 	pvalue := normalTwoSidedP(z)
 	// Wald (unpooled) standard error for the CI on the rate diff.
 	seUnpool := math.Sqrt(pa*(1-pa)/na + pb*(1-pb)/nb)
 	// Two-sided normal critical value at alpha/2.
 	zcrit := normalCriticalTwoSided(p.alpha)
-	ciLow := (pa - pb) - float64(zcrit*seUnpool)
-	ciHigh := (pa - pb) + float64(zcrit*seUnpool)
+	half := float64(zcrit * seUnpool)
+	if p.correct {
+		half += float64(yates * (1/na + 1/nb))
+	}
+	ciLow := (pa - pb) - half
+	ciHigh := (pa - pb) + half
 	details := map[string]any{
 		"success":    p.success,
 		"groups":     keys,
@@ -286,6 +315,9 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		"pooled":     pooled,
 		"ci_low":     ciLow,
 		"ci_high":    ciHigh,
+	}
+	if p.correct {
+		details["continuity_correction"] = yates
 	}
 	if p.basis.Weighted() {
 		details["successes"] = []float64{a.succW, b.succW}
@@ -312,7 +344,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 // Cohen's h read the adjusted rates; successes, pooled and n stay the
 // listwise sample's raw figures; diff_unadjusted is p̂_a − p̂_b.
 func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, pb, pooled float64, warnings []string) (*types.TestResult, error) {
-	adjA, adjB, f := p.cuped.adjust(p.cuped.groups[keys[0]], p.cuped.groups[keys[1]])
+	adjA, adjB, f := p.cuped.adjust(keys[0], keys[1])
 	se2 := (adjA.M2/adjA.SumW)/na + (adjB.M2/adjB.SumW)/nb
 	if !(se2 > 0) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
@@ -371,9 +403,28 @@ func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
 	nStar := g.w.NStar(p.basis)
 	ph := g.succW / g.w.SumW
 	z := (ph - p.p0) / math.Sqrt(p.p0*(1-p.p0)/nStar)
+	// params.correct: Y = min(0.5, |x − N*·p0|), prop.test's term, on
+	// the statistic (z scales by (D − Y)/D) and on the interval.
+	var yates float64
+	if p.correct {
+		z, yates = yatesZ(z, math.Abs(ph-p.p0)*nStar)
+	}
 	pvalue := normalTwoSidedP(z)
-	half := float64(normalCriticalTwoSided(p.alpha) * math.Sqrt(ph*(1-ph)/nStar))
+	zcrit := normalCriticalTwoSided(p.alpha)
 	diff := ph - p.p0
+	var ciLow, ciHigh float64
+	if p.wilson {
+		// prop.test's Wilson score interval on p (continuity-corrected
+		// by Y), reported on p − p0 as the Wald interval is.
+		lo, hi := wilsonInterval(ph, nStar, zcrit, yates)
+		ciLow, ciHigh = lo-p.p0, hi-p.p0
+	} else {
+		half := float64(zcrit * math.Sqrt(ph*(1-ph)/nStar))
+		if p.correct {
+			half += yates / nStar
+		}
+		ciLow, ciHigh = diff-half, diff+half
+	}
 	details := map[string]any{
 		"success":    p.success,
 		"p0":         p.p0,
@@ -381,8 +432,14 @@ func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
 		"successes":  g.successes,
 		"proportion": ph,
 		"diff":       diff,
-		"ci_low":     diff - half,
-		"ci_high":    diff + half,
+		"ci_low":     ciLow,
+		"ci_high":    ciHigh,
+	}
+	if p.correct {
+		details["continuity_correction"] = yates
+	}
+	if p.wilson {
+		details["interval"] = testopts.IntervalWilson
 	}
 	if p.basis.Weighted() {
 		details["successes"] = g.succW
@@ -443,4 +500,41 @@ func (p *propZRow) reset() {
 // approximation whose z was ~4.7e-4 relative too small at α = 0.05.)
 func normalCriticalTwoSided(alpha float64) float64 {
 	return -standardNormalPPF(alpha / 2)
+}
+
+// yatesZ applies prop.test's continuity correction to a z whose table
+// deviation |O − E| is d (count units on w*): Y = min(0.5, d) and
+// X² = Σ (d − Y)²/E, so z becomes z·(d − Y)/d (0 when d ≤ 0.5). It
+// returns the corrected z and Y.
+func yatesZ(z, d float64) (float64, float64) {
+	y := math.Min(0.5, d)
+	if d > 0 {
+		z *= (d - y) / d
+	}
+	return z, y
+}
+
+// wilsonInterval is prop.test's one-proportion score interval on p at
+// critical value zc over a sample of n (N* weighted), continuity
+// corrected by y (0 without params.correct): with z22n = zc²/(2n), each
+// bound shifts p̂ by ∓y/n and solves the score equation, a bound past
+// [0, 1] clipped, as R does.
+func wilsonInterval(ph, n, zc, y float64) (lo, hi float64) {
+	z22n := float64(zc*zc) / (2 * n)
+	den := 1 + float64(2*z22n)
+	bound := func(pc, sign float64) float64 {
+		root := float64(zc * math.Sqrt(pc*(1-pc)/n+z22n/(2*n)))
+		return (pc + z22n + float64(sign*root)) / den
+	}
+	if pc := ph + y/n; pc >= 1 {
+		hi = 1
+	} else {
+		hi = math.Min(bound(pc, 1), 1)
+	}
+	if pc := ph - y/n; pc <= 0 {
+		lo = 0
+	} else {
+		lo = math.Max(bound(pc, -1), 0)
+	}
+	return lo, hi
 }

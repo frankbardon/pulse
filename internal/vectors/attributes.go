@@ -916,7 +916,8 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 // routing site reads (processing attrRequiresTwoPassIn, predict's
 // attrTwoPass, the fused-crosstab facts, mergegate). A comparison slot
 // whose reference is a centroid is never bound: its pre-pass remains.
-// An ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot naming a bound regression
+// A regression attribute slot (ATTR_REG_FITTED / RESIDUAL / LEVERAGE /
+// INFLUENCE) naming a bound regression
 // fit (params.fit — model.FitReferenced) is bound the same way: it
 // scores that fit instead of refitting OLS in a pre-pass; so is an
 // ATTR_SEM_SCORE naming a bound SEM fit (params.fit, kind sem).

@@ -1,6 +1,8 @@
 package regression
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/linalg"
@@ -48,6 +50,15 @@ type AttributeFit struct {
 	// of NObs unweighted (the hat-matrix identity's n).
 	SumW float64
 
+	// RSS is the refit's (w-scale) residual sum of squares Σw·e², from
+	// the same streaming QR solve as the coefficients, and DF its
+	// residual degrees of freedom N* − p − 1 (Σw − p − 1 under a
+	// frequency weight, n − p − 1 unweighted). Set for an unpenalized
+	// fit only (NaN otherwise): the influence figures read σ² = RSS/DF
+	// (InfluenceForRow).
+	RSS float64
+	DF  float64
+
 	// weights is the refit's row weight (zero value: unweighted).
 	weights rowWeights
 
@@ -63,7 +74,9 @@ type AttributeFit struct {
 // records, then dispatches the same per-Penalty solver the engine uses
 // to produce coefficients + intercept. When needLeverage is true the
 // helper additionally produces the centered-Gram inverse from the
-// (unpenalized) Cholesky factorisation.
+// (unpenalized) Cholesky factorisation — ATTR_REG_LEVERAGE, and the
+// influence figures (ATTR_REG_INFLUENCE, the studentized residuals),
+// which read it beside RSS / DF.
 //
 // The helper enforces the per-attribute spec rules upstream of the
 // solver: ATTR_REG_LEVERAGE accepts only unpenalized OLS (Penalty=="").
@@ -153,6 +166,7 @@ func FitForAttribute(
 	var (
 		coeffs    []float64
 		intercept float64
+		rss, df   = math.NaN(), math.NaN()
 	)
 	switch spec.Penalty {
 	case "":
@@ -162,6 +176,7 @@ func FitForAttribute(
 		}
 		coeffs = res.Coefficients
 		intercept = res.Intercept
+		rss, df = res.RSS, res.DF
 	case "l2":
 		res, err := solveRidge(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, spec.Predictors))
 		if err != nil {
@@ -198,6 +213,8 @@ func FitForAttribute(
 		MeanX:          append([]float64(nil), acc.meanX...),
 		NObs:           acc.n,
 		SumW:           acc.sumW,
+		RSS:            rss,
+		DF:             df,
 		weights:        rw,
 	}
 
@@ -245,6 +262,10 @@ func (f *AttributeFit) RowWeight(rec Record) (float64, bool) { return f.weights.
 // with μ_x the weighted means and M2_xx the Σw-weighted centered Gram.
 // It is invariant to rescaling the weights, so identical across kinds;
 // w = 1 (unweighted, Σw = n) is the unweighted 1/n + quad bit for bit.
+//
+// The quadratic form is FMA-free (explicit float64(...) products,
+// TestOLSQR_NoFMAContraction); GramInverse itself is a gonum Cholesky
+// inverse, whose last bits may differ across architectures.
 //
 // Returns 0 when fit is nil or fit.GramInverse is nil — callers should
 // have validated upstream. Rows with any null predictor produce a

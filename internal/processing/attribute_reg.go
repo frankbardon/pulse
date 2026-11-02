@@ -30,20 +30,23 @@ func DefaultAttributeLabel(attr *types.Attribute) string { return defaultAttribu
 
 // Per-row regression attributes (Phase 7).
 //
-// Three attribute types — ATTR_REG_FITTED, ATTR_REG_RESIDUAL,
-// ATTR_REG_LEVERAGE — emit a single diagnostic column per row from a
+// Four attribute types — ATTR_REG_FITTED, ATTR_REG_RESIDUAL,
+// ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE — emit a single diagnostic
+// column per row from a
 // regression fit computed in the pass-1 prepass. Each attribute carries
 // its own RegressionSpec-shaped fields (Target, Predictors, Penalty,
 // Alpha, L1Ratio) on the types.Attribute spec and refits internally;
 // the regression Response.Regressions[] slot is not populated. Option A
 // per .planning/regression/README.md.
 //
-// All three implement TwoPassAttribute:
+// All four implement TwoPassAttribute:
 //   - PrePass buffers the records (Record is a pointer, so this is one
 //     pointer slot per row — no value copy);
 //   - Finalize calls regression.FitForAttribute and freezes the
 //     coefficient bundle;
-//   - Row emits ŷᵢ / yᵢ − ŷᵢ / hᵢᵢ for the supplied record.
+//   - Row emits ŷᵢ / yᵢ − ŷᵢ / hᵢᵢ / an influence figure for the
+//     supplied record (the standardized / studentized residual kinds
+//     and ATTR_REG_INFLUENCE read regression.InfluenceForRow).
 //
 // Streamability=true: the two-pass orchestrator drives this via
 // iter.Reset(), so the whole dataset is never materialized inside the
@@ -59,6 +62,7 @@ const (
 	regAttrFitted regressionAttributeKind = iota
 	regAttrResidual
 	regAttrLeverage
+	regAttrInfluence
 )
 
 // regressionAttribute is the shared TwoPassAttribute implementation for
@@ -72,6 +76,14 @@ const (
 type regressionAttribute struct {
 	kind regressionAttributeKind
 	spec *types.RegressionSpec
+
+	// residualKind is ATTR_REG_RESIDUAL's params.kind on the refit:
+	// response / pearson / deviance / working are all y − ŷ (OLS is
+	// Gaussian, identity); standardized / studentized read the
+	// refit's design (model.ScaledResidualKind). measure is
+	// ATTR_REG_INFLUENCE's params.measure (never empty).
+	residualKind string
+	measure      string
 
 	// acc is the streaming OLS sufficient-statistics accumulator. Folded
 	// row-by-row in PrePass; the solver in Finalize consumes its
@@ -170,15 +182,15 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"regression attribute requires a non-nil spec")
 	}
-	if kind != regAttrLeverage {
+	if model.FitReferenced(attr.Type, attr) {
 		// params.fit scores a bound fit instead of the OLS refit
-		// (attribute_reg_fit.go); absent, params must still decode.
-		if model.FitReferenced(attr.Type, attr) {
-			return newRegFitScoreAttribute(attr, schema, kind), nil
-		}
-		if _, err := model.DecodeFitParams(attr.Type, attr.Params); err != nil {
-			return nil, err
-		}
+		// (attribute_reg_fit.go) — all four kinds.
+		return newRegFitScoreAttribute(attr, schema, kind), nil
+	}
+	// The refit's params and penalty rule, shared with predict's
+	// field-reference pass (model.CheckRefit).
+	if cerr := model.CheckRefit(attr.Type, attr); cerr != nil {
+		return nil, cerr
 	}
 	if attr.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -219,15 +231,29 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 		}
 	}
 
-	// ATTR_REG_LEVERAGE is OLS-unpenalized only. Penalized leverage uses
+	// A slot reading the refit's design is OLS-unpenalized only
+	// (model.CheckRefit refused a penalty above). Penalized leverage uses
 	// a different formula (involving the regularized resolvent) and GLM
-	// leverage requires the IRLS weight matrix; both deferred to Phase 9.
-	if kind == regAttrLeverage && attr.Penalty != "" {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"ATTR_REG_LEVERAGE supports only unpenalized OLS — penalized leverage / GLM leverage not implemented",
-			map[string]any{"attribute": string(attr.Type), "penalty": attr.Penalty},
-		)
+	// leverage requires the IRLS weight matrix; both deferred.
+	var residualKind, measure string
+	switch kind {
+	case regAttrResidual:
+		residualKind = model.RefitResidualKind(attr)
+	case regAttrInfluence:
+		p, _ := model.DecodeInfluenceParams(attr.Params)
+		measure = p.Measure
+	}
+	if model.PerObservationRefit(attr.Type, attr) {
+		// One observation's figure has no probability-weighted form; the
+		// resolver refuses it first (PULSE_WEIGHT_UNSUPPORTED,
+		// weighting.AttributeClassOf) — this guards a direct factory call.
+		if w := attr.Weight.Spec(); w != nil && w.EffectiveKind() == types.WeightKindProbability {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_CONFIG,
+				fmt.Sprintf("%s reads each record as w identical observations, which a probability weight does not define; set the slot's weight to null to fit unweighted", attr.Type),
+				map[string]any{"attribute": string(attr.Type), "weight": w.Field, "kind": string(w.EffectiveKind())},
+			)
+		}
 	}
 
 	// Validate Penalty / Alpha / L1Ratio coupling through the same
@@ -238,8 +264,10 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 	}
 
 	return &regressionAttribute{
-		kind: kind,
-		spec: spec,
+		kind:         kind,
+		spec:         spec,
+		residualKind: residualKind,
+		measure:      measure,
 		acc: &regressionAccumWrap{
 			target:     spec.Target,
 			predictors: append([]string(nil), spec.Predictors...),
@@ -272,6 +300,16 @@ func newRegLeverageAttribute(attr *types.Attribute, schema *encoding.Schema) (At
 	return newRegressionAttribute(attr, schema, regAttrLeverage)
 }
 
+func newRegInfluenceAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
+	return newRegressionAttribute(attr, schema, regAttrInfluence)
+}
+
+// needsDesign reports whether the slot reads the refit's centered-Gram
+// inverse: leverage, influence and the scaled residual kinds.
+func (a *regressionAttribute) needsDesign() bool {
+	return a.kind == regAttrLeverage || a.kind == regAttrInfluence || model.ScaledResidualKind(a.residualKind)
+}
+
 // PrePass extracts the per-row (Target, Predictors) values from the
 // record and folds them into the accumulator's row buffer. Stores
 // scalars only — record pointers are not retained, so iterator reuse
@@ -298,7 +336,7 @@ func (a *regressionAttribute) Finalize() error {
 	}
 	a.finalized = true
 
-	fit, err := regression.FitForAttribute(a.spec, a.acc.rows, a.kind == regAttrLeverage)
+	fit, err := regression.FitForAttribute(a.spec, a.acc.rows, a.needsDesign())
 	if err != nil {
 		return err
 	}
@@ -343,6 +381,13 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 		if !ok {
 			return math.NaN(), nil
 		}
+		switch a.residualKind {
+		case model.ResidualStandardized:
+			return a.influence(rec, x, y-yhat).Standardized, nil
+		case model.ResidualStudentized:
+			return a.influence(rec, x, y-yhat).Studentized, nil
+		}
+		// response / pearson / deviance / working: Gaussian identity.
 		return y - yhat, nil
 	case regAttrLeverage:
 		// A row excluded from the weighted refit (invalid or zero
@@ -352,12 +397,33 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 			return 0, nil
 		}
 		return regression.LeverageForRow(a.fit, x, w), nil
+	case regAttrInfluence:
+		y, ok := regression.InputValue(rec, a.spec.Target)
+		if !ok {
+			return math.NaN(), nil
+		}
+		inf := a.influence(rec, x, y-yhat)
+		if a.measure == model.InfluenceDFFITS {
+			return inf.DFFITS, nil
+		}
+		return inf.Cooks, nil
 	}
 	return 0, errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_INTERNAL,
 		"regression attribute has unknown kind",
 		map[string]any{"kind": int(a.kind)},
 	)
+}
+
+// influence is one observation's influence figures for rec — every
+// figure NaN (null) when rec is outside the weighted refit (an invalid
+// or zero weight): it is no observation of the fit.
+func (a *regressionAttribute) influence(rec *Record, x []float64, e float64) regression.RowInfluence {
+	if _, ok := a.fit.RowWeight(rec); !ok {
+		nan := math.NaN()
+		return regression.RowInfluence{Leverage: nan, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan}
+	}
+	return regression.InfluenceForRow(a.fit, x, e)
 }
 
 // Compute runs the buffered-path two-pass over the supplied record

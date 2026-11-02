@@ -328,6 +328,7 @@ func TestAttrReg_TwoPassStreamingParity(t *testing.T) {
 		{"fitted", types.ATTR_REG_FITTED},
 		{"residual", types.ATTR_REG_RESIDUAL},
 		{"leverage", types.ATTR_REG_LEVERAGE},
+		{"influence", types.ATTR_REG_INFLUENCE},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

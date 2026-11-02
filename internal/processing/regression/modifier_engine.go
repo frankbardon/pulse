@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,6 +30,10 @@ type modifierEngine struct {
 	family    string // "OLS" or "GLM"
 	glmFam    glmFamily
 	finalized bool
+	// figures, when set (OfferingFigures), is handed to the inner
+	// full-data engine (finalizeOnPredictors), whose figures are the
+	// fit's: a resample replaces only the standard errors.
+	figures func(*model.RegressionFigures)
 }
 
 // newModifierEngine constructs a modifier wrapper for a REG_OLS or
@@ -307,6 +312,9 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 		if err != nil {
 			return nil, err
 		}
+		if o, ok := eng.(figuresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
+			o.setFiguresOffer(e.figures)
+		}
 		be, ok := eng.(BufferedEngine)
 		if !ok {
 			return nil, errors.NewCodedError(
@@ -322,6 +330,9 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 		eng, err := newGLMEngine(&inner, e.schema)
 		if err != nil {
 			return nil, err
+		}
+		if o, ok := eng.(figuresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
+			o.setFiguresOffer(e.figures)
 		}
 		be, ok := eng.(BufferedEngine)
 		if !ok {
@@ -384,6 +395,12 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 		ResidualStdErr: residualStdErr,
 	}
 	attachIntervals(res, resolvedConfLevel(e.spec), float64(n-1), true)
+	if e.spec.Penalty == "" && !newRowWeights(e.spec).weighted() {
+		// The intercept-only lm's logLik / AIC (loglik.go); selection
+		// refuses a weight, so the fit is unweighted.
+		ll, df := olsLogLik(fit.RSS, float64(n), 1)
+		attachLogLik(res, ll, df)
+	}
 	if e.spec.Vcov {
 		// The 1×1 covariance of β₀ = ȳ: the variance se0 is the root of.
 		v0 := 0.0
@@ -402,7 +419,7 @@ func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.Regressio
 	if err != nil {
 		return nil, err
 	}
-	return &types.RegressionResult{
+	res := &types.RegressionResult{
 		Name:         e.spec.Name,
 		Type:         types.REG_GLM,
 		Family:       e.glmFam.Name,
@@ -414,5 +431,13 @@ func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.Regressio
 		NullDeviance: fit.Deviance,
 		PseudoR2:     0,
 		NObs:         fit.N,
-	}, nil
+	}
+	if e.spec.Penalty == "" && fit.Y != nil && !newRowWeights(e.spec).weighted() {
+		// The intercept-only glm's logLik / AIC (loglik.go); selection
+		// refuses a weight and the negative binomial (θ), so the fit is
+		// unweighted on a fixed-dispersion or gamma family.
+		ll, df := glmLogLik(e.glmFam, fit.Y, fit.Mu, fit.Prior, fit.Deviance, 1, 0, false)
+		attachLogLik(res, ll, df)
+	}
+	return res, nil
 }

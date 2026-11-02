@@ -123,6 +123,8 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 		)
 	case types.OverlayKindSymmetry:
 		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: true, Description: "2 x 2 continuity correction (|n_12 - n_21| - 1)^2; inert on k x k."})
+	case types.OverlayKindChiSqMatrix:
+		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); Summary.Parameters adds continuity_correction (Y). Inert on any larger table."})
 	case types.OverlayKindMarkov:
 		ps = append(ps,
 			descriptor.Param{Name: "steps", Type: "list", Required: false, Description: "Distinct step counts 1-1000 (at most 64) to project; default [1, 3, 6, 12]."},

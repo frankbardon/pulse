@@ -191,7 +191,8 @@ func TestRegressionVcov_OffByDefault(t *testing.T) {
 			t.Fatalf("%s: wire carries a vcov key: %s", c.Formula, raw)
 		}
 		stripped := *with
-		stripped.Vcov, stripped.Correlation = nil, nil
+		// The dispersion rides the vcov (RegressionResult.Dispersion).
+		stripped.Vcov, stripped.Correlation, stripped.Dispersion = nil, nil, 0
 		if !reflect.DeepEqual(plain, &stripped) {
 			t.Errorf("%s: vcov moved the fit:\n off %+v\n on  %+v", c.Formula, plain, &stripped)
 		}

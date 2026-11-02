@@ -2157,6 +2157,11 @@ func validateOverlayChiSqMatrix(env *descriptor.Envelope, req *types.Request, sp
 		addHostRequired(env, spec, spec.Kind, req != nil && len(req.Groups) > 0, index)
 		return
 	}
+	// params.correct: the runtime handler's own parse, index-free as
+	// the handler's is.
+	if _, cerr := overlayhost.ParseChiSqMatrixParams(spec, -1); cerr != nil {
+		addCodedError(env, cerr)
+	}
 }
 
 // validateOverlayChiSqRow enforces the per-kind contract for

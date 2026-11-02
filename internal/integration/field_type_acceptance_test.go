@@ -252,6 +252,7 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_REG_PREDICT":        ``,
 	"ATTR_REG_RESIDUAL":       `{"attributes":[{"type":"ATTR_REG_RESIDUAL","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_REG_LEVERAGE":       `{"attributes":[{"type":"ATTR_REG_LEVERAGE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_REG_INFLUENCE":      `{"attributes":[{"type":"ATTR_REG_INFLUENCE","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_POPCOUNT":       `{"attributes":[{"type":"ATTR_SET_POPCOUNT","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SET_HAS":            `{"attributes":[{"type":"ATTR_SET_HAS","field":"$F","label":"o","params":{"label":"a"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_CODE_IN":            `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
@@ -349,9 +350,13 @@ var acceptanceTemplates = map[string]string{
 	"REG_OLS":          `{"regressions":[{"type":"REG_OLS","name":"r","target":"x","predictors":["$F"]}]}`,
 	"REG_GLM":          `{"regressions":[{"type":"REG_GLM","name":"r","target":"y","predictors":["$F"],"family":"poisson","link":"log"}]}`,
 	"REG_BAYES_LINEAR": `{"regressions":[{"type":"REG_BAYES_LINEAR","name":"r","target":"x","predictors":["$F"],"prior":"nig","credible_level":0.95}]}`,
+	// The categorical target g (its levels are the categories).
+	"REG_MULTINOMIAL": `{"regressions":[{"type":"REG_MULTINOMIAL","name":"r","target":"g","predictors":["$F"]}]}`,
 	// A model regression: the field under judgement is a linear control
 	// beside the channel x.
 	"REG_MMM_HILL": `{"regressions":[{"type":"REG_MMM_HILL","name":"r","target":"y","predictors":["x","$F"],"params":{"channels":["x"]}}]}`,
+	// The ordinal model over the categorical g (its dictionary order).
+	"REG_ORDINAL": `{"regressions":[{"type":"REG_ORDINAL","name":"r","target":"g","predictors":["$F"]}]}`,
 	// The same shape over the contiguous week, with a minimal sampler run.
 	"REG_MMM_BAYES": `{"regressions":[{"type":"REG_MMM_BAYES","name":"r","target":"y","predictors":["x","$F"],"rng_seed":1,"params":{"channels":["x"],"time":"week","chains":1,"warmup":20,"draws":20}}]}`,
 }

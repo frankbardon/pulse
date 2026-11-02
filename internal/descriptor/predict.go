@@ -233,6 +233,15 @@ func (o *PredictOptions) defaultMultiplicity() *types.Multiplicity {
 	return o.DefaultMultiplicity
 }
 
+// defaultWeight is the instance default weight predict resolves fits
+// against (pulse.Options.DefaultWeight), nil for none.
+func (o *PredictOptions) defaultWeight() *types.WeightSpec {
+	if o == nil {
+		return nil
+	}
+	return o.DefaultWeight
+}
+
 // opRoute returns t, or "" — a name no operator table, switch or
 // capability lookup knows — when inst hides it, so every type-keyed
 // predict site takes the never-registered branch for a hidden name.
@@ -1148,7 +1157,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		// their own Target + Predictors instead of a single Field. Validate
 		// those references here; the factory rechecks numeric-type
 		// compatibility at construction time.
-		if rt := opRoute(opts.Instance, attr.Type); rt == types.ATTR_REG_FITTED || rt == types.ATTR_REG_RESIDUAL || rt == types.ATTR_REG_LEVERAGE {
+		if rt := opRoute(opts.Instance, attr.Type); rt == types.ATTR_REG_FITTED || rt == types.ATTR_REG_RESIDUAL || rt == types.ATTR_REG_LEVERAGE || rt == types.ATTR_REG_INFLUENCE {
 			if model.FitReferenced(rt, attr) {
 				// params.fit: the bound fit supplies target and
 				// predictors (the field-reference pass judges it).
@@ -1203,7 +1212,7 @@ func attributeDefaultLabel(attr *types.Attribute, inst *InstanceSnapshot) string
 		return label
 	}
 	switch route := opRoute(inst, attr.Type); route {
-	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE:
 		if model.FitReferenced(route, attr) {
 			return model.DefaultFitLabel(attr)
 		}

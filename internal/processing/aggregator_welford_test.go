@@ -27,13 +27,15 @@ func welfordRecord(v float64) *Record {
 
 // controlWelford pumps the same samples through a private welfordBucket
 // to give the test an in-process numerical reference at the same float64
-// precision the aggregator uses.
+// precision the aggregator uses, about the first sample (the
+// aggregator's accumulation origin, #637).
 func controlWelford(samples []float64) (mean, variance float64, n uint64) {
 	var b welfordBucket
+	var o originShift
 	for _, v := range samples {
-		b.add(v)
+		b.add(o.of(v))
 	}
-	return b.mean, b.sampleVariance(), uint64(b.n)
+	return o.level(b.mean), b.sampleVariance(), uint64(b.n)
 }
 
 func TestAggregatorWelford_BufferedMatchesWelfordBucket(t *testing.T) {

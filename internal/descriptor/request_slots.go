@@ -41,6 +41,8 @@ import (
 //     ComposedResponse.Optimizations it produces)
 //   - ComposedRequest.Fits     — capability:compose_fits (each fit
 //     request's own slots are gated like a slot's, details.fit)
+//   - ComposedRequest.Compare  — capability:compose_compare (+ the
+//     ComposedResponse.Comparisons it produces)
 //   - a `fits` entry's `from_sweep` (FitSpec) — capability:compose_sweep_bind
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
@@ -49,7 +51,8 @@ import (
 //     RegressionSpec, Attribute, OverlaySpec, Group — so also the
 //     crosstab axes) — capability:weighting
 //   - every `multiplicity` block (Request, Test, OverlaySpec — so also
-//     a FacetRequest's overlays —, ComposeOverlaySpec, ComposedRequest)
+//     a FacetRequest's overlays —, ComposeOverlaySpec, ComposedRequest,
+//     FitComparisonSpec)
 //     — capability:multiplicity
 //   - every item `for_each` (Window, Feature, Attribute) —
 //     capability:for_each
@@ -206,6 +209,13 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.OverlaySpec{}):        {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Group{}):              {weightSlotGate},
 	reflect.TypeOf(types.ComposeOverlaySpec{}): {multiplicitySlotGate},
+	reflect.TypeOf(types.FitComparisonSpec{}):  {multiplicitySlotGate},
+	// A nested-model comparison's adjusted twins and their echo.
+	reflect.TypeOf(types.FitComparisonResult{}): {
+		multiplicitySlotGate,
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
 	// The sampled sweep's own keys; the random / lhs mode VALUES ride
 	// the same capability (nestedSweepSamplingRefusal, the SweepMode
 	// enum).
@@ -246,6 +256,12 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
+	// The marginal effects' adjusted twins and their family's echo.
+	reflect.TypeOf(types.RegressionMarginsResult{}): {
+		multiplicitySlotGate,
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
 	// The matrix results ride capability:matrices with the request
 	// slots that produce them; the overlay layers ride the same gate
 	// as the request `overlays` slot that produces them.
@@ -264,6 +280,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		paramsSlotGate,
 		{key: "optimize", visible: capabilityGate(featComposeOpt)},
+		{key: "compare", visible: capabilityGate(featComposeCompare)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it; the seed echo only a sampled sweep writes
@@ -277,6 +294,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		{key: "optimizations", visible: capabilityGate(featComposeOpt)},
+		{key: "comparisons", visible: capabilityGate(featComposeCompare)},
 	},
 	// An optimize block's saved models ride capability:models, like a
 	// slot's `models`.
@@ -503,6 +521,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Optimize) > 0 {
 			out = append(out, "optimize")
+		}
+		if r != nil && len(r.Compare) > 0 {
+			out = append(out, "compare")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
@@ -966,6 +987,16 @@ func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 			if len(r.Optimize[i].Models) > 0 && !inst.Enabled(featModels) {
 				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{"models"},
 					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
+			}
+		}
+		// A comparison's own `multiplicity` rides capability:multiplicity
+		// (details.compare).
+		if !inst.Enabled(featMultiplicity) {
+			for i := range r.Compare {
+				if r.Compare[i].Multiplicity != nil {
+					return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("compare[%d]", i), []string{multiplicityKey},
+						VisibleSlotKeys(&r.Compare[i], inst)), "compare", i)
+				}
 			}
 		}
 	case *types.ChainRequest:

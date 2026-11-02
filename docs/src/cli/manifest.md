@@ -86,7 +86,11 @@ unscoped manifest is unchanged.
 
 Every operator's `params[]` entry carries `name`, `type`, `required`
 and `description`, plus optional keys (`default`, `enum_values`,
-`field_filter`, `exactly_one_of`, `slot`). `names_column: true` marks an
+`enum_by` + `enum_values_by`, `field_filter`, `exactly_one_of`, `slot`).
+`enum_values_by` narrows `enum_values` by the value of the sibling param
+`enum_by` names, each list's first entry the default: REG_GLM's `link`
+by `family` (`binomial` → `logit`, `probit`, `cloglog`, …), so a form
+offers only the valid pairs. `names_column: true` marks an
 entry whose value names a record column the operator reads — a cohort
 field, or a column the request computes ahead of the slot where the
 operator accepts one. A `string` value is one column, a `list` value one

@@ -38,6 +38,14 @@ func ValidateExplainRequest(req descriptor.ExplainRequest) (descriptor.ExplainRo
 	if err != nil {
 		return "", "", err
 	}
+	if req.Operator != "" {
+		if roots := setRoots(req); len(roots) > 0 {
+			return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"explain: operator takes no other root",
+				map[string]any{"field": "operator", "roots": roots})
+		}
+		return descriptor.ExplainRootOperator, detail, nil
+	}
 	type rootSet struct {
 		set  bool
 		name descriptor.ExplainRoot
@@ -107,10 +115,35 @@ func ValidateExplainRequest(req descriptor.ExplainRequest) (descriptor.ExplainRo
 	}
 	if len(roots) != 1 {
 		return "", "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"explain: set exactly one request root (request, composed, chain, facet or sample), or a response",
+			"explain: set exactly one request root (request, composed, chain, facet or sample), a response, or an operator",
 			map[string]any{"field": "request", "roots": roots, "valid": valid})
 	}
 	return root, detail, nil
+}
+
+// setRoots names every request and result root req sets, in
+// ExplainRequest field order.
+func setRoots(req descriptor.ExplainRequest) []string {
+	var out []string
+	for _, r := range []struct {
+		set  bool
+		name descriptor.ExplainRoot
+	}{
+		{req.Request != nil, descriptor.ExplainRootRequest},
+		{req.Composed != nil, descriptor.ExplainRootComposed},
+		{req.Chain != nil, descriptor.ExplainRootChain},
+		{req.Facet != nil, descriptor.ExplainRootFacet},
+		{req.Sample != nil, descriptor.ExplainRootSample},
+		{req.Response != nil, descriptor.ExplainRootResponse},
+		{req.ComposedResponse != nil, descriptor.ExplainRootComposedResponse},
+		{req.ChainResponse != nil, descriptor.ExplainRootChainResponse},
+		{req.FacetResult != nil, descriptor.ExplainRootFacetResult},
+	} {
+		if r.set {
+			out = append(out, string(r.name))
+		}
+	}
+	return out
 }
 
 // explainDetail resolves the detail level: empty is terse.
@@ -181,6 +214,9 @@ func Explain(inst *descx.InstanceSnapshot, req descriptor.ExplainRequest, checks
 		err = e.explainFacet(req.Facet)
 	case descriptor.ExplainRootSample:
 		e.explainSample(req.Sample)
+	case descriptor.ExplainRootOperator:
+		e.res.Mode = descriptor.ExplainModeOperator
+		err = e.explainOperator(req.Operator)
 	}
 	if err != nil {
 		return nil, err

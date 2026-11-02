@@ -78,7 +78,7 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   (compose), `ChainRequest` (process-chain), `FacetRequest`, `SampleRequest`,
   `LookupRequest` (point lookup), `RecommendRequest` (recommend),
   `ExplainRequest` (explain: one request root, or one result root with
-  its request companion, plus `detail`).
+  its request companion, or an `operator` name alone, plus `detail`).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
   `FacetResult` (its `warnings` are coded `{code, message, details}`
   entries, the `Response.warnings` shape — `[]string` before U44),
@@ -88,7 +88,8 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   placeholders, why}` — is deprecated, marked `deprecated: true`, and
   always absent: recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
-  coded warnings), `MaterializePredictResult` (`Pulse.PredictMaterialize`
+  coded warnings; operator mode adds `validation`, the `OperatorValidation`
+  record `{references, gap, weight_refusal, certification}`), `MaterializePredictResult` (`Pulse.PredictMaterialize`
   / `pulse api materialize --predict` / `pulse_materialize {predict:
   true}`: `valid`, the source `schema_info`, the output `columns` —
   `{name, type, nullable, description, from, derived}` plus a truncated
@@ -379,7 +380,9 @@ member regression's `RegressionResult` gains the additive `p_adjusted`
 map) and `multiplicity` (`AppliedMultiplicity`) beside `p_values`. `method` is the closed enum
 `MultiplicityMethod` (`none`, `bonferroni`, `holm`, `bh`, `by`) and
 `family` the closed enum `MultiplicityFamily` (`layer`, `row`, `column`,
-`request`, `compose`, `matrix`);
+`request`, `compose`, `matrix`, and the echo-only `margins` — the family
+a regression's marginal effects form on their own, which a block naming
+it is refused);
 both are full vocabularies on every instance (not features). `alpha` is a
 number in (0, 1).
 
@@ -943,6 +946,53 @@ a_n ≤ 1), whose diagonal is `std_errors`²·a_n/(a_n−1). A weighted fit
 reads the inference size N* (Σw frequency, n_eff probability), as its
 standard errors do. `correlation` is `vcov` scaled to a unit diagonal
 (R's `cov2cor`); an entry with a zero or undefined variance is `null`.
+Beside a classical `vcov` whose dispersion is estimated — unpenalized
+`REG_OLS` (σ̂² = RSS/df) and `REG_GLM` gamma (the Pearson χ²/df) —
+`RegressionResult` carries the additive `omitempty` number `dispersion`,
+so `vcov / dispersion` is (XᵀWX)⁻¹ (`null` when the residual df is ≤ 0;
+absent on binomial / poisson, whose φ is 1, and on every robust,
+resampled, penalized or Bayesian fit). The influence figures over a
+bound fit read it.
+Every plain `REG_OLS` / `REG_GLM` fit carries the additive `omitempty`
+numbers `two_log_lik` (twice the maximised log-likelihood, R's
+`logLik()`) and `aic` (−`two_log_lik` + 2·k, k `logLik`'s df: σ counted
+on OLS, the dispersion on gamma, an estimated θ on negative binomial),
+absent under a probability weight, a penalty, a binding OLS bound and on
+`REG_BAYES_LINEAR`; `null` when infinite (a non-count poisson /
+binomial response). A `REG_GLM` `negative_binomial` fit (NB2, Var = μ +
+μ²/θ) adds two more additive `omitempty` numbers: `theta` — θ̂, the
+maximum-likelihood estimate (MASS `glm.nb`), or the spec's fixed `theta`
+(an additive `omitempty` `RegressionSpec` number, > 0) — and
+`theta_std_err` (θ̂'s standard error 1/√I(θ̂), present only when θ was
+estimated; `null` when the information is not positive). Its `vcov` is (XᵀWX)⁻¹ at θ̂ with φ = 1 (MASS
+`summary.negbin`), so no `dispersion` rides it — unless a fixed θ sets
+the additive `omitempty` `RegressionSpec` string `dispersion`
+(`fixed` | `estimated`) to `estimated`: then its `vcov` is
+φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/df, carried as `dispersion` with `df` (R's
+`summary.glm`). Every other family leaves `theta` and `theta_std_err`
+absent.
+An additive `omitempty` `RegressionSpec` object `margins` (`{type,
+terms, scale}`, `REG_OLS` / `REG_GLM`) adds the additive `omitempty`
+object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
+(`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
+the term-keyed number maps `estimates`, `std_errors`, `statistics`,
+`p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
+`conf_level` and `df` (present only for a Student t; `null` when ≤ 0),
+and — gated on `capability:multiplicity` like the coefficient twins —
+`p_adjusted` / `significant_adjusted` and a `multiplicity`
+(`AppliedMultiplicity`, `family: "margins"`) echo: under the
+regression's own block the terms form one family per regression, apart
+from the coefficients'. An undefined figure is `null`,
+key kept. A request without `margins` is byte-identical.
+An additive `omitempty` `RegressionSpec` object `collinearity`
+(`{basis, groups}`, `REG_OLS` / `REG_GLM`; `basis` `model` |
+`predictors`, `groups` an array of `{name, predictors}`) adds the
+additive `omitempty` object `RegressionResult.collinearity`
+(`RegressionCollinearityResult`): `basis`, `terms` (string array), the
+term-keyed maps `df` (integers), `vif` and `tolerance` (numbers), and
+`gvif_scaled` (numbers, present only when `groups` is set). An
+undefined figure is `null`, key kept. A request without `collinearity`
+is byte-identical.
 Under `resample` it is the replicate covariance (jackknife
 (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
 leave-one-out; bootstrap the B−1 sample covariance of the
@@ -972,7 +1022,16 @@ are the engine's (below, Regression coefficient intervals): β ∓ q·SE
 on every coefficient key, `null` where the standard error is, q the
 Student-t on the model's reported `df`, else (and under `resample`)
 the normal; `df` is the reported one only on a t interval. A
-non-finite float in `outputs` is `null`.
+non-finite float in `outputs` is `null`. The fit statistics a model may report
+are `r2`, `adj_r2`, `residual_std_err`, `df`, `deviance`,
+`null_deviance`, `pseudo_r2`, `two_log_lik` and `aic`
+(`extend.RegressionFit`; the last two since U65 E4-S1, never under a
+probability weight) and `converged_iters`. The built-in model
+regressions (`REG_MMM_HILL`, `REG_MMM_BAYES`, `REG_ORDINAL`) answer in
+the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
+beside the predictors (no intercept), leaves their `p_values` `null`,
+and fills `outputs` `link`, `levels`, `thresholds`,
+`fitted_probabilities` and, with `params.brant`, `brant`.
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`
 machinery: neither `disable_components` / `--no-components` nor any
@@ -1104,6 +1163,23 @@ the buffered path (the held-out rows are scored after the fit)"`). The
 block rides `capability:regression_holdout`, is kept by the `standard`
 and `minimal` presets, is rounded by `return.precision` and never
 appears under `Response.components`.
+
+## Multinomial regression
+
+`REG_MULTINOMIAL` (U65 E4-S2) is a `RegressionType` enum value; the
+payload adds two `omitempty` keys. `RegressionSpec.reference` (string)
+names the baseline category, one of the target's dictionary labels
+(absent: the first fitted level); on any other regression it is
+`PROCESSING_CONFIG` (`details.requires: type REG_MULTINOMIAL`).
+`RegressionResult.reference` (string) echoes the reference a
+multinomial fit read and `RegressionResult.categories` (array of
+string) lists its fitted levels in dictionary order; both are absent on
+every other regression. The per-coefficient maps (`coefficients`,
+`std_errors`, `p_values`, `ci_lower`, `ci_upper`, `p_adjusted`,
+`significant_adjusted`) and `vcov`'s row / column keys read
+`"<level>:<term>"` per non-reference level (`"<level>:(intercept)"` for
+the intercept). Absent is byte-identical and `format_version` stays
+`"1.1"`.
 
 ## Per-group aggregation components
 
@@ -1374,7 +1450,8 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`); a fit request's own refusal keeps its
+`vector_source`, `regression_type` — a `REG_MULTINOMIAL` fit, which
+nothing binds); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`
@@ -1463,6 +1540,45 @@ converged starts within `10·tolerance·max(1, |f*|)` of the best. Both slots ar
 blocks as `optimize [{name, direction, variables, constraints, starts,
 rng_seed}]` on the predict result (not payload-reachable).
 
+### Compose comparisons
+
+`ComposedRequest.compare` is an `omitempty` array of `FitComparisonSpec
+{name, restricted, full, test, multiplicity}`: a nested-model
+comparison of two regression `fits` entries, run once after the fits
+with no record data (R's `anova(m0, m1)` / `lmtest::waldtest`). `test`
+is the `ComparisonTest` enum `f` / `lrt` / `wald` (absent: `f` on
+`REG_OLS` and a family that estimates its dispersion, `lrt` otherwise);
+`multiplicity` (gated by `capability:multiplicity`) inherits the batch
+block, family `compose` only. Predict and the runtime refuse an entry
+identically before any fit or slot runs — `PULSE_COMPARISON_INVALID`
+with `details.compare` (the entry index) and `details.reason` (the
+restricted terms not a subset of the full fit's, fit requests that
+differ beyond the regression's predictors, intercept and reporting
+knobs, an unsupported fit or test under `requires`). Results land in
+`ComposedResponse.comparisons`, an `omitempty` array of
+`FitComparisonResult` in declaration order — `name`, `restricted`,
+`full`, `test`, `distribution` (`ComparisonDistribution` `f` /
+`chisq`), `terms`, `statistic`, `df`, `df_residual` (F only),
+`p_value`, `n_obs`, `restricted_df_residual`, `full_df_residual`,
+`restricted_deviance`, `full_deviance`, `dispersion` (F / LR on a
+deviance), `restricted_two_log_lik` / `full_two_log_lik` (a θ-estimated
+negative binomial's LR), `p_adjusted` / `significant_adjusted` /
+`multiplicity` — pinned outside the Compose-level `return` (always
+emitted, never rounded); an undefined figure is `null`, key kept. A
+comparison whose fit failed on its data, or whose fits used different
+row counts (`PULSE_COMPARISON_ROWS_DIFFER`), keeps `{name, restricted,
+full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
+(`slot_kind` `comparisons`). Both slots are gated by
+`capability:compose_compare` (a dependency on `capability:compose_fits`
+and `REG_OLS` or `REG_GLM`). `pulse_predict` with `composed` lists the
+entries as `compare [{name, restricted, full, test, distribution,
+terms}]` on the predict result (not payload-reachable). The figures a
+comparison reads off each fit beyond its wire result (its residual
+deviance, the Pearson dispersion, the covariance its standard errors
+read) travel through an internal capture on the fit's run, never a
+request, result or public type: no fit's bytes move. Long form:
+`docs/src/regression.md` (Nested-model comparison).
+
 ### Model files (`save`)
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
@@ -1471,7 +1587,10 @@ written as a model file (`model_format_version` 1, or 2 — adding the
 `covariance` echo — when a robust covariance produced the fit's standard
 errors, or 3 — adding the fit's `outputs`, its coefficients named by the
 model — for an extension regression whose registration supplies a
-scorer; `.pulse-model.json`;
+scorer, or 4 — adding the fit's `dispersion` — for a classical `vcov`
+fit that carries one, or 5 — adding the fit's `theta` — for a `REG_GLM`
+`negative_binomial` fit, or 6 — `theta` and `dispersion` — for a fixed-θ
+`negative_binomial` fit whose dispersion is estimated; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

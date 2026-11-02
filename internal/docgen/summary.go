@@ -21,6 +21,7 @@ func (g *gen) renderIndex() string {
 	b.WriteString("one page per operator category.\n")
 	b.WriteString("- [Reading your results](reading.md): how to read each output field, and the counts beside every result.\n")
 	b.WriteString("- [Glossary](glossary.md): plain-language definitions of the terms the guidance uses.\n")
+	b.WriteString("- [How Pulse is validated](" + validationPage + "): the external reference, tolerance and test behind each inferential operator.\n")
 	if !g.opts.OmitSkills {
 		b.WriteString("- [Skills](skills.md): every skill as an agent reads it.\n")
 	}
@@ -61,6 +62,7 @@ func renderSummary(guides []questionGuide, cats []category, pages []readingPage,
 	b.WriteString(componentsPage)
 	b.WriteString(")\n")
 	b.WriteString("  - [Glossary](glossary.md)\n")
+	b.WriteString("  - [How Pulse is validated](" + validationPage + ")\n")
 	if !omitSkills {
 		b.WriteString("  - [Skills](skills.md)\n")
 		for _, md := range list {

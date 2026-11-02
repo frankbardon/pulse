@@ -527,7 +527,7 @@ var (
 // Estimator facts are stated as the code computes them
 // (internal/processing/aggregator.go, aggregator_online.go,
 // aggregator_cohort.go, aggregator_welford.go): AGG_STDDEV / AGG_VARIANCE
-// divide by n, AGG_WELFORD and the CI bounds by n - 1; AGG_SKEWNESS is the
+// divide by n (n - 1 under params.ddof 1), AGG_WELFORD and the CI bounds by n - 1; AGG_SKEWNESS is the
 // population moment coefficient g1 and AGG_KURTOSIS the population excess
 // kurtosis g2, both null (NaN) for n <= 1 or zero variance; the CI bounds use the
 // normal critical value, not Student's t; AGG_ZSCORE's value is the mean
@@ -554,7 +554,7 @@ var (
 		},
 		Assumptions: []string{
 			"Missing values are skipped.",
-			"Population form: the squared distances are averaged over n, not n - 1.",
+			"Population form by default: the squared distances are averaged over n; params.ddof 1 averages them over n - 1, the sample form.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"standard-deviation", "variance", "mean", "outlier"},
@@ -577,7 +577,7 @@ var (
 		},
 		Assumptions: []string{
 			"Missing values are skipped.",
-			"Population form: the squared distances are averaged over n, not n - 1.",
+			"Population form by default: the squared distances are averaged over n; params.ddof 1 averages them over n - 1, the sample form.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"variance", "standard-deviation", "mean"},
@@ -596,7 +596,7 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want only the average", Use: "AGG_AVERAGE"},
-			{When: "you want the population spread (dividing by n) on its own", Use: "AGG_STDDEV"},
+			{When: "you want the spread on its own, in either form (params.ddof)", Use: "AGG_STDDEV"},
 			{When: "you want the comparison itself on raw rows", Use: "TEST_WELCH"},
 		},
 		Assumptions: []string{

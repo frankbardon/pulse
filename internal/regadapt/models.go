@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/regmmm"
+	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,7 +16,8 @@ import (
 // declaration — internal/descriptor's model-regression table, the very
 // declaration predict judges the slot by — and its internal/regmmm
 // factory and scorer, and installed on the engine's BUILT-IN registry at
-// this package's init. internal/service imports this package, so every
+// this package's init (internal/regmmm's media-mix models,
+// internal/regordinal's REG_ORDINAL). internal/service imports this package, so every
 // binary that runs a request — the stock CLI, `pulse mcp`, every
 // embedder, and every service test — runs them with no Extensions and
 // no root package; an engine-package test imports it directly.
@@ -28,11 +30,16 @@ func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 	if !ok || !model.ModelRegression(t) {
 		return RegressionAdapter{}, false
 	}
+	factory, ok := regmmm.Factories[t]
+	if !ok {
+		factory = regordinal.Factories[t]
+	}
 	return RegressionAdapter{
-		Name:    t,
-		Decl:    decl,
-		Factory: regmmm.Factories[t],
-		Scorer:  regmmm.Scorers[t],
+		Name:        t,
+		Decl:        decl,
+		WeightAware: descx.ModelRegressionWeightAware(t),
+		Factory:     factory,
+		Scorer:      regmmm.Scorers[t],
 	}, true
 }
 

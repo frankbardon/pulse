@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/testopts"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -75,6 +76,12 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		env.AddError(string(errors.PULSE_TEST_INVALID_ALPHA),
 			"alpha must lie in (0, 1)",
 			map[string]any{"alpha": t.Alpha, "type": string(t.Type)})
+	}
+	// The #644 methodological options (variance, exact, correct,
+	// interval): the runtime constructors' own reading
+	// (testopts.Parse), code, message and details alike.
+	if _, cerr := testopts.Parse(t); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 	// Chi-square and Fisher exact both use rows + cols.
 	if t.Type == types.TEST_CHISQ || t.Type == types.TEST_FISHER_EXACT {

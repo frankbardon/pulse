@@ -21,7 +21,9 @@ var regressionPurposes = map[string]descriptor.Purpose{
 	"REG_GLM":          purposeRegGLM,
 	"REG_MMM_BAYES":    purposeRegMMMBayes,
 	"REG_MMM_HILL":     purposeRegMMMHill,
+	"REG_MULTINOMIAL":  purposeRegMultinomial,
 	"REG_OLS":          purposeRegOLS,
+	"REG_ORDINAL":      purposeRegOrdinal,
 }
 
 // Shared assumption sentences, so the three types say the same thing
@@ -105,8 +107,8 @@ var (
 		Assumptions: []string{
 			regIndependentRows,
 			"The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson non-negative counts, gamma positive values.",
-			"Only the canonical link runs for each family (logit for binomial, log for Poisson, inverse for gamma); " +
-				"the predictors act linearly on that link scale.",
+			"The link must suit the outcome (each family takes its own: logit, probit or cloglog for binomial; log, identity or sqrt for counts; inverse, log or identity for gamma); " +
+				"the predictors act linearly on that link scale, and margins converts the effects to the outcome's units.",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors: a Wald z with the dispersion " +
 				"fixed at 1 for binomial and Poisson, where overdispersed counts (variance above the mean) make Poisson p-values too small; " +
 				"a Student t on the residual df for gamma, whose dispersion is estimated from the data as R's glm does.",
@@ -119,7 +121,7 @@ var (
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
 			"deviance", "generalized-linear-model", "independence", "link-function",
-			"listwise-deletion", "logistic-regression", "multicollinearity", "null-hypothesis",
+			"listwise-deletion", "logistic-regression", "marginal-effect", "multicollinearity", "null-hypothesis",
 			"odds-ratio", "overdispersion", "p-value", "pseudo-r-squared", "regression-coefficient",
 			"skew", "standard-error",
 		},
@@ -168,6 +170,44 @@ var (
 		},
 	}
 
+	purposeRegMultinomial = descriptor.Purpose{
+		Plain:   "Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category.",
+		KnownAs: []string{"multinomial logistic regression", "multinomial logit", "mlogit", "multinom"},
+		Intents: []string{IntentDrivers, IntentRelationship},
+		Questions: []string{
+			"Which customer traits are associated with choosing the premium or the basic plan over the standard one, holding the others fixed?",
+			"How does the chance of each support channel being picked change with the customer's age?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Relate the brand a respondent prefers to their age and income, against a reference brand.",
+			descriptor.DomainOps:     "Model which of several resolution paths a ticket takes from its size and queue.",
+			descriptor.DomainScience: "Relate the class an observation falls in to measured covariates.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the outcome has two categories (yes/no)", Use: "REG_GLM"},
+			{When: "the outcome is numeric", Use: "REG_OLS"},
+			{When: "you only want to know whether the categories are spread differently across a grouping category", Use: "TEST_CHISQ"},
+		},
+		Assumptions: []string{
+			regIndependentRows,
+			"The target is a categorical field: its levels, in dictionary order, are the categories; a level no fitted row carries is dropped.",
+			"Each category other than the reference has its own coefficients: the change in the log odds of that category against the reference per unit of the predictor, holding the others fixed.",
+			"The odds between any two categories do not depend on the other categories offered (independence of irrelevant alternatives).",
+			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, as a Wald z.",
+			"If a predictor separates a category from the reference perfectly, the fit cannot converge and Pulse refuses it.",
+			regAssociationOnly,
+			regCollinearity,
+			regNumericOnly,
+			regNullsDropped,
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"deviance", "independence", "listwise-deletion", "logistic-regression", "multicollinearity",
+			"null-hypothesis", "odds-ratio", "p-value", "pseudo-r-squared", "regression-coefficient",
+			"standard-error",
+		},
+	}
+
 	purposeRegMMMHill = descriptor.Purpose{
 		Plain:   "Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls.",
 		KnownAs: []string{"media mix model", "marketing mix model", "mmm"},
@@ -195,6 +235,48 @@ var (
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
 			"independence", "listwise-deletion", "regression-coefficient", "standard-error",
+		},
+	}
+
+	purposeRegOrdinal = descriptor.Purpose{
+		Plain:   "Fits a model that predicts an ordered rating (poor, fair, good) from numeric predictors, each shifting the whole scale up or down.",
+		KnownAs: []string{"ordinal logistic regression", "ordered logit", "proportional odds model", "polr"},
+		Intents: []string{IntentDrivers, IntentRelationship},
+		Questions: []string{
+			"Which customer traits are associated with a higher satisfaction rating, holding the others fixed?",
+			"How much more likely is a top rating per extra year of tenure?",
+			"Does each predictor shift every step of the rating scale by the same amount?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Relate a 1-5 agreement or satisfaction rating to respondent attributes without treating the scale as evenly spaced numbers.",
+			descriptor.DomainOps:     "Model a ticket's severity grade (low, medium, high, critical) from its queue and size.",
+			descriptor.DomainScience: "Relate a graded response (none, mild, moderate, severe) to dose and age.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the outcome has only two values (yes/no)", Use: "REG_GLM"},
+			{When: "the outcome is a numeric measure whose steps are evenly spaced", Use: "REG_OLS"},
+			{When: "you only want to know whether the ratings differ between groups", Use: "TEST_KRUSKAL_WALLIS"},
+			{When: "the outcome and the single predictor are both categories", Use: "TEST_CHISQ"},
+		},
+		Assumptions: []string{
+			regIndependentRows,
+			"The levels are ordered: params.levels gives the order, else a categorical's dictionary order or a number's ascending values; an unordered outcome needs another model.",
+			"Proportional odds: each predictor moves every threshold of the scale by the same amount (one coefficient per predictor); " +
+				"params.brant tests it, and a small Brant p-value says some effect differs across the scale.",
+			"The link sets the shape of the scale's steps: logit (default) reads coefficients as log odds ratios, probit as shifts of a normal latent score, " +
+				"cloglog as log hazard ratios.",
+			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, a Wald z on the fitted information.",
+			"A predictor that separates the levels perfectly makes the fit unable to converge, and Pulse refuses it.",
+			regAssociationOnly,
+			regCollinearity,
+			regNumericOnly,
+			regNullsDropped,
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"deviance", "independence", "link-function", "listwise-deletion", "multicollinearity",
+			"null-hypothesis", "odds-ratio", "p-value", "pseudo-r-squared", "regression-coefficient",
+			"standard-error",
 		},
 	}
 

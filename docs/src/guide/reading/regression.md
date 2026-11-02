@@ -113,7 +113,7 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 
 #### `coefficients.*`
 
-The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link).
+The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link), the log of the expected count for negative_binomial (log link).
 
 **Sign:**
 
@@ -131,11 +131,12 @@ The change in the linear predictor, on the link scale, for a one-unit increase i
 
 #### `std_errors.*`
 
-How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.
+How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial, Poisson and negative_binomial (at the fitted theta), and scaled by the estimated dispersion for gamma (and for a fixed-theta negative_binomial under dispersion estimated).
 
 **Caveats:**
 
-- With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.
+- With overdispersion (counts varying more than their mean) the Poisson standard errors are too small; negative_binomial models it through theta.
+- negative_binomial treats the coefficients and theta as independent (MASS summary.negbin), so its standard errors ignore theta's uncertainty.
 - The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.
 - Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.
 - On an l2 fit it is the penalized sandwich, which treats the shrinkage as fixed; on an l1 or elasticnet fit it is null on every coefficient (the data pick the predictors, so no analytical standard error is valid); request resample for replicate ones.
@@ -144,14 +145,14 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 
 **Caveats:**
 
-- Binomial and Poisson: Wald z at dispersion fixed to 1, so with overdispersed counts the Poisson p-values come out too small. Gamma: a Student t on df, because its dispersion is estimated (R's summary.glm); a robust covariance makes it Wald z again.
+- Binomial and Poisson: Wald z at dispersion fixed to 1, so with overdispersed counts the Poisson p-values come out too small. Gamma (and a fixed-theta negative_binomial under dispersion estimated): a Student t on df, because its dispersion is estimated (R's summary.glm); a robust covariance makes it Wald z again.
 - The request's alpha param is the penalty strength, not a significance level; on an l2 fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading, and on an l1 or elasticnet fit they are null.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
 #### `ci_lower.*`
 
-Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma and a negative_binomial under dispersion estimated.
 
 **Caveats:**
 
@@ -163,7 +164,7 @@ Lower bound of the coefficient's two-sided confidence interval at conf_level: th
 
 #### `ci_upper.*`
 
-Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma and a negative_binomial under dispersion estimated.
 
 **Caveats:**
 
@@ -179,7 +180,7 @@ The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95
 
 #### `df`
 
-Gamma only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) that the estimated dispersion divides by and the p-values' and intervals' Student t reads.
+Gamma (and a fixed-theta negative_binomial under dispersion estimated) only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) that the estimated dispersion divides by and the p-values' and intervals' Student t reads.
 
 **Caveats:**
 
@@ -210,6 +211,39 @@ The deviance of the intercept-only model, which predicts the overall mean for ev
 - It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model, so OLS rules of thumb do not apply; there are no published bands for it, so none are attached.
 - Compare it only across models of the same outcome and family.
 
+#### `theta`
+
+negative_binomial only: the shape theta in Var = mu + mu^2 / theta, the maximum-likelihood estimate (MASS glm.nb) or the fixed theta param. Smaller theta means more overdispersion; a very large theta is the Poisson.
+
+**Caveats:**
+
+- A fit whose estimate runs off to infinity (counts no more variable than Poisson) is refused: fit family poisson instead.
+
+#### `theta_std_err`
+
+negative_binomial with theta estimated: the standard error of theta, from its observed information at the fitted means (MASS's SE.theta).
+
+**Caveats:**
+
+- Theta's sampling distribution is skewed; a Wald interval from this standard error can reach below 0.
+
+#### `two_log_lik`
+
+Twice the maximised log-likelihood of the family at the fitted means (R's logLik on glm; MASS glm.nb's twologlik); higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood), a penalized fit, and an OLS fit whose bound binds.
+- A Poisson or binomial outcome that is not a whole count has no likelihood: it is null (R's -Inf).
+
+#### `aic`
+
+-two_log_lik + 2 x the parameter count: the coefficients, plus the dispersion for gamma (at deviance / n, as R's Gamma family) and theta for a negative_binomial fit that estimated it (MASS glm.nb's AIC); lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
 #### `n_obs`
 
 Rows used in the fit, after rows with a null target or predictor were dropped.
@@ -221,11 +255,58 @@ Rows used in the fit, after rows with a null target or predictor were dropped.
 
 #### `converged_iters`
 
-Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps.
+Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps, a negative_binomial fit with theta estimated the steps of every round.
 
 **Caveats:**
 
 - A fit that cannot converge within max_iters is refused rather than reported.
+
+#### `margins.estimates.*`
+
+The marginal effect of this term (requested by margins): the change in the expected outcome per unit of the predictor on the response scale — probability units for binomial, expected counts for Poisson and negative_binomial — averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). On the link scale, and on an identity link, it is the coefficient itself.
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with a higher outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with a lower outcome, other predictors held fixed
+
+**Caveats:**
+
+- Unlike a coefficient, a response-scale effect depends on where it is evaluated: ame and mem differ, and the ame describes these rows, not a typical one.
+- Standard errors are delta-method (first order); with few rows or fitted values near 0 or 1 they can understate the uncertainty.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `collinearity.vif.*`
+
+The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.
+
+**Caveats:**
+
+- No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.
+- It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.
+- A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.
+
+#### `collinearity.tolerance.*`
+
+The reciprocal of vif: the share of the term's spread the other predictors do not explain. Near 0 means the term is close to a combination of the others.
+
+#### `collinearity.gvif_scaled.*`
+
+vif^(1/(2 df)): the generalized VIF on the scale of a standard error, so terms of different column counts compare; for a single column it is the square root of vif.
 
 <a id="op-reg_mmm_bayes"></a>
 
@@ -426,6 +507,123 @@ Least-squares solver iterations taken before the fit settled.
 
 - A fit that cannot converge within the iteration cap fails its slot alone rather than being reported.
 
+<a id="op-reg_multinomial"></a>
+
+### `REG_MULTINOMIAL`
+
+Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category. See its [catalog entry](../catalog/regression.md#op-reg_multinomial).
+
+#### `coefficients.*`
+
+Keyed &lt;category&gt;:&lt;term&gt;: the change in the log odds of that category against the reference category for a one-unit increase in the term's predictor, holding the other predictors fixed; &lt;category&gt;:(intercept) is that log odds when every predictor is 0.
+
+**Sign:**
+
+- `+`: higher predictor values are associated with a higher chance of this category relative to the reference, other predictors held fixed
+- `-`: higher predictor values are associated with a lower chance of this category relative to the reference, other predictors held fixed
+
+**Caveats:**
+
+- Raised to the power e it is a relative risk ratio (odds of this category against the reference) per one-unit increase: multiplicative, and relative to the reference only. A positive coefficient does not mean the category itself grows more likely: its probability also depends on how the other categories move.
+- Every coefficient is against the same reference; comparing two non-reference categories means the difference of their coefficients, or a refit with another reference.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
+- With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
+- A very large coefficient with a very large standard error is a sign of near-separation of that category; do not read it as a strong association.
+
+#### `std_errors.*`
+
+How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix (nnet::multinom's Hessian).
+
+**Caveats:**
+
+- They assume the model is right; no robust (sandwich) form is offered for this model.
+
+#### `p_values.*`
+
+**Caveats:**
+
+- A Wald z for one coefficient; it says nothing about whether the predictor matters for the outcome as a whole, across every category.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) the standard normal critical value times its standard error, on the log-odds scale (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds bound the relative risk ratio.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) the standard normal critical value times its standard error, on the log-odds scale (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds bound the relative risk ratio.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `deviance`
+
+-2 times the maximised log-likelihood (nnet::multinom's deviance); lower is closer.
+
+**Caveats:**
+
+- It has no fixed scale: compare it only with null_deviance or with another model fitted to the same rows and outcome.
+
+#### `null_deviance`
+
+The deviance of the intercept-only model, which predicts each category's overall share for every row: the baseline the predictors are judged against.
+
+#### `pseudo_r2`
+
+1 - deviance / null_deviance: McFadden's pseudo-R-squared, the share of the intercept-only model's deviance the predictors remove, from 0 to 1.
+
+**Caveats:**
+
+- It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model, so OLS rules of thumb do not apply; there are no published bands for it, so none are attached.
+
+#### `two_log_lik`
+
+Twice the maximised log-likelihood (-deviance); higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood).
+
+#### `aic`
+
+-two_log_lik + 2 x the coefficient count (every category's), nnet::multinom's AIC; lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
+#### `n_obs`
+
+Rows used in the fit, after rows with a null target or predictor were dropped.
+
+**Caveats:**
+
+- Few rows per predictor make every estimate unstable and invite overfitting.
+- Under a row weight it stays the row count: the fit's sample size is sum_weights (frequency weights) or n_eff, Kish's effective sample size (probability weights), and the standard errors and residual degrees of freedom read that, not n_obs.
+
+#### `converged_iters`
+
+Newton-Raphson steps taken before the coefficients stopped changing (relative change below tol).
+
+**Caveats:**
+
+- A fit that cannot converge within max_iters is refused rather than reported.
+
 <a id="op-reg_ols"></a>
 
 ### `REG_OLS`
@@ -535,6 +733,23 @@ R-squared corrected for the number of predictors: 1 - (1 - r2) * (n - 1) / (n - 
 
 Typical size of a residual, in the outcome's units: how far actual values sit from the fitted line on a typical row. It divides the residual sum of squares by n - p - 1.
 
+#### `two_log_lik`
+
+Twice the maximised Gaussian log-likelihood (R's logLik on lm), at the residual variance RSS / n; higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood), a penalized fit, and an OLS fit whose bound binds.
+- With a frequency weight it is the expanded rows' figure, which R's lm(weights = f) does not report (it reads them as precision weights).
+
+#### `aic`
+
+-two_log_lik + 2 x (coefficients + 1, the residual variance counted): R's AIC on lm; lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
 #### `n_obs`
 
 Rows used in the fit, after rows with a null target or predictor were dropped.
@@ -551,3 +766,178 @@ Coordinate-descent iterations an l1 or elasticnet fit took to converge; absent f
 **Caveats:**
 
 - A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.
+
+#### `margins.estimates.*`
+
+The marginal effect of this term (requested by margins): the change in the expected outcome per unit of the predictor, in outcome units. On OLS the model is linear, so every effect, ame or mem, response or link scale, equals the coefficient, with its standard error, p-value and interval.
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with a higher outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with a lower outcome, other predictors held fixed
+
+**Caveats:**
+
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `collinearity.vif.*`
+
+The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.
+
+**Caveats:**
+
+- No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.
+- It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.
+- A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.
+
+#### `collinearity.tolerance.*`
+
+The reciprocal of vif: the share of the term's spread the other predictors do not explain. Near 0 means the term is close to a combination of the others.
+
+#### `collinearity.gvif_scaled.*`
+
+vif^(1/(2 df)): the generalized VIF on the scale of a standard error, so terms of different column counts compare; for a single column it is the square root of vif.
+
+<a id="op-reg_ordinal"></a>
+
+### `REG_ORDINAL`
+
+Fits a model that predicts an ordered rating (poor, fair, good) from numeric predictors, each shifting the whole scale up or down. See its [catalog entry](../catalog/regression.md#op-reg_ordinal).
+
+#### `coefficients.*`
+
+A predictor's coefficient is the shift of the latent scale for a one-unit increase in it, holding the other predictors fixed: under the logit link the log odds ratio of a higher rather than a lower level, the same at every step of the scale. A threshold "&lt;level&gt;|<next level>" (listed in outputs.thresholds) is the cut point zeta between two adjacent levels, in P(Y <= level | x) = F(zeta - x'beta).
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with higher levels of the outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with lower levels of the outcome, other predictors held fixed
+
+**Caveats:**
+
+- Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score by that many standard deviations, under cloglog it is a log hazard ratio.
+- It assumes the effect is the same at every step (proportional odds); params.brant tests it.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
+- With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
+- A threshold is not a predictor's effect: it only places the scale's cut points, and moves with the predictors' origin.
+
+#### `std_errors.*`
+
+How much the coefficient or threshold would vary from sample to sample, from the inverse of the fitted (observed) information matrix.
+
+**Caveats:**
+
+- Unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); p_values, the intervals and vcov follow it.
+
+#### `statistics.*`
+
+The Wald statistic: the coefficient or threshold divided by its standard error.
+
+**Caveats:**
+
+- A threshold's statistic tests a cut point of 0, which only says where the scale sits when every predictor is 0; read it as precision, not as evidence.
+
+#### `p_values.*`
+
+**Caveats:**
+
+- A Wald z on the fitted information (or the robust covariance). Thresholds carry none (null): a cut point of 0 is no hypothesis.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient or threshold minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds of a logit coefficient bound its odds ratio.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient or threshold minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds of a logit coefficient bound its odds ratio.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `deviance`
+
+-2 x the maximised log-likelihood (MASS polr's deviance): lower is a closer fit; compare it only with null_deviance or with another model fitted to the same rows and outcome.
+
+#### `null_deviance`
+
+The deviance of the thresholds-only model, which predicts every row at the overall share of each level: the baseline the predictors are judged against.
+
+#### `pseudo_r2`
+
+1 - deviance / null_deviance, McFadden's pseudo-R-squared: the share of the baseline's deviance the predictors remove, from 0 to 1.
+
+**Caveats:**
+
+- It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model; there are no published bands for it, so none are attached.
+
+#### `two_log_lik`
+
+Twice the maximised log-likelihood (R's logLik on polr); higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood).
+
+#### `aic`
+
+-two_log_lik + 2 x the parameter count (the coefficients and the thresholds; R's AIC on polr); lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
+#### `n_obs`
+
+Rows used in the fit, after rows with a null target or predictor were dropped.
+
+**Caveats:**
+
+- Few rows per predictor make every estimate unstable and invite overfitting.
+- Under a row weight it stays the row count: the fit's sample size is sum_weights (frequency weights) or n_eff, Kish's effective sample size (probability weights), and the standard errors and residual degrees of freedom read that, not n_obs.
+
+#### `converged_iters`
+
+Newton-Raphson steps taken before the coefficients and thresholds stopped changing.
+
+**Caveats:**
+
+- A fit that cannot converge (a predictor that separates the levels) fails its slot alone rather than being reported.
+
+#### `outputs.*`
+
+outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.
+
+**Caveats:**
+
+- The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.
+- A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.

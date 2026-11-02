@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regmmm"
+	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,10 +31,35 @@ type modelRegression struct {
 	// SpecRefusal is the model factory's spec-only refusal (nil: the
 	// factory builds), which predict raises as the runtime does.
 	SpecRefusal func(*types.RegressionSpec) *errors.CodedError
+	// WeightAware hands the slot's resolved weight to the model (the
+	// adapter's admission and Record.Weight); its class — both kinds or
+	// frequency only — is internal/weighting's regressionClasses row,
+	// which predict's weight resolver reads. False: a weight in force is
+	// refused by that table (no row).
+	WeightAware bool
+	// Target, when its Name is set, replaces the shared target slot's
+	// manifest Param (a target accepting more than the numeric set:
+	// REG_ORDINAL's categorical response).
+	Target descriptor.Param
 }
 
 // modelRegressionTable holds every model regression, keyed by type.
 var modelRegressionTable = map[types.RegressionType]modelRegression{
+	types.REG_ORDINAL: {
+		SpecRefusal: regordinal.SpecRefusal,
+		Description: "Ordinal regression (proportional odds; MASS::polr): P(Y ≤ k | x) = F(ζ_k − xᵀβ); thresholds \"<level>|<next level>\" beside the predictors, no intercept.",
+		WeightAware: true,
+		Target:      descriptor.Param{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "any", Description: "Ordered response: a categorical or numeric field, 3 to 100 levels; a top-level key of the regression entry.", Slot: true},
+		Decl: ExtensionRegression{
+			Vcov:            true,
+			PValues:         true,
+			NoResample:      true,
+			CovarianceTypes: regordinal.CovarianceTypes(),
+			OutputKeys:      regordinal.OutputKeys(),
+			OutputSchema:    slices.Clone(regordinal.OutputSchema),
+			Params:          ordinalParams,
+		},
+	},
 	types.REG_MMM_BAYES: {
 		SpecRefusal: regmmm.BayesSpecRefusal,
 		Description: "Bayesian media-mix model: in-model geometric adstock and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
@@ -87,6 +113,13 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 	},
 }
 
+// ordinalParams are REG_ORDINAL's params keys.
+var ordinalParams = []descriptor.Param{
+	{Name: "link", Type: "enum", EnumValues: regordinal.Links(), Default: regordinal.LinkLogit, Description: "Cumulative link F in P(Y ≤ k | x) = F(ζ_k − xᵀβ) (polr's method): logit (default), probit or cloglog."},
+	{Name: "levels", Type: "list", Description: "Level order, lowest first: a categorical's labels or a number's values as written (\"2.5\"); 3 to 100, each once. A row whose response is unlisted is dropped (R's factor NA); a listed level no row carries fails the slot. Absent: dictionary order, or ascending values."},
+	{Name: "brant", Type: "object", Description: "{}: adds outputs.brant, the Brant test of proportional odds (omnibus and per predictor; the brant package). Logit only (details.requires link logit)."},
+}
+
 // bayesOutputKeys are REG_MMM_BAYES's declared Outputs keys, in order.
 func bayesOutputKeys() []string {
 	keys := make([]string, 0, len(regmmm.BayesOutputSchema))
@@ -104,6 +137,12 @@ func ModelRegressionDeclaration(t types.RegressionType) (ExtensionRegression, bo
 	return m.Decl, ok
 }
 
+// ModelRegressionWeightAware reports whether model regression t reads
+// the slot's weight (the adapter hands it the resolved weight).
+func ModelRegressionWeightAware(t types.RegressionType) bool {
+	return modelRegressionTable[t].WeightAware
+}
+
 // ModelRegressionDescription returns model regression t's manifest
 // description.
 func ModelRegressionDescription(t types.RegressionType) string {
@@ -111,8 +150,9 @@ func ModelRegressionDescription(t types.RegressionType) string {
 }
 
 // modelRegressionFor returns model regression t's declaration in the
-// snapshot's shape: an OperatorMeta (always buffered, not WeightAware)
-// and the regression-only facts.
+// snapshot's shape: an OperatorMeta (always buffered; its weight class
+// is internal/weighting's table, not the OperatorMeta's WeightAware) and
+// the regression-only facts.
 func modelRegressionFor(t types.RegressionType) (descriptor.OperatorMeta, ExtensionRegression, bool) {
 	if !model.ModelRegression(t) {
 		return descriptor.OperatorMeta{}, ExtensionRegression{}, false
@@ -136,12 +176,18 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 		d := m.Decl
 		var params []descriptor.Param
 		for _, p := range extensionRegressionSlotParams(d) {
+			if p.Name == "target" && m.Target.Name != "" {
+				p = m.Target
+			}
 			params = append(params, p)
 			if p.Name == "resample" {
 				// The resample knobs the engine's driver reads, which a
 				// built-in declares one by one.
 				params = append(params, modelResampleKnobs...)
 			}
+		}
+		if m.WeightAware {
+			params = append(params, descriptor.Param{Name: "weight", Type: "object", Description: "{field, kind}: frequency or probability row weight (REG_GLM's prior-weight rule; no two_log_lik / aic under probability); absent inherits the request's, null opts out.", Slot: true})
 		}
 		params = append(params, descriptor.Param{Name: "name", Type: "string", Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true})
 		out = append(out, descriptor.RegressionMeta{

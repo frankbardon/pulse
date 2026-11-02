@@ -1,0 +1,211 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "mode": "operator",
+    "root": "operator",
+    "detail": "terse",
+    "summary": "TEST_ANOVA_F is checked against 3 external references.",
+    "findings": [],
+    "caveats": [
+      "TEST_ANOVA_F has a stated validation gap; read it in validation.gap before relying on the figures it names."
+    ],
+    "validation": {
+      "references": [
+        {
+          "against": "R 4.6.1 `aov`",
+          "tolerance": "1e-10 relative",
+          "tests": [
+            "internal/processing/test_post_oracle_test.go"
+          ]
+        },
+        {
+          "against": "NIST StRD certified values (one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg)",
+          "tolerance": "digits achieved per dataset (see the NIST table)",
+          "tests": [
+            "strd_reference_test.go"
+          ]
+        },
+        {
+          "against": "R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights)",
+          "tolerance": "1e-12 relative",
+          "tests": [
+            "internal/service/weight_reference_values_test.go",
+            "internal/service/weight_reference_tests_test.go"
+          ],
+          "weighted": true
+        }
+      ],
+      "gap": "On NIST SmLs07–09 the figures agree to about 4 digits. That is the ceiling for any double-precision package: values such as 1000000000000.4 are not exactly representable, and exact arithmetic on the parsed doubles reaches only 4.0, 3.9 and 3.9 digits. Pulse reaches that ceiling.",
+      "certification": [
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SiRstv",
+          "difficulty": "lower",
+          "digits": {
+            "f": 13,
+            "ms_between": 14,
+            "ms_within": 13.1,
+            "r2": 13.1,
+            "residual_sd": 13.4,
+            "ss_between": 14,
+            "ss_within": 13.1
+          },
+          "min_digits": 13
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs01",
+          "difficulty": "lower",
+          "digits": {
+            "f": 15,
+            "ms_between": 15,
+            "ms_within": 15,
+            "r2": 15,
+            "residual_sd": 15,
+            "ss_between": 15,
+            "ss_within": 15
+          },
+          "min_digits": 15
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs02",
+          "difficulty": "lower",
+          "digits": {
+            "f": 15,
+            "ms_between": 15,
+            "ms_within": 15,
+            "r2": 15,
+            "residual_sd": 15,
+            "ss_between": 15,
+            "ss_within": 15
+          },
+          "min_digits": 15
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs03",
+          "difficulty": "lower",
+          "digits": {
+            "f": 14.9,
+            "ms_between": 15,
+            "ms_within": 15,
+            "r2": 15,
+            "residual_sd": 15,
+            "ss_between": 15,
+            "ss_within": 15
+          },
+          "min_digits": 14.9
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "AtmWtAg",
+          "difficulty": "average",
+          "digits": {
+            "f": 10.1,
+            "ms_between": 10.2,
+            "ms_within": 10.9,
+            "r2": 10.2,
+            "residual_sd": 11.2,
+            "ss_between": 10.2,
+            "ss_within": 10.9
+          },
+          "min_digits": 10.1
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs04",
+          "difficulty": "average",
+          "digits": {
+            "f": 10.4,
+            "ms_between": 10,
+            "ms_within": 10.2,
+            "r2": 10.7,
+            "residual_sd": 10.5,
+            "ss_between": 10,
+            "ss_within": 10.2
+          },
+          "min_digits": 10
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs05",
+          "difficulty": "average",
+          "digits": {
+            "f": 10.2,
+            "ms_between": 9.9,
+            "ms_within": 10.2,
+            "r2": 10.4,
+            "residual_sd": 10.5,
+            "ss_between": 9.9,
+            "ss_within": 10.2
+          },
+          "min_digits": 9.9
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs06",
+          "difficulty": "average",
+          "digits": {
+            "f": 10.1,
+            "ms_between": 9.9,
+            "ms_within": 10.2,
+            "r2": 10.4,
+            "residual_sd": 10.5,
+            "ss_between": 9.9,
+            "ss_within": 10.2
+          },
+          "min_digits": 9.9
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs07",
+          "difficulty": "higher",
+          "digits": {
+            "f": 4.4,
+            "ms_between": 4,
+            "ms_within": 4.2,
+            "r2": 4.6,
+            "residual_sd": 4.5,
+            "ss_between": 4,
+            "ss_within": 4.2
+          },
+          "min_digits": 4
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs08",
+          "difficulty": "higher",
+          "digits": {
+            "f": 4.1,
+            "ms_between": 3.9,
+            "ms_within": 4.2,
+            "r2": 4.4,
+            "residual_sd": 4.5,
+            "ss_between": 3.9,
+            "ss_within": 4.2
+          },
+          "min_digits": 3.9
+        },
+        {
+          "family": "one-way ANOVA",
+          "dataset": "SmLs09",
+          "difficulty": "higher",
+          "digits": {
+            "f": 4.1,
+            "ms_between": 3.9,
+            "ms_within": 4.2,
+            "r2": 4.4,
+            "residual_sd": 4.5,
+            "ss_between": 3.9,
+            "ss_within": 4.2
+          },
+          "min_digits": 3.9
+        }
+      ]
+    }
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 84520efe7abd268a747059fd56fa639cd06b604842f92ab2dda8a3bc6591fa58

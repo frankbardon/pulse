@@ -22,7 +22,7 @@ func DefaultAttributeLabel(attr *types.Attribute) string {
 		return label
 	}
 	switch attr.Type {
-	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE:
 		if model.FitReferenced(attr.Type, attr) {
 			return model.DefaultFitLabel(attr)
 		}

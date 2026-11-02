@@ -131,7 +131,7 @@ The result:
   },
   "returned": {
     "preset": "standard",
-    "digest": "rp1:d348d3f774d53e6e9407a8d371e71ed3a924ddf132ece4ada4dc677a256ef39c",
+    "digest": "rp1:fc088f5239be740474d1f0f4ff439485d42cb8994789af649f4d98c6521a73aa",
     "precision": 4
   }
 }
@@ -191,9 +191,9 @@ The typical distance of a value from the group's mean, in the field's own units.
 **Caveats:**
 
 - It is the spread of the rows, not the precision of the mean: for how precisely the average is known, read AGG_CI_LOWER / AGG_CI_UPPER.
-- Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. The gap matters only on small groups; AGG_WELFORD gives the sample form.
+- By default Pulse divides by n (the population form); most tools report the sample form, dividing by n - 1, which is slightly larger. The gap matters only on small groups; params.ddof 1 gives the sample form.
 - Each distance is squared before averaging, so a few extreme values inflate it; for a skewed field a percentile range describes the spread better.
-- A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree.
+- A group with a single value reads 0: no spread can be seen in one value, which is not the same as a group whose values agree. With params.ddof 1 it reads null instead (weighted: when the weights sum to 1 or less).
 
 More on reading it: [AGG_STDDEV](../reading/descriptive.md#op-agg_stddev).
 

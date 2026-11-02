@@ -484,6 +484,18 @@ In a cross-tabulation, the figure for a whole row, a whole column or the whole t
 
 **See also:** [`cross-tabulation`](#term-cross-tabulation), [`baseline`](#term-baseline)
 
+<a id="term-marginal-effect"></a>
+
+## marginal-effect
+
+How much a model's expected outcome changes, in the outcome's own units, when one predictor goes up by one unit — averaged over the rows (average marginal effect) or taken at the predictors' means.
+
+**Why care:** It turns a logistic or count model's link-scale coefficient into probability points or counts, the figure a reader can act on; the average and the at-the-mean versions differ when the link is not linear.
+
+**Forms:** marginal effect, marginal effects, average marginal effect, average marginal effects
+
+**See also:** [`link-function`](#term-link-function), [`regression-coefficient`](#term-regression-coefficient), [`odds-ratio`](#term-odds-ratio)
+
 <a id="term-mean"></a>
 
 ## mean

@@ -6,4 +6,5 @@ A reference to the analysis this instance offers, rendered from the guidance met
 - [Operator catalog](catalog.md): one page per operator category.
 - [Reading your results](reading.md): how to read each output field, and the counts beside every result.
 - [Glossary](glossary.md): plain-language definitions of the terms the guidance uses.
+- [How Pulse is validated](validation.md): the external reference, tolerance and test behind each inferential operator.
 - [Skills](skills.md): every skill as an agent reads it.

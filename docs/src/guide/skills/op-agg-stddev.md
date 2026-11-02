@@ -1,6 +1,6 @@
 ```yaml
 name: op-agg-stddev
-description: Population standard deviation via Welford's online algorithm.
+description: Standard deviation via Welford's online algorithm, population by default (ddof 0), sample with ddof 1.
 kind: operator
 category: AGG
 operator: AGG_STDDEV
@@ -20,7 +20,11 @@ Questions it answers:
 
 ## Params
 
-Weighted: √(m2_w / Σw).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ddof` | int | 0 | `0` population √(m2/n); `1` sample √(m2/(n−1)). Any other value → `PROCESSING_CONFIG`. |
+
+Weighted: √(m2_w / (Σw − ddof)).
 
 ## Inputs
 
@@ -28,7 +32,7 @@ Weighted: √(m2_w / Σw).
 
 ## Output
 
-Scalar `float64` — population stddev (n-denominator); `decimal128` input yields a decimal-scaled result. Per-group when wired under a grouper.
+Scalar `float64` — stddev with denominator n − ddof; `decimal128` input yields a decimal-scaled result. Per-group when wired under a grouper.
 
 ## Reading the output
 
@@ -39,9 +43,9 @@ Scalar `float64` — population stddev (n-denominator); `decimal128` input yield
 ## Components
 
 - `mean` — Welford running mean
-- `m2` — Sum of squared deviations
-- `variance` — `m2 / n`
-- `stddev` — √variance
+- `m2` — Sum of squared deviations (raw)
+- `variance` — `m2 / (n − ddof)`
+- `stddev` — √variance (= the scalar)
 
 ## Contract
 
@@ -52,9 +56,9 @@ Scalar `float64` — population stddev (n-denominator); `decimal128` input yield
 
 ## Gotchas
 
-- Population stddev (`n` denominator), not sample (`n-1`).
+- Default is the population form (`n`); most tools report the sample form — set `ddof: 1`.
 - `decimal128` is supported, but not by Welford: a decimal two-pass (mean, then Σ(x−μ)², then decimal `Sqrt`). An overflowing intermediate drops the WHOLE aggregate to an f64 pass and warns `PULSE_DECIMAL_PRECISION_LOSS`. The decimal claim therefore rests partly on an f64 fallback.
-- Single-row group → 0; no value (or Σw = 0) → `null` (NaN), the components' `mean` / `variance` too.
+- Single-row group → 0 under `ddof: 0`, `null` under `ddof: 1` (or Σw ≤ 1); no value (or Σw = 0) → `null` (NaN), the components' `mean` / `variance` too.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See

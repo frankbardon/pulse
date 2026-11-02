@@ -4,13 +4,18 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/collinearity"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
+	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -65,6 +70,15 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			continue
 		}
+		// REG_MULTINOMIAL's refused knobs, and `reference` on another
+		// built-in — the runtime's rule itself (internal/regmultinom,
+		// shared; an extension model's reference is the shared-slot
+		// table's).
+		if !extension {
+			if cerr := regmultinom.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
+		}
 		// An extension model's shared slots: the declare-or-refuse table,
 		// then a declared covariance's shape (regcov.CheckDeclared) — the
 		// runtime adapter's own call. covRefused keeps the built-in
@@ -96,6 +110,12 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			if cerr := regressionSlotFieldCheck(reg, decl, extension, fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
+			// REG_MULTINOMIAL's target is a categorical cohort field and
+			// its reference one of the labels — the runtime's rule itself
+			// (regmultinom.CheckTarget, the engine factory's call).
+			if cerr := regmultinom.CheckTarget(reg, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
 		}
 
 		if len(reg.Predictors) == 0 {
@@ -113,24 +133,31 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			}
 		}
 
-		// REG_GLM requires Family ∈ {binomial, poisson, gamma}.
+		// REG_GLM requires Family ∈ {binomial, poisson, gamma,
+		// negative_binomial} (internal/reglink.Families).
 		if reg.Type == types.REG_GLM {
-			switch reg.Family {
-			case "binomial", "poisson", "gamma":
-				// ok
-			case "":
+			switch {
+			case reg.Family == "":
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
-					"REG_GLM requires a Family (binomial | poisson | gamma)",
+					"REG_GLM requires a Family (binomial | poisson | gamma | negative_binomial)",
 					map[string]any{"type": string(reg.Type)},
 				)
-			default:
-				env.AddError(
-					string(errors.PROCESSING_REGRESSION_INVALID_FAMILY),
-					"REG_GLM family must be one of binomial, poisson, gamma; got "+reg.Family,
-					map[string]any{"family": reg.Family},
-				)
+			case !reglink.KnownFamily(reg.Family):
+				cerr := reglink.FamilyRefusal(reg.Family)
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
+			// Link: one of the family's three (empty = canonical) — the
+			// runtime's rule itself (internal/reglink, shared).
+			if cerr := reglink.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
+		}
+
+		// theta and the negative binomial's refused penalty / selection /
+		// resample — the runtime's rule itself (internal/reglink, shared).
+		if cerr := reglink.CheckTheta(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
 		// Selection requires Criterion when set.
@@ -165,6 +192,11 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		if cerr := regbounds.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
+		// solver / intercept: REG_OLS only, their combinations — the
+		// runtime's rule itself (internal/regsolve, shared).
+		if cerr := regsolve.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 		// REG_BAYES_LINEAR's knobs — the refused resample / selection
 		// modifiers, the prior (a per-coefficient prior_precision
 		// included), the other engines' knobs — the runtime's rule itself
@@ -195,6 +227,21 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// jackknife_groups / jackknife_by — the runtime's rule itself
 		// (internal/regresample.Check, shared).
 		if cerr := regresample.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// margins: the block's shape, the regression type and the fits
+		// it refuses — the runtime's rule itself (internal/regmargins,
+		// shared). A predictor derived from another predictor is the
+		// field-reference walk's (regmargins.CheckDependent, both sides).
+		// An extension model's block was judged by the shared-slot table
+		// above (both pass it).
+		if cerr := regmargins.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// collinearity: the block's shape, the regression type and the
+		// fits it refuses — the runtime's rule itself
+		// (internal/collinearity, shared).
+		if cerr := collinearity.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
@@ -233,12 +280,15 @@ func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
 }
 
 // regressionSlotFieldCheck is the accepted-types refusal of one target
-// or predictor field: the table's row for a built-in, the extension
-// rule (the built-in regressions' set or the declared Accepts) for a
-// registered model — the runtime's own calls (regression.BuildWith,
-// the extension adapter's ExtensionRegressionFieldTypeRefusal).
+// or predictor field: the table's row for a built-in (a model
+// regression included), the extension rule (the built-in regressions'
+// set or the declared Accepts) for a registered model — the runtime's
+// own calls (regression.BuildWith, the extension adapter's
+// ExtensionRegressionFieldTypeRefusal).
 func regressionSlotFieldCheck(reg *types.RegressionSpec, decl ExtensionRegression, extension bool, slot fieldaccept.Slot, field string, schema *encoding.Schema) *errors.CodedError {
-	if extension {
+	// A model regression is a built-in: its accepted-types row (which
+	// may differ per slot — REG_ORDINAL's categorical target) judges it.
+	if extension && !model.ModelRegression(reg.Type) {
 		return fieldaccept.CheckExtensionRegression(string(reg.Type), decl.Accepts, slot, field, schema)
 	}
 	return fieldaccept.Check(string(reg.Type), slot, field, schema)

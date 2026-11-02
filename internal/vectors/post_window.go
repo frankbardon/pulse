@@ -237,7 +237,7 @@ func attributeReads(attr *types.Attribute, route types.AttributeType, cat model.
 		return boundTerms(cat, p.Fit, false)
 	case model.FitReferenced(route, attr):
 		name, _ := model.FitReference(route, attr)
-		return boundTerms(cat, name, route == types.ATTR_REG_RESIDUAL)
+		return boundTerms(cat, name, model.FitReadsTarget(route))
 	}
 	names, _ := AttributeInputNames(attr)
 	out := make([]string, 0, len(names))

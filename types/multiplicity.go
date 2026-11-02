@@ -103,8 +103,18 @@ const (
 	MultiplicityFamilyMatrix MultiplicityFamily = "matrix"
 )
 
-// AllMultiplicityFamilies returns every correction family, in a stable
-// order.
+// MultiplicityFamilyMargins is the family a regression's marginal
+// effects (RegressionSpec.Margins) form on their own under the
+// regression's multiplicity block: one family per regression, apart
+// from its coefficients' `request` / `compose` family, so adding margins
+// never moves a coefficient's p_adjusted. An ECHO value only
+// (RegressionMarginsResult.Multiplicity.Family): never requested — a
+// block naming it is PULSE_MULTIPLICITY_INVALID — and so not in
+// AllMultiplicityFamilies (the requestable set).
+const MultiplicityFamilyMargins MultiplicityFamily = "margins"
+
+// AllMultiplicityFamilies returns every requestable correction family,
+// in a stable order (the echo-only MultiplicityFamilyMargins is not one).
 func AllMultiplicityFamilies() []MultiplicityFamily {
 	return []MultiplicityFamily{
 		MultiplicityFamilyLayer,

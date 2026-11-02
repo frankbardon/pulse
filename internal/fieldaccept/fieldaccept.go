@@ -132,6 +132,13 @@ func analyticsValue(ft encoding.FieldType) bool {
 	return ft.IsNumericForAnalytics()
 }
 
+// ordinalResponse is an ordinal response's set: the analytics-numeric
+// types (each distinct value a level) and the categoricals (each label a
+// level, in dictionary order unless params.levels orders them).
+func ordinalResponse(ft encoding.FieldType) bool {
+	return ft.IsNumericForAnalytics() || ft.IsCategorical()
+}
+
 // testValue is the tier-1 numeric-test set: every scalar type but a
 // categorical (a dictionary index) and a set_* (a bitmask).
 func testValue(ft encoding.FieldType) bool {
@@ -218,7 +225,8 @@ func categoricalValue(ft encoding.FieldType) bool {
 }
 
 // categoricalOnly is a categorical alone: TEST_ANOVA_RM's subject (a
-// two-level subject id identifies no subject).
+// two-level subject id identifies no subject) and REG_MULTINOMIAL's
+// target (its dictionary is the category order).
 func categoricalOnly(ft encoding.FieldType) bool {
 	return ft.IsCategorical()
 }
@@ -350,6 +358,15 @@ func init() {
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
 	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget, SlotPredictor},
 		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR", "REG_MMM_BAYES", "REG_MMM_HILL")
+	// REG_MULTINOMIAL: numeric predictors; the target is a categorical,
+	// whose dictionary labels are the categories (in dictionary order).
+	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotPredictor}, "REG_MULTINOMIAL")
+	add(categoricalOnly, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget}, "REG_MULTINOMIAL")
+	// REG_ORDINAL's target is an ordered scale: a categorical (its
+	// dictionary order, or params.levels) or a number (its values); its
+	// predictors are the regressions' analytics set.
+	add(ordinalResponse, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget}, "REG_ORDINAL")
+	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotPredictor}, "REG_ORDINAL")
 	add(testValue, errors.PULSE_TEST_FIELD_NOT_NUMERIC, field,
 		"TEST_T", "TEST_WELCH", "TEST_ANOVA_F", "TEST_ANOVA_RM", "TEST_ANOVA_WELCH",
 		"TEST_BROWN_FORSYTHE", "TEST_KS", "TEST_KRUSKAL_WALLIS", "TEST_MANN_WHITNEY_U",
@@ -390,7 +407,7 @@ func init() {
 	// AGG_RATIO ignores its own field and sums its two params columns.
 	add(analyticsValue, unsupported, []Slot{SlotNumerator, SlotDenominator}, "AGG_RATIO")
 	add(analyticsValue, unsupported, []Slot{SlotTarget, SlotPredictor},
-		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE")
+		"ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE")
 	add(setValue, unsupported, field,
 		"AGG_SET_CARDINALITY_AVG", "AGG_SET_CARDINALITY_SUM", "AGG_SET_DISTINCT_VALUES", "AGG_SET_FREQUENCY",
 		"AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",

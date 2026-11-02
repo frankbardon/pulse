@@ -29,8 +29,9 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `RejectNull` when p < alpha. |
 | `reference` | string | — | The `SplitBy` level read second (`groups[1]`), so `u_a`/`r_a`, `z` and `rank_biserial` belong to the other group (default: alphabetical). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`). |
+| `exact` | bool | `false` | Exact permutation p, ties included (`Variant` `exact`): [`test-variant-options`](test-variant-options.md). |
 
 - `weight` — frequency only: a row of weight w ranks as w identical rows — equals the test on the expanded rows. `Details` add `sum_weights` shaped like `n` (raw rows).
 
@@ -40,7 +41,7 @@ Use something else:
 
 ## Output
 
-`Statistic` = U_min; `PValue` two-sided normal approx, tie-corrected. `Details`: `groups` (sorted; `reference` second), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
+`Statistic` = U_min; `PValue` two-sided normal approx, tie- and continuity-corrected (R `wilcox.test(exact = FALSE)`), or exact under `exact`. `Details`: `groups` (sorted; `reference` second), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
 
 ## Reading the output
 
@@ -60,9 +61,8 @@ Use something else:
 
 - Buffered — combined values mid-ranked under tie correction.
 - ≥ 50% tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
-- Robust alternative to a t-test when normality fails.
 - Tests stochastic equality, not mean difference — disagreeing with a t-test is signal, not a bug.
-- Asymptotic only (no exact p); n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
+- n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
 - With `groups`: one result per group, each with `group_key`; `split_by` a grouper → `PULSE_TEST_SPLIT_GROUPS_LT_2`; a too-sparse group → `null` figures + a warning ([`statistical-testing`](statistical-testing.md)).
 
 ## See

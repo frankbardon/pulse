@@ -53,7 +53,7 @@ func nativeZTwoSampleP(t *testing.T, targetStream, refStream []float64) (float64
 // same makeSingleCellTripleResponse fixture the T parity test exercises
 // — both overlay families consume the identical WelfordTriple cell
 // shape AGG_WELFORD emits.
-func overlayZFromTriples(t *testing.T, target, ref WelfordTriple) (float64, bool) {
+func overlayZFromTriples(t *testing.T, target, ref welfordParityCell) (float64, bool) {
 	t.Helper()
 	targetResp := makeSingleCellTripleResponse(target)
 	refResp := makeSingleCellTripleResponse(ref)
@@ -83,10 +83,10 @@ func overlayZFromTriples(t *testing.T, target, ref WelfordTriple) (float64, bool
 // against a 1-entry triple-bearing series and returns the per-group
 // p-value. Reuses makeSeriesResponseTriples (the SERIES-host triple
 // fixture the OVERLAY_Z_VS_REF unit tests already exercise).
-func overlayZFromTriplesSeries(t *testing.T, target, ref WelfordTriple) (float64, bool) {
+func overlayZFromTriplesSeries(t *testing.T, target, ref welfordParityCell) (float64, bool) {
 	t.Helper()
-	targetResp := makeSeriesResponseTriples([]string{"cohort"}, []WelfordTriple{target})
-	refResp := makeSeriesResponseTriples([]string{"cohort"}, []WelfordTriple{ref})
+	targetResp := makeSeriesResponseCells([]string{"cohort"}, []welfordParityCell{target})
+	refResp := makeSeriesResponseCells([]string{"cohort"}, []welfordParityCell{ref})
 	spec := composeSpecSeriesRef(types.OverlayKindZVsRef, nil)
 	layer, _, err := applyZVsRef(&spec, refResp, []*types.Response{targetResp}, 0, []int{1})
 	if err != nil {
@@ -249,10 +249,10 @@ func TestOverlayZCell_HelpersReused(t *testing.T) {
 	targetTriple := tripleFromBucket(targetBucket)
 	refTriple := tripleFromBucket(refBucket)
 
-	// Direct invocation of welchZTest (the helper applyZCell consumes).
-	pDirect, ok := welchZTest(
-		targetTriple.Mean, targetTriple.Variance, float64(targetTriple.N),
-		refTriple.Mean, refTriple.Variance, float64(refTriple.N))
+	// Direct invocation of welchZTestDiff (the helper applyZCell consumes).
+	pDirect, ok := welchZTestDiff(directDiff(targetTriple, refTriple),
+		targetTriple.triple.Variance, float64(targetTriple.triple.N),
+		refTriple.triple.Variance, float64(refTriple.triple.N))
 	if !ok {
 		t.Fatal("welchZTest direct invocation failed for non-degenerate inputs")
 	}

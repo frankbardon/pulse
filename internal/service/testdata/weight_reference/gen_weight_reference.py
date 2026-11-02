@@ -214,8 +214,10 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import statsmodels
+import statsmodels.discrete.discrete_model as sm_discrete
 from statsmodels.genmod import families as sm_families
 from statsmodels.genmod.generalized_linear_model import GLM as SmGLM
+from statsmodels.miscmodels.ordinal_model import OrderedModel
 from statsmodels.regression.linear_model import OLS as SmOLS
 from statsmodels.tools.sm_exceptions import DomainWarning
 from statsmodels.stats.proportion import confint_proportions_2indep, proportions_ztest
@@ -1908,10 +1910,29 @@ def overlay_cases():
 #     μ)²/V(μ) / (Σw* − q), SE·√φ̂, t p-values on df = Σw* − q (n_eff − q
 #     under probability, REG_OLS's residual df; statsmodels' df_resid).
 #     The same IRLS on f must equal R (1e-9).
+#   * REG_MULTINOMIAL (U65 E4-S2) — the class yc = a (yp = 0), b
+#     (yp 1–2), c (yp ≥ 3), reference a, derived from yp by the same rule
+#     in the Go cohort (weightRefRegClass), so the fixture rows carry no
+#     new column. Newton-Raphson on the multinomial likelihood with prior
+#     weights w* (REG_GLM's rule), SE = √diag(I⁻¹), Wald z. Frequency: R
+#     nnet::multinom on the expansion, Newton-polished to the MLE
+#     (reg_reference.R), and statsmodels MNLogit on np.repeat (1e-8);
+#     probability: the same Newton on w* = w·n_eff/Σw (no stock package
+#     takes a weight).
 #   * REG_BAYES_LINEAR — frequency-only. No stock package fits Pulse's
 #     scalar-precision Normal-Inverse-Gamma prior, so the reference is
 #     that conjugate posterior in closed form evaluated on the expanded
 #     rows (np.repeat), scipy t quantiles for the credible intervals.
+#   * REG_ORDINAL (U65 E4-S1) — the proportional-odds logit (MASS
+#     polr's model) of yo, y cut into three levels at 0.8 / 2.4 by a
+#     FEAT_BUCKETIZE in the request, on x1, x2: Newton–Raphson on the
+#     analytic gradient and observed information to the MLE, on the
+#     np.repeat expansion (frequency) or on w* = w·n_eff/Σw
+#     (probability; no two_log_lik / aic). The frequency fit is
+#     cross-checked against statsmodels OrderedModel(distr = "logit") on
+#     the expansion (its BFGS stops ~1e-6 off the MLE, so 1e-4), the
+#     probability one against the same Newton on w (β and the deviance
+#     ratio are scale-free).
 #   * ATTR_REG_FITTED / RESIDUAL / LEVERAGE — frequency: R lm on the
 #     expansion (predict(); leverage = f × one copy's hatvalues());
 #     probability: the closed form (β and hᵢᵢ = wᵢ(1/Σw + dxᵀM2_w⁻¹dx)
@@ -1919,6 +1940,11 @@ def overlay_cases():
 #     against statsmodels OLS influence on the √w-whitened design. A row with a
 #     null predictor emits 0; a zero / invalid weight keeps the row out
 #     of the refit and gives it leverage 0.
+#   * ATTR_REG_INFLUENCE (U65 E1-S2) — frequency only (a probability
+#     weight is refused): one copy's Cook's distance / DFFITS of the OLS
+#     fit on the expansion, the closed form on the grouped rows
+#     cross-checked with statsmodels OLSInfluence on np.repeat
+#     (influence_closed_form); rows outside the fit are null, omitted.
 
 REG_PREDICTORS = ["x1", "x2"]
 REG_TERMS = ["(intercept)", "x1", "x2"]
@@ -1944,8 +1970,22 @@ REG_SPECS = [
     *[(case, {"type": "REG_GLM", "family": fam, "target": tgt, "predictors": REG_PREDICTORS, **REG_GLM_CONTROL})
       for case, (fam, tgt) in REG_GLM_TARGETS.items()],
     ("bayes", _reg_spec({"type": "REG_BAYES_LINEAR"})),
+    ("multinomial", {"type": "REG_MULTINOMIAL", "target": "yc", "predictors": REG_PREDICTORS, "tol": 1e-12, "max_iters": 100}),
+    ("ordinal", {"type": "REG_ORDINAL", "target": "yo", "predictors": REG_PREDICTORS}),
 ]
+# REG_MULTINOMIAL's class levels (the Go cohort's dictionary order) and
+# the rule deriving a row's class from its count yp.
+REG_CLASSES = ["a", "b", "c"]
+
+
+def reg_class(yp):
+    return 0 if yp == 0 else (1 if yp <= 2 else 2)
 REG_FREQUENCY_ONLY = {"bayes"}
+# REG_ORDINAL's response: y bucketed by FEAT_BUCKETIZE (bucket i where
+# boundaries[i-1] < y <= boundaries[i]), levels "0" / "1" / "2".
+REG_ORDINAL_BOUNDARIES = [0.8, 2.4]
+REG_ORDINAL_FEATURE = {"type": "FEAT_BUCKETIZE", "field": "y", "label": "yo",
+                       "params": {"boundaries": REG_ORDINAL_BOUNDARIES}}
 
 # (case, attribute type, label): one per-row figure each, read back as
 # an unweighted AGG_SUM per id group.
@@ -2183,6 +2223,170 @@ def glm_closed_form(case, ws, kind):
     return out
 
 
+def multinomial_closed_form(ws, kind):
+    """Newton-Raphson on the multinomial logit with prior weights w*
+    (w·n_eff/Σw under probability): coefficients keyed <level>:<term>
+    against reference a, SE √diag(I⁻¹), Wald z p-values, deviance −2ℓ,
+    the intercept-only null deviance and McFadden's pseudo-R²."""
+    prob = kind == "probability"
+    idx = reg_fit_rows(ws, kind)
+    X = reg_design(idx)
+    y = np.array([reg_class(REG_ROWS[i][REG_COL["yp"]]) for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    wstar = w * ((kish(w) if prob else sw) / sw)
+    n, q = X.shape
+    L = len(REG_CLASSES)
+    Y = np.zeros((n, L))
+    Y[np.arange(n), y] = 1.0
+
+    def parts(beta):
+        eta = np.hstack([np.zeros((n, 1)), X @ beta.reshape(L - 1, q).T])
+        m = eta.max(axis=1, keepdims=True)
+        e = np.exp(eta - m)
+        P = e / e.sum(axis=1, keepdims=True)
+        ll = float(np.sum(wstar * (np.sum(Y * eta, axis=1) - m[:, 0] - np.log(e.sum(axis=1)))))
+        g = ((wstar[:, None] * (Y[:, 1:] - P[:, 1:])).T @ X).reshape(-1)
+        H = np.zeros(((L - 1) * q, (L - 1) * q))
+        for a in range(L - 1):
+            for b in range(L - 1):
+                c = P[:, a + 1] * ((a == b) - P[:, b + 1])
+                H[a * q:(a + 1) * q, b * q:(b + 1) * q] = X.T @ ((wstar * c)[:, None] * X)
+        return ll, g, H
+
+    beta = np.zeros((L - 1) * q)
+    for _ in range(100):
+        _, g, H = parts(beta)
+        step = np.linalg.solve(H, g)
+        beta = beta + step
+        if np.max(np.abs(step)) <= 1e-15 * max(1.0, float(np.max(np.abs(beta)))):
+            break
+    ll, g, H = parts(beta)
+    assert np.max(np.abs(g)) < 1e-9, (kind, g)
+    se = np.sqrt(np.diag(np.linalg.inv(H)))
+    if not prob:
+        reps = np.array([int(ws[i]) for i in idx])
+        mn = sm_discrete.MNLogit(np.repeat(y, reps), np.repeat(X, reps, axis=0)).fit(
+            method="newton", maxiter=100, disp=0, tol=1e-14)
+        assert np.allclose(mn.params.T.reshape(-1), beta, rtol=1e-8) and np.allclose(
+            mn.bse.T.reshape(-1), se, rtol=1e-8), (kind, mn.params, beta)
+    shares = (wstar[:, None] * Y).sum(axis=0) / float(wstar.sum())
+    null_dev = -2 * float(np.sum(wstar * np.log(shares[y])))
+    out = {}
+    for a, lvl in enumerate(REG_CLASSES[1:]):
+        for j, t in enumerate(REG_TERMS):
+            k = a * q + j
+            out[f"coefficients.{lvl}:{t}"] = float(beta[k])
+            out[f"std_errors.{lvl}:{t}"] = float(se[k])
+            out[f"p_values.{lvl}:{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[k] / se[k])))
+    out.update(deviance=-2 * ll, null_deviance=null_dev, pseudo_r2=1 - (-2 * ll) / null_dev)
+    return out
+
+
+def ordinal_level(y):
+    """FEAT_BUCKETIZE's bucket of y over REG_ORDINAL_BOUNDARIES."""
+    for i, b in enumerate(REG_ORDINAL_BOUNDARIES):
+        if y <= b:
+            return i
+    return len(REG_ORDINAL_BOUNDARIES)
+
+
+def ordinal_newton(X, y, w, k):
+    """The proportional-odds logit MLE by Newton on the analytic
+    derivatives: (theta = (beta, zeta), loglik, information)."""
+    n, p = X.shape
+    q = p + k - 1
+    F = lambda x: 1 / (1 + np.exp(-x))
+
+    def parts(theta):
+        beta, zeta = theta[:p], theta[p:]
+        eta = X @ beta
+        up, lo = y < k - 1, y > 0
+        a = np.where(up, np.concatenate([zeta, [0.0]])[y] - eta, 0.0)
+        b = np.where(lo, np.concatenate([[0.0], zeta])[y] - eta, 0.0)
+        Fa, Fb = np.where(up, F(a), 1.0), np.where(lo, F(b), 0.0)
+        fa, fb = np.where(up, Fa * (1 - Fa), 0.0), np.where(lo, Fb * (1 - Fb), 0.0)
+        fpa, fpb = np.where(up, fa * (1 - 2 * Fa), 0.0), np.where(lo, fb * (1 - 2 * Fb), 0.0)
+        pr = Fa - Fb
+        g = (fa - fb) / pr
+        grad = np.zeros(q)
+        info = np.zeros((q, q))
+        for i in range(n):
+            s = np.zeros(q)
+            h = np.zeros((q, q))
+            s[:p] = -g[i] * X[i]
+            h[:p, :p] = ((fpa[i] - fpb[i]) / pr[i] - g[i] ** 2) * np.outer(X[i], X[i])
+            if up[i]:
+                u = p + y[i]
+                s[u] = fa[i] / pr[i]
+                h[u, u] = fpa[i] / pr[i] - (fa[i] / pr[i]) ** 2
+                h[:p, u] = h[u, :p] = X[i] * (-fpa[i] / pr[i] + fa[i] * g[i] / pr[i])
+            if lo[i]:
+                l = p + y[i] - 1
+                s[l] = -fb[i] / pr[i]
+                h[l, l] = -fpb[i] / pr[i] - (fb[i] / pr[i]) ** 2
+                h[:p, l] = h[l, :p] = X[i] * (fpb[i] / pr[i] - fb[i] * g[i] / pr[i])
+            if up[i] and lo[i]:
+                u, l = p + y[i], p + y[i] - 1
+                h[u, l] = h[l, u] = fa[i] * fb[i] / pr[i] ** 2
+            grad += w[i] * s
+            info -= w[i] * h
+        return float(np.sum(w * np.log(pr))), grad, info
+
+    shares = np.array([w[y == j].sum() for j in range(k)])
+    cum = np.cumsum(shares)[:-1] / shares.sum()
+    theta = np.concatenate([np.zeros(p), np.log(cum / (1 - cum))])
+    for _ in range(100):
+        _, grad, info = parts(theta)
+        step = np.linalg.solve(info, grad)
+        theta = theta + step
+        if np.max(np.abs(step) / np.maximum(np.abs(theta), 1)) < 1e-15:
+            break
+    ll, grad, info = parts(theta)
+    assert np.max(np.abs(grad)) < 1e-9, grad
+    return theta, ll, info
+
+
+def ordinal_closed_form(ws, kind):
+    """REG_ORDINAL's figures (see the section comment)."""
+    prob = kind == "probability"
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][1], REG_ROWS[i][2]] for i in idx])
+    y = np.array([ordinal_level(REG_ROWS[i][3]) for i in idx])
+    w = np.array([ws[i] for i in idx])
+    k = len(REG_ORDINAL_BOUNDARIES) + 1
+    assert sorted(set(y.tolist())) == list(range(k)), y
+    sw = float(w.sum())
+    if prob:
+        wstar = w * (kish(w) / sw)
+        theta, ll, info = ordinal_newton(X, y, wstar, k)
+        th1, _, _ = ordinal_newton(X, y, w, k)
+        assert np.allclose(theta, th1, rtol=1e-10, atol=1e-12), (theta, th1)
+    else:
+        reps = w.astype(int)
+        Xe, ye = np.repeat(X, reps, axis=0), np.repeat(y, reps)
+        theta, ll, info = ordinal_newton(Xe, ye, np.ones(len(ye)), k)
+        sm = OrderedModel(ye, Xe, distr="logit").fit(method="bfgs", disp=False, maxiter=5000, gtol=1e-10)
+        smt = np.concatenate([sm.params[:2], sm.model.transform_threshold_params(sm.params)[1:-1]])
+        assert np.allclose(smt, theta, rtol=1e-4, atol=1e-6), (smt, theta)
+    cov = np.linalg.inv(info)
+    names = REG_PREDICTORS + [f"{j}|{j + 1}" for j in range(k - 1)]
+    out = {}
+    for j, t in enumerate(names):
+        se = math.sqrt(cov[j, j])
+        out[f"coefficients.{t}"] = float(theta[j])
+        out[f"std_errors.{t}"] = se
+        if j < len(REG_PREDICTORS):
+            out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(theta[j] / se)))
+    shares = np.array([(wstar if prob else w)[y == j].sum() for j in range(k)])
+    ll0 = float(np.sum(shares * np.log(shares / shares.sum())))
+    out.update(deviance=-2 * ll, null_deviance=-2 * ll0, pseudo_r2=1 - ll / ll0)
+    if not prob:
+        out.update(two_log_lik=2 * ll, aic=-2 * ll + 2 * len(names))
+    out.update(reg_floor(ws, idx, prob))
+    return out
+
+
 def bayes_closed_form(ws):
     """The NIG posterior (Pulse's default prior) on the expanded rows."""
     idx = reg_fit_rows(ws, "frequency")
@@ -2244,6 +2448,49 @@ def attr_closed_form(ws, kind):
         out["attr_fitted"][rid] = fv
         out["attr_residual"][rid] = rv
         out["attr_leverage"][rid] = lv
+    return out
+
+
+# ATTR_REG_INFLUENCE (U65 E1-S2) is frequency-only: (case, params.measure).
+INFLUENCE_SPECS = [("attr_influence_cooks", "cooks"), ("attr_influence_dffits", "dffits")]
+
+
+def influence_closed_form(ws):
+    """ATTR_REG_INFLUENCE per row id in the frequency fit: ONE copy's
+    Cook's distance / DFFITS of the OLS fit on the np.repeat expansion.
+    Closed form on the grouped rows — h = 1/Σw + (x − μ_w)'M2_w⁻¹(x − μ_w),
+    df = Σw − p′, s² = Σw·e²/df, r = e/(s·√(1 − h)),
+    t = r·√((df − 1)/(df − r²)) — cross-checked (1e-9) with statsmodels
+    OLSInfluence on the expanded rows at each row's first copy. A row
+    outside the fit (null predictor, invalid or zero weight) is null in
+    Pulse and omitted here."""
+    idx = reg_fit_rows(ws, "frequency")
+    X = reg_design(idx)
+    y = np.array([REG_ROWS[i][3] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    beta = np.linalg.solve(X.T @ (w[:, None] * X), X.T @ (w * y))
+    e = y - X @ beta
+    sw = float(w.sum())
+    p1 = X.shape[1]
+    df = sw - p1
+    s2 = float((w * e * e).sum()) / df
+    mu, _ = weighted_scales(X[:, 1:], w)
+    xc = X[:, 1:] - mu
+    m2inv = np.linalg.inv(xc.T @ (w[:, None] * xc))
+    rep = np.repeat(np.arange(len(idx)), w.astype(int))
+    infl = SmOLS(y[rep], X[rep]).fit().get_influence()
+    first = np.searchsorted(rep, np.arange(len(idx)))
+    out = {"attr_influence_cooks": {}, "attr_influence_dffits": {}}
+    for k, i in enumerate(idx):
+        h = 1 / sw + float(xc[k] @ m2inv @ xc[k])
+        r = float(e[k]) / math.sqrt(s2 * (1 - h))
+        t = r * math.sqrt((df - 1) / (df - r * r))
+        cooks = r * r * h / (p1 * (1 - h))
+        dffits = t * math.sqrt(h / (1 - h))
+        assert close(cooks, float(infl.cooks_distance[0][first[k]]), 1e-9), (REG_ROWS[i][0], cooks)
+        assert close(dffits, float(infl.dffits[0][first[k]]), 1e-9), (REG_ROWS[i][0], dffits)
+        out["attr_influence_cooks"][REG_ROWS[i][0]] = cooks
+        out["attr_influence_dffits"][REG_ROWS[i][0]] = dffits
     return out
 
 
@@ -2596,12 +2843,32 @@ def regression_cases():
                     adopt_r(case, figs, rfigs[case])
                     how = "summary() (estimated dispersion)" if case == "glm_gamma" else "summary(dispersion = 1)"
                     src = f"{RREG[0]} glm on rep()-expanded rows, {how} (reg_reference.R)"
+            elif case == "multinomial":
+                figs = multinomial_closed_form(ws, kind)
+                if prob:
+                    src = ("Newton-Raphson on w* = w·n_eff/Σw in numpy (inverse-information SEs, Wald z; "
+                           "scipy " + scipy.__version__ + " normal tails)")
+                else:
+                    adopt_r(case, figs, rfigs[case])
+                    src = (f"{RREG[0]} nnet::multinom on rep()-expanded rows, Newton-polished (reg_reference.R); "
+                           "statsmodels " + statsmodels.__version__ + " MNLogit on the np.repeat expansion")
+            elif case == "ordinal":
+                figs = ordinal_closed_form(ws, kind)
+                if prob:
+                    src = ("Newton MLE of the proportional-odds logit on w* = w·n_eff/Σw (numpy), "
+                           "β cross-checked scale-free against the same fit on w")
+                else:
+                    src = ("Newton MLE of the proportional-odds logit on the np.repeat expansion (numpy), "
+                           "cross-checked with statsmodels " + statsmodels.__version__ + " OrderedModel(distr = logit)")
             else:
                 figs = bayes_closed_form(ws)
                 src = ("NIG conjugate posterior (default prior) in closed form on the np.repeat "
                        "expansion; scipy " + scipy.__version__ + " t quantiles — no stock reference")
+            request = {"regressions": [spec]}
+            if case == "ordinal":
+                request["features"] = [REG_ORDINAL_FEATURE]
             out.append(dict(weight=wname, kind=kind, name=case,
-                            request={"regressions": [spec]},
+                            request=request,
                             figs={f"regressions[0].{k}": v for k, v in figs.items()}, src=src))
         attrs = attr_closed_form(ws, kind)
         for case, typ in ATTR_SPECS:
@@ -2617,6 +2884,17 @@ def regression_cases():
                    "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
             out.append(dict(weight=wname, kind=kind, name=case, request=req,
                             figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        if not prob:
+            infl = influence_closed_form(ws)
+            for case, measure in INFLUENCE_SPECS:
+                req = {"attributes": [{"type": "ATTR_REG_INFLUENCE", "label": "attr", "target": "y",
+                                       "predictors": REG_PREDICTORS, "params": {"measure": measure}}],
+                       "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+                       "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+                out.append(dict(weight=wname, kind=kind, name=case, request=req,
+                                figs={f"data[{rid}].v": v for rid, v in infl[case].items()},
+                                src=("closed form on the grouped rows (one copy's h, df = Σw − p′), cross-checked with "
+                                     "statsmodels " + statsmodels.__version__ + " OLSInfluence on the np.repeat expansion")))
         scores = score_closed_form(ws, kind)
         for case, typ in SCORE_SPECS:
             figs = scores[case]

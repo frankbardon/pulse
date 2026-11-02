@@ -639,9 +639,10 @@ func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
 // TestResolveWeights_AwareRegressionsApplied: every regression whose
 // weighted fit exists (U12 E4-S1: REG_OLS under both kinds — and
 // REG_GLM since E4-S2 —
-// REG_BAYES_LINEAR under frequency) applies a weight of each kind its
-// class advertises from every source; REG_BAYES_LINEAR under a
-// probability weight is PULSE_WEIGHT_UNSUPPORTED naming the kind.
+// REG_BAYES_LINEAR under frequency; REG_ORDINAL under both since U65
+// E4-S1) applies a weight of each kind its class advertises from every
+// source; REG_BAYES_LINEAR under a probability weight is
+// PULSE_WEIGHT_UNSUPPORTED naming the kind.
 func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 	t.Parallel()
 
@@ -649,6 +650,9 @@ func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 		types.REG_OLS:          {types.WeightKindFrequency, types.WeightKindProbability},
 		types.REG_BAYES_LINEAR: {types.WeightKindFrequency},
 		types.REG_GLM:          {types.WeightKindFrequency, types.WeightKindProbability},
+		// U65 E4-S2: REG_GLM's prior-weight rule.
+		types.REG_MULTINOMIAL: {types.WeightKindFrequency, types.WeightKindProbability},
+		types.REG_ORDINAL:     {types.WeightKindFrequency, types.WeightKindProbability},
 	}
 	for _, rt := range types.AllRegressionTypes() {
 		if !reflect.DeepEqual(weighting.KindsOf(string(rt)), want[rt]) {
@@ -1169,6 +1173,34 @@ func TestResolveWeights_AwareTestsApplied(t *testing.T) {
 		post := &types.Request{Weight: &types.WeightSpec{Field: "w"}, PostTests: []*types.Test{{Type: tt, Field: "x"}}}
 		if _, err := ResolveWeights(post, weightSchema(), nil, nil); err == nil {
 			t.Fatalf("%s as a post-test accepted a weight", tt)
+		}
+	}
+}
+
+// TestOperatorWeightRefusal: the read-only accessor answers the engine's
+// permanent reason for a refused row operator, and false for a
+// weight-aware one, a pending refusal and an unknown name.
+func TestOperatorWeightRefusal(t *testing.T) {
+	t.Parallel()
+
+	for _, op := range []string{"TEST_ANOVA_RM", "TEST_SHAPIRO_WILK"} {
+		if got, ok := OperatorWeightRefusal(op); !ok || got == "" || got != weighting.RefusalReason(op) {
+			t.Errorf("%s: (%q, %v), want (%q, true)", op, got, ok, weighting.RefusalReason(op))
+		}
+	}
+	for _, op := range []string{"TEST_T", "AGG_SUM", "NOT_AN_OPERATOR"} {
+		if got, ok := OperatorWeightRefusal(op); ok || got != "" {
+			t.Errorf("%s: (%q, %v), want (\"\", false)", op, got, ok)
+		}
+	}
+	if PostTestWeightRefusal() != reasonPostTest || reasonPostTest == "" {
+		t.Errorf("PostTestWeightRefusal() = %q, want the post-test slot reason %q", PostTestWeightRefusal(), reasonPostTest)
+	}
+	for _, op := range types.AllTestTypes() {
+		if weighting.ClassOf(string(op)) == weighting.ClassRefuse && weighting.RefusalReason(string(op)) == "" {
+			if _, ok := OperatorWeightRefusal(string(op)); ok {
+				t.Errorf("%s: a pending refusal reported as permanent", op)
+			}
 		}
 	}
 }

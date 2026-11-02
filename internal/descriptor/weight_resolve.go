@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -102,6 +103,10 @@ type weightSlot struct {
 	// (weighting.AttributeClassOf: frequency-only), echoed in the
 	// refusal with its reason.
 	specTotal bool
+	// specResidualKind is the params.kind of an ATTR_REG_RESIDUAL whose
+	// standardized / studentized kind made it frequency-only
+	// (weighting.AttributeClassOf), echoed in the refusal.
+	specResidualKind string
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
 	// aggregated rows), a regression carrying a bootstrap resample
@@ -216,6 +221,28 @@ func permanentReason(s weightSlot) string {
 	return weighting.RefusalReason(s.operator)
 }
 
+// OperatorWeightRefusal is the reason a built-in operator in a request's
+// own slot (not a post-test or regression modifier, which carry their
+// slot's reason) is refused PERMANENTLY under any weight — the
+// details.reason its PULSE_WEIGHT_UNSUPPORTED states — and false when it
+// is not permanently refused. It lets read-only renderers (docgen's
+// validation page) quote the engine's own reason instead of a copy.
+func OperatorWeightRefusal(op string) (string, bool) {
+	if weighting.ClassOf(op) != weighting.ClassRefuse {
+		return "", false
+	}
+	reason := weighting.RefusalReason(op)
+	return reason, reason != ""
+}
+
+// PostTestWeightRefusal is the reason every post-test slot is refused
+// PERMANENTLY under any weight (the details.reason a weighted
+// post_tests[] entry's PULSE_WEIGHT_UNSUPPORTED states), whatever its
+// operator: a post-test reads the aggregated result rows. Read-only
+// renderers quote it for a post-test-only operator (TEST_TREND,
+// TEST_TUKEY_HSD).
+func PostTestWeightRefusal() string { return reasonPostTest }
+
 // refusalHead is the shared head of a refused slot's
 // PULSE_WEIGHT_UNSUPPORTED: "<slot>: <op> ..." naming the permanent
 // reason or the pending gap, its details ({slot, operator, field}, plus
@@ -263,6 +290,10 @@ func kindOnlyHead(s weightSlot, field string, kind types.WeightKind) (string, ma
 		op += " calling total()"
 		details["function"] = "total"
 	}
+	if s.specResidualKind != "" {
+		op += " (params.kind " + strconv.Quote(s.specResidualKind) + ")"
+		details["residual_kind"] = s.specResidualKind
+	}
 	return fmt.Sprintf("%s: %s has a weighted form only under weight kind %q, and the weight in force is kind %q", s.slot, op, types.WeightKindFrequency, kind), details
 }
 
@@ -273,6 +304,9 @@ func weightKindUnsupported(s weightSlot, spec *types.WeightSpec) error {
 	reason := weighting.KindRefusalReason(s.operator)
 	if s.specTotal {
 		reason = weighting.FormulaTotalKindReason
+	}
+	if s.specResidualKind != "" {
+		reason = weighting.ObservationKindReason
 	}
 	if reason != "" && !s.hidden {
 		// A permanent kind refusal states why (GROUP_KMEANS).
@@ -478,6 +512,9 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 				s := &slots[len(slots)-1]
 				s.specClass, s.specSet = c, true
 				s.specTotal = a.Type == types.ATTR_FORMULA
+				if a.Type == types.ATTR_REG_RESIDUAL && c == weighting.ClassFrequencyOnly {
+					s.specResidualKind = model.RefitResidualKind(a)
+				}
 			}
 		}
 	}

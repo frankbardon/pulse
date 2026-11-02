@@ -1,0 +1,154 @@
+{
+  "generator": "scripts/reference/gen_unweighted_tests.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "TEST_CHISQ",
+  "r_function": "chisq.test(table, correct = FALSE); chisq.test(counts, p = expected)",
+  "note": "Pulse's default applies no Yates' correction; on a 2 x 2 table chisq.test's default (corrected) figure is kept as r_yates_*, which params.correct reproduces.",
+  "cases": [
+    {
+      "name": "two_by_two",
+      "variant": "independence",
+      "table": [
+        [12, 5],
+        [7, 16]
+      ],
+      "statistic": 6.319891801114041,
+      "df": 1,
+      "p_value": 0.011939091377912265,
+      "expected_min": 8.0749999999999993,
+      "r_yates_statistic": 4.8122864706523361,
+      "r_yates_p_value": 0.028257528526361309
+    },
+    {
+      "name": "three_by_four",
+      "variant": "independence",
+      "table": [
+        [10, 14, 8, 20],
+        [12, 9, 15, 11],
+        [6, 18, 13, 7]
+      ],
+      "statistic": 13.475661048703751,
+      "df": 6,
+      "p_value": 0.036074421802517569,
+      "expected_min": 8.615384615384615
+    },
+    {
+      "name": "zero_cell_low_expected",
+      "variant": "independence",
+      "table": [
+        [0, 4, 9],
+        [6, 3, 2]
+      ],
+      "statistic": 10.503678140041776,
+      "df": 2,
+      "p_value": 0.0052378767139939723,
+      "expected_min": 2.75
+    },
+    {
+      "name": "tiny_p",
+      "variant": "independence",
+      "table": [
+        [180, 20],
+        [30, 170]
+      ],
+      "statistic": 225.56390977443607,
+      "df": 1,
+      "p_value": 5.531209443494578e-51,
+      "expected_min": 95,
+      "r_yates_statistic": 222.56641604010025,
+      "r_yates_p_value": 2.4922822139981036e-50
+    },
+    {
+      "name": "independent_like",
+      "variant": "independence",
+      "table": [
+        [25, 26, 24],
+        [50, 49, 51]
+      ],
+      "statistic": 0.12,
+      "df": 2,
+      "p_value": 0.94176453358424872,
+      "expected_min": 25
+    },
+    {
+      "name": "five_by_three",
+      "variant": "independence",
+      "table": [
+        [5, 9, 12],
+        [7, 7, 8],
+        [11, 6, 3],
+        [4, 10, 15],
+        [9, 9, 9]
+      ],
+      "statistic": 13.019413903821507,
+      "df": 8,
+      "p_value": 0.11118338407913694,
+      "expected_min": 5.806451612903226
+    },
+    {
+      "name": "two_by_two_small_deviation",
+      "variant": "independence",
+      "table": [
+        [5, 5],
+        [5, 6]
+      ],
+      "statistic": 0.043388429752066124,
+      "df": 1,
+      "p_value": 0.83499559421104586,
+      "expected_min": 4.7619047619047619,
+      "r_yates_statistic": 0,
+      "r_yates_p_value": 1
+    },
+    {
+      "name": "gof_four_categories",
+      "variant": "goodness_of_fit",
+      "labels": ["k1", "k2", "k3", "k4"],
+      "counts": [30, 22, 28, 20],
+      "expected_proportions": [
+        0.25,
+        0.25,
+        0.29999999999999999,
+        0.20000000000000001
+      ],
+      "statistic": 1.4933333333333334,
+      "df": 3,
+      "p_value": 0.68380984615332163,
+      "expected_min": 20
+    },
+    {
+      "name": "gof_skewed",
+      "variant": "goodness_of_fit",
+      "labels": ["k1", "k2", "k3"],
+      "counts": [5, 40, 15],
+      "expected_proportions": [
+        0.10000000000000001,
+        0.59999999999999998,
+        0.29999999999999999
+      ],
+      "statistic": 1.1111111111111112,
+      "df": 2,
+      "p_value": 0.57375342073743285,
+      "expected_min": 6
+    },
+    {
+      "name": "gof_tiny_p",
+      "variant": "goodness_of_fit",
+      "labels": ["k1", "k2", "k3"],
+      "counts": [150, 10, 40],
+      "expected_proportions": [
+        0.33333333333333331,
+        0.33333333333333331,
+        0.33333333333333331
+      ],
+      "statistic": 163.00000000000003,
+      "df": 2,
+      "p_value": 4.0271677921405762e-36,
+      "expected_min": 66.666666666666657
+    }
+  ]
+}
+// golden-hash: 8bfa2fe0d1cfa28e82d412b7fdc06a5d2d05ea6275cff62ea885e646eeb5ed8b

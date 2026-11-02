@@ -286,7 +286,8 @@ type explainCase struct {
 
 // explainCases lists every Explain golden: each result family x
 // {terse, full} x {with, without its request companion}, plus request
-// mode over the recommend fixture cohort x {terse, full}.
+// mode over the recommend fixture cohort x {terse, full}, plus operator
+// mode x {terse, full}.
 func explainCases(t *testing.T) []explainCase {
 	t.Helper()
 	var out []explainCase
@@ -313,6 +314,11 @@ func explainCases(t *testing.T) []explainCase {
 				Aggregations: []*types.Aggregation{{Field: "revenue"}, {Type: types.AGG_AVERAGE, Field: "score"}},
 				Tests:        []*types.Test{{Type: types.TEST_T, Field: "score", SplitBy: "region"}},
 			},
+		}})
+		// Operator mode: TEST_ANOVA_F carries R and weighted references,
+		// a stated gap and NIST StRD digits.
+		out = append(out, explainCase{"explain.operator." + string(d) + ".json", descriptor.ExplainRequest{
+			Detail: d, Operator: string(types.TEST_ANOVA_F),
 		}})
 	}
 	return out
@@ -448,7 +454,7 @@ func TestExplainProseLint(t *testing.T) {
 	for name := range want {
 		t.Errorf("%s: golden missing (regenerate with -update)", name)
 	}
-	if len(cases) != len(explainFamilies)*4+2 || n < 10*len(cases) {
+	if len(cases) != len(explainFamilies)*4+4 || n < 10*len(cases) {
 		t.Fatalf("vacuous: %d cases, %d texts linted", len(cases), n)
 	}
 }

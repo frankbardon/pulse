@@ -4,6 +4,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -175,10 +176,47 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 				},
 			})
 		}
+		// The marginal effects (RegressionSpec.Margins) form a family of
+		// their own, one per regression (keyed by the regression's index
+		// in its scope, never pooled — a `compose` block pools the
+		// coefficients only), so a coefficient's p_adjusted is the same
+		// with margins or without. One site per term in the block's order;
+		// an undefined (null) p is excluded from m. Its echo is the
+		// margins block's own.
+		if mg := r.Margins; mg != nil {
+			mecho := &types.AppliedMultiplicity{Method: method, Family: types.MultiplicityFamilyMargins, Alpha: alpha}
+			key := scope + "regressions[" + strconv.Itoa(i) + "]#" + string(types.MultiplicityFamilyMargins)
+			for _, term := range mg.Terms {
+				fams.add(key, types.MultiplicityFamilyMargins, method, multSite{
+					p: mg.PValues[term],
+					write: func(adjusted float64, m, excluded int) {
+						writeMarginsAdjusted(mg, mecho, term, adjusted, m, excluded)
+					},
+				})
+			}
+		}
 	}
 }
 
+// writeMarginsAdjusted records one marginal effect's adjusted p beside
+// its raw one (RegressionMarginsResult.PAdjusted /
+// SignificantAdjusted) and stamps the margins family's echo
+// (RegressionMarginsResult.Multiplicity).
+func writeMarginsAdjusted(mg *types.RegressionMarginsResult, echo *types.AppliedMultiplicity, term string, adjusted float64, m, excluded int) {
+	if mg.PAdjusted == nil {
+		mg.PAdjusted = map[string]float64{}
+		mg.SignificantAdjusted = map[string]bool{}
+	}
+	mg.PAdjusted[term] = adjusted
+	if !math.IsNaN(adjusted) {
+		mg.SignificantAdjusted[term] = adjusted < echo.Alpha
+	}
+	echo.M, echo.Excluded = m, excluded
+	mg.Multiplicity = echo
+}
+
 // pValuedCoefficients is the default family of an extension REG_* model
+// or a REG_MULTINOMIAL fit (its intercepts "<level>:(intercept)" left out)
 // (descx.ResolvedMultiplicity.ResultCoefficients): every coefficient of
 // r whose p-value is defined, "(intercept)" excluded, in name order — a
 // coefficient the model reports no p-value for (null on the wire) does
@@ -186,7 +224,10 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 func pValuedCoefficients(r *types.RegressionResult) []string {
 	out := make([]string, 0, len(r.PValues))
 	for name, p := range r.PValues {
-		if name != regression.InterceptKey && !math.IsNaN(p) {
+		// A REG_MULTINOMIAL fit's intercepts are "<level>:(intercept)".
+		intercept := name == regression.InterceptKey ||
+			(r.Type == types.REG_MULTINOMIAL && strings.HasSuffix(name, ":"+regression.InterceptKey))
+		if !intercept && !math.IsNaN(p) {
 			out = append(out, name)
 		}
 	}
@@ -315,6 +356,7 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 		}
 	}
 	collectOverlaySites(fams, composeHostScope, plan.Overlays, out.Overlays)
+	collectComparisonSites(fams, plan.Comparisons, out.Comparisons)
 	if err := fams.fold(); err != nil {
 		return err
 	}
@@ -327,4 +369,37 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 		}
 	}
 	return nil
+}
+
+// collectComparisonSites files each member nested-model comparison's
+// p-value (ComposedRequest.Compare) into the batch's `compose` family,
+// in declaration order, after the slots and the Compose-host layers. A
+// failed comparison (Error set) joins no family, like a failed test.
+func collectComparisonSites(fams *multFamilies, slots []descx.ResolvedMultiplicity, results []types.FitComparisonResult) {
+	for i := range results {
+		r := &results[i]
+		if i >= len(slots) || r.Error != nil || !slots[i].Member {
+			continue
+		}
+		rm := slots[i]
+		fams.add(multFamilyKey(composeHostScope, rm.Family), rm.Family, rm.Method, multSite{
+			p: r.PValue,
+			write: func(adjusted float64, m, excluded int) {
+				writeComparisonAdjusted(r, rm, adjusted, m, excluded)
+			},
+		})
+	}
+}
+
+// writeComparisonAdjusted records a comparison's adjusted p beside its
+// raw one; significant_adjusted compares against the resolved alpha and
+// is absent for an undefined adjusted p.
+func writeComparisonAdjusted(r *types.FitComparisonResult, rm descx.ResolvedMultiplicity, adjusted float64, m, excluded int) {
+	r.PAdjusted = &adjusted
+	r.SignificantAdjusted = nil
+	if !math.IsNaN(adjusted) {
+		sig := adjusted < rm.Alpha
+		r.SignificantAdjusted = &sig
+	}
+	r.Multiplicity = &types.AppliedMultiplicity{Method: rm.Method, Family: rm.Family, Alpha: rm.Alpha, M: m, Excluded: excluded}
 }

@@ -503,3 +503,102 @@ source(file.path(script_dir, "gen_overlays.R"), local = FALSE)
 # a two-partition series with nulls, via stats::filter); base stats +
 # jsonlite. Deterministic rows, no RNG.
 source(file.path(script_dir, "gen_distributed_lag.R"), local = FALSE)
+
+# The bound-fit influence golden (glm_influence.json: hatvalues,
+# rstandard, rstudent, cooks.distance and dffits over lm and the
+# canonical-link GLMs, each re-derived from its R 4.6.1 closed form);
+# base stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_glm_influence.R"), local = FALSE)
+
+# The non-canonical REG_GLM links golden (glm_links.json: probit,
+# cloglog, poisson identity / sqrt, gamma log / identity — coefficients,
+# SEs, vcov, deviances, AIC, dispersion, per-row fitted / working / hat /
+# dffits, sandwich vcovHC HC0 / HC1 / HC3, and frequency-weighted cases
+# against the rep() expansion; each figure re-derived from its closed
+# form); base stats + jsonlite + sandwich 3.1-3. Seeded RNG.
+source(file.path(script_dir, "gen_glm_links.R"), local = FALSE)
+
+# The REG_GLM negative binomial golden (glm_nb.json: NB2 with theta
+# estimated on the log / sqrt / identity links — glm.nb's joint MLE
+# pushed to its fixed point — or fixed through negative.binomial(theta):
+# coefficients, SEs, vcov at dispersion 1, theta, SE(theta), 2 loglik,
+# AIC, deviances, sandwich vcovHC HC0 / HC1 / HC3, per-row residuals and
+# hat values, an influence case, and a frequency-weighted case against
+# the rep() expansion; each figure re-derived from its closed form);
+# base stats + jsonlite + MASS 7.3-66 + sandwich 3.1-3. Seeded RNG.
+source(file.path(script_dir, "gen_glm_nb.R"), local = FALSE)
+
+# The regression marginal-effects golden (margins.json: average marginal
+# effects and marginal effects at the mean on lm and the binomial logit /
+# probit / cloglog, poisson log, gamma inverse / log and negative binomial
+# glm — response and link scale, classical / HC3 / cluster vcov, and a
+# frequency-weighted pair against the rep() expansion; the analytic
+# closed forms with their delta-method SEs, cross-checked against
+# marginaleffects 1.0.0); base stats + jsonlite + MASS 7.3-66 + sandwich
+# 3.1-3 (+ marginaleffects, skipped with a message when absent). Seeded RNG.
+source(file.path(script_dir, "gen_margins.R"), local = FALSE)
+
+# The regression log-likelihood golden (loglik.json: logLik / AIC of lm
+# with and without an intercept and of the binomial-logit, poisson-log
+# and gamma-inverse glm, each with a frequency-weighted case against the
+# rep() expansion; each figure re-derived from its closed form); base
+# stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_loglik.R"), local = FALSE)
+
+# The regression variance-inflation golden (vif.json: car::vif's GVIF,
+# Df and GVIF^(1/(2*Df)) on lm and the binomial logit, poisson log,
+# fixed-theta negative binomial and gamma log glm — ungrouped and with a
+# factor's dummies as one term, on the fit (basis model) and on lm over
+# the prior weights (basis predictors), frequency weights against the
+# rep() expansion and probability weights; each figure re-derived from
+# the weighted design's closed form); base stats + jsonlite + MASS
+# 7.3-66 + car 3.1-5. Seeded RNG.
+source(file.path(script_dir, "gen_vif.R"), local = FALSE)
+
+# The Compose nested-model comparison golden (nested.json: anova(m0, m1)
+# F / Chisq on lm, anova(test = "LRT" | "F") on the binomial logit /
+# probit, poisson, gamma inverse / log and fixed-theta negative binomial
+# glm, MASS anova.negbin with theta estimated, lmtest::waldtest with the
+# classical and sandwich HC3 vcov; a restricted fit through the origin
+# and frequency weights against the rep() expansion; each statistic
+# re-derived from its closed form); base stats + jsonlite + MASS 7.3-66
+# + sandwich 3.1-3 + lmtest 0.9-40. Seeded RNG.
+source(file.path(script_dir, "gen_nested.R"), local = FALSE)
+
+# The unweighted two-group and contingency test goldens (U64 E2-S1:
+# test_t.json, test_z_two_sample.json, test_chisq.json,
+# test_mann_whitney_u.json, test_kruskal_wallis.json, test_prop_z.json:
+# t.test one-sample and Welch, the Welch-SE normal test, chisq.test with
+# correct = FALSE and its goodness-of-fit form, wilcox.test's
+# continuity-corrected normal approximation, kruskal.test's H in
+# deviation form, prop.test with correct = FALSE; each definitional
+# choice stated in its header); base stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_unweighted_tests.R"), local = FALSE)
+
+# The unweighted chi-square crosstab overlay golden (U64 E2-S2:
+# overlay_chisq_axes.json: OVERLAY_CHISQ_MATRIX as chisq.test(table,
+# correct = FALSE), OVERLAY_CHISQ_ROW / _COL as each row's / column's
+# chisq.test(x, p = other margin / N)); base stats + jsonlite. No RNG.
+source(file.path(script_dir, "gen_overlay_chisq.R"), local = FALSE)
+
+# The REG_MMM_HILL golden (U64 E4-S1: mmm_hill.json: the Hill media-mix
+# least-squares fit by minpack.lm nlsLM from REG_MMM_HILL's start inside
+# its bounds, cross-checked against nls.lm on the analytic Jacobian and
+# Gauss-Newton polished; one and two channels, a control, a MAP prior
+# and a channel held at beta = 0); minpack.lm 1.2-4 + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_mmm_hill.R"), local = FALSE)
+
+# The REG_MULTINOMIAL golden (U65 E4-S2: multinomial.json: nnet::multinom
+# Newton-polished to the MLE — three levels at two coverages, four levels
+# in a non-alphabetical dictionary order with a named reference, frequency
+# weights against the rep() expansion, probability weights on w*, an
+# empty dictionary level dropped); nnet 7.3-21 + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_multinomial.R"), local = FALSE)
+# The REG_ORDINAL golden (U65 E4-S1: ordinal.json: MASS polr logit /
+# probit / cloglog polished by Newton to its MLE on the analytic
+# derivatives, the hc0 / hc1 / cluster sandwich, the mean fitted
+# probabilities and the Brant test with the binary logits at their
+# fixed point; frequency weights against the rep() expansion,
+# probability weights on w*); MASS 7.3-66 + sandwich 3.1-3 + brant 0.3.0
+# + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)

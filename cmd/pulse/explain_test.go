@@ -141,3 +141,59 @@ func TestCliExplain(t *testing.T) {
 		t.Errorf("text output = %s", text)
 	}
 }
+
+// TestCliExplain_Operator: `pulse explain OPERATOR` is operator mode —
+// the operator's validation evidence in the --json envelope and as
+// text — and an operator beside a file, a second name, or an operator
+// the build does not offer is refused under its own code.
+func TestCliExplain_Operator(t *testing.T) {
+	t.Parallel()
+
+	text, err := runApp(t, "explain", "TEST_ANOVA_F", "--json")
+	if err != nil {
+		t.Fatalf("operator mode: %v\n%s", err, text)
+	}
+	var env struct {
+		Data *struct {
+			Mode       string `json:"mode"`
+			Validation *struct {
+				References []struct {
+					Against string   `json:"against"`
+					Tests   []string `json:"tests"`
+				} `json:"references"`
+				Gap           string `json:"gap"`
+				Certification []any  `json:"certification"`
+			} `json:"validation"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(text), &env); err != nil {
+		t.Fatalf("decoding: %v\n%s", err, text)
+	}
+	if env.Data == nil || env.Data.Mode != "operator" || env.Data.Validation == nil ||
+		len(env.Data.Validation.References) == 0 || env.Data.Validation.Gap == "" || len(env.Data.Validation.Certification) == 0 {
+		t.Fatalf("operator envelope = %s", text)
+	}
+
+	text, err = runApp(t, "explain", "TEST_SHAPIRO_WILK")
+	if err != nil {
+		t.Fatalf("text: %v\n%s", err, text)
+	}
+	if !strings.Contains(text, "nortest::sf.test") || !strings.Contains(text, "weighted analysis refused (PULSE_WEIGHT_UNSUPPORTED)") {
+		t.Errorf("text output = %s", text)
+	}
+
+	req := writeFile(t, t.TempDir(), "req.json", `{}`)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"TEST_T", "--request", req}, "CLI_INPUT"},
+		{[]string{"TEST_T", "TEST_WELCH"}, "CLI_INPUT"},
+		{[]string{"TEST_NOPE"}, "SERVICE_VALIDATION"},
+	} {
+		text, _ := runApp(t, append(append([]string{"explain"}, tc.args...), "--json")...)
+		if env := decodeExplain(t, text); len(env.Errors) == 0 || env.Errors[0].Code != tc.want {
+			t.Errorf("explain %v: errors = %+v, want %s", tc.args, env.Errors, tc.want)
+		}
+	}
+}

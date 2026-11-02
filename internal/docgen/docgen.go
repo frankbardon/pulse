@@ -28,6 +28,9 @@
 //	                          floor keys, mergeability and every visible
 //	                          operator's ComponentSchema keys
 //	glossary.md               every glossary term the instance keeps
+//	validation.md             "How Pulse is validated": the external
+//	                          reference, tolerance and test file behind
+//	                          each inferential operator (validation.go)
 //	skills.md                 the skill index (omitted with OmitSkills)
 //	skills/<stem>.md          every visible skill as the instance serves it
 //
@@ -105,6 +108,7 @@ func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 	}
 	files["catalog.md"] = renderCatalogIndex(cats)
 	files["glossary.md"] = g.renderGlossary()
+	files[validationPage] = g.renderValidation(cats)
 	pages, homes := g.readingPages(cats)
 	for _, p := range pages {
 		files[readingPath(p.fam.key)] = g.renderReadingPage(p, homes)

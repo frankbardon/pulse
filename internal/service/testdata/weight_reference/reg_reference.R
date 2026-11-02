@@ -3,8 +3,9 @@
 # "Weighted inference"), z / t score attributes and quantile cuts (E5-S2).
 # Called by gen_weight_reference.py — never by CI.
 #
-# Base R only (stats): every figure is the STOCK R function run on the
-# rep()-expanded rows, the definition of a frequency weight — lm() for
+# Base R (stats) and nnet 7.3-21 (REG_MULTINOMIAL): every figure is the
+# STOCK R function run on the rep()-expanded rows, the definition of a
+# frequency weight — lm() for
 # REG_OLS and the ATTR_REG_* fitted values / residuals / leverages, and
 # glm(control = glm.control(epsilon = 1e-14, maxit = 100)) for REG_GLM
 # — summary(dispersion = 1) for binomial / poisson (the family fixes it)
@@ -96,6 +97,54 @@ for (nm in names(fams)) {
   out(nm, "deviance", deviance(g))
   out(nm, "null_deviance", g$null.deviance)
 }
+
+# REG_MULTINOMIAL (U65 E4-S2): nnet 7.3-21 multinom on the expansion
+# of the class yc (a for yp = 0, b for yp 1-2, c otherwise; reference
+# a), Newton-polished from multinom's BFGS stop to the MLE on the
+# analytic gradient and information (multinom's own Hessian is a finite
+# difference); Wald z p-values, deviance -2 logLik, the intercept-only
+# null deviance. nnet is a recommended package this R build does not
+# ship: R_LIBS must hold it (the pin is checked).
+suppressPackageStartupMessages(library(nnet))
+if (as.character(packageVersion("nnet")) != "7.3.21") stop("nnet 7.3-21 required")
+e$yc <- factor(ifelse(e$yp == 0, "a", ifelse(e$yp <= 2, "b", "c")), levels = c("a", "b", "c"))
+mm <- multinom(yc ~ x1 + x2, data = e, maxit = 1000, reltol = 1e-16, trace = FALSE)
+mX <- cbind(1, e$x1, e$x2)
+mY <- sapply(levels(e$yc), function(l) as.numeric(e$yc == l))
+mparts <- function(beta) {
+  eta <- cbind(0, mX %*% matrix(beta, nrow = 3))
+  mx <- apply(eta, 1, max)
+  ex <- exp(eta - mx)
+  P <- ex / rowSums(ex)
+  g <- as.vector(t(mX) %*% (mY[, -1] - P[, -1]))
+  H <- matrix(0, 6, 6)
+  for (a in 1:2) for (b in 1:2) {
+    w <- if (a == b) P[, a + 1] * (1 - P[, a + 1]) else -P[, a + 1] * P[, b + 1]
+    H[(a - 1) * 3 + 1:3, (b - 1) * 3 + 1:3] <- t(mX) %*% (mX * w)
+  }
+  list(ll = sum(rowSums(mY * eta) - mx - log(rowSums(ex))), g = g, H = H)
+}
+mb <- as.vector(t(coef(mm)))
+for (it in 1:100) {
+  mp <- mparts(mb)
+  st <- solve(mp$H, mp$g)
+  mb <- mb + st
+  if (max(abs(st)) <= 1e-15 * max(1, max(abs(mb)))) break
+}
+mp <- mparts(mb)
+if (max(abs(mp$g)) > 1e-9) stop("multinomial: gradient not zero at the polished MLE")
+if (max(abs(mb - as.vector(t(coef(mm))))) > 1e-5) stop("multinomial: multinom stopped far from the MLE")
+mse <- sqrt(diag(solve(mp$H)))
+for (a in 1:2) for (j in 1:3) {
+  k <- (a - 1) * 3 + j
+  key <- sprintf("%s:%s", levels(e$yc)[a + 1], terms[j])
+  out("multinomial", sprintf("coefficients.%s", key), mb[k])
+  out("multinomial", sprintf("std_errors.%s", key), mse[k])
+  out("multinomial", sprintf("p_values.%s", key), 2 * pnorm(-abs(mb[k] / mse[k])))
+}
+out("multinomial", "deviance", -2 * mp$ll)
+msh <- colMeans(mY)
+out("multinomial", "null_deviance", -2 * sum(mY %*% log(msh)))
 
 # ATTR_ZSCORE / ATTR_TSCORE (weighting-inferential E5-S2): every row's
 # score against the mean and POPULATION sd (divisor n) of the expanded

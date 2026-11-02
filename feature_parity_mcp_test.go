@@ -453,6 +453,13 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 			"matrices": []any{map[string]any{"name": "corr", "type": "MAT_CORRELATION", "primary": map[string]any{
 				"row_keys": []any{"a", "b"}, "column_keys": []any{"a", "b"}, "values": []any{[]any{1, 0.4}, []any{0.4, 1}}}}},
 		}})
+		// Operator mode: every recorded operator the instance offers
+		// (asking for a hidden one would echo the name the caller sent).
+		for _, op := range descx.ValidationOperators() {
+			if len(hidden.leaks(op)) == 0 {
+				rendered["pulse_explain operator "+op] = sess.CallTool("pulse_explain", map[string]any{"detail": "full", "operator": op})
+			}
+		}
 	}
 
 	// The bind-on-inspect rebind re-adds tools by name: re-render.

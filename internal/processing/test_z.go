@@ -37,8 +37,11 @@ type zTestRow struct {
 	// covariate): it replaces groups as the fold target.
 	cuped *cupedArms
 
-	groups map[string]*weighting.Welford
-	order  []string
+	// groups accumulate v − each group's origin (origins), as
+	// tTestRow's two-sample groups do (#637).
+	groups  map[string]*weighting.Welford
+	origins map[string]*originShift
+	order   []string
 
 	// testWeight: weighted, each group's moments are read on w* (N*_g).
 	testWeight
@@ -76,8 +79,9 @@ func newZTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		splitBy:    spec.SplitBy,
 		alpha:      alpha,
 		reference:  params.Reference,
-		cuped:      newCupedArms(params.Covariate),
+		cuped:      newShiftedCupedArms(params.Covariate),
 		groups:     make(map[string]*weighting.Welford),
+		origins:    make(map[string]*originShift),
 		testWeight: newTestWeight(spec),
 	}, nil
 }
@@ -116,9 +120,10 @@ func (zt *zTestRow) UpdateRow(record *Record) error {
 	if !exists {
 		b = &weighting.Welford{}
 		zt.groups[key] = b
+		zt.origins[key] = &originShift{}
 		zt.order = append(zt.order, key)
 	}
-	b.Add(v, w)
+	b.Add(zt.origins[key].of(v), w)
 	return nil
 }
 
@@ -141,13 +146,16 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 		return nil, err
 	}
 	a, b := zt.groups[keys[0]], zt.groups[keys[1]]
+	oa, ob := zt.origins[keys[0]], zt.origins[keys[1]]
 	// Under params.covariate the test runs on the adjusted outcome's
-	// moments (test_cuped.go).
+	// moments (test_cuped.go), each group still about its origin.
 	var cf *cupedFacts
 	if zt.cuped != nil {
-		adjA, adjB, f := zt.cuped.adjust(zt.cuped.groups[keys[0]], zt.cuped.groups[keys[1]])
+		adjA, adjB, f := zt.cuped.adjust(keys[0], keys[1])
 		a, b, cf = &adjA, &adjB, &f
+		oa, ob = zt.cuped.origin(keys[0]), zt.cuped.origin(keys[1])
 	}
+	meanA, meanB, diff := groupMeans(a, b, oa, ob)
 	if a.FloorN(zt.basis) < 2 || b.FloorN(zt.basis) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_Z_TWO_SAMPLE requires n ≥ 2 per group, got %d / %d", a.N, b.N),
@@ -158,18 +166,17 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	if va == 0 && vb == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_Z_TWO_SAMPLE: both groups have zero variance",
-			map[string]any{"groups": keys, "means": []float64{a.Mean, b.Mean}})
+			map[string]any{"groups": keys, "means": []float64{meanA, meanB}})
 	}
 	na := a.NStar(zt.basis)
 	nb := b.NStar(zt.basis)
-	se2 := va/na + vb/nb
+	se2, _, _ := welchSatterthwaite(va, na, vb, nb)
 	se := math.Sqrt(se2)
 	if se == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_Z_TWO_SAMPLE: standard error is zero",
 			map[string]any{"groups": keys})
 	}
-	diff := a.Mean - b.Mean
 	zstat := diff / se
 	p := normalTwoSidedP(zstat)
 	zcrit := normalCriticalTwoSided(zt.alpha)
@@ -186,7 +193,7 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 		Details: map[string]any{
 			"groups":   keys,
 			"n":        []int64{a.N, b.N},
-			"mean":     []float64{a.Mean, b.Mean},
+			"mean":     []float64{meanA, meanB},
 			"variance": []float64{va, vb},
 			"diff":     diff,
 			"ci_low":   ciLow,
@@ -207,6 +214,7 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 
 func (zt *zTestRow) reset() {
 	zt.groups = make(map[string]*weighting.Welford)
+	zt.origins = make(map[string]*originShift)
 	zt.order = nil
 	zt.cuped.reset()
 }

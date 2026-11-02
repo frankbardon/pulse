@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/spf13/afero"
 )
 
 // invokeExplain calls pulse_explain through the catalog's Invoke and
@@ -129,8 +130,40 @@ func TestPulseExplain_InputSchema(t *testing.T) {
 			t.Errorf("%s type = %v, want object", k, s.Properties[k].Type)
 		}
 	}
-	if s.Properties["detail"].Type != "string" || len(s.Properties) != len(roots)+1 {
+	if s.Properties["detail"].Type != "string" || s.Properties["operator"].Type != "string" || len(s.Properties) != len(roots)+2 {
 		t.Errorf("input schema properties = %v", s.Properties)
+	}
+}
+
+// TestPulseExplain_OperatorMode: pulse_explain {operator} returns the
+// operator's validation evidence on the wire — the same record the
+// instance's Validation view holds — and refuses an unknown operator or
+// one set beside another root with SERVICE_VALIDATION.
+func TestPulseExplain_OperatorMode(t *testing.T) {
+	t.Parallel()
+
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := invokeExplain(t, p, `{"operator":"TEST_SHAPIRO_WILK"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["mode"] != "operator" || out["root"] != "operator" {
+		t.Fatalf("mode/root = %v / %v", out["mode"], out["root"])
+	}
+	v, _ := out["validation"].(map[string]any)
+	refs, _ := v["references"].([]any)
+	wr, _ := v["weight_refusal"].(map[string]any)
+	if len(refs) == 0 || wr["code"] != "PULSE_WEIGHT_UNSUPPORTED" || wr["reason"] == "" {
+		t.Errorf("validation = %v", v)
+	}
+	for _, args := range []string{`{"operator":"TEST_NOPE"}`, `{"operator":"TEST_T","request":{}}`} {
+		_, err := invokeExplain(t, p, args)
+		if ce, ok := err.(*perr.CodedError); !ok || ce.Code != perr.SERVICE_VALIDATION || ce.Details["field"] != "operator" {
+			t.Errorf("%s: err = %v, want SERVICE_VALIDATION on operator", args, err)
+		}
 	}
 }
 

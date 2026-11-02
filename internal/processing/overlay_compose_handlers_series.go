@@ -409,7 +409,7 @@ func applyTVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			continue
 		}
 
-		p, ok := welchTTest(targetMean, targetVar, targetN, refMean, refVar, refN)
+		p, ok := welchTTestDiff(seriesPairDiff(hasTriple, leg, targetMean, refEntry.HasTriple, refEntry.Leg, refMean), targetVar, targetN, refVar, refN)
 		if !ok {
 			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),

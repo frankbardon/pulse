@@ -856,7 +856,9 @@ returns a narrow `extend.RegressionOutput`: `Coefficients` (each a
 nil is absent, `null` on the wire with the key kept; `extend.Figure(v)`
 builds one), optional `Fit` statistics from the fixed set (`R2`,
 `AdjR2`, `ResidualStdErr`, `DF`, `Deviance`, `NullDeviance`,
-`PseudoR2`, `Iterations`), a `Vcov` (square over the coefficients, in
+`PseudoR2`, `TwoLogLik`, `AIC`, `Iterations` — report `TwoLogLik` /
+`AIC` only for a likelihood fit, never under a probability weight, the
+built-ins' rule), a `Vcov` (square over the coefficients, in
 their order) and `Outputs`. The adapter maps it onto
 `types.RegressionResult` and owns the rest: name and type, `n_obs`,
 `sum_weights` / `n_eff`, the confidence intervals (see **Intervals**),
@@ -1682,7 +1684,7 @@ probe. A regression's `Interpretation` is also held to what the model
 can report: a coefficient-keyed figure as `<key>.*` (`coefficients`,
 `std_errors`, `statistics`, `p_values`), a fit statistic (`r2`,
 `adj_r2`, `residual_std_err`, `df`, `deviance`, `null_deviance`,
-`pseudo_r2`, `converged_iters`, `n_obs`) or `outputs.<key>` for a key
+`pseudo_r2`, `two_log_lik`, `aic`, `converged_iters`, `n_obs`) or `outputs.<key>` for a key
 its `OutputSchema` declares; any other path is refused
 (`field_unknown`). The first registration that breaks a rule (category order, then
 slice index; `Purpose` before `Interpretation`) fails with

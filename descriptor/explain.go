@@ -33,6 +33,8 @@ const (
 	ExplainModeRequest ExplainMode = "request"
 	// ExplainModeResponse reads what a response found.
 	ExplainModeResponse ExplainMode = "response"
+	// ExplainModeOperator returns one operator's validation evidence.
+	ExplainModeOperator ExplainMode = "operator"
 )
 
 // ExplainRoot names which root an Explain result describes. Request
@@ -56,6 +58,8 @@ const (
 	ExplainRootChainResponse ExplainRoot = "chain_response"
 	// ExplainRootFacetResult is response mode over a Facet FacetResult.
 	ExplainRootFacetResult ExplainRoot = "facet_result"
+	// ExplainRootOperator is operator mode over one operator name.
+	ExplainRootOperator ExplainRoot = "operator"
 )
 
 // ExplainRequestRoots returns the request-mode roots, in ExplainRequest
@@ -93,6 +97,14 @@ func ExplainRequestRoots() []ExplainRoot {
 // read first. A FacetResult's overlays are tied to the field they
 // decorate through the companion's overlay params (or the result's
 // only field). Response mode reads no cohort.
+//
+// Operator mode: Operator names one operator the instance offers
+// (built-in or extension) and nothing else is set; any other root
+// beside it, or a name the instance does not offer (unknown or hidden
+// alike), is SERVICE_VALIDATION. The result carries the operator's
+// validation evidence (ExplainResult.Validation) — the record the
+// book's "How Pulse is validated" page renders, pulled here on request
+// and never pushed into another payload. Operator mode reads no cohort.
 type ExplainRequest struct {
 	Request  *types.Request         `json:"request,omitempty"`
 	Composed *types.ComposedRequest `json:"composed,omitempty"`
@@ -104,6 +116,8 @@ type ExplainRequest struct {
 	ComposedResponse *types.ComposedResponse `json:"composed_response,omitempty"`
 	ChainResponse    *types.ChainResponse    `json:"chain_response,omitempty"`
 	FacetResult      *types.FacetResult      `json:"facet_result,omitempty"`
+
+	Operator string `json:"operator,omitempty"`
 
 	Detail ExplainDetail `json:"detail,omitempty"`
 }
@@ -139,6 +153,14 @@ type ExplainRequest struct {
 // than one test, the alpha a regression or overlay was read at, a
 // partial reading without the request — and stay in terse output.
 //
+// Operator mode: Validation carries the operator's references, gap,
+// pinned weight refusal and NIST StRD digits; it is absent when Pulse
+// holds no validation record for the operator (an extension, or a
+// descriptive operator outside the record's scope), and a caveat says
+// so. Summary counts the references; Findings stays empty and Steps is
+// absent. Full detail adds the operator's glossary terms, follow-ups
+// and assumptions, as in the other modes.
+//
 // Under a feature profile no hidden operator or capability is named:
 // a step naming one says the instance does not offer it, and every
 // sentence passes the instance's prose scrub.
@@ -158,6 +180,8 @@ type ExplainResult struct {
 	GlossaryRefs    []string         `json:"glossary_refs,omitempty"`
 	FollowUps       []Alternative    `json:"follow_ups,omitempty"`
 	Caveats         []string         `json:"caveats,omitempty"`
+
+	Validation *OperatorValidation `json:"validation,omitempty"`
 }
 
 // ExplainStep is one thing a request does. Slot is its wire path

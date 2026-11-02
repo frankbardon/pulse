@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/collinearity"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -18,8 +19,10 @@ import (
 // with each pair over its own rows). It passes the shared PSD guard
 // (guardPSD; params.repair "nearest"), then:
 //
-//   - VIF = diag(R⁻¹) (reference InverseSPD, FMA-free, so the figures
-//     are arch-independent), tolerance = 1/VIF — car::vif on lm over
+//   - VIF = diag(R⁻¹) (internal/collinearity.GVIF — the kernel a
+//     regression's collinearity block shares — on the reference
+//     InverseSPD, FMA-free, so the figures are arch-independent),
+//     tolerance = 1/VIF — car::vif on lm over
 //     the same predictors, which equals diag(R⁻¹) for any response. A
 //     singular R (a member is an exact or near-exact linear combination
 //     of others: the one rule, singular_rule.go) refuses
@@ -101,13 +104,11 @@ func finalizeCollinearity(in *matrixFinalizeInput) (matrixOutput, error) {
 	if err := singularUnderRule(g); err != nil {
 		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())
 	}
-	inv, err := linalg.InverseSPD(g)
+	// diag(R⁻¹): the arithmetic a regression's collinearity block shares
+	// (internal/collinearity), every member a one-column term.
+	vif, err := collinearity.GVIF(g, collinearity.Singletons(p))
 	if err != nil {
 		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())
-	}
-	vif := make([]float64, p)
-	for i := range vif {
-		vif[i] = inv.At(i, i)
 	}
 
 	b := g

@@ -30,7 +30,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Output
 
-`Statistic` = z (= Welch t numerator over the same pooled SE); `PValue` two-sided via standard normal Φ; no `DF`. `Details.per_group` = `{n, mean, variance}` per arm.
+`Statistic` = z = `diff` over the unpooled (Welch) SE √(s²_a/n_a + s²_b/n_b); `PValue` two-sided via standard normal Φ; no `DF`. `Details`: `groups`, per-arm `n` / `mean` / `variance` (sample, n − 1), `diff`, normal `ci_low`/`ci_high` on `diff`, pooled-SD `effect_size.cohens_d`.
 
 <!-- generated: reading-the-output -->
 

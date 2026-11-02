@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Influence over a bound fit: a compose `fits` entry fits income ~ age by OLS ONCE with vcov: true; one slot then reads every row's leverage (ATTR_REG_LEVERAGE), Cook's distance and DFFITS (ATTR_REG_INFLUENCE) and studentized residual (ATTR_REG_RESIDUAL kind studentized) from that fit through params.fit — no refit, row-local — and reports the largest of each, R's hatvalues / cooks.distance / dffits / rstudent on the fit's own rows. The fit must carry its vcov and be unweighted.",
+    "capabilities": [
+      "capability:compose_fits"
+    ],
+    "intents": [
+      "data_quality"
+    ],
+    "name": "compose-fit-influence",
+    "operators": [
+      "AGG_MAX",
+      "ATTR_REG_INFLUENCE",
+      "ATTR_REG_LEVERAGE",
+      "ATTR_REG_RESIDUAL",
+      "REG_OLS"
+    ],
+    "tags": [
+      "compose",
+      "regression",
+      "ols",
+      "outlier-detection"
+    ]
+  },
+  "fits": [
+    {
+      "name": "income_model",
+      "request": {
+        "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+        "regressions": [{"type": "REG_OLS", "name": "income_model", "target": "income", "predictors": ["age"], "vcov": true}]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "influence",
+      "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+      "attributes": [
+        {"type": "ATTR_REG_LEVERAGE", "label": "hat", "params": {"fit": "income_model"}},
+        {"type": "ATTR_REG_INFLUENCE", "label": "cooks", "params": {"fit": "income_model"}},
+        {"type": "ATTR_REG_INFLUENCE", "label": "dffits", "params": {"fit": "income_model", "measure": "dffits"}},
+        {"type": "ATTR_REG_RESIDUAL", "label": "rstudent", "params": {"fit": "income_model", "kind": "studentized"}}
+      ],
+      "aggregations": [
+        {"type": "AGG_MAX", "field": "hat", "label": "max_hat"},
+        {"type": "AGG_MAX", "field": "cooks", "label": "max_cooks"},
+        {"type": "AGG_MAX", "field": "dffits", "label": "max_dffits"},
+        {"type": "AGG_MAX", "field": "rstudent", "label": "max_rstudent"}
+      ]
+    }
+  ]
+}

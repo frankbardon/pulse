@@ -2,10 +2,12 @@ package processing
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/testopts"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -43,6 +45,10 @@ type chiSqRow struct {
 	colTotals  []int64
 	grandTotal int64
 
+	// correct is params.correct (testopts, #644): Yates' continuity
+	// correction on a 2 × 2 table (yatesStatistic), inert otherwise.
+	correct bool
+
 	// Weighted state: Σw per cell / margin / table and the table's Σw².
 	cellW        map[int]float64
 	rowW, colW   []float64
@@ -54,6 +60,10 @@ func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	params, err := decodeChiSqParams(spec)
 	if err != nil {
 		return nil, err
+	}
+	opts, cerr := testopts.Parse(spec)
+	if cerr != nil {
+		return nil, cerr
 	}
 	// params.expected selects the goodness-of-fit form, which reads
 	// rows alone (test_chisq_gof.go).
@@ -87,6 +97,7 @@ func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		colIndex:   make(map[string]int),
 		cellCounts: make(map[int]int64),
 		cellW:      make(map[int]float64),
+		correct:    opts.Correct,
 		testWeight: newTestWeight(spec),
 	}, nil
 }
@@ -210,6 +221,23 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 			}
 		}
 	}
+	// Cramér's V and φ read the uncorrected statistic; Yates' figure
+	// (R's chisq.test(correct = TRUE)) is the test's statistic and p.
+	effectStat := stat
+	yates := -1.0
+	if c.correct && r == 2 && col == 2 {
+		obs := make([][]float64, r)
+		exp := make([][]float64, r)
+		for ri := range r {
+			obs[ri] = make([]float64, col)
+			exp[ri] = make([]float64, col)
+			for ci := range col {
+				obs[ri][ci] = scaled(cellW[ri][ci])
+				exp[ri][ci] = scaled(rowW[ri]) * scaled(colW[ci]) / N
+			}
+		}
+		stat, yates = yatesStatistic(obs, exp)
+	}
 	df := float64((r - 1) * (col - 1))
 	p := chiSquareSurvival(stat, df)
 	var warnings []string
@@ -232,10 +260,13 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 		details["row_totals"] = rowW
 		details["col_totals"] = colW
 	}
+	if yates >= 0 {
+		details["continuity_correction"] = yates
+	}
 	c.noteScalar(details, c.sumW, c.sumWSq)
-	setEffectSize(details, "cramers_v", cramersV(stat, N, r, col))
+	setEffectSize(details, "cramers_v", cramersV(effectStat, N, r, col))
 	if r == 2 && col == 2 {
-		setEffectSize(details, "phi", phiCoefficient(stat, N))
+		setEffectSize(details, "phi", phiCoefficient(effectStat, N))
 	}
 	return &types.TestResult{
 		Label:      testLabel(c.spec),
@@ -281,4 +312,31 @@ func sortedLabelPerm(labels []string) ([]string, []int) {
 		pos[i] = at[l]
 	}
 	return sorted, pos
+}
+
+// yatesStatistic is Pearson's χ² with Yates' continuity correction, R's
+// chisq.test(correct = TRUE) on a 2 × 2 table: Y = min(0.5, min |O − E|)
+// over the cells, χ² = Σ (|O − E| − Y)² / E over cells with E > 0. It
+// returns the statistic and Y. TEST_CHISQ params.correct and
+// OVERLAY_CHISQ_MATRIX params.correct both read it, on the table each
+// already scales (a probability weight's Kish T*).
+func yatesStatistic(observed, expected [][]float64) (stat, y float64) {
+	y = 0.5
+	for i := range observed {
+		for j := range observed[i] {
+			if d := math.Abs(observed[i][j] - expected[i][j]); d < y {
+				y = d
+			}
+		}
+	}
+	for i := range observed {
+		for j := range observed[i] {
+			e := expected[i][j]
+			if e > 0 {
+				d := math.Abs(observed[i][j]-e) - y
+				stat += d * d / e
+			}
+		}
+	}
+	return stat, y
 }

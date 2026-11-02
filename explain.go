@@ -14,8 +14,18 @@ import (
 // root (Request, Composed, Chain, Facet or Sample), or exactly one
 // result root (Response, ComposedResponse, ChainResponse or
 // FacetResult) with at most its own request companion (Request,
-// Composed, Chain or Facet respectively); anything else, or a Detail
-// other than terse / full, is SERVICE_VALIDATION.
+// Composed, Chain or Facet respectively), or an Operator name alone;
+// anything else, or a Detail other than terse / full, is
+// SERVICE_VALIDATION.
+//
+// Operator mode returns the operator's validation evidence in
+// Validation — the external references its figures are pinned to (with
+// tolerance and test files), a stated gap, the pinned weight refusal of
+// an operator with no weighted form, and its NIST StRD digits — the
+// record the book's "How Pulse is validated" page renders, pulled here
+// on request and carried by no other payload. An operator the instance
+// does not offer is SERVICE_VALIDATION; one Pulse holds no record for
+// returns no Validation and a caveat. Operator mode opens no cohort.
 //
 // Response mode reads the response into Findings — one per test,
 // regression coefficient and fit, overlay layer, matrix and

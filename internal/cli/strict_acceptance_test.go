@@ -148,6 +148,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "composed.sweep.rank", body: `{"sweep":{` + sweepAxes + `,"request":` + nested(agg) + `,"rank":{"by":"t","ordr":"desc"}}}`, path: "sweep.rank.ordr", unknown: "ordr"},
 		{family: "composed.sweep.request", body: `{"sweep":{` + sweepAxes + `,"request":` + nested(`"aggregations":[{"type":"AGG_SUM","field":"n","label":"t{{k}}","lable":"x"}]`) + `}}`, path: "aggregations[0].lable", unknown: "lable", locator: "slot"},
 		{family: "composed.fits", body: composed(`"fits":[{"name":"f","request":` + nested(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"]}]`) + `,"svae":"x"}]`), path: "fits[0].svae", unknown: "svae"},
+		{family: "composed.compare", body: composed(`"compare":[{"name":"c","restricted":"a","full":"b","tset":"f"}]`), path: "compare[0].tset", unknown: "tset"},
 		{family: "composed.optimize", body: composed(`"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","strats":2}]`), path: "optimize[0].strats", unknown: "strats"},
 		{family: "composed.fits.request", body: composed(`"fits":[{"name":"f","request":` + nested(`"regresions":[]`) + `}]`), unknown: "regresions", locator: "fit"},
 		{family: "composed.banner", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"totl":true}}`, path: "banner.totl", unknown: "totl"},

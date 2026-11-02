@@ -40,7 +40,7 @@ Weighted formulas are written so that w = 1 reproduces the unweighted operation 
 | Pulse figure | Reference, configured to Pulse's definition |
 |---|---|
 | `AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE` / `AGG_WEIGHTED_MEAN` | statsmodels `DescrStatsW` `.sum_weights`, `.sum`, `.mean` |
-| `AGG_VARIANCE` / `AGG_STDDEV` (population) | `DescrStatsW(ddof=0).var` / `.std` |
+| `AGG_VARIANCE` / `AGG_STDDEV` (population, the default `ddof` 0) | `DescrStatsW(ddof=0).var` / `.std` |
 | `AGG_WELFORD` variance (m2_w / (Σw − 1)) | `DescrStatsW(ddof=1).var` (statsmodels divides by `sum_weights − ddof`) |
 | `AGG_MEDIAN` / `AGG_PERCENTILE`, `frequency` | numpy `percentile(method="linear")` on `np.repeat` |
 | `AGG_MEDIAN` / `AGG_PERCENTILE`, `probability` | R Hmisc 5.3.0 `wtd.quantile(normwt = TRUE)` (`hmisc_quantile.R`, shelled out to by the generator), cross-checked against an exact-rational transcription of the same rule (below) |

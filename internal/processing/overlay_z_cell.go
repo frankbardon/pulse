@@ -140,7 +140,7 @@ func applyZCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			if undefinedSeriesPair(targetMean, refMean) {
 				continue // a missing cell: absent, no warning (E4-S6)
 			}
-			p, ok := welchZTest(targetMean, tLeg.variance, tLeg.nStar, refMean, rLeg.variance, rLeg.nStar)
+			p, ok := welchZTestDiff(tLeg.diff(rLeg), tLeg.variance, tLeg.nStar, rLeg.variance, rLeg.nStar)
 			if !ok {
 				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
@@ -181,18 +181,23 @@ func applyZCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 }
 
 // welchZTest computes the two-sided p-value of a two-sample z-test on
-// two independent (mean, variance, n) triples. Reuses the Welch
-// standard-error arithmetic the t-test family applies (var_a/n_a +
-// var_b/n_b) so the overlay and `TEST_Z_TWO_SAMPLE` produce identical
-// p-values for the same (mean, variance, n) inputs. Finalises via
-// `standardNormalCDF` (the canonical CDF helper at
-// internal/processing/test_stat.go) — the only mathematical divergence from
-// `welchTTest`.
+// two independent (mean, variance, n) triples: welchZTestDiff on
+// meanA − meanB.
+func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
+	return welchZTestDiff(meanA-meanB, varA, nA, varB, nB)
+}
+
+// welchZTestDiff computes the two-sided p-value of a two-sample z-test
+// on a difference of means and the two sides' (variance, n). The
+// standard error is the Welch variance sum TEST_Z_TWO_SAMPLE reads
+// (welchSatterthwaite), so the overlay and the test produce identical
+// p-values for the same moments. Finalises via `normalTwoSidedP` — the
+// only mathematical divergence from `welchTTestDiff`.
 //
 // Math:
 //
 //	se      = sqrt(va/na + vb/nb)
-//	z       = (meanA - meanB) / se
+//	z       = diff / se
 //	p_value = 2 * Φ(-|z|)
 //
 // Returns (NaN, false) when:
@@ -200,18 +205,19 @@ func applyZCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 //   - both variances are 0 (degenerate SE)
 //   - SE itself rounds to 0
 //   - the computation produces a non-finite z or p
-func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
+func welchZTestDiff(diff, varA, nA, varB, nB float64) (float64, bool) {
 	if nA < 2 || nB < 2 {
 		return math.NaN(), false
 	}
 	if varA <= 0 && varB <= 0 {
 		return math.NaN(), false
 	}
-	se := math.Sqrt(varA/nA + varB/nB)
+	num, _, _ := welchSatterthwaite(varA, nA, varB, nB)
+	se := math.Sqrt(num)
 	if se == 0 {
 		return math.NaN(), false
 	}
-	z := (meanA - meanB) / se
+	z := diff / se
 	if math.IsNaN(z) || math.IsInf(z, 0) {
 		return math.NaN(), false
 	}

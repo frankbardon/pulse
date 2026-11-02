@@ -1,6 +1,6 @@
 ```yaml
 name: op-agg-variance
-description: Population variance via Welford's online algorithm.
+description: Variance via Welford's online algorithm, population by default (ddof 0), sample with ddof 1.
 kind: operator
 category: AGG
 operator: AGG_VARIANCE
@@ -24,7 +24,11 @@ Use something else:
 
 ## Params
 
-Weighted: the population m2_w / Σw.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ddof` | int | 0 | `0` population m2/n; `1` sample m2/(n−1). Any other value → `PROCESSING_CONFIG`. |
+
+Weighted: m2_w / (Σw − ddof).
 
 ## Inputs
 
@@ -32,19 +36,19 @@ Weighted: the population m2_w / Σw.
 
 ## Output
 
-Scalar `float64` — population variance (n-denominator); `decimal128` input yields a decimal-scaled result (scale doubled). Per-group when wired under a grouper.
+Scalar `float64` — variance with denominator n − ddof; `decimal128` input yields a decimal-scaled result (scale doubled). Per-group when wired under a grouper.
 
 ## Reading the output
 
 - `value`: The average squared distance of a value from the group's mean, in the field's units squared (dollars squared, minutes squared). Its square root is AGG_STDDEV, which is in the field's own units and easier to read.
-  - Caveat: Squared units make the size hard to judge directly. For pooling or planning a study's size use AGG_WELFORD's variance (dividing by n - 1), which those formulas expect.
+  - Caveat: Squared units make the size hard to judge directly. For pooling or planning a study's size use the sample form (params.ddof 1, or AGG_WELFORD's variance), which those formulas expect.
   - Caveat: Extreme values weigh heavily, since each distance is squared.
 
 ## Components
 
 - `mean` — Welford running mean
-- `m2` — Sum of squared deviations
-- `variance` — `m2 / n`
+- `m2` — Sum of squared deviations (raw)
+- `variance` — `m2 / (n − ddof)` (= the scalar)
 
 ## Contract
 
@@ -55,9 +59,9 @@ Scalar `float64` — population variance (n-denominator); `decimal128` input yie
 
 ## Gotchas
 
-- Population variance (`n`), not sample (`n-1`).
+- Default is the population form (`n`); most tools report the sample form — set `ddof: 1`.
 - `decimal128` is supported, but not by Welford: a decimal two-pass (mean, then Σ(x−μ)²). An overflowing intermediate drops the WHOLE aggregate to an f64 pass and warns `PULSE_DECIMAL_PRECISION_LOSS`. The decimal claim therefore rests partly on an f64 fallback.
-- Single-row group → 0; no value (or Σw = 0) → `null` (NaN), the components' `mean` / `variance` too.
+- Single-row group → 0 under `ddof: 0`, `null` under `ddof: 1` (or Σw ≤ 1); no value (or Σw = 0) → `null` (NaN), the components' `mean` / `variance` too.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.
 
 ## See

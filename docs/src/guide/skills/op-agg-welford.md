@@ -39,26 +39,28 @@ Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordT
 
 - `value.*`: Three columns per group: mean (the average), variance (the SAMPLE variance, dividing by n - 1, in the field's units squared) and n (the rows with a value). Together they are what a t or z comparison of group means needs; the components add stddev, the square root of variance.
   - Caveat: variance reads null when n is below 2 (weighted: when the weights sum to 1 or less): no spread could be estimated. A 0 means values that agree.
-  - Caveat: variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE (which divides by n).
+  - Caveat: variance here divides by n - 1, so on the same rows it is larger than AGG_VARIANCE at its default (which divides by n).
 
 ## Components
 
-- `mean` — Welford running mean
+- `mean` — Welford running mean (`origin + shifted_mean`)
 - `m2` — Sum of squared deviations
 - `variance` — Unbiased sample variance (`m2/(n-1)`); `null` when `n < 2` (weighted Σw ≤ 1)
 - `stddev` — Sample standard deviation
+- `origin` — first value; moments fold `value − origin`
+- `shifted_mean` — `mean − origin`
 
 ## Contract
 
 - Types (`field`): `f32`, `f64`, `u16`, `u32`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
 - Weight: weighted under `frequency` and `probability` weights.
 - Streaming: streamable; components `mergeable`.
-- Components: `n`, `n_null`, `mean`, `m2`, `variance`, `stddev`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
+- Components: `n`, `n_null`, `mean`, `m2`, `variance`, `stddev`, `origin`, `shifted_mean`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 
 - Sample variance (`n-1`), not population (`n`); undefined (`null`, triple and components) below 2 values (Σw ≤ 1), never 0 — a pairwise / t / z overlay skips that leg.
-- The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`.
+- The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`; they difference cells via `origin` / `shifted_mean`, as the two-sample tests do: no digits lost at a 1e12 offset.
 - Margin reducibility = recompute, not pool by addition.
 - Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`) — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`); `OVERLAY_PROP_Z_VS_PRIOR` refuses it with its own `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); an unscored one beside a scalar runs.
 

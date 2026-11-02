@@ -39,7 +39,7 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_VEC_SD`](#op-agg_vec_sd) | Standard deviation of each item of a battery or mix, as one list per group: how much the group's rows disagree on each item. | On which of the eight brand attributes do each segment's ratings disagree most? | intermediate | [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its spread.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want the spread of a single field.<br>[`MAT_COVARIANCE`](matrix.md#op-mat_covariance) when you want how the items vary together, not one by one. |
 | [`AGG_VEC_SUM`](#op-agg_vec_sum) | Total of each item of a set of related fields, as one list per group. | How many units of each of the six products did each store sell? | intermediate | [`AGG_VEC_MEAN`](#op-agg_vec_mean) when you want each item's average rather than its total.<br>[`AGG_SUM`](#op-agg_sum) when you want the total of a single field. |
 | [`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) | Average of a numeric field where each row counts in proportion to a weight field, such as a survey weight. | What is the weighted average satisfaction per region? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when every row should count equally.<br>[`AGG_RATIO`](#op-agg_ratio) when you want one total divided by another. |
-| [`AGG_WELFORD`](#op-agg_welford) | Mean, sample variance and row count of a numeric field in one result: what a comparison of group means needs. | What are the mean, variance and size of each cell, so cells can be tested against each other? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when you want only the average.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want the population spread (dividing by n) on its own.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want the comparison itself on raw rows. |
+| [`AGG_WELFORD`](#op-agg_welford) | Mean, sample variance and row count of a numeric field in one result: what a comparison of group means needs. | What are the mean, variance and size of each cell, so cells can be tested against each other? | intermediate | [`AGG_AVERAGE`](#op-agg_average) when you want only the average.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want the spread on its own, in either form (params.ddof).<br>[`TEST_WELCH`](test.md#op-test_welch) when you want the comparison itself on raw rows. |
 | [`AGG_ZSCORE`](#op-agg_zscore) | Population mean and standard deviation of a numeric field, for standardizing it; the value itself is always 0. | What centre and scale standardize this field in each group? | intermediate | [`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want a z-score on every row.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](overlay.md#op-overlay_zscore_vs_total) when you want each group's value against all groups.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want only the spread. |
 
 ## Operators
@@ -113,6 +113,12 @@ Average of a numeric field, over all rows or per group.
 - [`AGG_WELFORD`](#op-agg_welford) when you also need the spread around the average.
 
 **Glossary:** [`mean`](../glossary.md#term-mean), [`median`](../glossary.md#term-median), [`outlier`](../glossary.md#term-outlier), [`skew`](../glossary.md#term-skew)
+
+**Validated against:**
+
+- NIST StRD certified values (univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-agg-average`](../skills/op-agg-average.md)
 
@@ -1005,7 +1011,7 @@ Typical distance of a numeric field's values from their average, in the field's 
 **Assumptions:**
 
 - Missing values are skipped.
-- Population form: the squared distances are averaged over n, not n - 1.
+- Population form by default: the squared distances are averaged over n; params.ddof 1 averages them over n - 1, the sample form.
 
 **Use something else:**
 
@@ -1014,6 +1020,12 @@ Typical distance of a numeric field's values from their average, in the field's 
 - [`AGG_PERCENTILE`](#op-agg_percentile) when the field has extreme values and you want a spread they cannot drag.
 
 **Glossary:** [`standard-deviation`](../glossary.md#term-standard-deviation), [`variance`](../glossary.md#term-variance), [`mean`](../glossary.md#term-mean), [`outlier`](../glossary.md#term-outlier)
+
+**Validated against:**
+
+- NIST StRD certified values (univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-agg-stddev`](../skills/op-agg-stddev.md)
 
@@ -1072,7 +1084,7 @@ Spread of a numeric field as the average squared distance from its mean, in squa
 **Assumptions:**
 
 - Missing values are skipped.
-- Population form: the squared distances are averaged over n, not n - 1.
+- Population form by default: the squared distances are averaged over n; params.ddof 1 averages them over n - 1, the sample form.
 
 **Use something else:**
 
@@ -1250,10 +1262,17 @@ Mean, sample variance and row count of a numeric field in one result: what a com
 **Use something else:**
 
 - [`AGG_AVERAGE`](#op-agg_average) when you want only the average.
-- [`AGG_STDDEV`](#op-agg_stddev) when you want the population spread (dividing by n) on its own.
+- [`AGG_STDDEV`](#op-agg_stddev) when you want the spread on its own, in either form (params.ddof).
 - [`TEST_WELCH`](test.md#op-test_welch) when you want the comparison itself on raw rows.
 
 **Glossary:** [`mean`](../glossary.md#term-mean), [`variance`](../glossary.md#term-variance), [`sample-size`](../glossary.md#term-sample-size), [`t-statistic`](../glossary.md#term-t-statistic)
+
+**Validated against:**
+
+- NIST StRD certified values (univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+- exact rational arithmetic on the input doubles: mean, shifted_mean and m2 of three merged partials under common offsets up to 1e12, unweighted and frequency-weighted — tolerance 1e-13 relative; `internal/processing/aggregator_welford_offset_test.go`
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-agg-welford`](../skills/op-agg-welford.md)
 

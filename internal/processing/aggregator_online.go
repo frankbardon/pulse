@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/ddofspec"
 	"github.com/frankbardon/pulse/internal/reprosum"
 )
 
@@ -153,7 +154,8 @@ func (a *rangeAggregator) Finalize() (float64, error) {
 //   mean   += delta / n
 //   delta2  = x - mean
 //   M2     += delta * delta2
-// Population variance = M2 / n.
+// Variance = M2 / (n − ddof): the population M2 / n unless the slot
+// sets params.ddof 1 (ddofspec.Variance).
 
 func (a *varianceAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
@@ -174,7 +176,7 @@ func (a *varianceAggregator) Finalize() (float64, error) {
 		return math.NaN(), nil
 	}
 	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
-	out := a.m2 / float64(a.n)
+	out := ddofspec.Variance(a.m2, float64(a.n), a.ddof)
 	a.n, a.mean, a.m2 = 0, 0, 0
 	return out, nil
 }
@@ -198,7 +200,7 @@ func (a *stdDevAggregator) Finalize() (float64, error) {
 		return math.NaN(), nil
 	}
 	a.frozenN, a.frozenMean, a.frozenM2 = a.n, a.mean, a.m2
-	out := math.Sqrt(a.m2 / float64(a.n))
+	out := math.Sqrt(ddofspec.Variance(a.m2, float64(a.n), a.ddof))
 	a.n, a.mean, a.m2 = 0, 0, 0
 	return out, nil
 }
@@ -538,8 +540,9 @@ func (a *rangeAggregator) MergeOnline(other OnlineAggregator) error {
 // The result equals the single-pass Welford output to within ULP on
 // well-conditioned inputs; goldens use a tolerance comparison.
 func (a *varianceAggregator) MergeOnline(other OnlineAggregator) error {
+	// Partials of one slot share its ddof; a mismatch is a wiring fault.
 	b, ok := other.(*varianceAggregator)
-	if !ok {
+	if !ok || b.ddof != a.ddof {
 		return mergeTypeMismatch("AGG_VARIANCE")
 	}
 	mergeWelford(&a.n, &a.mean, &a.m2, b.n, b.mean, b.m2)
@@ -548,7 +551,7 @@ func (a *varianceAggregator) MergeOnline(other OnlineAggregator) error {
 
 func (a *stdDevAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*stdDevAggregator)
-	if !ok {
+	if !ok || b.ddof != a.ddof {
 		return mergeTypeMismatch("AGG_STDDEV")
 	}
 	mergeWelford(&a.n, &a.mean, &a.m2, b.n, b.mean, b.m2)

@@ -78,11 +78,12 @@ const (
 
 	// PROCESSING_REGRESSION_INVALID_FAMILY indicates REG_GLM was
 	// requested with a Family outside the supported set
-	// ({"binomial", "poisson", "gamma"}).
+	// ({"binomial", "poisson", "gamma", "negative_binomial"}).
 	PROCESSING_REGRESSION_INVALID_FAMILY Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 
 	// PROCESSING_REGRESSION_INVALID_LINK indicates the requested Link
-	// function is incompatible with the chosen Family.
+	// function is not one of the chosen Family's (details.allowed: the
+	// family's three links, canonical first).
 	PROCESSING_REGRESSION_INVALID_LINK Code = "PROCESSING_REGRESSION_INVALID_LINK"
 
 	// PROCESSING_REGRESSION_INSUFFICIENT_DATA indicates the filtered
@@ -1171,6 +1172,13 @@ const (
 	// is small.
 	PULSE_TEST_TIES_DOMINATE Code = "PULSE_TEST_TIES_DOMINATE"
 
+	// PULSE_TEST_EXACT_UNAVAILABLE warns that a test asked for an exact
+	// p-value (TEST_MANN_WHITNEY_U params.exact) on a sample past the
+	// exact distribution's size cap (min(n_a, n_b)·(n_a + n_b) > 5000;
+	// Σw under a frequency weight): the reported p is the normal
+	// approximation, as without the param.
+	PULSE_TEST_EXACT_UNAVAILABLE Code = "PULSE_TEST_EXACT_UNAVAILABLE"
+
 	// PULSE_TEST_SUBJECT_MISSING indicates a repeated-measures test
 	// found at least one subject missing one or more conditions.
 	// Default behavior is to drop the incomplete subject(s) and surface
@@ -1658,6 +1666,28 @@ const (
 	// and "reason".
 	PULSE_FIT_INVALID Code = "PULSE_FIT_INVALID"
 
+	// PULSE_COMPARISON_INVALID indicates a ComposedRequest `compare`
+	// entry (a nested-model comparison of two `fits`) that cannot run:
+	// a missing or repeated name, a fit name that is missing, unknown,
+	// not a request-bound regression fit, or the same on both sides; fits
+	// that are not both REG_OLS or both REG_GLM; an unknown test; terms
+	// that are not nested; fit requests that are not on the same rows;
+	// or a fit or test the comparison does not support (reason
+	// "requires", with "requires" naming the condition). Refused
+	// identically by predict and the runtime before any fit or slot
+	// runs. Details carry "compare" (the 0-based entry index), "name",
+	// "reason" and, where they apply, "field", "value", "valid",
+	// "available", "missing", "keys", "requires" and "alternative".
+	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
+
+	// PULSE_COMPARISON_ROWS_DIFFER indicates a nested-model comparison
+	// whose two fits, once run, used different row counts (a full-model
+	// predictor null on rows the restricted fit kept): the comparison
+	// fails alone (its ComposedResponse.Comparisons entry carries the
+	// error; PULSE_SLOT_FAILED lifts to the batch). Details carry
+	// "restricted", "full", "restricted_n_obs" and "full_n_obs".
+	PULSE_COMPARISON_ROWS_DIFFER Code = "PULSE_COMPARISON_ROWS_DIFFER"
+
 	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
 	// name in the one model namespace every name reference resolves
 	// against: two ComposedRequest `fits` entries (details "name" and
@@ -1680,7 +1710,8 @@ const (
 	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
 
 	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot (or an
-	// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's params.fit) whose
+	// ATTR_REG_FITTED / _RESIDUAL / _LEVERAGE / _INFLUENCE slot's
+	// params.fit) whose
 	// scoring parameters do not fit: params that are not an object of
 	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
 	// ("fit_missing"), a field / target / predictors / penalty set on the
@@ -1691,7 +1722,12 @@ const (
 	// a fit of a regression type it cannot score ("type_unsupported"),
 	// a bound other than point|lower|upper ("bound_unknown") or a
 	// lower / upper bound without exactly one predictor term
-	// ("bound_terms"). Refused identically by predict and the
+	// ("bound_terms"); a leverage / influence / standardized /
+	// studentized params.fit slot over a fit without the design it reads
+	// ("params_invalid" with "requires": vcov, dispersion, unweighted,
+	// classical_covariance, unpenalized, no_selection, no_resample,
+	// unconstrained, intercept; "type_unsupported" on a type other than
+	// REG_OLS / REG_GLM). Refused identically by predict and the
 	// runtime before any record is read. Details carry "attribute",
 	// "reason" and, when known, "fit".
 	PULSE_MODEL_SCORE_INVALID Code = "PULSE_MODEL_SCORE_INVALID"
@@ -4715,6 +4751,7 @@ var allCodes = []Code{
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,
+	PULSE_TEST_EXACT_UNAVAILABLE,
 	PULSE_TEST_SUBJECT_MISSING,
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED,
 	PULSE_TEST_TUKEY_REQUIRES_K_GE_3,
@@ -4770,6 +4807,8 @@ var allCodes = []Code{
 	PULSE_SWEEP_SAMPLES_INVALID,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
+	PULSE_COMPARISON_INVALID,
+	PULSE_COMPARISON_ROWS_DIFFER,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
 	PULSE_MODEL_KIND_MISMATCH,

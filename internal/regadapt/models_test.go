@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/weighting"
 )
 
 // TestModelRegressions_RegisteredByEngine: every model regression is
@@ -29,8 +30,14 @@ func TestModelRegressions_RegisteredByEngine(t *testing.T) {
 		if _, ok := regression.BuiltinScorer(rt); ok != a.Decl.Scorer {
 			t.Errorf("%s: BuiltinScorer resolves %v, declaration scorer %v", rt, ok, a.Decl.Scorer)
 		}
-		if a.Streamable || a.WeightAware {
-			t.Errorf("%s: a model regression is buffered and unweighted", rt)
+		if a.Streamable {
+			t.Errorf("%s: a model regression is buffered", rt)
+		}
+		// A weight-aware model is classed by internal/weighting's table
+		// (predict's resolver reads it); an unaware one has no row, so a
+		// weight in force refuses it.
+		if a.WeightAware != weighting.IsAware(string(rt)) {
+			t.Errorf("%s: adapter weight-aware %v, weighting table aware %v", rt, a.WeightAware, weighting.IsAware(string(rt)))
 		}
 	}
 }

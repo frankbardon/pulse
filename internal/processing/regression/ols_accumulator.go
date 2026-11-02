@@ -48,6 +48,16 @@ type olsAccumulator struct {
 	m2XY []float64 // length p
 	m2YY float64
 
+	// qr is the streaming QR factorization of the same rows
+	// (ols_qr.go): the plain OLS solve reads it instead of factoring
+	// m2XX, at κ(X) rather than κ(X)². The penalized, bounded and Bayes
+	// solvers keep reading the moments.
+	qr *olsQR
+	// throughOrigin marks a fit with no intercept (RegressionSpec.
+	// Intercept false, set by fitThroughOrigin before any row): the QR
+	// drops its column of ones and the residual df is N* − p.
+	throughOrigin bool
+
 	// xScratch is a per-row buffer of (xᵢ − μ_x(n−1)) deltas, reused to
 	// keep the inner loop allocation-free.
 	xScratch []float64
@@ -60,6 +70,7 @@ func newOLSAccumulator(p int) *olsAccumulator {
 		meanX:    make([]float64, p),
 		m2XX:     make([]float64, p*p),
 		m2XY:     make([]float64, p),
+		qr:       newOLSQR(p),
 		xScratch: make([]float64, p),
 	}
 }
@@ -125,6 +136,14 @@ func (a *olsAccumulator) UpdateRowWeighted(x []float64, y, w float64) {
 		a.m2XY[i] += float64(wdxi * dyPost)
 	}
 	a.m2YY += float64(wdy * dyPost)
+	a.qr.add(x, y, w)
+}
+
+// fitThroughOrigin switches a fresh accumulator to a fit with no
+// intercept. It must precede the first row.
+func (a *olsAccumulator) fitThroughOrigin() {
+	a.throughOrigin = true
+	a.qr = newOLSQRWith(a.p, false)
 }
 
 // nStar is the inference sample size N*: Σw (= n unweighted, Σw under
@@ -143,13 +162,22 @@ func (a *olsAccumulator) scale() float64 { return a.basis.Scale(a.sumW, a.sumWSq
 
 // residualDF is the residual degrees of freedom N* − p − 1 (fractional
 // under probability; n − p − 1 unweighted).
-func (a *olsAccumulator) residualDF() float64 { return a.nStar() - float64(a.p) - 1 }
+func (a *olsAccumulator) residualDF() float64 {
+	if a.throughOrigin {
+		return a.nStar() - float64(a.p)
+	}
+	return a.nStar() - float64(a.p) - 1
+}
 
 // adjustedR2 is 1 − (1 − R²)(N* − 1)/df, NaN when df ≤ 0 (no residual
 // df, see residualVariances).
 func (a *olsAccumulator) adjustedR2(r2, df float64) float64 {
 	if !(df > 0) {
 		return math.NaN()
+	}
+	if a.throughOrigin {
+		// R's summary.lm with df.int = 0: 1 − (1 − R²)·N*/df.
+		return 1 - (1-r2)*a.nStar()/df
 	}
 	return 1 - (1-r2)*(a.nStar()-1)/df
 }

@@ -24,7 +24,7 @@ Present exactly where `std_errors` is: lasso / elastic net null on every key (no
 
 ## Covariance
 
-Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default: `Vcov` / `Correlation` are then absent and the response is byte-identical.
+Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default (absent, byte-identical).
 
 ```json
 {"regressions": [{"type": "REG_OLS", "target": "mpg", "predictors": ["wt", "hp"], "vcov": true}]}
@@ -40,7 +40,7 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 |---|---|
 | OLS | σ̂²(XᵀX)⁻¹, intercept cross terms included (−μᵀCov) |
 | Ridge (`l2`) | the sandwich estimator (GLM: H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·α·D) |
-| GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson), gamma's Pearson χ²/df estimate |
+| GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson, negative binomial at θ̂), gamma's Pearson χ²/df estimate |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
 
 | Resample `jackknife` | (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete-group refits (g = n leave-one-out) |
@@ -61,13 +61,15 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 
 `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null, NaN or ±Inf `cluster` / `order_by` value drops the row.
 
-Predict and runtime apply the same rule, so predict reports it before any fit. `pulse_errors_lookup` carries the recovery.
+Predict refuses identically, before any fit.
 
 ## Against R
 
 - `vcov(lm)` and `vcov(ridge)` agree to rounding.
 - `vcov(glm)` uses weights one IRLS iteration behind its coefficients; Pulse inverts at the converged fixed point, matching R refined to that point to 1e-11 (raw `vcov(glm)` only to about 1e-6).
-- Gamma GLM: dispersion estimated as R does (Pearson χ²/df), so `vcov`, SEs, t p-values and `df` match `summary.glm` / `vcov(glm)` (oracle `glm_gamma.json`); gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (oracle `glm_gamma_selection.json`).
+- Negative binomial: θ̂ is MASS `glm.nb`'s MLE at its fixed point; SEs and `vcov` are `summary.negbin`'s (β, θ orthogonal), `ThetaStdErr` its `SE.theta`, `AIC` counts an estimated θ; a robust `covariance` holds θ̂ fixed, as `sandwich` does (oracle `glm_nb.json`).
+- `TwoLogLik` / `AIC`: R's `logLik` / `AIC` (σ, gamma's φ at D/n, NB's estimated θ counted); absent if probability-weighted, penalized or a bound binds.
+- Gamma GLM: dispersion estimated as R does (Pearson χ²/df), so `vcov`, SEs, t p-values and `df` match `summary.glm` / `vcov(glm)` (`glm_gamma.json`); gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (`glm_gamma_selection.json`).
 
 ## Response shaping
 
@@ -76,6 +78,9 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 ## See
 
 - [`regression-modeling`](regression-modeling.md) — choosing a model and modifiers.
+- [`regression-margins`](regression-margins.md) — marginal effects on these SEs.
+- [`regression-collinearity`](regression-collinearity.md) — VIF on the fit.
+- [`regression-comparison`](regression-comparison.md) — nested-model F / LR / Wald tests of two fits.
 - [`op-reg-ols`](op-reg-ols.md) — the `vcov` Param for OLS and ridge.
 - [`op-reg-glm`](op-reg-glm.md) — the `vcov` Param for GLM.
 - [`op-reg-bayes-linear`](op-reg-bayes-linear.md) — the `vcov` Param for the Bayesian linear model.

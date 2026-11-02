@@ -177,8 +177,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Family"},
-				Hint:     "Set Family to one of binomial (logistic), poisson, or gamma; check the regression-modeling skill for the family / link compatibility matrix.",
-				Examples: []any{"binomial", "poisson", "gamma"},
+				Hint:     "Set Family to one of binomial (logistic), poisson, gamma, or negative_binomial (over-dispersed counts); check the regression-modeling skill for the family / link compatibility matrix.",
+				Examples: []any{"binomial", "poisson", "gamma", "negative_binomial"},
 			},
 		},
 	},
@@ -188,8 +188,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Link"},
-				Hint:     "Use the family-default Link (binomial → logit, poisson → log, gamma → log) or pick a Link from the family's supported set in the regression-modeling skill.",
-				Examples: []any{"logit", "log", "identity"},
+				Hint:     "Pick a Link from the family's own set (details.allowed): binomial logit / probit / cloglog, poisson log / identity / sqrt, gamma inverse / log / identity — or omit it for the family's canonical default (logit, log, inverse).",
+				Examples: []any{"logit", "probit", "identity"},
 			},
 		},
 	},
@@ -1853,6 +1853,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_EXACT_UNAVAILABLE: {
+		Message: "A test asked for an exact p-value on a sample past the exact distribution's size cap; the reported p-value is the normal approximation.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Tests", "*", "Params", "exact"},
+				Hint:   "At this size the normal approximation is accurate: drop params.exact, or filter to a smaller sample when an exact p is required.",
+			},
+		},
+	},
 	PULSE_TEST_SUBJECT_MISSING: {
 		Message: "A repeated-measures test found at least one subject missing one or more conditions; incomplete subjects dropped by default.",
 		Fixups: []Fixup{
@@ -2390,6 +2400,38 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPARISON_INVALID: {
+		Message: "A ComposedRequest `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression fits under `available`), each a request-bound regression fit — not a vector or SEM fit (`fit_kind`) nor a `from_sweep` one (`from_sweep`). Both fits are one regression type, ordinary least squares or a generalized linear model (`type_unsupported`, `type_mismatch`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `no_resample` (a Wald test reads the classical or robust covariance, not a replicate one), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). The entry index is under `compare`, its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"compare", "*", "restricted"},
+				Hint:     "Name two different regression `fits` entries: `restricted` the smaller model, `full` the larger one holding every restricted predictor plus the terms under test.",
+				Examples: []any{"base"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request"},
+				Hint:   "Make the two fit requests identical but for the regression's predictors (and intercept): the same cohort, filters, features, weight, family, link and covariance, so both fits run on the same rows.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"compare", "*", "test"},
+				Hint:     "Use `wald` under a probability weight or on a family whose dispersion is fixed (an F test needs an estimated dispersion); omit `test` for R's anova default (F on least squares and gamma, lrt otherwise).",
+				Examples: []any{"f", "lrt", "wald"},
+			},
+		},
+	},
+	PULSE_COMPARISON_ROWS_DIFFER: {
+		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "filterers"},
+				Hint:   "Filter both fit requests to the rows where every full-model predictor is non-null (the same filter in each), so both fits drop the same rows.",
+			},
+		},
+	},
 	PULSE_MODEL_NAME_COLLISION: {
 		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The instance's registered populations (Options.Extensions.Populations, the populations directory) are bound beneath every request in the same namespace, so an entry may not reuse one of their names either. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry or a registered population names both bindings under `sources` (each {slot, index} plus a loaded file's path; a registered population is {slot: \"registered\"}).",
 		Fixups: []Fixup{
@@ -2440,7 +2482,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or residual attribute's `params.fit` takes `{fit}` alone. Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit}`, a residual's `{fit, kind, residual_type}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares or generalized-linear fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported`). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2451,6 +2493,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"attributes", "*", "params", "scale"},
 				Hint:   "Drop params.scale unless the fit is generalized-linear; a least-squares or Bayesian score is already on the target's scale.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions", "*", "vcov"},
+				Hint:   "For a leverage / influence / standardized / studentized slot (details.requires vcov), set vcov: true on the bound fit's regression; for requires unweighted set its weight to null.",
 			},
 		},
 	},

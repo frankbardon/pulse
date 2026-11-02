@@ -385,6 +385,14 @@ const (
 	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
 	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
 
+	// ATTR_REG_INFLUENCE emits a per-row influence measure of an
+	// unpenalized OLS refit: params.measure "cooks" (the default, R
+	// cooks.distance) or "dffits" (R dffits). Same spec keys and rules
+	// as ATTR_REG_LEVERAGE (Target, Predictors, slot weight; any Penalty
+	// is PROCESSING_CONFIG); a frequency weight reads each row as w
+	// identical observations, a probability weight is refused.
+	ATTR_REG_INFLUENCE AttributeType = "ATTR_REG_INFLUENCE"
+
 	// ATTR_REG_PREDICT scores each row from a BOUND model — a fit named
 	// in the request (ComposedRequest `fits`) — instead of refitting:
 	// intercept + Σ coefficient·predictor at the fit's full precision,
@@ -529,6 +537,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_PREVIOUS_STATE,
 		ATTR_PROFILE_SIMILARITY,
 		ATTR_REG_FITTED,
+		ATTR_REG_INFLUENCE,
 		ATTR_REG_LEVERAGE,
 		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
@@ -1348,9 +1357,10 @@ type Attribute struct {
 
 	// Penalty selects the OLS regularization scheme for ATTR_REG_FITTED /
 	// ATTR_REG_RESIDUAL. One of "" (unpenalized), "l1" (lasso), "l2"
-	// (ridge), or "elasticnet". ATTR_REG_LEVERAGE rejects any non-empty
-	// Penalty (penalized leverage and GLM leverage are deferred to a
-	// later phase).
+	// (ridge), or "elasticnet". ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE
+	// (and ATTR_REG_RESIDUAL's standardized / studentized kinds) reject
+	// any non-empty Penalty (penalized leverage and GLM leverage are
+	// deferred to a later phase).
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for the regression-attribute
@@ -2192,6 +2202,16 @@ type ComposedRequest struct {
 	// `omitempty`, so an optimize-free request is byte-identical on the
 	// wire and under Hash. See OptimizeSpec.
 	Optimize []OptimizeSpec `json:"optimize,omitempty"`
+
+	// Compare are the batch's nested-model comparisons
+	// (FitComparisonSpec): each tests two of the Fits once they have
+	// run, with no record data — an F, likelihood-ratio or Wald test of
+	// the full fit's extra coefficients; results land in
+	// ComposedResponse.Comparisons. Gated by capability:compose_compare
+	// (which depends on capability:compose_fits, the `fits` it reads). Nil is absent — the slot is
+	// `omitempty`, so a comparison-free request is byte-identical on the
+	// wire and under Hash. See FitComparisonSpec.
+	Compare []FitComparisonSpec `json:"compare,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -2267,6 +2287,14 @@ type ComposedResponse struct {
 	// emitted, never rounded. Gated by capability:compose_optimize with
 	// the `optimize` request slot.
 	Optimizations []OptimizeResult `json:"optimizations,omitempty"`
+
+	// Comparisons carries each ComposedRequest.Compare entry's result
+	// (FitComparisonResult), in declaration order, each echoing its name.
+	// Omitted when the request declared no comparison. Like `fits` it
+	// sits outside the Compose-level `return`: always emitted, never
+	// rounded. Gated by capability:compose_compare with the `compare`
+	// request slot.
+	Comparisons []FitComparisonResult `json:"comparisons,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

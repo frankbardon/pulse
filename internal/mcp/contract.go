@@ -407,7 +407,8 @@ type RecommendIn struct {
 type RecommendOut = descriptor.RecommendResult
 
 // ExplainIn is the input contract for pulse_explain: the roots of
-// descriptor.ExplainRequest as open objects. A result root is decoded
+// descriptor.ExplainRequest as open objects, plus the operator name of
+// operator mode. A result root is decoded
 // with the undefined-figure rule (a null figure stays undefined, never
 // 0); a request root with plain encoding/json.
 type ExplainIn struct {
@@ -420,6 +421,7 @@ type ExplainIn struct {
 	ComposedResponse map[string]any `json:"composed_response,omitempty" jsonschema:"A pulse_compose result ({responses, overlays}) to read slot by slot."`
 	ChainResponse    map[string]any `json:"chain_response,omitempty" jsonschema:"A pulse_process_chain result to read stage by stage (its echoed normalized_request is read first)."`
 	FacetResult      map[string]any `json:"facet_result,omitempty" jsonschema:"A pulse_facet result to read field by field."`
+	Operator         string         `json:"operator,omitempty" jsonschema:"An operator name, set alone: returns its validation evidence — the external references its figures are pinned to, with tolerance and test files, any stated gap, a pinned weight refusal and NIST certified digits."`
 	Detail           string         `json:"detail,omitempty" jsonschema:"terse (default: summary, findings, steps, caveats) or full (adds narrative sentences, glossary refs, follow-ups and assumptions)."`
 }
 

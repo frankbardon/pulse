@@ -245,7 +245,10 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// capability:multiplicity drops the slots that reach them, and the
 	// defs with them).
 	m[reflect.TypeFor[types.MultiplicityMethod]()] = stringify(types.AllMultiplicityMethods())
-	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(types.AllMultiplicityFamilies())
+	// The family enum adds the echo-only `margins` (a regression's
+	// marginal effects' own family, AppliedMultiplicity.Family): the
+	// resolver refuses it in every request block.
+	m[reflect.TypeFor[types.MultiplicityFamily]()] = stringify(append(types.AllMultiplicityFamilies(), types.MultiplicityFamilyMargins))
 	// Likewise the vector coercions, kinds and standardizations and the matrix encodings / kinds (a
 	// hidden capability:matrices drops the `vectors` and `matrices`
 	// slots, and VectorSpec / MatrixSpec with them).
@@ -278,24 +281,30 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.OptimizeDirection]()] = stringify(types.AllOptimizeDirections())
 	m[reflect.TypeFor[types.OptimizeConstraintType]()] = stringify(types.AllOptimizeConstraintTypes())
 	m[reflect.TypeFor[types.OptimizeActiveBound]()] = stringify(types.AllOptimizeActiveBounds())
+	// The nested-model comparison tests and distributions: closed
+	// vocabularies (a hidden capability:compose_fits drops the `compare`
+	// / `comparisons` slots, and the defs with them).
+	m[reflect.TypeFor[types.ComparisonTest]()] = stringify(types.AllComparisonTests())
+	m[reflect.TypeFor[types.ComparisonDistribution]()] = stringify([]types.ComparisonDistribution{types.ComparisonDistributionF, types.ComparisonDistributionChiSquare})
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
 	// Explain's closed vocabularies: its detail levels, modes, roots and
 	// the finding verdicts.
 	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify(descriptor.ExplainDetails())
-	m[reflect.TypeFor[descriptor.ExplainMode]()] = stringify([]descriptor.ExplainMode{descriptor.ExplainModeRequest, descriptor.ExplainModeResponse})
+	m[reflect.TypeFor[descriptor.ExplainMode]()] = stringify([]descriptor.ExplainMode{descriptor.ExplainModeRequest, descriptor.ExplainModeResponse, descriptor.ExplainModeOperator})
 	m[reflect.TypeFor[descriptor.ExplainRoot]()] = stringify(explainRoots())
 	m[reflect.TypeFor[descriptor.Verdict]()] = stringify(descriptor.Verdicts())
 	return m
 }
 
 // explainRoots is every ExplainRoot spelling: the five request roots,
-// then the four result roots.
+// the four result roots, then the operator root.
 func explainRoots() []descriptor.ExplainRoot {
 	return append(descriptor.ExplainRequestRoots(),
 		descriptor.ExplainRootResponse, descriptor.ExplainRootComposedResponse,
 		descriptor.ExplainRootChainResponse, descriptor.ExplainRootFacetResult,
+		descriptor.ExplainRootOperator,
 	)
 }
 

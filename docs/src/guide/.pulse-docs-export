@@ -126,6 +126,7 @@ skills/op-attr-percentile.md
 skills/op-attr-previous-state.md
 skills/op-attr-profile-similarity.md
 skills/op-attr-reg-fitted.md
+skills/op-attr-reg-influence.md
 skills/op-attr-reg-leverage.md
 skills/op-attr-reg-predict.md
 skills/op-attr-reg-residual.md
@@ -236,7 +237,9 @@ skills/op-reg-mmm-bayes.md
 skills/op-reg-mmm-hill.md
 skills/op-reg-mod-resample.md
 skills/op-reg-mod-selection.md
+skills/op-reg-multinomial.md
 skills/op-reg-ols.md
+skills/op-reg-ordinal.md
 skills/op-synth-bernoulli.md
 skills/op-synth-constant.md
 skills/op-synth-discrete.md
@@ -301,7 +304,10 @@ skills/pairwise-n-sources.md
 skills/panel-n-sources.md
 skills/predict-advisories.md
 skills/process-chain.md
+skills/regression-collinearity.md
+skills/regression-comparison.md
 skills/regression-inference.md
+skills/regression-margins.md
 skills/regression-model-options.md
 skills/regression-modeling.md
 skills/regression-row-scores.md
@@ -415,3 +421,4 @@ skills/vector-row-scores.md
 skills/weighting.md
 skills/window-design.md
 skills/windows-first.md
+validation.md

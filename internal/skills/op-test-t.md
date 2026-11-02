@@ -21,6 +21,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 | `mu` | float | `0` | Hypothesized mean, one-sample only; ignored when `SplitBy` is set. |
 | `reference` | string | — | The `SplitBy` level read second: `diff` reads other − reference (default: alphabetical). Codes: `test-variant-options`. |
 | `covariate` | string | — | A numeric pre-period column (CUPED): the test runs on `Field − θ(x − x̄)`; needs `SplitBy`. Detail: `test-variant-options`. |
+| `variance` | enum | `unequal` | `unequal` (Welch) or `pooled` (Student, `var.equal = TRUE`); needs `SplitBy`. Detail: `test-variant-options`. |
 
 - `weight` — moments on w*, N* = Σw (frequency) or Kish n_eff (probability); `df` = N*−1 (two-sample: Welch df on N*_g), may be fractional. `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 

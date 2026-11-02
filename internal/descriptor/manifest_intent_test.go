@@ -48,6 +48,15 @@ var scopedManifestExceptions = map[string]float64{
 	// blanked prose lives in sections a compare_groups scope never
 	// carries. Measured 18.74% (43,699 of 233,153 bytes) there.
 	IntentCompareGroups: 0.188,
+	// drivers is served by every coefficient-shaped regression; it sat at
+	// 14.55% (36,530 of 250,990 bytes) before REG_ORDINAL (U65 E4-S1,
+	// #630) added its manifest row (1,490 slim bytes: the shared slots,
+	// link / levels / brant and five output keys) to it — feature
+	// growth, no other content of the scope moved. Measured 15.06%
+	// (38,020 of 252,480 bytes) there. REG_MULTINOMIAL (U65 E4-S2, #631)
+	// added its row the same way (feature growth): measured 15.50%
+	// (39,341 of 253,801 bytes) with both.
+	IntentDrivers: 0.156,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

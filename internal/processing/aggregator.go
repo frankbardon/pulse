@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/ddofspec"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/linalg/detmath"
@@ -348,13 +349,15 @@ func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 }
 
 // stdDevAggregator tracks Welford's running mean and M2 for streaming
-// computation. Buffered path ignores these and uses populationStdDev.
+// computation. Buffered path ignores these and uses populationStdDev
+// (ddof 0) or the two-pass m2 (ddof 1).
 //
 // frozenN/frozenMean/frozenM2 mirror the post-finalize Welford state
-// (population denominator: variance = m2 / n) so Components() can emit
-// {mean, m2, variance, stddev} after the streaming Finalize-reset wipes
-// the live (n, mean, m2). The buffered path stamps the same mirrors
-// via aggregateValues so Components() works on both code paths.
+// (variance = m2 / (n − ddof), ddofspec.Variance) so Components() can
+// emit {mean, m2, variance, stddev} after the streaming Finalize-reset
+// wipes the live (n, mean, m2). The buffered path stamps the same
+// mirrors via aggregateValues so Components() works on both code paths.
+// ddof is params.ddof: 0 (population, the default) or 1 (sample).
 type stdDevAggregator struct {
 	n          int64
 	mean       float64
@@ -362,13 +365,18 @@ type stdDevAggregator struct {
 	frozenN    int64
 	frozenMean float64
 	frozenM2   float64
+	ddof       int
 }
 
 func newStdDevAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
-	if w := slotWeight(agg); w != nil {
-		return newWeightedAggregator(types.AGG_STDDEV, w), nil
+	dof, cerr := ddofspec.Resolve(types.AGG_STDDEV, agg.Params)
+	if cerr != nil {
+		return nil, cerr
 	}
-	return &stdDevAggregator{}, nil
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_STDDEV, w).withDDOF(dof), nil
+	}
+	return &stdDevAggregator{ddof: dof}, nil
 }
 
 func (a *stdDevAggregator) Aggregate(records []*Record, field string) (float64, error) {
@@ -382,6 +390,9 @@ func (a *stdDevAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenM2 = sumSquaredDeviations(vals, a.frozenMean)
 	if len(vals) == 0 {
 		return math.NaN(), nil
+	}
+	if a.ddof != 0 {
+		return math.Sqrt(ddofspec.Variance(a.frozenM2, float64(a.frozenN), a.ddof)), nil
 	}
 	return populationStdDev(vals), nil
 }
@@ -618,13 +629,15 @@ func (a *medianAggregator) aggregateValues(vals []float64) (float64, error) {
 }
 
 // varianceAggregator uses Welford's online recurrence in the streaming
-// path. Buffered path uses populationVariance and does not read these.
+// path. Buffered path uses populationVariance (ddof 0) or the two-pass
+// m2 (ddof 1) and does not read these.
 //
 // frozenN/frozenMean/frozenM2 mirror the post-finalize Welford state
-// (population denominator: variance = m2 / n) so Components() can emit
-// {mean, m2, variance} after the streaming Finalize-reset wipes the
+// (variance = m2 / (n − ddof), ddofspec.Variance) so Components() can
+// emit {mean, m2, variance} after the streaming Finalize-reset wipes the
 // live (n, mean, m2). The buffered path stamps the same mirrors via
-// aggregateValues so Components() works on both code paths.
+// aggregateValues so Components() works on both code paths. ddof is
+// params.ddof: 0 (population, the default) or 1 (sample).
 type varianceAggregator struct {
 	n          int64
 	mean       float64
@@ -632,13 +645,18 @@ type varianceAggregator struct {
 	frozenN    int64
 	frozenMean float64
 	frozenM2   float64
+	ddof       int
 }
 
 func newVarianceAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
-	if w := slotWeight(agg); w != nil {
-		return newWeightedAggregator(types.AGG_VARIANCE, w), nil
+	dof, cerr := ddofspec.Resolve(types.AGG_VARIANCE, agg.Params)
+	if cerr != nil {
+		return nil, cerr
 	}
-	return &varianceAggregator{}, nil
+	if w := slotWeight(agg); w != nil {
+		return newWeightedAggregator(types.AGG_VARIANCE, w).withDDOF(dof), nil
+	}
+	return &varianceAggregator{ddof: dof}, nil
 }
 
 func (a *varianceAggregator) Aggregate(records []*Record, field string) (float64, error) {
@@ -652,6 +670,9 @@ func (a *varianceAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenM2 = sumSquaredDeviations(vals, a.frozenMean)
 	if len(vals) == 0 {
 		return math.NaN(), nil
+	}
+	if a.ddof != 0 {
+		return ddofspec.Variance(a.frozenM2, float64(a.frozenN), a.ddof), nil
 	}
 	return populationVariance(vals), nil
 }
@@ -1083,11 +1104,13 @@ func (a *nullCountAggregator) Components() (map[string]any, error) {
 // every shard worker shares the same recurrence, so the components
 // match the single-pass run within ULP on well-conditioned inputs.
 
-// Components returns {mean, m2, variance} — the population Welford
-// moments. variance = m2 / n; matches the scalar return of the
-// AGG_VARIANCE aggregator (populationVariance). Empty input emits m2
-// 0 (the empty sum) and an undefined (NaN, JSON null) mean and
-// variance, mirroring the undefined scalar.
+// Components returns {mean, m2, variance} — the Welford moments.
+// variance = m2 / (n − ddof) (the population m2 / n by default) and
+// matches the scalar return of the AGG_VARIANCE aggregator; m2 stays
+// the raw sum of squared deviations whatever ddof says. Empty input
+// emits m2 0 (the empty sum) and an undefined (NaN, JSON null) mean and
+// variance, mirroring the undefined scalar; one row under ddof 1 leaves
+// variance undefined too.
 func (a *varianceAggregator) Components() (map[string]any, error) {
 	if a.frozenN == 0 {
 		return map[string]any{
@@ -1096,7 +1119,7 @@ func (a *varianceAggregator) Components() (map[string]any, error) {
 			"variance": math.NaN(),
 		}, nil
 	}
-	variance := a.frozenM2 / float64(a.frozenN)
+	variance := ddofspec.Variance(a.frozenM2, float64(a.frozenN), a.ddof)
 	return map[string]any{
 		"mean":     a.frozenMean,
 		"m2":       a.frozenM2,
@@ -1104,9 +1127,9 @@ func (a *varianceAggregator) Components() (map[string]any, error) {
 	}, nil
 }
 
-// Components returns {mean, m2, variance, stddev} — adds the population
-// stddev (sqrt(variance)) to the variance components. Matches the
-// scalar return of AGG_STDDEV (populationStdDev).
+// Components returns {mean, m2, variance, stddev} — adds the stddev
+// (sqrt(variance)) to the variance components, both under the slot's
+// ddof. Matches the scalar return of AGG_STDDEV.
 func (a *stdDevAggregator) Components() (map[string]any, error) {
 	if a.frozenN == 0 {
 		return map[string]any{
@@ -1116,7 +1139,7 @@ func (a *stdDevAggregator) Components() (map[string]any, error) {
 			"stddev":   math.NaN(),
 		}, nil
 	}
-	variance := a.frozenM2 / float64(a.frozenN)
+	variance := ddofspec.Variance(a.frozenM2, float64(a.frozenN), a.ddof)
 	return map[string]any{
 		"mean":     a.frozenMean,
 		"m2":       a.frozenM2,

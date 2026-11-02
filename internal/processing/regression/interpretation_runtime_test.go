@@ -20,6 +20,20 @@ func (r probeRecord) NumericValue(name string) (float64, bool) {
 	return v, ok
 }
 
+// probeLevels are the categorical probe target "cat"'s dictionary; a
+// row's "cat" value is its level's index.
+var probeLevels = []string{"a", "b", "c"}
+
+// StringValueChecked reads "cat" as its level's label (the
+// LabeledRecord REG_MULTINOMIAL reads its target through).
+func (r probeRecord) StringValueChecked(name string) (string, bool, error) {
+	v, ok := r[name]
+	if !ok || name != "cat" {
+		return "", false, nil
+	}
+	return probeLevels[int(v)], true, nil
+}
+
 // regressionProbes are the plain-fit fixtures per REG_* type. A type
 // may need more than one: converged_iters is emitted by an iterative
 // fit only (OLS l1, GLM IRLS), never by a closed-form one.
@@ -27,14 +41,29 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	types.REG_OLS: {
 		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}},
 		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}, Penalty: "l1", Alpha: 0.01},
+		// The opt-in marginal effects.
+		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}, Margins: &types.RegressionMargins{}},
+		// The opt-in variance inflation factors.
+		{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1", "x2"}, Collinearity: &types.RegressionCollinearity{
+			Groups: []types.RegressionTermGroup{{Name: "x1", Predictors: []string{"x1"}}}}},
 	},
 	types.REG_GLM: {
 		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial"},
+		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial", Margins: &types.RegressionMargins{}},
+		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial", Collinearity: &types.RegressionCollinearity{
+			Groups: []types.RegressionTermGroup{{Name: "x1", Predictors: []string{"x1"}}}}},
 		// gamma estimates its dispersion: df (its t reference) is emitted.
 		{Type: types.REG_GLM, Target: "g", Predictors: []string{"x1", "x2"}, Family: "gamma"},
+		// negative_binomial with θ estimated: theta, theta_std_err,
+		// two_log_lik and aic are emitted (k an over-dispersed count).
+		{Type: types.REG_GLM, Target: "k", Predictors: []string{"x1", "x2"}, Family: "negative_binomial"},
 	},
 	types.REG_BAYES_LINEAR: {
 		{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"}},
+	},
+	// The categorical target cat (three levels).
+	types.REG_MULTINOMIAL: {
+		{Type: types.REG_MULTINOMIAL, Target: "cat", Predictors: []string{"x1", "x2"}},
 	},
 	// The model regressions: a saturating spend channel c and a control
 	// x2 over the target m; REG_MMM_BAYES reads the contiguous time t.
@@ -44,6 +73,10 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	types.REG_MMM_BAYES: {
 		{Type: types.REG_MMM_BAYES, Target: "m", Predictors: []string{"c", "x2"}, RNGSeed: 1,
 			Params: json.RawMessage(`{"channels":["c"],"time":"t","chains":2,"warmup":100,"draws":50}`)},
+	},
+	// The ordinal model over o, y cut into three levels.
+	types.REG_ORDINAL: {
+		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}},
 	},
 }
 
@@ -63,9 +96,19 @@ func probeRows() []regression.Record {
 			b = 1
 		}
 		c := 60 + 50*math.Sin(0.53*float64(i))
-		out[i] = probeRecord{"x1": x1, "x2": x2, "y": 3 + 2*x1 - x2 + noise, "b": b,
+		y := 3 + 2*x1 - x2 + noise
+		o := 1.0
+		switch {
+		case y >= 5:
+			o = 3
+		case y >= 1:
+			o = 2
+		}
+		out[i] = probeRecord{"x1": x1, "x2": x2, "y": y, "b": b, "o": o,
 			"g": 1 / (0.8 + 0.05*x1 + 0.1*x2) * (1 + 0.3*noise),
-			"c": c, "t": float64(i + 1), "m": 5 + 8*c/(c+40) - 0.5*x2 + 0.3*noise}
+			"c": c, "t": float64(i + 1), "m": 5 + 8*c/(c+40) - 0.5*x2 + 0.3*noise,
+			"k":   math.Floor(math.Exp(1 + 0.3*x1 + 0.4*x2 + 1.2*math.Sin(2.3*float64(i)))),
+			"cat": float64((i*7 + int(math.Floor(2*x2+x1+10))) % 3)}
 	}
 	return out
 }

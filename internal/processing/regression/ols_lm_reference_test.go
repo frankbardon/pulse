@@ -88,6 +88,18 @@ func refRelClose(got, want, tol float64) bool {
 // the snapshot's 1.0-floored tolerance never did.
 func TestReferenceOracle_RegOLSMatchesLM(t *testing.T) {
 	t.Parallel()
+	olsMatchesLM(t, "")
+}
+
+// TestReferenceOracle_RegOLSNormalSolverMatchesLM: solver "normal"
+// (the normal equations) meets the same lm() figures at the same 1e-10.
+func TestReferenceOracle_RegOLSNormalSolverMatchesLM(t *testing.T) {
+	t.Parallel()
+	olsMatchesLM(t, "normal")
+}
+
+func olsMatchesLM(t *testing.T, solver string) {
+	t.Helper()
 
 	const tol = 1e-10
 	var sawWeighted, sawPlain bool
@@ -95,7 +107,7 @@ func TestReferenceOracle_RegOLSMatchesLM(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			spec := &types.RegressionSpec{
 				Type: types.REG_OLS, Name: c.Name, Target: "y", Predictors: c.Predictors,
-				ConfLevel: c.ConfLevel,
+				ConfLevel: c.ConfLevel, Solver: solver,
 			}
 			if c.Weighted {
 				sawWeighted = true

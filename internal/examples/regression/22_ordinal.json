@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "name": "ordinal_proportional_odds",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ordinal",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_ORDINAL"
+    ],
+    "description": "Ordinal (proportional-odds) regression: REG_ORDINAL models the 1-5 recommend rating of battery.pulse from two other items of the battery, as MASS::polr does — one coefficient per predictor shifting every threshold of the scale alike (logit link: exp(coefficient) is the odds ratio of a higher rating), the four thresholds \"1|2\" .. \"4|5\" beside them, Wald standard errors from the observed information, the deviance, AIC and the mean fitted probability of each rating. params.brant adds the Brant test of the proportional-odds assumption: an omnibus chi-square and one per predictor of its effect being the same at every step of the scale.",
+    "intents": [
+      "drivers",
+      "relationship"
+    ]
+  },
+  "cohort": {
+    "filename": "battery.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_ORDINAL",
+      "name": "recommend_ordinal",
+      "target": "bat_recommend",
+      "predictors": ["bat_energy", "bat_absorbed"],
+      "params": {"brant": {}}
+    }
+  ]
+}

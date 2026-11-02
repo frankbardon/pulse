@@ -319,6 +319,15 @@ func apiComposeCmd() *cli.Command {
 						return err
 					}
 				}
+				// Nested-model comparisons end the stream with one
+				// {"comparisons":[...]} record: each is one test over
+				// two fits, never rows (a failed one as its identity
+				// and error).
+				if len(composed.Compare) > 0 && resp != nil && len(resp.Comparisons) > 0 {
+					if err := encodeFinite(enc, map[string]any{"comparisons": resp.Comparisons}); err != nil {
+						return err
+					}
+				}
 				return nil
 			}
 

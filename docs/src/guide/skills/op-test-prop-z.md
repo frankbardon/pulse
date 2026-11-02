@@ -29,12 +29,16 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `RejectNull` when p < alpha. |
-| `success` | string | (required) | The `Field` dictionary value counted a success; on `packed_bool` strictly `"1"` or `"0"`. |
-| `p0` | float | — | In `(0, 1)`, `SplitBy` absent: the one-proportion test (`Variant` `one_proportion`). Detail: [`test-variant-options`](test-variant-options.md). |
-| `reference` | string | — | The `SplitBy` level read second: `diff` reads other − reference (default: alphabetical). Codes: [`test-variant-options`](test-variant-options.md). |
-| `covariate` | string | — | A numeric pre-period column (CUPED) adjusting the success indicator; not with `p0`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `success` | string | (required) | The `Field` dictionary value counted a success; on `packed_bool` `"1"` or `"0"`. |
+| `p0` | float | — | In `(0, 1)`, `SplitBy` absent: the one-proportion test (`Variant` `one_proportion`). |
+| `reference` | string | — | The `SplitBy` level read second: `diff` reads other − reference (default: alphabetical). |
+| `covariate` | string | — | A numeric pre-period column (CUPED) adjusting the success indicator; not with `p0`. |
+| `interval` | enum | `wald` | `wald`, or `wilson` with `p0`. |
+| `correct` | bool | `false` | `prop.test`'s continuity correction. |
 
-- `weight` — p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
+Option rules, codes: [`test-variant-options`](test-variant-options.md).
+
+- `weight` — p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n`.
 
 ## Inputs
 
@@ -59,10 +63,10 @@ Use something else:
 
 ## Gotchas
 
-- `success` absent, empty, not an exact dictionary entry (a shard archive's union dictionary) or, on `packed_bool`, anything but `"0"` / `"1"` → `PULSE_TEST_SUCCESS_VALUE_MISSING` (`details.valid_levels`), never a silent zero-success run.
-- No `field`, or no `split_by` without `p0` → `PROCESSING_CONFIG` (predict too).
+- `success` absent, empty, not an exact dictionary entry (a shard archive's union dictionary) or, on `packed_bool`, not `"0"` / `"1"` → `PULSE_TEST_SUCCESS_VALUE_MISSING` (`details.valid_levels`).
+- No `field`, or no `split_by` without `p0` → `PROCESSING_CONFIG`.
 - A group's N*_g·p̂ or N*_g·(1−p̂) `< 5` (p̂ pooled or `p0`) → warns `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
-- More than two `SplitBy` groups: a contingency-table question.
+- Over two `SplitBy` groups: a contingency-table question.
 - Pairs with `OVERLAY_PROP_Z_CELL` for crosstab cell-level proportion tests.
 
 ## See
