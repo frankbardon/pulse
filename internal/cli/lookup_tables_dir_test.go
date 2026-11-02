@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,7 +39,7 @@ func TestAPIProcessCLI_LookupTablesDir(t *testing.T) {
 	if err := encoding.WriteSchema(&cohort, schema); err != nil {
 		t.Fatal(err)
 	}
-	if err := encoding.WriteFieldValue(&cohort, encoding.FieldTypeF64, 1.0); err != nil {
+	if err := encoding.WriteFieldValue(&cohort, encoding.FieldTypeF64, math.Float64bits(1.0)); err != nil {
 		t.Fatal(err)
 	}
 	cohortPath := filepath.Join(dir, "c.pulse")
