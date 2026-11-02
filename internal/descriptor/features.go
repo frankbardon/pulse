@@ -126,6 +126,7 @@ var (
 	featExplain           = FeatureName(FeatureKindCapability, "explain")
 	featLabels            = FeatureName(FeatureKindCapability, "labels")
 	featRangeTables       = FeatureName(FeatureKindCapability, "range_tables")
+	featLookupTables      = FeatureLookupTables
 	featCrosstab          = FeatureName(FeatureKindCapability, "crosstab")
 	featCrosstabCells     = FeatureCrosstabCells
 	featJoins             = FeatureName(FeatureKindCapability, "joins")
@@ -225,6 +226,15 @@ const FeatureModelSave = "capability:model_save"
 // the out-of-sample figures it produces (RegressionResult.Holdout).
 const FeatureRegressionHoldout = "capability:regression_holdout"
 
+// FeatureLookupTables is capability:lookup_tables — the registered
+// LookupTables (Options.Extensions.LookupTables and the
+// Options.LookupTablesDir / PULSE_LOOKUP_TABLES_DIR files) and the
+// lookup() expression function over them. Hidden, pulse.New registers
+// no lookup table (withoutHiddenExtensions), so lookup() is undeclared
+// at predict and at run exactly as on an instance that registered none.
+// Exported for the root package's drop.
+const FeatureLookupTables = "capability:lookup_tables"
+
 // FeatureModels is capability:models — the `models` key on a Request
 // and a FacetRequest, which loads saved model files by name into the
 // bound-model namespace. Exported for the MCP bound schema.
@@ -296,6 +306,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("synth"),              // Synth, SynthStream, data-profile capture; gates every synth distribution
 	capability("labels"),             // label tables + resolve
 	capability("range_tables"),       // range tables
+	capability("lookup_tables"),      // lookup tables + the lookup() expr function
 	capability("weighting"),          // Request.Weight + every per-slot weight + Options.DefaultWeight
 	capability("multiplicity"),       // every `multiplicity` slot + Options.DefaultMultiplicity
 	capability("matrices"),           // Request.Vectors + Request.Matrices

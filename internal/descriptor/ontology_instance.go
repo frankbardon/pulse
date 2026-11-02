@@ -24,9 +24,8 @@ import (
 // `<table kind>/<table name>` (`label/region`, `range/fiscal`,
 // `lookup/rates`), so ID `table:label/region` — the kind prefix keeps a
 // label table and a range table of the same name apart. A label table
-// requires capability:labels, a range table capability:range_tables; a
-// lookup table needs nothing (the expr lookup() function is not a
-// feature).
+// requires capability:labels, a range table capability:range_tables, a
+// lookup table capability:lookup_tables.
 //
 // Prune rules (pruneOntology), in dependency order:
 //
@@ -142,7 +141,8 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 		b.edge(id, b.featureNode(featRangeTables, "range table "+t.Name), descriptor.OntologyEdgeRequiresCapability, "range table")
 	}
 	for _, t := range ext.LookupTables {
-		b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindLookup, t.Name))
+		id := b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindLookup, t.Name))
+		b.edge(id, b.featureNode(featLookupTables, "lookup table "+t.Name), descriptor.OntologyEdgeRequiresCapability, "lookup table")
 	}
 	for _, t := range ext.ReferenceVectors {
 		b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindReference, t.Name))

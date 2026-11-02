@@ -343,11 +343,13 @@ func TestInstanceOntology_SharesAndExtends(t *testing.T) {
 	}
 	label := OntologyID(descriptor.OntologyNodeTable, "label/region")
 	rng := OntologyID(descriptor.OntologyNodeTable, "range/region")
+	lkp := OntologyID(descriptor.OntologyNodeTable, "lookup/rates")
 	for _, e := range []descriptor.OntologyEdge{
 		ontoEdge(opID("AGG_ACME_TOTAL"), intentID(IntentDrivers), descriptor.OntologyEdgeServesIntent),
 		ontoEdge(opID("AGG_ACME_TOTAL"), termID("alpha"), descriptor.OntologyEdgeUsesTerm),
 		ontoEdge(label, featLabels, descriptor.OntologyEdgeRequiresCapability),
 		ontoEdge(rng, featRangeTables, descriptor.OntologyEdgeRequiresCapability),
+		ontoEdge(lkp, featLookupTables, descriptor.OntologyEdgeRequiresCapability),
 	} {
 		if !hasEdge(g, e) {
 			t.Errorf("missing %+v", e)

@@ -2156,11 +2156,13 @@ a v1.x release.
 
 - **Named tables are not features.** `LookupTables`, `ReferenceVectors`,
   `LabelTables` and `RangeTables` are listed in no feature profile, so a
-  profile cannot hide a `lookup()` or `ref()` table, and they sit outside
-  `feature_set_digest`: two instances differing only in registered tables
-  share a digest. (The `capability:labels` / `capability:range_tables`
-  capabilities gate how a table is *resolved*, not whether it exists.)
-  Validity of an expression never depends on the profile.
+  profile cannot hide one table by name (a `ref()` table never), and they
+  sit outside `feature_set_digest`: two instances differing only in
+  registered tables share a digest. (The `capability:labels` /
+  `capability:range_tables` capabilities gate how a table is *resolved*,
+  not whether it exists; `capability:lookup_tables` hides every lookup
+  table at once — with it off `pulse.New` registers none, so `lookup()`
+  is an unknown function on that instance.)
 - **Extension test `Interpretation` is structure-only.** An extension
   declares no output keys, so `pulse.New` checks path syntax, `Means` /
   `Shared`, `Bands` and `Sign` shape but cannot check that a path names
