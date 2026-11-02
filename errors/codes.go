@@ -1423,9 +1423,10 @@ const (
 	// PULSE_LOOKUP_TABLES_DIR / Options.LookupTablesDir *.json file, or
 	// the bytes handed to pulse.ParseLookupTableFile) is not one of the
 	// two accepted shapes: a bare {key: number} object, or a wrapped
-	// {"description", "rows"} object. Details carry the table name and a
-	// `reason` (json_invalid, not_object, duplicate_key, unknown_key,
-	// description_not_string, rows_not_object).
+	// {"description", "rows"} object (which may add "keys" and
+	// "complete"). Details carry the table name and a `reason`
+	// (json_invalid, not_object, duplicate_key, unknown_key,
+	// description_not_string, rows_not_object, complete_not_bool).
 	PULSE_LOOKUP_FILE_INVALID Code = "PULSE_LOOKUP_FILE_INVALID"
 
 	// PULSE_LOOKUP_CELL_NOT_NUMERIC indicates a lookup-table file cell
@@ -1437,6 +1438,41 @@ const (
 	// rows: a table every lookup() call would miss. Details carry the
 	// table name.
 	PULSE_LOOKUP_TABLE_EMPTY Code = "PULSE_LOOKUP_TABLE_EMPTY"
+
+	// PULSE_LOOKUP_AXIS_INVALID indicates a lookup table's declared key
+	// axes (`keys` in a lookup-table file, LookupTable.Keys in code) are
+	// malformed: not a non-empty array of {name, values} /
+	// {name, range_table} objects, a blank or repeated axis name, both or
+	// neither of values / range_table, a blank value, a value or a
+	// referenced range-table label containing the "|" key separator, an
+	// unknown referenced range table, `complete` without axes, or axes on
+	// a function-driven (Lookup) table. Details carry the table name and
+	// a `reason`; `axis` where one axis is at fault.
+	PULSE_LOOKUP_AXIS_INVALID Code = "PULSE_LOOKUP_AXIS_INVALID"
+
+	// PULSE_LOOKUP_KEY_ARITY indicates a row key of a lookup table with
+	// declared axes splits on "|" into a different number of parts than
+	// there are axes. Details carry the table, the `key`, `want` (axes)
+	// and `got` (parts).
+	PULSE_LOOKUP_KEY_ARITY Code = "PULSE_LOOKUP_KEY_ARITY"
+
+	// PULSE_LOOKUP_KEY_OFF_AXIS indicates a row key of a lookup table
+	// with declared axes has a part that is not one of its axis's values
+	// (or, for a range-table axis, the table's labels). Details carry the
+	// table, the `key`, the `axis` name, its `position` and the `value`.
+	PULSE_LOOKUP_KEY_OFF_AXIS Code = "PULSE_LOOKUP_KEY_OFF_AXIS"
+
+	// PULSE_LOOKUP_KEY_COLLISION indicates two declared key combinations
+	// of a lookup table join to the same "|" key: an axis lists a value
+	// more than once. Details carry the table, the `axis` and the
+	// repeated value as `key`.
+	PULSE_LOOKUP_KEY_COLLISION Code = "PULSE_LOOKUP_KEY_COLLISION"
+
+	// PULSE_LOOKUP_TABLE_INCOMPLETE indicates a lookup table declared
+	// `complete` (LookupTable.Complete) lacks a cell of its axes' cross
+	// product. Details carry the table, the first missing joined `key`
+	// (axis order), `cells` (the cross-product size) and `rows`.
+	PULSE_LOOKUP_TABLE_INCOMPLETE Code = "PULSE_LOOKUP_TABLE_INCOMPLETE"
 
 	// PULSE_ARCHIVE_MAGIC_INVALID indicates a cohort path whose leading
 	// bytes match neither the single-file Pulse magic ("PULSE\x00\x00\x00")
@@ -4802,6 +4838,11 @@ var allCodes = []Code{
 	PULSE_LOOKUP_FILE_INVALID,
 	PULSE_LOOKUP_CELL_NOT_NUMERIC,
 	PULSE_LOOKUP_TABLE_EMPTY,
+	PULSE_LOOKUP_AXIS_INVALID,
+	PULSE_LOOKUP_KEY_ARITY,
+	PULSE_LOOKUP_KEY_OFF_AXIS,
+	PULSE_LOOKUP_KEY_COLLISION,
+	PULSE_LOOKUP_TABLE_INCOMPLETE,
 	PULSE_ARCHIVE_MAGIC_INVALID,
 	PULSE_ARCHIVE_CORRUPT,
 	PULSE_COHORT_COMPRESSED,

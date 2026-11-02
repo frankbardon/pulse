@@ -2140,11 +2140,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_FILE_INVALID: {
-		Message: "A lookup-table file is not valid JSON in one of the two accepted shapes: a bare object mapping each joined key to a number, or a wrapped object {\"description\": \"...\", \"rows\": {key: number}}. `details.reason` names the fault (json_invalid, not_object, duplicate_key, unknown_key, description_not_string, rows_not_object); `details.key` the offending key where there is one.",
+		Message: "A lookup-table file is not valid JSON in one of the two accepted shapes: a bare object mapping each joined key to a number, or a wrapped object {\"description\": \"...\", \"rows\": {key: number}}. `details.reason` names the fault (json_invalid, not_object, duplicate_key, unknown_key, description_not_string, rows_not_object, complete_not_bool); `details.key` the offending key where there is one.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Rewrite the file as {\"k1|k2\": 1.5, ...} or {\"description\": \"...\", \"rows\": {\"k1|k2\": 1.5}}; join multi-part keys with |, list each key once, and drop any other top-level key from the wrapped form.",
+				Hint:   "Rewrite the file as {\"k1|k2\": 1.5, ...} or {\"description\": \"...\", \"rows\": {\"k1|k2\": 1.5}}; join multi-part keys with |, list each key once, and drop any top-level key but description, rows, keys and complete (a boolean) from the wrapped form.",
 			},
 		},
 	},
@@ -2163,6 +2163,51 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Add at least one key/number row, or delete the file so no empty table is registered.",
+			},
+		},
+	},
+	PULSE_LOOKUP_AXIS_INVALID: {
+		Message: "A lookup table's declared key axes are malformed. `keys` is a non-empty array with one axis per lookup() argument, each {\"name\", \"values\": [...]} or {\"name\", \"range_table\": \"<name>\"} (never both); names are unique, values non-empty strings without the | key separator, a referenced range table must be registered and its labels free of |, `complete` needs `keys`, and a function-driven (Lookup) table declares no axes. `details.reason` names the fault, `details.axis` the axis.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the axis named in `details.axis` per `details.reason`: give it a unique name and exactly one of values (non-empty strings, no |) or range_table (a registered range table whose labels contain no |); drop `complete` from a table without keys.",
+			},
+		},
+	},
+	PULSE_LOOKUP_KEY_ARITY: {
+		Message: "A row key of a lookup table with declared axes splits on | into a different number of parts than the table has axes. `details.key` is the row, `details.want` the axis count, `details.got` the part count.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rewrite the row key under `details.key` as one value per axis joined with | (e.g. \"east|low\" for two axes), or correct `keys`.",
+			},
+		},
+	},
+	PULSE_LOOKUP_KEY_OFF_AXIS: {
+		Message: "A row key of a lookup table with declared axes has a part that is not a value of its axis (for a range-table axis, not one of the range table's labels). `details.axis` and `details.position` name the axis, `details.value` the part.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Correct the part `details.value` of row `details.key` to one of the axis's values, or add the value to the axis (or the label to its range table).",
+			},
+		},
+	},
+	PULSE_LOOKUP_KEY_COLLISION: {
+		Message: "Two declared key combinations of a lookup table join to the same | key because an axis lists a value more than once. `details.axis` is the axis, `details.key` the repeated value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "List each value of the axis under `details.axis` once.",
+			},
+		},
+	},
+	PULSE_LOOKUP_TABLE_INCOMPLETE: {
+		Message: "A lookup table declared `complete` lacks a cell of its axes' cross product. `details.key` is the first missing joined key in axis order, `details.cells` the cross-product size, `details.rows` the rows present.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Add a row for every combination of axis values (starting with `details.key`), or drop `complete` so unlisted combinations miss at run time with PULSE_LOOKUP_MISS.",
 			},
 		},
 	},

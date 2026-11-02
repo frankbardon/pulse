@@ -11696,7 +11696,7 @@
         ]
       }
     ],
-    "error_codes_count": 455,
+    "error_codes_count": 460,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11884,11 +11884,16 @@
       "PULSE_LIMIT_EXCEEDED",
       "PULSE_LIMIT_INVALID",
       "PULSE_LOOKUP_AMBIGUOUS",
+      "PULSE_LOOKUP_AXIS_INVALID",
       "PULSE_LOOKUP_CELL_NOT_NUMERIC",
       "PULSE_LOOKUP_FILE_INVALID",
+      "PULSE_LOOKUP_KEY_ARITY",
+      "PULSE_LOOKUP_KEY_COLLISION",
+      "PULSE_LOOKUP_KEY_OFF_AXIS",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
       "PULSE_LOOKUP_TABLE_EMPTY",
+      "PULSE_LOOKUP_TABLE_INCOMPLETE",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_MATERIALIZE_CAST_FAILED",
       "PULSE_MATERIALIZE_CAST_NULLED",
@@ -21067,4 +21072,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 45a908f38b37ecdbd0e492511f9613583553f05eb3f4f7b1dae5b219e34e844e
+// golden-hash: 2c5dd40dad1182ad995a08e1e083163162c769a1ddf7a27d4f528c58978a3ed2

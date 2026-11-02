@@ -1118,6 +1118,39 @@ user-supplied file exactly as the loader does, call
 `pulse.ParseLookupTableFile(name, data)` — it is the loader's parser and
 returns the same codes.
 
+**Declared axes.** A table may declare its key axes so a typo, a wrong key
+count or an uncovered cell fails at `pulse.New`, not mid-run. In code set
+`LookupTable.Keys` (one `pulse.LookupAxis` per `lookup()` key argument, in
+order) and optionally `Complete`; in a file, the wrapped form adds:
+
+```json
+{
+  "keys": [
+    {"name": "region", "values": ["east", "west"]},
+    {"name": "score", "range_table": "score_bands"}
+  ],
+  "complete": true,
+  "rows": {"east|low": 1.07, "east|high": 0.98, "west|low": 1.1, "west|high": 1.0}
+}
+```
+
+Each axis is `{name, values}` or `{name, range_table}` — never both; a
+range-table axis takes the registered range table's labels as its values,
+resolved at `pulse.New` after every loader, so it may name a table from
+`Options.RangeTablesDir`. Then every row key must split on `|` into one
+value per axis (`PULSE_LOOKUP_KEY_ARITY`), each on its axis
+(`PULSE_LOOKUP_KEY_OFF_AXIS`); a value listed twice on an axis is
+`PULSE_LOOKUP_KEY_COLLISION`; a malformed axis, a `|` in an axis value or
+in a referenced range table's label, an unknown range table, `complete`
+without `keys`, or axes on a `Lookup` table is `PULSE_LOOKUP_AXIS_INVALID`
+(`details.reason`). `complete: true` makes a missing cross-product cell
+`PULSE_LOOKUP_TABLE_INCOMPLETE`; without it the table is sparse and an
+unlisted combination misses at run time (`PULSE_LOOKUP_MISS`).
+`ParseLookupTableFile` runs the per-file checks; range-table axes are
+judged only at `pulse.New`. The manifest's `extensions.lookup_tables`
+entries carry `keys` (name, `values` or `range_table`) and `complete`,
+never the cells.
+
 ### Reference vectors
 
 Named sets of labelled target profiles — an ideal brand profile, a

@@ -119,15 +119,17 @@ func lookupFileErrorAtPath(err error, path string) error {
 type lookupTableFile struct {
 	Description string
 	Rows        map[string]float64
+	Keys        []LookupAxis
+	Complete    bool
 }
 
 // lookupTableFileKeys is the closed set of top-level keys the wrapped
 // form accepts; any other key is PULSE_LOOKUP_FILE_INVALID
 // (unknown_key) so a typo'd option cannot be silently ignored.
-var lookupTableFileKeys = map[string]bool{"description": true, "rows": true}
+var lookupTableFileKeys = map[string]bool{"description": true, "rows": true, "keys": true, "complete": true}
 
 func (f lookupTableFile) toLookupTable() LookupTable {
-	return LookupTable{Description: f.Description, Rows: f.Rows}
+	return LookupTable{Description: f.Description, Rows: f.Rows, Keys: f.Keys, Complete: f.Complete}
 }
 
 // ParseLookupTableFile parses one lookup-table file's bytes into a
@@ -144,21 +146,39 @@ func (f lookupTableFile) toLookupTable() LookupTable {
 //   - a wrapped object: {"description": "...", "rows": {key: number}}
 //
 // An object whose "rows" member is anything but a JSON number is the
-// wrapped form; then only "description" (a string) and "rows" (an
-// object) may appear. Multi-part keys are joined with "|", as lookup()
-// joins its key arguments.
+// wrapped form; then only "description" (a string), "rows" (an
+// object), "keys" and "complete" (a boolean) may appear. Multi-part keys
+// are joined with "|", as lookup() joins its key arguments.
+//
+// "keys" declares the key axes (LookupTable.Keys), one per lookup()
+// argument: [{"name": "region", "values": ["east", "west"]},
+// {"name": "score", "range_table": "score_bands"}]. "complete": true
+// (LookupTable.Complete) requires a row for every combination. The
+// per-file axis checks run here; a range-table axis is resolved — and
+// its membership and completeness judged — only at pulse.New, where the
+// instance's range tables are known.
 //
 // Refusals: PULSE_LOOKUP_FILE_INVALID (not JSON, not an object, a
 // duplicated key, an unknown wrapped key, a non-string description, a
-// non-object rows — details.reason says which),
+// non-object rows, a non-boolean complete — details.reason says which),
 // PULSE_LOOKUP_CELL_NOT_NUMERIC (a cell that is not a finite JSON
-// number, details.key) and PULSE_LOOKUP_TABLE_EMPTY (no rows).
+// number, details.key), PULSE_LOOKUP_TABLE_EMPTY (no rows),
+// PULSE_LOOKUP_AXIS_INVALID (a malformed axis, a "|" in a value,
+// complete without keys — details.reason), PULSE_LOOKUP_KEY_ARITY,
+// PULSE_LOOKUP_KEY_OFF_AXIS, PULSE_LOOKUP_KEY_COLLISION (a repeated axis
+// value) and PULSE_LOOKUP_TABLE_INCOMPLETE.
 func ParseLookupTableFile(name string, data []byte) (LookupTable, error) {
 	f, err := parseLookupTableDoc(name, data)
 	if err != nil {
 		return LookupTable{}, err
 	}
-	return f.toLookupTable(), nil
+	tbl := f.toLookupTable()
+	// The per-file axis checks; range-table axes wait for pulse.New
+	// (validateLookupTableAxes), where the instance's tables are known.
+	if err := checkLookupAxes(name, tbl, nil, false); err != nil {
+		return LookupTable{}, err
+	}
+	return tbl, nil
 }
 
 func parseLookupTableDoc(name string, data []byte) (lookupTableFile, error) {
@@ -180,13 +200,23 @@ func parseLookupTableDoc(name string, data []byte) (lookupTableFile, error) {
 		for _, m := range top {
 			if !lookupTableFileKeys[m.key] {
 				return lookupTableFile{}, invalid("unknown_key",
-					fmt.Sprintf("unknown top-level key %q in the wrapped form (accepted: description, rows)", m.key),
+					fmt.Sprintf("unknown top-level key %q in the wrapped form (accepted: description, rows, keys, complete)", m.key),
 					map[string]any{"key": m.key})
 			}
 		}
 		if desc, ok := lookupMember(top, "description"); ok {
 			if err := json.Unmarshal(desc, &f.Description); err != nil || bytes.Equal(bytes.TrimSpace(desc), []byte("null")) {
 				return lookupTableFile{}, invalid("description_not_string", "description must be a JSON string", nil)
+			}
+		}
+		if raw, ok := lookupMember(top, "keys"); ok {
+			if f.Keys, err = parseLookupAxes(name, raw); err != nil {
+				return lookupTableFile{}, err
+			}
+		}
+		if raw, ok := lookupMember(top, "complete"); ok {
+			if err := json.Unmarshal(raw, &f.Complete); err != nil || isJSONNull(raw) {
+				return lookupTableFile{}, invalid("complete_not_bool", "complete must be a JSON boolean", nil)
 			}
 		}
 		if t := bytes.TrimSpace(rows); len(t) == 0 || t[0] != '{' {

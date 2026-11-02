@@ -180,6 +180,11 @@ func validateExtensions(ext Extensions) error {
 	if err := validateRangeTables(ext.RangeTables); err != nil {
 		return err
 	}
+	// After the range tables: a lookup table's range-table axes resolve
+	// against them (directory-loaded and programmatic alike).
+	if err := validateLookupTableAxes(ext.LookupTables, ext.RangeTables); err != nil {
+		return err
+	}
 	if err := validateComponentSchemas(ext); err != nil {
 		return err
 	}
