@@ -332,7 +332,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   instance registers none — tables set in code and files under
   `Options.LookupTablesDir` alike (the files are still checked, so a
   bad one still fails `pulse.New`) — so `lookup()` is an unknown
-  function, `extensions.lookup_tables` is `[]` and the lookup-table
+  function, `extensions.lookup_tables` is `[]`, `p.LookupTables()`
+  lists none, the `pulse_lookup_tables` MCP tool is not mounted and the lookup-table
   error codes are not listed. `range_label()` follows
   `capability:range_tables` only. `p.ManifestForIntent(ctx, intent)`
   narrows this same instance view to one intent, so it never lists a

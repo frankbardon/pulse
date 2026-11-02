@@ -57,6 +57,7 @@ Keep the top bands (a filter):
 ## See
 
 - [`expression-language`](expression-language.md) — the environment these functions extend.
+- [`tool-lookup-tables`](tool-lookup-tables.md) — the registered lookup tables and their key axes.
 - [`tool-range-tables`](tool-range-tables.md) — the registered range tables and their kinds.
 - [`op-group-numeric-ranges`](op-group-numeric-ranges.md), [`op-group-date-ranges`](op-group-date-ranges.md) — group by the same tables.
 - [`calendar-formulas`](calendar-formulas.md) — `to_day` and the request time zone.

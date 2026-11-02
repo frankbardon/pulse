@@ -781,3 +781,72 @@ func TestHandleInspect_SuggestsTheSPSSWeight(t *testing.T) {
 		}
 	}
 }
+
+// TestHandleLookupTables_ListsRegistered asserts the discovery tool
+// returns each lookup table's metadata and cell count — axes, complete,
+// and no cell values.
+func TestHandleLookupTables_ListsRegistered(t *testing.T) {
+	t.Parallel()
+
+	p, err := pulse.New(pulse.Options{
+		FS: afero.NewMemMapFs(),
+		Extensions: pulse.Extensions{
+			LookupTables: map[string]pulse.LookupTable{
+				"rates": {
+					Description: "rate grid",
+					Rows:        map[string]float64{"north": 1.25, "south": 2.5},
+					Keys:        []pulse.LookupAxis{{Name: "region", Values: []string{"north", "south"}}},
+					Complete:    true,
+				},
+				"live": {Lookup: func(...string) (float64, bool, error) { return 0, false, nil }},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	out, err := HandleLookupTables(context.Background(), p, LookupTablesIn{})
+	if err != nil {
+		t.Fatalf("HandleLookupTables: %v", err)
+	}
+	if len(out.Tables) != 2 || out.Tables[0].Name != "live" || out.Tables[1].Name != "rates" {
+		t.Fatalf("tables = %+v; want live, rates", out.Tables)
+	}
+	if live := out.Tables[0]; live.HasRowsData || live.CellCount != nil {
+		t.Errorf("live = %+v; want no rows data, no cell count", live)
+	}
+	rates := out.Tables[1]
+	if rates.Description != "rate grid" || !rates.Complete || rates.CellCount == nil || *rates.CellCount != 2 ||
+		len(rates.Keys) != 1 || rates.Keys[0].Name != "region" {
+		t.Errorf("rates = %+v", rates)
+	}
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(raw), "1.25") || strings.Contains(string(raw), "2.5") {
+		t.Errorf("output carries cell values: %s", raw)
+	}
+}
+
+// TestHandleLookupTables_EmptyRegistry asserts the empty case returns an
+// empty non-nil list, NOT an error.
+func TestHandleLookupTables_EmptyRegistry(t *testing.T) {
+	t.Parallel()
+
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	out, err := HandleLookupTables(context.Background(), p, LookupTablesIn{})
+	if err != nil {
+		t.Fatalf("HandleLookupTables: %v", err)
+	}
+	if out.Tables == nil || len(out.Tables) != 0 {
+		t.Fatalf("Tables = %#v; want empty non-nil slice", out.Tables)
+	}
+	raw, _ := json.Marshal(out)
+	if string(raw) != `{"tables":[]}` {
+		t.Errorf("wire = %s; want {\"tables\":[]}", raw)
+	}
+}

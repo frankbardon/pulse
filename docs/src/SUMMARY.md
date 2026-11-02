@@ -394,6 +394,7 @@
     - [tool-label-resolve](guide/skills/tool-label-resolve.md)
     - [tool-label-tables](guide/skills/tool-label-tables.md)
     - [tool-lookup](guide/skills/tool-lookup.md)
+    - [tool-lookup-tables](guide/skills/tool-lookup-tables.md)
     - [tool-manifest](guide/skills/tool-manifest.md)
     - [tool-materialize](guide/skills/tool-materialize.md)
     - [tool-predict](guide/skills/tool-predict.md)

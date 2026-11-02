@@ -363,6 +363,7 @@ func invokers(cfg Config) map[string]InvokeFunc {
 		toolmeta.ToolLabelTables:    makeInvoke(strictDecode[LabelTablesIn], HandleLabelTables),
 		toolmeta.ToolLabelResolve:   makeInvoke(strictDecode[LabelResolveIn], HandleLabelResolve),
 		toolmeta.ToolRangeTables:    makeInvoke(strictDecode[RangeTablesIn], HandleRangeTables),
+		toolmeta.ToolLookupTables:   makeInvoke(strictDecode[LookupTablesIn], HandleLookupTables),
 		toolmeta.ToolRecommend:      makeInvoke(strictDecode[RecommendIn], HandleRecommend),
 		toolmeta.ToolExplain:        makeInvoke(strictDecode[ExplainIn], HandleExplain),
 	}

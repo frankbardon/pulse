@@ -136,6 +136,7 @@ func init() {
 	register(toolmeta.ToolLabelTables, d(toolmeta.ToolLabelTables), reflect.TypeFor[LabelTablesIn](), reflect.TypeFor[LabelTablesOut]())
 	register(toolmeta.ToolLabelResolve, d(toolmeta.ToolLabelResolve), reflect.TypeFor[LabelResolveIn](), reflect.TypeFor[LabelResolveOut]())
 	register(toolmeta.ToolRangeTables, d(toolmeta.ToolRangeTables), reflect.TypeFor[RangeTablesIn](), reflect.TypeFor[RangeTablesOut]())
+	register(toolmeta.ToolLookupTables, d(toolmeta.ToolLookupTables), reflect.TypeFor[LookupTablesIn](), reflect.TypeFor[LookupTablesOut]())
 	register(toolmeta.ToolRecommend, d(toolmeta.ToolRecommend), reflect.TypeFor[RecommendIn](), reflect.TypeFor[RecommendOut]())
 	register(toolmeta.ToolExplain, d(toolmeta.ToolExplain), reflect.TypeFor[ExplainIn](), reflect.TypeFor[ExplainOut]())
 

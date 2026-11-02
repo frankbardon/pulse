@@ -685,6 +685,13 @@ pulse: type LookupTable field Description string
 pulse: type LookupTable field Keys []pulse.LookupAxis
 pulse: type LookupTable field Lookup func(keys ...string) (value float64, ok bool, err error)
 pulse: type LookupTable field Rows map[string]float64
+pulse: type LookupTableInfo struct
+pulse: type LookupTableInfo field CellCount *int "json:\"cell_count,omitempty\""
+pulse: type LookupTableInfo field Complete bool "json:\"complete\""
+pulse: type LookupTableInfo field Description string "json:\"description,omitempty\""
+pulse: type LookupTableInfo field HasRowsData bool "json:\"has_rows_data\""
+pulse: type LookupTableInfo field Keys []pulse/descriptor.LookupAxisMeta "json:\"keys\""
+pulse: type LookupTableInfo field Name string "json:\"name\""
 pulse: type MaterializeOptions struct
 pulse: type MaterializeOptions field Overwrite bool
 pulse: type MaterializeOptions field Strict bool
@@ -844,6 +851,7 @@ pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) 
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
+pulse: type Pulse method (*Pulse) LookupTables() []pulse.LookupTableInfo
 pulse: type Pulse method (*Pulse) Manifest(ctx context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) ManifestForIntent(ctx context.Context, intent string) (*pulse/descriptor.Manifest, error)
 pulse: type Pulse method (*Pulse) Materialize(ctx context.Context, req *pulse.Request, out string, opts pulse.MaterializeOptions) (*pulse.MaterializeResult, error)
@@ -6643,4 +6651,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d83250cdc5fe2efc69504d322f47344521e3ba24e361340e33d528ba163f445b
+// golden-hash: 4f846a776c426979dfcc77c393c90c48d025b869165feb51360df1415b8c8638

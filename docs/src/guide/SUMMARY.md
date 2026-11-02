@@ -382,6 +382,7 @@
     - [tool-label-resolve](skills/tool-label-resolve.md)
     - [tool-label-tables](skills/tool-label-tables.md)
     - [tool-lookup](skills/tool-lookup.md)
+    - [tool-lookup-tables](skills/tool-lookup-tables.md)
     - [tool-manifest](skills/tool-manifest.md)
     - [tool-materialize](skills/tool-materialize.md)
     - [tool-predict](skills/tool-predict.md)

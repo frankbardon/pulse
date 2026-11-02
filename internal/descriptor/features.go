@@ -1167,6 +1167,7 @@ var mcpToolBindings = []MCPToolBinding{
 	{Tool: "pulse_label_tables", Feature: featLabels},
 	{Tool: "pulse_label_resolve", Feature: featLabels},
 	{Tool: "pulse_range_tables", Feature: featRangeTables},
+	{Tool: "pulse_lookup_tables", Feature: featLookupTables},
 	{Tool: "pulse_recommend", Feature: featRecommend},
 	{Tool: "pulse_explain", Feature: featExplain},
 }

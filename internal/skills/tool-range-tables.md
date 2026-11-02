@@ -38,3 +38,4 @@ No arguments.
 - `op-filter-date-ranges` — keep/drop rows by labeled date range.
 - `op-group-numeric-ranges` — bucket a number into labeled half-open ranges.
 - `tool-label-tables` — the parallel discovery tool for categorical label tables.
+- `tool-lookup-tables` — lookup tables, whose axes may name a range table.

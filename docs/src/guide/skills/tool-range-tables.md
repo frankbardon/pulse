@@ -36,3 +36,4 @@ No arguments.
 - [`op-filter-date-ranges`](op-filter-date-ranges.md) — keep/drop rows by labeled date range.
 - [`op-group-numeric-ranges`](op-group-numeric-ranges.md) — bucket a number into labeled half-open ranges.
 - [`tool-label-tables`](tool-label-tables.md) — the parallel discovery tool for categorical label tables.
+- [`tool-lookup-tables`](tool-lookup-tables.md) — lookup tables, whose axes may name a range table.

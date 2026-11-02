@@ -348,6 +348,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-label-resolve`](skills/tool-label-resolve.md): Reverse-resolve a human-readable name (typo-tolerant) to raw categorical key(s).
 - [`tool-label-tables`](skills/tool-label-tables.md): List registered label tables — ID→display-name dictionaries for categorical fields.
 - [`tool-lookup`](skills/tool-lookup.md): Resolve a point lookup against a cohort's prebuilt sidecar index.
+- [`tool-lookup-tables`](skills/tool-lookup-tables.md): List registered lookup tables — named numeric tables lookup() reads — with their key axes and cell counts, never their cells.
 - [`tool-manifest`](skills/tool-manifest.md): Bootstrap blob — call once per session for the operator + capability catalog.
 - [`tool-materialize`](skills/tool-materialize.md): Write a request's derived columns (features, attributes, windows) as ordinary fields of a new cohort that later requests read.
 - [`tool-predict`](skills/tool-predict.md): Validate a request against a cohort schema without executing.
