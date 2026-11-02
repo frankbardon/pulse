@@ -225,7 +225,8 @@ func categoricalValue(ft encoding.FieldType) bool {
 }
 
 // categoricalOnly is a categorical alone: TEST_ANOVA_RM's subject (a
-// two-level subject id identifies no subject).
+// two-level subject id identifies no subject) and REG_MULTINOMIAL's
+// target (its dictionary is the category order).
 func categoricalOnly(ft encoding.FieldType) bool {
 	return ft.IsCategorical()
 }
@@ -357,6 +358,10 @@ func init() {
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
 	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget, SlotPredictor},
 		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR", "REG_MMM_BAYES", "REG_MMM_HILL")
+	// REG_MULTINOMIAL: numeric predictors; the target is a categorical,
+	// whose dictionary labels are the categories (in dictionary order).
+	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotPredictor}, "REG_MULTINOMIAL")
+	add(categoricalOnly, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget}, "REG_MULTINOMIAL")
 	// REG_ORDINAL's target is an ordered scale: a categorical (its
 	// dictionary order, or params.levels) or a number (its values); its
 	// predictors are the regressions' analytics set.

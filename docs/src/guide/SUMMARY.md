@@ -237,6 +237,7 @@
     - [op-reg-mmm-hill](skills/op-reg-mmm-hill.md)
     - [op-reg-mod-resample](skills/op-reg-mod-resample.md)
     - [op-reg-mod-selection](skills/op-reg-mod-selection.md)
+    - [op-reg-multinomial](skills/op-reg-multinomial.md)
     - [op-reg-ols](skills/op-reg-ols.md)
     - [op-reg-ordinal](skills/op-reg-ordinal.md)
     - [op-synth-bernoulli](skills/op-synth-bernoulli.md)

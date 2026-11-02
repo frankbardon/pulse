@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
+	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -40,6 +41,11 @@ import (
 // the default), when it sets Vcov to validateVcov, and to the shared
 // covariance rule regcov.Check.
 func ValidateRegression(spec *types.RegressionSpec) error {
+	// REG_MULTINOMIAL's refused knobs, and `reference` on any other
+	// built-in — the one rule predict applies too (internal/regmultinom).
+	if cerr := regmultinom.Check(spec); cerr != nil {
+		return cerr
+	}
 	if err := validateRegressionSpec(spec); err != nil {
 		return err
 	}

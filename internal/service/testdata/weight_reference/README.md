@@ -16,6 +16,9 @@ cd internal/service/testdata/weight_reference
 Rscript -e 'l <- Sys.getenv("R_LIBS_USER"); r <- "https://cloud.r-project.org"' \
   -e 'install.packages("remotes", lib = l, repos = r)' \
   -e 'remotes::install_version("Hmisc", "5.3.0", lib = l, repos = r, upgrade = "never")'
+# once: nnet 7.3-21 (REG_MULTINOMIAL's reference; a recommended package
+# not every R build ships) in the same library
+Rscript -e 'remotes::install_version("nnet", "7.3-21", lib = Sys.getenv("R_LIBS_USER"), repos = "https://cloud.r-project.org", upgrade = "never")'
 uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
 gofmt -w ../../weight_reference_values_test.go
 go test ../.. -run TestWeightReference
@@ -37,8 +40,8 @@ uv run --offline --no-project gen_weight_reference.py --check
 ### Pinned toolchain and the last ulps
 
 Python 3.12, numpy 2.3.3, scipy 1.16.2, statsmodels 0.14.5, scikit-learn
-1.7.2 (PEP 723 header); R 4.6.1 with base `stats` and Hmisc 5.3.0 (the R
-scripts refuse any other R / Hmisc version). The script's docstring maps
+1.7.2 (PEP 723 header); R 4.6.1 with base `stats`, Hmisc 5.3.0 and nnet
+7.3-21 (the R scripts refuse any other R / Hmisc / nnet version). The script's docstring maps
 each Pulse definition onto the library call configured to match it.
 
 The pins fix every figure to well inside the test tolerance, but NOT to

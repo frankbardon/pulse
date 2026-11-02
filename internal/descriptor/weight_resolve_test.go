@@ -650,7 +650,9 @@ func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 		types.REG_OLS:          {types.WeightKindFrequency, types.WeightKindProbability},
 		types.REG_BAYES_LINEAR: {types.WeightKindFrequency},
 		types.REG_GLM:          {types.WeightKindFrequency, types.WeightKindProbability},
-		types.REG_ORDINAL:      {types.WeightKindFrequency, types.WeightKindProbability},
+		// U65 E4-S2: REG_GLM's prior-weight rule.
+		types.REG_MULTINOMIAL: {types.WeightKindFrequency, types.WeightKindProbability},
+		types.REG_ORDINAL:     {types.WeightKindFrequency, types.WeightKindProbability},
 	}
 	for _, rt := range types.AllRegressionTypes() {
 		if !reflect.DeepEqual(weighting.KindsOf(string(rt)), want[rt]) {

@@ -11,6 +11,7 @@ Pulse exposes regression through a compact, composable surface. A small set of `
 | `REG_BAYES_LINEAR` | Bayesian linear regression (conjugate NIG)   | Streams sufficient statistics (Phase 4)    |
 | `REG_MMM_HILL`     | Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls | Always buffered |
 | `REG_MMM_BAYES`    | Bayesian media-mix model: raw spend adstocked in the model, Hill saturation, linear controls, posterior sampled by NUTS | Always buffered |
+| `REG_MULTINOMIAL`  | Multinomial (baseline-category) logit of a categorical target by Newton-Raphson | Always buffered |
 | `REG_ORDINAL`      | Ordinal (proportional-odds, cumulative link) regression, MASS `polr`'s model: logit / probit / cloglog, Newton on the analytic information | Always buffered |
 
 Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Resample` only; its own knobs ride `params`, and it names its own curve coefficients `k:<channel>` / `s:<channel>` — skill `op-reg-mmm-hill`, example `internal/examples/regression/19_mmm_hill.json`). `REG_MMM_BAYES` takes neither: its sampler, priors and model-owned holdout (`holdout_from`) ride `params`, it has no scorer (no `save`, engine `holdout` or `ATTR_REG_PREDICT`), and it names `decay:<channel>`, `k:<channel>`, `s:<channel>` and `sigma` beside the predictors, its ROI / mROI / contribution intervals and sampler diagnostics riding `outputs` — skill `op-reg-mmm-bayes`, example `internal/examples/regression/20_mmm_bayes.json`, design guide `mmm-workflow`. The modifiers:
@@ -48,6 +49,7 @@ The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Mult
 | `REG_OLS` + l1 / l2 / elasticnet                  | yes        | O(p²)   | streaming Gram; regularized solve at finalize                   |
 | `REG_BAYES_LINEAR` (conjugate NIG)                | yes        | O(p²)   | streaming sufficient stats + closed-form posterior update       |
 | `REG_GLM` (binomial / poisson / gamma / NB)       | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
+| `REG_MULTINOMIAL`                                 | no         | O(n·p)  | Newton-Raphson requires multiple passes                         |
 | `REG_ORDINAL`                                     | no         | O(n·p)  | Newton–Raphson over every admitted row                          |
 | Any regression with `Resample != ""`              | no         | O(n·p)  | LOO / bootstrap refit                                           |
 | Any regression with `Selection != ""`             | no         | O(n·p)  | refit per candidate subset                                      |
@@ -242,6 +244,32 @@ Setting `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on 
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
 
+### `REG_MULTINOMIAL`
+
+Multinomial logistic regression (the baseline-category logit; R `nnet::multinom`, Stata `mlogit`, SPSS NOMREG) of a **categorical** target on numeric predictors. With L fitted levels and the reference r, each other level k has its own coefficients β_k: log(π_k / π_r) = xᵀβ_k.
+
+| Param        | Required | Notes |
+|--------------|----------|-------|
+| `target`     | yes      | A categorical cohort field (`categorical_u8/u16/u32`): its dictionary labels are the categories, in dictionary order. A numeric field is `PULSE_FIELD_TYPE_UNSUPPORTED`; a derived column carries no dictionary and is `PROCESSING_CONFIG` (`requires: categorical_target`). |
+| `predictors` | yes      | One or more numeric predictor fields. |
+| `reference`  | no       | The baseline category, one of the target's labels; default the first level, in dictionary order, that a fitted row carries (multinom's first factor level). A label outside the dictionary is `PROCESSING_CONFIG` (`requires: a level of the target`), at predict and run. |
+| `max_iters`  | no       | Newton-Raphson cap, default 50. |
+| `tol`        | no       | Relative step tolerance, default 1e-8. Convergence is quadratic, so the returned β is the MLE to double precision (nnet's BFGS stops some 1e-8 short). |
+| `conf_level` | no       | Wald normal intervals. |
+| `vcov`       | no       | The inverse information I⁻¹ at β̂ (multinom's `solve(Hessian)`) and its correlation. |
+| `weight`     | no       | Frequency (the `rep()` expansion's fit) or probability (prior weights w* = w·n_eff/Σw, REG_GLM's rule; no `two_log_lik` / `aic`). |
+| `multiplicity` | no     | Default family: every non-intercept coefficient of every non-reference level; `coefficients` lists `<level>:<term>` keys (each counted, as an extension model's list is). Predict counts (levels − 1) × predictors on the `dictionary` basis. |
+
+**Result.** `reference`, `categories` (the fitted levels in dictionary order, the reference among them), and `coefficients` / `std_errors` / `p_values` (Wald z) / `ci_lower` / `ci_upper` keyed `"<level>:<term>"` per non-reference level, category-major — nnet's `vcov` row names, the intercept `"<level>:(intercept)"`; `deviance` (−2ℓ), `null_deviance` (the intercept-only model's, every row at the category shares), `pseudo_r2` (McFadden), `two_log_lik` and `aic` (−2ℓ + 2·K·(p + 1), multinom's), `n_obs`, `converged_iters`. e^β is a relative risk ratio.
+
+**Fit.** Newton-Raphson on the full multinomial likelihood from the intercept-only MLE, halving a step that lowers ℓ; I = Σw*·(diag(π) − ππᵀ) ⊗ xxᵀ. Every product is barriered and every transcendental is `detmath`'s, so the fit is bit-identical on every GOARCH and across `DecodeWorkers` / `ShardWorkers` (buffered rows in record order).
+
+**Data-dependent refusals** (the slot fails alone): fewer than two fitted levels or a named reference no fitted row carries (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason: one_category` / `reference_empty`); a collinear design (`PROCESSING_REGRESSION_RANK_DEFICIENT`); separation — fitted probabilities numerically 1 while coefficients keep growing (`PROCESSING_REGRESSION_SEPARATION`, `details.coefficients`); `PROCESSING_REGRESSION_NO_CONVERGE`. A dictionary level no fitted row carries is dropped with its coefficients, as multinom drops an empty group.
+
+**Not offered** (`PROCESSING_CONFIG`, `details.slot` + `details.requires`, identical at predict and run — `internal/regmultinom`): `family` / `link` / `theta` / `dispersion` (`no_family`), `penalty` / `alpha` / `l1_ratio` / `unpenalized` (`unpenalized`), `bounds` (`unbounded`), `selection` / `criterion` (`no_selection`), `resample` and its knobs (`no_resample`), a prior (`no_prior`), `solver` (`no_solver`), `intercept: false` (`intercept`), a robust `covariance` (`classical_covariance`), `margins` (`no_margins`), `collinearity` (`no_collinearity`), `save` (`no_save`). Nothing scores a multinomial fit, so `holdout` is `PULSE_MODEL_SCORE_INVALID` (`no_scorer`) and a Compose `fits` entry `PULSE_FIT_INVALID` (`reason: regression_type`). `reference` on any other regression is `PROCESSING_CONFIG` (`requires: type REG_MULTINOMIAL`).
+
+Oracle: R 4.6.1 `nnet` 7.3-21 `multinom`, Newton-polished to the MLE (`scripts/reference/gen_multinomial.R`, `multinomial.json`, `TestReferenceOracle_MultinomialMatchesR`) at 1e-10 — three levels at 0.95 and 0.90, four levels in a non-alphabetical dictionary order with a named reference, frequency weights against the `rep()` expansion, probability weights on w*, an empty dictionary level; measured within 1e-13 (coefficients 1.5e-15, SEs 6.7e-16, vcov 2.9e-14, p-values 7.3e-15, intervals 9.7e-14, deviances 1.3e-15, AIC 1.2e-16, fitted probabilities 1.8e-15). The weighted reference harness pins it under both kinds (`internal/service/testdata/weight_reference`).
+
 ### `REG_ORDINAL`
 
 Ordinal regression of an ordered response, MASS `polr`'s proportional-odds (cumulative link) model: `P(Y ≤ k | x) = F(ζ_k − xᵀβ)`, `k = 1..K−1`, one coefficient per predictor shifting every threshold alike. Authored on the extension contract (a model regression, `internal/regordinal`): its own knobs ride `params`.
@@ -262,7 +290,7 @@ Ordinal regression of an ordered response, MASS `polr`'s proportional-odds (cumu
 - **Refused** (identical at predict and run; the shared-slot table's `PROCESSING_CONFIG` `{regression, slot}`): `penalty`, `selection`, `resample` (no oracle yet), `margins` / `collinearity` (`requires: type REG_OLS or REG_GLM`), the top-level `link` / `family` / `theta` / `dispersion` / `max_iters` / `tol` / `prior` / `intercept` / `solver` / `bounds` / `unpenalized`, `save` (no scorer: a fit predicts a distribution over levels, not one score) and `holdout` (`PULSE_MODEL_SCORE_INVALID`, `no_scorer`).
 - **Fails alone** (`PULSE_SLOT_FAILED`): fewer than 3 or more than 100 levels, an empty listed level, no more rows (N*) than parameters (`INSUFFICIENT_DATA`, `details.reason`), a singular information (`RANK_DEFICIENT`), no convergence — a predictor that separates the levels (`NO_CONVERGE`). One cluster is the built-ins' fatal `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: clusters`).
 
-Oracle: R 4.6.1 + MASS 7.3-66 `polr` polished by Newton to its MLE on the analytic gradient and information (polr's BFGS stops ~1e-6 off it and differentiates its Hessian numerically), `sandwich` 3.1-3, `brant` 0.3.0, at 1e-10 (measured within 2e-12; `scripts/reference/gen_ordinal.R`, `ordinal.json`, `internal/regordinal` `TestOrdinalOracle_Design` and `TestRegOrdinal_MatchesPolrEndToEnd`); the weighted-reference harness pins frequency and probability fits at 1e-12 (`TestWeightReferenceValues`). Example `internal/examples/regression/21_ordinal.json`; skill `op-reg-ordinal`.
+Oracle: R 4.6.1 + MASS 7.3-66 `polr` polished by Newton to its MLE on the analytic gradient and information (polr's BFGS stops ~1e-6 off it and differentiates its Hessian numerically), `sandwich` 3.1-3, `brant` 0.3.0, at 1e-10 (measured within 2e-12; `scripts/reference/gen_ordinal.R`, `ordinal.json`, `internal/regordinal` `TestOrdinalOracle_Design` and `TestRegOrdinal_MatchesPolrEndToEnd`); the weighted-reference harness pins frequency and probability fits at 1e-12 (`TestWeightReferenceValues`). Example `internal/examples/regression/22_ordinal.json`; skill `op-reg-ordinal`.
 
 ## Modifiers
 

@@ -53,8 +53,10 @@ var scopedManifestExceptions = map[string]float64{
 	// #630) added its manifest row (1,490 slim bytes: the shared slots,
 	// link / levels / brant and five output keys) to it — feature
 	// growth, no other content of the scope moved. Measured 15.06%
-	// (38,020 of 252,480 bytes) there.
-	IntentDrivers: 0.151,
+	// (38,020 of 252,480 bytes) there. REG_MULTINOMIAL (U65 E4-S2, #631)
+	// added its row the same way (feature growth): measured 15.50%
+	// (39,341 of 253,801 bytes) with both.
+	IntentDrivers: 0.156,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

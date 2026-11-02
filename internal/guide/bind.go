@@ -449,7 +449,10 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 		switch {
 		case p.typ == "field":
 			accept := fieldFilterAccept(p.fieldFilter)
-			if regressionShaped(op) {
+			// A regression's accepts_types are its predictors'; a numeric
+			// target reads the same set, a categorical one
+			// (REG_MULTINOMIAL's) its field_filter alone.
+			if regressionShaped(op) && p.fieldFilter != "categorical" {
 				accept = both(accept, typeIn(op.accepts))
 			}
 			var prefer func(*encoding.Field) int

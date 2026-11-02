@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:574e431d82908e4155387772980767ea4be231b7361077bfd92718fb99e4e40e",
+    "feature_set_digest": "fs1:fabe44844dd9a619d5fdfb8f23ed812c8d5d7ca6fdfe0c9178aa892767014dc7",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -9187,6 +9187,113 @@
         ]
       },
       {
+        "name": "REG_MULTINOMIAL",
+        "description": "Multinomial (baseline-category) logistic regression of a categorical target on numeric predictors: one coefficient set per non-reference level, log-odds against the reference level (nnet::multinom, Stata mlogit, SPSS NOMREG).",
+        "accepts_types": [
+          "date",
+          "datetime",
+          "decimal128",
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys.",
+        "streamable": false,
+        "streamable_hint": "Always buffered; Newton-Raphson requires multiple passes over the data.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Categorical response field (a cohort field, not a derived column): its dictionary labels are the categories, in dictionary order; a level no fitted row carries is dropped.",
+            "field_filter": "categorical",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names (numeric only).",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "reference",
+            "type": "string",
+            "required": false,
+            "description": "The baseline category, one of the target's labels (default: the first fitted level in dictionary order, as multinom). Its coefficients are fixed at 0; a label outside the dictionary is PROCESSING_CONFIG, a level no fitted row carries fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason reference_empty).",
+            "slot": true
+          },
+          {
+            "name": "max_iters",
+            "type": "int",
+            "required": false,
+            "default": 50,
+            "description": "Newton-Raphson iteration cap.",
+            "slot": true
+          },
+          {
+            "name": "tol",
+            "type": "float",
+            "required": false,
+            "default": 1e-8,
+            "description": "Relative convergence tolerance on the coefficient step; convergence is quadratic, so the estimate is the MLE to double precision.",
+            "slot": true
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: Wald normal coefficient ∓ z·SE.",
+            "slot": true
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors.",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"\u003clevel\u003e:\u003cterm\u003e\" keys; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias.",
+            "slot": true
+          }
+        ],
+        "intents": [
+          "drivers",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ]
+      },
+      {
         "name": "REG_OLS",
         "description": "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
         "accepts_types": [
@@ -14281,6 +14388,10 @@
         "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
       },
       {
+        "name": "op-reg-multinomial",
+        "description": "Multinomial (baseline-category) logistic regression of a categorical target on numeric predictors; one coefficient set per non-reference level, log odds against the reference. Always buffered."
+      },
+      {
         "name": "op-reg-ols",
         "description": "Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics."
       },
@@ -15013,7 +15124,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 269,
+    "examples_count": 270,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -15064,6 +15175,7 @@
       "leakage-risk",
       "logistic",
       "matrix",
+      "multinomial",
       "multivariate",
       "nonparametric",
       "normality-test",
@@ -20952,4 +21064,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d360418d662b14a764251110dbeaca0d14be97a50b8f6ed1bc339b13f91374a9
+// golden-hash: 4bf91ff0d21b07569d7981b080212c2eb407e8aa8f28a0971793c23c820b1a18

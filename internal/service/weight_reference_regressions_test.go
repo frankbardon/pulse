@@ -77,7 +77,22 @@ func weightRefRegSchema() *encoding.Schema {
 	for i, name := range []string{"x1", "x2", "y", "yb", "yp", "yg", "w", "f", "p"} {
 		fields = append(fields, encoding.Field{Name: name, Type: encoding.FieldTypeF64, ByteOffset: 1 + 8*i, CsvColumnIdx: i + 1, Nullable: name == "x2"})
 	}
+	// yc: REG_MULTINOMIAL's class, derived from yp (weightRefRegClass).
+	fields = append(fields, encoding.Field{Name: "yc", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 1 + 8*9, CsvColumnIdx: 10, Dictionary: parityCatDict("a", "b", "c")})
 	return &encoding.Schema{Fields: fields}
+}
+
+// weightRefRegClass is a row's REG_MULTINOMIAL class index (a, b, c)
+// from its count yp — the generator's reg_class rule, so the generated
+// rows carry no class column: a for yp = 0, b for 1–2, c otherwise.
+func weightRefRegClass(yp float64) uint64 {
+	switch {
+	case yp == 0:
+		return 0
+	case yp <= 2:
+		return 1
+	}
+	return 2
 }
 
 const weightRefRegCohort = "ref_regs.pulse"
@@ -90,6 +105,7 @@ func weightRefRegService(t *testing.T) *Service {
 		for _, v := range []float64{r.x1, r.x2, r.y, r.yb, r.yp, r.yg, r.w, r.f, r.p} {
 			recs[i] = append(recs[i], math.Float64bits(v))
 		}
+		recs[i] = append(recs[i], weightRefRegClass(r.yp))
 	}
 	b := writeNullablePulse(t, weightRefRegSchema(), recs, func(r, f int) bool {
 		return f == 2 && weightRefRegRows[r].x2Null
@@ -349,8 +365,13 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 				t.Fatal("no point estimate compared")
 			}
 			if s == weightSurfaceRegressions {
-				fs, _ := wirePath(fw, "regressions[0].std_errors.x1")
-				ps, _ := wirePath(pw, "regressions[0].std_errors.x1")
+				// REG_MULTINOMIAL keys its coefficients <level>:<term>.
+				sePath := "regressions[0].std_errors.x1"
+				if op == string(types.REG_MULTINOMIAL) {
+					sePath = "regressions[0].std_errors.b:x1"
+				}
+				fs, _ := wirePath(fw, sePath)
+				ps, _ := wirePath(pw, sePath)
 				switch {
 				case fc.name == "lasso" || fc.name == "elasticnet":
 					// No inference on an l1 / elasticnet fit under either

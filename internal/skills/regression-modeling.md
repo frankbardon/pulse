@@ -4,7 +4,7 @@ description: Choosing and composing a regression — outcome type, priors, penal
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_ORDINAL, Resample, Selection, FEAT_POLY, regressions, modifiers, custom regression]
+covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MULTINOMIAL, REG_ORDINAL, Resample, Selection, FEAT_POLY, regressions, modifiers, custom regression]
 ---
 
 # Regression modeling
@@ -15,23 +15,23 @@ No `Response.Components`; fits ride `Response.Regressions[i]`.
 
 ## Choosing a model
 
-Start from the question: `pulse_skills_get intents` → `drivers` (which predictors move the outcome) or `relationship` (do two fields move together). In `pulse_manifest`, the `regressions[]` entries carrying that intent are the models this instance offers; each states `streamable`. Each model's guidance names its alternatives — a correlation or group-mean test often answers without a model.
+Start from the question: `pulse_skills_get intents` → `drivers` (which predictors move the outcome, how much) or `relationship` (do two fields move together). In `pulse_manifest`, the `regressions[]` entries carrying that intent are this instance's models, each stating `streamable`. Each model's guidance names its alternatives (a correlation or group-mean test may suffice).
 
 | Decide | Pushes toward |
 |---|---|
 | Outcome numeric with roughly symmetric, constant-spread residuals? | the least-squares (OLS) fit |
 | Outcome yes/no (0/1) or a count? | the generalised linear (GLM) fit with a `binomial` / `poisson` family (over-dispersed: `negative_binomial`) |
-| Outcome an ordered rating? | the ordinal (proportional-odds) fit |
+| A category of 3+ levels? | ordered: the ordinal fit; unordered: the multinomial logit |
 | Prior knowledge about the coefficients, or want credible intervals? | the Bayesian linear fit (no p-values) |
 | Many correlated predictors? | a penalty (`l2` keeps all, `l1` / `elasticnet` zero some) |
 | Distrust the analytical SE? | the `Resample` modifier |
 | Unsure which predictors belong? | the `Selection` modifier — or a penalty, never both |
 | A curved relationship? | polynomial columns built upstream, then a linear fit |
-| Slopes that cannot be negative, an experiment-centred prior, a ridge that spares some predictors, or a model an embedder registered? | `regression-model-options` |
+| Non-negative slopes, a centred prior, a partial ridge, an embedder's model? | `regression-model-options` |
 
 Target / predictor types: `IsNumericForAnalytics` (each model's `## Contract`); a null, NaN or ±Inf drops the row from `n_obs`.
 
-Streaming: OLS and Bayesian linear stream; the GLM and either modifier buffer.
+Streaming: OLS and Bayesian linear stream; the others and either modifier buffer.
 
 ## Modifiers
 
@@ -75,6 +75,9 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | Logistic / probit (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"\|"probit"}` (+ `Penalty`, `Alpha`) |
 | Negative binomial | `REG_GLM{Family:"negative_binomial"}` |
 <!-- /feature -->
+<!-- feature: REG_MULTINOMIAL -->
+| Multinomial logistic | `REG_MULTINOMIAL` (categorical target) |
+<!-- /feature -->
 <!-- feature: FEAT_POLY, REG_OLS -->
 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
 <!-- /feature -->
@@ -98,7 +101,7 @@ Built in `features`, before the fit: `Degree − 1` derived columns (`<label>_2 
 
 ## Ecological caveat
 
-A significant group-level slope does NOT imply an individual-level association (Robinson 1950); use it only for group-level questions.
+A significant group-level slope does NOT imply an individual-level association (Robinson 1950): use it for group-level questions only.
 
 ## Inference
 
@@ -106,7 +109,7 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / 
 
 ## Gotchas
 
-- `n_obs` < record count: missing values drop rows.
+- `n_obs` < record count: missing values dropped rows.
 - A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` (`cohort-null-states`). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
 - Knobs belong to their engine: another engine's knob is `PROCESSING_CONFIG` (`regression-spec`).
 
@@ -114,9 +117,9 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / 
 
 - Recipes: `pulse_examples_search tags=["regression"]`, atomic `op-reg-<name>`.
 - `feature-engineering` — polynomial parameter table + column naming.
-- `statistical-testing` — Wald-z vs Student-t.
+- `statistical-testing` — Wald z vs t.
 - `regression-spec` — flat slot keys, engine knobs, penalty, weighted fits, GLM dispersion.
-- `request-envelope` — streamability.
+- `request-envelope` — streaming.
 - `regression-row-scores` — per-row fitted, residual and scored columns.
 - `regression-inference` — vcov
 - `regression-model-options` — ridge subset, NNLS, per-coefficient prior, registered regressions

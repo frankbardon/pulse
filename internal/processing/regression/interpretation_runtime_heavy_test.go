@@ -38,6 +38,7 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 		{Name: "g", Type: encoding.FieldTypeF64}, {Name: "c", Type: encoding.FieldTypeF64},
 		{Name: "t", Type: encoding.FieldTypeF64}, {Name: "m", Type: encoding.FieldTypeF64},
 		{Name: "k", Type: encoding.FieldTypeF64}, {Name: "o", Type: encoding.FieldTypeU8},
+		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: probeDictionary()},
 	}}
 	rows := probeRows()
 	for _, r := range types.AllRegressionTypes() {
@@ -83,4 +84,16 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 			t.Errorf("%s: applicability row lists %s, but no probe emits them", r, strings.Join(missing, ", "))
 		}
 	}
+}
+
+// probeDictionary is the categorical probe target's dictionary
+// (probeLevels, in order).
+func probeDictionary() *encoding.Dictionary {
+	d := encoding.NewDictionary()
+	for _, l := range probeLevels {
+		if _, err := d.Add(l); err != nil {
+			panic(err)
+		}
+	}
+	return d
 }

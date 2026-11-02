@@ -53,6 +53,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want[string(types.REG_BAYES_LINEAR)] = ClassFrequencyOnly
 	// U12 E4-S2: weighted GLM IRLS under both kinds.
 	want[string(types.REG_GLM)] = ClassAware
+	// U65 E4-S2: the multinomial logit on REG_GLM's prior-weight rule.
+	want[string(types.REG_MULTINOMIAL)] = ClassAware
 	// U65 E4-S1: the ordinal likelihood on the prior weights w*, both kinds.
 	want[string(types.REG_ORDINAL)] = ClassAware
 	// U16 E1-S2: the weighted co-moment covariance under both kinds.

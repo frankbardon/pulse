@@ -394,6 +394,7 @@ var CanonicalTags = []string{
 	"ols", "glm", "logistic", "bayesian", "ordinal",
 	"regularization", "ridge", "lasso", "elasticnet",
 	"polynomial", "resampling", "jackknife", "selection", "stepwise",
+	"multinomial",
 
 	// Pipeline machinery (8)
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",

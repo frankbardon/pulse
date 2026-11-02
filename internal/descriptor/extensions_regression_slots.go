@@ -148,6 +148,13 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		slot: "reference", keys: []string{"reference"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("reference", s.Reference != "") },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no reference (the REG_MULTINOMIAL baseline category); pass the model's own configuration through params"
+		},
+	},
+	{
 		slot: "max_iters", keys: []string{"max_iters"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("max_iters", s.MaxIters != 0) },
 		refusal: func(*types.RegressionSpec) string {

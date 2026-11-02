@@ -55,6 +55,13 @@ const (
 	// Always buffered.
 	REG_MMM_BAYES RegressionType = "REG_MMM_BAYES"
 
+	// REG_MULTINOMIAL fits a baseline-category (multinomial) logit of a
+	// categorical target: one coefficient set per non-reference level,
+	// each keyed "<level>:<term>" (nnet::multinom's vcov names), by
+	// Newton-Raphson on the full multinomial likelihood. Always
+	// buffered.
+	REG_MULTINOMIAL RegressionType = "REG_MULTINOMIAL"
+
 	// REG_ORDINAL fits an ordinal (proportional-odds, cumulative link)
 	// regression, MASS::polr's model: P(Y ≤ k | x) = F(ζ_k − xᵀβ) over
 	// the target's ordered levels, F the params.link's cdf (logit, the
@@ -74,6 +81,7 @@ func AllRegressionTypes() []RegressionType {
 		REG_GLM,
 		REG_MMM_BAYES,
 		REG_MMM_HILL,
+		REG_MULTINOMIAL,
 		REG_OLS,
 		REG_ORDINAL,
 	}
@@ -182,6 +190,18 @@ type RegressionSpec struct {
 	// or regression, with θ estimated (Theta absent), or another value.
 	// Absent is byte-identical.
 	Dispersion string `json:"dispersion,omitempty"`
+
+	// Reference names REG_MULTINOMIAL's baseline category: one of the
+	// target's dictionary labels, whose coefficients are fixed at 0 (the
+	// other levels' are log-odds against it). Empty selects the first
+	// level, in dictionary order, that a fitted row carries —
+	// nnet::multinom's first factor level. A label outside the target's
+	// dictionary, or the field on any other regression, is refused with
+	// PROCESSING_CONFIG (details.requires; internal/regmultinom, the one
+	// rule predict applies); a named level no fitted row carries fails
+	// the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason
+	// reference_empty). Absent is byte-identical.
+	Reference string `json:"reference,omitempty"`
 
 	// MaxIters caps the IRLS / coordinate-descent iteration count for
 	// iterative fits. Defaults to a registry-specific value when zero.
@@ -829,6 +849,18 @@ type RegressionResult struct {
 	// PseudoR2 is a McFadden-style 1 − Deviance/NullDeviance (REG_GLM).
 	PseudoR2 float64 `json:"pseudo_r2,omitempty"`
 
+	// Reference echoes the baseline category a REG_MULTINOMIAL fit
+	// read its log-odds against (RegressionSpec.Reference, or the first
+	// fitted level). Absent on every other regression.
+	Reference string `json:"reference,omitempty"`
+
+	// Categories are the target levels a REG_MULTINOMIAL fit modelled,
+	// in the target's dictionary order, the reference among them: every
+	// level at least one fitted row carries. A dictionary level no fitted
+	// row carries is left out (nnet::multinom drops an empty group), and
+	// so are its coefficients. Absent on every other regression.
+	Categories []string `json:"categories,omitempty"`
+
 	// Theta is the negative_binomial family's θ (Var = μ + μ²/θ): its
 	// maximum-likelihood estimate θ̂ (MASS glm.nb's theta), or the
 	// RegressionSpec.Theta the fit held fixed. Deviance, NullDeviance,
@@ -1045,7 +1077,7 @@ func (t RegressionType) Streamable() bool {
 	switch t {
 	case REG_OLS, REG_BAYES_LINEAR:
 		return true
-	case REG_GLM, REG_MMM_BAYES, REG_MMM_HILL, REG_ORDINAL:
+	case REG_GLM, REG_MMM_BAYES, REG_MMM_HILL, REG_MULTINOMIAL, REG_ORDINAL:
 		return false
 	}
 	return false

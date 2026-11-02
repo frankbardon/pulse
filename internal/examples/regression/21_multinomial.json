@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "name": "multinomial",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "multinomial",
+      "logistic",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_MULTINOMIAL"
+    ],
+    "description": "Multinomial logistic regression: REG_MULTINOMIAL of the product category (five levels) on price and income, each level's log odds against category A (the reference), with the coefficient covariance.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "training_data.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_MULTINOMIAL",
+      "name": "category_mlogit",
+      "target": "category",
+      "predictors": ["price", "income"],
+      "reference": "A",
+      "vcov": true
+    }
+  ]
+}

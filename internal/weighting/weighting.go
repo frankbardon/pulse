@@ -240,7 +240,11 @@ var regressionClasses = map[types.RegressionType]Class{
 	types.REG_OLS:          ClassAware,
 	types.REG_GLM:          ClassAware,
 	types.REG_BAYES_LINEAR: ClassFrequencyOnly,
-	types.REG_ORDINAL:      ClassAware,
+	// REG_MULTINOMIAL reads REG_GLM's prior-weight rule: the likelihood
+	// on w* (the rep() expansion under frequency, multinom(weights = w*)
+	// under probability, which reports no likelihood figure).
+	types.REG_MULTINOMIAL: ClassAware,
+	types.REG_ORDINAL:     ClassAware,
 }
 
 // matrixClasses are the built-in matrix operators' weight classes.

@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
+	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -69,6 +70,15 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			continue
 		}
+		// REG_MULTINOMIAL's refused knobs, and `reference` on another
+		// built-in — the runtime's rule itself (internal/regmultinom,
+		// shared; an extension model's reference is the shared-slot
+		// table's).
+		if !extension {
+			if cerr := regmultinom.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
+		}
 		// An extension model's shared slots: the declare-or-refuse table,
 		// then a declared covariance's shape (regcov.CheckDeclared) — the
 		// runtime adapter's own call. covRefused keeps the built-in
@@ -98,6 +108,12 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			// The accepted-types table's refusal, the runtime's
 			// (regression.BuildWith) word for word.
 			if cerr := regressionSlotFieldCheck(reg, decl, extension, fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
+			// REG_MULTINOMIAL's target is a categorical cohort field and
+			// its reference one of the labels — the runtime's rule itself
+			// (regmultinom.CheckTarget, the engine factory's call).
+			if cerr := regmultinom.CheckTarget(reg, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}

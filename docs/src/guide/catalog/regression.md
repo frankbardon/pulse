@@ -8,6 +8,7 @@ The regressions this instance offers: what each is for, the questions it answers
 | [`REG_GLM`](#op-reg_glm) | Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. | Which customer traits are associated with the chance of churning, holding the others fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure with roughly symmetric, constant-spread residuals.<br>[`TEST_PROP_Z`](test.md#op-test_prop_z) when you only want to know whether a yes/no rate differs between two groups.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories. |
 | [`REG_MMM_BAYES`](#op-reg_mmm_bayes) | Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. | What return does each marketing channel earn, and how sure are we? | advanced | [`REG_MMM_HILL`](#op-reg_mmm_hill) when a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised. |
 | [`REG_MMM_HILL`](#op-reg_mmm_hill) | Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. | What does each marketing channel contribute to sales, holding price and the other channels fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome moves in a straight line with spend, with no saturation. |
+| [`REG_MULTINOMIAL`](#op-reg_multinomial) | Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category. | Which customer traits are associated with choosing the premium or the basic plan over the standard one, holding the others fixed? | advanced | [`REG_GLM`](#op-reg_glm) when the outcome has two categories (yes/no).<br>[`REG_OLS`](#op-reg_ols) when the outcome is numeric.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when you only want to know whether the categories are spread differently across a grouping category. |
 | [`REG_OLS`](#op-reg_ols) | Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. | Which of price, discount and season are associated with weekly sales, holding the others fixed? | intermediate | [`REG_GLM`](#op-reg_glm) when the outcome is yes/no (0/1) or a count.<br>[`REG_BAYES_LINEAR`](#op-reg_bayes_linear) when you want intervals that combine the data with prior knowledge about the coefficients.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you only want how closely two numeric fields follow a straight line together.<br>[`TEST_ANOVA_F`](test.md#op-test_anova_f) when the predictor is a set of groups and you want to know whether the group averages differ.<br>[`ATTR_REG_RESIDUAL`](attribute.md#op-attr_reg_residual) when you want each row's residual, to check the residual assumptions or find rows the model fits badly. |
 | [`REG_ORDINAL`](#op-reg_ordinal) | Fits a model that predicts an ordered rating (poor, fair, good) from numeric predictors, each shifting the whole scale up or down. | Which customer traits are associated with a higher satisfaction rating, holding the others fixed? | advanced | [`REG_GLM`](#op-reg_glm) when the outcome has only two values (yes/no).<br>[`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure whose steps are evenly spaced.<br>[`TEST_KRUSKAL_WALLIS`](test.md#op-test_kruskal_wallis) when you only want to know whether the ratings differ between groups.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories. |
 
@@ -221,6 +222,60 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-reg-mmm-hill`](../skills/op-reg-mmm-hill.md)
+
+<a id="op-reg_multinomial"></a>
+
+### `REG_MULTINOMIAL`
+
+Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category.
+
+**Level:** advanced
+
+**Also known as:** `multinomial logistic regression`, `multinomial logit`, `mlogit`, `multinom`
+
+**Questions it answers:**
+
+- Which customer traits are associated with choosing the premium or the basic plan over the standard one, holding the others fixed?
+- How does the chance of each support channel being picked change with the customer's age?
+
+**Use cases by domain:**
+
+- *survey:* Relate the brand a respondent prefers to their age and income, against a reference brand.
+- *ops:* Model which of several resolution paths a ticket takes from its size and queue.
+- *science:* Relate the class an observation falls in to measured covariates.
+
+**Assumptions:**
+
+- Rows are independent of each other: repeated rows for the same customer, or values over time, make the reported uncertainty too small.
+- The target is a categorical field: its levels, in dictionary order, are the categories; a level no fitted row carries is dropped.
+- Each category other than the reference has its own coefficients: the change in the log odds of that category against the reference per unit of the predictor, holding the others fixed.
+- The odds between any two categories do not depend on the other categories offered (independence of irrelevant alternatives).
+- Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, as a Wald z.
+- If a predictor separates a category from the reference perfectly, the fit cannot converge and Pulse refuses it.
+- A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
+- Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
+- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
+
+**Use something else:**
+
+- [`REG_GLM`](#op-reg_glm) when the outcome has two categories (yes/no).
+- [`REG_OLS`](#op-reg_ols) when the outcome is numeric.
+- [`TEST_CHISQ`](test.md#op-test_chisq) when you only want to know whether the categories are spread differently across a grouping category.
+
+**Glossary:** [`deviance`](../glossary.md#term-deviance), [`independence`](../glossary.md#term-independence), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`logistic-regression`](../glossary.md#term-logistic-regression), [`multicollinearity`](../glossary.md#term-multicollinearity), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`odds-ratio`](../glossary.md#term-odds-ratio), [`p-value`](../glossary.md#term-p-value), [`pseudo-r-squared`](../glossary.md#term-pseudo-r-squared), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`standard-error`](../glossary.md#term-standard-error)
+
+**Validated against:**
+
+- R 4.6.1 + `nnet` 7.3-21 `multinom`, Newton-polished to the MLE: coefficients, standard errors (`solve(Hessian)`), Wald p-values and intervals, vcov, deviance, null deviance, two_log_lik, aic and every row's fitted probabilities; a named reference, a dictionary level no row carries (dropped) — tolerance 1e-10 relative; `internal/processing/regression/multinomial_oracle_test.go`
+- R 4.6.1 + `nnet` 7.3-21 `multinom(weights = f)` against its `rep()`-expanded fit (frequency weights) and `multinom(weights = w*)`, w* = w·n_eff/Σw (probability weights, no likelihood) — tolerance 1e-10 relative; `internal/processing/regression/multinomial_oracle_test.go`
+- R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
+
+**Validation gap:** No robust (sandwich) covariance, penalty, selection or resample is offered: each is refused, not validated. The probability-weighted fit is multinom on the rescaled weights, not a design-based survey estimator.
+
+See [How Pulse is validated](../validation.md).
+
+**Skill:** [`op-reg-multinomial`](../skills/op-reg-multinomial.md)
 
 <a id="op-reg_ols"></a>
 

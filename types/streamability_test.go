@@ -412,6 +412,7 @@ func TestRegressionTypesKnown(t *testing.T) {
 		REG_BAYES_LINEAR: true,
 		REG_MMM_BAYES:    false,
 		REG_MMM_HILL:     false,
+		REG_MULTINOMIAL:  false,
 		REG_ORDINAL:      false,
 	}
 	for _, rt := range AllRegressionTypes() {

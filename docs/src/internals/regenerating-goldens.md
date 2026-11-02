@@ -451,6 +451,25 @@ golden records the versions) and refuses any other R than 4.6.1.
 `TestReferenceOracle_NestedMatchesR` (`internal/service`) runs every
 case through Compose and holds every figure at relative `1e-10`.
 
+`scripts/reference/gen_multinomial.R` writes `multinomial.json`:
+`REG_MULTINOMIAL` against `nnet::multinom(Hess = TRUE, maxit = 1000,
+reltol = 1e-16)`, then Newton-polished on the analytic gradient and
+information until the step is below 1e-15 relative (multinom's BFGS
+stops some 1e-8 off the MLE; the script asserts the polished fit within
+1e-6 of multinom's coefficients and `solve(H)` within 1e-4 of its
+finite-difference `vcov`) — coefficients, standard errors, Wald p-values
+and intervals, `vcov`, deviance, null deviance, `two_log_lik`, `aic` and
+every row's fitted probabilities, for three levels (at 0.95 and 0.90),
+four levels in a non-alphabetical dictionary order with a named
+reference, frequency weights (asserted equal to the `rep()` expansion's
+fit), probability weights on w* = w·n_eff/Σw (no likelihood) and a
+dictionary level no row carries (dropped). It needs `nnet` 7.3-21 (a
+recommended package; install it into the user library where the R
+build omits it) and refuses any other R than 4.6.1 or nnet version.
+`TestReferenceOracle_MultinomialMatchesR`
+(`internal/processing/regression`) holds every figure at relative
+`1e-10`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -545,6 +564,7 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
+| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
 | `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`) |
 | `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
@@ -573,7 +593,7 @@ them. The scripts compute what they would (the unequal-covariance
 Hotelling test, Mardia's statistics) as closed forms in base R, each
 cross-checked as its comment says. The weighted-reference generator
 (`internal/service/testdata/weight_reference/`) needs only base R plus
-Hmisc 5.3.0 from this list, installed into the same user library; its
+Hmisc 5.3.0 and nnet 7.3-21 from this list, installed into the same user library; its
 README covers it, along with its Python pins and the `--check` mode.
 
 Install the pins into the user library (`remotes::install_version`

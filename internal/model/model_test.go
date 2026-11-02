@@ -103,6 +103,9 @@ func TestCheckFits(t *testing.T) {
 		{"vector save escapes", []types.FitSpec{{Name: "v", Request: attrFit, Save: "../v.pulse-population.json"}}, errors.PULSE_MODEL_SAVE_INVALID, ReasonSaveEscapesRoot, 0, nil},
 		{"regression save population suffix", []types.FitSpec{{Name: "r", Request: olsReq(ols()), Save: "r.pulse-population.json"}}, errors.PULSE_MODEL_SAVE_INVALID, ReasonSaveSuffix, 0, nil},
 		{"vector name collides with a regression", []types.FitSpec{{Name: "a", Request: olsReq(ols())}, {Name: "a", Request: attrFit}}, errors.PULSE_MODEL_NAME_COLLISION, "", 1, map[string]any{"name": "a"}},
+		// U65 E4-S2: a REG_MULTINOMIAL fit names one coefficient set per
+		// level; nothing binds it.
+		{"multinomial", []types.FitSpec{{Name: "m", Request: olsReq(&types.RegressionSpec{Type: types.REG_MULTINOMIAL, Target: "c", Predictors: []string{"x"}})}}, errors.PULSE_FIT_INVALID, ReasonRegressionType, 0, map[string]any{"regression": "REG_MULTINOMIAL"}},
 		// The first fault in entry order wins.
 		{"first fault wins", []types.FitSpec{{Name: "a", Request: olsReq()}, {Name: ""}}, errors.PULSE_FIT_INVALID, ReasonRegressionCount, 0, nil},
 	}

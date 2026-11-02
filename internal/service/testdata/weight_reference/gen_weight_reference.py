@@ -214,6 +214,7 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import statsmodels
+import statsmodels.discrete.discrete_model as sm_discrete
 from statsmodels.genmod import families as sm_families
 from statsmodels.genmod.generalized_linear_model import GLM as SmGLM
 from statsmodels.miscmodels.ordinal_model import OrderedModel
@@ -1909,6 +1910,15 @@ def overlay_cases():
 #     μ)²/V(μ) / (Σw* − q), SE·√φ̂, t p-values on df = Σw* − q (n_eff − q
 #     under probability, REG_OLS's residual df; statsmodels' df_resid).
 #     The same IRLS on f must equal R (1e-9).
+#   * REG_MULTINOMIAL (U65 E4-S2) — the class yc = a (yp = 0), b
+#     (yp 1–2), c (yp ≥ 3), reference a, derived from yp by the same rule
+#     in the Go cohort (weightRefRegClass), so the fixture rows carry no
+#     new column. Newton-Raphson on the multinomial likelihood with prior
+#     weights w* (REG_GLM's rule), SE = √diag(I⁻¹), Wald z. Frequency: R
+#     nnet::multinom on the expansion, Newton-polished to the MLE
+#     (reg_reference.R), and statsmodels MNLogit on np.repeat (1e-8);
+#     probability: the same Newton on w* = w·n_eff/Σw (no stock package
+#     takes a weight).
 #   * REG_BAYES_LINEAR — frequency-only. No stock package fits Pulse's
 #     scalar-precision Normal-Inverse-Gamma prior, so the reference is
 #     that conjugate posterior in closed form evaluated on the expanded
@@ -1960,8 +1970,16 @@ REG_SPECS = [
     *[(case, {"type": "REG_GLM", "family": fam, "target": tgt, "predictors": REG_PREDICTORS, **REG_GLM_CONTROL})
       for case, (fam, tgt) in REG_GLM_TARGETS.items()],
     ("bayes", _reg_spec({"type": "REG_BAYES_LINEAR"})),
+    ("multinomial", {"type": "REG_MULTINOMIAL", "target": "yc", "predictors": REG_PREDICTORS, "tol": 1e-12, "max_iters": 100}),
     ("ordinal", {"type": "REG_ORDINAL", "target": "yo", "predictors": REG_PREDICTORS}),
 ]
+# REG_MULTINOMIAL's class levels (the Go cohort's dictionary order) and
+# the rule deriving a row's class from its count yp.
+REG_CLASSES = ["a", "b", "c"]
+
+
+def reg_class(yp):
+    return 0 if yp == 0 else (1 if yp <= 2 else 2)
 REG_FREQUENCY_ONLY = {"bayes"}
 # REG_ORDINAL's response: y bucketed by FEAT_BUCKETIZE (bucket i where
 # boundaries[i-1] < y <= boundaries[i]), levels "0" / "1" / "2".
@@ -2202,6 +2220,66 @@ def glm_closed_form(case, ws, kind):
     if gamma:
         out["df"] = df
     out.update(reg_floor(ws, idx, prob))
+    return out
+
+
+def multinomial_closed_form(ws, kind):
+    """Newton-Raphson on the multinomial logit with prior weights w*
+    (w·n_eff/Σw under probability): coefficients keyed <level>:<term>
+    against reference a, SE √diag(I⁻¹), Wald z p-values, deviance −2ℓ,
+    the intercept-only null deviance and McFadden's pseudo-R²."""
+    prob = kind == "probability"
+    idx = reg_fit_rows(ws, kind)
+    X = reg_design(idx)
+    y = np.array([reg_class(REG_ROWS[i][REG_COL["yp"]]) for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    wstar = w * ((kish(w) if prob else sw) / sw)
+    n, q = X.shape
+    L = len(REG_CLASSES)
+    Y = np.zeros((n, L))
+    Y[np.arange(n), y] = 1.0
+
+    def parts(beta):
+        eta = np.hstack([np.zeros((n, 1)), X @ beta.reshape(L - 1, q).T])
+        m = eta.max(axis=1, keepdims=True)
+        e = np.exp(eta - m)
+        P = e / e.sum(axis=1, keepdims=True)
+        ll = float(np.sum(wstar * (np.sum(Y * eta, axis=1) - m[:, 0] - np.log(e.sum(axis=1)))))
+        g = ((wstar[:, None] * (Y[:, 1:] - P[:, 1:])).T @ X).reshape(-1)
+        H = np.zeros(((L - 1) * q, (L - 1) * q))
+        for a in range(L - 1):
+            for b in range(L - 1):
+                c = P[:, a + 1] * ((a == b) - P[:, b + 1])
+                H[a * q:(a + 1) * q, b * q:(b + 1) * q] = X.T @ ((wstar * c)[:, None] * X)
+        return ll, g, H
+
+    beta = np.zeros((L - 1) * q)
+    for _ in range(100):
+        _, g, H = parts(beta)
+        step = np.linalg.solve(H, g)
+        beta = beta + step
+        if np.max(np.abs(step)) <= 1e-15 * max(1.0, float(np.max(np.abs(beta)))):
+            break
+    ll, g, H = parts(beta)
+    assert np.max(np.abs(g)) < 1e-9, (kind, g)
+    se = np.sqrt(np.diag(np.linalg.inv(H)))
+    if not prob:
+        reps = np.array([int(ws[i]) for i in idx])
+        mn = sm_discrete.MNLogit(np.repeat(y, reps), np.repeat(X, reps, axis=0)).fit(
+            method="newton", maxiter=100, disp=0, tol=1e-14)
+        assert np.allclose(mn.params.T.reshape(-1), beta, rtol=1e-8) and np.allclose(
+            mn.bse.T.reshape(-1), se, rtol=1e-8), (kind, mn.params, beta)
+    shares = (wstar[:, None] * Y).sum(axis=0) / float(wstar.sum())
+    null_dev = -2 * float(np.sum(wstar * np.log(shares[y])))
+    out = {}
+    for a, lvl in enumerate(REG_CLASSES[1:]):
+        for j, t in enumerate(REG_TERMS):
+            k = a * q + j
+            out[f"coefficients.{lvl}:{t}"] = float(beta[k])
+            out[f"std_errors.{lvl}:{t}"] = float(se[k])
+            out[f"p_values.{lvl}:{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[k] / se[k])))
+    out.update(deviance=-2 * ll, null_deviance=null_dev, pseudo_r2=1 - (-2 * ll) / null_dev)
     return out
 
 
@@ -2765,6 +2843,15 @@ def regression_cases():
                     adopt_r(case, figs, rfigs[case])
                     how = "summary() (estimated dispersion)" if case == "glm_gamma" else "summary(dispersion = 1)"
                     src = f"{RREG[0]} glm on rep()-expanded rows, {how} (reg_reference.R)"
+            elif case == "multinomial":
+                figs = multinomial_closed_form(ws, kind)
+                if prob:
+                    src = ("Newton-Raphson on w* = w·n_eff/Σw in numpy (inverse-information SEs, Wald z; "
+                           "scipy " + scipy.__version__ + " normal tails)")
+                else:
+                    adopt_r(case, figs, rfigs[case])
+                    src = (f"{RREG[0]} nnet::multinom on rep()-expanded rows, Newton-polished (reg_reference.R); "
+                           "statsmodels " + statsmodels.__version__ + " MNLogit on the np.repeat expansion")
             elif case == "ordinal":
                 figs = ordinal_closed_form(ws, kind)
                 if prob:

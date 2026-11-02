@@ -507,6 +507,123 @@ Least-squares solver iterations taken before the fit settled.
 
 - A fit that cannot converge within the iteration cap fails its slot alone rather than being reported.
 
+<a id="op-reg_multinomial"></a>
+
+### `REG_MULTINOMIAL`
+
+Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category. See its [catalog entry](../catalog/regression.md#op-reg_multinomial).
+
+#### `coefficients.*`
+
+Keyed &lt;category&gt;:&lt;term&gt;: the change in the log odds of that category against the reference category for a one-unit increase in the term's predictor, holding the other predictors fixed; &lt;category&gt;:(intercept) is that log odds when every predictor is 0.
+
+**Sign:**
+
+- `+`: higher predictor values are associated with a higher chance of this category relative to the reference, other predictors held fixed
+- `-`: higher predictor values are associated with a lower chance of this category relative to the reference, other predictors held fixed
+
+**Caveats:**
+
+- Raised to the power e it is a relative risk ratio (odds of this category against the reference) per one-unit increase: multiplicative, and relative to the reference only. A positive coefficient does not mean the category itself grows more likely: its probability also depends on how the other categories move.
+- Every coefficient is against the same reference; comparing two non-reference categories means the difference of their coefficients, or a refit with another reference.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
+- With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
+- A very large coefficient with a very large standard error is a sign of near-separation of that category; do not read it as a strong association.
+
+#### `std_errors.*`
+
+How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix (nnet::multinom's Hessian).
+
+**Caveats:**
+
+- They assume the model is right; no robust (sandwich) form is offered for this model.
+
+#### `p_values.*`
+
+**Caveats:**
+
+- A Wald z for one coefficient; it says nothing about whether the predictor matters for the outcome as a whole, across every category.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) the standard normal critical value times its standard error, on the log-odds scale (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds bound the relative risk ratio.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) the standard normal critical value times its standard error, on the log-odds scale (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds bound the relative risk ratio.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `deviance`
+
+-2 times the maximised log-likelihood (nnet::multinom's deviance); lower is closer.
+
+**Caveats:**
+
+- It has no fixed scale: compare it only with null_deviance or with another model fitted to the same rows and outcome.
+
+#### `null_deviance`
+
+The deviance of the intercept-only model, which predicts each category's overall share for every row: the baseline the predictors are judged against.
+
+#### `pseudo_r2`
+
+1 - deviance / null_deviance: McFadden's pseudo-R-squared, the share of the intercept-only model's deviance the predictors remove, from 0 to 1.
+
+**Caveats:**
+
+- It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model, so OLS rules of thumb do not apply; there are no published bands for it, so none are attached.
+
+#### `two_log_lik`
+
+Twice the maximised log-likelihood (-deviance); higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood).
+
+#### `aic`
+
+-two_log_lik + 2 x the coefficient count (every category's), nnet::multinom's AIC; lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
+#### `n_obs`
+
+Rows used in the fit, after rows with a null target or predictor were dropped.
+
+**Caveats:**
+
+- Few rows per predictor make every estimate unstable and invite overfitting.
+- Under a row weight it stays the row count: the fit's sample size is sum_weights (frequency weights) or n_eff, Kish's effective sample size (probability weights), and the standard errors and residual degrees of freedom read that, not n_obs.
+
+#### `converged_iters`
+
+Newton-Raphson steps taken before the coefficients stopped changing (relative change below tol).
+
+**Caveats:**
+
+- A fit that cannot converge within max_iters is refused rather than reported.
+
 <a id="op-reg_ols"></a>
 
 ### `REG_OLS`

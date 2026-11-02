@@ -21,6 +21,7 @@ var regressionPurposes = map[string]descriptor.Purpose{
 	"REG_GLM":          purposeRegGLM,
 	"REG_MMM_BAYES":    purposeRegMMMBayes,
 	"REG_MMM_HILL":     purposeRegMMMHill,
+	"REG_MULTINOMIAL":  purposeRegMultinomial,
 	"REG_OLS":          purposeRegOLS,
 	"REG_ORDINAL":      purposeRegOrdinal,
 }
@@ -166,6 +167,44 @@ var (
 			"credible-interval", "heteroscedasticity", "independence", "listwise-deletion",
 			"multicollinearity", "normal-distribution", "posterior", "prior", "r-squared",
 			"regression-coefficient", "residual",
+		},
+	}
+
+	purposeRegMultinomial = descriptor.Purpose{
+		Plain:   "Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category.",
+		KnownAs: []string{"multinomial logistic regression", "multinomial logit", "mlogit", "multinom"},
+		Intents: []string{IntentDrivers, IntentRelationship},
+		Questions: []string{
+			"Which customer traits are associated with choosing the premium or the basic plan over the standard one, holding the others fixed?",
+			"How does the chance of each support channel being picked change with the customer's age?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Relate the brand a respondent prefers to their age and income, against a reference brand.",
+			descriptor.DomainOps:     "Model which of several resolution paths a ticket takes from its size and queue.",
+			descriptor.DomainScience: "Relate the class an observation falls in to measured covariates.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the outcome has two categories (yes/no)", Use: "REG_GLM"},
+			{When: "the outcome is numeric", Use: "REG_OLS"},
+			{When: "you only want to know whether the categories are spread differently across a grouping category", Use: "TEST_CHISQ"},
+		},
+		Assumptions: []string{
+			regIndependentRows,
+			"The target is a categorical field: its levels, in dictionary order, are the categories; a level no fitted row carries is dropped.",
+			"Each category other than the reference has its own coefficients: the change in the log odds of that category against the reference per unit of the predictor, holding the others fixed.",
+			"The odds between any two categories do not depend on the other categories offered (independence of irrelevant alternatives).",
+			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, as a Wald z.",
+			"If a predictor separates a category from the reference perfectly, the fit cannot converge and Pulse refuses it.",
+			regAssociationOnly,
+			regCollinearity,
+			regNumericOnly,
+			regNullsDropped,
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"deviance", "independence", "listwise-deletion", "logistic-regression", "multicollinearity",
+			"null-hypothesis", "odds-ratio", "p-value", "pseudo-r-squared", "regression-coefficient",
+			"standard-error",
 		},
 	}
 
