@@ -480,6 +480,10 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
+        "name": "lookup-formulas",
+        "description": "Registered tables inside formulas and expression filters — lookup() reading a lookup table, range_label() banding a number or an epoch day into a range-table label, and the two together as rate-grid keys. Matching, null and unmatched rules, codes. Not the cohort point lookup."
+      },
+      {
         "name": "overlay-reference-tests",
         "description": "The contract shared by the inferential overlays that test a figure against a reference — the Compose parity tests (per cell, per group) and their explicit-moments rule, and the prior-period tests on an ordered series — host refusals, missing and degenerate entries, weighted legs."
       },
@@ -895,4 +899,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 116a46b7df509a4c2d2a44f510f7433332d615770610d1e207abd4e9e74205ef
+// golden-hash: 9267dad8e3a240ff6547a72761ae91e463a4d1ad0cdf1f6f14501b1af5325a96

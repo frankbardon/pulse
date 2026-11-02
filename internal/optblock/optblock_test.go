@@ -255,3 +255,22 @@ func TestOptimize_EffectiveSeed(t *testing.T) {
 		t.Fatal("a different block derives the same seed")
 	}
 }
+
+// TestOptimize_RangeLabelInReach: range_label() compiles in an
+// objective on every env (it is declared on every runtime compile, its
+// unknown table a run-time refusal), and a decision variable may not
+// take its name.
+func TestOptimize_RangeLabelInReach(t *testing.T) {
+	t.Parallel()
+
+	spec := validBlock()
+	spec.Objective = `p * (range_label("bands", q) == "low" ? 1 : 2)`
+	if cerr := optblock.Check([]types.OptimizeSpec{spec}, testEnv()); cerr != nil {
+		t.Fatalf("range_label refused: %v", cerr)
+	}
+	spec = validBlock()
+	spec.Variables[1].Name = "range_label"
+	if cerr := optblock.Check([]types.OptimizeSpec{spec}, testEnv()); cerr == nil || cerr.Details["reason"] != optblock.ReasonNameReserved {
+		t.Fatalf("a variable named range_label: %v, want %s", cerr, optblock.ReasonNameReserved)
+	}
+}

@@ -16,8 +16,9 @@
 //   - the batch params as params.<name> (exprenv.Bound.Params, folded);
 //   - coef(fit, term[, stat]) over the batch's `fits` — every
 //     all-literal call judged statically by model.CheckCoef;
-//   - the expression built-ins (hill(), exp(), …), the embedder's
-//     ExprFunctions and, with a registered LookupTable, lookup().
+//   - the expression built-ins (hill(), exp(), …), range_label(), the
+//     embedder's ExprFunctions and, with a registered LookupTable,
+//     lookup().
 //
 // No record field is in reach. A bound or start is a number or a
 // params reference, resolved here.
@@ -170,7 +171,7 @@ func CheckLoaded(specs []types.OptimizeSpec, env Env) ([]*model.Loaded, *errors.
 // exprenv.Placeholder: the typed declaration a runtime compile binds,
 // never run.
 func placeholderBound(env Env) exprenv.Bound {
-	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder}
+	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
 	for _, n := range env.Extensions {
 		b.Extensions = append(b.Extensions, exprenv.NamedFunc{Name: n, Fn: exprenv.Placeholder})
 	}
@@ -383,10 +384,11 @@ func checkVariableName(spec *types.OptimizeSpec, i int, vat, name string, reserv
 
 // reservedNames are the identifiers a decision variable may not take:
 // params, $env, every expression function in reach (the reserved
-// built-ins, coef, lookup, the set helpers, the embedder's functions)
+// built-ins, coef, lookup, range_label, the set helpers, the embedder's
+// functions)
 // and expr-lang's own built-ins.
 func reservedNames(env Env) map[string]bool {
-	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true}
+	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true}
 	for _, n := range exprenv.Names() {
 		out[n] = true
 	}

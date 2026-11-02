@@ -155,8 +155,10 @@ func flattenMemberChain(n *exprast.MemberNode) (*exprast.IdentifierNode, string,
 
 // AllowedFuncs is the function set an OVERLAY_FORMULA may call: the
 // overlay scalar-maths built-ins, the set helpers, every embedder
-// ExprFunction name and, when the instance registers a LookupTable,
-// `lookup` — exactly what the runtime overlay compile registers.
+// ExprFunction name, `range_label` (always declared; an unknown table
+// is its run-time refusal) and, when the instance registers a
+// LookupTable, `lookup` — exactly what the runtime overlay compile
+// registers.
 func AllowedFuncs(exprFunctions []string, hasLookup bool) map[string]struct{} {
 	out := map[string]struct{}{}
 	for _, name := range exprenv.OverlayNames() {
@@ -170,8 +172,9 @@ func AllowedFuncs(exprFunctions []string, hasLookup bool) map[string]struct{} {
 			out[name] = struct{}{}
 		}
 	}
+	out[exprenv.RangeLabelFunc] = struct{}{}
 	if hasLookup {
-		out["lookup"] = struct{}{}
+		out[exprenv.LookupFunc] = struct{}{}
 	}
 	return out
 }

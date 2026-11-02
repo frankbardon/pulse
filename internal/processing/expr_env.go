@@ -24,6 +24,8 @@ import (
 //     declared Name.
 //   - The built-in `lookup(table, keys...)` function when at least one
 //     LookupTable is registered.
+//   - The built-in `range_label(table, x[, unmatched])`, always
+//     (expr_env_range_label.go).
 //
 // Expressions in cohorts with no lookup tables registered still
 // reference `lookup` legally — the function returns
@@ -35,13 +37,19 @@ func (r *ExtensionRegistry) ExprOptions() []expr.Option {
 
 // exprBound is the registry's request-bound declaration
 // (exprenv.Bound, the one predict declares too): one expr.Function per
-// ExprFunctions entry and, with any LookupTable, the lookup builtin.
-// coef is the caller's (exprOptionsWithModels). Nil-receiver-safe.
+// ExprFunctions entry, with any LookupTable the lookup builtin, and
+// always range_label (rangeLabeler — an unknown or hidden table is its
+// run-time PULSE_RANGE_TABLE_UNKNOWN, never an undeclared name). coef
+// is the caller's (exprOptionsWithModels). Nil-receiver-safe.
 func (r *ExtensionRegistry) exprBound() exprenv.Bound {
 	if r == nil {
-		return exprenv.Bound{}
+		return exprenv.Bound{RangeLabel: newRangeLabeler(nil).call}
 	}
-	b := exprenv.Bound{Extensions: make([]exprenv.NamedFunc, len(r.ExprFunctions)), Params: r.params}
+	b := exprenv.Bound{
+		Extensions: make([]exprenv.NamedFunc, len(r.ExprFunctions)),
+		Params:     r.params,
+		RangeLabel: newRangeLabeler(r).call,
+	}
 	for i, fn := range r.ExprFunctions {
 		b.Extensions[i] = exprenv.NamedFunc{Name: fn.Name, Fn: fn.Fn}
 	}

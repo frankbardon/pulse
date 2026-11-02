@@ -1154,6 +1154,21 @@ judged only at `pulse.New`. The manifest's `extensions.lookup_tables`
 entries carry `keys` (name, `values` or `range_table`) and `complete`,
 never the cells.
 
+A range-table axis pairs with the built-in `range_label(table, x[,
+unmatched])`: an expression turns a number (half-open `[start, end)`,
+exact past 2^53 and for decimals) or an epoch day (inclusive; a
+`datetime` through `to_day` first) into the label of the registered
+range holding it — null for a null `x`, the `unmatched` label (else null)
+for a value no range holds — and keys the grid with it:
+`lookup("rate_grid", range_label("score_bands", score), range_label("ltv_bands", ltv))`.
+An unknown table (or one hidden with `capability:range_tables`) is
+`PULSE_RANGE_TABLE_UNKNOWN`, a value the table's kind cannot match
+`PULSE_RANGE_TABLE_KIND_MISMATCH`. It reaches the formula attribute
+(Materialize's included), the expression filter, `total()`, Compose
+optimize and the overlay formula, and is declared on every instance.
+The name is reserved: an `ExprFunctions` entry named `range_label` is
+`PULSE_EXTENSION_NAME_RESERVED`. Skill: `lookup-formulas`.
+
 ### Reference vectors
 
 Named sets of labelled target profiles — an ideal brand profile, a

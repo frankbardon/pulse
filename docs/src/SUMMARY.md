@@ -82,6 +82,7 @@
     - [item-fan-out](guide/skills/item-fan-out.md)
     - [join-design](guide/skills/join-design.md)
     - [label-display](guide/skills/label-display.md)
+    - [lookup-formulas](guide/skills/lookup-formulas.md)
     - [materialize-casts](guide/skills/materialize-casts.md)
     - [materialize-container](guide/skills/materialize-container.md)
     - [materialize-recode](guide/skills/materialize-recode.md)

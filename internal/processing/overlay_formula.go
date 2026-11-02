@@ -10,7 +10,6 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -730,15 +729,11 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 	if cerr := overlayBuiltinRefusal(spec, formula); cerr != nil {
 		return nil, cerr
 	}
-	opts := []expr.Option{expr.Env(protoEnv)}
-	if exts != nil {
-		opts = append(opts, exts.ExprOptions()...)
-	} else {
-		// The shared built-ins (set helpers, vector / scalar maths) and
-		// the `%` patcher — cells are float64 — even without a registry
-		// (internal/exprenv mod.go).
-		opts = append(opts, exprenv.Options()...)
-	}
+	// The registry's options — nil-receiver-safe: without a registry
+	// still the shared built-ins (set helpers, vector / scalar maths),
+	// the `%` patcher (cells are float64; internal/exprenv mod.go) and
+	// range_label, which formulaident.AllowedFuncs always admits.
+	opts := append([]expr.Option{expr.Env(protoEnv)}, exts.ExprOptions()...)
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(

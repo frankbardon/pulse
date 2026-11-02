@@ -31,7 +31,7 @@ import (
 const (
 	tableKindLookup    = "lookup"    // Extensions.LookupTables via lookup()
 	tableKindReference = "reference" // Extensions.ReferenceVectors via ref()
-	tableKindRange     = "range"     // Extensions.RangeTables via FILTER_DATE_RANGES params.table
+	tableKindRange     = "range"     // Extensions.RangeTables via FILTER_DATE_RANGES params.table or range_label()
 )
 
 // tableIdentity is one referenced table's dedup identity: its kind, name
@@ -43,8 +43,9 @@ type tableIdentity struct {
 }
 
 // predicateDependencies returns the content identities of the
-// registered tables the predicate references — expr's lookup() and ref()
-// table names and every direct FILTER_DATE_RANGES params.table — sorted
+// registered tables the predicate references — expr's lookup(), ref()
+// and range_label() table names and every direct FILTER_DATE_RANGES
+// params.table — sorted
 // by (kind, name), nil when it references none; and opaque, true when
 // the predicate runs embedder code whose identity no digest names: a
 // direct extension filterer, a call of a registered ExprFunction, or a
@@ -90,6 +91,11 @@ func predicateDependencies(reg *processing.ExtensionRegistry, expr string, direc
 					continue
 				}
 				tables = append(tables, tableIdentity{Kind: tableKindLookup, Name: name, SHA256: lookupTableDigest(t)})
+			}
+		}
+		if slices.Contains(callees, exprenv.RangeLabelFunc) {
+			for _, name := range referencedNames(expr, exprenv.RangeLabelFunc, mapKeys(reg.RangeTables)) {
+				tables = append(tables, tableIdentity{Kind: tableKindRange, Name: name, SHA256: rangeTableDigest(reg.RangeTables[name])})
 			}
 		}
 		if slices.Contains(callees, exprenv.RefFunc) {

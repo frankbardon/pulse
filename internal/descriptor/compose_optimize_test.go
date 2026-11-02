@@ -213,3 +213,18 @@ func TestErrorOwners_OptimizeCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestOptimize_RangeLabelAccepted: OptimizeRefusal (predict's and the
+// run's one gate) declares range_label on every instance, so an
+// objective reading it is no expression refusal; its table is judged at
+// run time.
+func TestOptimize_RangeLabelAccepted(t *testing.T) {
+	t.Parallel()
+
+	c := optimizeBatch(func(s *types.OptimizeSpec) {
+		s.Objective = `p * (range_label("bands", p) == "low" ? 1 : 2)`
+	})
+	if _, cerr := OptimizeRefusal(c, nil, nil, false, nil, nil); cerr != nil {
+		t.Fatalf("OptimizeRefusal: %v", cerr)
+	}
+}

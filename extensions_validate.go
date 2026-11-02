@@ -897,6 +897,17 @@ func validateExprFunctions(fns []ExprFunction) error {
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.SweepAxisFunc}},
 			)
 		}
+		if fn.Name == exprenv.RangeLabelFunc {
+			// range_label(table, x[, unmatched]) reads a registered range
+			// table: it is declared on every compile, filter precompute
+			// assumes it pure and the filter-to-file identity digests its
+			// tables, so an embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the built-in range-table reader", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.RangeLabelFunc}},
+			)
+		}
 		if exprenv.IsReserved(fn.Name) {
 			// A reserved vector / scalar-maths built-in (vsum, dot,
 			// sqrt, ...): filter precompute assumes it pure and the docs

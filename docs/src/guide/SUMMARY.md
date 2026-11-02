@@ -70,6 +70,7 @@
     - [item-fan-out](skills/item-fan-out.md)
     - [join-design](skills/join-design.md)
     - [label-display](skills/label-display.md)
+    - [lookup-formulas](skills/lookup-formulas.md)
     - [materialize-casts](skills/materialize-casts.md)
     - [materialize-container](skills/materialize-container.md)
     - [materialize-recode](skills/materialize-recode.md)

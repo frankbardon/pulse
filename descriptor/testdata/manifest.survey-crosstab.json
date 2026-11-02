@@ -1508,6 +1508,10 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
+        "name": "lookup-formulas",
+        "description": "Registered tables inside formulas and expression filters — lookup() reading a lookup table, range_label() banding a number or an epoch day into a range-table label, and the two together as rate-grid keys. Matching, null and unmatched rules, codes. Not the cohort point lookup."
+      },
+      {
         "name": "op-agg-average",
         "description": "Arithmetic mean of a numeric field across the input set."
       },
@@ -2511,4 +2515,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5b9965d72e4e500544bd1d0977a2a41c9ac332e2d80a711a5935caa8c68542d6
+// golden-hash: 15e4db0c2f8cd562703748117c1857639995653661a7150aabb643c93d791c49

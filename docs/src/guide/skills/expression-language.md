@@ -4,7 +4,7 @@ description: The per-row expression environment shared by the formula attribute 
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, ExprFunctions, coef]
+covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, range_label, ExprFunctions, coef]
 ```
 
 # Expression language
@@ -50,7 +50,7 @@ A vector is a literal list, `[q1, q2, q3]`; a `nil` element is NaN. A request's 
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
-Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire. An `ExprFunctions` entry with a reserved name → `PULSE_EXTENSION_NAME_RESERVED`.
+Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire.
 
 ## Null handling
 
@@ -63,7 +63,7 @@ Compiled once, predict included: bad syntax, unknown name or type error → `PUL
 
 ## Embedder extensions
 
-`Options.Extensions.ExprFunctions` adds functions; `LookupTables` (or `PULSE_LOOKUP_TABLES_DIR` files) as `lookup(table, keys...)` — unknown table `PULSE_LOOKUP_TABLE_UNKNOWN`; a missing or null key `PULSE_LOOKUP_MISS` (null: `details.null_key`, 0-based after the table); `ReferenceVectors` as `ref`.
+`Options.Extensions.ExprFunctions` adds functions (a reserved name → `PULSE_EXTENSION_NAME_RESERVED`); `ReferenceVectors` read as `ref`; `lookup(table, keys...)` and `range_label(table, x[, unmatched])` read `LookupTables` / `RangeTables` — banded keys `lookup("rate", range_label("bands", score))`; misses, nulls, codes: [`lookup-formulas`](lookup-formulas.md).
 
 ## Bound models
 

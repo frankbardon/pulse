@@ -128,7 +128,9 @@ func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) 
 	}
 	vecs, err := vectors.ResolveRequest(req, schema, w.models)
 	c.vecs, c.vecsFailed = vecs, err != nil
-	c.bound = exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder}
+	// range_label is declared on every runtime compile (its unknown
+	// table is a run-time refusal), so predict declares it too.
+	c.bound = exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
 	// The request's params, folded exactly as the engine folds them (an
 	// invalid block is refused once, at the walk's head — paramsRefusal —
 	// and declares nothing here).

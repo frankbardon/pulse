@@ -69,6 +69,11 @@ func TestComposeNamespace(t *testing.T) {
 	if _, ok := AllowedFuncs(nil, false)["vmean"]; ok {
 		t.Error("a vector built-in is allowed")
 	}
+	// range_label is declared on every runtime overlay compile, tables
+	// or not (an unknown table is its run-time refusal).
+	if _, ok := AllowedFuncs(nil, false)["range_label"]; !ok {
+		t.Error("range_label not allowed")
+	}
 }
 
 func TestComposeRefusal(t *testing.T) {

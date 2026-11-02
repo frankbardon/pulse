@@ -437,7 +437,8 @@ var exprPureSetBuiltins = func() map[string]bool {
 // pureFunc reports whether a call to name is a pure function of its
 // arguments. An embedder ExprFunction is never assumed pure (it may read
 // a clock, a counter or a remote service), even when it shadows a
-// built-in; lookup() is pure only when every table is a static Rows map.
+// built-in; lookup() is pure only when every table is a static Rows map;
+// range_label() always (a range table is static data, compiled once).
 func (v *exprPurityVisitor) pureFunc(name string) bool {
 	if v.exts != nil {
 		for _, fn := range v.exts.ExprFunctions {
@@ -446,7 +447,10 @@ func (v *exprPurityVisitor) pureFunc(name string) bool {
 			}
 		}
 	}
-	if name == "lookup" {
+	if name == exprenv.RangeLabelFunc {
+		return true
+	}
+	if name == exprenv.LookupFunc {
 		if v.exts == nil || len(v.exts.LookupTables) == 0 {
 			return false
 		}

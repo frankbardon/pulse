@@ -111,9 +111,10 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 // built-in overrides (decimal_builtins.go: abs ceil floor round int
 // max min mean median sum sort sortBy), plus the exact u64 comparisons
 // (internal/exprenv u64.go: the float64 echo, six comparisons, `in`,
-// the wrap and compare patchers and the retype pass — 11). Bump this
+// the wrap and compare patchers and the retype pass — 11), plus the
+// always-declared range_label (expr_env_range_label.go — 1). Bump this
 // constant when the set-helper roster changes.
-var setExprHelperCount = 8 + 2 + 3 + len(exprenv.Names()) + 17 + 12 + 11
+var setExprHelperCount = 8 + 2 + 3 + len(exprenv.Names()) + 17 + 12 + 11 + 1
 
 func TestExprOptions_NilRegistry(t *testing.T) {
 	t.Parallel()
@@ -121,7 +122,7 @@ func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry
 	opts := r.ExprOptions()
 	if len(opts) != setExprHelperCount {
-		t.Errorf("nil registry must yield %d built-in set helpers, got %d", setExprHelperCount, len(opts))
+		t.Errorf("nil registry must yield %d built-in options, got %d", setExprHelperCount, len(opts))
 	}
 }
 
@@ -131,7 +132,7 @@ func TestExprOptions_NoEntries(t *testing.T) {
 	r := &ExtensionRegistry{}
 	opts := r.ExprOptions()
 	if len(opts) != setExprHelperCount {
-		t.Errorf("empty registry must yield %d built-in set helpers, got %d", setExprHelperCount, len(opts))
+		t.Errorf("empty registry must yield %d built-in options, got %d", setExprHelperCount, len(opts))
 	}
 }
 

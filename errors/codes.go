@@ -2044,7 +2044,8 @@ const (
 	PULSE_RANGE_SOURCE_AMBIGUOUS Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
 
 	// PULSE_RANGE_TABLE_UNKNOWN indicates a GROUP_DATE_RANGES /
-	// FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES operator referenced a range table by a name that
+	// FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES operator (or an
+	// expression's range_label) referenced a range table by a name that
 	// is not registered (via Options.Extensions.RangeTables or the
 	// PULSE_RANGE_TABLES_DIR loader). Details carry the offending name.
 	PULSE_RANGE_TABLE_UNKNOWN Code = "PULSE_RANGE_TABLE_UNKNOWN"
@@ -2053,8 +2054,10 @@ const (
 	// registered range table of the other kind. A range table is typed by
 	// its bounds — ISO date strings make a date table, JSON numbers a
 	// numeric table — and GROUP_DATE_RANGES / FILTER_DATE_RANGES resolve
-	// only a date table, GROUP_NUMERIC_RANGES only a numeric one. Details
-	// carry the operator, the table, and the wanted and found kinds.
+	// only a date table, GROUP_NUMERIC_RANGES only a numeric one; an
+	// expression's range_label raises it for a value its table's kind
+	// cannot match (details.got the value's kind). Details carry the
+	// operator, the table, and the wanted and found kinds.
 	PULSE_RANGE_TABLE_KIND_MISMATCH Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 
 	// PULSE_LABEL_FIELD_UNKNOWN indicates a LabelBinding references a

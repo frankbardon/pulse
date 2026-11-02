@@ -48,3 +48,39 @@ func TestBoundOptions(t *testing.T) {
 		t.Error("Placeholder ran without error; a declaration-only compile must never be run")
 	}
 }
+
+// TestBoundOptions_RangeLabel: range_label is declared only when bound,
+// with its two typed overloads — a string table, any value, an optional
+// string unmatched label, an untyped result (a label or nil).
+func TestBoundOptions_RangeLabel(t *testing.T) {
+	t.Parallel()
+
+	env := expr.Env(exprtypes.Map{"x": DerivedType, "k": exprtypes.TypeOf("")})
+	compile := func(b Bound, src string) error {
+		_, err := expr.Compile(src, append([]expr.Option{env}, b.Options()...)...)
+		return err
+	}
+	bound := Bound{RangeLabel: Placeholder, Lookup: Placeholder}
+	for _, c := range []struct {
+		b       Bound
+		src     string
+		wantErr string
+	}{
+		{bound, `range_label("bands", x) == "low"`, ""},
+		{bound, `range_label("bands", x, "other") == "low"`, ""},
+		{bound, `range_label(k, x)`, ""},
+		{bound, `lookup("grid", range_label("a", x), range_label("b", x)) * x`, ""},
+		{bound, `range_label(1, x)`, "not enough arguments to call range_label"},
+		{bound, `range_label("bands", x, 3)`, "range_label"},
+		{bound, `range_label("bands")`, "range_label"},
+		{Bound{}, `range_label("bands", x)`, "unknown name range_label"},
+	} {
+		err := compile(c.b, c.src)
+		switch {
+		case c.wantErr == "" && err != nil:
+			t.Errorf("%s: %v, want compiled", c.src, err)
+		case c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)):
+			t.Errorf("%s: %v, want %q", c.src, err, c.wantErr)
+		}
+	}
+}

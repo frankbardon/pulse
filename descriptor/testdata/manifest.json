@@ -13728,6 +13728,10 @@
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
+        "name": "lookup-formulas",
+        "description": "Registered tables inside formulas and expression filters — lookup() reading a lookup table, range_label() banding a number or an epoch day into a range-table label, and the two together as rate-grid keys. Matching, null and unmatched rules, codes. Not the cohort point lookup."
+      },
+      {
         "name": "materialize-casts",
         "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen, categorical), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
       },
@@ -21072,4 +21076,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2c5dd40dad1182ad995a08e1e083163162c769a1ddf7a27d4f528c58978a3ed2
+// golden-hash: 73e85fa29498dea81773a004880d091c3e1da538c3d1e801aee8aae6dca343c8

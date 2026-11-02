@@ -3055,20 +3055,24 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A range grouper or filterer (or a materialize output column's bucket.range_table) referenced a range table by a name that is not registered.",
+		Message: "A range grouper or filterer, a materialize output column's bucket.range_table, or an expression's range_label(table, x) referenced a range table by a name that is not registered (or hidden by the instance's feature profile).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Set Params.table to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
+				Hint:   "Set Params.table (or range_label's first argument) to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
 			},
 		},
 	},
 	PULSE_RANGE_TABLE_KIND_MISMATCH: {
-		Message: "A range operator (or a materialize output column's bucket) referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table. A bucket reads a numeric table on a numeric column and a date table on a date / datetime column.",
+		Message: "A range operator (or a materialize output column's bucket) referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table. A bucket reads a numeric table on a numeric column and a date table on a date / datetime column. In an expression, range_label(table, x) refused an x its table cannot match: a numeric table matches a number, a date table an epoch-day number (details.got names the value's kind).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Use GROUP_DATE_RANGES / FILTER_DATE_RANGES with a date table and GROUP_NUMERIC_RANGES with a numeric table; pulse_range_tables (Pulse.RangeTables) reports each table's kind. Otherwise point Params.table at a table of the operator's kind, or author the ranges inline.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For range_label, pass a number to a numeric table and an epoch day to a date table — a date field as is, a datetime through to_day(); a categorical label or other string matches neither.",
 			},
 		},
 	},

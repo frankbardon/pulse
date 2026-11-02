@@ -1262,3 +1262,31 @@ func TestOverlay_Formula_BuiltinSubset(t *testing.T) {
 		}
 	}
 }
+
+// TestOverlay_Formula_RangeLabel: OVERLAY_FORMULA reaches range_label
+// (formulaident.AllowedFuncs admits it) with a registry — a cell banded
+// into a lookup key — and compiles it without one, where the unknown
+// table is the run-time refusal rather than an undeclared name.
+func TestOverlay_Formula_RangeLabel(t *testing.T) {
+	t.Parallel()
+
+	exts := rangeLabelRegistry()
+	exts.LookupTables = map[string]LookupTable{"rate": {Rows: map[string]float64{"low": 2, "mid": 3}}}
+	host := newFormulaHost(1, 2, func(_, c int) float64 { return []float64{5, 15}[c] })
+	spec := newFormulaSpec("banded", `cell * lookup("rate", range_label("bands", cell))`)
+	layer, _, err := applyFormulaWithExtensions(&spec, host, exts)
+	if err != nil {
+		t.Fatalf("with registry: %v", err)
+	}
+	for c, want := range []float64{10, 45} {
+		if got, _ := layer.Payload.Matrix.Cells[0][c].Value.(float64); got != want {
+			t.Errorf("cell %d = %v, want %v", c, got, want)
+		}
+	}
+
+	formula := `range_label("bands", cell) == "low" ? 1 : 0`
+	spec = newFormulaSpec("no_registry", formula)
+	if _, err := compileFormulaProgram(&spec, formula, buildFormulaPrototypeEnvMatrix(&FormulaContext{Shape: types.OverlayShapeMatrix, MatrixHost: host})); err != nil {
+		t.Fatalf("without registry: %v, want compiled", err)
+	}
+}
