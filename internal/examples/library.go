@@ -389,11 +389,12 @@ var CanonicalTags = []string{
 	"two-sample", "k-sample", "repeated-measures", "post-hoc",
 	"normality-test", "homogeneity-test", "exact-test",
 
-	// Regression / modeling (15)
+	// Regression / modeling (16)
 	"regression", "ecological",
 	"ols", "glm", "logistic", "bayesian",
 	"regularization", "ridge", "lasso", "elasticnet",
 	"polynomial", "resampling", "jackknife", "selection", "stepwise",
+	"multinomial",
 
 	// Pipeline machinery (8)
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",

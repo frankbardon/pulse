@@ -587,3 +587,10 @@ source(file.path(script_dir, "gen_overlay_chisq.R"), local = FALSE)
 # Gauss-Newton polished; one and two channels, a control, a MAP prior
 # and a channel held at beta = 0); minpack.lm 1.2-4 + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_mmm_hill.R"), local = FALSE)
+
+# The REG_MULTINOMIAL golden (U65 E4-S2: multinomial.json: nnet::multinom
+# Newton-polished to the MLE — three levels at two coverages, four levels
+# in a non-alphabetical dictionary order with a named reference, frequency
+# weights against the rep() expansion, probability weights on w*, an
+# empty dictionary level dropped); nnet 7.3-21 + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_multinomial.R"), local = FALSE)

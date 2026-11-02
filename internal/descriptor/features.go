@@ -493,6 +493,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("REG_GLM"),
 	op("REG_MMM_BAYES"),
 	op("REG_MMM_HILL"),
+	op("REG_MULTINOMIAL"),
 	op("REG_OLS"),
 	// Matrix operators — types.AllMatrixTypes().
 	op("MAT_COLLINEARITY"),

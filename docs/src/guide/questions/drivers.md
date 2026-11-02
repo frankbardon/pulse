@@ -46,6 +46,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`REG_GLM`](../catalog/regression.md#op-reg_glm) | Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. | advanced |
 | [`REG_MMM_BAYES`](../catalog/regression.md#op-reg_mmm_bayes) | Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. | advanced |
 | [`REG_MMM_HILL`](../catalog/regression.md#op-reg_mmm_hill) | Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. | advanced |
+| [`REG_MULTINOMIAL`](../catalog/regression.md#op-reg_multinomial) | Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category. | advanced |
 
 ### Matrix operators
 

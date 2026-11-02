@@ -82,6 +82,9 @@ var regParityOps = []regParityOp{
 	{name: "glm_poisson", reg: regParityGLM("poisson", "g", "x", "y"), tol: 1e-10},
 	{name: "glm_gamma", reg: regParityGLM("gamma", "y", "x", "g"), tol: 1e-10},
 	{name: "bayes", reg: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: regParityPredictors}, tol: 1e-10},
+	// REG_MULTINOMIAL (U65 E4-S2) of the categorical k: Newton-Raphson
+	// stops at the MLE to double precision on both sides.
+	{name: "multinomial", reg: &types.RegressionSpec{Type: types.REG_MULTINOMIAL, Target: "k", Predictors: []string{"x", "y"}}, tol: 1e-10},
 	{name: "attr_fitted", attr: types.ATTR_REG_FITTED, tol: 1e-10},
 	{name: "attr_residual", attr: types.ATTR_REG_RESIDUAL, tol: 1e-10},
 	{name: "attr_leverage", attr: types.ATTR_REG_LEVERAGE, tol: 1e-10},

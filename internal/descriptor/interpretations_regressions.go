@@ -22,6 +22,7 @@ var regressionInterpretations = map[string][]descriptor.Interpretation{
 	"REG_GLM":          interpRegGLM,
 	"REG_MMM_BAYES":    interpRegMMMBayes,
 	"REG_MMM_HILL":     interpRegMMMHill,
+	"REG_MULTINOMIAL":  interpRegMultinomial,
 	"REG_OLS":          interpRegOLS,
 }
 
@@ -366,6 +367,81 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 		},
 	},
 }, interpRegGLMMargins, interpRegCollinearity)
+
+var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
+	{
+		Field: "coefficients.*",
+		Means: "Keyed <category>:<term>: the change in the log odds of that category against the reference category for a one-unit increase in the term's predictor, " +
+			"holding the other predictors fixed; <category>:(intercept) is that log odds when every predictor is 0.",
+		Sign: map[string]string{
+			"+": "higher predictor values are associated with a higher chance of this category relative to the reference, other predictors held fixed",
+			"-": "higher predictor values are associated with a lower chance of this category relative to the reference, other predictors held fixed",
+		},
+		Caveats: []string{
+			"Raised to the power e it is a relative risk ratio (odds of this category against the reference) per one-unit increase: multiplicative, and relative to the reference only. " +
+				"A positive coefficient does not mean the category itself grows more likely: its probability also depends on how the other categories move.",
+			"Every coefficient is against the same reference; comparing two non-reference categories means the difference of their coefficients, or a refit with another reference.",
+			regCoefCausal,
+			regCoefUnits,
+			regCoefCollinear,
+			"A very large coefficient with a very large standard error is a sign of near-separation of that category; do not read it as a strong association.",
+		},
+	},
+	{
+		Field: "std_errors.*",
+		Means: "How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix (nnet::multinom's Hessian).",
+		Caveats: []string{
+			"They assume the model is right; no robust (sandwich) form is offered for this model.",
+		},
+	},
+	{
+		Field:   "p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"A Wald z for one coefficient; it says nothing about whether the predictor matters for the outcome as a whole, across every category."},
+	},
+}, append(regCI("the coefficient minus (lower) or plus (upper) the standard normal critical value times its standard error, on the log-odds scale (a Wald interval).",
+	regCIRepeated,
+	regCIOneAtATime,
+	"Raised to the power e, the bounds bound the relative risk ratio.",
+), regConfLevel), []descriptor.Interpretation{
+	{
+		Field: "deviance",
+		Means: "-2 times the maximised log-likelihood (nnet::multinom's deviance); lower is closer.",
+		Caveats: []string{
+			"It has no fixed scale: compare it only with null_deviance or with another model fitted to the same rows and outcome.",
+		},
+	},
+	{
+		Field: "null_deviance",
+		Means: "The deviance of the intercept-only model, which predicts each category's overall share for every row: the baseline the predictors are judged against.",
+	},
+	{
+		Field: "pseudo_r2",
+		Means: "1 - deviance / null_deviance: McFadden's pseudo-R-squared, the share of the intercept-only model's deviance the predictors remove, from 0 to 1.",
+		Caveats: []string{
+			"It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model, " +
+				"so OLS rules of thumb do not apply; there are no published bands for it, so none are attached.",
+		},
+	},
+	{
+		Field:   "two_log_lik",
+		Means:   "Twice the maximised log-likelihood (-deviance); higher is a closer fit.",
+		Caveats: []string{"Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood)."},
+	},
+	{
+		Field:   "aic",
+		Means:   "-two_log_lik + 2 x the coefficient count (every category's), nnet::multinom's AIC; lower is better.",
+		Caveats: []string{regAICCompare},
+	},
+	regNObs,
+	{
+		Field: "converged_iters",
+		Means: "Newton-Raphson steps taken before the coefficients stopped changing (relative change below tol).",
+		Caveats: []string{
+			"A fit that cannot converge within max_iters is refused rather than reported.",
+		},
+	},
+})
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{

@@ -171,6 +171,7 @@
     "REG_GLM",
     "REG_MMM_BAYES",
     "REG_MMM_HILL",
+    "REG_MULTINOMIAL",
     "REG_OLS",
     "MAT_COLLINEARITY",
     "MAT_CORRELATION",

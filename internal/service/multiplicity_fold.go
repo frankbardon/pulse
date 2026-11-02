@@ -4,6 +4,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -215,6 +216,7 @@ func writeMarginsAdjusted(mg *types.RegressionMarginsResult, echo *types.Applied
 }
 
 // pValuedCoefficients is the default family of an extension REG_* model
+// or a REG_MULTINOMIAL fit (its intercepts "<level>:(intercept)" left out)
 // (descx.ResolvedMultiplicity.ResultCoefficients): every coefficient of
 // r whose p-value is defined, "(intercept)" excluded, in name order — a
 // coefficient the model reports no p-value for (null on the wire) does
@@ -222,7 +224,10 @@ func writeMarginsAdjusted(mg *types.RegressionMarginsResult, echo *types.Applied
 func pValuedCoefficients(r *types.RegressionResult) []string {
 	out := make([]string, 0, len(r.PValues))
 	for name, p := range r.PValues {
-		if name != regression.InterceptKey && !math.IsNaN(p) {
+		// A REG_MULTINOMIAL fit's intercepts are "<level>:(intercept)".
+		intercept := name == regression.InterceptKey ||
+			(r.Type == types.REG_MULTINOMIAL && strings.HasSuffix(name, ":"+regression.InterceptKey))
+		if !intercept && !math.IsNaN(p) {
 			out = append(out, name)
 		}
 	}

@@ -167,6 +167,26 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			// carries the uncertainty), so advertising them would invite
 			// a request that can only fail.
 		},
+		{
+			Name:           string(types.REG_MULTINOMIAL),
+			Description:    "Multinomial (baseline-category) logistic regression of a categorical target on numeric predictors: one coefficient set per non-reference level, log-odds against the reference level (nnet::multinom, Stata mlogit, SPSS NOMREG).",
+			AcceptsTypes:   acceptsTypes(types.REG_MULTINOMIAL),
+			EmitsTypeNote:  "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"<level>:<term>\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys.",
+			Streamable:     types.REG_MULTINOMIAL.Streamable(),
+			StreamableHint: "Always buffered; Newton-Raphson requires multiple passes over the data.",
+			Params: []descriptor.Param{
+				{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "categorical", Description: "Categorical response field (a cohort field, not a derived column): its dictionary labels are the categories, in dictionary order; a level no fitted row carries is dropped.", Slot: true},
+				{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names (numeric only).", Slot: true},
+				{Name: "reference", Type: "string", Required: false, Description: "The baseline category, one of the target's labels (default: the first fitted level in dictionary order, as multinom). Its coefficients are fixed at 0; a label outside the dictionary is PROCESSING_CONFIG, a level no fitted row carries fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason reference_empty).", Slot: true},
+				{Name: "max_iters", Type: "int", Required: false, Default: 50, Description: "Newton-Raphson iteration cap.", Slot: true},
+				{Name: "tol", Type: "float", Required: false, Default: 1e-8, Description: "Relative convergence tolerance on the coefficient step; convergence is quadratic, so the estimate is the MLE to double precision.", Slot: true},
+				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: Wald normal coefficient ∓ z·SE.", Slot: true},
+				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors.", Slot: true},
+				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.", Slot: true},
+				{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"<level>:<term>\" keys; adds p_adjusted / significant_adjusted.", Slot: true},
+				{Name: "name", Type: "string", Required: false, Description: "Result alias.", Slot: true},
+			},
+		},
 	}
 	return append(builtins, modelRegressionMetas()...)
 }

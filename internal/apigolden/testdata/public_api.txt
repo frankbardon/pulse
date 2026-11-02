@@ -5497,6 +5497,7 @@ pulse/types: type FitResult field RegressionResult.BootstrapRequested int "json:
 pulse/types: type FitResult field RegressionResult.BootstrapSucceeded int "json:\"bootstrap_succeeded,omitempty\""
 pulse/types: type FitResult field RegressionResult.CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type FitResult field RegressionResult.CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
+pulse/types: type FitResult field RegressionResult.Categories []string "json:\"categories,omitempty\""
 pulse/types: type FitResult field RegressionResult.Coefficients map[string]float64 "json:\"coefficients,omitempty\""
 pulse/types: type FitResult field RegressionResult.Collinearity *pulse/types.RegressionCollinearityResult "json:\"collinearity,omitempty\""
 pulse/types: type FitResult field RegressionResult.ConfLevel float64 "json:\"conf_level,omitempty\""
@@ -5527,6 +5528,7 @@ pulse/types: type FitResult field RegressionResult.Penalty string "json:\"penalt
 pulse/types: type FitResult field RegressionResult.Prior string "json:\"prior,omitempty\""
 pulse/types: type FitResult field RegressionResult.PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
 pulse/types: type FitResult field RegressionResult.R2 float64 "json:\"r2,omitempty\""
+pulse/types: type FitResult field RegressionResult.Reference string "json:\"reference,omitempty\""
 pulse/types: type FitResult field RegressionResult.ReportedFigures []string "json:\"-\""
 pulse/types: type FitResult field RegressionResult.Resample string "json:\"resample,omitempty\""
 pulse/types: type FitResult field RegressionResult.ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
@@ -6112,6 +6114,7 @@ pulse/types: const REG_BAYES_LINEAR pulse/types.RegressionType = "REG_BAYES_LINE
 pulse/types: const REG_GLM pulse/types.RegressionType = "REG_GLM"
 pulse/types: const REG_MMM_BAYES pulse/types.RegressionType = "REG_MMM_BAYES"
 pulse/types: const REG_MMM_HILL pulse/types.RegressionType = "REG_MMM_HILL"
+pulse/types: const REG_MULTINOMIAL pulse/types.RegressionType = "REG_MULTINOMIAL"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
 pulse/types: type RankEntry struct
 pulse/types: type RankEntry field Axes map[string]any "json:\"axes\""
@@ -6194,6 +6197,7 @@ pulse/types: type RegressionResult field BootstrapRequested int "json:\"bootstra
 pulse/types: type RegressionResult field BootstrapSucceeded int "json:\"bootstrap_succeeded,omitempty\""
 pulse/types: type RegressionResult field CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type RegressionResult field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
+pulse/types: type RegressionResult field Categories []string "json:\"categories,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
 pulse/types: type RegressionResult field Collinearity *pulse/types.RegressionCollinearityResult "json:\"collinearity,omitempty\""
 pulse/types: type RegressionResult field ConfLevel float64 "json:\"conf_level,omitempty\""
@@ -6224,6 +6228,7 @@ pulse/types: type RegressionResult field Penalty string "json:\"penalty,omitempt
 pulse/types: type RegressionResult field Prior string "json:\"prior,omitempty\""
 pulse/types: type RegressionResult field PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
 pulse/types: type RegressionResult field R2 float64 "json:\"r2,omitempty\""
+pulse/types: type RegressionResult field Reference string "json:\"reference,omitempty\""
 pulse/types: type RegressionResult field ReportedFigures []string "json:\"-\""
 pulse/types: type RegressionResult field Resample string "json:\"resample,omitempty\""
 pulse/types: type RegressionResult field ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
@@ -6270,6 +6275,7 @@ pulse/types: type RegressionSpec field PriorPrecision pulse/types.PriorPrecision
 pulse/types: type RegressionSpec field PriorRate float64 "json:\"prior_rate,omitempty\""
 pulse/types: type RegressionSpec field PriorShape float64 "json:\"prior_shape,omitempty\""
 pulse/types: type RegressionSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
+pulse/types: type RegressionSpec field Reference string "json:\"reference,omitempty\""
 pulse/types: type RegressionSpec field Resample string "json:\"resample,omitempty\""
 pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
@@ -6612,4 +6618,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9c30e8314d7c707336df0cbba7f00a826400f5efcf1402488902410b277952c2
+// golden-hash: a418650ce88f920e5222df8a1788beacffc8e3fc5d78ec4d605d552be6ff858f

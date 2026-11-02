@@ -66,7 +66,7 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## Refusals
 
-- `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression AND battery), `vector_count`, `grouped`, `vector_source` (pairwise, a between-group distance, reverse-keyed reliability).
+- `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression + battery), `vector_count`, `grouped`, `vector_source` (pairwise, group distance, reversed reliability), `regression_type`.
 - A fit request's own refusal keeps its code and gains `details.fit` (0-based entry index; the lowest when several fail).
 
 ## Validate before executing

@@ -271,6 +271,14 @@ var validationRegistry = map[string]ValidationRecord{
 		valR("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),
 		valWeighted,
 	}},
+	"REG_MULTINOMIAL": {
+		Refs: []ValidationRef{
+			valR("+ `nnet` 7.3-21 `multinom`, Newton-polished to the MLE: coefficients, standard errors (`solve(Hessian)`), Wald p-values and intervals, vcov, deviance, null deviance, two_log_lik, aic and every row's fitted probabilities; a named reference, a dictionary level no row carries (dropped)", tol10, regDir+"multinomial_oracle_test.go"),
+			{Against: rPin + " + `nnet` 7.3-21 `multinom(weights = f)` against its `rep()`-expanded fit (frequency weights) and `multinom(weights = w*)`, w* = w·n_eff/Σw (probability weights, no likelihood)", Tol: tol10, Tests: []string{regDir + "multinomial_oracle_test.go"}, Weighted: true},
+			valWeighted,
+		},
+		Gap: "No robust (sandwich) covariance, penalty, selection or resample is offered: each is refused, not validated. The probability-weighted fit is multinom on the rescaled weights, not a design-based survey estimator.",
+	},
 	"REG_MMM_HILL": {Refs: []ValidationRef{
 		{Against: "`minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE)", Tol: "1e-6 relative (the solver's stop rule)", Tests: []string{"internal/regmmm/hill_oracle_test.go"}},
 		{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}},

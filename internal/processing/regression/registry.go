@@ -408,4 +408,7 @@ func init() {
 	// factory closure routes modifier specs (Resample / Selection) back
 	// to the not-implemented stub for Phase 5.
 	regressionRegistry[types.REG_BAYES_LINEAR] = newBayesLinearEngine
+	// U65 E4-S2: REG_MULTINOMIAL, the baseline-category logit, by
+	// buffered Newton-Raphson (multinomial.go), pinned to nnet::multinom.
+	regressionRegistry[types.REG_MULTINOMIAL] = newMultinomialEngine
 }

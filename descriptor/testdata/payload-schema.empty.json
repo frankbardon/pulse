@@ -1338,6 +1338,15 @@
         "bootstrap_succeeded": {
           "type": "integer"
         },
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "ci_lower": {
           "additionalProperties": {
             "type": [
@@ -1488,6 +1497,9 @@
             "number",
             "null"
           ]
+        },
+        "reference": {
+          "type": "string"
         },
         "resample": {
           "type": "string"
@@ -1665,6 +1677,9 @@
         },
         "prior_shape": {
           "type": "number"
+        },
+        "reference": {
+          "type": "string"
         },
         "resample": {
           "type": "string"
@@ -2350,4 +2365,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 66d5362369425477b836d71bdaf8f0556a5169f312ef346e43c54d224f9d5abc
+// golden-hash: 48cc6fb2ee8247f04494599b8361db0a0986f056e22190282e477c8bfc22fade

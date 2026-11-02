@@ -25,6 +25,11 @@ const (
 	// centroids) or folds transformed values (MAT_RELIABILITY
 	// params.reverse).
 	ReasonVectorSource = "vector_source"
+	// ReasonRegressionType: a regression a fit cannot bind —
+	// REG_MULTINOMIAL, whose one coefficient set per level nothing
+	// scores or reads as a bound model (no ATTR_REG_PREDICT scorer, no
+	// coef() terms, no model file).
+	ReasonRegressionType = "regression_type"
 )
 
 // VectorFitAttributeTypes are the fitted vector attributes a vector fit
@@ -165,6 +170,11 @@ func CheckFitsIn(fits []types.FitSpec, scope SweepScope) error {
 			return fitInvalid(i, f.Name, ReasonRegressionCount,
 				"holds a null regression; a fit request holds exactly one",
 				map[string]any{"count": 0})
+		}
+		if nV == 0 && f.Request.Regressions[0].Type == types.REG_MULTINOMIAL {
+			return fitInvalid(i, f.Name, ReasonRegressionType,
+				"fits a REG_MULTINOMIAL regression, which cannot be bound: nothing scores or reads its per-level coefficients as a model; fit it in a Compose request slot instead",
+				map[string]any{"regression": string(types.REG_MULTINOMIAL)})
 		}
 		if len(f.Request.Groups) > 0 || f.Request.Crosstab != nil {
 			return fitInvalid(i, f.Name, ReasonGrouped,

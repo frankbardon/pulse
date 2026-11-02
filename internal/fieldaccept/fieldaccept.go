@@ -218,7 +218,8 @@ func categoricalValue(ft encoding.FieldType) bool {
 }
 
 // categoricalOnly is a categorical alone: TEST_ANOVA_RM's subject (a
-// two-level subject id identifies no subject).
+// two-level subject id identifies no subject) and REG_MULTINOMIAL's
+// target (its dictionary is the category order).
 func categoricalOnly(ft encoding.FieldType) bool {
 	return ft.IsCategorical()
 }
@@ -350,6 +351,10 @@ func init() {
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
 	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget, SlotPredictor},
 		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR", "REG_MMM_BAYES", "REG_MMM_HILL")
+	// REG_MULTINOMIAL: numeric predictors; the target is a categorical,
+	// whose dictionary labels are the categories (in dictionary order).
+	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotPredictor}, "REG_MULTINOMIAL")
+	add(categoricalOnly, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget}, "REG_MULTINOMIAL")
 	add(testValue, errors.PULSE_TEST_FIELD_NOT_NUMERIC, field,
 		"TEST_T", "TEST_WELCH", "TEST_ANOVA_F", "TEST_ANOVA_RM", "TEST_ANOVA_WELCH",
 		"TEST_BROWN_FORSYTHE", "TEST_KS", "TEST_KRUSKAL_WALLIS", "TEST_MANN_WHITNEY_U",

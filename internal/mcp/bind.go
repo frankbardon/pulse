@@ -1048,6 +1048,14 @@ func joinsSchema(c fieldClassification) map[string]any {
 	}
 }
 
+// regressionTargets is a regression target's field set: the numeric
+// fields, plus the categorical ones REG_MULTINOMIAL models, sorted.
+func regressionTargets(c fieldClassification) []string {
+	out := append(append([]string(nil), c.Numeric...), c.Categorical...)
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
 // regressionsSchema is Request.regressions (types.RegressionSpec).
 func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
 	num := func(d string) map[string]any { return map[string]any{"type": "number", "description": d} }
@@ -1060,7 +1068,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 			"properties": map[string]any{
 				"type":        enumStringField(mergeEnumNames(stringSlice(types.AllRegressionTypes()), inst, "regression"), ""),
 				"name":        map[string]any{"type": "string", "description": "Result name; defaults from type and target."},
-				"target":      enumStringField(c.Numeric, "Response variable."),
+				"target":      enumStringField(regressionTargets(c), "Response variable: numeric, or categorical for REG_MULTINOMIAL."),
 				"predictors":  map[string]any{"type": "array", "description": "Predictor fields; at least one.", "items": enumStringField(c.Numeric, "")},
 				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) regularization; omit for none."),
 				"alpha":       num("Penalty strength (> 0) when penalty is set."),
@@ -1078,6 +1086,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"link":       enumStringField(reglink.All(), "REG_GLM link, one of the family's: binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity; negative_binomial log (default), identity, sqrt."),
 				"theta":      num("REG_GLM negative_binomial only: a fixed theta > 0 (glm(negative.binomial(theta))); omit to estimate it by maximum likelihood."),
 				"dispersion": enumStringField(types.AllNegBinDispersions(), "REG_GLM negative_binomial with a fixed theta only: fixed (default, phi = 1) or estimated (Pearson chi-square / df, t inference)."),
+				"reference":  map[string]any{"type": "string", "description": "REG_MULTINOMIAL only: the baseline category, one of the target's labels; omit for the first fitted level."},
 				"max_iters":  integer("Iteration cap for iterative fits; 0 uses the operator default."),
 				"tol":        num("Relative convergence tolerance; 0 uses the operator default."),
 				"prior":      map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},

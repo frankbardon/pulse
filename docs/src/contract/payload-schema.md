@@ -1155,6 +1155,23 @@ block rides `capability:regression_holdout`, is kept by the `standard`
 and `minimal` presets, is rounded by `return.precision` and never
 appears under `Response.components`.
 
+## Multinomial regression
+
+`REG_MULTINOMIAL` (U65 E4-S2) is a `RegressionType` enum value; the
+payload adds two `omitempty` keys. `RegressionSpec.reference` (string)
+names the baseline category, one of the target's dictionary labels
+(absent: the first fitted level); on any other regression it is
+`PROCESSING_CONFIG` (`details.requires: type REG_MULTINOMIAL`).
+`RegressionResult.reference` (string) echoes the reference a
+multinomial fit read and `RegressionResult.categories` (array of
+string) lists its fitted levels in dictionary order; both are absent on
+every other regression. The per-coefficient maps (`coefficients`,
+`std_errors`, `p_values`, `ci_lower`, `ci_upper`, `p_adjusted`,
+`significant_adjusted`) and `vcov`'s row / column keys read
+`"<level>:<term>"` per non-reference level (`"<level>:(intercept)"` for
+the intercept). Absent is byte-identical and `format_version` stays
+`"1.1"`.
+
 ## Per-group aggregation components
 
 `groups` on `AggregationComponents` is an additive `omitempty` array of
@@ -1424,7 +1441,8 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`); a fit request's own refusal keeps its
+`vector_source`, `regression_type` — a `REG_MULTINOMIAL` fit, which
+nothing binds); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`

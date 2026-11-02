@@ -350,6 +350,8 @@ var acceptanceTemplates = map[string]string{
 	"REG_OLS":          `{"regressions":[{"type":"REG_OLS","name":"r","target":"x","predictors":["$F"]}]}`,
 	"REG_GLM":          `{"regressions":[{"type":"REG_GLM","name":"r","target":"y","predictors":["$F"],"family":"poisson","link":"log"}]}`,
 	"REG_BAYES_LINEAR": `{"regressions":[{"type":"REG_BAYES_LINEAR","name":"r","target":"x","predictors":["$F"],"prior":"nig","credible_level":0.95}]}`,
+	// The categorical target g (its levels are the categories).
+	"REG_MULTINOMIAL": `{"regressions":[{"type":"REG_MULTINOMIAL","name":"r","target":"g","predictors":["$F"]}]}`,
 	// A model regression: the field under judgement is a linear control
 	// beside the channel x.
 	"REG_MMM_HILL": `{"regressions":[{"type":"REG_MMM_HILL","name":"r","target":"y","predictors":["x","$F"],"params":{"channels":["x"]}}]}`,

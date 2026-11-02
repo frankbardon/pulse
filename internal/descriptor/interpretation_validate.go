@@ -253,6 +253,7 @@ var regressionOutputs = map[string][]string{
 	string(types.REG_BAYES_LINEAR): {"adj_r2", "ci_lower", "ci_upper", "coefficients", "conf_level", "credible_intervals", "df", "n_obs", "r2", "residual_std_err", "std_errors"},
 	string(types.REG_MMM_BAYES):    {"ci_lower", "ci_upper", "coefficients", "conf_level", "n_obs", "outputs", "p_values", "statistics", "std_errors"},
 	string(types.REG_MMM_HILL):     {"ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "deviance", "df", "n_obs", "outputs", "p_values", "r2", "residual_std_err", "statistics", "std_errors"},
+	string(types.REG_MULTINOMIAL):  {"aic", "ci_lower", "ci_upper", "coefficients", "conf_level", "converged_iters", "deviance", "n_obs", "null_deviance", "p_values", "pseudo_r2", "std_errors", "two_log_lik"},
 }
 
 // RegressionOutputKeys returns a copy of the applicability row for

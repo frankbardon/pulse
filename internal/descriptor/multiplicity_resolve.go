@@ -532,6 +532,10 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	// An extension model names its own coefficients, so its block's
 	// list is held to uniqueness only.
 	_, decl, extension := regressionExtensionFor(r.inst, nil, spec.Type)
+	// A REG_MULTINOMIAL fit names its coefficients "<level>:<term>" from
+	// the target's levels, so its list is held to uniqueness only and its
+	// default family read off the result, as an extension model's.
+	ownNames := extension || spec.Type == types.REG_MULTINOMIAL
 	known := map[string]bool{regressionInterceptKey: true}
 	for _, p := range spec.Predictors {
 		known[p] = true
@@ -540,7 +544,7 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	for _, c := range spec.Multiplicity.Coefficients {
 		reason := ""
 		switch {
-		case !known[c] && !extension:
+		case !known[c] && !ownNames:
 			reason = multReasonCoefficient
 		case seen[c]:
 			reason = multReasonCoefficientDup
@@ -577,7 +581,7 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	if len(spec.Multiplicity.Coefficients) > 0 {
 		rm.Coefficients = slices.Clone(spec.Multiplicity.Coefficients)
 		rm.ExplicitCoefficients = true
-	} else if extension {
+	} else if ownNames {
 		rm.ResultCoefficients = true
 	} else {
 		for _, p := range spec.Predictors {

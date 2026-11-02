@@ -237,6 +237,7 @@ skills/op-reg-mmm-bayes.md
 skills/op-reg-mmm-hill.md
 skills/op-reg-mod-resample.md
 skills/op-reg-mod-selection.md
+skills/op-reg-multinomial.md
 skills/op-reg-ols.md
 skills/op-synth-bernoulli.md
 skills/op-synth-constant.md
