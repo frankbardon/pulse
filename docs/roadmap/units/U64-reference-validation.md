@@ -4,7 +4,7 @@ slug: reference-validation
 title: "Every inferential number is traceable to an external reference, the gaps are closed, and users can see the evidence"
 track: Statistical integrity
 size: L
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: [U61]
 blocks: [U32, U65]
@@ -60,8 +60,8 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - [x] **#644** Decide, then do: the methodological options the E2-S1 pins surfaced, each a candidate knob under the configurability rule with today's behaviour as its default — a pooled-variance (Student) two-sample `TEST_T`, an exact `TEST_MANN_WHITNEY_U` p, Yates' correction on a 2 × 2 `TEST_CHISQ`, and the Wilson interval for the one-proportion `TEST_PROP_Z` (E2-S1 follow-up; E2-S3)
 - [x] **#619** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
 - [x] **#620** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded, reproducible simulation-based calibration harness (E4-S2)
-- [ ] **#621** Studio shows each operator's validation in the inspector and links the book page (pulse-studio, E5-S1)
-- [ ] **#622** Studio's own arithmetic (the workflow Stat test and Fit statistics nodes) appears in a Studio validation table, with its R goldens cited (pulse-studio, E5-S2)
+- [x] **#621** Studio shows each operator's validation in the inspector and links the book page (pulse-studio, E5-S1)
+- [x] **#622** Studio's own arithmetic (the workflow Stat test and Fit statistics nodes) appears in a Studio validation table, with its R goldens cited (pulse-studio, E5-S2)
 
 ## Decisions (owner, open)
 
