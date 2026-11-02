@@ -30,7 +30,19 @@ const (
 
 // modelRegressions are the model regressions, in AllRegressionTypes
 // order.
-var modelRegressions = []types.RegressionType{types.REG_MMM_BAYES, types.REG_MMM_HILL}
+var modelRegressions = []types.RegressionType{types.REG_MMM_BAYES, types.REG_MMM_HILL, types.REG_ORDINAL}
+
+// AdmitToken is the parameter that makes a model's row-admission hook
+// (a model regression's AdmitRow(extend.Record, AdmitToken) bool, read by
+// internal/regadapt) unimplementable outside this module: only a model
+// regression owns a listwise rule beyond the engine's — REG_ORDINAL's
+// response outside params.levels, its null cluster — so the adapter
+// counts n_obs over the rows the model actually fits.
+type AdmitToken struct{}
+
+// OrdinalThresholdSeparator joins two adjacent levels into a REG_ORDINAL
+// threshold's coefficient name, "<level>|<next level>" (polr's zeta).
+const OrdinalThresholdSeparator = "|"
 
 // ModelRegression reports whether t is a model regression: a built-in
 // authored on the extension contract (see the file comment).
@@ -48,11 +60,16 @@ func ModelRegressions() []types.RegressionType {
 // predictors, derived from the spec alone, and whether they are known.
 // REG_MMM_HILL names "k:<channel>" for every params.channels entry, then
 // "s:<channel>" for each; REG_MMM_BAYES names "decay:<channel>", then
-// "k:<channel>", then "s:<channel>" for each, then "sigma". A spec whose
+// "k:<channel>", then "s:<channel>" for each, then "sigma"; REG_ORDINAL
+// names its thresholds "<level>|<next level>", known only when
+// params.levels fixes the levels (otherwise the data does). A spec whose
 // params do not decode (its factory refuses it), or a type that is no
 // model regression, reports false — the caller then treats the names as
 // unknown.
 func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
+	if spec != nil && spec.Type == types.REG_ORDINAL {
+		return ordinalThresholds(spec)
+	}
 	if spec == nil || (spec.Type != types.REG_MMM_HILL && spec.Type != types.REG_MMM_BAYES) {
 		return nil, false
 	}
@@ -75,6 +92,22 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 	}
 	if spec.Type == types.REG_MMM_BAYES {
 		out = append(out, MMMSigmaName)
+	}
+	return out, true
+}
+
+// ordinalThresholds is REG_ORDINAL's threshold names from params.levels
+// (false without the list, or when params do not decode).
+func ordinalThresholds(spec *types.RegressionSpec) ([]string, bool) {
+	var p struct {
+		Levels []string `json:"levels"`
+	}
+	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || len(p.Levels) < 2 {
+		return nil, false
+	}
+	out := make([]string, 0, len(p.Levels)-1)
+	for k := 0; k+1 < len(p.Levels); k++ {
+		out = append(out, p.Levels[k]+OrdinalThresholdSeparator+p.Levels[k+1])
 	}
 	return out, true
 }

@@ -4,23 +4,24 @@ description: Choosing and composing a regression — outcome type, priors, penal
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY, regressions, modifiers, custom regression]
+covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_ORDINAL, Resample, Selection, FEAT_POLY, regressions, modifiers, custom regression]
 ---
 
 # Regression modeling
 
-Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names.
+Model operators, two spec-level modifiers and an upstream feature transform cover the textbook names.
 
 No `Response.Components`; fits ride `Response.Regressions[i]`.
 
 ## Choosing a model
 
-Start from the question: `pulse_skills_get intents` → `drivers` (which predictors move the outcome, and by how much) or `relationship` (do two fields move together). In `pulse_manifest`, the `regressions[]` entries carrying that intent are the models this instance offers; each states `streamable`. Each model's guidance names its alternatives — a correlation or group-mean test often answers without a model.
+Start from the question: `pulse_skills_get intents` → `drivers` (which predictors move the outcome) or `relationship` (do two fields move together). In `pulse_manifest`, the `regressions[]` entries carrying that intent are the models this instance offers; each states `streamable`. Each model's guidance names its alternatives — a correlation or group-mean test often answers without a model.
 
 | Decide | Pushes toward |
 |---|---|
 | Outcome numeric with roughly symmetric, constant-spread residuals? | the least-squares (OLS) fit |
 | Outcome yes/no (0/1) or a count? | the generalised linear (GLM) fit with a `binomial` / `poisson` family (over-dispersed: `negative_binomial`) |
+| Outcome an ordered rating? | the ordinal (proportional-odds) fit |
 | Prior knowledge about the coefficients, or want credible intervals? | the Bayesian linear fit (no p-values) |
 | Many correlated predictors? | a penalty (`l2` keeps all, `l1` / `elasticnet` zero some) |
 | Distrust the analytical SE? | the `Resample` modifier |
@@ -34,7 +35,7 @@ Streaming: OLS and Bayesian linear stream; the GLM and either modifier buffer.
 
 ## Modifiers
 
-Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credible intervals already convey uncertainty, and stepwise search on a conjugate fit is out of scope.
+Both compose with the OLS and GLM fits; the Bayesian fit rejects both (its credible intervals already convey uncertainty).
 
 ### `Resample` (jackknife / bootstrap)
 
@@ -57,7 +58,7 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 
 `Criterion ∈ {aic, bic}` required. `SelectedFeatures` lists chosen predictors; non-selected ones are DROPPED from `Coefficients` — absent ≠ zero.
 
-`Selection` + `Resample` is fine. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — regularization already shrinks / selects.
+`Selection` + `Resample` is fine. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
 
 ## Textbook names → spec
 
@@ -79,6 +80,9 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 <!-- /feature -->
 <!-- feature: REG_BAYES_LINEAR -->
 | Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |
+<!-- /feature -->
+<!-- feature: REG_ORDINAL -->
+| Ordinal logit (polr) | `REG_ORDINAL{params:{link, levels}}` |
 <!-- /feature -->
 | Jackknife | an OLS / GLM spec with `Resample:"jackknife"` |
 | Stepwise | an OLS / GLM spec with `Selection:"stepwise", Criterion:"aic"\|"bic"` |

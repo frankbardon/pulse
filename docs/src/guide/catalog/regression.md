@@ -9,6 +9,7 @@ The regressions this instance offers: what each is for, the questions it answers
 | [`REG_MMM_BAYES`](#op-reg_mmm_bayes) | Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. | What return does each marketing channel earn, and how sure are we? | advanced | [`REG_MMM_HILL`](#op-reg_mmm_hill) when a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised. |
 | [`REG_MMM_HILL`](#op-reg_mmm_hill) | Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. | What does each marketing channel contribute to sales, holding price and the other channels fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome moves in a straight line with spend, with no saturation. |
 | [`REG_OLS`](#op-reg_ols) | Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. | Which of price, discount and season are associated with weekly sales, holding the others fixed? | intermediate | [`REG_GLM`](#op-reg_glm) when the outcome is yes/no (0/1) or a count.<br>[`REG_BAYES_LINEAR`](#op-reg_bayes_linear) when you want intervals that combine the data with prior knowledge about the coefficients.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you only want how closely two numeric fields follow a straight line together.<br>[`TEST_ANOVA_F`](test.md#op-test_anova_f) when the predictor is a set of groups and you want to know whether the group averages differ.<br>[`ATTR_REG_RESIDUAL`](attribute.md#op-attr_reg_residual) when you want each row's residual, to check the residual assumptions or find rows the model fits badly. |
+| [`REG_ORDINAL`](#op-reg_ordinal) | Fits a model that predicts an ordered rating (poor, fair, good) from numeric predictors, each shifting the whole scale up or down. | Which customer traits are associated with a higher satisfaction rating, holding the others fixed? | advanced | [`REG_GLM`](#op-reg_glm) when the outcome has only two values (yes/no).<br>[`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure whose steps are evenly spaced.<br>[`TEST_KRUSKAL_WALLIS`](test.md#op-test_kruskal_wallis) when you only want to know whether the ratings differ between groups.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories. |
 
 ## Operators
 
@@ -285,3 +286,59 @@ Fits a straight-line model that predicts a numeric outcome from one or more nume
 See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-reg-ols`](../skills/op-reg-ols.md)
+
+<a id="op-reg_ordinal"></a>
+
+### `REG_ORDINAL`
+
+Fits a model that predicts an ordered rating (poor, fair, good) from numeric predictors, each shifting the whole scale up or down.
+
+**Level:** advanced
+
+**Also known as:** `ordinal logistic regression`, `ordered logit`, `proportional odds model`, `polr`
+
+**Questions it answers:**
+
+- Which customer traits are associated with a higher satisfaction rating, holding the others fixed?
+- How much more likely is a top rating per extra year of tenure?
+- Does each predictor shift every step of the rating scale by the same amount?
+
+**Use cases by domain:**
+
+- *survey:* Relate a 1-5 agreement or satisfaction rating to respondent attributes without treating the scale as evenly spaced numbers.
+- *ops:* Model a ticket's severity grade (low, medium, high, critical) from its queue and size.
+- *science:* Relate a graded response (none, mild, moderate, severe) to dose and age.
+
+**Assumptions:**
+
+- Rows are independent of each other: repeated rows for the same customer, or values over time, make the reported uncertainty too small.
+- The levels are ordered: params.levels gives the order, else a categorical's dictionary order or a number's ascending values; an unordered outcome needs another model.
+- Proportional odds: each predictor moves every threshold of the scale by the same amount (one coefficient per predictor); params.brant tests it, and a small Brant p-value says some effect differs across the scale.
+- The link sets the shape of the scale's steps: logit (default) reads coefficients as log odds ratios, probit as shifts of a normal latent score, cloglog as log hazard ratios.
+- Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, a Wald z on the fitted information.
+- A predictor that separates the levels perfectly makes the fit unable to converge, and Pulse refuses it.
+- A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
+- Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
+- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
+
+**Use something else:**
+
+- [`REG_GLM`](#op-reg_glm) when the outcome has only two values (yes/no).
+- [`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure whose steps are evenly spaced.
+- [`TEST_KRUSKAL_WALLIS`](test.md#op-test_kruskal_wallis) when you only want to know whether the ratings differ between groups.
+- [`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories.
+
+**Glossary:** [`deviance`](../glossary.md#term-deviance), [`independence`](../glossary.md#term-independence), [`link-function`](../glossary.md#term-link-function), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`multicollinearity`](../glossary.md#term-multicollinearity), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`odds-ratio`](../glossary.md#term-odds-ratio), [`p-value`](../glossary.md#term-p-value), [`pseudo-r-squared`](../glossary.md#term-pseudo-r-squared), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`standard-error`](../glossary.md#term-standard-error)
+
+**Validated against:**
+
+- R 4.6.1 + MASS 7.3-66 `polr` (logit / probit / cloglog), polished by Newton to its MLE: coefficients, thresholds, standard errors and vcov from the analytic observed information (polr's numerical Hessian agrees to 1e-4), deviance, null deviance, two_log_lik, AIC, the mean fitted probabilities (`colMeans(fitted())`); `sandwich` 3.1-3 `sandwich` / `vcovCL` (HC0, HC1, CR1); `brant` 0.3.0 (omnibus and per-predictor χ², the binary logits at their fixed point); `params.levels` dropping an unlisted response as `factor(y, levels =)` does — tolerance 1e-10 relative; `internal/regordinal/oracle_test.go`, `internal/regordinal/ordinal_e2e_test.go`
+- R 4.6.1 + MASS 7.3-66 `polr(weights = f)` against its `rep()`-expanded fit, and the Brant test on the expansion (frequency weights) — tolerance 1e-10 relative; `internal/regordinal/oracle_test.go`, `internal/regordinal/ordinal_e2e_test.go`
+- R 4.6.1 + MASS 7.3-66 `polr(weights = w*)`, w* = w·n_eff/Σw (probability weights: the frequency formulas on w*, no likelihood figures) — tolerance 1e-10 relative; `internal/regordinal/oracle_test.go`, `internal/regordinal/ordinal_e2e_test.go`
+
+**Validation gap:** The Brant test's omnibus statistic reads the symmetric covariance of the binary logits' slopes (Brant 1990); brant 0.3.0 stores the (m, l) cross block untransposed at (l, m), so its omnibus figure differs (per-predictor statistics agree) — the oracle script reproduces the package's figure exactly and pins the symmetric one. Resample, selection, penalty, margins and collinearity are refused (no oracle), and covariance hc2 / hc3 / hac (no row-wise hat matrix, no series).
+
+See [How Pulse is validated](../validation.md).
+
+**Skill:** [`op-reg-ordinal`](../skills/op-reg-ordinal.md)

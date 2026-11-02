@@ -216,6 +216,7 @@ import sklearn.metrics
 import statsmodels
 from statsmodels.genmod import families as sm_families
 from statsmodels.genmod.generalized_linear_model import GLM as SmGLM
+from statsmodels.miscmodels.ordinal_model import OrderedModel
 from statsmodels.regression.linear_model import OLS as SmOLS
 from statsmodels.tools.sm_exceptions import DomainWarning
 from statsmodels.stats.proportion import confint_proportions_2indep, proportions_ztest
@@ -1912,6 +1913,16 @@ def overlay_cases():
 #     scalar-precision Normal-Inverse-Gamma prior, so the reference is
 #     that conjugate posterior in closed form evaluated on the expanded
 #     rows (np.repeat), scipy t quantiles for the credible intervals.
+#   * REG_ORDINAL (U65 E4-S1) — the proportional-odds logit (MASS
+#     polr's model) of yo, y cut into three levels at 0.8 / 2.4 by a
+#     FEAT_BUCKETIZE in the request, on x1, x2: Newton–Raphson on the
+#     analytic gradient and observed information to the MLE, on the
+#     np.repeat expansion (frequency) or on w* = w·n_eff/Σw
+#     (probability; no two_log_lik / aic). The frequency fit is
+#     cross-checked against statsmodels OrderedModel(distr = "logit") on
+#     the expansion (its BFGS stops ~1e-6 off the MLE, so 1e-4), the
+#     probability one against the same Newton on w (β and the deviance
+#     ratio are scale-free).
 #   * ATTR_REG_FITTED / RESIDUAL / LEVERAGE — frequency: R lm on the
 #     expansion (predict(); leverage = f × one copy's hatvalues());
 #     probability: the closed form (β and hᵢᵢ = wᵢ(1/Σw + dxᵀM2_w⁻¹dx)
@@ -1949,8 +1960,14 @@ REG_SPECS = [
     *[(case, {"type": "REG_GLM", "family": fam, "target": tgt, "predictors": REG_PREDICTORS, **REG_GLM_CONTROL})
       for case, (fam, tgt) in REG_GLM_TARGETS.items()],
     ("bayes", _reg_spec({"type": "REG_BAYES_LINEAR"})),
+    ("ordinal", {"type": "REG_ORDINAL", "target": "yo", "predictors": REG_PREDICTORS}),
 ]
 REG_FREQUENCY_ONLY = {"bayes"}
+# REG_ORDINAL's response: y bucketed by FEAT_BUCKETIZE (bucket i where
+# boundaries[i-1] < y <= boundaries[i]), levels "0" / "1" / "2".
+REG_ORDINAL_BOUNDARIES = [0.8, 2.4]
+REG_ORDINAL_FEATURE = {"type": "FEAT_BUCKETIZE", "field": "y", "label": "yo",
+                       "params": {"boundaries": REG_ORDINAL_BOUNDARIES}}
 
 # (case, attribute type, label): one per-row figure each, read back as
 # an unweighted AGG_SUM per id group.
@@ -2184,6 +2201,110 @@ def glm_closed_form(case, ws, kind):
     out.update(deviance=dev, null_deviance=null_dev, pseudo_r2=1 - dev / null_dev)
     if gamma:
         out["df"] = df
+    out.update(reg_floor(ws, idx, prob))
+    return out
+
+
+def ordinal_level(y):
+    """FEAT_BUCKETIZE's bucket of y over REG_ORDINAL_BOUNDARIES."""
+    for i, b in enumerate(REG_ORDINAL_BOUNDARIES):
+        if y <= b:
+            return i
+    return len(REG_ORDINAL_BOUNDARIES)
+
+
+def ordinal_newton(X, y, w, k):
+    """The proportional-odds logit MLE by Newton on the analytic
+    derivatives: (theta = (beta, zeta), loglik, information)."""
+    n, p = X.shape
+    q = p + k - 1
+    F = lambda x: 1 / (1 + np.exp(-x))
+
+    def parts(theta):
+        beta, zeta = theta[:p], theta[p:]
+        eta = X @ beta
+        up, lo = y < k - 1, y > 0
+        a = np.where(up, np.concatenate([zeta, [0.0]])[y] - eta, 0.0)
+        b = np.where(lo, np.concatenate([[0.0], zeta])[y] - eta, 0.0)
+        Fa, Fb = np.where(up, F(a), 1.0), np.where(lo, F(b), 0.0)
+        fa, fb = np.where(up, Fa * (1 - Fa), 0.0), np.where(lo, Fb * (1 - Fb), 0.0)
+        fpa, fpb = np.where(up, fa * (1 - 2 * Fa), 0.0), np.where(lo, fb * (1 - 2 * Fb), 0.0)
+        pr = Fa - Fb
+        g = (fa - fb) / pr
+        grad = np.zeros(q)
+        info = np.zeros((q, q))
+        for i in range(n):
+            s = np.zeros(q)
+            h = np.zeros((q, q))
+            s[:p] = -g[i] * X[i]
+            h[:p, :p] = ((fpa[i] - fpb[i]) / pr[i] - g[i] ** 2) * np.outer(X[i], X[i])
+            if up[i]:
+                u = p + y[i]
+                s[u] = fa[i] / pr[i]
+                h[u, u] = fpa[i] / pr[i] - (fa[i] / pr[i]) ** 2
+                h[:p, u] = h[u, :p] = X[i] * (-fpa[i] / pr[i] + fa[i] * g[i] / pr[i])
+            if lo[i]:
+                l = p + y[i] - 1
+                s[l] = -fb[i] / pr[i]
+                h[l, l] = -fpb[i] / pr[i] - (fb[i] / pr[i]) ** 2
+                h[:p, l] = h[l, :p] = X[i] * (fpb[i] / pr[i] - fb[i] * g[i] / pr[i])
+            if up[i] and lo[i]:
+                u, l = p + y[i], p + y[i] - 1
+                h[u, l] = h[l, u] = fa[i] * fb[i] / pr[i] ** 2
+            grad += w[i] * s
+            info -= w[i] * h
+        return float(np.sum(w * np.log(pr))), grad, info
+
+    shares = np.array([w[y == j].sum() for j in range(k)])
+    cum = np.cumsum(shares)[:-1] / shares.sum()
+    theta = np.concatenate([np.zeros(p), np.log(cum / (1 - cum))])
+    for _ in range(100):
+        _, grad, info = parts(theta)
+        step = np.linalg.solve(info, grad)
+        theta = theta + step
+        if np.max(np.abs(step) / np.maximum(np.abs(theta), 1)) < 1e-15:
+            break
+    ll, grad, info = parts(theta)
+    assert np.max(np.abs(grad)) < 1e-9, grad
+    return theta, ll, info
+
+
+def ordinal_closed_form(ws, kind):
+    """REG_ORDINAL's figures (see the section comment)."""
+    prob = kind == "probability"
+    idx = reg_fit_rows(ws, kind)
+    X = np.array([[REG_ROWS[i][1], REG_ROWS[i][2]] for i in idx])
+    y = np.array([ordinal_level(REG_ROWS[i][3]) for i in idx])
+    w = np.array([ws[i] for i in idx])
+    k = len(REG_ORDINAL_BOUNDARIES) + 1
+    assert sorted(set(y.tolist())) == list(range(k)), y
+    sw = float(w.sum())
+    if prob:
+        wstar = w * (kish(w) / sw)
+        theta, ll, info = ordinal_newton(X, y, wstar, k)
+        th1, _, _ = ordinal_newton(X, y, w, k)
+        assert np.allclose(theta, th1, rtol=1e-10, atol=1e-12), (theta, th1)
+    else:
+        reps = w.astype(int)
+        Xe, ye = np.repeat(X, reps, axis=0), np.repeat(y, reps)
+        theta, ll, info = ordinal_newton(Xe, ye, np.ones(len(ye)), k)
+        sm = OrderedModel(ye, Xe, distr="logit").fit(method="bfgs", disp=False, maxiter=5000, gtol=1e-10)
+        smt = np.concatenate([sm.params[:2], sm.model.transform_threshold_params(sm.params)[1:-1]])
+        assert np.allclose(smt, theta, rtol=1e-4, atol=1e-6), (smt, theta)
+    cov = np.linalg.inv(info)
+    names = REG_PREDICTORS + [f"{j}|{j + 1}" for j in range(k - 1)]
+    out = {}
+    for j, t in enumerate(names):
+        se = math.sqrt(cov[j, j])
+        out[f"coefficients.{t}"] = float(theta[j])
+        out[f"std_errors.{t}"] = se
+        if j < len(REG_PREDICTORS):
+            out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(theta[j] / se)))
+    shares = np.array([(wstar if prob else w)[y == j].sum() for j in range(k)])
+    ll0 = float(np.sum(shares * np.log(shares / shares.sum())))
+    out.update(deviance=-2 * ll, null_deviance=-2 * ll0, pseudo_r2=1 - ll / ll0)
+    if not prob:
+        out.update(two_log_lik=2 * ll, aic=-2 * ll + 2 * len(names))
     out.update(reg_floor(ws, idx, prob))
     return out
 
@@ -2644,12 +2765,23 @@ def regression_cases():
                     adopt_r(case, figs, rfigs[case])
                     how = "summary() (estimated dispersion)" if case == "glm_gamma" else "summary(dispersion = 1)"
                     src = f"{RREG[0]} glm on rep()-expanded rows, {how} (reg_reference.R)"
+            elif case == "ordinal":
+                figs = ordinal_closed_form(ws, kind)
+                if prob:
+                    src = ("Newton MLE of the proportional-odds logit on w* = w·n_eff/Σw (numpy), "
+                           "β cross-checked scale-free against the same fit on w")
+                else:
+                    src = ("Newton MLE of the proportional-odds logit on the np.repeat expansion (numpy), "
+                           "cross-checked with statsmodels " + statsmodels.__version__ + " OrderedModel(distr = logit)")
             else:
                 figs = bayes_closed_form(ws)
                 src = ("NIG conjugate posterior (default prior) in closed form on the np.repeat "
                        "expansion; scipy " + scipy.__version__ + " t quantiles — no stock reference")
+            request = {"regressions": [spec]}
+            if case == "ordinal":
+                request["features"] = [REG_ORDINAL_FEATURE]
             out.append(dict(weight=wname, kind=kind, name=case,
-                            request={"regressions": [spec]},
+                            request=request,
                             figs={f"regressions[0].{k}": v for k, v in figs.items()}, src=src))
         attrs = attr_closed_form(ws, kind)
         for case, typ in ATTR_SPECS:

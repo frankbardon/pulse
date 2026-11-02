@@ -3167,6 +3167,7 @@ pulse/extend: type RegressionCoefficient field Statistic *float64
 pulse/extend: type RegressionCoefficient field StdErr *float64
 pulse/extend: type RegressionFactory func(spec *pulse/types.RegressionSpec, schema *pulse/encoding.Schema) (pulse/extend.Regression, error)
 pulse/extend: type RegressionFit struct
+pulse/extend: type RegressionFit field AIC *float64
 pulse/extend: type RegressionFit field AdjR2 *float64
 pulse/extend: type RegressionFit field DF *float64
 pulse/extend: type RegressionFit field Deviance *float64
@@ -3175,6 +3176,7 @@ pulse/extend: type RegressionFit field NullDeviance *float64
 pulse/extend: type RegressionFit field PseudoR2 *float64
 pulse/extend: type RegressionFit field R2 *float64
 pulse/extend: type RegressionFit field ResidualStdErr *float64
+pulse/extend: type RegressionFit field TwoLogLik *float64
 pulse/extend: type RegressionOutput struct
 pulse/extend: type RegressionOutput field Coefficients []pulse/extend.RegressionCoefficient
 pulse/extend: type RegressionOutput field Fit pulse/extend.RegressionFit
@@ -6113,6 +6115,7 @@ pulse/types: const REG_GLM pulse/types.RegressionType = "REG_GLM"
 pulse/types: const REG_MMM_BAYES pulse/types.RegressionType = "REG_MMM_BAYES"
 pulse/types: const REG_MMM_HILL pulse/types.RegressionType = "REG_MMM_HILL"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
+pulse/types: const REG_ORDINAL pulse/types.RegressionType = "REG_ORDINAL"
 pulse/types: type RankEntry struct
 pulse/types: type RankEntry field Axes map[string]any "json:\"axes\""
 pulse/types: type RankEntry field Label string "json:\"label\""
@@ -6612,4 +6615,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9c30e8314d7c707336df0cbba7f00a826400f5efcf1402488902410b277952c2
+// golden-hash: 8d34f53fa378bae91479debde1f9898dd5f89d19798ff1d50e3b47b2ebab6add

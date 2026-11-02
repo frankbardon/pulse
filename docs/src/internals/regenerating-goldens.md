@@ -518,6 +518,21 @@ channel's whole (k, s) box). `TestReferenceOracle_MMMHill`
 (`internal/regmmm`) fits each case through `Process` at relative `1e-6`,
 the optimize oracles' tolerance: the engine's Levenberg–Marquardt stop
 rule leaves it ~1e-7 from the exact optimum.
+`scripts/reference/gen_ordinal.R` (U65 E4-S1; MASS 7.3-66 + `sandwich`
+3.1-3 + `brant` 0.3.0 + `jsonlite`, runnable on its own) writes
+`ordinal.json`: `REG_ORDINAL` against `polr` (logit / probit / cloglog)
+polished by Newton to its MLE on the analytic gradient and information
+— polr's BFGS stops ~1e-6 off it and differentiates its Hessian
+numerically, so the script stops unless polr (reltol 1e-14) agrees to
+1e-6 and its vcov to 1e-4 — the hc0 / hc1 / cluster sandwich
+(cross-checked against `sandwich` / `vcovCL` at 1e-4), the mean fitted
+probabilities, and the Brant test re-run with the binary logits at their
+fixed point (the package's own figure reproduced exactly with its
+untransposed cross block and glm's default stop; the golden keeps the
+symmetric covariance). Frequency weights are asserted equal to the
+`rep()` expansion. `TestOrdinalOracle_Design` and
+`TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
+figure at relative `1e-10` (measured within 2e-12).
 
 ### The R toolchain
 
@@ -530,7 +545,8 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
-| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it) |
+| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`) |
+| `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
 | `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |
 | `ppcor` | 1.1 | partial correlation |
@@ -539,7 +555,7 @@ is the whole list in one place.
 | `Hotelling` | 1.0-8 | `TEST_HOTELLING_T2` (`gen_multivariate_tests.R`) |
 | `biotools` | 4.3 | `TEST_BOX_M` |
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
-| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`), the nested-model Wald test (`gen_nested.R`) |
+| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`), the nested-model Wald test (`gen_nested.R`), the `REG_ORDINAL` sandwich cross-check (`gen_ordinal.R`) |
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |

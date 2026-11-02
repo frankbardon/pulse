@@ -264,12 +264,15 @@ func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
 }
 
 // regressionSlotFieldCheck is the accepted-types refusal of one target
-// or predictor field: the table's row for a built-in, the extension
-// rule (the built-in regressions' set or the declared Accepts) for a
-// registered model — the runtime's own calls (regression.BuildWith,
-// the extension adapter's ExtensionRegressionFieldTypeRefusal).
+// or predictor field: the table's row for a built-in (a model
+// regression included), the extension rule (the built-in regressions'
+// set or the declared Accepts) for a registered model — the runtime's
+// own calls (regression.BuildWith, the extension adapter's
+// ExtensionRegressionFieldTypeRefusal).
 func regressionSlotFieldCheck(reg *types.RegressionSpec, decl ExtensionRegression, extension bool, slot fieldaccept.Slot, field string, schema *encoding.Schema) *errors.CodedError {
-	if extension {
+	// A model regression is a built-in: its accepted-types row (which
+	// may differ per slot — REG_ORDINAL's categorical target) judges it.
+	if extension && !model.ModelRegression(reg.Type) {
 		return fieldaccept.CheckExtensionRegression(string(reg.Type), decl.Accepts, slot, field, schema)
 	}
 	return fieldaccept.Check(string(reg.Type), slot, field, schema)

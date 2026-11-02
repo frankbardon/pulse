@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:58a974ffd6e050265428748214ca19936ca0c71a244918f80dd1bfeff1ba90e4",
+    "feature_set_digest": "fs1:574e431d82908e4155387772980767ea4be231b7361077bfd92718fb99e4e40e",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -9466,6 +9466,148 @@
           "frequency",
           "probability"
         ]
+      },
+      {
+        "name": "REG_ORDINAL",
+        "description": "Ordinal regression (proportional odds; MASS::polr): P(Y ≤ k | x) = F(ζ_k − xᵀβ); thresholds \"\u003clevel\u003e|\u003cnext level\u003e\" beside the predictors, no intercept.",
+        "accepts_types": [
+          "date",
+          "datetime",
+          "decimal128",
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "emits_type_note": "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null where the model reports none, key kept; a multiplicity block corrects the p-valued ones), the fit statistics it reports, and outputs keyed by output_schema.",
+        "streamable": false,
+        "streamable_hint": "Always buffered: the model fits over every admitted row.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Ordered response: a categorical or numeric field, 3 to 100 levels; a top-level key of the regression entry.",
+            "field_filter": "any",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names; a top-level key of the regression entry.",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, alpha, coefficients}: multiple-comparison correction over the coefficients carrying a p-value (the intercept excluded unless coefficients names it); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster, order_by, lags}: the covariance estimator the model computes; declared types: classical, hc0, hc1, cluster. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency or probability row weight (REG_GLM's prior-weight rule; no two_log_lik / aic under probability); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
+          },
+          {
+            "name": "link",
+            "type": "enum",
+            "required": false,
+            "default": "logit",
+            "description": "Cumulative link F in P(Y ≤ k | x) = F(ζ_k − xᵀβ) (polr's method): logit (default), probit or cloglog.",
+            "enum_values": [
+              "logit",
+              "probit",
+              "cloglog"
+            ]
+          },
+          {
+            "name": "levels",
+            "type": "list",
+            "required": false,
+            "description": "Level order, lowest first: a categorical's labels or a number's values as written (\"2.5\"); 3 to 100, each once. A row whose response is unlisted is dropped (R's factor NA); a listed level no row carries fails the slot. Absent: dictionary order, or ascending values."
+          },
+          {
+            "name": "brant",
+            "type": "object",
+            "required": false,
+            "description": "{}: adds outputs.brant, the Brant test of proportional odds (omnibus and per predictor; the brant package). Logit only (details.requires link logit)."
+          }
+        ],
+        "intents": [
+          "drivers",
+          "relationship"
+        ],
+        "weight_kinds": [
+          "frequency",
+          "probability"
+        ],
+        "output_schema": [
+          {
+            "key": "link",
+            "json_type": "string",
+            "description": "The link used."
+          },
+          {
+            "key": "levels",
+            "json_type": "array",
+            "description": "The levels in fitted order, lowest first."
+          },
+          {
+            "key": "thresholds",
+            "json_type": "array",
+            "description": "The threshold coefficients' names, in order (no p-value)."
+          },
+          {
+            "key": "fitted_probabilities",
+            "json_type": "object",
+            "description": "Per level: the weighted mean fitted P(Y = level | x) over the fitted rows."
+          },
+          {
+            "key": "brant",
+            "json_type": "object",
+            "description": "With params.brant: {statistic, df, p_value} omnibus ((K − 2)·p df) and terms per predictor (K − 2 df); null when a binary split separates."
+          }
+        ]
       }
     ],
     "matrices": [
@@ -14143,6 +14285,10 @@
         "description": "Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics."
       },
       {
+        "name": "op-reg-ordinal",
+        "description": "REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant test, weights, refusals. Always buffered."
+      },
+      {
         "name": "op-synth-bernoulli",
         "description": "Bernoulli samples emitting 0 or 1 with probability p; pairs with packed_bool or unsigned int fields."
       },
@@ -14867,7 +15013,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 268,
+    "examples_count": 269,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14923,6 +15069,7 @@
       "normality-test",
       "ols",
       "one-sample",
+      "ordinal",
       "outlier-detection",
       "overlay",
       "paired",
@@ -20805,4 +20952,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c1471195e3c6634a3fa45db0f3487fbee6ea5c320634a4f4f4301a74b909e08c
+// golden-hash: d360418d662b14a764251110dbeaca0d14be97a50b8f6ed1bc339b13f91374a9

@@ -82,6 +82,10 @@ var regParityOps = []regParityOp{
 	{name: "glm_poisson", reg: regParityGLM("poisson", "g", "x", "y"), tol: 1e-10},
 	{name: "glm_gamma", reg: regParityGLM("gamma", "y", "x", "g"), tol: 1e-10},
 	{name: "bayes", reg: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: regParityPredictors}, tol: 1e-10},
+	// REG_ORDINAL (U65 E4-S1) over the categorical o (three labels, its
+	// dictionary order): prior weights w* in the likelihood, Newton to a
+	// 1e-12 relative step on both sides.
+	{name: "ordinal", reg: &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x", "y"}}, tol: 1e-10},
 	{name: "attr_fitted", attr: types.ATTR_REG_FITTED, tol: 1e-10},
 	{name: "attr_residual", attr: types.ATTR_REG_RESIDUAL, tol: 1e-10},
 	{name: "attr_leverage", attr: types.ATTR_REG_LEVERAGE, tol: 1e-10},

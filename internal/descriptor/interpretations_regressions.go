@@ -23,6 +23,7 @@ var regressionInterpretations = map[string][]descriptor.Interpretation{
 	"REG_MMM_BAYES":    interpRegMMMBayes,
 	"REG_MMM_HILL":     interpRegMMMHill,
 	"REG_OLS":          interpRegOLS,
+	"REG_ORDINAL":      interpRegOrdinal,
 }
 
 // Shared readings, so the three types say the same thing the same way.
@@ -509,6 +510,99 @@ var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
 		Means: "Least-squares solver iterations taken before the fit settled.",
 		Caveats: []string{
 			"A fit that cannot converge within the iteration cap fails its slot alone rather than being reported.",
+		},
+	},
+})
+
+var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
+	{
+		Field: "coefficients.*",
+		Means: "A predictor's coefficient is the shift of the latent scale for a one-unit increase in it, holding the other predictors fixed: " +
+			"under the logit link the log odds ratio of a higher rather than a lower level, the same at every step of the scale. " +
+			"A threshold \"<level>|<next level>\" (listed in outputs.thresholds) is the cut point zeta between two adjacent levels, in " +
+			"P(Y <= level | x) = F(zeta - x'beta).",
+		Sign: map[string]string{
+			"+": "higher values of the predictor are associated with higher levels of the outcome, other predictors held fixed",
+			"-": "higher values of the predictor are associated with lower levels of the outcome, other predictors held fixed",
+		},
+		Caveats: []string{
+			"Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score " +
+				"by that many standard deviations, under cloglog it is a log hazard ratio.",
+			"It assumes the effect is the same at every step (proportional odds); params.brant tests it.",
+			regCoefCausal,
+			regCoefUnits,
+			regCoefCollinear,
+			"A threshold is not a predictor's effect: it only places the scale's cut points, and moves with the predictors' origin.",
+		},
+	},
+	{
+		Field: "std_errors.*",
+		Means: "How much the coefficient or threshold would vary from sample to sample, from the inverse of the fitted (observed) information matrix.",
+		Caveats: []string{
+			"Unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); " +
+				"p_values, the intervals and vcov follow it.",
+		},
+	},
+	{
+		Field: "statistics.*",
+		Means: "The Wald statistic: the coefficient or threshold divided by its standard error.",
+		Caveats: []string{
+			"A threshold's statistic tests a cut point of 0, which only says where the scale sits when every predictor is 0; read it as precision, not as evidence.",
+		},
+	},
+	{
+		Field:  "p_values.*",
+		Shared: SharedPValue,
+		Caveats: []string{
+			"A Wald z on the fitted information (or the robust covariance). Thresholds carry none (null): a cut point of 0 is no hypothesis.",
+		},
+	},
+}, append(regCI("the coefficient or threshold minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval).",
+	regCIRepeated,
+	regCIOneAtATime,
+	"Raised to the power e, the bounds of a logit coefficient bound its odds ratio.",
+), regConfLevel), []descriptor.Interpretation{
+	{
+		Field: "deviance",
+		Means: "-2 x the maximised log-likelihood (MASS polr's deviance): lower is a closer fit; compare it only with null_deviance or with another model fitted to the same rows and outcome.",
+	},
+	{
+		Field: "null_deviance",
+		Means: "The deviance of the thresholds-only model, which predicts every row at the overall share of each level: the baseline the predictors are judged against.",
+	},
+	{
+		Field: "pseudo_r2",
+		Means: "1 - deviance / null_deviance, McFadden's pseudo-R-squared: the share of the baseline's deviance the predictors remove, from 0 to 1.",
+		Caveats: []string{
+			"It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model; there are no published bands for it, so none are attached.",
+		},
+	},
+	{
+		Field:   "two_log_lik",
+		Means:   "Twice the maximised log-likelihood (R's logLik on polr); higher is a closer fit.",
+		Caveats: []string{"Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood)."},
+	},
+	{
+		Field:   "aic",
+		Means:   "-two_log_lik + 2 x the parameter count (the coefficients and the thresholds; R's AIC on polr); lower is better.",
+		Caveats: []string{regAICCompare},
+	},
+	regNObs,
+	{
+		Field: "converged_iters",
+		Means: "Newton-Raphson steps taken before the coefficients and thresholds stopped changing.",
+		Caveats: []string{
+			"A fit that cannot converge (a predictor that separates the levels) fails its slot alone rather than being reported.",
+		},
+	},
+	{
+		Field: "outputs.*",
+		Means: "outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; " +
+			"outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: " +
+			"a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.",
+		Caveats: []string{
+			"The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.",
+			"A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.",
 		},
 	},
 })

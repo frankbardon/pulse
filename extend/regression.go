@@ -150,6 +150,13 @@ type RegressionFit struct {
 	Deviance       *float64
 	NullDeviance   *float64
 	PseudoR2       *float64
+	// TwoLogLik is twice the maximised log-likelihood 2ℓ and AIC its
+	// −2ℓ + 2·k (types.RegressionResult TwoLogLik / AIC): report them
+	// only for a likelihood fit, never under a probability weight (a
+	// weighted pseudo-likelihood is not a likelihood, the built-ins'
+	// rule).
+	TwoLogLik *float64
+	AIC       *float64
 	// Iterations is an iterative fit's iteration count
 	// (converged_iters); zero is not reported.
 	Iterations int

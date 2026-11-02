@@ -587,3 +587,12 @@ source(file.path(script_dir, "gen_overlay_chisq.R"), local = FALSE)
 # Gauss-Newton polished; one and two channels, a control, a MAP prior
 # and a channel held at beta = 0); minpack.lm 1.2-4 + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_mmm_hill.R"), local = FALSE)
+
+# The REG_ORDINAL golden (U65 E4-S1: ordinal.json: MASS polr logit /
+# probit / cloglog polished by Newton to its MLE on the analytic
+# derivatives, the hc0 / hc1 / cluster sandwich, the mean fitted
+# probabilities and the Brant test with the binary logits at their
+# fixed point; frequency weights against the rep() expansion,
+# probability weights on w*); MASS 7.3-66 + sandwich 3.1-3 + brant 0.3.0
+# + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)

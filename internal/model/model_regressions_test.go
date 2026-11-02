@@ -115,3 +115,24 @@ func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
 		}
 	}
 }
+
+// TestModelRegression_OrdinalThresholdTerms: REG_ORDINAL's term catalog
+// is its threshold names "<level>|<next level>" from params.levels, in
+// order; without the list (the data order the levels) or with params
+// that do not decode, the names are unknown.
+func TestModelRegression_OrdinalThresholdTerms(t *testing.T) {
+	t.Parallel()
+
+	spec := func(params string) *types.RegressionSpec {
+		return &types.RegressionSpec{Type: types.REG_ORDINAL, Params: json.RawMessage(params)}
+	}
+	got, ok := ModelRegressionTerms(spec(`{"levels":["low","mid","high"],"link":"probit"}`))
+	if want := []string{"low|mid", "mid|high"}; !ok || !slices.Equal(got, want) {
+		t.Fatalf("terms %v (%v), want %v", got, ok, want)
+	}
+	for _, params := range []string{``, `{}`, `{"levels":["only"]}`, `{"levels":"low"}`, `not json`} {
+		if got, ok := ModelRegressionTerms(spec(params)); ok {
+			t.Errorf("params %q: terms %v known, want unknown", params, got)
+		}
+	}
+}

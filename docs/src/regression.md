@@ -11,6 +11,7 @@ Pulse exposes regression through a compact, composable surface. A small set of `
 | `REG_BAYES_LINEAR` | Bayesian linear regression (conjugate NIG)   | Streams sufficient statistics (Phase 4)    |
 | `REG_MMM_HILL`     | Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls | Always buffered |
 | `REG_MMM_BAYES`    | Bayesian media-mix model: raw spend adstocked in the model, Hill saturation, linear controls, posterior sampled by NUTS | Always buffered |
+| `REG_ORDINAL`      | Ordinal (proportional-odds, cumulative link) regression, MASS `polr`'s model: logit / probit / cloglog, Newton on the analytic information | Always buffered |
 
 Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Resample` only; its own knobs ride `params`, and it names its own curve coefficients `k:<channel>` / `s:<channel>` — skill `op-reg-mmm-hill`, example `internal/examples/regression/19_mmm_hill.json`). `REG_MMM_BAYES` takes neither: its sampler, priors and model-owned holdout (`holdout_from`) ride `params`, it has no scorer (no `save`, engine `holdout` or `ATTR_REG_PREDICT`), and it names `decay:<channel>`, `k:<channel>`, `s:<channel>` and `sigma` beside the predictors, its ROI / mROI / contribution intervals and sampler diagnostics riding `outputs` — skill `op-reg-mmm-bayes`, example `internal/examples/regression/20_mmm_bayes.json`, design guide `mmm-workflow`. The modifiers:
 
@@ -47,6 +48,7 @@ The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Mult
 | `REG_OLS` + l1 / l2 / elasticnet                  | yes        | O(p²)   | streaming Gram; regularized solve at finalize                   |
 | `REG_BAYES_LINEAR` (conjugate NIG)                | yes        | O(p²)   | streaming sufficient stats + closed-form posterior update       |
 | `REG_GLM` (binomial / poisson / gamma / NB)       | no         | O(n·p)  | IRLS / Newton requires multiple passes                          |
+| `REG_ORDINAL`                                     | no         | O(n·p)  | Newton–Raphson over every admitted row                          |
 | Any regression with `Resample != ""`              | no         | O(n·p)  | LOO / bootstrap refit                                           |
 | Any regression with `Selection != ""`             | no         | O(n·p)  | refit per candidate subset                                      |
 | `REG_OLS` / `REG_BAYES_LINEAR` with a robust `covariance` (not `classical`) | no | O(n·p) | second pass for residuals / leverage                |
@@ -239,6 +241,28 @@ Modifier compatibility: `Resample` and `Selection` are **rejected** for `REG_BAY
 Setting `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on a Bayes spec is rejected with `PROCESSING_CONFIG`.
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
+
+### `REG_ORDINAL`
+
+Ordinal regression of an ordered response, MASS `polr`'s proportional-odds (cumulative link) model: `P(Y ≤ k | x) = F(ζ_k − xᵀβ)`, `k = 1..K−1`, one coefficient per predictor shifting every threshold alike. Authored on the extension contract (a model regression, `internal/regordinal`): its own knobs ride `params`.
+
+| Param        | Required | Notes |
+|--------------|----------|-------|
+| `target`     | yes      | The ordered response: a categorical (its labels) or a numeric field (its values, formatted as R's `as.character`: `"3"`, `"2.5"`). 3 to 100 levels on the fitted rows (polr's floor; a continuous target is no ordinal scale). |
+| `predictors` | yes      | Numeric predictors. No intercept: the thresholds carry it. |
+| `params.link`   | no    | `logit` (default; polr `"logistic"`, proportional odds), `probit`, `cloglog` (`1 − exp(−exp(q))`, proportional hazards). |
+| `params.levels` | no    | The level order, lowest first, each once (3 to 100). A fitted row whose response it does not list is dropped, as R's `factor(y, levels =)` makes it `NA` and polr drops it; a listed level no fitted row carries fails the slot (`INSUFFICIENT_DATA`, `reason: empty_level`). Absent: a categorical's dictionary order (the import order — pass `levels` for a scale imported out of order), a numeric target's ascending values, over the levels the fitted rows carry. |
+| `params.brant`  | no    | `{}`: adds `outputs.brant`, the Brant test of the proportional-odds assumption. Logit only (`PROCESSING_CONFIG`, `details.requires: link logit`). |
+| `conf_level`, `vcov`, `multiplicity`, `weight` | no | As the built-ins. |
+| `covariance` | no | `hc0` / `hc1` (the score sandwich H⁻¹·Σw*·s·sᵀ·H⁻¹, hc1 scaled N*/(N* − q)) or `cluster` (CR1, G/(G − 1)·(N* − 1)/(N* − q)), q = p + K − 1 — `sandwich::sandwich` / `vcovCL` on polr. `hc2` / `hc3` (no row-wise hat matrix for a cumulative link) and `hac` are refused. |
+
+- **Result.** `coefficients` are the predictors (spec order) then the thresholds `"<level>|<next level>"` (polr's `zeta` names). `std_errors` from the inverse observed (analytic) information, or the sandwich; `statistics` z; `p_values` two-sided normal on the predictors only — a threshold's `ζ = 0` is no hypothesis, its p-value is `null` (so a `multiplicity` block corrects the predictors); Wald `ci_lower` / `ci_upper` at `conf_level`. `deviance` = −2ℓ (polr's), `null_deviance` the thresholds-only fit's (each row at the weighted level shares), `pseudo_r2` McFadden's, `two_log_lik` / `aic` (q parameters; R's `logLik` / `AIC` on polr), `converged_iters`. `outputs`: `link`, `levels` (the fitted order), `thresholds` (the threshold names), `fitted_probabilities` (the weighted mean over the fitted rows of P(Y = level | x), R `colMeans(fitted(polr))`) and, with `params.brant`, `brant`.
+- **Brant test.** The K − 1 binary logits of `1{y > m}` (prior weights w*) fitted to their fixed point; their slopes' covariance Var(β*_m) = (X̃ᵀW_mX̃)⁻¹, Cov(β*_m, β*_l) = (X̃ᵀW_mX̃)⁻¹(X̃ᵀW_mlX̃)(X̃ᵀW_lX̃)⁻¹ (intercept rows dropped, W_ml = w*·π_l(1 − π_m), m < l) and its transpose at (l, m); the Wald χ² of β*_1 = β*_m for every m — `{statistic, df, p_value}` omnibus on (K − 2)·p df and `terms` per predictor on K − 2. A binary split a predictor separates leaves the figures `null`; the fit stands. The `brant` 0.3.0 package stores the (m, l) block untransposed at (l, m), so its omnibus statistic differs from this symmetric (covariance) one — its per-predictor statistics agree; the oracle script reproduces the package's figure exactly.
+- **Weights** (`REG_GLM`'s rule): prior weights w* in the likelihood — frequency w* = w, the fit equal to the `rep()`-expanded one (Brant test included); probability w* = w·n_eff/Σw (Kish), the frequency formulas on w*, `two_log_lik` / `aic` absent.
+- **Refused** (identical at predict and run; the shared-slot table's `PROCESSING_CONFIG` `{regression, slot}`): `penalty`, `selection`, `resample` (no oracle yet), `margins` / `collinearity` (`requires: type REG_OLS or REG_GLM`), the top-level `link` / `family` / `theta` / `dispersion` / `max_iters` / `tol` / `prior` / `intercept` / `solver` / `bounds` / `unpenalized`, `save` (no scorer: a fit predicts a distribution over levels, not one score) and `holdout` (`PULSE_MODEL_SCORE_INVALID`, `no_scorer`).
+- **Fails alone** (`PULSE_SLOT_FAILED`): fewer than 3 or more than 100 levels, an empty listed level, no more rows (N*) than parameters (`INSUFFICIENT_DATA`, `details.reason`), a singular information (`RANK_DEFICIENT`), no convergence — a predictor that separates the levels (`NO_CONVERGE`). One cluster is the built-ins' fatal `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: clusters`).
+
+Oracle: R 4.6.1 + MASS 7.3-66 `polr` polished by Newton to its MLE on the analytic gradient and information (polr's BFGS stops ~1e-6 off it and differentiates its Hessian numerically), `sandwich` 3.1-3, `brant` 0.3.0, at 1e-10 (measured within 2e-12; `scripts/reference/gen_ordinal.R`, `ordinal.json`, `internal/regordinal` `TestOrdinalOracle_Design` and `TestRegOrdinal_MatchesPolrEndToEnd`); the weighted-reference harness pins frequency and probability fits at 1e-12 (`TestWeightReferenceValues`). Example `internal/examples/regression/21_ordinal.json`; skill `op-reg-ordinal`.
 
 ## Modifiers
 

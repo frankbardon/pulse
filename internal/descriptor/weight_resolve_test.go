@@ -639,9 +639,10 @@ func TestResolveWeights_RegressionModifiersRefused(t *testing.T) {
 // TestResolveWeights_AwareRegressionsApplied: every regression whose
 // weighted fit exists (U12 E4-S1: REG_OLS under both kinds — and
 // REG_GLM since E4-S2 —
-// REG_BAYES_LINEAR under frequency) applies a weight of each kind its
-// class advertises from every source; REG_BAYES_LINEAR under a
-// probability weight is PULSE_WEIGHT_UNSUPPORTED naming the kind.
+// REG_BAYES_LINEAR under frequency; REG_ORDINAL under both since U65
+// E4-S1) applies a weight of each kind its class advertises from every
+// source; REG_BAYES_LINEAR under a probability weight is
+// PULSE_WEIGHT_UNSUPPORTED naming the kind.
 func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 	t.Parallel()
 
@@ -649,6 +650,7 @@ func TestResolveWeights_AwareRegressionsApplied(t *testing.T) {
 		types.REG_OLS:          {types.WeightKindFrequency, types.WeightKindProbability},
 		types.REG_BAYES_LINEAR: {types.WeightKindFrequency},
 		types.REG_GLM:          {types.WeightKindFrequency, types.WeightKindProbability},
+		types.REG_ORDINAL:      {types.WeightKindFrequency, types.WeightKindProbability},
 	}
 	for _, rt := range types.AllRegressionTypes() {
 		if !reflect.DeepEqual(weighting.KindsOf(string(rt)), want[rt]) {

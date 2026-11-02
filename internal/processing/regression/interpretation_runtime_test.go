@@ -56,6 +56,10 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 		{Type: types.REG_MMM_BAYES, Target: "m", Predictors: []string{"c", "x2"}, RNGSeed: 1,
 			Params: json.RawMessage(`{"channels":["c"],"time":"t","chains":2,"warmup":100,"draws":50}`)},
 	},
+	// The ordinal model over o, y cut into three levels.
+	types.REG_ORDINAL: {
+		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}},
+	},
 }
 
 // probeRows is a deterministic noisy fixture: a numeric target with
@@ -74,7 +78,15 @@ func probeRows() []regression.Record {
 			b = 1
 		}
 		c := 60 + 50*math.Sin(0.53*float64(i))
-		out[i] = probeRecord{"x1": x1, "x2": x2, "y": 3 + 2*x1 - x2 + noise, "b": b,
+		y := 3 + 2*x1 - x2 + noise
+		o := 1.0
+		switch {
+		case y >= 5:
+			o = 3
+		case y >= 1:
+			o = 2
+		}
+		out[i] = probeRecord{"x1": x1, "x2": x2, "y": y, "b": b, "o": o,
 			"g": 1 / (0.8 + 0.05*x1 + 0.1*x2) * (1 + 0.3*noise),
 			"c": c, "t": float64(i + 1), "m": 5 + 8*c/(c+40) - 0.5*x2 + 0.3*noise,
 			"k": math.Floor(math.Exp(1 + 0.3*x1 + 0.4*x2 + 1.2*math.Sin(2.3*float64(i))))}

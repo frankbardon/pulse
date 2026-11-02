@@ -238,6 +238,7 @@
     - [op-reg-mod-resample](skills/op-reg-mod-resample.md)
     - [op-reg-mod-selection](skills/op-reg-mod-selection.md)
     - [op-reg-ols](skills/op-reg-ols.md)
+    - [op-reg-ordinal](skills/op-reg-ordinal.md)
     - [op-synth-bernoulli](skills/op-synth-bernoulli.md)
     - [op-synth-constant](skills/op-synth-constant.md)
     - [op-synth-discrete](skills/op-synth-discrete.md)

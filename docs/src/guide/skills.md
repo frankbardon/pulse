@@ -204,6 +204,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-reg-mod-resample`](skills/op-reg-mod-resample.md): Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
 - [`op-reg-mod-selection`](skills/op-reg-mod-selection.md): Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
 - [`op-reg-ols`](skills/op-reg-ols.md): Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics.
+- [`op-reg-ordinal`](skills/op-reg-ordinal.md): REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant test, weights, refusals. Always buffered.
 - [`op-synth-bernoulli`](skills/op-synth-bernoulli.md): Bernoulli samples emitting 0 or 1 with probability p; pairs with packed_bool or unsigned int fields.
 - [`op-synth-constant`](skills/op-synth-constant.md): Emit a constant value on every row; useful for unit testing, sentinel columns, and placeholder fields.
 - [`op-synth-discrete`](skills/op-synth-discrete.md): Exact per-level histogram for an integer column; what a profile reconstructs every u4/u8/u16/u32/u64 field from.

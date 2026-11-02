@@ -132,17 +132,18 @@ func extensionRegressionSlotParams(decl ExtensionRegression) []descriptor.Param 
 // an extension REG_* model's target and predictors: the built-in
 // regressions' rule, or exactly the declared Accepts
 // (fieldaccept.CheckExtensionRegression) — nil when every schema field
-// is accepted. Predict and the runtime adapter raise the same error.
+// is accepted; a model regression's own accepted-types row
+// (REG_ORDINAL's categorical target) — regressionSlotFieldCheck. Predict
+// and the runtime adapter raise the same error.
 func ExtensionRegressionFieldTypeRefusal(spec *types.RegressionSpec, decl ExtensionRegression, schema *encoding.Schema) *errors.CodedError {
 	if spec == nil {
 		return nil
 	}
-	op := string(spec.Type)
-	if cerr := fieldaccept.CheckExtensionRegression(op, decl.Accepts, fieldaccept.SlotTarget, spec.Target, schema); cerr != nil {
+	if cerr := regressionSlotFieldCheck(spec, decl, true, fieldaccept.SlotTarget, spec.Target, schema); cerr != nil {
 		return cerr
 	}
 	for _, p := range spec.Predictors {
-		if cerr := fieldaccept.CheckExtensionRegression(op, decl.Accepts, fieldaccept.SlotPredictor, p, schema); cerr != nil {
+		if cerr := regressionSlotFieldCheck(spec, decl, true, fieldaccept.SlotPredictor, p, schema); cerr != nil {
 			return cerr
 		}
 	}

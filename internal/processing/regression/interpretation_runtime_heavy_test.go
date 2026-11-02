@@ -37,7 +37,7 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 		{Name: "x1", Type: encoding.FieldTypeF64}, {Name: "x2", Type: encoding.FieldTypeF64},
 		{Name: "g", Type: encoding.FieldTypeF64}, {Name: "c", Type: encoding.FieldTypeF64},
 		{Name: "t", Type: encoding.FieldTypeF64}, {Name: "m", Type: encoding.FieldTypeF64},
-		{Name: "k", Type: encoding.FieldTypeF64},
+		{Name: "k", Type: encoding.FieldTypeF64}, {Name: "o", Type: encoding.FieldTypeU8},
 	}}
 	rows := probeRows()
 	for _, r := range types.AllRegressionTypes() {

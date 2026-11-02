@@ -232,11 +232,15 @@ var testClasses = map[types.TestType]Class{
 // carrying a bootstrap resample or a selection modifier is refused at
 // the slot, whatever its class (the resolver's weightSlot.reason); a
 // jackknife is weighted (JK1 — every replicate refits the remaining
-// rows with their own weights).
+// rows with their own weights). REG_ORDINAL takes REG_GLM's rule: prior
+// weights w* in the likelihood (β kind-free; the information, deviances
+// and SEs on w*, the expansion under frequency; no two_log_lik / aic
+// under probability).
 var regressionClasses = map[types.RegressionType]Class{
 	types.REG_OLS:          ClassAware,
 	types.REG_GLM:          ClassAware,
 	types.REG_BAYES_LINEAR: ClassFrequencyOnly,
+	types.REG_ORDINAL:      ClassAware,
 }
 
 // matrixClasses are the built-in matrix operators' weight classes.

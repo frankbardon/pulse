@@ -353,6 +353,8 @@ var acceptanceTemplates = map[string]string{
 	// A model regression: the field under judgement is a linear control
 	// beside the channel x.
 	"REG_MMM_HILL": `{"regressions":[{"type":"REG_MMM_HILL","name":"r","target":"y","predictors":["x","$F"],"params":{"channels":["x"]}}]}`,
+	// The ordinal model over the categorical g (its dictionary order).
+	"REG_ORDINAL": `{"regressions":[{"type":"REG_ORDINAL","name":"r","target":"g","predictors":["$F"]}]}`,
 	// The same shape over the contiguous week, with a minimal sampler run.
 	"REG_MMM_BAYES": `{"regressions":[{"type":"REG_MMM_BAYES","name":"r","target":"y","predictors":["x","$F"],"rng_seed":1,"params":{"channels":["x"],"time":"week","chains":1,"warmup":20,"draws":20}}]}`,
 }

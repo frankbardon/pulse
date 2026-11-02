@@ -54,6 +54,16 @@ const (
 	// "s:<channel>", "sigma") beside the intercept and the predictors.
 	// Always buffered.
 	REG_MMM_BAYES RegressionType = "REG_MMM_BAYES"
+
+	// REG_ORDINAL fits an ordinal (proportional-odds, cumulative link)
+	// regression, MASS::polr's model: P(Y ≤ k | x) = F(ζ_k − xᵀβ) over
+	// the target's ordered levels, F the params.link's cdf (logit, the
+	// default; probit; cloglog). It names its own threshold
+	// coefficients ("<level>|<next level>") beside the predictors and
+	// fits no intercept; params.brant adds the Brant test of the
+	// proportional-odds assumption. Always buffered (Newton–Raphson over
+	// every admitted row).
+	REG_ORDINAL RegressionType = "REG_ORDINAL"
 )
 
 // AllRegressionTypes returns every defined regression operator in
@@ -65,6 +75,7 @@ func AllRegressionTypes() []RegressionType {
 		REG_MMM_BAYES,
 		REG_MMM_HILL,
 		REG_OLS,
+		REG_ORDINAL,
 	}
 }
 
@@ -932,11 +943,11 @@ type RegressionResult struct {
 	Outputs map[string]any `json:"outputs,omitempty"`
 
 	// ReportedFigures names the omitempty whole-fit figures (r2,
-	// adj_r2, residual_std_err, df, deviance, null_deviance, pseudo_r2)
-	// an extension regression's model reported, so an exact 0 among
-	// them reads as computed rather than absent (a compose sweep ranking
-	// by one ranks it). Nil for a built-in, whose figures follow its
-	// type. Never serialised.
+	// adj_r2, residual_std_err, df, deviance, null_deviance, pseudo_r2,
+	// two_log_lik, aic) an extension regression's model reported, so an
+	// exact 0 among them reads as computed rather than absent (a compose
+	// sweep ranking by one ranks it). Nil for a built-in, whose figures
+	// follow its type. Never serialised.
 	ReportedFigures []string `json:"-"`
 
 	// ActiveBounds names the RegressionSpec.Bounds predictors the fit
@@ -1034,7 +1045,7 @@ func (t RegressionType) Streamable() bool {
 	switch t {
 	case REG_OLS, REG_BAYES_LINEAR:
 		return true
-	case REG_GLM, REG_MMM_BAYES, REG_MMM_HILL:
+	case REG_GLM, REG_MMM_BAYES, REG_MMM_HILL, REG_ORDINAL:
 		return false
 	}
 	return false

@@ -511,8 +511,8 @@ func dependsOnTarget(groups [][]string, target string) bool {
 }
 
 // handlerScanDirs are the package directories whose registries own the
-// built-in operators (../regmmm: the model regressions' factories).
-var handlerScanDirs = []string{".", "window", "feature", "regression", "../regmmm"}
+// built-in operators (../regmmm, ../regordinal: the model regressions' factories).
+var handlerScanDirs = []string{".", "window", "feature", "regression", "../regmmm", "../regordinal"}
 
 func testHandlerReferenceScan(t *testing.T) {
 	consts := typesOperatorConstants(t)

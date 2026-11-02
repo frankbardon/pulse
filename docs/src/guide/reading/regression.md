@@ -694,3 +694,133 @@ The reciprocal of vif: the share of the term's spread the other predictors do no
 #### `collinearity.gvif_scaled.*`
 
 vif^(1/(2 df)): the generalized VIF on the scale of a standard error, so terms of different column counts compare; for a single column it is the square root of vif.
+
+<a id="op-reg_ordinal"></a>
+
+### `REG_ORDINAL`
+
+Fits a model that predicts an ordered rating (poor, fair, good) from numeric predictors, each shifting the whole scale up or down. See its [catalog entry](../catalog/regression.md#op-reg_ordinal).
+
+#### `coefficients.*`
+
+A predictor's coefficient is the shift of the latent scale for a one-unit increase in it, holding the other predictors fixed: under the logit link the log odds ratio of a higher rather than a lower level, the same at every step of the scale. A threshold "&lt;level&gt;|<next level>" (listed in outputs.thresholds) is the cut point zeta between two adjacent levels, in P(Y <= level | x) = F(zeta - x'beta).
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with higher levels of the outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with lower levels of the outcome, other predictors held fixed
+
+**Caveats:**
+
+- Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score by that many standard deviations, under cloglog it is a log hazard ratio.
+- It assumes the effect is the same at every step (proportional odds); params.brant tests it.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
+- With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
+- A threshold is not a predictor's effect: it only places the scale's cut points, and moves with the predictors' origin.
+
+#### `std_errors.*`
+
+How much the coefficient or threshold would vary from sample to sample, from the inverse of the fitted (observed) information matrix.
+
+**Caveats:**
+
+- Unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); p_values, the intervals and vcov follow it.
+
+#### `statistics.*`
+
+The Wald statistic: the coefficient or threshold divided by its standard error.
+
+**Caveats:**
+
+- A threshold's statistic tests a cut point of 0, which only says where the scale sits when every predictor is 0; read it as precision, not as evidence.
+
+#### `p_values.*`
+
+**Caveats:**
+
+- A Wald z on the fitted information (or the robust covariance). Thresholds carry none (null): a cut point of 0 is no hypothesis.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient or threshold minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds of a logit coefficient bound its odds ratio.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient or threshold minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval).
+
+**Caveats:**
+
+- It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+- Raised to the power e, the bounds of a logit coefficient bound its odds ratio.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `deviance`
+
+-2 x the maximised log-likelihood (MASS polr's deviance): lower is a closer fit; compare it only with null_deviance or with another model fitted to the same rows and outcome.
+
+#### `null_deviance`
+
+The deviance of the thresholds-only model, which predicts every row at the overall share of each level: the baseline the predictors are judged against.
+
+#### `pseudo_r2`
+
+1 - deviance / null_deviance, McFadden's pseudo-R-squared: the share of the baseline's deviance the predictors remove, from 0 to 1.
+
+**Caveats:**
+
+- It is not a share of variance explained and runs much lower than an OLS R-squared for an equally useful model; there are no published bands for it, so none are attached.
+
+#### `two_log_lik`
+
+Twice the maximised log-likelihood (R's logLik on polr); higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood).
+
+#### `aic`
+
+-two_log_lik + 2 x the parameter count (the coefficients and the thresholds; R's AIC on polr); lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
+#### `n_obs`
+
+Rows used in the fit, after rows with a null target or predictor were dropped.
+
+**Caveats:**
+
+- Few rows per predictor make every estimate unstable and invite overfitting.
+- Under a row weight it stays the row count: the fit's sample size is sum_weights (frequency weights) or n_eff, Kish's effective sample size (probability weights), and the standard errors and residual degrees of freedom read that, not n_obs.
+
+#### `converged_iters`
+
+Newton-Raphson steps taken before the coefficients and thresholds stopped changing.
+
+**Caveats:**
+
+- A fit that cannot converge (a predictor that separates the levels) fails its slot alone rather than being reported.
+
+#### `outputs.*`
+
+outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.
+
+**Caveats:**
+
+- The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.
+- A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.

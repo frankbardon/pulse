@@ -250,6 +250,7 @@
     - [op-reg-mod-resample](guide/skills/op-reg-mod-resample.md)
     - [op-reg-mod-selection](guide/skills/op-reg-mod-selection.md)
     - [op-reg-ols](guide/skills/op-reg-ols.md)
+    - [op-reg-ordinal](guide/skills/op-reg-ordinal.md)
     - [op-synth-bernoulli](guide/skills/op-synth-bernoulli.md)
     - [op-synth-constant](guide/skills/op-synth-constant.md)
     - [op-synth-discrete](guide/skills/op-synth-discrete.md)

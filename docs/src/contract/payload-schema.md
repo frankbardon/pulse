@@ -1022,7 +1022,16 @@ are the engine's (below, Regression coefficient intervals): β ∓ q·SE
 on every coefficient key, `null` where the standard error is, q the
 Student-t on the model's reported `df`, else (and under `resample`)
 the normal; `df` is the reported one only on a t interval. A
-non-finite float in `outputs` is `null`.
+non-finite float in `outputs` is `null`. The fit statistics a model may report
+are `r2`, `adj_r2`, `residual_std_err`, `df`, `deviance`,
+`null_deviance`, `pseudo_r2`, `two_log_lik` and `aic`
+(`extend.RegressionFit`; the last two since U65 E4-S1, never under a
+probability weight) and `converged_iters`. The built-in model
+regressions (`REG_MMM_HILL`, `REG_MMM_BAYES`, `REG_ORDINAL`) answer in
+the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
+beside the predictors (no intercept), leaves their `p_values` `null`,
+and fills `outputs` `link`, `levels`, `thresholds`,
+`fitted_probabilities` and, with `params.brant`, `brant`.
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`
 machinery: neither `disable_components` / `--no-components` nor any

@@ -102,9 +102,18 @@ func NewRegressionDriver(reg RegressionAdapter, spec *types.RegressionSpec, mode
 	return d
 }
 
+// rowAdmitter is a model regression's own listwise rule beyond the
+// engine's (internal/model.AdmitToken keeps it internal to the module):
+// REG_ORDINAL drops a response params.levels does not list and a null
+// covariance cluster, so n_obs counts the rows the model fits.
+type rowAdmitter interface {
+	AdmitRow(rec extend.Record, _ model.AdmitToken) bool
+}
+
 // admit judges rec: false for a row missing its target or a predictor
 // (null, absent or non-finite — regression.InputValue, the built-in
-// listwise read), or — weighted — whose weight is invalid or zero (built-in regression
+// listwise read), one the model's own rule refuses (rowAdmitter), or —
+// weighted — whose weight is invalid or zero (built-in regression
 // admission, regression.rowWeights.of); else it counts the row and
 // returns its weight (0 unweighted).
 func (d *RegressionDriver) admit(rec extend.Record) (float64, bool) {
@@ -115,6 +124,9 @@ func (d *RegressionDriver) admit(rec extend.Record) (float64, bool) {
 		if _, ok := regression.InputValue(rec, p); !ok {
 			return 0, false
 		}
+	}
+	if a, ok := d.model.(rowAdmitter); ok && !a.AdmitRow(rec, model.AdmitToken{}) {
+		return 0, false
 	}
 	if d.weight == nil {
 		d.n++
@@ -250,7 +262,7 @@ func (d *RegressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 	}{
 		{"r2", &res.R2, f.R2}, {"adj_r2", &res.AdjR2, f.AdjR2}, {"residual_std_err", &res.ResidualStdErr, f.ResidualStdErr},
 		{"df", &res.DF, f.DF}, {"deviance", &res.Deviance, f.Deviance}, {"null_deviance", &res.NullDeviance, f.NullDeviance},
-		{"pseudo_r2", &res.PseudoR2, f.PseudoR2},
+		{"pseudo_r2", &res.PseudoR2, f.PseudoR2}, {"two_log_lik", &res.TwoLogLik, f.TwoLogLik}, {"aic", &res.AIC, f.AIC},
 	} {
 		if s.src != nil {
 			*s.dst = *s.src

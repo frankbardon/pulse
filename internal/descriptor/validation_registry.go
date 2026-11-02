@@ -56,6 +56,10 @@ const (
 	tol9   = "1e-9 relative"
 	wrVals = "internal/service/weight_reference_values_test.go"
 	wrTest = "internal/service/weight_reference_tests_test.go"
+	// ordOracle / ordE2E pin REG_ORDINAL to ordinal.json (the design and
+	// the end-to-end path).
+	ordOracle = "internal/regordinal/oracle_test.go"
+	ordE2E    = "internal/regordinal/ordinal_e2e_test.go"
 	// wRefusal pins the permanent weight refusals (WeightRefused).
 	wRefusal = "internal/integration/weight_refusal_pin_test.go"
 
@@ -275,6 +279,14 @@ var validationRegistry = map[string]ValidationRecord{
 		{Against: "`minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE)", Tol: "1e-6 relative (the solver's stop rule)", Tests: []string{"internal/regmmm/hill_oracle_test.go"}},
 		{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}},
 	}},
+	"REG_ORDINAL": {
+		Refs: []ValidationRef{
+			valR("+ MASS 7.3-66 `polr` (logit / probit / cloglog), polished by Newton to its MLE: coefficients, thresholds, standard errors and vcov from the analytic observed information (polr's numerical Hessian agrees to 1e-4), deviance, null deviance, two_log_lik, AIC, the mean fitted probabilities (`colMeans(fitted())`); `sandwich` 3.1-3 `sandwich` / `vcovCL` (HC0, HC1, CR1); `brant` 0.3.0 (omnibus and per-predictor χ², the binary logits at their fixed point); `params.levels` dropping an unlisted response as `factor(y, levels =)` does", tol10, ordOracle, ordE2E),
+			{Against: rPin + " + MASS 7.3-66 `polr(weights = f)` against its `rep()`-expanded fit, and the Brant test on the expansion (frequency weights)", Tol: tol10, Tests: []string{ordOracle, ordE2E}, Weighted: true},
+			{Against: rPin + " + MASS 7.3-66 `polr(weights = w*)`, w* = w·n_eff/Σw (probability weights: the frequency formulas on w*, no likelihood figures)", Tol: tol10, Tests: []string{ordOracle, ordE2E}, Weighted: true},
+		},
+		Gap: "The Brant test's omnibus statistic reads the symmetric covariance of the binary logits' slopes (Brant 1990); brant 0.3.0 stores the (m, l) cross block untransposed at (l, m), so its omnibus figure differs (per-predictor statistics agree) — the oracle script reproduces the package's figure exactly and pins the symmetric one. Resample, selection, penalty, margins and collinearity are refused (no oracle), and covariance hc2 / hc3 / hac (no row-wise hat matrix, no series).",
+	},
 	"REG_MMM_BAYES": {
 		Refs: []ValidationRef{
 			{Against: "`REG_BAYES_LINEAR`'s closed-form conjugate posterior (" + rPin + " matrix algebra), in the conjugate limit: adstock and curve pinned, flat priors (posterior means, SDs and σ)",
