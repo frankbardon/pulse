@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506, 507, 508, 555, 588, 589, 590, 591, 592, 593, 598]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506, 507, 508, 555, 588, 589, 590, 591, 592, 593, 598, 660]
 branch: v1-release
 ---
 
@@ -34,6 +34,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
 - [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
+- [ ] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3)
 - [x] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) the [U12 weighted-inference review](../reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula) and the [U24 matrix-operators review](../reviews/U24-matrix-operators-review.md) (findings MR-01 to MR-08 and the open owner calls) and the [U25 multivariate review](../reviews/U25-multivariate-review.md) (the open owner calls) and the [U30 flows review](../reviews/U30-flows-review.md) (its open items), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference AND the U24 matrix and U25 multivariate guidance, and owns the statistical-review CODEOWNERS entries Signed off 2026-10-31 by the owner (@frankbardon).
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
