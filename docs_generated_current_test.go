@@ -38,7 +38,7 @@ const (
 // glossary or skill edit without `make docs` fails here.
 func TestDocsGeneratedCurrent(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	for _, k := range []string{"PULSE_LABEL_TABLES_DIR", "PULSE_RANGE_TABLES_DIR", "PULSE_POPULATIONS_DIR", "PULSE_TEMPLATES_DIR", "PULSE_FEATURE_PROFILE"} {
+	for _, k := range []string{"PULSE_LABEL_TABLES_DIR", "PULSE_RANGE_TABLES_DIR", "PULSE_LOOKUP_TABLES_DIR", "PULSE_POPULATIONS_DIR", "PULSE_TEMPLATES_DIR", "PULSE_FEATURE_PROFILE"} {
 		t.Setenv(k, "")
 	}
 	p, err := New(Options{FS: afero.NewMemMapFs()})

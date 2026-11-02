@@ -343,6 +343,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA:     shared,
 	errors.PULSE_LOOKUP_TABLE_UNKNOWN:                   ownExpr,
 	errors.PULSE_LOOKUP_MISS:                            ownExpr,
+	// Lookup-table file faults surface at pulse.New (the directory
+	// loader) and from pulse.ParseLookupTableFile — no operator runs.
+	errors.PULSE_LOOKUP_FILE_INVALID:     shared,
+	errors.PULSE_LOOKUP_CELL_NOT_NUMERIC: shared,
+	errors.PULSE_LOOKUP_TABLE_EMPTY:      shared,
 
 	// Opening a cohort (single file or archive) is core.
 	errors.PULSE_ARCHIVE_MAGIC_INVALID: shared,

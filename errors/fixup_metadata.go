@@ -1944,7 +1944,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_DUPLICATE: {
-		Message: "A name was registered more than once in a single pulse.New call: an operator (or expr function) registered twice in its category, or a label table, range table or population declared both programmatically on Options.Extensions and by a file in its directory (LabelTablesDir / RangeTablesDir / PopulationsDir or their PULSE_*_DIR variables). The kind is under `category`, the name under `name` and, for a directory collision, the file under `path`.",
+		Message: "A name was registered more than once in a single pulse.New call: an operator (or expr function) registered twice in its category, or a label table, range table, lookup table or population declared both programmatically on Options.Extensions and by a file in its directory (LabelTablesDir / RangeTablesDir / LookupTablesDir / PopulationsDir or their PULSE_*_DIR variables). The kind is under `category`, the name under `name` and, for a directory collision, the file under `path`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2136,6 +2136,33 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Verify the keys passed to lookup() exist in the registered table, or back the table with a Lookup func that returns a sentinel for unknown keys.",
+			},
+		},
+	},
+	PULSE_LOOKUP_FILE_INVALID: {
+		Message: "A lookup-table file is not valid JSON in one of the two accepted shapes: a bare object mapping each joined key to a number, or a wrapped object {\"description\": \"...\", \"rows\": {key: number}}. `details.reason` names the fault (json_invalid, not_object, duplicate_key, unknown_key, description_not_string, rows_not_object); `details.key` the offending key where there is one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rewrite the file as {\"k1|k2\": 1.5, ...} or {\"description\": \"...\", \"rows\": {\"k1|k2\": 1.5}}; join multi-part keys with |, list each key once, and drop any other top-level key from the wrapped form.",
+			},
+		},
+	},
+	PULSE_LOOKUP_CELL_NOT_NUMERIC: {
+		Message: "A lookup-table file cell is not a finite JSON number; a lookup table maps keys to numbers only. `details.key` names the cell.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Write the cell under `details.key` as a JSON number (1.5, not \"1.5\"); for a key-to-text map use a label table instead.",
+			},
+		},
+	},
+	PULSE_LOOKUP_TABLE_EMPTY: {
+		Message: "A lookup-table file declares no rows, so every lookup against it would miss.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Add at least one key/number row, or delete the file so no empty table is registered.",
 			},
 		},
 	},

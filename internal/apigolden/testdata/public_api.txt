@@ -739,6 +739,7 @@ pulse: type Options field ImportsDir string
 pulse: type Options field LabelTablesDir string
 pulse: type Options field Limits pulse.Limits
 pulse: type Options field Logger *log/slog.Logger
+pulse: type Options field LookupTablesDir string
 pulse: type Options field Metrics pulse/observe.Metrics
 pulse: type Options field PopulationsDir string
 pulse: type Options field ProjectBufferedFields bool
@@ -757,6 +758,7 @@ pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
 pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
+pulse: func ParseLookupTableFile(name string, data []byte) (pulse.LookupTable, error)
 pulse: type Population struct
 pulse: type Population field File []byte
 pulse: type Profile = pulse/synth.Profile
@@ -2790,8 +2792,11 @@ pulse/errors: const PULSE_LABEL_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LABEL_T
 pulse/errors: const PULSE_LIMIT_EXCEEDED pulse/errors.Code = "PULSE_LIMIT_EXCEEDED"
 pulse/errors: const PULSE_LIMIT_INVALID pulse/errors.Code = "PULSE_LIMIT_INVALID"
 pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMBIGUOUS"
+pulse/errors: const PULSE_LOOKUP_CELL_NOT_NUMERIC pulse/errors.Code = "PULSE_LOOKUP_CELL_NOT_NUMERIC"
+pulse/errors: const PULSE_LOOKUP_FILE_INVALID pulse/errors.Code = "PULSE_LOOKUP_FILE_INVALID"
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
+pulse/errors: const PULSE_LOOKUP_TABLE_EMPTY pulse/errors.Code = "PULSE_LOOKUP_TABLE_EMPTY"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
 pulse/errors: const PULSE_MATERIALIZE_CAST_FAILED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_FAILED"
 pulse/errors: const PULSE_MATERIALIZE_CAST_NULLED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_NULLED"
@@ -6621,4 +6626,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8352a9895ebff8f4411fc818edfeaa4cc9556722f593cf28e62b57ad8021bede
+// golden-hash: 1c9584f0d77436905ab436384d87409d28adef3644f2d69dfb3a624f291d324b

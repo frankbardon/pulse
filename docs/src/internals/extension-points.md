@@ -1104,6 +1104,20 @@ wrap into `PROCESSING_RUNTIME` when surfaced through `ATTR_FORMULA` /
 `FILTER_EXPRESSION` — use `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
 to detect inside the chain.
 
+Lookup tables also load from a directory: `Options.LookupTablesDir` (or
+`PULSE_LOOKUP_TABLES_DIR`; the option wins) registers every `*.json` file
+directly in it under its file stem. A file is a bare `{key: number}` object
+or a wrapped `{"description": "...", "rows": {key: number}}` — multi-part
+keys joined with `|`. Pulse's own sidecars are skipped; any other file that
+does not parse fails `pulse.New` naming its path, with
+`PULSE_LOOKUP_FILE_INVALID` (bad JSON or shape, a duplicated key, an
+unknown wrapped key — `details.reason`), `PULSE_LOOKUP_CELL_NOT_NUMERIC`
+or `PULSE_LOOKUP_TABLE_EMPTY`. A name declared both in code and on disk is
+`PULSE_EXTENSION_DUPLICATE` (`details.category` `lookup_table`). To check a
+user-supplied file exactly as the loader does, call
+`pulse.ParseLookupTableFile(name, data)` — it is the loader's parser and
+returns the same codes.
+
 ### Reference vectors
 
 Named sets of labelled target profiles — an ideal brand profile, a

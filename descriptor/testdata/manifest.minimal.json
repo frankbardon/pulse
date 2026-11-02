@@ -378,7 +378,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 112,
+    "error_codes_count": 115,
     "error_domains": [
       "CLI",
       "DATA",
@@ -461,6 +461,9 @@
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LIMIT_EXCEEDED",
       "PULSE_LIMIT_INVALID",
+      "PULSE_LOOKUP_CELL_NOT_NUMERIC",
+      "PULSE_LOOKUP_FILE_INVALID",
+      "PULSE_LOOKUP_TABLE_EMPTY",
       "PULSE_MATERIALIZE_NO_DERIVED",
       "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC",
       "PULSE_MATERIALIZE_OUTPUT_UNDECLARED",
@@ -1421,4 +1424,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 15d389a56da8d7e7d21a66f42a7d6837febd7d7573b0edd68fb33a75ac396d43
+// golden-hash: c4d725610cc3f58041dca76b3cfd90a9d52d35d5ad012ba9eb32549852237b25

@@ -502,6 +502,26 @@ type Options struct {
 	// failure.
 	RangeTablesDir string
 
+	// LookupTablesDir points at a directory of JSON files that the
+	// engine auto-registers as LookupTables (read by the lookup()
+	// expression function) at pulse.New time. Empty disables the loader
+	// (the only source of LookupTables is then
+	// Options.Extensions.LookupTables, set programmatically).
+	//
+	// File format: each *.json file is a bare object mapping each joined
+	// key ("east", "a|2025") to a number, or a wrapped object
+	// {"description": "...", "rows": {key: number}} — see
+	// ParseLookupTableFile, which the loader runs on every file. The
+	// filename without the .json extension becomes the registered table
+	// name; the walk is non-recursive and skips Pulse's own sidecars.
+	//
+	// Honoured after PULSE_LOOKUP_TABLES_DIR — the programmatic value
+	// wins. A missing directory is a no-op; a path that is not a
+	// directory is an error; a file that does not parse fails New with
+	// its path named and its PULSE_LOOKUP_* code. A table name declared
+	// both programmatically and on disk is PULSE_EXTENSION_DUPLICATE.
+	LookupTablesDir string
+
 	// PopulationsDir points at a directory of saved population files
 	// (*.pulse-population.json, a Compose vector fit's `save`) that the
 	// engine auto-registers as Extensions.Populations at pulse.New
@@ -709,6 +729,9 @@ func New(opts Options) (*Pulse, error) {
 		return nil, err
 	}
 	if err := loadRangeTablesFromDir(&opts); err != nil {
+		return nil, err
+	}
+	if err := loadLookupTablesFromDir(&opts); err != nil {
 		return nil, err
 	}
 	if err := loadPopulationsFromDir(&opts); err != nil {

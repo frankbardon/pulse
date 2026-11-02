@@ -1224,8 +1224,9 @@ const (
 
 	// PULSE_EXTENSION_DUPLICATE indicates the same operator name was
 	// registered more than once within a single pulse.New call (same
-	// category), or a label table, range table or population declared
-	// both programmatically and by a file in its directory.
+	// category), or a label table, range table, lookup table or
+	// population declared both programmatically and by a file in its
+	// directory.
 	PULSE_EXTENSION_DUPLICATE Code = "PULSE_EXTENSION_DUPLICATE"
 
 	// PULSE_EXTENSION_STREAMABLE_MISMATCH indicates a registration
@@ -1417,6 +1418,25 @@ const (
 	// PULSE_LOOKUP_MISS indicates a lookup table call provided a key
 	// tuple that is not present in the table.
 	PULSE_LOOKUP_MISS Code = "PULSE_LOOKUP_MISS"
+
+	// PULSE_LOOKUP_FILE_INVALID indicates a lookup-table file (a
+	// PULSE_LOOKUP_TABLES_DIR / Options.LookupTablesDir *.json file, or
+	// the bytes handed to pulse.ParseLookupTableFile) is not one of the
+	// two accepted shapes: a bare {key: number} object, or a wrapped
+	// {"description", "rows"} object. Details carry the table name and a
+	// `reason` (json_invalid, not_object, duplicate_key, unknown_key,
+	// description_not_string, rows_not_object).
+	PULSE_LOOKUP_FILE_INVALID Code = "PULSE_LOOKUP_FILE_INVALID"
+
+	// PULSE_LOOKUP_CELL_NOT_NUMERIC indicates a lookup-table file cell
+	// whose value is not a finite JSON number — lookup() returns float64
+	// only. Details carry the table name and the offending `key`.
+	PULSE_LOOKUP_CELL_NOT_NUMERIC Code = "PULSE_LOOKUP_CELL_NOT_NUMERIC"
+
+	// PULSE_LOOKUP_TABLE_EMPTY indicates a lookup-table file with no
+	// rows: a table every lookup() call would miss. Details carry the
+	// table name.
+	PULSE_LOOKUP_TABLE_EMPTY Code = "PULSE_LOOKUP_TABLE_EMPTY"
 
 	// PULSE_ARCHIVE_MAGIC_INVALID indicates a cohort path whose leading
 	// bytes match neither the single-file Pulse magic ("PULSE\x00\x00\x00")
@@ -4779,6 +4799,9 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
 	PULSE_LOOKUP_TABLE_UNKNOWN,
 	PULSE_LOOKUP_MISS,
+	PULSE_LOOKUP_FILE_INVALID,
+	PULSE_LOOKUP_CELL_NOT_NUMERIC,
+	PULSE_LOOKUP_TABLE_EMPTY,
 	PULSE_ARCHIVE_MAGIC_INVALID,
 	PULSE_ARCHIVE_CORRUPT,
 	PULSE_COHORT_COMPRESSED,
