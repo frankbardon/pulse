@@ -863,7 +863,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#635** Regression through the origin (`intercept: false`) and a `solver` choice (`qr` default, `normal`) on `REG_OLS`; NIST NoInt1 / NoInt2 run (14.1 / 15 digits) · [U64](units/U64-reference-validation.md)
 - [ ] **#644** Decide, then do: the methodological options the #616 pins surfaced — pooled-variance two-sample `TEST_T`, exact `TEST_MANN_WHITNEY_U` p, Yates on a 2 × 2 `TEST_CHISQ`, the Wilson one-proportion `TEST_PROP_Z` interval (today's behaviour the default) · [U64](units/U64-reference-validation.md)
 - [x] **#619** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective, start and bounds (worst 4.3e-8 on a coefficient, 9.2e-8 on a standard error; held at 1e-6) · [U64](units/U64-reference-validation.md)
-- [ ] **#620** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded simulation-based calibration harness · [U64](units/U64-reference-validation.md)
+- [x] **#620** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded simulation-based calibration harness (heavy tier) · [U64](units/U64-reference-validation.md)
 - [ ] **#621** Studio shows each operator's validation in the inspector (pulse-studio) · [U64](units/U64-reference-validation.md)
 - [ ] **#622** Studio's own arithmetic (Stat test, Fit statistics nodes) in a Studio validation table (pulse-studio) · [U64](units/U64-reference-validation.md)
 - [x] **#623** `ATTR_REG_RESIDUAL` `params.kind` (`response` default, `pearson`, `deviance`, `working`) over a bound fit, pinned to statsmodels · [U65](units/U65-regression-depth.md)
