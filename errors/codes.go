@@ -1172,6 +1172,13 @@ const (
 	// is small.
 	PULSE_TEST_TIES_DOMINATE Code = "PULSE_TEST_TIES_DOMINATE"
 
+	// PULSE_TEST_EXACT_UNAVAILABLE warns that a test asked for an exact
+	// p-value (TEST_MANN_WHITNEY_U params.exact) on a sample past the
+	// exact distribution's size cap (min(n_a, n_b)·(n_a + n_b) > 5000;
+	// Σw under a frequency weight): the reported p is the normal
+	// approximation, as without the param.
+	PULSE_TEST_EXACT_UNAVAILABLE Code = "PULSE_TEST_EXACT_UNAVAILABLE"
+
 	// PULSE_TEST_SUBJECT_MISSING indicates a repeated-measures test
 	// found at least one subject missing one or more conditions.
 	// Default behavior is to drop the incomplete subject(s) and surface
@@ -4744,6 +4751,7 @@ var allCodes = []Code{
 	PULSE_TEST_CORRELATION_UNDEFINED,
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH,
 	PULSE_TEST_TIES_DOMINATE,
+	PULSE_TEST_EXACT_UNAVAILABLE,
 	PULSE_TEST_SUBJECT_MISSING,
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED,
 	PULSE_TEST_TUKEY_REQUIRES_K_GE_3,

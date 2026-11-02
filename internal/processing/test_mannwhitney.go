@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/testopts"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,6 +30,12 @@ import (
 //	z    = (U_A − μ_U) / σ_U   (continuity-corrected by ½)
 //	p    = 2 · Φ(−|z|)
 //
+// params.exact (#644) replaces p with the exact permutation p of the
+// rank sum, ties included (mannWhitneyExactP; Variant exact), R 4.6's
+// wilcox.test(exact = TRUE); past its size cap the approximation stays
+// and PULSE_TEST_EXACT_UNAVAILABLE warns. Under a frequency weight it
+// is the exact test on the expanded rows.
+//
 // Frequency-weighted (ClassFrequencyOnly), each row stands for w
 // identical rows: weighted mid-ranks, R_A = Σ w·rank, n_A / n_B / N
 // read Σw and the tie correction the expanded tie sizes — exactly the
@@ -42,6 +49,9 @@ type mannWhitneyRow struct {
 	alpha   float64
 	// reference is params.reference ("" = alphabetical order).
 	reference string
+	// exact is params.exact (testopts, #644): the exact permutation p
+	// (test_mannwhitney_exact.go) in place of the normal approximation.
+	exact bool
 
 	values map[string]*rankSample
 	order  []string
@@ -74,7 +84,12 @@ func newMannWhitneyRow(spec *types.Test, schema *encoding.Schema) (RowTest, erro
 	if err != nil {
 		return nil, err
 	}
+	opts, cerr := testopts.Parse(spec)
+	if cerr != nil {
+		return nil, cerr
+	}
 	return &mannWhitneyRow{
+		exact:      opts.Exact,
 		spec:       spec,
 		schema:     schema,
 		field:      spec.Field,
@@ -178,10 +193,24 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 		z = diff / math.Sqrt(varU)
 		p = normalTwoSidedP(z)
 	}
+	variant := "asymptotic"
+	var warnings []string
+	if m.exact {
+		inA := make([]bool, len(ranks))
+		for i := range nA {
+			inA[i] = true
+		}
+		if pe, ok := mannWhitneyExactP(ranks, combined.weights, inA, nAf, nBf); ok {
+			p, variant = pe, "exact"
+		} else {
+			warnings = append(warnings, exactUnavailableWarning(math.Min(nAf, nBf), N))
+		}
+	}
 	res := &types.TestResult{
 		Label:      testLabel(m.spec),
 		Type:       types.TEST_MANN_WHITNEY_U,
-		Variant:    "asymptotic",
+		Variant:    variant,
+		Warnings:   warnings,
 		Statistic:  uMin,
 		PValue:     p,
 		Alpha:      m.alpha,

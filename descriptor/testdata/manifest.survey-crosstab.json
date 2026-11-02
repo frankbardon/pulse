@@ -722,6 +722,13 @@
             "type": "object",
             "required": false,
             "description": "Goodness of fit: map of Rows level to expected proportion (each \u003e 0, summing to 1 within 1e-9; never renormalised). Selects Variant goodness_of_fit (df = labels − 1) and requires Cols absent; an observed level it omits is refused, a listed level never observed counts as 0."
+          },
+          {
+            "name": "correct",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Yates' continuity correction on a 2×2 independence table (R chisq.test(correct = TRUE)): Y = min(0.5, min |O − E|), χ² = Σ(|O − E| − Y)²/E; details.continuity_correction = Y; cramers_v / phi stay uncorrected. Inert on larger tables and goodness of fit."
           }
         ],
         "requires": [
@@ -737,7 +744,7 @@
         "name": "TEST_T",
         "family": "TEST_T",
         "tier": 1,
-        "description": "One-sample or two-sample Welch t-test on a numeric Field; SplitBy switches to the two-sample variant.",
+        "description": "One-sample or two-sample t-test on a numeric Field; SplitBy switches to the two-sample variant (Welch, or Student's pooled-variance t under params.variance pooled).",
         "streamable": true,
         "params": [
           {
@@ -767,6 +774,17 @@
             "required": false,
             "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
             "names_column": true
+          },
+          {
+            "name": "variance",
+            "type": "enum",
+            "required": false,
+            "default": "unequal",
+            "description": "Two-sample variance: unequal (Welch–Satterthwaite) or pooled (Student, R t.test(var.equal = TRUE): s_p² = ((n_a − 1)s²_a + (n_b − 1)s²_b)/(n_a + n_b − 2), df = n_a + n_b − 2; Variant pooled_two_sample, details.pooled_variance; weighted on N*). pooled needs SplitBy, else PROCESSING_CONFIG.",
+            "enum_values": [
+              "pooled",
+              "unequal"
+            ]
           }
         ],
         "requires": [
@@ -1655,7 +1673,7 @@
       },
       {
         "name": "test-variant-options",
-        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, the chi-square `expected` goodness-of-fit map, and the methodological options `variance`, `exact`, `correct` and `interval`. Read once, shared by every test that offers the option."
       },
       {
         "name": "time-zones",
@@ -2485,4 +2503,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1715c9cb77541ab82fe91d77c1df14440f9acf8eb4eb51ed9f79e28dbfe3179f
+// golden-hash: 373ad4671ad6617d27e7a8cd41f3f81f9e651dd2d031d99ecb8d63daec50ba3f

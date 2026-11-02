@@ -545,7 +545,7 @@
       },
       {
         "name": "test-variant-options",
-        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, the chi-square `expected` goodness-of-fit map, and the methodological options `variance`, `exact`, `correct` and `interval`. Read once, shared by every test that offers the option."
       },
       {
         "name": "time-zones",
@@ -887,4 +887,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f1eca55a5cfed758f56329e97a3c16fc63165fc92d0ead290ede4fba9d32a9e8
+// golden-hash: 76c114cc15fd01b7a8a7fb2acec4d75461f9456c678fb414d6242e999fb80b53

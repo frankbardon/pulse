@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -18,6 +19,11 @@ import (
 // test is the independence form, unchanged.
 type chiSqParams struct {
 	Expected map[string]float64 `json:"expected"`
+	// Correct is params.correct, read (and judged) by testopts.Parse:
+	// Yates' correction on a 2 × 2 independence table, inert on the
+	// goodness-of-fit form (R's chisq.test applies it to a 2 × 2
+	// table only).
+	Correct json.RawMessage `json:"correct"`
 }
 
 // decodeChiSqParams reads TEST_CHISQ's params through paramread.

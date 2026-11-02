@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -10,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/testopts"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -29,7 +31,11 @@ import (
 //     two observed groups' means using the Welch-Satterthwaite degrees
 //     of freedom approximation. Three or more groups surface as
 //     PULSE_TEST_SPLIT_GROUPS_LT_2 (caller asked for two-sample on a
-//     k>2 splitter — direct them to TEST_ANOVA_F).
+//     k>2 splitter — direct them to TEST_ANOVA_F). TEST_T
+//     params.variance "pooled" (testopts, #644) swaps in the Student
+//     form: the pooled variance and df = n_a + n_b − 2 (Variant
+//     pooled_two_sample, details.pooled_variance); TEST_WELCH stays
+//     Welch.
 //
 // Confidence interval bounds use the inverse t quantile at alpha
 // (statdist.StudentTInverseTwoSided: bracketed Newton on log statdist.StudentTTwoSidedP).
@@ -48,6 +54,9 @@ type tTestRow struct {
 	// cuped is the params.covariate adjustment's state (two-sample;
 	// nil without a covariate): it replaces groups as the fold target.
 	cuped *cupedArms
+	// pooled is params.variance "pooled" (testopts): the Student
+	// two-sample t on the pooled variance instead of Welch's.
+	pooled bool
 
 	// groups holds per-key weighted Welford state in first-seen
 	// insertion order so Finalize can return groups deterministically.
@@ -74,13 +83,17 @@ type tTestParams struct {
 	Mu        float64 `json:"mu"`
 	Reference string  `json:"reference"`
 	Covariate string  `json:"covariate"`
+	// Variance is params.variance, read (and judged) by testopts.Parse.
+	Variance json.RawMessage `json:"variance"`
 }
 
-// twoGroupParams is the params payload of a test whose only param is
-// params.reference (TEST_MANN_WHITNEY_U): the split_by level every
-// signed figure is read against. The mean tests read meanTestParams.
+// twoGroupParams is TEST_MANN_WHITNEY_U's params payload:
+// params.reference, the split_by level every signed figure is read
+// against, and params.exact. The mean tests read meanTestParams.
 type twoGroupParams struct {
 	Reference string `json:"reference"`
+	// Exact is params.exact, read (and judged) by testopts.Parse.
+	Exact json.RawMessage `json:"exact"`
 }
 
 // decodeTwoGroupParams reads a twoGroupParams test's params (absent =
@@ -149,6 +162,7 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 	}
 	var mu float64
 	var reference, covariate string
+	var opts testopts.Options
 	if spec.Type == types.TEST_T {
 		var p tTestParams
 		if err := paramread.DecodeOptional(paramread.Test, string(spec.Type), spec.Params, &p); err != nil {
@@ -162,6 +176,11 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		if cerr := fieldaccept.CovariateRefusal(string(spec.Type), spec.Field, spec.SplitBy, covariate, schema); cerr != nil {
 			return nil, cerr
 		}
+		o, cerr := testopts.Parse(spec)
+		if cerr != nil {
+			return nil, cerr
+		}
+		opts = o
 	} else {
 		p, err := decodeMeanTestParams(spec, schema)
 		if err != nil {
@@ -178,6 +197,7 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		mu:         mu,
 		reference:  reference,
 		cuped:      newShiftedCupedArms(covariate),
+		pooled:     opts.Pooled,
 		one:        spec.SplitBy == "",
 		groups:     make(map[string]*weighting.Welford),
 		origins:    make(map[string]*originShift),
@@ -365,6 +385,12 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	na := a.NStar(tt.basis)
 	nb := b.NStar(tt.basis)
 	num, _, df := welchSatterthwaite(va, na, vb, nb)
+	variant := "welch_two_sample"
+	var sp2 float64
+	if tt.pooled {
+		sp2, num, df = pooledVariance(va, na, vb, nb)
+		variant = "pooled_two_sample"
+	}
 	se := math.Sqrt(num)
 	if se == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
@@ -379,7 +405,7 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       tt.spec.Type, // honor TEST_T vs TEST_WELCH alias
-		Variant:    "welch_two_sample",
+		Variant:    variant,
 		Statistic:  tstat,
 		DF:         df,
 		PValue:     p,
@@ -395,9 +421,15 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 			"ci_high":  ciHigh,
 		},
 	}
+	if tt.pooled {
+		res.Details["pooled_variance"] = sp2
+	}
 	noteReference(res.Details, tt.reference)
 	if cf != nil {
 		diffRaw, seRaw2 := cf.rawWelch(tt.basis)
+		if tt.pooled {
+			seRaw2 = cf.rawPooledSE2(tt.basis)
+		}
 		cf.note(res.Details, diffRaw, num, seRaw2)
 	}
 	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))

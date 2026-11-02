@@ -7,7 +7,7 @@
   },
   "primitive": "TEST_PROP_Z",
   "r_function": "prop.test(x, n, correct = FALSE): z = sign(diff) * sqrt(X-squared)",
-  "note": "Two proportions: prop.test's p and Wald interval. One proportion: prop.test's p; the interval is Pulse's Wald interval on p - p0, prop.test's Wilson bounds kept as r_wilson_*.",
+  "note": "Two proportions: prop.test's p and Wald interval. One proportion: prop.test's p; the interval is Pulse's Wald interval on p - p0, prop.test's Wilson bounds kept as r_wilson_*. yates_* / r_yates_wilson_* are prop.test(correct = TRUE).",
   "cases": [
     {
       "name": "two_balanced",
@@ -23,7 +23,11 @@
         0.45000000000000001,
         0.59999999999999998
       ],
-      "pooled": 0.52500000000000002
+      "pooled": 0.52500000000000002,
+      "yates_statistic": -1.9823785111334085,
+      "yates_p_value": 0.047436892824865323,
+      "yates_ci_low": -0.29684703778629573,
+      "yates_ci_high": -0.0031529622137042301
     },
     {
       "name": "two_unbalanced",
@@ -39,7 +43,11 @@
         0.45000000000000001,
         0.33333333333333331
       ],
-      "pooled": 0.35199999999999998
+      "pooled": 0.35199999999999998,
+      "yates_statistic": 1.2353716556994614,
+      "yates_p_value": 0.2166922166851081,
+      "yates_ci_low": -0.065049720326178617,
+      "yates_ci_high": 0.29838305365951201
     },
     {
       "name": "two_small",
@@ -55,7 +63,11 @@
         0.33333333333333331,
         0.54545454545454541
       ],
-      "pooled": 0.45000000000000001
+      "pooled": 0.45000000000000001,
+      "yates_statistic": -0.4969039949999533,
+      "yates_p_value": 0.6192567541768621,
+      "yates_ci_low": -0.73908340098875014,
+      "yates_ci_high": 0.31484097674632588
     },
     {
       "name": "two_tiny_p",
@@ -71,7 +83,11 @@
         0.40000000000000002,
         0.59999999999999998
       ],
-      "pooled": 0.5
+      "pooled": 0.5,
+      "yates_statistic": -8.8995505504491632,
+      "yates_p_value": 5.6073285952665383e-19,
+      "yates_ci_low": -0.24394065944921173,
+      "yates_ci_high": -0.15605934055078818
     },
     {
       "name": "two_alpha_10",
@@ -87,7 +103,11 @@
         0.41249999999999998,
         0.4823529411764706
       ],
-      "pooled": 0.44848484848484849
+      "pooled": 0.44848484848484849,
+      "yates_statistic": -0.74505892388297146,
+      "yates_p_value": 0.45623609940625115,
+      "yates_ci_low": -0.20904222090734451,
+      "yates_ci_high": 0.069336338554403271
     },
     {
       "name": "two_equal",
@@ -103,7 +123,11 @@
         0.40000000000000002,
         0.40000000000000002
       ],
-      "pooled": 0.40000000000000002
+      "pooled": 0.40000000000000002,
+      "yates_statistic": 0,
+      "yates_p_value": 1,
+      "yates_ci_low": -0.17530450811531628,
+      "yates_ci_high": 0.17530450811531628
     },
     {
       "name": "one_p0_half",
@@ -118,7 +142,13 @@
       "ci_high": 0.17673568983167939,
       "proportion": 0.57999999999999996,
       "r_wilson_low": 0.48206486703042961,
-      "r_wilson_high": 0.67201617325645258
+      "r_wilson_high": 0.67201617325645258,
+      "yates_statistic": 1.5,
+      "yates_p_value": 0.13361440253771517,
+      "yates_ci_low": -0.021735689831679474,
+      "yates_ci_high": 0.1817356898316794,
+      "r_yates_wilson_low": 0.47710459590611509,
+      "r_yates_wilson_high": 0.67667635246090152
     },
     {
       "name": "one_p0_low",
@@ -133,7 +163,13 @@
       "ci_high": 0.19034987545079968,
       "proportion": 0.14999999999999999,
       "r_wilson_low": 0.080974405801677432,
-      "r_wilson_high": 0.26114589069778543
+      "r_wilson_high": 0.26114589069778543,
+      "yates_statistic": 3.2579188276750077,
+      "yates_p_value": 0.0011223250465353532,
+      "yates_ci_low": 0.0013167912158669869,
+      "yates_ci_high": 0.19868320878413301,
+      "r_yates_wilson_low": 0.075014688968530682,
+      "r_yates_wilson_high": 0.27076911858934977
     },
     {
       "name": "one_alpha_01",
@@ -148,7 +184,13 @@
       "ci_high": 0.011429613720345067,
       "proportion": 0.34999999999999998,
       "r_wilson_low": 0.2914719580831549,
-      "r_wilson_high": 0.41342302018099381
+      "r_wilson_high": 0.41342302018099381,
+      "yates_statistic": -1.9902104160113323,
+      "yates_p_value": 0.046567761386865289,
+      "yates_ci_low": -0.11267961372034516,
+      "yates_ci_high": 0.012679613720345066,
+      "r_yates_wilson_low": 0.29029193455896274,
+      "r_yates_wilson_high": 0.41470175393009384
     },
     {
       "name": "one_tiny_p",
@@ -163,8 +205,35 @@
       "ci_high": 0.21859385096913692,
       "proportion": 0.90000000000000002,
       "r_wilson_low": 0.87984803680465162,
-      "r_wilson_high": 0.91709055640690429
+      "r_wilson_high": 0.91709055640690429,
+      "yates_statistic": 13.766807908879969,
+      "yates_p_value": 4.0365835552769866e-43,
+      "yates_ci_low": 0.18090614903086322,
+      "yates_ci_high": 0.21909385096913692,
+      "r_yates_wilson_low": 0.8793090769527423,
+      "r_yates_wilson_high": 0.91754762859064221
+    },
+    {
+      "name": "one_all_success",
+      "variant": "one_proportion",
+      "successes": 20,
+      "n": 20,
+      "p0": 0.80000000000000004,
+      "alpha": 0.050000000000000003,
+      "statistic": 2.2360679774997894,
+      "p_value": 0.025347318677468304,
+      "ci_low": 0.19999999999999996,
+      "ci_high": 0.19999999999999996,
+      "proportion": 1,
+      "r_wilson_low": 0.83887484194718065,
+      "r_wilson_high": 1,
+      "yates_statistic": 1.9565594803123159,
+      "yates_p_value": 0.05039928287148223,
+      "yates_ci_low": 0.17499999999999996,
+      "yates_ci_high": 0.22499999999999995,
+      "r_yates_wilson_low": 0.79954665498651289,
+      "r_yates_wilson_high": 1
     }
   ]
 }
-// golden-hash: b48727285607fd36979ed5e5d7c1b8d8c2086015cbec6fee8223b584d0e4c387
+// golden-hash: 0a4d3e545e122d0a5bc364cc04795194473564a09a986decba079414b870c82e

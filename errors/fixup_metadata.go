@@ -1853,6 +1853,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEST_EXACT_UNAVAILABLE: {
+		Message: "A test asked for an exact p-value on a sample past the exact distribution's size cap; the reported p-value is the normal approximation.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Tests", "*", "Params", "exact"},
+				Hint:   "At this size the normal approximation is accurate: drop params.exact, or filter to a smaller sample when an exact p is required.",
+			},
+		},
+	},
 	PULSE_TEST_SUBJECT_MISSING: {
 		Message: "A repeated-measures test found at least one subject missing one or more conditions; incomplete subjects dropped by default.",
 		Fixups: []Fixup{

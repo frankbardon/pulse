@@ -19,8 +19,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `RejectNull` when p < alpha. |
 | `expected` | object | — | `{level: proportion}`: goodness of fit (`Variant` `goodness_of_fit`), `Cols` omitted; also the sample-ratio-mismatch check. Rules: `test-variant-options`. |
+| `correct` | bool | `false` | Yates, 2×2 only: `test-variant-options`. |
 
-- `weight` — table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish approximation; not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read the scaled table; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
+- `weight` — table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish, not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read it; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
 
 Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required unless `expected`, same). `Field` is ignored.
 
@@ -30,7 +31,7 @@ Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required u
 
 ## Output
 
-`Statistic` = χ² (no Yates); `DF` = `(rows−1)(cols−1)` (goodness of fit: labels − 1); `PValue` via χ² survival. Goodness of fit `Details`: `labels` (sorted), `observed`, `expected` (counts; Σw when weighted), `expected_proportions`, `n`, `expected_min`; no effect size. `Details`: `contingency` (indexed by `row_labels`/`col_labels`, both sorted byte-wise), `row_totals`/`col_totals`, `n`, `expected_min`. `effect_size.cramers_v` = √(χ²/(n·(min(r,c)−1))); `effect_size.phi` = √(χ²/n), 2×2 only.
+`Statistic` = χ² (Yates only under `correct`); `DF` = `(rows−1)(cols−1)` (goodness of fit: labels − 1); `PValue` via χ² survival. Goodness of fit `Details`: `labels` (sorted), `observed`, `expected` (counts; Σw weighted), `expected_proportions`, `n`, `expected_min`. `Details`: `contingency` (indexed by `row_labels`/`col_labels`, both sorted byte-wise), `row_totals`/`col_totals`, `n`, `expected_min`. `effect_size.cramers_v` = √(χ²/(n·(min(r,c)−1))); `effect_size.phi` = √(χ²/n), 2×2 only.
 
 <!-- generated: reading-the-output -->
 
@@ -39,7 +40,7 @@ Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required u
 ## Gotchas
 
 - Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
-- Sparse high-cardinality axes blow memory; filter them first.
+- Filter sparse high-cardinality axes first (memory).
 - With `groups`: one result per group, each with `group_key`; `rows` / `cols` a grouper → `PULSE_TEST_CONTINGENCY_DEGENERATE`; a single-level group → `null` figures + a warning (`statistical-testing`).
 - Pairs with `Response.Crosstab`<!-- feature: OVERLAY_CHISQ_VS_POP -->; `OVERLAY_CHISQ_VS_POP` is the FACET-host equivalent<!-- /feature -->.
 

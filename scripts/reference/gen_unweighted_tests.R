@@ -22,28 +22,34 @@
 # then Finalize), at relative 1e-10.
 #
 # Goldens written, with the definitional choices that make R compute
-# Pulse's definition (each stated, none hidden):
+# Pulse's definition (each stated, none hidden). Each opt-in option of
+# #644 (pooled t, exact Mann-Whitney p, Yates' chi-square, prop.test's
+# continuity correction and Wilson interval) is pinned beside the
+# default it changes (internal/processing/test_options_oracle_test.go):
 #   * test_t.json — t.test. One-sample: t.test(x, mu, conf.level =
 #     1 - alpha): t, df, p, the interval on the mean. Two-sample:
 #     t.test(a, b, var.equal = FALSE): Welch t, the Welch–Satterthwaite
 #     df, p, the interval on mean(a) - mean(b). a is the alphabetically
-#     first group (Pulse's order without params.reference). Pulse has no
-#     pooled-variance (Student) two-sample t: TEST_T with split_by and
-#     TEST_WELCH are both Welch, so every two-sample case runs both.
+#     first group (Pulse's order without params.reference). TEST_T with
+#     split_by and TEST_WELCH are both Welch by default, so every
+#     two-sample case runs both; TEST_T params.variance "pooled" is
+#     t.test(var.equal = TRUE), stored as pooled_*.
 #   * test_z_two_sample.json — no stock R function: z = (mean(a) -
 #     mean(b)) / sqrt(var(a)/n_a + var(b)/n_b) on the sample (n - 1)
 #     variances, p = 2 * pnorm(-|z|), interval diff -/+ qnorm(1 -
 #     alpha/2) * se.
-#   * test_chisq.json — chisq.test(table, correct = FALSE): Pulse never
-#     applies Yates' continuity correction, which chisq.test does by
-#     default on a 2 x 2 table (its default figure is kept as r_yates_*
-#     there). The goodness-of-fit form (params.expected) is chisq.test(x,
+#   * test_chisq.json — chisq.test(table, correct = FALSE): Pulse's
+#     default applies no Yates' continuity correction, which chisq.test
+#     does by default on a 2 x 2 table; that figure is kept as r_yates_*
+#     there and is what params.correct reproduces. The goodness-of-fit form (params.expected) is chisq.test(x,
 #     p = expected).
 #   * test_mann_whitney_u.json — wilcox.test(a, b, exact = FALSE, correct
 #     = TRUE): W = U_a, the tie-corrected normal approximation with the
-#     0.5 continuity correction. Pulse has no exact arm: on small untied
-#     samples (n < 50) wilcox.test's DEFAULT is the exact distribution,
-#     whose p is kept beside as r_p_exact and is not what Pulse reports.
+#     0.5 continuity correction, Pulse's default. wilcox.test's DEFAULT
+#     on small samples (n < 50) is the exact distribution (r_p_exact,
+#     kept on the untied cases); exact_p_value is wilcox.test(exact =
+#     TRUE) — R 4.6 conditions on the tied mid-ranks — which
+#     params.exact reproduces wherever Pulse computes it.
 #     z and var_u are wilcox.test's own z and SIGMA^2, re-derived here and
 #     checked against its p.
 #   * test_kruskal_wallis.json — kruskal.test(x, g): tie-corrected H, df,
@@ -62,7 +68,11 @@
 #     reports the Wilson score interval on p, Pulse the Wald interval on
 #     p - p0, diff -/+ qnorm(1 - alpha/2) * sqrt(p (1 - p) / n), computed
 #     here in that form (prop.test's Wilson bounds kept beside as
-#     r_wilson_*).
+#     r_wilson_*, which params.interval "wilson" reproduces on p - p0).
+#     yates_* are prop.test(correct = TRUE) (params.correct): its
+#     statistic, p and interval (two proportions); one proportion, its
+#     Wilson-cc bounds as r_yates_wilson_* and Pulse's corrected Wald
+#     interval on p - p0, widened by prop.test's own YATES / n.
 
 suppressPackageStartupMessages(library(jsonlite))
 
@@ -138,6 +148,17 @@ t_two <- function(name, a, b, alpha = 0.05, offset = 0) {
     mean = ut_vec(c(mean(a), mean(b))), variance = ut_vec(c(var(da), var(db))),
     diff = num(mean(da) - mean(db))
   )
+  # params.variance "pooled" (#644): t.test(var.equal = TRUE), Student's
+  # pooled-variance t on the same deviations.
+  pt <- t.test(da, db, var.equal = TRUE, conf.level = 1 - alpha)
+  sp2 <- ((length(da) - 1) * var(da) + (length(db) - 1) * var(db)) / (length(da) + length(db) - 2)
+  ut_close(paste(name, "pooled t"), (mean(da) - mean(db)) / sqrt(sp2 * (1 / length(da) + 1 / length(db))), unname(pt$statistic), 1e-12)
+  out$pooled_statistic <- num(unname(pt$statistic))
+  out$pooled_df <- num(unname(pt$parameter))
+  out$pooled_p_value <- num(pt$p.value)
+  out$pooled_ci_low <- num(pt$conf.int[1])
+  out$pooled_ci_high <- num(pt$conf.int[2])
+  out$pooled_variance <- num(sp2)
   if (offset != 0) out$offset <- num(offset)
   out
 }
@@ -235,6 +256,9 @@ chisq_cases <- list(
   chisq_ind("tiny_p", matrix(c(180, 20, 30, 170), 2, byrow = TRUE)),
   chisq_ind("independent_like", matrix(c(25, 26, 24, 50, 49, 51), 2, byrow = TRUE)),
   chisq_ind("five_by_three", matrix(c(5, 9, 12, 7, 7, 8, 11, 6, 3, 4, 10, 15, 9, 9, 9), 5, byrow = TRUE)),
+  # |O - E| = 0.24 < 0.5: Yates' term is min(0.5, |O - E|), so the
+  # corrected statistic is 0 (params.correct, #644).
+  chisq_ind("two_by_two_small_deviation", matrix(c(5, 5, 5, 6), 2, byrow = TRUE)),
   chisq_gof("gof_four_categories", c(30, 22, 28, 20), c(0.25, 0.25, 0.3, 0.2)),
   chisq_gof("gof_skewed", c(5, 40, 15), c(0.1, 0.6, 0.3)),
   chisq_gof("gof_tiny_p", c(150, 10, 40), c(1 / 3, 1 / 3, 1 / 3))
@@ -242,7 +266,7 @@ chisq_cases <- list(
 write_golden("test_chisq", c(ut_meta(
   "TEST_CHISQ",
   "chisq.test(table, correct = FALSE); chisq.test(counts, p = expected)",
-  "Pulse never applies Yates' correction; on a 2 x 2 table chisq.test's default (corrected) figure is kept as r_yates_*."
+  "Pulse's default applies no Yates' correction; on a 2 x 2 table chisq.test's default (corrected) figure is kept as r_yates_*, which params.correct reproduces."
 ), list(cases = chisq_cases)))
 
 # ------------------------------------------------------ TEST_MANN_WHITNEY_U
@@ -266,6 +290,12 @@ mw_case <- function(name, a, b) {
   if (length(ties) == N && N < 50) {
     out$r_p_exact <- num(wilcox.test(a, b, exact = TRUE)$p.value)
   }
+  # params.exact (#644): R 4.6's exact permutation p, ties included,
+  # wherever Pulse computes it (min(n_a, n_b) * N <= 5000); past that
+  # Pulse keeps the approximation and warns, so no figure is stored.
+  if (min(na, nb) * N <= 5000) {
+    out$exact_p_value <- num(wilcox.test(a, b, exact = TRUE)$p.value)
+  }
   out
 }
 set.seed(64203)
@@ -285,7 +315,7 @@ mw_cases <- list(
 write_golden("test_mann_whitney_u", c(ut_meta(
   "TEST_MANN_WHITNEY_U",
   "wilcox.test(a, b, exact = FALSE, correct = TRUE)",
-  "The normal approximation with tie and continuity correction, Pulse's only arm; r_p_exact is wilcox.test's default exact p on small untied samples, kept for reference."
+  "The normal approximation with tie and continuity correction, Pulse's default; r_p_exact is wilcox.test's default exact p on small untied samples, exact_p_value wilcox.test(exact = TRUE) (ties included) where Pulse's params.exact computes it."
 ), list(cases = mw_cases)))
 
 # ------------------------------------------------------ TEST_KRUSKAL_WALLIS
@@ -347,23 +377,38 @@ pz_two <- function(name, sa, na, sb, nb, alpha = 0.05) {
   half <- qnorm(1 - alpha / 2) * sqrt(pa * (1 - pa) / na + pb * (1 - pb) / nb)
   if (pa - pb - half < -1 || pa - pb + half > 1) stop(name, ": prop.test would clip the interval")
   ut_close(paste(name, "ci_low"), pa - pb - half, pt$conf.int[1], 1e-13)
+  # params.correct (#644): prop.test(correct = TRUE) — Yates on the
+  # statistic, the Wald interval widened by YATES * sum(1/n).
+  yt <- prop.test(c(sa, sb), c(na, nb), correct = TRUE, conf.level = 1 - alpha)
+  if (yt$conf.int[1] <= -1 || yt$conf.int[2] >= 1) stop(name, ": prop.test would clip the corrected interval")
   list(
     name = name, variant = "two_proportion_pooled", successes = c(sa, sb), n = c(na, nb), alpha = num(alpha),
     statistic = num(sign(pa - pb) * sqrt(unname(pt$statistic))), p_value = num(pt$p.value),
     ci_low = num(pt$conf.int[1]), ci_high = num(pt$conf.int[2]),
-    proportion = ut_vec(c(pa, pb)), pooled = num((sa + sb) / (na + nb))
+    proportion = ut_vec(c(pa, pb)), pooled = num((sa + sb) / (na + nb)),
+    yates_statistic = num(sign(pa - pb) * sqrt(unname(yt$statistic))), yates_p_value = num(yt$p.value),
+    yates_ci_low = num(yt$conf.int[1]), yates_ci_high = num(yt$conf.int[2])
   )
 }
 pz_one <- function(name, s, n, p0, alpha = 0.05) {
   pt <- prop.test(s, n, p = p0, correct = FALSE, conf.level = 1 - alpha)
   ph <- s / n
   half <- qnorm(1 - alpha / 2) * sqrt(ph * (1 - ph) / n)
+  # params.correct (#644): prop.test(correct = TRUE)'s statistic and its
+  # continuity-corrected Wilson interval; Pulse's corrected Wald
+  # interval on p - p0 widens by prop.test's own term, YATES / n with
+  # YATES = min(0.5, |s - n p0|), computed here in that form.
+  yt <- prop.test(s, n, p = p0, correct = TRUE, conf.level = 1 - alpha)
+  y <- min(0.5, abs(s - n * p0))
   list(
     name = name, variant = "one_proportion", successes = s, n = n, p0 = num(p0), alpha = num(alpha),
     statistic = num(sign(ph - p0) * sqrt(unname(pt$statistic))), p_value = num(pt$p.value),
     ci_low = num(ph - p0 - half), ci_high = num(ph - p0 + half),
     proportion = num(ph),
-    r_wilson_low = num(pt$conf.int[1]), r_wilson_high = num(pt$conf.int[2])
+    r_wilson_low = num(pt$conf.int[1]), r_wilson_high = num(pt$conf.int[2]),
+    yates_statistic = num(sign(ph - p0) * sqrt(unname(yt$statistic))), yates_p_value = num(yt$p.value),
+    yates_ci_low = num(ph - p0 - half - y / n), yates_ci_high = num(ph - p0 + half + y / n),
+    r_yates_wilson_low = num(yt$conf.int[1]), r_yates_wilson_high = num(yt$conf.int[2])
   )
 }
 pz_cases <- list(
@@ -376,10 +421,12 @@ pz_cases <- list(
   pz_one("one_p0_half", 58, 100, 0.5),
   pz_one("one_p0_low", 9, 60, 0.05),
   pz_one("one_alpha_01", 140, 400, 0.4, alpha = 0.01),
-  pz_one("one_tiny_p", 900, 1000, 0.7)
+  pz_one("one_tiny_p", 900, 1000, 0.7),
+  # every trial a success: the Wilson upper bound clips to 1 (#644)
+  pz_one("one_all_success", 20, 20, 0.8)
 )
 write_golden("test_prop_z", c(ut_meta(
   "TEST_PROP_Z",
   "prop.test(x, n, correct = FALSE): z = sign(diff) * sqrt(X-squared)",
-  "Two proportions: prop.test's p and Wald interval. One proportion: prop.test's p; the interval is Pulse's Wald interval on p - p0, prop.test's Wilson bounds kept as r_wilson_*."
+  "Two proportions: prop.test's p and Wald interval. One proportion: prop.test's p; the interval is Pulse's Wald interval on p - p0, prop.test's Wilson bounds kept as r_wilson_*. yates_* / r_yates_wilson_* are prop.test(correct = TRUE)."
 ), list(cases = pz_cases)))

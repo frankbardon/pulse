@@ -28,6 +28,10 @@ Use something else:
 
 `Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `correct` | bool | `false` | Yates' correction on a 2 × 2 host (the χ² test's rule); `Summary.Parameters` adds `continuity_correction`. Inert on larger tables. |
+
 
 ## Host shape
 

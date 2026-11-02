@@ -792,7 +792,16 @@ func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, route types.OverlayKi
 // mismatches at predict time. The handler still defends against a nil
 // crosstab payload (applyOverlays already gates that) and against
 // degenerate contingencies.
+//
+// params.correct (overlayhost.ParseChiSqMatrixParams, #644) applies
+// Yates' correction on a 2 × 2 host (yatesStatistic, TEST_CHISQ's);
+// Summary.Parameters then adds continuity_correction. Its refusal
+// carries no index (the handler-map dispatch passes none), as predict's.
 func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	params, cerr := overlayhost.ParseChiSqMatrixParams(spec, -1)
+	if cerr != nil {
+		return types.OverlayLayer{}, nil, cerr
+	}
 	rowCount := host.RowCount()
 	colCount := host.ColumnCount()
 
@@ -904,6 +913,17 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 			}
 		}
 	}
+	yates := -1.0
+	if params.Correct && rowCount == 2 && colCount == 2 {
+		expected := make([][]float64, rowCount)
+		for i := range rowCount {
+			expected[i] = make([]float64, colCount)
+			for j := range colCount {
+				expected[i][j] = rowTotals[i] * colTotals[j] / grand
+			}
+		}
+		stat, yates = yatesStatistic(observed, expected)
+	}
 	df := float64((rowCount - 1) * (colCount - 1))
 	pValue := chiSquareSurvival(stat, df)
 
@@ -939,6 +959,9 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 		Parameters: map[string]float64{
 			"df": df64,
 		},
+	}
+	if yates >= 0 {
+		summary.Parameters["continuity_correction"] = yates
 	}
 	table.stamp(summary)
 	if observedCount > 0 {

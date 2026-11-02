@@ -275,19 +275,27 @@ deviations a − c, b − c rather than on levels whose means round to the
 offset's ulp), `test_z_two_sample.json`
 (`pnorm` / `qnorm` on the Welch standard error; R has no stock
 function; the same inputs), `test_chisq.json` (`chisq.test(correct = FALSE)`, since Pulse
-applies no Yates correction, with the corrected 2 × 2 figure kept as
-`r_yates_*`; plus the goodness-of-fit form `chisq.test(p = expected)`),
+applies no Yates correction by default, with the corrected 2 × 2 figure
+kept as `r_yates_*`; plus the goodness-of-fit form `chisq.test(p =
+expected)`),
 `test_mann_whitney_u.json` (`wilcox.test(exact = FALSE, correct =
-TRUE)`, Pulse's only arm; on small untied samples R's default exact p
-is kept as `r_p_exact`), `test_kruskal_wallis.json` (`kruskal.test`,
+TRUE)`, Pulse's default; on small untied samples R's default exact p
+is kept as `r_p_exact`, and `exact_p_value` is `wilcox.test(exact =
+TRUE)`, ties included), `test_kruskal_wallis.json` (`kruskal.test`,
 with H evaluated in deviation form Σ (S_g − n_g(N + 1)/2)² / n_g, which
 is exact on mid-ranks; `kruskal.test`'s own form cancels as H → 0, so
 its figures ride beside as `r_statistic` / `r_p_value`) and
 `test_prop_z.json` (`prop.test(correct = FALSE)`, z = sign(diff)·√X²;
 the one-proportion interval is Pulse's Wald interval on p − p0, with
-`prop.test`'s Wilson bounds kept as `r_wilson_*`).
+`prop.test`'s Wilson bounds kept as `r_wilson_*`, and `yates_*` /
+`r_yates_wilson_*` from `prop.test(correct = TRUE)`).
 `internal/processing/test_unweighted_oracle_test.go` replays each case
-through the operator's registered row test at relative `1e-10`.
+through the operator's registered row test at relative `1e-10`, and
+`test_options_oracle_test.go` replays the opt-in options (U64 #644:
+`TEST_T` `variance: pooled` against `t.test(var.equal = TRUE)`, stored
+as `pooled_*`; `exact`, `correct` and `interval: wilson` against the
+figures above; `OVERLAY_CHISQ_MATRIX` `correct` on the same 2 × 2
+tables) at the same tolerance.
 
 ### Regression outputs
 

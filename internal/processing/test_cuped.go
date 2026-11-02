@@ -209,6 +209,13 @@ func (f cupedFacts) rawWelch(basis weighting.Basis) (diff, se2 float64) {
 	return diff, f.raw[0].Variance(basis)/f.raw[0].NStar(basis) + f.raw[1].Variance(basis)/f.raw[1].NStar(basis)
 }
 
+// rawPooledSE2 is rawWelch's SE² under TEST_T params.variance
+// "pooled": the Student form on the unadjusted buckets.
+func (f cupedFacts) rawPooledSE2(basis weighting.Basis) float64 {
+	_, se2, _ := pooledVariance(f.raw[0].Variance(basis), f.raw[0].NStar(basis), f.raw[1].Variance(basis), f.raw[1].NStar(basis))
+	return se2
+}
+
 // note writes the adjustment's Details: diff_unadjusted (the listwise
 // sample's raw difference), theta, covariate_mean, variance_reduction
 // (1 − SE²_adjusted / SE²_unadjusted of the difference, both read by

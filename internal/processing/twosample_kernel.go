@@ -30,3 +30,16 @@ func welchSatterthwaite(va, na, vb, nb float64) (num, den, df float64) {
 	den = (va*va)/(na*na*(na-1)) + (vb*vb)/(nb*nb*(nb-1))
 	return num, den, (num * num) / den
 }
+
+// pooledVariance returns the pooled (Student) two-sample variance
+// s²_p = ((na − 1)·va + (nb − 1)·vb) / (na + nb − 2), the squared
+// standard error s²_p·(1/na + 1/nb) and the df na + nb − 2: R's
+// t.test(var.equal = TRUE). Weighted, na / nb are N* and va / vb the
+// variances on w* (the one rule), so under frequency it is the test on
+// the expanded rows. cohensDTwoSample reads the same s_p.
+func pooledVariance(va, na, vb, nb float64) (sp2, se2, df float64) {
+	df = na + nb - 2
+	sp2 = (float64((na-1)*va) + float64((nb-1)*vb)) / df
+	se2 = float64(sp2 * (1/na + 1/nb))
+	return sp2, se2, df
+}

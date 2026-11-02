@@ -19,9 +19,11 @@ import (
 // factory a request's tests[] slot builds), at the shared relative 1e-10
 // (oracleRelTol). Where Pulse's definition differs from R's default, the
 // generator makes R compute Pulse's definition and says so in its
-// header: no Yates correction, Mann-Whitney's normal approximation only
+// header: no Yates correction, Mann-Whitney's normal approximation
 // (R's default exact p is kept as r_p_exact), and the one-proportion
-// Wald interval on p − p0 (prop.test's Wilson bounds kept as r_wilson_*).
+// Wald interval on p − p0 (prop.test's Wilson bounds kept as r_wilson_*)
+// — each the default; the opt-in options that reproduce R's figures are
+// pinned in test_options_oracle_test.go (#644).
 
 // detailFloats reads a []float64 detail.
 func detailFloats(t *testing.T, d map[string]any, key string) []float64 {

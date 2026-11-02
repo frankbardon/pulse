@@ -148,7 +148,8 @@ Chi-square test on a whole crosstab: checks whether the row and column categorie
 
 **Validated against:**
 
-- R 4.6.1 `chisq.test(correct = FALSE)` (Pulse applies no Yates correction) — tolerance 1e-10 relative; `internal/processing/overlay_chisq_axes_oracle_test.go`
+- R 4.6.1 `chisq.test(correct = FALSE)` (the default applies no Yates correction) — tolerance 1e-10 relative; `internal/processing/overlay_chisq_axes_oracle_test.go`
+- R 4.6.1 `chisq.test(correct = TRUE)` (`params.correct` on a 2 × 2 host) — tolerance 1e-10 relative; `internal/processing/test_options_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).

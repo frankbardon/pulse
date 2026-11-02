@@ -7,7 +7,7 @@
   },
   "primitive": "TEST_MANN_WHITNEY_U",
   "r_function": "wilcox.test(a, b, exact = FALSE, correct = TRUE)",
-  "note": "The normal approximation with tie and continuity correction, Pulse's only arm; r_p_exact is wilcox.test's default exact p on small untied samples, kept for reference.",
+  "note": "The normal approximation with tie and continuity correction, Pulse's default; r_p_exact is wilcox.test's default exact p on small untied samples, exact_p_value wilcox.test(exact = TRUE) (ties included) where Pulse's params.exact computes it.",
   "cases": [
     {
       "name": "small_untied_5x6",
@@ -35,7 +35,8 @@
       "z": -1.1867322079278599,
       "p_value": 0.23533326650958575,
       "ties": false,
-      "r_p_exact": 0.24675324675324672
+      "r_p_exact": 0.24675324675324672,
+      "exact_p_value": 0.24675324675324672
     },
     {
       "name": "heavy_ties",
@@ -68,7 +69,8 @@
       "var_u": 102.83823529411765,
       "z": -2.3666494461642604,
       "p_value": 0.017949925673147744,
-      "ties": true
+      "ties": true,
+      "exact_p_value": 0.018346359522830112
     },
     {
       "name": "rounded_30x35",
@@ -149,7 +151,8 @@
       "var_u": 5544.429086538461,
       "z": -3.4514747990184262,
       "p_value": 0.00055753182018824447,
-      "ties": true
+      "ties": true,
+      "exact_p_value": 0.00040513252238307207
     },
     {
       "name": "untied_60x55",
@@ -462,7 +465,8 @@
       "z": 0,
       "p_value": 1,
       "ties": false,
-      "r_p_exact": 1
+      "r_p_exact": 1,
+      "exact_p_value": 1
     },
     {
       "name": "n2_each",
@@ -484,7 +488,8 @@
       "z": -0.28867513459481292,
       "p_value": 0.77282999268444752,
       "ties": false,
-      "r_p_exact": 0.80000000000000004
+      "r_p_exact": 0.80000000000000004,
+      "exact_p_value": 0.80000000000000004
     },
     {
       "name": "a_larger_ties",
@@ -545,7 +550,8 @@
       "var_u": 1845.4545454545453,
       "z": 2.9097678203720836,
       "p_value": 0.003616973439969362,
-      "ties": true
+      "ties": true,
+      "exact_p_value": 0.0029610112862632487
     },
     {
       "name": "a_larger_untied_6x4",
@@ -572,8 +578,9 @@
       "z": 1.3858046563114679,
       "p_value": 0.16580656019401352,
       "ties": false,
-      "r_p_exact": 0.17142857142857143
+      "r_p_exact": 0.17142857142857143,
+      "exact_p_value": 0.17142857142857143
     }
   ]
 }
-// golden-hash: 86253905f35cd7158856684f4e2d729c7b6854ff2dbe08fcd1d1c5a4a2d41579
+// golden-hash: f694679e9696e609ea8f67bc276e8ddf9c505c48811e491481b66e7013611b6a

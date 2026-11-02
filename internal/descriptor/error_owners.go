@@ -317,6 +317,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_BALANCED_DESIGN_REQUIRED: own("TEST_ANOVA_RM"),
 	errors.PULSE_TEST_TUKEY_REQUIRES_K_GE_3:    own("TEST_TUKEY_HSD"),
 	errors.PULSE_TEST_SHAPIRO_N_BOUND:          own("TEST_SHAPIRO_WILK"),
+	errors.PULSE_TEST_EXACT_UNAVAILABLE:        own("TEST_MANN_WHITNEY_U"),
 	errors.PULSE_TEST_FISHER_R_OR_C_GT_2:       own("TEST_FISHER_EXACT"),
 
 	// Extension registration runs at pulse.New on every instance.
