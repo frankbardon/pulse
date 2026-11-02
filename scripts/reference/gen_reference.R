@@ -564,3 +564,13 @@ source(file.path(script_dir, "gen_vif.R"), local = FALSE)
 # re-derived from its closed form); base stats + jsonlite + MASS 7.3-66
 # + sandwich 3.1-3 + lmtest 0.9-40. Seeded RNG.
 source(file.path(script_dir, "gen_nested.R"), local = FALSE)
+
+# The unweighted two-group and contingency test goldens (U64 E2-S1:
+# test_t.json, test_z_two_sample.json, test_chisq.json,
+# test_mann_whitney_u.json, test_kruskal_wallis.json, test_prop_z.json:
+# t.test one-sample and Welch, the Welch-SE normal test, chisq.test with
+# correct = FALSE and its goodness-of-fit form, wilcox.test's
+# continuity-corrected normal approximation, kruskal.test's H in
+# deviation form, prop.test with correct = FALSE; each definitional
+# choice stated in its header); base stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_unweighted_tests.R"), local = FALSE)

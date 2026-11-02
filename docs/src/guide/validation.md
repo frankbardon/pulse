@@ -47,26 +47,26 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`TEST_BARTLETT_SPHERICITY`](catalog/test.md#op-test_bartlett_sphericity) | R 4.6.1 `psych::cortest.bartlett`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_BOX_M`](catalog/test.md#op-test_box_m) | R 4.6.1 `biotools::boxM`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_BROWN_FORSYTHE`](catalog/test.md#op-test_brown_forsythe) | R 4.6.1 `anova(lm(abs(x - median) ~ g))`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_CHISQ`](catalog/test.md#op-test_chisq) | weighted reference (see above)<br>Agresti worked example (R `chisq.test` help) and scipy for the effect size | 1e-12 relative | The unweighted statistic is pinned to hand-computed values, not to an R golden file. |
+| [`TEST_CHISQ`](catalog/test.md#op-test_chisq) | R 4.6.1 `chisq.test(correct = FALSE)` (independence; Pulse applies no Yates correction) and `chisq.test(p = expected)` (goodness of fit)<br>weighted reference (see above)<br>Agresti worked example (R `chisq.test` help) and scipy for the effect size | 1e-12 relative | — |
 | [`TEST_FISHER_EXACT`](catalog/test.md#op-test_fisher_exact) | R 4.6.1 `fisher.test`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_HOTELLING_T2`](catalog/test.md#op-test_hotelling_t2) | R 4.6.1 `Hotelling::hotelling.test`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_KENDALL_TAU`](catalog/test.md#op-test_kendall_tau) | R 4.6.1 `cor.test(method = "kendall")`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_KRUSKAL_WALLIS`](catalog/test.md#op-test_kruskal_wallis) | weighted reference (see above)<br>R 4.6.1 `kruskal.test` help examples (effect size) | 1e-12 relative | The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file. |
+| [`TEST_KRUSKAL_WALLIS`](catalog/test.md#op-test_kruskal_wallis) | R 4.6.1 `kruskal.test` (H, df, p, rank sums, tie factor); near H = 0, where `kruskal.test`'s own form cancels, H evaluated in deviation form<br>weighted reference (see above)<br>R 4.6.1 `kruskal.test` help examples (effect size) | 1e-12 relative | — |
 | [`TEST_KS`](catalog/test.md#op-test_ks) | R 4.6.1 `ks.test` (exact `psmirnov`)<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_MANN_WHITNEY_U`](catalog/test.md#op-test_mann_whitney_u) | weighted reference (see above)<br>R 4.6.1 `wilcox.test` help examples (effect size) | 1e-12 relative | The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file. |
+| [`TEST_MANN_WHITNEY_U`](catalog/test.md#op-test_mann_whitney_u) | R 4.6.1 `wilcox.test(exact = FALSE, correct = TRUE)` (U, rank sum, tie-corrected variance, z, p)<br>weighted reference (see above)<br>R 4.6.1 `wilcox.test` help examples (effect size) | 1e-12 relative | No exact p-value: Pulse always reports the tie- and continuity-corrected normal approximation. On small samples without ties `wilcox.test` defaults to the exact distribution, so its default p differs there; the golden keeps that exact p beside the pinned one. |
 | [`TEST_MANOVA`](catalog/test.md#op-test_manova) | R 4.6.1 `manova` with `summary.manova`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_MARDIA`](catalog/test.md#op-test_mardia) | R 4.6.1 Mardia skewness and kurtosis<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_PAIRED_T`](catalog/test.md#op-test_paired_t) | R 4.6.1 `t.test(paired = TRUE)`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_PEARSON_R`](catalog/test.md#op-test_pearson_r) | R 4.6.1 `cor.test`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_PROP_Z`](catalog/test.md#op-test_prop_z) | weighted reference (see above)<br>textbook worked example | 1e-12 relative | — |
+| [`TEST_PROP_Z`](catalog/test.md#op-test_prop_z) | R 4.6.1 `prop.test(correct = FALSE)` (z as the signed root of X-squared, p; the two-proportion Wald interval). The one-proportion interval is Pulse's Wald interval on p − p0, evaluated in R, not `prop.test`'s Wilson interval<br>weighted reference (see above)<br>textbook worked example | 1e-12 relative | — |
 | [`TEST_SHAPIRO_WILK`](catalog/test.md#op-test_shapiro_wilk) | R 4.6.1 `nortest::sf.test` (Shapiro–Francia) | 1e-10 relative | No weighted reference. |
 | [`TEST_SPEARMAN_R`](catalog/test.md#op-test_spearman_r) | R 4.6.1 `cor.test(method = "spearman")` (exact AS 89)<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_T`](catalog/test.md#op-test_t) | weighted reference (see above)<br>scipy `ttest_ind` | 1e-12 relative | The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference. |
+| [`TEST_T`](catalog/test.md#op-test_t) | R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_TREND`](catalog/test.md#op-test_trend) | R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall` | 1e-10 relative | — |
 | [`TEST_TUKEY_HSD`](catalog/test.md#op-test_tukey_hsd) | R 4.6.1 `TukeyHSD`, `ptukey` refined by quadrature | 1e-10 relative | — |
-| [`TEST_WELCH`](catalog/test.md#op-test_welch) | weighted reference (see above)<br>scipy `ttest_ind(equal_var = False)` | 1e-12 relative | The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference. |
+| [`TEST_WELCH`](catalog/test.md#op-test_welch) | R 4.6.1 `t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_WILCOXON_SR`](catalog/test.md#op-test_wilcoxon_sr) | R 4.6.1 `wilcox.test(paired = TRUE)`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_Z_TWO_SAMPLE`](catalog/test.md#op-test_z_two_sample) | weighted reference (see above) | 1e-12 relative | No unweighted external golden; the unweighted path is checked against Pulse's own Welch test. |
+| [`TEST_Z_TWO_SAMPLE`](catalog/test.md#op-test_z_two_sample) | R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 
 ## Regressions
 

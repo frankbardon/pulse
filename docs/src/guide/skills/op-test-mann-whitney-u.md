@@ -40,7 +40,7 @@ Use something else:
 
 ## Output
 
-`Statistic` = U_min; `PValue` two-sided normal approx, tie-corrected. `Details`: `groups` (sorted; `reference` second), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
+`Statistic` = U_min; `PValue` two-sided normal approx, tie- and continuity-corrected (R `wilcox.test(exact = FALSE)`). `Details`: `groups` (sorted; `reference` second), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
 
 ## Reading the output
 
@@ -62,7 +62,7 @@ Use something else:
 - ≥ 50% tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 - Robust alternative to a t-test when normality fails.
 - Tests stochastic equality, not mean difference — disagreeing with a t-test is signal, not a bug.
-- Asymptotic only (no exact p); n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
+- Asymptotic only (no exact p, unlike `wilcox.test`'s default on small untied samples); n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
 - With `groups`: one result per group, each with `group_key`; `split_by` a grouper → `PULSE_TEST_SPLIT_GROUPS_LT_2`; a too-sparse group → `null` figures + a warning ([`statistical-testing`](statistical-testing.md)).
 
 ## See

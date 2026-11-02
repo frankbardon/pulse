@@ -17,7 +17,8 @@ import (
 //  1. Buffer values per group.
 //  2. Mid-rank the combined value set (ties → average rank).
 //  3. R_i = Σ ranks in group i, n_i = |group i|.
-//  4. H = (12/(N(N+1))) · Σ (R_i² / n_i) − 3(N+1).
+//  4. H = (12/(N(N+1))) · Σ (R_i² / n_i) − 3(N+1), evaluated as
+//     (12/(N(N+1))) · Σ (R_i − n_i(N+1)/2)² / n_i (no cancellation).
 //  5. Tie-correct: H_c = H / (1 − Σ(t³−t) / (N³−N)).
 //  6. p = chiSquareSurvival(H_c, k−1).
 //
@@ -133,11 +134,17 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 			sum += float64(combined.weights[j] * ranks[j])
 		}
 		rankSums[i] = sum
-		// n_i is Σw_i (the group's row count unweighted).
-		h += sum * sum / sumWs[i]
 	}
 	Nf := combined.sumW
-	h = float64(12/(Nf*(Nf+1))*h) - float64(3*(Nf+1))
+	// H in deviation form, Σ (R_i − n_i(N+1)/2)² / n_i (n_i is Σw_i, the
+	// group's row count unweighted): R_i − n_i(N+1)/2 is exact on
+	// unweighted mid-ranks, so nothing cancels as H → 0. The textbook
+	// Σ R_i²/n_i − 3(N+1) form lost 1.4e-8 relative there (U64 #616).
+	for i, sum := range rankSums {
+		dev := sum - float64(sumWs[i]*(Nf+1))/2
+		h += float64(dev*dev) / sumWs[i]
+	}
+	h = float64(12/(Nf*(Nf+1))) * h
 	// Tie correction.
 	denom := 1 - tieCorrectionW(ties)/(float64(Nf*Nf*Nf)-Nf)
 	if denom > 0 {

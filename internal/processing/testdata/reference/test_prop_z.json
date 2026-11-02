@@ -1,0 +1,170 @@
+{
+  "generator": "scripts/reference/gen_unweighted_tests.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "TEST_PROP_Z",
+  "r_function": "prop.test(x, n, correct = FALSE): z = sign(diff) * sqrt(X-squared)",
+  "note": "Two proportions: prop.test's p and Wald interval. One proportion: prop.test's p; the interval is Pulse's Wald interval on p - p0, prop.test's Wilson bounds kept as r_wilson_*.",
+  "cases": [
+    {
+      "name": "two_balanced",
+      "variant": "two_proportion_pooled",
+      "successes": [45, 60],
+      "n": [100, 100],
+      "alpha": 0.050000000000000003,
+      "statistic": -2.1239769762143661,
+      "p_value": 0.033672068856345806,
+      "ci_low": -0.28684703778629572,
+      "ci_high": -0.013152962213704239,
+      "proportion": [
+        0.45000000000000001,
+        0.59999999999999998
+      ],
+      "pooled": 0.52500000000000002
+    },
+    {
+      "name": "two_unbalanced",
+      "variant": "two_proportion_pooled",
+      "successes": [18, 70],
+      "n": [40, 210],
+      "alpha": 0.050000000000000003,
+      "statistic": 1.4159815468835932,
+      "p_value": 0.15678090731446404,
+      "ci_low": -0.050168767945226234,
+      "ci_high": 0.28350210127855963,
+      "proportion": [
+        0.45000000000000001,
+        0.33333333333333331
+      ],
+      "pooled": 0.35199999999999998
+    },
+    {
+      "name": "two_small",
+      "variant": "two_proportion_pooled",
+      "successes": [3, 6],
+      "n": [9, 11],
+      "alpha": 0.050000000000000003,
+      "statistic": -0.94863489954536528,
+      "p_value": 0.34280633462971138,
+      "ci_low": -0.63807329997864903,
+      "ci_high": 0.21383087573622483,
+      "proportion": [
+        0.33333333333333331,
+        0.54545454545454541
+      ],
+      "pooled": 0.45000000000000001
+    },
+    {
+      "name": "two_tiny_p",
+      "variant": "two_proportion_pooled",
+      "successes": [400, 600],
+      "n": [1000, 1000],
+      "alpha": 0.050000000000000003,
+      "statistic": -8.9442719099991592,
+      "p_value": 3.7440973842028994e-19,
+      "ci_low": -0.24294065944921173,
+      "ci_high": -0.15705934055078818,
+      "proportion": [
+        0.40000000000000002,
+        0.59999999999999998
+      ],
+      "pooled": 0.5
+    },
+    {
+      "name": "two_alpha_10",
+      "variant": "two_proportion_pooled",
+      "successes": [33, 41],
+      "n": [80, 85],
+      "alpha": 0.10000000000000001,
+      "statistic": -0.9016636658456344,
+      "p_value": 0.36723555970607369,
+      "ci_low": -0.19690986796616802,
+      "ci_high": 0.057203985613226788,
+      "proportion": [
+        0.41249999999999998,
+        0.4823529411764706
+      ],
+      "pooled": 0.44848484848484849
+    },
+    {
+      "name": "two_equal",
+      "variant": "two_proportion_pooled",
+      "successes": [20, 30],
+      "n": [50, 75],
+      "alpha": 0.050000000000000003,
+      "statistic": 0,
+      "p_value": 1,
+      "ci_low": -0.17530450811531628,
+      "ci_high": 0.17530450811531628,
+      "proportion": [
+        0.40000000000000002,
+        0.40000000000000002
+      ],
+      "pooled": 0.40000000000000002
+    },
+    {
+      "name": "one_p0_half",
+      "variant": "one_proportion",
+      "successes": 58,
+      "n": 100,
+      "p0": 0.5,
+      "alpha": 0.050000000000000003,
+      "statistic": 1.6000000000000001,
+      "p_value": 0.10959858339911599,
+      "ci_low": -0.016735689831679473,
+      "ci_high": 0.17673568983167939,
+      "proportion": 0.57999999999999996,
+      "r_wilson_low": 0.48206486703042961,
+      "r_wilson_high": 0.67201617325645258
+    },
+    {
+      "name": "one_p0_low",
+      "variant": "one_proportion",
+      "successes": 9,
+      "n": 60,
+      "p0": 0.050000000000000003,
+      "alpha": 0.050000000000000003,
+      "statistic": 3.5540932665545544,
+      "p_value": 0.00037928468158294608,
+      "ci_low": 0.0096501245492003201,
+      "ci_high": 0.19034987545079968,
+      "proportion": 0.14999999999999999,
+      "r_wilson_low": 0.080974405801677432,
+      "r_wilson_high": 0.26114589069778543
+    },
+    {
+      "name": "one_alpha_01",
+      "variant": "one_proportion",
+      "successes": 140,
+      "n": 400,
+      "p0": 0.40000000000000002,
+      "alpha": 0.01,
+      "statistic": -2.0412414523193152,
+      "p_value": 0.041226833337163572,
+      "ci_low": -0.11142961372034516,
+      "ci_high": 0.011429613720345067,
+      "proportion": 0.34999999999999998,
+      "r_wilson_low": 0.2914719580831549,
+      "r_wilson_high": 0.41342302018099381
+    },
+    {
+      "name": "one_tiny_p",
+      "variant": "one_proportion",
+      "successes": 900,
+      "n": 1000,
+      "p0": 0.69999999999999996,
+      "alpha": 0.050000000000000003,
+      "statistic": 13.801311186847085,
+      "p_value": 2.5025894913835974e-43,
+      "ci_low": 0.18140614903086322,
+      "ci_high": 0.21859385096913692,
+      "proportion": 0.90000000000000002,
+      "r_wilson_low": 0.87984803680465162,
+      "r_wilson_high": 0.91709055640690429
+    }
+  ]
+}
+// golden-hash: b48727285607fd36979ed5e5d7c1b8d8c2086015cbec6fee8223b584d0e4c387

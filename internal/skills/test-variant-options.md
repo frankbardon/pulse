@@ -29,7 +29,7 @@ A numeric pre-period column adjusting the success indicator I to I − θ(x − 
 
 ## `p0` — the one-proportion test
 
-`p0` in `(0, 1)` with `SplitBy` absent tests one proportion against it (`Variant` `one_proportion`): z = (p̂ − p0)/√(p0(1−p0)/N*). `Details` are scalar `n`, `successes`, `proportion`, plus `p0`, `diff` = p̂ − p0 and a Wald `ci_low` / `ci_high` on `diff`; `cohens_h` is against p0. Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
+`p0` in `(0, 1)` with `SplitBy` absent tests one proportion against it (`Variant` `one_proportion`): z = (p̂ − p0)/√(p0(1−p0)/N*). `Details` are scalar `n`, `successes`, `proportion`, plus `p0`, `diff` = p̂ − p0 and a Wald `ci_low` / `ci_high` on `diff` (not `prop.test`'s Wilson interval on p̂); `cohens_h` is against p0. Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
 
 ## `reference` — the two-group tests
 

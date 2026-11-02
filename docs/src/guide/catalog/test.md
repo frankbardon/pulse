@@ -362,10 +362,9 @@ Checks whether two categorical fields are associated, or whether one categorical
 
 **Validated against:**
 
+- R 4.6.1 `chisq.test(correct = FALSE)` (independence; Pulse applies no Yates correction) and `chisq.test(p = expected)` (goodness of fit) — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 - Agresti worked example (R `chisq.test` help) and scipy for the effect size — tolerance 1e-9 to 1e-6; `internal/processing/test_more_test.go`, `internal/processing/test_effect_size_test.go`
-
-**Validation gap:** The unweighted statistic is pinned to hand-computed values, not to an R golden file.
 
 See [How Pulse is validated](../validation.md).
 
@@ -551,10 +550,9 @@ Rank-based check of whether values tend to be larger in some groups than in othe
 
 **Validated against:**
 
+- R 4.6.1 `kruskal.test` (H, df, p, rank sums, tie factor); near H = 0, where `kruskal.test`'s own form cancels, H evaluated in deviation form — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 - R 4.6.1 `kruskal.test` help examples (effect size) — tolerance 1e-9 relative; `internal/processing/test_effect_size_rank_test.go`, `internal/processing/test_nonparametric_test.go`
-
-**Validation gap:** The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file.
 
 See [How Pulse is validated](../validation.md).
 
@@ -643,10 +641,11 @@ Rank-based check of whether values in one of two groups tend to be larger than i
 
 **Validated against:**
 
+- R 4.6.1 `wilcox.test(exact = FALSE, correct = TRUE)` (U, rank sum, tie-corrected variance, z, p) — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 - R 4.6.1 `wilcox.test` help examples (effect size) — tolerance 1e-9 relative; `internal/processing/test_effect_size_rank_test.go`, `internal/processing/test_nonparametric_test.go`
 
-**Validation gap:** The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file.
+**Validation gap:** No exact p-value: Pulse always reports the tie- and continuity-corrected normal approximation. On small samples without ties `wilcox.test` defaults to the exact distribution, so its default p differs there; the golden keeps that exact p beside the pinned one.
 
 See [How Pulse is validated](../validation.md).
 
@@ -874,6 +873,7 @@ Checks whether the rate of one outcome, such as conversion, differs between two 
 
 **Validated against:**
 
+- R 4.6.1 `prop.test(correct = FALSE)` (z as the signed root of X-squared, p; the two-proportion Wald interval). The one-proportion interval is Pulse's Wald interval on p − p0, evaluated in R, not `prop.test`'s Wilson interval — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 - textbook worked example — tolerance 1e-9 relative; `internal/processing/test_parametric_test.go`
 
@@ -1021,10 +1021,8 @@ Checks whether a numeric field's average differs from a target value, or between
 
 **Validated against:**
 
+- R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
-- scipy `ttest_ind` — tolerance 1e-3 absolute; `internal/processing/test_t_test.go`
-
-**Validation gap:** The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference.
 
 See [How Pulse is validated](../validation.md).
 
@@ -1158,10 +1156,8 @@ Checks whether the average of a numeric field differs between two groups, withou
 
 **Validated against:**
 
+- R 4.6.1 `t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
-- scipy `ttest_ind(equal_var = False)` — tolerance 1e-3 absolute; `internal/processing/test_t_test.go`
-
-**Validation gap:** The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference.
 
 See [How Pulse is validated](../validation.md).
 
@@ -1249,9 +1245,8 @@ Large-sample check of whether two groups differ in average, with the p-value rea
 
 **Validated against:**
 
+- R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
-
-**Validation gap:** No unweighted external golden; the unweighted path is checked against Pulse's own Welch test.
 
 See [How Pulse is validated](../validation.md).
 

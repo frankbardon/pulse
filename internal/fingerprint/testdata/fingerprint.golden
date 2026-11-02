@@ -588,7 +588,7 @@ process.mtcars_groups.kendall_mpg_wt:tests.0.details.var_s 0x40ad9e1ce739ce74 37
 process.mtcars_groups.kendall_mpg_wt:tests.0.details.z 0xc01731497ccb5d39 -5.7981318949817302
 process.mtcars_groups.kendall_mpg_wt:tests.0.p_value 0x3e3ccd1291991515 6.7057704055958614e-09
 process.mtcars_groups.kendall_mpg_wt:tests.0.statistic 0xbfe74a66a5e676ba -0.727832149528431
-process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.effect_size.epsilon_squared 0x3fea93a116a2bfaa 0.83052114888231654
+process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.effect_size.epsilon_squared 0x3fea93a116a2bfa6 0.8305211488823161
 process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.n.0 0x4026000000000000 11
 process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.n.1 0x401c000000000000 7
 process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.n.2 0x402c000000000000 14
@@ -597,9 +597,9 @@ process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.rank_sums.0 0x407288000
 process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.rank_sums.1 0x405e800000000000 122
 process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.rank_sums.2 0x405b600000000000 109.5
 process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.details.tie_factor 0x3feff57d5f57d5f5 0.9987170087976539
-process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.p_value 0x3ec586e89a5a271d 2.5662167953453215e-06
-process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.statistic 0x4039bf040deda9ad 25.746155615351814
-process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.effect_size.epsilon_squared 0x3fe9e9aa66e30fc3 0.80977363677129011
+process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.p_value 0x3ec586e89a5a274b 2.566216795345341e-06
+process.mtcars_groups.kruskal_mpg_by_cyl:tests.0.statistic 0x4039bf040deda9a9 25.7461556153518
+process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.effect_size.epsilon_squared 0x3fe9e9aa66e30fcc 0.80977363677129111
 process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.n.0 0x4026000000000000 11
 process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.n.1 0x401c000000000000 7
 process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.n.2 0x402c000000000000 14
@@ -611,8 +611,8 @@ process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.sum_weights.0 0x4
 process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.sum_weights.1 0x4035000000000000 21
 process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.sum_weights.2 0x4043000000000000 38
 process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.details.tie_factor 0x3fefe914f5617a0a 0.99720237661296207
-process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.p_value 0x3ccb307ef0416e01 7.5465847259511168e-16
-process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.statistic 0x405168fe7d208e97 69.640532762330949
+process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.p_value 0x3ccb307ef0416cb2 7.5465847259507864e-16
+process.mtcars_groups.kruskal_mpg_by_cyl_wfreq:tests.0.statistic 0x405168fe7d208e9d 69.640532762331034
 process.mtcars_groups.ks_hp_by_vs:tests.0.details.n.0 0x4032000000000000 18
 process.mtcars_groups.ks_hp_by_vs:tests.0.details.n.1 0x402c000000000000 14
 process.mtcars_groups.ks_hp_by_vs:tests.0.p_value 0x3ecc33fe2069f5db 3.3620710866977369e-06
@@ -990,4 +990,4 @@ weighting.Welford.SumWSq 0x406c200000000000 225
 weighting.Welford.Variance(frequency) 0x4009ab02dbc8da8c 3.2085015459700283
 weighting.Welford.Variance(probability) 0x4009af242aed5831 3.2105182031328003
 
-// golden-hash: 202d3dd31a171185dc92896093a86600ce659346af492b25bfac9fa48790f141
+// golden-hash: 1b938961ffd30201401a094ecc5c557e2770e44aef5edb6d5835bd6ed7096d0c

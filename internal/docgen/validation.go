@@ -71,6 +71,7 @@ const (
 	wrTest = "internal/service/weight_reference_tests_test.go"
 
 	procOutput = "internal/processing/test_output_oracle_test.go"
+	procUnw    = "internal/processing/test_unweighted_oracle_test.go"
 	procPost   = "internal/processing/test_post_oracle_test.go"
 	procUndef  = "internal/processing/test_undefined_oracle_test.go"
 	ovOracle   = "internal/processing/overlay_reference_oracle_test.go"
@@ -120,44 +121,45 @@ var validationRegistry = map[string]validation{
 		r("`psych::cortest.bartlett`", tol9, "internal/service/test_bartlett_sphericity_test.go"), weighted}},
 	"TEST_BOX_M":          {Refs: []validationRef{r("`biotools::boxM`", tol10, "internal/processing/test_box_m_test.go"), weighted}},
 	"TEST_BROWN_FORSYTHE": {Refs: []validationRef{r("`anova(lm(abs(x - median) ~ g))`", tol10, procUndef, procPost), weighted}},
-	"TEST_CHISQ": {
-		Refs: []validationRef{weighted, {Against: "Agresti worked example (R `chisq.test` help) and scipy for the effect size", Tol: "1e-9 to 1e-6", Tests: []string{"internal/processing/test_more_test.go", "internal/processing/test_effect_size_test.go"}}},
-		Gap:  "The unweighted statistic is pinned to hand-computed values, not to an R golden file.",
-	},
+	"TEST_CHISQ": {Refs: []validationRef{
+		r("`chisq.test(correct = FALSE)` (independence; Pulse applies no Yates correction) and `chisq.test(p = expected)` (goodness of fit)", tol10, procUnw),
+		weighted,
+		{Against: "Agresti worked example (R `chisq.test` help) and scipy for the effect size", Tol: "1e-9 to 1e-6", Tests: []string{"internal/processing/test_more_test.go", "internal/processing/test_effect_size_test.go"}},
+	}},
 	"TEST_FISHER_EXACT": {Refs: []validationRef{r("`fisher.test`", tol10, "internal/processing/test_fisher_oracle_test.go"), weighted}},
 	"TEST_HOTELLING_T2": {Refs: []validationRef{r("`Hotelling::hotelling.test`", tol10, "internal/processing/test_hotelling_test.go"), weighted}},
 	"TEST_KENDALL_TAU":  {Refs: []validationRef{r("`cor.test(method = \"kendall\")`", tol10, procOutput), weighted}},
-	"TEST_KRUSKAL_WALLIS": {
-		Refs: []validationRef{weighted, {Against: rPin + " `kruskal.test` help examples (effect size)", Tol: tol9, Tests: []string{"internal/processing/test_effect_size_rank_test.go", "internal/processing/test_nonparametric_test.go"}}},
-		Gap:  "The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file.",
-	},
+	"TEST_KRUSKAL_WALLIS": {Refs: []validationRef{
+		r("`kruskal.test` (H, df, p, rank sums, tie factor); near H = 0, where `kruskal.test`'s own form cancels, H evaluated in deviation form", tol10, procUnw),
+		weighted,
+		{Against: rPin + " `kruskal.test` help examples (effect size)", Tol: tol9, Tests: []string{"internal/processing/test_effect_size_rank_test.go", "internal/processing/test_nonparametric_test.go"}},
+	}},
 	"TEST_KS": {Refs: []validationRef{r("`ks.test` (exact `psmirnov`)", tol10, procOutput), weighted}},
 	"TEST_MANN_WHITNEY_U": {
-		Refs: []validationRef{weighted, {Against: rPin + " `wilcox.test` help examples (effect size)", Tol: tol9, Tests: []string{"internal/processing/test_effect_size_rank_test.go", "internal/processing/test_nonparametric_test.go"}}},
-		Gap:  "The unweighted statistic and p-value are pinned to hand-computed values, not to an R golden file.",
+		Refs: []validationRef{
+			r("`wilcox.test(exact = FALSE, correct = TRUE)` (U, rank sum, tie-corrected variance, z, p)", tol10, procUnw),
+			weighted,
+			{Against: rPin + " `wilcox.test` help examples (effect size)", Tol: tol9, Tests: []string{"internal/processing/test_effect_size_rank_test.go", "internal/processing/test_nonparametric_test.go"}},
+		},
+		Gap: "No exact p-value: Pulse always reports the tie- and continuity-corrected normal approximation. On small samples without ties `wilcox.test` defaults to the exact distribution, so its default p differs there; the golden keeps that exact p beside the pinned one.",
 	},
-	"TEST_MANOVA":       {Refs: []validationRef{r("`manova` with `summary.manova`", tol10, "internal/processing/test_manova_test.go"), weighted}},
-	"TEST_MARDIA":       {Refs: []validationRef{r("Mardia skewness and kurtosis", tol10, "internal/processing/test_mardia_test.go"), weighted}},
-	"TEST_PAIRED_T":     {Refs: []validationRef{r("`t.test(paired = TRUE)`", tol10, procPost), weighted}},
-	"TEST_PEARSON_R":    {Refs: []validationRef{r("`cor.test`", tol10, procOutput, procPost), weighted}},
-	"TEST_PROP_Z":       {Refs: []validationRef{weighted, {Against: "textbook worked example", Tol: tol9, Tests: []string{"internal/processing/test_parametric_test.go"}}}},
+	"TEST_MANOVA":    {Refs: []validationRef{r("`manova` with `summary.manova`", tol10, "internal/processing/test_manova_test.go"), weighted}},
+	"TEST_MARDIA":    {Refs: []validationRef{r("Mardia skewness and kurtosis", tol10, "internal/processing/test_mardia_test.go"), weighted}},
+	"TEST_PAIRED_T":  {Refs: []validationRef{r("`t.test(paired = TRUE)`", tol10, procPost), weighted}},
+	"TEST_PEARSON_R": {Refs: []validationRef{r("`cor.test`", tol10, procOutput, procPost), weighted}},
+	"TEST_PROP_Z": {Refs: []validationRef{
+		r("`prop.test(correct = FALSE)` (z as the signed root of X-squared, p; the two-proportion Wald interval). The one-proportion interval is Pulse's Wald interval on p − p0, evaluated in R, not `prop.test`'s Wilson interval", tol10, procUnw),
+		weighted,
+		{Against: "textbook worked example", Tol: tol9, Tests: []string{"internal/processing/test_parametric_test.go"}},
+	}},
 	"TEST_SHAPIRO_WILK": {Refs: []validationRef{r("`nortest::sf.test` (Shapiro–Francia)", tol10, procUndef)}, Gap: "No weighted reference."},
 	"TEST_SPEARMAN_R":   {Refs: []validationRef{r("`cor.test(method = \"spearman\")` (exact AS 89)", "1e-12 relative", "internal/processing/test_nonparametric_test.go", procPost), weighted}},
-	"TEST_T": {
-		Refs: []validationRef{weighted, {Against: "scipy `ttest_ind`", Tol: "1e-3 absolute", Tests: []string{"internal/processing/test_t_test.go"}}},
-		Gap:  "The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference.",
-	},
-	"TEST_TREND":     {Refs: []validationRef{r("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}},
-	"TEST_TUKEY_HSD": {Refs: []validationRef{r("`TukeyHSD`, `ptukey` refined by quadrature", tol10, procOutput)}},
-	"TEST_WELCH": {
-		Refs: []validationRef{weighted, {Against: "scipy `ttest_ind(equal_var = False)`", Tol: "1e-3 absolute", Tests: []string{"internal/processing/test_t_test.go"}}},
-		Gap:  "The unweighted check is a 4-decimal scipy value; the tight pin is the weighted reference.",
-	},
-	"TEST_WILCOXON_SR": {Refs: []validationRef{r("`wilcox.test(paired = TRUE)`", tol10, procPost), weighted}},
-	"TEST_Z_TWO_SAMPLE": {
-		Refs: []validationRef{weighted},
-		Gap:  "No unweighted external golden; the unweighted path is checked against Pulse's own Welch test.",
-	},
+	"TEST_T":            {Refs: []validationRef{r("`t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances", tol10, procUnw), weighted}},
+	"TEST_TREND":        {Refs: []validationRef{r("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}},
+	"TEST_TUKEY_HSD":    {Refs: []validationRef{r("`TukeyHSD`, `ptukey` refined by quadrature", tol10, procOutput)}},
+	"TEST_WELCH":        {Refs: []validationRef{r("`t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances", tol10, procUnw), weighted}},
+	"TEST_WILCOXON_SR":  {Refs: []validationRef{r("`wilcox.test(paired = TRUE)`", tol10, procPost), weighted}},
+	"TEST_Z_TWO_SAMPLE": {Refs: []validationRef{r("`pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances", tol10, procUnw), weighted}},
 
 	// Descriptive operators with a certified reference.
 	"AGG_AVERAGE": {Refs: []validationRef{strdRef("univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},

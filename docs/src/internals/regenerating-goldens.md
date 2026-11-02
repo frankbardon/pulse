@@ -265,6 +265,27 @@ post-test, and `TestPostTwins_MatchRowVariant` holds each post twin
 equal to its row variant on the same data, both at relative `1e-10`
 (`internal/processing/test_post_oracle_test.go`).
 
+`scripts/reference/gen_unweighted_tests.R` (U64 E2-S1; base R +
+`jsonlite`, runnable on its own like `gen_vif.R`) writes the unweighted
+two-group and contingency goldens: `test_t.json` (`t.test` one-sample on
+`mu`, and two-sample with `var.equal = FALSE`, which every two-sample
+case runs as both `TEST_T` and `TEST_WELCH`), `test_z_two_sample.json`
+(`pnorm` / `qnorm` on the Welch standard error; R has no stock
+function), `test_chisq.json` (`chisq.test(correct = FALSE)`, since Pulse
+applies no Yates correction, with the corrected 2 × 2 figure kept as
+`r_yates_*`; plus the goodness-of-fit form `chisq.test(p = expected)`),
+`test_mann_whitney_u.json` (`wilcox.test(exact = FALSE, correct =
+TRUE)`, Pulse's only arm; on small untied samples R's default exact p
+is kept as `r_p_exact`), `test_kruskal_wallis.json` (`kruskal.test`,
+with H evaluated in deviation form Σ (S_g − n_g(N + 1)/2)² / n_g, which
+is exact on mid-ranks; `kruskal.test`'s own form cancels as H → 0, so
+its figures ride beside as `r_statistic` / `r_p_value`) and
+`test_prop_z.json` (`prop.test(correct = FALSE)`, z = sign(diff)·√X²;
+the one-proportion interval is Pulse's Wald interval on p − p0, with
+`prop.test`'s Wilson bounds kept as `r_wilson_*`).
+`internal/processing/test_unweighted_oracle_test.go` replays each case
+through the operator's registered row test at relative `1e-10`.
+
 ### Regression outputs
 
 `scripts/reference/gen_ols_lm.R` writes `ols_lm.json`: unpenalised
