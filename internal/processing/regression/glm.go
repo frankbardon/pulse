@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/types"
 )
@@ -51,6 +52,9 @@ type glmEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
 	family glmFamily
+	// figures, when set (OfferingFigures), receives the fit's
+	// nested-model comparison figures at finalize (compare.go).
+	figures func(*model.RegressionFigures)
 
 	finalized bool
 
@@ -379,6 +383,31 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 			w = sol.Weights
 		}
 		res.Collinearity = glmCollinearity(e.spec, xRows, w, p+1)
+	}
+	if e.figures != nil {
+		// The figures a Compose nested-model comparison reads (compare.go):
+		// the deviance, the residual df N* − k, the dispersion an F /
+		// likelihood-ratio test divides by — the Pearson estimate on a
+		// family that estimates it, under a robust covariance too (anova
+		// reads summary.glm's, never the sandwich) — and the covariance
+		// the standard errors read on the table's t df (0: Wald z).
+		nStar := rw.basis.NStar(sumW, sumWSq)
+		disp, waldDF := 1.0, 0.0
+		if e.family.EstimatesDispersion {
+			disp, _ = e.estimatedDispersion(yVec, mu, prior, nStar)
+		}
+		if studentT {
+			waldDF = df
+		}
+		e.figures(&model.RegressionFigures{
+			Terms:        coefficientKeys(predictors),
+			Coefficients: append([]float64(nil), beta...),
+			Covariance:   coefCov(),
+			WaldDF:       waldDF,
+			Deviance:     deviance,
+			DFResidual:   nStar - float64(p+1),
+			Dispersion:   disp,
+		})
 	}
 	if robust != nil {
 		res.Covariance = robust.fit.info

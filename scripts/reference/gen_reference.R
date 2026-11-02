@@ -554,3 +554,13 @@ source(file.path(script_dir, "gen_loglik.R"), local = FALSE)
 # the weighted design's closed form); base stats + jsonlite + MASS
 # 7.3-66 + car 3.1-5. Seeded RNG.
 source(file.path(script_dir, "gen_vif.R"), local = FALSE)
+
+# The Compose nested-model comparison golden (nested.json: anova(m0, m1)
+# F / Chisq on lm, anova(test = "LRT" | "F") on the binomial logit /
+# probit, poisson, gamma inverse / log and fixed-theta negative binomial
+# glm, MASS anova.negbin with theta estimated, lmtest::waldtest with the
+# classical and sandwich HC3 vcov; a restricted fit through the origin
+# and frequency weights against the rep() expansion; each statistic
+# re-derived from its closed form); base stats + jsonlite + MASS 7.3-66
+# + sandwich 3.1-3 + lmtest 0.9-40. Seeded RNG.
+source(file.path(script_dir, "gen_nested.R"), local = FALSE)

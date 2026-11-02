@@ -2202,6 +2202,16 @@ type ComposedRequest struct {
 	// `omitempty`, so an optimize-free request is byte-identical on the
 	// wire and under Hash. See OptimizeSpec.
 	Optimize []OptimizeSpec `json:"optimize,omitempty"`
+
+	// Compare are the batch's nested-model comparisons
+	// (FitComparisonSpec): each tests two of the Fits once they have
+	// run, with no record data — an F, likelihood-ratio or Wald test of
+	// the full fit's extra coefficients; results land in
+	// ComposedResponse.Comparisons. Gated by capability:compose_compare
+	// (which depends on capability:compose_fits, the `fits` it reads). Nil is absent — the slot is
+	// `omitempty`, so a comparison-free request is byte-identical on the
+	// wire and under Hash. See FitComparisonSpec.
+	Compare []FitComparisonSpec `json:"compare,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -2277,6 +2287,14 @@ type ComposedResponse struct {
 	// emitted, never rounded. Gated by capability:compose_optimize with
 	// the `optimize` request slot.
 	Optimizations []OptimizeResult `json:"optimizations,omitempty"`
+
+	// Comparisons carries each ComposedRequest.Compare entry's result
+	// (FitComparisonResult), in declaration order, each echoing its name.
+	// Omitted when the request declared no comparison. Like `fits` it
+	// sits outside the Compose-level `return`: always emitted, never
+	// rounded. Gated by capability:compose_compare with the `compare`
+	// request slot.
+	Comparisons []FitComparisonResult `json:"comparisons,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

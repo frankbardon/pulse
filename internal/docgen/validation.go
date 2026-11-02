@@ -70,18 +70,20 @@ const (
 	wrVals = "internal/service/weight_reference_values_test.go"
 	wrTest = "internal/service/weight_reference_tests_test.go"
 
-	procOutput  = "internal/processing/test_output_oracle_test.go"
-	procPost    = "internal/processing/test_post_oracle_test.go"
-	procUndef   = "internal/processing/test_undefined_oracle_test.go"
-	ovOracle    = "internal/processing/overlay_reference_oracle_test.go"
-	ovPairwise  = "internal/processing/overlay_pairwise_test.go"
-	vsPrior     = "internal/integration/overlay_vs_prior_test.go"
-	svcCov      = "internal/service/regression_covariance_test.go"
-	svcCovGLM   = "internal/service/regression_covariance_glm_test.go"
-	svcVcov     = "internal/service/regression_vcov_test.go"
-	regDir      = "internal/processing/regression/"
-	strdTest    = "strd_reference_test.go"
-	mmmSynthSrc = "synthetic data with known true parameters (internal/mmmfixture)"
+	procOutput = "internal/processing/test_output_oracle_test.go"
+	procPost   = "internal/processing/test_post_oracle_test.go"
+	procUndef  = "internal/processing/test_undefined_oracle_test.go"
+	ovOracle   = "internal/processing/overlay_reference_oracle_test.go"
+	ovPairwise = "internal/processing/overlay_pairwise_test.go"
+	vsPrior    = "internal/integration/overlay_vs_prior_test.go"
+	svcCov     = "internal/service/regression_covariance_test.go"
+	svcCovGLM  = "internal/service/regression_covariance_glm_test.go"
+	svcVcov    = "internal/service/regression_vcov_test.go"
+	regDir     = "internal/processing/regression/"
+	// svcCompareOracle is the nested-model comparison's R oracle test.
+	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
+	strdTest         = "strd_reference_test.go"
+	mmmSynthSrc      = "synthetic data with known true parameters (internal/mmmfixture)"
 )
 
 // weighted is the weighted-reference check shared by most inferential
@@ -226,6 +228,8 @@ var validationRegistry = map[string]validation{
 		r("+ MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`, ame / mem) of `lm` with their delta-method standard errors, t statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = \"mean\")` at 1e-7", tol9, regDir+"margins_oracle_test.go"),
 		r("+ `car` 3.1-5 `vif` on `lm` (`collinearity`: VIF, tolerance and, over a factor's dummies grouped as one term, Fox & Monette's generalized VIF, df and GVIF^(1/(2 df)); the closed form re-derived from the weighted design)", tol10, regDir+"vif_oracle_test.go", "collinearity_test.go"),
 		{Against: rPin + " + `car` 3.1-5 `vif(lm(weights = w))`: frequency weights against the `rep()`-expanded fit, probability weights scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
+		r("+ `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `lm` fits — `anova(m0, m1)` F and `test = \"Chisq\"`, `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"))`, a restricted fit through the origin; statistic, df, p-value, each fit's residual df and RSS, σ̂²", tol10, svcCompareOracle, "compare_test.go"),
+		{Against: rPin + " `anova` of the `rep()`-expanded `lm` fits (frequency weights; df = Σw − rank)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
 		weighted,
 	},
 		Gap: "On NIST Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): the double-precision limit for its large residuals.",
@@ -248,9 +252,11 @@ var validationRegistry = map[string]validation{
 			{Against: rPin + " analytic marginal effects of `glm(weights = f)` (logit ame / mem) against its `rep()`-expanded fit, and `marginaleffects` `avg_slopes(wts = \"f\")`", Tol: tol9, Tests: []string{regDir + "margins_oracle_test.go"}, Weighted: true},
 			r("+ MASS 7.3-66 + `car` 3.1-5 `vif` (`collinearity`: VIF, tolerance, generalized VIF of a factor's dummies, df, GVIF^(1/(2 df))) on binomial-logit, poisson-log, fixed-θ negative binomial and gamma-log `glm` fits refitted to their fixed point (basis model: the IRLS working weights), and on `lm` over the same predictors and prior weights (basis predictors); end to end through `FEAT_ONE_HOT`", tol10, regDir+"vif_oracle_test.go", "collinearity_test.go"),
 			{Against: rPin + " + `car` 3.1-5 `vif(glm(weights = w))`: frequency weights against the `rep()`-expanded fit (logit, poisson basis predictors), probability weights (gamma log) scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
+			r("+ MASS 7.3-66 + `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `glm` fits refitted to their fixed point — `anova(m0, m1, test = \"LRT\" | \"F\")` on logit, probit, poisson, gamma inverse / log and fixed-θ negative binomial fits (the full fit's Pearson dispersion), MASS `anova.negbin` (θ estimated, 2 loglik change; cross-checked against `lrtest`), `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"), test = \"Chisq\" | \"F\")`", tol10, svcCompareOracle, "compare_test.go"),
+			{Against: rPin + " `anova` of the `rep()`-expanded `glm` fits (poisson LRT, gamma log F; frequency weights)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
 			weighted,
 		},
-		Gap: "Penalized fits on a non-canonical link are checked by their KKT conditions, not against glmnet. Off the canonical link IRLS converges linearly, so at the default tol (1e-8) the coefficients sit within about 1e-7 of the MLE; the oracle fits at tol 1e-13. The negative binomial refuses penalty, selection and resample (no oracle); its probability-weighted fit is checked for scale invariance only. Marginal effects are slopes only (no discrete factor contrasts: regressions take no factor predictors; a 0/1 dummy gets its slope, where marginaleffects reports a 1 − 0 contrast, so that cross-check skips it) and are refused over a predictor derived from another predictor, a penalty, selection, resample or bounds. The collinearity block's penalized basis-predictors figure is checked equal to the unpenalized one (a design figure), not against an external penalized VIF.",
+		Gap: "Penalized fits on a non-canonical link are checked by their KKT conditions, not against glmnet. Off the canonical link IRLS converges linearly, so at the default tol (1e-8) the coefficients sit within about 1e-7 of the MLE; the oracle fits at tol 1e-13. The negative binomial refuses penalty, selection and resample (no oracle); its probability-weighted fit is checked for scale invariance only. Marginal effects are slopes only (no discrete factor contrasts: regressions take no factor predictors; a 0/1 dummy gets its slope, where marginaleffects reports a 1 − 0 contrast, so that cross-check skips it) and are refused over a predictor derived from another predictor, a penalty, selection, resample or bounds. The collinearity block's penalized basis-predictors figure is checked equal to the unpenalized one (a design figure), not against an external penalized VIF. A nested-model comparison under a probability weight runs the Wald test only (F / LRT refused), checked against its own covariance rather than an external survey test.",
 	},
 	"REG_BAYES_LINEAR": {Refs: []validationRef{
 		r("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),

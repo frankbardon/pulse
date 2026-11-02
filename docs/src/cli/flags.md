@@ -144,7 +144,9 @@ each row. A run that warned ends with one `{"warnings": [...]}` line
 (compose: after the rows, before a ranked sweep's `ranking` line).
 A compose batch with `optimize` blocks ends with one
 `{"optimizations": [...]}` line — each block's optimum is one solve,
-written whole, never as rows. See [Streaming & ProcessStream](../library/streaming.md).
+written whole, never as rows — and one with `compare` entries with one
+`{"comparisons": [...]}` line after it (each nested-model test is one
+figure set over two fits). See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 

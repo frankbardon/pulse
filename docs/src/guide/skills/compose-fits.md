@@ -32,7 +32,7 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 - `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute or one `matrices` entry, its listwise mean + co-moment); one `MAT_SEM` entry is a **SEM fit** ([`sem-fits`](sem-fits.md)).
 - `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep ([`compose-sweep-bind`](compose-sweep-bind.md)).
-- Its own cohort, filters, features and weight decide the fit rows, independent of every slot (fit 0–90, score 91–103). Its `return` is ignored.
+- Its own cohort, filters, features and weight decide the fit rows, independent of every slot. Its `return` is ignored.
 - Each fit runs once; serial and parallel are byte-identical.
 
 A fit's regression may read same-request window labels (windows-over-records shape); a scoring slot's post-window `ATTR_REG_PREDICT` runs after its windows; a `holdout` is scored at fit time ([`regression-model-options`](regression-model-options.md)).
@@ -75,4 +75,4 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## See
 
-[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (the slots a sweep adds receive the fits too) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) (reading its result) · [`compose-optimize`](compose-optimize.md).
+[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (sweep slots get the fits) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) (its result) · [`regression-comparison`](regression-comparison.md) (nested-model tests) · [`compose-optimize`](compose-optimize.md).

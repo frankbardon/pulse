@@ -351,6 +351,7 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 		}
 	}
 	collectOverlaySites(fams, composeHostScope, plan.Overlays, out.Overlays)
+	collectComparisonSites(fams, plan.Comparisons, out.Comparisons)
 	if err := fams.fold(); err != nil {
 		return err
 	}
@@ -363,4 +364,37 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 		}
 	}
 	return nil
+}
+
+// collectComparisonSites files each member nested-model comparison's
+// p-value (ComposedRequest.Compare) into the batch's `compose` family,
+// in declaration order, after the slots and the Compose-host layers. A
+// failed comparison (Error set) joins no family, like a failed test.
+func collectComparisonSites(fams *multFamilies, slots []descx.ResolvedMultiplicity, results []types.FitComparisonResult) {
+	for i := range results {
+		r := &results[i]
+		if i >= len(slots) || r.Error != nil || !slots[i].Member {
+			continue
+		}
+		rm := slots[i]
+		fams.add(multFamilyKey(composeHostScope, rm.Family), rm.Family, rm.Method, multSite{
+			p: r.PValue,
+			write: func(adjusted float64, m, excluded int) {
+				writeComparisonAdjusted(r, rm, adjusted, m, excluded)
+			},
+		})
+	}
+}
+
+// writeComparisonAdjusted records a comparison's adjusted p beside its
+// raw one; significant_adjusted compares against the resolved alpha and
+// is absent for an undefined adjusted p.
+func writeComparisonAdjusted(r *types.FitComparisonResult, rm descx.ResolvedMultiplicity, adjusted float64, m, excluded int) {
+	r.PAdjusted = &adjusted
+	r.SignificantAdjusted = nil
+	if !math.IsNaN(adjusted) {
+		sig := adjusted < rm.Alpha
+		r.SignificantAdjusted = &sig
+	}
+	r.Multiplicity = &types.AppliedMultiplicity{Method: rm.Method, Family: rm.Family, Alpha: rm.Alpha, M: m, Excluded: excluded}
 }

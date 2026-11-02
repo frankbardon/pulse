@@ -281,6 +281,11 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.OptimizeDirection]()] = stringify(types.AllOptimizeDirections())
 	m[reflect.TypeFor[types.OptimizeConstraintType]()] = stringify(types.AllOptimizeConstraintTypes())
 	m[reflect.TypeFor[types.OptimizeActiveBound]()] = stringify(types.AllOptimizeActiveBounds())
+	// The nested-model comparison tests and distributions: closed
+	// vocabularies (a hidden capability:compose_fits drops the `compare`
+	// / `comparisons` slots, and the defs with them).
+	m[reflect.TypeFor[types.ComparisonTest]()] = stringify(types.AllComparisonTests())
+	m[reflect.TypeFor[types.ComparisonDistribution]()] = stringify([]types.ComparisonDistribution{types.ComparisonDistributionF, types.ComparisonDistributionChiSquare})
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())

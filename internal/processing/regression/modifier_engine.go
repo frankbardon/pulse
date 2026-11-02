@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,6 +30,10 @@ type modifierEngine struct {
 	family    string // "OLS" or "GLM"
 	glmFam    glmFamily
 	finalized bool
+	// figures, when set (OfferingFigures), is handed to the inner
+	// full-data engine (finalizeOnPredictors), whose figures are the
+	// fit's: a resample replaces only the standard errors.
+	figures func(*model.RegressionFigures)
 }
 
 // newModifierEngine constructs a modifier wrapper for a REG_OLS or
@@ -307,6 +312,9 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 		if err != nil {
 			return nil, err
 		}
+		if o, ok := eng.(figuresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
+			o.setFiguresOffer(e.figures)
+		}
 		be, ok := eng.(BufferedEngine)
 		if !ok {
 			return nil, errors.NewCodedError(
@@ -322,6 +330,9 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 		eng, err := newGLMEngine(&inner, e.schema)
 		if err != nil {
 			return nil, err
+		}
+		if o, ok := eng.(figuresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
+			o.setFiguresOffer(e.figures)
 		}
 		be, ok := eng.(BufferedEngine)
 		if !ok {

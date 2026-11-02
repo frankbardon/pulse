@@ -1884,6 +1884,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"banner":   bannerSchema(reqSchema),
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
+			"compare":  compareSchema(),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1933,6 +1934,36 @@ func addFitFromSweep(fits map[string]any, inst *descx.InstanceSnapshot) {
 		"additionalProperties": false,
 	}
 	items["required"] = []string{"name"}
+}
+
+// compareSchema describes the ComposedRequest `compare` list
+// (types.FitComparisonSpec): nested-model comparisons of two `fits`,
+// run after the fits with no record data. Dropped when
+// capability:compose_compare is hidden (dropHiddenSlots); an entry's
+// `multiplicity` drops when capability:multiplicity is
+// (dropHiddenMultiplicity).
+func compareSchema() map[string]any {
+	tests := make([]string, 0, 3)
+	for _, t := range types.AllComparisonTests() {
+		tests = append(tests, string(t))
+	}
+	return map[string]any{
+		"type":        "array",
+		"description": "Nested-model comparisons, each run once after the fits (no record data): is the full fit better than the restricted one? The restricted fit's predictors (and intercept) must all be the full fit's, the two fit requests equal but for the regression's predictors, intercept and reporting knobs (same rows), both REG_OLS or both REG_GLM on one family and link. Results are returned under the response `comparisons`, in order: the statistic, df, p_value, the tested terms and each fit's residual df and deviance.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":       map[string]any{"type": "string", "description": "The comparison's name, unique among the comparisons."},
+				"restricted": map[string]any{"type": "string", "description": "The `fits` entry name of the smaller model (the null: the full model's extra coefficients are zero)."},
+				"full":       map[string]any{"type": "string", "description": "The `fits` entry name of the larger model."},
+				"test":       enumStringField(tests, "f: the F test on the deviance change over the full fit's estimated dispersion (REG_OLS, gamma); lrt: the likelihood-ratio (deviance) test; wald: the Wald test of the extra coefficients on the full fit's own covariance (classical or robust). Omit for R's anova default: f on REG_OLS and gamma, lrt otherwise. f and lrt are refused under a probability weight (use wald)."),
+				"multiplicity": multiplicitySchema(
+					"This comparison's multiple-comparison correction; omit to inherit the batch's. The only family is `compose` (the default): the comparisons pool with every compose-family member of the batch.",
+					[]types.MultiplicityFamily{types.MultiplicityFamilyCompose}, true),
+			},
+			"required": []string{"name", "restricted", "full"},
+		},
+	}
 }
 
 // optimizeSchema describes the ComposedRequest `optimize` list

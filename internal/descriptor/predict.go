@@ -233,6 +233,15 @@ func (o *PredictOptions) defaultMultiplicity() *types.Multiplicity {
 	return o.DefaultMultiplicity
 }
 
+// defaultWeight is the instance default weight predict resolves fits
+// against (pulse.Options.DefaultWeight), nil for none.
+func (o *PredictOptions) defaultWeight() *types.WeightSpec {
+	if o == nil {
+		return nil
+	}
+	return o.DefaultWeight
+}
+
 // opRoute returns t, or "" — a name no operator table, switch or
 // capability lookup knows — when inst hides it, so every type-keyed
 // predict site takes the never-registered branch for a hidden name.

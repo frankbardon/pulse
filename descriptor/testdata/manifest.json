@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:beacb008263c35d684ff22301a4f2fbabb344e32ca44ccaff6fd9593b6d6dc12",
+    "feature_set_digest": "fs1:58a974ffd6e050265428748214ca19936ca0c71a244918f80dd1bfeff1ba90e4",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11394,7 +11394,7 @@
         ]
       }
     ],
-    "error_codes_count": 449,
+    "error_codes_count": 451,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11460,6 +11460,8 @@
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
       "PULSE_COHORT_COMPRESSED",
+      "PULSE_COMPARISON_INVALID",
+      "PULSE_COMPARISON_ROWS_DIFFER",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
       "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL",
@@ -14345,6 +14347,10 @@
       {
         "name": "regression-collinearity",
         "description": "Variance inflation factors on a fitted regression — VIF and tolerance per term, the generalized VIF (GVIF and GVIF^(1/(2 df))) for a multi-column term such as a one-hot block, read off the fit's own weighted design or the predictors alone, execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-comparison",
+        "description": "Nested-model comparison of two Compose regression fits — the F test, the likelihood-ratio (deviance) test and the Wald test of the full model's extra terms, R's anova(m0, m1) / lmtest::waldtest; how nesting and same rows are verified, the defaults per family, weights, the result and the refusals. Topical design; the fits themselves in compose-fits."
       },
       {
         "name": "regression-inference",
@@ -20726,4 +20732,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3cad37c059f2c2d139a90fd3340e0b55418bcaa3402a4b86e5298eb21139601d
+// golden-hash: 9c4e188bf662c82133282500fc86320c06201faf7fa5e121ea4fb41deec0cabd

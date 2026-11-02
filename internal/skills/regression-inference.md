@@ -71,7 +71,7 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 
 `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null, NaN or ±Inf `cluster` / `order_by` value drops the row.
 
-Predict and runtime apply the same rule, so predict reports it before any fit. `pulse_errors_lookup` carries the recovery.
+Predict refuses identically, before any fit.
 
 ## Against R
 
@@ -90,6 +90,9 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 - `regression-modeling` — choosing a model and modifiers.
 - `regression-margins` — marginal effects on these SEs.
 - `regression-collinearity` — VIF on the fit.
+<!-- feature: capability:compose_compare -->
+- `regression-comparison` — nested-model F / LR / Wald tests of two fits.
+<!-- /feature -->
 <!-- feature: REG_OLS -->
 - `op-reg-ols` — the `vcov` Param for OLS and ridge.
 <!-- /feature -->

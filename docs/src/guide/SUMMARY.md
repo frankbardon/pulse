@@ -303,6 +303,7 @@
     - [predict-advisories](skills/predict-advisories.md)
     - [process-chain](skills/process-chain.md)
     - [regression-collinearity](skills/regression-collinearity.md)
+    - [regression-comparison](skills/regression-comparison.md)
     - [regression-inference](skills/regression-inference.md)
     - [regression-margins](skills/regression-margins.md)
     - [regression-model-options](skills/regression-model-options.md)

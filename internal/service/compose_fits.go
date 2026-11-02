@@ -211,11 +211,16 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 		}
 		return
 	}
+	// A regression fit a nested-model comparison reads runs with a
+	// capture its engine offers its comparison figures to
+	// (compose_compare.go); every other fit runs as it always has.
+	fitSet, figures := captureFor(ctx, fits[i].Name, fitSet)
 	resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
 	if err != nil {
 		p.errs[i] = err
 		return
 	}
+	recordComparisonFigures(ctx, fits[i].Name, figures)
 	if resp == nil || len(resp.Regressions) != 1 || resp.Regressions[0] == nil {
 		p.errs[i] = errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			fmt.Sprintf("fit %q produced no regression result", fits[i].Name))

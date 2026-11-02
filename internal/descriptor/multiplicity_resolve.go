@@ -122,6 +122,9 @@ func (p *MultiplicityPlan) lists() [][]ResolvedMultiplicity {
 type ComposeMultiplicityPlan struct {
 	Requests []*MultiplicityPlan
 	Overlays []ResolvedMultiplicity
+	// Comparisons is index-aligned with ComposedRequest.Compare: each
+	// nested-model comparison's resolved correction (family `compose`).
+	Comparisons []ResolvedMultiplicity
 }
 
 // multSurface is the kind of slot a block sits on; it decides the
@@ -137,6 +140,9 @@ const (
 	surfaceMatrix
 	// surfaceRegression is a RegressionSpec's own block (U48).
 	surfaceRegression
+	// surfaceComparison is a ComposedRequest `compare` entry's own block
+	// (U65 E3-S3): one p-value per comparison, family `compose` only.
+	surfaceComparison
 )
 
 // defaultFamily is the family a slot of surface takes when nothing (or
@@ -147,6 +153,8 @@ func (s multSurface) defaultFamily() types.MultiplicityFamily {
 		return types.MultiplicityFamilyRequest
 	case surfaceMatrix:
 		return types.MultiplicityFamilyMatrix
+	case surfaceComparison:
+		return types.MultiplicityFamilyCompose
 	}
 	return types.MultiplicityFamilyLayer
 }
@@ -174,7 +182,7 @@ func (s multSurface) families(inCompose, matrix bool) []types.MultiplicityFamily
 		case types.MultiplicityFamilyRequest:
 			ok = s == surfaceTest || s == surfaceRequestOverlay || s == surfaceMatrix || s == surfaceRegression
 		case types.MultiplicityFamilyCompose:
-			ok = inCompose && s != surfaceFacetOverlay && s != surfaceMatrix
+			ok = (inCompose && s != surfaceFacetOverlay && s != surfaceMatrix) || s == surfaceComparison
 		case types.MultiplicityFamilyMatrix:
 			ok = s == surfaceMatrix
 		}
@@ -360,6 +368,28 @@ func (r multResolver) test(slot string, t *types.Test, chain multChain) (Resolve
 	}
 	rm.Method = method
 	rm.Member = method != types.MultiplicityMethodNone
+	return rm, nil
+}
+
+// comparison resolves one ComposedRequest `compare` entry: a nested
+// model comparison is one hypothesis test, so like a TEST_* slot it
+// inherits (own → the Compose request's block → def → none); its only
+// family is `compose` (the default — an inherited family it does not
+// offer falls back to it), its alpha the resolved block alpha.
+func (r multResolver) comparison(slot string, own *types.Multiplicity, chain multChain) (ResolvedMultiplicity, error) {
+	rm := ResolvedMultiplicity{Slot: slot, Operator: "compare", Method: types.MultiplicityMethodNone, Family: types.MultiplicityFamilyCompose}
+	where := slot + ".multiplicity"
+	if err := ValidateMultiplicitySpec(own, where); err != nil {
+		return rm, err
+	}
+	family, err := r.family(where, surfaceComparison, own, chain, false)
+	if err != nil {
+		return rm, err
+	}
+	rm.Family = family
+	rm.Method = chain.method(own)
+	rm.Alpha = chain.alpha(own)
+	rm.Member = rm.Method != types.MultiplicityMethodNone
 	return rm, nil
 }
 
@@ -763,6 +793,9 @@ func ResolveComposeMultiplicity(req *types.ComposedRequest, def *types.Multiplic
 	for i := 0; !named && i < len(req.Overlays); i++ {
 		named = req.Overlays[i].Multiplicity != nil
 	}
+	for i := 0; !named && i < len(req.Compare); i++ {
+		named = req.Compare[i].Multiplicity != nil
+	}
 	for i := 0; !named && i < len(req.Requests); i++ {
 		named = requestNamesMultiplicity(req.Requests[i])
 	}
@@ -803,6 +836,15 @@ func ResolveComposeMultiplicity(req *types.ComposedRequest, def *types.Multiplic
 			return nil, err
 		}
 		out.Overlays = append(out.Overlays, rm)
+		members = append(members, rm)
+		owners = append(owners, -1)
+	}
+	for i := range req.Compare {
+		rm, err := r.comparison("compare["+strconv.Itoa(i)+"]", req.Compare[i].Multiplicity, chain)
+		if err != nil {
+			return nil, err
+		}
+		out.Comparisons = append(out.Comparisons, rm)
 		members = append(members, rm)
 		owners = append(owners, -1)
 	}

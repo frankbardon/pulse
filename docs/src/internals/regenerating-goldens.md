@@ -401,6 +401,24 @@ other R than 4.6.1. `TestReferenceOracle_VIFMatchesCar`
 `1e-10`; `TestCollinearity_OneHotMatchesCar` (root) runs the grouped
 logit case end to end through `FEAT_ONE_HOT`.
 
+`scripts/reference/gen_nested.R` writes `nested.json`: the Compose
+nested-model comparison (`compare`) of two fits on the same rows — R's
+`anova(m0, m1)` F and `test = "Chisq"` on `lm`, `anova(m0, m1, test =
+"LRT" | "F")` on the binomial logit / probit, poisson, gamma inverse /
+log and fixed-θ negative binomial `glm` (refitted to their fixed
+point; the full fit's Pearson dispersion), MASS's `anova.negbin` (θ
+estimated, `glm.nb` pushed to its joint fixed point; cross-checked
+against `lmtest::lrtest` on the loose fits) and `lmtest::waldtest(m0,
+m1, vcov = vcov | sandwich::vcovHC(type = "HC3"), test = "F" |
+"Chisq")`, with a restricted fit through the origin and
+frequency-weighted cases fitted on the `rep()` expansion. Each
+statistic is re-derived in the script from the two fits' deviances,
+dispersion and covariance. It needs MASS 7.3-66, `sandwich` 3.1-3 and
+`lmtest` 0.9-40 (with `zoo` 1.9-1, from the Posit noble binary repo; the
+golden records the versions) and refuses any other R than 4.6.1.
+`TestReferenceOracle_NestedMatchesR` (`internal/service`) runs every
+case through Compose and holds every figure at relative `1e-10`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -464,7 +482,7 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
-| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; a recommended package — install it into the user library where the R build omits it) |
+| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
 | `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |
 | `ppcor` | 1.1 | partial correlation |
@@ -473,9 +491,9 @@ is the whole list in one place.
 | `Hotelling` | 1.0-8 | `TEST_HOTELLING_T2` (`gen_multivariate_tests.R`) |
 | `biotools` | 4.3 | `TEST_BOX_M` |
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
-| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`) |
+| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`), the nested-model Wald test (`gen_nested.R`) |
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
-| `lmtest` | 0.9-40 | robust covariance tests |
+| `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |

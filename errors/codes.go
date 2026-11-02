@@ -1659,6 +1659,28 @@ const (
 	// and "reason".
 	PULSE_FIT_INVALID Code = "PULSE_FIT_INVALID"
 
+	// PULSE_COMPARISON_INVALID indicates a ComposedRequest `compare`
+	// entry (a nested-model comparison of two `fits`) that cannot run:
+	// a missing or repeated name, a fit name that is missing, unknown,
+	// not a request-bound regression fit, or the same on both sides; fits
+	// that are not both REG_OLS or both REG_GLM; an unknown test; terms
+	// that are not nested; fit requests that are not on the same rows;
+	// or a fit or test the comparison does not support (reason
+	// "requires", with "requires" naming the condition). Refused
+	// identically by predict and the runtime before any fit or slot
+	// runs. Details carry "compare" (the 0-based entry index), "name",
+	// "reason" and, where they apply, "field", "value", "valid",
+	// "available", "missing", "keys", "requires" and "alternative".
+	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
+
+	// PULSE_COMPARISON_ROWS_DIFFER indicates a nested-model comparison
+	// whose two fits, once run, used different row counts (a full-model
+	// predictor null on rows the restricted fit kept): the comparison
+	// fails alone (its ComposedResponse.Comparisons entry carries the
+	// error; PULSE_SLOT_FAILED lifts to the batch). Details carry
+	// "restricted", "full", "restricted_n_obs" and "full_n_obs".
+	PULSE_COMPARISON_ROWS_DIFFER Code = "PULSE_COMPARISON_ROWS_DIFFER"
+
 	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
 	// name in the one model namespace every name reference resolves
 	// against: two ComposedRequest `fits` entries (details "name" and
@@ -4777,6 +4799,8 @@ var allCodes = []Code{
 	PULSE_SWEEP_SAMPLES_INVALID,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
+	PULSE_COMPARISON_INVALID,
+	PULSE_COMPARISON_ROWS_DIFFER,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
 	PULSE_MODEL_KIND_MISMATCH,

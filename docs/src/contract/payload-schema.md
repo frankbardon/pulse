@@ -1512,6 +1512,45 @@ converged starts within `10·tolerance·max(1, |f*|)` of the best. Both slots ar
 blocks as `optimize [{name, direction, variables, constraints, starts,
 rng_seed}]` on the predict result (not payload-reachable).
 
+### Compose comparisons
+
+`ComposedRequest.compare` is an `omitempty` array of `FitComparisonSpec
+{name, restricted, full, test, multiplicity}`: a nested-model
+comparison of two regression `fits` entries, run once after the fits
+with no record data (R's `anova(m0, m1)` / `lmtest::waldtest`). `test`
+is the `ComparisonTest` enum `f` / `lrt` / `wald` (absent: `f` on
+`REG_OLS` and a family that estimates its dispersion, `lrt` otherwise);
+`multiplicity` (gated by `capability:multiplicity`) inherits the batch
+block, family `compose` only. Predict and the runtime refuse an entry
+identically before any fit or slot runs — `PULSE_COMPARISON_INVALID`
+with `details.compare` (the entry index) and `details.reason` (the
+restricted terms not a subset of the full fit's, fit requests that
+differ beyond the regression's predictors, intercept and reporting
+knobs, an unsupported fit or test under `requires`). Results land in
+`ComposedResponse.comparisons`, an `omitempty` array of
+`FitComparisonResult` in declaration order — `name`, `restricted`,
+`full`, `test`, `distribution` (`ComparisonDistribution` `f` /
+`chisq`), `terms`, `statistic`, `df`, `df_residual` (F only),
+`p_value`, `n_obs`, `restricted_df_residual`, `full_df_residual`,
+`restricted_deviance`, `full_deviance`, `dispersion` (F / LR on a
+deviance), `restricted_two_log_lik` / `full_two_log_lik` (a θ-estimated
+negative binomial's LR), `p_adjusted` / `significant_adjusted` /
+`multiplicity` — pinned outside the Compose-level `return` (always
+emitted, never rounded); an undefined figure is `null`, key kept. A
+comparison whose fit failed on its data, or whose fits used different
+row counts (`PULSE_COMPARISON_ROWS_DIFFER`), keeps `{name, restricted,
+full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
+(`slot_kind` `comparisons`). Both slots are gated by
+`capability:compose_compare` (a dependency on `capability:compose_fits`
+and `REG_OLS` or `REG_GLM`). `pulse_predict` with `composed` lists the
+entries as `compare [{name, restricted, full, test, distribution,
+terms}]` on the predict result (not payload-reachable). The figures a
+comparison reads off each fit beyond its wire result (its residual
+deviance, the Pearson dispersion, the covariance its standard errors
+read) travel through an internal capture on the fit's run, never a
+request, result or public type: no fit's bytes move. Long form:
+`docs/src/regression.md` (Nested-model comparison).
+
 ### Model files (`save`)
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,

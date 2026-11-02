@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:beacb008263c35d684ff22301a4f2fbabb344e32ca44ccaff6fd9593b6d6dc12",
+  "$comment": "feature_set_digest: fs1:58a974ffd6e050265428748214ca19936ca0c71a244918f80dd1bfeff1ba90e4",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -900,6 +900,21 @@
       ],
       "type": "object"
     },
+    "ComparisonDistribution": {
+      "enum": [
+        "chisq",
+        "f"
+      ],
+      "type": "string"
+    },
+    "ComparisonTest": {
+      "enum": [
+        "f",
+        "lrt",
+        "wald"
+      ],
+      "type": "string"
+    },
     "ComposeOverlaySpec": {
       "additionalProperties": false,
       "properties": {
@@ -952,6 +967,15 @@
       "properties": {
         "banner": {
           "$ref": "#/$defs/BannerSpec"
+        },
+        "compare": {
+          "items": {
+            "$ref": "#/$defs/FitComparisonSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "fits": {
           "items": {
@@ -1047,6 +1071,15 @@
       "properties": {
         "banner": {
           "$ref": "#/$defs/BannerResult"
+        },
+        "comparisons": {
+          "items": {
+            "$ref": "#/$defs/FitComparisonResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "fits": {
           "additionalProperties": {
@@ -2309,6 +2342,173 @@
         "FILTER_TRUE"
       ],
       "type": "string"
+    },
+    "FitComparisonResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "df": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df_residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "distribution": {
+          "$ref": "#/$defs/ComparisonDistribution"
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "full": {
+          "type": "string"
+        },
+        "full_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "full_df_residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "full_two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "n_obs": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p_value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted": {
+          "type": "string"
+        },
+        "restricted_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted_df_residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted_two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "significant_adjusted": {
+          "type": "boolean"
+        },
+        "statistic": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "test": {
+          "$ref": "#/$defs/ComparisonTest"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "then": {
+        "required": [
+          "df",
+          "distribution",
+          "full",
+          "full_deviance",
+          "full_df_residual",
+          "n_obs",
+          "p_value",
+          "restricted",
+          "restricted_deviance",
+          "restricted_df_residual",
+          "statistic",
+          "terms",
+          "test"
+        ]
+      },
+      "type": "object"
+    },
+    "FitComparisonSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "full": {
+          "type": "string"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
+        "name": {
+          "type": "string"
+        },
+        "restricted": {
+          "type": "string"
+        },
+        "test": {
+          "$ref": "#/$defs/ComparisonTest"
+        }
+      },
+      "required": [
+        "full",
+        "name",
+        "restricted"
+      ],
+      "type": "object"
     },
     "FitFromSweep": {
       "additionalProperties": false,
@@ -7239,4 +7439,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 4419a69d9369386993415bc1b00e9a618a243bff83feb1c366eef22a1aee1311
+// golden-hash: 7618b0f769a0c2abffc601d0067bd44f504b0bf95d35ed518b7578d8b9b19e4c

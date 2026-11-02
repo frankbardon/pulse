@@ -378,10 +378,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SWEEP_SAMPLES_INVALID: own(featSweepSampling),
 	errors.PULSE_BANNER_INVALID:        own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
-	errors.PULSE_FIT_INVALID:          own(featComposeFits),
-	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
-	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
+	errors.PULSE_FIT_INVALID: own(featComposeFits),
+	// The nested-model comparisons read the fits (ComposedRequest.Compare).
+	errors.PULSE_COMPARISON_INVALID:     own(featComposeCompare),
+	errors.PULSE_COMPARISON_ROWS_DIFFER: own(featComposeCompare),
+	errors.PULSE_MODEL_NAME_COLLISION:   own(featComposeFits, featModels),
+	errors.PULSE_MODEL_UNKNOWN:          own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
+	errors.PULSE_MODEL_KIND_MISMATCH:    own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL / LEVERAGE / INFLUENCE params.fit
 	// (CheckFitReference, CheckFitDesign) and

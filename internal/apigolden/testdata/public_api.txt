@@ -158,6 +158,7 @@ pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationRe
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
+pulse: type ComposePredictResult field Compare []pulse/descriptor.ComparisonSummary "json:\"compare,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field Optimize []pulse/descriptor.OptimizeSummary "json:\"optimize,omitempty\""
@@ -171,6 +172,7 @@ pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
@@ -183,6 +185,7 @@ pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
+pulse: type ComposedResponse field Comparisons []pulse/types.FitComparisonResult "json:\"comparisons,omitempty\""
 pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
@@ -1368,6 +1371,13 @@ pulse/descriptor: type CommandAnnotations struct
 pulse/descriptor: type CommandAnnotations field Deterministic bool "json:\"deterministic\""
 pulse/descriptor: type CommandAnnotations field Expensive bool "json:\"expensive\""
 pulse/descriptor: type CommandAnnotations field Streamable bool "json:\"streamable\""
+pulse/descriptor: type ComparisonSummary struct
+pulse/descriptor: type ComparisonSummary field Distribution pulse/types.ComparisonDistribution "json:\"distribution\""
+pulse/descriptor: type ComparisonSummary field Full string "json:\"full\""
+pulse/descriptor: type ComparisonSummary field Name string "json:\"name\""
+pulse/descriptor: type ComparisonSummary field Restricted string "json:\"restricted\""
+pulse/descriptor: type ComparisonSummary field Terms []string "json:\"terms\""
+pulse/descriptor: type ComparisonSummary field Test pulse/types.ComparisonTest "json:\"test\""
 pulse/descriptor: type ComponentKey struct
 pulse/descriptor: type ComponentKey field Description string "json:\"description\""
 pulse/descriptor: type ComponentKey field Name string "json:\"name\""
@@ -2634,6 +2644,8 @@ pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
+pulse/errors: const PULSE_COMPARISON_INVALID pulse/errors.Code = "PULSE_COMPARISON_INVALID"
+pulse/errors: const PULSE_COMPARISON_ROWS_DIFFER pulse/errors.Code = "PULSE_COMPARISON_ROWS_DIFFER"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
 pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
@@ -4991,6 +5003,7 @@ pulse/types: type AggregationType method (AggregationType) Streamable() bool
 pulse/types: func AllAggregationTypes() []pulse/types.AggregationType
 pulse/types: func AllAttributeTypes() []pulse/types.AttributeType
 pulse/types: func AllCollinearityBases() []string
+pulse/types: func AllComparisonTests() []pulse/types.ComparisonTest
 pulse/types: func AllCovarianceTypes() []pulse/types.CovarianceType
 pulse/types: func AllFeatureTypes() []pulse/types.FeatureType
 pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
@@ -5153,6 +5166,13 @@ pulse/types: type Cohort field DataDir string "json:\"data_dir,omitempty\""
 pulse/types: type Cohort field Filename string "json:\"filename\""
 pulse/types: const CollinearityBasisModel untyped string = "model"
 pulse/types: const CollinearityBasisPredictors untyped string = "predictors"
+pulse/types: type ComparisonDistribution string
+pulse/types: const ComparisonDistributionChiSquare pulse/types.ComparisonDistribution = "chisq"
+pulse/types: const ComparisonDistributionF pulse/types.ComparisonDistribution = "f"
+pulse/types: type ComparisonTest string
+pulse/types: const ComparisonTestF pulse/types.ComparisonTest = "f"
+pulse/types: const ComparisonTestLRT pulse/types.ComparisonTest = "lrt"
+pulse/types: const ComparisonTestWald pulse/types.ComparisonTest = "wald"
 pulse/types: type ComponentsMergeability string
 pulse/types: const ComponentsMergeable pulse/types.ComponentsMergeability = "mergeable"
 pulse/types: const ComponentsNone pulse/types.ComponentsMergeability = "none"
@@ -5170,6 +5190,7 @@ pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omit
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
 pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse/types: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
@@ -5181,6 +5202,7 @@ pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"swe
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
 pulse/types: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
+pulse/types: type ComposedResponse field Comparisons []pulse/types.FitComparisonResult "json:\"comparisons,omitempty\""
 pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
@@ -5403,6 +5425,36 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitComparisonResult struct
+pulse/types: type FitComparisonResult field DF float64 "json:\"df\""
+pulse/types: type FitComparisonResult field DFResidual float64 "json:\"df_residual,omitempty\""
+pulse/types: type FitComparisonResult field Dispersion float64 "json:\"dispersion,omitempty\""
+pulse/types: type FitComparisonResult field Distribution pulse/types.ComparisonDistribution "json:\"distribution\""
+pulse/types: type FitComparisonResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type FitComparisonResult field Full string "json:\"full\""
+pulse/types: type FitComparisonResult field FullDFResidual float64 "json:\"full_df_residual\""
+pulse/types: type FitComparisonResult field FullDeviance float64 "json:\"full_deviance\""
+pulse/types: type FitComparisonResult field FullTwoLogLik float64 "json:\"full_two_log_lik,omitempty\""
+pulse/types: type FitComparisonResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type FitComparisonResult field NObs int "json:\"n_obs\""
+pulse/types: type FitComparisonResult field Name string "json:\"name\""
+pulse/types: type FitComparisonResult field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
+pulse/types: type FitComparisonResult field PValue float64 "json:\"p_value\""
+pulse/types: type FitComparisonResult field Restricted string "json:\"restricted\""
+pulse/types: type FitComparisonResult field RestrictedDFResidual float64 "json:\"restricted_df_residual\""
+pulse/types: type FitComparisonResult field RestrictedDeviance float64 "json:\"restricted_deviance\""
+pulse/types: type FitComparisonResult field RestrictedTwoLogLik float64 "json:\"restricted_two_log_lik,omitempty\""
+pulse/types: type FitComparisonResult field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type FitComparisonResult field Statistic float64 "json:\"statistic\""
+pulse/types: type FitComparisonResult field Terms []string "json:\"terms\""
+pulse/types: type FitComparisonResult field Test pulse/types.ComparisonTest "json:\"test\""
+pulse/types: type FitComparisonResult method (FitComparisonResult) MarshalJSON() ([]byte, error)
+pulse/types: type FitComparisonSpec struct
+pulse/types: type FitComparisonSpec field Full string "json:\"full\""
+pulse/types: type FitComparisonSpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type FitComparisonSpec field Name string "json:\"name\""
+pulse/types: type FitComparisonSpec field Restricted string "json:\"restricted\""
+pulse/types: type FitComparisonSpec field Test pulse/types.ComparisonTest "json:\"test,omitempty\""
 pulse/types: type FitFromSweep struct
 pulse/types: type FitFromSweep field Regression string "json:\"regression\""
 pulse/types: type FitKind string
@@ -6535,4 +6587,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2285d7c44936be779eb28e981b0a4946a839ea157bf0541caa43f1e6f810b2ec
+// golden-hash: 657362706d0a08fc5c8980392923f9b6d995dced78c0a7776655b592c3b7c797

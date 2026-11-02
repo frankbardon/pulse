@@ -2390,6 +2390,38 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPARISON_INVALID: {
+		Message: "A ComposedRequest `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression fits under `available`), each a request-bound regression fit — not a vector or SEM fit (`fit_kind`) nor a `from_sweep` one (`from_sweep`). Both fits are one regression type, ordinary least squares or a generalized linear model (`type_unsupported`, `type_mismatch`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `no_resample` (a Wald test reads the classical or robust covariance, not a replicate one), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). The entry index is under `compare`, its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"compare", "*", "restricted"},
+				Hint:     "Name two different regression `fits` entries: `restricted` the smaller model, `full` the larger one holding every restricted predictor plus the terms under test.",
+				Examples: []any{"base"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request"},
+				Hint:   "Make the two fit requests identical but for the regression's predictors (and intercept): the same cohort, filters, features, weight, family, link and covariance, so both fits run on the same rows.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"compare", "*", "test"},
+				Hint:     "Use `wald` under a probability weight or on a family whose dispersion is fixed (an F test needs an estimated dispersion); omit `test` for R's anova default (F on least squares and gamma, lrt otherwise).",
+				Examples: []any{"f", "lrt", "wald"},
+			},
+		},
+	},
+	PULSE_COMPARISON_ROWS_DIFFER: {
+		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "filterers"},
+				Hint:   "Filter both fit requests to the rows where every full-model predictor is non-null (the same filter in each), so both fits drop the same rows.",
+			},
+		},
+	},
 	PULSE_MODEL_NAME_COLLISION: {
 		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The instance's registered populations (Options.Extensions.Populations, the populations directory) are bound beneath every request in the same namespace, so an entry may not reuse one of their names either. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry or a registered population names both bindings under `sources` (each {slot, index} plus a loaded file's path; a registered population is {slot: \"registered\"}).",
 		Fixups: []Fixup{

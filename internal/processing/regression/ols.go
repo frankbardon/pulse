@@ -3,6 +3,7 @@ package regression
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -53,6 +54,9 @@ type olsEngine struct {
 	// activeBounds are the RegressionSpec.Bounds slope indices a bounded
 	// fit held at 0 (empty: no bound binds, the fit is plain OLS).
 	activeBounds []int
+	// figures, when set (OfferingFigures), receives the fit's
+	// nested-model comparison figures at finalize (compare.go).
+	figures func(*model.RegressionFigures)
 }
 
 // newOLSEngine validates the spec and constructs an empty accumulator
@@ -347,6 +351,16 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		for i, j := range e.activeBounds {
 			res.ActiveBounds[i] = predictors[j]
 		}
+	}
+	if e.figures != nil && e.spec.Penalty == "" && len(e.activeBounds) == 0 {
+		// The figures a Compose nested-model comparison reads (compare.go):
+		// the weighted RSS, its df and σ̂², and the covariance the
+		// standard errors read on the table's t df.
+		cov := olsVcov(solve, e.acc.meanX)
+		if robust != nil {
+			cov = robust.fit.v
+		}
+		e.figures(olsFitFigures(solve, predictors, cov, infDF))
 	}
 	switch {
 	case robust != nil:

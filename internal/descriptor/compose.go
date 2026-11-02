@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/regcompare"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -144,6 +145,13 @@ type ComposeValidationResult struct {
 	// Set once every block passes its rules (optblock.Check, the
 	// runtime's too); omitted without optimize blocks.
 	Optimize []descriptor.OptimizeSummary `json:"optimize,omitempty"`
+
+	// Compare lists the request's `compare` entries (nested-model
+	// comparisons) in declaration order — name, fits, the resolved test
+	// and distribution and the tested terms — validated statically,
+	// never computed. Set once every entry passes its rules
+	// (regcompare.Check, the runtime's too); omitted without comparisons.
+	Compare []descriptor.ComparisonSummary `json:"compare,omitempty"`
 
 	// LimitFindings lists every instance resource limit the batch's
 	// predicted figures exceed, graded like PredictResult.LimitFindings:
@@ -342,6 +350,16 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		return env, req
 	}
 	result.Optimize = optimizeSummaries(req.Optimize)
+	// Then the nested-model comparisons — the runtime's compareRefusal,
+	// run right after its optimize rules; nothing past it runs on a
+	// refusal.
+	cmpPlans, cerr := regcompare.Check(req.Compare, req.Fits, opts.defaultWeight())
+	if cerr != nil {
+		addCodedError(env, cerr)
+		result.Valid = false
+		return env, req
+	}
+	result.Compare = comparisonSummaries(cmpPlans)
 	// Then the batch's saves and loads — the runtime's
 	// model.CheckComposeBatch and its model-file reads, run before any
 	// fit or slot; nothing past it runs on a refusal.

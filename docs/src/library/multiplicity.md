@@ -36,7 +36,7 @@ It rides on the `Request`, each `tests[]` / `post_tests[]` entry, each
 overlay spec, each `MAT_CORRELATION` / `MAT_PARTIAL_CORRELATION`
 `matrices[]` spec (where it implies `params.inference`), each
 `regressions[]` spec (with an optional `coefficients` list), the
-`ComposedRequest` and its overlay specs, and
+`ComposedRequest`, its overlay specs and its `compare` entries, and
 engine-wide as `Options.DefaultMultiplicity`. Each key falls through on
 its own: slot, request, `ComposedRequest`, engine default, none.
 
@@ -47,7 +47,7 @@ its own: slot, request, `ComposedRequest`, engine default, none.
 | `layer` | one overlay layer | overlays (the overlay default) |
 | `row` / `column` | each row / column of one layer's matrix | overlays with a MATRIX payload |
 | `request` | the request's tests, post-tests, `request`-family overlays and member regression coefficients | tests and regressions (their default), request overlays |
-| `compose` | every `compose` member across all slots and Compose-host layers | inside Compose |
+| `compose` | every `compose` member across all slots, Compose-host layers and nested-model comparisons | inside Compose; the only family a `compare` entry offers (its default) |
 | `matrix` | one matrix result's distinct pairs (the upper triangle: m = k(k − 1)/2 for k members), one family per group bucket | matrix specs (the matrix default; `request` also offered) |
 
 An inherited family the surface does not offer takes the surface
@@ -115,6 +115,12 @@ All additive, present only when a correction ran:
   `margins.p_values`, plus a `margins.multiplicity` echo (`family:
   "margins"`, `m` the terms). `margins` is an echo-only family: a block
   naming it is `PULSE_MULTIPLICITY_INVALID`.
+- **Nested-model comparisons** (`ComposedRequest.compare`): one
+  hypothesis each, inheriting like a test (own block → the
+  `ComposedRequest`'s → engine default), in the batch's `compose`
+  family: `p_adjusted` / `significant_adjusted` (against the resolved
+  `alpha`) beside `p_value`, plus a `multiplicity` echo. A comparison
+  that failed on its data joins no family.
 
 `m` is the number of defined p-values corrected together. An undefined
 (NaN) p is left out of `m` and shows `p_adjusted: null`. Field shapes:
