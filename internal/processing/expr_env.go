@@ -54,7 +54,8 @@ func (r *ExtensionRegistry) exprBound() exprenv.Bound {
 // lookupBuiltin is the closure registered as the `lookup` function in
 // the expr environment whenever any LookupTables are configured. It
 // expects (table_name, key1, key2, ...) all as strings or values that
-// can be stringified.
+// can be stringified; a null key is a PULSE_LOOKUP_MISS naming its
+// position (details.null_key, 0-based among the keys).
 func (r *ExtensionRegistry) lookupBuiltin(args ...any) (any, error) {
 	if len(args) == 0 {
 		return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
@@ -74,7 +75,18 @@ func (r *ExtensionRegistry) lookupBuiltin(args ...any) (any, error) {
 		)
 	}
 	keys := make([]string, 0, len(args)-1)
-	for _, a := range args[1:] {
+	for i, a := range args[1:] {
+		// A null key (a null field binds nil) would stringify to
+		// "<nil>" and miss confusingly; name its 0-based position among
+		// the key args (the table name is not counted) instead. Runs
+		// before a Lookup-func table's callback too.
+		if a == nil {
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_LOOKUP_MISS,
+				fmt.Sprintf("lookup(%q, ...) key %d (0-based, after the table name) is null", tableName, i),
+				map[string]any{"table": tableName, "null_key": i},
+			)
+		}
 		keys = append(keys, fmt.Sprintf("%v", a))
 	}
 	value, found, err := resolveLookup(table, keys)

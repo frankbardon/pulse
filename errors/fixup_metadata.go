@@ -2131,11 +2131,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_MISS: {
-		Message: "A lookup() call provided a key tuple that is not present in the table.",
+		Message: "A lookup() call provided a key tuple that is not present in the table, or a null key (`details.null_key`, its 0-based position among the key arguments after the table name).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Verify the keys passed to lookup() exist in the registered table, or back the table with a Lookup func that returns a sentinel for unknown keys.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a null key, guard the nullable argument (`k ?? \"<a key the table holds>\"`, or `k == nil ? fallback : lookup(...)`), or filter null rows out first.",
 			},
 		},
 	},

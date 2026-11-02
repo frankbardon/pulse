@@ -1099,7 +1099,10 @@ however you want, perform partial-match fallback, or pull from an
 external store.
 
 At evaluation time `lookup()` raises `PULSE_LOOKUP_TABLE_UNKNOWN` for
-an unregistered table and `PULSE_LOOKUP_MISS` for a missing key. Both
+an unregistered table and `PULSE_LOOKUP_MISS` for a missing key. A null
+key (a null field binds `nil`) is also `PULSE_LOOKUP_MISS`, raised before a
+`Lookup` func runs, with `details.null_key` = its 0-based position among the
+key arguments (the table name is not counted) and `details.table`. Both
 wrap into `PROCESSING_RUNTIME` when surfaced through `ATTR_FORMULA` /
 `FILTER_EXPRESSION` — use `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
 to detect inside the chain.
