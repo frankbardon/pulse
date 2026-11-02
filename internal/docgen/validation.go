@@ -279,10 +279,10 @@ var validationRegistry = map[string]validation{
 		r("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),
 		weighted,
 	}},
-	"REG_MMM_HILL": {
-		Refs: []validationRef{{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}}},
-		Gap:  "No external reference implementation; the fit is checked by recovering known parameters only.",
-	},
+	"REG_MMM_HILL": {Refs: []validationRef{
+		r("`minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE)", "1e-6 relative (the solver's stop rule)", "internal/regmmm/hill_oracle_test.go"),
+		{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}},
+	}},
 	"REG_MMM_BAYES": {
 		Refs: []validationRef{{Against: mmmSynthSrc, Tol: "parameter recovery", Tests: []string{"internal/regmmm/bayes_test.go"}}},
 		Gap:  "No external reference implementation; the fit is checked by recovering known parameters only.",

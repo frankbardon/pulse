@@ -497,6 +497,16 @@ N)`, the goodness of fit to the other margin's distribution.
 `TestReferenceOracle_Overlay*` (`internal/processing`) and
 `TestReferenceOracle_ComposeWelfordSeriesVsRef` (root) hold every
 figure at relative `1e-10`.
+`scripts/reference/gen_mmm_hill.R` (U64 E4-S1; `minpack.lm` 1.2-4 +
+`jsonlite`, runnable on its own) writes `mmm_hill.json`: the
+`REG_MMM_HILL` objective fitted by `nlsLM` from the operator's own start
+inside its bounds, cross-checked against `nls.lm` on the analytic
+Jacobian and Gauss-Newton polished to the stationary point (a channel
+held at β = 0 is the reduced problem, its KKT sign checked over the
+channel's whole (k, s) box). `TestReferenceOracle_MMMHill`
+(`internal/regmmm`) fits each case through `Process` at relative `1e-6`,
+the optimize oracles' tolerance: the engine's Levenberg–Marquardt stop
+rule leaves it ~1e-7 from the exact optimum.
 
 ### The R toolchain
 
@@ -528,7 +538,7 @@ is the whole list in one place.
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | no generator uses it yet; `internal/processing/test_effect_size_test.go` cites `pwr::ES.h` in a comment only, so it is installed for cross-checks, not for `make reference` |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
-| `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`); links gfortran, so install it with the workaround below |
+| `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) and `REG_MMM_HILL` (`gen_mmm_hill.R`, `make reference`; on Linux it installs from the Posit noble binary repo); links gfortran, so install it with the workaround below |
 | `nloptr` | 2.2.1 | `optimize.Minimize`, `NLOPT_LD_SLSQP` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs

@@ -212,9 +212,8 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 
 **Validated against:**
 
+- R 4.6.1 `minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE) — tolerance 1e-6 relative (the solver's stop rule); `internal/regmmm/hill_oracle_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance 0.5% to 15% relative, per parameter; `internal/regmmm/hill_test.go`
-
-**Validation gap:** No external reference implementation; the fit is checked by recovering known parameters only.
 
 See [How Pulse is validated](../validation.md).
 
