@@ -1,0 +1,212 @@
+//go:build heavy
+
+package regmmm
+
+import (
+	"context"
+	"math"
+	"math/rand/v2"
+	"runtime"
+	"sync"
+	"testing"
+
+	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
+	"github.com/frankbardon/pulse/mcmc"
+)
+
+// bayes_sbc_heavy_test.go is REG_MMM_BAYES's simulation-based
+// calibration harness (U64 E4-S2, #620; Talts et al. 2018). Each
+// replicate draws a true θ from the model's own priors, simulates an
+// outcome from the model's likelihood at that θ over a fixed design,
+// fits it with the operator's sampler path (MAP start, then NUTS) and
+// records the rank of the true value among thinned posterior draws. If
+// the density, its transforms and Jacobians, the start and the sampler
+// are right, every parameter's rank is uniform on 0..sbcKept, whatever
+// the prior; a wrong Jacobian, a biased sampler or too little mixing
+// bends the histogram (∩, ∪ or a slope).
+//
+// The priors are REG_MMM_BAYES's defaults (ROI mode: decay Beta(1, 1),
+// k TruncNormal(1, 1, 0.02, 10), s LogNormal(0.3, 0.5), ROI
+// LogNormal(0.2, 0.9), intercept Normal(0, 2), control Normal(0, 1), σ
+// HalfNormal(1)). They are stated on the max-scaled outcome, so in a fit
+// they scale with the data (max|y|), an empirical-Bayes choice no
+// generative prior reproduces; SBC is then run with that scale fixed at
+// 1 (sbcModel), which calibrates everything the scale does not touch —
+// the whole posterior computation. The spend and control design is
+// fixed across replicates (SBC conditions on covariates), so the spend
+// and control scalings are constants, as in a fit.
+//
+// Deterministic and seeded: replicate r draws from PCG(sbcSeed, r) with
+// uniform and detmath variates (identical bits on every architecture)
+// and samples with seed sbcSeed + r, so the ranks — and the verdict —
+// are the same on every run, worker count and machine. The verdict per
+// parameter is a chi-square test of the binned ranks against uniform,
+// failed below sbcAlpha after a Bonferroni split over the parameters.
+const (
+	sbcSeed       = 20261102
+	sbcReplicates = 200
+	sbcWeeks      = 52
+	sbcMaxLag     = 4
+	sbcWarmup     = 400
+	sbcThin       = 5
+	sbcKept       = 99 // ranks 0..99: 100 values, sbcBins bins of 10
+	sbcBins       = 10
+	sbcAlpha      = 0.001
+)
+
+// sbcDesign is the fixed design: one channel's weekly spend (bursty,
+// dark weeks) and one control.
+func sbcDesign() (spend, controls [][]float64) {
+	rng := rand.New(rand.NewPCG(sbcSeed, 0x736263))
+	x, z := make([]float64, sbcWeeks), make([]float64, sbcWeeks)
+	for w := range x {
+		if rng.Float64() < 0.7 {
+			x[w] = float64(rng.Float64()*0.9) + 0.1
+		}
+		z[w] = float64(2*rng.Float64()) - 1
+	}
+	return [][]float64{x}, [][]float64{z}
+}
+
+// sbcModel is newBayesModel over y with the outcome scale fixed at 1:
+// the scaled outcome is y itself and an ROI channel's β conversion uses
+// the raw spend total.
+func sbcModel(t *testing.T, y []float64, spend, controls [][]float64) *bayesModel {
+	t.Helper()
+	m, err := newBayesModel(y, spend, controls, sbcMaxLag, defaultBayesPriors(len(spend)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.yScale = 1
+	copy(m.ys, y)
+	for c := range m.spendShare {
+		m.spendShare[c] = m.spendTotal[c]
+	}
+	return m
+}
+
+// draw is one variate from p.
+func (p prior) draw(rng *rand.Rand) float64 {
+	switch p.Family {
+	case familyNormal:
+		return p.A + float64(p.B*detmath.NormFloat64(rng))
+	case familyHalfNormal:
+		return math.Abs(float64(p.B * detmath.NormFloat64(rng)))
+	case familyLogNormal:
+		return detmath.Exp(p.A + float64(p.B*detmath.NormFloat64(rng)))
+	case familyBeta:
+		if p.A == 1 && p.B == 1 {
+			return rng.Float64()
+		}
+	case familyTruncNormal:
+		for {
+			if v := p.A + float64(p.B*detmath.NormFloat64(rng)); v >= p.Lo && v <= p.Hi {
+				return v
+			}
+		}
+	}
+	panic("sbc: no sampler for prior " + p.Family)
+}
+
+// sbcReplicate draws a truth, simulates, fits and returns each θ
+// coordinate's rank (0..sbcKept) with the run's divergence count.
+func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesModel) ([]int, int) {
+	rng := rand.New(rand.NewPCG(sbcSeed, uint64(r)))
+	dim := ref.Dim()
+	truth := make([]float64, dim) // constrained, on the scaled data
+	for i := range truth {
+		truth[i] = ref.priors[i].draw(rng)
+	}
+	// The outcome at the truth: the model's own mean (yScale 1) plus
+	// σ·ε.
+	theta := ref.toTheta(truth)
+	mu := ref.predict(theta, spend, controls, 0)
+	y := make([]float64, sbcWeeks)
+	for w := range y {
+		y[w] = mu[w] + float64(truth[ref.iSigma()]*detmath.NormFloat64(rng))
+	}
+	m := sbcModel(t, y, spend, controls)
+	init, _ := m.mapStart(mapMaxIter)
+	res, err := mcmc.NUTS{TargetAccept: defaultBayesTargetAccept}.Sample(context.Background(), m, uint64(sbcSeed+r),
+		mcmc.Options{Chains: 1, Warmup: sbcWarmup, Draws: sbcKept * sbcThin, Init: init})
+	if err != nil {
+		t.Errorf("replicate %d: %v", r, err)
+		return nil, 0
+	}
+	ranks := make([]int, dim)
+	for i := range dim {
+		// The rank is transform-invariant, so it is taken on the
+		// unconstrained scale the draws are stored on.
+		for d := sbcThin - 1; d < len(res.Draws[0][i]); d += sbcThin {
+			if res.Draws[0][i][d] < theta[i] {
+				ranks[i]++
+			}
+		}
+	}
+	return ranks, res.Diagnostics.Chains[0].Divergences
+}
+
+// TestMMMBayes_SimulationBasedCalibration: on REG_MMM_BAYES's default
+// priors, every parameter's SBC rank histogram is uniform.
+func TestMMMBayes_SimulationBasedCalibration(t *testing.T) {
+	t.Parallel()
+
+	spend, controls := sbcDesign()
+	// The reference model reads only the design (its outcome, all ones,
+	// is unused): the priors, the control centring and the spend scale.
+	ones := make([]float64, sbcWeeks)
+	for i := range ones {
+		ones[i] = 1
+	}
+	ref := sbcModel(t, ones, spend, controls)
+	dim := ref.Dim()
+	names := []string{"intercept", "control", "decay", "k", "s", "roi", "sigma"}
+	if len(names) != dim {
+		t.Fatalf("dim %d, names %v", dim, names)
+	}
+
+	ranks := make([][]int, sbcReplicates)
+	divs := make([]int, sbcReplicates)
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for range runtime.GOMAXPROCS(0) {
+		wg.Go(func() {
+			for r := range jobs {
+				ranks[r], divs[r] = sbcReplicate(t, r, spend, controls, ref)
+			}
+		})
+	}
+	for r := range sbcReplicates {
+		jobs <- r
+	}
+	close(jobs)
+	wg.Wait()
+	if t.Failed() {
+		return
+	}
+
+	totalDiv := 0
+	for _, d := range divs {
+		totalDiv += d
+	}
+	alpha := sbcAlpha / float64(dim)
+	expected := float64(sbcReplicates) / sbcBins
+	for i, name := range names {
+		hist := make([]int, sbcBins)
+		for _, rk := range ranks {
+			hist[rk[i]*sbcBins/(sbcKept+1)]++
+		}
+		chi := 0.0
+		for _, h := range hist {
+			d := float64(h) - expected
+			chi += d * d / expected
+		}
+		p := statdist.ChiSquareSurvival(chi, sbcBins-1)
+		t.Logf("%-9s ranks %v  χ²(%d) = %5.2f  p = %.3f", name, hist, sbcBins-1, chi, p)
+		if !(p >= alpha) {
+			t.Errorf("%s: SBC rank histogram %v is not uniform (χ² = %.2f, p = %.2g < %.2g)", name, hist, chi, p, alpha)
+		}
+	}
+	t.Logf("%d replicates × %d kept draws (thin %d after %d warmup); %d post-warmup divergences in all", sbcReplicates, sbcKept, sbcThin, sbcWarmup, totalDiv)
+}

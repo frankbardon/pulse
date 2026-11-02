@@ -167,9 +167,11 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 
 **Validated against:**
 
+- `REG_BAYES_LINEAR`'s closed-form conjugate posterior (R 4.6.1 matrix algebra), in the conjugate limit: adstock and curve pinned, flat priors (posterior means, SDs and σ) — tolerance within 4 Monte Carlo standard errors, seeded; `internal/regmmm/bayes_conjugate_heavy_test.go`
+- simulation-based calibration (Talts et al. 2018) on the default priors: 200 seeded replicates, rank of the truth among 99 thinned draws — tolerance uniform rank histogram per parameter (χ² test, p ≥ 0.001 / 7); `internal/regmmm/bayes_sbc_heavy_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance parameter recovery; `internal/regmmm/bayes_test.go`
 
-**Validation gap:** No external reference implementation; the fit is checked by recovering known parameters only.
+**Validation gap:** No external MCMC implementation (Stan, PyMC-Marketing) is compared on the full nonlinear model. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.
 
 See [How Pulse is validated](../validation.md).
 
@@ -212,9 +214,8 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 
 **Validated against:**
 
+- `minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE) — tolerance 1e-6 relative (the solver's stop rule); `internal/regmmm/hill_oracle_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance 0.5% to 15% relative, per parameter; `internal/regmmm/hill_test.go`
-
-**Validation gap:** No external reference implementation; the fit is checked by recovering known parameters only.
 
 See [How Pulse is validated](../validation.md).
 

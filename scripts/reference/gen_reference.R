@@ -580,3 +580,10 @@ source(file.path(script_dir, "gen_unweighted_tests.R"), local = FALSE)
 # correct = FALSE), OVERLAY_CHISQ_ROW / _COL as each row's / column's
 # chisq.test(x, p = other margin / N)); base stats + jsonlite. No RNG.
 source(file.path(script_dir, "gen_overlay_chisq.R"), local = FALSE)
+
+# The REG_MMM_HILL golden (U64 E4-S1: mmm_hill.json: the Hill media-mix
+# least-squares fit by minpack.lm nlsLM from REG_MMM_HILL's start inside
+# its bounds, cross-checked against nls.lm on the analytic Jacobian and
+# Gauss-Newton polished; one and two channels, a control, a MAP prior
+# and a channel held at beta = 0); minpack.lm 1.2-4 + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_mmm_hill.R"), local = FALSE)

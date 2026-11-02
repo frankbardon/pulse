@@ -255,13 +255,19 @@ var validationRegistry = map[string]ValidationRecord{
 		valR("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),
 		valWeighted,
 	}},
-	"REG_MMM_HILL": {
-		Refs: []ValidationRef{{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}}},
-		Gap:  "No external reference implementation; the fit is checked by recovering known parameters only.",
-	},
+	"REG_MMM_HILL": {Refs: []ValidationRef{
+		{Against: "`minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE)", Tol: "1e-6 relative (the solver's stop rule)", Tests: []string{"internal/regmmm/hill_oracle_test.go"}},
+		{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}},
+	}},
 	"REG_MMM_BAYES": {
-		Refs: []ValidationRef{{Against: mmmSynthSrc, Tol: "parameter recovery", Tests: []string{"internal/regmmm/bayes_test.go"}}},
-		Gap:  "No external reference implementation; the fit is checked by recovering known parameters only.",
+		Refs: []ValidationRef{
+			{Against: "`REG_BAYES_LINEAR`'s closed-form conjugate posterior (" + rPin + " matrix algebra), in the conjugate limit: adstock and curve pinned, flat priors (posterior means, SDs and σ)",
+				Tol: "within 4 Monte Carlo standard errors, seeded", Tests: []string{"internal/regmmm/bayes_conjugate_heavy_test.go"}},
+			{Against: "simulation-based calibration (Talts et al. 2018) on the default priors: 200 seeded replicates, rank of the truth among 99 thinned draws",
+				Tol: "uniform rank histogram per parameter (χ² test, p ≥ 0.001 / 7)", Tests: []string{"internal/regmmm/bayes_sbc_heavy_test.go"}},
+			{Against: mmmSynthSrc, Tol: "parameter recovery", Tests: []string{"internal/regmmm/bayes_test.go"}},
+		},
+		Gap: "No external MCMC implementation (Stan, PyMC-Marketing) is compared on the full nonlinear model. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.",
 	},
 
 	// Matrix operators.
