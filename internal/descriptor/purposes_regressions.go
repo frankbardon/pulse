@@ -105,8 +105,8 @@ var (
 		Assumptions: []string{
 			regIndependentRows,
 			"The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson non-negative counts, gamma positive values.",
-			"Only the canonical link runs for each family (logit for binomial, log for Poisson, inverse for gamma); " +
-				"the predictors act linearly on that link scale.",
+			"The link must suit the outcome (each family takes its own: logit, probit or cloglog for binomial; log, identity or sqrt for counts; inverse, log or identity for gamma); " +
+				"the predictors act linearly on that link scale, and margins converts the effects to the outcome's units.",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors: a Wald z with the dispersion " +
 				"fixed at 1 for binomial and Poisson, where overdispersed counts (variance above the mean) make Poisson p-values too small; " +
 				"a Student t on the residual df for gamma, whose dispersion is estimated from the data as R's glm does.",
@@ -119,7 +119,7 @@ var (
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
 			"deviance", "generalized-linear-model", "independence", "link-function",
-			"listwise-deletion", "logistic-regression", "multicollinearity", "null-hypothesis",
+			"listwise-deletion", "logistic-regression", "marginal-effect", "multicollinearity", "null-hypothesis",
 			"odds-ratio", "overdispersion", "p-value", "pseudo-r-squared", "regression-coefficient",
 			"skew", "standard-error",
 		},

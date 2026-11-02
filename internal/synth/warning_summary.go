@@ -98,6 +98,14 @@ var warningKinds = []warningKind{
 
 	// --- a requested step did not happen ----------------------------
 	{
+		kind:      "probit fit fell back to a linear fit",
+		attention: true,
+		match: func(w string) bool {
+			return strings.HasPrefix(w, "model for numeric field ") &&
+				strings.Contains(w, " kept its linear fit: ")
+		},
+	},
+	{
 		kind:      "model skipped",
 		attention: true,
 		match: func(w string) bool {

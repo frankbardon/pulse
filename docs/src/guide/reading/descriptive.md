@@ -394,7 +394,7 @@ The row's position among the sorted values, as a percentage: rank / n * 100, whe
 
 **Caveats:**
 
-- Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read different percentiles, far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.
+- Tied values do not share a percentile: each tied row takes its own rank in scan order (the earlier record lower), so equal values can read different percentiles, far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.
 - A row with a missing value gets no percentile (null) and is not counted in n.
 - Other tools define it differently (smallest at 0, or ties at their midpoint), so the same row can read a few points apart elsewhere.
 - Equal steps in percentile are not equal steps in the value: near the middle of a bell-shaped field a small change in value moves the percentile a lot.
@@ -418,6 +418,31 @@ The target value the fitted straight-line model predicts for the row from its pr
 - A row missing the target still gets a fitted value when its predictors are present; a row missing any predictor gets null, never 0.
 - With a penalty (l1, l2, elasticnet) the coefficients are deliberately shrunk toward 0, so fitted values sit closer to the target's mean and the residuals are larger overall (their sum of squares rises) than an unpenalized fit's, though a single row's can go either way; use no penalty for diagnostics.
 
+<a id="op-attr_reg_influence"></a>
+
+### `ATTR_REG_INFLUENCE`
+
+Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out. See its [catalog entry](../catalog/attribute.md#op-attr_reg_influence).
+
+#### `value`
+
+How much the row moves the fitted line. With measure cooks (the default): Cook's distance, the shift of every fitted value when the row is left out, scaled by p times the model's residual variance, where p counts the coefficients including the intercept; it is never negative and grows with both the row's residual and its leverage. With measure dffits: the shift of the row's own fitted value when it is left out, in standard errors of that fit, signed like the residual.
+
+**Sign:**
+
+- `+`: dffits: leaving the row out lowers its fitted value (the row pulls the line up toward itself)
+- `-`: dffits: leaving the row out raises its fitted value (the row pulls the line down toward itself)
+
+**Caveats:**
+
+- A Cook's distance above 1 (Cook & Weisberg 1982) and the 4 / n screen are rules of thumb, not a graded convention; for DFFITS, |value| above 2 sqrt(p / n) (Belsley, Kuh & Welsch 1980) scales with p and n. Read them as a ranking of rows to look at, not a test.
+- An influential row is not a wrong row: check it, and report the fit with and without it rather than dropping it silently.
+- Several unusual rows close together can mask each other, since leaving out one leaves the others to hold the line.
+- The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
+- A row missing the target or any predictor, or left out of a weighted fit (no usable weight), gets null, never 0; so does every row when the fit has too few rows to estimate its spread.
+- Unpenalized least squares only; a request with a penalty is refused. A frequency weight reads one copy of the row; a probability weight is refused.
+- Over a bound generalized-linear fit (params.fit) dffits is the shift on the link scale, so under a decreasing link (gamma's inverse) its sign is the reverse of the residual's; Cook's distance is unaffected.
+
 <a id="op-attr_reg_leverage"></a>
 
 ### `ATTR_REG_LEVERAGE`
@@ -431,9 +456,9 @@ How far the row's predictor values sit from the other rows' (from the predictors
 **Caveats:**
 
 - A common rule of thumb flags leverage above 2p / n, twice the average (Hoaglin & Welsch 1978); it is a screening threshold, not a graded convention, and with few rows per coefficient it flags many rows.
-- It reads the predictors only, never the target: a high-leverage row can sit right on the line. Whether it moved the fit depends on its residual too (ATTR_REG_RESIDUAL); influence measures that combine the two, such as Cook's distance, are not computed.
+- It reads the predictors only, never the target: a high-leverage row can sit right on the line. Whether it moved the fit depends on its residual too (ATTR_REG_RESIDUAL); ATTR_REG_INFLUENCE combines the two (Cook's distance, DFFITS).
 - A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; a row missing any predictor gets null; a row a weighted fit leaves out (no usable weight) reads 0.
-- Unpenalized least squares only; a request with a penalty is refused.
+- Unpenalized least squares only; a request with a penalty is refused. Over a bound fit (params.fit) it is that fit's leverage: for a generalized-linear fit it also weighs the row's fitted value (its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move.
 
 <a id="op-attr_reg_predict"></a>
 
@@ -472,6 +497,8 @@ Actual minus predicted: the row's target value minus the value the straight-line
 - A residual is what this model leaves unexplained, not a measurement error and not the effect of any one thing left out: another set of predictors gives other residuals.
 - It is in the target's units, so there are no sourced cut-offs for a large one; compare it with the model's typical miss (REG_OLS residual_std_err) times sqrt(1 - leverage) from ATTR_REG_LEVERAGE, since a high-leverage row's residual varies less, for a row-fair comparison.
 - A row with high leverage (ATTR_REG_LEVERAGE) pulls the line toward itself, so its residual can be small even when the row is unusual.
+- Over a bound fit, params.kind changes the scale: pearson divides by the family's standard deviation at the fitted mean, deviance is the row's signed share of the model deviance, and working is on the linear-predictor scale. Pearson and deviance residuals of a count or 0/1 model are comparable across rows; response residuals are not.
+- On the refit, params.kind standardized divides the residual by its own standard error, s times sqrt(1 - leverage), and studentized by the one from a fit leaving the row out, so both are unit-free and comparable across rows. Screens of |2| or |3| circulate as rules of thumb, not a sourced convention, and over many rows some exceed them by chance alone. Both need an unpenalized fit; a frequency weight reads one copy of the row, and a probability weight is refused. Over a bound fit (params.fit) both read that fit's leverage and dispersion and start from the Pearson residual, as R does for a generalized-linear model.
 - Patterns across rows (a curve, or spread that grows with the predicted value) point to a missing term or heteroscedasticity, not to rows that are wrong.
 - The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
 - A row missing the target or any predictor gets null, never 0.

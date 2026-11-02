@@ -649,3 +649,82 @@ func TestAttribute_Percentile_TiesTakeDistinctRanks(t *testing.T) {
 		}
 	}
 }
+
+// TestAttribute_Percentile_TiesRankInScanOrder pins ATTR_PERCENTILE's
+// deterministic tie rule: tied rows take consecutive ranks in scan
+// (record) order, the earlier row lower. The cohort is larger than the
+// sort's insertion-sort cut-off and almost all ties, so an unstable sort
+// visibly reorders tied rows; repeated runs must also be identical.
+func TestAttribute_Percentile_TiesRankInScanOrder(t *testing.T) {
+	t.Parallel()
+
+	const rows = 300
+	values := make([]float64, rows)
+	var nulls []int
+	for i := range values {
+		values[i] = float64((i * 7) % 3)
+		if i%11 == 5 {
+			nulls = append(nulls, i)
+		}
+	}
+	isNull := make(map[int]bool, len(nulls))
+	for _, i := range nulls {
+		isNull[i] = true
+	}
+	// Independent expectation: rank = (values below) + (equal values at
+	// or before this row in scan order); n counts the non-null rows.
+	n := 0
+	for i := range values {
+		if !isNull[i] {
+			n++
+		}
+	}
+	want := make([]float64, rows)
+	for i, v := range values {
+		if isNull[i] {
+			want[i] = AttributeNull
+			continue
+		}
+		rank := 0
+		for j, u := range values {
+			if isNull[j] {
+				continue
+			}
+			if u < v || (u == v && j <= i) {
+				rank++
+			}
+		}
+		want[i] = float64(rank) / float64(n) * 100
+	}
+
+	schema := numericSchema()
+	schema.Fields[0].Nullable = true
+	attr := makeAttribute(t, types.ATTR_PERCENTILE, "score", schema, "")
+	var first []float64
+	for run := 0; run < 5; run++ {
+		got, err := attr.Compute(makeRecordsWithNulls(schema, "score", values, nulls), "score")
+		if err != nil {
+			t.Fatalf("Compute: %v", err)
+		}
+		for i := range want {
+			if isNull[i] {
+				if !IsAttributeNull(got[i]) {
+					t.Fatalf("run %d row %d: got %v, want null", run, i, got[i])
+				}
+				continue
+			}
+			if got[i] != want[i] {
+				t.Fatalf("run %d row %d (value %v): percentile %v, want %v (tied rows rank in scan order)", run, i, values[i], got[i], want[i])
+			}
+		}
+		if run == 0 {
+			first = got
+			continue
+		}
+		for i := range got {
+			if got[i] != first[i] && !(IsAttributeNull(got[i]) && IsAttributeNull(first[i])) {
+				t.Fatalf("run %d row %d: %v differs from run 0's %v", run, i, got[i], first[i])
+			}
+		}
+	}
+}

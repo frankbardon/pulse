@@ -265,19 +265,20 @@ func validateRules(s *Spec) error {
 	// to agree rather than assumed to
 	// (TestCompileRules_RefusesIndependentlyOfValidateRules).
 	env, names := rowExprEnv(s.Fields)
+	times := rowTimeFields(s.Fields)
 	probe := &compiledConstraints{fields: names}
-	whenOpts := rowExprOptions(env, names, probe, expr.AsBool())
-	valueOpts := rowExprOptions(env, names, probe)
+	whenOpts := rowExprOptions(env, names, times, probe, expr.AsBool())
+	valueOpts := rowExprOptions(env, names, times, probe)
 
 	for i, r := range s.Rules {
-		if err := validateRule(i, r, byName, names, whenOpts, valueOpts); err != nil {
+		if err := validateRule(i, r, byName, names, times, whenOpts, valueOpts); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map[string]bool, whenOpts, valueOpts []expr.Option) error {
+func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map[string]bool, times map[string]rowTimeField, whenOpts, valueOpts []expr.Option) error {
 	if len(r.Set) == 0 && len(r.SetExpr) == 0 && len(r.SetNull) == 0 && len(r.NullTogether) == 0 {
 		return ruleError(errors.PULSE_SYNTH_RULE_EMPTY, idx, "", "",
 			"rule declares no action: expected at least one of set, set_expr, set_null, null_together")
@@ -313,7 +314,7 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map
 	}
 
 	if r.When != "" {
-		if rf := rowExprStaticRefusal(r.When, declared); rf != nil {
+		if rf := rowExprStaticRefusal(r.When, declared, times); rf != nil {
 			return rowExprRuleRefusal(idx, "when", "", r.When, rf)
 		}
 		if _, err := expr.Compile(r.When, whenOpts...); err != nil {
@@ -325,7 +326,7 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map
 		}
 	}
 	for _, name := range sortedKeys(r.SetExpr) {
-		if rf := rowExprStaticRefusal(r.SetExpr[name], declared); rf != nil {
+		if rf := rowExprStaticRefusal(r.SetExpr[name], declared, times); rf != nil {
 			return rowExprRuleRefusal(idx, "set_expr", name, r.SetExpr[name], rf)
 		}
 		prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
@@ -551,6 +552,9 @@ func scalarRange(ft encoding.FieldType) (lo, hi float64, bounded bool) {
 		return math.MinInt32, math.MaxInt32, true
 	case encoding.FieldTypeU64:
 		return 0, math.MaxUint64, true
+	case encoding.FieldTypeDateTime:
+		// Two's-complement int64 epoch seconds, as the writer stores them.
+		return -maxDatetimeSeconds, maxDatetimeSeconds, true
 	}
 	return 0, 0, false
 }

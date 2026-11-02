@@ -150,7 +150,7 @@ func spearmanT(rho, df float64) float64 {
 	if rho == 1 || rho == -1 {
 		return math.Inf(int(math.Copysign(1, rho)))
 	}
-	return rho * math.Sqrt(df/(1-rho*rho))
+	return rho * math.Sqrt(df/(1-float64(rho*rho)))
 }
 
 // rankPearson is Spearman's ρ off two columns of (weighted) mid-ranks:
@@ -161,16 +161,16 @@ func spearmanT(rho, df float64) float64 {
 // test's ρ over the same rows are one computation, bit for bit.
 func rankPearson(rx, ry, ws []float64, nW float64) (rho float64, ok bool) {
 	// Mean rank is (N+1)/2 regardless of ties (N = Σw).
-	mean := (nW + 1) / 2
+	mean := float64((nW + 1) / 2)
 	var sxx, syy, sxy float64
 	for i := range rx {
 		dx := rx[i] - mean
 		dy := ry[i] - mean
 		// (w·d)·d': exact at w = 1 (op-order exactness rule).
 		wdx := ws[i] * dx
-		sxx += wdx * dx
-		syy += ws[i] * dy * dy
-		sxy += wdx * dy
+		sxx += float64(wdx * dx)
+		syy += float64(ws[i] * dy * dy)
+		sxy += float64(wdx * dy)
 	}
 	denom := math.Sqrt(sxx * syy)
 	if denom == 0 {

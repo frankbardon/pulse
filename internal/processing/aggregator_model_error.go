@@ -198,7 +198,7 @@ func (a *modelErrorAggregator) fold(r *Record) {
 	default:
 		loss = math.Abs(y - yhat)
 	}
-	a.lossSum += w * loss
+	a.lossSum += float64(w * loss)
 	a.weightSum += w
 	a.nScored++
 }

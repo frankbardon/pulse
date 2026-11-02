@@ -15,9 +15,10 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_PREVIOUS_STATE`](#op-attr_previous_state) | Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. | How many customers moved from each plan to each other plan between snapshots, when the data has one row per customer per snapshot? | intermediate | [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from column and a to column.<br>[`WIN_LAG`](window.md#op-win_lag) when you want the previous value of a number on result rows. |
 | [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) | Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. | How closely does each respondent's brand ratings follow the ideal loyalist profile? | intermediate | [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) when you want how far apart the values are rather than how alike the pattern is.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is against the whole cohort.<br>[`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
-| [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
+| [`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) | Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out. | Which rows would change the model's answer if they were dropped? | advanced | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are, whatever its target.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
+| [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) when you want whether a row actually moved the fit.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
 | [`ATTR_REG_PREDICT`](#op-attr_reg_predict) | Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. | How close are the model's predictions on weeks it was not fitted to (a holdout)? | advanced | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) when the model should be fitted to these same rows inside the slot.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, their standard errors and p-values. |
-| [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
+| [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) when you want how much each row moves the fitted line.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
 | [`ATTR_SCALE_SCORE`](#op-attr_scale_score) | Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. | What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four? | intermediate | [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.<br>[`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items. |
 | [`ATTR_SEM_SCORE`](#op-attr_sem_score) | Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives. | What is each respondent's perceived-value score under our brand model, to crosstab it by segment? | advanced | [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when you do not yet know which measures belong to which quality.<br>[`MAT_SEM`](matrix.md#op-mat_sem) when you want the model's fit, paths and latent means rather than per-row scores.<br>[`ATTR_SCALE_SCORE`](#op-attr_scale_score) when every item counts equally and you want a plain battery average. |
 | [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 column saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a column to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
@@ -295,8 +296,8 @@ Adds to every row its percentile rank, rank / n * 100: the share of rows at or b
 **Assumptions:**
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
-- Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read tens of points apart.
-- Rows tied at a cut-off are split across it arbitrarily and can change between runs; cut on the value (AGG_PERCENTILE, then a filter) for a reproducible top tenth.
+- Tied values do not share a percentile: each tied row takes its own rank in scan order (the earlier record lower), so equal values can read tens of points apart.
+- Rows tied at a cut-off are split across it by record order, not by anything in the data; cut on the value (AGG_PERCENTILE, then a filter) for a top tenth that ignores row order.
 - Not streamable: every value is sorted before the first row is ready.
 - A missing value gets no percentile (null) and is not counted in n.
 
@@ -420,6 +421,54 @@ Adds to every row the value a straight-line model predicts for its target from i
 
 **Skill:** [`op-attr-reg-fitted`](../skills/op-attr-reg-fitted.md)
 
+<a id="op-attr_reg_influence"></a>
+
+### `ATTR_REG_INFLUENCE`
+
+Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out.
+
+**Level:** advanced
+
+**Questions it answers:**
+
+- Which rows would change the model's answer if they were dropped?
+- Is the fitted trend carried by a handful of unusual accounts?
+
+**Use cases by domain:**
+
+- *ops:* Find the accounts that alone tilt a revenue-on-headcount fit before reporting its slope.
+- *science:* Check whether one subject drives a dose-response fit before trusting it.
+
+**Assumptions:**
+
+- The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
+- Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
+- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
+- A frequency weight counts a row as that many identical rows and reports one copy's figure; a probability weight is refused.
+
+**Use something else:**
+
+- [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are, whatever its target.
+- [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.
+- [`REG_OLS`](regression.md#op-reg_ols) when you want the model itself.
+
+**Glossary:** [`outlier`](../glossary.md#term-outlier), [`residual`](../glossary.md#term-residual), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
+- statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
+- R 4.6.1 `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+- R 4.6.1 `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ)) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `cooks.distance` and `dffits` at dispersion 1 (`family$dispersion <- 1`) over a bound negative binomial fit (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `cooks.distance` at `summary.glm`'s φ̂ and `dffits` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+
+**Validation gap:** Over a weighted bound fit the figures are refused, not validated.
+
+See [How Pulse is validated](../validation.md).
+
+**Skill:** [`op-attr-reg-influence`](../skills/op-attr-reg-influence.md)
+
 <a id="op-attr_reg_leverage"></a>
 
 ### `ATTR_REG_LEVERAGE`
@@ -442,15 +491,26 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- Unpenalized least squares only: any penalty is refused.
+- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
 - It looks at the predictors only, never at the target.
 
 **Use something else:**
 
 - [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.
+- [`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) when you want whether a row actually moved the fit.
 - [`REG_OLS`](regression.md#op-reg_ols) when you want the model itself.
 
 **Glossary:** [`outlier`](../glossary.md#term-outlier), [`residual`](../glossary.md#term-residual), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- R 4.6.1 `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+- R 4.6.1 `hatvalues` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `hatvalues` over a bound negative binomial fit (log / sqrt / identity link, θ estimated or fixed; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+
+**Validation gap:** The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-attr-reg-leverage`](../skills/op-attr-reg-leverage.md)
 
@@ -518,9 +578,24 @@ Adds to every row its residual: the actual target value minus the value a straig
 
 - [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).
 - [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.
+- [`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) when you want how much each row moves the fitted line.
 - [`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model.
 
 **Glossary:** [`residual`](../glossary.md#term-residual), [`heteroscedasticity`](../glossary.md#term-heteroscedasticity), [`outlier`](../glossary.md#term-outlier), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Validated against:**
+
+- statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`) — tolerance 1e-8 relative; `glm_residual_kinds_reference_test.go`
+- statsmodels 0.14.5 `OLSInfluence.resid_studentized_internal` / `resid_studentized_external` (the OLS refit, `params.kind` standardized / studentized; R `rstandard` / `rstudent`) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
+- statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight) — tolerance 1e-9 relative (absolute below 1); `ols_influence_reference_test.go`
+- R 4.6.1 `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
+- R 4.6.1 `residuals(type = "working")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `residuals` (pearson / deviance / working), `rstandard` (both types) and `rstudent` at dispersion 1 over a bound negative binomial fit (`glm.nb`, θ estimated or fixed; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 + MASS 7.3-66 `rstandard` (both types) at `summary.glm`'s φ̂ and `rstudent` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`glm(negative.binomial(θ))`; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+
+**Validation gap:** The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated.
+
+See [How Pulse is validated](../validation.md).
 
 **Skill:** [`op-attr-reg-residual`](../skills/op-attr-reg-residual.md)
 

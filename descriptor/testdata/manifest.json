@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:0db8e6f718ad65aa16c7b10cd79c2f9aeb8c13feac370a5f6f8d16af57f548ed",
+    "feature_set_digest": "fs1:58a974ffd6e050265428748214ca19936ca0c71a244918f80dd1bfeff1ba90e4",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -4062,15 +4062,15 @@
           ]
         },
         {
-          "name": "ATTR_REG_LEVERAGE",
+          "name": "ATTR_REG_INFLUENCE",
           "category": "attribute",
-          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight).",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true,
               "names_column": true
@@ -4079,9 +4079,83 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true,
               "names_column": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+            },
+            {
+              "name": "measure",
+              "type": "enum",
+              "required": false,
+              "default": "cooks",
+              "description": "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG.",
+              "enum_values": [
+                "cooks",
+                "dffits"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
+          "streamable": true,
+          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency"
+          ],
+          "intents": [
+            "data_quality"
+          ]
+        },
+        {
+          "name": "ATTR_REG_LEVERAGE",
+          "category": "attribute",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true).",
+          "params": [
+            {
+              "name": "target",
+              "type": "field",
+              "required": true,
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
+              "field_filter": "numeric",
+              "slot": true,
+              "names_column": true
+            },
+            {
+              "name": "predictors",
+              "type": "list",
+              "required": true,
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
+              "slot": true,
+              "names_column": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             }
           ],
           "accepts_types": [
@@ -4234,6 +4308,32 @@
               "type": "string",
               "required": false,
               "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+            },
+            {
+              "name": "kind",
+              "type": "enum",
+              "required": false,
+              "default": "response",
+              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit.",
+              "enum_values": [
+                "response",
+                "pearson",
+                "deviance",
+                "working",
+                "standardized",
+                "studentized"
+              ]
+            },
+            {
+              "name": "residual_type",
+              "type": "enum",
+              "required": false,
+              "default": "pearson",
+              "description": "With kind standardized only (any other kind refuses it, PULSE_MODEL_SCORE_INVALID): pearson (default) standardizes the Pearson residual, deviance the deviance residual sign(y − μ)·√d — R 4.6.1 rstandard(type = \"deviance\"), dev.res/(√φ·√(1 − h)). Equal on a least-squares (Gaussian) fit; studentized, Cook's distance and DFFITS stay Pearson-based, as in R.",
+              "enum_values": [
+                "pearson",
+                "deviance"
+              ]
             }
           ],
           "accepts_types": [
@@ -8354,7 +8454,7 @@
       },
       {
         "name": "REG_GLM",
-        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links, and l1/l2/elasticnet regularization on binomial and poisson.",
+        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, gamma and negative_binomial (NB2, theta by maximum likelihood) families with family-appropriate links, and l1/l2/elasticnet regularization on binomial and poisson.",
         "accepts_types": [
           "date",
           "datetime",
@@ -8368,7 +8468,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits; negative_binomial: Wald z at dispersion 1 and theta-hat, plus theta, theta_std_err (theta estimated), two_log_lik and aic); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo; margins adds the marginal effects; collinearity adds the variance inflation factors.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -8393,10 +8493,11 @@
             "name": "family",
             "type": "enum",
             "required": true,
-            "description": "GLM error family.",
+            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); penalty, selection and resample are refused (PROCESSING_CONFIG, details.requires).",
             "enum_values": [
               "binomial",
               "gamma",
+              "negative_binomial",
               "poisson"
             ],
             "slot": true
@@ -8405,7 +8506,7 @@
             "name": "link",
             "type": "enum",
             "required": false,
-            "description": "Link function; family-specific default when empty. Implemented this phase: binomial→logit, poisson→log, gamma→inverse. Other enum values are reserved for future phases and surface PROCESSING_REGRESSION_INVALID_LINK if requested.",
+            "description": "Link function, one of the family's (enum_values_by, default first): binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity; negative_binomial log (default), identity, sqrt. Any other pair is PROCESSING_REGRESSION_INVALID_LINK. Off the canonical link IRLS is Fisher scoring (linear convergence: coefficients within ~1e-7 of the MLE at the default tol); vcov and SEs read the expected information, as R glm. An identity or sqrt link whose mean would leave its range halves the step.",
             "enum_values": [
               "cloglog",
               "identity",
@@ -8415,6 +8516,48 @@
               "probit",
               "sqrt"
             ],
+            "enum_by": "family",
+            "enum_values_by": {
+              "binomial": [
+                "logit",
+                "probit",
+                "cloglog"
+              ],
+              "gamma": [
+                "inverse",
+                "log",
+                "identity"
+              ],
+              "negative_binomial": [
+                "log",
+                "identity",
+                "sqrt"
+              ],
+              "poisson": [
+                "log",
+                "identity",
+                "sqrt"
+              ]
+            },
+            "slot": true
+          },
+          {
+            "name": "theta",
+            "type": "float",
+            "required": false,
+            "description": "negative_binomial only: a fixed theta \u003e 0, R's glm(family = negative.binomial(theta)) — IRLS for the coefficients only, no theta_std_err, aic without theta's parameter. Absent estimates theta. Any other family, or theta \u003c= 0, is PROCESSING_CONFIG.",
+            "slot": true
+          },
+          {
+            "name": "dispersion",
+            "type": "enum",
+            "required": false,
+            "default": "fixed",
+            "description": "negative_binomial with a fixed theta only: fixed (default) holds the dispersion at 1 (Wald z, summary.negbin); estimated reads phi-hat = Pearson chi-square / df (R's summary(glm(family = negative.binomial(theta)))): vcov and SEs scaled by it, t p-values and intervals on df, dispersion beside a classical vcov, and bound-fit influence on phi-hat (studentized and DFFITS on the leave-one-out sigma). Another family, theta estimated or another value is PROCESSING_CONFIG (details.requires).",
+            "enum_values": [
+              "fixed",
+              "estimated"
+            ],
             "slot": true
           },
           {
@@ -8422,7 +8565,7 @@
             "type": "enum",
             "required": false,
             "default": "",
-            "description": "Regularization scheme (binomial / poisson; gamma refuses it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
+            "description": "Regularization scheme (binomial / poisson; gamma and negative_binomial refuse it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
             "enum_values": [
               "",
               "elasticnet",
@@ -8539,6 +8682,20 @@
             "required": false,
             "default": false,
             "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1 — gamma: φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/(N* − p − 1); l2: the penalized sandwich H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·alpha·D) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's; l1 / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "margins",
+            "type": "object",
+            "required": false,
+            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_GLM the response-scale effect reads mu'(eta) per fitted row (one pass after IRLS); an identity link's, and every link-scale one, is the coefficient. t on df for gamma (classical), Wald z otherwise.",
+            "slot": true
+          },
+          {
+            "name": "collinearity",
+            "type": "object",
+            "required": false,
+            "description": "{basis, groups}: adds collinearity, per term the variance inflation factor vif (the generalized VIF of Fox \u0026 Monette for a group: car::vif's GVIF), tolerance = 1/vif and df (its columns), plus gvif_scaled = vif^(1/(2 df)) when groups is set. basis model (default; the fit's centered X'WX at the fitted weights, car::vif on the fit) or predictors (the prior-weighted predictor correlation, MAT_COLLINEARITY's VIF); groups [{name, predictors}] make several columns (a one-hot block's dummies) one term, the rest one term each. A design figure: penalty (REG_OLS), bounds, covariance and resample leave it unchanged. Refused (PROCESSING_CONFIG, details.requires) without an intercept, beside selection, under fewer than two terms, or on a malformed block. On REG_GLM basis model reads the IRLS working weights at convergence (one pass after IRLS); a penalty is refused there, allowed under basis predictors.",
             "slot": true
           },
           {
@@ -8992,7 +9149,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; bounds whose constraint binds without resample: the same nulls (vcov entries too) plus advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE]; a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; bounds whose constraint binds without resample: the same nulls (vcov entries too) plus advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE]; a robust covariance adds its covariance echo; margins adds the marginal effects; collinearity adds the variance inflation factors.",
         "streamable": true,
         "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path. A robust covariance (any type but classical) forces it too.",
         "params": [
@@ -9170,6 +9327,20 @@
             "required": false,
             "default": false,
             "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "margins",
+            "type": "object",
+            "required": false,
+            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_OLS every effect is its coefficient (identity link) with its standard error and t on df; streams with the fit.",
+            "slot": true
+          },
+          {
+            "name": "collinearity",
+            "type": "object",
+            "required": false,
+            "description": "{basis, groups}: adds collinearity, per term the variance inflation factor vif (the generalized VIF of Fox \u0026 Monette for a group: car::vif's GVIF), tolerance = 1/vif and df (its columns), plus gvif_scaled = vif^(1/(2 df)) when groups is set. basis model (default; the fit's centered X'WX at the fitted weights, car::vif on the fit) or predictors (the prior-weighted predictor correlation, MAT_COLLINEARITY's VIF); groups [{name, predictors}] make several columns (a one-hot block's dummies) one term, the rest one term each. A design figure: penalty (REG_OLS), bounds, covariance and resample leave it unchanged. Refused (PROCESSING_CONFIG, details.requires) without an intercept, beside selection, under fewer than two terms, or on a malformed block. On REG_OLS the two bases are one matrix (the weighted predictor moments the fit streams), so the block streams with the fit.",
             "slot": true
           },
           {
@@ -11144,6 +11315,61 @@
         ]
       },
       {
+        "name": "uniform_datetime",
+        "description": "Zone-aware datetime samples: a local wall-clock time in [start, end] drawn by weekday and hour-of-day weights, converted to the UTC epoch second it names in a fixed or per-row zone.",
+        "applies_to": [
+          "datetime"
+        ],
+        "params": [
+          {
+            "name": "start",
+            "type": "string",
+            "required": true,
+            "description": "First local calendar day (YYYY-MM-DD), inclusive."
+          },
+          {
+            "name": "end",
+            "type": "string",
+            "required": true,
+            "description": "Last local calendar day (YYYY-MM-DD), inclusive; may equal start but not precede it."
+          },
+          {
+            "name": "time_zone",
+            "type": "string",
+            "required": false,
+            "description": "IANA zone (or \"UTC\") the local time is read in; UTC when absent. Exclusive with time_zone_field."
+          },
+          {
+            "name": "time_zone_field",
+            "type": "string",
+            "required": false,
+            "description": "A categorical_* field of IANA zone names: each row's time is read in that row's zone; a null zone cell makes the datetime null."
+          },
+          {
+            "name": "dst_policy",
+            "type": "string",
+            "required": false,
+            "default": "error",
+            "description": "A local time a DST transition skips or repeats: \"error\" stops the run, \"earlier\" takes the pre-transition offset, \"later\" the post-transition one (the import's spellings)."
+          },
+          {
+            "name": "hour_weights",
+            "type": "list",
+            "required": false,
+            "description": "24 non-negative weights for local hours 0..23; uniform when absent."
+          },
+          {
+            "name": "weekday_weights",
+            "type": "list",
+            "required": false,
+            "description": "7 non-negative per-day weights, Monday first (ISO order); a weekday's share is its weight times its days in range. Uniform when absent."
+          }
+        ],
+        "intents": [
+          "simulate"
+        ]
+      },
+      {
         "name": "weighted_categorical",
         "description": "Discrete categorical samples drawn from values with optional weights.",
         "applies_to": [
@@ -11168,7 +11394,7 @@
         ]
       }
     ],
-    "error_codes_count": 445,
+    "error_codes_count": 451,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11234,6 +11460,8 @@
       "PULSE_CHAIN_NOT_MERGEABLE",
       "PULSE_CHAIN_STAGE_JOIN",
       "PULSE_COHORT_COMPRESSED",
+      "PULSE_COMPARISON_INVALID",
+      "PULSE_COMPARISON_ROWS_DIFFER",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
       "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL",
@@ -11546,7 +11774,10 @@
       "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_SYNTH_DST_AMBIGUOUS",
+      "PULSE_SYNTH_DST_NONEXISTENT",
       "PULSE_SYNTH_EXPR_NONDETERMINISTIC",
+      "PULSE_SYNTH_FIDELITY_MODEL_INVALID",
       "PULSE_SYNTH_LAG_FIELD_INVALID",
       "PULSE_SYNTH_LAG_OFFSET_INVALID",
       "PULSE_SYNTH_OUTPUT_COLLISION",
@@ -11554,6 +11785,7 @@
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
       "PULSE_SYNTH_RULE_BLOCK_INVALID",
       "PULSE_SYNTH_RULE_CONFLICT",
+      "PULSE_SYNTH_RULE_DRAW_INVALID",
       "PULSE_SYNTH_RULE_EMPTY",
       "PULSE_SYNTH_RULE_EXPR_INVALID",
       "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE",
@@ -11778,6 +12010,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -11872,6 +12105,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -11966,6 +12200,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12060,6 +12295,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12153,6 +12389,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12246,6 +12483,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12339,6 +12577,7 @@
           "ATTR_PERCENTILE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12421,6 +12660,7 @@
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12513,6 +12753,7 @@
           "ATTR_PREVIOUS_STATE",
           "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12677,6 +12918,7 @@
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -12893,6 +13135,7 @@
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
           "ATTR_REG_FITTED",
+          "ATTR_REG_INFLUENCE",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
@@ -13398,8 +13641,12 @@
         "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass."
       },
       {
+        "name": "op-attr-reg-influence",
+        "description": "Per-row Cook's distance or DFFITS from an unpenalized OLS refit or a bound fit's design — influence diagnostic."
+      },
+      {
         "name": "op-attr-reg-leverage",
-        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic."
+        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit or a bound fit's design — leverage diagnostic."
       },
       {
         "name": "op-attr-reg-predict",
@@ -13819,7 +14066,7 @@
       },
       {
         "name": "op-reg-glm",
-        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered."
+        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, gamma and negative binomial (NB2, theta estimated) families with family-specific link functions. Always buffered."
       },
       {
         "name": "op-reg-mmm-bayes",
@@ -13896,6 +14143,10 @@
       {
         "name": "op-synth-uniform-date",
         "description": "Uniform calendar-date samples in [start, end] inclusive; days-since-epoch internally."
+      },
+      {
+        "name": "op-synth-uniform-datetime",
+        "description": "Zone-aware datetime samples — a local wall-clock time drawn by weekday and hour-of-day weights, stored as the UTC epoch second it names in a fixed or per-row zone; DST gaps / overlaps per dst_policy."
       },
       {
         "name": "op-synth-weighted-categorical",
@@ -14094,8 +14345,20 @@
         "description": "ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning."
       },
       {
+        "name": "regression-collinearity",
+        "description": "Variance inflation factors on a fitted regression — VIF and tolerance per term, the generalized VIF (GVIF and GVIF^(1/(2 df))) for a multi-column term such as a one-hot block, read off the fit's own weighted design or the predictors alone, execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-comparison",
+        "description": "Nested-model comparison of two Compose regression fits — the F test, the likelihood-ratio (deviance) test and the Wald test of the full model's extra terms, R's anova(m0, m1) / lmtest::waldtest; how nesting and same rows are verified, the defaults per family, weights, the result and the refusals. Topical design; the fits themselves in compose-fits."
+      },
+      {
         "name": "regression-inference",
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-margins",
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
@@ -14107,7 +14370,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual and leverage attributes run, scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -14219,7 +14482,7 @@
       },
       {
         "name": "synth-conflicts",
-        "description": "Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface."
+        "description": "Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, strength arbitration between competing pairs, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface."
       },
       {
         "name": "synth-correlations",
@@ -14230,12 +14493,20 @@
         "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores."
       },
       {
+        "name": "synth-datetime",
+        "description": "Synthetic `datetime` columns — `uniform_datetime` draws a LOCAL wall-clock time by weekday and hour weights in a fixed or per-row zone, resolves DST gaps / overlaps per `dst_policy`, and stores the UTC instant rules then read; rule functions `trend` / `season` / `between`; profile capture."
+      },
+      {
         "name": "synth-determinism",
         "description": "The synth determinism contract — byte-identical `.pulse` output per spec and seed, byte-identical profile documents per input and seed, and the two non-RNG threats to capture (map iteration order, float fusion)."
       },
       {
+        "name": "synth-disclosure-report",
+        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance memory limit."
+      },
+      {
         "name": "synth-fidelity-report",
-        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals, pairs, set fields — scored only over relationships generation actually applied."
+        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — every field type's marginal with effect sizes and rule notes, pairs, set fields, utility against the source — scored only over relationships generation actually applied."
       },
       {
         "name": "synth-marginals",
@@ -14278,8 +14549,12 @@
         "description": "The `--suggest-rules` detector rules that are silent if got backwards — rounded gates, co-missingness, near and always-null blocks, the narrow dependency search and discovered band edges — and why emitted candidate order is applied order."
       },
       {
+        "name": "synth-rule-draws",
+        "description": "Random draws inside synth rules — `uniform()` and `bernoulli(p)` on a seeded stream per call site, what a constraint rejection does to them, and `\"output\": false` helper fields that rules read but the file never carries; the outcome-drawn-from-a-model recipe."
+      },
+      {
         "name": "synth-rule-expressions",
-        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()` / `trend()` / `uniform()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
       },
       {
         "name": "synth-rule-nulls",
@@ -14295,7 +14570,7 @@
       },
       {
         "name": "synth-set-fields",
-        "description": "How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair, read safely on the wide rungs, and generated deterministically with a pre-registered dictionary."
+        "description": "How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair (within one field too), read safely on the wide rungs, and generated deterministically with a pre-registered dictionary."
       },
       {
         "name": "synth-shape-fit",
@@ -14538,7 +14813,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 266,
+    "examples_count": 268,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -15429,7 +15704,7 @@
           "Population"
         ],
         "buffered": true,
-        "description": "Single scalar χ² goodness-of-fit statistic + p-value comparing the host Facet subset distribution against the resolved population distribution. GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the chi-square statistic plus degrees of freedom and the corresponding p-value via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Third FACET-host overlay in the catalog (siblings: OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first inferential FACET-host kind. Pairs with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² family — the viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. Math: the compared categories C are the subset's listed values that the population also shows; subset_N = Σ observed over C; share[v] = pop_count[v] / Σ pop_count over C (population shares renormalised over the compared categories, so population nulls and values truncated out of a DiscreteTopK listing never shrink the expected counts); expected[v] = share[v] * subset_N; chisq = Σ (observed - expected)² / expected; df = |C| - 1 — R's chisq.test(x, p, rescale.p = TRUE) over C. A subset value the population lacks is left out of the statistic, subset_N and df, with one PULSE_OVERLAY_REF_ZERO warning per value; p_value = chiSquareSurvival(chisq, df) — the same χ² survival helper backing TEST_CHISQ and the MATRIX-host CHISQ family, so the overlay surface produces identical p-values for the same contingency. Discrete arm only (χ² goodness-of-fit requires categorical buckets — numeric hosts fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at runtime, and the per-kind validator rejects numeric hosts at predict time). Streaming finalize hook: the handler runs at the FacetSchema post-host-finalize entry — once the per-value (value, count) map is folded into the FacetField.Discrete.Values slice the overlay reads the already-finalized host distribution and the resolver's population view to emit the SCALAR statistic. No second pass over records. INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming overlay path for inferential kinds\") — inferential overlays as a family stay buffered regardless of host streamability; the streamable subset is reserved for descriptive kinds (sibling streamable FACET-host kinds are INDEX_VS_POP / ZSCORE_VS_POP, both descriptive). Low-expected-cell warning: when any expected count is below 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning (canonical χ² low-count heuristic; the same warning code the MATRIX-host CHISQ family and FISHER_EXACT_CELL emit — PRD FR-J1 shares the code with the crosstab Fisher exact path). Absent-population value (host value missing from the population's discrete payload) yields expected = 0; the goodness-of-fit term drops (matches TEST_CHISQ's expected \u003e 0 guard) but the low-expected warning still fires. Empty host distribution OR subset_N == 0 (every observed count is zero) OR population is empty: NaN statistic + NaN p-value with one PULSE_OVERLAY_REF_ZERO warning — no χ² test can be computed without observed counts. Single category (df = 0): NaN p-value alongside the statistic — descriptive only. Ref.Population MUST be populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be GROUP. Renderer-facing shape: viz developer reads OverlayPayload.Scalar for the χ² statistic and OverlaySummary for the (statistic, df, p-value) triple — small p-value flags \"the subset distribution diverges from the population\". The layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint).",
+        "description": "Single scalar χ² goodness-of-fit statistic + p-value comparing the host Facet subset distribution against the resolved population distribution. GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the chi-square statistic plus degrees of freedom and the corresponding p-value via OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Third FACET-host overlay in the catalog (siblings: OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first inferential FACET-host kind. Pairs with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² family — the viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. Math: the compared categories C are the subset's listed values that the population also shows plus, when the subset listing is complete (no DiscreteTopK truncation), every population category the subset lacks at observed 0 — a truncated listing compares its listed values only, since a category below the top K is unlisted, not absent; subset_N = Σ observed over C; share[v] = pop_count[v] / Σ pop_count over C (population shares renormalised over the compared categories, so population nulls and values truncated out of a DiscreteTopK listing never shrink the expected counts); expected[v] = share[v] * subset_N; chisq = Σ (observed - expected)² / expected; df = |C| - 1 — R's chisq.test(x, p, rescale.p = TRUE) over C. A subset value the population lacks is left out of the statistic, subset_N and df, with one PULSE_OVERLAY_REF_ZERO warning per value; p_value = chiSquareSurvival(chisq, df) — the same χ² survival helper backing TEST_CHISQ and the MATRIX-host CHISQ family, so the overlay surface produces identical p-values for the same contingency. Discrete arm only (χ² goodness-of-fit requires categorical buckets — numeric hosts fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at runtime, and the per-kind validator rejects numeric hosts at predict time). Streaming finalize hook: the handler runs at the FacetSchema post-host-finalize entry — once the per-value (value, count) map is folded into the FacetField.Discrete.Values slice the overlay reads the already-finalized host distribution and the resolver's population view to emit the SCALAR statistic. No second pass over records. INHERENTLY BUFFERED per PRD §2 Non-Goals (\"Streaming overlay path for inferential kinds\") — inferential overlays as a family stay buffered regardless of host streamability; the streamable subset is reserved for descriptive kinds (sibling streamable FACET-host kinds are INDEX_VS_POP / ZSCORE_VS_POP, both descriptive). Low-expected-cell warning: when any expected count is below 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning (canonical χ² low-count heuristic; the same warning code the MATRIX-host CHISQ family and FISHER_EXACT_CELL emit — PRD FR-J1 shares the code with the crosstab Fisher exact path); a population category entered at observed 0 counts in that check. Empty host distribution OR subset_N == 0 (every observed count is zero) OR population is empty: NaN statistic + NaN p-value with one PULSE_OVERLAY_REF_ZERO warning — no χ² test can be computed without observed counts. Single category (df = 0): NaN p-value alongside the statistic — descriptive only. Ref.Population MUST be populated (the cohort name lives on Ref.Population.Cohort); any other ref-family pointer (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero (population comparison is a single-value lookup, not an axis prefix); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the implicit-ref family. Scope must be GROUP. Renderer-facing shape: viz developer reads OverlayPayload.Scalar for the χ² statistic and OverlaySummary for the (statistic, df, p-value) triple — small p-value flags \"the subset distribution diverges from the population\". The layer-level Baseline stays unset (inferential overlays do not surface a ratio centerpoint).",
         "intents": [
           "benchmark"
         ],
@@ -20343,6 +20618,8 @@
           "regressions[*].vcov",
           "regressions[*].correlation",
           "regressions[*].covariance",
+          "regressions[*].margins",
+          "regressions[*].collinearity",
           "regressions[*].advisories",
           "regressions[*].holdout",
           "regressions[*].statistics",
@@ -20455,4 +20732,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8c5d979032277d86f7aa2f4372733eb221786ed3172f939a5222f26f29e662ff
+// golden-hash: 9c4e188bf662c82133282500fc86320c06201faf7fa5e121ea4fb41deec0cabd

@@ -1058,6 +1058,82 @@
       },
       "type": "object"
     },
+    "RegressionCollinearity": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/RegressionTermGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "RegressionCollinearityResult": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "df": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "gvif_scaled": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tolerance": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "vif": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "basis",
+        "df",
+        "terms",
+        "tolerance",
+        "vif"
+      ],
+      "type": "object"
+    },
     "RegressionCovariance": {
       "additionalProperties": false,
       "properties": {
@@ -1103,6 +1179,135 @@
       ],
       "type": "object"
     },
+    "RegressionMargins": {
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RegressionMarginsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "conf_level": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "estimates": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "p_values": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "std_errors": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ci_lower",
+        "ci_upper",
+        "conf_level",
+        "estimates",
+        "p_values",
+        "scale",
+        "statistics",
+        "std_errors",
+        "terms",
+        "type"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -1118,6 +1323,12 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "aic": {
+          "type": [
+            "number",
             "null"
           ]
         },
@@ -1159,6 +1370,9 @@
             ]
           },
           "type": "object"
+        },
+        "collinearity": {
+          "$ref": "#/$defs/RegressionCollinearityResult"
         },
         "conf_level": {
           "type": [
@@ -1205,6 +1419,12 @@
             "null"
           ]
         },
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "error": {
           "$ref": "#/$defs/SlotError"
         },
@@ -1222,6 +1442,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "margins": {
+          "$ref": "#/$defs/RegressionMarginsResult"
         },
         "n_eff": {
           "type": [
@@ -1317,6 +1540,24 @@
             "null"
           ]
         },
+        "theta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "theta_std_err": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "type": {
           "$ref": "#/$defs/RegressionType"
         },
@@ -1350,6 +1591,9 @@
         "bounds": {
           "$ref": "#/$defs/RegressionBounds"
         },
+        "collinearity": {
+          "$ref": "#/$defs/RegressionCollinearity"
+        },
         "conf_level": {
           "type": "number"
         },
@@ -1360,6 +1604,9 @@
           "type": "number"
         },
         "criterion": {
+          "type": "string"
+        },
+        "dispersion": {
           "type": "string"
         },
         "family": {
@@ -1379,6 +1626,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "margins": {
+          "$ref": "#/$defs/RegressionMargins"
         },
         "max_iters": {
           "type": "integer"
@@ -1437,6 +1687,9 @@
         "target": {
           "type": "string"
         },
+        "theta": {
+          "type": "number"
+        },
         "tol": {
           "type": "number"
         },
@@ -1459,6 +1712,28 @@
       "required": [
         "target",
         "type"
+      ],
+      "type": "object"
+    },
+    "RegressionTermGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "predictors": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "predictors"
       ],
       "type": "object"
     },
@@ -2081,4 +2356,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: a0f0316f95f9bfb7f7fa5084e84f7d5762836addc92bc1310cc491d71ca01e9d
+// golden-hash: e83c056ec24d6ed6b1d5fe7e39271bfbb0a251f9b40f293722df5ea10b658a6d

@@ -129,6 +129,8 @@ The result:
       "conf_level": 0.95,
       "r2": 0.9566,
       "adj_r2": 0.9564,
+      "two_log_lik": -3513,
+      "aic": 3521,
       "n_obs": 400,
       "residual_std_err": 19.61,
       "covariance": {
@@ -262,6 +264,23 @@ R-squared corrected for the number of predictors: 1 - (1 - r2) * (n - 1) / (n - 
 
 Typical size of a residual, in the outcome's units: how far actual values sit from the fitted line on a typical row. It divides the residual sum of squares by n - p - 1.
 
+**`two_log_lik`**
+
+Twice the maximised Gaussian log-likelihood (R's logLik on lm), at the residual variance RSS / n; higher is a closer fit.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood), a penalized fit, and an OLS fit whose bound binds.
+- With a frequency weight it is the expanded rows' figure, which R's lm(weights = f) does not report (it reads them as precision weights).
+
+**`aic`**
+
+-two_log_lik + 2 x (coefficients + 1, the residual variance counted): R's AIC on lm; lower is better.
+
+**Caveats:**
+
+- Compare it only across models of the same outcome fitted to the same rows.
+
 **`n_obs`**
 
 Rows used in the fit, after rows with a null target or predictor were dropped.
@@ -278,6 +297,51 @@ Coordinate-descent iterations an l1 or elasticnet fit took to converge; absent f
 **Caveats:**
 
 - A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.
+
+**`margins.estimates.*`**
+
+The marginal effect of this term (requested by margins): the change in the expected outcome per unit of the predictor, in outcome units. On OLS the model is linear, so every effect, ame or mem, response or link scale, equals the coefficient, with its standard error, p-value and interval.
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with a higher outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with a lower outcome, other predictors held fixed
+
+**Caveats:**
+
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+**`margins.std_errors.*`**
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+**`margins.p_values.*`**
+
+**Caveats:**
+
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+
+Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-value).
+
+**`collinearity.vif.*`**
+
+The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.
+
+**Caveats:**
+
+- No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.
+- It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.
+- A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.
+
+**`collinearity.tolerance.*`**
+
+The reciprocal of vif: the share of the term's spread the other predictors do not explain. Near 0 means the term is close to a combination of the others.
+
+**`collinearity.gvif_scaled.*`**
+
+vif^(1/(2 df)): the generalized VIF on the scale of a standard error, so terms of different column counts compare; for a single column it is the square root of vif.
 
 More on reading it: [REG_OLS](../reading/regression.md#op-reg_ols).
 

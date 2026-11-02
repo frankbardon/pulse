@@ -38,7 +38,7 @@ pulse profile create --input PATH --output PATH
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
-| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
+| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels, set options and earlier-declared numeric fields automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
 | `--suggest-rules`        |      | string | (off)      | Detect structural rules on the same scan — GATING relationships (`set_null`) and CO-MISSING question blocks (`null_together`) — and write them to this path as a standalone rules file, the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
 | `--run-continuation`     |      | bool   | false      | Measure per-field run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, i.e. the run-skip decode's hit rate — into the additive `run_continuation` section, with the high-continuation fields and advice on sorting the source upstream (see below) |
@@ -55,6 +55,7 @@ pulse profile create --input PATH --output PATH
 | `packed_bool` | The same numeric summary (a boolean falls to the numeric accumulator), but **reconstructed as `bernoulli`, not as a clamped normal** — see "Boolean fields" below |
 | Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
+| `datetime` | A `datetime` section: the first and last UTC day, and how many instants fall on each UTC weekday (`weekdays`, Monday first) and in each UTC hour (`hours`). No `numeric` section, so it joins no correlation, conditional pair or `--fit-models` model. `synth from-profile` rebuilds it as an unzoned `uniform_datetime` that keeps those weekday and hour marginals; a volume trend across days is not captured |
 | Vector (`vec_f32`, `vec_f64`) | A `vector` section: dim, kind, scale range and labels from the schema; `n` non-null vectors; per element its NaN rate and the numeric summary above (with the `discrete` histogram when every value is an integer); and `correlations`, the Pearson correlation of every measurable element pair over the rows where both are present. Above 64 elements the correlation is not captured (a warning says so) and generation draws the elements independent. See "Vector fields" below |
 | Any **nullable** field (`Field.Nullable`, any type) | Null count alongside the above. Nullability is a per-field flag, not a type — there are no `nullable_*` types |
 
@@ -93,13 +94,16 @@ max 0.0116, nothing off by more than 0.05). Two details follow from it:
   a 0/1 column very well by BIC — two near-zero-variance spikes — and
   reproduces the prevalence no better while costing a numeric inversion per
   draw. A boolean's shape is one number, not something to discover.
-- **A modelled boolean is a probit.** `--fit-models` on a boolean target
-  still works, and its coefficients still order rows, but the composed draw
-  is `P(1 | row) = Φ((μ − Φ⁻¹(1−p)) / σ)`. A coefficient is **not** a
-  change in probability. See "Reading a coefficient" below; the fidelity
-  report reports these targets as unidentified rather than fabricating a
-  recovered figure, because a 0/1 value does not determine the latent that
-  produced it.
+- **A modelled boolean is a probit.** `--fit-models` fits a boolean
+  target by probit maximum likelihood: its `models` entry carries
+  `"link": "probit"`, probit-scale `intercept` and coefficients,
+  `residual_std` 1 and McFadden's pseudo-R² as `r2`, and the twin draws
+  `P(1 | row) = Φ(intercept + Σ coefficient·x)`. A coefficient is a probit
+  slope, **not** a change in probability. A predictor that separates the
+  target (decides it outright) either settles at a near-step or keeps the
+  linear fit with a `kept its linear fit` warning. See "Reading a
+  coefficient" below; the fidelity report recovers these targets on the
+  calibrated probit score.
 
 ## Small-integer fields
 
@@ -325,8 +329,12 @@ OPTION rather than once per field:
   `conditional.categorical_numeric_pairs` uses per category.
 - `conditional.set_set_pairs`: one `{set_a, option_a, set_b, option_b,
   cells, n}` entry per option pair between two DIFFERENT `set_*`
-  fields — a bounded 2x2 contingency table. Never captured between two
-  options of the same field.
+  fields — a bounded 2x2 contingency table — plus, within ONE field
+  (`set_a == set_b`), at most one entry per option: from the earlier
+  option it is most strongly associated with (bias-corrected Cramér's
+  V ≥ 0.1). That is how a dependency such as "tv requires broadband"
+  survives into the twin: the never-observed combination is an absent
+  cell, generated with probability 0.
 
 Cardinality stays bounded without a new, separate cap: a set field's
 option count is capped by its own type (8/16/32/64/128/256 for
@@ -335,8 +343,8 @@ still bounds every individual cell table exactly as it does for two
 plain categorical fields. Thin combinations (`n` below
 `internal/synth.MinPairObservations`, 30) still ship — never dropped —
 appending the same warning shape every other pair kind uses. `synth
-from-profile` does not yet sample from any of these three sections — a
-later addition.
+from-profile` samples from all three (`skills/synth-set-fields.md`,
+Generation).
 
 ## `--fit-shape`: mixture-of-normals shape fitting for numeric fields
 
@@ -406,10 +414,10 @@ separate conditional mean per category, per categorical field — and
 generation applies those pairs by overwriting the drawn value once per
 claimed pair. `--fit-models` captures the relationship as a single
 **additive linear model** instead: for each numeric field, one
-least-squares fit of that field on the cohort's categorical **levels**
-and `set_*` **options**, so `region`, `tier` and a multi-select all
-contribute to the same prediction rather than competing to be the last
-writer.
+least-squares fit of that field on the cohort's categorical **levels**,
+`set_*` **options** and the **numeric fields declared before it**, so
+`region`, `tier`, a multi-select and `tenure_months` all contribute to
+the same prediction rather than competing to be the last writer.
 
 The cohort is read **once**. What the scan itself does is retain a
 bounded, uniformly sampled row snapshot; the predictors are then
@@ -459,6 +467,22 @@ explains more of the target. That narrowing applies to *unpenalized*
 designs only: a ridge penalty makes a collinear design solvable, so a
 model that carries a thin level (below) keeps both overlapping
 candidates and shrinks them together instead.
+
+**A numeric field predicts only the numerics declared after it.** A
+numeric candidate is scored by the share of the target's variance a
+straight line in it explains (adjusted r²), against the same 1% floor,
+and enters only a target that comes LATER in the schema. Generation
+reads a numeric predictor off the row it is building, so the predictor
+has to be drawn first; schema order is what makes every captured
+dependency drawable, and it loses nothing — the score is symmetric,
+and conditioning each numeric on the ones before it describes the same
+linear structure in any order. Put a cohort's outcome fields (a churn
+flag, a satisfaction score) after their drivers to read the models in
+the natural direction. Two numerics joined this way measure a residual
+correlation of about zero under `--residual-correlations`: the model
+already carries what they share. A cohort with no categorical or `set_*`
+field now fits models whenever its numerics relate; when none relate,
+every numeric is still skipped as having nothing to regress on.
 
 Each admitted categorical contributes one column per retained level
 except one **reference** level, whose effect is absorbed into the
@@ -1637,17 +1661,11 @@ A third cause, the transcendental kernels, is closed too: `math.Exp` /
 `--fit-shape`'s EM fit (and every exp / log / erf the generator evaluates)
 runs on portable ports with identical bits on every machine.
 
-One residual remains, and it is stated rather than papered over:
-
-- `--fit-models` solves its least squares in `internal/processing/regression`,
-  which has not been made fusion-free. A `models` coefficient's last
-  bits can differ between machines. Every other section is
-  architecture-independent.
-
-It does not affect a value you would read or report — the divergence is
-at the 1e-15 relative level — but a byte-for-byte `diff` of two
-documents captured with `--fit-models` on different CPUs may still show
-movement.
+`--fit-models` solves its least squares in `internal/processing/regression`,
+which runs on an FMA-free port of the SPD solver since the
+cross-architecture determinism work, so a `models` coefficient has the
+same bits on every machine too. A document captured with `--fit-models`
+diffs clean across CPUs.
 
 ### Text mode summary
 

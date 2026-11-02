@@ -8,13 +8,14 @@ import (
 	"github.com/frankbardon/pulse/linalg"
 )
 
-// Every regression solve and inverse runs on linalg's gonum-backed SPD
-// path (linalg.FactorSPD / SPDFactor.Solve / SPDFactor.Inverse /
-// linalg.Mul). Those are thin wrappers over the gonum calls this package
-// made directly before, on identical operands, so every REG_* output is
-// bit-identical to the direct-gonum engine on the same machine. The
-// helpers below keep the operands identical: a factor reads the UPPER
-// triangle of the row-major Gram exactly as gonum's SymDense did.
+// Every regression solve and inverse runs on linalg's SPD path
+// (linalg.FactorSPD / SPDFactor.Solve / SPDFactor.Inverse /
+// linalg.Mul): an FMA-free port of the operation order gonum's
+// mat.Cholesky and mat.Dense.Mul run on amd64, so on amd64 every REG_*
+// output is bit-identical to the direct-gonum engine this package used
+// before, and other architectures compute the same bits. The helpers
+// below keep the operands identical: a factor reads the UPPER triangle
+// of the row-major Gram exactly as gonum's SymDense did.
 
 // upperSym packs the upper triangle of the n×n row-major data into a
 // linalg.Sym — the elements a gonum SymDense over the same slice

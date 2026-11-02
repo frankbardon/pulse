@@ -54,9 +54,9 @@ func (e *bayesLinearEngine) bayesSandwich(muN []float64, invLambda *linalg.Sym, 
 			score[a] = resid * z[a]
 			s := 0.0
 			for b := 0; b < q; b++ {
-				s += bread[a][b] * z[b]
+				s += float64(bread[a][b] * z[b])
 			}
-			quad += z[a] * s
+			quad += float64(z[a] * s)
 		}
 		rows = append(rows, sandwichRow{
 			score:   score,

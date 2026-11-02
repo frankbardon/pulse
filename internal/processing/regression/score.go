@@ -18,14 +18,25 @@ import (
 // ATTR_REG_FITTED / RESIDUAL / LEVERAGE, ATTR_REG_PREDICT — and the GLM
 // engine's own η evaluate it, so a scored row equals the fit's own
 // fitted value bit for bit on every platform: one expression, one
-// summation order, one place the compiler may fuse a multiply-add.
+// summation order, each product rounded before its sum (an explicit
+// float64 barrier, so no FMA contraction on any architecture).
 // len(x) must be at least len(coefs).
 func LinearPredictor(intercept float64, coefs, x []float64) float64 {
 	s := intercept
 	for i, c := range coefs {
-		s += c * x[i]
+		s += float64(c * x[i])
 	}
 	return s
+}
+
+// linearPredictorOutOfLine is LinearPredictor kept out of line: a
+// caller in an FMA-gated file (bound_influence.go) reads the scorer's
+// very expression — so its μ is the bound fit's score bit for bit —
+// without inlining the multiply-add the compiler may fuse here.
+//
+//go:noinline
+func linearPredictorOutOfLine(intercept float64, coefs, x []float64) float64 {
+	return LinearPredictor(intercept, coefs, x)
 }
 
 // InverseLink returns g⁻¹ for a REG_GLM family / link pair as the fit

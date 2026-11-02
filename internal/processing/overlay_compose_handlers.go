@@ -1189,7 +1189,7 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	var chisq float64
 	dfCells := 0
 	for _, p := range pairs {
-		expected := p.refVal * scale
+		expected := float64(p.refVal * scale)
 		if expected <= 0 {
 			continue
 		}

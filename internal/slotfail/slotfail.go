@@ -29,8 +29,9 @@ import (
 // its Response slice.
 type Kind string
 
-// The per-slot kinds: the four Response slots, and a Compose `optimize`
-// block (its ComposedResponse.Optimizations entry).
+// The per-slot kinds: the four Response slots, a Compose `optimize`
+// block (its ComposedResponse.Optimizations entry) and a Compose
+// `compare` entry (its ComposedResponse.Comparisons entry).
 const (
 	KindRegressions Kind = "regressions"
 	KindTests       Kind = "tests"
@@ -41,7 +42,18 @@ const (
 	// its data — the fit's own code). internal/optsolve builds its
 	// error; Collect never lists it (it is no Response slot).
 	KindOptimizations Kind = "optimizations"
+	// KindComparisons is a Compose nested-model comparison that failed
+	// on its data (ComparisonCodes, or a read of a Compose fit that
+	// failed on its data — the fit's own code). internal/regcompare
+	// builds its error; Collect never lists it (it is no Response slot).
+	KindComparisons Kind = "comparisons"
 )
+
+// ComparisonCodes are the data-dependent refusals a nested-model
+// comparison raises itself: the two fits used different rows.
+var ComparisonCodes = map[errors.Code]bool{
+	errors.PULSE_COMPARISON_ROWS_DIFFER: true,
+}
 
 // OptimizeCodes are the data-dependent refusals an optimize block's
 // solve raises: no start converged, or the constraints could not be
@@ -124,6 +136,8 @@ func codesOf(kind Kind) map[errors.Code]bool {
 		return MatrixCodes
 	case KindOptimizations:
 		return OptimizeCodes
+	case KindComparisons:
+		return ComparisonCodes
 	}
 	return nil
 }

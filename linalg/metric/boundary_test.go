@@ -11,17 +11,19 @@ import (
 )
 
 // metricAllowed reports whether a non-stdlib import is permitted in
-// package metric: Pulse's coded-error package and the parent linalg
-// (for the Sym inverse covariance), never anything under internal/ and
+// package metric: Pulse's coded-error package, the parent linalg
+// (for the Sym inverse covariance) and linalg/detmath (a stdlib-only
+// leaf, for aitchison's logarithm), never anything under internal/ and
 // never gonum directly — an embedder importing the registry drags in no
 // engine.
 func metricAllowed(path string) bool {
-	return path == "github.com/frankbardon/pulse/errors" || path == "github.com/frankbardon/pulse/linalg"
+	return path == "github.com/frankbardon/pulse/errors" || path == "github.com/frankbardon/pulse/linalg" ||
+		path == "github.com/frankbardon/pulse/linalg/detmath"
 }
 
 // TestMetricImportBoundary fails when a non-test file in linalg/metric
-// imports anything outside the standard library, pulse/errors and
-// pulse/linalg.
+// imports anything outside the standard library, pulse/errors,
+// pulse/linalg and pulse/linalg/detmath.
 func TestMetricImportBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +53,7 @@ func TestMetricImportBoundary(t *testing.T) {
 				continue
 			}
 			if !metricAllowed(path) {
-				t.Errorf("%s imports %q; linalg/metric may import only the standard library, pulse/errors and pulse/linalg", f, path)
+				t.Errorf("%s imports %q; linalg/metric may import only the standard library, pulse/errors, pulse/linalg and pulse/linalg/detmath", f, path)
 			}
 		}
 	}

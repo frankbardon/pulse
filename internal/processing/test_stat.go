@@ -4,13 +4,16 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Statistical helpers shared by the TEST_* operators. Keeping these
 // dependency-free (no external math packages) avoids pulling in a large
 // stats SDK for a handful of well-known distributions. The Student-t
-// family and the regularized incomplete beta live in internal/statdist,
-// shared with the regression engine.
+// family, the regularized incomplete beta and the chi-square / incomplete
+// gamma live in internal/statdist, shared with the regression engine.
+// The normal tails run on detmath.Erfc and every product feeding an add
+// is a float64(...) barrier, so the figures are the same on every GOARCH.
 //
 // Every primitive here is checked against R to a relative 1e-10 by
 // reference_oracle_test.go (goldens: testdata/reference/, regenerate
@@ -21,16 +24,12 @@ const epsilon = 0x1p-52
 
 // chiSquareSurvival returns P(X² ≥ x) for a chi-square variate with df
 // degrees of freedom: the complementary CDF used as the chi-square test
-// p-value. Computed via the regularized upper incomplete gamma function
-// Q(df/2, x/2).
+// p-value, the regularized upper incomplete gamma Q(df/2, x/2). It is
+// statdist.ChiSquareSurvival, the one bit-contract implementation
+// (detmath Log / Exp / Lgamma, barriered products): 1 for x ≤ 0, 0 at
+// +Inf, NaN for df ≤ 0 or a NaN argument.
 func chiSquareSurvival(x, df float64) float64 {
-	if df <= 0 || math.IsNaN(x) {
-		return math.NaN()
-	}
-	if x <= 0 {
-		return 1
-	}
-	return regularizedGammaQ(df/2.0, x/2.0)
+	return statdist.ChiSquareSurvival(x, df)
 }
 
 // fSurvival returns P(F ≥ f) for an F variate with (df1, df2) degrees
@@ -63,7 +62,7 @@ func fSurvival(f, df1, df2 float64) float64 {
 // full relative precision in the lower tail (down to z ≈ −37.5), where
 // ½ (1 + erf(z/√2)) cancels to zero.
 func standardNormalCDF(z float64) float64 {
-	return 0.5 * math.Erfc(-z/math.Sqrt2)
+	return float64(0.5 * detmath.Erfc(-z/math.Sqrt2))
 }
 
 // normalTwoSidedP returns the two-sided standard normal p-value
@@ -72,7 +71,7 @@ func standardNormalCDF(z float64) float64 {
 // to exactly 0 once |z| exceeds ~8.3, while erfc keeps full relative
 // precision down to p ≈ 1e-308 (|z| ≈ 37.5). NaN in, NaN out.
 func normalTwoSidedP(z float64) float64 {
-	return math.Erfc(math.Abs(z) / math.Sqrt2)
+	return detmath.Erfc(math.Abs(z) / math.Sqrt2)
 }
 
 // normalUpperTailP returns the one-sided upper-tail p-value
@@ -80,40 +79,6 @@ func normalTwoSidedP(z float64) float64 {
 // cancels to 0.
 func normalUpperTailP(z float64) float64 {
 	return standardNormalCDF(-z)
-}
-
-// regularizedGammaQ returns Q(a, x) = 1 - P(a, x), the regularized
-// upper incomplete gamma function. Routes between the series expansion
-// (x < a+1) and the continued fraction (otherwise) for fastest
-// convergence — Numerical Recipes style — with the prefactor
-// x^a e^{-x} / Γ(a) from gammaPrefactor.
-func regularizedGammaQ(a, x float64) float64 {
-	if x < 0 || a <= 0 {
-		return math.NaN()
-	}
-	if x == 0 {
-		return 1
-	}
-	if x < a+1 {
-		return 1 - gammaSeries(a, x)
-	}
-	return gammaContinuedFraction(a, x)
-}
-
-// regularizedGammaP returns P(a, x), the regularized lower incomplete
-// gamma function, on the branch that keeps it relatively accurate when
-// it is small: the series directly for x < a+1, 1 − Q otherwise.
-func regularizedGammaP(a, x float64) float64 {
-	if x < 0 || a <= 0 {
-		return math.NaN()
-	}
-	if x == 0 {
-		return 0
-	}
-	if x < a+1 {
-		return gammaSeries(a, x)
-	}
-	return 1 - gammaContinuedFraction(a, x)
 }
 
 // noncentralChiSquareCDF returns P(X ≤ x) for a noncentral chi-square
@@ -135,15 +100,17 @@ func noncentralChiSquareCDF(x, df, ncp float64) float64 {
 	if math.IsInf(x, 1) {
 		return 1
 	}
-	a, h := df/2, x/2
+	// Halving is exact, but the compiler rewrites it to ·0.5 and would
+	// fuse it into a+j / … − mu, hence the barriers.
+	a, h := float64(df/2), x/2
 	if ncp == 0 {
-		return regularizedGammaP(a, h)
+		return statdist.RegularizedGammaP(a, h)
 	}
-	mu := ncp / 2
-	logMu := math.Log(mu)
+	mu := float64(ncp / 2)
+	logMu := detmath.Log(mu)
 	weight := func(j float64) float64 {
-		lg, _ := math.Lgamma(j + 1)
-		return math.Exp(j*logMu - mu - lg)
+		lg, _ := detmath.Lgamma(j + 1)
+		return detmath.Exp(float64(j*logMu) - mu - lg)
 	}
 	const (
 		stop    = 1e-17
@@ -153,106 +120,17 @@ func noncentralChiSquareCDF(x, df, ncp float64) float64 {
 	sum := 0.0
 	for j, n := mode, 0; n < maxTerm; j, n = j+1, n+1 {
 		w := weight(j)
-		sum += w * regularizedGammaP(a+j, h)
-		if j > mode && w < stop*math.Max(sum, math.SmallestNonzeroFloat64) {
+		sum += float64(w * statdist.RegularizedGammaP(a+j, h))
+		if j > mode && w < float64(stop*math.Max(sum, math.SmallestNonzeroFloat64)) {
 			break
 		}
 	}
 	for j := mode - 1; j >= 0; j-- {
 		w := weight(j)
-		sum += w * regularizedGammaP(a+j, h)
-		if w < stop*sum {
+		sum += float64(w * statdist.RegularizedGammaP(a+j, h))
+		if w < float64(stop*sum) {
 			break
 		}
 	}
 	return math.Min(sum, 1)
-}
-
-// gammaPrefactor returns x^a e^{-x} / Γ(a). For a ≥ 10 it is assembled
-// as √(a/2π) · exp(−δ(a) − bd0(a, x)) — Loader's saddle-point form, the
-// one R's dpois_raw uses — so a·log x − x − lgamma(a) never cancels at
-// large df.
-func gammaPrefactor(a, x float64) float64 {
-	if a < 10 {
-		lga, _ := math.Lgamma(a)
-		return math.Exp(a*math.Log(x) - x - lga)
-	}
-	return math.Sqrt(a/(2*math.Pi)) * math.Exp(-statdist.LgammaCorrection(a)-bd0(a, x))
-}
-
-// bd0 returns a·log(a/m) + m − a without cancellation when a ≈ m
-// (Loader 2000, "Fast and accurate computation of binomial
-// probabilities").
-func bd0(a, m float64) float64 {
-	if math.Abs(a-m) < 0.1*(a+m) {
-		v := (a - m) / (a + m)
-		s := (a - m) * v
-		ej := 2 * a * v
-		v *= v
-		for j := 1; j < 1000; j++ {
-			ej *= v
-			s1 := s + ej/float64(2*j+1)
-			if s1 == s {
-				return s1
-			}
-			s = s1
-		}
-		return s
-	}
-	return a*math.Log(a/m) + m - a
-}
-
-// gammaSeries evaluates P(a, x) via its convergent series for x < a+1.
-// The term ratio is x/(a+n), so convergence takes O(√a) terms near
-// x ≈ a; the cap covers df ≈ 1e7.
-func gammaSeries(a, x float64) float64 {
-	const (
-		maxIter = 100000
-		eps     = 1e-17
-	)
-	ap := a
-	sum := 1.0 / a
-	del := sum
-	for range maxIter {
-		ap++
-		del *= x / ap
-		sum += del
-		if math.Abs(del) < math.Abs(sum)*eps {
-			break
-		}
-	}
-	return sum * gammaPrefactor(a, x)
-}
-
-// gammaContinuedFraction evaluates Q(a, x) via Lentz's continued
-// fraction for x ≥ a+1.
-func gammaContinuedFraction(a, x float64) float64 {
-	const (
-		maxIter = 100000
-		eps     = 1e-16
-		tiny    = 1e-300
-	)
-	b := x + 1 - a
-	c := 1.0 / tiny
-	d := 1.0 / b
-	h := d
-	for i := 1; i <= maxIter; i++ {
-		an := -float64(i) * (float64(i) - a)
-		b += 2
-		d = an*d + b
-		if math.Abs(d) < tiny {
-			d = tiny
-		}
-		c = b + an/c
-		if math.Abs(c) < tiny {
-			c = tiny
-		}
-		d = 1 / d
-		del := d * c
-		h *= del
-		if math.Abs(del-1) <= eps {
-			break
-		}
-	}
-	return h * gammaPrefactor(a, x)
 }

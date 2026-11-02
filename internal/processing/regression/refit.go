@@ -244,7 +244,7 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		nullDev := 0.0
 		for i := 0; i < n; i++ {
 			if prior != nil {
-				nullDev += prior[i] * fam.Deviance(yVec[i], mu0)
+				nullDev += float64(prior[i] * fam.Deviance(yVec[i], mu0))
 				continue
 			}
 			nullDev += fam.Deviance(yVec[i], mu0)

@@ -143,10 +143,10 @@ func (c *cupedArms) adjust(a, b *weighting.CoWelford) (weighting.Welford, weight
 	}
 	adj := func(g *weighting.CoWelford) weighting.Welford {
 		w := g.YWelford()
-		w.Mean = g.MeanY - theta*(g.MeanX-f.xbar)
+		w.Mean = g.MeanY - float64(theta*(g.MeanX-f.xbar))
 		// Σw·(y′ − ȳ′)² ≥ 0; the clamp absorbs rounding residue when y
 		// is (nearly) linear in x.
-		w.M2 = math.Max(0, g.M2Y-2*theta*g.CXY+theta*theta*g.M2X)
+		w.M2 = math.Max(0, g.M2Y-float64(2*theta*g.CXY)+float64(theta*theta*g.M2X))
 		return w
 	}
 	return adj(a), adj(b), f

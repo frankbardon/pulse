@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regsolve"
 	"maps"
 	"slices"
@@ -910,9 +911,9 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD, and any extension aggregator whose manifest entry declares vector_input): the Request.Vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
 	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators (built-in, or an extension declaring vector_input): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr := itemProps("attributes")
-	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE).")
+	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE / INFLUENCE).")
 	attr["predictors"] = map[string]any{"type": "array", "description": "Independent variables for the regression attributes; at least one.", "items": enumStringField(c.Numeric, "")}
-	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE refuses one.")
+	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE (and ATTR_REG_RESIDUAL kind standardized / studentized) refuse one.")
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
 	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
@@ -1073,12 +1074,14 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					},
 					"additionalProperties": false,
 				},
-				"family":    enumStringField([]string{"binomial", "poisson", "gamma"}, "REG_GLM error family (required for REG_GLM)."),
-				"link":      map[string]any{"type": "string", "description": "REG_GLM link; defaults per family (logit, log, inverse)."},
-				"max_iters": integer("Iteration cap for iterative fits; 0 uses the operator default."),
-				"tol":       num("Relative convergence tolerance; 0 uses the operator default."),
-				"prior":     map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},
-				"prior_mu":  map[string]any{"type": "array", "description": "REG_BAYES_LINEAR prior mean, intercept first then one per predictor.", "items": map[string]any{"type": "number"}},
+				"family":     enumStringField(reglink.Families(), "REG_GLM error family (required for REG_GLM); negative_binomial is NB2 for over-dispersed counts, theta estimated unless theta fixes it."),
+				"link":       enumStringField(reglink.All(), "REG_GLM link, one of the family's: binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity; negative_binomial log (default), identity, sqrt."),
+				"theta":      num("REG_GLM negative_binomial only: a fixed theta > 0 (glm(negative.binomial(theta))); omit to estimate it by maximum likelihood."),
+				"dispersion": enumStringField(types.AllNegBinDispersions(), "REG_GLM negative_binomial with a fixed theta only: fixed (default, phi = 1) or estimated (Pearson chi-square / df, t inference)."),
+				"max_iters":  integer("Iteration cap for iterative fits; 0 uses the operator default."),
+				"tol":        num("Relative convergence tolerance; 0 uses the operator default."),
+				"prior":      map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},
+				"prior_mu":   map[string]any{"type": "array", "description": "REG_BAYES_LINEAR prior mean, intercept first then one per predictor.", "items": map[string]any{"type": "number"}},
 				"prior_precision": map[string]any{
 					"description": "REG_BAYES_LINEAR prior precision: a number (every coefficient; 0 = default 1e-3) or one entry per coefficient, intercept first then predictors (0 = flat prior).",
 					"oneOf":       []any{map[string]any{"type": "number", "minimum": 0}, map[string]any{"type": "array", "items": map[string]any{"type": "number", "minimum": 0}}},
@@ -1110,6 +1113,37 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 						},
 					},
 					"required":             []string{"type"},
+					"additionalProperties": false,
+				},
+				"margins": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS / REG_GLM only: report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
+					"properties": map[string]any{
+						"type":  enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
+						"terms": map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
+						"scale": enumStringField(types.AllMarginsScales(), "response (default): d mean / dx; link: d eta / dx (the coefficient)."),
+					},
+					"additionalProperties": false,
+				},
+				"collinearity": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS / REG_GLM only: report each term's variance inflation factor (collinearity: vif, tolerance, df; gvif_scaled with groups); {} = the VIF of every predictor on the fit's design. Refused without an intercept, beside selection, under fewer than two terms, and on REG_GLM with a penalty unless basis is predictors.",
+					"properties": map[string]any{
+						"basis": enumStringField(types.AllCollinearityBases(), "model (default): the fit's weighted design (car::vif on the fit; IRLS working weights on REG_GLM); predictors: the prior-weighted predictor correlation alone."),
+						"groups": map[string]any{
+							"type":        "array",
+							"description": "Multi-column terms judged together by the generalized VIF (e.g. a one-hot block's dummies); every other predictor is its own term.",
+							"items": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"name":       map[string]any{"type": "string", "description": "The term's key in the result; unlike every other term's."},
+									"predictors": map[string]any{"type": "array", "description": "The term's columns, each a listed predictor in at most one group.", "items": enumStringField(c.Numeric, "")},
+								},
+								"required":             []string{"name", "predictors"},
+								"additionalProperties": false,
+							},
+						},
+					},
 					"additionalProperties": false,
 				},
 				"weight":       slotWeightSchema(c),
@@ -1850,6 +1884,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"banner":   bannerSchema(reqSchema),
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
+			"compare":  compareSchema(),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1899,6 +1934,36 @@ func addFitFromSweep(fits map[string]any, inst *descx.InstanceSnapshot) {
 		"additionalProperties": false,
 	}
 	items["required"] = []string{"name"}
+}
+
+// compareSchema describes the ComposedRequest `compare` list
+// (types.FitComparisonSpec): nested-model comparisons of two `fits`,
+// run after the fits with no record data. Dropped when
+// capability:compose_compare is hidden (dropHiddenSlots); an entry's
+// `multiplicity` drops when capability:multiplicity is
+// (dropHiddenMultiplicity).
+func compareSchema() map[string]any {
+	tests := make([]string, 0, 3)
+	for _, t := range types.AllComparisonTests() {
+		tests = append(tests, string(t))
+	}
+	return map[string]any{
+		"type":        "array",
+		"description": "Nested-model comparisons, each run once after the fits (no record data): is the full fit better than the restricted one? The restricted fit's predictors (and intercept) must all be the full fit's, the two fit requests equal but for the regression's predictors, intercept and reporting knobs (same rows), both REG_OLS or both REG_GLM on one family and link. Results are returned under the response `comparisons`, in order: the statistic, df, p_value, the tested terms and each fit's residual df and deviance.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":       map[string]any{"type": "string", "description": "The comparison's name, unique among the comparisons."},
+				"restricted": map[string]any{"type": "string", "description": "The `fits` entry name of the smaller model (the null: the full model's extra coefficients are zero)."},
+				"full":       map[string]any{"type": "string", "description": "The `fits` entry name of the larger model."},
+				"test":       enumStringField(tests, "f: the F test on the deviance change over the full fit's estimated dispersion (REG_OLS, gamma); lrt: the likelihood-ratio (deviance) test; wald: the Wald test of the extra coefficients on the full fit's own covariance (classical or robust). Omit for R's anova default: f on REG_OLS and gamma, lrt otherwise. f and lrt are refused under a probability weight (use wald)."),
+				"multiplicity": multiplicitySchema(
+					"This comparison's multiple-comparison correction; omit to inherit the batch's. The only family is `compose` (the default): the comparisons pool with every compose-family member of the batch.",
+					[]types.MultiplicityFamily{types.MultiplicityFamilyCompose}, true),
+			},
+			"required": []string{"name", "restricted", "full"},
+		},
+	}
 }
 
 // optimizeSchema describes the ComposedRequest `optimize` list

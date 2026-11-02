@@ -1,6 +1,7 @@
 // Package detmath holds deterministic, architecture-independent ports of
 // the Go standard library's transcendental kernels: Exp, Expm1, Log,
-// Log1p, Sin, Cos, Tan, Atan2, Asin, Pow, Erf, Erfinv and Lgamma — plus
+// Log1p, Sin, Cos, Tan, Atan2, Asin, Atanh, Tanh, Pow, Erf, Erfc, Erfinv
+// and Lgamma — plus
 // the ziggurat standard normal and exponential variates, NormFloat64 and
 // ExpFloat64.
 //
@@ -22,14 +23,16 @@
 //     picks an FMA path at run time when the CPU supports it
 //     (exp_amd64.go: useFMA), so two amd64 machines can disagree.
 //   - math.Log is assembly on amd64 and pure Go on arm64.
-//   - The pure-Go Sin / Cos / Tan / Atan / Asin / Pow / Expm1 / Erf / Erfinv
-//     are compiled with fused multiply-add contraction on arm64 and
+//   - The pure-Go Sin / Cos / Tan / Atan / Asin / Atanh / Tanh / Pow / Expm1 /
+//     Erf / Erfc / Erfinv are compiled with fused multiply-add contraction on arm64 and
 //     without it on amd64; math.Erf and math.Erfinv also call the
-//     machine-specific math.Exp / math.Log internally (detmath's Erf and
-//     Erfinv call detmath's Exp and Log instead).
+//     machine-specific math.Exp / math.Log internally (detmath's Erf, Erfc
+//     and Erfinv call detmath's Exp and Log instead).
 //
 // Each function here is a line-for-line port of the PURE-GO path of the
-// Go 1.26 source named in its doc comment, with one change: every
+// Go 1.26 source named in its doc comment (Tanh alone ports FreeBSD
+// msun's fdlibm s_tanh.c, on Expm1, because the stdlib's Cephes tanh
+// calls math.Exp), with one change: every
 // floating-point product is wrapped in an explicit float64(...)
 // conversion. The Go spec allows `a + b*c` to be contracted into a single
 // fused multiply-add, possibly across statements, and an explicit
@@ -46,10 +49,12 @@
 //
 // Every special case (NaN, ±Inf, ±0, subnormals, overflow, underflow)
 // follows math.*'s documented semantics. On linux/amd64, where the
-// compiler never contracts, Expm1 / Log1p / Sin / Cos / Tan / Atan2 / Asin are
-// bit-for-bit math.*; elsewhere results sit within the stdlib's own
-// cross-build spread: 1 ulp, 2 for Exp (amd64's FMA assembly) and Tan
-// (arm64 contraction), 8 for Pow (it compounds Exp∘Log) and Erfinv
+// compiler never contracts, Expm1 / Log1p / Sin / Cos / Tan / Atan2 / Asin /
+// Atanh are bit-for-bit math.*; elsewhere results sit within the stdlib's
+// own cross-build spread: 1 ulp, 2 for Exp (amd64's FMA assembly), Tan
+// (arm64 contraction) and Tanh (math.Tanh is a different algorithm), 4
+// for Erfc (arm64 contraction under cancellation; amd64's FMA exp in the
+// tail), 8 for Pow (it compounds Exp∘Log) and Erfinv
 // (arm64 contracts its degree-7 Horner chains), 3 for Lgamma (x > 0;
 // arm64 contracts its polynomial arms). Two amd64 assembly
 // defects are not shared: math.Log of a subnormal returns about -709.09,

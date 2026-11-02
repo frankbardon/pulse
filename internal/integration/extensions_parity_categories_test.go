@@ -426,7 +426,7 @@ func (a *parityZScore) prePass(rec extend.Record, field string) {
 	a.count++
 	d := v - a.mean
 	a.mean += d / float64(a.count)
-	a.m2 += d * (v - a.mean)
+	a.m2 += float64(d * (v - a.mean))
 }
 
 func (a *parityZScore) Finalize() error {
@@ -755,7 +755,7 @@ func (b *parityWelford) add(v float64) {
 	b.n++
 	d := v - b.mean
 	b.mean += d / float64(b.n)
-	b.m2 += d * (v - b.mean)
+	b.m2 += float64(d * (v - b.mean))
 }
 
 func (b *parityWelford) variance() float64 {
@@ -815,7 +815,7 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
 		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
 		res.Details = map[string]any{"mu": tt.mu, "n": b.n, "mean": b.mean, "variance": variance,
-			"ci_low": b.mean - tcrit*se, "ci_high": b.mean + tcrit*se,
+			"ci_low": b.mean - float64(tcrit*se), "ci_high": b.mean + float64(tcrit*se),
 			"effect_size": map[string]any{"cohens_d": (b.mean - tt.mu) / sd}}
 	} else {
 		keys := append([]string(nil), tt.order...)
@@ -830,14 +830,14 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		res.Variant, res.Statistic, res.DF = "welch_two_sample", diff/se, (num*num)/den
 		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
 		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
-		pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
+		pooled := math.Sqrt((float64((na-1)*va) + float64((nb-1)*vb)) / (na + nb - 2))
 		var d float64
 		if pooled > 0 {
 			d = diff / pooled
 		}
 		res.Details = map[string]any{"groups": keys, "n": []int64{a.n, b.n},
 			"mean": []float64{a.mean, b.mean}, "variance": []float64{va, vb}, "diff": diff,
-			"ci_low": diff - tcrit*se, "ci_high": diff + tcrit*se,
+			"ci_low": diff - float64(tcrit*se), "ci_high": diff + float64(tcrit*se),
 			"effect_size": map[string]any{"cohens_d": d}}
 	}
 	res.RejectNull = res.PValue < alpha
@@ -867,7 +867,7 @@ func (p parityPairedT) Run(rows []map[string]any) (*types.TestResult, error) {
 		Label: p.spec.Label, Type: p.spec.Type, Variant: "paired_two_sided_post",
 		Statistic: t, DF: df, PValue: pv, Alpha: alpha, RejectNull: pv < alpha,
 		Details: map[string]any{"n": b.n, "mean_diff": b.mean, "variance": variance,
-			"ci_low": b.mean - tcrit*se, "ci_high": b.mean + tcrit*se,
+			"ci_low": b.mean - float64(tcrit*se), "ci_high": b.mean + float64(tcrit*se),
 			"effect_size": map[string]any{"cohens_d": b.mean / sd}},
 	}, nil
 }

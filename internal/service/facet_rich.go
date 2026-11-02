@@ -102,7 +102,9 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// Inject configured default label bindings (schema-filtered) for the
 	// fields being faceted so registered tables render in facet output
 	// without per-call bindings.
-	if len(s.autoLabels) > 0 {
+	// A *_VS_POP population facet skips it: the host's resolver labels
+	// that result (relabelPopulationField).
+	if len(s.autoLabels) > 0 && !isPopulationFacet(ctx) {
 		faceted := make(map[string]bool, len(req.Fields))
 		for _, f := range req.Fields {
 			faceted[f] = true
@@ -231,7 +233,8 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		}
 	}
 
-	if err := s.applyFacetLabels(req, result); err != nil {
+	resolver, err := s.applyFacetLabels(req, result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -240,7 +243,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// resulting layers in spec order. The hook is a no-op when
 	// req.Overlays is empty so the overlay-free shape stays byte-
 	// identical (additive byte-identity contract).
-	if err := s.applyFacetOverlays(ctx, req, result, mult); err != nil {
+	if err := s.applyFacetOverlays(ctx, req, result, resolver, mult); err != nil {
 		return nil, err
 	}
 
@@ -631,11 +634,13 @@ func (a *numericAccumulator) update(r *processing.Record, field string) error {
 	if v > a.max {
 		a.max = v
 	}
-	// Welford recurrence for running mean + M2.
+	// Welford recurrence for running mean + M2; the float64() barriers
+	// here and in linearPercentile / percentileLabel stop the arm64
+	// compiler fusing a product into the add (cross-arch bits).
 	delta := v - a.mean
 	a.mean += delta / float64(a.n)
 	delta2 := v - a.mean
-	a.m2 += delta * delta2
+	a.m2 += float64(delta * delta2)
 
 	if a.includeHist {
 		idx := histogramBin(v, a.histRange[0], a.histRange[1], a.bins)
@@ -721,14 +726,14 @@ func linearPercentile(sorted []float64, p float64) float64 {
 	if n == 1 {
 		return sorted[0]
 	}
-	rank := p * float64(n-1)
+	rank := float64(p * float64(n-1))
 	lo := int(math.Floor(rank))
 	hi := int(math.Ceil(rank))
 	if lo == hi {
 		return sorted[lo]
 	}
 	frac := rank - float64(lo)
-	return sorted[lo] + frac*(sorted[hi]-sorted[lo])
+	return sorted[lo] + float64(frac*(sorted[hi]-sorted[lo]))
 }
 
 // percentileLabel formats a percentile value as "p<integer>" when the
@@ -736,7 +741,7 @@ func linearPercentile(sorted []float64, p float64) float64 {
 // p=0.5 → "p50"), and as a fixed-precision form otherwise so requests
 // with exotic fractions remain key-stable.
 func percentileLabel(p float64) string {
-	pct := p * 100
+	pct := float64(p * 100)
 	if math.Abs(pct-math.Round(pct)) < 1e-9 {
 		return fmt.Sprintf("p%d", int(math.Round(pct)))
 	}

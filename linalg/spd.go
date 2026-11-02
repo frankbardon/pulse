@@ -1,43 +1,49 @@
 package linalg
 
 import (
+	"math"
+
 	perr "github.com/frankbardon/pulse/errors"
-	"gonum.org/v1/gonum/mat"
 )
 
-// The routines in this file are the gonum-backed SPD path: a Cholesky
-// factorisation that is solved against and inverted, plus the dense
-// product used to sandwich an inverse. They are DISTINCT from the
-// reference kernels (Cholesky, SolveSPD, InverseSPD), which are pure Go
-// and FMA-free.
+// The routines in this file are the SPD path the regression engine
+// runs: a Cholesky factorisation that is solved against and inverted,
+// plus the dense product used to sandwich an inverse. They are DISTINCT
+// from the reference kernels (Cholesky, SolveSPD, InverseSPD), which use
+// a different (Banachiewicz) operation order.
 //
-// Bit contract: none across architectures — gonum's assembly kernels and
-// the compiler's fused multiply-add choices differ between arm64 and
-// amd64. On any ONE machine, however, every routine here is a thin
-// wrapper over the corresponding gonum call on the same operands, so its
-// output equals the raw gonum output bit for bit. Pulse's regression
-// engine relies on that to route through linalg without moving a single
-// output bit.
+// Bit contract: identical bits on every architecture. Each routine is an
+// FMA-free pure-Go port of the operation order gonum v0.17.0's
+// mat.Cholesky (Factorize, Cond, SolveVecTo, InverseTo) and
+// mat.Dense.Mul run on linux/amd64 — LAPACK Dlansy, Dpotrf, Dpocon,
+// Dpotrs, Dpotri over gonum's BLAS and its SSE2 assembly kernels
+// (gonumorder_blas.go, gonumorder_lapack.go). So on amd64 every output
+// equals the raw gonum call bit for bit (TestSPD_MatchesGonumOrder), and
+// arm64 — where gonum's pure Go was contracted into fused multiply-adds
+// — now computes those same bits. The refusals are gonum's too: the
+// same pivot test and the same Dpocon condition estimate against
+// ConditionTolerance.
 
-// ConditionTolerance is the condition-number ceiling of the gonum-backed
-// SPD path: a factor whose estimated condition number exceeds it still
-// factors, but its Solve and Inverse report PULSE_MATRIX_SINGULAR because
-// their results carry no reliable digit. It equals gonum's own
+// ConditionTolerance is the condition-number ceiling of the SPD path: a
+// factor whose estimated condition number exceeds it still factors, but
+// its Solve and Inverse report PULSE_MATRIX_SINGULAR because their
+// results carry no reliable digit. It equals gonum's own
 // threshold.
 const ConditionTolerance = 1e16
 
-// SPDFactor is the gonum-backed Cholesky factorisation of a symmetric
+// SPDFactor is the Cholesky factorisation (A = Uᵀ·U) of a symmetric
 // positive-definite matrix, built by FactorSPD and reused across any
 // number of Solve and Inverse calls. It owns its storage: mutating the
 // Sym it was built from does not affect it.
 type SPDFactor struct {
 	n    int
-	chol mat.Cholesky
+	u    []float64 // n×n row-major; the upper triangle holds U
+	cond float64   // 1 / Dpocon's reciprocal condition estimate
 }
 
-// FactorSPD returns the gonum-backed Cholesky factorisation of the
-// symmetric positive-definite s. Only the upper triangle is consulted,
-// which is all a Sym stores.
+// FactorSPD returns the Cholesky factorisation of the symmetric
+// positive-definite s (gonum's Dpotrf order, see the file comment). Only
+// the upper triangle is consulted, which is all a Sym stores.
 //
 // A matrix that is not positive definite — a pivot that is ≤ 0 or NaN,
 // which covers a singular, indefinite or NaN-bearing matrix — is
@@ -57,33 +63,36 @@ func FactorSPD(s *Sym) (*SPDFactor, error) {
 		return f, nil
 	}
 	n := s.n
-	full := make([]float64, n*n)
+	u := make([]float64, n*n)
 	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
-			full[i*n+j] = s.data[s.index(i, j)]
+		for j := i; j < n; j++ {
+			u[i*n+j] = s.data[s.index(i, j)]
 		}
 	}
-	if !f.chol.Factorize(mat.NewSymDense(n, full)) {
+	norm := goDlansyUpperMaxRowSum(n, u, n, make([]float64, n))
+	if !goDpotrfUpper(n, u, n) {
 		details := map[string]any{"reason": "not_positive_definite", "n": n}
 		singularDiagnostics(s, details)
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_MATRIX_SINGULAR,
 			"linalg: matrix is not positive definite (Cholesky factorisation failed)",
 			details)
 	}
+	f.u = u
+	f.cond = 1 / goDpoconUpper(n, u, n, norm)
 	return f, nil
 }
 
 // N returns the order of the factored matrix.
 func (f *SPDFactor) N() int { return f.n }
 
-// ConditionNumber returns gonum's 1-norm estimate of the factored
-// matrix's condition number (1 for an empty factor). Solve and Inverse
-// fail when it exceeds ConditionTolerance.
+// ConditionNumber returns the 1-norm estimate (LAPACK Dpocon, gonum's
+// estimator) of the factored matrix's condition number (1 for an empty
+// factor). Solve and Inverse fail when it exceeds ConditionTolerance.
 func (f *SPDFactor) ConditionNumber() float64 {
 	if f.n == 0 {
 		return 1
 	}
-	return f.chol.Cond()
+	return f.cond
 }
 
 // Solve returns x with A·x = b for the factored A. A nil b or
@@ -101,15 +110,12 @@ func (f *SPDFactor) Solve(b *Vec) (*Vec, error) {
 	if f.n == 0 {
 		return &Vec{}, nil
 	}
-	var x mat.VecDense
-	if err := f.chol.SolveVecTo(&x, mat.NewVecDense(f.n, b.Slice())); err != nil {
-		return nil, conditionError(err, "solve")
+	x := b.Slice()
+	goDpotrsUpperVec(f.n, f.u, f.n, x)
+	if f.cond > ConditionTolerance {
+		return nil, conditionError(f.cond, "solve")
 	}
-	out := make([]float64, f.n)
-	for i := range out {
-		out[i] = x.AtVec(i)
-	}
-	return &Vec{data: out}, nil
+	return &Vec{data: x}, nil
 }
 
 // Inverse returns A⁻¹ for the factored A. A factor whose condition
@@ -120,23 +126,29 @@ func (f *SPDFactor) Inverse() (*Sym, error) {
 	if f.n == 0 {
 		return &Sym{}, nil
 	}
-	var inv mat.SymDense
-	if err := f.chol.InverseTo(&inv); err != nil {
-		return nil, conditionError(err, "inverse")
-	}
 	n := f.n
+	inv := make([]float64, n*n)
+	for i := 0; i < n; i++ {
+		copy(inv[i*n+i:(i+1)*n], f.u[i*n+i:(i+1)*n])
+	}
+	if !goDpotriUpper(n, inv, n) {
+		return nil, conditionError(math.Inf(1), "inverse")
+	}
+	if f.cond > ConditionTolerance {
+		return nil, conditionError(f.cond, "inverse")
+	}
 	out := &Sym{n: n, data: make([]float64, n*(n+1)/2)}
 	for i := 0; i < n; i++ {
 		for j := i; j < n; j++ {
-			out.data[out.index(i, j)] = inv.At(i, j)
+			out.data[out.index(i, j)] = inv[i*n+j]
 		}
 	}
 	return out, nil
 }
 
-// Mul returns the dense product a·b, gonum-backed (no cross-architecture
-// bit contract). A nil operand or a.Cols() != b.Rows() is
-// PULSE_MATRIX_SHAPE_MISMATCH; a zero dimension yields the zero matrix
+// Mul returns the dense product a·b in gonum Dgemm's operation order
+// (identical bits on every architecture; see the file comment). A nil
+// operand or a.Cols() != b.Rows() is PULSE_MATRIX_SHAPE_MISMATCH; a zero dimension yields the zero matrix
 // of shape a.Rows()×b.Cols().
 func Mul(a, b *Matrix) (*Matrix, error) {
 	if a == nil {
@@ -153,26 +165,15 @@ func Mul(a, b *Matrix) (*Matrix, error) {
 	if a.rows == 0 || a.cols == 0 || b.cols == 0 {
 		return out, nil
 	}
-	var p mat.Dense
-	p.Mul(mat.NewDense(a.rows, a.cols, a.RowMajor()), mat.NewDense(b.rows, b.cols, b.RowMajor()))
-	for i := 0; i < a.rows; i++ {
-		for j := 0; j < b.cols; j++ {
-			out.data[i*b.cols+j] = p.At(i, j)
-		}
-	}
+	goDgemm(false, false, a.rows, b.cols, a.cols, 1, a.data, a.cols, b.data, b.cols, 0, out.data, b.cols)
 	return out, nil
 }
 
-// conditionError translates gonum's condition report into
-// PULSE_MATRIX_SINGULAR carrying details "condition_number".
-func conditionError(err error, what string) error {
-	cond, ok := err.(mat.Condition)
-	if !ok {
-		return perr.NewCodedErrorWithDetails(perr.PULSE_MATRIX_SINGULAR,
-			"linalg: SPD "+what+" failed: "+err.Error(),
-			map[string]any{"reason": "backend_error"})
-	}
+// conditionError is PULSE_MATRIX_SINGULAR for a solve or inverse whose
+// factor's condition estimate exceeds ConditionTolerance (or, +Inf, whose
+// triangular inverse broke down), carrying details "condition_number".
+func conditionError(cond float64, what string) error {
 	return perr.NewCodedErrorWithDetails(perr.PULSE_MATRIX_SINGULAR,
 		"linalg: SPD "+what+" is unreliable: the matrix is singular or near-singular",
-		map[string]any{"reason": "ill_conditioned", "condition_number": float64(cond)})
+		map[string]any{"reason": "ill_conditioned", "condition_number": cond})
 }

@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -380,5 +383,255 @@ func TestFacetWithOverlays_MultiFieldRequiresParamsField(t *testing.T) {
 	if !strings.Contains(err.Error(), "PULSE_OVERLAY_PARAM_MISSING") &&
 		!strings.Contains(err.Error(), "multiple fields") {
 		t.Errorf("unexpected error shape: %v", err)
+	}
+}
+
+// TestFacetWithOverlays_ChiSqVsPopMissingCategoryObservedZero runs E1-S2
+// end to end: the subset filters out "d", so its facet listing is
+// complete (truncated_at 0) without d, and OVERLAY_CHISQ_VS_POP compares
+// d at observed 0 — R chisq.test(c(30,30,30,0), p = c(.3,.3,.3,.1))
+// gives X-squared 10 on 3 df. discrete_top_k 3 still lists every subset
+// value (no truncation), so the result is the same; discrete_top_k 2
+// truncates the listing to {a, b} and the comparison stays over the
+// listed values (X-squared 0 on 1 df), since c is cut, not absent.
+func TestFacetWithOverlays_ChiSqVsPopMissingCategoryObservedZero(t *testing.T) {
+	t.Parallel()
+	svc, path := buildFacetOverlayCohort(t)
+	run := func(topK int) types.OverlayLayer {
+		t.Helper()
+		res, err := svc.FacetSchema(context.Background(), &types.FacetRequest{
+			Cohort:       &types.Cohort{Filename: path},
+			Fields:       []string{"category"},
+			DiscreteTopK: topK,
+			Filterers: []*types.Filterer{
+				{Type: types.FILTER_EXCLUDE, Field: "category", Values: []string{"d"}},
+			},
+			Overlays: []types.OverlaySpec{{
+				Kind:  types.OverlayKindChiSqVsPop,
+				Scope: types.OverlayScopeGroup,
+				Ref:   types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: path}},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("FacetSchema(top_k %d): %v", topK, err)
+		}
+		if len(res.Overlays) != 1 || res.Overlays[0].Summary == nil || res.Overlays[0].Summary.Statistic == nil {
+			t.Fatalf("top_k %d: want one χ² layer with a statistic, got %+v", topK, res.Overlays)
+		}
+		return res.Overlays[0]
+	}
+	for _, tc := range []struct {
+		topK     int
+		wantStat float64
+		wantDF   float64
+	}{
+		{0, 10, 3},
+		{3, 10, 3},
+		{2, 0, 1},
+	} {
+		layer := run(tc.topK)
+		if got := *layer.Summary.Statistic; math.Abs(got-tc.wantStat) > 1e-9 {
+			t.Errorf("top_k %d: statistic = %v, want %v", tc.topK, got, tc.wantStat)
+		}
+		if got := layer.Summary.Parameters["df"]; got != tc.wantDF {
+			t.Errorf("top_k %d: df = %v, want %v", tc.topK, got, tc.wantDF)
+		}
+	}
+}
+
+// TestFacetWithOverlays_VsPopUnderReplaceLabels runs every discrete
+// *_VS_POP kind with a caller-supplied replace-mode label binding on the
+// host field (E1-S7). The host's values are relabelled before the
+// overlays run, so the population must be keyed the same way: the
+// figures equal the unlabelled run's once each labelled key is mapped
+// back to its raw value, and no spurious PULSE_OVERLAY_REF_ZERO fires.
+// The table leaves "d" unlabelled (a partly labelled host), and the
+// subset drops "a" so CHISQ_VS_POP also compares a population category
+// at observed 0.
+func TestFacetWithOverlays_VsPopUnderReplaceLabels(t *testing.T) {
+	t.Parallel()
+	table := map[string]string{"a": "Alpha", "b": "Beta", "c": "Gamma"}
+	raw := map[string]string{}
+	for k, v := range table {
+		raw[v] = k
+	}
+	run := func(t *testing.T, kind types.OverlayKind, labelled bool) *types.FacetResult {
+		t.Helper()
+		svc, path := buildFacetOverlayCohort(t)
+		attachLabelExtensions(t, svc, map[string]processing.LabelTable{"cat_names": {Rows: table}})
+		req := &types.FacetRequest{
+			Cohort: &types.Cohort{Filename: path},
+			Fields: []string{"category"},
+			Filterers: []*types.Filterer{
+				{Type: types.FILTER_EXCLUDE, Field: "category", Values: []string{"a"}},
+			},
+			Overlays: []types.OverlaySpec{{
+				Kind:  kind,
+				Scope: types.OverlayScopeGroup,
+				Ref:   types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: path}},
+			}},
+		}
+		if labelled {
+			req.Labels = []*types.LabelBinding{{Field: "category", Table: "cat_names", Mode: types.LabelModeReplace}}
+		}
+		res, err := svc.FacetSchema(context.Background(), req)
+		if err != nil {
+			t.Fatalf("FacetSchema(%s, labelled %v): %v", kind, labelled, err)
+		}
+		if len(res.Overlays) != 1 {
+			t.Fatalf("%s: want one layer, got %d", kind, len(res.Overlays))
+		}
+		for _, w := range res.Warnings {
+			if w.Code == string(errors.PULSE_OVERLAY_REF_ZERO) {
+				t.Errorf("%s (labelled %v): spurious %s: %s %v", kind, labelled, w.Code, w.Message, w.Details)
+			}
+		}
+		return res
+	}
+	marshal := func(t *testing.T, v any) string {
+		t.Helper()
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return string(b)
+	}
+	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsPop, types.OverlayKindZScoreVsPop, types.OverlayKindChiSqVsPop} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			plain := run(t, kind, false).Overlays[0]
+			labelled := run(t, kind, true).Overlays[0]
+			if got, want := marshal(t, labelled.Summary), marshal(t, plain.Summary); got != want {
+				t.Errorf("layer summary differs under replace labels:\n labelled: %s\n    plain: %s", got, want)
+			}
+			if plain.Payload.Series == nil {
+				return
+			}
+			if labelled.Payload.Series == nil {
+				t.Fatalf("labelled run lost the series payload")
+			}
+			want := map[string]string{}
+			for _, e := range plain.Payload.Series.Entries {
+				want[fmt.Sprint(e.Key[0])] = marshal(t, e.Summary)
+			}
+			if len(labelled.Payload.Series.Entries) != len(want) {
+				t.Fatalf("entry count = %d, want %d", len(labelled.Payload.Series.Entries), len(want))
+			}
+			for _, e := range labelled.Payload.Series.Entries {
+				key := fmt.Sprint(e.Key[0])
+				if r, ok := raw[key]; ok {
+					key = r
+				} else if _, rawLeak := table[key]; rawLeak {
+					t.Errorf("entry key %q is the raw value of a labelled category", key)
+				}
+				if got := marshal(t, e.Summary); got != want[key] {
+					t.Errorf("entry %q (raw %q): summary %s, want %s", e.Key[0], key, got, want[key])
+				}
+			}
+		})
+	}
+}
+
+// TestFacetWithOverlays_VsPopFuncTableCollisionSharesResolver pins the
+// one-resolver rule (E1-S8): a function-driven label table detects a
+// label collision online, so the first raw value seen renders clean and
+// the next renders "label (raw)". The host filter thins "a" so the host
+// lists d before a while the population lists a before d; were each side
+// labelled by its own resolver, "Same" would name d on the host and a in
+// the population. One resolver labels both, so the figures equal the
+// unlabelled run's under every discrete *_VS_POP kind, with no spurious
+// PULSE_OVERLAY_REF_ZERO.
+func TestFacetWithOverlays_VsPopFuncTableCollisionSharesResolver(t *testing.T) {
+	t.Parallel()
+	table := map[string]string{"a": "Same", "b": "Beta", "c": "Gamma", "d": "Same"}
+	// Host order (by count): b 30, c 30, d 10, a 5 — d claims "Same".
+	raw := map[string]string{"Same": "d", "Same (a)": "a", "Beta": "b", "Gamma": "c"}
+	run := func(t *testing.T, kind types.OverlayKind, labels string) *types.FacetResult {
+		t.Helper()
+		svc, path := buildFacetOverlayCohort(t)
+		attachLabelExtensions(t, svc, map[string]processing.LabelTable{"cat_fn": {Lookup: func(key string) (string, bool, error) {
+			v, ok := table[key]
+			return v, ok, nil
+		}}})
+		req := &types.FacetRequest{
+			Cohort:    &types.Cohort{Filename: path},
+			Fields:    []string{"category"},
+			Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "score >= 25"}},
+			Overlays: []types.OverlaySpec{{
+				Kind:  kind,
+				Scope: types.OverlayScopeGroup,
+				Ref:   types.OverlayRef{Population: &types.OverlayPopulationRef{Cohort: path}},
+			}},
+		}
+		binding := []*types.LabelBinding{{Field: "category", Table: "cat_fn", Mode: types.LabelModeReplace}}
+		switch labels {
+		case "request":
+			req.Labels = binding
+		case "auto":
+			svc.SetAutoLabels(binding)
+		}
+		res, err := svc.FacetSchema(context.Background(), req)
+		if err != nil {
+			t.Fatalf("FacetSchema(%s, labels %q): %v", kind, labels, err)
+		}
+		if len(res.Overlays) != 1 {
+			t.Fatalf("%s: want one layer, got %d", kind, len(res.Overlays))
+		}
+		for _, w := range res.Warnings {
+			if w.Code == string(errors.PULSE_OVERLAY_REF_ZERO) {
+				t.Errorf("%s (labels %q): spurious %s: %s %v", kind, labels, w.Code, w.Message, w.Details)
+			}
+		}
+		return res
+	}
+	marshal := func(t *testing.T, v any) string {
+		t.Helper()
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return string(b)
+	}
+	for _, kind := range []types.OverlayKind{types.OverlayKindIndexVsPop, types.OverlayKindZScoreVsPop, types.OverlayKindChiSqVsPop} {
+		for _, labels := range []string{"request", "auto"} {
+			t.Run(string(kind)+"/"+labels, func(t *testing.T) {
+				t.Parallel()
+				plain := run(t, kind, "").Overlays[0]
+				labelledRes := run(t, kind, labels)
+				labelled := labelledRes.Overlays[0]
+				hostKeys := map[string]bool{}
+				for _, v := range labelledRes.Fields["category"].Discrete.Values {
+					hostKeys[v.Value] = true
+					if _, ok := raw[v.Value]; !ok {
+						t.Fatalf("host value %q outside the expected labelled key set %v", v.Value, raw)
+					}
+				}
+				if got, want := marshal(t, labelled.Summary), marshal(t, plain.Summary); got != want {
+					t.Errorf("layer summary differs under a colliding function table:\n labelled: %s\n    plain: %s", got, want)
+				}
+				if plain.Payload.Series == nil {
+					return
+				}
+				if labelled.Payload.Series == nil {
+					t.Fatalf("labelled run lost the series payload")
+				}
+				want := map[string]string{}
+				for _, e := range plain.Payload.Series.Entries {
+					want[fmt.Sprint(e.Key[0])] = marshal(t, e.Summary)
+				}
+				if len(labelled.Payload.Series.Entries) != len(want) {
+					t.Fatalf("entry count = %d, want %d", len(labelled.Payload.Series.Entries), len(want))
+				}
+				for _, e := range labelled.Payload.Series.Entries {
+					key := fmt.Sprint(e.Key[0])
+					if !hostKeys[key] {
+						t.Errorf("entry key %q is not a host coordinate", key)
+					}
+					if got := marshal(t, e.Summary); got != want[raw[key]] {
+						t.Errorf("entry %q (raw %q): summary %s, want %s", key, raw[key], got, want[raw[key]])
+					}
+				}
+			})
+		}
 	}
 }

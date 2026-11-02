@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // matrix_factor_ml.go is MAT_FACTOR's maximum-likelihood extraction
@@ -100,7 +101,7 @@ func faMLEval(r *linalg.Sym, psi []float64, k int) (faMLPoint, error) {
 			pt.f = math.Inf(1)
 			continue
 		}
-		pt.f += (e - 1) - math.Log1p(e-1)
+		pt.f += (e - 1) - detmath.Log1p(e-1)
 		for i := 0; i < p; i++ {
 			u := pt.vecs[m][i]
 			pt.g[i] -= float64((e - 1) * float64(u*u))
@@ -261,7 +262,7 @@ func faMLStep(r *linalg.Sym, k int, pt faMLPoint, pg float64) (faMLPoint, bool, 
 	for range faMLHalvings + 1 {
 		trial := append([]float64(nil), pt.psi...)
 		for a, i := range free {
-			trial[i] = math.Min(faMLUpper, math.Max(faMLLower, float64(pt.psi[i]*math.Exp(float64(t*delta[a])))))
+			trial[i] = math.Min(faMLUpper, math.Max(faMLLower, float64(pt.psi[i]*detmath.Exp(float64(t*delta[a])))))
 		}
 		next, err := faMLEval(r, trial, k)
 		if err != nil {
@@ -269,7 +270,7 @@ func faMLStep(r *linalg.Sym, k int, pt faMLPoint, pg float64) (faMLPoint, bool, 
 		}
 		decrease := 0.0
 		for i := range trial {
-			decrease += float64(pt.g[i] * (math.Log(trial[i]) - math.Log(pt.psi[i])))
+			decrease += float64(pt.g[i] * (detmath.Log(trial[i]) - detmath.Log(pt.psi[i])))
 		}
 		if next.f <= pt.f+float64(faMLArmijo*decrease) {
 			return next, true, nil
@@ -399,7 +400,7 @@ func faMLFitIndices(r *linalg.Sym, l [][]float64, nStar, conf float64) faMLFitSt
 		m0 := f0 * 2 / float64(p*(p-1))
 		st.TLI = (m0 - fm/df) / (m0 - 1/nm)
 		st.RMSEA = math.Sqrt(math.Max(st.ChiSq/float64(df*nStar)-1/(nStar-1), 0))
-		st.BIC = st.ChiSq - float64(df*math.Log(nStar))
+		st.BIC = st.ChiSq - float64(df*detmath.Log(nStar))
 		st.RMSEALower, st.RMSEAUpper = faRMSEAInterval(st.ChiSq, df, nStar, st.RMSEA, conf)
 	}
 	return st
@@ -428,7 +429,7 @@ func faRMSEAInterval(chi, df, nStar, rmsea, conf float64) (lower, upper float64)
 	if !(df > 0) || !(nStar > 1) || math.IsNaN(chi) || math.IsNaN(rmsea) || !(conf > 0 && conf < 1) {
 		return nan, nan
 	}
-	tail := (1 - conf) / 2
+	tail := float64((1 - conf) / 2)
 	hi := math.Max(nStar, chi) + 2*nStar
 	f0 := noncentralChiSquareCDF(chi, df, 0)
 	scale := func(lambda float64) float64 {
@@ -475,7 +476,7 @@ func ncChiSquareRoot(chi, df, target, hi float64) (float64, bool) {
 	}
 	lo := 0.0
 	for range 2000 {
-		mid := lo + (hi-lo)/2
+		mid := lo + float64((hi-lo)/2)
 		if mid <= lo || mid >= hi {
 			break
 		}
@@ -487,7 +488,7 @@ func ncChiSquareRoot(chi, df, target, hi float64) (float64, bool) {
 			return mid, true
 		}
 	}
-	return lo + (hi-lo)/2, true
+	return lo + float64((hi-lo)/2), true
 }
 
 // faLogDet is log det s from the reference Cholesky (2·Σ log L_ii);
@@ -499,7 +500,7 @@ func faLogDet(s *linalg.Sym) (float64, bool) {
 	}
 	out := 0.0
 	for i := 0; i < s.N(); i++ {
-		out += 2 * math.Log(l.At(i, i))
+		out += float64(2 * detmath.Log(l.At(i, i)))
 	}
 	return out, true
 }

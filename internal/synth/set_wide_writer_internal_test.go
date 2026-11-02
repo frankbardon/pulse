@@ -2,6 +2,8 @@ package synth
 
 import (
 	"bytes"
+	"encoding/binary"
+	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -34,16 +36,26 @@ func TestFieldTypeFromName_ResolvesEverySetRung(t *testing.T) {
 	}
 }
 
-// TestFieldTypeFromName_DatetimeStaysUndeclarable guards the blast
-// radius of resolving set names through encoding.ParseFieldType:
-// datetime deliberately has no synth write path, and widening the
-// lookup to every encoding name would make a datetime spec reach the
-// encoder. See undeclarableFieldTypes in constraints_internal_test.go.
-func TestFieldTypeFromName_DatetimeStaysUndeclarable(t *testing.T) {
+// TestFieldTypeFromName_DatetimeIsDeclarable pins the explicit
+// datetime case (#362): it resolves to the epoch-seconds type, not
+// through the set/vector delegation, and the writer has an arm for it.
+func TestFieldTypeFromName_DatetimeIsDeclarable(t *testing.T) {
 	t.Parallel()
 
-	if ft, ok := fieldTypeFromName("datetime"); ok {
-		t.Fatalf("datetime became declarable as %v; synth has no write path for it", ft)
+	ft, ok := fieldTypeFromName("datetime")
+	if !ok || ft != encoding.FieldTypeDateTime {
+		t.Fatalf("fieldTypeFromName(datetime) = %v, %v; want FieldTypeDateTime", ft, ok)
+	}
+	var buf bytes.Buffer
+	if err := writeFieldValueForField(&buf, &encoding.Field{Name: "ts", Type: ft}, -1.0, false); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if got := encoding.DateTimeSeconds(binary.LittleEndian.Uint64(buf.Bytes())); got != -1 {
+		t.Fatalf("stored %d, want -1 (two's-complement epoch seconds)", got)
+	}
+	buf.Reset()
+	if err := writeFieldValueForField(&buf, &encoding.Field{Name: "ts", Type: ft}, math.NaN(), false); err == nil {
+		t.Fatal("a NaN datetime was written; it must be refused")
 	}
 }
 

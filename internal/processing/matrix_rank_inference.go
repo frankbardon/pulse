@@ -48,7 +48,7 @@ func (in *matrixFinalizeInput) rankInference(r *linalg.Sym, pv [][]float64) (map
 
 // spearmanZDF is 1/se² of atanh(ρ), Bonett & Wright (2000):
 // se² = (1 + ρ²/2)/(n − 3).
-func spearmanZDF(rho, n float64) float64 { return (n - 3) / (1 + rho*rho/2) }
+func spearmanZDF(rho, n float64) float64 { return (n - 3) / (1 + float64(rho*rho/2)) }
 
 // kendallZDF is 1/se² of atanh(τ), Fieller, Hartley & Pearson (1957):
 // se² = 0.437/(n − 4).

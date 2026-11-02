@@ -78,11 +78,12 @@ const (
 
 	// PROCESSING_REGRESSION_INVALID_FAMILY indicates REG_GLM was
 	// requested with a Family outside the supported set
-	// ({"binomial", "poisson", "gamma"}).
+	// ({"binomial", "poisson", "gamma", "negative_binomial"}).
 	PROCESSING_REGRESSION_INVALID_FAMILY Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 
 	// PROCESSING_REGRESSION_INVALID_LINK indicates the requested Link
-	// function is incompatible with the chosen Family.
+	// function is not one of the chosen Family's (details.allowed: the
+	// family's three links, canonical first).
 	PROCESSING_REGRESSION_INVALID_LINK Code = "PROCESSING_REGRESSION_INVALID_LINK"
 
 	// PROCESSING_REGRESSION_INSUFFICIENT_DATA indicates the filtered
@@ -993,6 +994,37 @@ const (
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 
+	// PULSE_SYNTH_RULE_DRAW_INVALID indicates a misused random draw in a
+	// synth row expression: `uniform()` / `bernoulli(p)` called from a
+	// `constraints[]` entry (draws belong to rules; a constraint is a
+	// deterministic acceptance test), called with the wrong arguments, or
+	// `bernoulli(p)` given a `p` outside [0, 1] — a literal is refused at
+	// spec validation, a computed `p` (NaN included) on the row that
+	// produced it. `details.function` names the call, `details.expr` the
+	// expression.
+	PULSE_SYNTH_RULE_DRAW_INVALID Code = "PULSE_SYNTH_RULE_DRAW_INVALID"
+
+	// PULSE_SYNTH_DST_NONEXISTENT indicates a `uniform_datetime` field
+	// drew a local wall-clock time its zone never shows — the skipped
+	// hour of a DST spring-forward — under the default dst_policy
+	// "error". Generation stops; nothing is written. Details carry
+	// `field`, `local_time` (naive ISO 8601), `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_NONEXISTENT Code = "PULSE_SYNTH_DST_NONEXISTENT"
+
+	// PULSE_SYNTH_DST_AMBIGUOUS indicates a `uniform_datetime` field drew
+	// a local wall-clock time its zone shows twice — the repeated hour of
+	// a DST fall-back — under the default dst_policy "error". Generation
+	// stops; nothing is written. Details carry `field`, `local_time`,
+	// `tz` and `dst_policy`.
+	PULSE_SYNTH_DST_AMBIGUOUS Code = "PULSE_SYNTH_DST_AMBIGUOUS"
+
+	// PULSE_SYNTH_FIDELITY_MODEL_INVALID indicates a supplied fidelity
+	// model request (SynthOptions.FidelityModel / `synth from-profile
+	// --fidelity-model`) cannot be refit: it carries no `regressions`,
+	// or the call has no source cohort or no fidelity report to put the
+	// refit in. Refused before generation; nothing is written.
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID Code = "PULSE_SYNTH_FIDELITY_MODEL_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -1045,8 +1077,9 @@ const (
 	PULSE_TEST_CONTINGENCY_DEGENERATE Code = "PULSE_TEST_CONTINGENCY_DEGENERATE"
 
 	// PULSE_TEST_EXPECTED_COUNT_TOO_LOW warns that a chi-square cell's
-	// expected count is below the conventional threshold of 5, making
-	// the asymptotic χ² approximation unreliable.
+	// expected count — or a TEST_PROP_Z group's expected successes or
+	// failures under the null rate — is below the conventional threshold
+	// of 5, making the asymptotic χ² / normal approximation unreliable.
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW Code = "PULSE_TEST_EXPECTED_COUNT_TOO_LOW"
 
 	// PULSE_TEST_FIELD2_NOT_NUMERIC indicates the secondary Field2
@@ -1130,8 +1163,9 @@ const (
 	// pair count differs from the input row count.
 	PULSE_TEST_PAIRED_LENGTH_MISMATCH Code = "PULSE_TEST_PAIRED_LENGTH_MISMATCH"
 
-	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test observed
-	// ties on ≥ 50 % of the input values. The test then mostly compares
+	// PULSE_TEST_TIES_DOMINATE warns that a rank-based test — or TEST_KS
+	// on its asymptotic branch (n₁·n₂ ≥ 10000) — observed ties on ≥ 50 %
+	// of the (pooled) input values. The test then mostly compares
 	// the share of tied values, not their order, and the asymptotic
 	// normal / chi-square approximation used for the p-value loses
 	// accuracy; consider an exact-permutation variant when the count
@@ -1625,6 +1659,28 @@ const (
 	// and "reason".
 	PULSE_FIT_INVALID Code = "PULSE_FIT_INVALID"
 
+	// PULSE_COMPARISON_INVALID indicates a ComposedRequest `compare`
+	// entry (a nested-model comparison of two `fits`) that cannot run:
+	// a missing or repeated name, a fit name that is missing, unknown,
+	// not a request-bound regression fit, or the same on both sides; fits
+	// that are not both REG_OLS or both REG_GLM; an unknown test; terms
+	// that are not nested; fit requests that are not on the same rows;
+	// or a fit or test the comparison does not support (reason
+	// "requires", with "requires" naming the condition). Refused
+	// identically by predict and the runtime before any fit or slot
+	// runs. Details carry "compare" (the 0-based entry index), "name",
+	// "reason" and, where they apply, "field", "value", "valid",
+	// "available", "missing", "keys", "requires" and "alternative".
+	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
+
+	// PULSE_COMPARISON_ROWS_DIFFER indicates a nested-model comparison
+	// whose two fits, once run, used different row counts (a full-model
+	// predictor null on rows the restricted fit kept): the comparison
+	// fails alone (its ComposedResponse.Comparisons entry carries the
+	// error; PULSE_SLOT_FAILED lifts to the batch). Details carry
+	// "restricted", "full", "restricted_n_obs" and "full_n_obs".
+	PULSE_COMPARISON_ROWS_DIFFER Code = "PULSE_COMPARISON_ROWS_DIFFER"
+
 	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
 	// name in the one model namespace every name reference resolves
 	// against: two ComposedRequest `fits` entries (details "name" and
@@ -1647,7 +1703,8 @@ const (
 	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
 
 	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot (or an
-	// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's params.fit) whose
+	// ATTR_REG_FITTED / _RESIDUAL / _LEVERAGE / _INFLUENCE slot's
+	// params.fit) whose
 	// scoring parameters do not fit: params that are not an object of
 	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
 	// ("fit_missing"), a field / target / predictors / penalty set on the
@@ -1658,7 +1715,12 @@ const (
 	// a fit of a regression type it cannot score ("type_unsupported"),
 	// a bound other than point|lower|upper ("bound_unknown") or a
 	// lower / upper bound without exactly one predictor term
-	// ("bound_terms"). Refused identically by predict and the
+	// ("bound_terms"); a leverage / influence / standardized /
+	// studentized params.fit slot over a fit without the design it reads
+	// ("params_invalid" with "requires": vcov, dispersion, unweighted,
+	// classical_covariance, unpenalized, no_selection, no_resample,
+	// unconstrained, intercept; "type_unsupported" on a type other than
+	// REG_OLS / REG_GLM). Refused identically by predict and the
 	// runtime before any record is read. Details carry "attribute",
 	// "reason" and, when known, "fit".
 	PULSE_MODEL_SCORE_INVALID Code = "PULSE_MODEL_SCORE_INVALID"
@@ -3750,7 +3812,7 @@ const (
 	// ceiling, or — from a gonum-backed decomposition — a NaN / infinite
 	// element or an iteration that did not converge. Details carry
 	// "reason" where the routine classifies the failure
-	// (not_positive_definite, ill_conditioned, backend_error, non_finite,
+	// (not_positive_definite, ill_conditioned, non_finite,
 	// no_convergence), "pivot" for a reference Cholesky failure,
 	// "attempts" / "ridge" when a ridge schedule was exhausted, and
 	// "condition_number" from the SPD solve / inverse. A failed
@@ -4657,6 +4719,10 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_RULE_DRAW_INVALID,
+	PULSE_SYNTH_DST_NONEXISTENT,
+	PULSE_SYNTH_DST_AMBIGUOUS,
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,
@@ -4733,6 +4799,8 @@ var allCodes = []Code{
 	PULSE_SWEEP_SAMPLES_INVALID,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
+	PULSE_COMPARISON_INVALID,
+	PULSE_COMPARISON_ROWS_DIFFER,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
 	PULSE_MODEL_KIND_MISMATCH,

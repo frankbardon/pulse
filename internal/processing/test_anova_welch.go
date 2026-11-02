@@ -145,7 +145,7 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 	for i := range k {
 		weights[i] = nStar[i] / vars_[i]
 		W += weights[i]
-		weightedMean += weights[i] * means[i]
+		weightedMean += float64(weights[i] * means[i])
 	}
 	weightedMean /= W
 	// means and weightedMean stay shifted for the arithmetic; the
@@ -157,16 +157,16 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 	var num, tailSum float64
 	for i := range k {
 		diff := means[i] - weightedMean
-		num += weights[i] * diff * diff
+		num += float64(weights[i] * diff * diff)
 		share := 1 - weights[i]/W
 		tailSum += share * share / (nStar[i] - 1)
 	}
 	num /= float64(k - 1)
 	kf := float64(k)
-	den := 1 + 2*(kf-2)/(kf*kf-1)*tailSum
+	den := 1 + float64(2*(kf-2)/(float64(kf*kf)-1)*tailSum)
 	F := num / den
 	df1 := kf - 1
-	df2 := (kf*kf - 1) / (3 * tailSum)
+	df2 := (float64(kf*kf) - 1) / (3 * tailSum)
 	p := fSurvival(F, df1, df2)
 	res := &types.TestResult{
 		Label:      testLabel(a.spec),

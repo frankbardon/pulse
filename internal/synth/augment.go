@@ -33,86 +33,127 @@ const syntheticFieldDescription = "Row provenance: false for rows copied from th
 // spec.RowCount is an explicit count of NEW rows to generate; it is never
 // a "top up to N total" target. A 200-row source with spec.RowCount=500
 // produces a 700-row output.
+//
+// opts.SyntheticOnly writes the generated rows alone instead: no source
+// row and no _synthetic column, so the output's schema is the source's.
+// See AugmentWithFidelityCohort.
 func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts Options) (*Result, error) {
+	res, _, err := AugmentWithFidelityCohort(fs, spec, sourcePath, output, opts)
+	return res, err
+}
+
+// AugmentWithFidelityCohort is AugmentFromProfile also returning the
+// TAGGED cohort — every source row tagged _synthetic=false followed by
+// every generated row tagged _synthetic=true — the bytes the fidelity
+// report partitions.
+//
+// Without opts.SyntheticOnly those bytes ARE the written output. With
+// it, the output holds the generated rows alone and the tagged cohort
+// exists only in memory, built only when opts.FidelityReportPath asks
+// for a report (nil otherwise): the report still compares the two
+// partitions, so it reads the source separately rather than out of a
+// file that no longer carries it. The generated rows are drawn ONCE and
+// re-encoded into both layouts, so the report scores exactly the rows
+// the output holds.
+func AugmentWithFidelityCohort(fs afero.Fs, spec *Spec, sourcePath, output string, opts Options) (*Result, []byte, error) {
 	if fs == nil {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: fs is required")
+		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: fs is required")
 	}
 	if sourcePath == "" {
-		return nil, errors.NewCodedError(errors.PULSE_SYNTH_SOURCE_REQUIRED,
+		return nil, nil, errors.NewCodedError(errors.PULSE_SYNTH_SOURCE_REQUIRED,
 			"synth from-profile requires a source cohort path")
 	}
 	if output == "" {
-		return nil, errors.NewCodedError(errors.PULSE_SYNTH_OUTPUT_REQUIRED,
+		return nil, nil, errors.NewCodedError(errors.PULSE_SYNTH_OUTPUT_REQUIRED,
 			"synth from-profile requires an output path")
 	}
 	if samePath(sourcePath, output) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_OUTPUT_COLLISION,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_OUTPUT_COLLISION,
 			"output path must be different from the source cohort path — the source is never opened for write",
 			map[string]any{"path": output})
 	}
 	if err := validateSpec(spec); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	data, err := afero.ReadFile(fs, sourcePath)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading source cohort")
+		return nil, nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading source cohort")
 	}
 	r := bytes.NewReader(data)
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	srcSchema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if srcSchema.Field(SyntheticFieldName) != nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_ALREADY_TAGGED,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_ALREADY_TAGGED,
 			"source cohort already has a _synthetic field", map[string]any{"path": sourcePath})
 	}
+	srcRecords := data[len(data)-r.Len():]
 
 	genSchema, wfs, err := buildSchema(spec)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	// The tagged schema is built (and so the source/profile alignment
+	// checked) on EVERY call, synthetic-only included: a profile that was
+	// not captured from this source is refused the same way either way.
 	mergedSchema, err := buildMergedSchema(srcSchema, genSchema)
 	if err != nil {
-		return nil, err
-	}
-
-	var recordsBuf bytes.Buffer
-
-	// Real rows first, byte order preserved, each tagged false.
-	if _, err := reencodeRecords(r, srcSchema, mergedSchema, false, &recordsBuf); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Generate spec.RowCount brand-new rows against the original
-	// (untagged) genSchema, then re-encode them into the merged schema
-	// tagged true. spec.RowCount is never adjusted by the source's row
-	// count — it is always an explicit count of new rows.
+	// (untagged) genSchema, then re-encode them into the output layout.
+	// spec.RowCount is never adjusted by the source's row count — it is
+	// always an explicit count of new rows.
 	rng := newRng(opts.Seed)
 	var genBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, genSchema, wfs, &genBuf, rng)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, genSchema, wfs, &genBuf, rng, opts.Seed)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := reencodeRecords(bytes.NewReader(genBuf.Bytes()), genSchema, mergedSchema, true, &recordsBuf); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var fileBuf bytes.Buffer
-	if err := encx.WritePreamble(&fileBuf, mergedSchema); err != nil {
-		return nil, err
-	}
-	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {
-		return nil, err
+	var tagged []byte
+	if !opts.SyntheticOnly || opts.FidelityReportPath != "" {
+		tagged, err = encodeTaggedCohort(srcRecords, srcSchema, genBuf.Bytes(), genSchema, mergedSchema)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
-	if err := afero.WriteFile(fs, output, fileBuf.Bytes(), 0644); err != nil {
-		return nil, errors.WrapCodedError(err, errors.CLI_OUTPUT, "writing synth output")
+	file := tagged
+	if opts.SyntheticOnly {
+		// The source's own field layout, without the tag column: every
+		// row is generated, so a constant _synthetic=true would carry no
+		// information and would make the twin's schema differ from the
+		// source's. The dictionaries are fresh, so a categorical level
+		// only the source holds is not written into the file either.
+		outSchema, err := buildOutputSchema(srcSchema, genSchema, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		var recordsBuf bytes.Buffer
+		if _, err := reencodeRecords(bytes.NewReader(genBuf.Bytes()), genSchema, outSchema, true, &recordsBuf); err != nil {
+			return nil, nil, err
+		}
+		var fileBuf bytes.Buffer
+		if err := encx.WritePreamble(&fileBuf, outSchema); err != nil {
+			return nil, nil, err
+		}
+		if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {
+			return nil, nil, err
+		}
+		file = fileBuf.Bytes()
+	}
+
+	if err := afero.WriteFile(fs, output, file, 0644); err != nil {
+		return nil, nil, errors.WrapCodedError(err, errors.CLI_OUTPUT, "writing synth output")
 	}
 
 	// The fidelity report itself (Options.FidelityReportPath) is built
@@ -126,7 +167,28 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 		RowsRejected:  rowsRejected,
 		OutputPath:    output,
 		Warnings:      warnings,
-	}, nil
+	}, tagged, nil
+}
+
+// encodeTaggedCohort lays out the tagged cohort: the source's records
+// first, byte order preserved, each tagged false, then the generated
+// records tagged true, all under merged.
+func encodeTaggedCohort(srcRecords []byte, srcSchema *encoding.Schema, genRecords []byte, genSchema, merged *encoding.Schema) ([]byte, error) {
+	var recordsBuf bytes.Buffer
+	if _, err := reencodeRecords(bytes.NewReader(srcRecords), srcSchema, merged, false, &recordsBuf); err != nil {
+		return nil, err
+	}
+	if _, err := reencodeRecords(bytes.NewReader(genRecords), genSchema, merged, true, &recordsBuf); err != nil {
+		return nil, err
+	}
+	var fileBuf bytes.Buffer
+	if err := encx.WritePreamble(&fileBuf, merged); err != nil {
+		return nil, err
+	}
+	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {
+		return nil, err
+	}
+	return fileBuf.Bytes(), nil
 }
 
 // samePath reports whether a and b name the same file once cleaned —
@@ -169,13 +231,24 @@ func stringSlicesEqual(a, b []string) bool {
 // A field is Nullable in the merged schema if either side declared it
 // nullable.
 func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
+	return buildOutputSchema(src, gen, true)
+}
+
+// buildOutputSchema is buildMergedSchema with the tag column optional:
+// tagged=false is the synthetic-only layout — src's fields alone, laid
+// out and validated exactly as the tagged twin's leading fields.
+func buildOutputSchema(src, gen *encoding.Schema, tagged bool) (*encoding.Schema, error) {
 	if len(src.Fields) != len(gen.Fields) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH,
 			"profile-derived spec field count does not match source cohort schema",
 			map[string]any{"source_fields": len(src.Fields), "profile_fields": len(gen.Fields)})
 	}
 
-	fields := make([]encoding.Field, len(src.Fields)+1)
+	width := len(src.Fields)
+	if tagged {
+		width++
+	}
+	fields := make([]encoding.Field, width)
 	for i := range src.Fields {
 		sf, gf := &src.Fields[i], &gen.Fields[i]
 		if sf.Name != gf.Name || sf.Type != gf.Type {
@@ -248,13 +321,14 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 		fields[i] = f
 	}
 
-	tag := encoding.Field{
-		Name:         SyntheticFieldName,
-		Type:         encoding.FieldTypePackedBool,
-		Description:  syntheticFieldDescription,
-		CsvColumnIdx: len(src.Fields),
+	if tagged {
+		fields[len(src.Fields)] = encoding.Field{
+			Name:         SyntheticFieldName,
+			Type:         encoding.FieldTypePackedBool,
+			Description:  syntheticFieldDescription,
+			CsvColumnIdx: len(src.Fields),
+		}
 	}
-	fields[len(src.Fields)] = tag
 
 	// The canonical layout over the merged schema, exactly as buildSchema
 	// and import lay a row out.
@@ -270,15 +344,19 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 // re-encodes it into out under to's schema, appending the _synthetic tag
 // (to's final field) with the given constant value. from's fields must
 // be to's leading len(from.Fields) fields, in the same order — exactly
-// what buildMergedSchema constructs. Returns the number of records
-// copied.
+// what buildMergedSchema constructs. A to with no field beyond from's
+// (buildOutputSchema untagged) carries no tag and synthetic is unused.
+// Returns the number of records copied.
 func reencodeRecords(r io.Reader, from, to *encoding.Schema, synthetic bool, out *bytes.Buffer) (int, error) {
 	rr := encx.NewRecordReader(r, from)
 	values := make(map[string]float64, len(from.Fields))
 	nulls := make(map[string]bool, len(from.Fields))
 	wide := make(map[string]any, len(from.Fields))
 	bitmapSize := to.BitmapByteSize()
-	tagField := &to.Fields[len(from.Fields)]
+	var tagField *encoding.Field
+	if len(to.Fields) > len(from.Fields) {
+		tagField = &to.Fields[len(from.Fields)]
+	}
 
 	count := 0
 	for {
@@ -304,8 +382,10 @@ func reencodeRecords(r io.Reader, from, to *encoding.Schema, synthetic bool, out
 				encoding.BitmapSetNull(bitmap, i)
 			}
 		}
-		if err := writeFieldValueForField(out, tagField, synthetic, false); err != nil {
-			return count, err
+		if tagField != nil {
+			if err := writeFieldValueForField(out, tagField, synthetic, false); err != nil {
+				return count, err
+			}
 		}
 		if bitmapSize > 0 {
 			if err := encoding.WriteBitmap(out, bitmap); err != nil {

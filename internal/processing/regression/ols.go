@@ -3,6 +3,7 @@ package regression
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -53,6 +54,9 @@ type olsEngine struct {
 	// activeBounds are the RegressionSpec.Bounds slope indices a bounded
 	// fit held at 0 (empty: no bound binds, the fit is plain OLS).
 	activeBounds []int
+	// figures, when set (OfferingFigures), receives the fit's
+	// nested-model comparison figures at finalize (compare.go).
+	figures func(*model.RegressionFigures)
 }
 
 // newOLSEngine validates the spec and constructs an empty accumulator
@@ -307,11 +311,38 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		ConvergedIters: e.convergedIters,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	if e.spec.Penalty == "" && len(e.activeBounds) == 0 && logLikDefined(e.weights.basis) {
+		// logLik.lm's maximised Gaussian likelihood and AIC (loglik.go):
+		// the coefficients plus σ, on N* (n, or Σw — the rep() expansion
+		// — under a frequency weight); absent under a probability weight,
+		// a penalty or a binding bound (a bounds fit no bound binds is
+		// the plain fit, bit for bit).
+		rank := len(predictors) + 1
+		if solve.throughOrigin {
+			rank--
+		}
+		ll, df := olsLogLik(solve.RSS, e.acc.nStar(), rank)
+		attachLogLik(res, ll, df)
+	}
 	// t on the residual df N* − p − 1 (the N* rule, weighting.md): the
 	// same df the p-values read. Lasso / elastic net intervals are NaN
 	// on every key (their standard errors are).
 	// A cluster fit reads G − 1 df instead.
 	attachIntervals(res, resolvedConfLevel(e.spec), infDF, true)
+	if e.spec.Margins != nil {
+		// OLS's identity link: every marginal effect is its coefficient,
+		// on the coefficient table's t (margins.go) — no row pass, so the
+		// block streams with the fit; mem's point is the accumulator's
+		// (weighted) predictor means.
+		res.Margins = coefficientMargins(e.spec, res, marginsInference{level: resolvedConfLevel(e.spec), df: infDF, studentT: true}, e.acc.meanX)
+	}
+	if e.spec.Collinearity != nil {
+		// The design's VIF off the accumulator's centered moments — the
+		// same fold the fit reads, so the block streams with it (vif.go);
+		// a penalty, a bound or a robust covariance leaves the design,
+		// and so every figure, unchanged.
+		res.Collinearity = olsCollinearity(e.spec, e.acc)
+	}
 	if len(e.activeBounds) != 0 {
 		// A binding bound (RegressionSpec.Bounds): the standard errors,
 		// p-values and intervals above are NaN on every key; the service
@@ -321,6 +352,16 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 			res.ActiveBounds[i] = predictors[j]
 		}
 	}
+	if e.figures != nil && e.spec.Penalty == "" && len(e.activeBounds) == 0 {
+		// The figures a Compose nested-model comparison reads (compare.go):
+		// the weighted RSS, its df and σ̂², and the covariance the
+		// standard errors read on the table's t df.
+		cov := olsVcov(solve, e.acc.meanX)
+		if robust != nil {
+			cov = robust.fit.v
+		}
+		e.figures(olsFitFigures(solve, predictors, cov, infDF))
+	}
 	switch {
 	case robust != nil:
 		res.Covariance = robust.fit.info
@@ -329,8 +370,16 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		}
 	case e.spec.Vcov && len(e.activeBounds) != 0:
 		attachVcov(res, predictors, boundedVcov(len(predictors)))
+		// σ̂² stays defined under a binding bound: the face predict
+		// reads off the spec (model.FitDesign) carries it either way.
+		res.Dispersion = solve.sigma2Gram
 	case e.spec.Vcov:
 		attachVcov(res, predictors, olsVcov(solve, e.acc.meanX))
+		if e.spec.Penalty == "" && res.Vcov != nil {
+			// The σ̂² the classical vcov is scaled by (Vcov/φ̂ =
+			// (XᵀX)⁻¹ — what a bound fit's influence figures read).
+			res.Dispersion = solve.sigma2Gram
+		}
 	}
 	return res, nil
 }

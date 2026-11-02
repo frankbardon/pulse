@@ -103,6 +103,13 @@ type Bound struct {
 	// sweep_axis() reads (SweepAxis).
 	SweepBound bool
 	SweepAxes  map[string]any
+
+	// Design is the fit's influence face (FitDesign): its result's
+	// figures, plus what only the spec says — `bounds`, `intercept:
+	// false`, and the modifiers as the spec wrote them (Bind reads the
+	// spec; a model file keeps the modifiers but neither bounds nor the
+	// intercept flag, so a loaded fit reports those false).
+	Design FitDesign
 }
 
 // Bind builds the Bound for a finished fit: spec is the regression as
@@ -154,7 +161,13 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 		Link:             res.Link,
 		Vcov:             res.Vcov,
 		Result:           res,
+		Design:           designFromResult(res),
 	}
+	b.Design.Constrained = spec.Bounds.Active()
+	b.Design.NoIntercept = spec.Intercept != nil && !*spec.Intercept
+	b.Design.Selection = b.Design.Selection || spec.Selection != ""
+	b.Design.Penalized = b.Design.Penalized || spec.Penalty != ""
+	b.Design.Resample = b.Design.Resample || spec.Resample != ""
 	for i, p := range predictors {
 		c, ok := res.Coefficients[p]
 		if !ok {

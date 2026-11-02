@@ -68,7 +68,15 @@ func TestRegressionInterpretations_MatchApplicability(t *testing.T) {
 		}
 		var got []string
 		for _, in := range ins {
-			got = append(got, in.Field)
+			f := in.Field
+			// An opt-in block (margins) is read through its own
+			// sub-outputs: it counts as its key.
+			if head, _, nested := strings.Cut(f, "."); nested && tags[head].Kind() == reflect.Pointer {
+				f = head
+			}
+			if !slices.Contains(got, f) {
+				got = append(got, f)
+			}
 		}
 		slices.Sort(want)
 		slices.Sort(got)

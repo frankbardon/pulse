@@ -158,6 +158,7 @@ pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationRe
 pulse: type ComposePredictResult underlying struct
 pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
+pulse: type ComposePredictResult field Compare []pulse/descriptor.ComparisonSummary "json:\"compare,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field Optimize []pulse/descriptor.OptimizeSummary "json:\"optimize,omitempty\""
@@ -171,6 +172,7 @@ pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
@@ -183,6 +185,7 @@ pulse: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
+pulse: type ComposedResponse field Comparisons []pulse/types.FitComparisonResult "json:\"comparisons,omitempty\""
 pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
@@ -1182,10 +1185,14 @@ pulse: type StreamTerminator field TotalRows int64
 pulse: type StreamTerminator field Warnings []*pulse/types.ResponseWarning
 pulse: type SynthOptions = pulse/synth.Options
 pulse: type SynthOptions underlying struct
+pulse: type SynthOptions field DisableDisclosure bool
+pulse: type SynthOptions field DisclosureSample int
+pulse: type SynthOptions field FidelityModel *pulse/types.Request
 pulse: type SynthOptions field FidelityReportPath string
 pulse: type SynthOptions field FidelityWarnings []string
 pulse: type SynthOptions field Seed int64
 pulse: type SynthOptions field SourceCohort string
+pulse: type SynthOptions field SyntheticOnly bool
 pulse: type SynthResult = pulse/synth.Result
 pulse: type SynthResult underlying struct
 pulse: type SynthResult field FidelityReportPath string "json:\"fidelity_report_path,omitempty\""
@@ -1202,6 +1209,7 @@ pulse: type SynthSpec field Correlations []pulse/internal/synth.CorrelationSpec 
 pulse: type SynthSpec field Fields []pulse/internal/synth.FieldSpec "json:\"fields\""
 pulse: type SynthSpec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse: type SynthSpec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
+pulse: type SynthSpec field PairArbitration string "json:\"pair_arbitration,omitempty\""
 pulse: type SynthSpec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse: type SynthSpec field RowCount int "json:\"row_count\""
 pulse: type SynthSpec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -1363,6 +1371,13 @@ pulse/descriptor: type CommandAnnotations struct
 pulse/descriptor: type CommandAnnotations field Deterministic bool "json:\"deterministic\""
 pulse/descriptor: type CommandAnnotations field Expensive bool "json:\"expensive\""
 pulse/descriptor: type CommandAnnotations field Streamable bool "json:\"streamable\""
+pulse/descriptor: type ComparisonSummary struct
+pulse/descriptor: type ComparisonSummary field Distribution pulse/types.ComparisonDistribution "json:\"distribution\""
+pulse/descriptor: type ComparisonSummary field Full string "json:\"full\""
+pulse/descriptor: type ComparisonSummary field Name string "json:\"name\""
+pulse/descriptor: type ComparisonSummary field Restricted string "json:\"restricted\""
+pulse/descriptor: type ComparisonSummary field Terms []string "json:\"terms\""
+pulse/descriptor: type ComparisonSummary field Test pulse/types.ComparisonTest "json:\"test\""
 pulse/descriptor: type ComponentKey struct
 pulse/descriptor: type ComponentKey field Description string "json:\"description\""
 pulse/descriptor: type ComponentKey field Name string "json:\"name\""
@@ -1974,7 +1989,9 @@ pulse/descriptor: type PValueFamily field Method pulse/types.MultiplicityMethod 
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
+pulse/descriptor: type Param field EnumBy string "json:\"enum_by,omitempty\""
 pulse/descriptor: type Param field EnumValues []string "json:\"enum_values,omitempty\""
+pulse/descriptor: type Param field EnumValuesBy map[string][]string "json:\"enum_values_by,omitempty\""
 pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type Param field Example any "json:\"example,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
@@ -2627,6 +2644,8 @@ pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
 pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
+pulse/errors: const PULSE_COMPARISON_INVALID pulse/errors.Code = "PULSE_COMPARISON_INVALID"
+pulse/errors: const PULSE_COMPARISON_ROWS_DIFFER pulse/errors.Code = "PULSE_COMPARISON_ROWS_DIFFER"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
 pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
@@ -2939,7 +2958,10 @@ pulse/errors: const PULSE_SWEEP_SAMPLES_INVALID pulse/errors.Code = "PULSE_SWEEP
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
+pulse/errors: const PULSE_SYNTH_DST_AMBIGUOUS pulse/errors.Code = "PULSE_SYNTH_DST_AMBIGUOUS"
+pulse/errors: const PULSE_SYNTH_DST_NONEXISTENT pulse/errors.Code = "PULSE_SYNTH_DST_NONEXISTENT"
 pulse/errors: const PULSE_SYNTH_EXPR_NONDETERMINISTIC pulse/errors.Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
+pulse/errors: const PULSE_SYNTH_FIDELITY_MODEL_INVALID pulse/errors.Code = "PULSE_SYNTH_FIDELITY_MODEL_INVALID"
 pulse/errors: const PULSE_SYNTH_LAG_FIELD_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_FIELD_INVALID"
 pulse/errors: const PULSE_SYNTH_LAG_OFFSET_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 pulse/errors: const PULSE_SYNTH_OUTPUT_COLLISION pulse/errors.Code = "PULSE_SYNTH_OUTPUT_COLLISION"
@@ -2947,6 +2969,7 @@ pulse/errors: const PULSE_SYNTH_OUTPUT_REQUIRED pulse/errors.Code = "PULSE_SYNTH
 pulse/errors: const PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_SYNTH_RULE_BLOCK_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_BLOCK_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_CONFLICT pulse/errors.Code = "PULSE_SYNTH_RULE_CONFLICT"
+pulse/errors: const PULSE_SYNTH_RULE_DRAW_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_DRAW_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_EMPTY pulse/errors.Code = "PULSE_SYNTH_RULE_EMPTY"
 pulse/errors: const PULSE_SYNTH_RULE_EXPR_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_EXPR_INVALID"
 pulse/errors: const PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE pulse/errors.Code = "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE"
@@ -3754,8 +3777,10 @@ pulse/linalg: type Vec method (*Vec) Slice() []float64
 pulse/linalg/detmath: package detmath
 pulse/linalg/detmath: func Asin(x float64) float64
 pulse/linalg/detmath: func Atan2(y float64, x float64) float64
+pulse/linalg/detmath: func Atanh(x float64) float64
 pulse/linalg/detmath: func Cos(x float64) float64
 pulse/linalg/detmath: func Erf(x float64) float64
+pulse/linalg/detmath: func Erfc(x float64) float64
 pulse/linalg/detmath: func Erfinv(x float64) float64
 pulse/linalg/detmath: func Exp(x float64) float64
 pulse/linalg/detmath: func ExpFloat64(r *math/rand/v2.Rand) float64
@@ -3767,6 +3792,7 @@ pulse/linalg/detmath: func NormFloat64(r *math/rand/v2.Rand) float64
 pulse/linalg/detmath: func Pow(x float64, y float64) float64
 pulse/linalg/detmath: func Sin(x float64) float64
 pulse/linalg/detmath: func Tan(x float64) float64
+pulse/linalg/detmath: func Tanh(x float64) float64
 pulse/linalg/metric: package metric
 pulse/linalg/metric: func Accepted(c pulse/linalg/metric.Consumer) []string
 pulse/linalg/metric: func Accepts(c pulse/linalg/metric.Consumer, name string) bool
@@ -4176,6 +4202,7 @@ pulse/synth: type CategoricalNumericCategorySpec = pulse/internal/synth.Categori
 pulse/synth: type CategoricalNumericCategorySpec underlying struct
 pulse/synth: type CategoricalNumericCategorySpec field Category string "json:\"category\""
 pulse/synth: type CategoricalNumericCategorySpec field Mean float64 "json:\"mean\""
+pulse/synth: type CategoricalNumericCategorySpec field N int "json:\"n,omitempty\""
 pulse/synth: type CategoricalNumericCategorySpec field Std float64 "json:\"std\""
 pulse/synth: type CategoricalNumericCategoryStat = pulse/internal/synth.CategoricalNumericCategoryStat
 pulse/synth: type CategoricalNumericCategoryStat underlying struct
@@ -4265,6 +4292,26 @@ pulse/synth: type DateProfile underlying struct
 pulse/synth: type DateProfile field End string "json:\"end\""
 pulse/synth: type DateProfile field Start string "json:\"start\""
 pulse/synth: type DateProfile field Weekdays [7]int "json:\"weekdays\""
+pulse/synth: type DatetimeProfile = pulse/internal/synth.DatetimeProfile
+pulse/synth: type DatetimeProfile underlying struct
+pulse/synth: type DatetimeProfile field End string "json:\"end\""
+pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
+pulse/synth: type DatetimeProfile field Start string "json:\"start\""
+pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
+pulse/synth: const DefaultDisclosureSample untyped int = 10000
+pulse/synth: const DisclosureDistanceGower untyped string = "gower"
+pulse/synth: type DisclosureFidelity = pulse/internal/synth.DisclosureFidelity
+pulse/synth: type DisclosureFidelity underlying struct
+pulse/synth: type DisclosureFidelity field Columns int "json:\"columns\""
+pulse/synth: type DisclosureFidelity field DCRMedian float64 "json:\"dcr_median\""
+pulse/synth: type DisclosureFidelity field DCRP5 float64 "json:\"dcr_p5\""
+pulse/synth: type DisclosureFidelity field Distance string "json:\"distance\""
+pulse/synth: type DisclosureFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type DisclosureFidelity field ExactMatchRate float64 "json:\"exact_match_rate\""
+pulse/synth: type DisclosureFidelity field ExactMatches int "json:\"exact_matches\""
+pulse/synth: type DisclosureFidelity field SampleRows int "json:\"sample_rows\""
+pulse/synth: type DisclosureFidelity field SourceRows int "json:\"source_rows\""
+pulse/synth: type DisclosureFidelity field SyntheticRows int "json:\"synthetic_rows\""
 pulse/synth: type DiscreteLevel = pulse/internal/synth.DiscreteLevel
 pulse/synth: type DiscreteLevel underlying struct
 pulse/synth: type DiscreteLevel field Count int "json:\"count\""
@@ -4287,11 +4334,15 @@ pulse/synth: const DistRegex untyped string = "regex"
 pulse/synth: const DistSetBernoulli untyped string = "set_bernoulli"
 pulse/synth: const DistUniform untyped string = "uniform"
 pulse/synth: const DistUniformDate untyped string = "uniform_date"
+pulse/synth: const DistUniformDateTime untyped string = "uniform_datetime"
 pulse/synth: const DistWeightedCategorical untyped string = "weighted_categorical"
+pulse/synth: const EffectMeasureCohensD untyped string = "cohens_d"
+pulse/synth: const EffectMeasureCramersV untyped string = "cramers_v"
 pulse/synth: type FidelityReport = pulse/internal/synth.FidelityReport
 pulse/synth: type FidelityReport underlying struct
 pulse/synth: type FidelityReport field CategoricalNumericPairwise []*pulse/internal/synth.CategoricalNumericPairFidelity "json:\"categorical_numeric_pairwise,omitempty\""
 pulse/synth: type FidelityReport field CategoricalPairwise []*pulse/internal/synth.CategoricalPairFidelity "json:\"categorical_pairwise,omitempty\""
+pulse/synth: type FidelityReport field Disclosure *pulse/internal/synth.DisclosureFidelity "json:\"disclosure,omitempty\""
 pulse/synth: type FidelityReport field Fields []*pulse/internal/synth.FieldFidelity "json:\"fields,omitempty\""
 pulse/synth: type FidelityReport field ModelResidualCorrelations *pulse/internal/synth.ModelResidualCorrelationFidelity "json:\"model_residual_correlations,omitempty\""
 pulse/synth: type FidelityReport field Models []*pulse/internal/synth.ModelFidelity "json:\"models,omitempty\""
@@ -4302,22 +4353,33 @@ pulse/synth: type FidelityReport field SetNumericPairwise []*pulse/internal/synt
 pulse/synth: type FidelityReport field SetSetPairwise []*pulse/internal/synth.SetSetPairFidelity "json:\"set_set_pairwise,omitempty\""
 pulse/synth: type FidelityReport field SourceRows int "json:\"source_rows\""
 pulse/synth: type FidelityReport field SyntheticRows int "json:\"synthetic_rows\""
+pulse/synth: type FidelityReport field Utility *pulse/internal/synth.UtilityFidelity "json:\"utility,omitempty\""
 pulse/synth: type FidelityReport field VectorFields []*pulse/internal/synth.VectorFieldFidelity "json:\"vector_fields,omitempty\""
 pulse/synth: type FidelityReport field Warnings []string "json:\"warnings,omitempty\""
 pulse/synth: type FieldContinuation = pulse/internal/synth.FieldContinuation
 pulse/synth: type FieldContinuation underlying struct
 pulse/synth: type FieldContinuation field Name string "json:\"name\""
 pulse/synth: type FieldContinuation field Rate float64 "json:\"rate\""
+pulse/synth: type FieldEffectSize = pulse/internal/synth.FieldEffectSize
+pulse/synth: type FieldEffectSize underlying struct
+pulse/synth: type FieldEffectSize field Convention string "json:\"convention\""
+pulse/synth: type FieldEffectSize field Magnitude string "json:\"magnitude\""
+pulse/synth: type FieldEffectSize field Measure string "json:\"measure\""
+pulse/synth: type FieldEffectSize field Value float64 "json:\"value\""
 pulse/synth: type FieldFidelity = pulse/internal/synth.FieldFidelity
 pulse/synth: type FieldFidelity underlying struct
+pulse/synth: type FieldFidelity field EffectSize *pulse/internal/synth.FieldEffectSize "json:\"effect_size,omitempty\""
 pulse/synth: type FieldFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type FieldFidelity field Field string "json:\"field\""
 pulse/synth: type FieldFidelity field Result *pulse/types.TestResult "json:\"result,omitempty\""
+pulse/synth: type FieldFidelity field RuleNote string "json:\"rule_note,omitempty\""
+pulse/synth: type FieldFidelity field Shape *pulse/internal/synth.TimeShapeFidelity "json:\"shape,omitempty\""
 pulse/synth: type FieldFidelity field Test pulse/types.TestType "json:\"test\""
 pulse/synth: type FieldModel = pulse/internal/synth.FieldModel
 pulse/synth: type FieldModel underlying struct
 pulse/synth: type FieldModel field Field string "json:\"field\""
 pulse/synth: type FieldModel field Intercept float64 "json:\"intercept\""
+pulse/synth: type FieldModel field Link string "json:\"link,omitempty\""
 pulse/synth: type FieldModel field NObs int "json:\"n_obs\""
 pulse/synth: type FieldModel field Predictors []pulse/internal/synth.ModelPredictor "json:\"predictors\""
 pulse/synth: type FieldModel field R2 float64 "json:\"r2\""
@@ -4339,6 +4401,7 @@ pulse/synth: type FieldProfile = pulse/internal/synth.FieldProfile
 pulse/synth: type FieldProfile underlying struct
 pulse/synth: type FieldProfile field Categorical *pulse/internal/synth.CategoricalProfile "json:\"categorical,omitempty\""
 pulse/synth: type FieldProfile field Date *pulse/internal/synth.DateProfile "json:\"date,omitempty\""
+pulse/synth: type FieldProfile field Datetime *pulse/internal/synth.DatetimeProfile "json:\"datetime,omitempty\""
 pulse/synth: type FieldProfile field Description string "json:\"description,omitempty\""
 pulse/synth: type FieldProfile field Name string "json:\"name\""
 pulse/synth: type FieldProfile field NullRate float64 "json:\"null_rate\""
@@ -4355,6 +4418,7 @@ pulse/synth: type FieldSpec field Distribution string "json:\"distribution\""
 pulse/synth: type FieldSpec field Name string "json:\"name\""
 pulse/synth: type FieldSpec field NullRate float64 "json:\"null_rate,omitempty\""
 pulse/synth: type FieldSpec field Nullable bool "json:\"nullable,omitempty\""
+pulse/synth: type FieldSpec field Output *bool "json:\"output,omitempty\""
 pulse/synth: type FieldSpec field Params map[string]any "json:\"params,omitempty\""
 pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
@@ -4375,6 +4439,7 @@ pulse/synth: type ModelFidelity field Predictors []*pulse/internal/synth.ModelPr
 pulse/synth: type ModelFidelity field R2 float64 "json:\"r2,omitempty\""
 pulse/synth: type ModelFidelity field RecoveredIntercept float64 "json:\"recovered_intercept,omitempty\""
 pulse/synth: type ModelFidelity field Scale string "json:\"scale,omitempty\""
+pulse/synth: const ModelLinkProbit untyped string = "probit"
 pulse/synth: type ModelPredictor = pulse/internal/synth.ModelPredictor
 pulse/synth: type ModelPredictor underlying struct
 pulse/synth: type ModelPredictor field Coefficient float64 "json:\"coefficient\""
@@ -4452,10 +4517,16 @@ pulse/synth: type NumericProfile field Shape *pulse/internal/synth.ShapeProfile 
 pulse/synth: type NumericProfile field Std float64 "json:\"std\""
 pulse/synth: type Options = pulse/internal/synth.Options
 pulse/synth: type Options underlying struct
+pulse/synth: type Options field DisableDisclosure bool
+pulse/synth: type Options field DisclosureSample int
+pulse/synth: type Options field FidelityModel *pulse/types.Request
 pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
 pulse/synth: type Options field Seed int64
 pulse/synth: type Options field SourceCohort string
+pulse/synth: type Options field SyntheticOnly bool
+pulse/synth: const PairArbitrationDeclared untyped string = "declared"
+pulse/synth: const PairArbitrationStrength untyped string = "strength"
 pulse/synth: type PairwiseFidelity = pulse/internal/synth.PairwiseFidelity
 pulse/synth: type PairwiseFidelity underlying struct
 pulse/synth: type PairwiseFidelity field A string "json:\"a\""
@@ -4617,6 +4688,7 @@ pulse/synth: type SetFieldFidelity = pulse/internal/synth.SetFieldFidelity
 pulse/synth: type SetFieldFidelity underlying struct
 pulse/synth: type SetFieldFidelity field Field string "json:\"field\""
 pulse/synth: type SetFieldFidelity field Options []*pulse/internal/synth.SetOptionFidelity "json:\"options,omitempty\""
+pulse/synth: type SetFieldFidelity field RuleNote string "json:\"rule_note,omitempty\""
 pulse/synth: type SetNumericPairFidelity = pulse/internal/synth.SetNumericPairFidelity
 pulse/synth: type SetNumericPairFidelity underlying struct
 pulse/synth: type SetNumericPairFidelity field Categories []*pulse/internal/synth.CategoricalNumericCategoryFidelity "json:\"categories,omitempty\""
@@ -4643,6 +4715,7 @@ pulse/synth: type SetNumericPairSpec field Set string "json:\"set\""
 pulse/synth: type SetOptionFidelity = pulse/internal/synth.SetOptionFidelity
 pulse/synth: type SetOptionFidelity underlying struct
 pulse/synth: type SetOptionFidelity field Delta float64 "json:\"delta,omitempty\""
+pulse/synth: type SetOptionFidelity field EffectSize *pulse/internal/synth.FieldEffectSize "json:\"effect_size,omitempty\""
 pulse/synth: type SetOptionFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type SetOptionFidelity field N int "json:\"n\""
 pulse/synth: type SetOptionFidelity field SourceFrequency float64 "json:\"source_frequency\""
@@ -4695,6 +4768,7 @@ pulse/synth: type Spec field Correlations []pulse/internal/synth.CorrelationSpec
 pulse/synth: type Spec field Fields []pulse/internal/synth.FieldSpec "json:\"fields\""
 pulse/synth: type Spec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse/synth: type Spec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
+pulse/synth: type Spec field PairArbitration string "json:\"pair_arbitration,omitempty\""
 pulse/synth: type Spec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse/synth: type Spec field RowCount int "json:\"row_count\""
 pulse/synth: type Spec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -4705,6 +4779,63 @@ pulse/synth: type Spec method (*Spec) Hash() string
 pulse/synth: func SpecFromProfile(p *pulse/synth.Profile, rowCount int) (*pulse/synth.Spec, []string)
 pulse/synth: func Synth(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
 pulse/synth: func SynthBytes(spec *pulse/synth.Spec, opts pulse/synth.Options) ([]byte, *pulse/synth.Result, error)
+pulse/synth: type TargetRateFidelity = pulse/internal/synth.TargetRateFidelity
+pulse/synth: type TargetRateFidelity underlying struct
+pulse/synth: type TargetRateFidelity field By string "json:\"by\""
+pulse/synth: type TargetRateFidelity field Error string "json:\"error,omitempty\""
+pulse/synth: type TargetRateFidelity field Levels []*pulse/internal/synth.TargetRateLevel "json:\"levels,omitempty\""
+pulse/synth: type TargetRateFidelity field SourceEpsilonSquared float64 "json:\"source_epsilon_squared,omitempty\""
+pulse/synth: type TargetRateFidelity field SourceSpread float64 "json:\"source_spread,omitempty\""
+pulse/synth: type TargetRateFidelity field SpreadRatio float64 "json:\"spread_ratio,omitempty\""
+pulse/synth: type TargetRateFidelity field SyntheticEpsilonSquared float64 "json:\"synthetic_epsilon_squared,omitempty\""
+pulse/synth: type TargetRateFidelity field SyntheticSpread float64 "json:\"synthetic_spread,omitempty\""
+pulse/synth: type TargetRateFidelity field Target string "json:\"target\""
+pulse/synth: type TargetRateFidelity field Verdict string "json:\"verdict,omitempty\""
+pulse/synth: type TargetRateLevel = pulse/internal/synth.TargetRateLevel
+pulse/synth: type TargetRateLevel underlying struct
+pulse/synth: type TargetRateLevel field Level string "json:\"level\""
+pulse/synth: type TargetRateLevel field SourceMean float64 "json:\"source_mean,omitempty\""
+pulse/synth: type TargetRateLevel field SourceN int "json:\"source_n\""
+pulse/synth: type TargetRateLevel field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
+pulse/synth: type TargetRateLevel field SyntheticN int "json:\"synthetic_n\""
+pulse/synth: const TimeShapeClockUTC untyped string = "utc"
+pulse/synth: type TimeShapeFidelity = pulse/internal/synth.TimeShapeFidelity
+pulse/synth: type TimeShapeFidelity underlying struct
+pulse/synth: type TimeShapeFidelity field Clock string "json:\"clock\""
+pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
+pulse/synth: type TimeShapeFidelity field WeekdayTVD float64 "json:\"weekday_tvd\""
+pulse/synth: type UtilityCoefficient = pulse/internal/synth.UtilityCoefficient
+pulse/synth: type UtilityCoefficient underlying struct
+pulse/synth: type UtilityCoefficient field Missing string "json:\"missing,omitempty\""
+pulse/synth: type UtilityCoefficient field Ratio float64 "json:\"ratio,omitempty\""
+pulse/synth: type UtilityCoefficient field Source float64 "json:\"source\""
+pulse/synth: type UtilityCoefficient field SourceStdError float64 "json:\"source_std_error,omitempty\""
+pulse/synth: type UtilityCoefficient field Synthetic float64 "json:\"synthetic\""
+pulse/synth: type UtilityCoefficient field SyntheticStdError float64 "json:\"synthetic_std_error,omitempty\""
+pulse/synth: type UtilityCoefficient field Term string "json:\"term\""
+pulse/synth: type UtilityFidelity = pulse/internal/synth.UtilityFidelity
+pulse/synth: type UtilityFidelity underlying struct
+pulse/synth: type UtilityFidelity field ModelFits []*pulse/internal/synth.UtilityModelFit "json:\"model_fits,omitempty\""
+pulse/synth: type UtilityFidelity field TargetRates []*pulse/internal/synth.TargetRateFidelity "json:\"target_rates,omitempty\""
+pulse/synth: const UtilityFitPseudoR2 untyped string = "pseudo_r2"
+pulse/synth: const UtilityFitR2 untyped string = "r2"
+pulse/synth: type UtilityModelFit = pulse/internal/synth.UtilityModelFit
+pulse/synth: type UtilityModelFit underlying struct
+pulse/synth: type UtilityModelFit field Coefficients []*pulse/internal/synth.UtilityCoefficient "json:\"coefficients,omitempty\""
+pulse/synth: type UtilityModelFit field FitRatio float64 "json:\"fit_ratio,omitempty\""
+pulse/synth: type UtilityModelFit field Name string "json:\"name,omitempty\""
+pulse/synth: type UtilityModelFit field SourceError string "json:\"source_error,omitempty\""
+pulse/synth: type UtilityModelFit field SourceFit float64 "json:\"source_fit,omitempty\""
+pulse/synth: type UtilityModelFit field SourceNObs int "json:\"source_n_obs,omitempty\""
+pulse/synth: type UtilityModelFit field Statistic string "json:\"statistic,omitempty\""
+pulse/synth: type UtilityModelFit field SyntheticError string "json:\"synthetic_error,omitempty\""
+pulse/synth: type UtilityModelFit field SyntheticFit float64 "json:\"synthetic_fit,omitempty\""
+pulse/synth: type UtilityModelFit field SyntheticNObs int "json:\"synthetic_n_obs,omitempty\""
+pulse/synth: type UtilityModelFit field Target string "json:\"target,omitempty\""
+pulse/synth: type UtilityModelFit field Type pulse/types.RegressionType "json:\"type\""
+pulse/synth: const UtilityVerdictCompressed untyped string = "compressed"
+pulse/synth: const UtilityVerdictInflated untyped string = "inflated"
+pulse/synth: const UtilityVerdictPreserved untyped string = "preserved"
 pulse/synth: type VectorCorrelationSpec = pulse/internal/synth.VectorCorrelationSpec
 pulse/synth: type VectorCorrelationSpec underlying struct
 pulse/synth: type VectorCorrelationSpec field A int "json:\"a\""
@@ -4820,6 +4951,7 @@ pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
 pulse/types: const ATTR_PREVIOUS_STATE pulse/types.AttributeType = "ATTR_PREVIOUS_STATE"
 pulse/types: const ATTR_PROFILE_SIMILARITY pulse/types.AttributeType = "ATTR_PROFILE_SIMILARITY"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
+pulse/types: const ATTR_REG_INFLUENCE pulse/types.AttributeType = "ATTR_REG_INFLUENCE"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
 pulse/types: const ATTR_REG_PREDICT pulse/types.AttributeType = "ATTR_REG_PREDICT"
 pulse/types: const ATTR_REG_RESIDUAL pulse/types.AttributeType = "ATTR_REG_RESIDUAL"
@@ -4870,17 +5002,22 @@ pulse/types: type AggregationType method (AggregationType) Mergeable() bool
 pulse/types: type AggregationType method (AggregationType) Streamable() bool
 pulse/types: func AllAggregationTypes() []pulse/types.AggregationType
 pulse/types: func AllAttributeTypes() []pulse/types.AttributeType
+pulse/types: func AllCollinearityBases() []string
+pulse/types: func AllComparisonTests() []pulse/types.ComparisonTest
 pulse/types: func AllCovarianceTypes() []pulse/types.CovarianceType
 pulse/types: func AllFeatureTypes() []pulse/types.FeatureType
 pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
 pulse/types: func AllGroupTypes() []pulse/types.GroupType
 pulse/types: func AllLabelModes() []pulse/types.LabelMode
 pulse/types: func AllLookupMultiplicities() []pulse/types.LookupMultiplicity
+pulse/types: func AllMarginsScales() []string
+pulse/types: func AllMarginsTypes() []string
 pulse/types: func AllMatrixEncodings() []pulse/types.MatrixEncoding
 pulse/types: func AllMatrixKinds() []pulse/types.MatrixKind
 pulse/types: func AllMatrixTypes() []pulse/types.MatrixType
 pulse/types: func AllMultiplicityFamilies() []pulse/types.MultiplicityFamily
 pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
+pulse/types: func AllNegBinDispersions() []string
 pulse/types: func AllOptimizeActiveBounds() []pulse/types.OptimizeActiveBound
 pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintType
 pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
@@ -5027,6 +5164,15 @@ pulse/types: func CheckPanelSlabPartitionWith(slots []pulse/types.PanelSlabParti
 pulse/types: type Cohort struct
 pulse/types: type Cohort field DataDir string "json:\"data_dir,omitempty\""
 pulse/types: type Cohort field Filename string "json:\"filename\""
+pulse/types: const CollinearityBasisModel untyped string = "model"
+pulse/types: const CollinearityBasisPredictors untyped string = "predictors"
+pulse/types: type ComparisonDistribution string
+pulse/types: const ComparisonDistributionChiSquare pulse/types.ComparisonDistribution = "chisq"
+pulse/types: const ComparisonDistributionF pulse/types.ComparisonDistribution = "f"
+pulse/types: type ComparisonTest string
+pulse/types: const ComparisonTestF pulse/types.ComparisonTest = "f"
+pulse/types: const ComparisonTestLRT pulse/types.ComparisonTest = "lrt"
+pulse/types: const ComparisonTestWald pulse/types.ComparisonTest = "wald"
 pulse/types: type ComponentsMergeability string
 pulse/types: const ComponentsMergeable pulse/types.ComponentsMergeability = "mergeable"
 pulse/types: const ComponentsNone pulse/types.ComponentsMergeability = "none"
@@ -5044,6 +5190,7 @@ pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omit
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
 pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse/types: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
@@ -5055,6 +5202,7 @@ pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"swe
 pulse/types: type ComposedRequest method (*ComposedRequest) Hash() string
 pulse/types: type ComposedResponse struct
 pulse/types: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
+pulse/types: type ComposedResponse field Comparisons []pulse/types.FitComparisonResult "json:\"comparisons,omitempty\""
 pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
@@ -5277,6 +5425,36 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitComparisonResult struct
+pulse/types: type FitComparisonResult field DF float64 "json:\"df\""
+pulse/types: type FitComparisonResult field DFResidual float64 "json:\"df_residual,omitempty\""
+pulse/types: type FitComparisonResult field Dispersion float64 "json:\"dispersion,omitempty\""
+pulse/types: type FitComparisonResult field Distribution pulse/types.ComparisonDistribution "json:\"distribution\""
+pulse/types: type FitComparisonResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type FitComparisonResult field Full string "json:\"full\""
+pulse/types: type FitComparisonResult field FullDFResidual float64 "json:\"full_df_residual\""
+pulse/types: type FitComparisonResult field FullDeviance float64 "json:\"full_deviance\""
+pulse/types: type FitComparisonResult field FullTwoLogLik float64 "json:\"full_two_log_lik,omitempty\""
+pulse/types: type FitComparisonResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type FitComparisonResult field NObs int "json:\"n_obs\""
+pulse/types: type FitComparisonResult field Name string "json:\"name\""
+pulse/types: type FitComparisonResult field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
+pulse/types: type FitComparisonResult field PValue float64 "json:\"p_value\""
+pulse/types: type FitComparisonResult field Restricted string "json:\"restricted\""
+pulse/types: type FitComparisonResult field RestrictedDFResidual float64 "json:\"restricted_df_residual\""
+pulse/types: type FitComparisonResult field RestrictedDeviance float64 "json:\"restricted_deviance\""
+pulse/types: type FitComparisonResult field RestrictedTwoLogLik float64 "json:\"restricted_two_log_lik,omitempty\""
+pulse/types: type FitComparisonResult field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type FitComparisonResult field Statistic float64 "json:\"statistic\""
+pulse/types: type FitComparisonResult field Terms []string "json:\"terms\""
+pulse/types: type FitComparisonResult field Test pulse/types.ComparisonTest "json:\"test\""
+pulse/types: type FitComparisonResult method (FitComparisonResult) MarshalJSON() ([]byte, error)
+pulse/types: type FitComparisonSpec struct
+pulse/types: type FitComparisonSpec field Full string "json:\"full\""
+pulse/types: type FitComparisonSpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type FitComparisonSpec field Name string "json:\"name\""
+pulse/types: type FitComparisonSpec field Restricted string "json:\"restricted\""
+pulse/types: type FitComparisonSpec field Test pulse/types.ComparisonTest "json:\"test,omitempty\""
 pulse/types: type FitFromSweep struct
 pulse/types: type FitFromSweep field Regression string "json:\"regression\""
 pulse/types: type FitKind string
@@ -5285,6 +5463,7 @@ pulse/types: const FitKindSEM pulse/types.FitKind = "sem"
 pulse/types: const FitKindVector pulse/types.FitKind = "vector"
 pulse/types: type FitResult struct
 pulse/types: type FitResult embed *pulse/types.RegressionResult
+pulse/types: type FitResult field RegressionResult.AIC float64 "json:\"aic,omitempty\""
 pulse/types: type FitResult field RegressionResult.ActiveBounds []string "json:\"-\""
 pulse/types: type FitResult field RegressionResult.AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type FitResult field RegressionResult.Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
@@ -5294,6 +5473,7 @@ pulse/types: type FitResult field RegressionResult.BootstrapSucceeded int "json:
 pulse/types: type FitResult field RegressionResult.CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type FitResult field RegressionResult.CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type FitResult field RegressionResult.Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type FitResult field RegressionResult.Collinearity *pulse/types.RegressionCollinearityResult "json:\"collinearity,omitempty\""
 pulse/types: type FitResult field RegressionResult.ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type FitResult field RegressionResult.ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type FitResult field RegressionResult.Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
@@ -5302,12 +5482,14 @@ pulse/types: type FitResult field RegressionResult.CredibleIntervals map[string]
 pulse/types: type FitResult field RegressionResult.Criterion string "json:\"criterion,omitempty\""
 pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitempty\""
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.Dispersion float64 "json:\"dispersion,omitempty\""
 pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
 pulse/types: type FitResult field RegressionResult.Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
 pulse/types: type FitResult field RegressionResult.JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
+pulse/types: type FitResult field RegressionResult.Margins *pulse/types.RegressionMarginsResult "json:\"margins,omitempty\""
 pulse/types: type FitResult field RegressionResult.Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type FitResult field RegressionResult.NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type FitResult field RegressionResult.NObs int "json:\"n_obs,omitempty\""
@@ -5329,6 +5511,9 @@ pulse/types: type FitResult field RegressionResult.SignificantAdjusted map[strin
 pulse/types: type FitResult field RegressionResult.Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type FitResult field RegressionResult.Theta float64 "json:\"theta,omitempty\""
+pulse/types: type FitResult field RegressionResult.ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
+pulse/types: type FitResult field RegressionResult.TwoLogLik float64 "json:\"two_log_lik,omitempty\""
 pulse/types: type FitResult field RegressionResult.Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type FitResult field RegressionResult.Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
 pulse/types: type FitResult field RegressionResult.Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
@@ -5449,6 +5634,10 @@ pulse/types: const MarginMeanReducible pulse/types.MarginReducibility = "mean_re
 pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
+pulse/types: const MarginsAME untyped string = "ame"
+pulse/types: const MarginsMEM untyped string = "mem"
+pulse/types: const MarginsScaleLink untyped string = "link"
+pulse/types: const MarginsScaleResponse untyped string = "response"
 pulse/types: func MarshalFinite(v any) ([]byte, error)
 pulse/types: type MaterializeBucket struct
 pulse/types: type MaterializeBucket field RangeTable string "json:\"range_table,omitempty\""
@@ -5578,6 +5767,7 @@ pulse/types: type MultiplicityFamily string
 pulse/types: const MultiplicityFamilyColumn pulse/types.MultiplicityFamily = "column"
 pulse/types: const MultiplicityFamilyCompose pulse/types.MultiplicityFamily = "compose"
 pulse/types: const MultiplicityFamilyLayer pulse/types.MultiplicityFamily = "layer"
+pulse/types: const MultiplicityFamilyMargins pulse/types.MultiplicityFamily = "margins"
 pulse/types: const MultiplicityFamilyMatrix pulse/types.MultiplicityFamily = "matrix"
 pulse/types: const MultiplicityFamilyRequest pulse/types.MultiplicityFamily = "request"
 pulse/types: const MultiplicityFamilyRow pulse/types.MultiplicityFamily = "row"
@@ -5587,6 +5777,8 @@ pulse/types: const MultiplicityMethodBY pulse/types.MultiplicityMethod = "by"
 pulse/types: const MultiplicityMethodBonferroni pulse/types.MultiplicityMethod = "bonferroni"
 pulse/types: const MultiplicityMethodHolm pulse/types.MultiplicityMethod = "holm"
 pulse/types: const MultiplicityMethodNone pulse/types.MultiplicityMethod = "none"
+pulse/types: const NegBinDispersionEstimated untyped string = "estimated"
+pulse/types: const NegBinDispersionFixed untyped string = "fixed"
 pulse/types: func NormalizedString(mode string) pulse/types.CrosstabNormalize
 pulse/types: func NullSlotWeight() pulse/types.SlotWeight
 pulse/types: type OnPair struct
@@ -5909,6 +6101,17 @@ pulse/types: type ReferenceVectorTable field Profiles map[string][]float64
 pulse/types: type RegressionBounds struct
 pulse/types: type RegressionBounds field Nonnegative []string "json:\"nonnegative,omitempty\""
 pulse/types: type RegressionBounds method (*RegressionBounds) Active() bool
+pulse/types: type RegressionCollinearity struct
+pulse/types: type RegressionCollinearity field Basis string "json:\"basis,omitempty\""
+pulse/types: type RegressionCollinearity field Groups []pulse/types.RegressionTermGroup "json:\"groups,omitempty\""
+pulse/types: type RegressionCollinearity method (*RegressionCollinearity) EffectiveBasis() string
+pulse/types: type RegressionCollinearityResult struct
+pulse/types: type RegressionCollinearityResult field Basis string "json:\"basis\""
+pulse/types: type RegressionCollinearityResult field DF map[string]int "json:\"df\""
+pulse/types: type RegressionCollinearityResult field GVIFScaled map[string]float64 "json:\"gvif_scaled,omitempty\""
+pulse/types: type RegressionCollinearityResult field Terms []string "json:\"terms\""
+pulse/types: type RegressionCollinearityResult field Tolerance map[string]float64 "json:\"tolerance\""
+pulse/types: type RegressionCollinearityResult field VIF map[string]float64 "json:\"vif\""
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
@@ -5928,6 +6131,28 @@ pulse/types: type RegressionHoldout field N int "json:\"n\""
 pulse/types: type RegressionHoldout field NNull int "json:\"n_null\""
 pulse/types: type RegressionHoldout field R2 float64 "json:\"r2\""
 pulse/types: type RegressionHoldout field RMSE float64 "json:\"rmse\""
+pulse/types: type RegressionMargins struct
+pulse/types: type RegressionMargins field Scale string "json:\"scale,omitempty\""
+pulse/types: type RegressionMargins field Terms []string "json:\"terms,omitempty\""
+pulse/types: type RegressionMargins field Type string "json:\"type,omitempty\""
+pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveScale() string
+pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveType() string
+pulse/types: type RegressionMarginsResult struct
+pulse/types: type RegressionMarginsResult field At map[string]float64 "json:\"at,omitempty\""
+pulse/types: type RegressionMarginsResult field CILower map[string]float64 "json:\"ci_lower\""
+pulse/types: type RegressionMarginsResult field CIUpper map[string]float64 "json:\"ci_upper\""
+pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_level\""
+pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
+pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
+pulse/types: type RegressionMarginsResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type RegressionMarginsResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
+pulse/types: type RegressionMarginsResult field PValues map[string]float64 "json:\"p_values\""
+pulse/types: type RegressionMarginsResult field Scale string "json:\"scale\""
+pulse/types: type RegressionMarginsResult field SignificantAdjusted map[string]bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type RegressionMarginsResult field Statistics map[string]float64 "json:\"statistics\""
+pulse/types: type RegressionMarginsResult field StdErrors map[string]float64 "json:\"std_errors\""
+pulse/types: type RegressionMarginsResult field Terms []string "json:\"terms\""
+pulse/types: type RegressionMarginsResult field Type string "json:\"type\""
 pulse/types: type RegressionMultiplicity struct
 pulse/types: type RegressionMultiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionMultiplicity field Coefficients []string "json:\"coefficients,omitempty\""
@@ -5935,6 +6160,7 @@ pulse/types: type RegressionMultiplicity field Family pulse/types.MultiplicityFa
 pulse/types: type RegressionMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method,omitempty\""
 pulse/types: type RegressionMultiplicity method (*RegressionMultiplicity) Block() *pulse/types.Multiplicity
 pulse/types: type RegressionResult struct
+pulse/types: type RegressionResult field AIC float64 "json:\"aic,omitempty\""
 pulse/types: type RegressionResult field ActiveBounds []string "json:\"-\""
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
@@ -5944,6 +6170,7 @@ pulse/types: type RegressionResult field BootstrapSucceeded int "json:\"bootstra
 pulse/types: type RegressionResult field CILower map[string]float64 "json:\"ci_lower,omitempty\""
 pulse/types: type RegressionResult field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
 pulse/types: type RegressionResult field Coefficients map[string]float64 "json:\"coefficients,omitempty\""
+pulse/types: type RegressionResult field Collinearity *pulse/types.RegressionCollinearityResult "json:\"collinearity,omitempty\""
 pulse/types: type RegressionResult field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionResult field ConvergedIters int "json:\"converged_iters,omitempty\""
 pulse/types: type RegressionResult field Correlation *pulse/types.MatrixValues "json:\"correlation,omitempty\""
@@ -5952,12 +6179,14 @@ pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type RegressionResult field Dispersion float64 "json:\"dispersion,omitempty\""
 pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
 pulse/types: type RegressionResult field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
+pulse/types: type RegressionResult field Margins *pulse/types.RegressionMarginsResult "json:\"margins,omitempty\""
 pulse/types: type RegressionResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionResult field NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type RegressionResult field NObs int "json:\"n_obs,omitempty\""
@@ -5979,6 +6208,9 @@ pulse/types: type RegressionResult field SignificantAdjusted map[string]bool "js
 pulse/types: type RegressionResult field Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type RegressionResult field Theta float64 "json:\"theta,omitempty\""
+pulse/types: type RegressionResult field ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
+pulse/types: type RegressionResult field TwoLogLik float64 "json:\"two_log_lik,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type RegressionResult field Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
 pulse/types: type RegressionResult field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
@@ -5987,10 +6219,12 @@ pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
 pulse/types: type RegressionSpec field Bounds *pulse/types.RegressionBounds "json:\"bounds,omitempty\""
+pulse/types: type RegressionSpec field Collinearity *pulse/types.RegressionCollinearity "json:\"collinearity,omitempty\""
 pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovariance "json:\"covariance,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
+pulse/types: type RegressionSpec field Dispersion string "json:\"dispersion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionSpec field Holdout string "json:\"holdout,omitempty\""
 pulse/types: type RegressionSpec field Intercept *bool "json:\"intercept,omitempty\""
@@ -5998,6 +6232,7 @@ pulse/types: type RegressionSpec field JackknifeBy string "json:\"jackknife_by,o
 pulse/types: type RegressionSpec field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionSpec field Link string "json:\"link,omitempty\""
+pulse/types: type RegressionSpec field Margins *pulse/types.RegressionMargins "json:\"margins,omitempty\""
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
 pulse/types: type RegressionSpec field Multiplicity *pulse/types.RegressionMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionSpec field Name string "json:\"name,omitempty\""
@@ -6015,6 +6250,7 @@ pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionSpec field Solver string "json:\"solver,omitempty\""
 pulse/types: type RegressionSpec field Target string "json:\"target\""
+pulse/types: type RegressionSpec field Theta float64 "json:\"theta,omitempty\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type RegressionSpec field Unpenalized []string "json:\"unpenalized,omitempty\""
@@ -6022,6 +6258,9 @@ pulse/types: type RegressionSpec field Vcov bool "json:\"vcov,omitempty\""
 pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
 pulse/types: type RegressionSpec method (RegressionSpec) StreamableAs(typeStreamable bool) bool
+pulse/types: type RegressionTermGroup struct
+pulse/types: type RegressionTermGroup field Name string "json:\"name\""
+pulse/types: type RegressionTermGroup field Predictors []string "json:\"predictors\""
 pulse/types: type RegressionType string
 pulse/types: type RegressionType method (RegressionType) Streamable() bool
 pulse/types: type Request struct
@@ -6348,4 +6587,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0b97892b59bd7c98f756b8346b1022d85762404e0288e2f7373999d83abe7d52
+// golden-hash: 657362706d0a08fc5c8980392923f9b6d995dced78c0a7776655b592c3b7c797

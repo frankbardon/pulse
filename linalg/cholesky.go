@@ -72,14 +72,18 @@ func cholesky(s *Sym) (*Matrix, int) {
 // are the caller's responsibility; they are added as given.
 type RidgeSchedule []float64
 
+// defaultRidgeIncrements is 10^(t-6) for t = 0..7 as exact decimal
+// literals: each is the correctly rounded power of ten, bit-identical
+// to the math.Pow(10, t-6) it replaces and free of any library call
+// whose bits could depend on the architecture.
+var defaultRidgeIncrements = [8]float64{1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1}
+
 // DefaultRidgeSchedule returns a fresh copy of the default schedule:
 // eight attempts, increments 10^(t-6) for t = 0..7 (1e-6 … 1e1), so a
 // matrix that fails every attempt reports a total ridge of 11.111111.
 func DefaultRidgeSchedule() RidgeSchedule {
-	out := make(RidgeSchedule, 8)
-	for ridge := range out {
-		out[ridge] = math.Pow(10, float64(ridge-6))
-	}
+	out := make(RidgeSchedule, len(defaultRidgeIncrements))
+	copy(out, defaultRidgeIncrements[:])
 	return out
 }
 

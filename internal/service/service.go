@@ -1296,6 +1296,15 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err != nil {
 		return nil, err
 	}
+	// Then the nested-model comparisons' rules (predict runs the same
+	// regcompare.Check at the same point); every fit a comparison reads
+	// then runs with a capture its engine offers its figures to
+	// (cmpFigs, carried on the fit pass's ctx below).
+	cmpPlans, err := s.compareRefusal(composed)
+	if err != nil {
+		return nil, err
+	}
+	cmpFigs := newComparisonFigures(composed.Compare)
 	// Then the batch's saves and loads (model.CheckComposeBatch — every
 	// slot's save path, every save's uniqueness, every `models` entry)
 	// and every model file read, before any fit or slot runs.
@@ -1362,7 +1371,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// before any slot; every slot then carries the bound models. A fit
 	// bound from the sweep runs the sweep slots and their rank first
 	// (runComposeFitPhases — ran marks them).
-	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(fitCtx, composed, pre, 1, ext, requests, responses, multPlan, runSlots)
+	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(withComparisonFigures(fitCtx, cmpFigs), composed, pre, 1, ext, requests, responses, multPlan, runSlots)
 	if err != nil {
 		return nil, err
 	}
@@ -1373,6 +1382,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	fitWarnings = append(fitWarnings, optWarnings...)
+	// The nested-model comparisons read the finished fits only
+	// (runComposeCompare).
+	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, cmpWarnings...)
 	if err := runSlots(unranSlots(len(requests), ran), models); err != nil {
 		return nil, err
 	}
@@ -1404,7 +1420,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Comparisons: comparisons, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = echoed
 	}

@@ -400,7 +400,7 @@ func percentileLabelToCDF(label string) (float64, bool) {
 				fracScale *= 10
 				v += float64(c-'0') / fracScale
 			} else {
-				v = v*10 + float64(c-'0')
+				v = float64(v*10) + float64(c-'0')
 			}
 			continue
 		}
@@ -460,7 +460,7 @@ func interpolatePercentileCDF(x float64, pct map[string]float64) float64 {
 				return (lo.cdf + hi.cdf) / 2
 			}
 			t := (x - lo.value) / (hi.value - lo.value)
-			return lo.cdf + t*(hi.cdf-lo.cdf)
+			return lo.cdf + float64(t*(hi.cdf-lo.cdf))
 		}
 	}
 	return pairs[len(pairs)-1].cdf

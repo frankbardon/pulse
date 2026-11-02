@@ -198,6 +198,7 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_REG_FITTED:     true,
 		ATTR_REG_RESIDUAL:   true,
 		ATTR_REG_LEVERAGE:   true,
+		ATTR_REG_INFLUENCE:  true,
 
 		ATTR_SET_POPCOUNT: true,
 		ATTR_SET_HAS:      true,

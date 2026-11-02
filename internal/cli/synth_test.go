@@ -1523,3 +1523,61 @@ func TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile(t *tes
 		t.Errorf("%d generated rows carry a band flag with no score", orphan)
 	}
 }
+
+// TestSynthFromProfileCLI_FidelityModelFlagRefitsTheRequest verifies
+// --fidelity-model reaches SynthOptions.FidelityModel: the request file
+// is decoded strictly and its regression lands in the report's
+// utility.model_fits, fitted on both partitions; without
+// --fidelity-report the call is refused under its own code.
+func TestSynthFromProfileCLI_FidelityModelFlagRefitsTheRequest(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	synthLibraryCohort(t, source, []synth.FieldSpec{
+		{Name: "x", Type: "f64", Distribution: synth.DistNormal, Params: map[string]any{"mean": 0.0, "std": 1.0}},
+		{Name: "y", Type: "f64", Distribution: synth.DistNormal, Params: map[string]any{"mean": 5.0, "std": 2.0}},
+	}, 80, 3)
+	profile := filepath.Join(dir, "profile.json")
+	var pbuf bytes.Buffer
+	if err := runProfileCLI(t, &pbuf, "create", "--input", source, "--output", profile, "--include-correlations"); err != nil {
+		t.Fatalf("profile create: %v", err)
+	}
+	model := filepath.Join(dir, "model.json")
+	if err := os.WriteFile(model, []byte(`{"regressions": [{"type": "REG_OLS", "name": "y_on_x", "target": "y", "predictors": ["x"]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	reportPath := filepath.Join(dir, "report.json")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", filepath.Join(dir, "out.pulse"),
+		"--rows", "50", "--seed", "1", "--fidelity-report", reportPath, "--fidelity-model", model, "--json"); err != nil {
+		t.Fatalf("synth from-profile --fidelity-model: %v\n%s", err, buf.String())
+	}
+	raw, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report synth.FidelityReport
+	if err := json.Unmarshal(raw, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Utility == nil || len(report.Utility.ModelFits) != 1 {
+		t.Fatalf("utility = %+v", report.Utility)
+	}
+	if fit := report.Utility.ModelFits[0]; fit.Name != "y_on_x" || fit.SourceNObs != 80 || fit.SyntheticNObs != 50 {
+		t.Errorf("fit = %+v, want y_on_x over 80 source / 50 synthetic rows", fit)
+	}
+
+	buf.Reset()
+	err = runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", filepath.Join(dir, "out2.pulse"),
+		"--rows", "5", "--fidelity-model", model, "--json")
+	if err == nil && !strings.Contains(buf.String(), "PULSE_SYNTH_FIDELITY_MODEL_INVALID") {
+		t.Fatalf("--fidelity-model without --fidelity-report: err=%v out=%s", err, buf.String())
+	}
+	if !strings.Contains(buf.String(), "PULSE_SYNTH_FIDELITY_MODEL_INVALID") {
+		t.Errorf("envelope does not carry the code: %s", buf.String())
+	}
+}

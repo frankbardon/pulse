@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -221,6 +221,17 @@ reference-optimize:
 		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
 	done
+
+# reference-statsmodels regenerates the statsmodels oracles under
+# testdata/statsmodels/ (U65: GLM residual kinds, ...) with the PEP 723
+# scripts in scripts/reference/statsmodels/, run by `uv run` against
+# their pinned dependencies (numpy 2.3.3, pandas 2.3.3, scipy 1.16.2,
+# statsmodels 0.14.5 on Python 3.12). Each script writes its own
+# `// golden-hash:` footer. Manual target: CI never runs Python.
+UV ?= uv
+reference-statsmodels:
+	$(UV) run --no-project scripts/reference/statsmodels/gen_glm_residuals.py testdata/statsmodels/glm_residuals.json
+	$(UV) run --no-project scripts/reference/statsmodels/gen_ols_influence.py testdata/statsmodels/ols_influence.json
 
 # reference-mcmc regenerates the mcmc package's ArviZ oracles
 # (mcmc/testdata/diagnostics.json: RHat / ESSBulk / ESSTail vs

@@ -96,12 +96,18 @@ func synthFromProfileCmd() *cli.Command {
 		Usage: "Top up a source cohort with rows generated from a previously-captured profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "profile", Aliases: []string{"p"}, Usage: "Profile JSON path", Required: true},
-			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false; never opened for write", Required: true},
+			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false unless --synthetic-only; never opened for write", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path — must differ from --source", Required: true},
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
+			&cli.StringFlag{Name: "fidelity-model", Usage: "Refit a supplied request's regressions (a pulse process request JSON; its cohort is ignored) on the source and on the generated rows, and report both fits side by side in the fidelity report's utility.model_fits; needs --fidelity-report"},
 			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
+			&cli.BoolFlag{Name: "synthetic-only", Usage: "Write only the generated rows: no source row and no _synthetic column, so the output has the source's schema. The source is still read, and --fidelity-report still compares the generated rows against it"},
+			&cli.StringFlag{Name: "constraints", Usage: "Load row constraints from a standalone JSON file (a bare array of {\"expr\": ...} objects — the same shape as a spec's \"constraints\" key) and apply them to the profile-derived spec; a generated row failing any constraint is re-drawn. REPLACES any constraints the spec carries"},
+			&cli.FloatFlag{Name: "max-rejection-rate", Usage: "Ceiling on the fraction of generated rows --constraints may reject before the run is refused PULSE_SYNTH_CONSTRAINT_INFEASIBLE; in [0, 1), 0 keeps the default 0.5"},
+			&cli.IntFlag{Name: "disclosure-sample", Usage: "Cap on the generated rows the fidelity report's disclosure section measures the Gower distance to closest record over; more rows are sampled from a seeded stream that never moves the generated rows. 0 keeps the default 10000"},
+			&cli.BoolFlag{Name: "no-disclosure", Usage: "Leave the disclosure section (exact-match rate, Gower distance to closest record) out of the fidelity report"},
 			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
@@ -114,6 +120,9 @@ func synthFromProfileCmd() *cli.Command {
 			fidelityReport := cmd.String("fidelity-report")
 			rulesPath := cmd.String("rules")
 			emitSpecPath := cmd.String("emit-spec")
+			fidelityModelPath := cmd.String("fidelity-model")
+			syntheticOnly := cmd.Bool("synthetic-only")
+			constraintsPath := cmd.String("constraints")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -126,6 +135,22 @@ func synthFromProfileCmd() *cli.Command {
 			prof, err := synth.ParseProfile(raw)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
+			}
+
+			// --fidelity-model is a request file, decoded through the
+			// same strict decoder `pulse api process` uses; the facade
+			// validates it (PULSE_SYNTH_FIDELITY_MODEL_INVALID) and runs
+			// it.
+			var fidelityModel *pulse.Request
+			if fidelityModelPath != "" {
+				data, err := afero.ReadFile(fs, fidelityModelPath)
+				if err != nil {
+					return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
+				}
+				fidelityModel = &pulse.Request{}
+				if err := decodeRequestJSON(data, fidelityModel, "fidelity model request"); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_ERROR", err)
+				}
 			}
 
 			spec, conflictWarnings := synth.SpecFromProfile(prof, rows)
@@ -141,6 +166,19 @@ func synthFromProfileCmd() *cli.Command {
 			if rulesPath != "" {
 				if err := synth.ApplyRulesFile(fs, spec, rulesPath); err != nil {
 					return cliCodedError(cmd, jsonOut, "SYNTH_RULES_ERROR", err)
+				}
+			}
+			// --constraints and --max-rejection-rate merge at the same
+			// point as --rules and for the same reason; the load and the
+			// eager compile live in synth.ApplyConstraintsFile.
+			if constraintsPath != "" {
+				if err := synth.ApplyConstraintsFile(fs, spec, constraintsPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_CONSTRAINTS_ERROR", err)
+				}
+			}
+			if cmd.IsSet("max-rejection-rate") {
+				if err := synth.ApplyMaxRejectionRate(spec, cmd.Float("max-rejection-rate")); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_CONSTRAINTS_ERROR", err)
 				}
 			}
 			// Emitted BEFORE generation on purpose: the document's
@@ -183,6 +221,10 @@ func synthFromProfileCmd() *cli.Command {
 				SourceCohort:       source,
 				FidelityReportPath: fidelityReport,
 				FidelityWarnings:   fidelityWarnings,
+				FidelityModel:      fidelityModel,
+				SyntheticOnly:      syntheticOnly,
+				DisclosureSample:   int(cmd.Int("disclosure-sample")),
+				DisableDisclosure:  cmd.Bool("no-disclosure"),
 			})
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
@@ -289,7 +331,7 @@ func profileCreateCmd() *cli.Command {
 			&cli.IntFlag{Name: "correlation-top-k", Usage: "Cap on retained correlation pairs", Value: 16},
 			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},
 			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
-			&cli.BoolFlag{Name: "fit-models", Usage: "Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels and set options — keeping the coefficients, residual scale and fitted residuals; a field with no usable predictors or a rank-deficient design is skipped with a warning, never a refusal"},
+			&cli.BoolFlag{Name: "fit-models", Usage: "Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels, set options and the numeric fields declared before it (drawn first at generation) — keeping the coefficients, residual scale and fitted residuals; a field with no usable predictors or a rank-deficient design is skipped with a warning, never a refusal"},
 			&cli.BoolFlag{Name: "residual-correlations", Usage: "Capture the full correlation submatrix among --fit-models' fitted residuals (every pair, not a top-K sample); a pair with too few co-present rows is recorded as unmeasured with a reason, never as rho=0. Requires --fit-models"},
 			&cli.StringFlag{Name: "suggest-rules", Usage: "Detect structural rules on the same scan — gating relationships ('set_null'), co-missing question blocks ('null_together') and exact single-source dependencies ('set_expr') — and write them to this path as a standalone rules file (a bare JSON array, the shape 'synth from-profile --rules' consumes). PROPOSED, never applied: read the '_evidence' on each candidate, correct it, delete what you do not believe. Near-miss blocks, almost-determined pairs, always-null and constant columns are reported in the warnings rather than proposed. Dependency detection is bounded to packed_bool/u4 targets and a single low-cardinality source of at most 16 levels. The profile document itself is unchanged"},
 			&cli.BoolFlag{Name: "run-continuation", Usage: "Measure, on the same scan, each field's run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, which is exactly the run-skip decode's hit rate — into the additive 'run_continuation' section, with the high-continuation fields and advice on whether to sort the source upstream (ORDER BY its parent key). Pairs never span a shard boundary"},

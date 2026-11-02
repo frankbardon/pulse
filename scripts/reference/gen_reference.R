@@ -503,3 +503,64 @@ source(file.path(script_dir, "gen_overlays.R"), local = FALSE)
 # a two-partition series with nulls, via stats::filter); base stats +
 # jsonlite. Deterministic rows, no RNG.
 source(file.path(script_dir, "gen_distributed_lag.R"), local = FALSE)
+
+# The bound-fit influence golden (glm_influence.json: hatvalues,
+# rstandard, rstudent, cooks.distance and dffits over lm and the
+# canonical-link GLMs, each re-derived from its R 4.6.1 closed form);
+# base stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_glm_influence.R"), local = FALSE)
+
+# The non-canonical REG_GLM links golden (glm_links.json: probit,
+# cloglog, poisson identity / sqrt, gamma log / identity — coefficients,
+# SEs, vcov, deviances, AIC, dispersion, per-row fitted / working / hat /
+# dffits, sandwich vcovHC HC0 / HC1 / HC3, and frequency-weighted cases
+# against the rep() expansion; each figure re-derived from its closed
+# form); base stats + jsonlite + sandwich 3.1-3. Seeded RNG.
+source(file.path(script_dir, "gen_glm_links.R"), local = FALSE)
+
+# The REG_GLM negative binomial golden (glm_nb.json: NB2 with theta
+# estimated on the log / sqrt / identity links — glm.nb's joint MLE
+# pushed to its fixed point — or fixed through negative.binomial(theta):
+# coefficients, SEs, vcov at dispersion 1, theta, SE(theta), 2 loglik,
+# AIC, deviances, sandwich vcovHC HC0 / HC1 / HC3, per-row residuals and
+# hat values, an influence case, and a frequency-weighted case against
+# the rep() expansion; each figure re-derived from its closed form);
+# base stats + jsonlite + MASS 7.3-66 + sandwich 3.1-3. Seeded RNG.
+source(file.path(script_dir, "gen_glm_nb.R"), local = FALSE)
+
+# The regression marginal-effects golden (margins.json: average marginal
+# effects and marginal effects at the mean on lm and the binomial logit /
+# probit / cloglog, poisson log, gamma inverse / log and negative binomial
+# glm — response and link scale, classical / HC3 / cluster vcov, and a
+# frequency-weighted pair against the rep() expansion; the analytic
+# closed forms with their delta-method SEs, cross-checked against
+# marginaleffects 1.0.0); base stats + jsonlite + MASS 7.3-66 + sandwich
+# 3.1-3 (+ marginaleffects, skipped with a message when absent). Seeded RNG.
+source(file.path(script_dir, "gen_margins.R"), local = FALSE)
+
+# The regression log-likelihood golden (loglik.json: logLik / AIC of lm
+# with and without an intercept and of the binomial-logit, poisson-log
+# and gamma-inverse glm, each with a frequency-weighted case against the
+# rep() expansion; each figure re-derived from its closed form); base
+# stats + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_loglik.R"), local = FALSE)
+
+# The regression variance-inflation golden (vif.json: car::vif's GVIF,
+# Df and GVIF^(1/(2*Df)) on lm and the binomial logit, poisson log,
+# fixed-theta negative binomial and gamma log glm — ungrouped and with a
+# factor's dummies as one term, on the fit (basis model) and on lm over
+# the prior weights (basis predictors), frequency weights against the
+# rep() expansion and probability weights; each figure re-derived from
+# the weighted design's closed form); base stats + jsonlite + MASS
+# 7.3-66 + car 3.1-5. Seeded RNG.
+source(file.path(script_dir, "gen_vif.R"), local = FALSE)
+
+# The Compose nested-model comparison golden (nested.json: anova(m0, m1)
+# F / Chisq on lm, anova(test = "LRT" | "F") on the binomial logit /
+# probit, poisson, gamma inverse / log and fixed-theta negative binomial
+# glm, MASS anova.negbin with theta estimated, lmtest::waldtest with the
+# classical and sandwich HC3 vcov; a restricted fit through the origin
+# and frequency weights against the rep() expansion; each statistic
+# re-derived from its closed form); base stats + jsonlite + MASS 7.3-66
+# + sandwich 3.1-3 + lmtest 0.9-40. Seeded RNG.
+source(file.path(script_dir, "gen_nested.R"), local = FALSE)

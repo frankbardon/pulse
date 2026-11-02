@@ -1055,6 +1055,24 @@ type OptimizeSummary struct {
 	RNGSeed int64 `json:"rng_seed"`
 }
 
+// ComparisonSummary is one ComposeValidationResult.Compare entry: a
+// ComposedRequest `compare` entry (a nested-model comparison) as predict
+// resolves it, statically — validated, never computed.
+type ComparisonSummary struct {
+	// Name, Restricted and Full echo the entry.
+	Name       string `json:"name"`
+	Restricted string `json:"restricted"`
+	Full       string `json:"full"`
+	// Test is the resolved test (the default filled in) and
+	// Distribution the statistic's reference distribution — what the
+	// runtime's result reports.
+	Test         types.ComparisonTest         `json:"test"`
+	Distribution types.ComparisonDistribution `json:"distribution"`
+	// Terms are the tested terms (the full fit's terms the restricted
+	// fit lacks, in its order).
+	Terms []string `json:"terms"`
+}
+
 // VectorFitSummary is a vector fit's FitSummary: its battery and, when
 // the fit request's schema resolves, the labels a consuming slot aligns
 // to — what the runtime binds, without its figures.

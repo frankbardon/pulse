@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -61,16 +62,16 @@ type pearsonMoments struct {
 func (m *pearsonMoments) add(x, y, w float64) {
 	m.n++
 	m.sumW += w
-	m.sumWSq += w * w
+	m.sumWSq += float64(w * w)
 	wdx := w * (x - m.meanX)
 	m.meanX += wdx / m.sumW
-	m.m2X += wdx * (x - m.meanX)
+	m.m2X += float64(wdx * (x - m.meanX))
 	wdy := w * (y - m.meanY)
 	m.meanY += wdy / m.sumW
-	m.m2Y += wdy * (y - m.meanY)
+	m.m2Y += float64(wdy * (y - m.meanY))
 	// Cross-product uses the *original* deltaX and the *updated* deltaY
 	// (matches Welford's numerically stable two-pass form for covariance).
-	m.c += wdx * (y - m.meanY)
+	m.c += float64(wdx * (y - m.meanY))
 }
 
 func newPearsonRRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
@@ -294,7 +295,7 @@ func correlationInference(r, df, zDF float64, ciOK bool, alpha float64) corrInfe
 		out.T = math.Inf(int(math.Copysign(1, r)))
 		out.P = 0
 	} else {
-		out.T = r * math.Sqrt(df/(1-r*r))
+		out.T = r * math.Sqrt(df/(1-float64(r*r)))
 		out.P = statdist.StudentTTwoSidedP(out.T, df)
 	}
 	if !ciOK {
@@ -305,10 +306,10 @@ func correlationInference(r, df, zDF float64, ciOK bool, alpha float64) corrInfe
 		out.Lo, out.Hi = r, r
 		return out
 	}
-	zr := math.Atanh(r)
+	zr := detmath.Atanh(r)
 	seZ := 1.0 / math.Sqrt(zDF)
 	zCrit := normalCriticalTwoSided(alpha)
-	out.Lo = math.Tanh(zr - zCrit*seZ)
-	out.Hi = math.Tanh(zr + zCrit*seZ)
+	out.Lo = detmath.Tanh(zr - float64(zCrit*seZ))
+	out.Hi = detmath.Tanh(zr + float64(zCrit*seZ))
 	return out
 }

@@ -144,7 +144,9 @@ each row. A run that warned ends with one `{"warnings": [...]}` line
 (compose: after the rows, before a ranked sweep's `ranking` line).
 A compose batch with `optimize` blocks ends with one
 `{"optimizations": [...]}` line — each block's optimum is one solve,
-written whole, never as rows. See [Streaming & ProcessStream](../library/streaming.md).
+written whole, never as rows — and one with `compare` entries with one
+`{"comparisons": [...]}` line after it (each nested-model test is one
+figure set over two fits). See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 
@@ -208,6 +210,51 @@ to, and which conditional pairs were retired.
 bare array of rule objects, the same shape as a spec's `rules` key — and
 **replaces** the derived spec's rules with them. Refusals carry E1's own
 `PULSE_SYNTH_RULE_*` codes with the file path in `details.path`. See
+[synth from-profile](synth-from-profile.md).
+
+### `--synthetic-only` / `--constraints` / `--max-rejection-rate`
+
+Available on: `synth from-profile`.
+
+`--synthetic-only` writes the generated rows alone: no source row and
+no `_synthetic` column, so the output has the source's schema.
+`--source` is still read, and `--fidelity-report` still compares the
+generated rows with it.
+
+`--constraints <path>` loads row constraints from a standalone JSON
+file (a bare array of `{"expr": ...}` objects, the same shape as a
+spec's `constraints` key) and **replaces** the derived spec's
+constraints with them. A failing row is drawn again.
+`--max-rejection-rate` (in [0, 1); 0 keeps the default 0.5) caps the
+fraction of rows they may reject before the run is refused
+`PULSE_SYNTH_CONSTRAINT_INFEASIBLE`. A refusal names the file in
+`details.path`. See [synth from-profile](synth-from-profile.md).
+
+### `--disclosure-sample` / `--no-disclosure`
+
+Available on: `synth from-profile` (with `--fidelity-report`).
+
+The fidelity report carries a `disclosure` section by default: the
+exact-match rate over every output column and the Gower distance to
+closest record (median, 5th percentile) on a seeded sample of the
+generated rows. `--disclosure-sample N` caps that sample (0 keeps the
+default 10000; negative is `SERVICE_VALIDATION`); the sample never moves
+the generated rows. `--no-disclosure` leaves the section out. The
+section's working set is charged against `max_estimated_memory` before
+generation: past it the run is refused `PULSE_LIMIT_EXCEEDED` and
+writes nothing. See [synth from-profile](synth-from-profile.md).
+
+### `--fidelity-model`
+
+Available on: `synth from-profile` (with `--fidelity-report`).
+
+`--fidelity-model <path>` names a `pulse process` request (strictly
+decoded; its `cohort` is ignored) whose `regressions` are fitted on
+`--source` before generation and on the generated rows after it; the
+report's `utility.model_fits` carries both fit statistics
+(`pseudo_r2` for `REG_GLM`, `r2` otherwise), their `fit_ratio` and the
+coefficients side by side. No regressions, or no `--fidelity-report`:
+`PULSE_SYNTH_FIDELITY_MODEL_INVALID`. See
 [synth from-profile](synth-from-profile.md).
 
 ### `--suggest-rules`
@@ -876,7 +923,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio; `--metrics-addr HOST:PORT` serves Prometheus metrics on `GET /metrics` (unset opens no port); `--return PRESET` sets the response preset for a tool request without its own `return` (default `standard`); the global `--limit NAME=VALUE` sets an instance resource limit over the feature profile's `limits` (`unlimited` / Go duration for `request_timeout`; a bad key or value is a `CLI_INPUT` usage error) | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast. Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals, set options and earlier-declared numerics can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast. Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |
@@ -887,7 +934,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
 | `pulse skills list` | List every built-in embedded skill (embedder skills are served per instance by `pulse_skills_*` and `p.Skills()`) | `--help` |
 | `pulse skills show` | Print one built-in skill's markdown (not profile-scoped, no embedder content) | `--help` |
-| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
+| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it and `--constraints` a row-constraints file; `--synthetic-only` writes the generated rows alone; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns, effect sizes beside the marginal p-values and a `utility` section against the source rows; `--fidelity-model` refits a supplied request's regressions on both; the report's `disclosure` section (`--disclosure-sample`, `--no-disclosure`) measures how close the twin sits to real records | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
 | `pulse version` | Print the build version as `pulse <version>`; `--json` emits the standard envelope whose `data` carries the build version, Go version, VCS commit and commit time (both omitted when the binary carries no VCS metadata) and the envelope `format_version`. Same build version as `pulse --version` and the root manifest | `--help` |
 | `pulse widen` | Widen a set column of a single-file cohort to a wider set rung (`--field`, `--to`), rewriting the cohort in place. Destructive and non-interactive, but atomic — temp file, fsync, rename — so a refusal or a failure leaves the cohort byte-identical. Refuses a narrower or equal target, a non-set column, a column already at `set_u256`, and a shard archive (whose widen spans the canonical schema plus every shard payload, so it is not this leaf's operation); each refusal carries its own error code, usable with `pulse errors lookup`. On success it names any sidecar the rewrite invalidated — the point-lookup index, the SPSS metadata sidecar — and the exact command that rebuilds it (`data.invalidated_sidecars` under `--json`); it rebuilds nothing, and prints nothing when there are none | `--help` |

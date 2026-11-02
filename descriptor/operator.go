@@ -176,6 +176,17 @@ type Param struct {
 	// EnumValues lists the allowed values when Type=="enum".
 	EnumValues []string `json:"enum_values,omitempty"`
 
+	// EnumBy names a sibling param (in the same Params list) whose value
+	// narrows EnumValues; EnumValuesBy maps each of that param's values
+	// to the subset of EnumValues valid beside it, its first entry the
+	// default when this param is omitted. REG_GLM's link by family
+	// (binomial: logit, probit, cloglog; …): a form can offer only the
+	// valid pairs, and any other pair is refused at predict and at run
+	// (PROCESSING_REGRESSION_INVALID_LINK). Both omitted when the enum
+	// does not depend on another param; no extension param sets them.
+	EnumBy       string              `json:"enum_by,omitempty"`
+	EnumValuesBy map[string][]string `json:"enum_values_by,omitempty"`
+
 	// FieldFilter constrains acceptable field types when Type=="field".
 	// One of: "numeric", "categorical", "date", "any".
 	FieldFilter string `json:"field_filter,omitempty"`

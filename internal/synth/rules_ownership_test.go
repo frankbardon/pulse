@@ -538,3 +538,91 @@ func TestSuggestRules_GatingCandidatesOwnTheirNulls(t *testing.T) {
 		t.Errorf("claim 3: the gate fired on %d of %d gated rows", allNull, gated)
 	}
 }
+
+// endDateGateSpec is the privacy-sharing showcase's end_date gate in
+// miniature: `end_date` is null exactly while the account is open
+// (`churned == 0`), its captured marginal null_rate is the source's
+// open share 0.809175, and the rule owns those nulls. churnP is the
+// GENERATED churn rate, which is free to drift from the source's
+// 0.190825 — a modelled or re-weighted gate field moves the rate the
+// gate fires at, and that is the case the warning has to name the
+// right way round.
+func endDateGateSpec(rows int, churnP float64) *synth.Spec {
+	return &synth.Spec{
+		RowCount: rows,
+		Fields: []synth.FieldSpec{
+			{Name: "churned", Type: "packed_bool", Distribution: synth.DistBernoulli,
+				Params: map[string]any{"p": churnP}},
+			{Name: "end_date", Type: "date", Nullable: true, NullRate: 0.809175,
+				Distribution: synth.DistUniformDate,
+				Params:       map[string]any{"start": "2024-07-01", "end": "2026-06-30"}},
+		},
+		Rules: []synth.RuleSpec{gateRule(true, "round(churned) == 0", "end_date")},
+	}
+}
+
+// TestOwnsNulls_WarningNamesTheDirectionOfTheGap is the #365(b) repro.
+// The divergence test is two-sided, but the message used to be
+// one-sided: a gate firing MORE often than the field's captured rate
+// was told it "accounts for only part of the field's missingness" and
+// to "widen its when" — the opposite of the remedy, since widening the
+// gate adds still more nulls. Each direction must say which it is.
+func TestOwnsNulls_WarningNamesTheDirectionOfTheGap(t *testing.T) {
+	t.Parallel()
+
+	ownership := func(t *testing.T, churnP float64) string {
+		t.Helper()
+		_, res, err := synth.SynthBytes(endDateGateSpec(20000, churnP), synth.Options{Seed: 11})
+		if err != nil {
+			t.Fatalf("synth: %v", err)
+		}
+		for _, w := range res.Warnings {
+			if strings.Contains(w, ` the nulls of field "end_date"`) {
+				return w
+			}
+		}
+		return ""
+	}
+
+	// Generated churn matching the source: the gate is exact, silence.
+	if w := ownership(t, 0.190825); w != "" {
+		t.Fatalf("an exactly-accounted gate must stay silent; got %q", w)
+	}
+
+	// Churn generated at 0.10: the gate nulls ~0.90 of rows against a
+	// captured 0.809 — MORE absence than the source has.
+	over := ownership(t, 0.10)
+	if over == "" {
+		t.Fatal("an over-firing gate must be reported")
+	}
+	for _, banned := range []string{"only part of the field's missingness", "widen its when"} {
+		if strings.Contains(over, banned) {
+			t.Errorf("over-firing gate told %q, the under-firing remedy:\n%s", banned, over)
+		}
+	}
+	for _, want := range []string{"null_rate 0.8092 was discarded", "more rows than", "narrow its when"} {
+		if !strings.Contains(over, want) {
+			t.Errorf("over-firing warning does not carry %q:\n%s", want, over)
+		}
+	}
+
+	// Churn generated at 0.30: the gate nulls ~0.70 — part of it.
+	under := ownership(t, 0.30)
+	if under == "" {
+		t.Fatal("an under-firing gate must be reported")
+	}
+	for _, want := range []string{"only part of the field's missingness", "widen its when"} {
+		if !strings.Contains(under, want) {
+			t.Errorf("under-firing warning does not carry %q:\n%s", want, under)
+		}
+	}
+	if strings.Contains(under, "more rows than") || strings.Contains(under, "narrow its when") {
+		t.Errorf("under-firing gate given the over-firing remedy:\n%s", under)
+	}
+
+	// Both directions stay one ATTENTION kind in the terminal summary.
+	groups := synth.GroupWarnings([]string{over, under})
+	if len(groups) != 1 || !groups[0].Attention || groups[0].Kind == "other" {
+		t.Errorf("both directions must group as one attention kind; got %+v", groups)
+	}
+}

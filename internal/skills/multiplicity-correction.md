@@ -31,18 +31,18 @@ It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` 
 | `compose` | every `compose` member over all slots and Compose-host layers | inside Compose only |
 <!-- feature: capability:matrices -->| `matrix` | one matrix result's distinct pairs (upper triangle, m = k(k − 1)/2), per bucket | matrix specs (default) |<!-- /feature -->
 
-Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-matrix kind, `compose` outside Compose, `request` on a Compose-host overlay, anything but `layer` / `row` / `column` on a facet overlay, `alpha` on a test<!-- feature: capability:matrices -->, `matrix` off a matrix spec, anything but `matrix` / `request` on one, a block on a matrix operator without p-values<!-- /feature -->, an unknown or repeated regression `coefficients` name, a non-`none` method on a p-value-free regression (<!-- feature: REG_BAYES_LINEAR -->`REG_BAYES_LINEAR`, <!-- /feature -->a custom one lacking a `multiplicity` slot). An INHERITED family a surface does not offer falls back to that surface's default; only an explicit one is refused. Members of one `request` / `compose` family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
+Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-matrix kind, `compose` outside Compose, `request` on a Compose-host overlay, anything but `layer` / `row` / `column` on a facet overlay, `alpha` on a test<!-- feature: capability:matrices -->, `matrix` off a matrix spec, anything but `matrix` / `request` on one, a block on a matrix operator without p-values<!-- /feature -->, an unknown or repeated regression `coefficients` name, a non-`none` method on a p-value-free regression (<!-- feature: REG_BAYES_LINEAR -->`REG_BAYES_LINEAR`, <!-- /feature -->a custom one lacking a `multiplicity` slot). An INHERITED family a surface does not offer falls back to its default; only an explicit one is refused. Members of one `request` / `compose` family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
 
 ## Outputs (all additive)
 
 - Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` counts the defined p-values corrected.
 - Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value`.
-- Overlay matrix payload: parallel `payload.p_adjusted` / `significant_adjusted` grids, same coordinates; a panel cell maps element for element.
+- Overlay matrix payload: parallel `payload.p_adjusted` / `significant_adjusted` grids; a panel cell maps element for element.
 - Pairwise `params.letters`: `above` follows `significant_adjusted` (an explicit `letters.alpha` compares `p_adjusted` instead).
 - Overlay layer: a `multiplicity` echo.
 <!-- feature: capability:matrices -->- Matrix result: `auxiliary.p_adjusted` / `significant_adjusted` (1 / 0) beside `auxiliary.p`, mirrored, diagonal null, plus a `multiplicity` echo. An inherited block reaches only a spec under `params.inference`.<!-- /feature -->
 <!-- feature: MAT_SEM -->- `MAT_SEM`: own block only; every estimates row with a p (`:=` too) joins: `sem-defined-parameters`.<!-- /feature -->
-- Regression result: `p_adjusted` / `significant_adjusted` maps beside `p_values` over its member `coefficients` (default every predictor) + echo; `alpha` as overlays. ONLY its own block opts it in, never inherited.
+- Regression result: `p_adjusted` / `significant_adjusted` maps beside `p_values` over its member `coefficients` (default every predictor) + echo; `alpha` as overlays. Only its own block opts it in. `margins`: own family (`margins.multiplicity`).
 - An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m`, counted in `excluded` (absent when 0).
 
 ## Row and column geometry

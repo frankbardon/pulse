@@ -3,9 +3,9 @@
 // license that can be found in THIRD_PARTY_NOTICES.md (section
 // "The Go standard library") at the repository root.
 //
-// Ported from Go 1.26 src/math/erf.go (the pure-Go erf path) with every
+// Ported from Go 1.26 src/math/erf.go (the pure-Go erf and erfc paths) with every
 // floating-point product wrapped in float64(...) so it cannot be
-// contracted into a fused multiply-add, and the two inner exponentials
+// contracted into a fused multiply-add, and the inner exponentials
 // routed through this package's Exp rather than math.Exp. See doc.go.
 
 package detmath
@@ -261,4 +261,92 @@ func Erf(x float64) float64 {
 		return r/x - 1
 	}
 	return 1 - r/x
+}
+
+// Erfc returns the complementary error function of x, with bits that are
+// identical on every architecture and CPU.
+//
+// Port of the pure-Go erfc in Go 1.26 src/math/erf.go (FreeBSD msun
+// s_erf.c's erfc branch), NOT 1 - Erf(x): for x ≥ 0.84375 every arm
+// computes erfc directly — the (1/x)·exp(-x²-0.5625+R/S) asymptotic form
+// from 1.25 up — so the upper tail keeps full relative precision down to
+// the subnormal range (Erfc(26) ≈ 5.7e-296), where 1 - Erf has long since
+// rounded to 0. Special cases are the same as math.Erfc:
+//
+//	Erfc(+Inf) = 0
+//	Erfc(-Inf) = 2
+//	Erfc(NaN) = NaN
+//
+// Against math.Erfc it sits within 1 ulp on the sweep in stdlib_test.go
+// (arm64 contracts the stdlib's rational arms; amd64's math.Erfc calls the
+// FMA-path exp assembly).
+func Erfc(x float64) float64 {
+	const Tiny = 1.0 / (1 << 56) // 2**-56
+	// special cases
+	switch {
+	case math.IsNaN(x):
+		return math.NaN()
+	case math.IsInf(x, 1):
+		return 0
+	case math.IsInf(x, -1):
+		return 2
+	}
+	sign := false
+	if x < 0 {
+		x = -x
+		sign = true
+	}
+	if x < 0.84375 { // |x| < 0.84375
+		var temp float64
+		if x < Tiny { // |x| < 2**-56
+			temp = x
+		} else {
+			z := float64(x * x)
+			r := pp0 + float64(z*(pp1+float64(z*(pp2+float64(z*(pp3+float64(z*pp4)))))))
+			s := 1 + float64(z*(qq1+float64(z*(qq2+float64(z*(qq3+float64(z*(qq4+float64(z*qq5)))))))))
+			y := r / s
+			if x < 0.25 { // |x| < 1/4
+				temp = x + float64(x*y)
+			} else {
+				temp = 0.5 + (float64(x*y) + (x - 0.5))
+			}
+		}
+		if sign {
+			return 1 + temp
+		}
+		return 1 - temp
+	}
+	if x < 1.25 { // 0.84375 <= |x| < 1.25
+		s := x - 1
+		P := pa0 + float64(s*(pa1+float64(s*(pa2+float64(s*(pa3+float64(s*(pa4+float64(s*(pa5+float64(s*pa6)))))))))))
+		Q := 1 + float64(s*(qa1+float64(s*(qa2+float64(s*(qa3+float64(s*(qa4+float64(s*(qa5+float64(s*qa6)))))))))))
+		if sign {
+			return 1 + erx + P/Q
+		}
+		return 1 - erx - P/Q
+	}
+	if x < 28 { // |x| < 28
+		s := 1 / float64(x*x)
+		var R, S float64
+		if x < 1/0.35 { // |x| < 1 / 0.35 ~ 2.857143
+			R = ra0 + float64(s*(ra1+float64(s*(ra2+float64(s*(ra3+float64(s*(ra4+float64(s*(ra5+float64(s*(ra6+float64(s*ra7)))))))))))))
+			S = 1 + float64(s*(sa1+float64(s*(sa2+float64(s*(sa3+float64(s*(sa4+float64(s*(sa5+float64(s*(sa6+float64(s*(sa7+float64(s*sa8)))))))))))))))
+		} else { // |x| >= 1 / 0.35 ~ 2.857143
+			if sign && x > 6 {
+				return 2 // x < -6
+			}
+			R = rb0 + float64(s*(rb1+float64(s*(rb2+float64(s*(rb3+float64(s*(rb4+float64(s*(rb5+float64(s*rb6)))))))))))
+			S = 1 + float64(s*(sb1+float64(s*(sb2+float64(s*(sb3+float64(s*(sb4+float64(s*(sb5+float64(s*(sb6+float64(s*sb7)))))))))))))
+		}
+		z := math.Float64frombits(math.Float64bits(x) & 0xffffffff00000000) // pseudo-single (20-bit) precision x
+		r := float64(Exp(float64(-z*z)-0.5625) * Exp(float64((z-x)*(z+x))+R/S))
+		if sign {
+			return 2 - r/x
+		}
+		return r / x
+	}
+	if sign {
+		return 2
+	}
+	return 0
 }

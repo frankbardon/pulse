@@ -1,6 +1,10 @@
 package regression
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // aicBICFromOLS returns (AIC, BIC, logL) for an unpenalized / penalized
 // OLS fit characterised by its residual sum of squares, observation
@@ -45,10 +49,10 @@ func aicBICFromOLS(rss float64, n int, k0 int) (aic, bic, logL float64) {
 		return veryGoodCrit, veryGoodCrit, math.MaxFloat64 / 4
 	}
 	// Maximised Gaussian log-likelihood at MLE σ² = RSS/n.
-	logL = -0.5*nf*math.Log(2*math.Pi*rss/nf) - 0.5*nf
+	logL = gaussianLogLik(rss, nf)
 	k := float64(k0 + 2) // slopes + intercept + σ²
-	aic = -2*logL + 2*k
-	bic = -2*logL + math.Log(nf)*k
+	aic = float64(-2*logL) + float64(2*k)
+	bic = float64(-2*logL) + float64(detmath.Log(nf)*k)
 	return aic, bic, logL
 }
 
@@ -93,8 +97,8 @@ func aicBICFromGLM(deviance float64, n int, k0 int) (aic, bic, logL float64) {
 	}
 	logL = -0.5 * deviance
 	k := float64(k0 + 1) // slopes + intercept (no dispersion estimate)
-	aic = -2*logL + 2*k
-	bic = -2*logL + math.Log(nf)*k
+	aic = float64(-2*logL) + float64(2*k)
+	bic = float64(-2*logL) + float64(detmath.Log(nf)*k)
 	return aic, bic, logL
 }
 
@@ -134,17 +138,10 @@ func aicBICFromGamma(y, mu, prior []float64, deviance float64, k0 int) (aic, bic
 		const veryGoodCrit = -math.MaxFloat64 / 4
 		return veryGoodCrit, veryGoodCrit, math.MaxFloat64 / 4
 	}
-	disp := deviance / nStar
-	for i := 0; i < n; i++ {
-		w := 1.0
-		if prior != nil {
-			w = prior[i]
-		}
-		logL += w * gammaLogDensity(y[i], mu[i], disp)
-	}
+	logL = gammaLogLik(y, mu, prior, deviance)
 	k := float64(k0 + 2) // slopes + intercept + φ
-	aic = -2*logL + 2*k
-	bic = -2*logL + math.Log(nStar)*k
+	aic = float64(-2*logL) + float64(2*k)
+	bic = float64(-2*logL) + float64(detmath.Log(nStar)*k)
 	return aic, bic, logL
 }
 
@@ -153,6 +150,6 @@ func aicBICFromGamma(y, mu, prior []float64, deviance float64, k0 int) (aic, bic
 func gammaLogDensity(y, mu, disp float64) float64 {
 	a := 1 / disp
 	s := mu * disp
-	lg, _ := math.Lgamma(a)
-	return -lg - a*math.Log(s) + (a-1)*math.Log(y) - y/s
+	lg, _ := detmath.Lgamma(a)
+	return -lg - float64(a*detmath.Log(s)) + float64((a-1)*detmath.Log(y)) - y/s
 }

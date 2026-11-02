@@ -664,3 +664,106 @@ func TestApplyChiSqVsPop_NoComparedCategoriesDegenerate(t *testing.T) {
 		t.Errorf("p-value = %v, want NaN", layer.Summary.PValue)
 	}
 }
+
+// TestApplyChiSqVsPop_MissingPopulationCategoryObservedZero pins E1-S2:
+// a complete subset listing (TruncatedAt 0) that lacks a population
+// category compares it at observed 0 with its population share, so the
+// missing category counts in χ², df and the low-expected check. The
+// population {a:60, b:36, c:4}; the subset {a:50, b:50} never shows c.
+// R reference:
+//
+//	chisq.test(c(50,50,0), p = c(60,36,4), rescale.p = TRUE)
+//	# X-squared = 11.111111111111111, df = 2, p-value = 0.0038659201394728076
+//
+// The pre-fix handler compared {a, b} only: X-squared 6.6667 on 1 df,
+// and no PULSE_OVERLAY_EXPECTED_LOW (c's expected count is 4).
+func TestApplyChiSqVsPop_MissingPopulationCategoryObservedZero(t *testing.T) {
+	t.Parallel()
+
+	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 60},
+		{Value: "b", Count: 36},
+		{Value: "c", Count: 4},
+	}, 3, 100, 100, 0)
+	host := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 50},
+		{Value: "b", Count: 50},
+	}, 2, 100, 100, 0)
+	popView, err := ResolveFacetPopulation(popResult, "category")
+	if err != nil {
+		t.Fatalf("ResolveFacetPopulation failed: %v", err)
+	}
+	layer, warnings, err := applyChiSqVsPop(chiSqVsPopSpec(), host.Fields["category"], popView)
+	if err != nil {
+		t.Fatalf("applyChiSqVsPop returned error: %v", err)
+	}
+	const wantStat = 11.111111111111111
+	const wantP = 0.0038659201394728076
+	if got := *layer.Summary.Statistic; !chiSqVsPopRelClose(got, wantStat, 1e-10) {
+		t.Errorf("statistic = %v, want %v (R, c at observed 0)", got, wantStat)
+	}
+	if got := *layer.Summary.PValue; !chiSqVsPopRelClose(got, wantP, 1e-10) {
+		t.Errorf("p-value = %v, want %v", got, wantP)
+	}
+	if df := layer.Summary.Parameters["df"]; df != 2 {
+		t.Errorf("df = %v, want 2 (a, b and the missing c)", df)
+	}
+	if layer.Summary.Count == nil || *layer.Summary.Count != 3 {
+		t.Errorf("Summary.Count = %v, want 3 compared categories", layer.Summary.Count)
+	}
+	if len(warnings) != 1 || warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_EXPECTED_LOW) {
+		t.Fatalf("want one PULSE_OVERLAY_EXPECTED_LOW (c expects 4), got %+v", warnings)
+	}
+	d := warnings[0].Details
+	if d["low_expected_cells"] != 1 || d["value_n"] != 3 {
+		t.Errorf("EXPECTED_LOW details = %+v, want low_expected_cells 1, value_n 3", d)
+	}
+	if em, ok := d["expected_min"].(float64); !ok || !chiSqVsPopRelClose(em, 4, 1e-12) {
+		t.Errorf("EXPECTED_LOW expected_min = %v, want 4", d["expected_min"])
+	}
+}
+
+// TestApplyChiSqVsPop_TruncatedHostComparesListedOnly: under
+// DiscreteTopK truncation (TruncatedAt > 0) an unlisted population
+// category may hold subset rows below the top K, so it is unknown, not
+// observed 0 — the comparison stays over the listed values. Same counts
+// as the observed-zero test; R reference:
+//
+//	chisq.test(c(50,50), p = c(60,36), rescale.p = TRUE)
+//	# X-squared = 6.666666666666667, df = 1, p-value = 0.009823274507519247
+func TestApplyChiSqVsPop_TruncatedHostComparesListedOnly(t *testing.T) {
+	t.Parallel()
+
+	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 60},
+		{Value: "b", Count: 36},
+		{Value: "c", Count: 4},
+	}, 3, 100, 100, 0)
+	host := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 50},
+		{Value: "b", Count: 50},
+	}, 3, 104, 104, 0)
+	host.Fields["category"].Discrete.TruncatedAt = 1
+	popView, err := ResolveFacetPopulation(popResult, "category")
+	if err != nil {
+		t.Fatalf("ResolveFacetPopulation failed: %v", err)
+	}
+	layer, warnings, err := applyChiSqVsPop(chiSqVsPopSpec(), host.Fields["category"], popView)
+	if err != nil {
+		t.Fatalf("applyChiSqVsPop returned error: %v", err)
+	}
+	const wantStat = 6.666666666666667
+	const wantP = 0.009823274507519247
+	if got := *layer.Summary.Statistic; !chiSqVsPopRelClose(got, wantStat, 1e-10) {
+		t.Errorf("statistic = %v, want %v (listed values only)", got, wantStat)
+	}
+	if got := *layer.Summary.PValue; !chiSqVsPopRelClose(got, wantP, 1e-10) {
+		t.Errorf("p-value = %v, want %v", got, wantP)
+	}
+	if df := layer.Summary.Parameters["df"]; df != 1 {
+		t.Errorf("df = %v, want 1", df)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("want no warnings, got %+v", warnings)
+	}
+}

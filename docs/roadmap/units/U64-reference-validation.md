@@ -46,32 +46,32 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 
 **TODO items delivered** (tick in [`TODO.md`](../TODO.md)):
 
-- [x] **#588** The book's "How Pulse is validated" page and a "Validated against" list on every inferential operator's catalog entry, generated from a gated registry (E1-S1)
-- [ ] **#589** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it (E1-S2)
-- [ ] **#590** The registry gate checks that a cited test actually exercises the operator, not only that the file exists (E1-S3)
-- [ ] **#591** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` (E2-S1)
-- [ ] **#592** R goldens for the unweighted `OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX`; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` (E2-S2)
-- [x] **#593** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
-- [x] **#608** `TEST_ANOVA_F` reaches the double-precision ceiling on NIST SmLs07–09: 4.0 / 3.9 / 3.9 digits (3.2 before). The original 7-digit target is impossible from float64 input; see E3-S4 (E3-S4)
-- [x] **#611** Shifted accumulation for the other per-group Welford tests where no parity contract forbids it: `TEST_ANOVA_WELCH` and one-sample `TEST_T`. The rest don't need it: `TEST_BROWN_FORSYTHE` reads deviations, the paired tests read differences, and `TEST_TUKEY_HSD` and the post-tests read materialized means (E3-S7)
-- [ ] **#612** Decide, then do: two-sample `TEST_T` / `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` must stay byte-equal with `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `_VS_REF`, which fold unshifted `AGG_WELFORD` cells. They lose about 3 digits under a 1e12 offset (1e-9 relative at 1e6). Precision there means shifting `AGG_WELFORD` itself, merge across shards included, so both sides move together (owner decision D4)
-- [x] **#609** `REG_OLS` solves on a streaming Givens QR (`ols_qr.go`, AS 274) instead of Cholesky on the normal equations. NIST Filip now fits (7.4 digits; it was refused), and Wampler1–5 reach 9.6 / 13.3 / 9.7 / 7.7 / 5.7 (6.0–6.7 before), level with LAPACK's Householder QR (8.1, and 7.6 / 5.6 on Wampler4 / 5). Wampler5's 7-digit target is beyond double precision for any solver (E3-S5)
-- [x] **#610** Regression through the origin, `intercept: false` on `REG_OLS` (default `true`). NIST NoInt1 / NoInt2 reach 14.1 / 15 digits. `solver: "qr" | "normal"` (default `qr`) restores the normal-equations path on request. Both are refused by the shared rule `internal/regsolve`, at predict and at run (E3-S6)
-- [ ] **#594** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
-- [ ] **#595** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded, reproducible simulation-based calibration harness (E4-S2)
-- [ ] **#596** Studio shows each operator's validation in the inspector and links the book page (pulse-studio, E5-S1)
-- [ ] **#597** Studio's own arithmetic (the workflow Stat test and Fit statistics nodes) appears in a Studio validation table, with its R goldens cited (pulse-studio, E5-S2)
+- [x] **#613** The book's "How Pulse is validated" page and a "Validated against" list on every inferential operator's catalog entry, generated from a gated registry (E1-S1)
+- [ ] **#614** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it (E1-S2)
+- [ ] **#615** The registry gate checks that a cited test actually exercises the operator, not only that the file exists (E1-S3)
+- [ ] **#616** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` (E2-S1)
+- [ ] **#617** R goldens for the unweighted `OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX`; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` (E2-S2)
+- [x] **#618** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
+- [x] **#633** `TEST_ANOVA_F` reaches the double-precision ceiling on NIST SmLs07–09: 4.0 / 3.9 / 3.9 digits (3.2 before). The original 7-digit target is impossible from float64 input; see E3-S4 (E3-S4)
+- [x] **#636** Shifted accumulation for the other per-group Welford tests where no parity contract forbids it: `TEST_ANOVA_WELCH` and one-sample `TEST_T`. The rest don't need it: `TEST_BROWN_FORSYTHE` reads deviations, the paired tests read differences, and `TEST_TUKEY_HSD` and the post-tests read materialized means (E3-S7)
+- [ ] **#637** Decide, then do: two-sample `TEST_T` / `TEST_WELCH` / `TEST_Z_TWO_SAMPLE` must stay byte-equal with `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `_VS_REF`, which fold unshifted `AGG_WELFORD` cells. They lose about 3 digits under a 1e12 offset (1e-9 relative at 1e6). Precision there means shifting `AGG_WELFORD` itself, merge across shards included, so both sides move together (owner decision D4)
+- [x] **#634** `REG_OLS` solves on a streaming Givens QR (`ols_qr.go`, AS 274) instead of Cholesky on the normal equations. NIST Filip now fits (7.4 digits; it was refused), and Wampler1–5 reach 9.6 / 13.3 / 9.7 / 7.7 / 5.7 (6.0–6.7 before), level with LAPACK's Householder QR (8.1, and 7.6 / 5.6 on Wampler4 / 5). Wampler5's 7-digit target is beyond double precision for any solver (E3-S5)
+- [x] **#635** Regression through the origin, `intercept: false` on `REG_OLS` (default `true`). NIST NoInt1 / NoInt2 reach 14.1 / 15 digits. `solver: "qr" | "normal"` (default `qr`) restores the normal-equations path on request. Both are refused by the shared rule `internal/regsolve`, at predict and at run (E3-S6)
+- [ ] **#619** `REG_MMM_HILL` pinned to R `minpack.lm::nlsLM` on the same objective and starting values (E4-S1)
+- [ ] **#620** `REG_MMM_BAYES` pinned in its conjugate limit to `REG_BAYES_LINEAR`, plus a seeded, reproducible simulation-based calibration harness (E4-S2)
+- [ ] **#621** Studio shows each operator's validation in the inspector and links the book page (pulse-studio, E5-S1)
+- [ ] **#622** Studio's own arithmetic (the workflow Stat test and Fit statistics nodes) appears in a Studio validation table, with its R goldens cited (pulse-studio, E5-S2)
 
 ## Decisions (owner, open)
 
-- **D1 — where the engine exposes validation (#589).** The options:
+- **D1 — where the engine exposes validation (#614).** The options:
   - (a) A read-time surface such as `Explain`, with no manifest bytes, so the guidance budget is untouched.
   - (b) An additive `validation` block per operator in the manifest.
   - (c) A JSON file beside `pulse docs export`.
 
   Recommended: (a). It is pulled rather than pushed, and Studio already embeds Pulse as a library.
 - **D2 — NIST failure policy.** If a hard dataset (Filip, Wampler 4–5) is below the certified accuracy, is that a published known limitation or a blocker? Recommended: publish the LRE either way, and fix anything under 7 digits on the "average" and "lower" difficulty datasets.
-- **D4 — two-sample precision versus overlay parity (#612).** The two-sample mean tests are byte-equal with their cell overlays by contract. Both read Welford means held at the data's magnitude, so both lose precision under a large common offset. The options:
+- **D4 — two-sample precision versus overlay parity (#637).** The two-sample mean tests are byte-equal with their cell overlays by contract. Both read Welford means held at the data's magnitude, so both lose precision under a large common offset. The options:
   - (a) Shift `AGG_WELFORD` and the overlay fold together, keeping parity and gaining precision. This touches the aggregator, its shard merge and every overlay golden.
   - (b) Keep parity, and keep the loss.
   - (c) Shift only the tests, and drop byte parity for a 1e-12 tolerance.
@@ -84,7 +84,7 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 - **D1 → (a).** Validation is a read-time surface on `Explain` (`pulse explain OP`, `pulse_explain`). It adds no manifest bytes and moves the registry into `internal/descriptor`.
 - **D2 → publish the digits either way.** Fix anything under 7 digits on the lower- and average-difficulty datasets. Applied: SmLs07–09 and Wampler5 sit at the double-precision ceiling and are published as such.
 - **D3 → E1–E3 before U32; E4–E5 may follow v1.0.0.**
-- **D4 → (a).** Shift `AGG_WELFORD` and the moment-overlay fold together, keeping byte parity and gaining the precision. This includes the shard merge, so that partials with different origins combine exactly. It ships as #612, after U65 E1.
+- **D4 → (a).** Shift `AGG_WELFORD` and the moment-overlay fold together, keeping byte parity and gaining the precision. This includes the shard merge, so that partials with different origins combine exactly. It ships as #637, after U65 E1.
 
 ## Configurability (owner rule, 2026-10-31)
 
@@ -126,13 +126,13 @@ An operator exposes a parameter wherever there is a real methodological choice, 
     - **Regression.** Norris, Pontius and Longley reach 8.5–11.5 digits, and Wampler1–5 reach 6.0–6.7. Filip is refused as rank-deficient, and NoInt1/2 cannot run because there is no no-intercept option.
     - **ANOVA.** SiRstv, SmLs01–06 and AtmWtAg reach 8.7–14.7 digits; SmLs07–09 reach only 3.2.
     - **Univariate.** The mean and sample SD reach 8.2–15 digits. The sample SD came from `AGG_WELFORD`, since `AGG_STDDEV` was then the population SD only (it now takes `ddof`, below). The lag-1 autocorrelation is not offered.
-    - **Follow-ups:** #608, #609 and #610 (S4–S6).
-  - S4 *(done)*: #608.
+    - **Follow-ups:** #633, #634 and #635 (S4–S6).
+  - S4 *(done)*: #633.
     - **The 7-digit target is impossible.** SmLs07–09 hold values such as 1000000000000.4, which float64 cannot represent (the spacing near 1e12 is 1.2e-4). Exact rational arithmetic on the parsed doubles reaches only 4.03, 3.92 and 3.91 digits. R, Stata and SPSS read the same doubles, so no double-precision package can do better.
     - **The arithmetic loss is fixed.** Pulse lost a further 0.8 digits because each group's Welford mean was held at magnitude 1e12. `TEST_ANOVA_F` now accumulates v minus the first observed value, which is exact and shift-invariant for the sums of squares. It reaches the ceiling (4.0 / 3.9 / 3.9). Every other ANOVA set gained 0.5–1.4 digits; for example, AtmWtAg went from 8.7 to 10.1.
     - **Pinned by** `TestAnovaF_LargeOffsetMatchesExact`, which compares against exact `math/big` sums of squares on the input doubles.
     - **Exact results would need exact input.** Getting past the ceiling would need decimal-aware accumulation on `decimal128` cohorts. That is out of scope.
-  - S5 *(done)*: #609.
+  - S5 *(done)*: #634.
     - **The change.** Plain `REG_OLS` (no penalty, no bounds) now solves on an incremental Givens QR of √w·[1, x − x⁰, y − y⁰], where the origin is the first row. It is still streaming, at O(p²) per row and O(p²) memory. The solve works at κ(X) instead of the normal equations' κ(X)², and the origin keeps an offset predictor from aligning with the intercept column. The intercept and its SE still come from the Welford means.
     - **R².** It is computed as ESS / (ESS + RSS), as R's `summary.lm` does, so there is no cancellation when R² is near 0.
     - **Unchanged solvers.** Ridge, lasso, NNLS's bounded solve and Bayes keep reading the moments. Every caller of `solveOLS` (refit, coefficient scoring, NNLS's first pass) moves together.
@@ -151,8 +151,8 @@ An operator exposes a parameter wherever there is a real methodological choice, 
       | Wampler4 | 6.7 | 7.7 |
       | Wampler5 | 6.0 | 5.7 |
     - **Reference points.** numpy/LAPACK Householder QR gets 8.1 on Filip, 7.6 on Wampler4 and 5.6 on Wampler5. Its SVD-based `lstsq` misses Filip entirely, at 0 digits.
-  - S6 *(done)*: #610. `REG_OLS` gained `intercept: false`, which pins the intercept to 0 and gives null inference on it, uncentred R² and df N* − p, as in R's `lm(y ~ 0 + x)`. It also gained `solver` (`qr` default, `normal`). NIST NoInt1 / NoInt2: 14.1 / 15 digits.
-  - S7: #611. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
+  - S6 *(done)*: #635. `REG_OLS` gained `intercept: false`, which pins the intercept to 0 and gives null inference on it, uncentred R² and df N* − p, as in R's `lm(y ~ 0 + x)`. It also gained `solver` (`qr` default, `normal`). NIST NoInt1 / NoInt2: 14.1 / 15 digits.
+  - S7: #636. Each one regenerates `lre.json` with `-update` in the PR that changes the digits, so the review sees the before and after.
   - *(done)* **`ddof` on `AGG_STDDEV` / `AGG_VARIANCE`.** Both gained an optional `params.ddof`: `0` (the default, the population figure m2 / n, byte-identical when absent) or `1` (the sample figure m2 / (n − 1); weighted, `AGG_WELFORD`'s m2_w / (Σw − 1)). Any other value is `PROCESSING_CONFIG`, raised identically by predict and the runtime (`internal/ddofspec`). Every path honours it: buffered, streaming, merged shards, decimal128, weighted, crosstab cells and margins, and the components (`variance` / `stddev` equal the scalar; `m2` and `n` stay raw). One row (or Σw ≤ 1) under ddof 1 is `null`, never 0. The univariate StRD sample SD now comes from `AGG_STDDEV` with `ddof: 1`, with `AGG_WELFORD`'s `stddev` component held to the same digits; the recorded digits did not change, and the registry gains an `AGG_STDDEV` row.
 - **E4 — External references for MMM**
   - S1: `gen_mmm_hill.R` fits the same Hill-adstock objective with `minpack.lm::nlsLM` from the same start and bounds. The test pins coefficients at the tolerance the optimizer oracles already use (`optimize/testdata`).

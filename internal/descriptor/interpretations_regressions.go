@@ -61,6 +61,11 @@ var (
 		Field: "conf_level",
 		Means: "The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).",
 	}
+	regMarginsCommon = []string{
+		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.",
+		regCoefCausal,
+		"A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.",
+	}
 )
 
 // regCI is the ci_lower.* / ci_upper.* pair for one type: means names
@@ -141,6 +146,19 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 		Field: "residual_std_err",
 		Means: regRSE + " It divides the residual sum of squares by n - p - 1.",
 	},
+	{
+		Field: "two_log_lik",
+		Means: "Twice the maximised Gaussian log-likelihood (R's logLik on lm), at the residual variance RSS / n; higher is a closer fit.",
+		Caveats: []string{
+			regLogLikAbsent,
+			"With a frequency weight it is the expanded rows' figure, which R's lm(weights = f) does not report (it reads them as precision weights).",
+		},
+	},
+	{
+		Field:   "aic",
+		Means:   "-two_log_lik + 2 x (coefficients + 1, the residual variance counted): R's AIC on lm; lower is better.",
+		Caveats: []string{regAICCompare},
+	},
 	regNObs,
 	{
 		Field: "converged_iters",
@@ -149,14 +167,81 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 			"A value at max_iters suggests the fit stopped before settling; raise max_iters or tol.",
 		},
 	},
-})
+}, interpRegOLSMargins, interpRegCollinearity)
+
+// regLogLikAbsent and regAICCompare are the likelihood caveats OLS and
+// GLM share.
+const (
+	regLogLikAbsent = "Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood), a penalized fit, and an OLS fit whose bound binds."
+	regAICCompare   = "Compare it only across models of the same outcome fitted to the same rows."
+)
+
+// regMargins is the margins block's readings for one type: means is the
+// estimate's reading, caveats the type's own.
+func regMargins(means string, caveats ...string) []descriptor.Interpretation {
+	return []descriptor.Interpretation{
+		{
+			Field:   "margins.estimates.*",
+			Means:   "The marginal effect of this term (requested by margins): " + means,
+			Sign:    regLinearSign,
+			Caveats: append(caveats, regMarginsCommon...),
+		},
+		{
+			Field: "margins.std_errors.*",
+			Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+		},
+		{
+			Field:  "margins.p_values.*",
+			Shared: SharedPValue,
+			Caveats: []string{
+				"The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).",
+			},
+		},
+	}
+}
+
+// interpRegCollinearity reads the collinearity block (REG_OLS and
+// REG_GLM alike). Unbanded, as MAT_COLLINEARITY's VIF: 5 and 10 are
+// rules of thumb, not verified conventions (O'Brien 2007).
+var interpRegCollinearity = []descriptor.Interpretation{
+	{
+		Field: "collinearity.vif.*",
+		Means: "The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. " +
+			"For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.",
+		Caveats: []string{
+			"No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.",
+			"It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.",
+			"A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.",
+		},
+	},
+	{
+		Field: "collinearity.tolerance.*",
+		Means: "The reciprocal of vif: the share of the term's spread the other predictors do not explain. Near 0 means the term is close to a combination of the others.",
+	},
+	{
+		Field: "collinearity.gvif_scaled.*",
+		Means: "vif^(1/(2 df)): the generalized VIF on the scale of a standard error, so terms of different column counts compare; for a single column it is the square root of vif.",
+	},
+}
+
+// interpRegOLSMargins reads REG_OLS's margins block.
+var interpRegOLSMargins = regMargins("the change in the expected outcome per unit of the predictor, in outcome units. " +
+	"On OLS the model is linear, so every effect, ame or mem, response or link scale, equals the coefficient, with its standard error, p-value and interval.")
+
+// interpRegGLMMargins reads REG_GLM's margins block.
+var interpRegGLMMargins = regMargins("the change in the expected outcome per unit of the predictor on the response scale — "+
+	"probability units for binomial, expected counts for Poisson and negative_binomial — averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). "+
+	"On the link scale, and on an identity link, it is the coefficient itself.",
+	"Unlike a coefficient, a response-scale effect depends on where it is evaluated: ame and mem differ, and the ame describes these rows, not a typical one.",
+	"Standard errors are delta-method (first order); with few rows or fitted values near 0 or 1 they can understate the uncertainty.",
+)
 
 var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "coefficients.*",
 		Means: "The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding " +
 			"the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), " +
-			"the inverse of the expected value for gamma (inverse link).",
+			"the inverse of the expected value for gamma (inverse link), the log of the expected count for negative_binomial (log link).",
 		Sign: map[string]string{
 			"+": "higher predictor values are associated with a higher probability (binomial) or expected count (Poisson); " +
 				"under gamma's inverse link, with a LOWER expected value",
@@ -177,9 +262,11 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	{
 		Field: "std_errors.*",
 		Means: "How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: " +
-			"with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.",
+			"with the dispersion fixed at 1 for binomial, Poisson and negative_binomial (at the fitted theta), and scaled by the estimated dispersion for gamma " +
+			"(and for a fixed-theta negative_binomial under dispersion estimated).",
 		Caveats: []string{
-			"With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.",
+			"With overdispersion (counts varying more than their mean) the Poisson standard errors are too small; negative_binomial models it through theta.",
+			"negative_binomial treats the coefficients and theta as independent (MASS summary.negbin), so its standard errors ignore theta's uncertainty.",
 			"The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors " +
 				"need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.",
 			"Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), " +
@@ -193,13 +280,14 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 		Shared: SharedPValue,
 		Caveats: []string{
 			"Binomial and Poisson: Wald z at dispersion fixed to 1, so with overdispersed counts the Poisson p-values come out too small. " +
-				"Gamma: a Student t on df, because its dispersion is estimated (R's summary.glm); a robust covariance makes it Wald z again.",
+				"Gamma (and a fixed-theta negative_binomial under dispersion estimated): a Student t on df, because its dispersion is estimated (R's summary.glm); " +
+				"a robust covariance makes it Wald z again.",
 			"The request's alpha param is the penalty strength, not a significance level; on an l2 fit the coefficients are shrunk on purpose, " +
 				"so these p-values do not have the usual reading, and on an l1 or elasticnet fit they are null.",
 		},
 	},
 }, append(regCI("the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: "+
-	"standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.",
+	"standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma and a negative_binomial under dispersion estimated.",
 	regCIRepeated,
 	regCIOneAtATime,
 	"Binomial and Poisson read dispersion fixed to 1: too narrow with overdispersed counts, and poor near separation in a logistic model.",
@@ -207,7 +295,7 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 	"On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.",
 ), regConfLevel, descriptor.Interpretation{
 	Field: "df",
-	Means: "Gamma only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) " +
+	Means: "Gamma (and a fixed-theta negative_binomial under dispersion estimated) only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) " +
 		"that the estimated dispersion divides by and the p-values' and intervals' Student t reads.",
 	Caveats: []string{
 		"Absent on binomial and Poisson fits, whose dispersion is fixed at 1, and on any fit under a robust covariance or resample, which use the normal.",
@@ -240,15 +328,44 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 			"Compare it only across models of the same outcome and family.",
 		},
 	},
+	{
+		Field: "theta",
+		Means: "negative_binomial only: the shape theta in Var = mu + mu^2 / theta, the maximum-likelihood estimate (MASS glm.nb) or the fixed theta param. " +
+			"Smaller theta means more overdispersion; a very large theta is the Poisson.",
+		Caveats: []string{
+			"A fit whose estimate runs off to infinity (counts no more variable than Poisson) is refused: fit family poisson instead.",
+		},
+	},
+	{
+		Field: "theta_std_err",
+		Means: "negative_binomial with theta estimated: the standard error of theta, from its observed information at the fitted means (MASS's SE.theta).",
+		Caveats: []string{
+			"Theta's sampling distribution is skewed; a Wald interval from this standard error can reach below 0.",
+		},
+	},
+	{
+		Field: "two_log_lik",
+		Means: "Twice the maximised log-likelihood of the family at the fitted means (R's logLik on glm; MASS glm.nb's twologlik); higher is a closer fit.",
+		Caveats: []string{
+			regLogLikAbsent,
+			"A Poisson or binomial outcome that is not a whole count has no likelihood: it is null (R's -Inf).",
+		},
+	},
+	{
+		Field: "aic",
+		Means: "-two_log_lik + 2 x the parameter count: the coefficients, plus the dispersion for gamma (at deviance / n, as R's Gamma family) " +
+			"and theta for a negative_binomial fit that estimated it (MASS glm.nb's AIC); lower is better.",
+		Caveats: []string{regAICCompare},
+	},
 	regNObs,
 	{
 		Field: "converged_iters",
-		Means: "Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps.",
+		Means: "Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps, a negative_binomial fit with theta estimated the steps of every round.",
 		Caveats: []string{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-})
+}, interpRegGLMMargins, interpRegCollinearity)
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{

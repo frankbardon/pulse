@@ -79,7 +79,7 @@ func (j *jointWLS) objective(x []float64) float64 {
 		if math.IsInf(v, 1) {
 			return v
 		}
-		f += j.c[g] * v
+		f += float64(j.c[g] * v)
 	}
 	return f
 }
@@ -98,9 +98,9 @@ func (j *jointWLS) derivatives(x []float64, needH bool) (float64, []float64, *ma
 			return math.Inf(1), nil, nil, fmt.Errorf("group %d: %w", g+1, err)
 		}
 		c, ix := j.c[g], j.idx[g]
-		f += c * fg
+		f += float64(c * fg)
 		for k, t := range ix {
-			grad[t] += c * gg[k]
+			grad[t] += float64(c * gg[k])
 		}
 		if !needH {
 			continue
@@ -116,9 +116,9 @@ func addJoint(h, hg *mat.SymDense, ix []int, c float64) {
 	for a, ta := range ix {
 		for b := a; b < len(ix); b++ {
 			tb := ix[b]
-			v := c * hg.At(a, b)
+			v := float64(c * hg.At(a, b))
 			if ta == tb && a != b {
-				v *= 2
+				v = float64(v * 2)
 			}
 			h.SetSym(ta, tb, h.At(ta, tb)+v)
 		}
@@ -377,7 +377,7 @@ func (ws *wlsState) scaleRows(x, se []float64, crit float64) []Estimate {
 			e.Free, e.Value, e.SE = true, x[k], se[k]
 			e.Z = e.Value / e.SE
 			e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
-			e.CILower, e.CIUpper = e.Value-crit*e.SE, e.Value+crit*e.SE
+			e.CILower, e.CIUpper = e.Value-float64(crit*e.SE), e.Value+float64(crit*e.SE)
 		}
 		out = append(out, e)
 	}
@@ -411,7 +411,7 @@ func (j *jointWLS) robustVCov(x []float64, parts []*wlsPart, deltas [][][]float6
 		fg := p.stats.N / total
 		for a := 0; a < k; a++ {
 			for b := a; b < k; b++ {
-				meat.SetSym(a, b, meat.At(a, b)+fg*m.At(a, b))
+				meat.SetSym(a, b, meat.At(a, b)+float64(fg*m.At(a, b)))
 			}
 		}
 	}
@@ -447,16 +447,16 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 		st.Chi2 += gf.Chi2Group[g]
 		fb := 0.0
 		for k := cor; k < len(ws.obs); k++ {
-			fb += ws.w[k] * ws.obs[k] * ws.obs[k]
+			fb += float64(ws.w[k] * ws.obs[k] * ws.obs[k])
 		}
-		st.Chi2Baseline += (p.stats.N - 1) * fb
+		st.Chi2Baseline += float64((p.stats.N - 1) * fb)
 		t1, t2 := 0.0, 0.0
 		for k, o := range ws.obs {
 			dd := o - ests[g][k]
-			t1 += dd * dd * ws.w[k]
-			t2 += o * o * ws.w[k]
+			t1 += float64(dd * dd * ws.w[k])
+			t2 += float64(o * o * ws.w[k])
 		}
-		gfi += p.stats.N * (1 - t1/t2)
+		gfi += float64(p.stats.N * (1 - t1/t2))
 	}
 	st.DoF = float64(size - j.nFree)
 	st.DoFBaseline = float64(pairs)
@@ -465,7 +465,7 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 	st.GFI = gfi / total
 	st.AGFI = 1
 	if st.DoF > 0 {
-		st.AGFI = 1 - float64(size)/st.DoF*(1-st.GFI)
+		st.AGFI = 1 - float64(float64(size)/st.DoF*(1-st.GFI))
 	}
 	if est != EstimatorWLSMV {
 		return st
@@ -509,12 +509,12 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 		bg.Mul(wd.T(), &gwd)
 		trv := 0.0
 		for a := 0; a < size; a++ {
-			trv += w[a] * gam[a][a]
+			trv += float64(w[a] * gam[a][a])
 			for b := 0; b < size; b++ {
-				t1 += w[a] * gam[a][b] * w[b] * gam[b][a]
+				t1 += float64(w[a] * gam[a][b] * w[b] * gam[b][a])
 			}
 		}
-		tr += trv - fg*mat.Sum(elementMul(einv, &bg))
+		tr += trv - float64(fg*mat.Sum(elementMul(einv, &bg)))
 		vgwd := mat.NewDense(size, k, nil)
 		for r := 0; r < size; r++ {
 			for c := 0; c < k; c++ {
@@ -530,9 +530,9 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 		// The baseline's U is V on the group's covariances.
 		cor := size - len(p.stats.Pairs)
 		for a := cor; a < size; a++ {
-			bTr += w[a] * gam[a][a]
+			bTr += float64(w[a] * gam[a][a])
 			for b := cor; b < size; b++ {
-				bTr2 += w[a] * gam[a][b] * w[b] * gam[b][a]
+				bTr2 += float64(w[a] * gam[a][b] * w[b] * gam[b][a])
 			}
 		}
 	}
@@ -541,7 +541,7 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 	tr2 := t1 - 2*mat.Sum(elementMul(einv, mt2))
 	for a := 0; a < k; a++ {
 		for b := 0; b < k; b++ {
-			tr2 += ec.At(a, b) * ec.At(b, a)
+			tr2 += float64(ec.At(a, b) * ec.At(b, a))
 		}
 	}
 	gf.TraceUG, gf.TraceUG2 = tr, tr2

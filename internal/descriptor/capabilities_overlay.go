@@ -322,7 +322,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(siblings: OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first inferential FACET-host kind. Pairs " +
 				"with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² family — the " +
 				"viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. " +
-				"Math: the compared categories C are the subset's listed values that the population also shows; subset_N = " +
+				"Math: the compared categories C are the subset's listed values that the population also shows plus, when the " +
+				"subset listing is complete (no DiscreteTopK truncation), every population category the subset lacks at " +
+				"observed 0 — a truncated listing compares its listed values only, since a category below the top K is " +
+				"unlisted, not absent; subset_N = " +
 				"Σ observed over C; share[v] = pop_count[v] / Σ pop_count over C (population shares renormalised over the " +
 				"compared categories, so population nulls and values truncated out of a DiscreteTopK listing never shrink " +
 				"the expected counts); expected[v] = share[v] * subset_N; chisq = Σ (observed - expected)² / expected; df = " +
@@ -341,9 +344,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"are INDEX_VS_POP / ZSCORE_VS_POP, both descriptive). Low-expected-cell warning: when any expected count is " +
 				"below 5 the handler emits ONE PULSE_OVERLAY_EXPECTED_LOW warning (canonical χ² low-count heuristic; the same " +
 				"warning code the MATRIX-host CHISQ family and FISHER_EXACT_CELL emit — PRD FR-J1 shares the code with the " +
-				"crosstab Fisher exact path). Absent-population value (host value missing from the population's discrete " +
-				"payload) yields expected = 0; the goodness-of-fit term drops (matches TEST_CHISQ's expected > 0 guard) but " +
-				"the low-expected warning still fires. Empty host distribution OR subset_N == 0 (every observed count is zero) " +
+				"crosstab Fisher exact path); a population category entered at observed 0 counts in that check. Empty host " +
+				"distribution OR subset_N == 0 (every observed count is zero) " +
 				"OR population is empty: NaN statistic + NaN p-value with one PULSE_OVERLAY_REF_ZERO warning — no χ² test can " +
 				"be computed without observed counts. Single category (df = 0): NaN p-value alongside the statistic — " +
 				"descriptive only. Ref.Population MUST be populated (the cohort name lives on Ref.Population.Cohort); any " +

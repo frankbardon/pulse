@@ -107,7 +107,7 @@ func (a *olsAccumulator) UpdateRow(x []float64, y float64) {
 func (a *olsAccumulator) UpdateRowWeighted(x []float64, y, w float64) {
 	a.n++
 	a.sumW += w
-	a.sumWSq += w * w
+	a.sumWSq += float64(w * w)
 	sw := a.sumW
 
 	// δx (pre-update) into scratch.
@@ -130,12 +130,12 @@ func (a *olsAccumulator) UpdateRowWeighted(x []float64, y, w float64) {
 		wdxi := w * a.xScratch[i]
 		for j := i; j < a.p; j++ {
 			dxjPost := x[j] - a.meanX[j]
-			a.m2XX[i*a.p+j] += wdxi * dxjPost
+			a.m2XX[i*a.p+j] += float64(wdxi * dxjPost)
 		}
 		// m2XY uses w·δx_i (pre) and δy' (post-update).
-		a.m2XY[i] += wdxi * dyPost
+		a.m2XY[i] += float64(wdxi * dyPost)
 	}
-	a.m2YY += wdy * dyPost
+	a.m2YY += float64(wdy * dyPost)
 	a.qr.add(x, y, w)
 }
 

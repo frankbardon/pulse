@@ -1,10 +1,10 @@
 ---
 name: synth-conflicts
-description: Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface.
+description: Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, strength arbitration between competing pairs, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth from-schema, synth from-profile, conflicts, resolveConflicts]
+covers: [synth from-schema, synth from-profile, conflicts, resolveConflicts, pair_arbitration]
 requires: [capability:synth]
 ---
 
@@ -18,13 +18,14 @@ Every relationship writes into one shared claim space: a field name for scalar t
 
 ```
 structural-rule pre-claim → linear-model pre-claim → shape-fit pre-claim
-  → catPairs → catNumPairs → setSetPairs → setCatPairs → setNumPairs
+  → pair stages (catPairs, catNumPairs, setSetPairs, setCatPairs,
+    setNumPairs; one winner per target)
   → correlations
 ```
 
 A `Spec.Rules` entry that DETERMINES a field claims it first, because the rule pass runs last in `drawRow` and wins outright; which rule shapes qualify (and the four exclusions, each silent if got backwards) is in `synth-rule-claims`.
 
-First claim wins; every later relationship naming that target is dropped and REPORTED, one warning each (`conditional relationship conflict: … is already claimed by …`), rather than resolving to "whichever stage runs last". `Spec.Correlations` is one joint claimant across all participants (single Cholesky draw) — losing one participant excludes only that field and `buildCorrelator` rebuilds from the survivors.
+A pre-claimed target is lost to every pair naming it. Among the five pair stages, a target several pairs name goes to the **strongest association** — bias-corrected Cramér's V for a categorical or set-option target, adjusted η² for a numeric one — ties to the first-declared. Strength spans kinds: a set option named by a set-set and a set-categorical pair goes to the stronger. Spec `"pair_arbitration": "declared"` restores first-declared (stage order, then declaration order); a numeric pair without per-category `n` makes its target first-declared under either mode, never guessed. Capture declares a pair's source before its target, so whichever pairs win still run source-first. Every loser is dropped and REPORTED, one warning each (`conditional relationship conflict: … is already claimed by …`, naming the winner), rather than resolving to "whichever stage runs last". `Spec.Correlations` is one joint claimant across all participants (single Cholesky draw) — losing one participant excludes only that field and `buildCorrelator` rebuilds from the survivors.
 
 **The model and shape pre-claims compose; they do not compete.** The model claims first (one additive expression already accounts for every predictor, and a later overwrite would discard the whole account rather than layer onto it); a `--fit-shape` field claims second (its sampler already drew the value). A shape-fitted field carrying a model is claimed by the model, draws through the model, and gets its fitted mixture as `Q` — nothing dropped, no warning. The shape pre-claim still owns every `DistMixture` field no model took, and excludes a pair or correlation naming it with a `captured shape (--fit-shape)` warning.
 

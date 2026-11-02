@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -154,7 +155,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
 			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
-			Params:        regAttributeParams(true),
+			Params:        append(regAttributeParams(true), residualKindParam, residualTypeParam),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one residual per record",
@@ -163,11 +164,22 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:           string(types.ATTR_REG_LEVERAGE),
 			Category:       "attribute",
-			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true).",
 			Params:         regAttributeParams(false),
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
+			Streamable:     true,
+			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+		},
+		{
+			Name:           string(types.ATTR_REG_INFLUENCE),
+			Category:       "attribute",
+			Description:    "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight).",
+			Params:         append(regAttributeParams(false), influenceMeasureParam),
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_INFLUENCE), fieldaccept.SlotPredictor),
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
 			Streamable:     true,
 			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
 		},
@@ -627,11 +639,30 @@ func otherForm(f metric.Form) metric.Form {
 // fit instead of the refit (internal/model.CheckFitReference), and then
 // take none of the refit's fields: target and predictors stay Required
 // (the refit is the default form a draft writes) and say so.
+// residualKindParam is ATTR_REG_RESIDUAL's params.kind (U65 E1-S1).
+// U65 E1-S2 adds the refit's standardized / studentized kinds.
+var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit."}
+
+// regDesignFitParam is params.fit on a slot that reads the bound fit's
+// design (ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE; U65 E1-S2,
+// model.CheckFitDesign).
+var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is <TYPE>_<fit>; row-local once bound. Absent, the slot refits OLS."}
+
+// residualTypeParam is ATTR_REG_RESIDUAL's params.residual_type (U65
+// E1-S2): the residual kind standardized starts from.
+var residualTypeParam = descriptor.Param{Name: "residual_type", Type: "enum", Required: false, Default: model.ResidualTypePearson, EnumValues: model.ResidualTypes(), Description: "With kind standardized only (any other kind refuses it, PULSE_MODEL_SCORE_INVALID): pearson (default) standardizes the Pearson residual, deviance the deviance residual sign(y − μ)·√d — R 4.6.1 rstandard(type = \"deviance\"), dev.res/(√φ·√(1 − h)). Equal on a least-squares (Gaussian) fit; studentized, Cook's distance and DFFITS stay Pearson-based, as in R."}
+
+// influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
+var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG."}
+
 func regAttributeParams(penalized bool) []descriptor.Param {
 	if !penalized {
+		// ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE: the unpenalized refit,
+		// or a bound fit's design (U65 E1-S2).
 		return []descriptor.Param{
-			{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry.", Slot: true},
-			{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry.", Slot: true},
+			{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
+			{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
+			regDesignFitParam,
 		}
 	}
 	return []descriptor.Param{

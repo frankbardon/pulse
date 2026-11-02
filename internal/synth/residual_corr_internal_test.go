@@ -37,13 +37,24 @@ func residualFixtureSchema(t *testing.T) *encoding.Schema {
 // structure that its RAW values do not:
 //
 //	alpha = 10 + 5·[region=west] + z1
-//	beta  = 20 + 3·[region=west] + 0.8·z1 + 0.6·z2
+//	beta  = 20 − 0.64·[region=west] + 0.8·z1 + 0.6·z2
 //	gamma = 30 + z3
 //
 // alpha and beta share a predictor AND share residual noise; gamma
 // shares neither. So residual corr(alpha, beta) ≈ 0.8, while
 // corr(alpha, gamma) and corr(beta, gamma) are measured at ≈ 0 — the
 // measured-zero case the section exists to keep distinct from a gap.
+//
+// beta's region effect is −0.64 so that the two halves CANCEL in the
+// raw values: cov(alpha, beta) = 5·(−0.64)·¼ + 0.8 = 0. That keeps
+// alpha out of beta's model as a NUMERIC predictor (its marginal r²
+// does not clear the floor), which is what leaves the shared noise for
+// this section to measure. Without the cancellation selection admits
+// alpha into beta's model and the fit absorbs the shared noise
+// outright — beta's residual is then orthogonal to alpha's by
+// construction and the residual correlation is exactly 0, the
+// documented overlap between numeric predictors and this section
+// (.claude/reference/synthetic-data/capture-and-models.md).
 //
 // The RNG is seeded and consumed in a fixed order, so the fixture is a
 // constant, not a sample.
@@ -61,7 +72,7 @@ func residualFixtureRows(n int) ([]map[string]any, []map[string]bool) {
 		z1, z2, z3 := rng.NormFloat64(), rng.NormFloat64(), rng.NormFloat64()
 		rows = append(rows, map[string]any{
 			"alpha":  10 + 5*bump + z1,
-			"beta":   20 + 3*bump + 0.8*z1 + 0.6*z2,
+			"beta":   20 - float64(0.64*bump) + float64(0.8*z1) + float64(0.6*z2),
 			"gamma":  30 + z3,
 			"region": region,
 		})

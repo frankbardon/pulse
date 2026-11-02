@@ -12,9 +12,9 @@ requires: [capability:synth]
 
 Pulse synthesizes deterministic `.pulse` cohorts via the CLI leaves `pulse synth from-schema` / `pulse synth from-profile` (library `Pulse.Synth`; no MCP tool).
 
-This is the CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. The measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
+This is the CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. Measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
 
-Synth does not emit `Response.Components` — it writes a `.pulse` file.
+Synth writes a `.pulse` file, never `Response.Components`.
 
 ## Which skill answers what
 
@@ -27,19 +27,22 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | Two relationships name one field — which wins? | `synth-conflicts` |
 | Several drivers conditioning one numeric (`--fit-models`) | `synth-models` |
 | Gating, masking, deriving a field, reading earlier rows (`rules[]`, `constraints[]`, `lag`) | `synth-structural-rules` |
+| Drawing in a rule (`uniform()`, `bernoulli(p)`); helper fields (`"output": false`) | `synth-rule-draws` |
 | The `_synthetic` top-up and `--fidelity-report` | `synth-fidelity-report` |
+| How close a twin is to real rows (disclosure) | `synth-disclosure-report` |
 | Byte-identical output; why a profile can drift | `synth-determinism` |
 | `--fit-shape` mixtures | `synth-shape-fit` |
+| `datetime`: local hours / weekdays, per-row zones, DST, trends / seasons / windows | `synth-datetime` |
 | One distribution's params | atomic `op-synth-<kind>` |
 
 ## Two modes
 
 | Mode | Input | When |
 |---|---|---|
-| `pulse synth from-schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
+| `pulse synth from-schema` | hand-written JSON spec | caller knows the shape — fixtures, CI seeds, demos |
 | `pulse synth from-profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
 
-**Privacy.** Synth does NOT preserve privacy. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles reveal ranges, coefficients expose structure. Add a calibrated noise mechanism if the source is sensitive.
+**Privacy.** A profile-derived twin is NOT differentially private and carries NO formal privacy guarantee: no noise is added, so a row can repeat a real one and the profile leaks rare categorical values, percentile ranges and coefficient structure. The `disclosure` section (exact-match rate, DCR) is an audit aid, not a guarantee.
 
 ## Schema-mode spec
 
@@ -65,26 +68,23 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 
 Registry: the manifest's `synth_distributions`; params and clamp semantics per kind in `op-synth-<kind>`.
 
-`uniform` `[min,max)` · `normal` (optional `min`/`max` clamp) · `lognormal` · `exponential` · `poisson` · `pareto` · `bernoulli` · `monotonic_from` (ignores RNG — primary keys) · `weighted_categorical` (uniform when `weights` absent) · `uniform_date` (inclusive both ends) · `regex` (no backreferences) · `mixture` (≥2 components; bimodal or skewed shapes a single `normal` collapses).
+`uniform` `[min,max)` · `normal` (optional `min`/`max` clamp) · `lognormal` · `exponential` · `poisson` · `pareto` · `bernoulli` · `monotonic_from` (ignores RNG — primary keys) · `weighted_categorical` (uniform when `weights` absent) · `uniform_date` (inclusive both ends) · `uniform_datetime` (zoned local time) · `regex` (no backreferences) · `mixture` (≥2 components; bimodal or skewed shapes a single `normal` collapses).
 
 Three carry rules you cannot guess:
 
 - `discrete` — `values` strictly ASCENDING + optional `weights`. The exact per-level histogram of an integer column; what `profile create` reconstructs every capped integer field from (`synth-marginals`).
-- `constant` — coerced ONCE at spec parse to the field's ROW shape: bool → 1/0 on a scalar, option-name array or object → a `set_*` mask, string REQUIRED for a categorical, verbatim exact string for `decimal128` (`ParseDecimal128`). The only sampler valued from the document, hence the only one that could put a Go `bool` where the expr environment promises `float64`; a shape the row cannot hold is refused at parse.
+- `constant` — coerced ONCE at spec parse to the field's ROW shape: bool → 1/0 on a scalar, option-name array or object → a `set_*` mask, string REQUIRED for a categorical, verbatim exact string for `decimal128` (`ParseDecimal128`). A shape the row cannot hold is refused at parse.
 - `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. A determinism requirement, not an optimisation (`synth-set-fields`).
 
-Every field type except `datetime` is reachable. **`datetime` is NOT** (`unknown field type`): use `date` (epoch days) or `u64` epoch seconds. A **vector** (`vec_f32` / `vec_f64`) needs a `vector` block and is ONE joint draw, never dim scalars: `vector-fields`. `decimal128` takes field-level `precision` / `scale` (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
+Every field type is reachable. A **vector** (`vec_f32` / `vec_f64`) needs a `vector` block and is ONE joint draw, never dim scalars: `vector-fields`. `decimal128` takes field-level `precision` / `scale` (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
 
 ## Determinism contract
 
-Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--input, --seed)` MUST produce a byte-identical profile document. Any change breaking either is a contract break. Seed splitting, `Seed == 0`, null-draw order, map-order folds and float fusion: `synth-determinism`.
-
-## Library embedding
-
-`pulse.Pulse.Synth` / `pulse.Pulse.Profile` route through the embedded filesystem — `pulse.New(pulse.Options{FS: afero.NewMemMapFs()})` for hermetic tests.
+Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--input, --seed)` MUST produce a byte-identical profile document. Seed splitting, `Seed == 0`, null-draw order, map-order folds and float fusion: `synth-determinism`.
 
 ## Gotchas
 
+- `Pulse.Synth` / `Pulse.Profile` use the instance filesystem (`afero.NewMemMapFs()` in hermetic tests).
 - `monotonic_from` counts ACCEPTED rows: no gaps under constraints.
 - **A model coefficient is latent-scale** (data units only when `Q` is `normal`); a quantized modelled target attenuates at write time — `synth-models`.
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.

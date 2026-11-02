@@ -4,11 +4,14 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/collinearity"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -114,24 +117,31 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			}
 		}
 
-		// REG_GLM requires Family ∈ {binomial, poisson, gamma}.
+		// REG_GLM requires Family ∈ {binomial, poisson, gamma,
+		// negative_binomial} (internal/reglink.Families).
 		if reg.Type == types.REG_GLM {
-			switch reg.Family {
-			case "binomial", "poisson", "gamma":
-				// ok
-			case "":
+			switch {
+			case reg.Family == "":
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
-					"REG_GLM requires a Family (binomial | poisson | gamma)",
+					"REG_GLM requires a Family (binomial | poisson | gamma | negative_binomial)",
 					map[string]any{"type": string(reg.Type)},
 				)
-			default:
-				env.AddError(
-					string(errors.PROCESSING_REGRESSION_INVALID_FAMILY),
-					"REG_GLM family must be one of binomial, poisson, gamma; got "+reg.Family,
-					map[string]any{"family": reg.Family},
-				)
+			case !reglink.KnownFamily(reg.Family):
+				cerr := reglink.FamilyRefusal(reg.Family)
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
+			// Link: one of the family's three (empty = canonical) — the
+			// runtime's rule itself (internal/reglink, shared).
+			if cerr := reglink.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
+		}
+
+		// theta and the negative binomial's refused penalty / selection /
+		// resample — the runtime's rule itself (internal/reglink, shared).
+		if cerr := reglink.CheckTheta(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
 		// Selection requires Criterion when set.
@@ -201,6 +211,21 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// jackknife_groups / jackknife_by — the runtime's rule itself
 		// (internal/regresample.Check, shared).
 		if cerr := regresample.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// margins: the block's shape, the regression type and the fits
+		// it refuses — the runtime's rule itself (internal/regmargins,
+		// shared). A predictor derived from another predictor is the
+		// field-reference walk's (regmargins.CheckDependent, both sides).
+		// An extension model's block was judged by the shared-slot table
+		// above (both pass it).
+		if cerr := regmargins.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// collinearity: the block's shape, the regression type and the
+		// fits it refuses — the runtime's rule itself
+		// (internal/collinearity, shared).
+		if cerr := collinearity.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 

@@ -73,7 +73,8 @@ func (None) Matrix(string) (bool, bool)     { return false, false }
 // ATTR_VEC_DISTANCE over a row-local metric and no centroid — each folds
 // its per-run tallies across partitions —, an ATTR_MAHALANOBIS /
 // ATTR_PC_SCORE / ATTR_FACTOR_SCORE / ATTR_REG_FITTED /
-// ATTR_REG_RESIDUAL / ATTR_SEM_SCORE bound to a prebuilt fit by params.fit —
+// ATTR_REG_RESIDUAL / ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE /
+// ATTR_SEM_SCORE bound to a prebuilt fit by params.fit —
 // vectors.FitBound —, row_local extensions, a component-emitting one
 // only when declared Mergeable); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
@@ -177,11 +178,12 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 				// cannot fold.
 				rowLocal = !vectors.ComparisonCentroid(attr.Type, attr)
 			case types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE,
-				types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_SEM_SCORE:
+				types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE,
+				types.ATTR_REG_INFLUENCE, types.ATTR_SEM_SCORE:
 				// Row-local only when bound to a prebuilt fit
-				// (params.fit): a fit_on fold — or an ATTR_REG_FITTED /
-				// RESIDUAL OLS refit — over one partition's rows would
-				// be partition-local.
+				// (params.fit): a fit_on fold — or a regression
+				// attribute's OLS refit — over one partition's rows
+				// would be partition-local.
 				rowLocal = vectors.FitBound(attr.Type, attr)
 			case types.ATTR_VEC_DISTANCE:
 				// A row-local metric over any reference but a

@@ -44,10 +44,10 @@ func HoldoutFigures(spec *types.RegressionSpec, scorer model.RowScorer, rows []R
 		}
 		d := y - yhat
 		sq := d * d
-		lossSq += w * sq
-		lossAbs += w * math.Abs(d)
+		lossSq += float64(w * sq)
+		lossAbs += float64(w * math.Abs(d))
 		sumW += w
-		wY += w * y
+		wY += float64(w * y)
 		ys = append(ys, y)
 		ws = append(ws, w)
 		n++
@@ -59,7 +59,7 @@ func HoldoutFigures(spec *types.RegressionSpec, scorer model.RowScorer, rows []R
 	var sst float64
 	for i, y := range ys {
 		c := y - mean
-		sst += ws[i] * (c * c)
+		sst += float64(ws[i] * (c * c))
 	}
 	r2 := math.NaN()
 	if sst > 0 {

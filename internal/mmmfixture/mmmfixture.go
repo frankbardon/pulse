@@ -8,9 +8,8 @@
 package mmmfixture
 
 import (
-	"math"
-
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // CohortFile is the cohort filename the request bodies name.
@@ -56,7 +55,9 @@ func Schema() encoding.Schema {
 // geometric adstock (decay 0.5) of every channel, a Hill saturation, a
 // price and a promotion effect — so the swept decays fit differently
 // and the holdout RMSE separates them. Every product is
-// float64()-barriered (agent-practices: generator rule).
+// float64()-barriered (agent-practices: generator rule) and the
+// transcendentals are linalg/detmath's, so the rows are the same bits
+// on every architecture (TestMMMFixture_RowsMatchExamplesCSV).
 func Rows() [][]any {
 	type channel struct {
 		base, amp, period, half float64
@@ -77,21 +78,21 @@ func Rows() [][]any {
 			spend := make([]float64, len(chans))
 			sales := 500.0
 			for c, ch := range chans {
-				s := ch.base + float64(ch.amp*math.Sin(x/ch.period+float64(c))) + float64(0.1*ch.base*float64((wk+c)%4))
+				s := ch.base + float64(ch.amp*detmath.Sin(x/ch.period+float64(c))) + float64(0.1*ch.base*float64((wk+c)%4))
 				if s < 0 {
 					s = 0
 				}
 				spend[c] = s
 				ad[c] = s + float64(trueDecay*ad[c])
-				h := math.Pow(ad[c], 1.5) / (math.Pow(ad[c], 1.5) + math.Pow(ch.half, 1.5))
+				h := detmath.Pow(ad[c], 1.5) / (detmath.Pow(ad[c], 1.5) + detmath.Pow(ch.half, 1.5))
 				sales += float64(ch.lift * h)
 			}
-			price := 10 + float64(0.8*math.Cos(x/6))
+			price := 10 + float64(0.8*detmath.Cos(x/6))
 			promo := 0.0
 			if (wk+mi)%9 == 0 {
 				promo = 1
 			}
-			sales += -float64(12*price) + float64(35*promo) + float64(6*math.Sin(float64(11*wk+3*mi)))
+			sales += -float64(12*price) + float64(35*promo) + float64(6*detmath.Sin(float64(11*wk+3*mi)))
 			rows = append(rows, []any{m, uint64(wk), spend[0], spend[1], spend[2], spend[3], price, promo, sales})
 		}
 	}

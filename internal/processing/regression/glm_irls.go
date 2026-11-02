@@ -39,7 +39,18 @@ import (
 //     non-finite, its η invalid for the family, or the objective did not
 //     decrease (up to the round-off allowance stepHalvingTol), β_new
 //     moves halfway back toward the previous β — at most
-//     maxStepHalvings times; exhaustion stops the fit (step 6).
+//     maxStepHalvings times; exhaustion stops the fit (step 6). An η
+//     is invalid where the link's μ leaves the family's range
+//     (glmFamily.ValidEta: gamma inverse, and the identity / sqrt
+//     links of poisson and gamma — R's valideta / validmu). Under a
+//     non-canonical link a FIRST step that lands invalid (no previous
+//     β; R's glm.fit gives up there) is halved toward the
+//     intercept-only fit (g(ȳ), 0, …) instead; the canonical links keep
+//     their first step as before. Every working weight and response
+//     reads μ'(η) and V(μ) (step 3), never a canonical shortcut, so the
+//     fixed point is the MLE under any link — Fisher scoring, which
+//     converges linearly rather than quadratically off the canonical
+//     link.
 //  6. A fit that stops without converging (the iteration cap, a
 //     collapsed working Gram, halving exhausted) is classified: a
 //     binomial fit with fitted probabilities numerically 0 or 1 while a
@@ -129,6 +140,10 @@ type irlsProblem struct {
 	Start []float64
 	// WantInverse asks for (XᵀWX)⁻¹ at the converged working weights.
 	WantInverse bool
+	// WantWeights, beside WantInverse, also returns those working weights
+	// per row (irlsSolution.Weights): the collinearity block's model
+	// basis reads them.
+	WantWeights bool
 
 	// onStep, when set, sees every accepted iteration: its 0-based
 	// index, the objective at the accepted β and the halvings it took.
@@ -149,6 +164,10 @@ type irlsSolution struct {
 	// Gram is XᵀWX (row-major K × K, both triangles) at the converged
 	// weights; nil unless WantInverse.
 	Gram []float64
+	// Weights are the working weights W (prior × μ'(η)²/V(μ)) per row at
+	// the converged β — the ones Gram is formed with; nil unless
+	// WantInverse and WantWeights.
+	Weights []float64
 	// Deviance is 2·Σ w*ᵢ·d(yᵢ, μᵢ) at Beta.
 	Deviance float64
 }
@@ -232,6 +251,18 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 		// round-off in the objective can never stall a fit that has
 		// already arrived. The first step (no previous β) never converges.
 		converged := beta != nil && relativeChange(betaNew, beta) < tol && pr.valid(obj, etaNew)
+		if beta == nil && !fam.Canonical && !pr.valid(obj, etaNew) {
+			// A non-canonical link's first step left η (or the
+			// objective) invalid — an identity link pushing a fitted
+			// mean through 0. There is no previous β to halve toward
+			// (R's glm.fit stops: "no valid set of coefficients has been
+			// found"), so the step is halved toward the intercept-only
+			// fit β = (g(ȳ), 0, …), valid for every family; the MLE the
+			// loop converges to is the same.
+			beta = pr.nullStart(prior)
+			objOld = pr.candidate(beta, eta, mu, prior)
+			obj = pr.candidate(betaNew, etaNew, mu, prior)
+		}
 		halvings := 0
 		if beta != nil && !converged {
 			for !pr.acceptable(obj, objOld, etaNew) {
@@ -259,6 +290,9 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 			if pr.WantInverse {
 				pr.workingSystem(eta, prior, w, z, xtwx, xtwz)
 				sol.Gram = append([]float64(nil), xtwx...)
+				if pr.WantWeights {
+					sol.Weights = append([]float64(nil), w...)
+				}
 				// A penalised fit's covariance is its penalty's sandwich
 				// over Gram (glmPenalty.covariance), never (XᵀWX)⁻¹.
 				if pr.Penalty == nil {
@@ -273,6 +307,15 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 		}
 	}
 	return nil, stop("max_iters")
+}
+
+// nullStart is the intercept-only fit β = (g(ȳ), 0, …, 0), ȳ the
+// prior-weighted mean of y clamped into the family's interior
+// (SafeMean): every row's η is g(ȳ), valid under every link.
+func (pr *irlsProblem) nullStart(prior []float64) []float64 {
+	b := make([]float64, pr.K)
+	b[0] = pr.Family.LinkFunc(pr.Family.SafeMean(weightedMean(pr.Y, prior)))
+	return b
 }
 
 func (pr *irlsProblem) columnName(j int) string {
@@ -314,10 +357,10 @@ func (pr *irlsProblem) workingSystem(eta, prior, w, z, xtwx, xtwz []float64) {
 		xi := pr.X[i*k : (i+1)*k]
 		for a := 0; a < k; a++ {
 			wa := wi * xi[a]
-			xtwz[a] += wa * zi
+			xtwz[a] += float64(wa * zi)
 			row := a * k
 			for b := a; b < k; b++ {
-				xtwx[row+b] += wa * xi[b]
+				xtwx[row+b] += float64(wa * xi[b])
 			}
 		}
 	}
@@ -392,7 +435,7 @@ func (pr *irlsProblem) objective(eta, mu, prior, beta []float64) float64 {
 func (pr *irlsProblem) deviance(mu, prior []float64) float64 {
 	d := 0.0
 	for i := range mu {
-		d += prior[i] * pr.Family.Deviance(pr.Y[i], mu[i])
+		d += float64(prior[i] * pr.Family.Deviance(pr.Y[i], mu[i]))
 	}
 	return d * 2.0
 }
@@ -425,8 +468,8 @@ func relativeChange(next, prev []float64) float64 {
 	var dnum, dnorm float64
 	for a := range next {
 		d := next[a] - prev[a]
-		dnum += d * d
-		dnorm += prev[a] * prev[a]
+		dnum += float64(d * d)
+		dnorm += float64(prev[a] * prev[a])
 	}
 	return math.Sqrt(dnum) / (math.Sqrt(dnorm) + convergenceEps)
 }
@@ -523,23 +566,23 @@ func aliasedColumns(x, prior []float64, n, k int) []int {
 		norm0 := 0.0
 		for i := 0; i < n; i++ {
 			v[i] = sw[i] * x[i*k+j]
-			norm0 += v[i] * v[i]
+			norm0 += float64(v[i] * v[i])
 		}
 		norm0 = math.Sqrt(norm0)
 		for pass := 0; pass < 2; pass++ {
 			for _, q := range basis {
 				d := 0.0
 				for i := range v {
-					d += q[i] * v[i]
+					d += float64(q[i] * v[i])
 				}
 				for i := range v {
-					v[i] -= d * q[i]
+					v[i] -= float64(d * q[i])
 				}
 			}
 		}
 		norm := 0.0
 		for i := range v {
-			norm += v[i] * v[i]
+			norm += float64(v[i] * v[i])
 		}
 		norm = math.Sqrt(norm)
 		if norm0 == 0 || norm <= rankTol*norm0 {

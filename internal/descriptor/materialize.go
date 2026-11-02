@@ -159,7 +159,7 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 			} else {
 				field = strings.Join(attr.Fields, ", ")
 			}
-		case route == types.ATTR_REG_FITTED, route == types.ATTR_REG_RESIDUAL, route == types.ATTR_REG_LEVERAGE:
+		case route == types.ATTR_REG_FITTED, route == types.ATTR_REG_RESIDUAL, route == types.ATTR_REG_LEVERAGE, route == types.ATTR_REG_INFLUENCE:
 			field = attr.Target
 			if len(attr.Predictors) > 0 {
 				field += " on " + strings.Join(attr.Predictors, ", ")

@@ -25,7 +25,7 @@ var wantCapabilities = []string{
 	"sample", "joins", "crosstab", "crosstab_cells", "lookup", "index", "shard", "import",
 	"export", "filter_to_file", "dedup", "materialize", "rake", "widen", "templates", "synth",
 	"labels", "range_tables", "weighting", "multiplicity", "matrices", "sem_meanstructure", "sem_groups", "sem_defined", "sem_bootstrap", "sem_ordinal",
-	"params", "recommend", "explain", "compose_sweep_sampling", "compose_optimize", "compose_sweep_bind", "materialize_output",
+	"params", "recommend", "explain", "compose_sweep_sampling", "compose_optimize", "compose_sweep_bind", "compose_compare", "materialize_output",
 }
 
 // wantOperators collects every registered operator name across the

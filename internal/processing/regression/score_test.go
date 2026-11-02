@@ -123,8 +123,8 @@ func TestScorer_BayesScoresPosteriorMean(t *testing.T) {
 		x1, _ := rec.NumericValue("x1")
 		x2, _ := rec.NumericValue("x2")
 		want := res.Coefficients[model.InterceptKey]
-		want += res.Coefficients["x1"] * x1
-		want += res.Coefficients["x2"] * x2
+		want += float64(res.Coefficients["x1"] * x1)
+		want += float64(res.Coefficients["x2"] * x2)
 		if got, ok := s.Score(rec); !ok || !sameBits(got, want) {
 			t.Fatalf("row %d: score %v (ok=%v), posterior-mean prediction %v", i, got, ok, want)
 		}

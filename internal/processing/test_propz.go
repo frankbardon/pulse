@@ -255,16 +255,17 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	pb := b.succW / b.w.SumW
 	// Σ(p̂_g·N*_g) is the success mass on w*: Σw_success itself under
 	// frequency, c_g·Σw_success under probability.
-	sa := a.succW * p.basis.Scale(a.w.SumW, a.w.SumWSq)
-	sb := b.succW * p.basis.Scale(b.w.SumW, b.w.SumWSq)
+	sa := float64(a.succW * p.basis.Scale(a.w.SumW, a.w.SumWSq))
+	sb := float64(b.succW * p.basis.Scale(b.w.SumW, b.w.SumWSq))
 	pooled := (sa + sb) / (na + nb)
 	if pooled == 0 || pooled == 1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_PROP_Z: pooled proportion is 0 or 1; z-statistic undefined",
 			map[string]any{"pooled": pooled})
 	}
+	warnings := propZExpectedWarning([]float64{na, nb}, pooled, "the pooled proportion")
 	if p.cuped != nil {
-		return p.finalizeAdjusted(keys, a, b, na, nb, pa, pb, pooled)
+		return p.finalizeAdjusted(keys, a, b, na, nb, pa, pb, pooled, warnings)
 	}
 	sePool := math.Sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 	z := (pa - pb) / sePool
@@ -273,8 +274,8 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	seUnpool := math.Sqrt(pa*(1-pa)/na + pb*(1-pb)/nb)
 	// Two-sided normal critical value at alpha/2.
 	zcrit := normalCriticalTwoSided(p.alpha)
-	ciLow := (pa - pb) - zcrit*seUnpool
-	ciHigh := (pa - pb) + zcrit*seUnpool
+	ciLow := (pa - pb) - float64(zcrit*seUnpool)
+	ciHigh := (pa - pb) + float64(zcrit*seUnpool)
 	details := map[string]any{
 		"success":    p.success,
 		"groups":     keys,
@@ -301,6 +302,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details:    details,
+		Warnings:   warnings,
 	}, nil
 }
 
@@ -309,7 +311,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 // moments (the type comment). proportion, diff, the interval, z, p and
 // Cohen's h read the adjusted rates; successes, pooled and n stay the
 // listwise sample's raw figures; diff_unadjusted is p̂_a − p̂_b.
-func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, pb, pooled float64) (*types.TestResult, error) {
+func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, pb, pooled float64, warnings []string) (*types.TestResult, error) {
 	adjA, adjB, f := p.cuped.adjust(p.cuped.groups[keys[0]], p.cuped.groups[keys[1]])
 	se2 := (adjA.M2/adjA.SumW)/na + (adjB.M2/adjB.SumW)/nb
 	if !(se2 > 0) {
@@ -321,7 +323,7 @@ func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, 
 	diff := adjA.Mean - adjB.Mean
 	z := diff / se
 	pvalue := normalTwoSidedP(z)
-	half := normalCriticalTwoSided(p.alpha) * se
+	half := float64(normalCriticalTwoSided(p.alpha) * se)
 	details := map[string]any{
 		"success":    p.success,
 		"groups":     keys,
@@ -349,6 +351,7 @@ func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, 
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details:    details,
+		Warnings:   warnings,
 	}, nil
 }
 
@@ -369,7 +372,7 @@ func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
 	ph := g.succW / g.w.SumW
 	z := (ph - p.p0) / math.Sqrt(p.p0*(1-p.p0)/nStar)
 	pvalue := normalTwoSidedP(z)
-	half := normalCriticalTwoSided(p.alpha) * math.Sqrt(ph*(1-ph)/nStar)
+	half := float64(normalCriticalTwoSided(p.alpha) * math.Sqrt(ph*(1-ph)/nStar))
 	diff := ph - p.p0
 	details := map[string]any{
 		"success":    p.success,
@@ -395,7 +398,32 @@ func (p *propZRow) finalizeOneProportion() (*types.TestResult, error) {
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
 		Details:    details,
+		Warnings:   propZExpectedWarning([]float64{nStar}, p.p0, "p0"),
 	}, nil
+}
+
+// propZExpectedWarning is the expected-count guard (stats-review
+// WS-13), TEST_CHISQ's PULSE_TEST_EXPECTED_COUNT_TOO_LOW on the z-test:
+// under the null rate p (the pooled proportion, or p0) each group's
+// expected successes N*_g·p and failures N*_g·(1 − p) are counted, and
+// any below 5 flags the normal approximation as unreliable. N*_g is the
+// base the z reads — n unweighted, Σw_g under frequency, Kish n_eff_g
+// under probability. Nil when every expected count is ≥ 5.
+func propZExpectedWarning(nStars []float64, p float64, null string) []string {
+	low := 0
+	for _, n := range nStars {
+		if n*p < 5 {
+			low++
+		}
+		if n*(1-p) < 5 {
+			low++
+		}
+	}
+	if low == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("%s: %d expected success / failure count(s) under %s are < 5; normal approximation may be unreliable",
+		errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW, low, null)}
 }
 
 func (p *propZRow) reset() {

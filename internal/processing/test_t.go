@@ -56,7 +56,7 @@ type tTestRow struct {
 	// shift: the one-sample group accumulates v − origin
 	// (test_origin_shift.go). The two-sample groups stay unshifted on
 	// purpose: TEST_T / TEST_WELCH are byte-equal with OVERLAY_T_CELL /
-	// OVERLAY_T_VS_REF, which fold unshifted AGG_WELFORD cells (#612).
+	// OVERLAY_T_VS_REF, which fold unshifted AGG_WELFORD cells (#637).
 	shift originShift
 	order []string
 
@@ -283,8 +283,8 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	df := nStar - 1
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
-	ciLow := mean - tcrit*se
-	ciHigh := mean + tcrit*se
+	ciLow := mean - float64(tcrit*se)
+	ciHigh := mean + float64(tcrit*se)
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       types.TEST_T,
@@ -368,8 +368,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	df := (num * num) / den
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
-	ciLow := diff - tcrit*se
-	ciHigh := diff + tcrit*se
+	ciLow := diff - float64(tcrit*se)
+	ciHigh := diff + float64(tcrit*se)
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       tt.spec.Type, // honor TEST_T vs TEST_WELCH alias

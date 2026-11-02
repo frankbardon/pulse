@@ -33,19 +33,20 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_PROFILE_SIMILARITY": purposeAttrProfileSimilarity,
 	"ATTR_VEC_DISTANCE":       purposeAttrVecDistance,
 
-	"ATTR_REG_FITTED":   purposeAttrRegFitted,
-	"ATTR_MAHALANOBIS":  purposeAttrMahalanobis,
-	"ATTR_PC_SCORE":     purposeAttrPCScore,
-	"ATTR_FACTOR_SCORE": purposeAttrFactorScore,
-	"ATTR_REG_LEVERAGE": purposeAttrRegLeverage,
-	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
-	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
-	"ATTR_SCALE_SCORE":  purposeAttrScaleScore,
-	"ATTR_SEM_SCORE":    purposeAttrSEMScore,
-	"ATTR_SET_HAS":      purposeAttrSetHas,
-	"ATTR_SET_POPCOUNT": purposeAttrSetPopcount,
-	"ATTR_TSCORE":       purposeAttrTScore,
-	"ATTR_ZSCORE":       purposeAttrZScore,
+	"ATTR_REG_FITTED":    purposeAttrRegFitted,
+	"ATTR_MAHALANOBIS":   purposeAttrMahalanobis,
+	"ATTR_PC_SCORE":      purposeAttrPCScore,
+	"ATTR_FACTOR_SCORE":  purposeAttrFactorScore,
+	"ATTR_REG_LEVERAGE":  purposeAttrRegLeverage,
+	"ATTR_REG_INFLUENCE": purposeAttrRegInfluence,
+	"ATTR_REG_PREDICT":   purposeAttrRegPredict,
+	"ATTR_REG_RESIDUAL":  purposeAttrRegResidual,
+	"ATTR_SCALE_SCORE":   purposeAttrScaleScore,
+	"ATTR_SEM_SCORE":     purposeAttrSEMScore,
+	"ATTR_SET_HAS":       purposeAttrSetHas,
+	"ATTR_SET_POPCOUNT":  purposeAttrSetPopcount,
+	"ATTR_TSCORE":        purposeAttrTScore,
+	"ATTR_ZSCORE":        purposeAttrZScore,
 }
 
 // Shared assumption sentences, so sibling attributes say the same thing
@@ -253,8 +254,8 @@ var (
 		},
 		Assumptions: []string{
 			attrOverFilteredRows,
-			"Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read tens of points apart.",
-			"Rows tied at a cut-off are split across it arbitrarily and can change between runs; cut on the value (AGG_PERCENTILE, then a filter) for a reproducible top tenth.",
+			"Tied values do not share a percentile: each tied row takes its own rank in scan order (the earlier record lower), so equal values can read tens of points apart.",
+			"Rows tied at a cut-off are split across it by record order, not by anything in the data; cut on the value (AGG_PERCENTILE, then a filter) for a top tenth that ignores row order.",
 			"Not streamable: every value is sorted before the first row is ready.",
 			"A missing value gets no percentile (null) and is not counted in n.",
 		},
@@ -388,6 +389,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you want the model's summary (coefficients, R-squared)", Use: "REG_OLS"},
 			{When: "you want how unusual each row's predictor values are", Use: "ATTR_REG_LEVERAGE"},
+			{When: "you want how much each row moves the fitted line", Use: "ATTR_REG_INFLUENCE"},
 			{When: "you want how far a value is from the mean, with no model", Use: "ATTR_ZSCORE"},
 		},
 		Assumptions: []string{
@@ -412,13 +414,40 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want rows the model predicts badly", Use: "ATTR_REG_RESIDUAL"},
+			{When: "you want whether a row actually moved the fit", Use: "ATTR_REG_INFLUENCE"},
 			{When: "you want the model itself", Use: "REG_OLS"},
 		},
 		Assumptions: []string{
 			attrRegListwise,
 			attrRegOwnFit,
-			"Unpenalized least squares only: any penalty is refused.",
+			"Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.",
 			"It looks at the predictors only, never at the target.",
+		},
+		Level:    descriptor.LevelAdvanced,
+		Glossary: []string{"outlier", "residual", "listwise-deletion"},
+	}
+
+	purposeAttrRegInfluence = descriptor.Purpose{
+		Plain:   "Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out.",
+		Intents: []string{IntentDataQuality},
+		Questions: []string{
+			"Which rows would change the model's answer if they were dropped?",
+			"Is the fitted trend carried by a handful of unusual accounts?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Find the accounts that alone tilt a revenue-on-headcount fit before reporting its slope.",
+			descriptor.DomainScience: "Check whether one subject drives a dose-response fit before trusting it.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how unusual each row's predictor values are, whatever its target", Use: "ATTR_REG_LEVERAGE"},
+			{When: "you want rows the model predicts badly", Use: "ATTR_REG_RESIDUAL"},
+			{When: "you want the model itself", Use: "REG_OLS"},
+		},
+		Assumptions: []string{
+			attrRegListwise,
+			attrRegOwnFit,
+			"Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.",
+			"A frequency weight counts a row as that many identical rows and reports one copy's figure; a probability weight is refused.",
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"outlier", "residual", "listwise-deletion"},

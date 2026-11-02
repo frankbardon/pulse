@@ -34,7 +34,7 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 <!-- feature: capability:compose_sweep_bind -->
 - `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep (`compose-sweep-bind`).
 <!-- /feature -->
-- Its own cohort, filters, features and weight decide the fit rows, independent of every slot (fit 0–90, score 91–103). Its `return` is ignored.
+- Its own cohort, filters, features and weight decide the fit rows, independent of every slot. Its `return` is ignored.
 - Each fit runs once; serial and parallel are byte-identical.
 
 A fit's regression may read same-request window labels (windows-over-records shape); a scoring slot's post-window<!-- feature: ATTR_REG_PREDICT --> `ATTR_REG_PREDICT`<!-- /feature --> runs after its windows; a `holdout` is scored at fit time (`regression-model-options`).
@@ -83,4 +83,4 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## See
 
-`compose-requests` (slots, labels, parallel)<!-- feature: capability:compose_sweep --> · `compose-sweeps` (the slots a sweep adds receive the fits too)<!-- /feature --> · `regression-modeling` · `regression-inference` (reading its result)<!-- feature: capability:compose_optimize --> · `compose-optimize`<!-- /feature -->.
+`compose-requests` (slots, labels, parallel)<!-- feature: capability:compose_sweep --> · `compose-sweeps` (sweep slots get the fits)<!-- /feature --> · `regression-modeling` · `regression-inference` (its result)<!-- feature: capability:compose_compare --> · `regression-comparison` (nested-model tests)<!-- /feature --><!-- feature: capability:compose_optimize --> · `compose-optimize`<!-- /feature -->.

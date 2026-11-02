@@ -126,6 +126,7 @@ skills/op-attr-percentile.md
 skills/op-attr-previous-state.md
 skills/op-attr-profile-similarity.md
 skills/op-attr-reg-fitted.md
+skills/op-attr-reg-influence.md
 skills/op-attr-reg-leverage.md
 skills/op-attr-reg-predict.md
 skills/op-attr-reg-residual.md
@@ -250,6 +251,7 @@ skills/op-synth-poisson.md
 skills/op-synth-regex.md
 skills/op-synth-set-bernoulli.md
 skills/op-synth-uniform-date.md
+skills/op-synth-uniform-datetime.md
 skills/op-synth-uniform.md
 skills/op-synth-weighted-categorical.md
 skills/op-test-anova-f.md
@@ -300,7 +302,10 @@ skills/pairwise-n-sources.md
 skills/panel-n-sources.md
 skills/predict-advisories.md
 skills/process-chain.md
+skills/regression-collinearity.md
+skills/regression-comparison.md
 skills/regression-inference.md
+skills/regression-margins.md
 skills/regression-model-options.md
 skills/regression-modeling.md
 skills/regression-row-scores.md
@@ -334,7 +339,9 @@ skills/survey-weights.md
 skills/synth-conflicts.md
 skills/synth-correlations.md
 skills/synth-cross-row.md
+skills/synth-datetime.md
 skills/synth-determinism.md
+skills/synth-disclosure-report.md
 skills/synth-fidelity-report.md
 skills/synth-marginals.md
 skills/synth-model-draw.md
@@ -346,6 +353,7 @@ skills/synth-residual-correlations.md
 skills/synth-residual-recovery.md
 skills/synth-rule-claims.md
 skills/synth-rule-detectors.md
+skills/synth-rule-draws.md
 skills/synth-rule-expressions.md
 skills/synth-rule-nulls.md
 skills/synth-rule-validation.md

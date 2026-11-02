@@ -100,7 +100,7 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	// be carried back through the origin.
 	intercept := a.meanY
 	for j := 0; j < p; j++ {
-		intercept -= coeffs[j] * a.meanX[j]
+		intercept -= float64(coeffs[j] * a.meanX[j])
 	}
 
 	df := a.residualDF()
@@ -138,9 +138,9 @@ func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	for i := 0; i < p; i++ {
 		row := 0.0
 		for j := 0; j < p; j++ {
-			row += slopeCov(i, j) * a.meanX[j]
+			row += float64(slopeCov(i, j) * a.meanX[j])
 		}
-		quad += a.meanX[i] * row
+		quad += float64(a.meanX[i] * row)
 	}
 	seInt := sigma2Gram * (1.0/a.sumW + quad)
 	if seInt < 0 {

@@ -219,7 +219,7 @@ func weightedMedianSorted(sorted, ws []float64) float64 {
 	}
 	snapCumWeights(cum)
 	at := func(k int) float64 { return sorted[quantileOrderIndex(cum, k)] }
-	rank := 0.5 * (total - 1)
+	rank := float64(0.5 * (total - 1))
 	low := int(math.Floor(rank))
 	high := int(math.Ceil(rank))
 	lo, hi := at(low), at(high)
@@ -229,7 +229,7 @@ func weightedMedianSorted(sorted, ws []float64) float64 {
 	case rank-float64(low) == 0.5:
 		return 0.5 * (lo + hi)
 	default:
-		return lo + (rank-float64(low))*(hi-lo)
+		return lo + float64((rank-float64(low))*(hi-lo))
 	}
 }
 

@@ -610,6 +610,14 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"fit-bound reg residual with a grouper streams", regScored(types.ATTR_REG_RESIDUAL, `{"fit":"m"}`, grouped), vecSchema},
 		{"fit-bound reg fitted with a grouper streams", regScored(types.ATTR_REG_FITTED, `{"fit":"m"}`, grouped), vecSchema},
 		{"refit reg residual with a grouper buffers", regScored(types.ATTR_REG_RESIDUAL, ``, grouped), vecSchema},
+		// U65 E1-S2: ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE (and a
+		// studentized residual) naming a bound fit read its design, not
+		// a refit — row-local, streaming beside a grouper; the refit
+		// forms stay two-pass.
+		{"fit-bound reg leverage with a grouper streams", regScored(types.ATTR_REG_LEVERAGE, `{"fit":"m"}`, grouped), vecSchema},
+		{"fit-bound reg influence with a grouper streams", regScored(types.ATTR_REG_INFLUENCE, `{"fit":"m","measure":"dffits"}`, grouped), vecSchema},
+		{"fit-bound studentized residual with a grouper streams", regScored(types.ATTR_REG_RESIDUAL, `{"fit":"m","kind":"studentized"}`, grouped), vecSchema},
+		{"refit reg influence with a grouper buffers", regScored(types.ATTR_REG_INFLUENCE, ``, grouped), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
 		// U51 E3-S3: a GROUP_ROUNDED grouping streams (and now merges).
 		{"grouped GROUP_ROUNDED sum streams", &types.Request{

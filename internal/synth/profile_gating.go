@@ -534,7 +534,7 @@ func (d *gateDetector) predicateCompiler() func(string) error {
 	}
 	env, names := rowExprEnv(specs)
 	probe := &compiledConstraints{fields: names}
-	opts := rowExprOptions(env, names, probe, expr.AsBool())
+	opts := rowExprOptions(env, names, rowTimeFields(specs), probe, expr.AsBool())
 	return func(src string) error {
 		_, err := expr.Compile(src, opts...)
 		return err
@@ -802,7 +802,9 @@ func gateCandidateNote(gate string, targets int) string {
 	return fmt.Sprintf(
 		"measured, not asserted: %q is the field whose levels split these %d target(s) into ~always-null and ~never-null. "+
 			"It is the STATISTICAL gate; the SEMANTIC cause may be a different field that moves with it, so read the rates below and correct `when` before use. "+
-			"Note also that set_null repairs co-missingness only — each target's own null_rate still fires beneath the gate, raising its marginal null rate above the captured one.",
+			"The candidate carries owns_nulls, which discards each target's own null draw so the gate is its only source of absence: "+
+			"the generated null rate is the gate's firing rate, at most the open-row null rate below the captured one. "+
+			"Drop owns_nulls and a set_null gate repairs co-missingness only, double-counting against the captured rate.",
 		gate, targets)
 }
 

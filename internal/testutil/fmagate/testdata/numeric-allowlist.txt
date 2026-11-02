@@ -1,0 +1,49 @@
+# Numeric determinism allowlist: the reviewed exceptions to the
+# repo-wide scans in internal/testutil/fmagate (TestFMAReport_RepoWide,
+# heavy tier, and TestBannedMathReport_RepoWide, fast tier).
+#
+# One entry per line:
+#
+#   <kind> <file> <func> <reason...>
+#
+#   kind    "fma"          a multiply-add the arm64 compiler contracts
+#                          (the -d=fmahash=vy report);
+#           "math.<Name>"  a reference to a banned stdlib transcendental
+#                          (fmagate.BannedMath: Exp, Log, Log1p, Expm1,
+#                          Pow, Erf, Erfc, Lgamma, Sin, Cos, Tan, Atan,
+#                          ...; math.Sqrt and the other IEEE-exact
+#                          functions are never findings).
+#   file    module-relative, forward slashes, e.g.
+#           internal/processing/test_stat.go
+#   func    the enclosing TOP-LEVEL declaration: "F" for a function,
+#           "T.M" for a method (pointer and type parameters dropped),
+#           "(package)" for a package-level initialiser. A closure counts
+#           as the function that holds it.
+#   reason  required; why the site cannot or need not be deterministic
+#           (control-only, fixture generator, gonum residual, ...).
+#
+# An entry excuses EVERY finding of its kind in that function of that
+# file, so it survives line drift. An entry whose file is in the scanned
+# scope but excuses no finding is STALE and fails the scan: delete it
+# when the site is fixed. A malformed or duplicate line fails too.
+#
+# Report one package or file set (each story's "clean in the report"):
+#
+#   go test -tags heavy -count=1 -v ./internal/testutil/fmagate \
+#     -run 'TestFMAReport_RepoWide|TestBannedMathReport_RepoWide' \
+#     -fmareport.pkg=./internal/processing/...
+#
+# -fmareport.pkg takes comma-separated patterns: ./... (default),
+# ./a/b/... , ./a/b , or ./a/b/c.go files.
+#
+# Both scans are BINDING: an unlisted finding fails, naming the site,
+# its function and the fix (detmath twin, float64(...) barrier, or an
+# entry here).
+
+math.Exp internal/examples/fixtures/gen.go writeExperiment offline generator (//go:build ignore, run by hand with go run, compiled into no Pulse package or test binary) of the checked-in example CSVs; every figure reads the committed CSV bytes, never this code, so no result depends on the arch it runs on (a regeneration may move a last ulp: regenerate on one arch and commit the CSVs)
+math.Exp internal/examples/fixtures/gen.go writeTransactions offline generator (//go:build ignore, run by hand with go run, compiled into no Pulse package or test binary) of the checked-in example CSVs; every figure reads the committed CSV bytes, never this code, so no result depends on the arch it runs on (a regeneration may move a last ulp: regenerate on one arch and commit the CSVs)
+math.Exp internal/examples/fixtures/gen.go writeCustomers offline generator (//go:build ignore, run by hand with go run, compiled into no Pulse package or test binary) of the checked-in example CSVs; every figure reads the committed CSV bytes, never this code, so no result depends on the arch it runs on (a regeneration may move a last ulp: regenerate on one arch and commit the CSVs)
+math.Exp internal/examples/fixtures/gen.go writeOrders offline generator (//go:build ignore, run by hand with go run, compiled into no Pulse package or test binary) of the checked-in example CSVs; every figure reads the committed CSV bytes, never this code, so no result depends on the arch it runs on (a regeneration may move a last ulp: regenerate on one arch and commit the CSVs)
+math.Exp internal/examples/fixtures/gen.go writeTrainingData offline generator (//go:build ignore, run by hand with go run, compiled into no Pulse package or test binary) of the checked-in example CSVs; every figure reads the committed CSV bytes, never this code, so no result depends on the arch it runs on (a regeneration may move a last ulp: regenerate on one arch and commit the CSVs)
+math.Exp internal/examples/fixtures/gen.go writeIntake offline generator (//go:build ignore, run by hand with go run, compiled into no Pulse package or test binary) of the checked-in example CSVs; every figure reads the committed CSV bytes, never this code, so no result depends on the arch it runs on (a regeneration may move a last ulp: regenerate on one arch and commit the CSVs)
+fma internal/testutil/invariance/invariance.go Within tolerance comparator of a test helper imported only by _test files: it fuses rel*max into the bound of |a-b| <= abs + rel*max(|a|,|b|), which is never a result figure; a last-ulp move of the bound can flip a verdict only for a difference exactly at the documented tolerance

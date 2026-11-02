@@ -46,7 +46,7 @@ func (c *ewmaComputer) Compute(rows []map[string]any, partitions [][]int, label 
 				s = v
 				seeded = true
 			} else {
-				s = c.alpha*v + (1-c.alpha)*s
+				s = float64(c.alpha*v) + float64((1-c.alpha)*s)
 			}
 			rows[rowIdx][label] = s
 		}

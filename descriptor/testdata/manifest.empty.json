@@ -484,8 +484,16 @@
         "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort, a lasso fit with no valid standard errors); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
+        "name": "regression-collinearity",
+        "description": "Variance inflation factors on a fitted regression — VIF and tolerance per term, the generalized VIF (GVIF and GVIF^(1/(2 df))) for a multi-column term such as a one-hot block, read off the fit's own weighted design or the predictors alone, execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-inference",
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-margins",
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
@@ -497,7 +505,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual and leverage attributes run, scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -783,6 +791,8 @@
           "regressions[*].vcov",
           "regressions[*].correlation",
           "regressions[*].covariance",
+          "regressions[*].margins",
+          "regressions[*].collinearity",
           "regressions[*].advisories",
           "regressions[*].statistics",
           "regressions[*].outputs"
@@ -877,4 +887,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e0963f8bd41717eafc30e7804c8da4aeec20d08796f24a6878aacc1aa405adbb
+// golden-hash: f1eca55a5cfed758f56329e97a3c16fc63165fc92d0ead290ede4fba9d32a9e8

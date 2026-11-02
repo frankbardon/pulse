@@ -1,6 +1,10 @@
 package processing
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // The two-sample Kolmogorov-Smirnov p-value, ported from R 4.6.1's
 // ks.test.default and src/library/stats/src/ks.c (GPL-2 | GPL-3,
@@ -55,6 +59,64 @@ func ksTwoSampleP(a, wa, b, wb []float64, D float64) float64 {
 	p := psmirnovExactUpper(D, m, n, ksTieBoundaries(a, wa, b, wb, m+n))
 	// ks.test: PVAL <- min(1, max(0, PVAL)).
 	return math.Min(1, math.Max(0, p))
+}
+
+// ksTiesWarnings is TEST_KS's PULSE_TEST_TIES_DOMINATE warning: on the
+// ASYMPTOTIC arm only (ksUsesExact false — the exact arm conditions on
+// the tie pattern, so ties cost it nothing), when tied observations
+// make up at least half of the pooled sample — the rank tests' rule
+// (tiesDominateW) and message. The limiting distribution assumes a
+// continuous variable, so a tie-heavy sample makes its p conservative.
+// Weighted, a run's size is its total weight and a row of weight w > 1
+// is itself a tie of size w: the expansion's tie runs, so the weighted
+// verdict equals the unweighted one on the expanded rows. a / b are
+// sorted (NaN first), wa / wb nil at unit weights; NaN runs count as
+// one value, as ksTieBoundaries does. The row test and two_sample_post
+// call it; OVERLAY_KS_VS_POP does not.
+func ksTiesWarnings(a, wa, b, wb []float64) []string {
+	if ksUsesExact(float64(ksSampleSize(a, wa)), float64(ksSampleSize(b, wb))) {
+		return nil
+	}
+	weight := func(ws []float64, i int) float64 {
+		if ws == nil {
+			return 1
+		}
+		return ws[i]
+	}
+	same := func(x, y float64) bool { return x == y || (x != x && y != y) }
+	var ties []float64
+	var total float64
+	i, j := 0, 0
+	for i < len(a) || j < len(b) {
+		var v float64
+		switch {
+		case j >= len(b):
+			v = a[i]
+		case i >= len(a):
+			v = b[j]
+		case !(a[i] > b[j]):
+			v = a[i]
+		default:
+			v = b[j]
+		}
+		var run float64
+		for i < len(a) && same(a[i], v) {
+			run += weight(wa, i)
+			i++
+		}
+		for j < len(b) && same(b[j], v) {
+			run += weight(wb, j)
+			j++
+		}
+		if run > 1 {
+			ties = append(ties, run)
+		}
+		total += run
+	}
+	if !tiesDominateW(ties, total) {
+		return nil
+	}
+	return []string{tiesDominateWarning("values")}
 }
 
 // ksAsymptoticP is ks.test's limiting two-sided p for sizes m, n —
@@ -146,7 +208,7 @@ func psmirnovExactUpper(q float64, m, n int, z []bool) float64 {
 	md, nd := float64(m), float64(n)
 	// q has about 0.5/mn subtracted so rounding error never turns an
 	// equality into an inequality (R's comment, verbatim arithmetic).
-	q = (0.5 + math.Floor(q*md*nd-1e-7)) / (md * nd)
+	q = (0.5 + math.Floor(float64(q*md*nd)-1e-7)) / (md * nd)
 	test := func(r, s float64) bool { return math.Abs(r-s) >= q }
 	u := make([]float64, n+1)
 	u[0] = 0
@@ -187,23 +249,23 @@ func kolmogorovTwoLimitUpper(x, tol float64) float64 {
 	}
 	if x < 1 {
 		const m1Sqrt2Pi = 0.398942280401432677939946059934 // R's M_1_SQRT_2PI
-		kMax := int(math.Sqrt(2 - math.Log(tol)))
-		w := math.Log(x)
+		kMax := int(math.Sqrt(2 - detmath.Log(tol)))
+		w := detmath.Log(x)
 		piOver2, piOver4 := math.Pi/2, math.Pi/4 // M_PI_2, M_PI_4: multiplied at run time, as in C
 		z := -(piOver2 * piOver4) / (x * x)
 		s := 0.0
 		for k := 1; k < kMax; k += 2 {
-			s += math.Exp(float64(k*k)*z - w)
+			s += detmath.Exp(float64(float64(k*k)*z) - w)
 		}
 		return 1 - s/m1Sqrt2Pi
 	}
 	z := -2 * x * x
 	s := -1.0
 	k := 2
-	old, cur := 0.0, 2*math.Exp(z)
+	old, cur := 0.0, 2*detmath.Exp(z)
 	for math.Abs(old-cur) > tol {
 		old = cur
-		cur += 2 * s * math.Exp(z*float64(k)*float64(k)) // C's z * k * k, left to right
+		cur += float64(2 * s * detmath.Exp(z*float64(k)*float64(k))) // C's z * k * k, left to right
 		s = -s
 		k++
 	}

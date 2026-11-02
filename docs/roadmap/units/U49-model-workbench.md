@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U42]
 blocks: [U32]
-todo_items: [339, 340, 341, 342, 343, 344, 345, 346, 347, 395]
+todo_items: [339, 340, 341, 342, 343, 344, 345, 346, 347, 395, 600]
 branch: model-workbench
 ---
 

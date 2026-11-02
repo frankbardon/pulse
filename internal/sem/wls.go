@@ -157,7 +157,7 @@ func (ws *wlsState) objective(x []float64) float64 {
 	f := 0.0
 	for k, o := range ws.obs {
 		d := o - e[k]
-		f += ws.w[k] * d * d
+		f += float64(ws.w[k] * d * d)
 	}
 	return f
 }
@@ -213,10 +213,10 @@ func (ws *wlsState) delta(x []float64) ([][]float64, error) {
 	}
 	for q, p := range ws.pairs {
 		if j, ok := col[p.I]; ok {
-			out[l.Cor+q][j] += d[p.J] * sg.At(p.I, p.J)
+			out[l.Cor+q][j] += float64(d[p.J] * sg.At(p.I, p.J))
 		}
 		if j, ok := col[p.J]; ok {
-			out[l.Cor+q][j] += d[p.I] * sg.At(p.I, p.J)
+			out[l.Cor+q][j] += float64(d[p.I] * sg.At(p.I, p.J))
 		}
 	}
 	return out, nil
@@ -237,9 +237,9 @@ func (ws *wlsState) derivatives(x []float64, needH bool) (float64, []float64, *m
 	n := len(x)
 	g := make([]float64, n)
 	for k, row := range d {
-		r := ws.w[k] * (ws.obs[k] - e[k])
+		r := float64(ws.w[k] * (ws.obs[k] - e[k]))
 		for j, v := range row {
-			g[j] -= 2 * r * v
+			g[j] -= float64(2 * r * v)
 		}
 	}
 	if !needH {
@@ -259,7 +259,7 @@ func weightedGram(d [][]float64, w []float64, s float64) *mat.SymDense {
 		for j := i; j < n; j++ {
 			v := 0.0
 			for k, row := range d {
-				v += row[i] * w[k] * row[j]
+				v += float64(row[i] * w[k] * row[j])
 			}
 			h.SetSym(i, j, s*v)
 		}
@@ -434,7 +434,7 @@ func (ws *wlsState) thresholdRows(x, se []float64, sg *mat.SymDense, crit float6
 			Param: fmt.Sprintf("_t%d", t+1), Free: true, Value: val, StdValue: val / math.Sqrt(sg.At(tr.v, tr.v)),
 			SE: se[k], Z: val / se[k]}
 		e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
-		e.CILower, e.CIUpper = val-crit*se[k], val+crit*se[k]
+		e.CILower, e.CIUpper = val-float64(crit*se[k]), val+float64(crit*se[k])
 		out = append(out, e)
 	}
 	return out
@@ -597,7 +597,7 @@ func richardsonInformation(x []float64, grad func([]float64) ([]float64, error))
 		}
 		col := make([]float64, k)
 		for i := range col {
-			col[i] = (gs[0][i] - 8*gs[1][i] + 8*gs[2][i] - gs[3][i]) / (12 * h)
+			col[i] = (gs[0][i] - float64(8*gs[1][i]) + float64(8*gs[2][i]) - gs[3][i]) / (12 * h)
 		}
 		cols[j] = col
 	}
@@ -653,7 +653,7 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 	st.Chi2 = (n - 1) * f
 	fb := 0.0
 	for k := cor; k < size; k++ {
-		fb += of.Weight[k] * of.Obs[k] * of.Obs[k]
+		fb += float64(of.Weight[k] * of.Obs[k] * of.Obs[k])
 	}
 	st.Chi2Baseline = (n - 1) * fb
 	st.CFI, st.TLI, st.RMSEA = lavaanIndices(st.Chi2, st.DoF, st.Chi2Baseline, st.DoFBaseline, n, 1)
@@ -661,13 +661,13 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 	t1, t2 := 0.0, 0.0
 	for k, o := range of.Obs {
 		dd := o - of.Est[k]
-		t1 += dd * dd * of.Weight[k]
-		t2 += o * o * of.Weight[k]
+		t1 += float64(dd * dd * of.Weight[k])
+		t2 += float64(o * o * of.Weight[k])
 	}
 	st.GFI = 1 - t1/t2
 	st.AGFI = 1
 	if st.DoF > 0 {
-		st.AGFI = 1 - float64(size)/st.DoF*(1-st.GFI)
+		st.AGFI = 1 - float64(float64(size)/st.DoF*(1-st.GFI))
 	}
 	if of.Estimator != EstimatorWLSMV {
 		return st
@@ -707,7 +707,7 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 	for i := 0; i < size; i++ {
 		trUG += ug.At(i, i)
 		for j := 0; j < size; j++ {
-			trUG2 += ug.At(i, j) * ug.At(j, i)
+			trUG2 += float64(ug.At(i, j) * ug.At(j, i))
 		}
 	}
 	of.TraceUG, of.TraceUG2 = trUG, trUG2
@@ -716,9 +716,9 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 	// thresholds, means and variances).
 	bTr, bTr2 := 0.0, 0.0
 	for i := cor; i < size; i++ {
-		bTr += w[i] * nacov[i][i]
+		bTr += float64(w[i] * nacov[i][i])
 		for j := cor; j < size; j++ {
-			bTr2 += w[i] * nacov[i][j] * w[j] * nacov[j][i]
+			bTr2 += float64(w[i] * nacov[i][j] * w[j] * nacov[j][i])
 		}
 	}
 	bsc := scaledShifted(st.Chi2Baseline, st.DoFBaseline, bTr, bTr2)
@@ -740,8 +740,8 @@ func scaledShifted(t, df, tr, tr2 float64) scaledTest {
 	if a < 0 || math.IsNaN(a) {
 		a = math.NaN()
 	}
-	shift := df - a*tr
-	return scaledTest{stat: t*a + shift, scaling: 1 / a, shift: shift}
+	shift := df - float64(a*tr)
+	return scaledTest{stat: float64(t*a) + shift, scaling: 1 / a, shift: shift}
 }
 
 // ScaledStats are WLSMV's scaled-shifted test and the indices it scales

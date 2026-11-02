@@ -123,7 +123,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			for j, fil := range cf {
 				filter(fil, slot+" params.reference.centroid.filter["+strconv.Itoa(j)+"]")
 			}
-		case route == types.ATTR_REG_FITTED || route == types.ATTR_REG_RESIDUAL || route == types.ATTR_REG_LEVERAGE:
+		case route == types.ATTR_REG_FITTED || route == types.ATTR_REG_RESIDUAL || route == types.ATTR_REG_LEVERAGE || route == types.ATTR_REG_INFLUENCE:
 			judge(attr.Target, slot+" target", "")
 			for j, p := range attr.Predictors {
 				judge(p, slot+" predictors["+strconv.Itoa(j)+"]", "")

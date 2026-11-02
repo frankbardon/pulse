@@ -1,6 +1,10 @@
 package processing
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // Fisher's exact test — package-local helpers shared between the
 // TEST_FISHER_EXACT row test (internal/processing/test_fisher.go) and the
@@ -58,10 +62,10 @@ func fisherExactTwoSided(a, b, c, d int) float64 {
 	for _, l := range logdc {
 		maxD = math.Max(maxD, l)
 	}
-	dObs := math.Exp(logdc[a-lo]-maxD) * fisherRelErr
+	dObs := detmath.Exp(logdc[a-lo]-maxD) * fisherRelErr
 	var sum, total float64
 	for _, l := range logdc {
-		w := math.Exp(l - maxD)
+		w := detmath.Exp(l - maxD)
 		total += w
 		if w <= dObs {
 			sum += w
@@ -137,14 +141,14 @@ func fisherConditionalOddsRatio(a, b, c, d int) float64 {
 		}
 		var w0, w1, w2 float64
 		for s, l := range logdc {
-			w := math.Exp(l + float64(theta*float64(lo+s)) - maxD)
+			w := detmath.Exp(l + float64(theta*float64(lo+s)) - maxD)
 			v := float64(s) // centred on lo: a smaller second moment
 			w0 += w
 			w1 += float64(w * v)
 			w2 += float64(float64(w*v) * v)
 		}
 		mean := w1 / w0
-		return mean + float64(lo) - float64(a), w2/w0 - mean*mean
+		return mean + float64(lo) - float64(a), w2/w0 - float64(mean*mean)
 	}
 	f0, _ := moments(0)
 	if f0 == 0 {
@@ -158,7 +162,7 @@ func fisherConditionalOddsRatio(a, b, c, d int) float64 {
 			thetaHi += step
 			if f, _ := moments(thetaHi); f >= 0 {
 				if f == 0 {
-					return math.Exp(thetaHi)
+					return detmath.Exp(thetaHi)
 				}
 				break
 			}
@@ -173,7 +177,7 @@ func fisherConditionalOddsRatio(a, b, c, d int) float64 {
 			thetaLo -= step
 			if f, _ := moments(thetaLo); f <= 0 {
 				if f == 0 {
-					return math.Exp(thetaLo)
+					return detmath.Exp(thetaLo)
 				}
 				break
 			}
@@ -205,7 +209,7 @@ func fisherConditionalOddsRatio(a, b, c, d int) float64 {
 			break
 		}
 	}
-	return math.Exp(theta)
+	return detmath.Exp(theta)
 }
 
 // fisherConditionalCI returns the exact conditional confidence interval
@@ -242,7 +246,7 @@ func fisherConditionalCI(a, b, c, d int, conf float64) (lower, upper float64) {
 		}
 		var w0, w1, t0, t1 float64
 		for s, l := range logdc {
-			w := math.Exp(l + float64(theta*float64(s)) - maxD)
+			w := detmath.Exp(l + float64(theta*float64(s)) - maxD)
 			v := float64(s) // centred on lo, as in the MLE
 			w0 += w
 			w1 += float64(w * v)
@@ -252,7 +256,7 @@ func fisherConditionalCI(a, b, c, d int, conf float64) (lower, upper float64) {
 			}
 		}
 		p := t0 / w0
-		return p - alpha, t1/w0 - p*(w1/w0)
+		return p - alpha, t1/w0 - float64(p*(w1/w0))
 	}
 	lower, upper = 1, math.Inf(1)
 	if a == lo {
@@ -288,7 +292,7 @@ func fisherSolveTheta(g func(theta float64) (float64, float64)) float64 {
 			thetaHi += step
 			if f, _ := g(thetaHi); f >= 0 {
 				if f == 0 {
-					return math.Exp(thetaHi)
+					return detmath.Exp(thetaHi)
 				}
 				break
 			}
@@ -303,7 +307,7 @@ func fisherSolveTheta(g func(theta float64) (float64, float64)) float64 {
 			thetaLo -= step
 			if f, _ := g(thetaLo); f <= 0 {
 				if f == 0 {
-					return math.Exp(thetaLo)
+					return detmath.Exp(thetaLo)
 				}
 				break
 			}
@@ -335,7 +339,7 @@ func fisherSolveTheta(g func(theta float64) (float64, float64)) float64 {
 			break
 		}
 	}
-	return math.Exp(theta)
+	return detmath.Exp(theta)
 }
 
 // thetaCap bounds the doubling bracket of the θ = log ψ solvers: past

@@ -29,8 +29,8 @@ var (
 // exact special value), so the table is architecture-independent. The
 // results were produced by this package — never copied from math.*, whose
 // bits are the architecture-dependent thing detmath replaces — on
-// darwin/arm64 after `-d=fmahash=vy` reported no contraction, and checked
-// identical on linux/amd64 (docker); CI re-runs it on linux/amd64.
+// darwin/arm64 after `-d=fmahash=vy` reported no contraction; CI's
+// linux/amd64 run checks the same bits.
 //
 // The rows cover ordinary values, ±0, ±Inf, NaN, subnormal inputs and
 // results, overflow / underflow edges, Payne-Hanek trig range reduction
@@ -40,7 +40,9 @@ var (
 // The Expm1 / Erf / Erfinv rows include the sweep inputs where arm64's
 // contracted stdlib (Expm1(0.1466…), Erf(0.2291…), Erfinv(0.0340…)) and
 // amd64's FMA-path Exp inside math.Erf (Erf(1.5911…)) leave the
-// unbarriered result.
+// unbarriered result; the Erfc / Atanh / Tanh rows likewise include the
+// inputs where their math.* twins part from detmath (arm64 contraction,
+// amd64's FMA-path Exp inside math.Erfc, Tanh's different algorithm).
 var goldenCases = []goldenCase{
 	// Exp
 	{fn: "Exp", x: 0, want: 0x3ff0000000000000},                  // 1
@@ -278,6 +280,98 @@ var goldenCases = []goldenCase{
 	{fn: "Erf", x: inf, want: 0x3ff0000000000000},                 // 1
 	{fn: "Erf", x: ninf, want: 0xbff0000000000000},                // -1
 	{fn: "Erf", x: nan, isNaN: true},
+	// Erfc: every arm, the subnormal tail (Erfc(27)) where 1 - Erf is 0,
+	// and inputs where arm64-contracted / amd64 FMA-exp math.Erfc differ.
+	{fn: "Erfc", x: 0, want: 0x3ff0000000000000},                   // 1
+	{fn: "Erfc", x: nz, want: 0x3ff0000000000000},                  // 1
+	{fn: "Erfc", x: 5e-324, want: 0x3ff0000000000000},              // 1
+	{fn: "Erfc", x: 1e-20, want: 0x3ff0000000000000},               // 1
+	{fn: "Erfc", x: 0.1, want: 0x3fec66b42bb6099a},                 // 0.8875370839817152
+	{fn: "Erfc", x: 0.2, want: 0x3fe8df9ed1d36839},                 // 0.7772974107895215
+	{fn: "Erfc", x: 0.3, want: 0x3fe57be3bbf10af8},                 // 0.6713732405408726
+	{fn: "Erfc", x: 0.5, want: 0x3fdeb02147ce245c},                 // 0.4795001221869535
+	{fn: "Erfc", x: -0.5, want: 0x3ff853f7ae0c76e9},                // 1.5204998778130465
+	{fn: "Erfc", x: 0.04609385575331534, want: 0x3fee563980147de2}, // 0.9480254651606936
+	{fn: "Erfc", x: 0.8219591318693018, want: 0x3fcf5e35d1470984},  // 0.2450625678885211
+	{fn: "Erfc", x: 0.8334664413738028, want: 0x3fce87c0a256597c},  // 0.2385178368246662
+	{fn: "Erfc", x: 0.9, want: 0x3fc9fee964dd7469},                 // 0.20309178757716786
+	{fn: "Erfc", x: 1, want: 0x3fc4226162fbddd5},                   // 0.15729920705028513
+	{fn: "Erfc", x: -1.2, want: 0x3ffe90a563d96834},                // 1.9103139782296354
+	{fn: "Erfc", x: 1.5, want: 0x3fa15aaa8ec85205},                 // 0.033894853524689274
+	{fn: "Erfc", x: 2, want: 0x3f7328f5ec350e66},                   // 0.004677734981047265
+	{fn: "Erfc", x: 2.5, want: 0x3f3aab859b20ac9e},                 // 0.0004069520174449589
+	{fn: "Erfc", x: 3, want: 0x3ef729df65034229},                   // 2.2090496998585438e-05
+	{fn: "Erfc", x: 3.7563997160598053, want: 0x3e7d0ccc3b7cb3aa},  // 1.0821965090437679e-07
+	{fn: "Erfc", x: 5, want: 0x3d7b0c1a759f773a},                   // 1.5374597944280351e-12
+	{fn: "Erfc", x: 6.107457263337744, want: 0x3c5a8e2ea273fbba},   // 5.7582842763240296e-18
+	{fn: "Erfc", x: -4, want: 0x3ffffffffbdc88bb},                  // 1.999999984582742
+	{fn: "Erfc", x: -6, want: 0x4000000000000000},                  // 2
+	{fn: "Erfc", x: -6.5, want: 0x4000000000000000},                // 2
+	{fn: "Erfc", x: 10, want: 0x36a7d8a7f2a8a2d0},                  // 2.088487583762545e-45
+	{fn: "Erfc", x: 26.5, want: 0x0043df6725a60cf5},                // 2.2109076642637343e-307
+	{fn: "Erfc", x: 27, want: 0x0000000000019e0f},                  // 5.23705e-319
+	{fn: "Erfc", x: 27.9, want: 0x0000000000000000},                // 0
+	{fn: "Erfc", x: 28, want: 0x0000000000000000},                  // 0
+	{fn: "Erfc", x: 30, want: 0x0000000000000000},                  // 0
+	{fn: "Erfc", x: inf, want: 0x0000000000000000},                 // 0
+	{fn: "Erfc", x: ninf, want: 0x4000000000000000},                // 2
+	{fn: "Erfc", x: nan, isNaN: true},
+	// Atanh: both Log1p arms, the ±1 poles and out-of-domain NaN.
+	{fn: "Atanh", x: 0, want: 0x0000000000000000},                    // 0
+	{fn: "Atanh", x: nz, want: 0x8000000000000000},                   // -0
+	{fn: "Atanh", x: 5e-324, want: 0x0000000000000001},               // 5e-324
+	{fn: "Atanh", x: 1e-20, want: 0x3bc79ca10c924223},                // 1e-20
+	{fn: "Atanh", x: 0x1p-28, want: 0x3e30000000000000},              // 3.725290298461914e-09
+	{fn: "Atanh", x: 0.1, want: 0x3fb9af93cd234412},                  // 0.10033534773107558
+	{fn: "Atanh", x: -0.21176661041630246, want: 0xbfcb85c7fd0af17e}, // -0.2150201783714571
+	{fn: "Atanh", x: -0.24119710935370114, want: 0xbfcf7e65318c115c}, // -0.24604477805417957
+	{fn: "Atanh", x: 0.25, want: 0x3fd058aefa811452},                 // 0.25541281188299536
+	{fn: "Atanh", x: 0.4999, want: 0x3fe192d2e0a8b487},               // 0.5491728198882279
+	{fn: "Atanh", x: 0.5, want: 0x3fe193ea7aad030a},                  // 0.5493061443340548
+	{fn: "Atanh", x: -0.5, want: 0xbfe193ea7aad030a},                 // -0.5493061443340548
+	{fn: "Atanh", x: 0.75, want: 0x3fef2272ae325a57},                 // 0.9729550745276566
+	{fn: "Atanh", x: 0.9, want: 0x3ff78e360604b32d},                  // 1.4722194895832204
+	{fn: "Atanh", x: 0.999999, want: 0x401d046eb8b86c1c},             // 7.254328619247669
+	{fn: "Atanh", x: 0.9999999999999999, want: 0x4032b708872320e2},   // 18.714973875118524
+	{fn: "Atanh", x: 1, want: 0x7ff0000000000000},                    // +Inf
+	{fn: "Atanh", x: -1, want: 0xfff0000000000000},                   // -Inf
+	{fn: "Atanh", x: 1.0000000000000002, isNaN: true},
+	{fn: "Atanh", x: -1.5, isNaN: true},
+	{fn: "Atanh", x: inf, isNaN: true},
+	{fn: "Atanh", x: ninf, isNaN: true},
+	{fn: "Atanh", x: nan, isNaN: true},
+	// Tanh: the x·(1+x) arm, both Expm1 arms and the |x| ≥ 22 saturation.
+	{fn: "Tanh", x: 0, want: 0x0000000000000000},                     // 0
+	{fn: "Tanh", x: nz, want: 0x8000000000000000},                    // -0
+	{fn: "Tanh", x: 5e-324, want: 0x0000000000000001},                // 5e-324
+	{fn: "Tanh", x: 1e-20, want: 0x3bc79ca10c924223},                 // 1e-20
+	{fn: "Tanh", x: 0x1p-55, want: 0x3c80000000000000},               // 2.7755575615628914e-17
+	{fn: "Tanh", x: 1e-10, want: 0x3ddb7cdfd9d7bdbb},                 // 1e-10
+	{fn: "Tanh", x: 9.320634783189414e-07, want: 0x3eaf465d43b48820}, // 9.320634783186714e-07
+	{fn: "Tanh", x: 0.1, want: 0x3fb983d7795f413a},                   // 0.09966799462495582
+	{fn: "Tanh", x: 0.5, want: 0x3fdd9353d7568af3},                   // 0.46211715726000974
+	{fn: "Tanh", x: 0.5786574581689258, want: 0x3fe0b1ad0a7eaa6d},    // 0.5216889576889351
+	{fn: "Tanh", x: -0.5, want: 0xbfdd9353d7568af3},                  // -0.46211715726000974
+	{fn: "Tanh", x: 0.9, want: 0x3fe6ebe982d6605d},                   // 0.7162978701990245
+	{fn: "Tanh", x: 1, want: 0x3fe85efab514f394},                     // 0.7615941559557649
+	{fn: "Tanh", x: -1, want: 0xbfe85efab514f394},                    // -0.7615941559557649
+	{fn: "Tanh", x: 1.5, want: 0x3fecf6f9786df577},                   // 0.9051482536448664
+	{fn: "Tanh", x: 3, want: 0x3fefd77d111a0b00},                     // 0.9950547536867305
+	{fn: "Tanh", x: 10, want: 0x3feffffffdc96f35},                    // 0.9999999958776927
+	{fn: "Tanh", x: 21.9, want: 0x3ff0000000000000},                  // 1
+	{fn: "Tanh", x: 22, want: 0x3ff0000000000000},                    // 1
+	{fn: "Tanh", x: 30, want: 0x3ff0000000000000},                    // 1
+	{fn: "Tanh", x: -30, want: 0xbff0000000000000},                   // -1
+	{fn: "Tanh", x: inf, want: 0x3ff0000000000000},                   // 1
+	{fn: "Tanh", x: ninf, want: 0xbff0000000000000},                  // -1
+	// Inputs where Tanh on the contracted math.Expm1 would move the last
+	// bit (both Expm1 arms): Tanh's own products feed no add, so these
+	// rows are what sees a dropped barrier inside Expm1 through Tanh.
+	{fn: "Tanh", x: 0.07590913916362585, want: 0x3fb3653f82fe7439}, // 0.07576367328734158
+	{fn: "Tanh", x: 0.8224731247914386, want: 0x3fe5a52e595f1e90},  // 0.6764137025392802
+	{fn: "Tanh", x: 1.2175981385188421, want: 0x3fead8a1985ee77b},  // 0.8389442420950525
+	{fn: "Tanh", x: 1.9545248152959702, want: 0x3feebdcea9bdd955},  // 0.960669833685453
+	{fn: "Tanh", x: nan, isNaN: true},
 	// Erfinv
 	{fn: "Erfinv", x: 0, want: 0x0000000000000000},                   // 0
 	{fn: "Erfinv", x: nz, want: 0x8000000000000000},                  // -0
@@ -385,6 +479,12 @@ func eval(c goldenCase) float64 {
 		return Expm1(c.x)
 	case "Erf":
 		return Erf(c.x)
+	case "Erfc":
+		return Erfc(c.x)
+	case "Atanh":
+		return Atanh(c.x)
+	case "Tanh":
+		return Tanh(c.x)
 	case "Erfinv":
 		return Erfinv(c.x)
 	case "Asin":
@@ -419,7 +519,7 @@ func TestDetmath_GoldenBits(t *testing.T) {
 				c.fn, c.x, c.y, got, math.Float64bits(got), math.Float64frombits(c.want), c.want)
 		}
 	}
-	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfinv", "Asin", "Lgamma"} {
+	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfc", "Atanh", "Tanh", "Erfinv", "Asin", "Lgamma"} {
 		if !seen[fn] {
 			t.Errorf("golden table has no %s row", fn)
 		}

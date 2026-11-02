@@ -106,10 +106,10 @@ func TestBindForInstance_EnumsCarryOnlyEnabledNames(t *testing.T) {
 	for _, l := range []string{"none", "row", "column", "total", "matrix", "long", "replace", "augment", "probability", "frequency",
 		// Fixed per-slot vocabularies: regression / regression-attribute
 		// settings and the window frame mode.
-		"l1", "l2", "elasticnet", "binomial", "poisson", "gamma", "jackknife", "bootstrap", "forward", "backward", "stepwise", "aic", "bic", "rows", "qr", "normal"} {
+		"l1", "l2", "elasticnet", "binomial", "poisson", "gamma", "negative_binomial", "logit", "probit", "cloglog", "log", "identity", "sqrt", "inverse", "jackknife", "bootstrap", "forward", "backward", "stepwise", "aic", "bic", "rows", "qr", "normal"} {
 		literals[l] = true
 	}
-	for _, l := range slices.Concat(stringSlice(types.AllReturnPresets()), stringSlice(types.AllMatrixEncodings()), stringSlice(types.AllVectorCoerces()), stringSlice(types.AllCovarianceTypes())) {
+	for _, l := range slices.Concat(stringSlice(types.AllReturnPresets()), stringSlice(types.AllMatrixEncodings()), stringSlice(types.AllVectorCoerces()), stringSlice(types.AllCovarianceTypes()), types.AllMarginsTypes(), types.AllMarginsScales(), types.AllNegBinDispersions(), types.AllCollinearityBases()) {
 		literals[l] = true
 	}
 	for _, tc := range []struct {

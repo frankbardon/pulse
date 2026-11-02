@@ -326,11 +326,11 @@ func replicateCov(replicates [][]float64, mean []float64, full bool, finish func
 		for i := 0; i < q; i++ {
 			di := r[i] - mean[i]
 			if !full {
-				out[i][i] += di * di
+				out[i][i] += float64(di * di)
 				continue
 			}
 			for j := i; j < q; j++ {
-				out[i][j] += di * (r[j] - mean[j])
+				out[i][j] += float64(di * (r[j] - mean[j]))
 			}
 		}
 	}
@@ -447,7 +447,9 @@ func packageResampleResult(
 	// the resample p-values use — replacing the base fit's t intervals.
 	attachIntervals(&out, resolvedConfLevel(spec), 0, false)
 	out.Resample = spec.Resample
-	out.Vcov, out.Correlation = nil, nil
+	// The replicate covariance is no φ̂-scaled (XᵀWX)⁻¹: drop the base
+	// fit's dispersion with its vcov.
+	out.Vcov, out.Correlation, out.Dispersion = nil, nil, 0
 	if spec.Vcov {
 		attachVcov(&out, predictors, cov)
 	}

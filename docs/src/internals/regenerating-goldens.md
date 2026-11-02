@@ -295,6 +295,130 @@ greedy search (`TestReferenceOracle_GLMGammaAICMatchesR`,
 `TestRegOLS_PenaltyMatchesGlmnet` (`internal/processing/regression`)
 hold every figure at relative `1e-10`.
 
+`scripts/reference/gen_glm_links.R` writes `glm_links.json`: the
+non-canonical `REG_GLM` links (binomial probit / cloglog, poisson
+identity / sqrt, gamma log / identity), unweighted plus a
+frequency-weighted case per family pinned to its `rep()`-expanded fit.
+Off the canonical link IRLS is Fisher scoring and converges only
+linearly, while glm's deviance test stops early (its coefficients sit
+~1e-9 off the MLE), so the script refits from `start = coef(m)` until
+the coefficients reach their fixed point (relative 1e-14). It pins
+coefficients, SEs, `vcov`, deviance, null deviance, `AIC`, dispersion,
+df and per row the fitted mean, working residual, `hatvalues` and
+`dffits`, plus `sandwich::vcovHC` HC0 / HC1 / HC3 SEs, each re-derived
+from its closed form (it stops on a mismatch). It needs `sandwich`
+3.1-3 and refuses any other R than 4.6.1.
+`TestReferenceOracle_GLMLinksMatchR` (`internal/processing/regression`)
+and `TestGLMLinks_BoundFitMatchesR` (root) hold it at relative `1e-9`.
+
+`scripts/reference/gen_glm_nb.R` writes `glm_nb.json`: the `REG_GLM`
+negative binomial family (NB2) with θ estimated on the log, sqrt and
+identity links, θ fixed (`glm(family = negative.binomial(1.7))`), a
+frequency-weighted case pinned to its `rep()`-expanded fit and an
+influence case. `glm.nb`'s own convergence is loose (`theta.ml` stops at
+a Newton step of eps^0.25 ≈ 1.2e-4 absolute, the alternation at a
+log-likelihood change of 1e-8), so the script runs `glm.nb`, then pushes
+the same alternation to its fixed point with MASS's own pieces
+(`glm.fit` under `negative.binomial(theta)` refitted from its optimum,
+`theta.ml` at eps 1e-12·θ) until β and θ move under 1e-13 relative,
+keeping the `glm.nb` fit as a 1e-5 cross-check. It pins coefficients,
+SEs and `vcov` at dispersion 1 (`summary.negbin`), θ, SE(θ), 2·loglik,
+AIC (θ counted when estimated), deviance, null deviance, df, per row the
+fitted mean, Pearson / deviance / working residuals and `hatvalues`,
+`sandwich::vcovHC` HC0 / HC1 / HC3, and on the influence case
+`rstandard` (both types), `cooks.distance` and `rstudent` / `dffits`
+with `family$dispersion <- 1` (`stats:::estDisp` is TRUE for a family
+whose dispersion slot is NULL, so on a bare negbin fit those two read
+the leave-one-out σ instead of `summary.negbin`'s φ = 1), each
+re-derived from its closed form. Three fixed-θ cases set the dispersion
+estimated (Pulse `dispersion: estimated`; log and sqrt links, one
+frequency-weighted against the `rep()` expansion, whose df is Σf − p′):
+`summary.glm`'s φ̂ = Pearson χ²/df, `vcov` and SEs scaled by it, t
+p-values, Wald-t intervals, and the influence measures on the bare
+`glm(negative.binomial(θ))` fit — `rstandard` / `cooks.distance` at φ̂,
+`rstudent` / `dffits` on the leave-one-out σ. It needs MASS 7.3-66 and
+`sandwich` 3.1-3 and refuses any other R than 4.6.1.
+`TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
+and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
+
+`scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
+log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
+(`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and
+without an intercept) and the binomial-logit, poisson-log and
+gamma-inverse `glm`, each re-derived from its closed form (`logLik.lm`;
+the family's `aic`, gamma's at dispersion deviance / n with φ counted),
+with `logLik`'s df recorded, plus a frequency-weighted case per model
+asserted against its `rep()`-expanded fit (`glm(weights = f)` agrees;
+`lm(weights = f)` does not, so the lm golden is the expansion's). Base
+R + jsonlite, R 4.6.1 only. `TestReferenceOracle_LogLikMatchesR`
+(`internal/processing/regression`) holds it at relative `1e-10`; the
+non-canonical links' and the negative binomial's AIC are held against
+`glm_links.json` and `glm_nb.json`.
+
+`scripts/reference/gen_margins.R` writes `margins.json`: the regression
+marginal effects (`margins`) — `ame` / `mem`, response and link scale —
+on `lm` and the binomial logit / probit / cloglog, poisson log, gamma
+inverse / log and negative binomial `glm`, under the classical vcov,
+`sandwich::vcovHC` HC3 and `vcovCL` (HC1 over a cluster), plus a
+frequency-weighted `ame` / `mem` pair asserted equal to its
+`rep()`-expanded fit, and a derived-predictor case (`logit_ame_derived`:
+a pre-computed `log1p(z)` column and a 0/1 dummy, with the raw `z` / `g`
+recorded so the root test builds them through `FEAT_LOG` /
+`FEAT_ONE_HOT`; `marginaleffects` reports the dummy as a 1 − 0 contrast,
+flagged `me_binary_terms`, so its cross-check skips that term). The primary figures are analytic closed forms in
+base R at the fit's fixed point (glm refitted from its optimum; the
+negative binomial pushed to its joint fixed point as `gen_glm_nb.R`
+does): AME = Σw·β·μ′(η)/Σw, MEM at the weighted means, the delta-method
+Jacobian written out (μ″ checked against a central difference of
+`mu.eta`), statistic, p-value and interval on the coefficient table's
+t or normal. The external cross-check is `marginaleffects` 1.0.0
+(`avg_slopes`, `slopes` at the means, the same vcov, `wts` for the
+weighted `ame`), whose numerical derivatives agree to about 1e-8; the
+script passes the data frame explicitly (`insight::get_data` would
+re-evaluate the formula's data name). It needs MASS 7.3-66, `sandwich`
+3.1-3 and `marginaleffects` 1.0.0 (skipped with a message when absent,
+which the Go loader then refuses) and refuses any other R than 4.6.1.
+`TestReferenceOracle_MarginsMatchR` holds the analytic figures at
+relative `1e-9`, `TestReferenceOracle_MarginsMatchMarginaleffects` the
+`marginaleffects` ones at `1e-7` (both `internal/processing/regression`).
+
+`scripts/reference/gen_vif.R` writes `vif.json`: the variance
+inflation factors a regression reports (`collinearity`) — `car::vif`'s
+GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson
+log, fixed-θ negative binomial and gamma log `glm` (refitted to their
+fixed point), ungrouped (`y ~ x1 + x2 + x3`) and with a three-level
+factor's treatment dummies as one term (`y ~ x1 + g + x2`, the rows
+carrying the dummies `gb`, `gc`), on basis `model` (car on the fit)
+and basis `predictors` (car on `lm` over the same predictors and prior
+weights), unweighted, frequency-weighted (asserted equal to the
+`rep()`-expanded fit) and probability-weighted. Each figure is
+re-derived in the script from the centered weighted cross-product
+(`m$weights` on a glm), which pins what basis `model` means. It needs
+MASS 7.3-66 and `car` 3.1-5 (with `carData` 3.0-6, from the Posit
+noble binary repo; the golden records the versions) and refuses any
+other R than 4.6.1. `TestReferenceOracle_VIFMatchesCar`
+(`internal/processing/regression`) holds every figure at relative
+`1e-10`; `TestCollinearity_OneHotMatchesCar` (root) runs the grouped
+logit case end to end through `FEAT_ONE_HOT`.
+
+`scripts/reference/gen_nested.R` writes `nested.json`: the Compose
+nested-model comparison (`compare`) of two fits on the same rows — R's
+`anova(m0, m1)` F and `test = "Chisq"` on `lm`, `anova(m0, m1, test =
+"LRT" | "F")` on the binomial logit / probit, poisson, gamma inverse /
+log and fixed-θ negative binomial `glm` (refitted to their fixed
+point; the full fit's Pearson dispersion), MASS's `anova.negbin` (θ
+estimated, `glm.nb` pushed to its joint fixed point; cross-checked
+against `lmtest::lrtest` on the loose fits) and `lmtest::waldtest(m0,
+m1, vcov = vcov | sandwich::vcovHC(type = "HC3"), test = "F" |
+"Chisq")`, with a restricted fit through the origin and
+frequency-weighted cases fitted on the `rep()` expansion. Each
+statistic is re-derived in the script from the two fits' deviances,
+dispersion and covariance. It needs MASS 7.3-66, `sandwich` 3.1-3 and
+`lmtest` 0.9-40 (with `zoo` 1.9-1, from the Posit noble binary repo; the
+golden records the versions) and refuses any other R than 4.6.1.
+`TestReferenceOracle_NestedMatchesR` (`internal/service`) runs every
+case through Compose and holds every figure at relative `1e-10`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -357,17 +481,19 @@ is the whole list in one place.
 | Package | Version | Used by |
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
-| `Matrix` | 1.7-5 | nearest-PD repair, `gen_singularity.R` rank (recommended package, ships with R) |
+| `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
+| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
-| `car` | 3.1-5 | VIF |
+| `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |
 | `ppcor` | 1.1 | partial correlation |
 | `perturb` | 2.10 | collinearity diagnostics (archived on CRAN; needs `gdata`) |
 | `corpcor` | 1.6.10 | `cor2pcor`; a `Hotelling` dependency |
 | `Hotelling` | 1.0-8 | `TEST_HOTELLING_T2` (`gen_multivariate_tests.R`) |
 | `biotools` | 4.3 | `TEST_BOX_M` |
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
-| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`) |
-| `lmtest` | 0.9-40 | robust covariance tests |
+| `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`), the nested-model Wald test (`gen_nested.R`) |
+| `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
+| `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
@@ -397,7 +523,7 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
-            Hmisc = "5.3-0")
+            Hmisc = "5.3-0", MASS = "7.3-66")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

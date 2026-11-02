@@ -24,6 +24,7 @@ Optional `intent` (an intent-taxonomy ID, e.g. `compare_groups`): the manifest s
 - MCP serves the slim payload: every `description` blank (`component_schema` keys too). Fetch operator prose via `pulse_skills_get`, error prose via `pulse_errors_lookup` on demand.
 - Operator names in `components.aggregators[]` / `components.groupers[]` are the manifest catalog, NOT the request slot keys — request bodies use `"aggregations"` / `"groups"` (see [`tool-process`](tool-process.md) Gotchas).
 - Each operator entry carries its `component_schema`; the unscoped manifest also keys them by name under `components_schemas`.
+- `enum_values_by` (keyed by the `enum_by` param's value, default first) narrows an enum (REG_GLM `link` by `family`).
 - A param entry with `names_column: true` names a record column (cohort field or computed column; a `list` one per element). Read the flag, not `type`: some column params are `type: "string"`. Every `type: "field"` entry carries it.
 
 ## See

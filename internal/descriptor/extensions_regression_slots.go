@@ -77,6 +77,9 @@ type regressionSlotRule struct {
 	// opts out (RegressionFieldOptOut) — declared then reads the
 	// opt-out's absence.
 	optOut bool
+	// requires, when set, rides the refusal as details.requires (the
+	// built-in rule's word for what the request must change).
+	requires string
 }
 
 // setKeys returns the keys whose present() is true, in order.
@@ -128,6 +131,20 @@ var regressionSlotRules = []regressionSlotRule{
 		set: func(s *types.RegressionSpec) []string { return setKeys("link", s.Link != "") },
 		refusal: func(*types.RegressionSpec) string {
 			return "takes no link (a REG_GLM knob); pass the model's own configuration through params"
+		},
+	},
+	{
+		slot: "theta", keys: []string{"theta"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("theta", s.Theta != 0) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no theta (the REG_GLM negative_binomial knob); pass the model's own configuration through params"
+		},
+	},
+	{
+		slot: "dispersion", keys: []string{"dispersion"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("dispersion", s.Dispersion != "") },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no dispersion (the REG_GLM negative_binomial fixed-θ knob); pass the model's own configuration through params"
 		},
 	},
 	{
@@ -205,6 +222,27 @@ var regressionSlotRules = []regressionSlotRule{
 		refusal: func(*types.RegressionSpec) string {
 			return "does not declare a coefficient covariance (its registration's Vcov is false); drop vcov: true"
 		},
+	},
+	{
+		// margins: the built-ins' delta-method effects need the model's
+		// link derivatives and its coefficient covariance, which no
+		// registration declares, so no extension model honours it.
+		slot: "margins", keys: []string{"margins"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("margins", s.Margins != nil) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no margins (the REG_OLS / REG_GLM marginal effects); compute the model's own effects through params or its outputs"
+		},
+		requires: "type REG_OLS or REG_GLM",
+	},
+	{
+		// collinearity: the built-ins' VIF reads the fit's own design
+		// matrix and working weights, which no registration exposes.
+		slot: "collinearity", keys: []string{"collinearity"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("collinearity", s.Collinearity != nil) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no collinearity (the REG_OLS / REG_GLM variance inflation factors); run MAT_COLLINEARITY over the predictors instead"
+		},
+		requires: "type REG_OLS or REG_GLM",
 	},
 	{
 		slot: "covariance", keys: []string{"covariance"},
@@ -302,6 +340,9 @@ func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRe
 		}
 		if spec.Name != "" {
 			details["name"] = spec.Name
+		}
+		if r.requires != "" {
+			details["requires"] = r.requires
 		}
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"regression "+string(spec.Type)+" "+r.refusal(spec), details)

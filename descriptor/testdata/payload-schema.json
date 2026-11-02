@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:0db8e6f718ad65aa16c7b10cd79c2f9aeb8c13feac370a5f6f8d16af57f548ed",
+  "$comment": "feature_set_digest: fs1:58a974ffd6e050265428748214ca19936ca0c71a244918f80dd1bfeff1ba90e4",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -360,6 +360,7 @@
         "ATTR_PREVIOUS_STATE",
         "ATTR_PROFILE_SIMILARITY",
         "ATTR_REG_FITTED",
+        "ATTR_REG_INFLUENCE",
         "ATTR_REG_LEVERAGE",
         "ATTR_REG_PREDICT",
         "ATTR_REG_RESIDUAL",
@@ -899,6 +900,21 @@
       ],
       "type": "object"
     },
+    "ComparisonDistribution": {
+      "enum": [
+        "chisq",
+        "f"
+      ],
+      "type": "string"
+    },
+    "ComparisonTest": {
+      "enum": [
+        "f",
+        "lrt",
+        "wald"
+      ],
+      "type": "string"
+    },
     "ComposeOverlaySpec": {
       "additionalProperties": false,
       "properties": {
@@ -951,6 +967,15 @@
       "properties": {
         "banner": {
           "$ref": "#/$defs/BannerSpec"
+        },
+        "compare": {
+          "items": {
+            "$ref": "#/$defs/FitComparisonSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "fits": {
           "items": {
@@ -1046,6 +1071,15 @@
       "properties": {
         "banner": {
           "$ref": "#/$defs/BannerResult"
+        },
+        "comparisons": {
+          "items": {
+            "$ref": "#/$defs/FitComparisonResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "fits": {
           "additionalProperties": {
@@ -2309,6 +2343,173 @@
       ],
       "type": "string"
     },
+    "FitComparisonResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "df": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df_residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "distribution": {
+          "$ref": "#/$defs/ComparisonDistribution"
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "full": {
+          "type": "string"
+        },
+        "full_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "full_df_residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "full_two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "n_obs": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p_value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted": {
+          "type": "string"
+        },
+        "restricted_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted_df_residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted_two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "significant_adjusted": {
+          "type": "boolean"
+        },
+        "statistic": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "test": {
+          "$ref": "#/$defs/ComparisonTest"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "then": {
+        "required": [
+          "df",
+          "distribution",
+          "full",
+          "full_deviance",
+          "full_df_residual",
+          "n_obs",
+          "p_value",
+          "restricted",
+          "restricted_deviance",
+          "restricted_df_residual",
+          "statistic",
+          "terms",
+          "test"
+        ]
+      },
+      "type": "object"
+    },
+    "FitComparisonSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "full": {
+          "type": "string"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/Multiplicity"
+        },
+        "name": {
+          "type": "string"
+        },
+        "restricted": {
+          "type": "string"
+        },
+        "test": {
+          "$ref": "#/$defs/ComparisonTest"
+        }
+      },
+      "required": [
+        "full",
+        "name",
+        "restricted"
+      ],
+      "type": "object"
+    },
     "FitFromSweep": {
       "additionalProperties": false,
       "properties": {
@@ -3539,6 +3740,7 @@
         "column",
         "compose",
         "layer",
+        "margins",
         "matrix",
         "request",
         "row"
@@ -4740,6 +4942,82 @@
       },
       "type": "object"
     },
+    "RegressionCollinearity": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/RegressionTermGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "RegressionCollinearityResult": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "df": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "gvif_scaled": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tolerance": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "vif": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "basis",
+        "df",
+        "terms",
+        "tolerance",
+        "vif"
+      ],
+      "type": "object"
+    },
     "RegressionCovariance": {
       "additionalProperties": false,
       "properties": {
@@ -4822,6 +5100,153 @@
       ],
       "type": "object"
     },
+    "RegressionMargins": {
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RegressionMarginsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "conf_level": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "df": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "estimates": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "p_adjusted": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "p_values": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "significant_adjusted": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object"
+        },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "std_errors": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ci_lower",
+        "ci_upper",
+        "conf_level",
+        "estimates",
+        "p_values",
+        "scale",
+        "statistics",
+        "std_errors",
+        "terms",
+        "type"
+      ],
+      "type": "object"
+    },
     "RegressionMultiplicity": {
       "additionalProperties": false,
       "properties": {
@@ -4864,6 +5289,12 @@
             "null"
           ]
         },
+        "aic": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "alpha": {
           "type": [
             "number",
@@ -4902,6 +5333,9 @@
             ]
           },
           "type": "object"
+        },
+        "collinearity": {
+          "$ref": "#/$defs/RegressionCollinearityResult"
         },
         "conf_level": {
           "type": [
@@ -4948,6 +5382,12 @@
             "null"
           ]
         },
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "error": {
           "$ref": "#/$defs/SlotError"
         },
@@ -4968,6 +5408,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "margins": {
+          "$ref": "#/$defs/RegressionMarginsResult"
         },
         "multiplicity": {
           "$ref": "#/$defs/AppliedMultiplicity"
@@ -5081,6 +5524,24 @@
             "null"
           ]
         },
+        "theta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "theta_std_err": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "type": {
           "$ref": "#/$defs/RegressionType"
         },
@@ -5114,6 +5575,9 @@
         "bounds": {
           "$ref": "#/$defs/RegressionBounds"
         },
+        "collinearity": {
+          "$ref": "#/$defs/RegressionCollinearity"
+        },
         "conf_level": {
           "type": "number"
         },
@@ -5124,6 +5588,9 @@
           "type": "number"
         },
         "criterion": {
+          "type": "string"
+        },
+        "dispersion": {
           "type": "string"
         },
         "family": {
@@ -5146,6 +5613,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "margins": {
+          "$ref": "#/$defs/RegressionMargins"
         },
         "max_iters": {
           "type": "integer"
@@ -5210,6 +5680,9 @@
         "target": {
           "type": "string"
         },
+        "theta": {
+          "type": "number"
+        },
         "tol": {
           "type": "number"
         },
@@ -5235,6 +5708,28 @@
       "required": [
         "target",
         "type"
+      ],
+      "type": "object"
+    },
+    "RegressionTermGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "predictors": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "predictors"
       ],
       "type": "object"
     },
@@ -6944,4 +7439,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5c6b2d596c8ed14bb0c78c3789ad8fea7d71d8176e0fb6c4b995b1532978a540
+// golden-hash: 7618b0f769a0c2abffc601d0067bd44f504b0bf95d35ed518b7578d8b9b19e4c

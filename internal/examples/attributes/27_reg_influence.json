@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Per-row influence of an OLS fit on customers.pulse (target=income, predictors=[age]): ATTR_REG_INFLUENCE's default Cook's distance and its params.measure dffits, beside ATTR_REG_RESIDUAL's params.kind studentized (R rstudent). Cook's distance combines a row's residual with its leverage — how far every fitted value would move if the row were left out; DFFITS is the move of the row's own fitted value in standard errors. The maxima point at the rows to inspect; the D > 1 and |DFFITS| > 2 sqrt(p/n) screens are rules of thumb, not tests. Unpenalized OLS only.",
+    "intents": [
+      "data_quality"
+    ],
+    "name": "attr_reg_influence",
+    "operators": [
+      "AGG_MAX",
+      "AGG_MIN",
+      "ATTR_REG_INFLUENCE",
+      "ATTR_REG_RESIDUAL"
+    ],
+    "tags": [
+      "regression",
+      "ols",
+      "outlier-detection",
+      "buffered-pipeline"
+    ]
+  },
+  "attributes": [
+    {
+      "type": "ATTR_REG_INFLUENCE",
+      "label": "income_cooks",
+      "target": "income",
+      "predictors": ["age"]
+    },
+    {
+      "type": "ATTR_REG_INFLUENCE",
+      "label": "income_dffits",
+      "target": "income",
+      "predictors": ["age"],
+      "params": {"measure": "dffits"}
+    },
+    {
+      "type": "ATTR_REG_RESIDUAL",
+      "label": "income_rstudent",
+      "target": "income",
+      "predictors": ["age"],
+      "params": {"kind": "studentized"}
+    }
+  ],
+  "aggregations": [
+    {
+      "type": "AGG_MAX",
+      "field": "income_cooks",
+      "label": "max_cooks"
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "income_dffits",
+      "label": "min_dffits"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "income_dffits",
+      "label": "max_dffits"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "income_rstudent",
+      "label": "max_rstudent"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  }
+}

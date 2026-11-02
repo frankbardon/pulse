@@ -137,6 +137,12 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_REG_FITTED:   ClassAware,
 	types.ATTR_REG_RESIDUAL: ClassAware,
 	types.ATTR_REG_LEVERAGE: ClassAware,
+	// ATTR_REG_INFLUENCE (U65 E1-S2) reads each record as w identical
+	// observations and emits one copy's Cook's distance / DFFITS (the
+	// rep() expansion); a probability weight defines no observation to
+	// delete (kindRefusalReasons). ATTR_REG_RESIDUAL's standardized /
+	// studentized kinds take the same class per spec (AttributeClassOf).
+	types.ATTR_REG_INFLUENCE: ClassFrequencyOnly,
 
 	// The fitted vector attributes fold one weighted co-moment for the
 	// fit and read N* and M2* = c·M2 on w* (TEST_HOTELLING_T2's rule);
@@ -307,11 +313,14 @@ func DistanceClassOf(between types.GroupType) Class {
 // arbitrary, would make the total (and every share read off it) move
 // with the weight scale, so it is refused rather than given that
 // figure. A row-local formula stays ClassNone (the weight is skipped).
-// An ATTR_REG_FITTED / ATTR_REG_RESIDUAL naming params.fit
-// (model.FitReferenced; custom-regressions D2) scores a bound fit
-// whose own weight applied when the fit ran — ClassNone, skipped, the
-// ATTR_REG_PREDICT rule; without params.fit it is the weighted OLS
-// refit (ClassAware).
+// A regression attribute naming params.fit (model.FitReferenced;
+// custom-regressions D2, and ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE
+// since U65 E1-S2) scores a bound fit whose own weight applied when the
+// fit ran — ClassNone, skipped, the ATTR_REG_PREDICT rule (a
+// design-reading slot refuses a weighted fit: model.CheckFitDesign); without params.fit it is the weighted OLS
+// refit (ClassAware) — ClassFrequencyOnly when an ATTR_REG_RESIDUAL's
+// params.kind is standardized / studentized (model.PerObservationRefit:
+// one observation's figure, as ATTR_REG_INFLUENCE).
 func AttributeClassOf(a *types.Attribute) Class {
 	if a == nil {
 		return ClassNone
@@ -320,6 +329,11 @@ func AttributeClassOf(a *types.Attribute) Class {
 		return ClassNone
 	}
 	if a.Type == types.ATTR_FORMULA && totalcall.Contains(a.Expression) {
+		return ClassFrequencyOnly
+	}
+	if a.Type == types.ATTR_REG_RESIDUAL && model.PerObservationRefit(a.Type, a) {
+		// A standardized / studentized refit residual is one
+		// observation's (ATTR_REG_INFLUENCE's rule, U65 E1-S2).
 		return ClassFrequencyOnly
 	}
 	return ClassOf(string(a.Type))
@@ -440,8 +454,15 @@ func KindsOfClass(c Class) []types.WeightKind {
 // PULSE_WEIGHT_UNSUPPORTED refusal's message and details.reason). Every
 // key must be ClassFrequencyOnly (TestKindRefusalReasons_AreFrequencyOnly).
 var kindRefusalReasons = map[string]string{
-	string(types.GROUP_KMEANS): "k-means has no probability-weighted form: a sampling weight does not make a row several coincident points, and no reference implementation defines design-weighted clusters",
+	string(types.GROUP_KMEANS):       "k-means has no probability-weighted form: a sampling weight does not make a row several coincident points, and no reference implementation defines design-weighted clusters",
+	string(types.ATTR_REG_INFLUENCE): ObservationKindReason,
 }
+
+// ObservationKindReason is why a per-observation regression figure
+// (ATTR_REG_INFLUENCE, ATTR_REG_RESIDUAL kind standardized /
+// studentized) refuses a probability weight: it rides the
+// PULSE_WEIGHT_UNSUPPORTED refusal's message and details.reason.
+const ObservationKindReason = "an influence measure or studentized residual is one observation's figure (a frequency weight is w identical observations), and a sampling weight defines no observation to delete"
 
 // KindRefusalReason returns why the named frequency-only built-in
 // refuses a probability weight permanently, "" when it states none.

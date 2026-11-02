@@ -60,6 +60,89 @@ Full spec grammar (correlations, regex, …) lives in
 `skills/synthetic-data.md` and the `synth` package; `constraints[]` and the
 `rules[]` structural surface live in `skills/synth-structural-rules.md`.
 
+## Datetime fields
+
+A `datetime` field (UTC epoch seconds) is drawn by `uniform_datetime` in
+LOCAL time: a local day in `[start, end]` weighted by `weekday_weights`
+(7, Monday first), a local hour by `hour_weights` (24), a uniform second.
+The reading is converted to the instant it names in a fixed `time_zone`
+or in each row's own zone (`time_zone_field`, a `categorical_*` field of
+IANA names), and the file stores the instant — which is also what rules
+and constraints read:
+
+```json
+{"name": "site_tz",    "type": "categorical_u8", "distribution": "weighted_categorical",
+ "params": {"values": ["Australia/Sydney", "America/New_York"]}},
+{"name": "scanned_at", "type": "datetime", "distribution": "uniform_datetime",
+ "params": {"start": "2026-01-05", "end": "2026-12-27", "time_zone_field": "site_tz",
+            "dst_policy": "later",
+            "hour_weights": [0,0,0,0,0,0,0.5,1,2,3,3,3,2,2,2,2,1.5,1,0.5,0,0,0,0,0],
+            "weekday_weights": [1, 1, 1, 1, 1.2, 0.6, 0]}}
+```
+
+A local time a DST transition skips or repeats follows `dst_policy`, with
+the import's spellings: `error` (default) stops the run with
+`PULSE_SYNTH_DST_NONEXISTENT` / `PULSE_SYNTH_DST_AMBIGUOUS`, `earlier` /
+`later` resolve it and the run warns how many it resolved. A null zone
+cell makes the datetime null. Detail: `skills/synth-datetime.md`.
+
+### Trends, seasons and planted windows
+
+Three rule / constraint functions read a `date` or `datetime` field on its
+own clock — its `time_zone`, the zone each row was drawn in for a
+`time_zone_field`, otherwise UTC — and consume no randomness:
+
+| Call | Returns |
+|---|---|
+| `trend(t, slope)` | `slope` × days (fraction included) since local midnight of the field's `start`; over a number (`trend(row(), 0.01)`) `slope` × it |
+| `season(t, "dow"\|"hour"\|"month", [w…])` | the weight of the local ISO weekday (7, Monday first), hour (24, `datetime` only) or month (12) |
+| `between(t, "a", "b")` | true when `a` ≤ reading ≤ `b`; naive `YYYY-MM-DD` or datetime literals (no `Z` / offset); a date-only `b` covers that whole day |
+
+```json
+"rules": [
+  {"set_expr": {"on_time": "0.80 + trend(scanned_at, 0.15 / 182)"}},
+  {"set_expr": {"volume": "season(scanned_at, \"dow\", [1, 1, 1, 1, 1.2, 0.6, 0])"}},
+  {"when": "between(scanned_at, \"2026-05-12\", \"2026-05-14\")", "set": {"outage": 1}}
+]
+```
+
+`t` must be a bare field name (`trend` alone also takes a number); unit,
+weights and bounds are literals, checked when the spec is parsed
+(`PULSE_SYNTH_RULE_EXPR_INVALID`). A null `t` returns null, so guard a
+nullable field with `!isnull(t) && …`. The effects come back out of a
+query that reads the same clock: `GROUP_DATE` `day` / `day_of_week` /
+`hour_of_day` with `tz_field` set to the zone field.
+
+## Random draws in rules and helper fields
+
+A rule can draw: `uniform()` is a number in `[0, 1)` and `bernoulli(p)` is
+true with probability `p`. Each call site reads its own seeded stream —
+never the stream the fields draw from — so a spec without draws generates
+byte-identically, adding one moves no other column, and a row a constraint
+rejects is redrawn with fresh draws. Draws belong to rules: a constraint
+that calls one, bad arguments or a `p` outside `[0, 1]` is
+`PULSE_SYNTH_RULE_DRAW_INVALID`.
+
+A field declared `"output": false` is a helper: it is drawn, written by
+rules and read by every rule and constraint, but it is not in the output
+file. Together they let an outcome be drawn from a model without shipping
+the model's inputs:
+
+```json
+"fields": [
+  {"name": "true_pd", "type": "f64", "distribution": "constant", "params": {"value": 0}, "output": false},
+  {"name": "default_12m", "type": "packed_bool", "distribution": "bernoulli", "params": {"p": 0}}
+],
+"rules": [
+  {"set_expr": {"true_pd": "1 / (1 + exp(-(-2.4 + 0.04 * (dti - 18))))"}},
+  {"set_expr": {"default_12m": "bernoulli(true_pd)"}}
+]
+```
+
+To use one draw in several rules, store it in a helper
+(`{"set_expr": {"u": "uniform()"}}`) and read the field. Detail:
+`skills/synth-rule-draws.md`.
+
 ## Vector fields
 
 A `vec_f32` / `vec_f64` field is generated as ONE joint draw per row, never
@@ -111,7 +194,7 @@ JSON without ever running `profile create --conditional`:
 | `CategoricalNumericPairs` | `categorical_numeric_pairs` | numeric field B resampled from `Normal(mean, std)` per observed category of categorical field A |
 | `SetCategoricalPairs` | `set_categorical_pairs` | a `set_*` field's option (bit) resampled from `Bernoulli(P(selected \| categorical A's value))` |
 | `SetNumericPairs` | `set_numeric_pairs` | numeric field B resampled from `Normal(mean, std)` conditioned on a `set_*` field's option state |
-| `SetSetPairs` | `set_set_pairs` | one `set_*` field's option resampled conditioned on a DIFFERENT `set_*` field's option state |
+| `SetSetPairs` | `set_set_pairs` | one `set_*` field's option resampled conditioned on another option's state — of a DIFFERENT `set_*` field, or of the same one (`set_a == set_b`, `option_a != option_b`) |
 
 Each entry runs as a generation-time **resample** step, applied after
 every field's own independent draw and before the numeric-numeric
@@ -177,7 +260,11 @@ wins by a fixed priority order and every other claimant on that field
 is dropped with a warning on `Result.Warnings`
 (`data.warnings` under `--json`); see [`pulse profile
 create`](profile-create.md) ("`--fit-shape`" section) for the full
-priority order.
+priority order. Among the pairs themselves the **strongest association**
+wins (bias-corrected Cramér's V for a categorical or set-option target,
+adjusted η² for a numeric one, which reads each category's `n`); set
+`"pair_arbitration": "declared"` at the top level of the spec to keep
+the first-declared pair instead.
 
 ## Structural rules
 
@@ -243,6 +330,24 @@ same per-row sequence as the same spec without them, and a spec
 declaring no rules generates byte-identical output to one written before
 the slot existed.
 
+A `categorical_*` field that an unconditional rule writes on every row
+needs **no distribution**. Declare it with `name` and `type` only (no
+`params` either) when a `set` or `set_expr` with no `when`, that does not
+read the field itself, determines it:
+
+```json
+{"fields": [{"name": "score", "type": "u8", "distribution": "uniform", "params": {"min": 0, "max": 9.999}},
+            {"name": "band",  "type": "categorical_u8"}],
+ "rules":  [{"set_expr": {"band": "round(score) >= 5 ? \"high\" : \"low\""}}]}
+```
+
+The field draws nothing and consumes no randomness, so every other
+field is identical to a spec without it. A rule declared *earlier* than
+the one that writes it reads an empty string. Any other empty
+`distribution` is still `SERVICE_VALIDATION`: a rule gated by `when`, a
+`set_null`, a `set_expr` reading its own target, or a field that is not
+categorical all leave rows the field's own generation has to fill.
+
 <!-- ANCHOR-PINNED: two pages link to this heading by its generated anchor
      (#owns_nulls-the-rule-owns-the-fields-absence) — profile-create.md and
      synth-from-profile.md. No link checker runs in CI, so a rename here breaks
@@ -286,6 +391,16 @@ realised null rate misses its discarded `null_rate` by more than 0.02
 rates, the row count and every rule that claimed it. The second term is
 not decoration — at 200 rows a correct claim on a 0.25 field misses by
 more than 0.02 about half the time.
+
+The warning names the **direction** of the gap, because the two remedies
+are opposite. Realised BELOW the discarded rate: the gate explains only
+part of the field's missingness — widen its `when`, or add the co-missing
+block it does not capture. Realised ABOVE it: the gate fires on rows the
+source holds a value on — narrow it, or check the gate field's generated
+rate against the source's. The second is what a drifted gate field
+produces: an `end_date` owned by `round(churned) == 0` and captured at
+0.809 comes back at 0.90 when `churned` is generated at 0.10, and widening
+that gate would only add nulls.
 
 Two rules may own one field. Ownership is a **union**, not an exclusive
 claim: `set_null` removes a value rather than supplying one, so it never

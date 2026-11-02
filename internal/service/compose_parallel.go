@@ -113,6 +113,12 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
+	// The nested-model comparisons' rules, exactly as on the serial path.
+	cmpPlans, err := s.compareRefusal(composed)
+	if err != nil {
+		return nil, err
+	}
+	cmpFigs := newComparisonFigures(composed.Compare)
 	// The batch's saves and loads, exactly as on the serial path.
 	pre, err := s.composeModelsPrepass(composed)
 	if err != nil {
@@ -235,7 +241,7 @@ func (s *Service) composeParallel(
 	// themselves running concurrently on the same worker cap; a fit
 	// bound from the sweep runs the sweep slots on the pool, and their
 	// rank, first (runComposeFitPhases — ran marks them).
-	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(fitCtx, composed, pre, o.MaxWorkers, ext, requests, responses, multPlan, pool)
+	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(withComparisonFigures(fitCtx, cmpFigs), composed, pre, o.MaxWorkers, ext, requests, responses, multPlan, pool)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +252,13 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	fitWarnings = append(fitWarnings, optWarnings...)
+	// The nested-model comparisons read the finished fits only
+	// (runComposeCompare).
+	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, cmpWarnings...)
 	rest := unranSlots(n, ran)
 	if err := pool(rest, models); err != nil {
 		return nil, err
@@ -289,7 +302,7 @@ func (s *Service) composeParallel(
 	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Comparisons: comparisons, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = echoed
 	}

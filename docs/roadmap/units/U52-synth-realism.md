@@ -4,11 +4,11 @@ slug: synth-realism
 title: "Pulse can synthesize time series, outcomes drawn from a model, and privacy-checked twins without outside tooling"
 track: API & release
 size: L
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U50]
 blocks: [U32]
-todo_items: [362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457]
+todo_items: [362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457, 594, 595, 596, 597]
 branch: synth-realism
 ---
 
@@ -34,15 +34,15 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#362** (Synth realism) A synth `datetime` type with zone-aware generation, sharing `internal/temporal`
-- [ ] **#363** (Synth realism) Time-dependent effects: trends and seasonality over a date field and windowed effects (a planted incident between two dates), as distributions or rule functions
-- [ ] **#364** (Synth realism) Seeded random draws inside rules (`uniform()`, `bernoulli(p)`) so an outcome drawn from a model needs no helper columns, plus helper fields that are not written to the output
-- [ ] **#365** (Synth realism) Spec idioms and warnings: a declared, rule-assigned categorical needs no sampler; the `owns_nulls` warning fires in the right direction
-- [ ] **#366** (Synth realism) Profile capture: numeric predictors in `--fit-models`; conditional-pair arbitration by association strength (Cramér's V / adjusted η²) or author choice; dependencies between options of one set field
-- [ ] **#367** (Synth realism) Fidelity report: a source-versus-synthetic utility section (per-level target rates for captured categoricals, or a refit of a supplied model on both), effect-size thresholds beside p-values for marginals, scoring for `packed_bool` / `u4` / `date` / `set_*` marginals, and a note when a rule causes a flag
-- [ ] **#368** (Synth realism) Sharing workflow: `--synthetic-only` output from the profile path, `constraints[]` accepted on the profile path, and disclosure metrics (exact-match rate, distance to closest record) beside the fidelity report; differential privacy is a decision below
-- [ ] **#369** (Synth realism) Docs: join keys never match on null (`join-design.md`), and synth rules bind `set_*` as a map while query formulas bind a list, cross-linked
-- [ ] **#370** (Synth realism) Acceptance: the multi-time-zone and credit datasets regenerate from synth specs alone with no helper columns; the privacy twin keeps the source's churn drivers (pseudo-R² gap closed materially, TV-without-broadband at zero) and ships with a disclosure report
+- [x] **#362** (Synth realism) A synth `datetime` type with zone-aware generation, sharing `internal/temporal` (landed in U52 (synth-realism))
+- [x] **#363** (Synth realism) Time-dependent effects: trends and seasonality over a date field and windowed effects (a planted incident between two dates), as distributions or rule functions (landed in U52 (synth-realism))
+- [x] **#364** (Synth realism) Seeded random draws inside rules (`uniform()`, `bernoulli(p)`) so an outcome drawn from a model needs no helper columns, plus helper fields that are not written to the output (landed in U52 (synth-realism))
+- [x] **#365** (Synth realism) Spec idioms and warnings: a declared, rule-assigned categorical needs no sampler; the `owns_nulls` warning fires in the right direction (landed in U52 (synth-realism))
+- [x] **#366** (Synth realism) Profile capture: numeric predictors in `--fit-models`; conditional-pair arbitration by association strength (Cramér's V / adjusted η²) or author choice; dependencies between options of one set field (landed in U52 (synth-realism))
+- [x] **#367** (Synth realism) Fidelity report: a source-versus-synthetic utility section (per-level target rates for captured categoricals, or a refit of a supplied model on both), effect-size thresholds beside p-values for marginals, scoring for `packed_bool` / `u4` / `date` / `set_*` marginals, and a note when a rule causes a flag (landed in U52 (synth-realism))
+- [x] **#368** (Synth realism) Sharing workflow: `--synthetic-only` output from the profile path, `constraints[]` accepted on the profile path, and disclosure metrics (exact-match rate, distance to closest record) beside the fidelity report; differential privacy is a decision below (landed in U52 (synth-realism))
+- [x] **#369** (Synth realism) Docs: join keys never match on null (`join-design.md`), and synth rules bind `set_*` as a map while query formulas bind a list, cross-linked (landed in U52 (synth-realism))
+- [x] **#370** (Synth realism) Acceptance: the multi-time-zone and credit datasets regenerate from synth specs alone with no helper columns; the privacy twin keeps the source's churn drivers (pseudo-R² gap closed materially, TV-without-broadband at zero) and ships with a disclosure report (landed in U52 (synth-realism))
 - [x] **#450** (Synth realism) Vector synthesis: generate a `vec_f32` / `vec_f64` field (dim, kind and scale range honoured; per-element marginals plus the inter-element correlation captured from a profile), and drop the `PULSE_SYNTH_VECTOR_UNSUPPORTED` refusal on `from-schema`, `from-profile`, `profile create` and augment. Found in U29 (E3-S4) (landed in [U29](U29-vector-field-types.md))
 
 ## Scope
@@ -99,11 +99,20 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(synth-realism/E<n
 
 ## Human inputs & decisions
 
-- **Open:** add a differential-privacy noise mechanism to profile capture for v1, or document that twins carry no formal privacy guarantee and rely on the disclosure metrics.
-- **Open:** set fields as join keys (today refused), which the disclosure check needed.
+- **Decided (synth-realism PRD):** no differential-privacy mechanism for v1. A profile-derived twin is documented as not differentially private and carrying no formal privacy guarantee; the `disclosure` section (exact-match rate, DCR) is an audit aid, not a guarantee (`skills/synthetic-data.md`, `skills/synth-disclosure-report.md`, `docs/src/cli/synth-from-profile.md`).
+- **Decided (synth-realism PRD):** set fields stay refused as join keys; the disclosure check measures over all output columns without a join.
 
 ## Handed on from U35
 
 Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
 
-- [ ] **#457** Synth writer: add a dedicated test that a non-nullable field's null-bitmap bit stays 0 (the writer guards it in code; `TestCohortBuilder_NonNullableShardInNullableArchive` relies on it, nothing pins the synth path). Found in U35 (E1-S1, #207)
+- [x] **#457** Synth writer: add a dedicated test that a non-nullable field's null-bitmap bit stays 0 (the writer guards it in code; `TestCohortBuilder_NonNullableShardInNullableArchive` relies on it, nothing pins the synth path). Found in U35 (E1-S1, #207) (landed in U52 (synth-realism))
+
+## Follow-ups filed by this unit
+
+Open items found during synth-realism; tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#594** `datetime` profile capture keeps only UTC weekday / hour marginals (no per-day or per-month volume intensity, no local-zone profile). Found in U52 (E1-S2)
+- [ ] **#595** The `disclosure` DCR pass has no limit of its own beyond the sample cap and the `max_estimated_memory` charge; a dedicated comparisons limit is an owner call. Found in U52 (E3-S2)
+- [ ] **#596** The `utility.model_fits` coefficient `ratio` is unstable when the source coefficient is near 0 (documented, not changed). Found in U52 (E2-S3)
+- [ ] **#597** Profile pair arbitration has no minimum strength: two pairs contending for one target with strengths both ≈ 0 resolve arbitrarily (a no-effect `region` took `contract` instead of `plan`); add a floor or a declared-order tie-break below it. Found in U52 (E3-S4)

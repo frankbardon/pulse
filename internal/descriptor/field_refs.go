@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -300,6 +301,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		if feat == nil {
 			continue
 		}
+		w.beginItem()
 		mk := func(field string) func() *errors.CodedError {
 			return func() *errors.CodedError {
 				return refusal("feature references unknown field: "+field,
@@ -343,9 +345,11 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		w.checkInputs("feature", string(feat.Type), feat.Params, "feature")
 		if !isKnownFeatureType(featRoute) {
 			w.open = true
+			w.endItem()
 			continue
 		}
 		for _, label := range featureOutputLabels(feat, schema) {
+			w.produce(label)
 			w.shadow(label, func() *errors.CodedError {
 				return refusal("feature "+string(feat.Type)+" output "+label+" shadows an existing field",
 					map[string]any{"label": label, "feature": string(feat.Type)})
@@ -353,6 +357,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			w.cols[label] = true
 			w.claim(label, map[string]any{"slot": "feature " + string(feat.Type), "feature": string(feat.Type)})
 		}
+		w.endItem()
 	}
 
 	// 2. Filterers. A before-filters attribute (prevstate.BeforeFilters:
@@ -431,8 +436,11 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		})
 		w.cols[label] = true
 		w.claim(label, map[string]any{"slot": "attribute " + string(attr.Type), "attribute": string(attr.Type)})
+		w.produce(label)
+		w.endItem()
 	}
 	judgeAttr := func(attr *types.Attribute) {
+		w.beginItem()
 		attrRoute := opRoute(inst, attr.Type)
 		if cerr := prevstate.ForeignSlotRefusal(attr, attrRoute); cerr != nil {
 			w.out = append(w.out, cerr)
@@ -449,12 +457,13 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				w.out = append(w.out, refusal(string(attr.Type)+" "+string(ref.Slot)+" references unknown cohort field: "+ref.Name+" (it reads source columns only)",
 					map[string]any{"field": ref.Name, "attribute": string(attr.Type), "slot": string(ref.Slot)}))
 			}
-		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE:
 			if model.FitReferenced(attrRoute, attr) {
 				// params.fit scores a bound fit (internal/model.
 				// CheckFitReference — the rule the attribute's bind
 				// re-runs), then every column the score reads: the
-				// fit's terms and, for a residual, its target.
+				// fit's terms and, for a residual or influence slot
+				// (model.FitReadsTarget), its target.
 				p, sig, cerr := model.CheckFitReference(attr, models, scorableRegression(w.inst, w.snap))
 				if cerr != nil {
 					w.out = append(w.out, cerr)
@@ -466,13 +475,18 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 						w.out = append(w.out, model.PredictorNotNumericFor(attr.Type, p.Fit, col, f.Type.String()))
 					}
 				}
-				if attrRoute == types.ATTR_REG_RESIDUAL && sig.Target != "" {
+				if model.FitReadsTarget(attrRoute) && sig.Target != "" {
 					w.check(sig.Target, func() *errors.CodedError { return model.TargetMissing(attr.Type, p.Fit, sig.Target) })
 					if f := schema.Field(sig.Target); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
 						w.out = append(w.out, model.TargetNotNumeric(attr.Type, p.Fit, sig.Target, f.Type.String()))
 					}
 				}
 				break
+			}
+			// The refit's params and penalty rule — the one the
+			// attribute's factory runs (model.CheckRefit).
+			if cerr := model.CheckRefit(attrRoute, attr); cerr != nil {
+				w.out = append(w.out, cerr)
 			}
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {
@@ -634,6 +648,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			if win == nil {
 				continue
 			}
+			w.beginItem()
 			idx := strconv.Itoa(i)
 			for _, ok := range win.OrderBy {
 				if ok.Field == "" || w.arrayRef(ok.Field, "window["+idx+"] order_by", map[string]any{"window_index": i}) {
@@ -689,6 +704,8 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			})
 			w.cols[label] = true
 			w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
+			w.produce(label)
+			w.endItem()
 		}
 		// 5b. Post-window attributes (vectors.PostWindowAttributes: a
 		// row-local attribute reading a window label, directly or through an
@@ -965,6 +982,31 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	}
 	// 12. Bound vector fits (params.fit), once every input resolved.
 	w.out = append(w.out, vectorFitRefusals(req, schema, mats, ains, inst, models)...)
+	// 13. Margins over a predictor derived from another predictor of the
+	// same regression (regmargins.CheckDependent), on the dependency
+	// graph the walk recorded: every derived label's reads, plus a vector
+	// attribute's members (step 9).
+	for i, attr := range req.Attributes {
+		if attr == nil || i >= len(ains) || !ains[i].Has() {
+			continue
+		}
+		label := attr.Label
+		if label == "" {
+			label = attributeDefaultLabel(attr, inst)
+		}
+		if w.deps == nil {
+			w.deps = map[string][]string{}
+		}
+		w.deps[label] = append(w.deps[label], ains[i].Members.Members...)
+	}
+	for _, reg := range req.Regressions {
+		if reg == nil || opRoute(inst, reg.Type) != reg.Type {
+			continue
+		}
+		if cerr := regmargins.CheckDependent(reg, w.deps); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
+	}
 	return w.out, pw
 }
 
@@ -1190,6 +1232,45 @@ type fieldRefWalk struct {
 	// models is the walk's bound-model catalog: every vector resolution
 	// below reads the windows-first decision through it.
 	models model.Catalog
+	// rec, while a feature, attribute or window is judged (beginItem),
+	// collects every name the item reads — each check, each expression's
+	// free names, a vector attribute's members — and deps maps each
+	// derived label to its producer's reads (produce): the dependency
+	// graph regmargins.CheckDependent walks at step 13.
+	rec  *[]string
+	deps map[string][]string
+}
+
+// beginItem starts recording the names a derived-column producer reads.
+func (w *fieldRefWalk) beginItem() {
+	s := []string{}
+	w.rec = &s
+}
+
+// endItem stops recording.
+func (w *fieldRefWalk) endItem() { w.rec = nil }
+
+// record adds names to the open item's reads.
+func (w *fieldRefWalk) record(names ...string) {
+	if w.rec == nil {
+		return
+	}
+	for _, n := range names {
+		if n != "" {
+			*w.rec = append(*w.rec, n)
+		}
+	}
+}
+
+// produce files the open item's reads as label's (a producer's label).
+func (w *fieldRefWalk) produce(label string) {
+	if w.rec == nil {
+		return
+	}
+	if w.deps == nil {
+		w.deps = map[string][]string{}
+	}
+	w.deps[label] = append(w.deps[label], *w.rec...)
 }
 
 // windowsFirstAggregationLabels is the set of output labels a
@@ -1371,6 +1452,7 @@ func (w *fieldRefWalk) checkInputs(category, name string, raw json.RawMessage, s
 // once an extension feature opened the set — no operator produces a
 // column named "".
 func (w *fieldRefWalk) check(name string, mk func() *errors.CodedError) {
+	w.record(name)
 	if name != "" && (w.open || w.cols[name]) {
 		return
 	}

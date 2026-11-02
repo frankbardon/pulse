@@ -106,6 +106,7 @@ var (
 	featSweepSampling     = FeatureComposeSweepSampling
 	featComposeFits       = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeOpt        = FeatureComposeOptimize
+	featComposeCompare    = FeatureName(FeatureKindCapability, "compose_compare")
 	featSweepBind         = FeatureComposeSweepBind
 	featComposeBanner     = FeatureName(FeatureKindCapability, "compose_banner")
 	featModelSave         = FeatureModelSave
@@ -315,6 +316,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// A `fits` entry's `from_sweep`: the ranked sweep winner bound as a
 	// named fit (FitSpec.FromSweep).
 	capability("compose_sweep_bind"),
+	// The nested-model comparisons of two fits: ComposedRequest.Compare
+	// and ComposedResponse.Comparisons.
+	capability("compose_compare"),
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -396,6 +400,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_PREVIOUS_STATE"),
 	op("ATTR_PROFILE_SIMILARITY"),
 	op("ATTR_REG_FITTED"),
+	op("ATTR_REG_INFLUENCE"),
 	op("ATTR_REG_LEVERAGE"),
 	op("ATTR_REG_PREDICT"),
 	op("ATTR_REG_RESIDUAL"),
@@ -661,6 +666,9 @@ var slotTokens = map[string]slotTokenSet{
 	// `from_sweep` names the key only; no guidance sentence names it
 	// yet.
 	featSweepBind: {},
+	// `compare` / `comparisons` are everyday English; no guidance
+	// sentence names the slot.
+	featComposeCompare: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
 	featComposeBanner: {},
 	// `save` is everyday English; no guidance sentence names the slot.
@@ -886,6 +894,7 @@ var hardEdges = map[string][]string{
 	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_AVERAGE", "AGG_WEIGHTED_MEAN"},
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
+	"ATTR_REG_INFLUENCE":                    {"REG_OLS"},
 	// Scores a bound fit of any scorable regression type.
 	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_HILL", "REG_OLS"},
 	"ATTR_REG_RESIDUAL": {"REG_OLS"},
@@ -989,6 +998,10 @@ var groupEdges = map[string][][]string{
 	// winner: without the sweep there is no winner, without fits no
 	// entry to bind it as.
 	featSweepBind: {{featComposeSweep}, {featComposeFits}},
+	// A nested-model comparison tests two `fits` entries, both REG_OLS
+	// or both REG_GLM: without fits there is nothing to compare, without
+	// one of the two regressions no fit it can read.
+	featComposeCompare: {{featComposeFits}, {string(types.REG_GLM), string(types.REG_OLS)}},
 	// A multi-group fit is an inline SEM fit (MAT_SEM's or
 	// ATTR_SEM_SCORE's) that always models the means.
 	featSEMGroups: {{string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)}, {featSEMMeans}},

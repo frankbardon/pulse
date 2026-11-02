@@ -123,6 +123,20 @@ func (p *Processor) SetModels(models *model.Set) {
 	p.models = models
 }
 
+// regressionResolver is the factory resolver every regression slot is
+// built through: the registry's (built-ins + extensions), wrapped so its
+// REG_OLS / REG_GLM engines offer their nested-model comparison figures
+// to the bound set's capture when the request is a Compose fit a
+// comparison reads (model.Set.WithCapture; regression.OfferingFigures).
+// Without a capture it is the registry's resolver itself.
+func (p *Processor) regressionResolver() regression.Resolver {
+	c := p.models.Capture()
+	if c == nil {
+		return p.exts.LookupRegression
+	}
+	return regression.OfferingFigures(p.exts.LookupRegression, c.OfferRegressionFigures)
+}
+
 // catalog is the processor's bound models as the catalog every
 // windows-first site reads (vectors.WindowsOverRecords through
 // ComputedColumns, ResolveRequest and the per-slot resolvers; the
@@ -375,7 +389,7 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
-		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE,
+		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE,
 		types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE,
 		types.ATTR_SEM_SCORE:
 		return true
@@ -697,7 +711,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// fit, no fit refusal, no low-n_eff warning.
 	var regressionEngines []regression.StreamingEngine
 	if p.compute.Regressions {
-		if regressionEngines, err = regression.BuildStreamingWith(req.Regressions, p.schema, p.exts.LookupRegression); err != nil {
+		if regressionEngines, err = regression.BuildStreamingWith(req.Regressions, p.schema, p.regressionResolver()); err != nil {
 			return nil, err
 		}
 		workRegressionFits.Add(int64(len(regressionEngines)))

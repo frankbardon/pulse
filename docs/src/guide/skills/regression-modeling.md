@@ -9,7 +9,7 @@ covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY
 
 # Regression modeling
 
-Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names. Per-model detail: atomic `op-reg-*` skills.
+Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names.
 
 No `Response.Components`; fits ride `Response.Regressions[i]`.
 
@@ -20,7 +20,7 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 | Decide | Pushes toward |
 |---|---|
 | Outcome numeric with roughly symmetric, constant-spread residuals? | the least-squares (OLS) fit |
-| Outcome yes/no (0/1) or a count? | the generalised linear (GLM) fit with a `binomial` / `poisson` family |
+| Outcome yes/no (0/1) or a count? | the generalised linear (GLM) fit with a `binomial` / `poisson` family (over-dispersed: `negative_binomial`) |
 | Prior knowledge about the coefficients, or want credible intervals? | the Bayesian linear fit (no p-values) |
 | Many correlated predictors? | a penalty (`l2` keeps all, `l1` / `elasticnet` zero some) |
 | Distrust the analytical SE? | the `Resample` modifier |
@@ -30,7 +30,7 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 
 Target / predictor types: `IsNumericForAnalytics` (each model's `## Contract`); a null, NaN or ±Inf drops the row from `n_obs`.
 
-Streaming: the OLS and Bayesian linear fits stream; the GLM buffers, as does either modifier.
+Streaming: OLS and Bayesian linear stream; the GLM and either modifier buffer.
 
 ## Modifiers
 
@@ -55,7 +55,7 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | `"backward"` | start full; remove the predictor whose absence lowers `Criterion` most |
 | `"stepwise"` | bidirectional sweep |
 
-`Criterion ∈ {aic, bic}` required. BIC rejects noise predictors better at moderate `n`. `SelectedFeatures` lists chosen predictors; non-selected ones are DROPPED from `Coefficients` — absent ≠ zero.
+`Criterion ∈ {aic, bic}` required. `SelectedFeatures` lists chosen predictors; non-selected ones are DROPPED from `Coefficients` — absent ≠ zero.
 
 `Selection` + `Resample` is fine. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — regularization already shrinks / selects.
 
@@ -68,7 +68,8 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | Lasso | `REG_OLS{Penalty:"l1", Alpha:λ}` |
 | Elastic Net | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}` |
 | Non-negative (NNLS) | `REG_OLS{Bounds:{nonnegative:[…]}}` |
-| Logistic (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"}` (+ `Penalty`, `Alpha`) |
+| Logistic / probit (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"\|"probit"}` (+ `Penalty`, `Alpha`) |
+| Negative binomial | `REG_GLM{Family:"negative_binomial"}` |
 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
 | Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |
 | Jackknife | an OLS / GLM spec with `Resample:"jackknife"` |
@@ -92,7 +93,7 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / 
 ## Gotchas
 
 - `n_obs` < record count: missing values drop rows.
-- A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` ([`cohort-null-states`](cohort-null-states.md)). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`, or drop or merge it; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
+- A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` ([`cohort-null-states`](cohort-null-states.md)). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
 - Knobs belong to their engine: another engine's knob is `PROCESSING_CONFIG` ([`regression-spec`](regression-spec.md)).
 
 ## See

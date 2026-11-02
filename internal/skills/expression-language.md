@@ -13,13 +13,13 @@ Two operators evaluate an `expr-lang/expr` string per row: the formula attribute
 
 ## Field binding
 
-A field is named bare; what it binds depends on its schema type:
+A field is named bare and binds by schema type:
 
 | Field type | Binds as | Write |
 |---|---|---|
 | numeric (`u*`, `f*`) | number (`u64` compares exactly) | `weight_kg / (height_m ** 2)` |
 | `categorical_*` | dictionary STRING, never the index | `brand == "Apple"`, `region in ["NA", "EU"]` |
-| `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
+| `set_*` | sorted `[]string` of member labels<!-- feature: capability:synth --> (synth rule: `map[string]bool`, `synth-set-fields`)<!-- /feature --> | `"a" in tags`, `has_any(tags, "a", "b")` |
 | `decimal128` | exact decimal — operators and numeric functions (`decimal-formulas`) | `price / cost > 1.2`, `float(price) * 1.5` |
 | `date` / `datetime` | epoch days / seconds; `weekday` `month_index` `date_trunc` `to_day` (`calendar-formulas`) | `month_index(order_day)` |
 
@@ -50,20 +50,20 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 
-Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire. An embedder `ExprFunctions` entry using a reserved name → `PULSE_EXTENSION_NAME_RESERVED`.
+Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire. An `ExprFunctions` entry using a reserved name → `PULSE_EXTENSION_NAME_RESERVED`.
 
 ## Null handling
 
 A null field binds `nil`; guard with `x ?? 0` or `x == nil ? a : b`. An unguarded `nil`, by host:
 
-- **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is a null value.
+- **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is null.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make it UNKNOWN: row dropped.
 
 Compiled once, predict included: bad syntax, unknown name or type error → `PULSE_FORMULA_COMPILE_ERROR` (`details.compile_error`); derived columns are numbers.
 
 ## Embedder extensions
 
-`Options.Extensions.ExprFunctions` adds functions; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`.
+`Options.Extensions.ExprFunctions` adds functions; `LookupTables` as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`.
 
 <!-- feature: capability:compose_fits -->
 ## Bound models

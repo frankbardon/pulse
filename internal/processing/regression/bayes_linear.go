@@ -350,7 +350,7 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	// μ_n = Λ_n⁻¹ · (Λ₀ μ₀ + Xᵀy).
 	rhs := make([]float64, q)
 	for i := 0; i < q; i++ {
-		rhs[i] = e.priorPrecision[i]*e.priorMu[i] + xtY[i]
+		rhs[i] = float64(e.priorPrecision[i]*e.priorMu[i]) + xtY[i]
 	}
 	muNSlice, err := solveSPD(chol, rhs)
 	if err != nil {
@@ -364,18 +364,18 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	// Posterior shape and rate.
 	//   a_n = a₀ + n/2   (Σw/2 weighted: n is Σw, exactly n unweighted)
 	//   b_n = b₀ + ½ (yᵀy + μ₀ᵀΛ₀μ₀ − μ_nᵀΛ_nμ_n)
-	aN := e.priorShape + e.acc.sumW/2.0
+	aN := e.priorShape + float64(e.acc.sumW/2.0)
 	// μ₀ᵀΛ₀μ₀: ε · Σ μ₀_j² for a scalar Λ₀ = ε·I (the historical
 	// order), Σ λ_j · μ₀_j² for a diagonal one.
 	mu0Quad := 0.0
 	if e.precisionScalar {
 		for _, v := range e.priorMu {
-			mu0Quad += v * v
+			mu0Quad += float64(v * v)
 		}
 		mu0Quad *= e.priorPrecision[0]
 	} else {
 		for j, v := range e.priorMu {
-			mu0Quad += e.priorPrecision[j] * float64(v*v)
+			mu0Quad += float64(e.priorPrecision[j] * float64(v*v))
 		}
 	}
 
@@ -383,10 +383,10 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	// μ_nᵀ Λ_n μ_n = μ_nᵀ · (Λ₀ μ₀ + Xᵀy) — exact, no extra solve.
 	muNQuad := 0.0
 	for i := 0; i < q; i++ {
-		muNQuad += muNSlice[i] * rhs[i]
+		muNQuad += float64(muNSlice[i] * rhs[i])
 	}
 
-	bN := e.priorRate + 0.5*(ytY+mu0Quad-muNQuad)
+	bN := e.priorRate + float64(0.5*(ytY+mu0Quad-muNQuad))
 	if !e.precisionScalar {
 		// Per-coefficient precision: the residual form
 		//   b_n = b₀ + ½ (RSS + (μ_n − μ₀)ᵀΛ₀(μ_n − μ₀)),
@@ -395,7 +395,7 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 		// huge and nearly equal. RSS reads the centred moments:
 		// M2_yy − 2βᵀM2_xy + βᵀM2_xxβ + Σw·(μ_y − β₀ − βᵀμ_x)². The scalar
 		// path keeps the historical form bit for bit.
-		bN = e.priorRate + 0.5*(e.residualSS(muNSlice)+e.priorDeviation(muNSlice))
+		bN = e.priorRate + float64(0.5*(e.residualSS(muNSlice)+e.priorDeviation(muNSlice)))
 	}
 	if bN < 0 {
 		// Should not happen under a well-formed prior; clamp tiny negatives
@@ -469,14 +469,14 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	for i := 0; i < q; i++ {
 		row := 0.0
 		for j := 0; j < q; j++ {
-			row += gram[i*q+j] * muNSlice[j]
+			row += float64(gram[i*q+j] * muNSlice[j])
 		}
 		xtxMuN[i] = row
 	}
 	rss := ytY
 	for j := 0; j < q; j++ {
-		rss -= 2 * muNSlice[j] * xtY[j]
-		rss += muNSlice[j] * xtxMuN[j]
+		rss -= float64(2 * muNSlice[j] * xtY[j])
+		rss += float64(muNSlice[j] * xtxMuN[j])
 	}
 	if rss < 0 {
 		if rss > -1e-9*ytY {
@@ -588,18 +588,18 @@ func buildGramFromWelford(a *olsAccumulator) (gram, xtY []float64, ytY float64) 
 	// Predictor × predictor block.
 	for i := 0; i < p; i++ {
 		for j := 0; j < p; j++ {
-			gram[(i+1)*q+(j+1)] = a.m2XX[i*p+j] + n*a.meanX[i]*a.meanX[j]
+			gram[(i+1)*q+(j+1)] = a.m2XX[i*p+j] + float64(n*a.meanX[i]*a.meanX[j])
 		}
 	}
 
 	// Cross-product Xᵀy.
 	xtY[0] = n * a.meanY
 	for i := 0; i < p; i++ {
-		xtY[i+1] = a.m2XY[i] + n*a.meanX[i]*a.meanY
+		xtY[i+1] = a.m2XY[i] + float64(n*a.meanX[i]*a.meanY)
 	}
 
 	// yᵀy.
-	ytY = a.m2YY + n*a.meanY*a.meanY
+	ytY = a.m2YY + float64(n*a.meanY*a.meanY)
 	return gram, xtY, ytY
 }
 
@@ -622,7 +622,7 @@ func (e *bayesLinearEngine) residualSS(mu []float64) float64 {
 		}
 		rss += float64(bi * row)
 	}
-	rss += a.sumW * float64(rbar*rbar)
+	rss += float64(a.sumW * float64(rbar*rbar))
 	if rss < 0 {
 		return 0
 	}
@@ -634,7 +634,7 @@ func (e *bayesLinearEngine) priorDeviation(mu []float64) float64 {
 	q := 0.0
 	for j, m0 := range e.priorMu {
 		d := mu[j] - m0
-		q += e.priorPrecision[j] * float64(d*d)
+		q += float64(e.priorPrecision[j] * float64(d*d))
 	}
 	return q
 }

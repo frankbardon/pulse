@@ -15,7 +15,9 @@
 #   * overlay_chisq_vs_pop.json — OVERLAY_CHISQ_VS_POP: chisq.test(x[C],
 #     p = pop[C], rescale.p = TRUE) over C, the subset values the
 #     population shows (a subset value the population lacks is outside
-#     C, the U08 OS-02 rule): statistic, df, p, the smallest expected.
+#     C, the U08 OS-02 rule) plus, when the subset listing is complete
+#     (truncated_at 0), every population category the subset lacks at
+#     observed 0 (E1-S2): statistic, df, p, the smallest expected.
 #   * overlay_chisq_vs_ref.json — OVERLAY_CHISQ_VS_REF on 3 x 3 slots:
 #     the same goodness of fit with the reference table as the
 #     distribution, over C = the cells whose reference count is positive.
@@ -93,11 +95,19 @@ ov_near <- function(a, b, what, tol = 1e-12) {
 }
 
 # ----------------------------------------------------- OVERLAY_CHISQ_VS_POP
-cvp_case <- function(name, sub, pop, note) {
+cvp_case <- function(name, sub, pop, note, truncated_at = 0) {
   C <- names(sub)[names(sub) %in% names(pop)[pop > 0]]
-  ct <- suppressWarnings(chisq.test(sub[C], p = pop[C], rescale.p = TRUE))
+  x <- sub[C]
+  if (truncated_at == 0) {
+    # A complete subset listing: a population category the subset never
+    # shows is observed 0 (E1-S2). A truncated listing leaves it unlisted.
+    miss <- names(pop)[pop > 0 & !(names(pop) %in% names(sub))]
+    C <- c(C, miss)
+    x <- c(x, setNames(rep(0, length(miss)), miss))
+  }
+  ct <- suppressWarnings(chisq.test(x, p = pop[C], rescale.p = TRUE))
   list(
-    name = name, note = note,
+    name = name, note = note, truncated_at = truncated_at,
     subset_values = ov_strs(names(sub)), subset_counts = ov_vec(sub),
     pop_values = ov_strs(names(pop)), pop_counts = ov_vec(pop),
     compared = ov_strs(C),
@@ -114,12 +124,17 @@ cvp_cases <- list(
            "an expected count below 5 (4): the statistic still stands beside the warning"),
   cvp_case("two_category", c(a = 7, b = 13), c(a = 55, b = 45), "one df"),
   cvp_case("far_tail", c(a = 400, b = 50, c = 50), c(a = 100, b = 100, c = 100),
-           "X-squared = 490 on 2 df: p near 1e-107, the survival tail")
+           "X-squared = 490 on 2 df: p near 1e-107, the survival tail"),
+  cvp_case("pop_value_absent", c(a = 30, b = 25, c = 15), c(a = 40, b = 30, c = 20, d = 10),
+           "d is missing from a complete subset listing: it enters C with observed 0 (3 df)"),
+  cvp_case("pop_value_absent_truncated", c(a = 30, b = 25, c = 15), c(a = 40, b = 30, c = 20, d = 10),
+           "the subset listing is cut by DiscreteTopK: d is unlisted, not observed 0, so C = a, b, c (2 df)",
+           truncated_at = 1)
 )
 write_golden("overlay_chisq_vs_pop", c(ov_meta(
   "OVERLAY_CHISQ_VS_POP",
   "chisq.test(x[C], p = pop[C], rescale.p = TRUE)",
-  "C = the subset values whose population count is positive."
+  "C = the subset values whose population count is positive, plus (when the subset listing is complete, truncated_at 0) every population category the subset lacks, observed 0."
 ), list(cases = cvp_cases)))
 
 # ----------------------------------------------------- OVERLAY_CHISQ_VS_REF

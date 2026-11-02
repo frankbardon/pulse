@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // matrix_rotate.go is the shared rotation engine: it turns a p × k
@@ -258,7 +259,7 @@ func promaxRotate(a [][]float64, kappa float64) (rotationResult, error) {
 	for i := range x {
 		q[i] = make([]float64, k)
 		for c, v := range x[i] {
-			q[i][c] = float64(v * math.Pow(math.Abs(v), kappa-1))
+			q[i][c] = float64(v * detmath.Pow(math.Abs(v), kappa-1))
 		}
 	}
 	// lm.fit(x, Q): U = (xᵀx)⁻¹·xᵀQ.
@@ -564,7 +565,7 @@ func entropyCriterion(l [][]float64) ([][]float64, float64) {
 		gq[i] = make([]float64, len(l[i]))
 		for c, v := range l[i] {
 			v2 := float64(v * v)
-			lg := math.Log(v2 + entropyEps)
+			lg := detmath.Log(v2 + entropyEps)
 			gq[i][c] = -(float64(v*lg) + v)
 			f += float64(v2 * lg)
 		}
@@ -589,9 +590,9 @@ func geominCriterion(eps float64) gpaCriterion {
 			sl := 0.0
 			for c, v := range l[i] {
 				l2[c] = float64(v*v) + eps
-				sl += math.Log(l2[c])
+				sl += detmath.Log(l2[c])
 			}
-			g := math.Exp(sl / float64(k))
+			g := detmath.Exp(sl / float64(k))
 			gq[i] = make([]float64, k)
 			for c, v := range l[i] {
 				gq[i][c] = float64(float64(2/float64(k)*(v/l2[c])) * g)

@@ -80,7 +80,7 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 		"regressions[*].n_obs", "regressions[*].sum_weights", "regressions[*].n_eff",
 		"regressions[*].residual_std_err", "regressions[*].converged_iters", "regressions[*].selected_features",
 		"regressions[*].vcov", "regressions[*].correlation", "regressions[*].covariance",
-		"regressions[*].advisories",
+		"regressions[*].margins", "regressions[*].collinearity", "regressions[*].advisories",
 		// the out-of-sample figures a holdout asked for (absent otherwise)
 		"regressions[*].holdout",
 		// an extension model's statistics and declared outputs

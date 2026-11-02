@@ -10,7 +10,8 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ATTR_REG_FITTED / ATTR_REG_RESIDUAL with params.fit (U53 FR-25):
+// ATTR_REG_FITTED / ATTR_REG_RESIDUAL with params.fit (U53 FR-25), and
+// ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE with it (U65 E1-S2):
 // score the row through a BOUND fit — a Compose `fits` entry or a
 // loaded `models` entry, the namespace ATTR_REG_PREDICT resolves —
 // instead of refitting OLS. The fit is resolved when the processor binds
@@ -19,8 +20,12 @@ import (
 // shared scoring path (model.RowScorer — regression.BuiltinScorer for
 // the built-ins, the registration's Scorer for an extension regression),
 // on the response scale: a REG_GLM fit's fitted mean. RESIDUAL is the
-// fit's target minus that score. A null in any column read — or, for a
-// residual, a null target — emits NaN, written as a NULL (NullEmitter).
+// fit's target minus that score. LEVERAGE, INFLUENCE and the
+// standardized / studentized RESIDUAL read the fit's design through
+// regression.BoundInfluence (its vcov, dispersion and residual df;
+// model.CheckFitDesign admitted the fit). A null in any column read —
+// or, for a residual or influence slot, a null target — emits NaN,
+// written as a NULL (NullEmitter).
 //
 // The reference rule is internal/model.CheckFitReference, the one the
 // field-reference pass (predict and runtime) runs first; bind re-runs it
@@ -28,8 +33,9 @@ import (
 // failed fit (model.Set.Failed) scores an all-null column with one
 // PULSE_FIT_UNAVAILABLE warning, as ATTR_REG_PREDICT does.
 
-// regFitScoreAttribute is the params.fit computer of ATTR_REG_FITTED /
-// ATTR_REG_RESIDUAL. scorer is nil until bindModels resolves the fit.
+// regFitScoreAttribute is the params.fit computer of the four
+// regression attributes. scorer is nil until bindModels resolves the
+// fit.
 type regFitScoreAttribute struct {
 	attr   *types.Attribute
 	kind   regressionAttributeKind
@@ -38,6 +44,17 @@ type regFitScoreAttribute struct {
 	scorer model.RowScorer
 	// target is the bound fit's response column (RESIDUAL reads it).
 	target string
+	// residualKind / family: RESIDUAL's params.kind and the bound fit's
+	// error family and link it reads (regression.ResidualFamily).
+	residualKind string
+	family       regression.ResidualFamily
+	// measure is INFLUENCE's resolved params.measure; design the bound
+	// fit's influence design (nil unless the slot reads it:
+	// model.FitDesignKind).
+	measure string
+	design  *regression.BoundInfluence
+	// residualType is a kind standardized RESIDUAL's params.residual_type.
+	residualType string
 	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
 	// fit failed on its data (nil otherwise): no scorer, every row null.
 	unavailable *types.ResponseWarning
@@ -73,7 +90,7 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 				return model.PredictorNotNumericFor(a.attr.Type, p.Fit, col, f.Type.String())
 			}
 		}
-		if a.kind == regAttrResidual && sig.Target != "" {
+		if model.FitReadsTarget(a.attr.Type) && sig.Target != "" {
 			if f := a.schema.Field(sig.Target); f != nil && !f.Type.IsNumericForAnalytics() {
 				return model.TargetNotNumeric(a.attr.Type, p.Fit, sig.Target, f.Type.String())
 			}
@@ -91,7 +108,30 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	a.scorer, a.target = scorer, b.Target
+	a.scorer, a.target, a.residualKind, a.measure, a.residualType = scorer, b.Target, p.Kind, p.Measure, p.ResidualType
+	if model.FitDesignKind(a.attr.Type, p) {
+		d, err := regression.NewBoundInfluence(b)
+		if err != nil {
+			return err
+		}
+		a.design = d
+	}
+	if p.Kind != "" && p.Kind != model.ResidualResponse {
+		// CheckFitReference admitted the kind on a built-in type, so the
+		// family / link are the engine's own echo.
+		// The negative binomial's variance and deviance read its θ.
+		theta := 0.0
+		if b.Result != nil {
+			theta = b.Result.Theta
+		}
+		fam, err := regression.NewResidualFamily(b.Family, b.Link, theta)
+		if err != nil {
+			return err
+		}
+		a.family = fam
+	} else {
+		a.family, _ = regression.NewResidualFamily("", "", 0)
+	}
 	return nil
 }
 
@@ -115,9 +155,11 @@ func (a *regFitScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 	return []*types.ResponseWarning{a.unavailable}
 }
 
-// Row is the row's fitted value (FITTED) or target minus it (RESIDUAL);
-// NaN (null) when a column read is null or non-finite
-// (regression.InputValue) or the fit failed on its data.
+// Row is the row's fitted value (FITTED), target minus it on the kind's
+// scale (RESIDUAL), leverage (LEVERAGE) or influence measure
+// (INFLUENCE); NaN (null) when a column read is null or non-finite
+// (regression.InputValue), the figure is undefined, or the fit failed
+// on its data.
 func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 	if a.unavailable != nil {
 		return math.NaN(), nil
@@ -126,18 +168,42 @@ func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 		return 0, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			string(a.attr.Type)+" params.fit scored before its model was bound")
 	}
+	if a.kind == regAttrLeverage {
+		h, ok := a.design.Leverage(rec)
+		if !ok {
+			return math.NaN(), nil
+		}
+		return h, nil
+	}
 	yhat, ok := a.scorer.Score(rec)
 	if !ok {
 		return math.NaN(), nil
 	}
-	if a.kind != regAttrResidual {
+	if a.kind == regAttrFitted {
 		return yhat, nil
 	}
 	y, ok := regression.InputValue(rec, a.target)
 	if !ok {
 		return math.NaN(), nil
 	}
-	return y - yhat, nil
+	if a.design == nil {
+		return a.family.Residual(a.residualKind, y, yhat), nil
+	}
+	inf, ok := a.design.Row(rec, y)
+	if !ok {
+		return math.NaN(), nil
+	}
+	switch {
+	case a.kind == regAttrInfluence && a.measure == model.InfluenceDFFITS:
+		return inf.DFFITS, nil
+	case a.kind == regAttrInfluence:
+		return inf.Cooks, nil
+	case a.residualKind == model.ResidualStudentized:
+		return inf.Studentized, nil
+	case a.residualType == model.ResidualTypeDeviance:
+		return inf.StandardizedDeviance, nil
+	}
+	return inf.Standardized, nil
 }
 
 // Compute is Row over every record (the buffered arm).

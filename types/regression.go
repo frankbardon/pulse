@@ -131,13 +131,46 @@ type RegressionSpec struct {
 	Bounds *RegressionBounds `json:"bounds,omitempty"`
 
 	// Family is the GLM error family. One of "binomial" (logistic),
-	// "poisson", or "gamma". Required for REG_GLM.
+	// "poisson", "gamma", or "negative_binomial" (NB2, Var = μ + μ²/θ:
+	// over-dispersed counts; θ estimated by maximum likelihood,
+	// alternating IRLS for β with a Newton step for θ as MASS glm.nb
+	// does, unless Theta fixes it). Required for REG_GLM.
 	Family string `json:"family,omitempty"`
 
-	// Link is the GLM link function. Defaults are family-specific
-	// ("logit" for binomial, "log" for poisson, "inverse" for gamma —
-	// the only gamma link implemented today).
+	// Link is the GLM link function, one of the family's: binomial
+	// "logit" (default), "probit", "cloglog"; poisson "log" (default),
+	// "identity", "sqrt"; gamma "inverse" (default), "log", "identity"
+	// — R's glm families; negative_binomial "log" (default), "identity",
+	// "sqrt" (MASS's). Empty selects the family's default;
+	// another family's link is PROCESSING_REGRESSION_INVALID_LINK. Every
+	// link fits by IRLS (Fisher scoring) with the expected-information
+	// covariance; the manifest lists the pairs (link param
+	// enum_values_by).
 	Link string `json:"link,omitempty"`
+
+	// Theta fixes the negative_binomial family's θ (> 0, finite): the fit
+	// is R's glm(family = MASS::negative.binomial(theta)) — IRLS for β
+	// only, RegressionResult.Theta echoing it and no ThetaStdErr. Zero
+	// (absent) estimates θ by maximum likelihood (MASS glm.nb). On any
+	// other family or regression, or ≤ 0, it is refused with
+	// PROCESSING_CONFIG (details.requires; internal/reglink.CheckTheta,
+	// shared with predict).
+	Theta float64 `json:"theta,omitempty"`
+
+	// Dispersion picks a fixed-θ negative_binomial fit's dispersion φ
+	// (NegBinDispersionFixed / NegBinDispersionEstimated): "fixed" (the
+	// default when empty) holds φ = 1 — Wald z, MASS summary.negbin's
+	// treatment; "estimated" reads φ̂ = Pearson χ²/(N* − p − 1), R's
+	// summary(glm(family = negative.binomial(theta))): Vcov = φ̂·(XᵀWX)⁻¹,
+	// Student-t p-values and intervals on DF, RegressionResult.Dispersion
+	// beside a classical Vcov, and the bound-fit influence figures on φ̂
+	// (studentized residuals and DFFITS on the leave-one-out σ, R's
+	// rstudent / dffits). A robust Covariance stays dispersion-free.
+	// Refused with PROCESSING_CONFIG (details.requires; the one rule
+	// predict applies, internal/reglink.CheckTheta) on any other family
+	// or regression, with θ estimated (Theta absent), or another value.
+	// Absent is byte-identical.
+	Dispersion string `json:"dispersion,omitempty"`
 
 	// MaxIters caps the IRLS / coordinate-descent iteration count for
 	// iterative fits. Defaults to a registry-specific value when zero.
@@ -267,6 +300,43 @@ type RegressionSpec struct {
 	// Resample or a Selection. See RegressionCovariance.
 	Covariance *RegressionCovariance `json:"covariance,omitempty"`
 
+	// Margins opts this regression into marginal effects
+	// (RegressionResult.Margins): per predictor term the average
+	// marginal effect (type ame, the default: the (weighted) mean over
+	// the fitted rows of ∂μ/∂x — marginaleffects avg_slopes, Stata
+	// margins, dydx) or the marginal effect at the mean (type mem: at the
+	// (weighted) predictor means — slopes(newdata = "mean"), Stata
+	// margins, dydx atmeans), on the response scale (scale response, the
+	// default: ∂μ/∂x through the inverse link) or the link scale (scale
+	// link: ∂η/∂x, which is the coefficient), with delta-method standard
+	// errors on the fit's own coefficient covariance (classical or the
+	// robust Covariance) and the coefficient table's reference
+	// distribution. REG_OLS and REG_GLM only; refused with
+	// PROCESSING_CONFIG (details.requires, the one rule predict applies:
+	// internal/regmargins) beside a Penalty, Selection, Resample or
+	// Bounds, on another type, or when a predictor is derived from
+	// another predictor of the same regression (a feature, attribute or
+	// window reading it, transitively). Any other derived predictor is
+	// differentiated as given: its effect is that of a unit change in
+	// that column. Absent is byte-identical. See RegressionMargins.
+	Margins *RegressionMargins `json:"margins,omitempty"`
+
+	// Collinearity opts this regression into its variance inflation
+	// factors (RegressionResult.Collinearity): per term the VIF — Fox &
+	// Monette's generalized VIF for a term spanning several predictor
+	// columns (Groups: a one-hot block, a spline basis) — its tolerance
+	// 1/VIF and, when a group is declared, GVIF^(1/(2·df)), read off the
+	// fit's own design (basis model, the default: the information XᵀWX at
+	// the fitted weights, car::vif on the fit) or the predictors alone
+	// (basis predictors: the prior-weighted predictor correlation, the
+	// MAT_COLLINEARITY figure). REG_OLS and REG_GLM only, with an
+	// intercept and two or more terms; refused with PROCESSING_CONFIG
+	// (details.requires, the one rule predict applies:
+	// internal/collinearity) beside a Selection, a REG_GLM Penalty under
+	// basis model, on another type, or a malformed block. Absent is
+	// byte-identical. See RegressionCollinearity.
+	Collinearity *RegressionCollinearity `json:"collinearity,omitempty"`
+
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
 	// selects 0.95. REG_OLS uses a Student-t critical value on the
@@ -345,6 +415,234 @@ type RegressionBounds struct {
 // empty Nonnegative list constrains none).
 func (b *RegressionBounds) Active() bool {
 	return b != nil && len(b.Nonnegative) != 0
+}
+
+// Negative binomial dispersion methods (RegressionSpec.Dispersion).
+const (
+	// NegBinDispersionFixed holds φ = 1 (the default).
+	NegBinDispersionFixed = "fixed"
+	// NegBinDispersionEstimated estimates φ̂ = Pearson χ²/df.
+	NegBinDispersionEstimated = "estimated"
+)
+
+// AllNegBinDispersions lists the RegressionSpec.Dispersion values, the
+// default first.
+func AllNegBinDispersions() []string {
+	return []string{NegBinDispersionFixed, NegBinDispersionEstimated}
+}
+
+// Marginal-effect types (RegressionMargins.Type).
+const (
+	// MarginsAME is the average marginal effect: the per-row effect
+	// averaged over the fitted rows (weighted by the fit's row weight).
+	MarginsAME = "ame"
+	// MarginsMEM is the marginal effect at the mean: the effect at the
+	// (weighted) means of the predictors.
+	MarginsMEM = "mem"
+)
+
+// Marginal-effect scales (RegressionMargins.Scale).
+const (
+	// MarginsScaleResponse differentiates the mean μ = g⁻¹(η) — the
+	// change in the expected outcome per unit of the predictor.
+	MarginsScaleResponse = "response"
+	// MarginsScaleLink differentiates the linear predictor η; the effect
+	// is the coefficient itself.
+	MarginsScaleLink = "link"
+)
+
+// AllMarginsTypes lists the RegressionMargins.Type values, the default
+// first.
+func AllMarginsTypes() []string { return []string{MarginsAME, MarginsMEM} }
+
+// AllMarginsScales lists the RegressionMargins.Scale values, the
+// default first.
+func AllMarginsScales() []string { return []string{MarginsScaleResponse, MarginsScaleLink} }
+
+// RegressionMargins is RegressionSpec.Margins: which marginal effects a
+// REG_OLS / REG_GLM fit reports. Every field has a default, so
+// `"margins": {}` asks for the average marginal effect of every
+// predictor on the response scale.
+type RegressionMargins struct {
+	// Type is ame (the default; empty selects it) or mem.
+	Type string `json:"type,omitempty"`
+
+	// Terms names the predictors to report, each a member of
+	// Predictors, once; empty means every predictor in Predictors order.
+	Terms []string `json:"terms,omitempty"`
+
+	// Scale is response (the default; empty selects it) or link.
+	Scale string `json:"scale,omitempty"`
+}
+
+// EffectiveType is m's type, MarginsAME when unset.
+func (m *RegressionMargins) EffectiveType() string {
+	if m == nil || m.Type == "" {
+		return MarginsAME
+	}
+	return m.Type
+}
+
+// EffectiveScale is m's scale, MarginsScaleResponse when unset.
+func (m *RegressionMargins) EffectiveScale() string {
+	if m == nil || m.Scale == "" {
+		return MarginsScaleResponse
+	}
+	return m.Scale
+}
+
+// Collinearity bases (RegressionCollinearity.Basis).
+const (
+	// CollinearityBasisModel reads the fit's own information matrix XᵀWX
+	// at the fitted weights (prior × IRLS working weights on REG_GLM; the
+	// prior weights on REG_OLS), centered on its intercept — car::vif on
+	// the fitted model.
+	CollinearityBasisModel = "model"
+	// CollinearityBasisPredictors reads the predictors' prior-weighted
+	// correlation over the fitted rows, whatever the model — car::vif on
+	// lm over the same predictors and weights, MAT_COLLINEARITY's VIF. On
+	// REG_OLS it is the model basis exactly.
+	CollinearityBasisPredictors = "predictors"
+)
+
+// AllCollinearityBases lists the RegressionCollinearity.Basis values,
+// the default first.
+func AllCollinearityBases() []string {
+	return []string{CollinearityBasisModel, CollinearityBasisPredictors}
+}
+
+// RegressionCollinearity is RegressionSpec.Collinearity: how a REG_OLS /
+// REG_GLM fit reports its variance inflation factors. Every field has a
+// default, so `"collinearity": {}` asks for the VIF of every predictor
+// on the model basis.
+type RegressionCollinearity struct {
+	// Basis is model (the default; empty selects it) or predictors.
+	Basis string `json:"basis,omitempty"`
+
+	// Groups declares the multi-column terms: each names a term and the
+	// predictors (columns of Predictors — a one-hot block's dummies, a
+	// spline basis) that make it up, judged together by the generalized
+	// VIF. A predictor joins at most one group; every
+	// predictor no group names is a term of its own, named after itself.
+	// A group's name must differ from every other term's. Empty: every
+	// predictor is its own term.
+	Groups []RegressionTermGroup `json:"groups,omitempty"`
+}
+
+// RegressionTermGroup is one multi-column term of
+// RegressionCollinearity.Groups.
+type RegressionTermGroup struct {
+	// Name is the term's key in RegressionCollinearityResult.
+	Name string `json:"name"`
+	// Predictors are the term's columns, each one of Predictors, once.
+	Predictors []string `json:"predictors"`
+}
+
+// EffectiveBasis is c's basis, CollinearityBasisModel when unset.
+func (c *RegressionCollinearity) EffectiveBasis() string {
+	if c == nil || c.Basis == "" {
+		return CollinearityBasisModel
+	}
+	return c.Basis
+}
+
+// RegressionCollinearityResult is RegressionResult.Collinearity: the
+// variance inflation of each term. The maps are keyed by term (a
+// predictor, or a group's name); Terms keeps the order (a group at its
+// first predictor's position). An undefined figure is null on the wire,
+// key kept.
+type RegressionCollinearityResult struct {
+	// Basis echoes the resolved RegressionCollinearity.Basis.
+	Basis string `json:"basis"`
+
+	// Terms lists the terms in their resolved order.
+	Terms []string `json:"terms"`
+
+	// DF maps each term to its column count: 1 for a predictor, the
+	// group's size for a group.
+	DF map[string]int `json:"df"`
+
+	// VIF maps each term to its variance inflation factor: (R⁻¹)_jj for
+	// a single column, Fox & Monette's generalized VIF
+	// det(R_SS)·det(R_−S,−S)/det(R) for a group S, R the basis's
+	// correlation of the predictor columns (car::vif's GVIF). 1 when a
+	// term is uncorrelated with the others.
+	VIF map[string]float64 `json:"vif"`
+
+	// Tolerance maps each term to 1/VIF.
+	Tolerance map[string]float64 `json:"tolerance"`
+
+	// GVIFScaled maps each term to VIF^(1/(2·df)) — car's
+	// GVIF^(1/(2*Df)), comparable across terms of different df as √VIF
+	// is for one column; present only when Groups declares a group.
+	GVIFScaled map[string]float64 `json:"gvif_scaled,omitempty"`
+}
+
+// RegressionMarginsResult is RegressionResult.Margins: one marginal
+// effect per term with its delta-method inference. The maps are keyed by
+// term (a predictor name), like the coefficient table; Terms keeps the
+// order. An undefined figure is null on the wire, key kept.
+type RegressionMarginsResult struct {
+	// Type and Scale echo the resolved RegressionMargins.
+	Type  string `json:"type"`
+	Scale string `json:"scale"`
+
+	// Terms lists the reported predictors in their resolved order.
+	Terms []string `json:"terms"`
+
+	// Estimates maps each term to its marginal effect: under type ame
+	// the (weighted) mean over the fitted rows of β_j·μ′(η_i) (response
+	// scale) — under type mem β_j·μ′(x̄ᵀβ) — or β_j (link scale; and on
+	// every identity link, REG_OLS included, where μ′ = 1).
+	Estimates map[string]float64 `json:"estimates"`
+
+	// StdErrors maps each term to its delta-method standard error
+	// √(J·V·Jᵀ), V the fit's coefficient covariance (the one StdErrors
+	// reads: classical or the robust Covariance) and J the gradient of
+	// the effect in β. On the link scale and on an identity link it is
+	// the coefficient's standard error.
+	StdErrors map[string]float64 `json:"std_errors"`
+
+	// Statistics maps each term to Estimate / StdError: a Student t on DF
+	// when the coefficient table reads one (REG_OLS, REG_GLM gamma), else
+	// a Wald z.
+	Statistics map[string]float64 `json:"statistics"`
+
+	// PValues maps each term to its two-sided p-value under the null of
+	// no effect, on the statistic's reference distribution.
+	PValues map[string]float64 `json:"p_values"`
+
+	// CILower and CIUpper bound each effect's two-sided confidence
+	// interval at ConfLevel: estimate ∓ q·StdError, q the Student-t (on
+	// DF) or normal critical value.
+	CILower map[string]float64 `json:"ci_lower"`
+	CIUpper map[string]float64 `json:"ci_upper"`
+
+	// DF is the Student-t degrees of freedom the statistics read — the
+	// coefficient table's DF; absent on a Wald z (null when ≤ 0).
+	DF float64 `json:"df,omitempty"`
+
+	// ConfLevel is the interval coverage, the regression's conf_level.
+	ConfLevel float64 `json:"conf_level"`
+
+	// At maps each predictor (every one of Predictors, not only Terms)
+	// to the (weighted) mean the effects are evaluated at; type mem only.
+	At map[string]float64 `json:"at,omitempty"`
+
+	// PAdjusted and SignificantAdjusted carry the multiplicity-adjusted
+	// p-value of each term, present only when the regression's own
+	// multiplicity block resolved to a method other than none: the terms
+	// form a family of their own, one per regression
+	// (MultiplicityFamilyMargins), apart from the coefficients' — so the
+	// coefficients' PAdjusted are the same with margins or without.
+	PAdjusted           map[string]float64 `json:"p_adjusted,omitempty"`
+	SignificantAdjusted map[string]bool    `json:"significant_adjusted,omitempty"`
+
+	// Multiplicity echoes the margins family's correction beside
+	// PAdjusted: the regression block's method and alpha, family
+	// "margins", m the number of terms with a defined p-value (excluded
+	// the rest). Absent when no correction ran.
+	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // RegressionMultiplicity is a regression's own multiple-comparison
@@ -520,6 +818,39 @@ type RegressionResult struct {
 	// PseudoR2 is a McFadden-style 1 − Deviance/NullDeviance (REG_GLM).
 	PseudoR2 float64 `json:"pseudo_r2,omitempty"`
 
+	// Theta is the negative_binomial family's θ (Var = μ + μ²/θ): its
+	// maximum-likelihood estimate θ̂ (MASS glm.nb's theta), or the
+	// RegressionSpec.Theta the fit held fixed. Deviance, NullDeviance,
+	// Vcov and the standard errors are evaluated at it, with the
+	// dispersion fixed at 1 (MASS summary.negbin: β and θ treated as
+	// orthogonal). Absent on every other family.
+	Theta float64 `json:"theta,omitempty"`
+
+	// ThetaStdErr is θ̂'s standard error 1/√I(θ̂), I the observed
+	// information of θ at the fitted means (MASS theta.ml's SE.theta);
+	// present only when θ was estimated (null if I(θ̂) ≤ 0).
+	ThetaStdErr float64 `json:"theta_std_err,omitempty"`
+
+	// TwoLogLik is twice the maximised log-likelihood 2ℓ of a plain
+	// REG_OLS or REG_GLM fit, R 4.6.1's logLik(): REG_OLS logLik.lm
+	// (−N*·(log(2π·RSS/N*) + 1)); binomial / poisson / gamma their
+	// family's density at the fitted means (gamma at the dispersion
+	// deviance / N*, Gamma()$aic's); negative_binomial MASS glm.nb's
+	// twologlik at θ. Unweighted, or under a frequency weight the
+	// rep()-expanded fit's. Absent under a probability weight (a
+	// weighted pseudo-likelihood is not a likelihood), on a penalized
+	// fit, an OLS fit whose bound binds, and on REG_BAYES_LINEAR; −Inf
+	// (null on the wire) for a poisson / binomial response that is not a
+	// count, +Inf for an exact OLS fit.
+	TwoLogLik float64 `json:"two_log_lik,omitempty"`
+
+	// AIC is −TwoLogLik + 2·k, k logLik's df (R's AIC()): the
+	// coefficients, plus σ on REG_OLS, the dispersion on gamma, and θ on
+	// a negative_binomial fit that estimated it (MASS glm.nb's aic; a
+	// fixed θ is not counted, AIC of glm(family = negative.binomial(θ))).
+	// Present exactly when TwoLogLik is.
+	AIC float64 `json:"aic,omitempty"`
+
 	// NObs is the number of observations used to fit the model — the
 	// raw row count, weighted or not (a row whose weight is invalid or
 	// zero contributes nothing and is not counted).
@@ -569,10 +900,31 @@ type RegressionResult struct {
 	// exactly when Vcov is.
 	Correlation *MatrixValues `json:"correlation,omitempty"`
 
+	// Dispersion is the ESTIMATED dispersion φ̂ the classical Vcov
+	// carries — Vcov = φ̂·(XᵀWX)⁻¹ — on a fit that set Vcov: σ̂² =
+	// RSS/df on an unpenalized REG_OLS fit, the Pearson χ²/df on a
+	// REG_GLM gamma fit, on the N* basis of a weighted fit (as Vcov).
+	// Absent wherever φ is not estimated (binomial / poisson fix it at
+	// 1) and on every robust, resampled, penalized or Bayesian fit,
+	// whose Vcov is no φ-scaled (XᵀWX)⁻¹. Null when the residual df is
+	// ≤ 0. The influence figures over a bound fit read it
+	// (ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE / ATTR_REG_RESIDUAL kind
+	// standardized / studentized with params.fit).
+	Dispersion float64 `json:"dispersion,omitempty"`
+
 	// Covariance echoes the robust estimator the standard errors,
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
 	// "auto" lags resolved; absent on a classical fit.
 	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
+
+	// Margins carries the marginal effects RegressionSpec.Margins asked
+	// for (see RegressionMarginsResult); absent otherwise.
+	Margins *RegressionMarginsResult `json:"margins,omitempty"`
+
+	// Collinearity carries the variance inflation factors
+	// RegressionSpec.Collinearity asked for (see
+	// RegressionCollinearityResult); absent otherwise.
+	Collinearity *RegressionCollinearityResult `json:"collinearity,omitempty"`
 
 	// Outputs holds an extension regression's own named extras, each key
 	// declared in its registration's OutputSchema; a non-finite float is

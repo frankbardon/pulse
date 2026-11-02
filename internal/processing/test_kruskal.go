@@ -130,16 +130,16 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 		sumWs[i], sumWSqs[i] = samples[i].sumW, samples[i].sumWSq
 		var sum float64
 		for j := span[0]; j < span[1]; j++ {
-			sum += combined.weights[j] * ranks[j]
+			sum += float64(combined.weights[j] * ranks[j])
 		}
 		rankSums[i] = sum
 		// n_i is Σw_i (the group's row count unweighted).
 		h += sum * sum / sumWs[i]
 	}
 	Nf := combined.sumW
-	h = 12/(Nf*(Nf+1))*h - 3*(Nf+1)
+	h = float64(12/(Nf*(Nf+1))*h) - float64(3*(Nf+1))
 	// Tie correction.
-	denom := 1 - tieCorrectionW(ties)/(Nf*Nf*Nf-Nf)
+	denom := 1 - tieCorrectionW(ties)/(float64(Nf*Nf*Nf)-Nf)
 	if denom > 0 {
 		h /= denom
 	}

@@ -135,7 +135,7 @@ func (c *chiSqRow) UpdateRow(record *Record) error {
 	c.rowW[ri] += w
 	c.colW[ci] += w
 	c.sumW += w
-	c.sumWSq += w * w
+	c.sumWSq += float64(w * w)
 	return nil
 }
 

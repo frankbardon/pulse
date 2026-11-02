@@ -224,6 +224,9 @@ type VectorCapture struct {
 	// sems are the SEM fits a SEM fit request's MAT_SEM slot closed
 	// (OfferSEM) — the same handle, the other kind.
 	sems []*SEMFit
+	// figures are the comparison figures a regression fit request's
+	// engine offered (OfferRegressionFigures, regression_figures.go).
+	figures []*RegressionFigures
 }
 
 // OfferSEM records a closed SEM fit. Nil-receiver-safe.

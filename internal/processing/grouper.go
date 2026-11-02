@@ -703,7 +703,7 @@ func (g *rangeGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	low := math.Floor(v/g.interval) * g.interval
+	low := float64(math.Floor(v/g.interval) * g.interval)
 	high := low + g.interval
 	return formatRoundedNumeric(low) + "-" + formatRoundedNumeric(high), nil
 }
@@ -762,7 +762,7 @@ func (g *rangeGrouper) trackRangeRow(v float64, key string) {
 	}
 	stat, exists := g.liveBuckets[key]
 	if !exists {
-		low := math.Floor(v/g.interval) * g.interval
+		low := float64(math.Floor(v/g.interval) * g.interval)
 		stat = rangeBucketStat{low: low, high: low + g.interval}
 	}
 	stat.count++

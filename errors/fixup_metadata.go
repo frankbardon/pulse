@@ -177,8 +177,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Family"},
-				Hint:     "Set Family to one of binomial (logistic), poisson, or gamma; check the regression-modeling skill for the family / link compatibility matrix.",
-				Examples: []any{"binomial", "poisson", "gamma"},
+				Hint:     "Set Family to one of binomial (logistic), poisson, gamma, or negative_binomial (over-dispersed counts); check the regression-modeling skill for the family / link compatibility matrix.",
+				Examples: []any{"binomial", "poisson", "gamma", "negative_binomial"},
 			},
 		},
 	},
@@ -188,8 +188,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Link"},
-				Hint:     "Use the family-default Link (binomial → logit, poisson → log, gamma → log) or pick a Link from the family's supported set in the regression-modeling skill.",
-				Examples: []any{"logit", "log", "identity"},
+				Hint:     "Pick a Link from the family's own set (details.allowed): binomial logit / probit / cloglog, poisson log / identity / sqrt, gamma inverse / log / identity — or omit it for the family's canonical default (logit, log, inverse).",
+				Examples: []any{"logit", "probit", "identity"},
 			},
 		},
 	},
@@ -1539,6 +1539,60 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_DRAW_INVALID: {
+		Message: "A synth row expression misuses a random draw: `uniform()` or `bernoulli(p)` is called from a constraint, with the wrong arguments, or `bernoulli(p)` is given a `p` outside [0, 1] (NaN included). Draws are a rule's: each call site reads its own seeded stream, so a constraint that drew would make acceptance itself random.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Call `uniform()` with no arguments and `bernoulli(p)` with one probability in [0, 1]; clamp a computed one (`bernoulli(min(1, max(0, pd)))`). To filter on a draw, store it in a rule (`{\"set_expr\": {\"u\": \"uniform()\"}}` on an `\"output\": false` field) and constrain the field.",
+			},
+		},
+	},
+	PULSE_SYNTH_DST_NONEXISTENT: {
+		Message: "A `uniform_datetime` field drew a local wall-clock time its zone never shows — the skipped hour of a DST spring-forward — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`. A UTC or fixed-offset zone has no transitions and never raises this.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Set the field's params.dst_policy: \"earlier\" reads the skipped time at the pre-transition offset (Europe/Berlin 2026-03-29 02:30 → 01:30Z), \"later\" at the post-transition offset (→ 00:30Z) — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Or give the transition hour no weight: a 0 in params.hour_weights at the skipped local hour (02 in most of Europe and North America) means no time in it is ever drawn.",
+			},
+		},
+	},
+	PULSE_SYNTH_DST_AMBIGUOUS: {
+		Message: "A `uniform_datetime` field drew a local wall-clock time its zone shows twice — the repeated hour of a DST fall-back — and the field's `dst_policy` is the default \"error\", so generation stops and nothing is written. Details carry `field`, `local_time` (the naive reading), `tz` (the zone) and `dst_policy`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Set the field's params.dst_policy: \"earlier\" takes the first occurrence (pre-transition offset), \"later\" the second — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Fields", "*", "Params"},
+				Hint:   "Or give the repeated hour no weight: a 0 in params.hour_weights at the repeated local hour (01 in North America, 02 in most of Europe) means no time in it is ever drawn.",
+			},
+		},
+	},
+	PULSE_SYNTH_FIDELITY_MODEL_INVALID: {
+		Message: "A supplied fidelity model request cannot be refit: it carries no `regressions`, or the synth call has no source cohort or no fidelity report path to write the refit into. The call is refused before generation and nothing is written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions"},
+				Hint:   "Give the request at least one regression (the same `regressions` array `pulse process` reads); its cohort is ignored, the refit runs on the source cohort and on the generated rows.",
+			},
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass the model together with a source cohort and a fidelity report path (--source and --fidelity-report on synth from-profile; SourceCohort and FidelityReportPath on SynthOptions).",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{
@@ -1650,12 +1704,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_EXPECTED_COUNT_TOO_LOW: {
-		Message: "A chi-square cell's expected count is below 5; the asymptotic chi-square approximation is unreliable.",
+		Message: "A chi-square cell's expected count, or a two-proportion z-test group's expected successes or failures under the null rate, is below 5; the asymptotic chi-square / normal approximation is unreliable.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"Tests", "*", "Type"},
-				Hint:     "Use TEST_FISHER_EXACT for small 2x2 tables; for larger tables, pool rare levels to raise per-cell expected counts.",
+				Hint:     "Use TEST_FISHER_EXACT for small 2x2 tables (a two-group proportion test is one: split_by x success); for larger tables, pool rare levels to raise per-cell expected counts.",
 				Examples: []any{"TEST_FISHER_EXACT"},
 			},
 		},
@@ -1791,7 +1845,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_TIES_DOMINATE: {
-		Message: "A rank-based test observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
+		Message: "A rank-based test, or a two-sample distribution test on its asymptotic p, observed ties on >= 50% of input values: the test then mostly compares the share of tied values, not their order, and the asymptotic approximation loses accuracy.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -2336,6 +2390,38 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPARISON_INVALID: {
+		Message: "A ComposedRequest `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression fits under `available`), each a request-bound regression fit — not a vector or SEM fit (`fit_kind`) nor a `from_sweep` one (`from_sweep`). Both fits are one regression type, ordinary least squares or a generalized linear model (`type_unsupported`, `type_mismatch`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `no_resample` (a Wald test reads the classical or robust covariance, not a replicate one), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). The entry index is under `compare`, its name under `name`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"compare", "*", "restricted"},
+				Hint:     "Name two different regression `fits` entries: `restricted` the smaller model, `full` the larger one holding every restricted predictor plus the terms under test.",
+				Examples: []any{"base"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request"},
+				Hint:   "Make the two fit requests identical but for the regression's predictors (and intercept): the same cohort, filters, features, weight, family, link and covariance, so both fits run on the same rows.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"compare", "*", "test"},
+				Hint:     "Use `wald` under a probability weight or on a family whose dispersion is fixed (an F test needs an estimated dispersion); omit `test` for R's anova default (F on least squares and gamma, lrt otherwise).",
+				Examples: []any{"f", "lrt", "wald"},
+			},
+		},
+	},
+	PULSE_COMPARISON_ROWS_DIFFER: {
+		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "filterers"},
+				Hint:   "Filter both fit requests to the rows where every full-model predictor is non-null (the same filter in each), so both fits drop the same rows.",
+			},
+		},
+	},
 	PULSE_MODEL_NAME_COLLISION: {
 		Message: "Two bound models share a name: `fits` entries, `models` entries and `populations` entries bind ONE namespace, and every name must be unique in it, because a reference names a model by that name alone. The instance's registered populations (Options.Extensions.Populations, the populations directory) are bound beneath every request in the same namespace, so an entry may not reuse one of their names either. The name is under `name`; two fits name the second entry's index under `fit`, any collision with a `models` or `populations` entry or a registered population names both bindings under `sources` (each {slot, index} plus a loaded file's path; a registered population is {slot: \"registered\"}).",
 		Fixups: []Fixup{
@@ -2386,7 +2472,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or residual attribute's `params.fit` takes `{fit}` alone. Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit}`, a residual's `{fit, kind, residual_type}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares or generalized-linear fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported`). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2397,6 +2483,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"attributes", "*", "params", "scale"},
 				Hint:   "Drop params.scale unless the fit is generalized-linear; a least-squares or Bayesian score is already on the target's scale.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions", "*", "vcov"},
+				Hint:   "For a leverage / influence / standardized / studentized slot (details.requires vcov), set vcov: true on the bound fit's regression; for requires unweighted set its weight to null.",
 			},
 		},
 	},
@@ -4827,7 +4918,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_SINGULAR: {
-		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`. An operator whose other outputs stay defined may raise it as a per-matrix WARNING instead, naming the figures it nulls under `outputs`.",
+		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`. An operator whose other outputs stay defined may raise it as a per-matrix WARNING instead, naming the figures it nulls under `outputs`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,

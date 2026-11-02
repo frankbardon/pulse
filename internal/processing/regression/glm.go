@@ -5,6 +5,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,6 +37,12 @@ import (
 // E2-S3): φ̂ = Pearson χ² / (N* − k), Cov(β) = φ̂·(XᵀWX)⁻¹ and β/SE on a
 // Student t with N* − k df — R's summary.glm on a Gamma glm.
 //
+// The negative binomial (negbin.go) estimates θ by alternating this loop
+// with a Newton step for θ (MASS glm.nb), or holds RegressionSpec.Theta;
+// its dispersion is 1, so it reads the binomial / poisson Wald path at θ̂
+// — unless a fixed θ sets RegressionSpec.Dispersion "estimated", which
+// reads gamma's estimated-φ̂ path (Student t on N* − k).
+//
 // Weighted (U12 E4-S2, .claude/reference/weighting.md): the slot's row
 // weights enter as R glm prior weights on w* = w·N*/Σw — the working
 // weight is w*·μ'(η)²/V(μ), so Cov(β) = (XᵀW*X)⁻¹ and the deviances are
@@ -44,6 +52,9 @@ type glmEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
 	family glmFamily
+	// figures, when set (OfferingFigures), receives the fit's
+	// nested-model comparison figures at finalize (compare.go).
+	figures func(*model.RegressionFigures)
 
 	finalized bool
 
@@ -191,25 +202,51 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		Family:   e.family,
 		MaxIters: maxIters, Tol: tol,
 		WantInverse: true,
+		// The collinearity block's model basis reads the converged
+		// working weights (vif.go).
+		WantWeights: e.spec.Collinearity != nil && e.spec.Collinearity.EffectiveBasis() == types.CollinearityBasisModel,
 	}
 	// A penalty's N* is Σw* (n unweighted): glmnet's −loglik/N*.
 	pen := newGLMPenalty(e.spec, sum(prior))
 	if pen != nil {
 		pr.Penalty = pen
 	}
-	sol, err := irlsFit(pr)
+	// The negative binomial estimates θ around the loop (negbin.go) and
+	// leaves e.family at θ̂, so the dispersion, sandwich and null
+	// deviance below read the variance and deviance at θ̂.
+	var nb *negBinFit
+	var sol *irlsSolution
+	var err error
+	if e.family.Name == reglink.NegativeBinomial {
+		if nb, err = fitNegBin(pr, e.spec.Theta); err == nil {
+			sol, e.family = nb.sol, nb.fam
+			// dispersion "estimated" (a fixed θ only, reglink.CheckTheta):
+			// φ̂ = Pearson χ²/df as gamma's, R's summary.glm on a
+			// glm(family = negative.binomial(θ)) fit.
+			e.family.EstimatesDispersion = e.spec.Dispersion == types.NegBinDispersionEstimated
+		}
+	} else {
+		sol, err = irlsFit(pr)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if pen != nil {
-		return e.penalizedResult(pen, sol, yVec, prior, sumW, sumWSq, rw)
+		res, err := e.penalizedResult(pen, sol, yVec, prior, sumW, sumWSq, rw)
+		if err == nil && e.spec.Collinearity != nil {
+			// basis predictors only (internal/collinearity refuses the
+			// model basis beside a penalty): the prior-weighted design.
+			res.Collinearity = glmCollinearity(e.spec, xRows, prior, p+1)
+		}
+		return res, err
 	}
 	beta, eta, mu := sol.Beta, sol.Eta, sol.Mu
 	convergedIters := sol.Iters
 	lastInvXtWX := sol.Inverse
 
 	// The dispersion the classical covariance reads: 1 (binomial,
-	// poisson), or gamma's estimate φ̂ = Pearson χ² / (N* − k) with the
+	// poisson, negative binomial), or gamma's (and a fixed-θ negative
+	// binomial's under dispersion "estimated") estimate φ̂ = Pearson χ² / (N* − k) with the
 	// Student-t df N* − k (estimatedDispersion). A robust covariance is
 	// dispersion-free — φ cancels between bread and meat, as in R's
 	// sandwich — and stays Wald z, so it never reads φ̂.
@@ -297,10 +334,81 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		NObs:           n,
 		ConvergedIters: convergedIters,
 	}
+	if nb != nil {
+		attachNegBin(res, nb)
+	}
+	if logLikDefined(rw.basis) {
+		// The maximised log-likelihood and AIC, R's (loglik.go); absent
+		// under a probability weight (a pseudo-likelihood).
+		theta, est := 0.0, false
+		if nb != nil {
+			theta, est = nb.theta, nb.estimated
+		}
+		ll, df := glmLogLik(e.family, yVec, mu, prior, deviance, p+1, theta, est)
+		attachLogLik(res, ll, df)
+	}
 	rw.note(res, sumW, sumWSq)
 	// Intervals on the p-values' basis: Wald normal, or gamma's Student
 	// t on N* − k (DF set, null when N* − k ≤ 0).
 	attachIntervals(res, resolvedConfLevel(e.spec), df, studentT)
+	// Cov(β) as the standard errors read it: the robust sandwich, or
+	// φ·(XᵀWX)⁻¹ at the converged weights (φ = 1 but for gamma), its
+	// diagonal the clamped variances.
+	coefCov := func() [][]float64 {
+		if robust != nil {
+			return robust.fit.v
+		}
+		return symVcov(p+1, lastInvXtWX.At, phi, variances)
+	}
+	if e.spec.Margins != nil {
+		// Marginal effects on the coefficient table's reference
+		// distribution (margins.go).
+		inf := marginsInference{level: resolvedConfLevel(e.spec), df: df, studentT: studentT}
+		switch {
+		case e.spec.Margins.EffectiveScale() == types.MarginsScaleLink || identityLink(e.family):
+			var at []float64
+			if e.spec.Margins.EffectiveType() == types.MarginsMEM {
+				at = designMeans(xRows, prior, p+1)[1:]
+			}
+			res.Margins = coefficientMargins(e.spec, res, inf, at)
+		default:
+			res.Margins = glmMargins(e.spec, e.family, xRows, prior, eta, beta, coefCov(), inf)
+		}
+	}
+	if e.spec.Collinearity != nil {
+		// The VIF of the fitted design (vif.go): on the converged working
+		// weights (basis model) or the prior weights (basis predictors).
+		w := prior
+		if e.spec.Collinearity.EffectiveBasis() == types.CollinearityBasisModel {
+			w = sol.Weights
+		}
+		res.Collinearity = glmCollinearity(e.spec, xRows, w, p+1)
+	}
+	if e.figures != nil {
+		// The figures a Compose nested-model comparison reads (compare.go):
+		// the deviance, the residual df N* − k, the dispersion an F /
+		// likelihood-ratio test divides by — the Pearson estimate on a
+		// family that estimates it, under a robust covariance too (anova
+		// reads summary.glm's, never the sandwich) — and the covariance
+		// the standard errors read on the table's t df (0: Wald z).
+		nStar := rw.basis.NStar(sumW, sumWSq)
+		disp, waldDF := 1.0, 0.0
+		if e.family.EstimatesDispersion {
+			disp, _ = e.estimatedDispersion(yVec, mu, prior, nStar)
+		}
+		if studentT {
+			waldDF = df
+		}
+		e.figures(&model.RegressionFigures{
+			Terms:        coefficientKeys(predictors),
+			Coefficients: append([]float64(nil), beta...),
+			Covariance:   coefCov(),
+			WaldDF:       waldDF,
+			Deviance:     deviance,
+			DFResidual:   nStar - float64(p+1),
+			Dispersion:   disp,
+		})
+	}
 	if robust != nil {
 		res.Covariance = robust.fit.info
 		if e.spec.Vcov {
@@ -310,7 +418,11 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		// Cov(β) = φ·(XᵀWX)⁻¹ at the converged weights (φ = 1 but for
 		// gamma), its diagonal the clamped variances the standard errors
 		// read.
-		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, phi, variances))
+		attachVcov(res, predictors, coefCov())
+		if studentT {
+			// The estimated φ̂ the vcov is scaled by (gamma).
+			res.Dispersion = phi
+		}
 	}
 	return res, nil
 }
@@ -345,7 +457,7 @@ func (e *glmEngine) nullDeviance(yVec, prior []float64, deviance float64) (float
 	nullMu := e.family.SafeMean(weightedMean(yVec, prior))
 	nullDeviance := 0.0
 	for i := range yVec {
-		nullDeviance += prior[i] * e.family.Deviance(yVec[i], nullMu)
+		nullDeviance += float64(prior[i] * e.family.Deviance(yVec[i], nullMu))
 	}
 	nullDeviance *= 2.0
 	pseudoR2 := 0.0
@@ -499,7 +611,7 @@ func buildWeightedDesign(records []Record, predictors []string, target string, r
 		yVec = append(yVec, y)
 		prior = append(prior, w)
 		sumW += w
-		sumWSq += w * w
+		sumWSq += float64(w * w)
 	}
 	if c := rw.basis.Scale(sumW, sumWSq); c != 1 {
 		for i := range prior {
@@ -516,7 +628,7 @@ func weightedMean(x, w []float64) float64 {
 	}
 	s, sw := 0.0, 0.0
 	for i, v := range x {
-		s += w[i] * v
+		s += float64(w[i] * v)
 		sw += w[i]
 	}
 	return s / sw

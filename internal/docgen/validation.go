@@ -70,18 +70,20 @@ const (
 	wrVals = "internal/service/weight_reference_values_test.go"
 	wrTest = "internal/service/weight_reference_tests_test.go"
 
-	procOutput  = "internal/processing/test_output_oracle_test.go"
-	procPost    = "internal/processing/test_post_oracle_test.go"
-	procUndef   = "internal/processing/test_undefined_oracle_test.go"
-	ovOracle    = "internal/processing/overlay_reference_oracle_test.go"
-	ovPairwise  = "internal/processing/overlay_pairwise_test.go"
-	vsPrior     = "internal/integration/overlay_vs_prior_test.go"
-	svcCov      = "internal/service/regression_covariance_test.go"
-	svcCovGLM   = "internal/service/regression_covariance_glm_test.go"
-	svcVcov     = "internal/service/regression_vcov_test.go"
-	regDir      = "internal/processing/regression/"
-	strdTest    = "strd_reference_test.go"
-	mmmSynthSrc = "synthetic data with known true parameters (internal/mmmfixture)"
+	procOutput = "internal/processing/test_output_oracle_test.go"
+	procPost   = "internal/processing/test_post_oracle_test.go"
+	procUndef  = "internal/processing/test_undefined_oracle_test.go"
+	ovOracle   = "internal/processing/overlay_reference_oracle_test.go"
+	ovPairwise = "internal/processing/overlay_pairwise_test.go"
+	vsPrior    = "internal/integration/overlay_vs_prior_test.go"
+	svcCov     = "internal/service/regression_covariance_test.go"
+	svcCovGLM  = "internal/service/regression_covariance_glm_test.go"
+	svcVcov    = "internal/service/regression_vcov_test.go"
+	regDir     = "internal/processing/regression/"
+	// svcCompareOracle is the nested-model comparison's R oracle test.
+	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
+	strdTest         = "strd_reference_test.go"
+	mmmSynthSrc      = "synthetic data with known true parameters (internal/mmmfixture)"
 )
 
 // weighted is the weighted-reference check shared by most inferential
@@ -162,12 +164,72 @@ var validationRegistry = map[string]validation{
 	"AGG_STDDEV":  {Refs: []validationRef{strdRef("univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
 	"AGG_WELFORD": {Refs: []validationRef{strdRef("univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
 
+	// Per-row regression scores with an external reference.
+	"ATTR_REG_RESIDUAL": {Refs: []validationRef{{
+		Against: "statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`)",
+		Tol:     "1e-8 relative", Tests: []string{"glm_residual_kinds_reference_test.go"},
+	}, {
+		Against: "statsmodels 0.14.5 `OLSInfluence.resid_studentized_internal` / `resid_studentized_external` (the OLS refit, `params.kind` standardized / studentized; R `rstandard` / `rstudent`)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
+	}, {
+		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
+	}, {
+		Against: rPin + " `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}, {
+		Against: rPin + " `residuals(type = \"working\")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
+	}, {
+		Against: rPin + " + MASS 7.3-66 `residuals` (pearson / deviance / working), `rstandard` (both types) and `rstudent` at dispersion 1 over a bound negative binomial fit (`glm.nb`, θ estimated or fixed; `params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
+	}, {
+		Against: rPin + " + MASS 7.3-66 `rstandard` (both types) at `summary.glm`'s φ̂ and `rstudent` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`glm(negative.binomial(θ))`; `params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
+	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated."},
+	"ATTR_REG_LEVERAGE": {Refs: []validationRef{{
+		Against: rPin + " `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}, {
+		Against: rPin + " `hatvalues` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
+	}, {
+		Against: rPin + " + MASS 7.3-66 `hatvalues` over a bound negative binomial fit (log / sqrt / identity link, θ estimated or fixed; `params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
+	}}, Gap: "The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated."},
+	"ATTR_REG_INFLUENCE": {Refs: []validationRef{{
+		Against: "statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
+	}, {
+		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
+		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
+	}, {
+		Against: rPin + " `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
+	}, {
+		Against: rPin + " `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ))",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
+	}, {
+		Against: rPin + " + MASS 7.3-66 `cooks.distance` and `dffits` at dispersion 1 (`family$dispersion <- 1`) over a bound negative binomial fit (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
+	}, {
+		Against: rPin + " + MASS 7.3-66 `cooks.distance` at `summary.glm`'s φ̂ and `dffits` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`params.fit`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
+	}}, Gap: "Over a weighted bound fit the figures are refused, not validated."},
+
 	// Regressions.
 	"REG_OLS": {Refs: []validationRef{
 		strdRef("linear regression: Norris, Pontius, NoInt1–2 (intercept: false), Filip, Longley, Wampler1–5"),
 		r("`lm`", tol10, regDir+"ols_lm_reference_test.go"),
 		r("`glmnet` (penalties), `nnls` (non-negative)", tol10, regDir+"ols_penalty_reference_test.go", regDir+"ols_nnls_reference_test.go"),
 		r("`sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)", tol10, svcCov, svcVcov),
+		r("`logLik` / `AIC` of `lm` with and without an intercept (two_log_lik, aic; σ counted)", tol10, regDir+"loglik_oracle_test.go"),
+		{Against: rPin + " `logLik` / `AIC` of the `rep()`-expanded `lm` (frequency weights; `lm(weights = f)` reads them as precision weights)", Tol: tol10, Tests: []string{regDir + "loglik_oracle_test.go"}, Weighted: true},
+		r("+ MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`, ame / mem) of `lm` with their delta-method standard errors, t statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = \"mean\")` at 1e-7", tol9, regDir+"margins_oracle_test.go"),
+		r("+ `car` 3.1-5 `vif` on `lm` (`collinearity`: VIF, tolerance and, over a factor's dummies grouped as one term, Fox & Monette's generalized VIF, df and GVIF^(1/(2 df)); the closed form re-derived from the weighted design)", tol10, regDir+"vif_oracle_test.go", "collinearity_test.go"),
+		{Against: rPin + " + `car` 3.1-5 `vif(lm(weights = w))`: frequency weights against the `rep()`-expanded fit, probability weights scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
+		r("+ `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `lm` fits — `anova(m0, m1)` F and `test = \"Chisq\"`, `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"))`, a restricted fit through the origin; statistic, df, p-value, each fit's residual df and RSS, σ̂²", tol10, svcCompareOracle, "compare_test.go"),
+		{Against: rPin + " `anova` of the `rep()`-expanded `lm` fits (frequency weights; df = Σw − rank)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
 		weighted,
 	},
 		Gap: "On NIST Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): the double-precision limit for its large residuals.",
@@ -175,11 +237,26 @@ var validationRegistry = map[string]validation{
 	"REG_GLM": {
 		Refs: []validationRef{
 			r("`glm` (binomial-logit, poisson-log, gamma-inverse)", tol10, regDir+"glm_irls_test.go", regDir+"glm_gamma_oracle_test.go"),
+			r("`glm` (binomial probit / cloglog, poisson identity / sqrt, gamma log / identity: coefficients, standard errors, vcov, deviance, null deviance, AIC, dispersion, fitted means, working residuals), refitted to its fixed point", tol9, regDir+"glm_links_oracle_test.go"),
+			{Against: rPin + " `glm(weights = f)` against its `rep()`-expanded fit (probit, poisson sqrt, gamma log; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_links_oracle_test.go"}, Weighted: true},
+			r("`logLik` / `AIC` of binomial-logit, poisson-log and gamma-inverse `glm` (two_log_lik, aic; gamma's dispersion at deviance / n counted); the non-canonical links' `AIC` against `glm_links.json`, the negative binomial's against `glm_nb.json`", tol10, regDir+"loglik_oracle_test.go", regDir+"glm_links_oracle_test.go"),
+			{Against: rPin + " `logLik` / `AIC` of `glm(weights = f)` against its `rep()`-expanded fit (binomial, poisson, gamma; frequency weights)", Tol: tol10, Tests: []string{regDir + "loglik_oracle_test.go"}, Weighted: true},
 			r("`glmnet` (penalties)", tol10, regDir+"glm_penalty_test.go"),
 			r("`sandwich` (robust standard errors; vcov)", "1e-11 relative", svcCovGLM, svcVcov),
+			r("`sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3 on the non-canonical links", tol9, regDir+"glm_links_oracle_test.go"),
+			r("+ MASS 7.3-66 `glm.nb` (negative binomial, θ estimated on log / sqrt / identity, pushed to its fixed point) and `glm(negative.binomial(θ))` (θ fixed): coefficients, standard errors and vcov at dispersion 1, θ, SE(θ), twice the log-likelihood, AIC, deviance, null deviance, fitted means, residuals; `sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3", tol9, regDir+"glm_nb_oracle_test.go"),
+			{Against: rPin + " + MASS 7.3-66 `glm.nb(weights = f)` against its `rep()`-expanded fit (negative binomial, log link; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_nb_oracle_test.go"}, Weighted: true},
+			r("+ MASS 7.3-66 `summary(glm(negative.binomial(θ)))` (θ fixed, `dispersion: estimated`, log / sqrt link): φ̂ = Pearson χ²/df, vcov and standard errors scaled by it, t p-values on df, Wald-t intervals", tol9, regDir+"glm_nb_oracle_test.go"),
+			{Against: rPin + " + MASS 7.3-66 `summary(glm(negative.binomial(θ)))` on the `rep()`-expanded fit (θ fixed, `dispersion: estimated`; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_nb_oracle_test.go"}, Weighted: true},
+			r("+ MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`: ame / mem, response / link scale) of logit, probit, cloglog, poisson, gamma inverse / log and negative binomial `glm` fits — the mean of β·μ′(η), the delta-method Jacobian on `vcov`, `vcovHC` HC3 and `vcovCL` — with statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = \"mean\")` at 1e-7", tol9, regDir+"margins_oracle_test.go"),
+			{Against: rPin + " analytic marginal effects of `glm(weights = f)` (logit ame / mem) against its `rep()`-expanded fit, and `marginaleffects` `avg_slopes(wts = \"f\")`", Tol: tol9, Tests: []string{regDir + "margins_oracle_test.go"}, Weighted: true},
+			r("+ MASS 7.3-66 + `car` 3.1-5 `vif` (`collinearity`: VIF, tolerance, generalized VIF of a factor's dummies, df, GVIF^(1/(2 df))) on binomial-logit, poisson-log, fixed-θ negative binomial and gamma-log `glm` fits refitted to their fixed point (basis model: the IRLS working weights), and on `lm` over the same predictors and prior weights (basis predictors); end to end through `FEAT_ONE_HOT`", tol10, regDir+"vif_oracle_test.go", "collinearity_test.go"),
+			{Against: rPin + " + `car` 3.1-5 `vif(glm(weights = w))`: frequency weights against the `rep()`-expanded fit (logit, poisson basis predictors), probability weights (gamma log) scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
+			r("+ MASS 7.3-66 + `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `glm` fits refitted to their fixed point — `anova(m0, m1, test = \"LRT\" | \"F\")` on logit, probit, poisson, gamma inverse / log and fixed-θ negative binomial fits (the full fit's Pearson dispersion), MASS `anova.negbin` (θ estimated, 2 loglik change; cross-checked against `lrtest`), `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"), test = \"Chisq\" | \"F\")`", tol10, svcCompareOracle, "compare_test.go"),
+			{Against: rPin + " `anova` of the `rep()`-expanded `glm` fits (poisson LRT, gamma log F; frequency weights)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
 			weighted,
 		},
-		Gap: "Only the canonical link of each family is implemented, so only those are validated.",
+		Gap: "Penalized fits on a non-canonical link are checked by their KKT conditions, not against glmnet. Off the canonical link IRLS converges linearly, so at the default tol (1e-8) the coefficients sit within about 1e-7 of the MLE; the oracle fits at tol 1e-13. The negative binomial refuses penalty, selection and resample (no oracle); its probability-weighted fit is checked for scale invariance only. Marginal effects are slopes only (no discrete factor contrasts: regressions take no factor predictors; a 0/1 dummy gets its slope, where marginaleffects reports a 1 − 0 contrast, so that cross-check skips it) and are refused over a predictor derived from another predictor, a penalty, selection, resample or bounds. The collinearity block's penalized basis-predictors figure is checked equal to the unpenalized one (a design figure), not against an external penalized VIF. A nested-model comparison under a probability weight runs the Wald test only (F / LRT refused), checked against its own covariance rather than an external survey test.",
 	},
 	"REG_BAYES_LINEAR": {Refs: []validationRef{
 		r("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),

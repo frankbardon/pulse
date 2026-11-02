@@ -8,7 +8,8 @@ import (
 	"slices"
 
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/stat/distuv"
+
+	"github.com/frankbardon/pulse/internal/statdist"
 )
 
 // bootstrap.go is the non-parametric bootstrap of a fitted model
@@ -371,10 +372,9 @@ func normInter(t []float64, alpha float64) float64 {
 	case float64(k) == rk:
 		return ts[k-1]
 	}
-	q := distuv.UnitNormal
-	t1 := q.Quantile(alpha)
-	t2 := q.Quantile(float64(k) / float64(r+1))
-	t3 := q.Quantile(float64(k+1) / float64(r+1))
+	t1 := statdist.NormalQuantile(alpha)
+	t2 := statdist.NormalQuantile(float64(k) / float64(r+1))
+	t3 := statdist.NormalQuantile(float64(k+1) / float64(r+1))
 	tk, tk1 := ts[k-1], ts[k]
-	return tk + (t1-t2)/(t3-t2)*(tk1-tk)
+	return tk + float64((t1-t2)/(t3-t2)*(tk1-tk))
 }

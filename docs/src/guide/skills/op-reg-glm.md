@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-glm
-description: Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered.
+description: Generalized linear model via IRLS; supports binomial (logistic), poisson, gamma and negative binomial (NB2, theta estimated) families with family-specific link functions. Always buffered.
 kind: operator
 category: REG
 operator: REG_GLM
@@ -26,18 +26,20 @@ Use something else:
 
 ## Params
 
-Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regression-spec`](regression-spec.md).
+Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md).
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
-| `predictors` | []field | (required) | ≥1 numeric predictor. |
-| `family` | enum | (required) | `binomial`, `poisson`, `gamma`. |
-| `link` | enum | — | `binomial→logit`, `poisson→log`, `gamma→inverse`. |
+| `predictors` | []field | (required) | ≥1 numeric. |
+| `family` | enum | (required) | `binomial`, `poisson`, `gamma`, `negative_binomial`. |
+| `link` | enum | — | `logit/probit/cloglog`; `log/identity/sqrt` (poisson, NB); `inverse/log/identity`; 1st default. |
+| `theta` | float | — | NB fixed θ > 0; else ML. |
+| `dispersion` | enum | `fixed` | NB + `theta`: `estimated` φ̂. |
 | `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). |
 | `alpha` | float | — | Strength, > 0. |
-| `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
-| `max_iters` | int | — | IRLS iteration cap. |
+| `l1_ratio` | float | — | Mix, `0<r<1`. |
+| `max_iters` | int | — | IRLS cap. |
 | `tol` | float | — | IRLS tolerance. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
 | `bootstrap_iters` | int | `1000` | Resample. |
@@ -46,27 +48,29 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `rng_seed` | int | — | Resample. |
 | `selection` | enum | — | `backward`, `forward`, `stepwise`. |
 | `criterion` | enum | — | `aic`, `bic`. |
-| `conf_level` | float | `0.95` | CI coverage. |
+| `conf_level` | float | `0.95` | CI level. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
-| `covariance` | object | — | Robust SEs ([`regression-inference`](regression-inference.md)). |
-| `weight` | slot weight | — | `null` opts out; IRLS prior weights. |
-| `multiplicity` | object | — | Coefficient p-values join a family; adds `PAdjusted`. |
+| `covariance` | object | — | Robust SEs. |
+| `margins` | object | — | AME / MEM ([`regression-margins`](regression-margins.md)). |
+| `collinearity` | object | — | VIFs ([`regression-collinearity`](regression-collinearity.md)). |
+| `weight` | slot weight | — | Prior weights. |
+| `multiplicity` | object | — | p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs
 
-`target` / `predictors`: see `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null, NaN or ±Inf drops the row.
+See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf drops the row.
 
 ## Output
 
-`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF` (binomial / poisson) or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`; `Family` / `Link` echoed. `l1` / `elasticnet` without `resample`: SE / p / CI null + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
+`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr`.
 
 ## Reading the output
 
-- `coefficients.*`: The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link).
-- `std_errors.*`: How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.
+- `coefficients.*`: The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link), the log of the expected count for negative_binomial (log link).
+- `p_values.*`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 
 ## Contract
 
@@ -77,12 +81,12 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Gotchas
 
-- Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION` naming `details.predictors`; the slot fails alone. Add `penalty: l2`, or drop / merge it.
-- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`, rescale. Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.
-- Binomial / poisson fix the dispersion at 1: overdispersed counts get too-small SEs — use a robust `covariance`.
-- Collinear or constant predictor → `PROCESSING_REGRESSION_RANK_DEFICIENT` naming `details.columns`. Other refusals: [`regression-spec`](regression-spec.md).
+- Binomial separation → `PROCESSING_REGRESSION_SEPARATION`; the slot fails alone. Add `penalty: l2`, or drop it.
+- Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`; NB `theta_unbounded`: fit poisson. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`.
+- Poisson fixes φ = 1: overdispersed counts get too-small SEs; fit `negative_binomial` or a robust `covariance`.
+- Collinear / constant → `PROCESSING_REGRESSION_RANK_DEFICIENT`. Other refusals: [`regression-spec`](regression-spec.md).
 
 ## See
 
 - `pulse_examples_search tags=[glm]`
-- Skills: [`regression-spec`](regression-spec.md), [`regression-modeling`](regression-modeling.md), [`regression-inference`](regression-inference.md), [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md)
+- Skills: [`regression-spec`](regression-spec.md), [`regression-modeling`](regression-modeling.md), [`regression-margins`](regression-margins.md), [`regression-inference`](regression-inference.md), [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md)

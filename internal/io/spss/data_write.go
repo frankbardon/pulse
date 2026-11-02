@@ -409,8 +409,9 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
 	case EncodeDateDays:
 		// A `date` cell is whole epoch DAYS; SPSS counts SECONDS from its
 		// own epoch. Both halves of the conversion are exact in a double
-		// for every date the format can express.
-		return e.putNumeric(col, c, temporal.DayToUnixFloat(v.Num)+float64(spssEpochOffsetSeconds))
+		// for every date the format can express; the float64() barrier
+		// keeps the arm64 compiler from fusing them into one FMA.
+		return e.putNumeric(col, c, float64(temporal.DayToUnixFloat(v.Num))+float64(spssEpochOffsetSeconds))
 
 	case EncodeDateTimeSeconds:
 		return e.putNumeric(col, c, v.Num+float64(spssEpochOffsetSeconds))

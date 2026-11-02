@@ -119,7 +119,7 @@ func (j *jointState) objective(x []float64) float64 {
 		if math.IsInf(v, 1) {
 			return v
 		}
-		f += j.w[g] * v
+		f += float64(j.w[g] * v)
 	}
 	return f
 }
@@ -138,9 +138,9 @@ func (j *jointState) derivatives(x []float64, needH bool) (float64, []float64, *
 			return math.Inf(1), nil, nil, fmt.Errorf("group %d: %w", g+1, err)
 		}
 		w, ix := j.w[g], j.idx[g]
-		f += w * fg
+		f += float64(w * fg)
 		for k, t := range ix {
-			grad[t] += w * gg[k]
+			grad[t] += float64(w * gg[k])
 		}
 		if !needH {
 			continue
@@ -148,9 +148,9 @@ func (j *jointState) derivatives(x []float64, needH bool) (float64, []float64, *
 		for a, ta := range ix {
 			for b := a; b < len(ix); b++ {
 				tb := ix[b]
-				v := w * hg.At(a, b)
+				v := float64(w * hg.At(a, b))
 				if ta == tb && a != b {
-					v *= 2
+					v = float64(v * 2)
 				}
 				h.SetSym(ta, tb, h.At(ta, tb)+v)
 			}

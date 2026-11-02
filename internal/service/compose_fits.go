@@ -211,11 +211,16 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 		}
 		return
 	}
+	// A regression fit a nested-model comparison reads runs with a
+	// capture its engine offers its comparison figures to
+	// (compose_compare.go); every other fit runs as it always has.
+	fitSet, figures := captureFor(ctx, fits[i].Name, fitSet)
 	resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
 	if err != nil {
 		p.errs[i] = err
 		return
 	}
+	recordComparisonFigures(ctx, fits[i].Name, figures)
 	if resp == nil || len(resp.Regressions) != 1 || resp.Regressions[0] == nil {
 		p.errs[i] = errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			fmt.Sprintf("fit %q produced no regression result", fits[i].Name))
@@ -367,7 +372,7 @@ func (p *composeFitPass) bind(mask []bool) (*model.Set, map[string]*types.FitRes
 			continue
 		}
 		if se := p.failed[i]; se != nil {
-			sig := failedSignature(f, i)
+			sig := failedSignature(f, i, p.s.defaultWeight != nil)
 			if sig.SweepBound {
 				sig = model.FitCatalog{f.Name: sig}.WithSweepAxes(p.sweepAxes)[f.Name]
 			}
@@ -513,10 +518,12 @@ func slotFailedWarnings(resp *types.Response, i int) []*types.ResponseWarning {
 }
 
 // failedSignature is failed fit i's static signature — the one
-// predict's FitCatalog holds for it (model.CatalogFromFits), so a
-// reference to it is judged at runtime exactly as in predict.
-func failedSignature(f types.FitSpec, i int) model.Signature {
-	sig := model.CatalogFromFits([]types.FitSpec{f})[f.Name]
+// predict's FitCatalog holds for it (model.CatalogFromFits, settled by
+// the instance default weight: defaultWeighted), so a reference to it
+// is judged at runtime exactly as in predict.
+func failedSignature(f types.FitSpec, i int, defaultWeighted bool) model.Signature {
+	fits := []types.FitSpec{f}
+	sig := model.CatalogFromFits(fits).WithDefaultWeight(fits, defaultWeighted)[f.Name]
 	sig.Source = model.FitSource(i)
 	return sig
 }
