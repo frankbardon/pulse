@@ -141,7 +141,7 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 	// unweighted mid-ranks, so nothing cancels as H → 0. The textbook
 	// Σ R_i²/n_i − 3(N+1) form lost 1.4e-8 relative there (U64 #616).
 	for i, sum := range rankSums {
-		dev := sum - float64(sumWs[i]*(Nf+1))/2
+		dev := sum - float64(float64(sumWs[i]*(Nf+1))/2)
 		h += float64(dev*dev) / sumWs[i]
 	}
 	h = float64(12/(Nf*(Nf+1))) * h
