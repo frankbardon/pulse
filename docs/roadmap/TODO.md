@@ -851,8 +851,8 @@ Theme documents: see the [roadmap index](README.md).
 ## 14. Trust & regression depth ([U64](units/U64-reference-validation.md), [U65](units/U65-regression-depth.md))
 
 - [x] **#613** The book's "How Pulse is validated" page and a "Validated against" list on every inferential operator's catalog entry, generated from a gated registry · [U64](units/U64-reference-validation.md)
-- [ ] **#614** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it · [U64](units/U64-reference-validation.md)
-- [ ] **#615** The registry gate checks that a cited test actually exercises the operator · [U64](units/U64-reference-validation.md)
+- [x] **#614** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it · [U64](units/U64-reference-validation.md)
+- [x] **#615** The registry gate checks that a cited test actually exercises the operator · [U64](units/U64-reference-validation.md)
 - [x] **#616** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` · [U64](units/U64-reference-validation.md)
 - [x] **#617** R goldens for the unweighted chi-square overlays; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` · [U64](units/U64-reference-validation.md)
 - [x] **#618** NIST StRD linear regression, one-way ANOVA and univariate goldens with the certified LRE per dataset published · [U64](units/U64-reference-validation.md)

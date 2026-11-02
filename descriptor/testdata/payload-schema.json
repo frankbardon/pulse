@@ -1654,6 +1654,7 @@
     },
     "ExplainMode": {
       "enum": [
+        "operator",
         "request",
         "response"
       ],
@@ -1702,6 +1703,9 @@
         },
         "facet_result": {
           "$ref": "#/$defs/FacetResult"
+        },
+        "operator": {
+          "type": "string"
         },
         "request": {
           "$ref": "#/$defs/Request"
@@ -1814,6 +1818,9 @@
         "valid": {
           "type": "boolean"
         },
+        "validation": {
+          "$ref": "#/$defs/OperatorValidation"
+        },
         "warnings": {
           "items": {
             "$ref": "#/$defs/EnvelopeEntry"
@@ -1841,6 +1848,7 @@
         "composed_response",
         "facet",
         "facet_result",
+        "operator",
         "request",
         "response",
         "sample"
@@ -3770,6 +3778,39 @@
       "required": [
         "left_field",
         "right_field"
+      ],
+      "type": "object"
+    },
+    "OperatorValidation": {
+      "additionalProperties": false,
+      "properties": {
+        "certification": {
+          "items": {
+            "$ref": "#/$defs/ValidationCertification"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "gap": {
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/ValidationReference"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "weight_refusal": {
+          "$ref": "#/$defs/ValidationWeightRefusal"
+        }
+      },
+      "required": [
+        "references"
       ],
       "type": "object"
     },
@@ -7126,6 +7167,97 @@
       ],
       "type": "string"
     },
+    "ValidationCertification": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "string"
+        },
+        "digits": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "family": {
+          "type": "string"
+        },
+        "min_digits": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "dataset",
+        "digits",
+        "family",
+        "min_digits"
+      ],
+      "type": "object"
+    },
+    "ValidationReference": {
+      "additionalProperties": false,
+      "properties": {
+        "against": {
+          "type": "string"
+        },
+        "tests": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tolerance": {
+          "type": "string"
+        },
+        "weighted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "against",
+        "tests",
+        "tolerance"
+      ],
+      "type": "object"
+    },
+    "ValidationWeightRefusal": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "tests": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "reason",
+        "tests"
+      ],
+      "type": "object"
+    },
     "VectorCoerce": {
       "enum": [
         "binary"
@@ -7439,4 +7571,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7618b0f769a0c2abffc601d0067bd44f504b0bf95d35ed518b7578d8b9b19e4c
+// golden-hash: a5658c59a01fd6816c3dc1967b920df26589d00115b1b7e1fcb59fef19fe1dd6

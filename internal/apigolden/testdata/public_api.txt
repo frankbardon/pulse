@@ -1477,6 +1477,7 @@ pulse/descriptor: type ExplainFinding field Subject string "json:\"subject\""
 pulse/descriptor: type ExplainFinding field Verdict pulse/descriptor.Verdict "json:\"verdict\""
 pulse/descriptor: const ExplainFull pulse/descriptor.ExplainDetail = "full"
 pulse/descriptor: type ExplainMode string
+pulse/descriptor: const ExplainModeOperator pulse/descriptor.ExplainMode = "operator"
 pulse/descriptor: const ExplainModeRequest pulse/descriptor.ExplainMode = "request"
 pulse/descriptor: const ExplainModeResponse pulse/descriptor.ExplainMode = "response"
 pulse/descriptor: type ExplainMultiplicity struct
@@ -1491,6 +1492,7 @@ pulse/descriptor: type ExplainRequest field ComposedResponse *pulse/types.Compos
 pulse/descriptor: type ExplainRequest field Detail pulse/descriptor.ExplainDetail "json:\"detail,omitempty\""
 pulse/descriptor: type ExplainRequest field Facet *pulse/types.FacetRequest "json:\"facet,omitempty\""
 pulse/descriptor: type ExplainRequest field FacetResult *pulse/types.FacetResult "json:\"facet_result,omitempty\""
+pulse/descriptor: type ExplainRequest field Operator string "json:\"operator,omitempty\""
 pulse/descriptor: type ExplainRequest field Request *pulse/types.Request "json:\"request,omitempty\""
 pulse/descriptor: type ExplainRequest field Response *pulse/types.Response "json:\"response,omitempty\""
 pulse/descriptor: type ExplainRequest field Sample *pulse/types.SampleRequest "json:\"sample,omitempty\""
@@ -1510,6 +1512,7 @@ pulse/descriptor: type ExplainResult field Sentences []string "json:\"sentences,
 pulse/descriptor: type ExplainResult field Steps []pulse/descriptor.ExplainStep "json:\"steps,omitempty\""
 pulse/descriptor: type ExplainResult field Summary string "json:\"summary\""
 pulse/descriptor: type ExplainResult field Valid *bool "json:\"valid,omitempty\""
+pulse/descriptor: type ExplainResult field Validation *pulse/descriptor.OperatorValidation "json:\"validation,omitempty\""
 pulse/descriptor: type ExplainResult field Warnings []pulse/descriptor.EnvelopeEntry "json:\"warnings,omitempty\""
 pulse/descriptor: type ExplainRoot string
 pulse/descriptor: const ExplainRootChain pulse/descriptor.ExplainRoot = "chain"
@@ -1518,6 +1521,7 @@ pulse/descriptor: const ExplainRootComposed pulse/descriptor.ExplainRoot = "comp
 pulse/descriptor: const ExplainRootComposedResponse pulse/descriptor.ExplainRoot = "composed_response"
 pulse/descriptor: const ExplainRootFacet pulse/descriptor.ExplainRoot = "facet"
 pulse/descriptor: const ExplainRootFacetResult pulse/descriptor.ExplainRoot = "facet_result"
+pulse/descriptor: const ExplainRootOperator pulse/descriptor.ExplainRoot = "operator"
 pulse/descriptor: const ExplainRootRequest pulse/descriptor.ExplainRoot = "request"
 pulse/descriptor: const ExplainRootResponse pulse/descriptor.ExplainRoot = "response"
 pulse/descriptor: const ExplainRootSample pulse/descriptor.ExplainRoot = "sample"
@@ -1940,6 +1944,11 @@ pulse/descriptor: type OperatorParamMeta field Example any "json:\"example,omite
 pulse/descriptor: type OperatorParamMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type OperatorParamMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorParamMeta field Required bool "json:\"required,omitempty\""
+pulse/descriptor: type OperatorValidation struct
+pulse/descriptor: type OperatorValidation field Certification []pulse/descriptor.ValidationCertification "json:\"certification,omitempty\""
+pulse/descriptor: type OperatorValidation field Gap string "json:\"gap,omitempty\""
+pulse/descriptor: type OperatorValidation field References []pulse/descriptor.ValidationReference "json:\"references\""
+pulse/descriptor: type OperatorValidation field WeightRefusal *pulse/descriptor.ValidationWeightRefusal "json:\"weight_refusal,omitempty\""
 pulse/descriptor: type OptimizeSummary struct
 pulse/descriptor: type OptimizeSummary field Constraints int "json:\"constraints\""
 pulse/descriptor: type OptimizeSummary field Direction pulse/types.OptimizeDirection "json:\"direction\""
@@ -2245,6 +2254,21 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type ValidationCertification struct
+pulse/descriptor: type ValidationCertification field Dataset string "json:\"dataset\""
+pulse/descriptor: type ValidationCertification field Difficulty string "json:\"difficulty,omitempty\""
+pulse/descriptor: type ValidationCertification field Digits map[string]float64 "json:\"digits\""
+pulse/descriptor: type ValidationCertification field Family string "json:\"family\""
+pulse/descriptor: type ValidationCertification field MinDigits float64 "json:\"min_digits\""
+pulse/descriptor: type ValidationReference struct
+pulse/descriptor: type ValidationReference field Against string "json:\"against\""
+pulse/descriptor: type ValidationReference field Tests []string "json:\"tests\""
+pulse/descriptor: type ValidationReference field Tolerance string "json:\"tolerance\""
+pulse/descriptor: type ValidationReference field Weighted bool "json:\"weighted,omitempty\""
+pulse/descriptor: type ValidationWeightRefusal struct
+pulse/descriptor: type ValidationWeightRefusal field Code string "json:\"code\""
+pulse/descriptor: type ValidationWeightRefusal field Reason string "json:\"reason\""
+pulse/descriptor: type ValidationWeightRefusal field Tests []string "json:\"tests\""
 pulse/descriptor: type VectorFitSummary struct
 pulse/descriptor: type VectorFitSummary field Labels []string "json:\"labels,omitempty\""
 pulse/descriptor: type VectorFitSummary field Members []string "json:\"members,omitempty\""
@@ -6587,4 +6611,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 657362706d0a08fc5c8980392923f9b6d995dced78c0a7776655b592c3b7c797
+// golden-hash: 2dd85b778ef60830a6836292ed353dfb279a6b6af1f2a7c75d2d47dde1591a9d

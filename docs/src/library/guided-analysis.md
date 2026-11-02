@@ -146,6 +146,32 @@ selection kept, with the candidates it dropped named in its sentence.
 CLI: `pulse explain --request FILE` or `--response FILE`;
 MCP: `pulse_explain`.
 
+### How an operator is validated
+
+`p.Explain(ctx, descriptor.ExplainRequest{Operator: "TEST_T"})` returns
+the operator's validation evidence in `Validation`, so an application or
+an agent can show why a figure can be trusted:
+
+- `references`: each external implementation the operator's figures
+  are pinned to (`against`, with its pinned version), the `tolerance`
+  the tests apply and the `tests` that hold the check. `weighted` marks
+  the weighted-reference check.
+- `gap`: a known validation gap, in plain words.
+- `weight_refusal`: for an operator with no weighted form, the refusal
+  a weight gets (`PULSE_WEIGHT_UNSUPPORTED`), its reason and the tests
+  that pin it.
+- `certification`: one row per NIST StRD dataset the operator runs on,
+  with the digits each figure agrees to (`digits`, `min_digits`).
+
+This is the same record the book's [How Pulse is validated](../guide/validation.md)
+page renders. It is returned only when asked for; no manifest or other
+payload carries it. An operator the instance does not offer is
+`SERVICE_VALIDATION`. An operator Pulse holds no record for (an
+extension, or a descriptive operator outside the record) returns no
+`Validation`, and a caveat says so. Under a feature profile that hides
+weighting, the weighted check and the weight refusal are absent.
+CLI: `pulse explain TEST_T`; MCP: `pulse_explain {operator}`.
+
 ## Predict advisories
 
 A predict result can carry `advisories[]`: coded, non-blocking notes

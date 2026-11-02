@@ -109,7 +109,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`OVERLAY_PAIRWISE_TWO_MEANS_Z`](catalog/overlay.md#op-overlay_pairwise_two_means_z) | R 4.6.1 `pnorm` on the Welch standard error | 1e-10 relative | — |
 | [`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`](catalog/overlay.md#op-overlay_pairwise_weighted_two_means_z) | weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_PAIRWISE_WELCH_T`](catalog/overlay.md#op-overlay_pairwise_welch_t) | R 4.6.1 `t.test`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`OVERLAY_PROP_Z_CELL`](catalog/overlay.md#op-overlay_prop_z_cell) | R 4.6.1 `prop.test(correct = FALSE)`<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_PROP_Z_CELL`](catalog/overlay.md#op-overlay_prop_z_cell) | R 4.6.1 `prop.test(correct = FALSE)` on the shared pooled two-proportion kernel, which the overlay runs on the legs each cell reads<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_PROP_Z_PANEL`](catalog/overlay.md#op-overlay_prop_z_panel) | R 4.6.1 `prop.test(correct = FALSE)`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_PROP_Z_VS_PRIOR`](catalog/overlay.md#op-overlay_prop_z_vs_prior) | weighted reference (see above)<br>an independent re-implementation of the pooled two-proportion z test | 1e-12 relative | — |
 | [`OVERLAY_RAKE`](catalog/overlay.md#op-overlay_rake) | R 4.6.1 `loglin`, cross-checked with `survey::rake` | 1e-9 relative | — |

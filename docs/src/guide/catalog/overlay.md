@@ -1310,7 +1310,7 @@ Two-proportion z-test for every crosstab cell in a Compose request: does the tar
 
 **Validated against:**
 
-- R 4.6.1 `prop.test(correct = FALSE)` — tolerance 1e-10 relative; `internal/processing/overlay_pairwise_test.go`
+- R 4.6.1 `prop.test(correct = FALSE)` on the shared pooled two-proportion kernel, which the overlay runs on the legs each cell reads — tolerance 1e-10 relative; `internal/processing/overlay_reference_oracle_test.go`, `internal/processing/overlay_weighted_contingency_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).

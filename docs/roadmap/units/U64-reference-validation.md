@@ -40,15 +40,15 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 ## References
 
 - `docs/src/internals/regenerating-goldens.md` (R toolchain, weighted reference, multivariate goldens)
-- `internal/docgen/validation.go` + `validation_intro.md`; `.claude/reference/guided-analysis/explain-and-skills.md` (Validation page)
+- `internal/descriptor/validation_registry.go` (the registry, since E1-S2) + `internal/docgen/validation.go` (the book's rendering) + `validation_intro.md`; `.claude/reference/guided-analysis/explain-and-skills.md` (Operator mode, Validation page)
 - [U08 statistics review](../reviews/U08-statistics-review.md) (the R-oracle layer); [U61](U61-cross-arch-determinism.md) (identical bits across architectures)
 - NIST Statistical Reference Datasets: <https://www.itl.nist.gov/div898/strd/>
 
 **TODO items delivered** (tick in [`TODO.md`](../TODO.md)):
 
 - [x] **#613** The book's "How Pulse is validated" page and a "Validated against" list on every inferential operator's catalog entry, generated from a gated registry (E1-S1)
-- [ ] **#614** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it (E1-S2)
-- [ ] **#615** The registry gate checks that a cited test actually exercises the operator, not only that the file exists (E1-S3)
+- [x] **#614** Validation evidence reachable from the engine (pulled, never pushed), so Studio and agents can show it (E1-S2)
+- [x] **#615** The registry gate checks that a cited test actually exercises the operator, not only that the file exists (E1-S3)
 - [x] **#616** R goldens at 1e-10 for the unweighted `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_MANN_WHITNEY_U`, `TEST_KRUSKAL_WALLIS`, `TEST_PROP_Z` (E2-S1)
 - [x] **#617** R goldens for the unweighted `OVERLAY_CHISQ_ROW` / `_COL` / `_MATRIX`; weighted goldens or a pinned refusal for `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK` (E2-S2)
 - [x] **#618** NIST StRD linear regression (all 11 datasets, Norris to Filip and Longley), one-way ANOVA (all 11) and univariate summary statistics (all 9) as goldens, with the certified log relative error (LRE) per dataset published (E3)
@@ -89,6 +89,12 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 
 **Decided 2026-11-02** (owner-delegated, 2026-11-02):
 
+- **E1-S2: operator mode is a new Explain root, not a block on every finding.** A `validation` block on each step or finding would push the evidence into every Explain answer and move every Explain golden. A root keeps it pulled, and it is the one call Studio's inspector needs per operator node.
+- **E1-S2: NIST digits travel with the record.** The StRD references say "digits achieved per dataset (see the NIST table)", which an agent cannot follow. So `certification` carries the rows, each restricted to the figures the operator produces: `AGG_AVERAGE` gets `mean`, `AGG_STDDEV` and `AGG_WELFORD` get `sd`, so neither reports the other's digits.
+- **E1-S2: refusals and scrubbing.** An unknown or hidden operator is `SERVICE_VALIDATION` with `details.field: operator`, the code Explain already uses for its input, so no new error code was added. The instance view passes every string through the instance's prose scrub and drops a reference the scrub empties, as every other Explain sentence does. The gap and the refusal reason stay verbatim in `validation`, as refusals and warnings do. The caveats only point at them by template, so the binding prose lint covers every Explain-authored sentence.
+- **E1-S2: an operator with no record is not an error.** An extension, or a descriptive operator outside the record, returns no `validation` and a caveat saying Pulse holds no record. That is a different fact from "not offered".
+- **E1-S3: the exercise rule accepts runners and kernel oracles beside a naming file.** A strict "every file names the operator" rule would forbid the repo's deliberate pattern: kernels pinned against R once, then routing tests that run them. Instead, a file that does not name the operator passes only through a sibling citation in the same package that does, and only by sharing a declaration (a table it reads) or a non-test function (the kernel). A file cited alone must name its operator itself.
+
 - **E2-S1 script placement.** The unweighted pins live in a new standalone script, `gen_unweighted_tests.R`, not in `gen_test_outputs.R` as S1 sketched. `gen_test_outputs.R` cannot run alone (it needs `gen_reference.R`'s quadrature and the `Kendall` and `nortest` pins), and regenerating it would rewrite nine unrelated goldens. The new script needs base R only and moves no other golden.
 - **E2-S1 "both variances".** Pulse offers no pooled-variance two-sample t, so `t.test` is pinned on its one-sample and Welch forms. Adding `var_equal` (and the other options the pins surfaced) is a new methodological knob, not a validation fix; it is #644, for the owner.
 - **E2-S1 near-null Kruskal-Wallis.** Where stock R loses digits to cancellation the golden pins the exact deviation-form value and keeps R's own beside it, the pattern Fisher and Tukey already use. The engine was fixed to match rather than the tolerance loosened.
@@ -122,9 +128,17 @@ An operator exposes a parameter wherever there is a real methodological choice, 
 - **E1 — Publish the evidence**
   - S1 *(done on this branch)*:
     - The `internal/docgen/validation.go` registry, `docs/src/guide/validation.md`, and a "Validated against" list plus a "Validation gap" line in each catalog detail block.
-    - Gates: `TestValidationRegistryCoversInferential`, `TestValidationRegistryNamesBuiltins`, `TestValidationReferencesExist`, `TestValidationDropsWeightedWhenHidden`.
+    - Gates: `TestValidationRegistryCoversInferential`, `TestValidationRegistryNamesBuiltins`, `TestValidationReferencesExist`, `TestValidationDropsWeightedWhenHidden` (the first three moved to `internal/descriptor` in S2).
   - S2: the engine surface chosen in D1. If it is (a), `pulse explain OP` and `pulse_explain` carry the operator's references and gap. The registry moves to `internal/descriptor` so docgen and the surface share it.
   - S3: the gate checks that each cited test file names the operator, or the golden file that does.
+  - S2 *(done)*: #614.
+    - **The surface.** Explain gains an operator mode: `ExplainRequest.Operator` set alone (`pulse explain OPERATOR`, `pulse_explain {operator}`) returns `mode` / `root` `operator` and `ExplainResult.Validation`, a `descriptor.OperatorValidation`: `references[]` `{against, tolerance, tests, weighted}`, `gap`, `weight_refusal` `{code, reason, tests}` and `certification[]`, the NIST StRD rows `{family, dataset, difficulty, digits, min_digits}`. Summary counts the references; template caveats point at a gap and a weight refusal; full detail adds the operator's glossary terms, follow-ups and assumptions.
+    - **One record.** The registry moved to `internal/descriptor/validation_registry.go` and the StRD copy to `internal/descriptor/strd_lre.json`. `InstanceSnapshot.Validation` is the instance view both docgen and Explain read, so the book did not move a byte through the move. The registry gates moved with it (`internal/descriptor/validation_test.go`); docgen keeps its two rendering tests.
+    - **Wire.** Additive only, so `format_version` stays `"1.1"`: an `operator` request slot, a `validation` result slot, the `operator` value on `ExplainMode` and `ExplainRoot`, and four public types (`OperatorValidation`, `ValidationReference`, `ValidationWeightRefusal`, `ValidationCertification`). No manifest byte moved, so `TestManifestGuidanceBudget` is untouched. The payload-schema, API and new `explain.operator.<detail>.json` goldens were regenerated.
+    - **Pinned by** `TestExplainOperator_*` (`internal/guide`; falsified on the validation slot, the visibility check, the weighting drop and the per-operator figure filter), `TestValidation_ScrubsHiddenNames` (falsified on the scrub), `TestPulseExplain_OperatorMode`, `TestCliExplain_Operator`, and the MCP invisibility sweep, which now calls operator mode for every recorded operator a profile offers.
+  - S3 *(done)*: #615.
+    - **The rule.** `TestValidationReferencesExist` now requires every cited file to exercise its operator. A file passes when it names the operator by wire name or by a `types` constant spelling it (`OverlayKindChiSqRow`), or when a string literal in it names a golden under its package's `testdata/` (by path, base name or stem) that does. Two harness shapes reach the operator only through a file cited beside them in the same reference and package that does name it: a runner that uses a top-level name that file declares (the weighted runner and its values table), and a kernel oracle that calls a non-test package function the routing test also calls (the shared two-sample kernels). `TestValidationExercisesRule` pins the rule and was falsified on the golden and kernel branches.
+    - **What it caught.** Four citations named a file that never ran the operator. `OVERLAY_PAIRWISE_TWO_MEANS_Z` cited `overlay_pairwise_test.go`, which ran only the Welch t and proportion kinds, so its R pin had no harness. It now has one: `TestOverlayPairwise_TwoMeansZ_Welford` runs the overlay on Welford legs against R's `2 * pnorm(-|z|)` from `overlay_two_sample.json`, and was falsified by routing the kind to the Welch kernel. `OVERLAY_PROP_Z_CELL` cited the same file. It now cites the kernel oracle (`prop.test` on `twoProportionZ`) and the routing test that runs that kernel on each cell's legs. `MAT_SEM` cited `internal/sem/lavaan_test.go`, an estimator-level check that never names the operator. It now cites the end-to-end lavaan and semopy tests (single- and multi-group ML, ordinal WLSMV / DWLS, bootstrap). `MAT_FACTOR` dropped `matrix_minres_test.go`, a kernel test whose claim the two operator-level psych tests already carry.
 - **E2 — Close the unweighted gaps**
   - S1: `scripts/reference/gen_test_outputs.R` gains `t.test` (both variances), `prop.test(correct = FALSE)`, `chisq.test(correct = FALSE)`, `wilcox.test` (exact and normal-approximation arms, matching Pulse's tie rule), `kruskal.test` and a `pnorm` two-sample z. Each test pins its statistic, df, p and interval at 1e-10. The registry rows drop their "Gap".
   - S2: `chisq.test` goldens for the three chi-square overlays on unweighted crosstabs. For `TEST_ANOVA_RM` and `TEST_SHAPIRO_WILK`, either a weighted golden (`rep()` expansion where the test admits frequency weights) or a test pinning the refusal code, plus a registry row stating which.
@@ -196,7 +210,7 @@ An operator exposes a parameter wherever there is a real methodological choice, 
 
 ## Gates & tests
 
-- New: the E1 gates above (in `internal/docgen`). None of them uses a CLAUDE.md-listed prefix, so they need no entry in the Non-Skippable CI Gates list. The StRD LRE tests use the existing `TestGoldensNotHandEdited` hash footer.
+- New: the E1 gates above (the registry gates in `internal/descriptor`, the rendering ones in `internal/docgen`), `TestValidationExercisesRule`, `TestValidation_ScrubsHiddenNames` and `TestExplainOperator_*`. None of them uses a CLAUDE.md-listed prefix, so they need no entry in the Non-Skippable CI Gates list. The StRD LRE tests use the existing `TestGoldensNotHandEdited` hash footer.
 - Existing: `TestDocsGeneratedCurrent` (regenerate with `make docs`), `TestGoldensNotHandEdited`, the `TestReferenceOracle_*` tests.
 
 ## Update Demand companions

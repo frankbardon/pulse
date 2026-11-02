@@ -78,7 +78,7 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   (compose), `ChainRequest` (process-chain), `FacetRequest`, `SampleRequest`,
   `LookupRequest` (point lookup), `RecommendRequest` (recommend),
   `ExplainRequest` (explain: one request root, or one result root with
-  its request companion, plus `detail`).
+  its request companion, or an `operator` name alone, plus `detail`).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
   `FacetResult` (its `warnings` are coded `{code, message, details}`
   entries, the `Response.warnings` shape — `[]string` before U44),
@@ -88,7 +88,8 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   placeholders, why}` — is deprecated, marked `deprecated: true`, and
   always absent: recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
-  coded warnings), `MaterializePredictResult` (`Pulse.PredictMaterialize`
+  coded warnings; operator mode adds `validation`, the `OperatorValidation`
+  record `{references, gap, weight_refusal, certification}`), `MaterializePredictResult` (`Pulse.PredictMaterialize`
   / `pulse api materialize --predict` / `pulse_materialize {predict:
   true}`: `valid`, the source `schema_info`, the output `columns` —
   `{name, type, nullable, description, from, derived}` plus a truncated

@@ -164,7 +164,7 @@ func TestFlagVocab_ExplainRootPin(t *testing.T) {
 	if msg := runExplain(t, "--root", "sample", "--response", missing); msg != "CLI_INPUT: --root sample has no response to read; a sample result is rows, not findings" {
 		t.Errorf("sample response: %q", msg)
 	}
-	if msg := runExplain(t); msg != "CLI_INPUT: usage: pulse explain --request FILE | --response FILE [--request FILE] [--root request|composed|chain|facet|sample] [--detail terse|full]" {
+	if msg := runExplain(t); msg != "CLI_INPUT: usage: pulse explain OPERATOR | --request FILE | --response FILE [--request FILE] [--root request|composed|chain|facet|sample] [--detail terse|full]" {
 		t.Errorf("usage: %q", msg)
 	}
 }

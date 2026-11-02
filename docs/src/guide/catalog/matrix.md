@@ -232,7 +232,7 @@ Which hidden qualities a set of related measures reflects, and how strongly each
 
 **Validated against:**
 
-- R 4.6.1 `psych::fa`, `GPArotation` — tolerance 1e-9 exact paths; 1e-4 to 2e-3 vs psych iterations; `internal/processing/matrix_factor_test.go`, `internal/processing/matrix_minres_test.go`, `internal/service/matrix_factor_test.go`
+- R 4.6.1 `psych::fa`, `GPArotation` — tolerance 1e-9 exact paths; 1e-4 to 2e-3 vs psych iterations; `internal/processing/matrix_factor_test.go`, `internal/service/matrix_factor_test.go`
 
 See [How Pulse is validated](../validation.md).
 
@@ -410,7 +410,7 @@ Whether a theory of how measures hang together holds: the hidden qualities they 
 
 **Validated against:**
 
-- R 4.6.1 `lavaan` (ML, WLSMV, DWLS, bootstrap, multi-group), cross-checked with semopy — tolerance estimates 1e-4, fit indices 1e-3; `internal/sem/lavaan_test.go`
+- R 4.6.1 `lavaan` (ML, WLSMV, DWLS, bootstrap, multi-group), cross-checked with semopy — tolerance estimates 1e-4, fit indices 1e-3; `internal/service/matrix_sem_means_test.go`, `internal/service/matrix_sem_ordinal_test.go`, `internal/service/matrix_sem_test.go`, `internal/integration/sem_group_test.go`, `internal/integration/sem_bootstrap_test.go`
 
 See [How Pulse is validated](../validation.md).
 

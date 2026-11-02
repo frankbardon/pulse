@@ -2,11 +2,11 @@ package docgen
 
 import (
 	_ "embed"
-	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 )
 
@@ -17,344 +17,25 @@ import (
 // "Validated against" list in every operator's catalog detail block, and
 // the validation.md summary page.
 //
-// The registry is hand-maintained beside the tests it cites. Its gates
-// (validation_test.go) hold it honest: every cited test file must exist,
-// every key must be a built-in operator, and every built-in test,
-// regression, matrix operator and inferential overlay must have an
-// entry (an entry may declare no reference, which renders as a gap; it
-// is never silently missing). A claim with no harness behind it is not
-// published.
+// The registry itself, and its gates, live in internal/descriptor
+// (validation_registry.go), shared with Explain's operator mode so the
+// book and the engine surface render one record.
 
 //go:embed validation_intro.md
 var validationIntro string
-
-// strdLRE is the NIST StRD record: a byte-identical copy of
-// testdata/strd/lre.json, written by the root package's
-// TestStRD_DigitsMatchRecord -update and held equal to it by
-// TestStRD_DocgenCopyCurrent.
-//
-//go:embed strd_lre.json
-var strdLRE []byte
 
 const (
 	validationPage    = "validation.md"
 	validationIntroID = "validation-intro"
 )
 
-// validationRef is one external check of an operator.
-type validationRef struct {
-	// Against names the reference implementation and its pinned version.
-	Against string
-	// Tol is the comparison tolerance, as the tests apply it.
-	Tol string
-	// Tests are the repo-relative test files that hold the check.
-	Tests []string
-	// Weighted marks a weighted-reference check; it is dropped on an
-	// instance that does not offer weighting.
-	Weighted bool
-}
-
-// validation is one operator's record.
-type validation struct {
-	Refs []validationRef
-	// Gap is a known validation gap in plain words; "" when none.
-	Gap string
-	// WeightRefused names the tests pinning that a weight on the operator
-	// is refused (PULSE_WEIGHT_UNSUPPORTED, the permanent reason from
-	// descx.OperatorWeightRefusal) at predict and at run, never ignored: the
-	// stated alternative to a weighted reference for an operator with no
-	// weighted form. Dropped, like a Weighted reference, when the
-	// instance does not offer weighting.
-	WeightRefused []string
-	// PostTestOnly marks an operator that runs only as a post-test: its
-	// weight refusal is the shared post-test one
-	// (descx.PostTestWeightRefusal), not an operator reason.
-	PostTestOnly bool
-}
-
-// Shared sources and test files, named once so entries stay short.
-const (
-	rPin   = "R 4.6.1"
-	tol10  = "1e-10 relative"
-	tol12  = "1e-12 relative"
-	tol9   = "1e-9 relative"
-	wrVals = "internal/service/weight_reference_values_test.go"
-	wrTest = "internal/service/weight_reference_tests_test.go"
-	// wRefusal pins the permanent weight refusals (WeightRefused).
-	wRefusal = "internal/integration/weight_refusal_pin_test.go"
-
-	procOutput = "internal/processing/test_output_oracle_test.go"
-	procUnw    = "internal/processing/test_unweighted_oracle_test.go"
-	procPost   = "internal/processing/test_post_oracle_test.go"
-	procUndef  = "internal/processing/test_undefined_oracle_test.go"
-	ovOracle   = "internal/processing/overlay_reference_oracle_test.go"
-	// ovChiSqAxes is the chi-square row / column / matrix overlay oracle.
-	ovChiSqAxes = "internal/processing/overlay_chisq_axes_oracle_test.go"
-	ovPairwise  = "internal/processing/overlay_pairwise_test.go"
-	vsPrior     = "internal/integration/overlay_vs_prior_test.go"
-	svcCov      = "internal/service/regression_covariance_test.go"
-	svcCovGLM   = "internal/service/regression_covariance_glm_test.go"
-	svcVcov     = "internal/service/regression_vcov_test.go"
-	regDir      = "internal/processing/regression/"
-	// svcCompareOracle is the nested-model comparison's R oracle test.
-	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
-	strdTest         = "strd_reference_test.go"
-	mmmSynthSrc      = "synthetic data with known true parameters (internal/mmmfixture)"
-)
-
-// weighted is the weighted-reference check shared by most inferential
-// operators: the stock R function on rep()-expanded rows for frequency
-// weights, and a closed form on Kish-rescaled weights with scipy tails
-// for probability weights where the operator accepts them.
-var weighted = validationRef{
-	Against:  rPin + " on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights)",
-	Tol:      tol12,
-	Tests:    []string{wrVals, wrTest},
-	Weighted: true,
-}
-
-// strdRef is a NIST StRD certification check; its digits achieved are
-// published in the StRD table on validation.md.
-func strdRef(sets string) validationRef {
-	return validationRef{Against: "NIST StRD certified values (" + sets + ")", Tol: "digits achieved per dataset (see the NIST table)", Tests: []string{strdTest}}
-}
-
-func r(fn, tol string, tests ...string) validationRef {
-	return validationRef{Against: rPin + " " + fn, Tol: tol, Tests: tests}
-}
-
-// validationRegistry maps a built-in operator name to its record.
-var validationRegistry = map[string]validation{
-	// Statistical tests.
-	"TEST_ANOVA_F": {
-		Refs: []validationRef{r("`aov`", tol10, procPost), strdRef("one-way ANOVA: SiRstv, SmLs01–09, AtmWtAg"), weighted},
-		Gap:  "On NIST SmLs07–09 the figures agree to about 4 digits. That is the ceiling for any double-precision package: values such as 1000000000000.4 are not exactly representable, and exact arithmetic on the parsed doubles reaches only 4.0, 3.9 and 3.9 digits. Pulse reaches that ceiling.",
-	},
-	"TEST_ANOVA_RM":    {Refs: []validationRef{r("`aov` with `Error()` strata", tol10, procOutput)}, WeightRefused: []string{wRefusal}},
-	"TEST_ANOVA_WELCH": {Refs: []validationRef{r("`oneway.test`", tol10, procPost), weighted}},
-	"TEST_BARTLETT_SPHERICITY": {Refs: []validationRef{
-		r("`psych::cortest.bartlett`", tol9, "internal/service/test_bartlett_sphericity_test.go"), weighted}},
-	"TEST_BOX_M":          {Refs: []validationRef{r("`biotools::boxM`", tol10, "internal/processing/test_box_m_test.go"), weighted}},
-	"TEST_BROWN_FORSYTHE": {Refs: []validationRef{r("`anova(lm(abs(x - median) ~ g))`", tol10, procUndef, procPost), weighted}},
-	"TEST_CHISQ": {Refs: []validationRef{
-		r("`chisq.test(correct = FALSE)` (independence; Pulse applies no Yates correction) and `chisq.test(p = expected)` (goodness of fit)", tol10, procUnw),
-		weighted,
-		{Against: "Agresti worked example (R `chisq.test` help) and scipy for the effect size", Tol: "1e-9 to 1e-6", Tests: []string{"internal/processing/test_more_test.go", "internal/processing/test_effect_size_test.go"}},
-	}},
-	"TEST_FISHER_EXACT": {Refs: []validationRef{r("`fisher.test`", tol10, "internal/processing/test_fisher_oracle_test.go"), weighted}},
-	"TEST_HOTELLING_T2": {Refs: []validationRef{r("`Hotelling::hotelling.test`", tol10, "internal/processing/test_hotelling_test.go"), weighted}},
-	"TEST_KENDALL_TAU":  {Refs: []validationRef{r("`cor.test(method = \"kendall\")`", tol10, procOutput), weighted}},
-	"TEST_KRUSKAL_WALLIS": {Refs: []validationRef{
-		r("`kruskal.test` (H, df, p, rank sums, tie factor); near H = 0, where `kruskal.test`'s own form cancels, H evaluated in deviation form", tol10, procUnw),
-		weighted,
-		{Against: rPin + " `kruskal.test` help examples (effect size)", Tol: tol9, Tests: []string{"internal/processing/test_effect_size_rank_test.go", "internal/processing/test_nonparametric_test.go"}},
-	}},
-	"TEST_KS": {Refs: []validationRef{r("`ks.test` (exact `psmirnov`)", tol10, procOutput), weighted}},
-	"TEST_MANN_WHITNEY_U": {
-		Refs: []validationRef{
-			r("`wilcox.test(exact = FALSE, correct = TRUE)` (U, rank sum, tie-corrected variance, z, p)", tol10, procUnw),
-			weighted,
-			{Against: rPin + " `wilcox.test` help examples (effect size)", Tol: tol9, Tests: []string{"internal/processing/test_effect_size_rank_test.go", "internal/processing/test_nonparametric_test.go"}},
-		},
-		Gap: "No exact p-value: Pulse always reports the tie- and continuity-corrected normal approximation. On small samples without ties `wilcox.test` defaults to the exact distribution, so its default p differs there; the golden keeps that exact p beside the pinned one.",
-	},
-	"TEST_MANOVA":    {Refs: []validationRef{r("`manova` with `summary.manova`", tol10, "internal/processing/test_manova_test.go"), weighted}},
-	"TEST_MARDIA":    {Refs: []validationRef{r("Mardia skewness and kurtosis", tol10, "internal/processing/test_mardia_test.go"), weighted}},
-	"TEST_PAIRED_T":  {Refs: []validationRef{r("`t.test(paired = TRUE)`", tol10, procPost), weighted}},
-	"TEST_PEARSON_R": {Refs: []validationRef{r("`cor.test`", tol10, procOutput, procPost), weighted}},
-	"TEST_PROP_Z": {Refs: []validationRef{
-		r("`prop.test(correct = FALSE)` (z as the signed root of X-squared, p; the two-proportion Wald interval). The one-proportion interval is Pulse's Wald interval on p − p0, evaluated in R, not `prop.test`'s Wilson interval", tol10, procUnw),
-		weighted,
-		{Against: "textbook worked example", Tol: tol9, Tests: []string{"internal/processing/test_parametric_test.go"}},
-	}},
-	"TEST_SHAPIRO_WILK": {Refs: []validationRef{r("`nortest::sf.test` (Shapiro–Francia)", tol10, procUndef)}, WeightRefused: []string{wRefusal}},
-	"TEST_SPEARMAN_R":   {Refs: []validationRef{r("`cor.test(method = \"spearman\")` (exact AS 89)", "1e-12 relative", "internal/processing/test_nonparametric_test.go", procPost), weighted}},
-	"TEST_T":            {Refs: []validationRef{r("`t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances", tol10, procUnw), weighted}},
-	"TEST_TREND":        {Refs: []validationRef{r("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}, WeightRefused: []string{wRefusal}, PostTestOnly: true},
-	"TEST_TUKEY_HSD":    {Refs: []validationRef{r("`TukeyHSD`, `ptukey` refined by quadrature", tol10, procOutput)}, WeightRefused: []string{wRefusal}, PostTestOnly: true},
-	"TEST_WELCH":        {Refs: []validationRef{r("`t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances", tol10, procUnw), weighted}},
-	"TEST_WILCOXON_SR":  {Refs: []validationRef{r("`wilcox.test(paired = TRUE)`", tol10, procPost), weighted}},
-	"TEST_Z_TWO_SAMPLE": {Refs: []validationRef{r("`pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances", tol10, procUnw), weighted}},
-
-	// Descriptive operators with a certified reference.
-	"AGG_AVERAGE": {Refs: []validationRef{strdRef("univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
-	"AGG_STDDEV":  {Refs: []validationRef{strdRef("univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
-	"AGG_WELFORD": {Refs: []validationRef{strdRef("univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
-
-	// Per-row regression scores with an external reference.
-	"ATTR_REG_RESIDUAL": {Refs: []validationRef{{
-		Against: "statsmodels 0.14.5 `GLMResults.resid_response` / `resid_pearson` / `resid_deviance` / `resid_working` (binomial-logit, poisson-log, gamma-inverse fits through `params.fit`, `params.kind`)",
-		Tol:     "1e-8 relative", Tests: []string{"glm_residual_kinds_reference_test.go"},
-	}, {
-		Against: "statsmodels 0.14.5 `OLSInfluence.resid_studentized_internal` / `resid_studentized_external` (the OLS refit, `params.kind` standardized / studentized; R `rstandard` / `rstudent`)",
-		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
-	}, {
-		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
-		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
-	}, {
-		Against: rPin + " `rstandard` / `rstudent` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`, `params.kind` standardized / studentized)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
-	}, {
-		Against: rPin + " `residuals(type = \"working\")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
-	}, {
-		Against: rPin + " + MASS 7.3-66 `residuals` (pearson / deviance / working), `rstandard` (both types) and `rstudent` at dispersion 1 over a bound negative binomial fit (`glm.nb`, θ estimated or fixed; `params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}, {
-		Against: rPin + " + MASS 7.3-66 `rstandard` (both types) at `summary.glm`'s φ̂ and `rstudent` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`glm(negative.binomial(θ))`; `params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated."},
-	"ATTR_REG_LEVERAGE": {Refs: []validationRef{{
-		Against: rPin + " `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
-	}, {
-		Against: rPin + " `hatvalues` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
-	}, {
-		Against: rPin + " + MASS 7.3-66 `hatvalues` over a bound negative binomial fit (log / sqrt / identity link, θ estimated or fixed; `params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}}, Gap: "The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated."},
-	"ATTR_REG_INFLUENCE": {Refs: []validationRef{{
-		Against: "statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`)",
-		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
-	}, {
-		Against: "statsmodels 0.14.5 `OLSInfluence` on the `rep()`-expanded design, one copy's figure (frequency weight)",
-		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"}, Weighted: true,
-	}, {
-		Against: rPin + " `cooks.distance` / `dffits` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
-	}, {
-		Against: rPin + " `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ))",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_links_reference_test.go"},
-	}, {
-		Against: rPin + " + MASS 7.3-66 `cooks.distance` and `dffits` at dispersion 1 (`family$dispersion <- 1`) over a bound negative binomial fit (`params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}, {
-		Against: rPin + " + MASS 7.3-66 `cooks.distance` at `summary.glm`'s φ̂ and `dffits` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`params.fit`)",
-		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}}, Gap: "Over a weighted bound fit the figures are refused, not validated."},
-
-	// Regressions.
-	"REG_OLS": {Refs: []validationRef{
-		strdRef("linear regression: Norris, Pontius, NoInt1–2 (intercept: false), Filip, Longley, Wampler1–5"),
-		r("`lm`", tol10, regDir+"ols_lm_reference_test.go"),
-		r("`glmnet` (penalties), `nnls` (non-negative)", tol10, regDir+"ols_penalty_reference_test.go", regDir+"ols_nnls_reference_test.go"),
-		r("`sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)", tol10, svcCov, svcVcov),
-		r("`logLik` / `AIC` of `lm` with and without an intercept (two_log_lik, aic; σ counted)", tol10, regDir+"loglik_oracle_test.go"),
-		{Against: rPin + " `logLik` / `AIC` of the `rep()`-expanded `lm` (frequency weights; `lm(weights = f)` reads them as precision weights)", Tol: tol10, Tests: []string{regDir + "loglik_oracle_test.go"}, Weighted: true},
-		r("+ MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`, ame / mem) of `lm` with their delta-method standard errors, t statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = \"mean\")` at 1e-7", tol9, regDir+"margins_oracle_test.go"),
-		r("+ `car` 3.1-5 `vif` on `lm` (`collinearity`: VIF, tolerance and, over a factor's dummies grouped as one term, Fox & Monette's generalized VIF, df and GVIF^(1/(2 df)); the closed form re-derived from the weighted design)", tol10, regDir+"vif_oracle_test.go", "collinearity_test.go"),
-		{Against: rPin + " + `car` 3.1-5 `vif(lm(weights = w))`: frequency weights against the `rep()`-expanded fit, probability weights scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
-		r("+ `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `lm` fits — `anova(m0, m1)` F and `test = \"Chisq\"`, `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"))`, a restricted fit through the origin; statistic, df, p-value, each fit's residual df and RSS, σ̂²", tol10, svcCompareOracle, "compare_test.go"),
-		{Against: rPin + " `anova` of the `rep()`-expanded `lm` fits (frequency weights; df = Σw − rank)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
-		weighted,
-	},
-		Gap: "On NIST Wampler5 the coefficients reach 5.7 digits, level with LAPACK's QR (5.6): the double-precision limit for its large residuals.",
-	},
-	"REG_GLM": {
-		Refs: []validationRef{
-			r("`glm` (binomial-logit, poisson-log, gamma-inverse)", tol10, regDir+"glm_irls_test.go", regDir+"glm_gamma_oracle_test.go"),
-			r("`glm` (binomial probit / cloglog, poisson identity / sqrt, gamma log / identity: coefficients, standard errors, vcov, deviance, null deviance, AIC, dispersion, fitted means, working residuals), refitted to its fixed point", tol9, regDir+"glm_links_oracle_test.go"),
-			{Against: rPin + " `glm(weights = f)` against its `rep()`-expanded fit (probit, poisson sqrt, gamma log; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_links_oracle_test.go"}, Weighted: true},
-			r("`logLik` / `AIC` of binomial-logit, poisson-log and gamma-inverse `glm` (two_log_lik, aic; gamma's dispersion at deviance / n counted); the non-canonical links' `AIC` against `glm_links.json`, the negative binomial's against `glm_nb.json`", tol10, regDir+"loglik_oracle_test.go", regDir+"glm_links_oracle_test.go"),
-			{Against: rPin + " `logLik` / `AIC` of `glm(weights = f)` against its `rep()`-expanded fit (binomial, poisson, gamma; frequency weights)", Tol: tol10, Tests: []string{regDir + "loglik_oracle_test.go"}, Weighted: true},
-			r("`glmnet` (penalties)", tol10, regDir+"glm_penalty_test.go"),
-			r("`sandwich` (robust standard errors; vcov)", "1e-11 relative", svcCovGLM, svcVcov),
-			r("`sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3 on the non-canonical links", tol9, regDir+"glm_links_oracle_test.go"),
-			r("+ MASS 7.3-66 `glm.nb` (negative binomial, θ estimated on log / sqrt / identity, pushed to its fixed point) and `glm(negative.binomial(θ))` (θ fixed): coefficients, standard errors and vcov at dispersion 1, θ, SE(θ), twice the log-likelihood, AIC, deviance, null deviance, fitted means, residuals; `sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3", tol9, regDir+"glm_nb_oracle_test.go"),
-			{Against: rPin + " + MASS 7.3-66 `glm.nb(weights = f)` against its `rep()`-expanded fit (negative binomial, log link; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_nb_oracle_test.go"}, Weighted: true},
-			r("+ MASS 7.3-66 `summary(glm(negative.binomial(θ)))` (θ fixed, `dispersion: estimated`, log / sqrt link): φ̂ = Pearson χ²/df, vcov and standard errors scaled by it, t p-values on df, Wald-t intervals", tol9, regDir+"glm_nb_oracle_test.go"),
-			{Against: rPin + " + MASS 7.3-66 `summary(glm(negative.binomial(θ)))` on the `rep()`-expanded fit (θ fixed, `dispersion: estimated`; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_nb_oracle_test.go"}, Weighted: true},
-			r("+ MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`: ame / mem, response / link scale) of logit, probit, cloglog, poisson, gamma inverse / log and negative binomial `glm` fits — the mean of β·μ′(η), the delta-method Jacobian on `vcov`, `vcovHC` HC3 and `vcovCL` — with statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = \"mean\")` at 1e-7", tol9, regDir+"margins_oracle_test.go"),
-			{Against: rPin + " analytic marginal effects of `glm(weights = f)` (logit ame / mem) against its `rep()`-expanded fit, and `marginaleffects` `avg_slopes(wts = \"f\")`", Tol: tol9, Tests: []string{regDir + "margins_oracle_test.go"}, Weighted: true},
-			r("+ MASS 7.3-66 + `car` 3.1-5 `vif` (`collinearity`: VIF, tolerance, generalized VIF of a factor's dummies, df, GVIF^(1/(2 df))) on binomial-logit, poisson-log, fixed-θ negative binomial and gamma-log `glm` fits refitted to their fixed point (basis model: the IRLS working weights), and on `lm` over the same predictors and prior weights (basis predictors); end to end through `FEAT_ONE_HOT`", tol10, regDir+"vif_oracle_test.go", "collinearity_test.go"),
-			{Against: rPin + " + `car` 3.1-5 `vif(glm(weights = w))`: frequency weights against the `rep()`-expanded fit (logit, poisson basis predictors), probability weights (gamma log) scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
-			r("+ MASS 7.3-66 + `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `glm` fits refitted to their fixed point — `anova(m0, m1, test = \"LRT\" | \"F\")` on logit, probit, poisson, gamma inverse / log and fixed-θ negative binomial fits (the full fit's Pearson dispersion), MASS `anova.negbin` (θ estimated, 2 loglik change; cross-checked against `lrtest`), `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"), test = \"Chisq\" | \"F\")`", tol10, svcCompareOracle, "compare_test.go"),
-			{Against: rPin + " `anova` of the `rep()`-expanded `glm` fits (poisson LRT, gamma log F; frequency weights)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
-			weighted,
-		},
-		Gap: "Penalized fits on a non-canonical link are checked by their KKT conditions, not against glmnet. Off the canonical link IRLS converges linearly, so at the default tol (1e-8) the coefficients sit within about 1e-7 of the MLE; the oracle fits at tol 1e-13. The negative binomial refuses penalty, selection and resample (no oracle); its probability-weighted fit is checked for scale invariance only. Marginal effects are slopes only (no discrete factor contrasts: regressions take no factor predictors; a 0/1 dummy gets its slope, where marginaleffects reports a 1 − 0 contrast, so that cross-check skips it) and are refused over a predictor derived from another predictor, a penalty, selection, resample or bounds. The collinearity block's penalized basis-predictors figure is checked equal to the unpenalized one (a design figure), not against an external penalized VIF. A nested-model comparison under a probability weight runs the Wald test only (F / LRT refused), checked against its own covariance rather than an external survey test.",
-	},
-	"REG_BAYES_LINEAR": {Refs: []validationRef{
-		r("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),
-		weighted,
-	}},
-	"REG_MMM_HILL": {
-		Refs: []validationRef{{Against: mmmSynthSrc, Tol: "0.5% to 15% relative, per parameter", Tests: []string{"internal/regmmm/hill_test.go"}}},
-		Gap:  "No external reference implementation; the fit is checked by recovering known parameters only.",
-	},
-	"REG_MMM_BAYES": {
-		Refs: []validationRef{{Against: mmmSynthSrc, Tol: "parameter recovery", Tests: []string{"internal/regmmm/bayes_test.go"}}},
-		Gap:  "No external reference implementation; the fit is checked by recovering known parameters only.",
-	},
-
-	// Matrix operators.
-	"MAT_COLLINEARITY": {Refs: []validationRef{r("`car::vif`, `perturb::colldiag`", tol9, "internal/service/matrix_collinearity_test.go")}},
-	"MAT_CORRELATION": {Refs: []validationRef{
-		{Against: "numpy / statsmodels", Tol: tol12, Tests: []string{"internal/service/matrix_correlation_test.go"}},
-		r("`cor` and `cor.test` (p-values, intervals)", tol10, "internal/service/matrix_inference_test.go"),
-	}},
-	"MAT_COVARIANCE":          {Refs: []validationRef{{Against: "numpy `cov` / statsmodels `DescrStatsW`", Tol: tol12, Tests: []string{"internal/service/matrix_covariance_test.go"}}}},
-	"MAT_DISTANCE":            {Refs: []validationRef{r("`dist`", tol9, "internal/processing/matrix_distance_test.go")}},
-	"MAT_FACTOR":              {Refs: []validationRef{r("`psych::fa`, `GPArotation`", "1e-9 exact paths; 1e-4 to 2e-3 vs psych iterations", "internal/processing/matrix_factor_test.go", "internal/processing/matrix_minres_test.go", "internal/service/matrix_factor_test.go")}},
-	"MAT_PARTIAL_CORRELATION": {Refs: []validationRef{r("`ppcor` / `corpcor`", tol10, "internal/service/matrix_partial_test.go")}},
-	"MAT_PCA":                 {Refs: []validationRef{r("`eigen` / `prcomp`, `psych::KMO`", tol9, "internal/service/matrix_pca_test.go")}},
-	"MAT_RELIABILITY":         {Refs: []validationRef{r("`psych::alpha`, `psych::omega`", "1e-10 relative; omega 1e-5", "internal/service/matrix_reliability_test.go")}},
-	"MAT_SEM": {Refs: []validationRef{
-		r("`lavaan` (ML, WLSMV, DWLS, bootstrap, multi-group), cross-checked with semopy", "estimates 1e-4, fit indices 1e-3", "internal/sem/lavaan_test.go"),
-	}},
-
-	// Inferential overlays.
-	"OVERLAY_CHISQ_COL":         {Refs: []validationRef{r("`chisq.test(table[, j], p = rowSums / N)` per column", tol10, ovChiSqAxes), weighted}},
-	"OVERLAY_CHISQ_MATRIX":      {Refs: []validationRef{r("`chisq.test(correct = FALSE)` (Pulse applies no Yates correction)", tol10, ovChiSqAxes), weighted}},
-	"OVERLAY_CHISQ_ROW":         {Refs: []validationRef{r("`chisq.test(table[i, ], p = colSums / N)` per row", tol10, ovChiSqAxes), weighted}},
-	"OVERLAY_CHISQ_VS_POP":      {Refs: []validationRef{r("`chisq.test`", tol10, ovOracle, "internal/processing/overlay_chisq_vs_pop_test.go")}},
-	"OVERLAY_CHISQ_VS_REF":      {Refs: []validationRef{r("`chisq.test`", tol10, ovOracle), weighted}},
-	"OVERLAY_FISHER_EXACT_CELL": {Refs: []validationRef{r("`fisher.test`", tol10, ovOracle, "internal/processing/overlay_fisher_exact_cell_test.go"), weighted}},
-	"OVERLAY_KS_VS_POP":         {Refs: []validationRef{r("`ks.test` / `psmirnov`", tol10, ovOracle, "internal/processing/overlay_ks_vs_pop_test.go")}},
-	"OVERLAY_PAIRWISE_PROBIT_T": {
-		Refs: []validationRef{r("evaluation of the design formula", tol10, ovOracle)},
-		Gap:  "No stock implementation exists to compare with; the reference evaluates the published formula.",
-	},
-	"OVERLAY_PAIRWISE_PROP_Z":               {Refs: []validationRef{r("`prop.test(correct = FALSE)`", tol10, ovPairwise), weighted}},
-	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          {Refs: []validationRef{r("`pnorm` on the Welch standard error", tol10, ovPairwise)}},
-	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {Refs: []validationRef{weighted}},
-	"OVERLAY_PAIRWISE_WELCH_T":              {Refs: []validationRef{r("`t.test`", tol10, ovPairwise), weighted}},
-	"OVERLAY_PROP_Z_CELL":                   {Refs: []validationRef{r("`prop.test(correct = FALSE)`", tol10, ovPairwise), weighted}},
-	"OVERLAY_PROP_Z_PANEL":                  {Refs: []validationRef{r("`prop.test(correct = FALSE)`", tol10, "internal/processing/overlay_prop_z_panel_test.go"), weighted}},
-	"OVERLAY_PROP_Z_VS_PRIOR":               {Refs: []validationRef{weighted, {Against: "an independent re-implementation of the pooled two-proportion z test", Tol: tol9, Tests: []string{vsPrior}}}},
-	"OVERLAY_STD_RESIDUAL":                  {Refs: []validationRef{r("`chisq.test()$stdres`", tol12, "internal/processing/overlay_std_residual_test.go"), weighted}},
-	"OVERLAY_SYMMETRY":                      {Refs: []validationRef{r("`mcnemar.test` / Bowker", tol12, "internal/processing/overlay_symmetry_test.go"), weighted}},
-	"OVERLAY_T_CELL":                        {Refs: []validationRef{r("`t.test` / `pt`", tol10, "internal/processing/overlay_t_cell_test.go"), weighted}},
-	"OVERLAY_T_VS_PRIOR":                    {Refs: []validationRef{weighted, {Against: "an independent re-implementation of the Welch t test", Tol: tol9, Tests: []string{vsPrior}}}},
-	"OVERLAY_T_VS_REF":                      {Refs: []validationRef{r("`t.test` / `pt`", tol10, "internal/integration/overlay_welford_series_oracle_test.go"), weighted}},
-	"OVERLAY_Z_CELL":                        {Refs: []validationRef{r("`pnorm` on the Welch standard error", tol10, "internal/processing/overlay_z_cell_test.go"), weighted}},
-	"OVERLAY_Z_VS_PRIOR":                    {Refs: []validationRef{weighted, {Against: "an independent re-implementation of the Welch z test", Tol: tol9, Tests: []string{vsPrior}}}},
-	"OVERLAY_Z_VS_REF":                      {Refs: []validationRef{r("`pnorm` on the Welch standard error", tol10, "internal/integration/overlay_welford_series_oracle_test.go"), weighted}},
-	"OVERLAY_RAKE":                          {Refs: []validationRef{r("`loglin`, cross-checked with `survey::rake`", tol9, "internal/processing/overlay_rake_test.go")}},
-}
-
-// validationFor returns name's record as this instance renders it:
-// weighted checks are dropped when weighting is hidden. ok is false
-// when the operator has no record (an extension, or a descriptive
-// operator outside the registry's scope).
-func (g *gen) validationFor(name string) (validation, bool) {
-	v, ok := validationRegistry[name]
-	if !ok {
-		return validation{}, false
-	}
-	weightingOn := g.inst.Enabled(descx.FeatureWeighting)
-	out := validation{Gap: v.Gap, PostTestOnly: v.PostTestOnly}
-	if weightingOn {
-		out.WeightRefused = v.WeightRefused
-	}
-	for _, ref := range v.Refs {
-		if ref.Weighted && !weightingOn {
-			continue
-		}
-		out.Refs = append(out.Refs, ref)
-	}
-	return out, true
+// validationFor returns name's record as this instance shows it (the
+// same view Explain's operator mode returns): weighted checks and the
+// weight refusal are dropped when weighting is hidden. ok is false when
+// the operator has no record (an extension, or a descriptive operator
+// outside the registry's scope).
+func (g *gen) validationFor(name string) (descriptor.OperatorValidation, bool) {
+	return g.inst.Validation(name)
 }
 
 // renderValidationDetail writes the "Validated against" list of a
@@ -365,11 +46,11 @@ func (g *gen) renderValidationDetail(b *strings.Builder, name string) {
 		return
 	}
 	var items []string
-	for _, ref := range v.Refs {
+	for _, ref := range v.References {
 		items = append(items, refLine(ref))
 	}
-	if len(v.WeightRefused) > 0 {
-		items = append(items, weightRefusalLine(name, v.WeightRefused, v.PostTestOnly))
+	if v.WeightRefusal != nil {
+		items = append(items, weightRefusalLine(v.WeightRefusal))
 	}
 	if len(items) == 0 {
 		items = append(items, "No external reference yet.")
@@ -386,25 +67,21 @@ func (g *gen) renderValidationDetail(b *strings.Builder, name string) {
 // weightRefusalLine states a pinned permanent weight refusal: the
 // operator has no weighted form, so a weight is refused rather than
 // validated, for the reason the refusal itself carries.
-func weightRefusalLine(name string, tests []string, postTest bool) string {
-	quoted := make([]string, len(tests))
-	for i, t := range tests {
-		quoted[i] = "`" + t + "`"
-	}
-	reason, _ := descx.OperatorWeightRefusal(name)
-	if postTest {
-		reason = descx.PostTestWeightRefusal()
-	}
-	return "Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because " +
-		reason + "; " + strings.Join(quoted, ", ")
+func weightRefusalLine(w *descriptor.ValidationWeightRefusal) string {
+	return "Weighted analysis: refused with `" + w.Code + "` at predict and at run, never run unweighted, because " +
+		w.Reason + "; " + strings.Join(quoteTests(w.Tests), ", ")
 }
 
-func refLine(ref validationRef) string {
-	tests := make([]string, len(ref.Tests))
-	for i, t := range ref.Tests {
-		tests[i] = "`" + t + "`"
+func refLine(ref descriptor.ValidationReference) string {
+	return ref.Against + " — tolerance " + ref.Tolerance + "; " + strings.Join(quoteTests(ref.Tests), ", ")
+}
+
+func quoteTests(tests []string) []string {
+	out := make([]string, len(tests))
+	for i, t := range tests {
+		out[i] = "`" + t + "`"
 	}
-	return ref.Against + " — tolerance " + ref.Tol + "; " + strings.Join(tests, ", ")
+	return out
 }
 
 // renderValidation renders validation.md: the method (preserved prose)
@@ -432,17 +109,17 @@ func (g *gen) renderValidation(cats []category) string {
 			v, _ := g.validationFor(e.name)
 			var against []string
 			tightest := emptyCell
-			for i, ref := range v.Refs {
+			for i, ref := range v.References {
 				if ref.Weighted {
 					against = append(against, "weighted reference (see above)")
 				} else {
 					against = append(against, ref.Against)
 				}
-				if i == 0 || tolRank(ref.Tol) < tolRank(tightest) {
-					tightest = ref.Tol
+				if i == 0 || tolRank(ref.Tolerance) < tolRank(tightest) {
+					tightest = ref.Tolerance
 				}
 			}
-			if len(v.WeightRefused) > 0 {
+			if v.WeightRefusal != nil {
 				against = append(against, "weights refused, not validated (see the catalog entry)")
 			}
 			if len(against) == 0 {
@@ -467,46 +144,16 @@ func (g *gen) renderValidation(cats []category) string {
 	return b.String()
 }
 
-// strdOperator maps a StRD dataset family to the operator it checks.
-var strdOperator = map[string][]string{
-	"lls":   {"REG_OLS"},
-	"anova": {"TEST_ANOVA_F"},
-	"univ":  {"AGG_AVERAGE", "AGG_STDDEV", "AGG_WELFORD"},
-}
-
-// strdFamilyTitle names each family; the heading appends only the
-// operators the instance offers, so a profile hiding one never names it.
-var strdFamilyTitle = map[string]string{
-	"lls":   "Linear regression",
-	"anova": "One-way ANOVA",
-	"univ":  "Univariate summary statistics",
-}
-
 // renderStRD writes the NIST StRD table from the embedded record: one
 // row per dataset whose operator the instance offers.
 func (g *gen) renderStRD(b *strings.Builder) {
-	s := string(strdLRE)
-	if i := strings.LastIndex(s, "\n// golden-hash: "); i >= 0 {
-		s = s[:i]
-	}
-	var doc struct {
-		Results []struct {
-			Dataset    string             `json:"dataset"`
-			Difficulty string             `json:"difficulty"`
-			Digits     map[string]float64 `json:"digits"`
-			Min        *float64           `json:"min_digits"`
-			NotOffered string             `json:"not_offered"`
-		} `json:"results"`
-	}
-	if err := json.Unmarshal([]byte(s), &doc); err != nil {
-		panic("docgen: strd_lre.json: " + err.Error())
-	}
 	var out strings.Builder
 	family := ""
-	for _, r := range doc.Results {
+	for _, r := range descx.StRDResults() {
 		fam, set, _ := strings.Cut(r.Dataset, "/")
+		title, famOps, _ := descx.StRDFamily(fam)
 		var ops []string
-		for _, op := range strdOperator[fam] {
+		for _, op := range famOps {
 			if g.operatorVisible(op) {
 				ops = append(ops, "`"+op+"`")
 			}
@@ -516,7 +163,7 @@ func (g *gen) renderStRD(b *strings.Builder) {
 		}
 		if fam != family {
 			family = fam
-			out.WriteString("\n### " + strdFamilyTitle[fam] + " (" + strings.Join(ops, ", ") + ")\n\n| Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |\n|---|---|---|---|---|\n")
+			out.WriteString("\n### " + strings.ToUpper(title[:1]) + title[1:] + " (" + strings.Join(ops, ", ") + ")\n\n| Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |\n|---|---|---|---|---|\n")
 		}
 		diff := r.Difficulty
 		if diff == "" {

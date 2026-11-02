@@ -445,10 +445,10 @@ func HandleRecommend(ctx context.Context, p *pulse.Pulse, in RecommendIn) (Recom
 // HandleExplain runs pulse_explain: each root the input sets is
 // re-encoded and decoded into its typed slot — results through
 // jsonfinite, so a figure the wire wrote as null (undefined) reads as
-// NaN rather than as a real 0 — and pulse.Explain does the rest (root
-// and detail validation included).
+// NaN rather than as a real 0 — the operator name rides as is, and
+// pulse.Explain does the rest (root and detail validation included).
 func HandleExplain(ctx context.Context, p *pulse.Pulse, in ExplainIn) (ExplainOut, error) {
-	req := descriptor.ExplainRequest{Detail: descriptor.ExplainDetail(in.Detail)}
+	req := descriptor.ExplainRequest{Detail: descriptor.ExplainDetail(in.Detail), Operator: in.Operator}
 	for _, slot := range []struct {
 		key    string
 		obj    map[string]any

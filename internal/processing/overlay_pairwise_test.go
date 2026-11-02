@@ -247,6 +247,43 @@ func pairwiseErrHasCode(err error, code errors.Code) bool {
 	return c == string(code)
 }
 
+// TestOverlayPairwise_TwoMeansZ_Welford: OVERLAY_PAIRWISE_TWO_MEANS_Z
+// reads the same Welford legs as the Welch t and scores them on the
+// normal tail of the Welch standard error: R's 2 * pnorm(-|z|) on
+// (10, 4, 50) vs (12, 9, 60) (overlay_two_sample.json "pairwise_welch").
+func TestOverlayPairwise_TwoMeansZ_Welford(t *testing.T) {
+	t.Parallel()
+
+	mx := &types.MatrixPayload{
+		RowHeader:    types.AxisHeader{Fields: []string{"brand"}, Types: []string{"GROUP_CATEGORY"}},
+		ColumnHeader: types.AxisHeader{Fields: []string{"aud"}, Types: []string{"GROUP_CATEGORY"}},
+		RowKeys:      []types.AxisKey{{"A"}, {"B"}},
+		ColumnKeys:   []types.AxisKey{{"x"}},
+		Cells: [][]types.MatrixCell{
+			{{Value: 10.0, Present: true}},
+			{{Value: 12.0, Present: true}},
+		},
+	}
+	comps := &types.CrosstabComponents{
+		CellComponents: [][]map[string]any{
+			{{"mean": 10.0, "variance": 4.0, "n": 50}},
+			{{"mean": 12.0, "variance": 9.0, "n": 60}},
+		},
+	}
+	host := newCrosstabHostViewWithComponents(mx, comps)
+	specs := []types.OverlaySpec{{Kind: types.OverlayKindPairwiseTwoMeansZ, Scope: types.OverlayScopeRow}}
+	layers, _, err := applyOverlays(specs, host)
+	if err != nil {
+		t.Fatalf("applyOverlays: %v", err)
+	}
+	cell := layers[0].Payload.Matrix.Cells[0][0]
+	if !cell.Present {
+		t.Fatalf("two-means z pair cell absent")
+	}
+	gv, _ := cell.Value.(float64)
+	oracleRelClose(t, "two-means z p", gv, twoSampleOracleCase(t, "pairwise_welch").ZP)
+}
+
 // TestOverlayPairwise_WelchT_PopulationVarianceCell (E4-S3): an
 // AGG_VARIANCE / AGG_STDDEV cell carries the population variance
 // m2 / n; the Welch leg reads the sample variance m2 / (n - 1), so the

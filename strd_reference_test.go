@@ -418,12 +418,13 @@ func runStRDUnivariate(t *testing.T, name string) strdResult {
 }
 
 // strdLREPath is the committed record of the digits achieved;
-// strdDocgenCopy is the byte-identical copy internal/docgen embeds to
-// render the published table (an export outside the repository
+// strdDocgenCopy is the byte-identical copy internal/descriptor embeds:
+// docgen renders the published table from it, and Explain's operator
+// mode returns each operator's rows (an export outside the repository
 // carries it).
 const (
 	strdLREPath    = strdDir + "/lre.json"
-	strdDocgenCopy = "internal/docgen/strd_lre.json"
+	strdDocgenCopy = "internal/descriptor/strd_lre.json"
 )
 
 func strdRunAll(t *testing.T) []strdResult {

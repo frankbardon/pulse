@@ -48,7 +48,8 @@ var explainRootPairs = map[descriptor.ExplainRoot]struct {
 // ExplainCommand returns the `pulse explain` leaf: a request file is
 // described before it runs (predict-checked when it names a cohort), a
 // response file is read into findings — with the request file beside it
-// as its companion.
+// as its companion — and an operator name given as the argument
+// (`pulse explain TEST_T`) returns that operator's validation evidence.
 //
 // All behaviour is pulse.Explain; this leaf reads the files, calls it
 // once and formats the result. A response file is decoded with the
@@ -57,8 +58,9 @@ var explainRootPairs = map[descriptor.ExplainRoot]struct {
 // is unwrapped to its data.
 func ExplainCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "explain",
-		Usage: "Say in plain words what a request will do (never run; predict-checked when it names a cohort) or what a response found",
+		Name:      "explain",
+		Usage:     "Say in plain words what a request will do (never run; predict-checked when it names a cohort), what a response found, or how an operator is validated",
+		ArgsUsage: "[OPERATOR]",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file. Alone: described before it runs. With --response: the request that produced it"},
 			&cli.StringFlag{Name: "response", Usage: "Result JSON file to read into findings (a --json envelope is unwrapped to its data)"},
@@ -73,17 +75,21 @@ func ExplainCommand() *cli.Command {
 			reqPath, respPath, root := cmd.String("request"), cmd.String("response"), descriptor.ExplainRoot(cmd.String("root"))
 			roots := descriptor.ExplainRequestRoots()
 			pair, ok := explainRootPairs[root]
+			op := cmd.Args().First()
 			switch {
+			case op != "" && (reqPath != "" || respPath != "" || cmd.Args().Len() > 1):
+				return cliError(cmd, jsonOut, "CLI_INPUT", "pulse explain OPERATOR takes one operator name and no --request or --response")
+			case op != "":
 			case reqPath == "" && respPath == "":
 				return cliError(cmd, jsonOut, "CLI_INPUT",
-					"usage: pulse explain --request FILE | --response FILE [--request FILE] [--root "+pipeList(roots)+"] [--detail "+pipeList(descriptor.ExplainDetails())+"]")
+					"usage: pulse explain OPERATOR | --request FILE | --response FILE [--request FILE] [--root "+pipeList(roots)+"] [--detail "+pipeList(descriptor.ExplainDetails())+"]")
 			case !ok || !slices.Contains(roots, root):
 				return cliError(cmd, jsonOut, "CLI_INPUT", "--root "+string(root)+" is not one of "+commaList(roots))
 			case respPath != "" && pair.response == nil:
 				return cliError(cmd, jsonOut, "CLI_INPUT", "--root "+string(root)+" has no response to read; a sample result is rows, not findings")
 			}
 
-			req := descriptor.ExplainRequest{Detail: descriptor.ExplainDetail(cmd.String("detail"))}
+			req := descriptor.ExplainRequest{Detail: descriptor.ExplainDetail(cmd.String("detail")), Operator: op}
 			if reqPath != "" {
 				data, err := os.ReadFile(reqPath)
 				if err == nil {
@@ -180,4 +186,29 @@ func writeExplainText(cmd *cli.Command, res *descriptor.ExplainResult) {
 	for _, c := range res.Caveats {
 		writeText(w, "caveat: %s\n", c)
 	}
+	if v := res.Validation; v != nil {
+		for _, r := range v.References {
+			writeText(w, "\n- %s — tolerance %s; %s", r.Against, r.Tolerance, strings.Join(r.Tests, ", "))
+		}
+		if v.WeightRefusal != nil {
+			writeText(w, "\n- weighted analysis refused (%s): %s; %s", v.WeightRefusal.Code, v.WeightRefusal.Reason, strings.Join(v.WeightRefusal.Tests, ", "))
+		}
+		if len(v.References) > 0 || v.WeightRefusal != nil {
+			writeText(w, "\n")
+		}
+		if v.Gap != "" {
+			writeText(w, "gap: %s\n", v.Gap)
+		}
+		for _, c := range v.Certification {
+			writeText(w, "NIST %s %s (%s): %.1f digits at least\n", c.Family, c.Dataset, nonEmptyOr(c.Difficulty, "difficulty not stated"), c.MinDigits)
+		}
+	}
+}
+
+// nonEmptyOr returns s, or alt when s is empty.
+func nonEmptyOr(s, alt string) string {
+	if s == "" {
+		return alt
+	}
+	return s
 }
