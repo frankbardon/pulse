@@ -1,0 +1,9 @@
+{
+  "description": "Loan-to-value bands for the rate grid; each band is half-open [start, end)",
+  "ranges": [
+    {"label": "0-60", "start": 0, "end": 0.60},
+    {"label": "60-80", "start": 0.60, "end": 0.80},
+    {"label": "80-90", "start": 0.80, "end": 0.90},
+    {"label": "90-97", "start": 0.90, "end": 0.97}
+  ]
+}

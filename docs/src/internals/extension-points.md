@@ -1102,10 +1102,15 @@ At evaluation time `lookup()` raises `PULSE_LOOKUP_TABLE_UNKNOWN` for
 an unregistered table and `PULSE_LOOKUP_MISS` for a missing key. A null
 key (a null field binds `nil`) is also `PULSE_LOOKUP_MISS`, raised before a
 `Lookup` func runs, with `details.null_key` = its 0-based position among the
-key arguments (the table name is not counted) and `details.table`. Both
-wrap into `PROCESSING_RUNTIME` when surfaced through `ATTR_FORMULA` /
-`FILTER_EXPRESSION` — use `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
-to detect inside the chain.
+key arguments (the table name is not counted) and `details.table`. Each
+fails the run under its own code with its details — through `ATTR_FORMULA`
+(Materialize included), `FILTER_EXPRESSION`, `total()` or a regression
+holdout alike, never wrapped as `PROCESSING_RUNTIME` — so a CLI or MCP
+envelope reports it as is; `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
+also finds it. A call whose table name and keys are literals is judged
+before any record is read, by predict and by the run's entry check alike
+(an unknown table, or an off-axis / wrong-count / literal `nil` key on a
+table declaring `keys`); a computed argument is judged per row.
 
 Lookup tables also load from a directory: `Options.LookupTablesDir` (or
 `PULSE_LOOKUP_TABLES_DIR`; the option wins) registers every `*.json` file
@@ -1152,7 +1157,12 @@ unlisted combination misses at run time (`PULSE_LOOKUP_MISS`).
 `ParseLookupTableFile` runs the per-file checks; range-table axes are
 judged only at `pulse.New`. The manifest's `extensions.lookup_tables`
 entries carry `keys` (name, `values` or `range_table`) and `complete`,
-never the cells.
+never the cells; so do `(*Pulse).LookupTables()` and the MCP tool
+`pulse_lookup_tables` (plus a `cell_count`). The feature
+`capability:lookup_tables` gates all of it: a feature profile hiding it
+registers no lookup table at `pulse.New` (the files are still parsed and
+validated), so `lookup()` is an unknown function and the tool is not
+mounted.
 
 A range-table axis pairs with the built-in `range_label(table, x[,
 unmatched])`: an expression turns a number (half-open `[start, end)`,
