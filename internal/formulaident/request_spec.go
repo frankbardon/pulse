@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -52,6 +53,14 @@ func RequestSpecRefusal(spec *types.OverlaySpec, index int, shape types.OverlayS
 // cannot collide here. Predict and the runtime dispatchers pass the
 // same params.
 func RequestSpecRefusalWithParams(spec *types.OverlaySpec, index int, shape types.OverlayShape, funcs map[string]struct{}, reqParams exprenv.Params) *errors.CodedError {
+	return RequestSpecRefusalWithTables(spec, index, shape, funcs, reqParams, nil)
+}
+
+// RequestSpecRefusalWithTables is RequestSpecRefusalWithParams that,
+// once the identifiers pass, judges the formula's literal lookup() /
+// range_label() calls against tables (TableRefusal; nil judges none).
+// Predict and the runtime dispatchers pass the instance's tables.
+func RequestSpecRefusalWithTables(spec *types.OverlaySpec, index int, shape types.OverlayShape, funcs map[string]struct{}, reqParams exprenv.Params, tables tablecall.Catalog) *errors.CodedError {
 	if spec == nil {
 		return nil
 	}
@@ -100,7 +109,10 @@ func RequestSpecRefusalWithParams(spec *types.OverlaySpec, index int, shape type
 				map[string]any{"index": index, "kind": kind, "param": BaselineParam, BaselineParam: params[BaselineParam]})
 		}
 	}
-	return RequestRefusal(spec.Kind, formula, &tree.Node, index, shape, RequestVars(shape, baseline), funcs)
+	if cerr := RequestRefusal(spec.Kind, formula, &tree.Node, index, shape, RequestVars(shape, baseline), funcs); cerr != nil {
+		return cerr
+	}
+	return TableRefusal(spec.Kind, formula, index, tables)
 }
 
 // requestParams decodes spec.Params as a JSON object: the

@@ -224,7 +224,7 @@ func TestOptimize_RangeLabelAccepted(t *testing.T) {
 	c := optimizeBatch(func(s *types.OptimizeSpec) {
 		s.Objective = `p * (range_label("bands", p) == "low" ? 1 : 2)`
 	})
-	if _, cerr := OptimizeRefusal(c, nil, nil, false, nil, nil); cerr != nil {
+	if _, cerr := OptimizeRefusal(c, nil, nil, nil, nil, nil); cerr != nil {
 		t.Fatalf("OptimizeRefusal: %v", cerr)
 	}
 }

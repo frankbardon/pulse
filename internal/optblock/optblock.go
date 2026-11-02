@@ -46,6 +46,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -93,6 +94,10 @@ type Env struct {
 	// registered LookupTable (lookup() is declared).
 	Extensions []string
 	Lookup     bool
+	// Tables are the instance's named tables the literal lookup() /
+	// range_label() calls are judged against (internal/tablecall —
+	// the evaluating builtins' codes); nil judges none.
+	Tables tablecall.Catalog
 	// Outer is the namespace a block's `models` entry may not rebind:
 	// the instance's registered populations and the batch's fits
 	// (model.WithinCatalog). Nil checks the entries against each other
@@ -478,7 +483,8 @@ func compileOptions(names []string, bound exprenv.Bound) []expr.Option {
 // compileExpr is one objective / constraint expression's rules: the
 // params read, every free identifier a variable (or the params fold),
 // the compile, a numeric result, then every all-literal coef() call
-// against the fits.
+// against the fits and every literal lookup() / range_label() call
+// against the tables.
 func compileExpr(spec *types.OptimizeSpec, i int, field, src string, names []string, env Env, opts []expr.Option) (*vm.Program, *errors.CodedError) {
 	if cerr := exprenv.ParamsRefusal(src, env.Params, false); cerr != nil {
 		return nil, locate(cerr, i, spec.Name, field)
@@ -505,6 +511,9 @@ func compileExpr(spec *types.OptimizeSpec, i int, field, src string, names []str
 			"yields "+t.String()+", not a number", map[string]any{"result_type": t.String()})
 	}
 	if cerr := coefcall.StaticRefusal(src, env.Fits); cerr != nil {
+		return nil, locate(cerr, i, spec.Name, field)
+	}
+	if cerr := tablecall.Refusal(prog.Node(), env.Tables); cerr != nil {
 		return nil, locate(cerr, i, spec.Name, field)
 	}
 	return prog, nil

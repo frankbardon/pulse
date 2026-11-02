@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/prevstate"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -87,6 +88,13 @@ func validateFormulaExpressions(env *descriptor.Envelope, req *types.Request, op
 //     LookupTable is registered — and, for a total-bearing formula,
 //     total() and its patcher (totalcall.Options), each bound to a
 //     placeholder that never runs.
+//
+// Once an expression compiles, its literal lookup() / range_label()
+// calls are judged on the checked tree against the instance's tables
+// (internal/tablecall over ExprTables): an unknown table, a range_label
+// value whose declared type no table kind matches, an all-literal key
+// off a declared axis — the evaluating builtins' codes, messages and
+// details, raised before any record on both sides.
 //
 // The ref() patcher is not run: it only appends a constant plan and
 // swaps an aligned argument of an untyped built-in, which changes no
@@ -225,5 +233,12 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 	if err != nil {
 		return exprenv.CompileError(site, src, err)
 	}
-	return exprenv.ResultRefusal(site, src, prog)
+	if ce := exprenv.ResultRefusal(site, src, prog); ce != nil {
+		return ce
+	}
+	// The literal lookup() / range_label() calls, judged on the checked
+	// tree (a field's declared type is what range_label's value check
+	// reads) against the instance's tables: the evaluating builtins'
+	// codes, raised before any record on both sides.
+	return tablecall.Refusal(prog.Node(), ExprTables(w.snap, w.inst))
 }

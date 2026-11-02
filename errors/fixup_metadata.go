@@ -2122,7 +2122,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_TABLE_UNKNOWN: {
-		Message: "A runtime expression referenced a lookup table that is not registered on the Service.",
+		Message: "An expression's lookup(table, ...) named a lookup table that is not registered on the Service. A literal table name is refused before any record is read — by predict and by the run's entry check alike; a computed one when the call evaluates.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2131,7 +2131,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_MISS: {
-		Message: "A lookup() call provided a key tuple that is not present in the table, or a null key (`details.null_key`, its 0-based position among the key arguments after the table name).",
+		Message: "A lookup() call provided a key tuple that is not present in the table, or a null key (`details.null_key`, its 0-based position among the key arguments after the table name). When every key argument is a literal and the table declares key axes, a key off its axis (or the wrong number of keys) is refused before any record is read, by predict and the run alike.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

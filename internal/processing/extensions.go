@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -306,6 +307,11 @@ type ExprFunction struct {
 type LookupTable struct {
 	Rows   map[string]float64
 	Lookup func(keys ...string) (float64, bool, error)
+	// Axes are the table's declared key axes' values in argument order
+	// (an inline axis its values, a range-table axis that table's
+	// labels); nil when it declares none. Read only by the static
+	// literal-call check (tablecall, TablesCatalog).
+	Axes [][]string
 }
 
 // LabelTable is the runtime-side mirror of pulse.LabelTable. The
@@ -357,6 +363,33 @@ func (r *ExtensionRegistry) referenceTables() vectors.ReferenceTables {
 		return nil
 	}
 	return r.ReferenceVectors
+}
+
+// TablesCatalog is the registry's named tables as the static
+// lookup() / range_label() literal-call check reads them
+// (internal/tablecall): the overlay FORMULA gate's view, the same
+// answers internal/descriptor reads off the instance snapshot.
+// Nil-receiver-safe.
+func (r *ExtensionRegistry) TablesCatalog() tablecall.Catalog { return registryTables{r} }
+
+type registryTables struct{ r *ExtensionRegistry }
+
+func (t registryTables) HasLookup() bool { return t.r != nil && len(t.r.LookupTables) > 0 }
+
+func (t registryTables) LookupAxes(name string) ([][]string, bool) {
+	if t.r == nil {
+		return nil, false
+	}
+	lt, ok := t.r.LookupTables[name]
+	return lt.Axes, ok
+}
+
+func (t registryTables) RangeKind(name string) (string, bool) {
+	rt, ok := t.r.LookupRangeTable(name)
+	if !ok {
+		return "", false
+	}
+	return rt.Kind(), true
 }
 
 // LookupRangeTable returns the RangeTable registered under name, and the

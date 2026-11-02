@@ -94,7 +94,7 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 		}
 	}
 	params, _ := exprenv.NormalizeParams(req.Params)
-	if cerr := formulaident.RequestSpecRefusalWithParams(spec, index, shape, buildFormulaAllowedFuncs(opts), params); cerr != nil {
+	if cerr := formulaident.RequestSpecRefusalWithTables(spec, index, shape, buildFormulaAllowedFuncs(opts), params, ExprTables(extensionsFromOpts(opts), opts.instance())); cerr != nil {
 		addCodedError(env, cerr)
 	}
 }

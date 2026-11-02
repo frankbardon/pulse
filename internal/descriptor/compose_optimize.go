@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,7 +16,9 @@ import (
 // (the names coef() resolves; sweepAxes, the batch's sweep's axis
 // names, are the axes sweep_axis() may read off a sweep-bound one —
 // nil: unknown) — with the instance's embedder
-// ExprFunction names, whether a LookupTable is registered, the
+// ExprFunction names, its named tables (ExprTables: lookup() declared
+// when a LookupTable is registered; literal lookup() / range_label()
+// calls judged by internal/tablecall), the
 // instance's registered populations (outer: the namespace a block's
 // `models` entry may not rebind, with the fits) and the loader that
 // reads a block's `models` files. Predict (validateComposeExpanded) and
@@ -24,7 +27,7 @@ import (
 // identically. It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
 // batch declares no block.
-func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, lookup bool, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
+func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
@@ -34,7 +37,8 @@ func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctio
 		Params:     params,
 		Fits:       fits,
 		Extensions: exprFunctions,
-		Lookup:     lookup,
+		Lookup:     tables != nil && tables.HasLookup(),
+		Tables:     tables,
 		Outer:      model.WithinCatalog(outer, fits),
 		Load:       load,
 	})
@@ -52,13 +56,6 @@ func predictExprFunctionNames(opts *PredictOptions) []string {
 		out = append(out, fn.Name)
 	}
 	return out
-}
-
-// predictHasLookup reports whether the predict snapshot registers any
-// LookupTable (lookup() is declared).
-func predictHasLookup(opts *PredictOptions) bool {
-	snap := extensionsFromOpts(opts)
-	return snap != nil && len(snap.LookupTables) > 0
 }
 
 // optimizeSummaries is predict's static view of the blocks (nil without

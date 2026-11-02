@@ -52,6 +52,7 @@ Keep the top bands (a filter):
 - In a filter, `==` on an unmatched or null row is false (the row drops) and `!=` true (it stays) — name the gap with `unmatched` to make it explicit.
 - Declare the grid's axes (`keys`, an axis naming its `range_table`): `pulse.New` then checks every row key against the bands' labels, so a typo is a startup refusal rather than a run-time `PULSE_LOOKUP_MISS`.
 - A `datetime` passed without `to_day` is read as a day count and matches the wrong range silently.
+- A literal call is checked before any record, by predict and the run alike: an unknown table, a `range_label` over a string / bool / list, or — every key literal, axes declared — an off-axis key or wrong key count. Computed arguments fail per row.
 
 ## See
 

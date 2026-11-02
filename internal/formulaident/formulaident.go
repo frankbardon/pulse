@@ -26,6 +26,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/exprslots"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -272,6 +273,15 @@ func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, sh
 // and the runtime dispatcher pass the same params, and the runtime
 // folds the declared ones as constants when it compiles.
 func ComposeRefusalWithParams(kind types.OverlayKind, params map[string]any, index int, shape types.OverlayShape, slots []Slot, funcs map[string]struct{}, reqParams exprenv.Params) *errors.CodedError {
+	return ComposeRefusalWithTables(kind, params, index, shape, slots, funcs, reqParams, nil)
+}
+
+// ComposeRefusalWithTables is ComposeRefusalWithParams that, once the
+// identifiers and slot paths pass, judges the formula's literal
+// lookup() / range_label() calls against tables (TableRefusal; nil
+// judges none). Predict and the runtime Compose dispatcher pass the
+// instance's tables.
+func ComposeRefusalWithTables(kind types.OverlayKind, params map[string]any, index int, shape types.OverlayShape, slots []Slot, funcs map[string]struct{}, reqParams exprenv.Params, tables tablecall.Catalog) *errors.CodedError {
 	formula, reason := ComposeFormula(params)
 	if reason != "" {
 		return MissingFormula(string(kind), "overlay "+string(kind)+" requires params.formula (a non-empty string)", index, reason)
@@ -317,7 +327,21 @@ func ComposeRefusalWithParams(kind types.OverlayKind, params map[string]any, ind
 			return unknown(p, "references "+p+", not a field of a slot this spec names (reference or targets)", "allowed_slots", paths)
 		}
 	}
-	return nil
+	return TableRefusal(kind, formula, index, tables)
+}
+
+// TableRefusal is an OVERLAY_FORMULA's literal lookup() / range_label()
+// check (tablecall.SourceRefusal over tables — the evaluating builtins'
+// codes, messages and details) with the spec located: Details gain
+// index and kind. nil when tables is nil or every literal call passes.
+func TableRefusal(kind types.OverlayKind, formula string, index int, tables tablecall.Catalog) *errors.CodedError {
+	cerr := tablecall.SourceRefusal(formula, tables)
+	if cerr == nil {
+		return nil
+	}
+	cerr.Details["index"] = index
+	cerr.Details["kind"] = string(kind)
+	return cerr
 }
 
 // BuiltinRefusal refuses a FORMULA calling a reserved built-in outside

@@ -7,6 +7,7 @@ import (
 	"github.com/expr-lang/expr"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/tablecall"
 )
 
 // ExprOptions returns the expr-lang Option slice an ExtensionRegistry
@@ -76,11 +77,7 @@ func (r *ExtensionRegistry) lookupBuiltin(args ...any) (any, error) {
 	}
 	table, ok := r.LookupTables[tableName]
 	if !ok {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PULSE_LOOKUP_TABLE_UNKNOWN,
-			fmt.Sprintf("lookup table %q is not registered", tableName),
-			map[string]any{"table": tableName},
-		)
+		return nil, tablecall.UnknownLookup(tableName)
 	}
 	keys := make([]string, 0, len(args)-1)
 	for i, a := range args[1:] {
@@ -89,11 +86,7 @@ func (r *ExtensionRegistry) lookupBuiltin(args ...any) (any, error) {
 		// the key args (the table name is not counted) instead. Runs
 		// before a Lookup-func table's callback too.
 		if a == nil {
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_LOOKUP_MISS,
-				fmt.Sprintf("lookup(%q, ...) key %d (0-based, after the table name) is null", tableName, i),
-				map[string]any{"table": tableName, "null_key": i},
-			)
+			return nil, tablecall.LookupNullKey(tableName, i)
 		}
 		keys = append(keys, fmt.Sprintf("%v", a))
 	}
@@ -103,11 +96,7 @@ func (r *ExtensionRegistry) lookupBuiltin(args ...any) (any, error) {
 			fmt.Sprintf("lookup(%q, %s) failed", tableName, strings.Join(keys, ", ")))
 	}
 	if !found {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PULSE_LOOKUP_MISS,
-			fmt.Sprintf("lookup(%q, %s) returned no result", tableName, strings.Join(keys, ", ")),
-			map[string]any{"table": tableName, "keys": keys},
-		)
+		return nil, tablecall.LookupMiss(tableName, keys)
 	}
 	return value, nil
 }
@@ -119,7 +108,7 @@ func resolveLookup(table LookupTable, keys []string) (float64, bool, error) {
 	if table.Lookup != nil {
 		return table.Lookup(keys...)
 	}
-	joined := strings.Join(keys, "|")
+	joined := strings.Join(keys, tablecall.KeySeparator)
 	v, ok := table.Rows[joined]
 	return v, ok, nil
 }

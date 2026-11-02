@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strconv"
 	"sync"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/numrange"
+	"github.com/frankbardon/pulse/internal/tablecall"
 )
 
 // rangeLabeler is range_label(table, x[, unmatched])'s implementation
@@ -282,19 +282,15 @@ func clampUint(v uint64) int64 {
 }
 
 // rangeLabelKindMismatch is PULSE_RANGE_TABLE_KIND_MISMATCH for a value
-// the table's kind cannot match: details {operator, table, want, got},
-// want the table's kind, got the value's.
+// the table's kind cannot match (tablecall.KindMismatch, the static
+// check's constructor): details {operator, table, want, got}, want the
+// table's kind, got the value's.
 func rangeLabelKindMismatch(table string, set *rangeLabelSet, x any) error {
 	want := daterange.KindNumeric
-	reads := "a number"
 	if set.date != nil {
 		want = daterange.KindDate
-		reads = "an epoch-day number (a date field, or to_day(datetime))"
 	}
-	got := rangeLabelValueKind(x)
-	return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_TABLE_KIND_MISMATCH,
-		exprenv.RangeLabelFunc+": range table "+strconv.Quote(table)+" is a "+want+" table; it matches "+reads+", got a "+got,
-		map[string]any{"operator": exprenv.RangeLabelFunc, "table": table, "want": want, "got": got})
+	return tablecall.KindMismatch(table, want, rangeLabelValueKind(x))
 }
 
 // rangeLabelValueKind names a value's kind for the mismatch refusal.

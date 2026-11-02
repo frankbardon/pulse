@@ -331,3 +331,25 @@ func validateLookupTableAxes(tables map[string]LookupTable, ranges map[string]Ra
 	}
 	return nil
 }
+
+// lookupAxisValues resolves declared axes to their values in argument
+// order — an inline axis its Values, a range-table axis that table's
+// labels (nil when it is not registered; validateLookupTableAxes refuses
+// that at New) — for the runtime registry's static literal-call check.
+// Nil when keys declares no axis.
+func lookupAxisValues(keys []LookupAxis, ranges map[string]RangeTable) [][]string {
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([][]string, len(keys))
+	for i, ax := range keys {
+		if ax.RangeTable == "" {
+			out[i] = append([]string(nil), ax.Values...)
+			continue
+		}
+		if rt, ok := ranges[ax.RangeTable]; ok {
+			out[i] = rangeTableLabels(rt)
+		}
+	}
+	return out
+}

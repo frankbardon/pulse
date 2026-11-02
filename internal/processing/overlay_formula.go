@@ -490,7 +490,7 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 // predict's code, message and Details (spec index included), never the
 // compiler's PULSE_OVERLAY_FORMULA_PARSE_ERROR.
 func requestFormulaIdentRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index int, shape types.OverlayShape) *errors.CodedError {
-	return formulaident.RequestSpecRefusalWithParams(spec, index, shape, exts.overlayFormulaFuncs(), exts.Params())
+	return formulaident.RequestSpecRefusalWithTables(spec, index, shape, exts.overlayFormulaFuncs(), exts.Params(), exts.TablesCatalog())
 }
 
 // runFormulaMatrix compiles formula against ctx's MATRIX prototype env
