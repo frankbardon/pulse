@@ -1189,6 +1189,9 @@ func TestOperatorWeightRefusal(t *testing.T) {
 			t.Errorf("%s: (%q, %v), want (\"\", false)", op, got, ok)
 		}
 	}
+	if PostTestWeightRefusal() != reasonPostTest || reasonPostTest == "" {
+		t.Errorf("PostTestWeightRefusal() = %q, want the post-test slot reason %q", PostTestWeightRefusal(), reasonPostTest)
+	}
 	for _, op := range types.AllTestTypes() {
 		if weighting.ClassOf(string(op)) == weighting.ClassRefuse && weighting.RefusalReason(string(op)) == "" {
 			if _, ok := OperatorWeightRefusal(string(op)); ok {

@@ -66,6 +66,10 @@ type validation struct {
 	// weighted form. Dropped, like a Weighted reference, when the
 	// instance does not offer weighting.
 	WeightRefused []string
+	// PostTestOnly marks an operator that runs only as a post-test: its
+	// weight refusal is the shared post-test one
+	// (descx.PostTestWeightRefusal), not an operator reason.
+	PostTestOnly bool
 }
 
 // Shared sources and test files, named once so entries stay short.
@@ -166,8 +170,8 @@ var validationRegistry = map[string]validation{
 	"TEST_SHAPIRO_WILK": {Refs: []validationRef{r("`nortest::sf.test` (Shapiro–Francia)", tol10, procUndef)}, WeightRefused: []string{wRefusal}},
 	"TEST_SPEARMAN_R":   {Refs: []validationRef{r("`cor.test(method = \"spearman\")` (exact AS 89)", "1e-12 relative", "internal/processing/test_nonparametric_test.go", procPost), weighted}},
 	"TEST_T":            {Refs: []validationRef{r("`t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances", tol10, procUnw), weighted}},
-	"TEST_TREND":        {Refs: []validationRef{r("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}},
-	"TEST_TUKEY_HSD":    {Refs: []validationRef{r("`TukeyHSD`, `ptukey` refined by quadrature", tol10, procOutput)}},
+	"TEST_TREND":        {Refs: []validationRef{r("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}, WeightRefused: []string{wRefusal}, PostTestOnly: true},
+	"TEST_TUKEY_HSD":    {Refs: []validationRef{r("`TukeyHSD`, `ptukey` refined by quadrature", tol10, procOutput)}, WeightRefused: []string{wRefusal}, PostTestOnly: true},
 	"TEST_WELCH":        {Refs: []validationRef{r("`t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances", tol10, procUnw), weighted}},
 	"TEST_WILCOXON_SR":  {Refs: []validationRef{r("`wilcox.test(paired = TRUE)`", tol10, procPost), weighted}},
 	"TEST_Z_TWO_SAMPLE": {Refs: []validationRef{r("`pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances", tol10, procUnw), weighted}},
@@ -340,7 +344,7 @@ func (g *gen) validationFor(name string) (validation, bool) {
 		return validation{}, false
 	}
 	weightingOn := g.inst.Enabled(descx.FeatureWeighting)
-	out := validation{Gap: v.Gap}
+	out := validation{Gap: v.Gap, PostTestOnly: v.PostTestOnly}
 	if weightingOn {
 		out.WeightRefused = v.WeightRefused
 	}
@@ -365,7 +369,7 @@ func (g *gen) renderValidationDetail(b *strings.Builder, name string) {
 		items = append(items, refLine(ref))
 	}
 	if len(v.WeightRefused) > 0 {
-		items = append(items, weightRefusalLine(name, v.WeightRefused))
+		items = append(items, weightRefusalLine(name, v.WeightRefused, v.PostTestOnly))
 	}
 	if len(items) == 0 {
 		items = append(items, "No external reference yet.")
@@ -382,12 +386,15 @@ func (g *gen) renderValidationDetail(b *strings.Builder, name string) {
 // weightRefusalLine states a pinned permanent weight refusal: the
 // operator has no weighted form, so a weight is refused rather than
 // validated, for the reason the refusal itself carries.
-func weightRefusalLine(name string, tests []string) string {
+func weightRefusalLine(name string, tests []string, postTest bool) string {
 	quoted := make([]string, len(tests))
 	for i, t := range tests {
 		quoted[i] = "`" + t + "`"
 	}
 	reason, _ := descx.OperatorWeightRefusal(name)
+	if postTest {
+		reason = descx.PostTestWeightRefusal()
+	}
 	return "Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because " +
 		reason + "; " + strings.Join(quoted, ", ")
 }

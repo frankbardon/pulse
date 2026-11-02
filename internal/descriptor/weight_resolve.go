@@ -235,6 +235,14 @@ func OperatorWeightRefusal(op string) (string, bool) {
 	return reason, reason != ""
 }
 
+// PostTestWeightRefusal is the reason every post-test slot is refused
+// PERMANENTLY under any weight (the details.reason a weighted
+// post_tests[] entry's PULSE_WEIGHT_UNSUPPORTED states), whatever its
+// operator: a post-test reads the aggregated result rows. Read-only
+// renderers quote it for a post-test-only operator (TEST_TREND,
+// TEST_TUKEY_HSD).
+func PostTestWeightRefusal() string { return reasonPostTest }
+
 // refusalHead is the shared head of a refused slot's
 // PULSE_WEIGHT_UNSUPPORTED: "<slot>: <op> ..." naming the permanent
 // reason or the pending gap, its details ({slot, operator, field}, plus

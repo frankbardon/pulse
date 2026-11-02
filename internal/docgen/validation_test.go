@@ -111,7 +111,11 @@ func TestValidationWeightRefusalIsPermanent(t *testing.T) {
 		if len(v.WeightRefused) == 0 {
 			continue
 		}
-		if reason, ok := descx.OperatorWeightRefusal(name); !ok || reason != weighting.RefusalReason(name) {
+		if v.PostTestOnly {
+			if descx.PostTestWeightRefusal() == "" || weighting.ClassOf(name) != weighting.ClassRefuse {
+				t.Errorf("%s: post-test WeightRefused without a refused class and the shared post-test reason", name)
+			}
+		} else if reason, ok := descx.OperatorWeightRefusal(name); !ok || reason != weighting.RefusalReason(name) {
 			t.Errorf("%s: WeightRefused, but weighting does not refuse it permanently (class %v, reason %q)",
 				name, weighting.ClassOf(name), weighting.RefusalReason(name))
 		}
@@ -139,11 +143,15 @@ func TestValidationWeightRefusalRenders(t *testing.T) {
 	}
 	on := newGen(descx.NewInstanceSnapshot(nil, descx.FeatureSet{Enabled: all}), Options{})
 	off := newGen(descx.NewInstanceSnapshot(nil, descx.FeatureSet{Enabled: enabled, Hidden: hidden}), Options{})
-	for _, op := range []string{"TEST_ANOVA_RM", "TEST_SHAPIRO_WILK"} {
+	for _, op := range []string{"TEST_ANOVA_RM", "TEST_SHAPIRO_WILK", "TEST_TREND", "TEST_TUKEY_HSD"} {
+		reason := weighting.RefusalReason(op)
+		if validationRegistry[op].PostTestOnly {
+			reason = descx.PostTestWeightRefusal()
+		}
 		var b strings.Builder
 		on.renderValidationDetail(&b, op)
 		got := b.String()
-		for _, want := range []string{"`PULSE_WEIGHT_UNSUPPORTED`", weighting.RefusalReason(op), "weight_refusal_pin_test.go"} {
+		for _, want := range []string{"`PULSE_WEIGHT_UNSUPPORTED`", reason, "weight_refusal_pin_test.go"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("%s: catalog block lacks %q:\n%s", op, want, got)
 			}

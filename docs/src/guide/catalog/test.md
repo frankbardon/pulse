@@ -1065,6 +1065,7 @@ Checks whether an ordered series, such as monthly totals, tends to keep rising o
 **Validated against:**
 
 - R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall` — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+- Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because a post-test reads the aggregated result rows, which carry no row weights; `internal/integration/weight_refusal_pin_test.go`
 
 See [How Pulse is validated](../validation.md).
 
@@ -1109,6 +1110,7 @@ After an ANOVA, compares every pair of group averages to find which ones differ,
 **Validated against:**
 
 - R 4.6.1 `TukeyHSD`, `ptukey` refined by quadrature — tolerance 1e-10 relative; `internal/processing/test_output_oracle_test.go`
+- Weighted analysis: refused with `PULSE_WEIGHT_UNSUPPORTED` at predict and at run, never run unweighted, because a post-test reads the aggregated result rows, which carry no row weights; `internal/integration/weight_refusal_pin_test.go`
 
 See [How Pulse is validated](../validation.md).
 

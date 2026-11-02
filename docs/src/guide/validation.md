@@ -63,8 +63,8 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`TEST_SHAPIRO_WILK`](catalog/test.md#op-test_shapiro_wilk) | R 4.6.1 `nortest::sf.test` (Shapiro–Francia)<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
 | [`TEST_SPEARMAN_R`](catalog/test.md#op-test_spearman_r) | R 4.6.1 `cor.test(method = "spearman")` (exact AS 89)<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_T`](catalog/test.md#op-test_t) | R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_TREND`](catalog/test.md#op-test_trend) | R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall` | 1e-10 relative | — |
-| [`TEST_TUKEY_HSD`](catalog/test.md#op-test_tukey_hsd) | R 4.6.1 `TukeyHSD`, `ptukey` refined by quadrature | 1e-10 relative | — |
+| [`TEST_TREND`](catalog/test.md#op-test_trend) | R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall`<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
+| [`TEST_TUKEY_HSD`](catalog/test.md#op-test_tukey_hsd) | R 4.6.1 `TukeyHSD`, `ptukey` refined by quadrature<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
 | [`TEST_WELCH`](catalog/test.md#op-test_welch) | R 4.6.1 `t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_WILCOXON_SR`](catalog/test.md#op-test_wilcoxon_sr) | R 4.6.1 `wilcox.test(paired = TRUE)`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_Z_TWO_SAMPLE`](catalog/test.md#op-test_z_two_sample) | R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
