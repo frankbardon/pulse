@@ -541,6 +541,19 @@ func HandleRangeTables(_ context.Context, p *pulse.Pulse, _ RangeTablesIn) (Rang
 	return RangeTablesOut{Tables: tables}, nil
 }
 
+// HandleLookupTables runs pulse_lookup_tables: the INPUT-direction
+// discovery tool for the lookup tables the lookup() expression function
+// reads — each table's name, description, key axes, complete flag and
+// cell count, never a cell value. Returns an empty list (never an error)
+// when no lookup tables are registered.
+func HandleLookupTables(_ context.Context, p *pulse.Pulse, _ LookupTablesIn) (LookupTablesOut, error) {
+	tables := p.LookupTables()
+	if tables == nil {
+		tables = []pulse.LookupTableInfo{}
+	}
+	return LookupTablesOut{Tables: tables}, nil
+}
+
 // HandleLabelResolve runs pulse_label_resolve: reverse-resolves a name to
 // the raw categorical key(s) a filter / grouper expects.
 func HandleLabelResolve(_ context.Context, p *pulse.Pulse, in LabelResolveIn) (LabelResolveOut, error) {

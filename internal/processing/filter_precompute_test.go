@@ -597,6 +597,8 @@ func TestExprPureInputs(t *testing.T) {
 		{`lookup("t", a) > 0`, callback, ""},
 		{`lookup("t", a) > 0`, nil, ""},
 		{`now() != nil && a > 1`, nil, ""},
+		{`range_label("bands", a) == "low"`, nil, "[a]"}, // a range table is static data: pure
+		{`range_label("bands", a) == "low"`, rows, "[a]"},
 		{`score(a) > 1`, fnReg, ""},
 		{`abs(a) > 1`, fnReg, ""}, // an embedder function shadowing a built-in
 		{`a.b() > 1`, nil, ""},

@@ -328,7 +328,7 @@ func obsCalls() []obsCall {
 // method can never silently skip instrumentation.
 var uninstrumentedMethods = map[string]bool{
 	"Ontology": true, "Skills": true, "SkillsForIntent": true, "Skill": true, "ListTemplates": true, "GetTemplate": true,
-	"Limits": true, "LabelTables": true, "RangeTables": true, "ErrorLookup": true,
+	"Limits": true, "LabelTables": true, "RangeTables": true, "LookupTables": true, "ErrorLookup": true,
 	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExamplesSearchWith": true, "ExampleGet": true,
 	"FeatureProfile": true, "FeatureSetDigest": true, "Fs": true, "ResolveLabel": true,
 

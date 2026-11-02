@@ -344,7 +344,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	if _, oerr := OptimizeRefusal(req, sweepFits.Axes, predictExprFunctionNames(opts), predictHasLookup(opts), opts.populations(), opts.loadModelFiles); oerr != nil {
+	if _, oerr := OptimizeRefusal(req, sweepFits.Axes, predictExprFunctionNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles); oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false
 		return env, req
@@ -987,7 +987,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		// InheritComposeParams before any slot) are what the formula's
 		// params.<name> reads read.
 		composeParams, _ := exprenv.NormalizeParams(req.Params)
-		if cerr := formulaident.ComposeRefusalWithParams(spec.Kind, spec.Params, specIdx, refShape, slots, buildFormulaAllowedFuncs(opts), composeParams); cerr != nil {
+		if cerr := formulaident.ComposeRefusalWithTables(spec.Kind, spec.Params, specIdx, refShape, slots, buildFormulaAllowedFuncs(opts), composeParams, ExprTables(extensionsFromOpts(opts), opts.instance())); cerr != nil {
 			addCodedError(env, cerr)
 		}
 	}

@@ -39,6 +39,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [x] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)
 - [x] **#216** Extension aggregators declare whether their output is a count, so `return.precision` can write it exact (today every extension aggregator rounds like a measure; built-ins are classified in `countSemanticAggregations`) · [U34](units/U34-extension-validation.md)
+- [ ] **#660** Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3) · [U33](units/U33-v1-release.md)
 
 #### CLI shell completion
 - [x] **#208** `pulse completion {bash,zsh,fish}` prints an installable script; every command, subcommand and flag of `buildApp()` completes · [U37](units/U37-shell-completion.md)

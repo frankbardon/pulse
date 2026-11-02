@@ -165,11 +165,25 @@ type ExprFunctionMeta struct {
 // LookupTableMeta is the manifest projection of a registered lookup
 // table. HasRowsData distinguishes the static Rows-backed table from
 // the function-driven Lookup table without exposing the embedder's
-// data.
+// data. Keys lists the table's declared key axes (absent when it
+// declares none) — what an author needs to write lookup("t", k1, k2)
+// with on-axis keys — and Complete reports that every combination of
+// the axes' values has a cell; neither exposes the cells.
 type LookupTableMeta struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	HasRowsData bool   `json:"has_rows_data"`
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	HasRowsData bool             `json:"has_rows_data"`
+	Keys        []LookupAxisMeta `json:"keys,omitempty"`
+	Complete    bool             `json:"complete,omitempty"`
+}
+
+// LookupAxisMeta is the manifest projection of one declared lookup-table
+// key axis: its name and exactly one of the inline Values or the
+// RangeTable whose labels are the axis's values.
+type LookupAxisMeta struct {
+	Name       string   `json:"name"`
+	Values     []string `json:"values,omitempty"`
+	RangeTable string   `json:"range_table,omitempty"`
 }
 
 // ReferenceVectorMeta is the manifest projection of a registered

@@ -188,10 +188,20 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		})
 	}
 	for name, t := range ext.LookupTables {
+		var axes []descriptor.LookupAxisMeta
+		for _, ax := range t.Keys {
+			axes = append(axes, descriptor.LookupAxisMeta{
+				Name:       ax.Name,
+				Values:     append([]string(nil), ax.Values...),
+				RangeTable: ax.RangeTable,
+			})
+		}
 		snap.LookupTables = append(snap.LookupTables, descriptor.LookupTableMeta{
 			Name:        name,
 			Description: t.Description,
 			HasRowsData: t.Rows != nil,
+			Keys:        axes,
+			Complete:    t.Complete,
 		})
 	}
 	for name, t := range ext.ReferenceVectors {

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:fabe44844dd9a619d5fdfb8f23ed812c8d5d7ca6fdfe0c9178aa892767014dc7",
+    "feature_set_digest": "fs1:b9b36c7f145b6da31635461e4536daef126cbd97cc9805f96efbc994d7576cbe",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11696,7 +11696,7 @@
         ]
       }
     ],
-    "error_codes_count": 452,
+    "error_codes_count": 460,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11884,8 +11884,16 @@
       "PULSE_LIMIT_EXCEEDED",
       "PULSE_LIMIT_INVALID",
       "PULSE_LOOKUP_AMBIGUOUS",
+      "PULSE_LOOKUP_AXIS_INVALID",
+      "PULSE_LOOKUP_CELL_NOT_NUMERIC",
+      "PULSE_LOOKUP_FILE_INVALID",
+      "PULSE_LOOKUP_KEY_ARITY",
+      "PULSE_LOOKUP_KEY_COLLISION",
+      "PULSE_LOOKUP_KEY_OFF_AXIS",
       "PULSE_LOOKUP_MISS",
       "PULSE_LOOKUP_NOT_FOUND",
+      "PULSE_LOOKUP_TABLE_EMPTY",
+      "PULSE_LOOKUP_TABLE_INCOMPLETE",
       "PULSE_LOOKUP_TABLE_UNKNOWN",
       "PULSE_MATERIALIZE_CAST_FAILED",
       "PULSE_MATERIALIZE_CAST_NULLED",
@@ -12219,6 +12227,10 @@
       {
         "name": "pulse_lookup",
         "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built (on a shard archive, also when a shard is not covered by the index — details.shards_uncovered), and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
+      },
+      {
+        "name": "pulse_lookup_tables",
+        "description": "CALL TO FIND WHICH LOOKUP TABLES EXIST AND THEIR KEY AXES BEFORE WRITING A LOOKUP() CALL. List the registered lookup tables — named numeric tables an expression reads with lookup(\"table\", k1, k2, …), such as a rate grid. Returns each table's name, description, has_rows_data, cell_count (the number of cells of a static table; absent for a function-driven table, whose cells cannot be counted), keys (the declared axes in argument order, each a name plus its inline values or the range_table whose labels are its values; empty when the table declares none and its keys are free-form) and complete (every axis combination has a cell). Never returns a cell value. A key off its axis, or an unlisted combination of a sparse table, misses with PULSE_LOOKUP_MISS; a range-table axis is fed by range_label(table, x). Returns an empty list (never an error) when no lookup tables are registered; tables are supplied programmatically via Options.Extensions.LookupTables or loaded from the PULSE_LOOKUP_TABLES_DIR directory at pulse.New time."
       },
       {
         "name": "pulse_manifest",
@@ -13720,6 +13732,10 @@
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
+        "name": "lookup-formulas",
+        "description": "Registered tables inside formulas and expression filters — lookup() reading a lookup table, range_label() banding a number or an epoch day into a range-table label, and the two together as rate-grid keys. Matching, null and unmatched rules, codes. Not the cohort point lookup."
+      },
+      {
         "name": "materialize-casts",
         "description": "Retype a materialized column with output.columns[].type — the cast matrix (numeric, packed_bool, date-family, set widen, categorical), decimal precision / scale, exactness, on_cast_error, and the predict risks. Topical design; child of derived-cohorts."
       },
@@ -14962,6 +14978,10 @@
       {
         "name": "tool-lookup",
         "description": "Resolve a point lookup against a cohort's prebuilt sidecar index."
+      },
+      {
+        "name": "tool-lookup-tables",
+        "description": "List registered lookup tables — named numeric tables lookup() reads — with their key axes and cell counts, never their cells."
       },
       {
         "name": "tool-manifest",
@@ -21064,4 +21084,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4bf91ff0d21b07569d7981b080212c2eb407e8aa8f28a0971793c23c820b1a18
+// golden-hash: 69247b7f5dfae9a66c5ba1d53deed1a2a2ac9bfe1be5be5146f81894a80e3c2d

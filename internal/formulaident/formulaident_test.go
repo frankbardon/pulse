@@ -69,6 +69,11 @@ func TestComposeNamespace(t *testing.T) {
 	if _, ok := AllowedFuncs(nil, false)["vmean"]; ok {
 		t.Error("a vector built-in is allowed")
 	}
+	// range_label is declared on every runtime overlay compile, tables
+	// or not (an unknown table is its run-time refusal).
+	if _, ok := AllowedFuncs(nil, false)["range_label"]; !ok {
+		t.Error("range_label not allowed")
+	}
 }
 
 func TestComposeRefusal(t *testing.T) {
@@ -118,8 +123,10 @@ func TestComposeRefusal(t *testing.T) {
 
 // TestFormulaidentImportBoundary keeps the package a no-execute leaf:
 // stdlib, the expr-lang parser / ast, types, errors, exprenv and
-// the stdlib-only params read recorder internal/paramread and
-// expression-slot list internal/exprslots.
+// the stdlib-only params read recorder internal/paramread,
+// expression-slot list internal/exprslots and the literal table-call
+// check internal/tablecall (itself a no-execute leaf,
+// TestTablecallImportBoundary).
 func TestFormulaidentImportBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -131,6 +138,7 @@ func TestFormulaidentImportBoundary(t *testing.T) {
 		"github.com/frankbardon/pulse/internal/totalcall": true,
 		"github.com/frankbardon/pulse/internal/paramread": true,
 		"github.com/frankbardon/pulse/internal/exprslots": true,
+		"github.com/frankbardon/pulse/internal/tablecall": true,
 		"strings": true, "encoding/json": true, "math": true,
 	}
 	files, err := filepath.Glob("*.go")
@@ -156,5 +164,37 @@ func TestFormulaidentImportBoundary(t *testing.T) {
 				t.Errorf("%s imports %s; formulaident must stay a no-execute leaf", f, path)
 			}
 		}
+	}
+}
+
+// noTables is a catalog registering no table (lookup() not the
+// built-in; every range table unknown).
+type noTables struct{}
+
+func (noTables) HasLookup() bool                         { return false }
+func (noTables) LookupAxes(string) ([][]string, bool)    { return nil, false }
+func (noTables) RangeKind(string) (kind string, ok bool) { return "", false }
+
+// TestTableRefusal_LocatesTheSpec: with tables, the Compose and
+// Request-host gates judge a formula's literal range_label() table once
+// its identifiers pass — the evaluating builtin's code with the spec's
+// index and kind; nil tables judge none.
+func TestTableRefusal_LocatesTheSpec(t *testing.T) {
+	t.Parallel()
+
+	slots := []Slot{{"a", types.OverlayShapeSeries}}
+	funcs := AllowedFuncs(nil, false)
+	params := map[string]any{"formula": `value + (range_label("nope", value) == "x" ? 1 : 0)`}
+	ce := ComposeRefusalWithTables(types.OverlayKindFormula, params, 2, types.OverlayShapeSeries, slots, funcs, nil, noTables{})
+	if ce == nil || ce.Code != errors.PULSE_RANGE_TABLE_UNKNOWN || ce.Details["index"] != 2 || ce.Details["kind"] != "OVERLAY_FORMULA" || ce.Details["table"] != "nope" {
+		t.Errorf("compose: %+v", ce)
+	}
+	if ce := ComposeRefusalWithParams(types.OverlayKindFormula, params, 2, types.OverlayShapeSeries, slots, funcs, nil); ce != nil {
+		t.Errorf("compose without tables: %v", ce)
+	}
+	spec := &types.OverlaySpec{Kind: types.OverlayKindFormula, Params: []byte(`{"formula":"value + (range_label(\"nope\", value) == \"x\" ? 1 : 0)"}`)}
+	ce = RequestSpecRefusalWithTables(spec, 1, types.OverlayShapeSeries, funcs, nil, noTables{})
+	if ce == nil || ce.Code != errors.PULSE_RANGE_TABLE_UNKNOWN || ce.Details["index"] != 1 {
+		t.Errorf("request: %+v", ce)
 	}
 }

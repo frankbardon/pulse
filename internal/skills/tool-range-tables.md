@@ -17,7 +17,7 @@ No arguments.
 
 ## Output
 
-`descriptor.Envelope` wrapping `{tables: []RangeTableInfo}`, each `RangeTableInfo`: `name`, `kind` (`date` | `numeric`), `range_count`, and the ordered `{label, start, end}` entries — `ranges` on a date table (ISO date literals), `numeric_ranges` on a numeric one (numbers); a bound is omitted when open. Empty array when none registered (never null). Tables are supplied programmatically via `Options.Extensions.RangeTables` or loaded from `$PULSE_RANGE_TABLES_DIR/*.json` at `pulse.New` time.
+`{tables: []RangeTableInfo}` (the bare object, no envelope), each `RangeTableInfo`: `name`, `kind` (`date` | `numeric`), `range_count`, and the ordered `{label, start, end}` entries — `ranges` on a date table (ISO date literals), `numeric_ranges` on a numeric one (numbers); a bound is omitted when open. Empty array when none registered (never null). Tables are supplied programmatically via `Options.Extensions.RangeTables` or loaded from `$PULSE_RANGE_TABLES_DIR/*.json` at `pulse.New` time.
 
 ## Gotchas
 
@@ -27,6 +27,7 @@ No arguments.
 - A table of the other kind is refused `PULSE_RANGE_TABLE_KIND_MISMATCH`: date tables feed the date-range operators, numeric tables the numeric-ranges grouper.
 - Entries are calendar days with no zone of their own: over a `datetime` they match the local day in the referencing slot's resolved zone, exactly like inline ranges.
 - Reference a table by name from the grouper's `table` field or the filter's `Params.table` — do not re-inline the ranges.
+- In an expression, `range_label(table, x[, unmatched])` names the range holding `x` — a band to compare or a `lookup` key (`lookup-formulas`).
 <!-- feature: capability:materialize_output -->
 - A materialize output column's `bucket.range_table` names one too, writing the labels as a categorical (`materialize-recode`).
 <!-- /feature -->
@@ -37,3 +38,4 @@ No arguments.
 - `op-filter-date-ranges` — keep/drop rows by labeled date range.
 - `op-group-numeric-ranges` — bucket a number into labeled half-open ranges.
 - `tool-label-tables` — the parallel discovery tool for categorical label tables.
+- `tool-lookup-tables` — lookup tables, whose axes may name a range table.

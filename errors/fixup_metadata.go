@@ -1944,7 +1944,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_DUPLICATE: {
-		Message: "A name was registered more than once in a single pulse.New call: an operator (or expr function) registered twice in its category, or a label table, range table or population declared both programmatically on Options.Extensions and by a file in its directory (LabelTablesDir / RangeTablesDir / PopulationsDir or their PULSE_*_DIR variables). The kind is under `category`, the name under `name` and, for a directory collision, the file under `path`.",
+		Message: "A name was registered more than once in a single pulse.New call: an operator (or expr function) registered twice in its category, or a label table, range table, lookup table or population declared both programmatically on Options.Extensions and by a file in its directory (LabelTablesDir / RangeTablesDir / LookupTablesDir / PopulationsDir or their PULSE_*_DIR variables). The kind is under `category`, the name under `name` and, for a directory collision, the file under `path`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2122,7 +2122,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_TABLE_UNKNOWN: {
-		Message: "A runtime expression referenced a lookup table that is not registered on the Service.",
+		Message: "An expression's lookup(table, ...) named a lookup table that is not registered on the Service. A literal table name is refused before any record is read — by predict and by the run's entry check alike; a computed one when the call evaluates.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2131,11 +2131,87 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_MISS: {
-		Message: "A lookup() call provided a key tuple that is not present in the table.",
+		Message: "A lookup() call provided a key tuple that is not present in the table, or a null key (`details.null_key`, its 0-based position among the key arguments after the table name). When every key argument is a literal and the table declares key axes, a key off its axis (or the wrong number of keys) is refused before any record is read, by predict and the run alike.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Verify the keys passed to lookup() exist in the registered table, or back the table with a Lookup func that returns a sentinel for unknown keys.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a null key, guard the nullable argument (`k ?? \"<a key the table holds>\"`, or `k == nil ? fallback : lookup(...)`), or filter null rows out first.",
+			},
+		},
+	},
+	PULSE_LOOKUP_FILE_INVALID: {
+		Message: "A lookup-table file is not valid JSON in one of the two accepted shapes: a bare object mapping each joined key to a number, or a wrapped object {\"description\": \"...\", \"rows\": {key: number}}. `details.reason` names the fault (json_invalid, not_object, duplicate_key, unknown_key, description_not_string, rows_not_object, complete_not_bool); `details.key` the offending key where there is one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rewrite the file as {\"k1|k2\": 1.5, ...} or {\"description\": \"...\", \"rows\": {\"k1|k2\": 1.5}}; join multi-part keys with |, list each key once, and drop any top-level key but description, rows, keys and complete (a boolean) from the wrapped form.",
+			},
+		},
+	},
+	PULSE_LOOKUP_CELL_NOT_NUMERIC: {
+		Message: "A lookup-table file cell is not a finite JSON number; a lookup table maps keys to numbers only. `details.key` names the cell.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Write the cell under `details.key` as a JSON number (1.5, not \"1.5\"); for a key-to-text map use a label table instead.",
+			},
+		},
+	},
+	PULSE_LOOKUP_TABLE_EMPTY: {
+		Message: "A lookup-table file declares no rows, so every lookup against it would miss.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Add at least one key/number row, or delete the file so no empty table is registered.",
+			},
+		},
+	},
+	PULSE_LOOKUP_AXIS_INVALID: {
+		Message: "A lookup table's declared key axes are malformed. `keys` is a non-empty array with one axis per lookup() argument, each {\"name\", \"values\": [...]} or {\"name\", \"range_table\": \"<name>\"} (never both); names are unique, values non-empty strings without the | key separator, a referenced range table must be registered and its labels free of |, `complete` needs `keys`, and a function-driven (Lookup) table declares no axes. `details.reason` names the fault, `details.axis` the axis.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the axis named in `details.axis` per `details.reason`: give it a unique name and exactly one of values (non-empty strings, no |) or range_table (a registered range table whose labels contain no |); drop `complete` from a table without keys.",
+			},
+		},
+	},
+	PULSE_LOOKUP_KEY_ARITY: {
+		Message: "A row key of a lookup table with declared axes splits on | into a different number of parts than the table has axes. `details.key` is the row, `details.want` the axis count, `details.got` the part count.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rewrite the row key under `details.key` as one value per axis joined with | (e.g. \"east|low\" for two axes), or correct `keys`.",
+			},
+		},
+	},
+	PULSE_LOOKUP_KEY_OFF_AXIS: {
+		Message: "A row key of a lookup table with declared axes has a part that is not a value of its axis (for a range-table axis, not one of the range table's labels). `details.axis` and `details.position` name the axis, `details.value` the part.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Correct the part `details.value` of row `details.key` to one of the axis's values, or add the value to the axis (or the label to its range table).",
+			},
+		},
+	},
+	PULSE_LOOKUP_KEY_COLLISION: {
+		Message: "Two declared key combinations of a lookup table join to the same | key because an axis lists a value more than once. `details.axis` is the axis, `details.key` the repeated value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "List each value of the axis under `details.axis` once.",
+			},
+		},
+	},
+	PULSE_LOOKUP_TABLE_INCOMPLETE: {
+		Message: "A lookup table declared `complete` lacks a cell of its axes' cross product. `details.key` is the first missing joined key in axis order, `details.cells` the cross-product size, `details.rows` the rows present.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Add a row for every combination of axis values (starting with `details.key`), or drop `complete` so unlisted combinations miss at run time with PULSE_LOOKUP_MISS.",
 			},
 		},
 	},
@@ -2979,20 +3055,24 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A range grouper or filterer (or a materialize output column's bucket.range_table) referenced a range table by a name that is not registered.",
+		Message: "A range grouper or filterer, a materialize output column's bucket.range_table, or an expression's range_label(table, x) referenced a range table by a name that is not registered (or hidden by the instance's feature profile).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Set Params.table to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
+				Hint:   "Set Params.table (or range_label's first argument) to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
 			},
 		},
 	},
 	PULSE_RANGE_TABLE_KIND_MISMATCH: {
-		Message: "A range operator (or a materialize output column's bucket) referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table. A bucket reads a numeric table on a numeric column and a date table on a date / datetime column.",
+		Message: "A range operator (or a materialize output column's bucket) referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table. A bucket reads a numeric table on a numeric column and a date table on a date / datetime column. In an expression, range_label(table, x) refused an x its table cannot match: a numeric table matches a number, a date table an epoch-day number (details.got names the value's kind).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Use GROUP_DATE_RANGES / FILTER_DATE_RANGES with a date table and GROUP_NUMERIC_RANGES with a numeric table; pulse_range_tables (Pulse.RangeTables) reports each table's kind. Otherwise point Params.table at a table of the operator's kind, or author the ranges inline.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For range_label, pass a number to a numeric table and an epoch day to a date table — a date field as is, a datetime through to_day(); a categorical label or other string matches neither.",
 			},
 		},
 	},

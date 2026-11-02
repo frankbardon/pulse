@@ -1099,10 +1099,85 @@ however you want, perform partial-match fallback, or pull from an
 external store.
 
 At evaluation time `lookup()` raises `PULSE_LOOKUP_TABLE_UNKNOWN` for
-an unregistered table and `PULSE_LOOKUP_MISS` for a missing key. Both
-wrap into `PROCESSING_RUNTIME` when surfaced through `ATTR_FORMULA` /
-`FILTER_EXPRESSION` — use `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
-to detect inside the chain.
+an unregistered table and `PULSE_LOOKUP_MISS` for a missing key. A null
+key (a null field binds `nil`) is also `PULSE_LOOKUP_MISS`, raised before a
+`Lookup` func runs, with `details.null_key` = its 0-based position among the
+key arguments (the table name is not counted) and `details.table`. Each
+fails the run under its own code with its details — through `ATTR_FORMULA`
+(Materialize included), `FILTER_EXPRESSION`, `total()` or a regression
+holdout alike, never wrapped as `PROCESSING_RUNTIME` — so a CLI or MCP
+envelope reports it as is; `errors.HasCode(err, errors.PULSE_LOOKUP_MISS)`
+also finds it. A call whose table name and keys are literals is judged
+before any record is read, by predict and by the run's entry check alike
+(an unknown table, or an off-axis / wrong-count / literal `nil` key on a
+table declaring `keys`); a computed argument is judged per row.
+
+Lookup tables also load from a directory: `Options.LookupTablesDir` (or
+`PULSE_LOOKUP_TABLES_DIR`; the option wins) registers every `*.json` file
+directly in it under its file stem. A file is a bare `{key: number}` object
+or a wrapped `{"description": "...", "rows": {key: number}}` — multi-part
+keys joined with `|`. Pulse's own sidecars are skipped; any other file that
+does not parse fails `pulse.New` naming its path, with
+`PULSE_LOOKUP_FILE_INVALID` (bad JSON or shape, a duplicated key, an
+unknown wrapped key — `details.reason`), `PULSE_LOOKUP_CELL_NOT_NUMERIC`
+or `PULSE_LOOKUP_TABLE_EMPTY`. A name declared both in code and on disk is
+`PULSE_EXTENSION_DUPLICATE` (`details.category` `lookup_table`). To check a
+user-supplied file exactly as the loader does, call
+`pulse.ParseLookupTableFile(name, data)` — it is the loader's parser and
+returns the same codes.
+
+**Declared axes.** A table may declare its key axes so a typo, a wrong key
+count or an uncovered cell fails at `pulse.New`, not mid-run. In code set
+`LookupTable.Keys` (one `pulse.LookupAxis` per `lookup()` key argument, in
+order) and optionally `Complete`; in a file, the wrapped form adds:
+
+```json
+{
+  "keys": [
+    {"name": "region", "values": ["east", "west"]},
+    {"name": "score", "range_table": "score_bands"}
+  ],
+  "complete": true,
+  "rows": {"east|low": 1.07, "east|high": 0.98, "west|low": 1.1, "west|high": 1.0}
+}
+```
+
+Each axis is `{name, values}` or `{name, range_table}` — never both; a
+range-table axis takes the registered range table's labels as its values,
+resolved at `pulse.New` after every loader, so it may name a table from
+`Options.RangeTablesDir`. Then every row key must split on `|` into one
+value per axis (`PULSE_LOOKUP_KEY_ARITY`), each on its axis
+(`PULSE_LOOKUP_KEY_OFF_AXIS`); a value listed twice on an axis is
+`PULSE_LOOKUP_KEY_COLLISION`; a malformed axis, a `|` in an axis value or
+in a referenced range table's label, an unknown range table, `complete`
+without `keys`, or axes on a `Lookup` table is `PULSE_LOOKUP_AXIS_INVALID`
+(`details.reason`). `complete: true` makes a missing cross-product cell
+`PULSE_LOOKUP_TABLE_INCOMPLETE`; without it the table is sparse and an
+unlisted combination misses at run time (`PULSE_LOOKUP_MISS`).
+`ParseLookupTableFile` runs the per-file checks; range-table axes are
+judged only at `pulse.New`. The manifest's `extensions.lookup_tables`
+entries carry `keys` (name, `values` or `range_table`) and `complete`,
+never the cells; so do `(*Pulse).LookupTables()` and the MCP tool
+`pulse_lookup_tables` (plus a `cell_count`). The feature
+`capability:lookup_tables` gates all of it: a feature profile hiding it
+registers no lookup table at `pulse.New` (the files are still parsed and
+validated), so `lookup()` is an unknown function and the tool is not
+mounted.
+
+A range-table axis pairs with the built-in `range_label(table, x[,
+unmatched])`: an expression turns a number (half-open `[start, end)`,
+exact past 2^53 and for decimals) or an epoch day (inclusive; a
+`datetime` through `to_day` first) into the label of the registered
+range holding it — null for a null `x`, the `unmatched` label (else null)
+for a value no range holds — and keys the grid with it:
+`lookup("rate_grid", range_label("score_bands", score), range_label("ltv_bands", ltv))`.
+An unknown table (or one hidden with `capability:range_tables`) is
+`PULSE_RANGE_TABLE_UNKNOWN`, a value the table's kind cannot match
+`PULSE_RANGE_TABLE_KIND_MISMATCH`. It reaches the formula attribute
+(Materialize's included), the expression filter, `total()`, Compose
+optimize and the overlay formula, and is declared on every instance.
+The name is reserved: an `ExprFunctions` entry named `range_label` is
+`PULSE_EXTENSION_NAME_RESERVED`. Skill: `lookup-formulas`.
 
 ### Reference vectors
 
@@ -2091,11 +2166,13 @@ a v1.x release.
 
 - **Named tables are not features.** `LookupTables`, `ReferenceVectors`,
   `LabelTables` and `RangeTables` are listed in no feature profile, so a
-  profile cannot hide a `lookup()` or `ref()` table, and they sit outside
-  `feature_set_digest`: two instances differing only in registered tables
-  share a digest. (The `capability:labels` / `capability:range_tables`
-  capabilities gate how a table is *resolved*, not whether it exists.)
-  Validity of an expression never depends on the profile.
+  profile cannot hide one table by name (a `ref()` table never), and they
+  sit outside `feature_set_digest`: two instances differing only in
+  registered tables share a digest. (The `capability:labels` /
+  `capability:range_tables` capabilities gate how a table is *resolved*,
+  not whether it exists; `capability:lookup_tables` hides every lookup
+  table at once — with it off `pulse.New` registers none, so `lookup()`
+  is an unknown function on that instance.)
 - **Extension test `Interpretation` is structure-only.** An extension
   declares no output keys, so `pulse.New` checks path syntax, `Means` /
   `Shared`, `Bands` and `Sign` shape but cannot check that a path names

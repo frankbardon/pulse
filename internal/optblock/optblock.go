@@ -16,8 +16,9 @@
 //   - the batch params as params.<name> (exprenv.Bound.Params, folded);
 //   - coef(fit, term[, stat]) over the batch's `fits` — every
 //     all-literal call judged statically by model.CheckCoef;
-//   - the expression built-ins (hill(), exp(), …), the embedder's
-//     ExprFunctions and, with a registered LookupTable, lookup().
+//   - the expression built-ins (hill(), exp(), …), range_label(), the
+//     embedder's ExprFunctions and, with a registered LookupTable,
+//     lookup().
 //
 // No record field is in reach. A bound or start is a number or a
 // params reference, resolved here.
@@ -45,6 +46,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -92,6 +94,10 @@ type Env struct {
 	// registered LookupTable (lookup() is declared).
 	Extensions []string
 	Lookup     bool
+	// Tables are the instance's named tables the literal lookup() /
+	// range_label() calls are judged against (internal/tablecall —
+	// the evaluating builtins' codes); nil judges none.
+	Tables tablecall.Catalog
 	// Outer is the namespace a block's `models` entry may not rebind:
 	// the instance's registered populations and the batch's fits
 	// (model.WithinCatalog). Nil checks the entries against each other
@@ -170,7 +176,7 @@ func CheckLoaded(specs []types.OptimizeSpec, env Env) ([]*model.Loaded, *errors.
 // exprenv.Placeholder: the typed declaration a runtime compile binds,
 // never run.
 func placeholderBound(env Env) exprenv.Bound {
-	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder}
+	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
 	for _, n := range env.Extensions {
 		b.Extensions = append(b.Extensions, exprenv.NamedFunc{Name: n, Fn: exprenv.Placeholder})
 	}
@@ -383,10 +389,11 @@ func checkVariableName(spec *types.OptimizeSpec, i int, vat, name string, reserv
 
 // reservedNames are the identifiers a decision variable may not take:
 // params, $env, every expression function in reach (the reserved
-// built-ins, coef, lookup, the set helpers, the embedder's functions)
+// built-ins, coef, lookup, range_label, the set helpers, the embedder's
+// functions)
 // and expr-lang's own built-ins.
 func reservedNames(env Env) map[string]bool {
-	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true}
+	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true}
 	for _, n := range exprenv.Names() {
 		out[n] = true
 	}
@@ -476,7 +483,8 @@ func compileOptions(names []string, bound exprenv.Bound) []expr.Option {
 // compileExpr is one objective / constraint expression's rules: the
 // params read, every free identifier a variable (or the params fold),
 // the compile, a numeric result, then every all-literal coef() call
-// against the fits.
+// against the fits and every literal lookup() / range_label() call
+// against the tables.
 func compileExpr(spec *types.OptimizeSpec, i int, field, src string, names []string, env Env, opts []expr.Option) (*vm.Program, *errors.CodedError) {
 	if cerr := exprenv.ParamsRefusal(src, env.Params, false); cerr != nil {
 		return nil, locate(cerr, i, spec.Name, field)
@@ -503,6 +511,9 @@ func compileExpr(spec *types.OptimizeSpec, i int, field, src string, names []str
 			"yields "+t.String()+", not a number", map[string]any{"result_type": t.String()})
 	}
 	if cerr := coefcall.StaticRefusal(src, env.Fits); cerr != nil {
+		return nil, locate(cerr, i, spec.Name, field)
+	}
+	if cerr := tablecall.Refusal(prog.Node(), env.Tables); cerr != nil {
 		return nil, locate(cerr, i, spec.Name, field)
 	}
 	return prog, nil

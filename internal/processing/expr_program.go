@@ -1,6 +1,7 @@
 package processing
 
 import (
+	stderrors "errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -261,8 +262,36 @@ func (p *exprProgram) evalError(err error) error {
 		// invalid vnormalize mode is the request's, under its own code.
 		return r
 	}
+	if r := tableRefusal(err); r != nil {
+		return r
+	}
 	return errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
 		fmt.Sprintf("evaluating %s expression: %s", p.what, p.src))
+}
+
+// tableRefusal returns a lookup() / range_label() fault inside an
+// expression evaluation error — PULSE_LOOKUP_MISS (an absent or null
+// key), PULSE_LOOKUP_TABLE_UNKNOWN, PULSE_RANGE_TABLE_UNKNOWN or
+// PULSE_RANGE_TABLE_KIND_MISMATCH — so a fatal run carries the table's
+// own code (and its details: table, keys, null_key), the code predict
+// raises for the same literal fault, never the generic
+// PROCESSING_RUNTIME wrapper. Unlike exprRefusal it does not change
+// what a null-input row swallows: a filter or total() still drops a row
+// whose null field made the call fail.
+func tableRefusal(err error) *errors.CodedError {
+	for e := err; e != nil; {
+		var ce *errors.CodedError
+		if !stderrors.As(e, &ce) {
+			return nil
+		}
+		switch ce.Code {
+		case errors.PULSE_LOOKUP_MISS, errors.PULSE_LOOKUP_TABLE_UNKNOWN,
+			errors.PULSE_RANGE_TABLE_UNKNOWN, errors.PULSE_RANGE_TABLE_KIND_MISMATCH:
+			return ce
+		}
+		e = ce.Cause
+	}
+	return nil
 }
 
 // settleInputs keeps the referenced names the declaration binds — the

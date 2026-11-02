@@ -37,7 +37,8 @@ func fidRegistry() *processing.ExtensionRegistry {
 }
 
 // TestPredicateDependencies: which tables a predicate keys on, and when
-// it is opaque. Names come from literal lookup() / ref() arguments and
+// it is opaque. Names come from literal lookup() / ref() / range_label()
+// arguments and
 // FILTER_DATE_RANGES params.table; a non-literal name reads every table
 // of its kind; repeats collapse; unregistered names add nothing.
 func TestPredicateDependencies(t *testing.T) {
@@ -69,6 +70,10 @@ func TestPredicateDependencies(t *testing.T) {
 		"mixed_sorted":      {expr: `x > lookup("big", "k")`, direct: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "d", Params: win}}, want: []ref{{"lookup", "big"}, {"range", "win"}}},
 		"unparseable":       {expr: `x > (`},
 		"lookup_in_literal": {expr: `s == "lookup(\"big\")"`},
+		"range_label":       {expr: `range_label("win", d) == "q1"`, want: []ref{{"range", "win"}}},
+		"range_label_dyn":   {expr: `range_label(t, d) == "q1"`, want: []ref{{"range", "spare"}, {"range", "win"}}},
+		"range_label_both":  {expr: `range_label("win", d) == "q1"`, direct: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "d", Params: win}}, want: []ref{{"range", "win"}}},
+		"range_label_unreg": {expr: `range_label("nope", d) == "q1"`},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -126,5 +131,32 @@ func TestPredicateDependencies_DigestDeterministic(t *testing.T) {
 		if reflect.DeepEqual(got, first) {
 			t.Fatalf("%s: a content change left the digests unmoved", name)
 		}
+	}
+}
+
+// TestPredicateDependencies_RangeLabelDigest: a predicate reading a
+// range table only through range_label() keys on that table's content —
+// a range-table edit moves its identity, an edit to a table it does not
+// name never does.
+func TestPredicateDependencies_RangeLabelDigest(t *testing.T) {
+	t.Parallel()
+
+	expr := `range_label("win", d) == "q1"`
+	first, opaque := predicateDependencies(fidRegistry(), expr, nil)
+	if len(first) != 1 || opaque {
+		t.Fatalf("tables %v opaque %v, want the one range table", first, opaque)
+	}
+	end := "2024-04-30"
+	edited := fidRegistry()
+	win := edited.RangeTables["win"]
+	win.Ranges = []processing.DateRangeSpec{{Label: "q1", Start: win.Ranges[0].Start, End: &end}}
+	edited.RangeTables["win"] = win
+	if got, _ := predicateDependencies(edited, expr, nil); reflect.DeepEqual(got, first) {
+		t.Fatal("a range-table edit left the identity unmoved")
+	}
+	other := fidRegistry()
+	other.RangeTables["spare"] = processing.RangeTable{Ranges: []processing.DateRangeSpec{{Label: "zz", End: &end}}}
+	if got, _ := predicateDependencies(other, expr, nil); !reflect.DeepEqual(got, first) {
+		t.Fatal("an edit to an unnamed range table moved the identity")
 	}
 }

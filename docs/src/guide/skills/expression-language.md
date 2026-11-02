@@ -4,7 +4,7 @@ description: The per-row expression environment shared by the formula attribute 
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, ExprFunctions, coef]
+covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, range_label, ExprFunctions, coef]
 ```
 
 # Expression language
@@ -18,9 +18,9 @@ A field is named bare and binds by schema type:
 | Field type | Binds as | Write |
 |---|---|---|
 | numeric (`u*`, `f*`) | number (`u64` compares exactly) | `weight_kg / (height_m ** 2)` |
-| `categorical_*` | dictionary STRING, never the index | `brand == "Apple"`, `region in ["NA", "EU"]` |
-| `set_*` | sorted `[]string` of member labels (synth rule: `map[string]bool`, [`synth-set-fields`](synth-set-fields.md)) | `"a" in tags`, `has_any(tags, "a", "b")` |
-| `decimal128` | exact decimal — operators and numeric functions ([`decimal-formulas`](decimal-formulas.md)) | `price / cost > 1.2`, `float(price) * 1.5` |
+| `categorical_*` | dictionary STRING, never the index | `region in ["NA", "EU"]` |
+| `set_*` | sorted `[]string` of member labels (synth rule: `map[string]bool`, [`synth-set-fields`](synth-set-fields.md)) | `has_any(tags, "a", "b")` |
+| `decimal128` | exact decimal — operators and numeric functions ([`decimal-formulas`](decimal-formulas.md)) | `price / cost > 1.2` |
 | `date` / `datetime` | epoch days / seconds; `weekday` `month_index` `date_trunc` `to_day` ([`calendar-formulas`](calendar-formulas.md)) | `month_index(order_day)` |
 
 Categorical arithmetic errors; branch on the label.
@@ -34,14 +34,14 @@ Categorical arithmetic errors; branch on the label.
 
 ## Vector and maths built-ins
 
-A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is NaN. A request's named vector binds by name, `vmean(battery)` (null member → NaN); `cosine` / `dist` on a poorly fitting `kind` warns ([`vector-metrics`](vector-metrics.md)). Reductions skip NaN; none valid → NaN, `vsum` too.
+A vector is a literal list, `[q1, q2, q3]`; a `nil` element is NaN. A request's named vector binds by name, `vmean(battery)` (null member → NaN); `cosine` / `dist` on a poorly fitting `kind` warns ([`vector-metrics`](vector-metrics.md)). Reductions skip NaN; none valid → NaN, `vsum` too.
 
 | Function | Result |
 |---|---|
 | `vsum` `vmean` `vmin` `vmax` `norm` (L2) | float |
-| `vcount` | int count of valid elements |
+| `vcount` | int, valid elements |
 | `vsd` | sample SD (ddof 1); < 2 valid → NaN |
-| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (build + predict) |
+| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (build + predict) |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level, a wrong arity or a literal bad mode → `PROCESSING_CONFIG` (build + predict) |
 | `sqrt` `log` (natural) `log1p` `exp` `pow(score, 2)` | scalar (`sqrt(-1)` NaN); all an overlay formula admits |
@@ -50,7 +50,7 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
-Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire. An `ExprFunctions` entry using a reserved name → `PULSE_EXTENSION_NAME_RESERVED`.
+Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire.
 
 ## Null handling
 
@@ -63,7 +63,7 @@ Compiled once, predict included: bad syntax, unknown name or type error → `PUL
 
 ## Embedder extensions
 
-`Options.Extensions.ExprFunctions` adds functions; `LookupTables` as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`.
+`Options.Extensions.ExprFunctions` adds functions (a reserved name → `PULSE_EXTENSION_NAME_RESERVED`); `ReferenceVectors` read as `ref`; `lookup(table, keys...)` and `range_label(table, x[, unmatched])` read `LookupTables` / `RangeTables` — banded keys `lookup("rate", range_label("bands", score))`; misses, nulls, codes: [`lookup-formulas`](lookup-formulas.md).
 
 ## Bound models
 

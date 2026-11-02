@@ -143,17 +143,19 @@ func TestProfileDefaultIsFull(t *testing.T) {
 }
 
 const (
-	sweepLabelTable = "sweep_label_tbl"
-	sweepRangeTable = "sweep_range_tbl"
+	sweepLabelTable  = "sweep_label_tbl"
+	sweepRangeTable  = "sweep_range_tbl"
+	sweepLookupTable = "sweep_lookup_tbl"
 )
 
-// sweepNamedTables registers one label table and one range table so the
+// sweepNamedTables registers one label, range and lookup table so the
 // sweep can prove a hidden capability's table names never surface.
 func sweepNamedTables() Extensions {
 	start := "2024-01-01"
 	return Extensions{
-		LabelTables: map[string]LabelTable{sweepLabelTable: {Rows: map[string]string{"1": "one"}}},
-		RangeTables: map[string]RangeTable{sweepRangeTable: {Ranges: []DateRangeSpec{{Label: "all", Start: &start}}}},
+		LabelTables:  map[string]LabelTable{sweepLabelTable: {Rows: map[string]string{"1": "one"}}},
+		RangeTables:  map[string]RangeTable{sweepRangeTable: {Ranges: []DateRangeSpec{{Label: "all", Start: &start}}}},
+		LookupTables: map[string]LookupTable{sweepLookupTable: {Rows: map[string]float64{"1": 1}}},
 	}
 }
 
@@ -179,8 +181,9 @@ func TestProfileHiddenNameSweep(t *testing.T) {
 			// hidden table names.
 			inst := p.svc.InstanceSnapshot()
 			for feat, tbl := range map[string]string{
-				"capability:labels":       sweepLabelTable,
-				"capability:range_tables": sweepRangeTable,
+				"capability:labels":        sweepLabelTable,
+				"capability:range_tables":  sweepRangeTable,
+				"capability:lookup_tables": sweepLookupTable,
 			} {
 				if !inst.Enabled(feat) {
 					hidden[tbl] = true

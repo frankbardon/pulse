@@ -652,6 +652,10 @@ pulse: type LoadMemberSetResult field Invalid int
 pulse: type LoadMemberSetResult field Lines int
 pulse: type LoadMemberSetResult field NotInDictionary int
 pulse: type LoadMemberSetResult field Set pulse.MemberSet
+pulse: type LookupAxis struct
+pulse: type LookupAxis field Name string
+pulse: type LookupAxis field RangeTable string
+pulse: type LookupAxis field Values []string
 pulse: type LookupKey = pulse/types.LookupKey
 pulse: type LookupKey underlying struct
 pulse: type LookupKey field Field string "json:\"field\""
@@ -676,9 +680,18 @@ pulse: type LookupResult underlying struct
 pulse: type LookupResult field Rows []map[string]any "json:\"rows\""
 pulse: type LookupResult field Warnings []string "json:\"warnings,omitempty\""
 pulse: type LookupTable struct
+pulse: type LookupTable field Complete bool
 pulse: type LookupTable field Description string
+pulse: type LookupTable field Keys []pulse.LookupAxis
 pulse: type LookupTable field Lookup func(keys ...string) (value float64, ok bool, err error)
 pulse: type LookupTable field Rows map[string]float64
+pulse: type LookupTableInfo struct
+pulse: type LookupTableInfo field CellCount *int "json:\"cell_count,omitempty\""
+pulse: type LookupTableInfo field Complete bool "json:\"complete\""
+pulse: type LookupTableInfo field Description string "json:\"description,omitempty\""
+pulse: type LookupTableInfo field HasRowsData bool "json:\"has_rows_data\""
+pulse: type LookupTableInfo field Keys []pulse/descriptor.LookupAxisMeta "json:\"keys\""
+pulse: type LookupTableInfo field Name string "json:\"name\""
 pulse: type MaterializeOptions struct
 pulse: type MaterializeOptions field Overwrite bool
 pulse: type MaterializeOptions field Strict bool
@@ -739,6 +752,7 @@ pulse: type Options field ImportsDir string
 pulse: type Options field LabelTablesDir string
 pulse: type Options field Limits pulse.Limits
 pulse: type Options field Logger *log/slog.Logger
+pulse: type Options field LookupTablesDir string
 pulse: type Options field Metrics pulse/observe.Metrics
 pulse: type Options field PopulationsDir string
 pulse: type Options field ProjectBufferedFields bool
@@ -757,6 +771,7 @@ pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
 pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
+pulse: func ParseLookupTableFile(name string, data []byte) (pulse.LookupTable, error)
 pulse: type Population struct
 pulse: type Population field File []byte
 pulse: type Profile = pulse/synth.Profile
@@ -836,6 +851,7 @@ pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) 
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
+pulse: type Pulse method (*Pulse) LookupTables() []pulse.LookupTableInfo
 pulse: type Pulse method (*Pulse) Manifest(ctx context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) ManifestForIntent(ctx context.Context, intent string) (*pulse/descriptor.Manifest, error)
 pulse: type Pulse method (*Pulse) Materialize(ctx context.Context, req *pulse.Request, out string, opts pulse.MaterializeOptions) (*pulse.MaterializeResult, error)
@@ -1715,9 +1731,15 @@ pulse/descriptor: type LimitMeta field Default int64 "json:\"default\""
 pulse/descriptor: type LimitMeta field Name string "json:\"name\""
 pulse/descriptor: type LimitMeta field Unit string "json:\"unit\""
 pulse/descriptor: type LimitMeta field Value int64 "json:\"value\""
+pulse/descriptor: type LookupAxisMeta struct
+pulse/descriptor: type LookupAxisMeta field Name string "json:\"name\""
+pulse/descriptor: type LookupAxisMeta field RangeTable string "json:\"range_table,omitempty\""
+pulse/descriptor: type LookupAxisMeta field Values []string "json:\"values,omitempty\""
 pulse/descriptor: type LookupTableMeta struct
+pulse/descriptor: type LookupTableMeta field Complete bool "json:\"complete,omitempty\""
 pulse/descriptor: type LookupTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type LookupTableMeta field HasRowsData bool "json:\"has_rows_data\""
+pulse/descriptor: type LookupTableMeta field Keys []pulse/descriptor.LookupAxisMeta "json:\"keys,omitempty\""
 pulse/descriptor: type LookupTableMeta field Name string "json:\"name\""
 pulse/descriptor: type MCPTool struct
 pulse/descriptor: type MCPTool field Description string "json:\"description\""
@@ -2790,8 +2812,16 @@ pulse/errors: const PULSE_LABEL_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LABEL_T
 pulse/errors: const PULSE_LIMIT_EXCEEDED pulse/errors.Code = "PULSE_LIMIT_EXCEEDED"
 pulse/errors: const PULSE_LIMIT_INVALID pulse/errors.Code = "PULSE_LIMIT_INVALID"
 pulse/errors: const PULSE_LOOKUP_AMBIGUOUS pulse/errors.Code = "PULSE_LOOKUP_AMBIGUOUS"
+pulse/errors: const PULSE_LOOKUP_AXIS_INVALID pulse/errors.Code = "PULSE_LOOKUP_AXIS_INVALID"
+pulse/errors: const PULSE_LOOKUP_CELL_NOT_NUMERIC pulse/errors.Code = "PULSE_LOOKUP_CELL_NOT_NUMERIC"
+pulse/errors: const PULSE_LOOKUP_FILE_INVALID pulse/errors.Code = "PULSE_LOOKUP_FILE_INVALID"
+pulse/errors: const PULSE_LOOKUP_KEY_ARITY pulse/errors.Code = "PULSE_LOOKUP_KEY_ARITY"
+pulse/errors: const PULSE_LOOKUP_KEY_COLLISION pulse/errors.Code = "PULSE_LOOKUP_KEY_COLLISION"
+pulse/errors: const PULSE_LOOKUP_KEY_OFF_AXIS pulse/errors.Code = "PULSE_LOOKUP_KEY_OFF_AXIS"
 pulse/errors: const PULSE_LOOKUP_MISS pulse/errors.Code = "PULSE_LOOKUP_MISS"
 pulse/errors: const PULSE_LOOKUP_NOT_FOUND pulse/errors.Code = "PULSE_LOOKUP_NOT_FOUND"
+pulse/errors: const PULSE_LOOKUP_TABLE_EMPTY pulse/errors.Code = "PULSE_LOOKUP_TABLE_EMPTY"
+pulse/errors: const PULSE_LOOKUP_TABLE_INCOMPLETE pulse/errors.Code = "PULSE_LOOKUP_TABLE_INCOMPLETE"
 pulse/errors: const PULSE_LOOKUP_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LOOKUP_TABLE_UNKNOWN"
 pulse/errors: const PULSE_MATERIALIZE_CAST_FAILED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_FAILED"
 pulse/errors: const PULSE_MATERIALIZE_CAST_NULLED pulse/errors.Code = "PULSE_MATERIALIZE_CAST_NULLED"
@@ -6621,4 +6651,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8352a9895ebff8f4411fc818edfeaa4cc9556722f593cf28e62b57ad8021bede
+// golden-hash: 4f846a776c426979dfcc77c393c90c48d025b869165feb51360df1415b8c8638

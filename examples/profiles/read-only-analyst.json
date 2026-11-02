@@ -22,6 +22,7 @@
     "capability:templates",
     "capability:labels",
     "capability:range_tables",
+    "capability:lookup_tables",
     "capability:weighting",
     "capability:multiplicity",
     "capability:matrices",

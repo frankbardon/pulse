@@ -70,6 +70,7 @@ skills/intents.md
 skills/item-fan-out.md
 skills/join-design.md
 skills/label-display.md
+skills/lookup-formulas.md
 skills/materialize-casts.md
 skills/materialize-container.md
 skills/materialize-recode.md
@@ -380,6 +381,7 @@ skills/tool-imports-list.md
 skills/tool-inspect.md
 skills/tool-label-resolve.md
 skills/tool-label-tables.md
+skills/tool-lookup-tables.md
 skills/tool-lookup.md
 skills/tool-manifest.md
 skills/tool-materialize.md

@@ -23,7 +23,7 @@ func (s *Service) optimizeRefusal(composed *types.ComposedRequest, ext *composeE
 	if len(composed.Optimize) == 0 {
 		return nil, nil
 	}
-	loaded, cerr := descx.OptimizeRefusal(composed, ext.sweepAxes(), s.exprFunctionNames(), s.hasLookup(), s.populationCatalog(), s.optimizeLoader)
+	loaded, cerr := descx.OptimizeRefusal(composed, ext.sweepAxes(), s.exprFunctionNames(), s.extensions.TablesCatalog(), s.populationCatalog(), s.optimizeLoader)
 	if cerr != nil {
 		return nil, cerr
 	}
@@ -87,6 +87,7 @@ func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *compo
 		Fits:       catalog,
 		Extensions: s.exprFunctionNames(),
 		Lookup:     s.hasLookup(),
+		Tables:     s.extensions.TablesCatalog(),
 		Outer:      model.WithinCatalog(s.populationCatalog(), catalog),
 		Load:       s.optimizeLoader,
 		Loaded:     loaded,

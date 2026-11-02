@@ -37,7 +37,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 23. Export predict is target-aware
 24. Projected buffered decode
 25. Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import transfer`)
-26. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`
+26. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR`
 27. Model file — `.pulse-model.json` (`model_format_version` 1 to 6)
 28. Population file — `.pulse-population.json` (`population_format_version` 1)
 29. SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3)
@@ -53,7 +53,8 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 | `byte-layout/format-and-groups.md` | The contract; Format version — `0x01` / `0x02`; Parent groups — the `0x02` group descriptor; Global-constant elision — opt-in, full-pass detection; Import-time group declaration — `--group` / `ImportJob.Groups`; Per-group viability gate — `PULSE_GROUP_TOO_NARROW` / `PULSE_DEDUP_LOW_RATIO` / `--strict`; Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup` |
 | `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3); Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
 | `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS…; Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage |
-| `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran…; Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`… |
+| `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran… |
+| `byte-layout/table-directories.md` | Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` (file formats, sidecar skip, collisions, the populations directory) |
 | `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType` (cohort-reshape E6-S2); Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4) |
 | `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1 to 6); Population file — `.pulse-population.json` (`population_format_version` 1); SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3) |
 | `byte-layout/history.md` (not loaded by default) | CLAUDE.md's sidecar contract sentence, pre-compression (relocated verbatim at weighting…; Contract: `.claude/reference/byte-layout.md` — load it before touching any of these. No… |

@@ -85,6 +85,13 @@ func withoutHiddenExtensions(ext Extensions, set descx.FeatureSet) Extensions {
 	if _, h := hidden[descx.FeatureModels]; h {
 		out.Populations = nil
 	}
+	// Lookup tables (programmatic and directory-loaded alike, both
+	// already validated) ride capability:lookup_tables: a profile
+	// hiding it registers none, so lookup() is undeclared at predict and
+	// at run and the manifest lists no table.
+	if _, h := hidden[descx.FeatureLookupTables]; h {
+		out.LookupTables = nil
+	}
 	return out
 }
 

@@ -1,0 +1,10 @@
+{
+  "description": "Credit-score bands for the rate grid; each band is half-open [start, end), the top band open-ended",
+  "ranges": [
+    {"label": "620-659", "start": 620, "end": 660},
+    {"label": "660-699", "start": 660, "end": 700},
+    {"label": "700-739", "start": 700, "end": 740},
+    {"label": "740-779", "start": 740, "end": 780},
+    {"label": "780+", "start": 780}
+  ]
+}

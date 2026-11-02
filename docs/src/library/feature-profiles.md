@@ -113,7 +113,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -328,8 +328,14 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   `AutoLabels` default naming one is not applied, and a date-range
   `table:` fails `PULSE_RANGE_TABLE_UNKNOWN`. `p.LabelTables()` and
   `p.RangeTables()` still return them: facade methods are not gated.
-  Lookup tables (the expression `lookup()` function) have no
-  capability and always resolve. `p.ManifestForIntent(ctx, intent)`
+  Lookup tables ride `capability:lookup_tables`: with it off the
+  instance registers none — tables set in code and files under
+  `Options.LookupTablesDir` alike (the files are still checked, so a
+  bad one still fails `pulse.New`) — so `lookup()` is an unknown
+  function, `extensions.lookup_tables` is `[]`, `p.LookupTables()`
+  lists none, the `pulse_lookup_tables` MCP tool is not mounted and the lookup-table
+  error codes are not listed. `range_label()` follows
+  `capability:range_tables` only. `p.ManifestForIntent(ctx, intent)`
   narrows this same instance view to one intent, so it never lists a
   hidden operator either; an intent the profile prunes (every operator
   serving it hidden) is `PULSE_RECOMMEND_INTENT_UNKNOWN`.

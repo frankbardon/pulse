@@ -30,10 +30,19 @@ const SweepAxisFunc = "sweep_axis"
 // declared only when the instance registers a LookupTable.
 const LookupFunc = "lookup"
 
+// RangeLabelFunc is the range-table reader's name,
+// range_label(table, x[, unmatched]): the label of the registered range
+// table's range holding x (numeric half-open, date inclusive epoch
+// days), null for a null x, the unmatched label (else null) when no
+// range holds it. Unlike lookup it is declared on every runtime compile
+// (an unknown or hidden table is a run-time PULSE_RANGE_TABLE_UNKNOWN)
+// and, like sweep_axis, reserved: no embedder function may take it.
+const RangeLabelFunc = "range_label"
+
 // Bound is the request-bound half of the env, layered over [Options] by
 // [Bound.Options] in the order the runtime always registered it: coef,
 // then the embedder's functions (one of which may shadow coef or an
-// unreserved helper), then lookup.
+// unreserved helper), then lookup, then range_label.
 type Bound struct {
 	// Coef is coef()'s implementation; nil leaves coef undeclared (the
 	// overlay formula env, which binds no models).
@@ -47,6 +56,11 @@ type Bound struct {
 	// Lookup is lookup()'s implementation; nil when no LookupTable is
 	// registered, which leaves lookup undeclared.
 	Lookup func(args ...any) (any, error)
+	// RangeLabel is range_label()'s implementation; nil leaves it
+	// undeclared. Declared typed — (string, any) and (string, any,
+	// string), any result (a label string, or nil) — so a non-string
+	// table name or unmatched label fails compile.
+	RangeLabel func(args ...any) (any, error)
 	// Zone is the zone to_day() reads an instant's local day in — the
 	// request's inherited zone (request `time_zone`, then
 	// Options.DefaultTimeZone), resolved by the engine. Nil keeps the
@@ -85,6 +99,12 @@ func (b Bound) Options() []expr.Option {
 	out = append(out, ExtensionFunctions(b.Extensions)...)
 	if b.Lookup != nil {
 		out = append(out, expr.Function(LookupFunc, b.Lookup))
+	}
+	if b.RangeLabel != nil {
+		out = append(out, expr.Function(RangeLabelFunc, b.RangeLabel,
+			new(func(string, any) any),
+			new(func(string, any, string) any),
+		))
 	}
 	return out
 }

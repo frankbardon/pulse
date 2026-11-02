@@ -60,8 +60,8 @@ var (
 	// width promotion, overrides) runs under the managed import pool
 	// AND under Convert / ImportTransfer, which capability:export gates.
 	ownImportExport = own(featImport, featExport)
-	// ownExpr: the expr-lang environment (lookup tables, expr functions)
-	// is reached from the three expression operators; FilterToFile
+	// ownExpr: the expr-lang environment (expr functions; the lookup
+	// codes ride capability:lookup_tables) is reached from the three expression operators; FilterToFile
 	// compiles to FILTER_EXPRESSION, which it hard-depends on.
 	ownExpr = own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA")
 	// ownMetricConsumers: every consumer of the shared metric
@@ -341,8 +341,24 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,
 	errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH:    shared,
 	errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA:     shared,
-	errors.PULSE_LOOKUP_TABLE_UNKNOWN:                   ownExpr,
-	errors.PULSE_LOOKUP_MISS:                            ownExpr,
+	// Every lookup-table code rides capability:lookup_tables: hidden,
+	// pulse.New registers no table, so lookup() is undeclared (no
+	// _TABLE_UNKNOWN / _MISS) and no file or axis fault reaches the
+	// instance's list. The file and declared-axis faults surface at
+	// pulse.New (the directory loader, the extension cross-check) and
+	// from pulse.ParseLookupTableFile — no operator runs; the call
+	// faults from the expression operators (evaluated, and judged
+	// statically for a literal call, internal/tablecall).
+	errors.PULSE_LOOKUP_TABLE_UNKNOWN:    own(featLookupTables),
+	errors.PULSE_LOOKUP_MISS:             own(featLookupTables),
+	errors.PULSE_LOOKUP_FILE_INVALID:     own(featLookupTables),
+	errors.PULSE_LOOKUP_CELL_NOT_NUMERIC: own(featLookupTables),
+	errors.PULSE_LOOKUP_TABLE_EMPTY:      own(featLookupTables),
+	errors.PULSE_LOOKUP_AXIS_INVALID:     own(featLookupTables),
+	errors.PULSE_LOOKUP_KEY_ARITY:        own(featLookupTables),
+	errors.PULSE_LOOKUP_KEY_OFF_AXIS:     own(featLookupTables),
+	errors.PULSE_LOOKUP_KEY_COLLISION:    own(featLookupTables),
+	errors.PULSE_LOOKUP_TABLE_INCOMPLETE: own(featLookupTables),
 
 	// Opening a cohort (single file or archive) is core.
 	errors.PULSE_ARCHIVE_MAGIC_INVALID: shared,
@@ -439,13 +455,16 @@ var errorOwners = map[errors.Code][]string{
 	// capability:range_tables), for the inline ranges of the range
 	// operators and for a materialize output column's bucket
 	// (capability:materialize_output), which also resolves tables.
-	errors.PULSE_RANGE_EMPTY:               own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
-	errors.PULSE_RANGE_INVALID:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
-	errors.PULSE_RANGE_DUPLICATE_LABEL:     own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
-	errors.PULSE_RANGE_OVERLAP:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
-	errors.PULSE_RANGE_SOURCE_AMBIGUOUS:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
-	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
-	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_EMPTY:            own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_INVALID:          own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_DUPLICATE_LABEL:  own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_OVERLAP:          own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	errors.PULSE_RANGE_SOURCE_AMBIGUOUS: own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput),
+	// range_label(table, x) raises both from the expression operators
+	// (evaluated, and judged statically for a literal call by predict
+	// and the runtime's entry check, internal/tablecall).
+	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput, "ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA"),
+	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput, "ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 
 	// Label bindings ride the request's labels slot (part of every
 	// request host, not capability:labels) and sample / facet output, so

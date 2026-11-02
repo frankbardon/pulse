@@ -464,11 +464,12 @@ const (
 	// policy"); FORMULA cannot widen its variable namespace from
 	// outside.
 	//
-	// LookupTables are OUT of scope at v1 — `lookup(...)` is NOT
-	// registered into the FORMULA env. Embedders who need a
-	// lookup-driven overlay register the lookup as a custom
-	// `ExprFunctions` entry instead (full control over the function
-	// signature and predict treatment).
+	// Registered tables reach the FORMULA env through the built-ins
+	// formulaident.AllowedFuncs admits: `lookup(...)` when the instance
+	// registers a LookupTable (none while `capability:lookup_tables` is
+	// hidden), and `range_label(...)` always. A literal unknown table or
+	// off-axis key is refused by predict and by the run before any cell
+	// (PULSE_LOOKUP_* / PULSE_RANGE_TABLE_*, details `index` / `kind`).
 	OverlayKindFormula OverlayKind = "OVERLAY_FORMULA"
 
 	// OverlayKindDeltaVsBaseline emits a per-point additive delta against a

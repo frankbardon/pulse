@@ -57,6 +57,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			r.LookupTables[name] = processing.LookupTable{
 				Rows:   t.Rows,
 				Lookup: t.Lookup,
+				Axes:   lookupAxisValues(t.Keys, ext.RangeTables),
 			}
 		}
 	}

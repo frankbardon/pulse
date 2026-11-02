@@ -10,7 +10,6 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -491,7 +490,7 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 // predict's code, message and Details (spec index included), never the
 // compiler's PULSE_OVERLAY_FORMULA_PARSE_ERROR.
 func requestFormulaIdentRefusal(spec *types.OverlaySpec, exts *ExtensionRegistry, index int, shape types.OverlayShape) *errors.CodedError {
-	return formulaident.RequestSpecRefusalWithParams(spec, index, shape, exts.overlayFormulaFuncs(), exts.Params())
+	return formulaident.RequestSpecRefusalWithTables(spec, index, shape, exts.overlayFormulaFuncs(), exts.Params(), exts.TablesCatalog())
 }
 
 // runFormulaMatrix compiles formula against ctx's MATRIX prototype env
@@ -730,15 +729,11 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 	if cerr := overlayBuiltinRefusal(spec, formula); cerr != nil {
 		return nil, cerr
 	}
-	opts := []expr.Option{expr.Env(protoEnv)}
-	if exts != nil {
-		opts = append(opts, exts.ExprOptions()...)
-	} else {
-		// The shared built-ins (set helpers, vector / scalar maths) and
-		// the `%` patcher — cells are float64 — even without a registry
-		// (internal/exprenv mod.go).
-		opts = append(opts, exprenv.Options()...)
-	}
+	// The registry's options — nil-receiver-safe: without a registry
+	// still the shared built-ins (set helpers, vector / scalar maths),
+	// the `%` patcher (cells are float64; internal/exprenv mod.go) and
+	// range_label, which formulaident.AllowedFuncs always admits.
+	opts := append([]expr.Option{expr.Env(protoEnv)}, exts.ExprOptions()...)
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(

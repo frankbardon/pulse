@@ -251,6 +251,9 @@ type LabelTablesIn struct{}
 // RangeTablesIn is the (empty) input contract for pulse_range_tables.
 type RangeTablesIn struct{}
 
+// LookupTablesIn is the (empty) input contract for pulse_lookup_tables.
+type LookupTablesIn struct{}
+
 // LabelResolveIn is the input contract for pulse_label_resolve.
 type LabelResolveIn struct {
 	Table string `json:"table" jsonschema:"Label table name (from pulse_label_tables, e.g. 'brand')"`
@@ -477,4 +480,9 @@ type LabelResolveOut struct {
 // RangeTablesOut is the output contract for pulse_range_tables.
 type RangeTablesOut struct {
 	Tables []pulse.RangeTableInfo `json:"tables" jsonschema:"Registered range tables (name, range count, ordered labeled date ranges)"`
+}
+
+// LookupTablesOut is the output contract for pulse_lookup_tables.
+type LookupTablesOut struct {
+	Tables []pulse.LookupTableInfo `json:"tables" jsonschema:"Registered lookup tables (name, description, key axes, complete flag, cell count; never cell values)"`
 }

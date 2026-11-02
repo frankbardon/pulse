@@ -1106,6 +1106,35 @@ type LookupTable struct {
 	// error from Lookup surfaces as PULSE_LOOKUP_MISS with the
 	// embedder's message attached.
 	Lookup func(keys ...string) (value float64, ok bool, err error)
+	// Keys optionally declares the table's key axes, one per lookup()
+	// key argument, in argument order. With Keys set, every Rows key
+	// must split on "|" into one value per axis, each on its axis
+	// (PULSE_LOOKUP_KEY_ARITY / PULSE_LOOKUP_KEY_OFF_AXIS at New); a
+	// malformed axis is PULSE_LOOKUP_AXIS_INVALID. Keys is for Rows
+	// tables only — a Lookup table declaring axes is refused. nil = no
+	// declared axes (the keys are free-form, as before).
+	Keys []LookupAxis
+	// Complete requires a Rows cell for every combination of the Keys
+	// axes' values (PULSE_LOOKUP_TABLE_INCOMPLETE at New); it needs
+	// Keys. false = sparse: an unlisted combination misses at run time
+	// with PULSE_LOOKUP_MISS.
+	Complete bool
+}
+
+// LookupAxis is one declared key axis of a LookupTable: a name and
+// exactly one of an inline value list (Values) or a registered range
+// table (RangeTable) whose labels are the axis's values, resolved at
+// pulse.New so the table may come from Options.RangeTablesDir. No value or label may contain the "|"
+// key separator, and an axis lists each value once
+// (PULSE_LOOKUP_KEY_COLLISION).
+type LookupAxis struct {
+	// Name labels the axis; unique within the table.
+	Name string
+	// Values is the inline list of the axis's key values.
+	Values []string
+	// RangeTable names a registered range table whose labels are the
+	// axis's values.
+	RangeTable string
 }
 
 // LabelTable exposes an ID→label map for display-time categorical

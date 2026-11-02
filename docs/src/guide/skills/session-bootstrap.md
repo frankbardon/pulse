@@ -50,8 +50,7 @@ Scripts can trust the CLI exit status (all but `pulse mcp`): `0` ok, warnings al
 
 Roots auto-loaded at `pulse.New`:
 
-- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir:** every `*.json` must parse (else `pulse.New` fails); Pulse's sidecars are skipped.
-- `PULSE_RANGE_TABLES_DIR` — named `{label,start,end}` sets for range operators. Same rule.
+- `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` — label maps, `{label,start,end}` ranges, `{key: number}` maps for `lookup()`. **One dir each:** any `*.json` that fails to parse fails `pulse.New`; sidecars skipped.
 - `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files, bound in every request by stem.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render (`RenderTemplate` / `RenderTemplateRequest`), then predict. See [`request-templating`](request-templating.md).
 
