@@ -401,7 +401,7 @@
               {
                 "name": "mean",
                 "type": "float64",
-                "description": "Running Welford mean of non-null field values."
+                "description": "Running Welford mean of non-null field values (origin + shifted_mean)."
               },
               {
                 "name": "m2",
@@ -417,6 +417,16 @@
                 "name": "stddev",
                 "type": "float64",
                 "description": "Sample standard deviation (square root of variance)."
+              },
+              {
+                "name": "origin",
+                "type": "float64",
+                "description": "Accumulation origin: the first value folded (0 when that value is not finite); the moments accumulate value − origin, so a large common offset costs no precision. Merged partials keep the first partial's origin."
+              },
+              {
+                "name": "shifted_mean",
+                "type": "float64",
+                "description": ""
               }
             ],
             "mergeability": "mergeable"
@@ -2147,7 +2157,7 @@
             {
               "name": "mean",
               "type": "float64",
-              "description": "Running Welford mean of non-null field values."
+              "description": "Running Welford mean of non-null field values (origin + shifted_mean)."
             },
             {
               "name": "m2",
@@ -2163,6 +2173,16 @@
               "name": "stddev",
               "type": "float64",
               "description": "Sample standard deviation (square root of variance)."
+            },
+            {
+              "name": "origin",
+              "type": "float64",
+              "description": "Accumulation origin: the first value folded (0 when that value is not finite); the moments accumulate value − origin, so a large common offset costs no precision. Merged partials keep the first partial's origin."
+            },
+            {
+              "name": "shifted_mean",
+              "type": "float64",
+              "description": ""
             }
           ],
           "mergeability": "mergeable"
@@ -2465,4 +2485,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 31484228357ed64dc5380327444aab8fb84044ba7c74baa06a4fba2d0b2807b8
+// golden-hash: 1715c9cb77541ab82fe91d77c1df14440f9acf8eb4eb51ed9f79e28dbfe3179f

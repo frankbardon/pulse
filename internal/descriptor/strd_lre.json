@@ -369,7 +369,8 @@
       "difficulty": "lower",
       "digits": {
         "mean": 15,
-        "sd": 14.9
+        "sd": 14.9,
+        "welford_sd": 14.9
       },
       "min_digits": 14.9,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -379,7 +380,8 @@
       "difficulty": "lower",
       "digits": {
         "mean": 15,
-        "sd": 15
+        "sd": 15,
+        "welford_sd": 15
       },
       "min_digits": 15,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -389,7 +391,8 @@
       "difficulty": "lower",
       "digits": {
         "mean": 15,
-        "sd": 15
+        "sd": 15,
+        "welford_sd": 15
       },
       "min_digits": 15,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -399,7 +402,8 @@
       "difficulty": "lower",
       "digits": {
         "mean": 15,
-        "sd": 12
+        "sd": 12,
+        "welford_sd": 13.1
       },
       "min_digits": 12,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -409,7 +413,8 @@
       "difficulty": "",
       "digits": {
         "mean": 15,
-        "sd": 12.3
+        "sd": 12.3,
+        "welford_sd": 13.8
       },
       "min_digits": 12.3,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -419,7 +424,8 @@
       "difficulty": "lower",
       "digits": {
         "mean": 15,
-        "sd": 15
+        "sd": 15,
+        "welford_sd": 15
       },
       "min_digits": 15,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -429,7 +435,8 @@
       "difficulty": "average",
       "digits": {
         "mean": 15,
-        "sd": 15
+        "sd": 15,
+        "welford_sd": 15
       },
       "min_digits": 15,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -439,7 +446,8 @@
       "difficulty": "average",
       "digits": {
         "mean": 15,
-        "sd": 9.4
+        "sd": 9.4,
+        "welford_sd": 9.4
       },
       "min_digits": 9.4,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -449,7 +457,8 @@
       "difficulty": "higher",
       "digits": {
         "mean": 15,
-        "sd": 8.2
+        "sd": 8.2,
+        "welford_sd": 8.2
       },
       "min_digits": 8.2,
       "not_offered": "lag-1 autocorrelation: no built-in aggregator computes it"
@@ -458,4 +467,4 @@
   "source": "NIST/ITL StRD, https://www.itl.nist.gov/div898/strd/"
 }
 
-// golden-hash: f42815118661e59b0588f84a61ccfcd35dd3146f244defcdca1f4c120e85634a
+// golden-hash: 65e0d50fb7c915e022dca373ba6f6399ccd80fb63349487dc051d479a68192ef

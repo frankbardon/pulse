@@ -79,6 +79,14 @@ type cupedArms struct {
 	// dropped counts rows with a present outcome and split key whose
 	// covariate is null (listwise deletion).
 	dropped int64
+	// shifted (the mean tests, #637): each group's outcome accumulates
+	// y − its own origin (origins, as the unadjusted test's groups do)
+	// and the covariate x − one shared origin (xOrigin), so a large
+	// common offset on either costs the adjusted difference nothing.
+	// TEST_PROP_Z's 0/1 indicator is folded as it is.
+	shifted bool
+	xOrigin originShift
+	origins map[string]*originShift
 }
 
 // newCupedArms is nil without a covariate (the unadjusted test).
@@ -86,7 +94,27 @@ func newCupedArms(covariate string) *cupedArms {
 	if covariate == "" {
 		return nil
 	}
-	return &cupedArms{covariate: covariate, groups: make(map[string]*weighting.CoWelford)}
+	return &cupedArms{covariate: covariate, groups: make(map[string]*weighting.CoWelford),
+		origins: make(map[string]*originShift)}
+}
+
+// newShiftedCupedArms is newCupedArms for a mean test: the outcome and
+// the covariate accumulate about origins (cupedArms.shifted).
+func newShiftedCupedArms(covariate string) *cupedArms {
+	c := newCupedArms(covariate)
+	if c != nil {
+		c.shifted = true
+	}
+	return c
+}
+
+// origin is key's outcome origin; nil when the arms are unshifted (its
+// means are levels already).
+func (c *cupedArms) origin(key string) *originShift {
+	if !c.shifted {
+		return nil
+	}
+	return c.origins[key]
 }
 
 // covariateValue reads the row's covariate, counting a null as a
@@ -106,6 +134,10 @@ func (c *cupedArms) add(key string, x, y, w float64) (isNew bool) {
 	if !ok {
 		b = &weighting.CoWelford{}
 		c.groups[key] = b
+		c.origins[key] = &originShift{}
+	}
+	if c.shifted {
+		x, y = c.xOrigin.of(x), c.origins[key].of(y)
 	}
 	b.Add(x, y, w)
 	return !ok
@@ -114,6 +146,8 @@ func (c *cupedArms) add(key string, x, y, w float64) (isNew bool) {
 func (c *cupedArms) reset() {
 	if c != nil {
 		c.groups = make(map[string]*weighting.CoWelford)
+		c.origins = make(map[string]*originShift)
+		c.xOrigin.reset()
 		c.dropped = 0
 	}
 }
@@ -123,19 +157,35 @@ type cupedFacts struct {
 	// raw are the two groups' unadjusted outcome buckets (the listwise
 	// sample's).
 	raw [2]weighting.Welford
+	// origins are the raw buckets' outcome origins (nil unshifted).
+	origins [2]*originShift
 	// theta is the pooled slope, NaN when the covariate is constant.
 	theta float64
-	// xbar is the pooled covariate mean.
+	// xbar is the pooled covariate mean (a level).
 	xbar    float64
 	dropped int64
 }
 
 // adjust returns the covariate-adjusted outcome buckets of groups a
 // and b (the test's order) and the adjustment's figures.
-func (c *cupedArms) adjust(a, b *weighting.CoWelford) (weighting.Welford, weighting.Welford, cupedFacts) {
+//
+// Shifted, each group's outcome is held about its own origin: b's is
+// re-expressed about a's before the pooled merge (only the pooled
+// co-moment reads the outcome means' gap), and the adjusted buckets
+// stay about their own origins, so the caller differences them through
+// groupMeans with the origins origin(key) returns.
+func (c *cupedArms) adjust(keyA, keyB string) (weighting.Welford, weighting.Welford, cupedFacts) {
+	a, b := c.groups[keyA], c.groups[keyB]
+	oa, ob := c.origin(keyA), c.origin(keyB)
 	pooled := *a
-	pooled.Merge(*b)
-	f := cupedFacts{raw: [2]weighting.Welford{a.YWelford(), b.YWelford()}, theta: math.NaN(), xbar: pooled.MeanX, dropped: c.dropped}
+	other := *b
+	if oa != nil {
+		other.MeanY += ob.origin - oa.origin
+	}
+	pooled.Merge(other)
+	f := cupedFacts{raw: [2]weighting.Welford{a.YWelford(), b.YWelford()}, origins: [2]*originShift{oa, ob},
+		theta: math.NaN(), xbar: c.xOrigin.level(pooled.MeanX), dropped: c.dropped}
+	xbar := pooled.MeanX
 	theta := 0.0 // a constant covariate adjusts nothing (x − x̄ ≡ 0)
 	if pooled.M2X > 0 {
 		theta = pooled.CXY / pooled.M2X
@@ -143,7 +193,7 @@ func (c *cupedArms) adjust(a, b *weighting.CoWelford) (weighting.Welford, weight
 	}
 	adj := func(g *weighting.CoWelford) weighting.Welford {
 		w := g.YWelford()
-		w.Mean = g.MeanY - float64(theta*(g.MeanX-f.xbar))
+		w.Mean = g.MeanY - float64(theta*(g.MeanX-xbar))
 		// Σw·(y′ − ȳ′)² ≥ 0; the clamp absorbs rounding residue when y
 		// is (nearly) linear in x.
 		w.M2 = math.Max(0, g.M2Y-float64(2*theta*g.CXY)+float64(theta*theta*g.M2X))
@@ -155,8 +205,8 @@ func (c *cupedArms) adjust(a, b *weighting.CoWelford) (weighting.Welford, weight
 // rawWelch is the mean tests' unadjusted reading of the listwise
 // sample: the raw difference of means and its Welch SE², Σ s²_g/N*_g.
 func (f cupedFacts) rawWelch(basis weighting.Basis) (diff, se2 float64) {
-	return f.raw[0].Mean - f.raw[1].Mean,
-		f.raw[0].Variance(basis)/f.raw[0].NStar(basis) + f.raw[1].Variance(basis)/f.raw[1].NStar(basis)
+	_, _, diff = groupMeans(&f.raw[0], &f.raw[1], f.origins[0], f.origins[1])
+	return diff, f.raw[0].Variance(basis)/f.raw[0].NStar(basis) + f.raw[1].Variance(basis)/f.raw[1].NStar(basis)
 }
 
 // note writes the adjustment's Details: diff_unadjusted (the listwise

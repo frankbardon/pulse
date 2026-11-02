@@ -181,6 +181,11 @@ func welfordComponentsLeg(v any, groups []types.AggregationGroupComponents, r in
 		}
 		leg[k] = x
 	}
+	for _, k := range []string{"origin", "shifted_mean"} {
+		if x, ok := g.Operator[k]; ok {
+			leg[k] = x
+		}
+	}
 	if g.SumWeights != nil {
 		leg["sum_weights"] = *g.SumWeights
 	}
@@ -257,4 +262,14 @@ func projectChainSeriesStage(spec *types.ChainOverlaySpec, route types.OverlayKi
 // computed and found undefined (a zero reference, a degenerate test).
 func undefinedSeriesPair(target, ref float64) bool {
 	return math.IsNaN(target) || math.IsNaN(ref)
+}
+
+// seriesPairDiff is a vs-ref series pair's difference of means: the
+// legs' (meanLeg.diff, through both origins when both rows carry an
+// AGG_WELFORD leg) when both sides are triples, else the two values'.
+func seriesPairDiff(tTriple bool, tLeg meanLeg, tMean float64, rTriple bool, rLeg meanLeg, rMean float64) float64 {
+	if tTriple && rTriple {
+		return tLeg.diff(rLeg)
+	}
+	return tMean - rMean
 }

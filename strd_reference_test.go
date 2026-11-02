@@ -410,8 +410,13 @@ func runStRDUnivariate(t *testing.T, name string) strdResult {
 	if !found {
 		t.Fatalf("%s: no AGG_WELFORD stddev component", name)
 	}
-	if got, want := math.Floor(strdLRE(wsd, certSD)*10)/10, res.Digits["sd"]; got != want {
-		t.Errorf("%s: AGG_WELFORD stddev reaches %.1f digits, AGG_STDDEV ddof 1 %.1f", name, got, want)
+	// AGG_WELFORD accumulates about its first value (#637), so on the
+	// offset sets (Mavro, Michelso) it reaches more digits than
+	// AGG_STDDEV, whose recurrence runs at the data's magnitude: its own
+	// figure, welford_sd, never fewer digits than sd.
+	res.add("welford_sd", wsd, certSD)
+	if res.Digits["welford_sd"] < res.Digits["sd"] {
+		t.Errorf("%s: AGG_WELFORD stddev reaches %.1f digits, below AGG_STDDEV ddof 1's %.1f", name, res.Digits["welford_sd"], res.Digits["sd"])
 	}
 	res.NotOffered = "lag-1 autocorrelation: no built-in aggregator computes it"
 	return res

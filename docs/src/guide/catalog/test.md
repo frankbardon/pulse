@@ -1019,7 +1019,7 @@ Checks whether a numeric field's average differs from a target value, or between
 
 **Validated against:**
 
-- R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
+- R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`, including common offsets of 1e6 to 1e12 tested on the exact deviations): t, df, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).
@@ -1156,7 +1156,7 @@ Checks whether the average of a numeric field differs between two groups, withou
 
 **Validated against:**
 
-- R 4.6.1 `t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
+- R 4.6.1 `t.test(var.equal = FALSE)` (including common offsets of 1e6 to 1e12 tested on the exact deviations): t, Welch–Satterthwaite df, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).
@@ -1245,7 +1245,7 @@ Large-sample check of whether two groups differ in average, with the p-value rea
 
 **Validated against:**
 
-- R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
+- R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function; common offsets of 1e6 to 1e12 on the exact deviations): z, p, interval, means, variances — tolerance 1e-10 relative; `internal/processing/test_unweighted_oracle_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).

@@ -66,6 +66,11 @@ type weightedState struct {
 	runW   float64      // the Welford recurrence's running Σw
 	mean   float64      // running (streaming) or two-pass (buffered variance) mean
 	m2     float64      // Σw(x − mean)²
+	// shift is AGG_WELFORD's accumulation origin (test_origin_shift.go):
+	// its recurrence folds x − origin, so mean is held about the origin
+	// and reported as a level (#637). Unused (origin 0) by every other
+	// operator, whose figures stay byte-identical.
+	shift originShift
 }
 
 // weightedFigures is a frozen weightedState: the binned sums resolved
@@ -76,12 +81,13 @@ type weightedFigures struct {
 	rows                int64
 	sumW, sumWX, sumWSq float64
 	mean, m2            float64
+	origin              float64 // AGG_WELFORD's origin; mean is held about it
 }
 
 // figures resolves the live state.
 func (st *weightedState) figures() weightedFigures {
 	return weightedFigures{rows: st.rows, sumW: st.sumW.Float64(), sumWX: st.sumWX.Float64(),
-		sumWSq: st.sumWSq.Float64(), mean: st.mean, m2: st.m2}
+		sumWSq: st.sumWSq.Float64(), mean: st.mean, m2: st.m2, origin: st.shift.origin}
 }
 
 // weightedAggregator is the shared weighted accumulator. op selects
@@ -140,6 +146,9 @@ func (a *weightedAggregator) fold(x, w float64) {
 	a.sumWX.AddWeighted(w, x)
 	a.sumWSq.AddWeighted(w, w)
 	a.runW += w
+	if a.op == types.AGG_WELFORD {
+		x = a.shift.of(x)
+	}
 	delta := x - a.mean
 	a.mean += (w * delta) / a.runW
 	a.m2 += float64(w * delta * (x - a.mean))
@@ -246,7 +255,7 @@ func (st *weightedFigures) scalar(op types.AggregationType, ddof int) float64 {
 		if st.rows == 0 {
 			return math.NaN()
 		}
-		return st.mean
+		return st.mean + st.origin
 	}
 	// AGG_AVERAGE, AGG_WEIGHTED_MEAN: Σwx/Σw, the exact weighted mean
 	// (not the recurrence's running mean). Σw = 0 is 0/0: undefined,
@@ -272,7 +281,19 @@ func (a *weightedAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok || b.op != a.op || b.ddof != a.ddof {
 		return mergeTypeMismatch(string(a.op))
 	}
-	mergeWelfordWeighted(&a.runW, &a.mean, &a.m2, b.runW, b.mean, b.m2)
+	meanB := b.mean
+	if a.op == types.AGG_WELFORD && b.runW != 0 {
+		// AGG_WELFORD partials hold their moments about their own
+		// origins: keep the receiver's (an empty receiver adopts the
+		// other's) and re-express the other's mean about it, as the
+		// unweighted merge does.
+		if a.runW == 0 {
+			a.shift = b.shift
+		} else {
+			meanB = b.mean + (b.shift.origin - a.shift.origin)
+		}
+	}
+	mergeWelfordWeighted(&a.runW, &a.mean, &a.m2, b.runW, meanB, b.m2)
 	a.rows += b.rows
 	a.sumW.Merge(&b.sumW)
 	a.sumWX.Merge(&b.sumWX)
@@ -308,7 +329,7 @@ func (a *weightedAggregator) Rich() (any, error) {
 	if a.op != types.AGG_WELFORD || st.rows == 0 {
 		return nil, nil
 	}
-	return WelfordTriple{Mean: st.mean, Variance: st.sampleVariance(), N: uint64(st.rows)}, nil
+	return WelfordTriple{Mean: st.mean + st.origin, Variance: st.sampleVariance(), N: uint64(st.rows)}, nil
 }
 
 // Components mirrors each operator's unweighted map (identical keys
@@ -340,8 +361,7 @@ func (a *weightedAggregator) Components() (map[string]any, error) {
 		if st.rows == 0 {
 			return nil, nil
 		}
-		variance := st.sampleVariance()
-		return map[string]any{"mean": st.mean, "m2": st.m2, "variance": variance, "stddev": math.Sqrt(variance)}, nil
+		return welfordComponents(st.origin, st.mean, st.m2, st.sampleVariance()), nil
 	}
 	sumW, sumWX, sumWSq := st.sumW, st.sumWX, st.sumWSq
 	weightedMean := math.NaN()

@@ -794,36 +794,41 @@ func matrixRowMarginLookup(mx *types.MatrixPayload) map[string]float64 {
 }
 
 // welchTTest computes the two-sided p-value of a Welch t-test on two
-// independent (mean, variance, n) triples. Mirrors the Welch-
-// Satterthwaite recurrence in internal/processing/test_t.go:Finalize:
+// independent (mean, variance, n) triples: welchTTestDiff on
+// meanA − meanB. The handlers take the difference through
+// meanLeg.diff, which reads an AGG_WELFORD cell's origin (#637).
+func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
+	return welchTTestDiff(meanA-meanB, varA, nA, varB, nB)
+}
+
+// welchTTestDiff computes the two-sided p-value of a Welch t-test on a
+// difference of means and the two sides' (variance, n), through the
+// kernel TEST_T's finalizeTwoSample calls (welchSatterthwaite):
 //
 //	se      = sqrt(va/na + vb/nb)
-//	t       = (meanA - meanB) / se
+//	t       = diff / se
 //	df      = (va/na + vb/nb)² / ((va/na)²/(na-1) + (vb/nb)²/(nb-1))
 //	p_value = statdist.StudentTTwoSidedP(t, df)
 //
 // Returns (NaN, false) when sample sizes are below 2, when se == 0,
-// or when the computation produces a non-finite result. Reuses
-// statdist.StudentTTwoSidedP so the overlay and TEST_T produce identical
-// p-values for the same (mean, variance, n) triple.
-func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
+// or when the computation produces a non-finite result. TEST_T and the
+// overlay produce identical p-values for the same moments.
+func welchTTestDiff(diff, varA, nA, varB, nB float64) (float64, bool) {
 	if nA < 2 || nB < 2 {
 		return math.NaN(), false
 	}
 	if varA <= 0 && varB <= 0 {
 		return math.NaN(), false
 	}
-	num := varA/nA + varB/nB
+	num, den, df := welchSatterthwaite(varA, nA, varB, nB)
 	se := math.Sqrt(num)
 	if se == 0 {
 		return math.NaN(), false
 	}
-	t := (meanA - meanB) / se
-	den := (varA*varA)/(nA*nA*(nA-1)) + (varB*varB)/(nB*nB*(nB-1))
+	t := diff / se
 	if den == 0 {
 		return math.NaN(), false
 	}
-	df := (num * num) / den
 	p := statdist.StudentTTwoSidedP(t, df)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
 		return math.NaN(), false
@@ -961,8 +966,10 @@ func applyTCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 				meanR, vR, nR float64
 				targetVal     float64
 				refVal        float64
+				diff          float64
 			)
 			if tHasTriple {
+				diff = tLeg.diff(rLeg)
 				meanT = tLeg.mean
 				vT = tLeg.variance
 				nT = tLeg.nStar
@@ -983,6 +990,7 @@ func applyTCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 				}
 				meanT = tScalar
 				meanR = rScalar
+				diff = tScalar - rScalar
 				targetVal = tScalar
 				refVal = rScalar
 			} else {
@@ -995,7 +1003,7 @@ func applyTCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			if undefinedSeriesPair(meanT, meanR) {
 				continue // a missing cell: absent, no warning (E4-S6)
 			}
-			p, ok := welchTTest(meanT, vT, nT, meanR, vR, nR)
+			p, ok := welchTTestDiff(diff, vT, nT, vR, nR)
 			if !ok {
 				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),

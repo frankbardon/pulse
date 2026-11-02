@@ -3242,7 +3242,7 @@
               {
                 "name": "mean",
                 "type": "float64",
-                "description": "Running Welford mean of non-null field values."
+                "description": "Running Welford mean of non-null field values (origin + shifted_mean)."
               },
               {
                 "name": "m2",
@@ -3258,6 +3258,16 @@
                 "name": "stddev",
                 "type": "float64",
                 "description": "Sample standard deviation (square root of variance)."
+              },
+              {
+                "name": "origin",
+                "type": "float64",
+                "description": "Accumulation origin: the first value folded (0 when that value is not finite); the moments accumulate value − origin, so a large common offset costs no precision. Merged partials keep the first partial's origin."
+              },
+              {
+                "name": "shifted_mean",
+                "type": "float64",
+                "description": "Mean minus origin, held at the deviations' magnitude; the two-sample moment overlays difference two cells as (origin_a − origin_b) + (shifted_mean_a − shifted_mean_b), as TEST_T / TEST_Z_TWO_SAMPLE do."
               }
             ],
             "mergeability": "mergeable"
@@ -19207,7 +19217,7 @@
             {
               "name": "mean",
               "type": "float64",
-              "description": "Running Welford mean of non-null field values."
+              "description": "Running Welford mean of non-null field values (origin + shifted_mean)."
             },
             {
               "name": "m2",
@@ -19223,6 +19233,16 @@
               "name": "stddev",
               "type": "float64",
               "description": "Sample standard deviation (square root of variance)."
+            },
+            {
+              "name": "origin",
+              "type": "float64",
+              "description": "Accumulation origin: the first value folded (0 when that value is not finite); the moments accumulate value − origin, so a large common offset costs no precision. Merged partials keep the first partial's origin."
+            },
+            {
+              "name": "shifted_mean",
+              "type": "float64",
+              "description": "Mean minus origin, held at the deviations' magnitude; the two-sample moment overlays difference two cells as (origin_a − origin_b) + (shifted_mean_a − shifted_mean_b), as TEST_T / TEST_Z_TWO_SAMPLE do."
             }
           ],
           "mergeability": "mergeable"
@@ -20732,4 +20752,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eb1c65b5133c507aca17ab3cae0e8a7141b6a64990475c6ce84d73ad8c5fc7be
+// golden-hash: 328a6bee0f118d948d56fdd3cbdecabdf885229baf04c87b42b2b88006f2623c

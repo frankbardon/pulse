@@ -33,6 +33,22 @@ type meanLeg struct {
 	basis weighting.Basis
 	// sumW is Σw (weighted cells only).
 	sumW float64
+	// origin / shifted are an AGG_WELFORD cell's accumulation origin and
+	// its mean about it (components origin / shifted_mean, #637);
+	// hasShift is false on any other leg (a scalar, an AGG_VARIANCE
+	// cell, an embedder-built triple), whose mean is read as it is.
+	origin, shifted float64
+	hasShift        bool
+}
+
+// diff is the leg's mean minus other's: through both origins
+// (shiftedMeanDiff, TEST_T's reading of its groups) when both legs
+// carry them, else the two levels' difference.
+func (l meanLeg) diff(other meanLeg) float64 {
+	if l.hasShift && other.hasShift {
+		return shiftedMeanDiff(l.origin, l.shifted, other.origin, other.shifted)
+	}
+	return l.mean - other.mean
 }
 
 // readMeanLeg reads a components map carrying the {mean, variance, n}
@@ -49,6 +65,11 @@ func readMeanLeg(m map[string]any) (meanLeg, bool) {
 		return meanLeg{}, false
 	}
 	leg := meanLeg{mean: mean, variance: variance, nStar: n}
+	if origin, ok := componentsNumeric(m, "origin"); ok {
+		if shifted, ok := componentsNumeric(m, "shifted_mean"); ok {
+			leg.origin, leg.shifted, leg.hasShift = origin, shifted, true
+		}
+	}
 	sumW, weighted := componentsNumeric(m, "sum_weights")
 	if !weighted {
 		return leg, true

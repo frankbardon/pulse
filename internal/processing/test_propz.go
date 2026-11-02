@@ -312,7 +312,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 // Cohen's h read the adjusted rates; successes, pooled and n stay the
 // listwise sample's raw figures; diff_unadjusted is p̂_a − p̂_b.
 func (p *propZRow) finalizeAdjusted(keys []string, a, b *propGroup, na, nb, pa, pb, pooled float64, warnings []string) (*types.TestResult, error) {
-	adjA, adjB, f := p.cuped.adjust(p.cuped.groups[keys[0]], p.cuped.groups[keys[1]])
+	adjA, adjB, f := p.cuped.adjust(keys[0], keys[1])
 	se2 := (adjA.M2/adjA.SumW)/na + (adjB.M2/adjB.SumW)/nb
 	if !(se2 > 0) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,

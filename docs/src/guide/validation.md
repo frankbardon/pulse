@@ -28,7 +28,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 |---|---|---|---|
 | [`AGG_AVERAGE`](catalog/aggregator.md#op-agg_average) | NIST StRD certified values (univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
 | [`AGG_STDDEV`](catalog/aggregator.md#op-agg_stddev) | NIST StRD certified values (univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
-| [`AGG_WELFORD`](catalog/aggregator.md#op-agg_welford) | NIST StRD certified values (univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) | digits achieved per dataset (see the NIST table) | — |
+| [`AGG_WELFORD`](catalog/aggregator.md#op-agg_welford) | NIST StRD certified values (univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4)<br>exact rational arithmetic on the input doubles: mean, shifted_mean and m2 of three merged partials under common offsets up to 1e12, unweighted and frequency-weighted | 1e-13 relative | — |
 
 ## Attributes
 
@@ -62,12 +62,12 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`TEST_PROP_Z`](catalog/test.md#op-test_prop_z) | R 4.6.1 `prop.test(correct = FALSE)` (z as the signed root of X-squared, p; the two-proportion Wald interval). The one-proportion interval is Pulse's Wald interval on p − p0, evaluated in R, not `prop.test`'s Wilson interval<br>weighted reference (see above)<br>textbook worked example | 1e-12 relative | — |
 | [`TEST_SHAPIRO_WILK`](catalog/test.md#op-test_shapiro_wilk) | R 4.6.1 `nortest::sf.test` (Shapiro–Francia)<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
 | [`TEST_SPEARMAN_R`](catalog/test.md#op-test_spearman_r) | R 4.6.1 `cor.test(method = "spearman")` (exact AS 89)<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_T`](catalog/test.md#op-test_t) | R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
+| [`TEST_T`](catalog/test.md#op-test_t) | R 4.6.1 `t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`, including common offsets of 1e6 to 1e12 tested on the exact deviations): t, df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_TREND`](catalog/test.md#op-test_trend) | R 4.6.1 `cor.test(method = "kendall")`, cross-checked with `Kendall::MannKendall`<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
 | [`TEST_TUKEY_HSD`](catalog/test.md#op-test_tukey_hsd) | R 4.6.1 `TukeyHSD`, `ptukey` refined by quadrature<br>weights refused, not validated (see the catalog entry) | 1e-10 relative | — |
-| [`TEST_WELCH`](catalog/test.md#op-test_welch) | R 4.6.1 `t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
+| [`TEST_WELCH`](catalog/test.md#op-test_welch) | R 4.6.1 `t.test(var.equal = FALSE)` (including common offsets of 1e6 to 1e12 tested on the exact deviations): t, Welch–Satterthwaite df, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 | [`TEST_WILCOXON_SR`](catalog/test.md#op-test_wilcoxon_sr) | R 4.6.1 `wilcox.test(paired = TRUE)`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`TEST_Z_TWO_SAMPLE`](catalog/test.md#op-test_z_two_sample) | R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
+| [`TEST_Z_TWO_SAMPLE`](catalog/test.md#op-test_z_two_sample) | R 4.6.1 `pnorm` / `qnorm` on the Welch standard error (no stock R function; common offsets of 1e6 to 1e12 on the exact deviations): z, p, interval, means, variances<br>weighted reference (see above) | 1e-12 relative | — |
 
 ## Regressions
 
@@ -115,12 +115,12 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 | [`OVERLAY_RAKE`](catalog/overlay.md#op-overlay_rake) | R 4.6.1 `loglin`, cross-checked with `survey::rake` | 1e-9 relative | — |
 | [`OVERLAY_STD_RESIDUAL`](catalog/overlay.md#op-overlay_std_residual) | R 4.6.1 `chisq.test()$stdres`<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_SYMMETRY`](catalog/overlay.md#op-overlay_symmetry) | R 4.6.1 `mcnemar.test` / Bowker<br>weighted reference (see above) | 1e-12 relative | — |
-| [`OVERLAY_T_CELL`](catalog/overlay.md#op-overlay_t_cell) | R 4.6.1 `t.test` / `pt`<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_T_CELL`](catalog/overlay.md#op-overlay_t_cell) | R 4.6.1 `t.test` / `pt`<br>byte parity with `TEST_WELCH` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over)<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_T_VS_PRIOR`](catalog/overlay.md#op-overlay_t_vs_prior) | weighted reference (see above)<br>an independent re-implementation of the Welch t test | 1e-12 relative | — |
-| [`OVERLAY_T_VS_REF`](catalog/overlay.md#op-overlay_t_vs_ref) | R 4.6.1 `t.test` / `pt`<br>weighted reference (see above) | 1e-12 relative | — |
-| [`OVERLAY_Z_CELL`](catalog/overlay.md#op-overlay_z_cell) | R 4.6.1 `pnorm` on the Welch standard error<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_T_VS_REF`](catalog/overlay.md#op-overlay_t_vs_ref) | R 4.6.1 `t.test` / `pt`<br>byte parity with `TEST_WELCH` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over)<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_Z_CELL`](catalog/overlay.md#op-overlay_z_cell) | R 4.6.1 `pnorm` on the Welch standard error<br>byte parity with `TEST_Z_TWO_SAMPLE` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over)<br>weighted reference (see above) | 1e-12 relative | — |
 | [`OVERLAY_Z_VS_PRIOR`](catalog/overlay.md#op-overlay_z_vs_prior) | weighted reference (see above)<br>an independent re-implementation of the Welch z test | 1e-12 relative | — |
-| [`OVERLAY_Z_VS_REF`](catalog/overlay.md#op-overlay_z_vs_ref) | R 4.6.1 `pnorm` on the Welch standard error<br>weighted reference (see above) | 1e-12 relative | — |
+| [`OVERLAY_Z_VS_REF`](catalog/overlay.md#op-overlay_z_vs_ref) | R 4.6.1 `pnorm` on the Welch standard error<br>byte parity with `TEST_Z_TWO_SAMPLE` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over)<br>weighted reference (see above) | 1e-12 relative | — |
 
 ## NIST StRD certification
 
@@ -162,12 +162,12 @@ The [NIST Statistical Reference Datasets](https://www.itl.nist.gov/div898/strd/)
 
 | Dataset | NIST difficulty | Fewest digits | Figures (digits) | Note |
 |---|---|---|---|---|
-| PiDigits | lower | 14.9 | `mean` 15.0, `sd` 14.9 | lag-1 autocorrelation: no built-in aggregator computes it |
-| Lottery | lower | 15.0 | `mean` 15.0, `sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
-| Lew | lower | 15.0 | `mean` 15.0, `sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
-| Mavro | lower | 12.0 | `mean` 15.0, `sd` 12.0 | lag-1 autocorrelation: no built-in aggregator computes it |
-| Michelso | not stated | 12.3 | `mean` 15.0, `sd` 12.3 | lag-1 autocorrelation: no built-in aggregator computes it |
-| NumAcc1 | lower | 15.0 | `mean` 15.0, `sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
-| NumAcc2 | average | 15.0 | `mean` 15.0, `sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
-| NumAcc3 | average | 9.4 | `mean` 15.0, `sd` 9.4 | lag-1 autocorrelation: no built-in aggregator computes it |
-| NumAcc4 | higher | 8.2 | `mean` 15.0, `sd` 8.2 | lag-1 autocorrelation: no built-in aggregator computes it |
+| PiDigits | lower | 14.9 | `mean` 15.0, `sd` 14.9, `welford_sd` 14.9 | lag-1 autocorrelation: no built-in aggregator computes it |
+| Lottery | lower | 15.0 | `mean` 15.0, `sd` 15.0, `welford_sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
+| Lew | lower | 15.0 | `mean` 15.0, `sd` 15.0, `welford_sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
+| Mavro | lower | 12.0 | `mean` 15.0, `sd` 12.0, `welford_sd` 13.1 | lag-1 autocorrelation: no built-in aggregator computes it |
+| Michelso | not stated | 12.3 | `mean` 15.0, `sd` 12.3, `welford_sd` 13.8 | lag-1 autocorrelation: no built-in aggregator computes it |
+| NumAcc1 | lower | 15.0 | `mean` 15.0, `sd` 15.0, `welford_sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
+| NumAcc2 | average | 15.0 | `mean` 15.0, `sd` 15.0, `welford_sd` 15.0 | lag-1 autocorrelation: no built-in aggregator computes it |
+| NumAcc3 | average | 9.4 | `mean` 15.0, `sd` 9.4, `welford_sd` 9.4 | lag-1 autocorrelation: no built-in aggregator computes it |
+| NumAcc4 | higher | 8.2 | `mean` 15.0, `sd` 8.2, `welford_sd` 8.2 | lag-1 autocorrelation: no built-in aggregator computes it |

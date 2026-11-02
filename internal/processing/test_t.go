@@ -54,11 +54,13 @@ type tTestRow struct {
 	groups map[string]*weighting.Welford
 
 	// shift: the one-sample group accumulates v − origin
-	// (test_origin_shift.go). The two-sample groups stay unshifted on
-	// purpose: TEST_T / TEST_WELCH are byte-equal with OVERLAY_T_CELL /
-	// OVERLAY_T_VS_REF, which fold unshifted AGG_WELFORD cells (#637).
-	shift originShift
-	order []string
+	// (test_origin_shift.go). origins: each two-sample group
+	// accumulates v − its own origin, as an AGG_WELFORD cell does, and
+	// diff reads both (shiftedMeanDiff), so TEST_T / TEST_WELCH stay
+	// byte-equal with OVERLAY_T_CELL / OVERLAY_T_VS_REF (#637).
+	shift   originShift
+	origins map[string]*originShift
+	order   []string
 
 	// testWeight is the slot's stamped weight: unweighted every row
 	// weighs 1; weighted, each group's moments are read on w* (N*_g).
@@ -175,9 +177,10 @@ func newTTestRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 		alpha:      alpha,
 		mu:         mu,
 		reference:  reference,
-		cuped:      newCupedArms(covariate),
+		cuped:      newShiftedCupedArms(covariate),
 		one:        spec.SplitBy == "",
 		groups:     make(map[string]*weighting.Welford),
+		origins:    make(map[string]*originShift),
 		testWeight: newTestWeight(spec),
 	}, nil
 }
@@ -225,10 +228,13 @@ func (tt *tTestRow) UpdateRow(record *Record) error {
 	if !exists {
 		b = &weighting.Welford{}
 		tt.groups[key] = b
+		tt.origins[key] = &originShift{}
 		tt.order = append(tt.order, key)
 	}
 	if tt.one {
 		v = tt.shift.of(v)
+	} else {
+		v = tt.origins[key].of(v)
 	}
 	b.Add(v, w)
 	return nil
@@ -248,6 +254,7 @@ func (tt *tTestRow) Finalize() (*types.TestResult, error) {
 
 func (tt *tTestRow) reset() {
 	tt.groups = make(map[string]*weighting.Welford)
+	tt.origins = make(map[string]*originShift)
 	tt.order = nil
 	tt.shift.reset()
 	tt.cuped.reset()
@@ -332,13 +339,16 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		return nil, err
 	}
 	a, b := tt.groups[keys[0]], tt.groups[keys[1]]
+	oa, ob := tt.origins[keys[0]], tt.origins[keys[1]]
 	// Under params.covariate the test runs on the adjusted outcome's
-	// moments (test_cuped.go).
+	// moments (test_cuped.go), each group still about its origin.
 	var cf *cupedFacts
 	if tt.cuped != nil {
-		adjA, adjB, f := tt.cuped.adjust(tt.cuped.groups[keys[0]], tt.cuped.groups[keys[1]])
+		adjA, adjB, f := tt.cuped.adjust(keys[0], keys[1])
 		a, b, cf = &adjA, &adjB, &f
+		oa, ob = tt.cuped.origin(keys[0]), tt.cuped.origin(keys[1])
 	}
+	meanA, meanB, diff := groupMeans(a, b, oa, ob)
 	if a.FloorN(tt.basis) < 2 || b.FloorN(tt.basis) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_T two-sample requires n ≥ 2 per group, got %d / %d", a.N, b.N),
@@ -349,23 +359,19 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	if va == 0 && vb == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_T two-sample: both groups have zero variance",
-			map[string]any{"groups": keys, "means": []float64{a.Mean, b.Mean}})
+			map[string]any{"groups": keys, "means": []float64{meanA, meanB}})
 	}
 	// N*_g per group (n_g unweighted): Welch–Satterthwaite on w*.
 	na := a.NStar(tt.basis)
 	nb := b.NStar(tt.basis)
-	se := math.Sqrt(va/na + vb/nb)
+	num, _, df := welchSatterthwaite(va, na, vb, nb)
+	se := math.Sqrt(num)
 	if se == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
 			"TEST_T two-sample: standard error is zero",
 			map[string]any{"groups": keys})
 	}
-	diff := a.Mean - b.Mean
 	tstat := diff / se
-	// Welch-Satterthwaite degrees of freedom.
-	num := va/na + vb/nb
-	den := (va*va)/(na*na*(na-1)) + (vb*vb)/(nb*nb*(nb-1))
-	df := (num * num) / den
 	p := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
 	ciLow := diff - float64(tcrit*se)
@@ -382,7 +388,7 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		Details: map[string]any{
 			"groups":   keys,
 			"n":        []int64{a.N, b.N},
-			"mean":     []float64{a.Mean, b.Mean},
+			"mean":     []float64{meanA, meanB},
 			"variance": []float64{va, vb},
 			"diff":     diff,
 			"ci_low":   ciLow,

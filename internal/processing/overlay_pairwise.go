@@ -149,6 +149,18 @@ type pwInputs struct {
 	// n_source omitted the cell's BASE (pairwiseSampleSize).
 	nf1, nf2 float64
 	w1, w2   weightedMoments
+	// md is m1 − m2 read through both legs' origins (meanLeg.diff,
+	// #637) when hasMD; meanDiff falls back to m1 − m2.
+	md    float64
+	hasMD bool
+}
+
+// meanDiff is the Welford legs' difference of means.
+func (in pwInputs) meanDiff() float64 {
+	if in.hasMD {
+		return in.md
+	}
+	return in.m1 - in.m2
 }
 
 // pwKernel computes one pair's two-sided p-value and the signed direction
@@ -626,7 +638,7 @@ func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParam
 			return pwInputs{}, false
 		}
 		return pwInputs{m1: l1.mean, m2: l2.mean, v1: l1.variance, v2: l2.variance,
-			nf1: l1.nStar, nf2: l2.nStar,
+			nf1: l1.nStar, nf2: l2.nStar, md: l1.diff(l2), hasMD: true,
 			p1: math.NaN(), p2: math.NaN()}, true
 	}
 	p1, ok1 := pairwiseProportion(host, params, r1, c1)
@@ -984,7 +996,7 @@ func pairwiseWelchTKernel(in pwInputs) (pwOutcome, string, bool) {
 	if se == 0 {
 		return pwOutcome{}, "PULSE_STATS_SKIP_SE_ZERO", false
 	}
-	t := (in.m1 - in.m2) / se
+	t := in.meanDiff() / se
 	dofDenom := (a*a)/(n1f-1) + (b*b)/(n2f-1)
 	if dofDenom <= 0 {
 		return pwOutcome{}, "PULSE_STATS_SKIP_DOF_INVALID", false
@@ -1018,7 +1030,7 @@ func pairwiseTwoMeansZKernel(in pwInputs) (pwOutcome, string, bool) {
 	if se == 0 {
 		return pwOutcome{}, "PULSE_STATS_SKIP_SE_ZERO", false
 	}
-	z := (in.m1 - in.m2) / se
+	z := in.meanDiff() / se
 	pv := normalTwoSidedP(z)
 	return pwOutcome{p: pv, dir: signOf(z), stat: z}, "", true
 }

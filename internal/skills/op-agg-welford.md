@@ -27,17 +27,19 @@ Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordT
 
 ## Components
 
-- `mean` — Welford running mean
+- `mean` — Welford running mean (`origin + shifted_mean`)
 - `m2` — Sum of squared deviations
 - `variance` — Unbiased sample variance (`m2/(n-1)`); `null` when `n < 2` (weighted Σw ≤ 1)
 - `stddev` — Sample standard deviation
+- `origin` — first value; moments fold `value − origin`
+- `shifted_mean` — `mean − origin`
 
 <!-- generated: contract -->
 
 ## Gotchas
 
 - Sample variance (`n-1`), not population (`n`); undefined (`null`, triple and components) below 2 values (Σw ≤ 1), never 0 — a pairwise / t / z overlay skips that leg.
-- The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`.
+- The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`; they difference cells via `origin` / `shifted_mean`, as the two-sample tests do: no digits lost at a 1e12 offset.
 - Margin reducibility = recompute, not pool by addition.
 - Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`) — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`)<!-- feature: OVERLAY_PROP_Z_VS_PRIOR -->; `OVERLAY_PROP_Z_VS_PRIOR` refuses it with its own `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`)<!-- /feature -->; an unscored one beside a scalar runs.
 

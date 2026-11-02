@@ -269,9 +269,12 @@ equal to its row variant on the same data, both at relative `1e-10`
 `jsonlite`, runnable on its own like `gen_vif.R`) writes the unweighted
 two-group and contingency goldens: `test_t.json` (`t.test` one-sample on
 `mu`, and two-sample with `var.equal = FALSE`, which every two-sample
-case runs as both `TEST_T` and `TEST_WELCH`), `test_z_two_sample.json`
+case runs as both `TEST_T` and `TEST_WELCH`; the `offset_*` cases sit
+at a common offset of 1e6 to 1e12 on a 2^-6 grid, so R runs on the exact
+deviations a − c, b − c rather than on levels whose means round to the
+offset's ulp), `test_z_two_sample.json`
 (`pnorm` / `qnorm` on the Welch standard error; R has no stock
-function), `test_chisq.json` (`chisq.test(correct = FALSE)`, since Pulse
+function; the same inputs), `test_chisq.json` (`chisq.test(correct = FALSE)`, since Pulse
 applies no Yates correction, with the corrected 2 × 2 figure kept as
 `r_yates_*`; plus the goodness-of-fit form `chisq.test(p = expected)`),
 `test_mann_whitney_u.json` (`wilcox.test(exact = FALSE, correct =

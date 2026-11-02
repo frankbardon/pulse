@@ -145,7 +145,7 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 			continue
 		}
 
-		p, ok := welchZTest(targetMean, targetVar, targetN, refMean, refVar, refN)
+		p, ok := welchZTestDiff(seriesPairDiff(hasTriple, leg, targetMean, refEntry.HasTriple, refEntry.Leg, refMean), targetVar, targetN, refVar, refN)
 		if !ok {
 			warnings = append(warnings, types.OverlayWarning{
 				Code:    string(errors.PULSE_OVERLAY_REF_ZERO),

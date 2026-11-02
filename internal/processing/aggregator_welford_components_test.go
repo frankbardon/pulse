@@ -411,7 +411,7 @@ func TestWelfordFamilyComponents_WelfordEmits(t *testing.T) {
 				}
 				return
 			}
-			requireKeySet(t, got, []string{"mean", "m2", "variance", "stddev"})
+			requireKeySet(t, got, []string{"mean", "m2", "variance", "stddev", "origin", "shifted_mean"})
 
 			// The WELFORD aggregator uses sample variance (n-1
 			// denominator) per welfordBucket.sampleVariance. Cross-

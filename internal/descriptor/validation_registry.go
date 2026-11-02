@@ -95,6 +95,17 @@ func valStrd(sets string) ValidationRef {
 	return ValidationRef{Against: "NIST StRD certified values (" + sets + ")", Tol: "digits achieved per dataset (see the NIST table)", Tests: []string{strdTest}}
 }
 
+// valParity is a moment overlay's byte parity with its two-sample test
+// on AGG_WELFORD cells (the shared kernel, #637): the overlay inherits
+// the test's R pins, large common offsets included.
+func valParity(test string) ValidationRef {
+	file := "internal/processing/overlay_t_cell_parity_test.go"
+	if test == "TEST_Z_TWO_SAMPLE" {
+		file = "internal/processing/overlay_z_cell_parity_test.go"
+	}
+	return ValidationRef{Against: "byte parity with `" + test + "` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over)", Tol: "bit-identical", Tests: []string{file}}
+}
+
 func valR(fn, tol string, tests ...string) ValidationRef {
 	return ValidationRef{Against: rPin + " " + fn, Tol: tol, Tests: tests}
 }
@@ -145,17 +156,18 @@ var validationRegistry = map[string]ValidationRecord{
 	}},
 	"TEST_SHAPIRO_WILK": {Refs: []ValidationRef{valR("`nortest::sf.test` (Shapiro–Francia)", tol10, procUndef)}, WeightRefused: []string{wRefusal}},
 	"TEST_SPEARMAN_R":   {Refs: []ValidationRef{valR("`cor.test(method = \"spearman\")` (exact AS 89)", "1e-12 relative", "internal/processing/test_nonparametric_test.go", procPost), valWeighted}},
-	"TEST_T":            {Refs: []ValidationRef{valR("`t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`): t, df, p, interval, means, variances", tol10, procUnw), valWeighted}},
+	"TEST_T":            {Refs: []ValidationRef{valR("`t.test` (one-sample on `mu`; two-sample Welch, `var.equal = FALSE`, including common offsets of 1e6 to 1e12 tested on the exact deviations): t, df, p, interval, means, variances", tol10, procUnw), valWeighted}},
 	"TEST_TREND":        {Refs: []ValidationRef{valR("`cor.test(method = \"kendall\")`, cross-checked with `Kendall::MannKendall`", tol10, procOutput)}, WeightRefused: []string{wRefusal}, PostTestOnly: true},
 	"TEST_TUKEY_HSD":    {Refs: []ValidationRef{valR("`TukeyHSD`, `ptukey` refined by quadrature", tol10, procOutput)}, WeightRefused: []string{wRefusal}, PostTestOnly: true},
-	"TEST_WELCH":        {Refs: []ValidationRef{valR("`t.test(var.equal = FALSE)`: t, Welch–Satterthwaite df, p, interval, means, variances", tol10, procUnw), valWeighted}},
+	"TEST_WELCH":        {Refs: []ValidationRef{valR("`t.test(var.equal = FALSE)` (including common offsets of 1e6 to 1e12 tested on the exact deviations): t, Welch–Satterthwaite df, p, interval, means, variances", tol10, procUnw), valWeighted}},
 	"TEST_WILCOXON_SR":  {Refs: []ValidationRef{valR("`wilcox.test(paired = TRUE)`", tol10, procPost), valWeighted}},
-	"TEST_Z_TWO_SAMPLE": {Refs: []ValidationRef{valR("`pnorm` / `qnorm` on the Welch standard error (no stock R function): z, p, interval, means, variances", tol10, procUnw), valWeighted}},
+	"TEST_Z_TWO_SAMPLE": {Refs: []ValidationRef{valR("`pnorm` / `qnorm` on the Welch standard error (no stock R function; common offsets of 1e6 to 1e12 on the exact deviations): z, p, interval, means, variances", tol10, procUnw), valWeighted}},
 
 	// Descriptive operators with a certified reference.
 	"AGG_AVERAGE": {Refs: []ValidationRef{valStrd("univariate: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
 	"AGG_STDDEV":  {Refs: []ValidationRef{valStrd("univariate sample standard deviation, `params.ddof` 1: PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
-	"AGG_WELFORD": {Refs: []ValidationRef{valStrd("univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4")}},
+	"AGG_WELFORD": {Refs: []ValidationRef{valStrd("univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4"),
+		{Against: "exact rational arithmetic on the input doubles: mean, shifted_mean and m2 of three merged partials under common offsets up to 1e12, unweighted and frequency-weighted", Tol: "1e-13 relative", Tests: []string{"internal/processing/aggregator_welford_offset_test.go"}}}},
 
 	// Per-row regression scores with an external reference.
 	"ATTR_REG_RESIDUAL": {Refs: []ValidationRef{{
@@ -309,11 +321,11 @@ var validationRegistry = map[string]ValidationRecord{
 	"OVERLAY_PROP_Z_VS_PRIOR":               {Refs: []ValidationRef{valWeighted, {Against: "an independent re-implementation of the pooled two-proportion z test", Tol: tol9, Tests: []string{vsPrior}}}},
 	"OVERLAY_STD_RESIDUAL":                  {Refs: []ValidationRef{valR("`chisq.test()$stdres`", tol12, "internal/processing/overlay_std_residual_test.go"), valWeighted}},
 	"OVERLAY_SYMMETRY":                      {Refs: []ValidationRef{valR("`mcnemar.test` / Bowker", tol12, "internal/processing/overlay_symmetry_test.go"), valWeighted}},
-	"OVERLAY_T_CELL":                        {Refs: []ValidationRef{valR("`t.test` / `pt`", tol10, "internal/processing/overlay_t_cell_test.go"), valWeighted}},
+	"OVERLAY_T_CELL":                        {Refs: []ValidationRef{valR("`t.test` / `pt`", tol10, "internal/processing/overlay_t_cell_test.go"), valParity("TEST_WELCH"), valWeighted}},
 	"OVERLAY_T_VS_PRIOR":                    {Refs: []ValidationRef{valWeighted, {Against: "an independent re-implementation of the Welch t test", Tol: tol9, Tests: []string{vsPrior}}}},
-	"OVERLAY_T_VS_REF":                      {Refs: []ValidationRef{valR("`t.test` / `pt`", tol10, "internal/integration/overlay_welford_series_oracle_test.go"), valWeighted}},
-	"OVERLAY_Z_CELL":                        {Refs: []ValidationRef{valR("`pnorm` on the Welch standard error", tol10, "internal/processing/overlay_z_cell_test.go"), valWeighted}},
+	"OVERLAY_T_VS_REF":                      {Refs: []ValidationRef{valR("`t.test` / `pt`", tol10, "internal/integration/overlay_welford_series_oracle_test.go"), valParity("TEST_WELCH"), valWeighted}},
+	"OVERLAY_Z_CELL":                        {Refs: []ValidationRef{valR("`pnorm` on the Welch standard error", tol10, "internal/processing/overlay_z_cell_test.go"), valParity("TEST_Z_TWO_SAMPLE"), valWeighted}},
 	"OVERLAY_Z_VS_PRIOR":                    {Refs: []ValidationRef{valWeighted, {Against: "an independent re-implementation of the Welch z test", Tol: tol9, Tests: []string{vsPrior}}}},
-	"OVERLAY_Z_VS_REF":                      {Refs: []ValidationRef{valR("`pnorm` on the Welch standard error", tol10, "internal/integration/overlay_welford_series_oracle_test.go"), valWeighted}},
+	"OVERLAY_Z_VS_REF":                      {Refs: []ValidationRef{valR("`pnorm` on the Welch standard error", tol10, "internal/integration/overlay_welford_series_oracle_test.go"), valParity("TEST_Z_TWO_SAMPLE"), valWeighted}},
 	"OVERLAY_RAKE":                          {Refs: []ValidationRef{valR("`loglin`, cross-checked with `survey::rake`", tol9, "internal/processing/overlay_rake_test.go")}},
 }

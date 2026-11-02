@@ -1761,6 +1761,7 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 **Validated against:**
 
 - R 4.6.1 `t.test` / `pt` — tolerance 1e-10 relative; `internal/processing/overlay_t_cell_test.go`
+- byte parity with `TEST_WELCH` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over) — tolerance bit-identical; `internal/processing/overlay_t_cell_parity_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).
@@ -1847,6 +1848,7 @@ Welch t-test for every group of a grouped result in a Compose request: does the 
 **Validated against:**
 
 - R 4.6.1 `t.test` / `pt` — tolerance 1e-10 relative; `internal/integration/overlay_welford_series_oracle_test.go`
+- byte parity with `TEST_WELCH` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over) — tolerance bit-identical; `internal/processing/overlay_t_cell_parity_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).
@@ -2063,6 +2065,7 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 **Validated against:**
 
 - R 4.6.1 `pnorm` on the Welch standard error — tolerance 1e-10 relative; `internal/processing/overlay_z_cell_test.go`
+- byte parity with `TEST_Z_TWO_SAMPLE` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over) — tolerance bit-identical; `internal/processing/overlay_z_cell_parity_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).
@@ -2149,6 +2152,7 @@ Large-sample z-test for every group of a grouped result in a Compose request: do
 **Validated against:**
 
 - R 4.6.1 `pnorm` on the Welch standard error — tolerance 1e-10 relative; `internal/integration/overlay_welford_series_oracle_test.go`
+- byte parity with `TEST_Z_TWO_SAMPLE` on AGG_WELFORD cells, offsets to 1e12 included (so its R pins carry over) — tolerance bit-identical; `internal/processing/overlay_z_cell_parity_test.go`
 - R 4.6.1 on `rep()`-expanded rows (frequency weights); closed form with scipy 1.16.2 tails, cross-checked with statsmodels (probability weights) — tolerance 1e-12 relative; `internal/service/weight_reference_values_test.go`, `internal/service/weight_reference_tests_test.go`
 
 See [How Pulse is validated](../validation.md).

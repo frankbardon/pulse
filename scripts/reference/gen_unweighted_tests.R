@@ -117,17 +117,29 @@ t_one <- function(name, x, mu, alpha = 0.05) {
     n = length(x), mean = num(mean(x)), variance = num(var(x))
   )
 }
-t_two <- function(name, a, b, alpha = 0.05) {
-  tt <- t.test(a, b, var.equal = FALSE, conf.level = 1 - alpha)
-  list(
+# offset: the common offset c a large-offset case was built on (0 for
+# the ordinary cases). Its inputs are c + d with d on a 2^-6 grid, so
+# every a - c is exact and R runs t.test on the deviations a - c, b - c:
+# the statistic, df, p, interval, diff and variances are shift-invariant,
+# so this is the exact test on the input doubles. t.test(a, b) on the
+# levels themselves rounds each mean to the offset's ulp first (2e-4
+# relative on diff at 1e12) and is not the reference (#637). The means
+# stay the levels, mean(a) and mean(b).
+t_two <- function(name, a, b, alpha = 0.05, offset = 0) {
+  if (offset != 0 && (any((a - offset) + offset != a) || any((b - offset) + offset != b))) stop(name, ": a - offset is not exact")
+  da <- a - offset; db <- b - offset
+  tt <- t.test(da, db, var.equal = FALSE, conf.level = 1 - alpha)
+  out <- list(
     name = name, variant = "welch_two_sample", a = ut_vec(a), b = ut_vec(b), alpha = num(alpha),
     statistic = num(unname(tt$statistic)), df = num(unname(tt$parameter)),
     p_value = num(tt$p.value),
     ci_low = num(tt$conf.int[1]), ci_high = num(tt$conf.int[2]),
     n = c(length(a), length(b)),
-    mean = ut_vec(c(mean(a), mean(b))), variance = ut_vec(c(var(a), var(b))),
-    diff = num(mean(a) - mean(b))
+    mean = ut_vec(c(mean(a), mean(b))), variance = ut_vec(c(var(da), var(db))),
+    diff = num(mean(da) - mean(db))
   )
+  if (offset != 0) out$offset <- num(offset)
+  out
 }
 set.seed(64201)
 t_cases <- list(
@@ -147,33 +159,47 @@ two_sample_inputs <- list(
   list("offset_1e3", round(rnorm(25, 1000, 1), 3), round(rnorm(28, 1000.4, 1.5), 3), 0.05),
   list("null_like", round(rnorm(30, 7, 1), 2), round(rnorm(33, 7, 1), 2), 0.05)
 )
-for (s in two_sample_inputs) t_cases[[length(t_cases) + 1]] <- t_two(s[[1]], s[[2]], s[[3]], s[[4]])
+# Large common offsets (#637): c + d, d on a 2^-6 grid so c + d is
+# exact. The deviations' spread is O(1) and the offset's ulp at 1e12 is
+# 1.2e-4, so a mean held at the data's magnitude carries an error four
+# digits below the difference it feeds: what the two-sample tests used
+# to lose.
+set.seed(64205)
+offset_dev <- function(n, mu, sd) round(rnorm(n, mu, sd) * 64) / 64
+for (off in list(list("offset_1e6", 1e6), list("offset_1e8", 1e8), list("offset_1e12", 1e12))) {
+  two_sample_inputs[[length(two_sample_inputs) + 1]] <- list(off[[1]], off[[2]] + offset_dev(24, 0, 1), off[[2]] + offset_dev(27, 0.45, 1.3), 0.05, off[[2]])
+}
+two_sample_inputs[[length(two_sample_inputs) + 1]] <- list("offset_1e12_unequal_n", 1e12 + offset_dev(9, 3, 0.6), 1e12 + offset_dev(40, 2.6, 2.2), 0.05, 1e12)
+for (s in two_sample_inputs) t_cases[[length(t_cases) + 1]] <- t_two(s[[1]], s[[2]], s[[3]], s[[4]], if (length(s) >= 5) s[[5]] else 0)
 write_golden("test_t", c(ut_meta(
   "TEST_T, TEST_WELCH",
   "t.test(x, mu, conf.level = 1 - alpha) and t.test(a, b, var.equal = FALSE, conf.level = 1 - alpha)",
-  "Two-sample cases run TEST_T (split_by) and TEST_WELCH, both Welch; a is the alphabetically first group, the interval is on mean(a) - mean(b)."
+  "Two-sample cases run TEST_T (split_by) and TEST_WELCH, both Welch; a is the alphabetically first group, the interval is on mean(a) - mean(b). The offset_* cases are c + d with d on a 2^-6 grid; R tests the exact deviations a - c, b - c (shift-invariant), not the levels, whose means round to the offset's ulp."
 ), list(cases = t_cases)))
 
 # ------------------------------------------------------- TEST_Z_TWO_SAMPLE
-z_two <- function(name, a, b, alpha) {
+z_two <- function(name, a, b, alpha, offset = 0) {
   na <- length(a); nb <- length(b)
-  diff <- mean(a) - mean(b)
-  se <- sqrt(var(a) / na + var(b) / nb)
+  da <- a - offset; db <- b - offset
+  diff <- mean(da) - mean(db)
+  se <- sqrt(var(da) / na + var(db) / nb)
   z <- diff / se
   zc <- qnorm(1 - alpha / 2)
-  list(
+  out <- list(
     name = name, a = ut_vec(a), b = ut_vec(b), alpha = num(alpha),
     statistic = num(z), p_value = num(2 * pnorm(-abs(z))),
     ci_low = num(diff - zc * se), ci_high = num(diff + zc * se),
-    n = c(na, nb), mean = ut_vec(c(mean(a), mean(b))), variance = ut_vec(c(var(a), var(b))),
+    n = c(na, nb), mean = ut_vec(c(mean(a), mean(b))), variance = ut_vec(c(var(da), var(db))),
     diff = num(diff)
   )
+  if (offset != 0) out$offset <- num(offset)
+  out
 }
-z_cases <- lapply(two_sample_inputs, function(s) z_two(s[[1]], s[[2]], s[[3]], s[[4]]))
+z_cases <- lapply(two_sample_inputs, function(s) z_two(s[[1]], s[[2]], s[[3]], s[[4]], if (length(s) >= 5) s[[5]] else 0))
 write_golden("test_z_two_sample", c(ut_meta(
   "TEST_Z_TWO_SAMPLE",
   "(mean(a) - mean(b)) / sqrt(var(a)/n_a + var(b)/n_b); 2 * pnorm(-|z|); diff -/+ qnorm(1 - alpha/2) * se",
-  "No stock R function; the sample (n - 1) variances, the same inputs as test_t.json's two-sample cases."
+  "No stock R function; the sample (n - 1) variances, the same inputs as test_t.json's two-sample cases (the offset_* cases on the exact deviations a - c, b - c)."
 ), list(cases = z_cases)))
 
 # --------------------------------------------------------------- TEST_CHISQ

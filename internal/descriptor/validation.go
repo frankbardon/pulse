@@ -76,7 +76,9 @@ func cloneDigits(m map[string]float64) map[string]float64 {
 // it checks, in the order the book lists them. figures, when set,
 // restricts an operator to the figures it produces: the univariate
 // suite certifies the mean (AGG_AVERAGE) and the sample standard
-// deviation (AGG_STDDEV, AGG_WELFORD) on one row.
+// deviation on one row, sd from AGG_STDDEV and welford_sd from
+// AGG_WELFORD's stddev component (they differ on the offset sets:
+// AGG_WELFORD accumulates about its first value).
 var strdFamilies = map[string]struct {
 	title   string
 	ops     []string
@@ -85,7 +87,7 @@ var strdFamilies = map[string]struct {
 	"lls":   {title: "linear regression", ops: []string{"REG_OLS"}},
 	"anova": {title: "one-way ANOVA", ops: []string{"TEST_ANOVA_F"}},
 	"univ": {title: "univariate summary statistics", ops: []string{"AGG_AVERAGE", "AGG_STDDEV", "AGG_WELFORD"},
-		figures: map[string][]string{"AGG_AVERAGE": {"mean"}, "AGG_STDDEV": {"sd"}, "AGG_WELFORD": {"sd"}}},
+		figures: map[string][]string{"AGG_AVERAGE": {"mean"}, "AGG_STDDEV": {"sd"}, "AGG_WELFORD": {"welford_sd"}}},
 }
 
 // StRDFamily returns the title of a StRD family key and the operators

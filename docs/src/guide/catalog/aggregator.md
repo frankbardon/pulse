@@ -1270,6 +1270,7 @@ Mean, sample variance and row count of a numeric field in one result: what a com
 **Validated against:**
 
 - NIST StRD certified values (univariate sample standard deviation (the `stddev` component): PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1–4) — tolerance digits achieved per dataset (see the NIST table); `strd_reference_test.go`
+- exact rational arithmetic on the input doubles: mean, shifted_mean and m2 of three merged partials under common offsets up to 1e12, unweighted and frequency-weighted — tolerance 1e-13 relative; `internal/processing/aggregator_welford_offset_test.go`
 
 See [How Pulse is validated](../validation.md).
 

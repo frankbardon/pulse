@@ -742,10 +742,12 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled); OVERLAY_PROP_Z_VS_PRIOR refuses it with its own PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE measure_type refusal",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
+				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values (origin + shifted_mean)."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Welford second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "variance", Type: "float64", Description: "Unbiased sample variance derived from m2 / (n-1); null (NaN) when n < 2 (weighted: sum_weights <= 1)."},
 				descriptor.ComponentKey{Name: "stddev", Type: "float64", Description: "Sample standard deviation (square root of variance)."},
+				descriptor.ComponentKey{Name: "origin", Type: "float64", Description: "Accumulation origin: the first value folded (0 when that value is not finite); the moments accumulate value − origin, so a large common offset costs no precision. Merged partials keep the first partial's origin."},
+				descriptor.ComponentKey{Name: "shifted_mean", Type: "float64", Description: "Mean minus origin, held at the deviations' magnitude; the two-sample moment overlays difference two cells as (origin_a − origin_b) + (shifted_mean_a − shifted_mean_b), as TEST_T / TEST_Z_TWO_SAMPLE do."},
 			),
 		},
 		{
