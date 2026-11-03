@@ -49,14 +49,14 @@ func loadPopulationsFromDir(opts *Options) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("pulse: populations dir %q: %w", dir, err)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %q", dir), err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("pulse: populations dir %q is not a directory", dir)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %q is not a directory", dir), nil)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("pulse: reading populations dir %q: %w", dir, err)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: reading populations dir %q", dir), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {

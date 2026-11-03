@@ -780,19 +780,19 @@ func New(opts Options) (*Pulse, error) {
 		// Custom FS provided: use it directly.
 		fsCfg, err = fs.New(fs.WithFs(opts.FS))
 		if err != nil {
-			return nil, fmt.Errorf("pulse: configuring filesystem: %w", err)
+			return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring filesystem", nil, err)
 		}
 	} else if opts.DataDir != "" {
 		// Explicit data directory.
 		fsCfg, err = fs.New(fs.WithDataDir(opts.DataDir))
 		if err != nil {
-			return nil, fmt.Errorf("pulse: configuring filesystem: %w", err)
+			return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring filesystem", nil, err)
 		}
 	} else {
 		// Fall back to environment defaults.
 		fsCfg, err = fs.Default()
 		if err != nil {
-			return nil, fmt.Errorf("pulse: configuring filesystem: %w", err)
+			return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring filesystem", nil, err)
 		}
 	}
 
@@ -811,10 +811,10 @@ func New(opts Options) (*Pulse, error) {
 	visibleExt := withoutHiddenExtensions(opts.Extensions, featureSet)
 
 	if opts.ShardWorkers < 0 {
-		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
+		return nil, argumentError("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
 	}
 	if opts.DecodeWorkers < 0 {
-		return nil, fmt.Errorf("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
+		return nil, argumentError("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
 	}
 	effectiveLimits, err := resolveLimits(opts, featureProfile)
 	if err != nil {
@@ -889,7 +889,7 @@ func New(opts Options) (*Pulse, error) {
 		Logger:                    opts.Logger,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)
+		return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring imports manager", nil, err)
 	}
 	templates.SetLogger(opts.Logger)
 
@@ -1013,6 +1013,9 @@ func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
 }
 
 func (p *Pulse) process(ctx context.Context, req *Request) (*Response, error) {
+	if req == nil {
+		return nil, argumentError("pulse: process requires a request")
+	}
 	resp, err := p.svc.Process(ctx, req)
 	if err == nil && req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
@@ -1336,6 +1339,9 @@ func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportRepo
 }
 
 func (p *Pulse) importJob(ctx context.Context, job *pio.ImportJob) (*pio.ImportReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: import requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1362,6 +1368,9 @@ func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportRepo
 }
 
 func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: export requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1435,6 +1444,9 @@ func (p *Pulse) ExportTransfer(ctx context.Context, job *pio.TransferExportJob) 
 }
 
 func (p *Pulse) exportTransfer(ctx context.Context, job *pio.TransferExportJob) (*pio.TransferReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: export transfer requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1453,6 +1465,9 @@ func (p *Pulse) ImportTransfer(ctx context.Context, job *pio.TransferImportJob) 
 }
 
 func (p *Pulse) importTransfer(ctx context.Context, job *pio.TransferImportJob) (*pio.TransferReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: import transfer requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1474,6 +1489,9 @@ func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 }
 
 func (p *Pulse) convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: convert requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -2198,6 +2216,9 @@ func (p *Pulse) Synth(ctx context.Context, spec *SynthSpec, output string, opts 
 }
 
 func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
+	if spec == nil {
+		return nil, argumentError("pulse: synth requires a spec")
+	}
 	// A supplied fidelity model is refit on the source BEFORE generation:
 	// a request the engine refuses fails the call with its own code and
 	// nothing is written. See fidelityModelRefit.

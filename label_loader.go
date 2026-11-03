@@ -45,14 +45,14 @@ func loadLabelTablesFromDir(opts *Options) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("pulse: label tables dir %q: %w", dir, err)
+		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %q", dir), err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("pulse: label tables dir %q is not a directory", dir)
+		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %q is not a directory", dir), nil)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("pulse: reading label tables dir %q: %w", dir, err)
+		return tableFileError("label_table", dir, fmt.Sprintf("pulse: reading label tables dir %q", dir), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -77,11 +77,11 @@ func loadLabelTablesFromDir(opts *Options) error {
 		path := filepath.Join(dir, name)
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("pulse: reading label table %s: %w", path, err)
+			return tableFileError("label_table", path, "pulse: reading label table "+path, err)
 		}
 		tbl, err := parseLabelTableFile(raw)
 		if err != nil {
-			return fmt.Errorf("pulse: parsing label table %s: %w", path, err)
+			return tableFileError("label_table", path, "pulse: parsing label table "+path, err)
 		}
 		if opts.Extensions.LabelTables == nil {
 			opts.Extensions.LabelTables = map[string]LabelTable{}
