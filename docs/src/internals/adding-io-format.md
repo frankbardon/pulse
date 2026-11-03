@@ -102,6 +102,34 @@ with a coded error:
   `internal/testutil/fuzzcontract` with `MaxAlloc` set
   (`internal/io/arrow/arrow_fuzz_test.go` is the model).
 
+### The fuzz target
+
+Every importer gets a fuzz target, whether or not a third-party library
+does the decoding. Pulse's own JSON readers have targets too
+(`internal/io/ndjson/ndjson_fuzz_test.go` is the smallest model). In
+`internal/io/<format>/<format>_fuzz_test.go`:
+
+1. `func Fuzz<Format>Import(f *testing.F)`. Seed it with `f.Add`: a
+   valid file, an empty one, a truncated one and a few typed or
+   malformed ones. Seeds run in the fast tier, so keep each small.
+2. In `f.Fuzz`, pass the input to `fuzzcontract.Run`. When a decoder
+   can size a buffer from a length the input declares (any binary
+   format), use `fuzzcontract.Contract{MaxAlloc: 1 << 30}.Run` instead.
+   The target function drives the whole read: `ImportJob.Predict`, then
+   `ImportJob.Run` with schema inference into an `afero.NewMemMapFs()`,
+   plus any sidecar or overlay read. It returns the first error.
+3. Run it locally for a few minutes (`go test -run '^$' -fuzz
+   '^Fuzz<Format>Import$' -fuzztime 2m -fuzzminimizetime 20x
+   ./internal/io/<format>`). Fix every crasher it finds and commit the
+   crasher file under `testdata/fuzz/Fuzz<Format>Import/` as its
+   regression entry.
+4. Add the target's leg to the `.github/workflows/fuzz.yml` matrix:
+   `- { pkg: "./internal/io/<format>", target: Fuzz<Format>Import }`.
+   `TestRepoFuzzMatrix_InSync` fails until you do.
+
+The contract, the weekly workflow and crasher reproduction are in
+[Running CI Gates Locally](../contributing/local-ci.md#fuzzing).
+
 ## 3. Register and wire it up
 
 Registration is spread across **four** places, and a format wired into

@@ -330,6 +330,77 @@ is the one a local `make dist VERSION=<tag>` builds. A tag containing
 The `apidiff` job is skipped under a release's `workflow_call`, since
 the tagged tree is the release itself.
 
+## Fuzzing
+
+Every surface that reads untrusted bytes has a fuzz target: request JSON
+decode, expression compile, each importer (CSV / TSV headers, NDJSON,
+JSON array, JSON shared, Arrow, Parquet, Excel, SPSS), the `.pulse`
+header, schema, dictionaries and full record read, and shard-archive
+open.
+
+**The contract.** A target hands each input to
+`internal/testutil/fuzzcontract` (`fuzzcontract.Run`, or a tuned
+`fuzzcontract.Contract{...}.Run`). The contract fails the input when:
+
+1. **The surface panics.** The panic is recovered and reported with the
+   input and the panicking goroutine's stack.
+2. **The run is unbounded.** The input is capped at `MaxInput` (64 KiB by
+   default) before the surface sees it, and one call must return within
+   `Timeout` (10 s). A target that builds a Pulse instance also caps the
+   engine with `fuzzcontract.Limits()`. `MaxAlloc` caps the heap one call
+   may allocate. It catches a decoder that sizes a buffer from a length
+   the input only declares; the importer targets set 1 GiB.
+3. **An error is not coded.** Every non-nil error must satisfy
+   `errors.As(err, **errors.CodedError)` with a registered code. A raw
+   `encoding/json` or third-party library error that reaches a caller
+   fails the contract.
+
+Each target adds seeds with `f.Add` and may commit a corpus under its
+package's `testdata/fuzz/<Target>/`. Seeds and corpus files run as
+ordinary subtests in the fast tier, so keep them small.
+
+**Running a target locally.** `-fuzz` takes one package and a pattern
+that matches one target:
+
+```bash
+go test -run '^$' -fuzz '^FuzzNDJSONImport$' -fuzztime 2m -fuzzminimizetime 20x ./internal/io/ndjson
+```
+
+`-run '^$'` skips the package's other tests. Keep `-fuzzminimizetime`
+short. The default of 60 s per new interesting input stalls the workers
+on a slow target.
+
+**Reproducing a crasher.** A failing input is written to
+`<pkg>/testdata/fuzz/<Target>/<id>`, and `go test` prints its path.
+Rerun that one input as an ordinary test:
+
+```bash
+go test -run '^FuzzNDJSONImport/<id>$' ./internal/io/ndjson
+```
+
+Fix the fault, then commit the crasher file unchanged as its regression
+entry. It runs in every fast-tier run from then on.
+
+**The weekly workflow.** `.github/workflows/fuzz.yml` runs every
+Monday. It has one matrix leg per target, and each leg fuzzes for 10
+minutes (`-fuzztime=10m`). It is advisory: it is not part of `ci.yml`
+and not a required check. A failed leg uploads its new corpus files as
+the `fuzz-crashers-<Target>` artifact and writes the reproduction
+command to the job summary. Copy the files into the package's
+`testdata/fuzz/<Target>/` and run that command. To run the workflow on
+demand, optionally with a shorter fuzz time:
+
+```bash
+gh workflow run fuzz.yml --ref <branch> -f fuzztime=2m
+```
+
+**Keeping the matrix whole.** `go run ./internal/tools/citest
+fuzz-check` fails when a `func FuzzXxx(f *testing.F)` in the module has
+no `fuzz.yml` leg, or when a leg names no target.
+`TestRepoFuzzMatrix_InSync` runs the same check in the fast tier. A new
+target needs one matrix line, in the `- { pkg: "./dir", target: FuzzXxx }`
+form the check parses.
+
 ## CLAUDE.md hygiene gates
 
 `CLAUDE.md` is itself a tested artefact. Every `PULSE_*` env var

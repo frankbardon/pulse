@@ -6,6 +6,7 @@
 //	go run ./internal/tools/citest fast-list
 //	go run ./internal/tools/citest fast-run <shard> [go test flags...]
 //	go run ./internal/tools/citest parallel-check
+//	go run ./internal/tools/citest fuzz-check
 //	go test -json ./... | go run ./internal/tools/citest filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]
 //
 // heavy-check validates the heavy-tier shard list (.github/heavy-shards.txt)
@@ -44,6 +45,10 @@
 //
 // parallel-check is the parallel-by-default gate (TestTestsParallelByDefault):
 // every top-level test calls t.Parallel() or carries "// serial: <reason>".
+//
+// fuzz-check keeps .github/workflows/fuzz.yml in sync with the tree
+// (TestRepoFuzzMatrix_InSync): every `func FuzzXxx(f *testing.F)` in the
+// root module has exactly one matrix leg and every leg names a real target.
 package main
 
 import (
@@ -75,6 +80,8 @@ func main() {
 		}
 	case "parallel-check":
 		code, err = parallelCheckMain(".", os.Stdout)
+	case "fuzz-check":
+		err = fuzzCheck(".", os.Stdout)
 	case "fast-list":
 		err = fastList(".", os.Stdout)
 		if err != nil {
@@ -100,6 +107,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | fast-list | fast-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]")
+	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | fast-list | fast-run <shard> [go test flags] | parallel-check | fuzz-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]")
 	os.Exit(2)
 }
