@@ -194,6 +194,9 @@ the sum:
 | `build` | `make build`, `make smoke` |
 | `test (1.26)` | the fast tier: `go test -count=1 -json ./...`, plus `citest heavy-check` |
 | `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
+| `test-windows (1)`, `test-windows (2)` | the fast tier on `windows-latest`, split by package (`citest fast-run`); no build cache |
+| `test-macos` | the fast tier on `macos-latest` (arm64) |
+| `smoke-windows`, `smoke-macos` | the `build` job per OS: build `cmd/pulse`, then the embedder smoke module |
 | `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
 
 Each shard runs only the heavy tests it owns, with `go test -tags heavy
@@ -224,9 +227,71 @@ summary. The report never fails a job; `pipefail` keeps `go test`'s
 exit status. Before its test step, `test (1.26)` compiles every
 fast-tier test binary on its own (`go test -run '^$' ./...`) and writes
 the compile time to the job summary, so compile and run cost read
-apart. Each Go job restores the `setup-go` module and build
+apart. Each Go job except the `test-windows` shards restores the `setup-go` module and build
 cache. The lint jobs and `build` hash different files into their cache
 keys, so they never seed the cache the test jobs use.
+
+### Windows and macOS legs
+
+The four OS legs are blocking, like the ubuntu jobs, and each fits an
+8-minute wall on a cold cache (E1-S3 measured the numbers below; aim
+6 minutes). They run the same fast tier as `test (1.26)`: no
+`-parallel 1` and no budget, so a test that takes over 1 s on a slow
+runner is fine there. `make test` keeps the budget locally. Each test
+leg runs `go test` in one step. A separate compile step would link
+every test binary twice, and linking ~145 binaries is most of a cold
+Windows job.
+
+`test-windows` runs as two jobs, one per id in its `fast-shard:`
+matrix. `.github/fast-shards.txt` pins a few long-running packages
+(`<shard> <package>`). Every other package of `go list ./...` goes to
+the shard holding the fewest packages so far, so each package runs in
+exactly one shard and a new package needs no line.
+`TestRepoFastShardList_Valid` checks the list against the tree and the
+matrix. Pin a package only to rebalance; a new shard id means a new
+required check (see branch protection below).
+
+```bash
+go run ./internal/tools/citest fast-list            # <shard> <package>, every package
+go run ./internal/tools/citest fast-run 1 -count=1  # one shard, as CI runs it
+```
+
+The Windows test shards run without the `setup-go` cache. Cold, one
+unsharded job took over 7 minutes. Its build and module cache is 2 GB
+and takes ~45 s just to restore, and `setup-go` saves a cache only
+after a green run whose key missed, so a red run always started cold
+anyway. Every shard run is cold and takes the same time. `test-macos`
+and both smoke legs keep `setup-go`'s default cache: `test-macos` is
+keyed on `go.sum` like `test (1.26)`, and the smoke legs on every
+`go.sum` like `build`. They fit the wall cold too.
+
+**Reproducing a Windows failure.** Start from the failing job's log.
+Each shard also uploads its `go test -json` stream as the
+`test-windows-<shard>-json` artifact. Then narrow it down:
+
+- **Cross-check from macOS or Linux.** `GOOS=windows go vet ./...` and
+  `GOOS=windows go test -c -o /dev/null ./<pkg>` catch build-tag and
+  API mistakes, for example a `_unix.go` file with no Windows twin or a
+  `syscall` name Windows lacks. They run nothing, so a path or
+  file-locking bug still needs a Windows run.
+- **Run it on Windows.** On a Windows machine with Go and Git Bash, run
+  `go run ./internal/tools/citest fast-run <shard> -count=1 -run
+  '^TestName$'` or a plain `go test -count=1 -run '^TestName$'
+  ./<pkg>`. Without one, push the branch and dispatch `ci.yml`; the
+  shard named in the failing check reruns only its own packages.
+- **Common causes:** an OS path built with `path` instead of
+  `filepath` (or the reverse: a slash-separated fixture path compared
+  to an OS path), a file still open when `t.TempDir` cleanup or a
+  rename runs (Windows refuses to delete an open or mapped file), and
+  timer resolution, where a 1 ms deadline fires before the code it was
+  meant to interrupt has started.
+- **Line endings.** `.gitattributes` checks out every text file with LF
+  (`* text=auto eol=lf`) and marks `.pulse` cohorts and archives
+  `binary`. So a golden, fixture or embedded skill reads the same bytes
+  on Windows. A CRLF-shaped failure means a new binary extension
+  missing from `.gitattributes`, or text that reaches the engine from
+  outside the repository; in that case normalise CRLF to LF where it
+  enters, as the skill loader does.
 
 `make lint` runs serially on one machine; CI splits it so the two
 staticcheck tiers run in parallel with `fmt-vet`. Each staticcheck job
@@ -235,8 +300,12 @@ that version (`STATICCHECK_VERSION`). Locally, `make lint` stays the one
 command; `make staticcheck` runs the three staticcheck steps over a
 temporary directory.
 
-Branch protection requires the `lint` and `test (1.26)` check runs on
-the branch head before merge.
+Branch protection requires these check runs on the branch head before
+merge: `lint`, `test (1.26)`, `docs`, `build`, every `test-heavy (…)`
+shard, `test-windows (1)`, `test-windows (2)`, `test-macos`,
+`smoke-windows` and `smoke-macos` (and one approving review). A renamed
+job or a new shard id must be updated in the protection settings in
+the same change, or no run can satisfy the old name.
 
 A `v*.*.*` tag push (`release.yml`) reuses a passing `ci.yml` run when
 `scripts/release-ci-reuse.sh <tested-sha> <tag-sha>` accepts the run's

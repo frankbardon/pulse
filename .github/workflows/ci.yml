@@ -277,7 +277,10 @@ jobs:
   # cache is 2 GB, whose restore alone costs ~45 s. setup-go saves the
   # cache only on a green run whose key missed, so a red run always
   # started cold anyway. Cache-free shards take the same time every run,
-  # well inside the 8-minute wall.
+  # well inside the 8-minute wall. A cache-warming workflow on main warms
+  # the legs that DO use setup-go's cache with the same setup-go inputs
+  # (test-macos: the default go.sum key; smoke-windows / smoke-macos:
+  # `**/go.sum`); the test-windows shards need none.
   test-windows:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -397,53 +400,6 @@ jobs:
 
       - name: Embedder smoke module
         run: make smoke
-
-  # TEMPORARY (E1-S3 cold-cache measurement; removed before the story ends).
-  exp-cold-test-macos:
-    runs-on: macos-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.26"
-          cache: false
-      - shell: bash
-        run: |
-          go build -o "$RUNNER_TEMP/citest" ./internal/tools/citest
-          set -o pipefail
-          go test -count=1 -json ./... | "$RUNNER_TEMP/citest" filter -title "exp-cold test-macos"
-
-  exp-cold-smoke-windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.26"
-          cache: false
-      - shell: bash
-        env:
-          CGO_ENABLED: "0"
-        run: go build -trimpath -o "bin/pulse$(go env GOEXE)" ./cmd/pulse
-      - shell: bash
-        working-directory: internal/embeddersmoke
-        env:
-          GOFLAGS: -mod=mod
-        run: go vet ./... && go test -count=1 ./...
-
-  exp-cold-smoke-macos:
-    runs-on: macos-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.26"
-          cache: false
-      - run: make build
-      - run: make smoke
 
   # apidiff reports the exported-API delta against the latest release tag,
   # using a pinned `apidiff -m` over a git-worktree checkout of that tag.
