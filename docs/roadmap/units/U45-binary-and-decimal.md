@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [312, 313, 314, 315, 316, 317]
+todo_items: [312, 314, 315, 316, 317]
 branch: binary-and-decimal
 ---
 

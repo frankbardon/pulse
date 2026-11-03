@@ -8,7 +8,7 @@ status: done
 depends_on: [U54]
 soft_depends_on: [U35]
 blocks: [U32]
-todo_items: [319, 320, 321, 322, 323, 428, 429, 430]
+todo_items: [319, 320, 321, 322, 428, 429, 430]
 branch: grouped-analysis
 ---
 

@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U61]
 blocks: [U32, U65]
-todo_items: [588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 608, 609, 610, 611, 612]
+todo_items: [613, 614, 615, 616, 617, 618, 619, 620, 621, 622, 633, 634, 635, 636, 637, 644]
 branch: reference-validation
 ---
 
