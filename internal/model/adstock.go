@@ -226,7 +226,7 @@ func staticWindowAdstock(req *types.Request, ch string) bool {
 		return false
 	}
 	var keys map[string]json.RawMessage
-	if json.Unmarshal(w.Params, &keys) != nil || !present(keys["kernel"]) || !present(keys["max_lag"]) {
+	if paramread.Probe(w.Params, &keys) != nil || !present(keys["kernel"]) || !present(keys["max_lag"]) {
 		return false
 	}
 	var raw distlagparams.Params
