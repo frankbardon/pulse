@@ -31,7 +31,7 @@ func TestEstimateBuckets_DictionaryNotCopied(t *testing.T) {
 	if n, basis, ok := EstimateBuckets(groups, schema); !ok || n != 100_000 || basis != BucketBasisDictionary {
 		t.Fatalf("EstimateBuckets = %d, %q, %v; want 100000 dictionary", n, basis, ok)
 	}
-	if a := testing.AllocsPerRun(20, func() { EstimateBuckets(groups, schema) }); a != 0 {
+	if a := testing.AllocsPerRun(20, func() { EstimateBuckets(groups, schema) }); a != 0 && !raceEnabled {
 		t.Errorf("EstimateBuckets allocated %.0f times per call over a 100k-entry dictionary, want 0", a)
 	}
 	inc := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "c", Include: []string{"k000001", "k000002", "k000002", "absent"}}}

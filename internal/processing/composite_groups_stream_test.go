@@ -43,7 +43,7 @@ func TestStreamingGrouped_SingleGrouperAllocCeiling(t *testing.T) {
 		t.Fatalf("%d rows, want 4", len(resp.Data))
 	}
 	if raceEnabled {
-		t.Skip("the race runtime adds its own allocations; the ceiling is a plain-build figure")
+		t.Skip("the race runtime adds its own allocations; the ceiling is a plain-build figure (see #587)")
 	}
 	got := testing.AllocsPerRun(50, func() {
 		_, _ = p.Process(context.Background(), req, NewSliceIterator(recs))

@@ -124,7 +124,7 @@ func TestExprVectors_FillAllocationFree(t *testing.T) {
 	allocs := testing.AllocsPerRun(200, func() {
 		prog.releaseVectors(prog.fillVectors(env, r))
 	})
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Fatalf("fillVectors allocates %v per row, want 0", allocs)
 	}
 }

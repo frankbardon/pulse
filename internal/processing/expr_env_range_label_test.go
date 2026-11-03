@@ -179,7 +179,7 @@ func TestRangeLabel_NoAllocs(t *testing.T) {
 		if _, err := call(args...); err != nil { // compile the table
 			t.Fatal(err)
 		}
-		if n := testing.AllocsPerRun(200, func() { _, _ = call(args...) }); n != 0 {
+		if n := testing.AllocsPerRun(200, func() { _, _ = call(args...) }); n != 0 && !raceEnabled {
 			t.Errorf("%s: %v allocs per call, want 0", name, n)
 		}
 	}

@@ -595,7 +595,7 @@ func TestRecord_TypedSetDecodeAllocatesNothing(t *testing.T) {
 		}
 		row++
 	})
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Fatalf("reuse decode of four set fields allocates %.1f/row, want 0", allocs)
 	}
 	if m, _ := rec.SetMaskValue("s64"); !m.Has(63) {
@@ -836,7 +836,7 @@ func TestRecord_VectorDecodeAllocatesNothing(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Fatalf("reuse decode of two vector fields allocates %v per row, want 0", allocs)
 	}
 	if v, ok := rec.VectorValue("b"); !ok || v[0] != rows-1 || v[7] != 7 {

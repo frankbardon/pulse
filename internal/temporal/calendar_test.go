@@ -138,7 +138,7 @@ func TestLocalHour_AllocFree(t *testing.T) {
 
 	z := mustZone(t, "Europe/Berlin")
 	s := time.Date(2026, 10, 25, 1, 30, 0, 0, time.UTC).Unix()
-	if n := testing.AllocsPerRun(100, func() { _ = LocalHour(s, z) }); n != 0 {
+	if n := testing.AllocsPerRun(100, func() { _ = LocalHour(s, z) }); n != 0 && !raceEnabled {
 		t.Errorf("LocalHour allocates %v per call", n)
 	}
 }

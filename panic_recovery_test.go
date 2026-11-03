@@ -314,7 +314,7 @@ func TestPanicRecovery_OffPathNoAllocs(t *testing.T) {
 		_, _ = observed(p, ctx, requestOp(observe.OpProcess, req), func(context.Context) (int, error) { return 1, nil })
 		_, _ = observedStream(p, ctx, requestOp(observe.OpProcessStream, req), func(context.Context, func(error)) (int, error) { return 1, nil })
 	})
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Fatalf("off-path helpers allocated %v per run, want 0", allocs)
 	}
 }

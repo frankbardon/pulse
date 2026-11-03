@@ -2,6 +2,8 @@
 
 package processing
 
-// raceEnabled reports a -race build: the race runtime allocates on its
-// own, so pinned allocation ceilings do not apply.
+// raceEnabled reports a -race build. The race runtime allocates on its
+// own, so this package's testing.AllocsPerRun ceilings hold in plain
+// builds only: under -race each one still runs, and only its ceiling
+// assertion is relaxed (see #587).
 const raceEnabled = true

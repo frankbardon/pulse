@@ -283,7 +283,7 @@ func TestLocal_AllocFree(t *testing.T) {
 		sink += int64(p.ISOWeek)
 		sink += LocalMidnightUTC(19000, z)
 	})
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Errorf("allocs/op = %v, want 0", allocs)
 	}
 	_ = sink
