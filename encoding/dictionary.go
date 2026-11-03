@@ -115,12 +115,17 @@ const dictPreallocCap = 4096
 // ReadFrom deserializes a dictionary from r, replacing current contents.
 // Format: u32 count + (u16 strlen + utf8 bytes) x count
 //
-// Performance: a single byte buffer is grown to hold all string payloads
-// across the dictionary, instead of allocating one []byte per entry. Each
-// resolved string is copied once via the standard string([]byte) conversion
-// (no unsafe), so we drop one allocation per entry while preserving the
-// safety contract that callers can mutate the underlying buffer afterwards
-// without affecting the stored strings.
+// The count is a length the input merely DECLARES, so nothing is sized
+// from it until the entries behind it have been read: the []string
+// starts at min(count, dictPreallocCap) and doubles (never past count),
+// and the lookup map is built once, presized to the entries actually
+// read. A forged count over a short tail fails ENCODING_INVALID having
+// allocated only for the bytes present, while an honest dictionary's
+// map is sized exactly. Each label is read into one reused scratch
+// buffer (grown to the longest label, at most 64 KiB) and copied once
+// via the standard string([]byte) conversion (no unsafe), so callers
+// may reuse r's buffers freely. limits.DictionaryDecodeBytes replays
+// these allocations for the memory pre-flight.
 func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
 	var read int64
 	// Read count via a small fixed-size buffer to avoid binary.Read's
@@ -133,60 +138,51 @@ func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
 	}
 	count := binary.LittleEndian.Uint32(hdr[:])
 
-	// The count is a length the input merely DECLARES: preallocate for
-	// at most dictPreallocCap entries and let an honest larger
-	// dictionary grow as it is read, so a forged count costs nothing
-	// before the stream runs dry.
-	hint := min(count, dictPreallocCap)
-	d.values = make([]string, 0, hint)
-	d.lookup = make(map[string]uint32, hint)
-
 	if count == 0 {
+		d.values = make([]string, 0)
+		d.lookup = make(map[string]uint32)
 		return read, nil
 	}
 
-	// Single shared byte buffer for all string payloads. We can't precompute
-	// the exact total without consuming the stream first, so we grow on demand
-	// from a heuristic initial capacity of 64 bytes per entry (typical for
-	// short categorical labels).
-	const avgBytesPerEntry = 64
-	bufCap := max(int(hint)*avgBytesPerEntry, 256)
-	buf := make([]byte, 0, bufCap)
-
+	values := make([]string, 0, min(count, dictPreallocCap))
+	var scratch []byte
 	var lenBuf [2]byte
-	for i := range count {
+	for range count {
 		ln, err := io.ReadFull(r, lenBuf[:])
 		read += int64(ln)
 		if err != nil {
 			return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
 		}
 		slen := int(binary.LittleEndian.Uint16(lenBuf[:]))
-
-		// Grow shared buffer to fit this entry, then read directly into the
-		// new tail slice. This keeps all string bytes in one backing array.
-		start := len(buf)
-		end := start + slen
-		if cap(buf) < end {
-			// Double capacity until it fits, like append's growth strategy.
-			newCap := max(cap(buf)*2, end)
-			grown := make([]byte, len(buf), newCap)
-			copy(grown, buf)
-			buf = grown
+		if cap(scratch) < slen {
+			scratch = make([]byte, max(cap(scratch)*2, slen, dictScratchMin))
 		}
-		buf = buf[:end]
-
+		label := scratch[:slen]
 		if slen > 0 {
-			rn, err := io.ReadFull(r, buf[start:end])
+			rn, err := io.ReadFull(r, label)
 			read += int64(rn)
 			if err != nil {
 				return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
 			}
 		}
-
-		// string([]byte) copies once; that's the only per-entry alloc now.
-		s := string(buf[start:end])
-		d.values = append(d.values, s)
-		d.lookup[s] = i
+		if len(values) == cap(values) {
+			// Double, never past the declared count: the entries read so
+			// far vouch for the capacity, the count only caps it.
+			grown := make([]string, len(values), min(uint32(cap(values))*2, count))
+			copy(grown, values)
+			values = grown
+		}
+		values = append(values, string(label))
 	}
+
+	lookup := make(map[string]uint32, len(values))
+	for i, s := range values {
+		lookup[s] = uint32(i)
+	}
+	d.values = values
+	d.lookup = lookup
 	return read, nil
 }
+
+// dictScratchMin is the smallest label scratch buffer ReadFrom allocates.
+const dictScratchMin = 256

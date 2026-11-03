@@ -48,9 +48,10 @@ func BenchmarkDictionary_Resolve_HotPath(b *testing.B) {
 	}
 }
 
-// BenchmarkDictionary_ReadFrom guards the ReadFrom hot path. The shared-
-// buffer rewrite drops one allocation per entry (was 2/entry, now 1/entry +
-// one shared buffer). Don't regress.
+// BenchmarkDictionary_ReadFrom guards the ReadFrom hot path: one
+// allocation per entry (its string copy) plus a reused label scratch
+// buffer, the doubling []string and one presized lookup map. Don't
+// regress.
 func BenchmarkDictionary_ReadFrom(b *testing.B) {
 	for _, n := range []int{5, 50, 500, 5000} {
 		data := serializedDict(n)

@@ -147,14 +147,14 @@ const (
 	// count, so the term is records x valueEntryBytes per such slot.
 	valueEntryBytes = 96
 	// dictEntryDecodeBytes per dictionary entry a schema decode
-	// allocates beyond its label: the []string slot and the presized
-	// lookup-map entry with its slack (measured ~100 a entry).
+	// allocates beyond its label: the []string slot with its doubling
+	// generations and the lookup-map entry presized to the entries read,
+	// with its slack (measured ~80 a entry).
 	dictEntryDecodeBytes = 128
-	// dictBufferBytesPerEntry: encoding.Dictionary.ReadFrom's shared
-	// label buffer starts at this many bytes a entry (min 256) and
-	// doubles until the labels fit — DictionaryDecodeBytes replays that
-	// growth.
-	dictBufferBytesPerEntry = 64
+	// dictScratchMinBytes: encoding.Dictionary.ReadFrom reads every
+	// label into one reused scratch buffer of at least this many bytes,
+	// grown (doubling, or straight to the label) to the longest label.
+	dictScratchMinBytes = 256
 	// fieldDecodeBytes per field descriptor a schema decode allocates:
 	// the Field, its name and description.
 	fieldDecodeBytes = 256
@@ -548,27 +548,24 @@ func SchemaDecodeBytes(schema *encoding.Schema) int64 {
 
 // DictionaryDecodeBytes is what encoding.Dictionary.ReadFrom allocates
 // decoding d: per entry dictEntryDecodeBytes plus its label's string
-// copy (rounded up a size class: +1/8 + 8), and the shared label
-// buffer — dictBufferBytesPerEntry a entry (min 256), doubled until
-// every label fits, each generation allocated. 0 for nil.
+// copy (rounded up a size class: +1/8 + 8), and the label scratch
+// buffer — every generation of it, under 4x the longest label (min
+// dictScratchMinBytes) since each is at least double the last. Nothing
+// is sized from the block's declared count. 0 for nil.
 func DictionaryDecodeBytes(d *encoding.Dictionary) int64 {
 	if d == nil || d.Count() == 0 {
 		return 0
 	}
 	n := int64(d.Count())
-	var labels, strings int64
+	var longest, strings int64
 	for id := range d.Count() {
 		l := int64(len(d.Resolve(uint32(id))))
-		labels += l
+		longest = max(longest, l)
 		strings += l + l/8 + 8
 	}
-	buf := max(n*dictBufferBytesPerEntry, 256)
 	b := addSat(mulSat(n, dictEntryDecodeBytes), strings)
-	for c := buf; ; c = mulSat(c, 2) {
-		b = addSat(b, c)
-		if c >= labels || c == maxInt64 {
-			break
-		}
+	if longest > 0 {
+		b = addSat(b, 4*max(longest, dictScratchMinBytes))
 	}
 	return b
 }
