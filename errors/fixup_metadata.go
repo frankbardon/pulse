@@ -118,17 +118,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PROCESSING_REGRESSION_NOT_IMPLEMENTED: {
-		Message: "The requested regression operator is registered but its engine has not landed yet (Phase 0 stub).",
-		Fixups: []Fixup{
-			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"Regressions", "*", "Type"},
-				Hint:     "Phase 0 lands the API surface only; remove the regression slot until the matching engine ships, or pin to a Pulse release that includes the operator.",
-				Examples: []any{"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR"},
-			},
-		},
-	},
 	PROCESSING_REGRESSION_RANK_DEFICIENT: {
 		Message: "The predictor design matrix has collinear columns; XᵀX is singular and the closed-form solve cannot proceed.",
 		Fixups: []Fixup{

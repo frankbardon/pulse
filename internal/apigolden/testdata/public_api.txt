@@ -2656,7 +2656,6 @@ pulse/errors: const PROCESSING_REGRESSION_DIAGNOSTIC pulse/errors.Code = "PROCES
 pulse/errors: const PROCESSING_REGRESSION_INSUFFICIENT_DATA pulse/errors.Code = "PROCESSING_REGRESSION_INSUFFICIENT_DATA"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_FAMILY pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_LINK pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_LINK"
-pulse/errors: const PROCESSING_REGRESSION_NOT_IMPLEMENTED pulse/errors.Code = "PROCESSING_REGRESSION_NOT_IMPLEMENTED"
 pulse/errors: const PROCESSING_REGRESSION_NO_CONVERGE pulse/errors.Code = "PROCESSING_REGRESSION_NO_CONVERGE"
 pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
 pulse/errors: const PROCESSING_REGRESSION_SEPARATION pulse/errors.Code = "PROCESSING_REGRESSION_SEPARATION"
@@ -6651,4 +6650,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4f846a776c426979dfcc77c393c90c48d025b869165feb51360df1415b8c8638
+// golden-hash: 7fe0aa73668ad56da0138366ba34b4fd22ffd5e14aec4e1aaf9ad28ec475bc69
