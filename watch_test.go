@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -68,8 +69,10 @@ func TestWatchDir_OnlyPulseSuffix(t *testing.T) {
 	_ = afero.WriteFile(memFs, "d/cohort.pulse", []byte("x"), 0o644)
 
 	got := waitForEvent(t, ch, 2*time.Second)
-	if got.Path != "d/cohort.pulse" || got.Kind != ChangeCreated {
-		t.Fatalf("event = %+v, want d/cohort.pulse Created", got)
+	// Dir-mode paths are OS paths: the root joined (filepath.Join) with
+	// each entry name — d\cohort.pulse on Windows.
+	if want := filepath.Join("d", "cohort.pulse"); got.Path != want || got.Kind != ChangeCreated {
+		t.Fatalf("event = %+v, want %s Created", got, want)
 	}
 }
 
@@ -85,4 +88,29 @@ func waitForEvent(t *testing.T, ch <-chan ChangeEvent, timeout time.Duration) Ch
 		t.Fatalf("timed out waiting for change event")
 	}
 	return ChangeEvent{}
+}
+
+// TestLooksLikeTempSibling_OSPaths: the rename coalescer compares base
+// names of the OS paths the dir-mode walk builds (filepath.Join), so a
+// dot-prefixed editor temp file is recognised whatever the separator.
+// With path.Base a Windows path (d\.cohort.pulse) kept its directory and
+// the "." prefix never matched.
+func TestLooksLikeTempSibling_OSPaths(t *testing.T) {
+	t.Parallel()
+
+	target := filepath.Join("d", "cohort.pulse")
+	for _, tc := range []struct {
+		temp string
+		want bool
+	}{
+		{filepath.Join("d", ".cohort.pulse"), true},
+		{filepath.Join("d", "cohort.pulse.tmp"), true},
+		{filepath.Join("d", "cohort.pulse.1234"), true},
+		{filepath.Join("d", "other.pulse"), false},
+		{target, false},
+	} {
+		if got := looksLikeTempSibling(tc.temp, target); got != tc.want {
+			t.Errorf("looksLikeTempSibling(%q, %q) = %v, want %v", tc.temp, target, got, tc.want)
+		}
+	}
 }

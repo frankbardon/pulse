@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -374,8 +373,8 @@ func absDuration(d time.Duration) time.Duration {
 // scratch-file companion of targetPath. Covers the common rename-from-
 // temp patterns used by editors and atomic-write libraries.
 func looksLikeTempSibling(tempPath, targetPath string) bool {
-	tempBase := path.Base(tempPath)
-	targetBase := path.Base(targetPath)
+	tempBase := filepath.Base(tempPath)
+	targetBase := filepath.Base(targetPath)
 	if tempBase == targetBase {
 		return false
 	}
