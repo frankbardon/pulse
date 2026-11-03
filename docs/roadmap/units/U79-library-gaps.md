@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: []
 blocks: [U32]
-todo_items: [550, 570, 576, 692, 693, 694, 695, 696, 697, 698, 699, 700, 701, 702, 703]
+todo_items: [550, 570, 576, 692, 693, 694, 695, 696, 697, 698, 699, 700, 701, 702, 703, 709, 710, 711, 712]
 branch: library-gaps
 ---
 
@@ -55,6 +55,10 @@ E1-S4, E1-S5 and E7-S3 were added during the effort to close known limits found 
 - [x] **#701** Compose `base` (#427 G5a): `ComposedRequest.Base` merges shared windows, features, attributes and formulas into every explicit slot (`capability:compose_base`, `PULSE_COMPOSE_BASE_COLLISION`). Done (library-gaps E6-S1) · [U79](U79-library-gaps.md)
 - [x] **#702** `for_each` on aggregations, matrices and Compose optimize blocks (#427 G4), with `Limits.MaxExpandedItems` and the payload schema admitting `{"$var"}` markers in a fanned-out block. Done (library-gaps E7-S1, E7-S2, E7-S3; E7-S3 was added in the effort to close a known limit) · [U79](U79-library-gaps.md)
 - [x] **#703** Synth rules call `lookup()` (#427 G5b): the instance's lookup tables are an input of the run (`synth.Options.LookupTables`, `Spec.HashWithLookups`), checked before row 0, deterministic per spec + seed + tables. Done (library-gaps E8-S1) · [U79](U79-library-gaps.md)
+- [x] **#709** A whole-list or list-entry `{"$var"}` marker in a `for_each` optimize block: the runtime kept it (failing it late or with a bare decode error) while the payload and MCP `pulse_compose` schemas rejected it. Done (library-gaps E9-S2, the conservative choice): refused before render with `PULSE_FOR_EACH_INVALID` reason `marker_position`, predict and runtime alike, so the three agree; a marker inside a free-form `inline` body stays admitted by all three · [U79](U79-library-gaps.md)
+- [x] **#710** Facet predict lists `unresolved_scalars` for a request-bound extension expression param (`FacetPredictResult.UnresolvedScalars`, additive `omitempty`, at `filterers[i].params.<key>`), as Process and Compose predict do. Done (library-gaps E9-S2) · [U79](U79-library-gaps.md)
+- [x] **#711** The extension-param splice bans (template, `for_each`, sweep) flagged nothing when the operator `type` was itself template syntax. Done (library-gaps E9-S2, the conservative choice): such a `type` is judged against every key any visible operator flags, the refusal carrying `details.type_templated` · [U79](U79-library-gaps.md)
+- [x] **#712** Explain's caveat for a request a splice ban would refuse is pinned by `TestExplain_ExtensionSpliceCaveat` (falsified by expanding with empty `sweep.Options`). Done (library-gaps E9-S2) · [U79](U79-library-gaps.md)
 
 ## Handed-on
 
@@ -62,13 +66,11 @@ E1-S4, E1-S5 and E7-S3 were added during the effort to close known limits found 
 |---|---|---|
 | #380 `for_each` inside a Compose `sweep` body | [U72](U72-compose-sweep-2.md) | U79 extended the `nested_in_sweep` refusal to aggregation, matrix and optimize `for_each`; lifting it stays with the sweep's lexical-scoping work |
 | #704 non-fail-fast `ComposeParallel` returns early when sweep phase 0 fails | [U72](U72-compose-sweep-2.md) | pre-existing; inconsistent with the aggregate contract every later phase follows (sibling of #580) |
-| #709 whole-array `{"$var"}` marker in a `for_each` optimize block | [U72](U72-compose-sweep-2.md) | the runtime accepts it; the payload and MCP schemas do not (stricter than runtime) |
 | #705 `Explain` does not describe Compose `optimize` blocks | [U71](U71-mmm-optimize-depth.md) | pre-existing; U71 owns the optimize surface |
 | #706 `make sites` covers `types.Request` only, not `ComposedRequest` | [U32](U32-docs-audit.md) | extends #560; the tool missed several site families on this effort's Compose-level slots |
 | #707 flaky `TestRecord_LayoutCacheReleasesCollectedSchemas` | [U74](U74-memory-bounds.md) | GC-timing failure once in a parallel multi-package run; U78 (the test-hygiene owner) is closed, so the memory-bounds unit is the nearest fit |
 | #708 predict does not fold a loaded or inline model's `coef()` / `sweep_axis()` / `response()` values | [U67](U67-predict-extension-parity-2.md) | design option; the values stay under `unresolved_scalars` and are checked at runtime |
-| #710 facet predict lists no `unresolved_scalars` for an extension expression param | [U67](U67-predict-extension-parity-2.md) | predict / runtime parity residue |
-| #711 splice bans match an extension param by literal `type` only | [U67](U67-predict-extension-parity-2.md) | a rendered `type` flags nothing; parity residue |
-| #712 Explain's splice-ban caveat has no dedicated test | [U67](U67-predict-extension-parity-2.md) | pin it with the parity work |
+
+#709 to #712, filed here first under U72 / U67, were closed in this effort (E9-S2, owner decision) rather than handed on.
 
 The post-alpha cross-repo acceptance (the Studio dependency bump and the library examples that collect each #427 payoff) is tracked on #427, not here.
