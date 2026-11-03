@@ -14,6 +14,8 @@ requires: [capability:synth]
 
 Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file. Any sampler change breaking that is a contract break.
 
+**A rule's `lookup()` tables are part of the input.** The table name is a literal, so the tables a spec reads are a static fact (`Spec.ReferencedLookupTables`); `Spec.HashWithLookups(tables)` folds each one's content digest (`synth.LookupDigest`: every key, the exact bits of every value, the axes) into the identity, and is the synth operation's request hash and the stream header's. Same spec + seed + referenced tables ⇒ same bytes; a changed cell moves the hash. `Spec.Hash()` alone is table-blind; a spec calling no `lookup()` hashes as before.
+
 Seed splitting uses a 64-bit avalanche; seeds differing by 1 give uncorrelated streams. `Seed == 0` is stable, not "random". `nullableSampler` always draws the inner value FIRST, then the null mask — the stream is invariant to which rows are null.
 
 Every per-row stage consumes a FIXED number of draws whatever it decides: each model drawer takes exactly one normal per row unconditionally (even at zero residual std), in SCHEMA field order, never in `models` array order; the rule pass consumes NO RNG, `row()` and `lag()` included (rows are generated in declaration order, never shuffled, and a rejected attempt leaves no history); the mixture quantile is a fixed-count bisection, never a tolerance-terminated search. A spec declaring no models, residual correlations or rules is byte-identical to pre-slot output. The stream legitimately moves only for a reason a warning names (a rule that pre-claims a field retires its model, and that model's draw).

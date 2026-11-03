@@ -310,7 +310,10 @@ func drawDetailValue(p float64) any {
 func ruleDrawError(err error, idx int, slot, field, src string) error {
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_SYNTH_RULE_DRAW_INVALID {
-		return nil
+		// A lookup() fault keeps the table's own code too (row_lookup.go).
+		if ce = lookupRunError(err); ce == nil {
+			return nil
+		}
 	}
 	details := map[string]any{errors.DetailSynthRule: idx, errors.DetailSynthRuleSlot: slot, "expr": src}
 	for k, v := range ce.Details {

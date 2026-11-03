@@ -53,6 +53,11 @@ type compiledConstraints struct {
 	// validation-only probe.
 	lag *lagBuffer
 
+	// lookups are the tables lookup() reads (row_lookup.go): generate
+	// attaches Options.LookupTables to both hosts after the eager
+	// pre-row check; nil on every validation-only probe.
+	lookups map[string]LookupTable
+
 	// time is the spec's date / datetime declarations the time functions
 	// read (row_time.go), set by rowExprOptions; seasons is each compiled
 	// season() call's weights, appended by its patcher; datetimes is
@@ -128,10 +133,15 @@ func rowExprOptions(env map[string]any, names map[string]bool, times map[string]
 		// uniform() / bernoulli(p) are rewritten onto internal names
 		// carrying their draw-site index (row_draw.go).
 		expr.Patch(drawPatcher{declared: names, host: host}),
+		// lookup() key arguments that read a field are wrapped so a null
+		// field binds a null key (row_lookup.go). After the isnull
+		// patcher, so isnull(x)'s name is no longer a read.
+		expr.Patch(lookupKeyPatcher{declared: names}),
 	}
 	opts = append(opts, lagFunctionOptions(host)...)
 	opts = append(opts, timeFunctionOptions(host)...)
 	opts = append(opts, drawFunctionOptions(host)...)
+	opts = append(opts, lookupFunctionOptions(host)...)
 	// The shared maths (exprenv.MathOptions) and the now() removal: see
 	// row_expr_builtins.go. Appended to every row expression, so
 	// constraints, `when`, `set_expr` and both --suggest-rules detectors
@@ -314,6 +324,9 @@ func (c *compiledConstraints) evaluate(row map[string]any, nullMask map[string]b
 	for i, p := range c.progs {
 		out, err := expr.Run(p, row)
 		if err != nil {
+			if ce := lookupRunError(err); ce != nil {
+				return false, lookupSiteError(ce, lookupSite{src: c.exprs[i], rule: -1})
+			}
 			return false, errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
 				fmt.Sprintf("evaluating constraint %q: %v", c.exprs[i], err),
 				map[string]any{"expr": c.exprs[i]})

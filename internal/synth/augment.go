@@ -114,7 +114,7 @@ func AugmentWithFidelityCohort(fs afero.Fs, spec *Spec, sourcePath, output strin
 	// always an explicit count of new rows.
 	rng := newRng(opts.Seed)
 	var genBuf bytes.Buffer
-	rowsGenerated, rowsRejected, warnings, err := generate(spec, genSchema, wfs, &genBuf, rng, opts.Seed)
+	rowsGenerated, rowsRejected, warnings, err := generate(spec, genSchema, wfs, &genBuf, rng, opts.Seed, opts.LookupTables)
 	if err != nil {
 		return nil, nil, err
 	}

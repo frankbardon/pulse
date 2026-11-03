@@ -16,7 +16,7 @@ requires: [capability:synth]
 
 **Env types are the ROW's types**: every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal).
 
-**`isnull(field)`** reads the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value. Takes the field NAME: `isnull(x)` (rewritten to a literal) and `isnull("x")` are equivalent, and an undeclared name in EITHER form is refused before a row exists — bare by expr's unknown-name check, string form by a parse pass (`isnullUnknownField`) applied to rules and `constraints[]` alike, never answered `false`. Only an argument that is a string at RUN time (`isnull(region + "!")`) reaches the loud run-time refusal.
+**`isnull(field)`** reads the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value. Takes the field NAME: `isnull(x)` (rewritten to a literal) and `isnull("x")` are equivalent, and an undeclared name in EITHER form is refused before a row exists — bare by expr's unknown-name check, string form by a parse pass applied to rules and `constraints[]` alike, never answered `false`. Only an argument that is a string at RUN time (`isnull(region + "!")`) reaches the loud run-time refusal.
 
 ### Functions
 
@@ -31,9 +31,10 @@ Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula a
 | `row()` | ACCEPTED-row ordinal from 0 (no RNG) |
 | `lag("f", n[, d])` | `f`'s value `n` ACCEPTED rows back (null before row `n` unless `d`); no RNG. Literal name, `n` 1–1024 |
 | `uniform()` `bernoulli(p)` | a seeded draw per call site; rules only (`synth-rule-draws`) |
+| `lookup("t", k…)` | a table cell (`synth-rule-validation`) |
 | `trend` `season` `between` | a date/datetime field's trend, weekday/hour/month weight, window, on ITS clock (`synth-datetime`) |
 
-`%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
+`%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `row`, `lookup`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
 
 ### `set_expr` and the coercion matrix
 
@@ -56,7 +57,7 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 
 ### Pre-rounding
 
-**Pre-rounding.** `when` / `set_expr` read the row's PRE-ROUNDING float, not the wire value, so `== k` fires only on draws landing exactly on `k`. Use comparisons (`>= 9`). It bites `set_expr` hardest: a band classification off raw `nps` still LOOKS right. Normalise in an EARLIER rule (snapshot semantics means the same rule will not do), with `round`, NOT `int`: an integer field is stored as `floor(v+0.5)`, so `round(v)` reproduces the stored value and moves the FLAGS, while `int(v)` truncates and moves the SCORE instead. **Guard with `when` whenever the target is nullable** — `set_expr` clears the null flag:
+`when` / `set_expr` read the row's PRE-ROUNDING float, not the wire value, so `== k` fires only on draws landing exactly on `k`. Use comparisons (`>= 9`). It bites `set_expr` hardest: a band off raw `nps` still LOOKS right. Normalise in an EARLIER rule (snapshot semantics means the same rule will not do), with `round`, NOT `int`: an integer field is stored as `floor(v+0.5)`, so `round(v)` reproduces the stored value and moves the FLAGS, while `int(v)` truncates and moves the SCORE instead. **Guard with `when` whenever the target is nullable** — `set_expr` clears the null flag:
 
 ```json
 {"when": "!isnull(nps)", "set_expr": {"nps": "round(nps)"}}
@@ -68,4 +69,4 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 
 - `synth-cross-row` — `row()` / `lag()` semantics, panel reset, adstock recipe; `synth-structural-rules` — slots and order; `synth-rule-validation` — the refusal codes.
 - `synth-marginals` — why a small integer or `packed_bool` is already exact.
-- `expression-language` — the formula attribute's environment; the row env shares only its maths.
+- `expression-language` — the formula attribute's env; the row env shares only its maths.

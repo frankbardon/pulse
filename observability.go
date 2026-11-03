@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/oppanic"
 	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/synth"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -410,11 +411,11 @@ func composedHasher(req *ComposedRequest) interface{ Hash() string } {
 	return req
 }
 
-func synthHasher(spec *SynthSpec) interface{ Hash() string } {
+func synthHasher(spec *SynthSpec, tables map[string]synth.LookupTable) interface{ Hash() string } {
 	if spec == nil {
 		return nil
 	}
-	return spec
+	return synthIdentity{spec: spec, tables: tables}
 }
 
 func sampleCohort(req *SampleRequest) *types.Cohort {

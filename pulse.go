@@ -2180,8 +2180,16 @@ func (p *Pulse) filterToFileWithOptions(ctx context.Context, src, dst string, op
 // warning) beside the pairwise deltas they qualify, across all three
 // pair kinds. Ignored when SourceCohort is empty — the plain synthesis
 // path has no _synthetic partition to compare against.
+//
+// opts.LookupTables nil reads the instance's lookup tables for the
+// spec's lookup() calls (synthLookupOptions); the operation's request
+// hash is Spec.HashWithLookups over them.
 func (p *Pulse) Synth(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
-	return observed(p, ctx, opSpec{kind: observe.OpSynth, req: synthHasher(spec)}, func(ctx context.Context) (*SynthResult, error) {
+	opts, lookupErr := p.synthLookupOptions(spec, opts)
+	return observed(p, ctx, opSpec{kind: observe.OpSynth, req: synthHasher(spec, opts.LookupTables)}, func(ctx context.Context) (*SynthResult, error) {
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
 		return p.synthFile(ctx, spec, output, opts)
 	})
 }

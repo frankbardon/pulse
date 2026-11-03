@@ -141,6 +141,15 @@ func (a *ruleApplier) setLag(b *lagBuffer) {
 	a.nullState.lag = b
 }
 
+// setLookups attaches the lookup tables lookup() reads to the rule host
+// (row_lookup.go). nil-safe like setLag.
+func (a *ruleApplier) setLookups(t map[string]LookupTable) {
+	if a == nil {
+		return
+	}
+	a.nullState.lookups = t
+}
+
 // setDatetimes attaches generate's datetime conversion stage to the rule
 // host, so the time functions read a per-row zone the way the stage
 // resolved it (row_time.go). nil-safe like setLag.

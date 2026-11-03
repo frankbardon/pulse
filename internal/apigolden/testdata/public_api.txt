@@ -1207,6 +1207,7 @@ pulse: type SynthOptions field DisclosureSample int
 pulse: type SynthOptions field FidelityModel *pulse/types.Request
 pulse: type SynthOptions field FidelityReportPath string
 pulse: type SynthOptions field FidelityWarnings []string
+pulse: type SynthOptions field LookupTables map[string]pulse/internal/synth.LookupTable
 pulse: type SynthOptions field Seed int64
 pulse: type SynthOptions field SourceCohort string
 pulse: type SynthOptions field SyntheticOnly bool
@@ -1234,6 +1235,8 @@ pulse: type SynthSpec field SetCategoricalPairs []pulse/internal/synth.SetCatego
 pulse: type SynthSpec field SetNumericPairs []pulse/internal/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
 pulse: type SynthSpec field SetSetPairs []pulse/internal/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse: type SynthSpec method (*SynthSpec) Hash() string
+pulse: type SynthSpec method (*SynthSpec) HashWithLookups(tables map[string]pulse/internal/synth.LookupTable) string
+pulse: type SynthSpec method (*SynthSpec) ReferencedLookupTables() []string
 pulse: type Template = pulse/internal/template.Template
 pulse: type Template underlying struct
 pulse: type Template field Body encoding/json.RawMessage "json:\"body\""
@@ -4485,6 +4488,11 @@ pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldSpec field Type string "json:\"type\""
 pulse/synth: type FieldSpec field Vector *pulse/internal/synth.VectorSpec "json:\"vector,omitempty\""
+pulse/synth: func LookupDigest(t pulse/synth.LookupTable) string
+pulse/synth: type LookupTable = pulse/internal/synth.LookupTable
+pulse/synth: type LookupTable underlying struct
+pulse/synth: type LookupTable field Axes [][]string
+pulse/synth: type LookupTable field Rows map[string]float64
 pulse/synth: type ModelFidelity = pulse/internal/synth.ModelFidelity
 pulse/synth: type ModelFidelity underlying struct
 pulse/synth: type ModelFidelity field CapturedIntercept float64 "json:\"captured_intercept\""
@@ -4583,6 +4591,7 @@ pulse/synth: type Options field DisclosureSample int
 pulse/synth: type Options field FidelityModel *pulse/types.Request
 pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
+pulse/synth: type Options field LookupTables map[string]pulse/internal/synth.LookupTable
 pulse/synth: type Options field Seed int64
 pulse/synth: type Options field SourceCohort string
 pulse/synth: type Options field SyntheticOnly bool
@@ -4837,6 +4846,8 @@ pulse/synth: type Spec field SetCategoricalPairs []pulse/internal/synth.SetCateg
 pulse/synth: type Spec field SetNumericPairs []pulse/internal/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
 pulse/synth: type Spec field SetSetPairs []pulse/internal/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse/synth: type Spec method (*Spec) Hash() string
+pulse/synth: type Spec method (*Spec) HashWithLookups(tables map[string]pulse/internal/synth.LookupTable) string
+pulse/synth: type Spec method (*Spec) ReferencedLookupTables() []string
 pulse/synth: func SpecFromProfile(p *pulse/synth.Profile, rowCount int) (*pulse/synth.Spec, []string)
 pulse/synth: func Synth(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
 pulse/synth: func SynthBytes(spec *pulse/synth.Spec, opts pulse/synth.Options) ([]byte, *pulse/synth.Result, error)
@@ -6658,4 +6669,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e352c11c24da659601a54bdb8e867cbef4d011293530b4d41b78e61b34371ad6
+// golden-hash: 63b62aa0ab840b57f913d77e7e919da84f677c6bb44d7957e9260d089a46d7e0
