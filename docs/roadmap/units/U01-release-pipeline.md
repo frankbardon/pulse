@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: []
 blocks: [U32]
-todo_items: [5, 6, 7, 8, 9]
+todo_items: [5, 6, 7, 8, 9, 574]
 branch: release-pipeline
 ---
 

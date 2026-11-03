@@ -5,10 +5,10 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474, 478, 504, 505]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 504, 505, 527, 556, 557, 558, 560, 666, 667]
 branch: docs-audit
 ---
 
@@ -16,7 +16,7 @@ branch: docs-audit
 
 **Outcome:** Pulse goes live with the most helpful, current and comprehensive documentation we can produce.
 
-**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md), [U40](U40-compose-sweep.md), [U41](U41-derived-cohort.md), [U42](U42-fit-scoring.md), [U43](U43-post-aggregation-ratios.md), [U44](U44-strict-input.md), [U45](U45-binary-and-decimal.md), [U46](U46-grouped-analysis.md), [U47](U47-survey-tables.md), [U48](U48-experiment-readout.md), [U49](U49-model-workbench.md), [U50](U50-local-time.md), [U51](U51-archive-scale.md), [U52](U52-synth-realism.md), [U53](U53-custom-regressions.md), [U55](U55-previous-state.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
+**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U34](U34-extension-validation.md), [U35](U35-predict-runtime-parity.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md), [U40](U40-compose-sweep.md), [U41](U41-derived-cohort.md), [U42](U42-fit-scoring.md), [U43](U43-post-aggregation-ratios.md), [U44](U44-strict-input.md), [U45](U45-binary-and-decimal.md), [U46](U46-grouped-analysis.md), [U47](U47-survey-tables.md), [U48](U48-experiment-readout.md), [U49](U49-model-workbench.md), [U50](U50-local-time.md), [U51](U51-archive-scale.md), [U52](U52-synth-realism.md), [U53](U53-custom-regressions.md), [U55](U55-previous-state.md), [U56](U56-operation-panic-recovery.md), [U54](U54-multi-grouper.md), [U57](U57-transformed-predictors.md), [U58](U58-expr-math-lags-params.md), [U59](U59-sem-extensions.md), [U60](U60-mmm-estimation.md), [U61](U61-cross-arch-determinism.md), [U62](U62-bayesian-mmm.md), [U63](U63-mmm-followups.md), [U64](U64-reference-validation.md), [U65](U65-regression-depth.md), [U66](U66-overlay-measure-correctness.md), [U67](U67-predict-extension-parity-2.md), [U68](U68-regression-ordinal-multinomial.md), [U69](U69-regression-depth-2.md), [U70](U70-mmm-bayes-depth.md), [U71](U71-mmm-optimize-depth.md), [U72](U72-compose-sweep-2.md), [U73](U73-archive-storage.md), [U74](U74-memory-bounds.md), [U75](U75-zones-labels-2.md), [U76](U76-synth-fidelity-2.md), [U77](U77-ci-platform.md), [U78](U78-test-hygiene.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
 
 ## Summary
 
@@ -45,6 +45,12 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - [ ] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent (the retail example measured no gain on 15 fields of 53 bytes); the showcase READMEs are re-verified after the units that simplify them land
 - [x] **#412** (10. Vector & matrix — operators › Follow-ups from U25) `skills/statistical-testing.md` sits within 15 B of its 6000 B hard budget, so no multivariate or other test can add a line; split the multivariate tests into their own topical skill or compress it
 - [x] **#413** (10. Vector & matrix — operators › Follow-ups from U25) Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies
+- [ ] **#556** Glossary terms for shadow price and marginal return, which `compose-optimize` and the `optimizations` result use; they need orphan-report exemptions. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
+- [ ] **#557** The `compose-requests` skill has no route to `compose-optimize` (hard budget); make room or route through another skill. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
+- [ ] **#558** No canonical `optimize` tag in `internal/examples/library.go` `CanonicalTags`; the U60 optimize examples carry the `capability:compose_optimize` tag and the `drivers` intent only, so a search for "optimize" finds them only through the skill. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
+- [ ] **#560** `make sites` does not cover `ComposedRequest` sub-fields (`sweep`, `optimize`), so a change there lists no skill / example sites. Found in U60 (E2-S1) · [U32](U32-docs-audit.md)
+- [ ] **#666** Library doc pages for the embedder surfaces that have none: `extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables (`PULSE_LOOKUP_TABLES_DIR`, `PULSE_RANGE_TABLES_DIR`, `PULSE_LABEL_TABLES_DIR`, absent from `docs/src/library/options.md`) and SEM. Evidence: `docs/src/library/` listing vs `internal/apigolden/testdata/public_api.txt` · [U32](U32-docs-audit.md)
+- [ ] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy (`go.mod` pins `modelcontextprotocol/go-sdk v1.8.0`; no page in `docs/src` or the roadmap states it); mirrored as a `STABILITY.md` MCP row · [U32](U32-docs-audit.md)
 
 ## Scope
 
@@ -56,10 +62,16 @@ A deliberate final pass over every surface a human or agent reads (mdBook, READM
 - Terminology alignment with the glossary
 - Fresh-reader review; agent task evaluation (~20 tasks, kept as a regression set)
 - Findings log and sign-off
+- Library pages for the embedder surfaces that have none (`extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables, SEM) (#666)
+- MCP protocol-version documentation: revisions spoken, negotiation, go-sdk upgrade policy (#667)
+- Glossary, skill-routing, canonical-tag and `make sites` residue from the MMM optimizer work (#556–#558, #560)
 
 **Out of scope**
 - The roadmap documents (`docs/roadmap/**`)
+- Casebook conversions (#464, #469) — they are acceptance runs in [U33](U33-v1-release.md)
 - New features. Gaps that need code are logged and deferred with an issue unless trivial
+
+Lands after every other feature unit, including U57–U78 (owner decision 2026-11-02: every open item ships in v1.0.0 except the post-v1 section of `TODO.md`), so the audit reads the final surface.
 
 ## Epics & stories
 
@@ -158,11 +170,6 @@ Filed from [U30](U30-matrix-extensions-hardening.md); tick in [`TODO.md`](../TOD
 - **Skill budget overruns from U08** (#161). U08's skill contradiction fixes pushed eight overlay skills past the 1,200-char `op-*` soft budget and grew `op-overlay-chisq-vs-pop` from 1,239 to 1,401 (the `-delta-vs-margin`, `-delta-vs-stage`, `-index-vs-margin`, `-index-vs-stage`, `-t-cell`, `-t-vs-ref`, `-z-vs-ref`, `-prop-z-cell` skills by 3–127 chars); the pairwise, `prop-z-panel` and `op-reg-*` skills were already over. Run `go test ./internal/skills/ -run TestSkillTokenBudget -v` for the full list before the flip.
 - **CLAUDE.md does not name `make reference` or `internal/statdist`** (#162). Both landed in U08 and are documented in `.claude/reference/guided-analysis.md`, `architecture.md` and `update-demand.md`, but CLAUDE.md "Build / Env" and "Architecture" were left alone for the 50,000-byte budget (49,869 bytes after U08). Add them only after displacing long form (candidate: the "Shard archive variant" paragraph → `byte-layout.md`).
 
-## Handed on from U45
-
-Filed from [U45](U45-binary-and-decimal.md); tick in [`TODO.md`](../TODO.md) when done.
-
-- [ ] **#469** Convert the `pulse-casebook` credit / A-B / privacy / retail examples to the U45 idioms (no `outcome` twin or `2.718… **`, binary metrics as `packed_bool`, direct `TEST_CHISQ` on the flag, `month_index` retention flags) and refresh each README and `REPRODUCE.md`. The in-pulse proof shipped in U45 (#317); the casebook repository is separate. Found in U45 (E4-S3)
 
 ## Handed on from U35
 

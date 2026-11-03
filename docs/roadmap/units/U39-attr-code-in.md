@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: []
 blocks: []
-todo_items: [240, 241, 242, 243, 244, 245]
+todo_items: [240, 241, 242, 243]
 branch: code-in-attribute
 ---
 

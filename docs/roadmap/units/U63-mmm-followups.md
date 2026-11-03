@@ -4,11 +4,11 @@ slug: mmm-followups
 title: "A media-mix run is one Compose call on the stock CLI, and a request aggregates window-derived columns"
 track: Vector & matrix
 size: L
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: [U40, U53, U57, U60, U62]
 blocks: [U32]
-todo_items: [549, 297, 570, 571, 572, 573, 574, 575, 576, 577, 578, 579, 580, 581]
+todo_items: []
 branch: mmm-followups
 ---
 

@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U40, U53, U57, U58, U59]
 blocks: [U32]
-todo_items: [489, 539, 540, 541, 542, 543, 544, 545, 546, 547]
+todo_items: [539, 540, 541, 542, 543, 544, 545, 546, 547]
 branch: mmm-estimation
 ---
 

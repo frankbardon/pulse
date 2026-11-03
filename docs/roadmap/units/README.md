@@ -1,13 +1,13 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **57 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **80 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
 - links to the theme sections to read first;
 - epics and stories, acceptance criteria, gates, Update Demand companions, and the human inputs needed.
 
-Every one of the 212 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
+Every TODO item belongs to at least one unit, except the items filed `no unit` or `post-v1, no unit` (kept visible in [`TODO.md`](../TODO.md) on purpose). Each linked item in [`TODO.md`](../TODO.md) links back to its unit.
 
 These files were generated once from the theme documents and `TODO.md`, and are now maintained by hand. Edit them directly, and keep a unit's `todo_items` in step with the `· [Uxx]` links in `TODO.md`.
 
@@ -33,6 +33,8 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 ## Suggested order
 
 The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U57 (transformed predictors, from U53's backlog item #490) follows U53, ships in v1.0.0 and lands before U32. U58 (expression maths, lags and params, appended after U57) follows U53, owns #509–#520, ships in v1.0.0 and lands before U32. U59 (SEM extensions, appended after U58) has no hard dependency (U24, U40 and U42 soft), owns #528–#538, ships in v1.0.0 and lands before U32. U60 (MMM estimation, appended after U59) has no hard dependency (U40, U53, U57, U58 and U59 soft), owns #539–#547 and the narrowed #489 (its follow-ups #548–#560 are filed under their owner units), ships in v1.0.0 and lands before U32; U61 (cross-architecture determinism, created at U60's close-out) owns #554, has U58 and U60 soft, and lands before U32; U62 (Bayesian MMM, appended after U61) has no hard dependency (U60 soft), owns the narrowed #552 and its follow-ups #561–#568, ships in v1. U63 (MMM follow-ups, appended after U62) has no hard dependency (U40, U53, U57, U60 and U62 soft), owns #549, #297 and the follow-ups #570–#581 (filed under their owner units), ships in v1.0.0 and lands before U32. U56 (operation panic recovery, split out of U34 on 2026-10-19) owns #231 and follows U20; it ships in v1.0.0 and lands before U32. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+
+**The path to v1.0.0 (roadmap-inventory, 2026-11-02).** U66–U78 close every remaining open item, and all of them ship in v1.0.0 (owner decision 2026-11-02); the only items outside v1.0.0 are those in the "Post-v1 backlog" section of [`TODO.md`](../TODO.md). Run U77 (CI platform) and U78 (test hygiene) first, because they have no dependencies and every other new unit depends on them. Then run U66–U76 in parallel sessions, honouring the soft edges: U73 before U74 (hard), U70 before U71 and U71 before U72, U67 before U66, and U65 before U68 and U69 (all soft). Then U32 (documentation audit), which depends on every one of them, then U33 (the release: `STABILITY.md`, the casebook acceptance runs, the release candidate and the tag).
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -69,8 +71,8 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | XL | U25, U28, U29 | 156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425, 426, 449 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103, 250, 251, 252, 269, 377 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40 | 159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474, 478, 504, 505 |
-| U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506, 507, 508, 555, 588–593, 660 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78 | 159–167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472–474, 478, 504, 505, 527, 556–558, 560, 666, 667 |
+| U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168–171, 173–179, 206, 220, 224, 228, 232–234, 311, 464, 469, 497, 506–508, 526, 588–593, 660–665 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | M | U02b | 194, 195, 196, 197, 216, 230, 374, 409, 451, 459 |
 | U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | XL | U02c (soft) | 198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448, 475, 476 |
 | U36 | [reference-oracles](U36-reference-oracles.md): Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number | Statistical integrity | L | U08 | 202, 203, 204, 205, 266, 271, 294, 405, 410, 414, 477 |
@@ -103,6 +105,19 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U63 | [mmm-followups](U63-mmm-followups.md): A media-mix run is one Compose call on the stock CLI, and a request aggregates window-derived columns | Vector & matrix | L | — (U40, U53, U57, U60, U62 soft) | 549, 297, 570–581 |
 | U64 | [reference-validation](U64-reference-validation.md): Every inferential number is traceable to an external reference, the gaps are closed, and users can see the evidence | Statistical integrity | L | — (U61 soft) | 588–597, 608–612 |
 | U65 | [regression-depth](U65-regression-depth.md): A fit can be diagnosed, interpreted and compared the way an analyst does it in Stata or SPSS | Statistical integrity | L | U64 (U53, U57 soft) | 598–607 |
+| U66 | [overlay-measure-correctness](U66-overlay-measure-correctness.md): Overlay handlers score the measure the analyst named, and a code column or a mixed-type crosstab is refused instead of scored silently | API & release | M | U77, U78 (U67 soft) | 434, 438, 441, 443–447, 454, 476 |
+| U67 | [predict-extension-parity-2](U67-predict-extension-parity-2.md): An extension or an unusual request is judged the same way by predict and by the runtime, with no runtime-only refusal left | API & release | L | U77, U78 | 244, 245, 466, 475, 479, 486, 523, 524, 559, 573, 577, 676 |
+| U68 | [regression-ordinal-multinomial](U68-regression-ordinal-multinomial.md): Ordinal and multinomial fits can be scored, compared, resampled and read as marginal effects like the other regressions | Statistical integrity | L | U77, U78 (U65 soft) | 650–659 |
+| U69 | [regression-depth-2](U69-regression-depth-2.md): Regression refusals that remain on weighted, penalized, resampled and panel fits are lifted, each against a reference oracle | Statistical integrity | L | U77, U78 (U65 soft) | 401, 487, 638–643, 677, 678 |
+| U70 | [mmm-bayes-depth](U70-mmm-bayes-depth.md): Bayesian marketing-mix models gain hierarchy, richer kernels and curves, lift-test data, posterior-aware optimization, raw draws, scoring and alternative samplers | Vector & matrix | L | U77, U78 | 552, 561–568, 578 |
+| U71 | [mmm-optimize-depth](U71-mmm-optimize-depth.md): Optimizer and transform follow-ups around fitted MMM models are closed: a post-fit slot, response helper, data-driven bounds, analytic constraint gradients, in-model adstock and lag/window widening | Vector & matrix | L | U77, U78 (U70 soft) | 489, 550, 551, 553, 570–572, 576, 581 |
+| U72 | [compose-sweep-2](U72-compose-sweep-2.md): The Compose sweep follow-ups are closed: axis profiles, item fan-out in a sweep body, streamed fits, params axes and the remaining search strategies and test gaps | API & release | L | U77, U78 (U71 soft) | 298, 380, 392, 521, 522, 548, 579, 580 |
+| U73 | [archive-storage](U73-archive-storage.md): Shard archives append in place, prune lookup fan-out and carry honest index statistics at scale | Embedder operations | L | U77, U78 | 492, 493, 495, 496, 498, 500 |
+| U74 | [memory-bounds](U74-memory-bounds.md): A 50M-row archive run fits in 16 GB without GOMEMLIMIT, with bounded merge windows, streamed output and a soft memory limit | Embedder operations | M | U77, U78, U73 | 361, 494, 501–503 |
+| U75 | [zones-labels-2](U75-zones-labels-2.md): Cohort default zone, label binding and attribute edge cases land with their parity proofs | Time zones | M | U77, U78 | 480–485 |
+| U76 | [synth-fidelity-2](U76-synth-fidelity-2.md): Synthetic fidelity gaps close with captured, measured and bounded behaviour | API & release | M | U77, U78 | 433, 525, 594–597 |
+| U77 | [ci-platform](U77-ci-platform.md): CI exercises every shipped platform and untrusted-input surface, and scans for vulnerabilities | API & release | M | — | 668–671 |
+| U78 | [test-hygiene](U78-test-hygiene.md): The test suite measures what it claims, hides no drift and carries no stale references | API & release | M | — | 555, 582–587, 598–600, 672–675 |
 
 ## Dependency graph
 
@@ -173,6 +188,21 @@ graph TD
   U61["U61 cross-arch-determinism"]
   U62["U62 bayesian-mmm"]
   U63["U63 mmm-followups"]
+  U64["U64 reference-validation"]
+  U65["U65 regression-depth"]
+  U66["U66 overlay-measure-correctness"]
+  U67["U67 predict-extension-parity-2"]
+  U68["U68 regression-ordinal-multinomial"]
+  U69["U69 regression-depth-2"]
+  U70["U70 mmm-bayes-depth"]
+  U71["U71 mmm-optimize-depth"]
+  U72["U72 compose-sweep-2"]
+  U73["U73 archive-storage"]
+  U74["U74 memory-bounds"]
+  U75["U75 zones-labels-2"]
+  U76["U76 synth-fidelity-2"]
+  U77["U77 ci-platform"]
+  U78["U78 test-hygiene"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -268,11 +298,50 @@ graph TD
   U61 --> U32
   U62 --> U32
   U63 --> U32
+  U64 --> U32
+  U65 --> U32
+  U66 --> U32
+  U67 --> U32
+  U68 --> U32
+  U69 --> U32
+  U70 --> U32
+  U71 --> U32
+  U72 --> U32
+  U73 --> U32
+  U74 --> U32
+  U75 --> U32
+  U76 --> U32
+  U77 --> U32
+  U78 --> U32
   U53 --> U57
   U53 --> U58
   U20 --> U56
   U50 --> U55
   U54 --> U46
+  U64 --> U65
+  U77 --> U66
+  U77 --> U67
+  U77 --> U68
+  U77 --> U69
+  U77 --> U70
+  U77 --> U71
+  U77 --> U72
+  U77 --> U73
+  U77 --> U74
+  U77 --> U75
+  U77 --> U76
+  U78 --> U66
+  U78 --> U67
+  U78 --> U68
+  U78 --> U69
+  U78 --> U70
+  U78 --> U71
+  U78 --> U72
+  U78 --> U73
+  U78 --> U74
+  U78 --> U75
+  U78 --> U76
+  U73 --> U74
   U35 -.-> U44
   U35 -.-> U45
   U35 -.-> U46
@@ -307,6 +376,14 @@ graph TD
   U60 -.-> U62
   U60 -.-> U63
   U62 -.-> U63
+  U61 -.-> U64
+  U53 -.-> U65
+  U57 -.-> U65
+  U65 -.-> U68
+  U65 -.-> U69
+  U67 -.-> U66
+  U70 -.-> U71
+  U71 -.-> U72
 ```
 
 ## Human inputs that gate units

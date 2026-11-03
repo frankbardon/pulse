@@ -1,0 +1,40 @@
+---
+id: U67
+slug: predict-extension-parity-2
+title: "An extension or an unusual request is judged the same way by predict and by the runtime, with no runtime-only refusal left"
+track: API & release
+size: L
+status: not-started
+depends_on: [U77, U78]
+soft_depends_on: []
+blocks: [U32]
+todo_items: [466, 475, 523, 524, 573, 559, 577, 244, 245, 486, 676, 479]
+branch: predict-extension-parity-2
+---
+
+# U67 — predict-extension-parity-2
+
+**Outcome:** An extension or an unusual request is judged the same way by predict and by the runtime, with no runtime-only refusal left.
+
+**Track:** API & release · **Size:** L · **Depends on:** U77, U78 (CI and test hygiene land first)
+
+## Summary
+
+The residue of predict / runtime parity and extension validation: extension factories and window-label reads that only the runtime can judge, a standalone public post-window classifier, `u64` binding past 2^53, a single expression-slot walk, extension attributes with output dictionaries, embedder-registered overlay kinds, and a general `target` / `predictors` refusal on non-regression attributes.
+
+Epics and stories are written by this unit's own flow-interview; this doc is the reduced inventory form.
+
+## Owned TODO items
+
+- [ ] **#466** Predict's `return` size estimate ignores the Compose slot `label` that `standard` / `minimal` now keep (a few bytes per slot; negligible, recorded so the estimate stays honest). Found in U44 (E3-S2) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#475** Optional `PULSE_ADVISORY_*` for an `ATTR_FORMULA` that can yield null without a guard: predict cannot know, so an advisory is a contract call (owner). Found in U47 (E4-S5) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#523** Residual `u64` float64 binding, exact only up to 2^53: an expression reading `$env`, a comparison routed through a `let` name, and a `u64` column rewritten by a feature or attribute. Bind the stored word on those paths or record the limit in the migration doc. Found in U58 (E3-S1) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#524** `vectors.ExprSlots` (the engine reference walk) does not walk features, for example FEAT_TARGET_ENCODE `params.fit_on`; the template / sweep side covers it via `internal/exprslots`. Unify the two walks and add a parity test. Found in U58 (E4-S1) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#573** A standalone public post-window classifier: predict's `post_window` block needs a cohort header or a schema, so a caller with no cohort cannot classify a draft. Deferred from U63 · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#559** Extension factory refusals are runtime-only: an extension regression's factory can refuse a request that predict accepts, because there is no predict-time hook. Found in U60 (E4-S1) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#577** An extension aggregator whose `FieldInputs` reads a window label does not turn windows-first on, so it is refused as an unknown field on predict and the runtime alike (documented); closing it needs an `ExtensionRegistry` hook at every classifier site. Deferred from U63 · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#244** A general `target` / `predictors` refusal on every non-regression attribute (only `ATTR_CODE_IN` refuses them today) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#245** Optional: move the `ATTR_CODE_IN` parse and accept rules into a neutral shared package instead of the predict copy pinned by `TestCodeIn_PredictRefusalsMatchRuntime` · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#486** Extension attributes declaring an output dictionary, so an `extend` attribute emitting a categorical inherits a dictionary the way `ATTR_PREVIOUS_STATE` inherits its state field's. Found in U55 (E1-S2) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#676** Extension `OverlayKinds` registration: `internal/descriptor/extensions.go:103` reserves the `Options.Extensions.OverlayKinds` slot as "not yet implemented"; implement embedder-registered overlay kinds through predict, manifest, MCP and runtime, or remove the reserved slot · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#479** `WIN_FORMULA`: a general post-window formula site — an expression over a grouped row's columns and window outputs (ratios, differences, a lift of two shares) — so a gains-table figure beyond `WIN_SHARE` / `WIN_LIFT` needs no new operator. Ships in v1.0.0 (owner decision 2026-11-02; U49 shipped a dedicated `WIN_LIFT` and the general site is additive) · [U67](units/U67-predict-extension-parity-2.md)

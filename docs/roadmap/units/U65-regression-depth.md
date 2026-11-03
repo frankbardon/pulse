@@ -4,11 +4,11 @@ slug: regression-depth
 title: "A fit can be diagnosed, interpreted and compared the way an analyst does it in Stata or SPSS"
 track: Statistical integrity
 size: L
-status: in-progress
+status: done
 depends_on: [U64]
 soft_depends_on: [U53, U57]
 blocks: []
-todo_items: [598, 599, 600, 601, 602, 603, 604, 605, 606, 607]
+todo_items: [623, 624, 625, 626, 627, 628, 629, 630, 631, 632]
 branch: regression-depth
 ---
 

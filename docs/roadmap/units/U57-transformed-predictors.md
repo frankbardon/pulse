@@ -8,7 +8,7 @@ status: done
 depends_on: [U53]
 soft_depends_on: [U40, U42]
 blocks: [U32]
-todo_items: [490, 551]
+todo_items: [490]
 branch: transformed-predictors
 ---
 

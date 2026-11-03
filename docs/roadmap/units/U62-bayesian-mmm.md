@@ -4,11 +4,11 @@ slug: bayesian-mmm
 title: "A media-mix practitioner fits a Bayesian model and gets return-on-spend intervals that include adstock uncertainty"
 track: Vector & matrix
 size: L
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: [U60]
 blocks: [U32]
-todo_items: [552, 561, 562, 563, 564, 565, 566, 567, 568]
+todo_items: []
 branch: bayesian-mmm
 ---
 
