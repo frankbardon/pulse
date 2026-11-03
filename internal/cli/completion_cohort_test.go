@@ -314,10 +314,13 @@ func completeLeaf(t *testing.T, words ...string) []string {
 	if errOut.Len() != 0 {
 		t.Errorf("%v: stderr %q", words, errOut.String())
 	}
+	// Parse each line as the shipped scripts do (a Windows candidate
+	// prints escaped: \data\x.pulse as \\data\\x.pulse).
 	var got []string
 	for _, line := range strings.Split(out.String(), "\n") {
 		if line != "" {
-			got = append(got, line)
+			name, _ := UnescapeCandidate(line)
+			got = append(got, name)
 		}
 	}
 	return got
