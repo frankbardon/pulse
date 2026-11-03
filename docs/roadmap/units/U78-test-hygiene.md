@@ -46,3 +46,4 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 | Item | To | Why |
 |---|---|---|
 | #690 `cache-warm.yml` post-merge proof + Windows / macOS legs | [U77](U77-ci-platform.md) | `workflow_dispatch` needs the workflow on the default branch, so the save / restore proof can only run after merge; the OS legs follow U77's `ci.yml` legs |
+| #691 flaky `TestRequestTimeout_TripsInsideSlots/ComposeParallel/FailFast` | [U72](U72-compose-sweep-2.md) | a ComposeParallel fail-fast timing race in a test U78 did not touch; U72 owns the Compose follow-ups |
