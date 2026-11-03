@@ -267,3 +267,33 @@ func TestCohortArtifacts_MissingCohortIsCoded(t *testing.T) {
 		t.Errorf("err = %v, want SERVICE_RESOURCE", err)
 	}
 }
+
+// Every artifact is spelled exactly as its owner's path rule spells it
+// for the caller's cohort string (cohort + suffix): the caller's
+// separators and spelling are kept, never rebuilt by filepath.Join —
+// which rewrote a/c.pulse as a\c.pulse.spss.json on Windows and cleans
+// ./d/c.pulse to d/c.pulse.spss.json everywhere.
+func TestCohortArtifacts_SpelledLikeOwnerPaths(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	for _, n := range []string{"d/c.pulse", "d/c.pulse.spss.json", "d/c.pulse.indexes.json", "d/c.pulse.00112233aabbccdd.idx"} {
+		if err := afero.WriteFile(afs, n, []byte("x"), 0o644); err != nil {
+			t.Fatalf("WriteFile %s: %v", n, err)
+		}
+	}
+	for _, cohort := range []string{"d/c.pulse", "./d/c.pulse"} {
+		got, err := p.CohortArtifacts(context.Background(), cohort)
+		if err != nil {
+			t.Fatalf("CohortArtifacts(%q): %v", cohort, err)
+		}
+		want := []string{cohort + ".00112233aabbccdd.idx", cohort + ".indexes.json", spss.SidecarPath(cohort)}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("CohortArtifacts(%q) =\n  %v\nwant\n  %v", cohort, got, want)
+		}
+	}
+}
