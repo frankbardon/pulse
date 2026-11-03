@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U77, U78]
 soft_depends_on: [U71]
 blocks: [U32]
-todo_items: [298, 380, 392, 521, 522, 548, 579, 580]
+todo_items: [298, 380, 392, 521, 522, 548, 579, 580, 704, 709]
 branch: compose-sweep-2
 ---
 
@@ -34,3 +34,9 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 - [ ] **#548** Evolutionary (CMA-ES / differential evolution) and Bayesian-optimisation sweep modes. They are adaptive (each draw depends on earlier results), which breaks the expand-then-run design and predict's exact slot count; needs its own design. Deferred from U60 · [U72](units/U72-compose-sweep-2.md)
 - [ ] **#579** A sweep body whose regression `models` paths vary by axis is untested for a sweep-bound fit (the bound fit uses the winner's loaded files). Deferred from U63 · [U72](units/U72-compose-sweep-2.md)
 - [ ] **#580** A parallel non-FailFast phase-0 failure aggregates a `SERVICE_INTERNAL` that lists only the phase-0 (sweep) failures, because the explicit slots never run: intended, but documented only in code. Document it in `execution-modes/compose.md` and the skill. Deferred from U63 · [U72](units/U72-compose-sweep-2.md)
+- [ ] **#704** Non-fail-fast `ComposeParallel` whose sweep phase 0 fails returns early with the phase-0 failures only, while a later-phase failure aggregates the whole batch's `SERVICE_INTERNAL` (`failed_indices`, `first_error`); pre-existing, found in library-gaps E5-S2. Make the two consistent (sibling of #580, which documents the current behaviour) · [U72](units/U72-compose-sweep-2.md)
+- [ ] **#709** The runtime accepts a whole-array `{"$var"}` marker in a `for_each` optimize block (for example all of `variables`) while neither the payload schema nor the MCP `pulse_compose` schema admits it (the schemas are stricter than the runtime). Admit it in both or refuse it at the runtime; found in library-gaps E7-S3 · [U72](units/U72-compose-sweep-2.md)
+
+## Handed on from U79
+
+[U79](U79-library-gaps.md#handed-on) extended the `nested_in_sweep` refusal that #380 owns: a `for_each` on an aggregation, a matrix spec or a Compose `optimize` block inside a sweep body is refused with `PULSE_FOR_EACH_INVALID` `nested_in_sweep`, like a window's. Lifting #380 for the three new kinds is part of the same lexical-scoping work, and it can grow without a break; U79 did not change the sweep expander's scoping.
