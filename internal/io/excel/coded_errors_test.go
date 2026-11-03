@@ -69,7 +69,8 @@ func TestExcelReader_ParserPanicIsCodedError(t *testing.T) {
 // decode to (DEFLATE expands at most 1032:1) is refused before it is
 // allocated; the claim never becomes a buffer.
 func TestExcelReader_DeclaredPartSizeIsCapped(t *testing.T) {
-	t.Parallel()
+	// serial: measures process-wide heap allocation (runtime.MemStats),
+	// which a parallel sibling's allocations would be charged to.
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	w, err := zw.CreateRaw(&zip.FileHeader{
@@ -136,8 +137,16 @@ func TestExcelReader_OpenFaultsAreDataFile(t *testing.T) {
 func TestExcelReader_UnbackedGridIsRefused(t *testing.T) {
 	t.Parallel()
 	wb := excelFuzzWorkbook(t, func(f *excelize.File, sheet string) {
-		for ref, v := range map[string]any{"A1": "h", "XFD1": "z", "A2000": 1} {
-			if err := f.SetCellValue(sheet, ref, v); err != nil {
+		// Ordered, never a map: excelize pads every row it has already
+		// grown to the widest column written so far, so writing XFD1
+		// before A2000 materialises 2000 x 16384 cells (6 GB) in the
+		// fixture alone — a map's random order did so on half the runs,
+		// and every allocation-measuring sibling paid for it.
+		for _, c := range []struct {
+			ref string
+			v   any
+		}{{"A2000", 1}, {"A1", "h"}, {"XFD1", "z"}} {
+			if err := f.SetCellValue(sheet, c.ref, c.v); err != nil {
 				t.Fatal(err)
 			}
 		}

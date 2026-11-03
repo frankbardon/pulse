@@ -70,7 +70,11 @@ type Contract struct {
 	// MaxAlloc caps the heap bytes one target call may allocate in
 	// total (runtime.MemStats.TotalAlloc across the call). 0 is no cap.
 	// The figure is process-wide, so it also counts whatever else runs
-	// meanwhile — size it well above an honest input's need.
+	// meanwhile — size it well above an honest input's need. It is sound
+	// because fuzz targets run alone (after the package's tests, one
+	// input per -fuzz worker); a fuzz body must never call t.Parallel
+	// (TestFuzzContract_FuzzBodiesRunAlone). A plain test measuring
+	// TotalAlloc the same way must be serial for the same reason.
 	MaxAlloc uint64
 }
 

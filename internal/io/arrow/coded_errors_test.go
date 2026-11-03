@@ -120,7 +120,8 @@ func TestArrowReader_OpenFaultsAreDataFile(t *testing.T) {
 // fields in 128 bytes; the IPC decoder allocated them all (tens of GB,
 // ten seconds of page clearing) before failing. It is refused up front.
 func TestArrowReader_DeclaredFieldCountIsRefused(t *testing.T) {
-	t.Parallel()
+	// serial: measures process-wide heap allocation (runtime.MemStats),
+	// which a parallel sibling's allocations would be charged to.
 	in := fuzzcontract.CorpusEntry(t, filepath.Join("testdata", "fuzz", "FuzzArrowImport", "schema-field-count-claim"))
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
