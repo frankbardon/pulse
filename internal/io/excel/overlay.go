@@ -345,8 +345,11 @@ func writeOverlayMatrixBody(f *excelize.File, sheet string, row int, layer *type
 	hasColMargin := len(mp.ColumnMargins) > 0
 	hasRowMargin := len(mp.RowMargins) > 0
 
-	// Header row: corner label "key", then per-column keys, then
-	// optional __col_margin.
+	// Header row: corner label "key", then per-column keys, then the
+	// margin column's "__col_margin" label. The margin column carries
+	// the row margins AND (on the column-margin row) the grand total, so
+	// it is labelled whenever either margin is present — an unlabelled
+	// column would be invisible to the reader, dropping the row margins.
 	if err := setOverlayCell(f, sheet, "A", row, "key"); err != nil {
 		return err
 	}
@@ -356,7 +359,7 @@ func writeOverlayMatrixBody(f *excelize.File, sheet string, row int, layer *type
 			return err
 		}
 	}
-	if hasColMargin {
+	if hasColMargin || hasRowMargin {
 		col, _ := excelize.ColumnNumberToName(len(mp.ColumnKeys) + 2)
 		if err := setOverlayCell(f, sheet, col, row, "__col_margin"); err != nil {
 			return err
@@ -773,12 +776,16 @@ func decodeOverlayMatrixBody(bodyRows [][]string, layer *types.OverlayLayer) err
 			}
 		}
 		cells = append(cells, cellRow)
-		if hasColMargin && marginColIdx < len(row) {
-			hasRowMargin = true
-			rowMargins = append(rowMargins, parseMatrixCell(row[marginColIdx]))
-		} else if hasColMargin {
-			hasRowMargin = true
-			rowMargins = append(rowMargins, types.MatrixCell{})
+		if hasColMargin {
+			rm := types.MatrixCell{}
+			if marginColIdx < len(row) {
+				rm = parseMatrixCell(row[marginColIdx])
+			}
+			// The margin column also exists for a grand total alone, so
+			// row margins are present only when one of them is: a
+			// column-margin-only payload reads back with none.
+			hasRowMargin = hasRowMargin || rm.Present
+			rowMargins = append(rowMargins, rm)
 		}
 	}
 

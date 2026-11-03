@@ -4,6 +4,7 @@ import (
 	"math"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/gonumorder"
 )
 
 // The routines in this file are the SPD path the regression engine
@@ -17,7 +18,7 @@ import (
 // mat.Cholesky (Factorize, Cond, SolveVecTo, InverseTo) and
 // mat.Dense.Mul run on linux/amd64 — LAPACK Dlansy, Dpotrf, Dpocon,
 // Dpotrs, Dpotri over gonum's BLAS and its SSE2 assembly kernels
-// (gonumorder_blas.go, gonumorder_lapack.go). So on amd64 every output
+// (internal/gonumorder, shared with MAT_SEM). So on amd64 every output
 // equals the raw gonum call bit for bit (TestSPD_MatchesGonumOrder), and
 // arm64 — where gonum's pure Go was contracted into fused multiply-adds
 // — now computes those same bits. The refusals are gonum's too: the
@@ -69,8 +70,8 @@ func FactorSPD(s *Sym) (*SPDFactor, error) {
 			u[i*n+j] = s.data[s.index(i, j)]
 		}
 	}
-	norm := goDlansyUpperMaxRowSum(n, u, n, make([]float64, n))
-	if !goDpotrfUpper(n, u, n) {
+	norm := gonumorder.DlansyUpperMaxRowSum(n, u, n, make([]float64, n))
+	if !gonumorder.DpotrfUpper(n, u, n) {
 		details := map[string]any{"reason": "not_positive_definite", "n": n}
 		singularDiagnostics(s, details)
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_MATRIX_SINGULAR,
@@ -78,7 +79,7 @@ func FactorSPD(s *Sym) (*SPDFactor, error) {
 			details)
 	}
 	f.u = u
-	f.cond = 1 / goDpoconUpper(n, u, n, norm)
+	f.cond = 1 / gonumorder.DpoconUpper(n, u, n, norm)
 	return f, nil
 }
 
@@ -111,7 +112,7 @@ func (f *SPDFactor) Solve(b *Vec) (*Vec, error) {
 		return &Vec{}, nil
 	}
 	x := b.Slice()
-	goDpotrsUpperVec(f.n, f.u, f.n, x)
+	gonumorder.DpotrsUpperVec(f.n, f.u, f.n, x)
 	if f.cond > ConditionTolerance {
 		return nil, conditionError(f.cond, "solve")
 	}
@@ -131,7 +132,7 @@ func (f *SPDFactor) Inverse() (*Sym, error) {
 	for i := 0; i < n; i++ {
 		copy(inv[i*n+i:(i+1)*n], f.u[i*n+i:(i+1)*n])
 	}
-	if !goDpotriUpper(n, inv, n) {
+	if !gonumorder.DpotriUpper(n, inv, n) {
 		return nil, conditionError(math.Inf(1), "inverse")
 	}
 	if f.cond > ConditionTolerance {
@@ -165,7 +166,7 @@ func Mul(a, b *Matrix) (*Matrix, error) {
 	if a.rows == 0 || a.cols == 0 || b.cols == 0 {
 		return out, nil
 	}
-	goDgemm(false, false, a.rows, b.cols, a.cols, 1, a.data, a.cols, b.data, b.cols, 0, out.data, b.cols)
+	gonumorder.Dgemm(false, false, a.rows, b.cols, a.cols, 1, a.data, a.cols, b.data, b.cols, 0, out.data, b.cols)
 	return out, nil
 }
 

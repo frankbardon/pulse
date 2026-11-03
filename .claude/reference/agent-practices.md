@@ -30,7 +30,7 @@ Each rule's reason comes from a failure this repo already shipped.
 
 ## Cross-architecture numerics
 
-- Values from gonum decompositions (SymEigen, SVD, QR) and everything seeded by them (PCA, `MAT_FACTOR` rotations, `TEST_MANOVA`, `MAT_SEM` fits) can differ by a few ulps between amd64 (CI) and arm64 (local); `.claude/reference/matrix-and-vectors.md` permits this; residuals: `docs/src/library/linalg.md` (Not covered).
+- Values from gonum decompositions (SymEigen, SVD, QR) and everything seeded by them (PCA, `MAT_FACTOR` rotations, `TEST_MANOVA`) can differ by a few ulps between amd64 (CI) and arm64 (local); `.claude/reference/matrix-and-vectors.md` permits this; residuals: `docs/src/library/linalg.md` (Not covered).
 - Never store the exact bits of such a value in a golden or an oracle fixture. Compare stored fixtures within the documented tolerance. *Why: a fixture that matched bit for bit on arm64 failed in amd64 CI.*
 - Keep bit-exact checks only in two cases: (a) both sides are computed live in the same process, for example across `DecodeWorkers` or `ShardWorkers` counts; (b) the path is declared FMA-free (`CoMoment`, the SPD reference kernels, the metric registry).
 - In an FMA-free kernel, write the barrier as an explicit `float64(x*y)`.

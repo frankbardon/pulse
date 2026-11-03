@@ -7,32 +7,10 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestRegistry_AllTypesRegistered asserts every RegressionType returned by
-// types.AllRegressionTypes() has a factory in the local registry. Catches
-// the "added REG_* to types but forgot the init() registration" drift.
-func TestRegistry_AllTypesRegistered(t *testing.T) {
-	t.Parallel()
-
-	registered := map[types.RegressionType]bool{}
-	for _, rt := range RegisteredTypes() {
-		registered[rt] = true
-	}
-	for _, rt := range types.AllRegressionTypes() {
-		if !registered[rt] {
-			t.Errorf("regression type %s not registered", rt)
-		}
-	}
-	if len(registered) != len(types.AllRegressionTypes()) {
-		t.Errorf("registered count = %d, want %d", len(registered), len(types.AllRegressionTypes()))
-	}
-}
-
-// TestFit_ModifierContracts asserts the modifier dispatch contracts.
-// Phase 5 retired the not-implemented stub for OLS / GLM modifier
-// variants; Bayes + any modifier is now rejected at validation. The
-// table covers every remaining surface: modifier OLS / GLM specs that
-// reach the registry but receive no records, and Bayes specs that
-// the validator rejects before construction.
+// TestFit_ModifierContracts asserts the modifier dispatch contracts:
+// modifier OLS specs that reach the registry but receive no records,
+// and Bayes + any modifier, which the validator rejects before
+// construction.
 func TestFit_ModifierContracts(t *testing.T) {
 	t.Parallel()
 

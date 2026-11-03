@@ -35,7 +35,7 @@ first run via `go run`.
 | `make fmt-check` | Fails listing any Go file `gofmt` would rewrite |
 | `make vet`   | Runs `go vet ./...`, then again with `-tags heavy` |
 | `make lint`  | Runs `fmt-check`, `vet`, then `staticcheck` over both test tiers, merged (the CI `lint` job runs exactly this) |
-| `make cover` | Runs tests with coverage; outputs `coverage.out` |
+| `make cover` | Runs both tiers with coverage into `coverage.out`; fails on a package below its `.github/coverage-floors.txt` floor ([Coverage floors](local-ci.md#coverage-floors)) |
 | `make clean` | Removes `bin/` and `coverage.out` |
 
 A `.env` file at the repo root is auto-loaded and exported, so

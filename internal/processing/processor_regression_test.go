@@ -12,8 +12,7 @@ import (
 
 // TestProcessor_OLSStreams confirms the orchestrator routes an
 // unpenalized REG_OLS request through the streaming path and emits a
-// populated RegressionResult on the response. Mirrors the Phase 0
-// not-implemented test, but for the live engine.
+// populated RegressionResult on the response.
 func TestProcessor_OLSStreams(t *testing.T) {
 	t.Parallel()
 

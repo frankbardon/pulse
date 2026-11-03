@@ -9,7 +9,7 @@ import (
 )
 
 // TestShowcase_CLIStrictFlagTests: the committed packed_bool showcase
-// examples (U45, TODO #317) run through `pulse api process --strict
+// examples (U45, see #317) run through `pulse api process --strict
 // --json` against the committed subscribers fixture, imported by
 // `pulse import csv`: exit 0, no error or warning, and the A/B z equals
 // the hand-computed pooled two-proportion z (6/24 control vs 9/24

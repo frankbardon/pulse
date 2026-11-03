@@ -151,7 +151,7 @@ func TestMemberFill_DecodedRecordAllocatesNothing(t *testing.T) {
 	f := fillOf(t, "emb", "x", "raw")
 	dst, pres := make([]float64, f.Len()), make([]bool, f.Len())
 	allocs := testing.AllocsPerRun(10, func() { f.fill(rec, dst, pres) })
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Errorf("fill allocates %v per row, want 0", allocs)
 	}
 	if want := []float64{0, 1, 2, 0, 4, 5}; !sameFloats(dst, want) {
@@ -210,7 +210,7 @@ func TestMemberValue_AllocatesNothing(t *testing.T) {
 	rec := NewRecordWithWide(s, nil, nil, map[string]any{"big": v})
 	var x float64
 	var ok bool
-	if allocs := testing.AllocsPerRun(10, func() { x, ok = rec.MemberValue("big[150]") }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(10, func() { x, ok = rec.MemberValue("big[150]") }); allocs != 0 && !raceEnabled {
 		t.Errorf("MemberValue allocates %v, want 0", allocs)
 	}
 	if !ok || x != 149 {

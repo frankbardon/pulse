@@ -1,15 +1,21 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -224,16 +230,26 @@ func (it *cellMemoryIter) Reset()                     { it.i = 0 }
 
 // peakLive runs fn under GOGC=1 — a collection every 1% of heap growth
 // — sampling the heap the last collection MARKED live throughout
-// (runtime/metrics /gc/heap/live:bytes: no stop-the-world), then once
-// more after a collection at fn's return (what the run retains): the
-// run's peak live heap, garbage excluded. Not the heap's object bytes
-// (/memory/classes/heap/objects:bytes): those count every object not
-// yet swept and every object allocated since the last mark, garbage
-// that grows when the collector shares the CPU — under go test ./...
-// on a 4-core runner the dense 60 x 60 cases measured within 1% of
-// their charge (over it on some runs), against 1.15x alone, the same
-// figures before and after a change that touched no crosstab path. The
-// marked heap measures 1.20x contended and 1.24x alone.
+// (runtime/metrics /gc/heap/live:bytes), then once more after a
+// collection at fn's return (what the run retains): the run's peak live
+// heap, garbage excluded.
+//
+// It is exact only in a process whose every collection stops the world
+// (GODEBUG gcstoptheworld=1, which TestCrosstabMemory_CellChargeTable
+// re-executes itself under: rerunUnderSTWGC). Each collection then
+// marks on a stopped mutator, at the point of fn's own allocation that
+// triggered it, so the figure it publishes is exactly what fn holds
+// there — the synchronous live-heap probe of liveHeapProbe, taken every
+// 1% of growth instead of at fn's I/O. A concurrent mark is not fit for
+// a peak-versus-charge bound: it counts what the mutator allocates
+// DURING the mark (allocated black) and what drops dead during it
+// (floating garbage), both of which grow when the collector shares the
+// CPU. On a 4-core runner under go test ./... the concurrent figure
+// came within 1% of the charge (over it on some runs; the dense 60 x 60
+// cases measure 1.17x alone), and under eight busy loops the min
+// charge / peak ratio fell to 1.02; stop-the-world it holds at 1.20,
+// alone or contended. A sample the reader misses (two collections
+// between reads) only lowers the figure, never raises it.
 func peakLive(fn func() error) (uint64, error) {
 	old := debug.SetGCPercent(1)
 	defer debug.SetGCPercent(old)
@@ -347,26 +363,14 @@ func cellMemoryCharge(t *testing.T, c cellMemoryCase) float64 {
 	return float64(est - limits.EstimateMemory(bare))
 }
 
-// crosstabMemoryAttempts bounds the re-measures of a case whose peak
-// exceeds its charge. The sampled peak's noise is one-sided — garbage
-// the GOGC=1 collector has not yet reclaimed only inflates it, never
-// deflates it — and grows when the run shares the CPU (go test ./...
-// runs packages concurrently; peakLive samples the marked heap to keep
-// that garbage out), so the lowest of a few measures is the honest
-// figure. A charge that misses a term misses on every attempt.
-const crosstabMemoryAttempts = 3
-
-// crosstabMemoryCheck measures c and fails when its peak — the lowest
-// of up to crosstabMemoryAttempts measures — exceeds the charge.
+// crosstabMemoryCheck measures c once and fails when its peak exceeds
+// the charge. Stop-the-world (peakLive) the figure carries no garbage
+// to retry away: a charge that misses a term misses every time, and a
+// re-measure could only hide a near miss.
 func crosstabMemoryCheck(t *testing.T, name string, c cellMemoryCase) {
 	t.Helper()
 	f := measureCellMemory(t, c)
 	charge := cellMemoryCharge(t, c)
-	for i := 1; i < crosstabMemoryAttempts && f.peak > charge; i++ {
-		if g := measureCellMemory(t, c); g.peak < f.peak {
-			f = g
-		}
-	}
 	cells := float64(c.rows * c.cols)
 	t.Logf("%-44s buffered=%-5v off=%-5v weighted=%-5v %dx%dx%d: folded %7.1f peak %7.1f charge %7.1f B a cell (%.2f)",
 		name, c.buffered, c.off, c.weighted, c.rows, c.cols, c.perCell, f.folded/cells, f.peak/cells, charge/cells, charge/f.peak)
@@ -414,4 +418,52 @@ func TestCrosstabMemory_GridPositionBytes(t *testing.T) {
 			}
 		}
 	}
+}
+
+// gcStopTheWorld reports whether every collection in this process stops
+// the world: GODEBUG gcstoptheworld=1 or 2, which the runtime reads at
+// startup only (a later os.Setenv does not reach it).
+func gcStopTheWorld() bool {
+	on := false
+	for _, kv := range strings.Split(os.Getenv("GODEBUG"), ",") {
+		if v, ok := strings.CutPrefix(kv, "gcstoptheworld="); ok {
+			on = v == "1" || v == "2" // the last setting wins
+		}
+	}
+	return on
+}
+
+// rerunUnderSTWGC runs t's test in a fresh copy of this test binary
+// with GODEBUG gcstoptheworld=1 appended, and fails t when the child
+// fails or does not run it; it reports true then, and the caller
+// returns. In a process that already collects stop-the-world it does
+// nothing and reports false: the caller measures in-process.
+func rerunUnderSTWGC(t *testing.T) bool {
+	t.Helper()
+	if gcStopTheWorld() {
+		return false
+	}
+	ctx := context.Background()
+	if deadline, ok := t.Deadline(); ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-5*time.Second))
+		defer cancel()
+	}
+	godebug := "gcstoptheworld=1"
+	if prev := os.Getenv("GODEBUG"); prev != "" {
+		godebug = prev + "," + godebug
+	}
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+regexp.QuoteMeta(t.Name())+"$", "-test.count=1", "-test.v")
+	cmd.Env = append(os.Environ(), "GODEBUG="+godebug)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s under GODEBUG=%s: %v\n%s", t.Name(), godebug, err, out)
+	}
+	if !bytes.Contains(out, []byte("--- PASS: "+t.Name()+" (")) {
+		t.Fatalf("the GODEBUG=%s child did not run %s:\n%s", godebug, t.Name(), out)
+	}
+	if testing.Verbose() {
+		t.Logf("GODEBUG=%s child:\n%s", godebug, out)
+	}
+	return true
 }

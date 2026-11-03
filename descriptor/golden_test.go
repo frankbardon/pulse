@@ -69,9 +69,8 @@ func TestGoldensNotHandEdited(t *testing.T) {
 
 	entries, err := os.ReadDir("testdata")
 	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skip("testdata directory does not exist")
-		}
+		// A missing testdata directory is a failure, not a skip: the
+		// goldens live there, so the gate would check nothing.
 		t.Fatalf("reading testdata: %v", err)
 	}
 

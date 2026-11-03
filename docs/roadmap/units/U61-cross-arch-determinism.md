@@ -82,13 +82,13 @@ This unit audits every numeric result path, fixes the drift, and adds a repo-wid
 ## Acceptance criteria
 
 - [x] Every site in the seed list is fixed or recorded as an accepted residual with a reason (`docs/src/library/linalg.md`, What is covered across architectures)
-- [x] A repo-wide gate fails when a stdlib transcendental or contractible product appears on a numeric result path (`TestBannedMathReport_RepoWide`, `TestFMAReport_RepoWide`)
+- [x] A repo-wide gate fails when a stdlib transcendental or contractible product appears on a numeric result path (`TestCrossArchBannedMath_RepoWide`, `TestCrossArchFMAReport_RepoWide`)
 - [x] An arm64 run and an amd64 run agree bit-for-bit on the affected figures (`internal/fingerprint`, checked by CI's linux/amd64 run)
 - [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit)): the full gate set and CI run at the PR
 
 ## Gates & tests
 
-- Repo-wide: `TestFMAReport_RepoWide` (heavy) and `TestBannedMathReport_RepoWide` (fast) over `internal/testutil/fmagate/testdata/numeric-allowlist.txt`
+- Repo-wide: `TestCrossArchFMAReport_RepoWide` (heavy) and `TestCrossArchBannedMath_RepoWide` (fast) over `internal/testutil/fmagate/testdata/numeric-allowlist.txt`
 - Bits: `TestFingerprint_Golden` (`internal/fingerprint`), `TestSPD_MatchesGonumOrder` (binds on amd64), `TestSPD_BitPinned`, `TestStatdist_ExpAMD64FMA`, `TestSEM_ArithmeticBitsPinned`, `TestTestStat_BitsPinned`, the `detmath` golden-bit suites
 - Tolerance: `TestDecomposition_Tolerance` (1e-12 relative)
 - Per-package FMA gates: `TestStatdist_NoFMAContraction`, `TestMMMFixture_NoFMAContraction` and the existing `detmath` / `optimize` / `mcmc` / `sem` / `distlagparams` / `regmmm` gates

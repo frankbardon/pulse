@@ -316,7 +316,7 @@ func TestLazySeriesStorage(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() {
 		_ = r.Histogram("h_seconds", observe.Label{Key: "op", Value: "process"})
 	})
-	if allocs > 2 {
+	if allocs > 2 && !raceEnabled {
 		t.Errorf("re-resolving a histogram allocated %v per run, want ≤ 2 (the label slice and its rendered key)", allocs)
 	}
 	h := r.Histogram("lazy_seconds", observe.Label{Key: "op", Value: "x"})

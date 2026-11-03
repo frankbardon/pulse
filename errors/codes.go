@@ -47,12 +47,6 @@ const (
 	// instead.
 	PROCESSING_PANIC Code = "PROCESSING_PANIC"
 
-	// PROCESSING_REGRESSION_NOT_IMPLEMENTED indicates the request named a
-	// regression operator whose engine has not yet shipped. Phase 0
-	// stubs return this for every REG_* spec; later phases retire the
-	// code as each engine lands.
-	PROCESSING_REGRESSION_NOT_IMPLEMENTED Code = "PROCESSING_REGRESSION_NOT_IMPLEMENTED"
-
 	// PROCESSING_REGRESSION_RANK_DEFICIENT indicates the predictor
 	// design matrix has collinear columns; XᵀX is singular and the
 	// closed-form OLS solve cannot proceed. Add a regularization
@@ -4649,7 +4643,6 @@ var allCodes = []Code{
 	PROCESSING_GROUP,
 	PROCESSING_INTERNAL,
 	PROCESSING_PANIC,
-	PROCESSING_REGRESSION_NOT_IMPLEMENTED,
 	PROCESSING_REGRESSION_RANK_DEFICIENT,
 	PROCESSING_REGRESSION_NO_CONVERGE,
 	PROCESSING_REGRESSION_SEPARATION,

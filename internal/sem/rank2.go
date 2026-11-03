@@ -22,9 +22,7 @@ import (
 type rank2Term struct{ a, b, ka, kb []float64 }
 
 func (st *state) rank2Terms(mm, c *mat.Dense, k *mat.SymDense) [][]rank2Term {
-	var p, d mat.Dense
-	p.Mul(c, st.mats[mPsi])
-	d.Mul(&p, mm.T())
+	d := mul(mul(c, st.mats[mPsi]), mm.T())
 	n := st.nObs
 	col := func(m *mat.Dense, j int, scale float64) []float64 {
 		v := make([]float64, n)
@@ -43,11 +41,7 @@ func (st *state) rank2Terms(mm, c *mat.Dense, k *mat.SymDense) [][]rank2Term {
 		v[i] = scale
 		return v
 	}
-	mulK := func(v []float64) []float64 {
-		out := make([]float64, n)
-		mat.NewVecDense(n, out).MulVec(k, mat.NewVecDense(n, v))
-		return out
-	}
+	mulK := func(v []float64) []float64 { return mulVec(k, v) }
 	out := make([][]rank2Term, len(st.free))
 	for q, par := range st.free {
 		for _, l := range par.locs {
@@ -58,9 +52,9 @@ func (st *state) rank2Terms(mm, c *mat.Dense, k *mat.SymDense) [][]rank2Term {
 			}
 			switch l.mat {
 			case mBeta:
-				a, b = col(mm, l.i, 1), row(&d, l.j)
+				a, b = col(mm, l.i, 1), row(d, l.j)
 			case mLambda:
-				a, b = unit(l.i, 1), row(&d, l.j)
+				a, b = unit(l.i, 1), row(d, l.j)
 			case mPsi:
 				a, b = col(mm, l.i, 1), col(mm, l.j, half)
 			case mTheta:
@@ -76,13 +70,11 @@ func (st *state) rank2Terms(mm, c *mat.Dense, k *mat.SymDense) [][]rank2Term {
 
 func (st *state) rank2Derivatives(mm, c *mat.Dense, k *mat.SymDense, w *mat.Dense, needH bool) ([]float64, *mat.SymDense) {
 	terms := st.rank2Terms(mm, c, k)
-	n := st.nObs
 	g := make([]float64, len(terms))
-	wb := make([]float64, n)
 	for q, ts := range terms {
 		s := 0.0
 		for _, t := range ts {
-			mat.NewVecDense(n, wb).MulVec(w, mat.NewVecDense(n, t.b))
+			wb := mulVec(w, t.b)
 			s += float64(2 * dot(t.a, wb))
 		}
 		g[q] = s

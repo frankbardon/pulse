@@ -99,7 +99,7 @@ func TestExtRecord_ElementReadAllocatesNothing(t *testing.T) {
 		r := rows.At(0)
 		x, ok = r.NumericValue("emb[3]")
 		_ = r.IsNull("emb[1]")
-	}); allocs != 0 {
+	}); allocs != 0 && !raceEnabled {
 		t.Errorf("element read allocates %v per row, want 0", allocs)
 	}
 	if !ok || x != 30 {

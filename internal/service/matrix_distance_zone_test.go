@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// matrix_distance_zone_test.go is TODO #411's date half: a date-family
+// matrix_distance_zone_test.go is #411's date half: a date-family
 // grouper (GROUP_DATE, GROUP_DATE_RANGES) as MAT_DISTANCE's
 // params.between, read on the LOCAL calendar day of the zone the zone
 // pass resolves for the slot "matrices[0].params.between" — inherited

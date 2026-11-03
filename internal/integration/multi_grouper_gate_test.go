@@ -797,6 +797,7 @@ func TestMultiGrouper_Gate(t *testing.T) {
 		for _, c := range mgCases() {
 			t.Run(mode.name+"/"+c.name, func(t *testing.T) {
 				if !mode.admits(c.groups) {
+					// skip-audit(#675): kept — not-applicable cell (a chain stage must merge: PULSE_CHAIN_NOT_MERGEABLE, see mgMode.mergeOnly); the case still runs on every other mode
 					t.Skip("mode admits mergeable groupers only")
 				}
 				resp, err := mode.run(t, f, mgRequest(f, c.groups))
@@ -877,6 +878,7 @@ func TestMultiGrouper_DataDependentKeyIndependentOfPosition(t *testing.T) {
 		} {
 			t.Run(mode.name+"/"+c.name, func(t *testing.T) {
 				if !mode.admits([]*types.Group{c.g()}) {
+					// skip-audit(#675): kept — not-applicable cell (a chain stage must merge: PULSE_CHAIN_NOT_MERGEABLE, see mgMode.mergeOnly); the case still runs on every other mode
 					t.Skip("mode admits mergeable groupers only")
 				}
 				run := func(groups ...*types.Group) []map[string]any {
@@ -1380,6 +1382,7 @@ func TestMultiGrouper_WindowsAndPostTestsOverCompositeRows(t *testing.T) {
 			req.PostTests = []*types.Test{{Type: types.TEST_PEARSON_R, Field: "n", Field2: "s", Label: "r",
 				Params: json.RawMessage(`{"partition_by": []}`)}}
 			if !mode.admitsRequest(req) {
+				// skip-audit(#675): kept — not-applicable cell (a chain stage refuses windows and post-tests: PULSE_CHAIN_NOT_MERGEABLE, see mgMode.admitsRequest); the case still runs on every other mode
 				t.Skip("mode admits mergeable stages only")
 			}
 			resp, err := mode.run(t, f, req)

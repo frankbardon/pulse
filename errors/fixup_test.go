@@ -95,7 +95,7 @@ func TestCodeFixupIsCopy(t *testing.T) {
 
 	got := perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL.Fixup(nil)
 	if len(got) == 0 {
-		t.Skip("no fixups to test mutation against")
+		t.Fatal("premise: PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL has a fixup to mutate")
 	}
 	original := got[0].Hint
 	got[0].Hint = "MUTATED"

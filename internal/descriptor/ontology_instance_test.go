@@ -155,7 +155,7 @@ func TestOntologyPrune_Operators(t *testing.T) {
 		}
 	}
 	if host == "" {
-		t.Skip("no any-of dependency in the feature table")
+		t.Fatal("premise: the feature table has an any-of dependency (the any-of arm below is vacuous otherwise)")
 	}
 	g = pruneOntology(base, hidingSnapshot(dep))
 	if !g.Has(featureNodeID(t, host)) {
@@ -255,18 +255,17 @@ func TestOntologyPrune_Glossary(t *testing.T) {
 	if in := g.In(termID(term), descriptor.OntologyEdgeRoutesTo); len(in) != 0 {
 		t.Errorf("SeeAlso into pruned %s kept: %+v", term, in)
 	}
-	var orphan string
-	for _, tm := range Glossary() {
-		if len(termUsers(base, tm.ID)) == 0 {
-			orphan = tm.ID
-			break
-		}
-	}
-	if orphan == "" {
-		t.Skip("every term has an operator user")
+	// No built-in term is an orphan today, so the orphan arm runs on
+	// the built-in sources plus one fixture term no operator cites.
+	src := builtinOntologySources()
+	const orphan = "orphan-fixture-term"
+	src.terms = append(append([]descriptor.Term{}, src.terms...), descriptor.Term{ID: orphan, Short: "A term no operator cites."})
+	withOrphan := buildOntology(src)
+	if !withOrphan.Has(termID(orphan)) || len(termUsers(withOrphan, orphan)) != 0 {
+		t.Fatalf("premise: %s is a node with no operator user", orphan)
 	}
 	all := hidingSnapshot(ReachedFeatureNames(buildinfo.Version())...)
-	if g := pruneOntology(base, all); !g.Has(termID(orphan)) {
+	if g := pruneOntology(withOrphan, all); !g.Has(termID(orphan)) {
 		t.Errorf("%s (no operator user) pruned", orphan)
 	}
 }

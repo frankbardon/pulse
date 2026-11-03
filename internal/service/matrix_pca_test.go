@@ -90,7 +90,7 @@ func pcaNear(t *testing.T, where string, got, want float64) {
 // cor(use = "pairwise.complete.obs") (the MAT_CORRELATION matrix Pulse
 // analyses) and whose Bartlett N* is the smallest pair N, named by
 // PULSE_MATRIX_PAIRWISE_N_STAR, and the weighted pairwise nulls cases
-// (both kinds, both inputs; TODO #270): every entry is cov.wt over its
+// (both kinds, both inputs; see #270): every entry is cov.wt over its
 // own rows — a per-entry Kish factor under probability weights — and
 // N* the smallest pair's own Σw / Kish n_eff. Every component is kept (an integer
 // k = p), so the full eigen-decomposition is compared: eigenvalues, the

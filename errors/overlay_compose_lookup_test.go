@@ -51,7 +51,7 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupsCoverComposeAndChainSlots(t 
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	if len(r.Fixups) < 2 {
-		t.Skip("not enough fixups to test slot coverage")
+		t.Fatalf("premise: %s has a fixup per slot (>= 2), got %d", r.Code, len(r.Fixups))
 	}
 	sawCompose, sawChain := false, false
 	for _, f := range r.Fixups {
@@ -138,7 +138,7 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupsCoverComposeAndChainSlots(t *te
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_TARGET_UNKNOWN))
 	if len(r.Fixups) < 2 {
-		t.Skip("not enough fixups to test slot coverage")
+		t.Fatalf("premise: %s has a fixup per slot (>= 2), got %d", r.Code, len(r.Fixups))
 	}
 	sawCompose, sawChain := false, false
 	for _, f := range r.Fixups {
@@ -219,7 +219,7 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupsCoverBothSurfaces(t *test
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	if len(r.Fixups) < 2 {
-		t.Skip("not enough fixups to test slot coverage")
+		t.Fatalf("premise: %s has a fixup per slot (>= 2), got %d", r.Code, len(r.Fixups))
 	}
 	sawTargets, sawOptions := false, false
 	for _, f := range r.Fixups {

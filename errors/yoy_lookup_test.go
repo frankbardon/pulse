@@ -54,7 +54,7 @@ func TestErrorsLookup_YoY_FrequencyMissing_FixupsCoverBothAuthoringSlots(t *test
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_YOY_FREQUENCY_MISSING))
 	if len(r.Fixups) < 2 {
-		t.Skip("not enough fixups to test slot coverage")
+		t.Fatalf("premise: %s has a fixup per slot (>= 2), got %d", r.Code, len(r.Fixups))
 	}
 	sawGroups, sawOverlays := false, false
 	for _, f := range r.Fixups {

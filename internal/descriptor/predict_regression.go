@@ -30,7 +30,7 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 }()
 
 // validateRegressions performs structural validation on every
-// RegressionSpec in req. Phase 0 catches:
+// RegressionSpec in req. It catches, among others:
 //   - unknown Type
 //   - missing Target
 //   - empty Predictors slice
@@ -38,10 +38,9 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 //   - GLM-required Family present and in the supported set
 //   - Modifier coupling (Selection requires Criterion)
 //
-// Deeper runtime checks (n ≥ p + 1, link compatibility, regularization
-// parameter bounds) live with the engines in Phases 1–4. predict
-// cannot import internal/processing/regression, so registry membership is
-// checked against types.AllRegressionTypes() plus the instance's
+// Data-dependent checks (n ≥ p + 1, separation, convergence) stay with
+// the engines. predict cannot import internal/processing/regression,
+// so registry membership is checked against types.AllRegressionTypes() plus the instance's
 // extension REG_* models (the snapshot) instead. A type inst hides is
 // refused exactly as a type outside that set.
 //

@@ -164,7 +164,7 @@ func TestResolveMatrices_CopiesSpecStreamability(t *testing.T) {
 // w2), then listwise p means + p(p+1)/2 packed co-moments, or pairwise
 // one 9-word pair state (n, nMass, w, w2, mi, mj, mii, mjj, cij) per
 // packed cell. The pairwise figure undercounted by 2 words a cell
-// (~22%) while the constant still said 7 (TODO #157).
+// (~22%) while the constant still said 7 (see #157).
 func TestAccumulatorBytes(t *testing.T) {
 	t.Parallel()
 

@@ -182,10 +182,10 @@ func TestCharsetEncoder_RefusesAnEncodableButUnfaithfulRune(t *testing.T) {
 
 	raw, err := enc.enc.NewEncoder().Bytes([]byte(string(rune(0xE000))))
 	if err != nil {
-		t.Skip("GB18030 no longer encodes U+E000; the premise of this test has changed")
+		t.Fatal("premise: GB18030 encodes U+E000; if x/text changed that, pick another encodable-but-unfaithful rune")
 	}
 	if back, _ := enc.dec.decode(raw); back == string(rune(0xE000)) {
-		t.Skip("GB18030 now round-trips U+E000; the premise of this test has changed")
+		t.Fatal("premise: GB18030 maps U+E000 asymmetrically; if x/text changed that, pick another encodable-but-unfaithful rune")
 	}
 
 	if out, at := enc.encode(string(rune(0xE000))); at < 0 {

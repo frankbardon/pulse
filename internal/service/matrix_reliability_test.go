@@ -78,7 +78,7 @@ func relFloats(t *testing.T, v any) []float64 {
 // case: likert_ties, reversed_items (keyed with the declared 1..5 range,
 // and raw), attitude, nulls (listwise and pairwise — pairwise also
 // under both weight kinds, where every covariance entry is cov.wt over
-// its own rows, so probability weights apply a per-entry n_eff, TODO
+// its own rows, so probability weights apply a per-entry n_eff, see
 // #270), 2-item batteries, the Heywood fixture; unweighted, frequency
 // (the rep() expansion) and probability weights. omega is the model form (Σλ)²/((Σλ)²+Σψ) —
 // omega_total_model — null at p = 2 and on a Heywood fit.

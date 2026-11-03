@@ -319,10 +319,8 @@ func gfiLisrel(sample, implied *mat.SymDense, sampleMean []float64, inv *mat.Sym
 		isX[i] = true
 	}
 	form := func(a *mat.Dense, d []float64) float64 {
-		var ka, kaka mat.Dense
-		ka.Mul(inv, a)
-		kaka.Mul(&ka, &ka)
-		v := float64(0.5 * mat.Trace(&kaka))
+		ka := mul(inv, a)
+		v := float64(0.5 * mat.Trace(mul(ka, ka)))
 		if d != nil {
 			v += quad(inv, d, d)
 		}

@@ -36,6 +36,7 @@ Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen
 | Synth rule detection (`--suggest-rules`, co-missing, emission order, exact dependency) | `update-demand/synth-rule-detection.md` (+ `.claude/reference/synthetic-data.md`) |
 | Writing or citing a gate: engine / runtime-parity / CI-job gates (Other load-bearing contract gates) and the per-gate prose for CLAUDE.md's list (The CLAUDE.md CI-gate list, per-gate prose) | `update-demand/gates.md` |
 | Feature, guidance, effect-size, reference-oracle and generated-docs gates | `update-demand/gates-features-guidance.md` |
+| The cross-arch determinism gates (`TestCrossArch*`: banned stdlib math, arm64 FMA contraction) and their numeric allowlist | `update-demand/gates-cross-arch.md` |
 
 Table covers every component category and contract type required by `TestUpdateDemandTableCovers` (case-insensitive checks for: aggregator, attribute, filterer, grouper, error code, format_version, field type, CI gate, environment variable, MCP tool, feature operator). New trigger rows for slot-level contracts go into the matching per-area slice under `.claude/reference/update-demand/` — add a slice (and a row above) when none fits or a slice would pass ~30 KB.
 
@@ -45,5 +46,5 @@ Where each heading of the pre-split single file now lives (pointers written as `
 
 - **The CLAUDE.md table, pre-compression (relocated verbatim at E1-S3)** — every row that is not a verbatim duplicate of a live row sits, unedited, in its area slice under "Category rows (pre-compression CLAUDE.md form)"; the introduction and the verbatim-duplicate rows are in `update-demand/history.md`.
 - **Other load-bearing contract gates** — `update-demand/gates.md` (engine, parity, CI jobs) + `update-demand/gates-features-guidance.md` (features, guidance, oracles, generated docs).
-- **The CLAUDE.md CI-gate list, per-gate prose (relocated verbatim at U18 E1-S2)** — `update-demand/gates.md`.
+- **The CLAUDE.md CI-gate list, per-gate prose (relocated verbatim at U18 E1-S2)** — `update-demand/gates.md`; the cross-arch family — `update-demand/gates-cross-arch.md`.
 - **The `Request.Return` row** — `update-demand/payload-and-return.md`; **the Multiplicity row** and **the weighting row** — `update-demand/weighting-and-multiplicity.md`.

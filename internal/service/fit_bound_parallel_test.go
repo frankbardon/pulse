@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/spf13/afero"
-
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/spf13/afero"
 )
 
 // writeParallelXYCohort writes a 512-row f64 (x, y) cohort to an OS temp

@@ -751,7 +751,7 @@ func TestExprProgram_RunReusesVM(t *testing.T) {
 	if v, err := f.Row(rec, ""); err != nil || v != 0 {
 		t.Fatalf("Row = %v, %v; want 0", v, err)
 	}
-	if got := testing.AllocsPerRun(1000, func() { _, _ = f.Row(rec, "") }); got != 0 {
+	if got := testing.AllocsPerRun(1000, func() { _, _ = f.Row(rec, "") }); got != 0 && !raceEnabled {
 		t.Fatalf("%.1f allocations a formula row, want 0 (a VM per call?)", got)
 	}
 }

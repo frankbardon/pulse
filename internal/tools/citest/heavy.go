@@ -401,12 +401,26 @@ func heavyRun(root, shard string, flags []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
+	// A shard may need several go test invocations; each writing the same
+	// -coverprofile would keep only the last, so each writes a part and
+	// the parts are merged (cover-merge) into the requested file.
+	profile, _ := coverProfileFlag(flags)
+	var parts []string
 	if len(runs) == 0 {
 		fmt.Fprintf(os.Stderr, "heavy shard %s: no tests\n", shard)
+		if profile != "" {
+			return 0, mergeProfileFiles(profile, nil, true)
+		}
 		return 0, nil
 	}
 	code := 0
-	for _, args := range runs {
+	for i, args := range runs {
+		if profile != "" {
+			part := fmt.Sprintf("%s.part%d", profile, i)
+			parts = append(parts, part)
+			args = withCoverProfile(args, part)
+			_ = os.Remove(part)
+		}
 		fmt.Fprintf(os.Stderr, "heavy shard %s: go %s\n", shard, strings.Join(args, " "))
 		cmd := exec.Command("go", args...)
 		cmd.Dir = root
@@ -421,5 +435,43 @@ func heavyRun(root, shard string, flags []string) (int, error) {
 			}
 		}
 	}
+	if profile != "" {
+		if err := mergeProfileFiles(profile, parts, true); err != nil {
+			return 1, err
+		}
+	}
 	return code, nil
+}
+
+// coverProfileFlag finds -coverprofile in go test flags (`-coverprofile=F`,
+// `--coverprofile=F` or `-coverprofile F`) and returns its value and the
+// index of the token holding it; "" when absent.
+func coverProfileFlag(flags []string) (string, int) {
+	for i, f := range flags {
+		name, val, eq := strings.Cut(strings.TrimPrefix(strings.TrimPrefix(f, "-"), "-"), "=")
+		if !strings.HasPrefix(f, "-") || name != "coverprofile" {
+			continue
+		}
+		if eq {
+			return val, i
+		}
+		if i+1 < len(flags) {
+			return flags[i+1], i + 1
+		}
+	}
+	return "", -1
+}
+
+// withCoverProfile returns a copy of args with its -coverprofile value
+// replaced by path.
+func withCoverProfile(args []string, path string) []string {
+	out := append([]string(nil), args...)
+	if _, i := coverProfileFlag(out); i >= 0 {
+		if k, _, eq := strings.Cut(out[i], "="); eq && strings.HasPrefix(k, "-") {
+			out[i] = k + "=" + path
+		} else {
+			out[i] = path
+		}
+	}
+	return out
 }

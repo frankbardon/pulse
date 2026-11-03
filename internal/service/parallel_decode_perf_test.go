@@ -20,6 +20,7 @@ func TestParallelDecode_PerfGate(t *testing.T) {
 
 	numCPU := runtime.NumCPU()
 	if numCPU < 2 {
+		// skip-audit(#675): kept — environment skip: with one CPU the parallel arm collapses to serial, so the speed-up ratio has nothing to measure
 		t.Skipf("perf gate requires NumCPU >= 2 (got %d) — NumCPU variant collapses to serial",
 			numCPU)
 	}

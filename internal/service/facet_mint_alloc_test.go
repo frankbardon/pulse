@@ -18,7 +18,7 @@ func TestGroupMemory_FacetMintAllocationFree(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if got != 0 {
+	if got != 0 && !raceEnabled {
 		t.Fatalf("bool facet mint allocates %.1f times per call, want 0", got)
 	}
 }

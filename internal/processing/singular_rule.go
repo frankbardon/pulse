@@ -8,7 +8,7 @@ import (
 )
 
 // singular_rule.go is the ONE singular decision of the multivariate
-// stack (TODO #408). Every surface that needs a covariance-shaped
+// stack (see #408). Every surface that needs a covariance-shaped
 // matrix's inverse, determinant or full rank asks it — the vector tests
 // (TEST_HOTELLING_T2, TEST_MANOVA, TEST_BOX_M, TEST_MARDIA,
 // TEST_BARTLETT_SPHERICITY), the matrix operators (MAT_PCA's and

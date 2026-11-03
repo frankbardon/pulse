@@ -264,7 +264,7 @@ const newMetricsAllocCeiling = 10_000
 func TestObservabilityMetricsNewCost(t *testing.T) {
 	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
 	if raceEnabled {
-		t.Skip("allocation counts are a plain-build figure")
+		t.Skip("allocation counts are a plain-build figure (see #587)")
 	}
 	dir := t.TempDir()
 	plain := testing.AllocsPerRun(5, func() {

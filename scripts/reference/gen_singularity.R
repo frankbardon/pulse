@@ -1,5 +1,5 @@
 # gen_singularity.R — R oracle for Pulse's ONE singular decision across
-# the multivariate stack (TODO #408, internal/processing/singular_rule.go).
+# the multivariate stack (see #408, internal/processing/singular_rule.go).
 #
 # Sourced by gen_multivariate.R (`make reference`) after gen_distance.R:
 # it reuses out_dir, num(), numv(), numm(), strs(), write_golden() and

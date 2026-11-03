@@ -12,7 +12,6 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -173,7 +172,13 @@ func assertWeightedUseful(t *testing.T, resp *types.Response) {
 	}
 }
 
-func TestShardWorkers_WeightedParity(t *testing.T) {
+// TestShardWorkers_WeightedStrictAndDefaultWeight: the per-shard
+// reducer's weighted run under Strict fails with the merged
+// PULSE_WEIGHT_INVALID_ROWS tally, and Options.DefaultWeight reaches
+// the per-shard workers (a request with no weight answers the explicit
+// one). The worker-count invariance of the weighted answer is
+// TestWeightInvariance_Archive's.
+func TestShardWorkers_WeightedStrictAndDefaultWeight(t *testing.T) {
 	t.Parallel()
 
 	archive := weightModesArchive(t, []int{90, 77, 101})
@@ -181,35 +186,13 @@ func TestShardWorkers_WeightedParity(t *testing.T) {
 	if err := afero.WriteFile(cfg.Fs(), "w.pulse", archive, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	req := weightModesRequest("w.pulse")
-	if !processing.CanMergeRequest(processing.StampWeights(req, nil), weightModesSchema()) {
-		t.Fatal("weighted fixture request is not mergeable")
-	}
-	serial := New(cfg)
-	serial.SetShardWorkers(1)
-	want, err := serial.Process(context.Background(), weightModesRequest("w.pulse"))
+	explicit := New(cfg)
+	explicit.SetShardWorkers(2)
+	want, err := explicit.Process(context.Background(), weightModesRequest("w.pulse"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertWeightedUseful(t, want)
-	for _, workers := range []int{2, 3} {
-		t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
-			par := New(cfg)
-			par.SetShardWorkers(workers)
-			cohort, err := par.Open(context.Background(), "w.pulse")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, ok := par.shouldFanOut(req, cohort); !ok {
-				t.Fatal("shouldFanOut refused; the test would compare serial to serial")
-			}
-			got, err := par.Process(context.Background(), weightModesRequest("w.pulse"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			assertWeightedAgree(t, got, want)
-		})
-	}
 
 	// Strict: the merged tally is an error, not a warning.
 	strict := New(cfg)

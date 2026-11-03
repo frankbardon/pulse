@@ -169,7 +169,7 @@ write_golden("chi_square_survival", c(meta(
 ), list(cases = chi_cases)))
 
 # ------------------------------------------------- noncentral chi-square
-# The lower-tail CDF behind MAT_FACTOR's RMSEA interval (TODO #405). R's
+# The lower-tail CDF behind MAT_FACTOR's RMSEA interval (see #405). R's
 # pchisq(x, df, ncp) sums the Poisson mixture to full double precision
 # for ncp < 80 and switches to an approximation bounded at 1e-12
 # absolute above it, so the grid keeps ncp < 80 (the oracle) and the

@@ -597,14 +597,14 @@ func TestSetMask_ZeroAllocation(t *testing.T) {
 		sinkBool = m.Has(63)
 		sinkInt = m.PopCount()
 		sinkBool = m.Union(m).Equal(m)
-	}); got != 0 {
+	}); got != 0 && !raceEnabled {
 		t.Errorf("Has/PopCount/Union allocated %v times per run, want 0", got)
 	}
 	if got := testing.AllocsPerRun(100, func() {
 		bit, ok := m.NextBit(0)
 		sinkInt = bit
 		sinkBool = ok
-	}); got != 0 {
+	}); got != 0 && !raceEnabled {
 		t.Errorf("NextBit allocated %v times per run, want 0", got)
 	}
 }

@@ -24,7 +24,7 @@ func TestGroupMemory_MaxGroupsCheckAllocationFree(t *testing.T) {
 		"Validate": func() { _ = Validate(l) },
 	}
 	for name, fn := range cases {
-		if got := testing.AllocsPerRun(1000, fn); got != 0 {
+		if got := testing.AllocsPerRun(1000, fn); got != 0 && !raceEnabled {
 			t.Errorf("%s allocates %.1f times per call, want 0", name, got)
 		}
 	}

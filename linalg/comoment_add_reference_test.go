@@ -143,7 +143,7 @@ func TestCoMomentAddListwise_AllocatesNothing(t *testing.T) {
 		if a := testing.AllocsPerRun(200, func() {
 			c.Add(rows[i%2], 1.5)
 			i++
-		}); a != 0 {
+		}); a != 0 && !raceEnabled {
 			t.Errorf("p=%d: %v allocations per Listwise Add, want 0", p, a)
 		}
 	}

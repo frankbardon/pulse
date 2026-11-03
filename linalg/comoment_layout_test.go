@@ -29,7 +29,7 @@ func stateWords(t *testing.T, typ reflect.Type) int64 {
 // sizes: the header words are CoMoment's int64 / float64 fields and a
 // pairwise cell is one pairMoment, read by reflection, so adding a word
 // to either fails here rather than drifting the estimate silently (it
-// sat at 7 pair words against 9 real ones — TODO #157).
+// sat at 7 pair words against 9 real ones — see #157).
 func TestAccumulatorBytesMatchesCoMomentLayout(t *testing.T) {
 	t.Parallel()
 

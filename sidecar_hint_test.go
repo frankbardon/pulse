@@ -128,25 +128,51 @@ func TestInvalidatedSidecars_NamesThePointLookupIndexAndItsRebuild(t *testing.T)
 
 // A composite key round-trips into the rebuild command in ORDER: key
 // order is significant end to end, and a reversed tuple builds a
-// different index.
+// different index. The sidecar-hint cohort has one keyable column (a
+// set column is not index-keyable), so this test writes its own cohort
+// with two u32 key columns.
 func TestInvalidatedSidecars_CompositeKeyOrderSurvivesIntoTheRebuild(t *testing.T) {
 	t.Parallel()
 
-	p, _ := sidecarHintCohort(t, "c.pulse")
+	memFs := afero.NewMemMapFs()
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0},
+		{Name: "seq", Type: encoding.FieldTypeU32, ByteOffset: 4},
+	}}
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	for r := 0; r < 4; r++ {
+		var rec [8]byte
+		binary.LittleEndian.PutUint32(rec[0:4], uint32(10+r))
+		binary.LittleEndian.PutUint32(rec[4:8], uint32(100-r))
+		buf.Write(rec[:])
+	}
+	if err := afero.WriteFile(memFs, "c.pulse", buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("WriteFile cohort: %v", err)
+	}
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
 	ctx := context.Background()
 
-	if _, err := p.BuildIndex(ctx, "c.pulse", []string{"picks", "id"}); err == nil {
-		t.Skip("set columns are not index-keyable; composite coverage needs two keyable columns")
-	}
-	if _, err := p.BuildIndex(ctx, "c.pulse", []string{"id"}); err != nil {
+	// seq before id: the reverse of the schema order, so an
+	// implementation that re-sorts the keys into schema or name order
+	// fails.
+	if _, err := p.BuildIndex(ctx, "c.pulse", []string{"seq", "id"}); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 	got, err := p.InvalidatedSidecars(ctx, "c.pulse")
 	if err != nil {
 		t.Fatalf("InvalidatedSidecars: %v", err)
 	}
-	if len(got) != 1 || !strings.Contains(got[0].Rebuild, "--key id") {
-		t.Fatalf("sidecars = %+v, want one naming --key id", got)
+	if len(got) != 1 || !strings.Contains(got[0].Rebuild, "--key seq,id") {
+		t.Fatalf("sidecars = %+v, want one naming --key seq,id", got)
 	}
 }
 

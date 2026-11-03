@@ -135,8 +135,8 @@ func newGLMEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 
 // Fit returns INSUFFICIENT_DATA: GLM is buffered-only, so a no-record
 // call cannot produce a meaningful fit. The orchestrator routes through
-// FitBuffered; this method exists so the Phase 0 Engine.Fit contract
-// stays satisfied.
+// FitBuffered; this method exists so the Engine.Fit contract stays
+// satisfied.
 func (e *glmEngine) Fit() (*types.RegressionResult, error) {
 	if e.finalized {
 		return nil, errors.NewCodedError(

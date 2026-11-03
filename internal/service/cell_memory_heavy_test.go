@@ -29,8 +29,15 @@ import (
 // sparse grids over unbounded axes, records on the diagonal of an
 // n x n grid (U51 E5-S11): the dense grid's empty positions, charged
 // by limits.CrosstabGridPositionBytes.
+//
+// The peaks are exact only when every collection stops the world
+// (peakLive), so the test re-executes itself under GODEBUG
+// gcstoptheworld=1 (rerunUnderSTWGC) unless already running so.
 func TestCrosstabMemory_CellChargeTable(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+	if rerunUnderSTWGC(t) {
+		return
+	}
 
 	ext := New(nil).extensions
 	const side = 60

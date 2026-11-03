@@ -320,3 +320,111 @@ func TestProcess_ParallelDecode_BelowThresholdBails(t *testing.T) {
 			belowResp.Data, serialResp.Data)
 	}
 }
+
+// TestProcess_ParallelDecode_MemMapFsBails verifies the MemMapFs gate
+// at the Process level: even with DecodeWorkers=4 and a cohort above
+// the threshold, the resolveRealPath probe misses on MemMapFs and
+// Process drops to the serial scanIter path. Correctness == serial.
+func TestProcess_ParallelDecode_MemMapFsBails(t *testing.T) {
+	t.Parallel()
+
+	path, cfg := writeMemMapCohort(t, parallelDecodeRecordThreshold+512)
+	ctx := context.Background()
+
+	mkReq := func() *types.Request { return mergeableRequest(path) }
+
+	svcSerial := New(cfg)
+	svcSerial.SetDecodeWorkers(1)
+	serialResp, err := svcSerial.Process(ctx, mkReq())
+	if err != nil {
+		t.Fatalf("serial Process: %v", err)
+	}
+
+	svcEligible := New(cfg)
+	svcEligible.SetDecodeWorkers(4)
+	memResp, err := svcEligible.Process(ctx, mkReq())
+	if err != nil {
+		t.Fatalf("MemMapFs Process: %v", err)
+	}
+	if !reflect.DeepEqual(memResp.Data, serialResp.Data) {
+		t.Errorf("MemMapFs bail path drifted from serial:\n got=%v\nwant=%v",
+			memResp.Data, serialResp.Data)
+	}
+}
+
+// TestProcess_ParallelDecode_NonMergeableBails verifies the
+// CanMergeRequest gate at the Process level. AGG_MEDIAN forces the
+// buffered path (percentile aggregator); the parallel reducer cannot
+// merge median state, so the gate must reject and Process must take
+// the serial scanIter path.
+func TestProcess_ParallelDecode_NonMergeableBails(t *testing.T) {
+	t.Parallel()
+
+	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+512)
+	ctx := context.Background()
+
+	mkReq := func() *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: path},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_MEDIAN, Field: "weight", Label: "med"},
+			},
+		}
+	}
+
+	svcSerial := New(cfg)
+	svcSerial.SetDecodeWorkers(1)
+	serialResp, err := svcSerial.Process(ctx, mkReq())
+	if err != nil {
+		t.Fatalf("serial Process: %v", err)
+	}
+
+	svcEligible := New(cfg)
+	svcEligible.SetDecodeWorkers(4)
+	nonMergeResp, err := svcEligible.Process(ctx, mkReq())
+	if err != nil {
+		t.Fatalf("non-mergeable Process: %v", err)
+	}
+	// AGG_MEDIAN must produce identical output regardless of
+	// DecodeWorkers because the gate rejected and both runs took the
+	// same serial scanIter path.
+	if !reflect.DeepEqual(nonMergeResp.Data, serialResp.Data) {
+		t.Errorf("non-mergeable bail path drifted from serial:\n got=%v\nwant=%v",
+			nonMergeResp.Data, serialResp.Data)
+	}
+}
+
+// TestProcess_ParallelDecode_WorkersOneBails verifies the explicit
+// DecodeWorkers=1 forces the serial path at the Process level, same
+// behaviour as ShardWorkers=1.
+func TestProcess_ParallelDecode_WorkersOneBails(t *testing.T) {
+	t.Parallel()
+
+	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+512)
+	ctx := context.Background()
+
+	mkReq := func() *types.Request { return mergeableRequest(path) }
+
+	// Both runs use DecodeWorkers=1 so the gate rejects on both sides.
+	// Output must be identical between two independent serial runs;
+	// this is a smoke test that the bail path is deterministic and
+	// repeatable.
+	svcA := New(cfg)
+	svcA.SetDecodeWorkers(1)
+	respA, err := svcA.Process(ctx, mkReq())
+	if err != nil {
+		t.Fatalf("Process A: %v", err)
+	}
+
+	svcB := New(cfg)
+	svcB.SetDecodeWorkers(1)
+	respB, err := svcB.Process(ctx, mkReq())
+	if err != nil {
+		t.Fatalf("Process B: %v", err)
+	}
+
+	if !reflect.DeepEqual(respA.Data, respB.Data) {
+		t.Errorf("forced-serial Process drifted between runs:\nA=%v\nB=%v",
+			respA.Data, respB.Data)
+	}
+}

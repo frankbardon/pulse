@@ -432,16 +432,14 @@ func (st *state) sigma() (*mat.SymDense, *mat.Dense, *mat.Dense, error) {
 		ib.Set(i, i, 1)
 	}
 	ib.Sub(ib, st.mats[mBeta])
-	var c mat.Dense
-	if err := c.Inverse(ib); err != nil {
+	c, err := inverse(ib)
+	if err != nil {
 		return nil, nil, nil, err
 	}
-	var mm, mp, sg mat.Dense
-	mm.Mul(st.mats[mLambda], &c)
-	mp.Mul(&mm, st.mats[mPsi])
-	sg.Mul(&mp, mm.T())
-	sg.Add(&sg, st.mats[mTheta])
-	return symmetrize(&sg), &mm, &c, nil
+	mm := mul(st.mats[mLambda], c)
+	sg := mul(mul(mm, st.mats[mPsi]), mm.T())
+	sg.Add(sg, st.mats[mTheta])
+	return symmetrize(sg), mm, c, nil
 }
 
 func symmetrize(d *mat.Dense) *mat.SymDense {
@@ -457,21 +455,21 @@ func symmetrize(d *mat.Dense) *mat.SymDense {
 
 // invLogDet inverts a symmetric PD matrix via Cholesky. Like semopy's
 // chol_inv / chol_inv2 (dpotrf, then dpotri), only a failed
-// factorization fails: gonum's InverseTo still fills the inverse when
-// it reports an ill-conditioned matrix (mat.Condition), and a
-// near-singular S that factors is fitted, as semopy fits it.
+// factorization fails: the inverse is still filled when it reports an
+// ill-conditioned matrix (mat.Condition), and a near-singular S that
+// factors is fitted, as semopy fits it.
 func invLogDet(a *mat.SymDense) (*mat.SymDense, float64, bool) {
-	var ch mat.Cholesky
-	if ok := ch.Factorize(a); !ok {
+	ch, ok := factorize(a)
+	if !ok {
 		return nil, 0, false
 	}
-	var inv mat.SymDense
-	if err := ch.InverseTo(&inv); err != nil {
+	inv, err := ch.inverse()
+	if err != nil {
 		if _, ill := err.(mat.Condition); !ill {
 			return nil, 0, false
 		}
 	}
-	return &inv, ch.LogDet(), true
+	return inv, ch.logDet(), true
 }
 
 // objective is semopy's obj_mlw: tr(SΣ⁻¹) − p + ln|Σ| − ln|S|, plus
@@ -505,9 +503,7 @@ func (st *state) objective(x []float64) float64 {
 // sigmaGrad returns ∂Σ/∂θ_k for every free parameter (semopy's
 // calc_sigma_grad), each a dense nObs × nObs matrix.
 func (st *state) sigmaGrad(mm, c *mat.Dense) []*mat.Dense {
-	var p, d mat.Dense
-	p.Mul(c, st.mats[mPsi]) // CΨ
-	d.Mul(&p, mm.T())       // CΨCᵀΛᵀ
+	d := mul(mul(c, st.mats[mPsi]), mm.T()) // CΨCᵀΛᵀ
 	n := st.nObs
 	out := make([]*mat.Dense, len(st.free))
 	for k, par := range st.free {
@@ -576,10 +572,10 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 	if !ok {
 		return 0, nil, nil, errors.New("implied covariance is not positive definite")
 	}
-	var w, t mat.Dense
+	var t *mat.Dense
 	r := st.meanResidual(mm)
 	if r == nil {
-		t.Mul(inv, st.s)
+		t = mul(inv, st.s)
 	} else {
 		// The mean term's covariance derivative: S → S + rrᵀ.
 		sr := mat.NewDense(st.nObs, st.nObs, nil)
@@ -588,12 +584,12 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 				sr.Set(a, b, st.s.At(a, b)+float64(r[a]*r[b]))
 			}
 		}
-		t.Mul(inv, sr)
+		t = mul(inv, sr)
 	}
-	w.Mul(&t, inv)
-	w.Sub(inv, &w) // Σ⁻¹ − Σ⁻¹SΣ⁻¹
+	w := mul(t, inv)
+	w.Sub(inv, w) // Σ⁻¹ − Σ⁻¹SΣ⁻¹
 	if st.info == InformationRank2 {
-		g, h := st.rank2Derivatives(mm, c, inv, &w, needH)
+		g, h := st.rank2Derivatives(mm, c, inv, w, needH)
 		st.addMeanDerivatives(mm, c, inv, r, g, h)
 		return f, g, h, nil
 	}
@@ -613,9 +609,7 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 	as := make([][]float64, k)
 	bs := make([][]float64, k)
 	for i, dg := range grads {
-		var a mat.Dense
-		a.Mul(inv, dg)
-		ad := a.RawMatrix().Data
+		ad := mul(inv, dg).RawMatrix().Data
 		bd := make([]float64, len(ad))
 		for r := 0; r < n; r++ {
 			for c := 0; c < n; c++ {
@@ -780,9 +774,9 @@ func solveLM(h *mat.SymDense, g []float64, idx []int, mu float64) []float64 {
 		return []float64{}
 	}
 	a := mat.NewSymDense(n, nil)
-	rhs := mat.NewVecDense(n, nil)
+	rhs := make([]float64, n)
 	for p, i := range idx {
-		rhs.SetVec(p, -g[i])
+		rhs[p] = -g[i]
 		for q := p; q < n; q++ {
 			a.SetSym(p, q, h.At(i, idx[q]))
 		}
@@ -792,15 +786,15 @@ func solveLM(h *mat.SymDense, g []float64, idx []int, mu float64) []float64 {
 		}
 		a.SetSym(p, p, h.At(i, i)+float64(mu*d))
 	}
-	var ch mat.Cholesky
-	if !ch.Factorize(a) {
+	ch, ok := factorize(a)
+	if !ok {
 		return nil
 	}
-	var out mat.VecDense
-	if err := ch.SolveVecTo(&out, rhs); err != nil {
+	out, err := ch.solveVec(rhs)
+	if err != nil {
 		return nil
 	}
-	return out.RawVector().Data
+	return out
 }
 
 // FitCov fits the model to a sample covariance matrix S (over
@@ -1067,9 +1061,7 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense, crit
 	m := st.m
 	// Standardization scales: latent/inner SDs from CΨCᵀ, observed SDs
 	// from Σ (semopy inspect std_est=True).
-	var cp, w mat.Dense
-	cp.Mul(c, st.mats[mPsi])
-	w.Mul(&cp, c.T())
+	w := mul(mul(c, st.mats[mPsi]), c.T())
 	stds := make([]float64, st.nIn)
 	for i := range stds {
 		stds[i] = math.Sqrt(w.At(i, i))

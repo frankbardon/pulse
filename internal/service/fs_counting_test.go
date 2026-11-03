@@ -402,6 +402,7 @@ func TestCountingFs_OsFs_MmapEngagesZeroReadFile(t *testing.T) {
 	t.Parallel()
 
 	if !mmapSupportedOS() {
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
@@ -498,6 +499,7 @@ func TestCountingFs_BasePathFs_MmapEngagesZeroReadFile(t *testing.T) {
 	t.Parallel()
 
 	if !mmapSupportedOS() {
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
@@ -552,6 +554,7 @@ func TestCountingFs_RealPatherStub_MmapEngagesZeroReadFile(t *testing.T) {
 	t.Parallel()
 
 	if !mmapSupportedOS() {
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
@@ -613,6 +616,7 @@ func TestCountingFs_ProcessOutputByteEqualAcrossFsShapes(t *testing.T) {
 		// MemMapFs always works, but to compare against the OsFs / mmap
 		// shapes we need a kernel that supports mmap. Skip gracefully on
 		// Windows.
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s — cross-shape byte-equality is mmap-conditional", runtime.GOOS)
 	}
 
