@@ -2,10 +2,11 @@ package regression
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"testing/quick"
 
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -27,18 +28,21 @@ func fitOLS(t *testing.T, predictors []string, records []Record) *types.Regressi
 // genDataset produces a deterministic non-degenerate (x_1, x_2, y)
 // triple from a seed. Caller chooses true coefficients; the function
 // returns the records plus the true (intercept, β_1, β_2) used to
-// generate y so the property test can transform/perturb them.
+// generate y so the property test can transform/perturb them. Draws
+// are detmath.NormFloat64 and every product feeding an addition is
+// float64()-wrapped, so the records are the same bits on every
+// architecture.
 func genDataset(seed int64, n int, intercept, b1, b2 float64) ([]Record, []float64, []float64, []float64) {
-	rng := rand.New(rand.NewSource(seed))
+	rng := rand.New(rand.NewPCG(uint64(seed), uint64(seed)^0x9E3779B97F4A7C15))
 	x1 := make([]float64, n)
 	x2 := make([]float64, n)
 	y := make([]float64, n)
 	records := make([]Record, n)
 	for i := 0; i < n; i++ {
-		x1[i] = rng.NormFloat64()*3 + 1
-		x2[i] = rng.NormFloat64()*1.5 - 2
-		noise := rng.NormFloat64() * 0.2
-		y[i] = intercept + b1*x1[i] + b2*x2[i] + noise
+		x1[i] = float64(detmath.NormFloat64(rng)*3) + 1
+		x2[i] = float64(detmath.NormFloat64(rng)*1.5) - 2
+		noise := float64(detmath.NormFloat64(rng) * 0.2)
+		y[i] = intercept + float64(b1*x1[i]) + float64(b2*x2[i]) + noise
 		records[i] = mockRecord{values: map[string]float64{
 			"x1": x1[i], "x2": x2[i], "y": y[i],
 		}}

@@ -4,25 +4,28 @@ import (
 	"math/rand/v2"
 	"testing"
 
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
 // makeSelectionFixture builds a 5-predictor synthetic where only x1 and
 // x3 have signal. Sample size is large enough that AIC reliably picks
 // the two signal predictors and rejects the three noise predictors.
+// detmath draws plus float64() barriers keep the records the same bits
+// on every architecture.
 func makeSelectionFixture(t *testing.T, n int, seed uint64) []Record {
 	t.Helper()
 	rng := rand.New(rand.NewPCG(seed, seed^0xFACEFEEDFACEFEED))
 	out := make([]Record, n)
 	for i := 0; i < n; i++ {
 		m := map[string]float64{}
-		x1 := rng.NormFloat64()
-		x2 := rng.NormFloat64()
-		x3 := rng.NormFloat64()
-		x4 := rng.NormFloat64()
-		x5 := rng.NormFloat64()
+		x1 := detmath.NormFloat64(rng)
+		x2 := detmath.NormFloat64(rng)
+		x3 := detmath.NormFloat64(rng)
+		x4 := detmath.NormFloat64(rng)
+		x5 := detmath.NormFloat64(rng)
 		// True model: y = 1 + 2·x1 + 0·x2 − 1.5·x3 + 0·x4 + 0·x5 + N(0, 0.3)
-		y := 1.0 + 2.0*x1 - 1.5*x3 + 0.3*rng.NormFloat64()
+		y := 1.0 + float64(2.0*x1) - float64(1.5*x3) + float64(0.3*detmath.NormFloat64(rng))
 		m["x1"] = x1
 		m["x2"] = x2
 		m["x3"] = x3

@@ -111,7 +111,7 @@ func generate(tr truth, seed uint64) []row {
 			y := tr.intercept + float64(tr.tvBeta*regmmm.HillCurve(tvAd[w], tr.tvK, tr.tvS)) +
 				float64(tr.srBeta*regmmm.HillCurve(srAd[w], tr.srK, tr.srS)) +
 				float64(tr.dispBeta*regmmm.HillCurve(dpAd[w], tr.dispK, tr.dispS)) +
-				float64(tr.price*pr[w]) + float64(tr.noise*rng.NormFloat64())
+				float64(tr.price*pr[w]) + float64(tr.noise*detmath.NormFloat64(rng))
 			rows = append(rows, row{geo: g, week: w, tv: tv[w], search: sr[w], disp: dp[w], price: pr[w],
 				tvAd: tvAd[w], searchAd: srAd[w], dispAd: dpAd[w], y: y})
 		}
