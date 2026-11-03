@@ -1,6 +1,6 @@
 # v1.0.0 TODO
 
-Every **committed** v1.0.0 feature across the roadmap themes. Stretch and post-1.0 items are deliberately excluded; they stay in the theme documents.
+Every **committed** v1.0.0 feature across the roadmap themes. Stretch items are deliberately excluded and stay in the theme documents; the only post-1.0 items listed are those in the "Post-v1 backlog" section at the end.
 
 **Units of work:** every item links to the Flow unit that delivers it; see [`units/README.md`](units/README.md).
 
@@ -893,3 +893,40 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#657** Relative-risk ratios on `REG_MULTINOMIAL` as a reporting knob (Stata `mlogit, rrr`): exp(β) with its delta-method SE and the exponentiated interval, absent byte-identical · [U65](units/U65-regression-depth.md)
 - [ ] **#658** `penalty`, `selection` and `resample` on `REG_MULTINOMIAL` (glmnet `family = "multinomial"`, `MASS::stepAIC` on `multinom`, jackknife / bootstrap replicates), lifting `requires: unpenalized` / `no_selection` / `no_resample` · [U65](units/U65-regression-depth.md)
 - [ ] **#659** Marginal effects (`margins`, each category's probability: ∂π_k/∂x) and a joint test of a predictor across every category (Wald / LR on its K coefficients, `car::Anova(multinom)`) on `REG_MULTINOMIAL`, lifting `requires: no_margins` · [U65](units/U65-regression-depth.md)
+
+---
+
+## 15. Found in roadmap-inventory (2026-11-02)
+
+Gaps found by sweeping the code, the release surface and the units against this checklist. Each is filed under its owner unit; U66–U78 are created by the same effort.
+
+- [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](units/U33-v1-release.md)
+- [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](units/U33-v1-release.md)
+- [ ] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) · [U33](units/U33-v1-release.md)
+- [ ] **#664** One Go version support policy: README says Go 1.22+ (`README.md:26`), `docs/src/contributing/setup.md:21` says 1.24+, `go.mod` says 1.26.1 and CI tests only 1.26. Pick the policy, fix both pages and add a "Supported Go versions" row to `STABILITY.md` · [U33](units/U33-v1-release.md)
+- [ ] **#665** A v1.0.0 release-notes assembly step: compile the release notes and an upgrade guide from the alpha.0–alpha.37 rows of `v1.0.0-api-and-release/03-embedder-migration.md` (there is no CHANGELOG; `release.yml` uses `--generate-notes`) · [U33](units/U33-v1-release.md)
+- [ ] **#666** Library doc pages for the embedder surfaces that have none: `extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables (`PULSE_LOOKUP_TABLES_DIR`, `PULSE_RANGE_TABLES_DIR`, `PULSE_LABEL_TABLES_DIR`, absent from `docs/src/library/options.md`) and SEM. Evidence: `docs/src/library/` listing vs `internal/apigolden/testdata/public_api.txt` · [U32](units/U32-docs-audit.md)
+- [ ] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy (`go.mod` pins `modelcontextprotocol/go-sdk v1.8.0`; no page in `docs/src` or the roadmap states it); mirrored as a `STABILITY.md` MCP row · [U32](units/U32-docs-audit.md)
+- [ ] **#668** Windows and macOS CI jobs: every `ci.yml` job is `runs-on: ubuntu-latest` while release ships Windows and macOS binaries by cross-compile only; run the fast tier and `make smoke` on `windows-latest` and `macos-latest`. Evidence: `.github/workflows/ci.yml` · [U77](units/U77-ci-platform.md)
+- [ ] **#669** Windows mmap: `internal/service/mmap_other.go:11` states Windows `MapViewOfFile` is "not implemented" (the non-mmap fallback is in use); implement it, or declare the fallback final and document it · [U77](units/U77-ci-platform.md)
+- [ ] **#670** Fuzz tests on untrusted input, run in CI: request JSON decode, the expr parser, the NDJSON / JSON / Arrow / Parquet / Excel importers, full `.pulse` record read and shard-archive open (only `encoding`, `errors`, spss, csv/tsv header and arena fuzz exist; no `-fuzz` step in CI). Evidence: the eight `func Fuzz` sites · [U77](units/U77-ci-platform.md)
+- [ ] **#671** `govulncheck ./...` in `ci.yml` and as a release gate, plus the `github-actions` ecosystem in `.github/dependabot.yml` (none today) · [U77](units/U77-ci-platform.md)
+- [ ] **#672** Reword the 12 code comments that cite a CLOSED item as `TODO #N` (#157, #199, #270, #315, #316, #317, #360, #408, #409, #410, #411, #488; e.g. `cmd/pulse/showcase_flags_test.go:12`, `linalg/comoment_layout_test.go:32`, `internal/exprenv/calendar.go:22`) to plain "see #N", and check the #410 hint at `internal/processing/attribute_factor_score_test.go:111` that a proper two-factor Heywood-free fixture was delivered (reopen if not); resolve the bare `TODO` at `internal/service/matrix_scale_bench_test.go:26` · [U78](units/U78-test-hygiene.md)
+- [ ] **#673** Stale "Phase 0 stub" documentation in the regression package: `internal/processing/regression/regression.go:4-12,63` and `internal/processing/processor.go:2005` still say every operator returns `PROCESSING_REGRESSION_NOT_IMPLEMENTED` although OLS, penalized, GLM, Bayes and the modifiers have shipped; fix the comments and check whether the stub engine is still reachable · [U78](units/U78-test-hygiene.md)
+- [ ] **#674** `internal/synth/residual_corr_internal_test.go:378` skips on "fixture drift: gamma acquired predictors", hiding the drift the test exists to catch: convert it to a failure · [U78](units/U78-test-hygiene.md)
+- [ ] **#675** Audit the remaining ~50 unowned `t.Skip` / `t.Skipf` calls (none cites an item): convert vacuous-precondition skips (`internal/descriptor/ontology_instance_test.go:158,266`, `intents_test.go:180`, `skills/virtual_test.go:41`, `encoding/description_test.go:103`) to asserted preconditions, check the `errors/*_test.go` data-absent skips, and verify the replacement test named at `internal/service/weight_parity_heavy_test.go:89` exists · [U78](units/U78-test-hygiene.md)
+- [ ] **#676** Extension `OverlayKinds` registration: `internal/descriptor/extensions.go:103` reserves the `Options.Extensions.OverlayKinds` slot as "not yet implemented"; implement embedder-registered overlay kinds through predict, manifest, MCP and runtime, or remove the reserved slot · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#677** `ATTR_REG_LEVERAGE` on penalized and GLM fits: `internal/processing/regression/coeffs.go:114` and `internal/model/refit.go:83-86` support only unpenalized OLS ("penalized / GLM leverage not implemented"); #235 covers only skill wording and #487 / #640 do not cover leverage · [U69](units/U69-regression-depth-2.md)
+- [ ] **#678** Type II / III sums-of-squares for the UNBALANCED repeated-measures case: `errors/codes.go:1191` (`PULSE_TEST_BALANCED_DESIGN_REQUIRED`) says it is "not implemented yet" and the test fails instead; implement it, or reword the refusal as permanent · [U69](units/U69-regression-depth-2.md)
+
+---
+
+## 16. Post-v1 backlog
+
+Deliberately excluded from v1.0.0, decided 2026-11-02; open items with no unit.
+
+- [ ] **#679** Non-inner join kinds (`left`, `outer`, `anti`): reserved and "land in a follow-up" at `errors/codes.go:1982` and `errors/fixup_metadata.go:2963`; only `inner` ships · post-v1, no unit
+- [ ] **#680** ZSAV write: `internal/io/spss/sidecar_read.go:108` ("ZSAV emission is not implemented"); ZSAV reads are supported · post-v1, no unit
+- [ ] **#681** Release signing, SBOM and build-provenance attestations (`release.yml` has `contents: write` only; checksums ship today). Evidence: `v1.0.0-api-and-release/01-release-pipeline.md` ("optional follow-up") · post-v1, no unit
+- [ ] **#682** Homebrew tap (and Scoop) as install channels; today `go install` and the GitHub Release archives are the channels · post-v1, no unit
+- [ ] **#683** Container image published with each release · post-v1, no unit
