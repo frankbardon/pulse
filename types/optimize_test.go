@@ -165,3 +165,36 @@ func TestOptimize_PinnedOutsideComposeReturn(t *testing.T) {
 		}
 	}
 }
+
+// TestOptimizeSpec_MarkerBlockKeptAsWritten: a block carrying a
+// for_each and a {"$var"} marker where a typed value goes decodes with
+// its for_each and name and marshals back byte for byte; the same
+// marker without a for_each stays a decode error, and a plain block
+// round-trips field by field.
+func TestOptimizeSpec_MarkerBlockKeptAsWritten(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"name":"o_{{v}}","direction":"minimize","variables":[{"name":"x","lower":0,"upper":{"$var":"v"}}],"objective":"x","for_each":{"axes":[{"name":"v","values":[1,2]}]}}`
+	var s OptimizeSpec
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.Name != "o_{{v}}" || s.ForEach == nil || len(s.ForEach.Axes) != 1 || s.Variables != nil {
+		t.Fatalf("decoded %+v", s)
+	}
+	if got, err := json.Marshal(s); err != nil || string(got) != raw {
+		t.Fatalf("marshal %s (%v), want %s", got, err, raw)
+	}
+	noFE := strings.Replace(raw, `,"for_each":{"axes":[{"name":"v","values":[1,2]}]}`, "", 1)
+	if err := json.Unmarshal([]byte(noFE), &OptimizeSpec{}); err == nil {
+		t.Fatal("a marker without for_each decoded")
+	}
+	plain := `{"name":"o","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","direction":"minimize"}`
+	var p OptimizeSpec
+	if err := json.Unmarshal([]byte(plain), &p); err != nil || p.Variables[0].Upper.Value() != 1 {
+		t.Fatalf("plain %+v %v", p, err)
+	}
+	if got, _ := json.Marshal(p); string(got) != `{"name":"o","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","direction":"minimize"}` {
+		t.Fatalf("plain marshal %s", got)
+	}
+}

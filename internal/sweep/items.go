@@ -239,6 +239,10 @@ func forEachOf(item any) *types.ForEach {
 		if v != nil {
 			return v.ForEach
 		}
+	case *types.OptimizeSpec:
+		if v != nil {
+			return v.ForEach
+		}
 	}
 	return nil
 }
@@ -498,6 +502,20 @@ func itemBody(item any) (json.RawMessage, error) {
 		c := *v
 		c.ForEach = nil
 		return json.Marshal(&c)
+	case *types.OptimizeSpec:
+		// A block kept as written (a `{"$var"}` marker in a typed field)
+		// marshals verbatim, its for_each included: drop the key from
+		// the object instead.
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		var obj map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &obj); err != nil {
+			return nil, err
+		}
+		delete(obj, "for_each")
+		return json.Marshal(obj)
 	}
 	return nil, stderrors.New("unsupported item type")
 }

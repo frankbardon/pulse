@@ -1768,7 +1768,19 @@ bounds plain plus expanded window, feature and attribute items and
 a `for_each` adds (plain ones never count), both checked before any
 item renders. Predict reports each fan-out as `for_each
 [{path, axes, mode, expanded_count}]` on the predict result (not
-payload-reachable, so not in this schema).
+payload-reachable, so not in this schema; a Compose predict lists the
+optimize blocks' `optimize[i]`, then each slot's `requests[i].<path>`,
+then each fit request's `fits[i].request.<path>`).
+
+A Compose `OptimizeSpec` carries the same optional `for_each`: the
+block fans out right after the `base` merge, before the optimize rules
+and `MaxComposeSlots`, its `name` must carry an `{{axis}}` (reason
+`name_without_axis`), and the blocks it adds count toward
+`Limits.MaxExpandedItems` once per call. Any typed scalar of a
+fanned-out block (a bound, `starts`, a constraint `expr`) may be a whole
+`{"$var": "axis"}` value; this schema describes the blocks as they run
+and does not list the marker (the MCP `pulse_compose` input schema
+does, when `for_each` is bound).
 
 ## Undefined figures
 

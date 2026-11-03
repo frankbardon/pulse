@@ -1,16 +1,16 @@
 ---
 name: item-fan-out
-description: for_each on a window, feature, attribute, aggregation or matrix item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity.
+description: for_each on a window, feature, attribute, aggregation or matrix item, or a compose optimize block — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [ForEach, Window, Feature, Attribute, Aggregation, MatrixSpec]
+covers: [ForEach, Window, Feature, Attribute, Aggregation, MatrixSpec, OptimizeSpec]
 requires: [capability:for_each]
 ---
 
 # Item fan-out (`for_each`)
 
-`for_each` on ONE `windows`, `features`, `attributes`, `aggregations` or `matrices` item replaces it, in place, by one ordinary item per axis combination before anything else checks the request. Use it for a parameter grid of near-identical items (an adstock grid of windows over channels, an aggregation per channel, a matrix per invariance step) instead of writing every item out. Plain items are untouched; the expanded list keeps declared order, the output order. Aggregations and matrices expand after the windows, so an aggregation may read `{{ch}}_lag`.
+`for_each` on ONE `windows`, `features`, `attributes` or `aggregations`<!-- feature: capability:matrices --> (or `matrices`)<!-- /feature --> item replaces it, in place, by one ordinary item per axis combination before anything else checks the request. Use it for near-identical items (an adstock grid of windows, an aggregation per channel, a matrix per invariance step). Plain items are untouched; the expanded list keeps declared order, the output order. Aggregations<!-- feature: capability:matrices --> and matrices<!-- /feature --> expand after the windows, so an aggregation may read `{{ch}}_lag`.
 
 ```jsonc
 "windows": [{
@@ -55,9 +55,15 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 - A `for_each` inside a compose `sweep` body is refused (`nested_in_sweep`): add the item's axes to the sweep instead. On a crosstab or banner cell it is `position_unsupported`.
 - Each rendered matrix needs its own `name` (`"name": "{{step}}"`); a repeat is the usual duplicate-name refusal.
 
+<!-- feature: capability:compose_optimize -->
+## Optimize blocks
+
+A Compose `optimize` block fans out too, right after the `base` merge: its `name` must carry an `{{axis}}` (`name_without_axis`); any other value varies whole as `{"$var": "axis"}` (a bound, `starts`, a constraint `expr`). The blocks it adds count toward `MaxExpandedItems`; predict lists `optimize[i]`, then each slot's `requests[i].…` fan-outs (`compose-optimize`).
+<!-- /feature -->
+
 ## Limits, predict, hashing
 
-- Checked before any item renders, over is `PULSE_LIMIT_EXCEEDED`: `Limits.MaxDerivedColumns` (default 1,000) counts plain plus expanded window, feature and attribute items; `Limits.MaxExpandedItems` (default 1,000) counts the aggregations and matrices a `for_each` adds (plain ones never count).
+- Checked before any item renders, over is `PULSE_LIMIT_EXCEEDED`: `Limits.MaxDerivedColumns` (default 1,000) counts plain plus expanded window, feature and attribute items; `Limits.MaxExpandedItems` (default 1,000) counts the aggregations<!-- feature: capability:matrices --> and matrices<!-- /feature --> a `for_each` adds (plain ones never count).
 - Predict expands exactly as the runtime does and reports each fan-out under `for_each` `[{path, axes, mode, expanded_count}]`; its other answers judge the expanded items. Predict before running a large grid.
 - Every request host expands: a process run, each compose slot, each chain stage, and a materialize run (every expanded item becomes a column). The echoed request carries the expanded items; its canonical hash equals the hand-written twin's.
 

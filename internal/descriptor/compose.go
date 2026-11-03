@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"sort"
+	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -145,6 +146,15 @@ type ComposeValidationResult struct {
 	// Set once every block passes its rules (optblock.Check, the
 	// runtime's too); omitted without optimize blocks.
 	Optimize []descriptor.OptimizeSummary `json:"optimize,omitempty"`
+
+	// ForEach lists every `for_each` fan-out the batch expands, in
+	// expansion order: each optimize block's (`optimize[i]`, as
+	// written), then each slot's item fan-outs (`requests[i].windows[0]`,
+	// i the effective slot index), then each fit request's
+	// (`fits[i].request.aggregations[0]`) — the shape of
+	// PredictResult.ForEach. A slot or fit request refused before its
+	// expansion lists none. Omitted when nothing fans out.
+	ForEach []descriptor.ForEachSummary `json:"for_each,omitempty"`
 
 	// UnresolvedScalars lists every scalar-expression slot predict could
 	// not compute — an optimize bound or start, or a slot's or fit
@@ -291,7 +301,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// effective request. Every pass below judges the effective request:
 	// explicit slots, then sweep slots, one label namespace.
 	// result.Request keeps the request as written.
-	if req.Sweep != nil || req.Banner != nil || req.Base != nil || len(req.Params) > 0 {
+	if req.Sweep != nil || req.Banner != nil || req.Base != nil || len(req.Params) > 0 || sweep.OptimizeHasForEach(req) {
 		if serr := SlotRefusal(req, opts.instance()); serr != nil {
 			addCodedError(env, serr)
 			result.Valid = false
@@ -302,7 +312,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		}
 		result.Banner = bannerSummary(req.Banner)
 	}
-	exp, xerr := banner.ExpandCompose(req, opts.instance().SweepOptions(), composeSlotsPreflight(opts))
+	exp, xerr := banner.ExpandCompose(req, opts.instance().SweepOptions(), composeSlotsPreflight(opts), composeOptimizePreflight(opts))
 	if xerr != nil {
 		addCodedError(env, xerr)
 		if f, ok := limitRefusalFinding(xerr); ok {
@@ -322,6 +332,10 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		return env, exp.Composed
 	}
 	req = inherited
+	// The optimize blocks' fan-outs head the batch's for_each summary;
+	// each slot's and fit request's join it as they expand
+	// (validateComposeRequest), located requests[i]. / fits[i].request.
+	result.ForEach = forEachSummariesAt(exp.OptimizeForEach, "")
 	if result.Sweep != nil {
 		result.Sweep.Labels = exp.SweepLabels
 	}
@@ -422,10 +436,12 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// does) — but its refusals are reported after the slots', as before.
 	fitEnv := descriptor.NewEnvelope(nil)
 	var fitFindings []descriptor.LimitFinding
-	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded, &fitFindings)
+	var fitForEach, slotForEach []descriptor.ForEachSummary
+	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded, &fitFindings, &fitForEach)
 	var postWindows []*descriptor.PostWindowPlan
 	var slotModels []model.Catalog
-	*slots, postWindows, slotModels = validateComposeSlots(env, req, opts, loaded, result.Fits, sweepFits.Axes, &result.LimitFindings)
+	*slots, postWindows, slotModels = validateComposeSlots(env, req, opts, loaded, result.Fits, sweepFits.Axes, &result.LimitFindings, &slotForEach)
+	result.ForEach = append(append(result.ForEach, slotForEach...), fitForEach...)
 	// Every slot's and fit request's scalar window params the static
 	// pass left to the runtime, after the optimize blocks'.
 	result.UnresolvedScalars = append(result.UnresolvedScalars, composeWindowUnresolved(req, *slots, slotModels, func(i int) model.Catalog {
@@ -512,6 +528,22 @@ func composeSlotsPreflight(opts *PredictOptions) func(slots int) error {
 	l := opts.instance().Limits()
 	return func(slots int) error {
 		if ce := limits.CheckComposeSlots(l, slots); ce != nil {
+			return ce
+		}
+		return nil
+	}
+}
+
+// composeOptimizePreflight is the MaxExpandedItems check
+// banner.ExpandCompose runs on the blocks the optimize for_each
+// fan-outs add, before any renders — the runtime's
+// Service.composeOptimizePreflight (limits.CheckExpandedItems) over the
+// instance's limits, so predict and the runtime refuse the identical
+// batch with the identical PULSE_LIMIT_EXCEEDED.
+func composeOptimizePreflight(opts *PredictOptions) func(expanded int) error {
+	l := opts.instance().Limits()
+	return func(expanded int) error {
+		if ce := limits.CheckExpandedItems(l, expanded); ce != nil {
 			return ce
 		}
 		return nil
@@ -1377,7 +1409,7 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // models (schema-free when refused before that walk); nil for a slot
 // with no window. The third result is each slot's bound-model catalog
 // (index-aligned), the one its walk judged with.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, sweepAxes []string, findings *[]descriptor.LimitFinding) ([]*types.Request, []*descriptor.PostWindowPlan, []model.Catalog) {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, sweepAxes []string, findings *[]descriptor.LimitFinding, forEach *[]descriptor.ForEachSummary) ([]*types.Request, []*descriptor.PostWindowPlan, []model.Catalog) {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
@@ -1394,7 +1426,7 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			continue
 		}
 		catalogs[i] = loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i))
-		validateComposeRequest(env, slot, opts, "request", i, catalogs[i], &normalized[i], &postWindows[i], findings)
+		validateComposeRequest(env, slot, opts, "request", i, catalogs[i], &normalized[i], &postWindows[i], findings, forEach)
 	}
 	return normalized, postWindows, catalogs
 }
@@ -1491,7 +1523,7 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 // schema — classifyPostWindow's over the same models.
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
-func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request, postWindow **descriptor.PostWindowPlan, findings *[]descriptor.LimitFinding) (*encoding.Schema, bool) {
+func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request, postWindow **descriptor.PostWindowPlan, findings *[]descriptor.LimitFinding, forEach *[]descriptor.ForEachSummary) (*encoding.Schema, bool) {
 	// Every windows-first site below reads the slot's catalog (the
 	// walk's), as Predict's do.
 	if models != nil {
@@ -1508,7 +1540,7 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	}
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
-	expanded, _, _, xerr := ExpandRequestItems(slot, l, opts.instance().SweepOptions())
+	expanded, fan, _, xerr := ExpandRequestItems(slot, l, opts.instance().SweepOptions())
 	if xerr != nil {
 		early(slot, nil) // not expanded: indexes the slot as written
 		located := RefusalAt(xerr, key, idx)
@@ -1521,6 +1553,15 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	slot = expanded
 	if normalized != nil {
 		*normalized = slot
+	}
+	// Its fan-outs join the batch's for_each summary, located at the
+	// slot (`requests[i].`) or the fit request (`fits[i].request.`).
+	if forEach != nil && len(fan) > 0 {
+		prefix := "requests[" + strconv.Itoa(idx) + "]."
+		if key == "fit" {
+			prefix = "fits[" + strconv.Itoa(idx) + "].request."
+		}
+		*forEach = append(*forEach, forEachSummariesAt(fan, prefix)...)
 	}
 	// The request's Process refuses a second JoinSpec before it
 	// resolves a zone; Compose locates it like a zone refusal.
@@ -1657,7 +1698,7 @@ func validateRequestBodyAt(env *descriptor.Envelope, req *types.Request, schema 
 // declaration order (nil without fits): a regression fit's name,
 // regression type, target, the predictors as written and the cohort; a
 // vector fit's name, cohort and battery (vectorFitSummary).
-func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded, findings *[]descriptor.LimitFinding) []descriptor.FitSummary {
+func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *PredictOptions, loaded *composeLoaded, findings *[]descriptor.LimitFinding, forEach *[]descriptor.ForEachSummary) []descriptor.FitSummary {
 	if len(fits) == 0 {
 		return nil
 	}
@@ -1690,7 +1731,7 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		// A fit request runs before the batch binds anything: it sees
 		// only the registered populations and its own loaded entries.
 		fitModels := loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i))
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, fitModels, nil, nil, findings)
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, fitModels, nil, nil, findings, forEach)
 		if !ok || schema == nil {
 			continue
 		}

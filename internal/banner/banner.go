@@ -211,11 +211,16 @@ type Expansion struct {
 	SweepSeed *int64
 	// Banner is the banner layout (nil without a banner).
 	Banner *Layout
+	// OptimizeForEach are the optimize blocks' fan-outs
+	// (sweep.ExpandOptimize), paths as written; nil without one.
+	OptimizeForEach []sweep.FanOut
 }
 
 // ExpandCompose turns c into its effective request — the ONE expansion
 // every Compose surface consumes. Order: the `base` merged into the
-// explicit slots (MergeBase); banner Validate; then the sweep
+// explicit slots (MergeBase); the optimize blocks' for_each fanned out
+// (sweep.ExpandOptimize, optimizePreflight handed the blocks it adds —
+// MaxExpandedItems — before any renders); banner Validate; then the sweep
 // expansion (sweep.Expand, judged with the instance facts in opts) whose MaxComposeSlots preflight is handed
 // explicit + sweep + banner slots, so no banner bypasses the limit and
 // nothing renders past it; then one slot per section × block, appended
@@ -225,7 +230,7 @@ type Expansion struct {
 // the group's columns, the base `labels` scoped to the bindings the slot
 // groups by (scopeLabels), and — on a group slot — the section's own
 // overlays appended, or the banner overlays when it sets none.
-func ExpandCompose(c *types.ComposedRequest, opts sweep.Options, preflight func(slots int) error) (*Expansion, error) {
+func ExpandCompose(c *types.ComposedRequest, opts sweep.Options, preflight func(slots int) error, optimizePreflight func(expanded int) error) (*Expansion, error) {
 	if c == nil {
 		return &Expansion{}, nil
 	}
@@ -235,13 +240,21 @@ func ExpandCompose(c *types.ComposedRequest, opts sweep.Options, preflight func(
 	if ce != nil {
 		return nil, ce
 	}
+	// Then the optimize blocks fan out (sweep.ExpandOptimize, its
+	// MaxExpandedItems preflight before any block renders), so the
+	// optimize rules, the result() catalog and the MaxComposeSlots
+	// preflight below all judge the expanded blocks.
+	c, optFan, err := sweep.ExpandOptimize(c, opts, optimizePreflight)
+	if err != nil {
+		return nil, err
+	}
 	spec := c.Banner
 	if spec == nil {
 		exp, err := sweep.Expand(c, opts, preflight)
 		if err != nil {
 			return nil, err
 		}
-		return &Expansion{Composed: exp.Composed, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepAxes: exp.Axes, SweepSeed: exp.Seed}, nil
+		return &Expansion{Composed: exp.Composed, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepAxes: exp.Axes, SweepSeed: exp.Seed, OptimizeForEach: optFan}, nil
 	}
 	if ce := Validate(spec); ce != nil {
 		return nil, ce
@@ -300,7 +313,7 @@ func ExpandCompose(c *types.ComposedRequest, opts sweep.Options, preflight func(
 	}
 	scopeLabels(requests[layout.Start:], spec.Request.Labels)
 	out.Requests = requests
-	return &Expansion{Composed: &out, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepAxes: exp.Axes, SweepSeed: exp.Seed, Banner: layout}, nil
+	return &Expansion{Composed: &out, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepAxes: exp.Axes, SweepSeed: exp.Seed, Banner: layout, OptimizeForEach: optFan}, nil
 }
 
 // scopeLabels narrows each banner slot's copy of the base `labels` to

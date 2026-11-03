@@ -2003,9 +2003,49 @@ func compareSchema() map[string]any {
 // `models` key drops when capability:models is.
 func optimizeSchema(inst *descx.InstanceSnapshot) map[string]any {
 	out := optimizeSchemaBase()
-	// A block's own `models` ride capability:models.
-	dropHiddenSlots(out["items"].(map[string]any), &types.OptimizeSpec{}, inst)
+	// A block's own `models` ride capability:models, its `for_each`
+	// capability:for_each.
+	items := out["items"].(map[string]any)
+	dropHiddenSlots(items, &types.OptimizeSpec{}, inst)
+	if props, _ := items["properties"].(map[string]any); props["for_each"] != nil {
+		allowVarMarkers(props)
+	}
 	return out
+}
+
+// varMarkerSchema is a `{"$var": "axis"}` value: a fanned-out optimize
+// block's whole scalar, substituted from its for_each axis.
+func varMarkerSchema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"description":          "With a for_each on the block: the whole value taken from the named axis.",
+		"properties":           map[string]any{"$var": map[string]any{"type": "string"}},
+		"required":             []string{"$var"},
+		"additionalProperties": false,
+	}
+}
+
+// allowVarMarkers lets every scalar of an optimize block — its own
+// (name, objective, starts, …) and its variables' and constraints' — be
+// a `{"$var": "axis"}` marker, the form a fanned-out block's typed
+// field takes (types.OptimizeSpec keeps such a block as written; a
+// marker without a for_each is refused at decode). Bound only with
+// the block's `for_each`.
+func allowVarMarkers(props map[string]any) {
+	for _, k := range slices.Sorted(maps.Keys(props)) {
+		p, _ := props[k].(map[string]any)
+		switch {
+		case k == "for_each" || p == nil:
+		case p["type"] == "array":
+			if it, _ := p["items"].(map[string]any); it != nil {
+				if ip, _ := it["properties"].(map[string]any); ip != nil {
+					allowVarMarkers(ip)
+				}
+			}
+		default:
+			props[k] = map[string]any{"anyOf": []any{p, varMarkerSchema()}}
+		}
+	}
 }
 
 // optimizeSchemaBase is optimizeSchema before the hidden-slot drop.
@@ -2060,6 +2100,7 @@ func optimizeSchemaBase() map[string]any {
 				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
 				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
 				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
+				"for_each":       forEachSchema(),
 			},
 			"required": []string{"name", "variables", "objective", "direction"},
 		},
@@ -2076,7 +2117,7 @@ var forEachSlots = []string{"features", "attributes", "windows", "aggregations",
 func forEachSchema() map[string]any {
 	return map[string]any{
 		"type":        "object",
-		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. A window, feature or attribute item's expansion counts toward Limits.MaxDerivedColumns; the aggregations and matrices it adds count toward Limits.MaxExpandedItems (each rendered matrix needs its own name). Not on a crosstab cell, nor inside a pulse_compose sweep body.",
+		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. A window, feature or attribute item's expansion counts toward Limits.MaxDerivedColumns; the aggregations, matrices and optimize blocks it adds count toward Limits.MaxExpandedItems (each rendered matrix needs its own name; an optimize block's name must carry an {{axis}}, and an objective, constraint or bound varies only as a whole {\"$var\": \"axis\"} value). Not on a crosstab cell, nor inside a pulse_compose sweep body.",
 		"properties": map[string]any{
 			"axes": map[string]any{
 				"type":        "array",

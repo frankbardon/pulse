@@ -4008,6 +4008,9 @@
         "direction": {
           "$ref": "#/$defs/OptimizeDirection"
         },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
+        },
         "max_iterations": {
           "type": "integer"
         },
@@ -7601,4 +7604,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e408e25068949f1385e272b6ff9cef46e4099a50b6f7c775fdc2a8f343db94d7
+// golden-hash: ad3f5b876451f3d3957abfb3d0843e5e35e28394709083447ad34202cd45ff32

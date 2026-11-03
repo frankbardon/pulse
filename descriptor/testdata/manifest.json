@@ -13801,7 +13801,7 @@
       },
       {
         "name": "item-fan-out",
-        "description": "for_each on a window, feature, attribute, aggregation or matrix item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity."
+        "description": "for_each on a window, feature, attribute, aggregation or matrix item, or a compose optimize block — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity."
       },
       {
         "name": "join-design",
@@ -21190,4 +21190,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2b4905f2cae13db9413fd622b2819c640162dfc0296af65b16eec68a19976d61
+// golden-hash: 0716c023e72a40abfa478757e8bcb201d6645ab07889bb790b8ad6021a9fc748

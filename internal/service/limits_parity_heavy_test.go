@@ -85,7 +85,7 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 	}
 	for _, s := range []string{"serial", "buffered", "parallel decode reducer", "parallel shard reducer", "merge",
 		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout",
-		"derived columns", "expanded items", "materialize (memory pre-flight)", "compose (slot memory pre-flight)",
+		"derived columns", "expanded items", "compose (optimize fan-out)", "materialize (memory pre-flight)", "compose (slot memory pre-flight)",
 		"compose (archive slot memory pre-flight)", "chain (stage 0 memory pre-flight)",
 		"join (build-side memory backstop)", "compose (slot join backstop)", "chain (stage 0 join backstop)"} {
 		if !sites[s] {

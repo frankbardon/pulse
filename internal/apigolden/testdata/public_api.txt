@@ -160,6 +160,7 @@ pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "j
 pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
 pulse: type ComposePredictResult field Compare []pulse/descriptor.ComparisonSummary "json:\"compare,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
+pulse: type ComposePredictResult field ForEach []pulse/descriptor.ForEachSummary "json:\"for_each,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field Optimize []pulse/descriptor.OptimizeSummary "json:\"optimize,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
@@ -5920,6 +5921,7 @@ pulse/types: type OptimizeResult method (OptimizeResult) MarshalJSON() ([]byte, 
 pulse/types: type OptimizeSpec struct
 pulse/types: type OptimizeSpec field Constraints []pulse/types.OptimizeConstraint "json:\"constraints,omitempty\""
 pulse/types: type OptimizeSpec field Direction pulse/types.OptimizeDirection "json:\"direction\""
+pulse/types: type OptimizeSpec field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,omitempty\""
 pulse/types: type OptimizeSpec field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type OptimizeSpec field Name string "json:\"name\""
@@ -5929,6 +5931,8 @@ pulse/types: type OptimizeSpec field Starts *int "json:\"starts,omitempty\""
 pulse/types: type OptimizeSpec field Tolerance float64 "json:\"tolerance,omitempty\""
 pulse/types: type OptimizeSpec field Variables []pulse/types.OptimizeVariable "json:\"variables\""
 pulse/types: type OptimizeSpec method (*OptimizeSpec) EffectiveStarts() int
+pulse/types: type OptimizeSpec method (*OptimizeSpec) UnmarshalJSON(data []byte) error
+pulse/types: type OptimizeSpec method (OptimizeSpec) MarshalJSON() ([]byte, error)
 pulse/types: type OptimizeVariable struct
 pulse/types: type OptimizeVariable field Lower pulse/types.OptimizeBound "json:\"lower\""
 pulse/types: type OptimizeVariable field Name string "json:\"name\""
@@ -6684,4 +6688,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c67ff9f7727b938c319575d779e0e095488ca086e8b01f892bded5afd8d05563
+// golden-hash: d3f28bff10882bda927bd44be29bd57aa20e4c1f315edfc9e5191ec159a644de

@@ -59,6 +59,12 @@ func ExpandRequestItems(req *types.Request, l limits.Limits, so sweep.Options) (
 // forEachSummaries is PredictResult.ForEach for the fan-outs one
 // expansion reported.
 func forEachSummaries(fan []sweep.FanOut) []descriptor.ForEachSummary {
+	return forEachSummariesAt(fan, "")
+}
+
+// forEachSummariesAt is forEachSummaries with every path prefixed by
+// prefix (`requests[2].` for a Compose slot; "" keeps the path).
+func forEachSummariesAt(fan []sweep.FanOut, prefix string) []descriptor.ForEachSummary {
 	if len(fan) == 0 {
 		return nil
 	}
@@ -68,7 +74,7 @@ func forEachSummaries(fan []sweep.FanOut) []descriptor.ForEachSummary {
 		for j, ax := range f.Axes {
 			axes[j] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
 		}
-		out[i] = descriptor.ForEachSummary{Path: f.Path, Axes: axes, Mode: f.Mode, ExpandedCount: f.Count}
+		out[i] = descriptor.ForEachSummary{Path: prefix + f.Path, Axes: axes, Mode: f.Mode, ExpandedCount: f.Count}
 	}
 	return out
 }

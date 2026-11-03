@@ -170,3 +170,37 @@ func TestBind_LiteralPlaceholderFieldName(t *testing.T) {
 		}
 	}
 }
+
+// TestBind_OptimizeForEachMarkers: with capability:for_each bound, a
+// pulse_compose optimize block takes a `for_each` and a whole
+// `{"$var": "axis"}` value in any of its scalars (a bound, `starts`, a
+// constraint expression) — checked with a real validator; hiding the
+// capability drops both.
+func TestBind_OptimizeForEachMarkers(t *testing.T) {
+	t.Parallel()
+
+	block := `{"requests": [{"cohort": {"filename": "c.pulse"}}], "optimize": [{"name": "o_{{v}}", "direction": "minimize",
+		"variables": [{"name": "x", "lower": 0, "upper": {"$var": "v"}}], "objective": "x", "starts": {"$var": "s"},
+		"constraints": [{"expr": {"$var": "c"}, "type": "ineq"}],
+		"for_each": {"mode": "zip", "axes": [{"name": "v", "values": [1, 2]}, {"name": "s", "values": [1, 2]}, {"name": "c", "values": ["1 - x", "2 - x"]}]}}]}`
+	_, inst := instanceFor(t, nil, pulse.Extensions{})
+	bound, err := BindForInstance(makeBindSchema(), inst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validates(t, compileBound(t, bound[toolmeta.ToolCompose]), block); err != nil {
+		t.Fatalf("a fanned-out optimize block was rejected: %v", err)
+	}
+
+	_, hidden := instanceFor(t, &pulse.FeatureProfile{Features: []string{"capability:compose", "capability:compose_optimize", "capability:params", "AGG_COUNT"}}, pulse.Extensions{})
+	bound, err = BindForInstance(makeBindSchema(), hidden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(bound[toolmeta.ToolCompose], []byte(`"$var"`)) || bytes.Contains(bound[toolmeta.ToolCompose], []byte(`"for_each"`)) {
+		t.Fatal("hidden capability:for_each still binds the optimize for_each or a $var marker")
+	}
+	if validates(t, compileBound(t, bound[toolmeta.ToolCompose]), block) == nil {
+		t.Fatal("a marker block validated on an instance that hides for_each")
+	}
+}

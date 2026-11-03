@@ -92,10 +92,12 @@ type Limits struct {
 
 	// MaxExpandedItems bounds the number of aggregation and matrix items
 	// a `for_each` adds to one request (the combinations of every
-	// fanned-out aggregation and matrix item; plain items do not count).
-	// Checked before any for_each item renders. Window, feature and
-	// attribute items count toward MaxDerivedColumns instead. Default
-	// 1,000.
+	// fanned-out aggregation and matrix item; plain items do not count),
+	// and the number of optimize blocks a Compose call's block
+	// `for_each` fan-outs add (counted once per call, apart from its
+	// slots'). Checked before any for_each item or block renders.
+	// Window, feature and attribute items count toward
+	// MaxDerivedColumns instead. Default 1,000.
 	MaxExpandedItems int64
 }
 

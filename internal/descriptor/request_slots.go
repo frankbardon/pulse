@@ -55,7 +55,8 @@ import (
 //     a FacetRequest's overlays —, ComposeOverlaySpec, ComposedRequest,
 //     FitComparisonSpec)
 //     — capability:multiplicity
-//   - every item `for_each` (Window, Feature, Attribute) —
+//   - every `for_each` (Window, Feature, Attribute, Aggregation,
+//     MatrixSpec, OptimizeSpec) —
 //     capability:for_each
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
 //   - every regression `holdout` (+ the RegressionResult block) —
@@ -300,8 +301,9 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "comparisons", visible: capabilityGate(featComposeCompare)},
 	},
 	// An optimize block's saved models ride capability:models, like a
-	// slot's `models`.
-	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate},
+	// slot's `models`; its `for_each` rides capability:for_each, like an
+	// item's.
+	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 		paramsSlotGate,
@@ -1015,10 +1017,16 @@ func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 		}
 		// An optimize block's own `models` ride capability:models, as a
-		// slot's do (details.optimize).
+		// slot's do, and its `for_each` capability:for_each, as an item's
+		// does (details.optimize) — refused before the Compose expansion
+		// would fan it out (the pre-expansion gate).
 		for i := range r.Optimize {
 			if len(r.Optimize[i].Models) > 0 && !inst.Enabled(featModels) {
 				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{"models"},
+					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
+			}
+			if r.Optimize[i].ForEach != nil && !inst.Enabled(featForEach) {
+				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{forEachKey},
 					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
 			}
 		}

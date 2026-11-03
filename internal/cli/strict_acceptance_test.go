@@ -159,6 +159,10 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "composed.fits", body: composed(`"fits":[{"name":"f","request":` + nested(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"]}]`) + `,"svae":"x"}]`), path: "fits[0].svae", unknown: "svae"},
 		{family: "composed.compare", body: composed(`"compare":[{"name":"c","restricted":"a","full":"b","tset":"f"}]`), path: "compare[0].tset", unknown: "tset"},
 		{family: "composed.optimize", body: composed(`"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","strats":2}]`), path: "optimize[0].strats", unknown: "strats"},
+		{family: "composed.optimize.for_each", body: composed(`"optimize":[{"name":"o_{{v}}","direction":"minimize","variables":[{"name":"x","lower":0,"upper":{"$var":"v"}}],"objective":"x","for_each":{"axes":[{"name":"v","values":[1]}],"mdoe":"zip"}}]`), path: "optimize[0].for_each.mdoe", unknown: "mdoe"},
+		// A block kept as written for its {"$var"} marker is still walked
+		// key by key.
+		{family: "composed.optimize.for_each.item", body: composed(`"optimize":[{"name":"o_{{v}}","direction":"minimize","variables":[{"name":"x","lower":0,"upper":{"$var":"v"}}],"objective":"x","strats":2,"for_each":{"axes":[{"name":"v","values":[1]}]}}]`), path: "optimize[0].strats", unknown: "strats"},
 		{family: "composed.base", body: composed(`"base":{"filterres":[]}`), path: "base.filterres", unknown: "filterres"},
 		{family: "composed.fits.request", body: composed(`"fits":[{"name":"f","request":` + nested(`"regresions":[]`) + `}]`), unknown: "regresions", locator: "fit"},
 		{family: "composed.banner", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"totl":true}}`, path: "banner.totl", unknown: "totl"},
@@ -416,6 +420,7 @@ func TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey(t *testing.T) {
 		// for_each-expanded item's own key.
 		"request.aggregations.weight":      true,
 		"request.attributes.for_each.item": true,
+		"composed.optimize.for_each.item":  true,
 		"composed.requests.params":         true, // the params allowlist through a nested request
 		"request.regressions.bounds":       true, // REG_OLS bounds, an object slot of the regression spec
 	}

@@ -84,6 +84,73 @@ type OptimizeSpec struct {
 	// _FILE_INVALID, _VERSION_UNSUPPORTED) located by details.optimize
 	// and details.field. Gated by capability:models.
 	Models []ModelRef `json:"models,omitempty"`
+
+	// ForEach fans the block out over parameter axes before anything
+	// judges it: one block per axis combination, in place, rendered from
+	// the block's own body (`{{axis}}` inside a string such as `name`,
+	// `{"$var": "axis"}` as a whole value — a bound, a start, `starts`,
+	// a whole objective or constraint expression). Name must carry an
+	// axis placeholder so the expanded blocks stay distinct; an
+	// `{{axis}}` inside an objective, constraint or bound expression is
+	// PULSE_FOR_EACH_EXPR_SPLICE. The blocks it adds count toward
+	// Limits.MaxExpandedItems. Gated by capability:for_each; nil is
+	// absent (`omitempty`).
+	ForEach *ForEach `json:"for_each,omitempty"`
+
+	// raw is the block as written when it carries a for_each and does
+	// not decode as a plain block — a `{"$var": "axis"}` value standing
+	// where a typed one goes (a bound, `starts`, a constraint's `expr`).
+	// Set only by UnmarshalJSON; while set, MarshalJSON writes it back
+	// verbatim and the typed fields other than Name and ForEach are
+	// zero, so the block is only ever read through its fan-out, which
+	// renders each combination from it and decodes it strictly.
+	raw json.RawMessage
+}
+
+// UnmarshalJSON decodes a block. A block that decodes as written is
+// typed field by field, refusing an unknown key itself (as a slot
+// weight's object form does), so a strict outer decoder stays strict
+// inside it. One that does not but carries a `for_each` — a
+// `{"$var": "axis"}` marker in a typed field — is kept as written (raw)
+// for its fan-out to render, with ForEach (and Name, when a string)
+// decoded; an unknown key or any other fault is the decode error.
+func (s *OptimizeSpec) UnmarshalJSON(data []byte) error {
+	type plain OptimizeSpec
+	var p plain
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	err := dec.Decode(&p)
+	if err == nil {
+		*s = OptimizeSpec(p)
+		return nil
+	}
+	if strings.HasPrefix(err.Error(), "json: unknown field ") {
+		return err
+	}
+	var probe struct {
+		Name    json.RawMessage `json:"name"`
+		ForEach *ForEach        `json:"for_each"`
+	}
+	if json.Unmarshal(data, &probe) != nil || probe.ForEach == nil {
+		return err
+	}
+	*s = OptimizeSpec{ForEach: probe.ForEach, raw: append(json.RawMessage(nil), data...)}
+	var name string
+	if json.Unmarshal(probe.Name, &name) == nil {
+		s.Name = name
+	}
+	return nil
+}
+
+// MarshalJSON writes the block: as written when it was decoded with a
+// `{"$var"}` marker its typed fields cannot hold (raw), else field by
+// field.
+func (s OptimizeSpec) MarshalJSON() ([]byte, error) {
+	if s.raw != nil {
+		return s.raw, nil
+	}
+	type plain OptimizeSpec
+	return json.Marshal(plain(s))
 }
 
 // OptimizeDefaultStarts is the starting-point count of a block that sets

@@ -1,7 +1,7 @@
 package types
 
 // ForEach fans ONE window, feature, attribute, aggregation or matrix
-// item out over parameter axes: before validation the item is expanded
+// item — or one Compose optimize block — out over parameter axes: before validation the item is expanded
 // IN PLACE into one ordinary item per axis combination — the Cartesian
 // product of the axes (Mode grid, the default; first axis slowest) or
 // the axes walked in lockstep (Mode zip) — each rendered from the item's
@@ -14,9 +14,10 @@ package types
 //
 // It rides as the optional `for_each` key on types.Window,
 // types.Feature, types.Attribute, types.Aggregation (a
-// Request.Aggregations item only) and types.MatrixSpec, gated by
-// capability:for_each. Aggregations and matrices expand after the
-// windows. A nil ForEach is absent: the key is `omitempty`, so a
+// Request.Aggregations item only), types.MatrixSpec and
+// types.OptimizeSpec, gated by capability:for_each. Aggregations and
+// matrices expand after the windows; optimize blocks expand at the top
+// of the Compose expansion, right after the `base` merge. A nil ForEach is absent: the key is `omitempty`, so a
 // for_each-free request is byte-identical on the wire and under
 // CanonicalHash.
 type ForEach struct {

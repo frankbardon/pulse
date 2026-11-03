@@ -221,7 +221,7 @@ func TestExpandCompose_MergesBaseBeforeSweepAndBanner(t *testing.T) {
 		},
 		Banner: spec(),
 	}
-	exp, err := banner.ExpandCompose(c, sweep.Options{}, nil)
+	exp, err := banner.ExpandCompose(c, sweep.Options{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestExpandCompose_MergesBaseBeforeSweepAndBanner(t *testing.T) {
 	}
 
 	c.Base.Label = "x"
-	_, err = banner.ExpandCompose(c, sweep.Options{}, nil)
+	_, err = banner.ExpandCompose(c, sweep.Options{}, nil, nil)
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_COMPOSE_BASE_COLLISION {
 		t.Fatalf("ExpandCompose with a labelled base = %v", err)

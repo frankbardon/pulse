@@ -213,8 +213,8 @@ const FeatureMultiplicity = "capability:multiplicity"
 const FeatureCrosstabCells = "capability:crosstab_cells"
 
 // FeatureForEach is capability:for_each — the item fan-out: the
-// `for_each` key on Window, Feature, Attribute, Aggregation and
-// MatrixSpec. Exported because the
+// `for_each` key on Window, Feature, Attribute, Aggregation,
+// MatrixSpec and OptimizeSpec. Exported because the
 // MCP binder (nested for_each properties) reads it.
 const FeatureForEach = "capability:for_each"
 
@@ -286,7 +286,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("model_save"),         // RegressionSpec.Save + FitSpec.Save (model + population files)
 	capability("regression_holdout"), // RegressionSpec.Holdout + RegressionResult.Holdout
 	capability("models"),             // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
-	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute / Aggregation / MatrixSpec
+	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute / Aggregation / MatrixSpec / OptimizeSpec
 	capability("process_chain"),      // ProcessChain
 	capability("facet"),              // Facet, FacetSchema
 	capability("sample"),             // Sample, SampleWithRequest
