@@ -320,11 +320,14 @@ header records the evidence. A test, embed or build step that starts
 reading an allowlisted path must take it off the list in the same
 change. Any other change makes the release run the whole workflow itself
 (`workflow_call`). Run the script locally to see which way a tag would
-go: exit 0 reuses, exit 1 runs CI.
+go: exit 0 reuses, exit 1 runs CI. Reuse covers only the test suite.
+The release's own `vulncheck` job always rescans the tagged tree, and
+the publish waits for it (see [Vulnerability scan](#vulnerability-scan)).
 
 The archives build in parallel, one `dist` job per platform (`make dist
-DIST_FLAGS="--target <os>/<arch> --no-checksums"`). The `release` job
-then gathers them, writes `checksums.txt` with
+DIST_FLAGS="--target <os>/<arch> --no-checksums"`). Each `dist` job
+also waits for the release's `vulncheck` job to pass. The `release` job
+then gathers the archives, writes `checksums.txt` with
 `scripts/release-dist.sh --checksums-only`, and publishes. The asset set
 is the one a local `make dist VERSION=<tag>` builds. A tag containing
 `-` is published as a pre-release, and a release never takes Latest.
@@ -351,6 +354,22 @@ floats to the latest patch, so locally run it under that patch too,
 for example `GOTOOLCHAIN=go1.26.10 make vulncheck`. A toolchain that
 is not the latest patch of its minor can report standard-library
 findings that CI does not.
+
+**The release gate.** A tag push scans again. `release.yml` has its own
+`vulncheck` job running the same `make vulncheck`, with no `needs:` and
+no `if:`, so it starts beside `verify` on every tag. CI reuse (below,
+[When CI runs](#when-ci-runs)) never satisfies it: a reused CI run's
+scan is only as current as the vulnerability database was on the day
+it ran, and a vulnerability published since then must still stop the
+release. Both `dist` and `release` need the job and require
+`needs.vulncheck.result == 'success'` in their `if:`, so a reachable
+finding (or a scan that cannot run) blocks the publish.
+`TestRepoReleaseVulncheck_Gated` (`internal/tools/citest`) checks that
+shape: no `if:`, `needs:` or `continue-on-error` on the job, `make
+vulncheck` as its command, every `contents: write` job needing it, and
+`scripts/release-ci-reuse.sh` never mentioning it. To unblock a tag,
+fix the finding on `main` and tag the fixed commit. Do not edit the
+gate.
 
 ## Fuzzing
 

@@ -56,12 +56,42 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/ci.yml
 
+  # vulncheck scans the tagged tree afresh on every release, whether or
+  # not verify reuses a CI run: a CI run's scan is only as current as the
+  # vulnerability database on the day it ran, so reuse must never satisfy
+  # it. It therefore has no `needs:` and no `if:` (it starts beside
+  # verify), and dist and release both need it to have SUCCEEDED, so a
+  # reachable finding blocks the publish. `make vulncheck` scans
+  # GOOS=linux then GOOS=windows at the Makefile's GOVULNCHECK_VERSION,
+  # the one pin ci.yml's vulncheck job uses too.
+  # TestRepoReleaseVulncheck_Gated (internal/tools/citest) pins all this.
+  vulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: govulncheck (GOOS linux, windows)
+        run: |
+          go version
+          make vulncheck
+
   # One job per platform, in parallel: each builds its archive with the
   # same script `make dist` runs (DIST_FLAGS picks the target and skips
-  # the checksums) and uploads it as an artifact.
+  # the checksums) and uploads it as an artifact. The `if:` replaces the
+  # implicit success() check (so a skipped ci job does not skip dist),
+  # which is why it must test vulncheck's result itself.
   dist:
-    needs: [verify, ci]
-    if: ${{ !cancelled() && (needs.verify.outputs.found == 'true' || needs.ci.result == 'success') }}
+    needs: [verify, ci, vulncheck]
+    if: ${{ !cancelled() && needs.vulncheck.result == 'success' && (needs.verify.outputs.found == 'true' || needs.ci.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,10 +131,11 @@ jobs:
 
   # Gathers the six archives, writes checksums.txt over all of them (the
   # script refuses a missing archive) and publishes: the asset set is the
-  # one `make dist` builds locally.
+  # one `make dist` builds locally. It needs vulncheck directly too, so
+  # the publish never hangs on dist's condition alone.
   release:
-    needs: dist
-    if: ${{ !cancelled() && needs.dist.result == 'success' }}
+    needs: [dist, vulncheck]
+    if: ${{ !cancelled() && needs.dist.result == 'success' && needs.vulncheck.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
