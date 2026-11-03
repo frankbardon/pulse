@@ -404,6 +404,71 @@ jobs:
       - name: Embedder smoke module
         run: make smoke
 
+  # TEMPORARY (E1-S3 timing experiment; removed before the story ends).
+  exp-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [base, one, def-one, def-a, def-b]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Go (cold)
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+      - name: Defender off
+        if: startsWith(matrix.variant, 'def')
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled | Format-List
+          $paths = @($env:RUNNER_TEMP, $env:GITHUB_WORKSPACE, (go env GOCACHE), (go env GOMODCACHE), (go env GOROOT), $env:TEMP)
+          try { Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop } catch { Write-Host "Set-MpPreference: $_" }
+          foreach ($p in $paths) { try { Add-MpPreference -ExclusionPath $p -ErrorAction Stop } catch { Write-Host "exclusion $p : $_" } }
+          Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled | Format-List
+      - name: Status
+        shell: pwsh
+        run: |
+          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled | Format-List
+          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+          go env GOCACHE GOMODCACHE
+          (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
+      - name: Download modules
+        shell: bash
+        run: |
+          start=$SECONDS; go mod download; echo "mod download $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Compile tests (base only)
+        if: matrix.variant == 'base'
+        shell: bash
+        run: |
+          start=$SECONDS
+          go test -count=1 -run '^$' ./... > "$RUNNER_TEMP/compile.log" 2>&1 || { cat "$RUNNER_TEMP/compile.log"; exit 1; }
+          echo "compile $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Test
+        shell: bash
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -o pipefail
+          heavy='^github.com/frankbardon/pulse(/internal/integration|/internal/cli|/cmd/pulse|/internal/docgen|/internal/sem)?$'
+          case "$VARIANT" in
+            def-a) pkgs=$(go list ./... | grep -E "$heavy") ;;
+            def-b) pkgs=$(go list ./... | grep -vE "$heavy") ;;
+            *) pkgs=./... ;;
+          esac
+          start=$SECONDS
+          go test -count=1 -json $pkgs > "$RUNNER_TEMP/test.json" || echo "go test failed"
+          echo "$VARIANT test step $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
+          go build -o "$RUNNER_TEMP/citest.exe" ./internal/tools/citest
+          "$RUNNER_TEMP/citest.exe" filter -title "exp $VARIANT" < "$RUNNER_TEMP/test.json" | tail -5
+      - name: Cache size
+        shell: bash
+        run: du -sh "$(go env GOCACHE)" "$(go env GOMODCACHE)"
+
   # apidiff reports the exported-API delta against the latest release tag,
   # using a pinned `apidiff -m` over a git-worktree checkout of that tag.
   # It is NOT a branch-protection required check.
