@@ -675,16 +675,10 @@ func TestCountingFs_ProcessOutputByteEqualAcrossFsShapes(t *testing.T) {
 	}
 }
 
-// mmapSupportedOS reports whether the running kernel supports the
-// mmapFileBytes fast path. Matches the build-tag set in mmap_unix.go.
-func mmapSupportedOS() bool {
-	switch runtime.GOOS {
-	case "darwin", "linux", "freebsd":
-		return true
-	default:
-		return false
-	}
-}
+// mmapSupportedOS reports whether this build carries the mmapFileBytes
+// fast path: the build-tagged mmapSupported constant (mmap_unix.go,
+// mmap_windows.go, mmap_other.go), never a GOOS list of its own.
+func mmapSupportedOS() bool { return mmapSupported }
 
 // mustReadSchema is a tiny helper for the direct-iterator paths that
 // need a schema without going through Service.Open's full path. We

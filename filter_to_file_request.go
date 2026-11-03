@@ -229,7 +229,10 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	replacing, _ := afero.Exists(p.fsys, outPath)
 	if err := p.fsys.Rename(tempPath, outPath); err != nil {
 		_ = p.fsys.Remove(tempPath)
-		return nil, fmt.Errorf("filter_to_file: rename to %s: %w", outPath, err)
+		// Coded like every other atomic rewrite's rename: on Windows a
+		// view another reader still maps over outPath refuses it.
+		return nil, perr.WrapCodedError(err, perr.ENCODING_IO,
+			fmt.Sprintf("filter_to_file: renaming %s onto %s", tempPath, outPath))
 	}
 	outHash, err := contentHash(p.fsys, outPath)
 	if err != nil {

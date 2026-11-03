@@ -177,14 +177,51 @@ func (s *stagedStream) publish() error {
 	return nil
 }
 
-// commit is finish then publish. Any failure before the rename leaves
-// the destination untouched (the caller's deferred abort removes the
-// stage).
-func (s *stagedStream) commit() error {
+// commitAfter is finish, then release, then publish: any failure before
+// the rename leaves the destination untouched (the caller's deferred
+// abort removes the stage). release runs between finish and the rename:
+// a rewrite whose output may replace its own source (an
+// in-place filter) closes that source first, because Windows refuses a
+// rename over a file a handle or a mapped view still holds. A failing
+// release aborts the publish.
+func (s *stagedStream) commitAfter(release func() error) error {
 	if err := s.finish(); err != nil {
 		return err
 	}
+	if err := releaseSource(release); err != nil {
+		return err
+	}
 	return s.publish()
+}
+
+// releaseSource runs a commitAfter release (nil is a no-op), coding its
+// failure SERVICE_RESOURCE.
+func releaseSource(release func() error) error {
+	if release == nil {
+		return nil
+	}
+	if err := release(); err != nil {
+		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			"closing the source before publishing the rewrite")
+	}
+	return nil
+}
+
+// closeOnce wraps close so the first call closes and every later call
+// (the deferred close after a commitAfter release) is a no-op returning
+// the first result.
+func closeOnce(close func() error) func() error {
+	var (
+		done bool
+		err  error
+	)
+	return func() error {
+		if !done {
+			done = true
+			err = close()
+		}
+		return err
+	}
 }
 
 // abort releases and removes the stage unless publish renamed it.
@@ -323,6 +360,18 @@ func (w *archiveWriter) copyEntry(src *archiveFile, name string) error {
 // (abort) and leaves the destination untouched.
 func (w *archiveWriter) commit() error {
 	if err := w.finish(); err != nil {
+		return err
+	}
+	return w.publish()
+}
+
+// commitAfter is commit with release run before the rename
+// (stagedStream.commitAfter).
+func (w *archiveWriter) commitAfter(release func() error) error {
+	if err := w.finish(); err != nil {
+		return err
+	}
+	if err := releaseSource(release); err != nil {
 		return err
 	}
 	return w.publish()

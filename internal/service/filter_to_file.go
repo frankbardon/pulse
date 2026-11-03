@@ -242,6 +242,12 @@ type filterPlan struct {
 	// flatten writes an archive input as ONE single-file cohort
 	// (FilterToFileOptions.Flatten); a no-op on a single-file input.
 	flatten bool
+	// release closes the run's source (file, archive, anchored entry)
+	// between the output's finish and its rename, so an in-place
+	// filter (src == dst) never renames over a file it still holds —
+	// Windows refuses that. Set by filterToFileRun; nil releases
+	// nothing.
+	release func() error
 }
 
 // hasPredicate reports whether the plan filters at all: a flatten
@@ -393,6 +399,7 @@ func (s *Service) filterToFileRun(ctx context.Context, src, dst string, plan fil
 			return 0, false, err
 		}
 		defer a.Close()
+		plan.release = a.Close // idempotent
 		if plan.flatten {
 			n, err := s.flattenShardArchiveToFile(ctx, fsys, dst, plan, a)
 			return n, err == nil, err
@@ -406,7 +413,9 @@ func (s *Service) filterToFileRun(ctx context.Context, src, dst string, plan fil
 		return 0, false, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file: %s", src))
 	}
-	defer f.Close()
+	release := closeOnce(f.Close)
+	defer release()
+	plan.release = release
 	n, err := s.filterSingleFileStream(ctx, fsys, f, dst, plan)
 	return n, false, err
 }
@@ -473,7 +482,7 @@ func (s *Service) filterSingleFileStream(ctx context.Context, fsys afero.Fs, src
 	if err != nil {
 		return 0, err
 	}
-	if err := out.commit(); err != nil {
+	if err := out.commitAfter(plan.release); err != nil {
 		return 0, err
 	}
 	return written, nil
@@ -534,7 +543,15 @@ func (s *Service) filterAnchoredShardToFile(ctx context.Context, fsys afero.Fs, 
 	if err != nil {
 		return 0, err
 	}
-	defer rc.Close()
+	closeEntry := closeOnce(rc.Close)
+	defer closeEntry()
+	plan.release = func() error {
+		eerr := closeEntry()
+		if aerr := a.Close(); aerr != nil {
+			return aerr
+		}
+		return eerr
+	}
 	return s.filterSingleFileStream(ctx, fsys, &entryReadError{r: rc, entry: entry, archive: archivePath}, dst, plan)
 }
 
@@ -686,7 +703,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 				fmt.Sprintf("writing filtered shard %q", sh.name))
 		}
 	}
-	if err := w.commit(); err != nil {
+	if err := w.commitAfter(plan.release); err != nil {
 		return 0, err
 	}
 	return totalWritten, nil
@@ -822,7 +839,7 @@ func (s *Service) flattenShardArchiveToFile(ctx context.Context, fsys afero.Fs, 
 		}
 		total += n
 	}
-	if err := out.commit(); err != nil {
+	if err := out.commitAfter(plan.release); err != nil {
 		return 0, err
 	}
 	return total, nil

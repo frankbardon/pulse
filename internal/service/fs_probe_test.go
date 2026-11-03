@@ -153,7 +153,7 @@ func TestResolveRealPath_RealPatherError(t *testing.T) {
 func TestStreamingIterator_MmapEngagesOnBasePathFs(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" && runtime.GOOS != "freebsd" {
+	if !mmapSupportedOS() {
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
