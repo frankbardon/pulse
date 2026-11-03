@@ -138,9 +138,11 @@ func blockAlignedSegments(totalRecords, workers int) []decodeSegment {
 //     archives parallelise via the per-shard reducer in shard_reduce.go;
 //     stacking intra-shard segment decode on top of that would
 //     double-spawn workers on the same CPUs
-//   - resolveRealPath succeeds on the cohort fs+path pair — mmap
-//     requires a real on-disk file; MemMapFs, the anchor overlay, and
-//     custom afero.Fs implementations without RealPather all bail here
+//   - mappableRealPath succeeds on the cohort fs+path pair — the build
+//     must map (mmapCapable; no GOOS outside mmap_unix.go /
+//     mmap_windows.go does) and mmap requires a real on-disk file;
+//     MemMapFs, the anchor overlay, and custom afero.Fs implementations
+//     without RealPather all bail here
 //   - processing.CanMergeRequestWithExtensions(req, schema, s.extensions) is true — the request's
 //     online state must be mergeable across worker partitions (the same
 //     gate the per-shard reducer in shard_reduce.go consults)
@@ -179,8 +181,8 @@ func (s *Service) canParallelDecode(
 	if cohort.fs == nil {
 		return false, "nil cohort fs"
 	}
-	if _, ok := resolveRealPath(cohort.fs, cohort.path); !ok {
-		return false, "mmap unavailable (no RealPath)"
+	if _, bail := mappableRealPath(cohort.fs, cohort.path); bail != "" {
+		return false, bail
 	}
 	if !processing.CanMergeRequestWithExtensions(req, schema, s.extensions) {
 		return false, "non-mergeable request"
@@ -551,8 +553,8 @@ func buildParallelDecodeContext(
 	if schema == nil {
 		return nil, nil, false, nil
 	}
-	realPath, hasReal := resolveRealPath(s.fs.Fs(), path)
-	if !hasReal {
+	realPath, bail := mappableRealPath(s.fs.Fs(), path)
+	if bail != "" {
 		return nil, nil, false, nil
 	}
 	data, cleanupFn, mErr := mmapFileBytes(realPath)

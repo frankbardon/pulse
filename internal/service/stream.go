@@ -130,7 +130,7 @@ func (it *streamingIterator) initFromFile() error {
 	// a documented mmap hazard; Pulse's write-then-read pattern makes
 	// it improbable in practice, but a misbehaving external writer
 	// could still tear a file beneath us.
-	if realPath, ok := resolveRealPath(it.fs, it.path); ok {
+	if realPath, bail := mappableRealPath(it.fs, it.path); bail == "" {
 		if data, cleanup, err := mmapFileBytes(realPath); err == nil {
 			it.mmapBytes = data
 			it.mmapCleanup = cleanup
