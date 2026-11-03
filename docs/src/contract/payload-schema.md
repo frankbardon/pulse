@@ -125,7 +125,15 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   attributes: [{index, label, depends_on, window_reads}]}` — on Process
   predict and per Compose slot, additive `omitempty`, absent without a
   window): the post-window plan, which attributes run after the windows,
-  by index.
+  by index. So is `unresolved_scalars` (`[{path, expression, reads}]` —
+  on Process predict and Compose predict, additive `omitempty`): every
+  scalar-expression slot predict could not compute because it calls
+  `coef()`, `sweep_axis()`, `lookup()`, `range_label()` or an embedder
+  function — an optimize bound, or a `WIN_DISTRIBUTED_LAG` decay /
+  shape / scale / max_lag or `WIN_EWMA` alpha / decay window param
+  (`windows[0].params.decay`, under `requests[i].` / `fits[i].request.`
+  in a batch). Those window params take a number or an expression
+  string; the window `params` object stays open in this schema.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect
@@ -1494,8 +1502,10 @@ and must be the same in every sweep slot. A malformed binding is
 `PULSE_FIT_INVALID` with `details.fit` and `details.reason`
 `from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
 `from_sweep_regression_unknown` (`details.regression`, `available`),
-`from_sweep_signature_varies` or `from_sweep_cycle` (a sweep slot reads
-the fit; both with `details.slot`, the 0-based sweep index), judged
+`from_sweep_signature_varies`, `from_sweep_cycle` (a sweep slot reads
+the fit) or `from_sweep_window_cycle` (a sweep slot's window reads it in
+a scalar param, `details.window` and `details.param`; all three with
+`details.slot`, the 0-based sweep index), judged
 before anything runs, identically by predict and the runtime. The key is
 gated by `capability:compose_sweep_bind` (dependencies
 `capability:compose_sweep` AND `capability:compose_fits`); predict's fit

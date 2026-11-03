@@ -6366,25 +6366,29 @@
               "name": "max_lag",
               "type": "int",
               "required": true,
-              "description": "Last lag the kernel reaches, an integer in [1, 10000]; the kernel has max_lag + 1 weights (lag 0 is the current row)."
+              "description": "Last lag the kernel reaches, an integer in [1, 10000]; the kernel has max_lag + 1 weights (lag 0 is the current row). A number or a scalar expression yielding an exact integer.",
+              "expression": true
             },
             {
               "name": "decay",
               "type": "float",
               "required": false,
-              "description": "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel."
+              "description": "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel. A number or a scalar expression, e.g. sweep_axis(\"fit\", \"decay\").",
+              "expression": true
             },
             {
               "name": "shape",
               "type": "float",
               "required": false,
-              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric."
+              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric. A number or a scalar expression.",
+              "expression": true
             },
             {
               "name": "scale",
               "type": "float",
               "required": false,
-              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric."
+              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric. A number or a scalar expression.",
+              "expression": true
             },
             {
               "name": "normalize",
@@ -6423,15 +6427,17 @@
               "name": "alpha",
               "type": "float",
               "required": false,
-              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay.",
-              "exactly_one_of": "smoothing"
+              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay. A number or a scalar expression.",
+              "exactly_one_of": "smoothing",
+              "expression": true
             },
             {
               "name": "decay",
               "type": "float",
               "required": false,
-              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay.",
-              "exactly_one_of": "smoothing"
+              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal (an expression's shortest round-trip decimal). Exactly one of alpha or decay. A number or a scalar expression.",
+              "exactly_one_of": "smoothing",
+              "expression": true
             }
           ],
           "accepts_types": [
@@ -21083,4 +21089,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4767da89112daa1147a788c040cbf72d8d405bd46f620100355126ec473f21d8
+// golden-hash: 6b0eaf86e394758ed1f438ab2cfe9e368030f56cf2ece03a57a34d43b7a62cb3

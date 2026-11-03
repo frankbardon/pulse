@@ -2,6 +2,11 @@ package processing
 
 import (
 	"context"
+	"slices"
+
+	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/scalarslot"
+	"github.com/frankbardon/pulse/internal/windowscalar"
 
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -25,7 +30,15 @@ import (
 // when set, hears every built-in copy window's (WIN_LAG / WIN_LEAD)
 // copied cell (window.ApplyObserved) — the record-row run's
 // u64RowWords.copyObserver; nil observes nothing.
+//
+// A window's scalar-expression params (internal/windowscalar) are
+// resolved first, against the request's params and bound models, and
+// the slot the reading and the factory see carries the numbers.
 func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window, orders window.KeyOrders, copies window.CopyObserver) error {
+	windows, err := p.resolveWindowScalars(windows)
+	if err != nil {
+		return err
+	}
 	for _, w := range windows {
 		if w == nil {
 			continue
@@ -55,4 +68,57 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 		}
 	}
 	return window.ApplyObserved(ctx, rows, windows, p.exts.LookupWindow, orders, copies)
+}
+
+// resolveWindowScalars is the runtime's windowscalar pass over windows:
+// every scalar-expression param evaluated against the request's params,
+// its bound models (coef(), sweep_axis()), the instance's tables and
+// the embedder's functions, and written as the number the reading
+// judges. The first refusal is raised (predict reports it first for its
+// window). windows comes back as itself when no window carries an
+// expression; otherwise a copy (the caller's slots are never mutated).
+// A type the instance does not resolve is left to the unknown-window
+// error, as predict reports an unknown type first.
+func (p *Processor) resolveWindowScalars(windows []*types.Window) ([]*types.Window, error) {
+	var out []*types.Window
+	var env *scalarslot.Env
+	var bound exprenv.Bound
+	for i, w := range windows {
+		if w == nil || len(windowscalar.Exprs(w)) == 0 {
+			continue
+		}
+		if _, ok := p.exts.LookupWindow(w.Type); !ok {
+			continue
+		}
+		if env == nil {
+			e := p.scalarEnv()
+			env, bound = &e, p.exts.ExprBoundWithModels(p.models)
+		}
+		res, refs := windowscalar.Resolve(w, *env, bound, true)
+		if len(refs) > 0 {
+			return nil, refs[0].Coded()
+		}
+		if out == nil {
+			out = slices.Clone(windows)
+		}
+		out[i] = res.Window
+	}
+	if out == nil {
+		return windows, nil
+	}
+	return out, nil
+}
+
+// scalarEnv is the scalar-slot environment of the processor's request:
+// its params (the registry's fold), its bound models, the instance's
+// tables and the embedder's expression functions.
+func (p *Processor) scalarEnv() scalarslot.Env {
+	env := scalarslot.Env{Params: p.exts.Params(), Fits: p.catalog(), Tables: p.exts.TablesCatalog()}
+	if p.exts != nil {
+		for _, fn := range p.exts.ExprFunctions {
+			env.Extensions = append(env.Extensions, fn.Name)
+		}
+		env.Lookup = len(p.exts.LookupTables) > 0
+	}
+	return env
 }

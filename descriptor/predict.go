@@ -280,6 +280,17 @@ type PredictResult struct {
 	// runs without a schema. Omitted when the request carries no window.
 	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
 
+	// UnresolvedScalars lists every scalar-expression window param
+	// predict could not compute — a WIN_DISTRIBUTED_LAG decay / shape /
+	// scale / max_lag or WIN_EWMA alpha / decay calling coef(),
+	// sweep_axis(), lookup(), range_label() or an embedder function — in
+	// window order, its path indexing the EXPANDED request
+	// (windows[0].params.decay). Its value and the param's range checks
+	// wait for the runtime. Not a warning and not a refusal: a param over
+	// literals and params is resolved and range-checked here, so it
+	// never appears. Omitted when every scalar param resolved.
+	UnresolvedScalars []UnresolvedScalar `json:"unresolved_scalars,omitempty"`
+
 	// Return is the resolved `return` plan — the expanded selection the
 	// runtime will apply, computed by the same resolver it calls.
 	// Omitted when the request carries no `return` block or the block is
@@ -1055,16 +1066,18 @@ type OptimizeSummary struct {
 	RNGSeed int64 `json:"rng_seed"`
 }
 
-// UnresolvedScalar is one ComposeValidationResult.UnresolvedScalars
-// entry: a scalar-expression slot (a number-or-expression request slot,
-// such as an optimize variable's lower / upper / start) whose
+// UnresolvedScalar is one ComposeValidationResult.UnresolvedScalars or
+// PredictResult.UnresolvedScalars entry: a scalar-expression slot (a
+// number-or-expression request slot — an optimize variable's lower /
+// upper / start, a scalar window param) whose
 // expression calls a request-bound function — coef(), sweep_axis(),
 // lookup(), range_label() or an embedder function — so predict checks
 // it but cannot compute it. Its value and the slot's range checks wait
 // for the runtime. It is neither a warning nor a refusal.
 type UnresolvedScalar struct {
 	// Path is the slot's request-rooted path
-	// (optimize[0].variables[1].upper).
+	// (optimize[0].variables[1].upper,
+	// requests[2].windows[0].params.decay).
 	Path string `json:"path"`
 	// Expression is the slot's expression as written.
 	Expression string `json:"expression"`

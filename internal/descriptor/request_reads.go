@@ -748,7 +748,7 @@ func (w *readsWalker) expression(src string, at readsPath, key string, req reads
 	if len(reads.Funcs) > 0 {
 		e.Funcs = reads.Funcs
 	}
-	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound {
+	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound || slot == exprslots.SlotWindowParam {
 		e.Variables = reads.Vars
 		return
 	}

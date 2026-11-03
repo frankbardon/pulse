@@ -35,6 +35,11 @@ const (
 	// sweep_axis(), a params.fit) — the slots run before the fit
 	// exists.
 	ReasonFromSweepCycle = "from_sweep_cycle"
+	// ReasonFromSweepWindowCycle: a sweep slot's window reads the fit
+	// it binds in a scalar-expression param (a WIN_DISTRIBUTED_LAG decay
+	// calling sweep_axis() or coef() on it) — the slots, and the fit
+	// request taken from the winning one, run before the fit exists.
+	ReasonFromSweepWindowCycle = "from_sweep_window_cycle"
 )
 
 // SweepAxisFunc is the expr function that reads a sweep-bound fit's
@@ -49,14 +54,17 @@ const SweepAxisFunc = "sweep_axis"
 // reports whether a slot reads the bound-model name fit (any reference
 // a slot resolves against the batch's fits); nil reads nothing. Axes
 // are the sweep's axis names as written (the names sweep_axis() may
-// read; FitCatalog.WithSweepAxes). The zero value is a sweep-free
+// read; FitCatalog.WithSweepAxes). WindowReads reports the first window
+// of a slot whose scalar-expression param reads fit (its index and
+// params key); nil reads nothing. The zero value is a sweep-free
 // batch.
 type SweepScope struct {
-	Present bool
-	Ranked  bool
-	Slots   []*types.Request
-	Reads   func(slot *types.Request, fit string) bool
-	Axes    []string
+	Present     bool
+	Ranked      bool
+	Slots       []*types.Request
+	Reads       func(slot *types.Request, fit string) bool
+	WindowReads func(slot *types.Request, fit string) (window int, param string, ok bool)
+	Axes        []string
 }
 
 // SweepRegression is the regression of slot whose `name` is name, nil
@@ -167,13 +175,19 @@ func checkSweepFit(i int, f types.FitSpec, scope SweepScope) error {
 				map[string]any{"regression": reg, "slot": s})
 		}
 	}
-	if scope.Reads != nil {
-		for s, slot := range scope.Slots {
-			if scope.Reads(slot, f.Name) {
-				return fitInvalid(i, f.Name, ReasonFromSweepCycle,
-					fmt.Sprintf("is bound from the sweep, but sweep slot %d reads it; the sweep slots run before the fit exists", s),
-					map[string]any{"regression": reg, "slot": s})
-			}
+	for s, slot := range scope.Slots {
+		if scope.Reads != nil && scope.Reads(slot, f.Name) {
+			return fitInvalid(i, f.Name, ReasonFromSweepCycle,
+				fmt.Sprintf("is bound from the sweep, but sweep slot %d reads it; the sweep slots run before the fit exists", s),
+				map[string]any{"regression": reg, "slot": s})
+		}
+		if scope.WindowReads == nil {
+			continue
+		}
+		if w, param, ok := scope.WindowReads(slot, f.Name); ok {
+			return fitInvalid(i, f.Name, ReasonFromSweepWindowCycle,
+				fmt.Sprintf("is bound from the sweep, but sweep slot %d's windows[%d] reads it in params.%s; the sweep slots, and the fit request taken from the winning one, run before the fit exists — sweep the window param as an axis instead", s, w, param),
+				map[string]any{"regression": reg, "slot": s, "window": w, "param": param})
 		}
 	}
 	return nil

@@ -342,8 +342,11 @@ func TestPredictWindow_EwmaAlphaBounds(t *testing.T) {
 		{"alpha and decay", json.RawMessage(`{"alpha": 0.3, "decay": 0.7}`), "mutually exclusive"},
 		{"decay = 1", json.RawMessage(`{"decay": 1}`), "params.decay must be in [0, 1)"},
 		{"decay < 0", json.RawMessage(`{"decay": -0.5}`), "params.decay must be in [0, 1)"},
-		{"decay not a number", json.RawMessage(`{"decay": "0.7"}`), "params.decay must be a number"},
-		{"malformed", json.RawMessage(`{"alpha": "0.3"}`), "malformed params"},
+		// A string is a scalar expression (internal/windowscalar); a bool
+		// stays no number.
+		{"decay not a number", json.RawMessage(`{"decay": true}`), "params.decay must be a number"},
+		{"malformed", json.RawMessage(`{"alpha": true}`), "malformed params"},
+		{"decay expression = 1", json.RawMessage(`{"decay": "0.5 + 0.5"}`), "params.decay must be in [0, 1)"},
 		{"alpha = 0", json.RawMessage(`{"alpha": 0}`), "alpha must be in (0, 1]"},
 		{"alpha > 1", json.RawMessage(`{"alpha": 1.5}`), "alpha must be in (0, 1]"},
 		{"alpha < 0", json.RawMessage(`{"alpha": -0.1}`), "alpha must be in (0, 1]"},

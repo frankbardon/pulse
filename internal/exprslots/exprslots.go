@@ -53,8 +53,8 @@ type Slot struct {
 	Sites []string
 	// Scalar marks a scalar-expression slot (internal/scalarslot): a
 	// JSON number or an expression string, its owner field a
-	// number-or-expression type (types.OptimizeBound) rather than a Go
-	// string. A `{{token}}` in its string form is refused like any
+	// number-or-expression type (types.OptimizeBound) or a params
+	// object key (a window param) rather than a Go string. A `{{token}}` in its string form is refused like any
 	// expression's; a number there is no expression.
 	Scalar bool
 }
@@ -68,6 +68,7 @@ const (
 	SlotOptimizeObjective  = "optimize_objective"
 	SlotOptimizeConstraint = "optimize_constraint"
 	SlotOptimizeBound      = "optimize_bound"
+	SlotWindowParam        = "window_param"
 )
 
 var slots = []Slot{
@@ -117,6 +118,15 @@ var slots = []Slot{
 	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "lower"}, Scalar: true},
 	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "upper"}, Scalar: true},
 	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "start"}, Scalar: true},
+	// A built-in window's scalar params (internal/windowscalar):
+	// WIN_EWMA alpha / decay, WIN_DISTRIBUTED_LAG decay / shape /
+	// scale / max_lag — a number or a scalar expression, resolved before
+	// the window's own reading. Rooted at the `windows` list.
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "alpha"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "decay"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "shape"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "scale"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "max_lag"}, Scalar: true},
 }
 
 // FeatureFitOnParam is the feature params key carrying a row

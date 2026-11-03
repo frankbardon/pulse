@@ -147,12 +147,15 @@ type ComposeValidationResult struct {
 	Optimize []descriptor.OptimizeSummary `json:"optimize,omitempty"`
 
 	// UnresolvedScalars lists every scalar-expression slot predict could
-	// not compute — an optimize bound or start calling coef(),
-	// sweep_axis(), lookup(), range_label() or an embedder function —
-	// in request order: its path, the expression and the request-bound
-	// functions it reads. Its value, and the slot's range checks
-	// (bounds_crossed, start_out_of_bounds, finiteness), wait for the
-	// runtime. Not a warning and not a refusal: a slot over literals and
+	// not compute — an optimize bound or start, or a slot's or fit
+	// request's scalar window param, calling coef(), sweep_axis(),
+	// lookup(), range_label() or an embedder function — optimize
+	// blocks first, then the slots' windows, then the fit requests'
+	// (each request's windows indexed on its item-expanded list): its
+	// path, the expression and the request-bound functions it reads.
+	// Its value, and the slot's range checks (bounds_crossed,
+	// start_out_of_bounds, a window param's range, finiteness), wait for
+	// the runtime. Not a warning and not a refusal: a slot over literals and
 	// params is resolved and range-checked here, so it never appears.
 	// Omitted when every scalar slot resolved.
 	UnresolvedScalars []descriptor.UnresolvedScalar `json:"unresolved_scalars,omitempty"`
@@ -422,6 +425,11 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	var postWindows []*descriptor.PostWindowPlan
 	var slotModels []model.Catalog
 	*slots, postWindows, slotModels = validateComposeSlots(env, req, opts, loaded, result.Fits, sweepFits.Axes, &result.LimitFindings)
+	// Every slot's and fit request's scalar window params the static
+	// pass left to the runtime, after the optimize blocks'.
+	result.UnresolvedScalars = append(result.UnresolvedScalars, composeWindowUnresolved(req, *slots, slotModels, func(i int) model.Catalog {
+		return loadedCatalog(opts.populations(), model.RequestRefs(req.Fits[i].Request), loaded.fit(i))
+	}, opts)...)
 	result.LimitFindings = append(result.LimitFindings, fitFindings...)
 	env.Errors = append(env.Errors, fitEnv.Errors...)
 	env.Warnings = append(env.Warnings, fitEnv.Warnings...)

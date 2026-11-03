@@ -27,7 +27,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 - **Matrices** (`Request.Vectors` + `Request.Matrices`, `Response.Matrices`) — whole-set matrix operators (`MAT_*`) over virtual vectors, folded into per-block `linalg.CoMoment`s through the `BlockMerger` opt-in and emitted at finalize (streaming: terminal flush). `skills/op-mat-covariance.md`; contract `.claude/reference/matrix-and-vectors.md`.
 - **Item fan-out** (`for_each` on `Window` / `Feature` / `Attribute`) — one item expanded in place over parameter axes before any other check; section below. `skills/item-fan-out.md`.
 - **Compose fits** (`ComposedRequest.Fits`, `ComposedResponse.Fits`) — a pre-pass that fits each named one-regression request ONCE before any slot and binds the result into every slot by name; section below. `skills/compose-fits.md`.
-- **Scalar-expression slots** (an optimize bound / start) — a number or an expression evaluated ONCE before execution by `internal/scalarslot`; predict lists a model-dependent one under `unresolved_scalars`. `skills/compose-optimize.md`.
+- **Scalar-expression slots** (an optimize bound / start; a `WIN_DISTRIBUTED_LAG` / `WIN_EWMA` scalar param, pre-resolved by `internal/windowscalar`) — a number or an expression evaluated ONCE before execution by `internal/scalarslot`; predict lists a model-dependent one under `unresolved_scalars`. `skills/compose-optimize.md`, `skills/op-win-distributed-lag.md`.
 - **Compose banner** (`ComposedRequest.Banner`, `ComposedResponse.Banner`) — Compose sugar: sections × column groups (+ Total) expanded into crosstab slots and stitched back with per-block letters; section below. `skills/compose-banner.md`.
 
 ## Section map
@@ -36,7 +36,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
 | Parallel Compose; Compose fits; Compose banner; Item fan-out (`for_each`) | `execution-modes/compose.md` |
-| Scalar-expression slots (`internal/scalarslot`, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |
+| Scalar-expression slots (`internal/scalarslot`, `internal/windowscalar` window params, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |
 | Parallel shards; Blocked merge (`processing.BlockMerger`) | `execution-modes/shards-and-merge.md` |
 | Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Post-window attributes (transformed predictors, U57); Windows-first (mmm-followups E4); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/filters-and-expressions.md` |
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |

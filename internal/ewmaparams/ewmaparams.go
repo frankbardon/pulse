@@ -15,6 +15,7 @@ package ewmaparams
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"math/big"
 
 	"github.com/frankbardon/pulse/errors"
@@ -57,6 +58,16 @@ var (
 // Resolve reads raw params and returns the effective alpha, or the first
 // rule the params break.
 func Resolve(raw json.RawMessage) (float64, *Refusal) {
+	return ResolveDeferred(raw, nil)
+}
+
+// ResolveDeferred is Resolve with the values of the deferred keys (a
+// scalar-expression alpha or decay predict could not compute;
+// internal/windowscalar) judged present but not yet known: the
+// exactly-one rule runs, the deferred value's range waits for the
+// runtime, which resolves it and calls Resolve. The alpha returned for
+// a deferred value is NaN. A nil or empty deferred set is Resolve.
+func ResolveDeferred(raw json.RawMessage, deferred map[string]bool) (float64, *Refusal) {
 	var p Params
 	if len(raw) > 0 {
 		if err := paramread.Decode(paramread.Window, string(types.WIN_EWMA), raw, &p); err != nil {
@@ -73,6 +84,9 @@ func Resolve(raw json.RawMessage) (float64, *Refusal) {
 	case p.Alpha == nil && !hasDecay:
 		return 0, &Refusal{Message: "exactly one of params.alpha or params.decay is required (alpha = 1 - decay)"}
 	case p.Alpha != nil:
+		if deferred["alpha"] {
+			return math.NaN(), nil
+		}
 		if *p.Alpha <= 0 || *p.Alpha > 1 {
 			return 0, &Refusal{
 				Message: "params.alpha must be in (0, 1]",
@@ -80,6 +94,9 @@ func Resolve(raw json.RawMessage) (float64, *Refusal) {
 			}
 		}
 		return *p.Alpha, nil
+	}
+	if deferred["decay"] {
+		return math.NaN(), nil
 	}
 	lit := string(bytes.TrimSpace(p.Decay))
 	d, ok := decimalLiteral(lit)

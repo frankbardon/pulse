@@ -142,6 +142,20 @@ func TestRequestReads_RootKinds(t *testing.T) {
 			},
 		},
 		{
+			name: "window scalar params",
+			doc: `{"params":{"d":0.5},"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","order_by":[{"field":"week"}],
+				"params":{"kernel":"geometric","decay":"params.d","max_lag":4}},
+				{"type":"WIN_LAG","field":"tv","order_by":[{"field":"week"}],"params":{"offset":2}}]}`,
+			root: descriptor.ReadsRootRequest,
+			want: []string{
+				"windows[0]|field| cols=tv params=",
+				"windows[0]|order_by| cols=week params=",
+				"windows[0]|params.decay| cols= params=d",
+				"windows[1]|field| cols=tv params=",
+				"windows[1]|order_by| cols=week params=",
+			},
+		},
+		{
 			name: "compose sweep and banner",
 			doc: `{"sweep":{"axes":[{"name":"w","values":[1,2]}],"request":{"filterers":[{"type":"FILTER_EXPRESSION","expression":"wave == sweep_axis(\"w\")"}]}},
 				"banner":{"request":{"aggregations":[{"type":"AGG_COUNT","field":"id"}]},

@@ -2029,6 +2029,7 @@ pulse/descriptor: type Param field EnumValues []string "json:\"enum_values,omite
 pulse/descriptor: type Param field EnumValuesBy map[string][]string "json:\"enum_values_by,omitempty\""
 pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type Param field Example any "json:\"example,omitempty\""
+pulse/descriptor: type Param field Expression bool "json:\"expression,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
 pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field NamesColumn bool "json:\"names_column,omitempty\""
@@ -2081,6 +2082,7 @@ pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"st
 pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
 pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
+pulse/descriptor: type PredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
 pulse/descriptor: type PredictResult field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"-\""
 pulse/descriptor: type PredictResult field Weights []pulse/descriptor.ResolvedWeight "json:\"weights,omitempty\""
@@ -6669,4 +6671,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 63b62aa0ab840b57f913d77e7e919da84f677c6bb44d7957e9260d089a46d7e0
+// golden-hash: bee88809b264da9e84c0ec07365ec658fbcb1888b2f2991e59335e2bdce1b6c2

@@ -1063,7 +1063,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WINDOW_INVALID: {
-		Message: "A window operator's configuration is invalid (unknown window type, bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
+		Message: "A window operator's configuration is invalid (unknown window type, bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike. A scalar-expression param (the manifest marks it `expression`: a number or an expression string) whose expression does not compile or reads an identifier other than params is details.reason `param_invalid`, one yielding a string, bool or null `param_not_numeric`, NaN or an infinity `param_not_finite`, and an integer param with a fraction `param_not_integer` (details.param, details.expression); its value then meets the operator's own range rules like a literal — at predict when it reads only literals and params, at run time when it calls coef(), sweep_axis() or lookup().",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -1084,6 +1084,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
 				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Windows", "*", "Params"},
+				Hint:     "details.reason param_*: write the scalar param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() over a bound model and the built-ins that yields a finite number — an exact integer for an `int` param. A param the manifest does not mark `expression` takes a literal only.",
+				Examples: []any{map[string]any{"decay": "params.decay"}, map[string]any{"decay": `sweep_axis("fit", "decay_tv")`}},
 			},
 			{
 				Action: FixupRequiresReschema,
@@ -2462,6 +2468,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"fits", "*", "request", "matrices", "*", "params", "estimator"},
 				Hint:   "Under `details.reason` `sem_ordinal`, a SEM fit binds a maximum-likelihood MAT_SEM only: drop the ordinal `estimator` (and `ordered`) from the fit request, or run the DWLS / WLSMV fit as a plain `matrices` entry of a slot.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "request", "windows", "*", "params"},
+				Hint:   "Under `details.reason` `from_sweep_window_cycle`, a sweep slot's window (details.window) reads the sweep-bound fit in a scalar param (details.param): the sweep runs before the fit exists. Sweep that param as an axis ({\"$var\": \"<axis>\"}) and read the winner with sweep_axis() only in explicit slots, optimize blocks or later requests.",
 			},
 		},
 	},

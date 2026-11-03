@@ -8,8 +8,10 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/internal/shareparams"
 	"github.com/frankbardon/pulse/internal/windowparams"
+	"github.com/frankbardon/pulse/internal/windowscalar"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -88,6 +90,7 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 	// Label collisions with an available column (aggregation / group
 	// output, record column, earlier window) are FieldRefRefusals'
 	// shadow refusal on both sides.
+	var scalarEnv *scalarslot.Env
 	for i, w := range req.Windows {
 		idx := strconv.Itoa(i)
 
@@ -101,12 +104,30 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 			continue
 		}
 
+		// The scalar-expression params first (internal/windowscalar —
+		// the pass the engine runs before its reading): each refusal
+		// reported; the reading below judges the resolved numbers and
+		// skips the rules reading a value left to the runtime (an
+		// unresolved or refused param, Deferred).
+		var deferred map[string]bool
+		if len(windowscalar.Exprs(w)) > 0 {
+			if scalarEnv == nil {
+				e := windowScalarEnv(req, opts)
+				scalarEnv = &e
+			}
+			res, srefs := resolveWindowScalarsStatic(w, *scalarEnv)
+			for _, r := range srefs {
+				addCodedError(env, r.At(i))
+			}
+			w, deferred = res.Window, res.Deferred
+		}
+
 		// The slot's configuration: one reading with the engine
 		// (internal/windowparams), the same code and rule sentence on
 		// both sides — predict reports every rule broken, the engine
 		// the first. OrderBy / PartitionBy existence and orderability:
 		// FieldRefRefusals.
-		for _, ref := range windowparams.Check(w) {
+		for _, ref := range windowparams.CheckDeferred(w, deferred) {
 			details := map[string]any{"window_index": i, "type": string(w.Type)}
 			maps.Copy(details, ref.Details)
 			env.AddError(

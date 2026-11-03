@@ -570,6 +570,9 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// the runtime's operator construction makes). Shared with every
 	// Compose slot and fit request (validateComposeRequest).
 	validateRequestBody(env, req, schema, opts, werr)
+	// The scalar window params the body's static pass left to the
+	// runtime (validateWindows judged the rest).
+	result.UnresolvedScalars = windowUnresolved(req, opts, "")
 
 	// Populate the predict surface from req.Overlays. One descriptor per
 	// spec in matching order; OverlayCost is a per-kind multiplier keyed

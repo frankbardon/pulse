@@ -197,9 +197,13 @@ type, target and predictors must not depend on an axis (predict reads
 the fit's signature from the sweep body); and no sweep slot may read the
 fit. A malformed binding is `PULSE_FIT_INVALID` with `details.reason`
 `from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
-`from_sweep_regression_unknown`, `from_sweep_signature_varies` or
-`from_sweep_cycle`, judged by predict and the runtime alike before
-anything runs.
+`from_sweep_regression_unknown`, `from_sweep_signature_varies`,
+`from_sweep_cycle` or `from_sweep_window_cycle` (a sweep slot's window
+reads the fit in a scalar param such as a `WIN_DISTRIBUTED_LAG` decay),
+judged by predict and the runtime alike before anything runs. An
+explicit slot's window may read the winner —
+`"decay": "sweep_axis(\"best\", \"decay_tv\")"` — and runs after the
+bind.
 
 A batch with a binding runs sweep-first: the authored fits, then the
 sweep slots (once — their responses are the batch's) and the rank, then

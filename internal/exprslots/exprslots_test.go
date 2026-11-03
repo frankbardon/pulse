@@ -30,6 +30,10 @@ func TestMatch(t *testing.T) {
 		{[]string{"optimize", "variables", "upper"}, exprslots.SlotOptimizeBound},
 		{[]string{"optimize", "variables", "start"}, exprslots.SlotOptimizeBound},
 		{[]string{"optimize", "variables", "name"}, ""},
+		{[]string{"windows", "params", "decay"}, exprslots.SlotWindowParam},
+		{[]string{"requests", "windows", "params", "max_lag"}, exprslots.SlotWindowParam},
+		{[]string{"windows", "params", "kernel"}, ""},
+		{[]string{"windows", "params", "offset"}, ""},
 		{[]string{"stages", "request", "features", "params", "fit_on"}, exprslots.SlotFeatureFitOn},
 		// An attribute's params.fit_on is a keyword or a filterer list.
 		{[]string{"attributes", "params", "fit_on"}, ""},

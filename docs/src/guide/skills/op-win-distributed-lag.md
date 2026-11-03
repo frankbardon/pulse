@@ -31,6 +31,8 @@ Questions it answers:
 | `scale` | float | — | Weibull only, `> 0` |
 | `normalize` | bool | `true` | weights divided by their sum |
 
+`decay`, `shape`, `scale`, `max_lag` also take an expression (`"params.d"`, `"sweep_axis(\"fit\", \"tv\")"`), its value range-checked; `max_lag` an exact integer.
+
 Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 = 1`); `weibull_pdf` `w_l = f(l + 1)` (density one lag on). `partition_by`, `order_by` (≥1), `field` (numeric) required; `frame` refused.
 
 ## Inputs

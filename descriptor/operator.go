@@ -237,6 +237,18 @@ type Param struct {
 	// probes every built-in param through the projection extractor.
 	// Omitted when false.
 	NamesColumn bool `json:"names_column,omitempty"`
+
+	// Expression is true when the value may also be a scalar-expression
+	// string instead of a number: evaluated ONCE before the operator
+	// runs (never per record) over literals, `params.<name>`, coef() /
+	// sweep_axis() over the request's bound models, lookup() /
+	// range_label() and the expression built-ins, and judged by the
+	// operator's own range rules as the number it yields (an "int"
+	// param's value must be an exact integer). Predict computes an
+	// expression over literals and params; one calling a request-bound
+	// function is listed under unresolved_scalars and judged at run
+	// time. Omitted when false: the param takes a literal only.
+	Expression bool `json:"expression,omitempty"`
 }
 
 // TestMeta describes a statistical test entry in the manifest. Tier-1 and
