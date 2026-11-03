@@ -253,7 +253,18 @@ func TestAxisExprSplice_ExtensionParamHidden(t *testing.T) {
 		t.Fatalf("PredictCompose errors %s, runtime %s", jsonOf(env.Errors), ce.Code)
 	}
 
-	feat := forEachCases()[1]
+	// The feature case by category, not position: the window case's
+	// `scale` is also a built-in window_param slot, which would refuse
+	// the splice whatever the extension's visibility.
+	var feat strictCase
+	for _, tc := range forEachCases() {
+		if tc.category == "feature" {
+			feat = tc
+		}
+	}
+	if feat.request == nil {
+		t.Fatal("forEachCases has no feature case")
+	}
 	item := func() *types.Request {
 		return withReqParams(feat.request(cohort, json.RawMessage(`{"scale":"params.k * {{k}}"}`)))
 	}
