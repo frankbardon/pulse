@@ -1,14 +1,14 @@
-//go:build heavy
-
 package service
 
 import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -67,9 +67,15 @@ func TestFilterPrecompute_ParallelDecode(t *testing.T) {
 		s := New(cfg)
 		s.SetDecodeWorkers(workers)
 		before := processing.FilterPrecomputeStats().EntryEvaluations
-		resp, err := s.Process(context.Background(), req(path))
+		ei := NewExecInfo(time.Now())
+		resp, err := s.Process(WithExecInfo(context.Background(), ei), req(path))
 		if err != nil {
 			t.Fatalf("%s workers=%d: %v", path, workers, err)
+		}
+		// A silent bail to the serial arm would bound the evaluations by
+		// entries alone and prove nothing about the workers.
+		if arm := ei.Snapshot().Arm; workers > 1 && arm != observe.ArmParallelDecode {
+			t.Fatalf("%s workers=%d: ran on arm %q, want %q", path, workers, arm, observe.ArmParallelDecode)
 		}
 		if resp.Components == nil || len(resp.Components.Filterers) != 3 {
 			t.Fatalf("%s workers=%d: filterer components missing", path, workers)

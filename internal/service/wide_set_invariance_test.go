@@ -24,7 +24,7 @@ import (
 //   - archive: the rows split unevenly (a 1-row and an empty shard)
 //     under ShardWorkers 1/2/3/8 and DecodeWorkers 7 ≡ the single-file
 //     twin (TestWideSetInvariance_Archive);
-//   - decode (heavy, wide_set_invariance_heavy_test.go): DecodeWorkers
+//   - decode (TestWideSetInvariance_BigFile): DecodeWorkers
 //     2/3/7/8 over an on-disk file above the parallel-decode threshold ≡
 //     serial.
 //
@@ -52,9 +52,9 @@ func writeWideSetRows(t *testing.T, cfg *fs.Config, path string, schema *encodin
 	writeWideSetCohort(t, cfg.Fs(), path, schema, payload.Bytes())
 }
 
-// newWideSetInvFixture writes the twin and the archive (hermetic); heavy
+// newWideSetInvFixture writes the twin and the archive (hermetic); big
 // adds the decode-threshold file on disk.
-func newWideSetInvFixture(t *testing.T, heavy bool) map[invariance.Layout]svcInvCohort {
+func newWideSetInvFixture(t *testing.T, big bool) map[invariance.Layout]svcInvCohort {
 	t.Helper()
 	schema, _ := wideSetParityCohort(t, 0)
 	mem := fs.NewMemMap()
@@ -73,7 +73,7 @@ func newWideSetInvFixture(t *testing.T, heavy bool) map[invariance.Layout]svcInv
 		invariance.File:    {mem, "twin.pulse"},
 		invariance.Archive: {mem, "archive.pulse"},
 	}
-	if heavy {
+	if big {
 		cfg, _, dir := svcInvDisk(t)
 		path := filepath.Join(dir, "wide_set_big.pulse")
 		writeWideSetRows(t, cfg, path, schema, 0, parallelDecodeRecordThreshold+4096)
@@ -106,10 +106,22 @@ func wideSetInvFamily(cohorts map[invariance.Layout]svcInvCohort, groups []invar
 	}
 }
 
-// TestWideSetInvariance_Archive is the fast-tier half of the wide-set
-// family; TestWideSetInvariance_Heavy adds the parallel-decode group.
+// TestWideSetInvariance_Archive is the small-fixture half of the wide-set
+// family; TestWideSetInvariance_BigFile adds the parallel-decode group.
 func TestWideSetInvariance_Archive(t *testing.T) {
 	t.Parallel()
 
 	invariance.Run(t, wideSetInvFamily(newWideSetInvFixture(t, false), []invariance.Group{invariance.ArchiveGroup()}))
+}
+
+// TestWideSetInvariance_BigFile is the big-fixture half of the wide-set
+// family: DecodeWorkers 2/3/7/8 over an on-disk set_u256 cohort above
+// the parallel-decode threshold ≡ serial, each parallel cell on its
+// parallel-decode arm (the archive group is
+// TestWideSetInvariance_Archive's).
+func TestWideSetInvariance_BigFile(t *testing.T) {
+	t.Parallel()
+
+	groups := []invariance.Group{invariance.DecodeGroup("decode", invariance.BigFile)}
+	invariance.Run(t, wideSetInvFamily(newWideSetInvFixture(t, true), groups))
 }

@@ -22,7 +22,7 @@ import (
 // layout's cohort, and one Process under a cell's worker knobs that
 // reports the arm it took. The families: matrix_invariance_test.go
 // (its own runner, for the CoMoment vehicle), wide_set_invariance_test.go,
-// time_zone_invariance_heavy_test.go, multiplicity_fold_invariance_test.go,
+// time_zone_invariance_test.go, multiplicity_fold_invariance_test.go,
 // attribute_slots_heavy_test.go, matrix_sem_ordinal_test.go.
 
 // svcInvCohort is one layout's cohort: the fs it lives on (a MemMap, or

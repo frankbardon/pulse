@@ -1,5 +1,3 @@
-//go:build heavy
-
 package service
 
 import (
@@ -17,7 +15,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestTimeZoneInvariance_Heavy is the zone family on the shared
+// TestTimeZoneInvariance is the zone family on the shared
 // worker-invariance harness: the parallel buffered decode arm
 // (DecodeWorkers 2/3/7/8 over a >threshold single-file cohort, mmap'd
 // off a real on-disk file — MemMapFs cannot reach it, so the fixture
@@ -29,7 +27,7 @@ import (
 // — parallel decode for the range operators, so that arm cannot
 // silently degrade to serial; buffered (serial) for the non-mergeable
 // GROUP_DATE, whatever DecodeWorkers says.
-func TestTimeZoneInvariance_Heavy(t *testing.T) {
+func TestTimeZoneInvariance(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
