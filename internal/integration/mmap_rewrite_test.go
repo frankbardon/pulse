@@ -74,14 +74,17 @@ func mmapCount(t *testing.T, p *pulse.Pulse, name string) int64 {
 
 // mmapRewriteCase is one atomic rewrite: setup writes its inputs under a
 // fresh DataDir, target is the single-file cohort the rewrite replaces
-// ("" for an archive rewrite), run performs it and check verifies the
-// result.
+// ("" for an archive rewrite), run performs it, check verifies the
+// result and refused is the code its rename refusal carries.
 type mmapRewriteCase struct {
 	name   string
 	target string
 	setup  func(t *testing.T, p *pulse.Pulse)
 	run    func(ctx context.Context, p *pulse.Pulse) error
 	check  func(t *testing.T, p *pulse.Pulse)
+	// refused is the code the rewrite's rename refusal carries when
+	// another reader holds a view of target (Windows).
+	refused perr.Code
 }
 
 func mmapRewriteCases() []mmapRewriteCase {
@@ -114,7 +117,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 	}
 	return []mmapRewriteCase{
 		{
-			name: "widen_set_field", target: "c.pulse", setup: one("c.pulse"),
+			name: "widen_set_field", target: "c.pulse", refused: perr.ENCODING_IO, setup: one("c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				_, err := p.WidenSetField(ctx, "c.pulse", "tags", "set_u16")
 				return err
@@ -130,7 +133,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 			},
 		},
 		{
-			name: "dedup_in_place", target: "c.pulse", setup: one("c.pulse"),
+			name: "dedup_in_place", target: "c.pulse", refused: perr.ENCODING_IO, setup: one("c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				_, err := p.Dedup(ctx, "c.pulse", pulse.DedupOptions{ElideConstants: true})
 				return err
@@ -138,7 +141,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 			check: countIs("c.pulse", mmapRewriteRows),
 		},
 		{
-			name: "materialize_overwrite", target: "c.pulse", setup: two("src.pulse", "c.pulse"),
+			name: "materialize_overwrite", target: "c.pulse", refused: perr.ENCODING_IO, setup: two("src.pulse", "c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				_, err := p.Materialize(ctx, &types.Request{
 					Cohort:     &types.Cohort{Filename: "src.pulse"},
@@ -149,7 +152,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 			check: countIs("c.pulse", mmapRewriteRows),
 		},
 		{
-			name: "materialize_in_place", target: "c.pulse", setup: one("c.pulse"),
+			name: "materialize_in_place", target: "c.pulse", refused: perr.ENCODING_IO, setup: one("c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				_, err := p.Materialize(ctx, &types.Request{
 					Cohort:     &types.Cohort{Filename: "c.pulse"},
@@ -160,7 +163,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 			check: countIs("c.pulse", mmapRewriteRows),
 		},
 		{
-			name: "builder_overwrite", target: "c.pulse", setup: one("c.pulse"),
+			name: "builder_overwrite", target: "c.pulse", refused: perr.ENCODING_IO, setup: one("c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				b, err := p.NewCohortBuilder(ctx, "c.pulse", mmapRewriteSchema(), pulse.CohortBuilderOptions{Overwrite: true})
 				if err != nil {
@@ -176,7 +179,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 			check: countIs("c.pulse", 1),
 		},
 		{
-			name: "filter_to_file_overwrite", target: "c.pulse", setup: two("src.pulse", "c.pulse"),
+			name: "filter_to_file_overwrite", target: "c.pulse", refused: perr.SERVICE_RESOURCE, setup: two("src.pulse", "c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				_, err := p.FilterToFile(ctx, "src.pulse", "c.pulse", "id < 10")
 				return err
@@ -184,7 +187,7 @@ func mmapRewriteCases() []mmapRewriteCase {
 			check: countIs("c.pulse", 10),
 		},
 		{
-			name: "filter_to_file_in_place", target: "c.pulse", setup: one("c.pulse"),
+			name: "filter_to_file_in_place", target: "c.pulse", refused: perr.SERVICE_RESOURCE, setup: one("c.pulse"),
 			run: func(ctx context.Context, p *pulse.Pulse) error {
 				_, err := p.FilterToFile(ctx, "c.pulse", "c.pulse", "id < 10")
 				return err
@@ -243,34 +246,104 @@ func mmapNewDataDir(t *testing.T) (*pulse.Pulse, string) {
 	return p, dir
 }
 
-// TestMmapRewrite_AfterMapEveryPath: every atomic rewrite succeeds right
+// mmapRewriteAfterMap runs the named case: the rewrite succeeds right
 // after Pulse read (and mapped) the cohort it replaces, and leaves no
 // staging file behind. On Windows, falsified by dropping the
 // UnmapViewOfFile from mmap_windows.go's cleanup (or the iterator's
-// Close): the rename over the still-mapped cohort is refused.
-func TestMmapRewrite_AfterMapEveryPath(t *testing.T) {
-	t.Parallel()
-
-	for _, c := range mmapRewriteCases() {
-		t.Run(c.name, func(t *testing.T) {
-			p, dir := mmapNewDataDir(t)
-			c.setup(t, p)
-			if c.target != "" {
-				mmapCount(t, p, c.target)
-			}
-			before := mmapDirListing(t, dir)
-			if err := c.run(context.Background(), p); err != nil {
-				t.Fatalf("rewrite after a mapped read: %v", err)
-			}
-			c.check(t, p)
-			after := mmapDirListing(t, dir)
-			for _, name := range after {
-				if filepath.Ext(name) != ".pulse" && filepath.Ext(name) != ".json" {
-					t.Errorf("rewrite left %q behind (before %v, after %v)", name, before, after)
-				}
-			}
-		})
+// Close): the rename over the still-mapped cohort is refused
+// (TestMmapHeldView_* shows that refusal). One top-level test per case
+// keeps each inside the fast tier's budget on the Windows leg.
+func mmapRewriteAfterMap(t *testing.T, name string) {
+	t.Helper()
+	var c *mmapRewriteCase
+	for _, k := range mmapRewriteCases() {
+		if k.name == name {
+			c = &k
+		}
 	}
+	if c == nil {
+		t.Fatalf("no rewrite case %q", name)
+	}
+	p, dir := mmapNewDataDir(t)
+	c.setup(t, p)
+	if c.target != "" {
+		mmapCount(t, p, c.target)
+	}
+	before := mmapDirListing(t, dir)
+	if err := c.run(context.Background(), p); err != nil {
+		t.Fatalf("rewrite after a mapped read: %v", err)
+	}
+	c.check(t, p)
+	after := mmapDirListing(t, dir)
+	for _, name := range after {
+		if filepath.Ext(name) != ".pulse" && filepath.Ext(name) != ".json" {
+			t.Errorf("rewrite left %q behind (before %v, after %v)", name, before, after)
+		}
+	}
+}
+
+// mmapRewriteCaseTests names every case's top-level test below;
+// TestMmapRewrite_EveryCaseHasATest keeps the two lists in step.
+var mmapRewriteCaseTests = []string{
+	"widen_set_field", "dedup_in_place", "materialize_overwrite", "materialize_in_place",
+	"builder_overwrite", "filter_to_file_overwrite", "filter_to_file_in_place",
+	"build_then_drop_index", "shard_add_remove_compact",
+}
+
+func TestMmapRewrite_EveryCaseHasATest(t *testing.T) {
+	t.Parallel()
+	var names []string
+	for _, c := range mmapRewriteCases() {
+		names = append(names, c.name)
+	}
+	if !slices.Equal(names, mmapRewriteCaseTests) {
+		t.Errorf("rewrite cases %v, but the per-case tests cover %v", names, mmapRewriteCaseTests)
+	}
+}
+
+func TestMmapRewrite_AfterMapWiden(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "widen_set_field")
+}
+
+func TestMmapRewrite_AfterMapDedup(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "dedup_in_place")
+}
+
+func TestMmapRewrite_AfterMapMaterializeOverwrite(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "materialize_overwrite")
+}
+
+func TestMmapRewrite_AfterMapMaterializeInPlace(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "materialize_in_place")
+}
+
+func TestMmapRewrite_AfterMapBuilderOverwrite(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "builder_overwrite")
+}
+
+func TestMmapRewrite_AfterMapFilterToFileOverwrite(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "filter_to_file_overwrite")
+}
+
+func TestMmapRewrite_AfterMapFilterToFileInPlace(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "filter_to_file_in_place")
+}
+
+func TestMmapRewrite_AfterMapIndexBuildDrop(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "build_then_drop_index")
+}
+
+func TestMmapRewrite_AfterMapShardAdmin(t *testing.T) {
+	t.Parallel()
+	mmapRewriteAfterMap(t, "shard_add_remove_compact")
 }
 
 // TestFilterToFileRequest_RenameRefusalIsCoded: when the publishing

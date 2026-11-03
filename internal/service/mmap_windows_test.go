@@ -172,22 +172,27 @@ func TestMmapWindows_ParallelDecodeContextEngages(t *testing.T) {
 	}
 }
 
-// TestMmapWindows_HeldViewOutcome records what Windows does to a rename
+// TestMmapWindows_HeldViewOutcome pins what Windows does to a rename
 // over, and a delete of, a file whose view is still mapped — the
-// situation of an external reader holding a view while Pulse rewrites
-// the cohort — for each share mode the view's file could have been
-// opened with (Pulse's own mmapShareMode; Go's os.Open default; a
-// read-only opener).
+// situation of another reader holding a view while Pulse rewrites the
+// cohort — for each share mode the view's file could have been opened
+// with (Pulse's own mmapShareMode; Go's os.Open default; a read-only
+// opener). A rename over it (MoveFileEx, what os.Rename and every afero
+// rename call) is refused in every mode, so a rewrite fails with its
+// coded rename error; a delete succeeds only when the view's file
+// allows FILE_SHARE_DELETE (Pulse's views do), and the view keeps the
+// old bytes either way.
 func TestMmapWindows_HeldViewOutcome(t *testing.T) {
 	t.Parallel()
 
 	modes := []struct {
-		name  string
-		share uint32
+		name        string
+		share       uint32
+		removeLives bool
 	}{
-		{"pulse_read_write_delete", mmapShareMode},
-		{"go_default_read_write", windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE},
-		{"read_only", windows.FILE_SHARE_READ},
+		{"pulse_read_write_delete", mmapShareMode, true},
+		{"go_default_read_write", windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE, false},
+		{"read_only", windows.FILE_SHARE_READ, false},
 	}
 	for _, m := range modes {
 		t.Run(m.name, func(t *testing.T) {
@@ -202,14 +207,20 @@ func TestMmapWindows_HeldViewOutcome(t *testing.T) {
 			next := filepath.Join(dir, "next.pulse")
 			winWriteFile(t, next, []byte("new"))
 			renameErr := os.Rename(next, path)
-			viewIntact := bytes.Equal(data, old)
 			removeErr := os.Remove(path)
+			viewIntact := bytes.Equal(data, old)
 			if err := cleanup(); err != nil {
 				t.Errorf("cleanup: %v", err)
 			}
-			t.Logf("held view (%s): rename over = %v; view still old bytes = %v; remove = %v",
-				m.name, renameErr, viewIntact, removeErr)
-			_ = os.Remove(next)
+			if renameErr == nil {
+				t.Error("a rename over a mapped file succeeded; the documented contract says Windows refuses it")
+			}
+			if (removeErr == nil) != m.removeLives {
+				t.Errorf("remove of a mapped file = %v, want success %v", removeErr, m.removeLives)
+			}
+			if !viewIntact {
+				t.Error("the view stopped reading the old bytes")
+			}
 		})
 	}
 }

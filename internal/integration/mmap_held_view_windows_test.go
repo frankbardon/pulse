@@ -66,61 +66,71 @@ func winHoldView(t *testing.T, path string, share uint32) ([]byte, func()) {
 	return data, release
 }
 
-// TestMmapHeldView_RewriteIsSuccessOrCoded: for every single-file
-// rewrite, with the target mapped by a foreign reader (read-only share,
-// and the share mode Pulse's own views use), the rewrite either succeeds
-// or fails with a *errors.CodedError; on failure the cohort's bytes are
-// unchanged and the directory holds exactly what it held before.
-func TestMmapHeldView_RewriteIsSuccessOrCoded(t *testing.T) {
+// TestMmapHeldView_RewriteRefusedCoded*: while a foreign reader maps
+// the cohort a rewrite replaces, Windows refuses the publishing rename
+// (MoveFileEx: "Access is denied") whatever share mode the reader's
+// file was opened with — Pulse's own, which allows delete, included. So
+// the rewrite fails with its rename's coded error (ENCODING_IO, or
+// SERVICE_RESOURCE for filter-to-file's stage) — never a raw OS error —
+// the cohort keeps its bytes, the directory holds exactly what it held
+// before, and the reader's view still reads the old bytes. Recorded
+// decision: .claude/reference/byte-layout/mmap-and-rewrites.md.
+//
+// Falsified by wrapping a rename failure uncoded (widen.go's
+// WrapCodedError as fmt.Errorf), or by dropping a rename's stage
+// removal (the listing check).
+func TestMmapHeldView_RewriteRefusedCodedForeignView(t *testing.T) {
 	t.Parallel()
+	mmapHeldViewRewrites(t, windows.FILE_SHARE_READ)
+}
 
-	shares := []struct {
-		name  string
-		share uint32
-	}{
-		{"foreign_read_only", windows.FILE_SHARE_READ},
-		{"pulse_share_mode", windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE | windows.FILE_SHARE_DELETE},
-	}
-	for _, sh := range shares {
-		for _, c := range mmapRewriteCases() {
-			if c.target == "" {
-				continue // archives and sidecars are never mapped
-			}
-			t.Run(sh.name+"/"+c.name, func(t *testing.T) {
-				p, dir := mmapNewDataDir(t)
-				c.setup(t, p)
-				target := filepath.Join(dir, c.target)
-				before, err := os.ReadFile(target)
-				if err != nil {
-					t.Fatal(err)
-				}
-				listing := mmapDirListing(t, dir)
-				view, release := winHoldView(t, target, sh.share)
+func TestMmapHeldView_RewriteRefusedCodedPulseShareMode(t *testing.T) {
+	t.Parallel()
+	mmapHeldViewRewrites(t, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE)
+}
 
-				err = c.run(context.Background(), p)
-				viewIntact := bytes.Equal(view, before)
-				release()
-
-				if err == nil {
-					t.Logf("held view (%s) %s: rewrite succeeded; the view kept the old bytes = %v", sh.name, c.name, viewIntact)
-					return
-				}
-				var ce *perr.CodedError
-				if !stderrors.As(err, &ce) {
-					t.Fatalf("rewrite under a held view returned an uncoded error: %v", err)
-				}
-				t.Logf("held view (%s) %s: refused with %s: %v", sh.name, c.name, ce.Code, err)
-				after, rerr := os.ReadFile(target)
-				if rerr != nil {
-					t.Fatal(rerr)
-				}
-				if !bytes.Equal(after, before) {
-					t.Errorf("a refused rewrite changed the cohort (%d -> %d bytes)", len(before), len(after))
-				}
-				if got := mmapDirListing(t, dir); !slices.Equal(got, listing) {
-					t.Errorf("a refused rewrite left the directory %v, want %v", got, listing)
-				}
-			})
+func mmapHeldViewRewrites(t *testing.T, share uint32) {
+	t.Helper()
+	for _, c := range mmapRewriteCases() {
+		if c.target == "" {
+			continue // archives and sidecars are never mapped
 		}
+		t.Run(c.name, func(t *testing.T) {
+			p, dir := mmapNewDataDir(t)
+			c.setup(t, p)
+			target := filepath.Join(dir, c.target)
+			before, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			listing := mmapDirListing(t, dir)
+			view, release := winHoldView(t, target, share)
+
+			err = c.run(context.Background(), p)
+			viewIntact := bytes.Equal(view, before)
+			release()
+
+			var ce *perr.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != c.refused {
+				t.Fatalf("rewrite under a held view = %v, want a %s refusal", err, c.refused)
+			}
+			if !viewIntact {
+				t.Error("the held view no longer reads the cohort's bytes")
+			}
+			after, rerr := os.ReadFile(target)
+			if rerr != nil {
+				t.Fatal(rerr)
+			}
+			if !bytes.Equal(after, before) {
+				t.Errorf("a refused rewrite changed the cohort (%d -> %d bytes)", len(before), len(after))
+			}
+			if got := mmapDirListing(t, dir); !slices.Equal(got, listing) {
+				t.Errorf("a refused rewrite left the directory %v, want %v", got, listing)
+			}
+			// Released, the same rewrite goes through.
+			if err := c.run(context.Background(), p); err != nil {
+				t.Fatalf("rewrite after the view was released: %v", err)
+			}
+		})
 	}
 }
