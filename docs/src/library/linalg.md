@@ -162,8 +162,8 @@ Each function is a line-for-line port of the Go 1.26 pure-Go source with every p
 **How it is enforced:**
 
 - **Two repo-wide gates in `internal/testutil/fmagate`.** They scan every non-test package except `cmd/` and `internal/cli`, and fail on any site that the reviewed allowlist `testdata/numeric-allowlist.txt` does not excuse with a reason. They also fail on a stale allowlist entry.
-  - `TestFMAReport_RepoWide` (heavy tier) finds products the compiler fuses.
-  - `TestBannedMathReport_RepoWide` (fast tier) finds banned stdlib transcendentals.
+  - `TestCrossArchFMAReport_RepoWide` (heavy tier) finds products the compiler fuses.
+  - `TestCrossArchBannedMath_RepoWide` (fast tier) finds banned stdlib transcendentals.
 - **Per-package `*_NoFMAContraction` gates** in `detmath`, `statdist`, `optimize`, `mcmc`, `sem`, `distlagparams`, `regmmm` and `mmmfixture`.
 - **A fingerprint golden.** `internal/fingerprint` pins the exact bits of covered figures, end to end and from direct calls, in the normal test tier. The golden is generated on arm64, and CI's linux/amd64 run checks it.
 - **A tolerance golden.** `TestDecomposition_Tolerance` pins the figures that are not covered (below) at 1e-12 relative.

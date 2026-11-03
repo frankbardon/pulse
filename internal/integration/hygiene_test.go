@@ -145,6 +145,7 @@ func TestClaudeMdMentionsAllNonSkippableGates(t *testing.T) {
 		"TestPredictNo",
 		"TestDescriptorNo",
 		"TestPerPackageCoverage",
+		"TestCrossArch",
 	}
 
 	// Find all Go test files using find (works even if files are untracked).
