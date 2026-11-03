@@ -469,6 +469,14 @@ func readFieldDescriptors(r io.Reader, layoutOnly bool) (*Schema, error) {
 			if err := binary.Read(r, binary.LittleEndian, &f.Scale); err != nil {
 				return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading decimal scale")
 			}
+			// A scale past MaxDecimalPrecision has no power-of-ten
+			// divisor: no writer stores one, and decoding a value at it
+			// would fault, so the schema block is corrupt.
+			if f.Scale > MaxDecimalPrecision {
+				return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+					"decimal scale exceeds the maximum precision",
+					map[string]any{"field": f.Name, "reason": "decimal_scale_out_of_range", "scale": int(f.Scale), "max": MaxDecimalPrecision})
+			}
 		}
 
 		// Dictionary for types that carry one (categorical_* and set_*).

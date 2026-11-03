@@ -108,6 +108,10 @@ func (d *Dictionary) WriteTo(w io.Writer) (int64, error) {
 	return written, nil
 }
 
+// dictPreallocCap bounds the entries Dictionary.ReadFrom preallocates
+// for from the declared count before any entry is read.
+const dictPreallocCap = 4096
+
 // ReadFrom deserializes a dictionary from r, replacing current contents.
 // Format: u32 count + (u16 strlen + utf8 bytes) x count
 //
@@ -129,8 +133,13 @@ func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
 	}
 	count := binary.LittleEndian.Uint32(hdr[:])
 
-	d.values = make([]string, 0, count)
-	d.lookup = make(map[string]uint32, count)
+	// The count is a length the input merely DECLARES: preallocate for
+	// at most dictPreallocCap entries and let an honest larger
+	// dictionary grow as it is read, so a forged count costs nothing
+	// before the stream runs dry.
+	hint := min(count, dictPreallocCap)
+	d.values = make([]string, 0, hint)
+	d.lookup = make(map[string]uint32, hint)
 
 	if count == 0 {
 		return read, nil
@@ -141,7 +150,7 @@ func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
 	// from a heuristic initial capacity of 64 bytes per entry (typical for
 	// short categorical labels).
 	const avgBytesPerEntry = 64
-	bufCap := max(int(count)*avgBytesPerEntry, 256)
+	bufCap := max(int(hint)*avgBytesPerEntry, 256)
 	buf := make([]byte, 0, bufCap)
 
 	var lenBuf [2]byte
