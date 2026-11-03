@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
 	"github.com/frankbardon/pulse/internal/optsolve"
+	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/types"
 )
@@ -67,8 +68,10 @@ func (s *Service) optimizeLoader(refs model.Refs) (*model.Loaded, *errors.CodedE
 // and solves it. A bound or start that reads a Compose fit that failed
 // on its data fails the block alone with the fit's code, exactly as the
 // objective's read does; any other Compile refusal is fatal.
-func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblock.Env, set *model.Set) (*optsolve.Outcome, error) {
-	c, cerr := optblock.Compile(spec, i, env, s.extensions.ExprBoundWithModels(set))
+func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblock.Env, set *model.Set, results *resultcall.Reader) (*optsolve.Outcome, error) {
+	bound := s.extensions.ExprBoundWithModels(set)
+	bound.Result = results.Func
+	c, cerr := optblock.Compile(spec, i, env, bound)
 	if cerr != nil {
 		if se, ok := optsolve.FailedFit(cerr); ok {
 			return &optsolve.Outcome{Result: types.OptimizeResult{Name: spec.Name, Direction: spec.Direction, Error: se}, Failed: true}, nil
@@ -82,7 +85,9 @@ func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblo
 // run (fits: the batch's bound set — the registered populations plus
 // every fit), in declaration order, each against its own compiled
 // expressions: coef() over fits plus the block's loaded `models`
-// (loaded, from optimizeRefusal — never read twice). No record is read.
+// (loaded, from optimizeRefusal — never read twice), result() over the
+// slots the result pre-phase already ran (responses; runComposeResultPhase).
+// No record is read here.
 //
 // A block that fails on its numbers — no start converged, the
 // constraints could not be met, or it reads a Compose fit that failed
@@ -92,7 +97,7 @@ func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblo
 // the block's own code instead. Any other fault is fatal. Serial and
 // ComposeParallel call it identically, so both answer the same bytes.
 // No block returns all nils.
-func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *composeExpansion, fits *model.Set, loaded []*model.Loaded) ([]types.OptimizeResult, []*types.ResponseWarning, error) {
+func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *composeExpansion, fits *model.Set, loaded []*model.Loaded, responses []*types.Response) ([]types.OptimizeResult, []*types.ResponseWarning, error) {
 	if len(composed.Optimize) == 0 {
 		return nil, nil, nil
 	}
@@ -107,7 +112,9 @@ func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *compo
 		Outer:      model.WithinCatalog(s.populationCatalog(), catalog),
 		Load:       s.optimizeLoader,
 		Loaded:     loaded,
+		Results:    resultcall.CatalogOf(composed.Requests),
 	}
+	results := &resultcall.Reader{Catalog: env.Results, Responses: responses}
 	out := make([]types.OptimizeResult, len(composed.Optimize))
 	var warnings []*types.ResponseWarning
 	for i := range composed.Optimize {
@@ -119,7 +126,7 @@ func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *compo
 				return nil, nil, descx.RefusalAt(err, "optimize", i)
 			}
 		}
-		res, err := s.solveOptimizeBlock(spec, i, env, set)
+		res, err := s.solveOptimizeBlock(spec, i, env, set, results)
 		if err != nil {
 			return nil, nil, err
 		}

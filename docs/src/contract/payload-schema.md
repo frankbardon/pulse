@@ -1521,10 +1521,13 @@ tolerance, max_iterations}`: a constrained optimisation solved once,
 after the fits, with no record data. `variables` are `{name, lower,
 upper, start}`, each bound an `OptimizeBound` — a number or a
 scalar expression string read once before the solve (literals,
-`params.<name>`, `coef()` / `sweep_axis()` over the batch fits and the
-block's `models`, `lookup()` and the built-ins; no variable, no record
-field), `"params.<name>"` the simplest, yielding a finite number
-(`start` optional; the midpoint when absent). `objective` and every `constraints[i].expr`
+`params.<name>`, `coef()` / `sweep_axis()` / `response()` over the batch
+fits and the block's `models`, `result(slot, aggregation)` over an
+ungrouped Compose slot, `lookup()` and the built-ins; no variable, no
+record field), `"params.<name>"` the simplest, yielding a finite number
+(`start` optional; the midpoint when absent). A slot `result()` reads
+runs once, after the fits and before the blocks, keeping its place in
+`responses`; a bad reference is `PULSE_RESULT_INVALID`. `objective` and every `constraints[i].expr`
 (type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
 variables, `params.<name>`, `coef()` over the batch's `fits` and the
 built-ins; `direction` is `maximize` or `minimize` (required); `starts`

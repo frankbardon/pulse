@@ -41,7 +41,7 @@ Top-level `params` merge into every slot and fit: [`request-params`](request-par
 
 ## Order-preserving slot dispatch
 
-The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in. Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
+The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in (a slot an optimize block's `result()` reads runs first, still once: [`compose-optimize`](compose-optimize.md)). Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
 
 ```jsonc
 {
@@ -57,7 +57,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 
 Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
 
-Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Omitting labels keeps wire bytes and `CanonicalHash` identical to label-free callers.
+Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs.
 
 ## Parallel execution
 
@@ -83,7 +83,7 @@ Every slot's `components` is emitted independently — the universal floor (`{n,
 
 ## Validate before executing
 
-`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked when the fold runs, after the slots — a mislabelled overlay costs the full batch; check every `SlotLabel` against your labels.
+`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked only after the slots run: check every `SlotLabel` against your labels.
 
 ## See
 

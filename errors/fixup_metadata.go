@@ -5022,6 +5022,22 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_RESULT_INVALID: {
+		Message: "A result(slot, aggregation) call cannot be read. result() reads one ungrouped aggregation value off a Compose slot's response, and only inside a Compose `optimize` block (its bounds, starts, objective and constraints): the slot runs in a pre-phase before the blocks, once, and keeps its normal place in `responses`. Statically, refused by predict and the runtime alike before anything runs: reason `out_of_scope` — the call sits anywhere else (a slot, a fit request, a window, extension or constant param, an inline model); `args_not_literal` — an argument is not a string literal; `slot_unknown` — no slot carries the label (the slot labels under `available`; an unlabelled slot is `request_<n>`); `aggregation_unknown` — the slot has no aggregation with that label (its labels under `available`); `grouped` — the slot has groups or a crosstab, so there is no single value. At run time: `null` — the value is undefined (no row reached it); `not_numeric` — it is not a number (its kind under `type`); `not_finite` — it is infinite (`value`). The slot is under `slot`, the label under `aggregation` and, located at a block, the block under `optimize` and the path under `field`. Predict lists a bound reading result() under `unresolved_scalars`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "variables", "*", "upper"},
+				Hint:     "Name an ungrouped Compose slot by its label and one of its aggregation labels, both as string literals, inside an optimize block.",
+				Examples: []any{`result("current", "spend_tv") * params.upper_share`},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"requests", "*", "filterers"},
+				Hint:   "For a null value, widen the slot's filters so at least one row reaches the aggregation, or bound the variable with a literal or a params expression instead.",
+			},
+		},
+	},
 	PULSE_MATRIX_SINGULAR: {
 		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`. An operator whose other outputs stay defined may raise it as a per-matrix WARNING instead, naming the figures it nulls under `outputs`.",
 		Fixups: []Fixup{

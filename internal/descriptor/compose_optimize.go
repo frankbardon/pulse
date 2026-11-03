@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
+	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -24,7 +25,9 @@ import (
 // reads a block's `models` files. Predict (validateComposeExpanded) and
 // the runtime (Service.compose / composeParallel) call it at the same
 // point, right after model.CheckFits, so both refuse the same block
-// identically. It returns each block's decoded `models` files
+// identically. Every result(slot, aggregation) call is judged against
+// the batch's effective slots (resultcall.CatalogOf over req.Requests,
+// sweep and banner slots included). It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
 // batch declares no block.
 func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
@@ -53,6 +56,7 @@ func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions
 		Tables:     tables,
 		Outer:      model.WithinCatalog(outer, fits),
 		Load:       load,
+		Results:    resultcall.CatalogOf(req.Requests),
 	})
 }
 

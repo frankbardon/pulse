@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/types"
 )
@@ -124,6 +125,36 @@ func TestEval_ResponseIsRequestBound(t *testing.T) {
 	v, r = scalarslot.Eval(`response("mmm", "tv", params.tv) * 2`, scalarslot.Real, env, bound, true)
 	if r != nil || !v.Resolved || v.Number != 3 {
 		t.Fatalf("run Eval = %+v, %v; want 3", v, r)
+	}
+}
+
+// TestEval_ResultInScopeOnlyWithACatalog: without Env.Results (every
+// scalar slot but an optimize block's) a result() call is
+// PULSE_RESULT_INVALID out_of_scope — never an undeclared-function
+// compile error; with one it is a request-bound read, unresolved on a
+// declaration-only compile, its slot and aggregation judged, and it
+// runs on the bound reader.
+func TestEval_ResultInScopeOnlyWithACatalog(t *testing.T) {
+	t.Parallel()
+
+	env := testEnv(t)
+	_, r := scalarslot.Eval(`result("current", "tv") * params.share`, scalarslot.Real, env, env.Declared(), false)
+	if r == nil || r.Coded == nil || r.Coded.Code != errors.PULSE_RESULT_INVALID || r.Coded.Details["reason"] != resultcall.ReasonOutOfScope {
+		t.Fatalf("out of scope: %+v", r)
+	}
+	env.Results = resultcall.CatalogOf([]*types.Request{{Label: "current", Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "spend_tv", Label: "tv"}}}})
+	v, r := scalarslot.Eval(`result("current", "tv") * params.share`, scalarslot.Real, env, env.Declared(), false)
+	if r != nil || v.Resolved || !reflect.DeepEqual(v.Reads, []string{"result"}) {
+		t.Fatalf("declared: %+v, %v; want unresolved reading result", v, r)
+	}
+	_, r = scalarslot.Eval(`result("current", "radio")`, scalarslot.Real, env, env.Declared(), false)
+	if r == nil || r.Coded == nil || r.Coded.Details["reason"] != resultcall.ReasonAggregationUnknown {
+		t.Fatalf("unknown aggregation: %+v", r)
+	}
+	bound := exprenv.Bound{Result: func(...any) (any, error) { return 800.0, nil }}
+	v, r = scalarslot.Eval(`result("current", "tv") * params.share`, scalarslot.Real, env, bound, true)
+	if r != nil || !v.Resolved || v.Number != 200 {
+		t.Fatalf("run Eval = %+v, %v; want 200", v, r)
 	}
 }
 
@@ -246,6 +277,7 @@ func TestInlineNumber(t *testing.T) {
 		{"params.share", true, scalarslot.ReasonNotInteger, ""},
 		{`"text"`, false, scalarslot.ReasonNotNumeric, ""},
 		{"params.missing", false, "", errors.PULSE_PARAMS_UNDECLARED},
+		{`result("current", "tv")`, false, "", errors.PULSE_RESULT_INVALID},
 	} {
 		_, r := scalarslot.InlineNumber(params, c.src, c.integer)
 		switch {

@@ -245,9 +245,17 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
-	// The optimize blocks, once the fits are bound and before any slot:
-	// they read no record (runComposeOptimize).
-	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded)
+	// The optimize blocks, once the fits are bound and before every slot
+	// the result pre-phase did not run: they read no record
+	// (runComposeOptimize).
+	// The result pre-phase: every slot a block's result() reads runs
+	// now, once, before the blocks (runComposeResultPhase — ran marks
+	// it for the slot phase below).
+	ran, err = runComposeResultPhase(composed, n, ran, models, pool)
+	if err != nil {
+		return nil, err
+	}
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded, responses)
 	if err != nil {
 		return nil, err
 	}

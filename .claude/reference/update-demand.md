@@ -25,7 +25,7 @@ Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen
 | Export / convert / `Materialize` (its `Request.Output` slot included), transport compression, a registered I/O format, `CohortWriter` / `CohortValidator`, the `.sav` writer, SPSS fidelity | `update-demand/io-export.md` |
 | `Request.Vectors`, `Request.Matrices` / `Response.Matrices`, a `MAT_*` operator | `update-demand/vectors-and-matrices.md` (+ `.claude/reference/matrix-and-vectors.md`) |
 | `ComposedResponse`, sweeps, banners, item `for_each`, ranking, `fits`, model files / `save`, `models`, `populations`, regression `conf_level` / `covariance` | `update-demand/compose.md` |
-| The Compose `optimize` block, `ComposedResponse.optimizations`, `internal/optblock`, `capability:compose_optimize` | `update-demand/compose-optimize.md` |
+| The Compose `optimize` block, `ComposedResponse.optimizations`, `internal/optblock`, `result()` and its pre-phase, `capability:compose_optimize` | `update-demand/compose-optimize.md` |
 | A `fits` entry's `from_sweep` (sweep-bound fits), `model.CheckFitsIn` / `SweepFitRequest`, `capability:compose_sweep_bind`, `sweep_axis()` / `response()` | `update-demand/compose-sweep-bind.md` |
 | `Request.Overlays` / `Response.Overlays`, pairwise / panel params, the Compose overlay fold, overlay error codes, `OverlayLayer.Warnings` | `update-demand/overlays.md` |
 | Facet, ProcessChain, joins, crosstab and fusion, `DecodeWorkers`, grouped tier-1 tests, time zones / `internal/temporal`, `Request.Params` | `update-demand/engine-modes.md` (+ `.claude/reference/execution-modes.md`) |

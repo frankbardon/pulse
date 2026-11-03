@@ -14,8 +14,9 @@
 //   - the request-bound functions the caller's exprenv.Bound declares:
 //     coef(fit, term[, stat]), sweep_axis(fit, axis) and
 //     response(fit, channel, spend) over Env.Fits,
-//     lookup() / range_label() over the instance's tables, and the
-//     embedder's ExprFunctions.
+//     lookup() / range_label() over the instance's tables, the
+//     embedder's ExprFunctions and — in an optimize block only, with
+//     Env.Results — result(slot, aggregation) over the Compose slots.
 //
 // No identifier other than params is in reach: there is no record, and
 // no decision variable.
@@ -48,6 +49,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
+	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -102,6 +104,11 @@ type Env struct {
 	// registered LookupTable (lookup() is declared).
 	Extensions []string
 	Lookup     bool
+	// Results are the Compose slots result(slot, aggregation) reads
+	// (internal/resultcall): set only for an optimize block. Nil puts
+	// result() out of scope — every other scalar slot refuses a call
+	// with PULSE_RESULT_INVALID reason out_of_scope.
+	Results *resultcall.Catalog
 }
 
 // Declared is the declaration-only bound over env — every request-bound
@@ -115,6 +122,9 @@ func (env Env) Declared() exprenv.Bound {
 	if env.Lookup {
 		b.Lookup = exprenv.Placeholder
 	}
+	if env.Results != nil {
+		b.Result = exprenv.Placeholder
+	}
 	return b
 }
 
@@ -124,6 +134,9 @@ func (env Env) boundFuncs() map[string]bool {
 	out := map[string]bool{exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.ResponseFunc: true, exprenv.RangeLabelFunc: true, exprenv.LookupFunc: true}
 	for _, n := range env.Extensions {
 		out[n] = true
+	}
+	if env.Results != nil {
+		out[exprenv.ResultFunc] = true
 	}
 	return out
 }
@@ -197,6 +210,12 @@ func Compile(src string, kind Kind, env Env, bound exprenv.Bound) (*Program, *Re
 				What:    "reads " + strconv.Quote(ref) + ", which is not params.<name>; a scalar expression reads only literals, params.<name> and functions",
 				Details: map[string]any{"identifier": ref}}
 		}
+	}
+	// result() before the compile: out of reach (nil Results) it is
+	// refused precisely, never an undeclared-function compile error;
+	// in reach, its slot and aggregation are judged statically.
+	if cerr := resultcall.Refusal(src, env.Results); cerr != nil {
+		return nil, &Refusal{Coded: cerr}
 	}
 	bound.Params = env.Params
 	// An empty declared env makes every name the expression reads or

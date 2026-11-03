@@ -1995,7 +1995,7 @@ func optimizeSchemaBase() map[string]any {
 			"description": d,
 			"oneOf": []any{
 				map[string]any{"type": "number"},
-				map[string]any{"type": "string", "minLength": 1, "description": "A scalar expression over literals, params.<name>, coef() / sweep_axis() / response() and the built-ins, e.g. \"params.current_tv * params.lower_share\"."},
+				map[string]any{"type": "string", "minLength": 1, "description": "A scalar expression over literals, params.<name>, coef() / sweep_axis() / response(), result(slot, aggregation) over an ungrouped Compose slot and the built-ins, e.g. \"params.current_tv * params.lower_share\"."},
 			},
 		}
 	}

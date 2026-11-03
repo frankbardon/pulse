@@ -28,6 +28,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 - **Item fan-out** (`for_each` on `Window` / `Feature` / `Attribute`) — one item expanded in place over parameter axes before any other check; section below. `skills/item-fan-out.md`.
 - **Compose fits** (`ComposedRequest.Fits`, `ComposedResponse.Fits`) — a pre-pass that fits each named one-regression request ONCE before any slot and binds the result into every slot by name; section below. `skills/compose-fits.md`.
 - **Scalar-expression slots** (an optimize bound / start; a `WIN_DISTRIBUTED_LAG` / `WIN_EWMA` scalar param, pre-resolved by `internal/windowscalar`) — a number or an expression evaluated ONCE before execution by `internal/scalarslot`; predict lists a model-dependent one under `unresolved_scalars`. `skills/compose-optimize.md`, `skills/op-win-distributed-lag.md`.
+- **Result pre-phase** (`result(slot, aggregation)` in an optimize block) — the slots it reads run once after the fits and before the blocks; section below. `skills/compose-optimize.md`.
 - **Compose banner** (`ComposedRequest.Banner`, `ComposedResponse.Banner`) — Compose sugar: sections × column groups (+ Total) expanded into crosstab slots and stitched back with per-block letters; section below. `skills/compose-banner.md`.
 
 ## Section map
@@ -35,7 +36,8 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 | Section (pre-split heading) | Slice |
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
-| Parallel Compose; Compose fits; Compose banner; Item fan-out (`for_each`) | `execution-modes/compose.md` |
+| Compose fits; Result pre-phase | `execution-modes/compose.md` |
+| Parallel Compose; Compose banner; Item fan-out (`for_each`) | `execution-modes/compose-parallel-banner.md` |
 | Scalar-expression slots (`internal/scalarslot`, `internal/windowscalar` window params, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |
 | Parallel shards; Blocked merge (`processing.BlockMerger`) | `execution-modes/shards-and-merge.md` |
 | Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Post-window attributes (transformed predictors, U57); Windows-first (mmm-followups E4); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/filters-and-expressions.md` |

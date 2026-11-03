@@ -16,6 +16,9 @@
 //   - the batch params as params.<name> (exprenv.Bound.Params, folded);
 //   - coef(fit, term[, stat]) over the batch's `fits` — every
 //     all-literal call judged statically by model.CheckCoef;
+//   - result(slot, aggregation) — an ungrouped aggregation of a Compose
+//     slot, run in the result pre-phase before any block (Env.Results;
+//     ResultSlots names the slots);
 //   - the expression built-ins (hill(), exp(), …), range_label(), the
 //     embedder's ExprFunctions and, with a registered LookupTable,
 //     lookup().
@@ -51,6 +54,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
@@ -115,6 +119,11 @@ type Env struct {
 	// runtime's loaders run the same rules. Nil refuses any file as
 	// unreadable.
 	Load Loader
+	// Results are the Compose slots result(slot, aggregation) reads
+	// (resultcall.CatalogOf over the batch's effective slots): every
+	// literal call is judged against them; nil puts result() out of
+	// scope (PULSE_RESULT_INVALID out_of_scope).
+	Results *resultcall.Catalog
 	// Loaded, when set, are the files an earlier Check already read,
 	// index-aligned with the blocks (nil where a block loads none):
 	// Compile reuses them instead of reading again, so the runtime
@@ -225,7 +234,7 @@ func placeholderBound(env Env) exprenv.Bound {
 // scalar is env as a scalar slot's environment (its Fits the block's,
 // models included, once Compile has set them).
 func (env Env) scalar() scalarslot.Env {
-	return scalarslot.Env{Params: env.Params, Fits: env.Fits, Tables: env.Tables, Extensions: env.Extensions, Lookup: env.Lookup}
+	return scalarslot.Env{Params: env.Params, Fits: env.Fits, Tables: env.Tables, Extensions: env.Extensions, Lookup: env.Lookup, Results: env.Results}
 }
 
 // checkNames is the block-name rule across the list: every block named,
@@ -441,12 +450,12 @@ func checkVariableName(spec *types.OptimizeSpec, i int, vat, name string, reserv
 
 // reservedNames are the identifiers a decision variable may not take:
 // params, $env, every expression function in reach (the reserved
-// built-ins, coef, sweep_axis, response, lookup, range_label, the set
+// built-ins, coef, sweep_axis, response, result, lookup, range_label, the set
 // helpers, the embedder's
 // functions)
 // and expr-lang's own built-ins.
 func reservedNames(env Env) map[string]bool {
-	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.ResponseFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true}
+	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.ResponseFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true, exprenv.ResultFunc: true}
 	for _, n := range exprenv.Names() {
 		out[n] = true
 	}
@@ -572,6 +581,9 @@ func compileExpr(spec *types.OptimizeSpec, i int, field, src string, names []str
 				map[string]any{"identifier": ref, "valid": slices.Clone(names)})
 		}
 	}
+	if cerr := resultcall.Refusal(src, env.Results); cerr != nil {
+		return nil, locate(cerr, i, spec.Name, field)
+	}
 	prog, err := expr.Compile(src, opts...)
 	if err != nil {
 		reason := exprenv.CompileReason(err)
@@ -601,6 +613,29 @@ func numericKind(k reflect.Kind) bool {
 		return true
 	}
 	return false
+}
+
+// ResultSlots are the indices of the Compose slots the blocks' literal
+// result() calls read — in a bound, a start, the objective or a
+// constraint — sorted and unique: the slots the result pre-phase runs
+// before any block (resultcall.Slots). Nil when no block reads one.
+func ResultSlots(specs []types.OptimizeSpec, cat *resultcall.Catalog) []int {
+	var srcs []string
+	for i := range specs {
+		spec := &specs[i]
+		for _, v := range spec.Variables {
+			for _, b := range []types.OptimizeBound{v.Lower, v.Upper, v.Start} {
+				if b.IsExpr() {
+					srcs = append(srcs, b.Expr())
+				}
+			}
+		}
+		srcs = append(srcs, spec.Objective)
+		for _, c := range spec.Constraints {
+			srcs = append(srcs, c.Expr)
+		}
+	}
+	return resultcall.Slots(srcs, cat)
 }
 
 // EffectiveSeed is the seed a block's Latin-hypercube starts are drawn

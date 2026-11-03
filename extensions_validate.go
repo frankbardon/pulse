@@ -922,6 +922,17 @@ func validateExprFunctions(fns []ExprFunction) error {
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.ResponseFunc}},
 			)
 		}
+		if fn.Name == exprenv.ResultFunc {
+			// result(slot, aggregation) reads a Compose slot's value in an
+			// optimize block: predict builds the slot dependency from every
+			// literal call and the batch runs those slots first, so an
+			// embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the Compose slot-value reader", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.ResultFunc}},
+			)
+		}
 		if fn.Name == exprenv.RangeLabelFunc {
 			// range_label(table, x[, unmatched]) reads a registered range
 			// table: it is declared on every compile, filter precompute

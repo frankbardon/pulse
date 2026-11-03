@@ -952,7 +952,7 @@ func priorPrecisionDef() any {
 // scalarslot), "params.<name>" the simplest.
 func optimizeBoundDef() any {
 	return map[string]any{
-		"description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.<name>, coef() / sweep_axis() / response() over the batch fits and the block's models, lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
+		"description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.<name>, coef() / sweep_axis() / response() over the batch fits and the block's models, result(slot, aggregation) over an ungrouped Compose slot (run first, once), lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
 		"oneOf": []any{
 			map[string]any{"type": "number"},
 			map[string]any{"type": "string", "minLength": 1},

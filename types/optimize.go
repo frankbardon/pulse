@@ -125,14 +125,16 @@ type OptimizeVariable struct {
 // (BoundValue), or a scalar expression string (BoundExpr) read once
 // before anything is solved — over literals, the batch params
 // (params.<name>), coef() / sweep_axis() / response() over the batch's
-// fits and the block's `models`, lookup() / range_label() and the expression
+// fits and the block's `models`, result(slot, aggregation) over an
+// ungrouped Compose slot (run in a pre-phase before the block),
+// lookup() / range_label() and the expression
 // built-ins; no decision variable and no record field is in reach. The
 // simplest expression, "params.<name>" (BoundParam), reads one numeric
 // param. On the wire it is a JSON number or the expression string. The
 // value must be finite. An expression over literals and params only is
 // resolved by predict and the runtime alike; one that calls a
-// request-bound function (coef(), sweep_axis(), response(), lookup(),
-// an embedder function) is resolved at runtime, and predict lists it as not
+// request-bound function (coef(), sweep_axis(), response(), result(),
+// lookup(), an embedder function) is resolved at runtime, and predict lists it as not
 // statically resolved. The zero value is absent.
 type OptimizeBound struct {
 	value float64

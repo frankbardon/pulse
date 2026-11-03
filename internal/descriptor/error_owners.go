@@ -654,6 +654,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_EXPRESSION_INVALID: own(featComposeOpt),
+	errors.PULSE_RESULT_INVALID:              own(featComposeOpt),
 	errors.PULSE_MATRIX_SHAPE_MISMATCH:       shared,
 
 	// Virtual vectors are capability:matrices: with it hidden the

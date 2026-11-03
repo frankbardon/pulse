@@ -31,6 +31,7 @@ func TestScalarSlot_ImportBoundary(t *testing.T) {
 		modulePrefix + "/internal/model":          true,
 		modulePrefix + "/internal/model/coefcall": true,
 		modulePrefix + "/internal/tablecall":      true,
+		modulePrefix + "/internal/resultcall":     true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

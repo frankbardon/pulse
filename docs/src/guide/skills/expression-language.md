@@ -9,7 +9,7 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps). One environment; only nulls differ.
+Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps). One environment; nulls differ.
 
 ## Field binding
 
@@ -23,7 +23,7 @@ Fields bind bare, by schema type:
 | `decimal128` | exact decimal — operators and numeric functions ([`decimal-formulas`](decimal-formulas.md)) | `price / cost > 1.2` |
 | `date` / `datetime` | epoch days / seconds; `weekday` `month_index` `date_trunc` `to_day` ([`calendar-formulas`](calendar-formulas.md)) | `month_index(order_day)` |
 
-Categorical arithmetic errors; branch on the label.
+Categorical arithmetic errors; branch on labels.
 
 ## Operators and functions
 
@@ -50,7 +50,7 @@ A vector is a literal list, `[q1, q2, q3]`; a `nil` element is NaN. A request's 
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
-Maths (`**` too) is machine-independent; non-finite is `null` on the wire.
+Maths (`**` too) is machine-independent; non-finite is wire `null`.
 
 ## Null handling
 
@@ -84,7 +84,7 @@ A formula's result is a scalar (`bool` → `1.0` / `0.0`); a filter's must be `b
 - A formula sees source fields, feature output and EARLIER attribute labels; a filter sees source fields and feature (and previous-state) labels, never another attribute or a window.
 - `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`. Weights, the extra scan, recipes: [`formula-totals`](formula-totals.md).
 - `params.name` reads a request constant (read-only; refusals, Compose / chain inheritance: [`request-params`](request-params.md)).
-- Optimize bounds take scalar expressions ([`compose-optimize`](compose-optimize.md)).
+- Optimize bounds take scalar expressions, `result(slot, agg)` only there: [`compose-optimize`](compose-optimize.md).
 
 ## See
 

@@ -3978,6 +3978,20 @@ const (
 	// "identifier", "valid", "compile_error" and "result_type".
 	PULSE_OPTIMIZE_EXPRESSION_INVALID Code = "PULSE_OPTIMIZE_EXPRESSION_INVALID"
 
+	// PULSE_RESULT_INVALID indicates a result(slot, aggregation) call
+	// that cannot be read. Statically — refused identically by predict
+	// and the runtime before any fit or slot runs — the call sits outside
+	// a Compose optimize block (out_of_scope), an argument is not a
+	// string literal (args_not_literal), no slot carries the label
+	// (slot_unknown), the slot has no aggregation with the label
+	// (aggregation_unknown) or the slot is grouped (grouped). At run
+	// time, once the slot ran in the result pre-phase, the value is null
+	// (null), not a number (not_numeric) or infinite (not_finite).
+	// Details carry "reason", "slot", "aggregation" and, where they
+	// apply, "available", "expression", "type", "value", "rows",
+	// "optimize" and "field".
+	PULSE_RESULT_INVALID Code = "PULSE_RESULT_INVALID"
+
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
 	// dimensions disagree (a non-square or ragged matrix, a vector whose
 	// length is not the matrix order, data whose length is not
@@ -5062,6 +5076,7 @@ var allCodes = []Code{
 	PULSE_OPTIMIZE_SPEC_INVALID,
 	PULSE_OPTIMIZE_VARIABLE_INVALID,
 	PULSE_OPTIMIZE_EXPRESSION_INVALID,
+	PULSE_RESULT_INVALID,
 	PULSE_VECTOR_INVALID,
 	PULSE_VECTOR_EMPTY,
 	PULSE_VECTOR_MEMBER_TYPE,
