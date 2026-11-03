@@ -274,7 +274,8 @@ summary. The report never fails a job; `pipefail` keeps `go test`'s
 exit status. Before its test step, `test (1.26)` compiles every
 fast-tier test binary on its own (`go test -run '^$' ./...`) and writes
 the compile time to the job summary, so compile and run cost read
-apart. Each Go job except the `test-windows` shards restores the `setup-go` module and build
+apart. Each Go job except the `test-windows` shards, `lint`,
+`coverage` and `vulncheck` restores the `setup-go` module and build
 cache. The lint jobs and `build` hash different files into their cache
 keys, so they never seed the cache the test jobs use; `cache-warm.yml`
 does ([Warm build cache](#warm-build-cache)).
@@ -311,7 +312,9 @@ after a green run whose key missed, so a red run always started cold
 anyway. Every shard run is cold and takes the same time. `test-macos`
 and both smoke legs keep `setup-go`'s default cache: `test-macos` is
 keyed on `go.sum` like `test (1.26)`, and the smoke legs on every
-`go.sum` like `build`. They fit the wall cold too.
+`go.sum` like `build`. They fit the wall cold too, and
+`cache-warm.yml` warms all three from `main` ([Warm build
+cache](#warm-build-cache)).
 
 **Reproducing a Windows failure.** Start from the failing job's log.
 Each shard also uploads its `go test -json` stream as the
@@ -392,17 +395,21 @@ compile is roughly 250 s on a runner).
 
 `.github/workflows/cache-warm.yml` fills that gap. It runs on every push
 to `main` and on `workflow_dispatch`, and only compiles, so no test
-runs:
+runs. A `drop-stale` job first deletes every `setup-go-*` cache on the
+ref (all OSes), so each warm job's restore misses and the job saves a
+cache of this tree. Then one warm job per setup-go key runs, each
+needing `drop-stale`:
 
-| Step | Runs |
-|---|---|
-| Drop stale caches | deletes the ref's `setup-go-*` caches, so the restore misses and the job saves a cache of this tree |
-| Set up Go | `actions/setup-go` with `go-version: "1.26"` and the default `cache` and `cache-dependency-path` (`go.sum`), as in `test` / `coverage-fast` / `test-heavy` |
-| Build | `go build ./...` |
-| Compile tests (fast tier) | `go test -count=1 -run '^$' ./...`, the `test (1.26)` compile |
-| Select coverage packages | `COVERPKG=$(citest cover-pkgs)` for the two steps below |
-| Compile tests (fast tier, coverage) | `go test -count=1 -run '^$' -coverpkg="$COVERPKG" ./...`; the `coverage-fast` legs compile subsets of it |
-| Compile tests (heavy tier, coverage) | `go test -tags heavy -count=1 -run '^$' -coverpkg="$COVERPKG" ./...`, the build `citest heavy-run` does |
+| Job | Warms | Compiles |
+|---|---|---|
+| `warm` (ubuntu, default `go.sum` key) | `test (1.26)`, `coverage-fast`, `test-heavy` (and `apidiff`, same key) | `go build ./...`; `go test -count=1 -run '^$' ./...` (the `test (1.26)` compile); with `COVERPKG=$(citest cover-pkgs)`, `go test -count=1 -run '^$' -coverpkg="$COVERPKG" ./...` (the `coverage-fast` legs compile subsets of it) and the same with `-tags heavy` (the build `citest heavy-run` does) |
+| `warm-macos` (macOS, default `go.sum` key) | `test-macos` | the CI helper, then `go test -count=1 -run '^$' ./...` |
+| `warm-smoke-macos` (macOS, `**/go.sum` key) | `smoke-macos` | `make build`; in `internal/embeddersmoke`, `go vet ./...` and `go test -count=1 -run '^$' ./...` with `CGO_ENABLED=0` (as `make smoke` exports) |
+| `warm-smoke-windows` (Windows, `**/go.sum` key) | `smoke-windows` | `go build -trimpath ./cmd/pulse` with `CGO_ENABLED=0`; the smoke module's `go vet` and test compile |
+
+The `test-windows` shards run with `cache: false`, so nothing warms
+them. The lint jobs and the ubuntu `build` job keep their own caches
+unwarmed: they are cheap cold.
 
 The settings have to match the test jobs exactly. `setup-go` keys its
 cache as `setup-go-<OS>-<arch>-<image>-go-<resolved Go version>-<hash of
@@ -411,6 +418,12 @@ cache-dependency-path>` and restores by exact key only, so a different
 `-coverpkg` compile is its own build-cache entry, so the warm compile
 also has to use the same flags. Both workflows carry a KEEP IN SYNC
 comment at those steps; change them together.
+`TestRepoCacheWarm_MatchesCachedJobs` (`internal/tools/citest`) checks
+the keys: every `ci.yml` job with a setup-go cache has a `cache-warm.yml`
+job with the same `runs-on`, `go-version` and `cache-dependency-path`
+(bar the lint and `build` jobs it exempts by name), and no warm job
+seeds a key no `ci.yml` job reads. It cannot check compile flags; keep
+those in sync by hand.
 
 A saved cache cannot be overwritten, and `setup-go` skips the save when
 its key already exists. The key changes only with `go.sum` or the Go

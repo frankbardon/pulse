@@ -1,8 +1,10 @@
 name: Cache warm
 
 # Seeds the Go module + build cache that ci.yml's `test (1.26)`,
-# `coverage-fast` and `test-heavy` jobs restore, so a branch's CI dispatch
-# starts warm.
+# `coverage-fast` and `test-heavy` jobs restore, plus the macOS / Windows
+# legs that keep setup-go's cache (`test-macos`, `smoke-macos`,
+# `smoke-windows`), so a branch's CI dispatch starts warm. The
+# `test-windows` shards run with `cache: false` and need no warm entry.
 #
 # Why it runs on main: GitHub scopes an Actions cache to the ref that saved
 # it. A branch run can read its own caches and the default branch's, never a
@@ -19,13 +21,17 @@ name: Cache warm
 # coverage-instrumented compile is its own build-cache entry, so a compile
 # with other flags warms nothing those jobs use.
 #
-# KEEP IN SYNC with ci.yml `test` / `coverage-fast` / `test-heavy`: the
-# setup-go inputs
-# (go-version "1.26", default `cache`, default `cache-dependency-path`) and
-# the compile flags. setup-go's cache key is
+# KEEP IN SYNC with ci.yml: each job below warms one setup-go key, so its
+# runs-on and setup-go inputs (go-version "1.26", `cache`,
+# `cache-dependency-path`) and its compile flags match the ci.yml job(s)
+# it names. setup-go's cache key is
 #   setup-go-<RUNNER_OS>-<arch>-<ImageOS>-go-<resolved Go version>-<hashFiles(cache-dependency-path)>
 # and is restored by exact match only, so any difference in those inputs
 # makes a different key that the test jobs never restore.
+# TestRepoCacheWarm_MatchesCachedJobs (internal/tools/citest) checks the
+# keys: every cached ci.yml job's (runs-on, go-version,
+# cache-dependency-path) has a warm job here, bar the lint / build jobs
+# it exempts by name, and no warm job seeds a key no ci.yml job reads.
 on:
   push:
     branches: [main]
@@ -43,33 +49,40 @@ permissions:
   actions: write
 
 jobs:
-  # One job, not one per tier: `test` and `test-heavy` share one setup-go
-  # key, and a key is written once, so both tiers' compiles go into the
-  # same cache.
-  warm:
+  # A cache entry is immutable and setup-go skips the save on an exact key
+  # hit, so a key (which changes only with go.sum or the Go patch version)
+  # would otherwise keep the first build it ever saved, going stale as main
+  # moves. Dropping this ref's setup-go caches first makes every warm
+  # job's restore miss and its post-job step save a cache of this tree.
+  # One job for every OS, which the warm jobs need, so no warm job's drop
+  # can delete a cache a sibling already saved. Only cache-warm saves Go
+  # caches in main's scope; on a branch dispatch this also drops the
+  # branch's lint/build caches, which rebuild on the next CI run.
+  drop-stale:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-
-      # A cache entry is immutable and setup-go skips the save on an exact
-      # key hit, so the key (which changes only with go.sum or the Go patch
-      # version) would otherwise keep the first build it ever saved, going
-      # stale as main moves. Dropping this ref's setup-go caches first makes
-      # the restore miss and the post-job step save a cache of this tree.
-      # Only cache-warm saves Go caches in main's scope; on a branch
-      # dispatch this also drops the branch's lint/build caches, which
-      # rebuild on the next CI run.
       - name: Drop this ref's stale setup-go caches
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ids=$(gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" \
-            --key "setup-go-$RUNNER_OS-" --limit 100 --json id --jq '.[].id')
+            --key "setup-go-" --limit 100 --json id --jq '.[].id')
           for id in $ids; do
             echo "deleting cache $id on $GITHUB_REF"
             gh cache delete --repo "$GITHUB_REPOSITORY" "$id"
           done
+
+  # Warms ci.yml `test` / `coverage-fast` / `test-heavy` (and `apidiff`,
+  # which shares the key). One job, not one per tier: those jobs share one
+  # setup-go key, and a key is written once, so both tiers' compiles go
+  # into the same cache.
+  warm:
+    needs: drop-stale
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
 
       # KEEP IN SYNC with ci.yml `test` / `coverage-fast` / `test-heavy`
       # "Set up Go".
@@ -98,3 +111,85 @@ jobs:
       # `citest heavy-run` (which adds `-tags heavy`).
       - name: Compile tests (heavy tier, coverage)
         run: go test -tags heavy -count=1 -run '^$' -coverpkg="$COVERPKG" ./...
+
+  # Warms ci.yml `test-macos`: macOS arm64, setup-go's default key
+  # (go.sum), the plain fast-tier compile (no CGO_ENABLED override, as
+  # there).
+  warm-macos:
+    needs: drop-stale
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # KEEP IN SYNC with ci.yml `test-macos` "Set up Go".
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      # KEEP IN SYNC with ci.yml `test-macos` "Build CI test helper" and
+      # "Test (fast tier)" (-json changes no build-cache entry).
+      - name: Compile tests (fast tier)
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/citest$(go env GOEXE)" ./internal/tools/citest
+          go test -count=1 -run '^$' ./...
+
+  # Warms ci.yml `smoke-macos`: its key hashes every go.sum
+  # (`**/go.sum`), so it is not test-macos's key.
+  warm-smoke-macos:
+    needs: drop-stale
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # KEEP IN SYNC with ci.yml `smoke-macos` "Set up Go".
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: "**/go.sum"
+
+      # KEEP IN SYNC with ci.yml `smoke-macos` (`make build`, `make
+      # smoke`); the smoke module's tests compile without running.
+      - name: Build
+        run: make build
+
+      - name: Compile embedder smoke module
+        working-directory: internal/embeddersmoke
+        env:
+          CGO_ENABLED: "0"
+          GOFLAGS: -mod=mod
+        run: go vet ./... && go test -count=1 -run '^$' ./...
+
+  # Warms ci.yml `smoke-windows` (`**/go.sum` key, Windows).
+  warm-smoke-windows:
+    needs: drop-stale
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # KEEP IN SYNC with ci.yml `smoke-windows` "Set up Go".
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: "**/go.sum"
+
+      # KEEP IN SYNC with ci.yml `smoke-windows` "Build" and "Embedder
+      # smoke module"; the smoke module's tests compile without running.
+      - name: Build
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o "bin/pulse$(go env GOEXE)" ./cmd/pulse
+
+      - name: Compile embedder smoke module
+        shell: bash
+        working-directory: internal/embeddersmoke
+        env:
+          GOFLAGS: -mod=mod
+        run: go vet ./... && go test -count=1 -run '^$' ./...
