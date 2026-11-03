@@ -25,6 +25,8 @@ name: CI
 #                           (.github/fast-shards.txt, `citest fast-run`)
 #   test-macos              the fast tier on macOS (arm64)
 #   smoke-windows, smoke-macos   build + smoke per OS
+#   vulncheck               make vulncheck: pinned govulncheck, GOOS
+#                           linux then windows
 #   apidiff                 exported-API delta vs the latest v* tag;
 #                           advisory, not required, dispatch only
 on:
@@ -400,6 +402,33 @@ jobs:
 
       - name: Embedder smoke module
         run: make smoke
+
+  # vulncheck runs `make vulncheck`: govulncheck at the Makefile's
+  # GOVULNCHECK_VERSION pin (the only pin; never `latest`), default
+  # symbol mode over the root module's ./... (the nested
+  # internal/embeddersmoke module is not part of it), once with
+  # GOOS=linux and once with GOOS=windows, both from this runner. A
+  # reachable finding fails the job. Stdlib findings are judged against
+  # setup-go's "1.26", which floats to the latest patch. One job, not a
+  # matrix, so the required check is plain `vulncheck`. No setup-go
+  # cache: the scan type-checks from source, so a build cache buys little
+  # and this job would only seed a weak one.
+  vulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: govulncheck (GOOS linux, windows)
+        run: |
+          go version
+          make vulncheck
 
   # apidiff reports the exported-API delta against the latest release tag,
   # using a pinned `apidiff -m` over a git-worktree checkout of that tag.

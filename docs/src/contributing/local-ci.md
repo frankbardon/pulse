@@ -197,6 +197,7 @@ the sum:
 | `test-windows (1)`, `test-windows (2)` | the fast tier on `windows-latest`, split by package (`citest fast-run`); no build cache |
 | `test-macos` | the fast tier on `macos-latest` (arm64) |
 | `smoke-windows`, `smoke-macos` | the `build` job per OS: build `cmd/pulse`, then the embedder smoke module |
+| `vulncheck` | `make vulncheck`: pinned `govulncheck ./...`, `GOOS=linux` then `GOOS=windows`; a reachable finding fails it (see [Vulnerability scan](#vulnerability-scan)) |
 | `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
 
 Each shard runs only the heavy tests it owns, with `go test -tags heavy
@@ -329,6 +330,27 @@ is the one a local `make dist VERSION=<tag>` builds. A tag containing
 `-` is published as a pre-release, and a release never takes Latest.
 The `apidiff` job is skipped under a release's `workflow_call`, since
 the tagged tree is the release itself.
+
+## Vulnerability scan
+
+```bash
+make vulncheck   # needs network (vuln.go.dev)
+```
+
+`make vulncheck` installs `govulncheck` at the Makefile's
+`GOVULNCHECK_VERSION` (the one pin, which the `vulncheck` job in
+`ci.yml` also uses; bump it deliberately, never to `latest`) and runs
+it in default symbol mode over `./...` twice: `GOOS=linux`, then
+`GOOS=windows`. Only a finding the call graph reaches fails it; a
+vulnerable module the code never calls is listed but passes. `./...`
+does not include the nested `internal/embeddersmoke` module. Fix a
+dependency finding with `go get <module>@<fixed>` and `go mod tidy`
+(in the root and in `internal/embeddersmoke`). Standard-library
+findings are judged against the running toolchain. CI's `"1.26"`
+floats to the latest patch, so locally run it under that patch too,
+for example `GOTOOLCHAIN=go1.26.10 make vulncheck`. A toolchain that
+is not the latest patch of its minor can report standard-library
+findings that CI does not.
 
 ## Fuzzing
 
