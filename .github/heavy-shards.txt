@@ -46,12 +46,11 @@
 2 ./internal/encoding TestReadRecordReused_IndexedKinds
 2 ./internal/io TestTransfer_BoundedMemory
 2 ./internal/service TestCrosstabMemory_CellChargeTable
-2 ./internal/service TestCrosstab_WeightedTwoMeansZ_DecodeWorkersParity
-2 ./internal/service TestDecodeWorkers_WeightedParity
 2 ./internal/service TestLimitsReleaseMemory
 2 ./internal/service TestMemoryEstimate_Calibration
 2 ./internal/service TestReturnSkipsComputation_MatricesLongArms
 2 ./internal/service TestWeightFrequencyExpansionParity
+2 ./internal/service TestWeightInvariance_CrosstabHeavy
 2 ./internal/synth TestSuggestBlocks_WideCohortIsAbandonedNotTruncated
 2 ./internal/synth TestSynth_SetBernoulli_WideRungMarginalFrequencies
 
@@ -74,7 +73,7 @@
 4 ./internal/integration TestExtensionRegressionInvariance_Heavy
 4 ./internal/integration TestExtensions_DeclaredMarginCellFusesCrosstab
 4 ./internal/integration TestFilterToFile_DateRangesMatchesProcess
-4 ./internal/integration TestGroupKMeans_DecodeWorkersAgree
+4 ./internal/integration TestKMeansInvariance_Heavy
 4 . TestPanicRecovery_PoolRepanics
 4 . TestProfileInvisibilityParity
 4 ./internal/integration TestSEMInvariance_Heavy
@@ -97,7 +96,7 @@
 5 ./internal/integration TestLimitsDefaultsNeverTripGoldens
 5 ./internal/integration TestMultiGrouperInvariance_Heavy
 5 ./internal/integration TestMultiGrouper_YoYPerPartition
-5 ./internal/integration TestParams_U64FieldExactAcrossArms
+5 ./internal/integration TestU64ParamsInvariance_Heavy
 5 ./internal/integration TestPreviousStateInvariance_Heavy
 5 ./internal/integration TestReferenceDocPointersResolve
 5 ./internal/integration TestSEM_BootstrapProcessMatchesLavaan

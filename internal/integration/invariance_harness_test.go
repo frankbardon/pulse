@@ -19,9 +19,10 @@ import (
 // grouped_components_invariance_test.go, vector_invariance_test.go,
 // extensions_regression_invariance_test.go,
 // sem_worker_invariance_test.go, previous_state_invariance_test.go,
-// bit_exact_invariance_test.go (the
-// extension matrix family, in package pulse, carries its own engine:
-// extensions_matrix_invariance_test.go).
+// bit_exact_invariance_test.go, kmeans_invariance_test.go,
+// request_params_u64_heavy_test.go (the extension matrix and bound-fit
+// families, in package pulse, carry their own engines:
+// extensions_matrix_invariance_test.go, fit_bound_invariance_test.go).
 
 // invCohort is one layout's cohort: the file system it lives on (a
 // MemMapFs, or the real disk for a layout the parallel decode reads —

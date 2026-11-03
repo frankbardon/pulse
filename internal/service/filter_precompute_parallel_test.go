@@ -16,10 +16,11 @@ import (
 // TestFilterPrecompute_ParallelDecode (E5-S1): the parallel buffered
 // Process arm builds one FilterFunc set per worker, so each worker keeps
 // its own verdict table over the shared (read-only) group dictionary.
-// Over the >100K-record grouped fixture the result — filterer
-// components included — equals the 0x01 cohort's and the per-row run's
-// at every worker count, and the entry evaluations are bounded by
-// workers × entries, never by rows.
+// Over the >100K-record grouped fixture the entry evaluations are
+// bounded by workers × entries, never by rows, and the precomputed
+// result — filterer components included — equals the per-row run's at
+// the same worker count. That every worker count answers the 0x01
+// cohort's serial read is TestDecodeCoreInvariance_FilterPrecompute's.
 func TestFilterPrecompute_ParallelDecode(t *testing.T) {
 	// serial: processing.SetFilterPrecompute flips a process-wide engine switch; reads deltas of process-wide internal/processing work counters, which concurrent tests bump
 
@@ -30,7 +31,7 @@ func TestFilterPrecompute_ParallelDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 	cohorts := strideParallelCohorts(t)
-	for _, name := range []string{"flat", "grouped"} {
+	for _, name := range []string{"grouped"} {
 		if err := afero.WriteFile(osFs, dir+"/"+name+".pulse", cohorts[name], 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -82,12 +83,8 @@ func TestFilterPrecompute_ParallelDecode(t *testing.T) {
 		}
 		return fmt.Sprintf("%v|%+v", resp.Data, resp.Components.Filterers), processing.FilterPrecomputeStats().EntryEvaluations - before
 	}
-	want, _ := run(dir+"/flat.pulse", 1, true)
 	for _, workers := range []int{1, 2, 4, 7} {
-		got, evals := run(dir+"/grouped.pulse", workers, true)
-		if got != want {
-			t.Fatalf("workers=%d precomputed:\n got  %s\n want %s", workers, got, want)
-		}
+		want, evals := run(dir+"/grouped.pulse", workers, true)
 		if evals == 0 || evals > int64(workers)*perWorker {
 			t.Fatalf("workers=%d: %d entry evaluations, want 1..%d (workers × entries per filter) over %d rows", workers, evals, int64(workers)*perWorker, strideParallelRows)
 		}
