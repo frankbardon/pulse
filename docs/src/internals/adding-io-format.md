@@ -93,10 +93,19 @@ with a coded error:
   xlsx unzip limit is `1032 x` the input (DEFLATE's maximum ratio), and
   the Arrow reader's `preflightIPC` refuses flatbuffer counts and
   compressed-buffer claims the bytes cannot back, plus buffer lists
-  shorter than the schema reads (the decoder indexes past them). Also bound work
+  shorter than the schema reads (the decoder indexes past them). The
+  Parquet reader's `checkRowGroups` refuses a row group that declares
+  more rows than one of its column chunks holds values, and its guarded
+  SNAPPY codec (`snappy_guard.go`, registered in the decoder library's
+  process-wide codec registry) refuses a block whose stream header
+  declares more bytes than its page holds. Also bound work
   that grows with declared structure instead of stored bytes: an xlsx
   grid far sparser than its stored cells, or Arrow Null-typed rows no
   buffer backs.
+- Check what the decoder actually does with a block, not what the block
+  says it is. The Arrow decoder reads every footer dictionary block as a
+  dictionary batch without checking the message's header type, so
+  `preflightIPC` checks it as one whatever that type byte says.
 - Give the reader an unexported `open` seam so a test can inject a
   panicking decoder. Add a `Fuzz<Format>Import` target under
   `internal/testutil/fuzzcontract` with `MaxAlloc` set

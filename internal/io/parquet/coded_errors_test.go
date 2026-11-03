@@ -5,15 +5,19 @@ import (
 	"context"
 	stderrors "errors"
 	"io/fs"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/parquet/compress"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/internal/io"
+	"github.com/frankbardon/pulse/internal/testutil/fuzzcontract"
 )
 
 func requireCode(t *testing.T, err error, code errors.Code) *errors.CodedError {
@@ -110,5 +114,57 @@ func TestParquetReader_OpenFaultsAreDataFile(t *testing.T) {
 		if ce := requireCode(t, err, errors.DATA_FILE); ce.Cause == nil {
 			t.Fatalf("%q: want the decoder error kept as Cause", in)
 		}
+	}
+}
+
+// Found by the fuzz.yml workflow: a row group declaring 2,281,701,312
+// rows over column chunks of 3 values each. The decoder reserved memory
+// for the declared rows (26 GB) before reading a page; checkRowGroups
+// refuses the count its own chunks cannot back, through the import an
+// embedder runs.
+func TestParquetImport_RowCountClaimIsRefused(t *testing.T) {
+	t.Parallel()
+	in := fuzzcontract.CorpusEntry(t, filepath.Join("testdata", "fuzz", "FuzzParquetImport", "row-group-row-count-claim"))
+	job := pio.NewImportJob(NewReaderFromBytes(in), "c.pulse")
+	job.FS = afero.NewMemMapFs()
+	_, err := job.Run(context.Background())
+	want := "row group 0 declares 2281701312 rows, but its column 0 holds only 3 values"
+	if ce := requireCode(t, err, errors.DATA_FILE); !strings.Contains(ce.Message, want) {
+		t.Fatalf("want %q, got %v", want, err)
+	}
+	// An honest file passes: every chunk holds at least its group's rows.
+	if _, err := NewReaderFromBytes(helperSimpleParquet(t)).InferPulseSchema(); err != nil {
+		t.Fatalf("honest file refused: %v", err)
+	}
+}
+
+// Found by FuzzParquetImport: a snappy page whose stream header claims
+// 3 GB. The registered SNAPPY codec is the guarded one, which refuses
+// the claim before decoding (through the import an embedder runs) and
+// still decodes an honest block.
+func TestParquetImport_SnappyLengthClaimIsRefused(t *testing.T) {
+	t.Parallel()
+	in := fuzzcontract.CorpusEntry(t, filepath.Join("testdata", "fuzz", "FuzzParquetImport", "snappy-decoded-length-claim"))
+	job := pio.NewImportJob(NewReaderFromBytes(in), "c.pulse")
+	job.FS = afero.NewMemMapFs()
+	_, err := job.Run(context.Background())
+	if ce := requireCode(t, err, errors.DATA_FILE); !strings.Contains(ce.Message, "snappy block declares") {
+		t.Fatalf("want the snappy claim refusal, got %v", err)
+	}
+	codec, err := compress.GetCodec(compress.Codecs.Snappy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := codec.(boundedSnappy); !ok {
+		t.Fatalf("registered SNAPPY codec is %T, want boundedSnappy", codec)
+	}
+	src := bytes.Repeat([]byte("pulse "), 100)
+	enc := codec.Encode(nil, src)
+	got, err := compress.Decode(codec, make([]byte, len(src)), enc)
+	if err != nil || !bytes.Equal(got, src) {
+		t.Fatalf("honest block: %v", err)
+	}
+	if _, err := compress.Decode(codec, make([]byte, len(src)-1), enc); err == nil {
+		t.Fatal("a block longer than its page was decoded")
 	}
 }

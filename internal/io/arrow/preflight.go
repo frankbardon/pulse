@@ -282,7 +282,7 @@ func preflightIPC(data []byte) error {
 			off, _ := footer.i64(at)
 			meta, _ := footer.u32(at + 8)
 			body, _ := footer.i64(at + 16)
-			if err := checkMessage(data, off, int64(int32(meta)), body, sc); err != nil {
+			if err := checkMessage(data, off, int64(int32(meta)), body, sc, slot == footerDictionaries); err != nil {
 				return fmt.Errorf("block %d: %w", i, err)
 			}
 		}
@@ -456,8 +456,11 @@ func (n *batchNeeds) add(f ipcField, v5, asValues bool) {
 
 // checkMessage checks one footer block's message: its custom-metadata
 // count and, for a (dictionary) record batch, its node / buffer counts
-// and every compressed buffer's declared size.
-func checkMessage(data []byte, off, meta, body int64, sc *ipcSchema) error {
+// and every compressed buffer's declared size. dict marks a block from
+// the footer's dictionary list: the decoder reads such a block as a
+// dictionary batch WITHOUT checking its message's header type, so it is
+// checked as one whatever that type byte says.
+func checkMessage(data []byte, off, meta, body int64, sc *ipcSchema, dict bool) error {
 	n := int64(len(data))
 	if off < 0 || meta < 8 || body < 0 || off > n || meta > n-off || body > n-off-meta {
 		return nil // the decoder refuses the block itself
@@ -488,6 +491,9 @@ func checkMessage(data []byte, off, meta, body int64, sc *ipcSchema) error {
 		return err
 	}
 	var need *batchNeeds
+	if dict {
+		kind = headerDictionaryBatch
+	}
 	switch kind {
 	case headerDictionaryBatch:
 		id, err := header.i64(dictionaryBatchID, 0)

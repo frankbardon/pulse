@@ -348,6 +348,11 @@ func TestArrowImport_CommittedClaimSeedsAreRefused(t *testing.T) {
 		// decoder read two anyway from the bytes after the list and
 		// allocated the 1 TiB "claim" it found there.
 		"buffer-list-shorter-than-schema": "lists 1 field nodes and 0 buffers, its schema reads 1 and 2",
+		// Found by the fuzz.yml workflow: a footer dictionary block whose
+		// message header type byte is not DictionaryBatch. The decoder
+		// reads it as a dictionary batch anyway and allocated the 4 GiB
+		// compressed-buffer claim the preflight had skipped.
+		"dictionary-block-any-header-type": "declares 4294967296 uncompressed bytes but does not decode",
 	} {
 		in := fuzzcontract.CorpusEntry(t, filepath.Join("testdata", "fuzz", "FuzzArrowImport", name))
 		job := pio.NewImportJob(NewReaderFromBytes(in), "c.pulse")

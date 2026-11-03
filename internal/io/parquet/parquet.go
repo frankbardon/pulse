@@ -11,6 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet/file"
+	"github.com/apache/arrow-go/v18/parquet/metadata"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -172,6 +173,9 @@ func (r *Reader) init() (err error) {
 		return iocore.SourceFileError("parquet", "parquet.Reader: opening parquet", err)
 	}
 	r.pqFile = pqFile
+	if err := checkRowGroups(pqFile.MetaData()); err != nil {
+		return iocore.SourceFileError("parquet", "parquet.Reader: reading row group metadata", err)
+	}
 
 	arrowReader, err := pqarrow.NewFileReader(pqFile, pqarrow.ArrowReadProperties{
 		Parallel: r.opts.workers > 1,
@@ -204,6 +208,32 @@ func (r *Reader) init() (err error) {
 	r.arrowSc = sc
 	r.header = nil
 	r.started = false
+	return nil
+}
+
+// checkRowGroups refuses a row group whose declared row count its own
+// column chunks cannot back. Every row contributes at least one value (a
+// definition-level entry, null or not) to each leaf column, so a chunk
+// declaring fewer values than its row group's rows is malformed. The
+// decoder reserves memory for the declared rows before it reads a page,
+// so trusting the count would let a few bytes claim gigabytes.
+func checkRowGroups(md *metadata.FileMetaData) error {
+	for i := 0; i < md.NumRowGroups(); i++ {
+		rg := md.RowGroup(i)
+		rows := rg.NumRows()
+		if rows < 0 {
+			return fmt.Errorf("row group %d declares %d rows", i, rows)
+		}
+		for c := 0; c < rg.NumColumns(); c++ {
+			cc, err := rg.ColumnChunk(c)
+			if err != nil {
+				return err
+			}
+			if cc.NumValues() < rows {
+				return fmt.Errorf("row group %d declares %d rows, but its column %d holds only %d values", i, rows, c, cc.NumValues())
+			}
+		}
+	}
 	return nil
 }
 
