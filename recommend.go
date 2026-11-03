@@ -125,6 +125,27 @@ type anchorFault struct{ err error }
 func (a *anchorFault) Error() string { return a.err.Error() }
 func (a *anchorFault) Unwrap() error { return a.err }
 
+// cohortOpenError is a no-execute surface's unopenable cohort: DATA_FILE
+// (the code the predict roots' openGuideCohort raises), message
+// "<prefix>: <fs error>", details.path, the fs error kept as Cause.
+func cohortOpenError(prefix, path string, err error) *errors.CodedError {
+	ce := errors.NewCodedErrorWithDetails(errors.DATA_FILE, prefix+": "+err.Error(), map[string]any{"path": path})
+	ce.Cause = err
+	return ce
+}
+
+// envelopeEntryError lifts a descriptor envelope's error entry into the
+// coded error a Go caller receives, under the entry's own code (an entry
+// whose code is not a registered one — none is — is PROCESSING_INTERNAL),
+// message "<prefix>: <entry message>", the entry's details kept.
+func envelopeEntryError(prefix string, e *descriptor.EnvelopeEntry) *errors.CodedError {
+	code, ok := errors.ParseCode(e.Code)
+	if !ok {
+		code = errors.PROCESSING_INTERNAL
+	}
+	return errors.NewCodedErrorWithDetails(code, prefix+": "+e.Message, e.Details)
+}
+
 // asAnchorFault reports whether err is an unresolvable anchor.
 func asAnchorFault(err error) (*anchorFault, bool) {
 	var af *anchorFault
@@ -135,8 +156,7 @@ func asAnchorFault(err error) (*anchorFault, bool) {
 // openCohortSource opens the cohort at path through the instance Fs for
 // a no-execute read (Predict, Inspect, the guidance surfaces). A
 // returned *anchorFault is an unresolvable anchor; any other error is
-// the open itself, SERVICE_RESOURCE (the code the runtime's open raises
-// for an unopenable cohort), the fs error kept as Cause. An anchored shard is predicted as the single file it
+// the open itself. An anchored shard is predicted as the single file it
 // is: its run reads only that shard (U51), so no archive term applies.
 func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	readPath, entry := path, ""
@@ -145,8 +165,7 @@ func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	}
 	f, err := p.fsys.Open(readPath)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"opening cohort "+readPath+": "+err.Error())
+		return nil, err
 	}
 	closeFile := func() { _ = f.Close() }
 	if entry == "" {
@@ -155,8 +174,7 @@ func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	size, err := f.Seek(0, io.SeekEnd)
 	if err != nil {
 		closeFile()
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"sizing shard archive "+readPath+": "+err.Error())
+		return nil, err
 	}
 	rs, err := archiveEntryReader(f, size, entry)
 	if err != nil {
@@ -189,7 +207,8 @@ func archiveEntryReader(r io.ReaderAt, size int64, entry string) (io.ReadSeeker,
 	defer rc.Close()
 	data, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, err
+		return nil, errors.WrapCodedError(err, errors.PULSE_ARCHIVE_CORRUPT,
+			"reading shard entry "+entry+": "+err.Error())
 	}
 	return bytes.NewReader(data), nil
 }
@@ -205,8 +224,7 @@ func (p *Pulse) openGuideCohort(path, op string) (*guideCohort, error) {
 		if af, ok := asAnchorFault(err); ok {
 			return nil, guideSchemaError(op, path, af.err)
 		}
-		return nil, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			op+": opening cohort: "+err.Error(), map[string]any{"path": path})
+		return nil, cohortOpenError(op+": opening cohort", path, err)
 	}
 	schema, err := guideSchema(src)
 	if err == nil {

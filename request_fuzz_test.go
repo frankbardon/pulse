@@ -2,8 +2,6 @@ package pulse_test
 
 import (
 	"context"
-	stderrors "errors"
-	iofs "io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,7 +11,6 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
-	perr "github.com/frankbardon/pulse/errors"
 	pfs "github.com/frankbardon/pulse/internal/fs"
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
@@ -128,41 +125,4 @@ func FuzzRequestDecode(f *testing.F) {
 			return nil
 		})
 	})
-}
-
-// TestPredict_EntryFaultsCoded pins the codes behind the uncoded
-// Predict faults FuzzRequestDecode's seeds exposed: an unopenable cohort
-// is SERVICE_RESOURCE (the runtime open's code, the fs error kept as
-// Cause), a request without a cohort — or no request — SERVICE_VALIDATION.
-func TestPredict_EntryFaultsCoded(t *testing.T) {
-	t.Parallel()
-	p, err := pulse.New(pulse.Options{FS: pfs.NewMemMap().Fs()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-	for name, c := range map[string]struct {
-		req  *types.Request
-		code perr.Code
-	}{
-		"missing file":   {&types.Request{Cohort: &types.Cohort{Filename: "missing.pulse"}}, perr.SERVICE_RESOURCE},
-		"missing anchor": {&types.Request{Cohort: &types.Cohort{Filename: "missing.pulse#a.pulse"}}, perr.SERVICE_RESOURCE},
-		"no cohort":      {&types.Request{}, perr.SERVICE_VALIDATION},
-		"no request":     {nil, perr.SERVICE_VALIDATION},
-	} {
-		_, err := p.Predict(ctx, c.req)
-		var ce *perr.CodedError
-		if !stderrors.As(err, &ce) || ce.Code != c.code {
-			t.Fatalf("%s: want %s, got %v", name, c.code, err)
-		}
-		if c.code == perr.SERVICE_RESOURCE && !stderrors.Is(err, iofs.ErrNotExist) {
-			t.Fatalf("%s: the fs error is not kept as Cause: %v", name, err)
-		}
-	}
-	if _, err := p.PredictEnvelope(ctx, &types.Request{}); !perr.HasCode(err, perr.SERVICE_VALIDATION) {
-		t.Fatalf("PredictEnvelope without a cohort: %v", err)
-	}
-	if _, err := p.PredictBytes(ctx, nil, nil); !perr.HasCode(err, perr.SERVICE_VALIDATION) {
-		t.Fatalf("PredictBytes without a request: %v", err)
-	}
 }

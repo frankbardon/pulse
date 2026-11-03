@@ -497,7 +497,7 @@ func TestObserveEndResultCode(t *testing.T) {
 			_, err := p.WidenSetField(ctx, obsCohort, "region", "not_a_type")
 			return err
 		}, string(errors.ENCODING_TYPE_MISMATCH)},
-		{"uncoded", func() error { _, err := p.FacetSchema(ctx, nil); return err }, observe.CodeUncoded},
+		{"uncoded", func() error { _, err := p.ProcessStreamResult(ctx, nil); return err }, observe.CodeUncoded},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1403,6 +1403,9 @@ func (p *Pulse) PredictExport(ctx context.Context, job *pio.ExportJob) (*pio.Pre
 }
 
 func (p *Pulse) predictExport(ctx context.Context, job *pio.ExportJob) (*pio.PredictReport, error) {
+	if job == nil {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict export requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1591,11 +1594,11 @@ func (p *Pulse) inspect(ctx context.Context, path string) (*descriptor.InspectRe
 		return nil, err
 	}
 	if len(env.Errors) > 0 {
-		return nil, fmt.Errorf("pulse: inspect: %s", env.Errors[0].Message)
+		return nil, envelopeEntryError("pulse: inspect", env.Errors[0])
 	}
 	result, ok := env.Data.(*descriptor.InspectResult)
 	if !ok {
-		return nil, fmt.Errorf("pulse: inspect returned unexpected type")
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "pulse: inspect returned unexpected type")
 	}
 	return result, nil
 }
@@ -1637,7 +1640,7 @@ func (p *Pulse) inspectEnvelope(ctx context.Context, path string, opts *descript
 		if af, ok := asAnchorFault(err); ok {
 			return nil, fmt.Errorf("pulse: inspect anchor: %w", af.err)
 		}
-		return nil, fmt.Errorf("pulse: reading file for inspect: %w", err)
+		return nil, cohortOpenError("pulse: reading file for inspect", path, err)
 	}
 	defer src.close()
 
@@ -1690,7 +1693,7 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		if af, ok := asAnchorFault(err); ok {
 			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
 		}
-		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+		return nil, cohortOpenError("pulse: reading file for predict", path, err)
 	}
 	defer src.close()
 
@@ -1706,12 +1709,12 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 			p.touchManaged(ctx, path)
 			return result, nil
 		}
-		return nil, fmt.Errorf("pulse: predict: %s", env.Errors[0].Message)
+		return nil, envelopeEntryError("pulse: predict", env.Errors[0])
 	}
 
 	result, ok := env.Data.(*descriptor.PredictResult)
 	if !ok {
-		return nil, fmt.Errorf("pulse: predict returned unexpected type")
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "pulse: predict returned unexpected type")
 	}
 	p.touchManaged(ctx, path)
 	return result, nil
@@ -1760,7 +1763,7 @@ func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.
 		if af, ok := asAnchorFault(err); ok {
 			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
 		}
-		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+		return nil, cohortOpenError("pulse: reading file for predict", path, err)
 	}
 	defer src.close()
 
@@ -1968,10 +1971,10 @@ func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 
 func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
 	if req == nil {
-		return nil, fmt.Errorf("pulse: sample request is required")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request is required")
 	}
 	if req.Cohort == nil || req.Cohort.Filename == "" {
-		return nil, fmt.Errorf("pulse: sample request requires Cohort.Filename")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
 	}
 	path := req.Cohort.Filename
 	rows, warns, err := p.svc.SampleWithRequest(ctx, req, path)
@@ -2279,7 +2282,7 @@ func (p *Pulse) FacetSchema(ctx context.Context, req *FacetRequest) (*FacetResul
 
 func (p *Pulse) facetSchema(ctx context.Context, req *FacetRequest) (*FacetResult, error) {
 	if req == nil {
-		return nil, fmt.Errorf("pulse: facet schema requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: facet schema requires a request")
 	}
 	resp, err := p.svc.FacetSchema(ctx, req)
 	if err == nil && req.Cohort != nil {
@@ -2335,7 +2338,7 @@ func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 
 func (p *Pulse) lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
 	if req == nil {
-		return nil, fmt.Errorf("pulse: lookup requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: lookup requires a request")
 	}
 	resp, err := p.svc.Lookup(ctx, req)
 	if err == nil && req.Cohort != nil {
