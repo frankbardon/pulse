@@ -124,7 +124,10 @@ func (s *OptimizeSpec) UnmarshalJSON(data []byte) error {
 		*s = OptimizeSpec(p)
 		return nil
 	}
-	if strings.HasPrefix(err.Error(), "json: unknown field ") {
+	// An unknown key is the decode error — except `$var`, a list entry
+	// written as a whole `{"$var"}` marker, which a for_each block keeps
+	// for its fan-out to refuse with the position named.
+	if strings.HasPrefix(err.Error(), "json: unknown field ") && err.Error() != `json: unknown field "$var"` {
 		return err
 	}
 	var probe struct {

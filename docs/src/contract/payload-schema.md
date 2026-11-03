@@ -1781,8 +1781,11 @@ fanned-out block (a bound, `starts`, a constraint `expr`) may be a whole
 `{"$var": "axis"}` value, and this schema admits it there:
 `$defs.OptimizeSpec` lets every scalar of the block — its own and its
 variables', constraints' and models' — be `$defs.VarMarker` (an object
-with the one string key `$var`); `for_each` and the arrays themselves
-never take one. The marker is valid only in a block that carries
+with the one string key `$var`); `for_each`, the arrays themselves and
+their entries never take one, and the runtime and predict refuse a
+marker there too (`PULSE_FOR_EACH_INVALID` reason `marker_position`),
+so schema and runtime agree. A model's `inline` body is free-form and
+takes one anywhere. The marker is valid only in a block that carries
 `for_each`: an `if` (no `for_each`) / `then` re-applies the strict
 property shapes, as the runtime refuses a marker there at decode. The
 MCP `pulse_compose` input schema admits the marker at the same paths.

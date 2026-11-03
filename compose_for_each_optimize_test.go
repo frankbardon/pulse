@@ -303,3 +303,83 @@ func TestComposeForEachOptimize_ResultBoundRunsInPrePhase(t *testing.T) {
 		}
 	}
 }
+
+// TestComposeForEachOptimize_MarkerPositionParity: a `{"$var"}` marker
+// stands only for one whole value of a fanned-out block or of one entry
+// of its lists — exactly where the payload schema (and the MCP
+// pulse_compose schema, TestBind_OptimizeVarMarkerPositions) admits it.
+// A marker standing for a whole list, a list entry or a value inside a
+// model's inline body is refused PULSE_FOR_EACH_INVALID reason
+// marker_position by predict, Compose and ComposeParallel identically,
+// and the payload schema rejects the same request; the admitted forms
+// validate and run.
+func TestComposeForEachOptimize_MarkerPositionParity(t *testing.T) {
+	t.Parallel()
+
+	block := func(variables, constraints, extra, axes string) string {
+		return `{"requests":[{"label":"weeks","cohort":{"filename":"opt_price.pulse"},"aggregations":[{"type":"AGG_COUNT","field":"week","label":"n"}]}],
+			"optimize":[{"name":"o_{{v}}","direction":"minimize","variables":` + variables + `,"objective":"x * x",` +
+			`"constraints":` + constraints + extra + `,"for_each":{"axes":` + axes + `}}]}`
+	}
+	vars := `[{"name":"x","lower":0,"upper":10}]`
+	cons := `[{"expr":"x - 1","type":"ineq"}]`
+	vAxis := func(values string) string { return `[{"name":"v","values":` + values + `}]` }
+	cases := []struct{ name, body, field string }{
+		// An axis value is a scalar (a list is value_not_scalar), so a
+		// list-position marker could never render a list: refused by its
+		// position before anything renders.
+		{"whole variables list", block(`{"$var":"v"}`, cons, "", vAxis(`["a","b"]`)), "optimize[0].variables"},
+		{"whole constraints list", block(vars, `{"$var":"v"}`, "", vAxis(`["a","b"]`)), "optimize[0].constraints"},
+		{"whole models list", block(vars, cons, `,"models":{"$var":"v"}`, vAxis(`["a","b"]`)), "optimize[0].models"},
+		{"variables entry", block(`[{"$var":"v"}]`, cons, "", vAxis(`["a","b"]`)), "optimize[0].variables[0]"},
+		{"constraints entry", block(vars, `[{"expr":"x - 1","type":"ineq"},{"$var":"v"}]`, "", vAxis(`["a","b"]`)), "optimize[0].constraints[1]"},
+		{"models entry", block(vars, cons, `,"models":[{"$var":"v"}]`, vAxis(`["a","b"]`)), "optimize[0].models[0]"},
+	}
+	p := optPulse(t, Options{})
+	validate := composeSchemaValidator(t, p)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if validate(tc.body) == nil {
+				t.Fatal("the payload schema admits the marker the runtime refuses")
+			}
+			c := decodeComposedJSON(t, tc.body)
+			env, err := p.PredictCompose(context.Background(), c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_FOR_EACH_INVALID) {
+				t.Fatalf("predict errors %+v, want PULSE_FOR_EACH_INVALID", env.Errors)
+			}
+			d := env.Errors[0].Details
+			if d["reason"] != "marker_position" || d["field"] != tc.field {
+				t.Fatalf("predict details %v, want reason marker_position at %s", d, tc.field)
+			}
+			for name, run := range composeRuns(p) {
+				resp, rerr := run(c)
+				ce := requireCoded(t, rerr, perr.PULSE_FOR_EACH_INVALID)
+				if resp != nil || env.Errors[0].Message != ce.Message || !reflect.DeepEqual(d, ce.Details) {
+					t.Fatalf("%s: predict %+v differs from runtime %s %v", name, env.Errors[0], ce.Message, ce.Details)
+				}
+			}
+		})
+	}
+	// The admitted positions: a whole value of the block (starts), of a
+	// list entry (a bound, a constraint's expr) and anywhere inside a
+	// free-form value (a number of a model's inline body).
+	ok := block(`[{"name":"x","lower":0,"upper":{"$var":"v"}}]`, `[{"expr":{"$var":"e"},"type":"ineq"}]`,
+		`,"starts":{"$var":"s"},"models":[{"name":"m","inline":{"model_format_version":1,"type":"REG_OLS","target":"y","predictors":["a"],"terms":["a"],"coefficients":{"(intercept)":1,"a":{"$var":"s"}}}}]`,
+		`[{"name":"v","values":[10,20]},{"name":"e","values":["x - 1"]},{"name":"s","values":[2]}]`)
+	if err := validate(ok); err != nil {
+		t.Fatalf("the payload schema rejects an admitted marker: %v", err)
+	}
+	c := decodeComposedJSON(t, ok)
+	if env, err := p.PredictCompose(context.Background(), c); err != nil || len(env.Errors) > 0 {
+		t.Fatalf("predict = %v %+v", err, env.Errors)
+	}
+	for name, run := range composeRuns(p) {
+		resp, err := run(c)
+		if err != nil || len(resp.Optimizations) != 2 {
+			t.Fatalf("%s = %v", name, err)
+		}
+	}
+}

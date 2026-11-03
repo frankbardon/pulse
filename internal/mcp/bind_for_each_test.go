@@ -275,3 +275,48 @@ func markerPaths(node map[string]any, prefix string, isMarker func(map[string]an
 		}
 	}
 }
+
+// TestBind_OptimizeVarMarkerPositions: the pulse_compose schema admits
+// a `{"$var"}` marker exactly where the runtime keeps one (sweep's
+// ReasonMarkerPosition rule; root
+// TestComposeForEachOptimize_MarkerPositionParity pins the runtime and
+// payload-schema halves): a whole value of the block or of a list
+// entry, and anywhere inside a model's free-form inline body — never a
+// whole list nor a list entry.
+func TestBind_OptimizeVarMarkerPositions(t *testing.T) {
+	t.Parallel()
+
+	_, inst := instanceFor(t, nil, pulse.Extensions{})
+	bound, err := BindForInstance(makeBindSchema(), inst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sch := compileBound(t, bound[toolmeta.ToolCompose])
+	block := func(fields string) string {
+		return `{"requests": [{"cohort": {"filename": "c.pulse"}}], "optimize": [{"name": "o_{{v}}", "direction": "minimize",
+			"objective": "x", "for_each": {"axes": [{"name": "v", "values": ["a", "b"]}]}, ` + fields + `}]}`
+	}
+	const vars = `"variables": [{"name": "x", "lower": 0, "upper": 1}]`
+	cases := []struct {
+		name, fields string
+		ok           bool
+	}{
+		{"bound", `"variables": [{"name": "x", "lower": 0, "upper": {"$var": "v"}}]`, true},
+		{"inside an inline model", vars + `, "models": [{"name": "m", "inline": {"type": "REG_OLS", "coefficients": {"a": {"$var": "v"}}}}]`, true},
+		{"whole variables list", `"variables": {"$var": "v"}`, false},
+		{"whole constraints list", vars + `, "constraints": {"$var": "v"}`, false},
+		{"whole models list", vars + `, "models": {"$var": "v"}`, false},
+		{"variables entry", `"variables": [{"$var": "v"}]`, false},
+		{"constraints entry", vars + `, "constraints": [{"$var": "v"}]`, false},
+		{"models entry", vars + `, "models": [{"$var": "v"}]`, false},
+	}
+	for _, c := range cases {
+		err := validates(t, sch, block(c.fields))
+		if c.ok && err != nil {
+			t.Errorf("%s: rejected, want accepted: %v", c.name, err)
+		}
+		if !c.ok && err == nil {
+			t.Errorf("%s: accepted, want rejected (the runtime refuses it marker_position)", c.name)
+		}
+	}
+}

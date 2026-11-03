@@ -3,6 +3,10 @@ package sweep
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/template"
@@ -17,6 +21,15 @@ const listOptimize = "optimize"
 // axis placeholder, so every block it adds would share one name. Each
 // expanded block needs its own name (results are keyed by it).
 const ReasonNameWithoutAxis = "name_without_axis"
+
+// ReasonMarkerPosition: a fanned-out optimize block carries a
+// `{"$var": "axis"}` marker where no typed value of its own stands — a
+// whole list (`variables`, `constraints`, `models`) or one entry of a
+// list. A marker stands only for one whole value of the
+// block or of one of its list entries — the positions the payload
+// schema and the MCP pulse_compose schema admit — so the three never
+// disagree on what runs.
+const ReasonMarkerPosition = "marker_position"
 
 // OptimizeExpandedCount is the number of optimize blocks c's for_each
 // fan-outs add: FanOutCount summed over every block (plain blocks do
@@ -92,6 +105,9 @@ func ExpandOptimize(c *types.ComposedRequest, opts Options, preflight func(expan
 		if ce := checkOptimizeName(path, spec, body); ce != nil {
 			return nil, nil, ce
 		}
+		if ce := checkOptimizeMarkers(path, body); ce != nil {
+			return nil, nil, ce
+		}
 		pending[path] = pendingItem{path: path, spec: spec, body: body}
 		mode := spec.Mode
 		if mode == "" {
@@ -138,6 +154,169 @@ func checkOptimizeName(path string, spec *types.ForEach, body json.RawMessage) *
 		"the optimize block at "+path+" carries a for_each, but its `name` names no axis, so every block it adds "+
 			"would share one name; put an axis placeholder in the name, e.g. `\"budget_{{"+spec.Axes[0].Name+"}}\"`",
 		map[string]any{"axes": axes})
+}
+
+// optimizeSpecType is the block type whose fields fix where a marker
+// may stand (checkOptimizeMarkers).
+var optimizeSpecType = reflect.TypeFor[types.OptimizeSpec]()
+
+var rawMessageType = reflect.TypeFor[json.RawMessage]()
+
+// checkOptimizeMarkers refuses a `{"$var"}` marker a fanned-out block's
+// body carries outside the positions the payload schema and the MCP
+// pulse_compose schema admit (ReasonMarkerPosition): a marker is a
+// whole value of a non-list field of the block, or of a non-list field
+// of one entry of a list of objects (variables, constraints, models),
+// never a whole list, a list entry, nor anything inside a typed value;
+// a free-form value (a model's `inline` body) admits one anywhere.
+// The rule is the schemas' (descriptor varMarkerStruct, the MCP
+// binder's allowVarMarkers) read off the same Go type. The first fault
+// in key order is reported; a key the type does not know is left to
+// the strict decode.
+func checkOptimizeMarkers(path string, body json.RawMessage) *errors.CodedError {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return itemInternalFault(path, err)
+	}
+	if at, what := markerFault(optimizeSpecType, obj, path); at != "" {
+		return forEachInvalid(at, ReasonMarkerPosition,
+			"the optimize block at "+path+" carries a {\"$var\"} marker at "+at+", "+what+"; a marker stands only for one "+
+				"whole value of the block or of one entry of its variables, constraints or models — write the list "+
+				"and its entries out and put the marker on a value inside an entry (e.g. a bound or an `expr`)",
+			map[string]any{})
+	}
+	return nil
+}
+
+// markerFault walks obj, an object of struct type t at path, and
+// returns the path of the first misplaced marker and what stands there
+// ("" when none).
+func markerFault(t reflect.Type, obj map[string]json.RawMessage, path string) (string, string) {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		f, ok := jsonField(t, k)
+		if !ok || (t == optimizeSpecType && k == "for_each") {
+			continue
+		}
+		at := path + "." + k
+		v := obj[k]
+		ft := f.Type
+		if ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+		if ft == rawMessageType {
+			// Free-form JSON (a model's inline body): both schemas type
+			// it as any object, so a marker anywhere in it is admitted.
+			continue
+		}
+		if ft.Kind() != reflect.Slice {
+			if isMarker(v) {
+				continue
+			}
+			if inner := findMarker(v, at); inner != "" {
+				return inner, "inside the value of `" + k + "`"
+			}
+			continue
+		}
+		if isMarker(v) {
+			return at, "standing for the whole `" + k + "` list"
+		}
+		var items []json.RawMessage
+		if json.Unmarshal(v, &items) != nil {
+			if inner := findMarker(v, at); inner != "" {
+				return inner, "inside the value of `" + k + "`"
+			}
+			continue
+		}
+		el := ft.Elem()
+		if el.Kind() == reflect.Pointer {
+			el = el.Elem()
+		}
+		for i, item := range items {
+			ip := at + "[" + strconv.Itoa(i) + "]"
+			if isMarker(item) {
+				return ip, "standing for a whole `" + k + "` entry"
+			}
+			var sub map[string]json.RawMessage
+			if el.Kind() == reflect.Struct && json.Unmarshal(item, &sub) == nil {
+				if fp, what := markerFault(el, sub, ip); fp != "" {
+					return fp, what
+				}
+				continue
+			}
+			if inner := findMarker(item, ip); inner != "" {
+				return inner, "inside a `" + k + "` entry"
+			}
+		}
+	}
+	return "", ""
+}
+
+// isMarker reports whether v is a lone `{"$var": …}` object.
+func isMarker(v json.RawMessage) bool {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(v, &m) != nil || len(m) != 1 {
+		return false
+	}
+	_, ok := m["$var"]
+	return ok
+}
+
+// findMarker returns the path of the first marker anywhere inside v
+// (v itself included), "" when none; object keys in sorted order.
+func findMarker(v json.RawMessage, path string) string {
+	if isMarker(v) {
+		return path
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal(v, &m) == nil {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			if p := findMarker(m[k], path+"."+k); p != "" {
+				return p
+			}
+		}
+		return ""
+	}
+	var a []json.RawMessage
+	if json.Unmarshal(v, &a) == nil {
+		for i, e := range a {
+			if p := findMarker(e, path+"["+strconv.Itoa(i)+"]"); p != "" {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+// jsonField is t's exported field encoding/json names key (the tag
+// name, else the Go name).
+func jsonField(t reflect.Type, key string) (reflect.StructField, bool) {
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if f.PkgPath != "" {
+			continue
+		}
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = f.Name
+		}
+		if name == key {
+			return f, true
+		}
+	}
+	return reflect.StructField{}, false
 }
 
 // RenderItemCombinations renders a raw item object carrying a

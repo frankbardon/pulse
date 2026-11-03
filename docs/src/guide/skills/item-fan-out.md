@@ -55,7 +55,7 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 
 ## Optimize blocks
 
-A Compose `optimize` block fans out too, right after the `base` merge: its `name` must carry an `{{axis}}` (`name_without_axis`); any other value varies whole as `{"$var": "axis"}` (a bound, `starts`, a constraint `expr`). The blocks it adds count toward `MaxExpandedItems`; predict lists `optimize[i]`, then each slot's `requests[i].…` fan-outs ([`compose-optimize`](compose-optimize.md)).
+A Compose `optimize` block fans out too, right after the `base` merge: its `name` must carry an `{{axis}}` (`name_without_axis`); any other value varies whole as `{"$var": "axis"}` (a bound, `starts`, a constraint `expr`; never a whole list or entry, `marker_position`). The blocks it adds count toward `MaxExpandedItems`; predict lists `optimize[i]`, then each slot's `requests[i].…` fan-outs ([`compose-optimize`](compose-optimize.md)).
 
 ## Limits, predict, hashing
 
