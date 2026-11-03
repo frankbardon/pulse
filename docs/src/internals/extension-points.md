@@ -350,7 +350,8 @@ keeps its code, located at the param — by predict and every runtime
 arm alike. An expression over literals and params is computed at
 predict; one calling `coef()`, `sweep_axis()`, `lookup()` or an
 embedder function is listed under predict's `unresolved_scalars`
-(`{path, expression, reads}`) and judged at run time. The manifest
+(`{path, expression, reads}`; a facet's filterers on
+`FacetPredictResult` too) and judged at run time. The manifest
 marks the param `expression: true`. `Expression` on any other
 `JSONType` is `PULSE_EXTENSION_PARAM_INVALID` (`details.reason`
 `expression_not_number`) at `pulse.New`. Without the flag a string

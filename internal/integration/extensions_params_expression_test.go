@@ -429,7 +429,7 @@ func TestExtensions_ParamsExpressionFacet(t *testing.T) {
 	t.Parallel()
 
 	c := &paramCapture{}
-	p, cohort := openE2E(t, onlyCategory(exprExtensions(c), "filterer"))
+	p, cohort := openE2E(t, withRateTable(onlyCategory(exprExtensions(c), "filterer")))
 	ctx := context.Background()
 	req := func(params string) *pulse.FacetRequest {
 		return &pulse.FacetRequest{Cohort: cohort, Fields: []string{"score"}, Params: types.Params{"k": json.Number("3"), "label": "a"},
@@ -444,8 +444,29 @@ func TestExtensions_ParamsExpressionFacet(t *testing.T) {
 	}
 	if env, err := p.PredictFacet(ctx, req(`{"scale":"params.k * 2"}`)); err != nil || len(env.Errors) > 0 {
 		t.Fatalf("PredictFacet: %v %+v", err, env.Errors)
+	} else if res := env.Data.(*pulse.FacetPredictResult); len(res.UnresolvedScalars) != 0 {
+		t.Fatalf("PredictFacet unresolved = %+v, want none", res.UnresolvedScalars)
 	}
-	_, err := p.FacetSchema(ctx, req(`{"scale":"params.label"}`))
+	// A request-bound expression (lookup()) is listed under the facet's
+	// unresolved_scalars, as Process and Compose predict list it, and
+	// resolved by the runtime.
+	bound := `{"scale":"lookup(\"rate\", params.label)"}`
+	env0, err := p.PredictFacet(ctx, req(bound))
+	if err != nil || len(env0.Errors) > 0 {
+		t.Fatalf("PredictFacet request-bound: %v %s", err, jsonOf(env0.Errors))
+	}
+	us := env0.Data.(*pulse.FacetPredictResult).UnresolvedScalars
+	if len(us) != 1 || us[0].Path != "filterers[0].params.scale" || us[0].Expression != `lookup("rate", params.label)` || !slices.Equal(us[0].Reads, []string{"lookup"}) {
+		t.Fatalf("PredictFacet unresolved = %+v", us)
+	}
+	c.reset()
+	if _, err := p.FacetSchema(ctx, req(bound)); err != nil {
+		t.Fatalf("FacetSchema request-bound: %v", err)
+	}
+	if got := c.scales(t, "filterer"); len(got) == 0 || slices.ContainsFunc(got, func(s string) bool { return s != "4" }) {
+		t.Fatalf("filterer saw scale %v, want only 4", got)
+	}
+	_, err = p.FacetSchema(ctx, req(`{"scale":"params.label"}`))
 	var ce *perr.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_REQUEST_PARAM_INVALID {
 		t.Fatalf("FacetSchema bad expression: err = %v", err)

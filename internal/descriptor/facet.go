@@ -76,6 +76,16 @@ type FacetValidationResult struct {
 	// estimate the pre-flight refuses with). A certain finding is also a
 	// PULSE_LIMIT_EXCEEDED error. Omitted when none fires.
 	LimitFindings []descriptor.LimitFinding `json:"limit_findings,omitempty"`
+
+	// UnresolvedScalars lists every expression-capable number param of
+	// the facet's extension filterers (pulse.ParamMeta.Expression) whose
+	// expression calls a request-bound function — coef(), sweep_axis(),
+	// response(), lookup(), range_label() or an embedder function — so
+	// predict checks it but cannot compute it, in filterer order, each
+	// at filterers[i].params.<key>: PredictResult.UnresolvedScalars for
+	// the FACET host. Its value waits for the runtime. Not a warning and
+	// not a refusal. Omitted when every such param resolved.
+	UnresolvedScalars []descriptor.UnresolvedScalar `json:"unresolved_scalars,omitempty"`
 }
 
 // ValidateFacet validates a FacetRequest against a .pulse cohort header
@@ -157,7 +167,7 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// The extension filterers' expression-capable params, judged over
 	// the facet's params and models — the runtime resolves them right
 	// after it binds the models.
-	validateFacetExtensionScalars(env, req, models, opts)
+	result.UnresolvedScalars = validateFacetExtensionScalars(env, req, models, opts)
 	// Multiplicity on the overlays — the pass FacetSchema runs right
 	// after the slot gate (ResolveFacetMultiplicity).
 	facetPlan, merr := ResolveFacetMultiplicity(req, opts.DefaultMultiplicity, opts.instance())

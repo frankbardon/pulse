@@ -175,17 +175,23 @@ func requestUnresolved(req *types.Request, opts *PredictOptions, prefix string) 
 // validateFacetExtensionScalars reports every refused expression-capable
 // param of a facet's extension filterers, judged over the facet's
 // params and its loaded models — the runtime's pass right after it
-// binds them (Service.facetSchema). A facet result carries no
-// unresolved list: an expression calling a request-bound function is
-// judged at run time alone.
-func validateFacetExtensionScalars(env *descriptor.Envelope, req *types.FacetRequest, models model.Catalog, opts *PredictOptions) {
+// binds them (Service.facetSchema) — and returns the ones calling a
+// request-bound function, which the runtime judges alone
+// (FacetValidationResult.UnresolvedScalars), each at filterers[i]; nil
+// when none.
+func validateFacetExtensionScalars(env *descriptor.Envelope, req *types.FacetRequest, models model.Catalog, opts *PredictOptions) []descriptor.UnresolvedScalar {
 	o := opts.withModels(models)
 	flagged := extensionFlagged(o)
 	if flagged == nil || req == nil {
-		return
+		return nil
 	}
-	_, _, refs := extscalar.ResolveFilterers("filterers", req.Filterers, flagged, staticEnv(scalarEnvFor(req.Params, o)), false)
+	_, unresolved, refs := extscalar.ResolveFilterers("filterers", req.Filterers, flagged, staticEnv(scalarEnvFor(req.Params, o)), false)
 	for _, ce := range refs {
 		addCodedError(env, ce)
 	}
+	var out []descriptor.UnresolvedScalar
+	for _, u := range unresolved {
+		out = append(out, descriptor.UnresolvedScalar{Path: u.Path, Expression: u.Expression, Reads: u.Reads})
+	}
+	return out
 }
