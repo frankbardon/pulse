@@ -327,7 +327,7 @@ type ScorableFunc func(t types.RegressionType) bool
 // regressions, ModelRegression). Any other bound type names its own
 // coefficients: an extension regression's, or a model regression's,
 // which is authored on the extension contract and so is shaped like
-// one (model file version 3, coef() on its own names, a scorer that
+// one (model file feature outputs, coef() on its own names, a scorer that
 // scores the whole model).
 func BuiltinRegression(t types.RegressionType) bool {
 	return slices.Contains(types.AllRegressionTypes(), t) && !ModelRegression(t)

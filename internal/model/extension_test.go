@@ -56,11 +56,11 @@ func TestBind_ExtensionRegression(t *testing.T) {
 }
 
 // TestModelFile_ExtensionRoundTrip: an extension regression's fit saves
-// as model_format_version 3 carrying its outputs, decodes back to the
+// listing feature outputs and carrying them, decodes back to the
 // same coefficients bit for bit and to outputs equal to
 // NormalizeOutputs of the fit's own — the one form its scorer sees —
-// and re-encodes to the same bytes. A built-in fit stays version 1 with
-// no outputs key.
+// and re-encodes to the same bytes. A built-in fit lists no feature and
+// has no outputs key.
 func TestModelFile_ExtensionRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -69,8 +69,8 @@ func TestModelFile_ExtensionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.ModelFormatVersion != 3 || len(f.Outputs) != 5 {
-		t.Fatalf("version %d outputs %v", f.ModelFormatVersion, f.Outputs)
+	if f.ModelFormatVersion != 1 || !reflect.DeepEqual(f.Features, []string{FeatureOutputs}) || len(f.Outputs) != 5 {
+		t.Fatalf("version %d features %v outputs %v", f.ModelFormatVersion, f.Features, f.Outputs)
 	}
 	data, err := f.Encode()
 	if err != nil {
@@ -105,15 +105,15 @@ func TestModelFile_ExtensionRoundTrip(t *testing.T) {
 		t.Fatalf("bind: %v %+v", err, b)
 	}
 
-	// A built-in fit is unchanged: version 1, no outputs key.
+	// A built-in fit is unchanged: version 1, no feature, no outputs key.
 	ospec, ores := fullFit()
 	of, err := NewFile("o", ospec, ores, Provenance{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	enc, _ := of.Encode()
-	if of.ModelFormatVersion != 1 || bytes.Contains(enc, []byte(`"outputs"`)) {
-		t.Fatalf("built-in file version %d / outputs key present", of.ModelFormatVersion)
+	if of.ModelFormatVersion != 1 || len(of.Features) != 0 || bytes.Contains(enc, []byte(`"outputs"`)) {
+		t.Fatalf("built-in file version %d features %v / outputs key present", of.ModelFormatVersion, of.Features)
 	}
 }
 

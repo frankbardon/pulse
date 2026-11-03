@@ -1902,14 +1902,17 @@ const (
 	// parsed: not JSON (reason "json"), no model_format_version
 	// ("version_missing"), or a version-1 document with an unknown key,
 	// a mistyped value or a structural fault — no type or target, a
-	// predictor without a coefficient or outside terms, a malformed vcov
-	// ("schema"). Details carry "path" and "reason" (plus "model" and
+	// predictor without a coefficient or outside terms, a malformed vcov,
+	// a listed feature without its section or a section whose feature is
+	// unlisted ("schema"). Details carry "path" and "reason" (plus "model" and
 	// "name" when a Request `models` entry loads it).
 	PULSE_MODEL_FILE_INVALID Code = "PULSE_MODEL_FILE_INVALID"
 
 	// PULSE_MODEL_VERSION_UNSUPPORTED indicates a model file whose
-	// model_format_version this build does not read. Details carry
-	// "path", "version" and "supported".
+	// model_format_version this build does not read (the retired 2 to 6
+	// included: re-save the fit), or one listing a feature this build
+	// does not know. Details carry "path", "version" and "supported",
+	// plus "unknown_features" and "supported_features" for a feature.
 	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
 
 	// PULSE_MODEL_REGRESSION_UNREGISTERED indicates a `models` entry

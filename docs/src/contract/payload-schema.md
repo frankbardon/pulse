@@ -1602,15 +1602,15 @@ request, result or public type: no fit's bytes move. Long form:
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
 relative to the instance filesystem root, where the finished fit is
-written as a model file (`model_format_version` 1, or 2 — adding the
-`covariance` echo — when a robust covariance produced the fit's standard
-errors, or 3 — adding the fit's `outputs`, its coefficients named by the
-model — for an extension regression whose registration supplies a
-scorer, or 4 — adding the fit's `dispersion` — for a classical `vcov`
-fit that carries one, or 5 — adding the fit's `theta` — for a `REG_GLM`
-`negative_binomial` fit, or 6 — `theta` and `dispersion` — for a fixed-θ
-`negative_binomial` fit whose dispersion is estimated; `.pulse-model.json`;
-the format is in `.claude/reference/byte-layout.md`, "Model file"). The
+written as a model file (`model_format_version` 1 plus a `features`
+list naming exactly the optional sections it carries: `robust_covariance`
+— the `covariance` echo — when a robust covariance produced the fit's
+standard errors, `outputs` — its coefficients named by the model — for an
+extension regression whose registration supplies a scorer, `dispersion`
+for a classical `vcov` fit that carries one, `theta` for a `REG_GLM`
+`negative_binomial` fit; versions 2 to 6 of earlier builds are refused
+with a re-save message; `.pulse-model.json`; the format is in
+`.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`
 or `details.fit`, refused by predict and the runtime alike before any

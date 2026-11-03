@@ -2781,11 +2781,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_VERSION_UNSUPPORTED: {
-		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`; a registered population's name under `registered`).",
+		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads, or a model file lists a feature this build does not know (the file under `path`, its version under `version`, the readable ones under `supported`; an unknown feature under `unknown_features`, the known ones under `supported_features`; a registered population's name under `registered`). Model files read version 1 only: the retired versions 2 to 6 are refused, never aliased.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the model or population with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+				Hint:   "Re-save the fit with this build (rerun it with `save`) — a model file of version 2 to 6 must be re-saved — or, for a newer file or an unknown feature, load it with the Pulse version that wrote it.",
 			},
 		},
 	},

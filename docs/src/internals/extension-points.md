@@ -1034,7 +1034,7 @@ scores the whole model: `params.terms` and a `lower` / `upper`
 `scale_not_glm`. Without a `Scorer`, scoring a fit is
 `PULSE_MODEL_SCORE_INVALID` reason `no_scorer` and `save` is refused
 (`slot: "save"`), at predict and at runtime alike; the fit itself runs.
-A saved fit is a `model_format_version` 3 file carrying `outputs`
+A saved fit is a model file listing feature `outputs` and carrying them
 (`.claude/reference/byte-layout.md`, Model file); loading one on an
 instance that does not register its type, or hides it under a feature
 profile, is `PULSE_MODEL_REGRESSION_UNREGISTERED` at predict and

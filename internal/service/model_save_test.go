@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -134,7 +135,7 @@ func TestModelSave_ProcessRoundTripsBitExact(t *testing.T) {
 		{"weighted", &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"},
 			Weight: types.SlotWeightOf(types.WeightSpec{Field: "x", Kind: types.WeightKindProbability})}, nil},
 		// A robust covariance's estimator is saved beside the figures it
-		// produced (model_format_version 2).
+		// produced (feature robust_covariance).
 		{"ols hac", &types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}, Vcov: true,
 			Covariance: &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "week"}}, nil},
 		{"glm hc3", &types.RegressionSpec{Type: types.REG_GLM, Name: "m", Target: "week", Family: "poisson", Predictors: []string{"x"},
@@ -178,8 +179,8 @@ func TestModelSave_ProcessRoundTripsBitExact(t *testing.T) {
 			if f.NObs != res.NObs || !bitsEqual(float64(f.SumWeights), res.SumWeights) || !bitsEqual(float64(f.NEff), res.NEff) || !bitsEqual(float64(f.DF), res.DF) {
 				t.Errorf("sample sizes: file %+v, result n=%d Σw=%v neff=%v df=%v", f, res.NObs, res.SumWeights, res.NEff, res.DF)
 			}
-			if !reflect.DeepEqual(f.Covariance, res.Covariance) || (res.Covariance != nil) != (f.ModelFormatVersion == 2) {
-				t.Errorf("covariance: file v%d %+v, result %+v", f.ModelFormatVersion, f.Covariance, res.Covariance)
+			if !reflect.DeepEqual(f.Covariance, res.Covariance) || f.ModelFormatVersion != 1 || (res.Covariance != nil) != slices.Contains(f.Features, model.FeatureRobustCovariance) {
+				t.Errorf("covariance: file v%d features %v %+v, result %+v", f.ModelFormatVersion, f.Features, f.Covariance, res.Covariance)
 			}
 			if (tc.spec.Covariance != nil) != (res.Covariance != nil) {
 				t.Errorf("vacuous: covariance echo %+v for spec %+v", res.Covariance, tc.spec.Covariance)

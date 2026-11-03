@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ import (
 // dispersion 1 — each held to R 4.6.1 + MASS 7.3-66
 // (internal/processing/testdata/reference/glm_nb.json,
 // scripts/reference/gen_glm_nb.R — make reference). The model file
-// saved from the fit carries θ (model_format_version 5) and scores the
+// saved from the fit carries θ (feature theta) and scores the
 // same rows bit for bit when loaded. Fit-level figures:
 // TestReferenceOracle_GLMNegBinMatchesR (internal/processing/regression).
 
@@ -149,8 +150,8 @@ func glmNBRefSlot() *Request {
 // family$dispersion = 1) — or, on a fixed-θ fit under dispersion
 // "estimated", at summary.glm's φ̂ with rstudent / dffits on the
 // leave-one-out σ (R on the bare glm(negative.binomial(θ)) fit). A model
-// file saved from the fit is model_format_version 5 carrying θ̂ (6 with
-// its φ̂ too), and the loaded model scores every column bit for bit as
+// file saved from the fit lists feature theta carrying θ̂ (and feature
+// dispersion with its φ̂), and the loaded model scores every column bit for bit as
 // the in-request fit does.
 func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 	t.Parallel()
@@ -209,31 +210,33 @@ func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 				}
 			}
 
-			// The model file carries θ (version 5; 6 with its estimated
-			// dispersion φ̂ beside it) and scores bit for bit.
+			// The model file is version 1 listing feature theta (plus
+			// dispersion with its estimated φ̂ beside it) and scores bit
+			// for bit.
 			raw, err := fsys.Open("m.pulse-model.json")
 			if err != nil {
 				t.Fatal(err)
 			}
 			var file struct {
-				Version int     `json:"model_format_version"`
-				Family  string  `json:"family"`
-				Theta   float64 `json:"theta"`
-				Disp    float64 `json:"dispersion"`
+				Version  int      `json:"model_format_version"`
+				Features []string `json:"features"`
+				Family   string   `json:"family"`
+				Theta    float64  `json:"theta"`
+				Disp     float64  `json:"dispersion"`
 			}
 			if err := json.NewDecoder(raw).Decode(&file); err != nil {
 				t.Fatal(err)
 			}
 			_ = raw.Close()
-			wantVersion, wantDisp := 5, 0.0
+			wantFeatures, wantDisp := []string{"theta"}, 0.0
 			if c.DispersionMethod == types.NegBinDispersionEstimated {
-				wantVersion, wantDisp = 6, fit.Dispersion
+				wantFeatures, wantDisp = []string{"dispersion", "theta"}, fit.Dispersion
 				if e := relErr(fit.Dispersion, c.Dispersion[0]); e > tol {
 					t.Errorf("dispersion = %.17g, R %.17g (rel %.3g)", fit.Dispersion, c.Dispersion[0], e)
 				}
 			}
-			if file.Version != wantVersion || file.Family != "negative_binomial" || file.Theta != fit.Theta || file.Disp != wantDisp {
-				t.Errorf("model file version %d family %s θ %v φ %v, fit θ %v φ %v", file.Version, file.Family, file.Theta, file.Disp, fit.Theta, wantDisp)
+			if file.Version != 1 || !slices.Equal(file.Features, wantFeatures) || file.Family != "negative_binomial" || file.Theta != fit.Theta || file.Disp != wantDisp {
+				t.Errorf("model file version %d features %v family %s θ %v φ %v, fit θ %v φ %v", file.Version, file.Features, file.Family, file.Theta, file.Disp, fit.Theta, wantDisp)
 			}
 			loaded := glmNBRefSlot()
 			loaded.Models = []types.ModelRef{{Name: "m", Path: "m.pulse-model.json"}}

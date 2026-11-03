@@ -1069,7 +1069,7 @@ type RegressionRegistration struct {
 	// alone (extend.FittedRegression: its coefficients and Outputs), so
 	// ATTR_REG_PREDICT scores the model's fits — a Compose `fits` entry,
 	// or a saved model file reloaded through `models` — and `save` may
-	// write one (model_format_version 3, carrying the Outputs). The
+	// write one (listing feature outputs, carrying the Outputs). The
 	// scorer scores the whole model: params.terms and a lower / upper
 	// params.bound are refused on it. Nil: the fits run, but scoring one
 	// is refused with PULSE_MODEL_SCORE_INVALID (reason no_scorer) and

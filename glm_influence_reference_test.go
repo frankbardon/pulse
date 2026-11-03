@@ -209,10 +209,11 @@ func TestGLMInfluence_MatchesR(t *testing.T) {
 }
 
 // TestGLMInfluence_LoadedModelMatchesFit: a vcov fit saved as a model
-// file (model_format_version 4 where φ is estimated: it carries the
-// dispersion) and loaded by a `models` entry scores every influence
-// figure bit-equal to the in-request fit; a version-1 file of the same
-// OLS fit — one an earlier build wrote, vcov but no dispersion — is
+// file (listing feature dispersion where φ is estimated: it carries
+// the dispersion) and loaded by a `models` entry scores every influence
+// figure bit-equal to the in-request fit; a featureless version-1 file
+// of the same OLS fit — one an earlier build wrote, vcov but no
+// dispersion — is
 // refused (requires dispersion) at runtime and by predict alike.
 func TestGLMInfluence_LoadedModelMatchesFit(t *testing.T) {
 	t.Parallel()
