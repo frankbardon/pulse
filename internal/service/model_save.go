@@ -31,8 +31,10 @@ const modelTempPattern = ".*.tmp"
 // saveRegressionModels writes every RegressionSpec.Save of req from
 // resp's full-precision results (before any `return` shaping) and
 // appends a PULSE_MODEL_OVERWRITTEN warning per replaced file. The
-// paths passed model.CheckRegressionSaves before dispatch.
-func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, resp *types.Response) error {
+// paths passed model.CheckRegressionSaves before dispatch. adstock is
+// the regressions' adstock records (Service.adstockLineage,
+// index-aligned; nil for none), written as feature adstock.
+func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, resp *types.Response, adstock []map[string]model.Adstock) error {
 	if resp == nil {
 		return nil
 	}
@@ -61,7 +63,11 @@ func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, 
 			p := s.modelProvenance(req)
 			prov = &p
 		}
-		overwrote, err := s.writeModel(ctx, spec.Save, name, spec, res, *prov, nil)
+		var records map[string]model.Adstock
+		if i < len(adstock) {
+			records = adstock[i]
+		}
+		overwrote, err := s.writeModel(ctx, spec.Save, name, spec, res, *prov, nil, records)
 		if err != nil {
 			return err
 		}
@@ -79,14 +85,15 @@ func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, 
 // saveFitModel writes fit's model file (FitSpec.Save) under the fit's
 // name from its full-precision result — a sweep-bound fit's with axes,
 // its winning slot's axis values (feature sweep_axes), so the loaded
-// model reads them through sweep_axis(). It returns the
+// model reads them through sweep_axis() — and a media-mix fit's with
+// its adstock records (feature adstock). It returns the
 // PULSE_MODEL_OVERWRITTEN warning (details.fit = i) when it replaced a
 // file, nil otherwise.
-func (s *Service) saveFitModel(ctx context.Context, i int, fit types.FitSpec, res *types.RegressionResult, axes map[string]any) (*types.ResponseWarning, error) {
+func (s *Service) saveFitModel(ctx context.Context, i int, fit types.FitSpec, res *types.RegressionResult, axes map[string]any, adstock map[string]model.Adstock) (*types.ResponseWarning, error) {
 	if fit.Save == "" {
 		return nil, nil
 	}
-	overwrote, err := s.writeModel(ctx, fit.Save, fit.Name, fit.Request.Regressions[0], res, s.modelProvenance(fit.Request), axes)
+	overwrote, err := s.writeModel(ctx, fit.Save, fit.Name, fit.Request.Regressions[0], res, s.modelProvenance(fit.Request), axes, adstock)
 	if err != nil || !overwrote {
 		return nil, err
 	}
@@ -97,8 +104,9 @@ func (s *Service) saveFitModel(ctx context.Context, i int, fit types.FitSpec, re
 
 // writeModel encodes the model file and writes it to path atomically;
 // overwrote reports whether a file was replaced. axes are a
-// sweep-bound fit's winning axis values (nil for any other fit).
-func (s *Service) writeModel(ctx context.Context, path, name string, spec *types.RegressionSpec, res *types.RegressionResult, prov model.Provenance, axes map[string]any) (bool, error) {
+// sweep-bound fit's winning axis values (nil for any other fit), adstock
+// a media-mix fit's adstock records (nil for none).
+func (s *Service) writeModel(ctx context.Context, path, name string, spec *types.RegressionSpec, res *types.RegressionResult, prov model.Provenance, axes map[string]any, adstock map[string]model.Adstock) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -109,6 +117,7 @@ func (s *Service) writeModel(ctx context.Context, path, name string, spec *types
 	if err := f.SetSweepAxes(axes); err != nil {
 		return false, err
 	}
+	f.SetAdstock(adstock)
 	data, err := f.Encode()
 	if err != nil {
 		return false, err

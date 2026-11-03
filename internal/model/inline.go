@@ -86,6 +86,9 @@ var (
 	inlineRealKeys    = []string{"conf_level", "df", "dispersion", "n_eff", "sum_weights", "theta"}
 	inlineIntegerKeys = []string{"n_obs"}
 	inlineMapKeys     = []string{"ci_lower", "ci_upper", "coefficients", "std_errors"}
+	// An adstock record's numbers, under adstock.<channel>.
+	inlineAdstockRealKeys    = []string{"decay", "scale", "shape"}
+	inlineAdstockIntegerKeys = []string{"max_lag"}
 )
 
 // InlineNumberPaths are the JSON key paths (array indices dropped, "*"
@@ -98,6 +101,9 @@ func InlineNumberPaths() [][]string {
 	}
 	for _, k := range slices.Sorted(slices.Values(append(slices.Clone(inlineRealKeys), inlineIntegerKeys...))) {
 		out = append(out, []string{k})
+	}
+	for _, k := range slices.Sorted(slices.Values(append(slices.Clone(inlineAdstockRealKeys), inlineAdstockIntegerKeys...))) {
+		out = append(out, []string{"adstock", "*", k})
 	}
 	return append(out, []string{"vcov", "values"})
 }
@@ -197,6 +203,23 @@ func resolveInline(j int, r types.ModelRef, params types.Params, eval InlineNumb
 					return nil, cerr
 				}
 				m[term] = n
+			}
+		}
+	}
+	if ad, ok := doc["adstock"].(map[string]any); ok {
+		for _, ch := range slices.Sorted(maps.Keys(ad)) {
+			rec, ok := ad[ch].(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, k := range append(slices.Clone(inlineAdstockRealKeys), inlineAdstockIntegerKeys...) {
+				if s, ok := rec[k].(string); ok {
+					n, cerr := number("adstock."+ch+"."+k, s, slices.Contains(inlineAdstockIntegerKeys, k))
+					if cerr != nil {
+						return nil, cerr
+					}
+					rec[k] = n
+				}
 			}
 		}
 	}

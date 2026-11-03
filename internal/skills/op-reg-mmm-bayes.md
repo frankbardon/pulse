@@ -38,7 +38,7 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `vcov` | bool | `false` | Posterior covariance. |
 | `name` | string | — | Result name. |
 
-Prior object: `{family, mu, sigma, alpha, beta, lower, upper}` (normal, halfnormal, lognormal, beta, truncnormal), each family its own keys. Defaults: decay Beta(1,1), s LogNormal(0.3, 0.5), k TruncNormal(1, 1, 0.02, 10), ROI LogNormal(0.2, 0.9). `rng_seed` 0 derives a seed from the request, key order ignored.
+Prior object: `{family, mu, sigma, alpha, beta, lower, upper}` (normal, halfnormal, lognormal, beta, truncnormal). Defaults: decay Beta(1,1), s LogNormal(0.3, 0.5), k TruncNormal(1, 1, 0.02, 10), ROI LogNormal(0.2, 0.9). `rng_seed` 0 derives a seed from the request, key order ignored.
 
 ## Inputs
 
@@ -48,6 +48,8 @@ One market, one row per period. A weekly `date` column is `time_gap`; several ro
 
 Coefficients are posterior means<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel), `params`, `diagnostics`, `holdout`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
 
+The bound fit records each channel's adstock: geometric, `decay:<ch>` mean, `max_lag`, unnormalised.
+
 <!-- generated: reading-the-output -->
 
 <!-- generated: contract -->
@@ -55,10 +57,10 @@ Coefficients are posterior means<!-- feature: capability:models -->; an `inline`
 ## Gotchas
 
 - No `save`, scoring, engine `holdout`, `resample` or other shared slot (`rng_seed` excepted): use `params.holdout_from`.
-- k and s trade off; judge ROI and contribution, not k.
-- mROI is analytic with the curve held fixed.
+- k and s trade off; judge ROI, not k.
+- mROI holds the curve fixed.
 - Health is reported, not refused: `PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`. `Strict` fails the slot with that code. 2×100 draws always warn `ess_low`.
-- A default fit takes about 35 s; set `rng_seed` to reproduce it.
+- A default fit takes about 35 s.
 
 ## See
 

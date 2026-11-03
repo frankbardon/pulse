@@ -703,6 +703,12 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// Every expression of this run folds the request's params: the
 	// arms below compile through the per-request registry.
 	s = s.forRequest(req)
+	// A Compose fit's adstock sink is this run's alone: cleared on ctx
+	// so no nested run fills it (adstock_lineage.go).
+	sink := adstockSinkFrom(ctx)
+	if sink != nil {
+		ctx = withAdstockSink(ctx, nil)
+	}
 
 	// A slot the instance hides is an unknown field. It runs before the
 	// join-count rule and the crosstab / joins dispatch below, so a
@@ -829,9 +835,16 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 	s.appendVectorWarnings(ctx, req, resp)
 	s.appendTargetLeakageWarnings(req, resp)
+	// A media-mix fit's adstock lineage, over the windows as this run
+	// resolved them: for a Compose fit's binding (the sink) and for the
+	// model files.
+	lineage := s.adstockLineage(ctx, req, resp, sink != nil)
+	if sink != nil {
+		sink.records = lineage
+	}
 	// Model files: every regression `save`, from the full-precision
 	// results (a `return` shapes the response later, in the facade).
-	if err := s.saveRegressionModels(ctx, req, resp); err != nil {
+	if err := s.saveRegressionModels(ctx, req, resp, lineage); err != nil {
 		return nil, err
 	}
 	return resp, nil

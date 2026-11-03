@@ -68,6 +68,10 @@ const (
 	// winning slot's axis values, each kept as raw JSON — what
 	// sweep_axis() reads off the loaded model.
 	FeatureSweepAxes = "sweep_axes"
+	// FeatureAdstock: `adstock`, a media-mix fit's per-channel adstock
+	// records (Adstock, AdstockLineage) — what response() reads off the
+	// loaded model.
+	FeatureAdstock = "adstock"
 )
 
 // fileFeature is one optional model-file section: the registry entry a
@@ -148,6 +152,11 @@ var fileFeatures = []fileFeature{
 			}
 			return ""
 		},
+	},
+	{
+		name: FeatureAdstock, key: "adstock",
+		present: func(f *File) bool { return f.Adstock != nil },
+		rule:    adstockRule,
 	},
 }
 
@@ -267,6 +276,11 @@ type File struct {
 	// exactly. Present: the loaded model is sweep-bound and
 	// sweep_axis() reads these; absent: it is not (not_sweep_bound).
 	SweepAxes map[string]json.RawMessage `json:"sweep_axes,omitempty"`
+	// Adstock (feature adstock) is a media-mix fit's adstock record per
+	// channel (Adstock): the kernel the channel's spend went through,
+	// written by lineage (AdstockLineage) or declared by an inline
+	// model. File.Bind restores it as Bound.Adstocks.
+	Adstock map[string]Adstock `json:"adstock,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last
 	// two present on a weighted fit only).
 	NObs       int   `json:"n_obs"`
@@ -444,6 +458,18 @@ func (f *File) SetSweepAxes(axes map[string]any) error {
 	f.SweepAxes = out
 	f.Features = f.presentFeatures()
 	return nil
+}
+
+// SetAdstock records a media-mix fit's adstock records (AdstockLineage)
+// as the file's adstock section and re-derives the features list. A nil
+// or empty map leaves the file as is: only a fit with a record carries
+// the section.
+func (f *File) SetAdstock(records map[string]Adstock) {
+	if len(records) == 0 {
+		return
+	}
+	f.Adstock = cloneAdstocks(records)
+	f.Features = f.presentFeatures()
 }
 
 // sweepAxisValues reads the sweep_axes section back into the values
@@ -625,7 +651,8 @@ func (f *File) check() string {
 // predictors, terms and figures, bit for bit. Its Result carries the
 // saved figures only (no R² or deviance). A file carrying sweep_axes
 // binds sweep-bound (SweepBound + SweepAxes), so sweep_axis() reads the
-// saved winner's axes.
+// saved winner's axes; one carrying adstock binds its records
+// (Bound.Adstocks).
 func (f *File) Bind(name string) (*Bound, error) {
 	spec := &types.RegressionSpec{
 		Type:       f.Type,
@@ -644,6 +671,7 @@ func (f *File) Bind(name string) (*Bound, error) {
 	if f.SweepAxes != nil {
 		b.SweepBound, b.SweepAxes = true, f.sweepAxisValues()
 	}
+	b.Adstocks = cloneAdstocks(f.Adstock)
 	return b, nil
 }
 

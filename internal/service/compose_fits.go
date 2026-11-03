@@ -97,6 +97,10 @@ type composeFitPass struct {
 	winnerAxes []map[string]any
 	sweepAxes  []string
 	results    []*types.RegressionResult
+	// adstock[i] is regression fit i's adstock records
+	// (model.AdstockLineage, filled by its Process through an
+	// adstockSink), bound as Bound.Adstocks and written by its save.
+	adstock    []map[string]model.Adstock
 	vectorFits []*model.VectorFit
 	semFits    []*model.SEMFit
 	// failed[i] is fit i's data failure (nil when it fitted), and
@@ -118,6 +122,7 @@ func (s *Service) newComposeFitPass(fits []types.FitSpec, pre *composeModels) *c
 		winnerFiles:  make([]*model.Loaded, n),
 		winnerAxes:   make([]map[string]any, n),
 		results:      make([]*types.RegressionResult, n),
+		adstock:      make([]map[string]model.Adstock, n),
 		vectorFits:   make([]*model.VectorFit, n),
 		semFits:      make([]*model.SEMFit, n),
 		failed:       make([]*types.SlotError, n),
@@ -215,11 +220,13 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 	// capture its engine offers its comparison figures to
 	// (compose_compare.go); every other fit runs as it always has.
 	fitSet, figures := captureFor(ctx, fits[i].Name, fitSet)
-	resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
+	sink := &adstockSink{}
+	resp, err := s.Process(withAdstockSink(withModelsBound(ctx, fitSet), sink), model.FitRequest(fits[i]))
 	if err != nil {
 		p.errs[i] = err
 		return
 	}
+	p.adstock[i] = sink.at(0)
 	recordComparisonFigures(ctx, fits[i].Name, figures)
 	if resp == nil || len(resp.Regressions) != 1 || resp.Regressions[0] == nil {
 		p.errs[i] = errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -249,7 +256,7 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 			p.saveWarnings[i] = append(p.saveWarnings[i], fitWarning(w, i))
 		}
 	}
-	w, err := s.saveFitModel(ctx, i, fits[i], p.results[i], p.winnerAxes[i])
+	w, err := s.saveFitModel(ctx, i, fits[i], p.results[i], p.winnerAxes[i], p.adstock[i])
 	if err != nil {
 		p.errs[i] = err
 		return
@@ -420,6 +427,7 @@ func (p *composeFitPass) bind(mask []bool) (*model.Set, map[string]*types.FitRes
 		if f.FromSweep != nil {
 			b.SweepBound, b.SweepAxes = true, p.winnerAxes[i]
 		}
+		b.Adstocks = p.adstock[i]
 		if err := set.Add(b); err != nil {
 			// CheckFits already refused a duplicate name; reaching
 			// here is an invariant violation, still reported coded.

@@ -60,10 +60,6 @@ import (
 // architecture. The model holds no mutable state: each call allocates
 // its own scratch, so the sampler's chains may share it.
 
-// defaultMaxLag is the adstock window when params.max_lag is absent: 13
-// weeks, a quarter of carry-over (Jin et al. 2017's L).
-const defaultMaxLag = 13
-
 // bayesChannelPriors is one channel's priors; beta selects β mode
 // (Effect is then β's prior on the scaled outcome) over ROI mode
 // (Effect is the ROI's prior in original units).

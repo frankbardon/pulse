@@ -30,13 +30,13 @@ func wantFeatures(t *testing.T, got *File, data []byte, want ...string) {
 	}
 }
 
-// TestModelFile_FeatureRegistry: the registry names the five sections
+// TestModelFile_FeatureRegistry: the registry names the six sections
 // in the order the writer lists them, and each governs a real document
 // key of File — the one entry a new section adds.
 func TestModelFile_FeatureRegistry(t *testing.T) {
 	t.Parallel()
 
-	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes}
+	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes, FeatureAdstock}
 	if got := FileFeatures(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FileFeatures() = %v, want %v", got, want)
 	}
@@ -66,55 +66,59 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 	}
 	hc3 := &types.RegressionCovarianceResult{Type: types.CovarianceHC3}
 	axes := map[string]any{"decay": json.Number("0.4"), "penalty": "l2", "lagged": true}
+	adstock := map[string]Adstock{"tv_ad": {Kernel: "geometric", Decay: f64(0.6), MaxLag: 8, Normalize: true}}
 	cases := []struct {
-		name string
-		fit  func() (*types.RegressionSpec, *types.RegressionResult)
-		want []string
-		axes map[string]any
+		name    string
+		fit     func() (*types.RegressionSpec, *types.RegressionResult)
+		want    []string
+		axes    map[string]any
+		adstock map[string]Adstock
 	}{
-		{"none", fullFit, nil, nil},
+		{"none", fullFit, nil, nil, nil},
 		{"robust_covariance", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance}, nil},
+		}, []string{FeatureRobustCovariance}, nil, nil},
 		{"dispersion", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			r.Dispersion = 1.2575235440954267
 			return s, r
-		}, []string{FeatureDispersion}, nil},
+		}, []string{FeatureDispersion}, nil, nil},
 		{"theta", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			return s, r
-		}, []string{FeatureTheta}, nil},
+		}, []string{FeatureTheta}, nil, nil},
 		{"robust_covariance+theta", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance, FeatureTheta}, nil},
+		}, []string{FeatureRobustCovariance, FeatureTheta}, nil, nil},
 		{"dispersion+theta", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			s.Theta, s.Dispersion = 1.7, types.NegBinDispersionEstimated
 			r.Theta, r.Dispersion = 1.7, 1.2832190573164217
 			return s, r
-		}, []string{FeatureDispersion, FeatureTheta}, nil},
-		{"outputs", extResult, []string{FeatureOutputs}, nil},
+		}, []string{FeatureDispersion, FeatureTheta}, nil, nil},
+		{"outputs", extResult, []string{FeatureOutputs}, nil, nil},
 		{"robust_covariance+outputs", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := extResult()
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance, FeatureOutputs}, nil},
-		{"sweep_axes", fullFit, []string{FeatureSweepAxes}, axes},
+		}, []string{FeatureRobustCovariance, FeatureOutputs}, nil, nil},
+		{"sweep_axes", fullFit, []string{FeatureSweepAxes}, axes, nil},
 		{"robust_covariance+theta+sweep_axes", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance, FeatureTheta, FeatureSweepAxes}, axes},
-		{"outputs+sweep_axes", extResult, []string{FeatureOutputs, FeatureSweepAxes}, axes},
+		}, []string{FeatureRobustCovariance, FeatureTheta, FeatureSweepAxes}, axes, nil},
+		{"outputs+sweep_axes", extResult, []string{FeatureOutputs, FeatureSweepAxes}, axes, nil},
+		{"outputs+adstock", hillFit, []string{FeatureOutputs, FeatureAdstock}, nil, adstock},
+		{"outputs+sweep_axes+adstock", hillFit, []string{FeatureOutputs, FeatureSweepAxes, FeatureAdstock}, axes, adstock},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -127,6 +131,7 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 			if err := f.SetSweepAxes(tc.axes); err != nil {
 				t.Fatal(err)
 			}
+			f.SetAdstock(tc.adstock)
 			got, data := roundTrip(t, f)
 			wantFeatures(t, got, data, tc.want...)
 			r := got.Result()
@@ -150,6 +155,9 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 			}
 			if loaded.SweepBound != (tc.axes != nil) || !reflect.DeepEqual(loaded.SweepAxes, tc.axes) {
 				t.Errorf("sweep binding %v %v, want %v", loaded.SweepBound, loaded.SweepAxes, tc.axes)
+			}
+			if !reflect.DeepEqual(loaded.Adstocks, tc.adstock) || !reflect.DeepEqual(got.Adstock, tc.adstock) {
+				t.Errorf("adstock bound %v, file %v, want %v", loaded.Adstocks, got.Adstock, tc.adstock)
 			}
 			if BuiltinRegression(res.Type) {
 				want, err := Bind("m", spec, res)

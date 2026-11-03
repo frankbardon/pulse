@@ -150,7 +150,7 @@ var slots = []Slot{
 	// internal/model's InlineNumberPaths): each a number or a scalar
 	// expression over params, resolved before the body is judged as a
 	// model file. Rooted at the `models` list; Wildcard keys (a
-	// coefficient's term) match any key.
+	// coefficient's term, an adstock record's channel) match any key.
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "ci_lower", Wildcard}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "ci_upper", Wildcard}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "coefficients", Wildcard}, Scalar: true},
@@ -163,6 +163,10 @@ var slots = []Slot{
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "sum_weights"}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "theta"}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "vcov", "values"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "decay"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "max_lag"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "scale"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "shape"}, Scalar: true},
 }
 
 // Wildcard in a Tail matches any one key (an inline model's

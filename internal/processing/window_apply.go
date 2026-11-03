@@ -81,6 +81,15 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 // A type the instance does not resolve is left to the unknown-window
 // error, as predict reports an unknown type first.
 func (p *Processor) resolveWindowScalars(windows []*types.Window) ([]*types.Window, error) {
+	return ResolveWindowScalars(p.exts, p.models, windows)
+}
+
+// ResolveWindowScalars is the runtime's windowscalar pass over windows
+// for a request run over exts and models — the one the Processor runs
+// before applying them, so a caller reading the windows a run applied
+// (a fit's adstock lineage, model.AdstockLineage) sees the very numbers
+// the run read.
+func ResolveWindowScalars(exts *ExtensionRegistry, models *model.Set, windows []*types.Window) ([]*types.Window, error) {
 	var out []*types.Window
 	var env *scalarslot.Env
 	var bound exprenv.Bound
@@ -88,12 +97,12 @@ func (p *Processor) resolveWindowScalars(windows []*types.Window) ([]*types.Wind
 		if w == nil || len(windowscalar.Exprs(w)) == 0 {
 			continue
 		}
-		if _, ok := p.exts.LookupWindow(w.Type); !ok {
+		if _, ok := exts.LookupWindow(w.Type); !ok {
 			continue
 		}
 		if env == nil {
-			e := p.scalarEnv()
-			env, bound = &e, p.exts.ExprBoundWithModels(p.models)
+			e := scalarEnvOf(exts, models)
+			env, bound = &e, exts.ExprBoundWithModels(models)
 		}
 		res, refs := windowscalar.Resolve(w, *env, bound, true)
 		if len(refs) > 0 {
@@ -108,13 +117,6 @@ func (p *Processor) resolveWindowScalars(windows []*types.Window) ([]*types.Wind
 		return windows, nil
 	}
 	return out, nil
-}
-
-// scalarEnv is the scalar-slot environment of the processor's request:
-// its params (the registry's fold), its bound models, the instance's
-// tables and the embedder's expression functions.
-func (p *Processor) scalarEnv() scalarslot.Env {
-	return scalarEnvOf(p.exts, p.models)
 }
 
 // scalarEnvOf is the scalar-slot environment of a request run over exts
