@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U50]
 blocks: [U32]
-todo_items: [362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457, 525, 594, 595, 596, 597]
+todo_items: [362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457]
 branch: synth-realism
 ---
 
