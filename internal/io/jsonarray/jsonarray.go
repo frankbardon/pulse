@@ -25,6 +25,13 @@ type Reader struct {
 	rowNum  int
 	closed  bool
 
+	// empty marks a source with no JSON value at all (zero bytes or
+	// whitespace): an empty cohort, not a malformed document. done
+	// marks a document whose closing ']' and end of input finish has
+	// already verified.
+	empty bool
+	done  bool
+
 	// nulls is the per-column null mask for the row most recently
 	// handed to the ReadRows callback — the iocore.NullAwareReader
 	// channel. JSON distinguishes a null from an empty string and the
@@ -84,30 +91,69 @@ func (r *Reader) init() error {
 	}
 	if r.data == nil {
 		if r.fs == nil {
-			return fmt.Errorf("jsonarray.Reader: no data source")
+			return errors.NewCodedError(errors.DATA_FILE, "jsonarray.Reader: no data source")
 		}
 		data, err := afero.ReadFile(r.fs, r.path)
 		if err != nil {
-			return fmt.Errorf("jsonarray.Reader: reading %s: %w", r.path, err)
+			return &errors.CodedError{
+				Code:    errors.DATA_FILE,
+				Message: fmt.Sprintf("jsonarray.Reader: reading %s: %v", r.path, err),
+				Details: map[string]any{"path": r.path},
+				Cause:   err,
+			}
 		}
 		r.data = data
 	}
 	r.dec = json.NewDecoder(bufio.NewReader(bytes.NewReader(r.data)))
 	r.dec.UseNumber()
+	r.empty, r.done = false, false
 
 	// Consume opening '['.
 	tok, err := r.dec.Token()
 	if err == io.EOF {
 		// Empty input: leave dec in a state where More() returns false.
+		r.empty = true
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("jsonarray.Reader: %w", err)
+		return layoutError(fmt.Sprintf("jsonarray.Reader: %v", err), err)
 	}
 	d, ok := tok.(json.Delim)
 	if !ok || d != '[' {
-		return fmt.Errorf("jsonarray.Reader: expected '[' at start, got %v", tok)
+		return layoutError(fmt.Sprintf("jsonarray.Reader: expected '[' at start, got %v", tok), nil)
 	}
+	return nil
+}
+
+// layoutError codes a document that is not one well-formed top-level
+// JSON array: no opening '[', or data after the closing ']'.
+func layoutError(msg string, cause error) error {
+	return &errors.CodedError{Code: errors.DATA_FILE, Message: msg, Cause: cause}
+}
+
+// finish verifies the array the row loop has walked to its end is
+// closed by ']' and followed by nothing but whitespace. Without it the
+// reader stopped at the last element and never looked further, so data
+// after the array — a second concatenated array included — was dropped
+// silently.
+func (r *Reader) finish() error {
+	if r.empty || r.done || r.dec == nil {
+		return nil
+	}
+	tok, err := r.dec.Token()
+	if err != nil {
+		return layoutError(fmt.Sprintf("jsonarray.Reader: array not closed after row %d: %v", r.rowNum, err), err)
+	}
+	if d, ok := tok.(json.Delim); !ok || d != ']' {
+		return layoutError(fmt.Sprintf("jsonarray.Reader: expected ',' or ']' after row %d, got %v", r.rowNum, tok), nil)
+	}
+	if tok, err := r.dec.Token(); err != io.EOF {
+		if err != nil {
+			return layoutError(fmt.Sprintf("jsonarray.Reader: data after the closing ']': %v", err), err)
+		}
+		return layoutError(fmt.Sprintf("jsonarray.Reader: data after the closing ']': %v", tok), nil)
+	}
+	r.done = true
 	return nil
 }
 
@@ -169,12 +215,19 @@ func (r *Reader) ReadHeader() ([]string, error) {
 		return r.header, nil
 	}
 	if r.dec == nil || !r.dec.More() {
-		return nil, nil
+		return nil, r.finish()
 	}
 
 	obj, keys, err := decodeObject(r.dec)
 	if err != nil {
-		return nil, fmt.Errorf("jsonarray.Reader: parsing first element: %w", err)
+		// The first element is row 1 as well as the column
+		// declaration: refused with the code every later malformed
+		// element carries.
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_IMPORT_ROW_ERROR,
+			fmt.Sprintf("jsonarray.Reader: parsing first element: %v", err),
+			map[string]any{"row": 1},
+		)
 	}
 	r.header = keys
 	r.pending = obj
@@ -194,7 +247,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 	}
 	if r.header == nil {
-		return nil // empty array
+		return r.finish() // empty array
 	}
 
 	emit := func(obj map[string]any) error {
@@ -261,7 +314,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			return err
 		}
 	}
-	return nil
+	return r.finish()
 }
 
 // errStop is an internal sentinel used to unwind ReadRows on iocore.ErrStopIteration.
