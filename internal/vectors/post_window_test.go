@@ -122,7 +122,7 @@ func TestWindowPredictor_PostWindowZeroPlanAllocationFree(t *testing.T) {
 	noWindow := &types.Request{Attributes: []*types.Attribute{formula("f", "x * 2")}}
 	noAttr := &types.Request{Windows: []*types.Window{lagOf("x", "lag")}}
 	for _, req := range []*types.Request{noWindow, noAttr} {
-		if n := testing.AllocsPerRun(100, func() { _ = PostWindowAttributes(req, s, nil, nil) }); n != 0 {
+		if n := testing.AllocsPerRun(100, func() { _ = PostWindowAttributes(req, s, nil, nil) }); n != 0 && !raceEnabled {
 			t.Errorf("%d allocations, want 0", int(n))
 		}
 		if pw := PostWindowAttributes(req, s, nil, nil); !reflect.DeepEqual(pw, PostWindow{}) {

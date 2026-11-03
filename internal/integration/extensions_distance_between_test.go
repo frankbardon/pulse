@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TODO #411's extension half: a registered extension grouper is a
+// The extension half of #411: a registered extension grouper is a
 // MAT_DISTANCE params.between like a built-in. It buckets through its
 // own extend.Grouper.Group — the whole-set pass the engine already runs
 // for a buffered between (GROUP_KMEANS, GROUP_QUANTILE) — so the spec is

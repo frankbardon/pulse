@@ -353,7 +353,7 @@ func TestZonedRequest(t *testing.T) {
 	}
 }
 
-// TestZonedRequest_DistanceBetween (TODO #411): a MAT_DISTANCE
+// TestZonedRequest_DistanceBetween (see #411): a MAT_DISTANCE
 // params.between is the zone slot "matrices[i].params.between" — it
 // inherits, refuses and is written like a top-level grouper. The write
 // re-encodes a COPY of the params with the between's tz and every other

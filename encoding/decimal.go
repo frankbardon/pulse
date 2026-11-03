@@ -441,10 +441,11 @@ func ReadDecimal128(r io.Reader) (Decimal128, error) {
 	return DecodeDecimal128(buf), nil
 }
 
-// Sqrt returns floor-banker-rounded sqrt(d) at the target scale, given
+// Sqrt returns sqrt(d) at the target scale, rounded half-to-even, given
 // the source value at sourceScale. The result is computed entirely in
 // decimal arithmetic via big.Int.Sqrt and a half-to-even rounding step
-// on the residual. Returns PULSE_DECIMAL_OVERFLOW if intermediate state
+// judged against the exact radicand — digits a source scale above
+// 2*targetScale drops before the integer root still decide the rounding. Returns PULSE_DECIMAL_OVERFLOW if intermediate state
 // cannot fit in the integer representation; returns PROCESSING_RUNTIME
 // for negative inputs (sqrt of a negative decimal is undefined).
 func (d Decimal128) Sqrt(sourceScale, targetScale uint8) (Decimal128, error) {
@@ -464,27 +465,29 @@ func (d Decimal128) Sqrt(sourceScale, targetScale uint8) (Decimal128, error) {
 	// We instead scale d_mantissa to a value M whose integer sqrt has
 	// the right number of digits: M = d_mantissa * 10^(2*target - source).
 	shift := 2*int(targetScale) - int(sourceScale)
-	mantissa := new(big.Int).Set(d.mantissa)
+	// The exact radicand is num/den: den is 1 unless the source scale
+	// exceeds 2*target, where the integer square root runs on the
+	// truncated quotient (floor(sqrt(floor(x))) == floor(sqrt(x))) but
+	// the rounding step must still see the dropped digits.
+	num := new(big.Int).Set(d.mantissa)
+	den := big.NewInt(1)
 	if shift > 0 {
 		if shift > 2*MaxDecimalPrecision {
 			return Decimal128{}, errors.NewCodedError(errors.PULSE_DECIMAL_OVERFLOW,
 				"decimal sqrt intermediate scale exceeds 76")
 		}
-		factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(shift)), nil)
-		mantissa.Mul(mantissa, factor)
+		num.Mul(num, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(shift)), nil))
 	} else if shift < 0 {
-		factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-shift)), nil)
-		mantissa.Quo(mantissa, factor)
+		den.Exp(big.NewInt(10), big.NewInt(int64(-shift)), nil)
 	}
-	floor := new(big.Int).Sqrt(mantissa)
-	// Banker's-rounding toward the nearest integer using the residual:
-	// d - floor^2; compare with floor + 1 candidate (floor+1)^2 - floor^2 = 2*floor + 1.
-	floorSq := new(big.Int).Mul(floor, floor)
-	residual := new(big.Int).Sub(mantissa, floorSq)
-	// Half-distance is (2*floor + 1) / 2. Compare 2*residual with (2*floor + 1).
-	twoR := new(big.Int).Lsh(residual, 1)
-	threshold := new(big.Int).Add(new(big.Int).Lsh(floor, 1), big.NewInt(1))
-	cmp := twoR.Cmp(threshold)
+	floor := new(big.Int).Sqrt(new(big.Int).Quo(num, den))
+	// Banker's rounding against the exact radicand: round up iff
+	// num/den > (floor + 1/2)^2, i.e. 4*num > (2*floor + 1)^2 * den;
+	// equality is a tie (reachable only when den > 1), which rounds to
+	// the even candidate.
+	half := new(big.Int).Add(new(big.Int).Lsh(floor, 1), big.NewInt(1))
+	rhs := new(big.Int).Mul(new(big.Int).Mul(half, half), den)
+	cmp := new(big.Int).Lsh(num, 2).Cmp(rhs)
 	out := new(big.Int).Set(floor)
 	switch {
 	case cmp > 0:

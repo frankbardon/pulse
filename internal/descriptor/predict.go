@@ -1122,10 +1122,9 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// AGG_AUC: the shared configuration rules (internal/aucspec).
 	validateAUCAggs(env, req, schema, opts)
 
-	// Check regression slots. Phase 0 validates structural shape only
-	// (known type, target + predictors named, fields exist); deeper
-	// runtime checks (n ≥ p + 1, family/link compatibility) land with
-	// the engines in Phases 1–4.
+	// Check regression slots: structural shape and every spec rule the
+	// engines share with predict (validateRegressions); data-dependent
+	// checks (n ≥ p + 1, separation, convergence) stay with the fit.
 	validateRegressions(env, req, schema, projected, opts.Instance)
 
 	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from

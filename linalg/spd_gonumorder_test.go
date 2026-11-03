@@ -14,6 +14,8 @@ import (
 	"gonum.org/v1/gonum/blas/blas64"
 	lapackgonum "gonum.org/v1/gonum/lapack/gonum"
 	"gonum.org/v1/gonum/mat"
+
+	"github.com/frankbardon/pulse/internal/gonumorder"
 )
 
 // The SPD path (FactorSPD, SPDFactor.Solve / Inverse / ConditionNumber,
@@ -170,9 +172,9 @@ func runPort(t testing.TB, c spdCase) spdRun {
 	}
 	r := spdRun{ok: true, u: upper(n, f.u), cond: f.ConditionNumber()}
 	r.x = append([]float64(nil), c.b...)
-	goDpotrsUpperVec(n, f.u, n, r.x)
+	gonumorder.DpotrsUpperVec(n, f.u, n, r.x)
 	inv := append([]float64(nil), f.u...)
-	r.invOK = goDpotriUpper(n, inv, n)
+	r.invOK = gonumorder.DpotriUpper(n, inv, n)
 	r.inv = upper(n, inv)
 	if r.invOK {
 		full := symFull(n, inv)
@@ -308,7 +310,7 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 	for n := 0; n <= 19; n++ {
 		for _, inc := range []int{1, 2, 3} {
 			x, y := uniformVec(rng, n*inc+1), uniformVec(rng, n*inc+1)
-			visit("Ddot n="+strconv.Itoa(n)+" inc="+strconv.Itoa(inc), []float64{goDdot(n, x, inc, y, 1)},
+			visit("Ddot n="+strconv.Itoa(n)+" inc="+strconv.Itoa(inc), []float64{gonumorder.Ddot(n, x, inc, y, 1)},
 				func() []float64 { return []float64{bi.Ddot(n, x, inc, y, 1)} })
 		}
 	}
@@ -334,9 +336,9 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 						tA := blas.NoTrans
 						if trans {
 							tA = blas.Trans
-							goDgemvT(m, n, alpha, a, lda, x, incX, beta, gy, incY)
+							gonumorder.DgemvT(m, n, alpha, a, lda, x, incX, beta, gy, incY)
 						} else {
-							goDgemvN(m, n, alpha, a, lda, x, incX, beta, gy, incY)
+							gonumorder.DgemvN(m, n, alpha, a, lda, x, incX, beta, gy, incY)
 						}
 						visit(what, gy, func() []float64 {
 							bi.Dgemv(tA, m, n, alpha, a, lda, x, incX, beta, wy, incY)
@@ -367,7 +369,7 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 				if trans {
 					tA = blas.Trans
 				}
-				goDtrsmLeftUpper(trans, m, n, alpha, a, lda, gb, ldb)
+				gonumorder.DtrsmLeftUpper(trans, m, n, alpha, a, lda, gb, ldb)
 				visit("Dtrsm left", gb, func() []float64 {
 					bi.Dtrsm(blas.Left, blas.Upper, tA, blas.NonUnit, m, n, alpha, a, lda, wb, ldb)
 					return wb
@@ -375,7 +377,7 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 			}
 			ar := tri(n, n+1)
 			gb, wb := append([]float64(nil), b...), append([]float64(nil), b...)
-			goDtrsmRightUpperNoTrans(m, n, alpha, ar, n+1, gb, ldb)
+			gonumorder.DtrsmRightUpperNoTrans(m, n, alpha, ar, n+1, gb, ldb)
 			visit("Dtrsm right", gb, func() []float64 {
 				bi.Dtrsm(blas.Right, blas.Upper, blas.NoTrans, blas.NonUnit, m, n, alpha, ar, n+1, wb, ldb)
 				return wb
@@ -383,13 +385,13 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 
 			al := tri(m, m+1)
 			gb, wb = append([]float64(nil), b...), append([]float64(nil), b...)
-			goDtrmmLeftUpperNoTrans(m, n, alpha, al, m+1, gb, ldb)
+			gonumorder.DtrmmLeftUpperNoTrans(m, n, alpha, al, m+1, gb, ldb)
 			visit("Dtrmm left", gb, func() []float64 {
 				bi.Dtrmm(blas.Left, blas.Upper, blas.NoTrans, blas.NonUnit, m, n, alpha, al, m+1, wb, ldb)
 				return wb
 			})
 			gb, wb = append([]float64(nil), b...), append([]float64(nil), b...)
-			goDtrmmRightUpperTrans(m, n, alpha, ar, n+1, gb, ldb)
+			gonumorder.DtrmmRightUpperTrans(m, n, alpha, ar, n+1, gb, ldb)
 			visit("Dtrmm right", gb, func() []float64 {
 				bi.Dtrmm(blas.Right, blas.Upper, blas.Trans, blas.NonUnit, m, n, alpha, ar, n+1, wb, ldb)
 				return wb
@@ -408,7 +410,7 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 					a := uniformVec(rng, max(1, rowsA)*lda)
 					c := uniformVec(rng, max(1, n)*(n+1))
 					gc, wc := append([]float64(nil), c...), append([]float64(nil), c...)
-					goDsyrkUpper(trans, n, k, alpha, a, lda, beta, gc, n+1)
+					gonumorder.DsyrkUpper(trans, n, k, alpha, a, lda, beta, gc, n+1)
 					visit("Dsyrk", gc, func() []float64 {
 						bi.Dsyrk(blas.Upper, tA, n, k, alpha, a, lda, beta, wc, n+1)
 						return wc
@@ -440,7 +442,7 @@ func walkGonumOrderKernels(visit func(what string, port []float64, gonum func() 
 					if bT {
 						tB = blas.Trans
 					}
-					goDgemm(aT, bT, m, n, k, alpha, a, ca+1, b, cb+1, beta, gc, n+1)
+					gonumorder.Dgemm(aT, bT, m, n, k, alpha, a, ca+1, b, cb+1, beta, gc, n+1)
 					visit("Dgemm "+strconv.Itoa(m)+"x"+strconv.Itoa(n)+"x"+strconv.Itoa(k), gc, func() []float64 {
 						bi.Dgemm(tA, tB, m, n, k, alpha, a, ca+1, b, cb+1, beta, wc, n+1)
 						return wc

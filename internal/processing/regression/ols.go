@@ -10,7 +10,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// olsEngine is the Phase 1 ordinary-least-squares fit engine. It
+// olsEngine is the ordinary-least-squares fit engine. It
 // implements three flavors of the same closed-form solve:
 //
 //   - UpdateRow / Finalize (StreamingEngine): driven row-by-row by the
@@ -19,16 +19,14 @@ import (
 //   - FitBuffered (BufferedEngine): consumes a materialized record
 //     slice and feeds it through the same accumulator. Identical math;
 //     this is the path the buffered orchestrator takes.
-//   - Fit (Engine): the Phase 0 signature still in use by callers that
-//     pre-date Phase 1. Returns INSUFFICIENT_DATA since no records were
-//     supplied; kept here so the universal-stub registry path doesn't
-//     mis-fire when a request arrives with the streaming gate off.
+//   - Fit (Engine): the no-record fit (regression.Fit, unit tests).
+//     Returns INSUFFICIENT_DATA since no records were supplied.
 //
 // olsEngine handles ordinary least squares with optional ridge / lasso /
 // elasticnet regularization. The streaming Welford accumulator is the
 // same across all four solver flavors — only the finalize-time solve
-// branches on Penalty. The Bayes/GLM operators (Phases 3-4) stay on
-// the notImplementedEngine path until their dedicated engines land.
+// branches on Penalty. REG_GLM and REG_BAYES_LINEAR have their own
+// engines (glm.go, bayes_linear.go).
 type olsEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
@@ -213,13 +211,12 @@ func (e *olsEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	return e.finalizeFromAccumulator(records)
 }
 
-// Fit satisfies the Phase 0 Engine interface for code paths that
-// instantiate an engine without any records. With no rows folded into
-// the accumulator the fit is degenerate; surface
+// Fit satisfies the Engine interface for code paths that instantiate
+// an engine without any records. With no rows folded into the
+// accumulator the fit is degenerate; surface
 // PROCESSING_REGRESSION_INSUFFICIENT_DATA so callers receive the same
 // error shape as a real underfilled request. Real usage flows through
-// UpdateRow/Finalize or FitBuffered; this method exists so the registry
-// dispatch matches the Phase 0 contract.
+// UpdateRow/Finalize or FitBuffered.
 func (e *olsEngine) Fit() (*types.RegressionResult, error) {
 	if e.finalized {
 		return nil, errors.NewCodedError(

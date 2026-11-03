@@ -252,7 +252,7 @@ for (kind in w_kinds) {
   fs_case("weighted", wd, c("x1", "x2", "x3", "x4"), kind, 1, "minres")
   fs_case("nulls", nl, c("x1", "x2", "x3", "x4"), kind, 1, "ml")
 }
-# TODO #410: weighted Bartlett scores on a proper fit. The two_factor
+# See #410: weighted Bartlett scores on a proper fit. The two_factor
 # fixture keeps every uniqueness >= 0.2 under every weight kind and
 # extraction (asserted: min_u2), so neither Bartlett nor the Heywood
 # rule nulls a score and the frequency / probability Bartlett weights
@@ -272,6 +272,6 @@ for (kind in w_kinds) {
 }
 fs_doc <- c(mv_meta("factor scores (fitted row score)",
   "psych::factor.scores(R, f = L, Phi = Phi, method = 'Thurstone' | 'Bartlett')$weights on the fit rows' (weighted) correlation R, L / Phi MAT_FACTOR's oracle loadings (gen_factor.R: exact minres, psych principal axis, exact ML; stats::varimax / stats::promax(m = 4) / GPArotation::oblimin through rot_canon); scores = scale-by-the-fit(x) %*% weights. Asserted against solve(R, L Phi) and U^-2 L (L' U^-2 L)^-1, psych::factor.scores on the fit rows, and psych::fa(scores = ...)$scores (unweighted, principal-axis fits, sign-aligned).",
-  "Fit rows: complete on every member, w > 0, and (fit_on) fit_on.field == fit_on.level. S = the ddof = 1 covariance on w* (wcov); R = cov2cor(S); Z = (x - weighted fit mean) / sqrt(diag(S)). loadings / phi are the fitted (rotated) pattern and factor correlation (identity when orthogonal), uniquenesses = 1 - diag(L Phi L'); converged is FALSE when principal axis used all 50 of psych's iterations (its last iterate is the loadings). regression / bartlett are rows x factors (row order = the fixture's); a row null on any member is null in every column. The two_factor cases (TODO #410) are proper fits under every weight kind (every uniqueness >= 0.2, asserted), so their weighted Bartlett scores are real values, never Heywood-nulled."),
+  "Fit rows: complete on every member, w > 0, and (fit_on) fit_on.field == fit_on.level. S = the ddof = 1 covariance on w* (wcov); R = cov2cor(S); Z = (x - weighted fit mean) / sqrt(diag(S)). loadings / phi are the fitted (rotated) pattern and factor correlation (identity when orthogonal), uniquenesses = 1 - diag(L Phi L'); converged is FALSE when principal axis used all 50 of psych's iterations (its last iterate is the loadings). regression / bartlett are rows x factors (row order = the fixture's); a row null on any member is null in every column. The two_factor cases (see #410) are proper fits under every weight kind (every uniqueness >= 0.2, asserted), so their weighted Bartlett scores are real values, never Heywood-nulled."),
   list(cases = fs_cases))
 write_golden("mv_factor_score", fs_doc)

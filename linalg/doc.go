@@ -99,6 +99,7 @@
 //
 // # Imports
 //
-// linalg imports only the standard library, gonum and Pulse's errors
-// package (gated by TestLinalgImportBoundary).
+// linalg imports only the standard library, gonum, Pulse's errors
+// package and internal/gonumorder, the standard-library-only kernels of
+// the gonum-order SPD path (gated by TestLinalgImportBoundary).
 package linalg

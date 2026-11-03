@@ -88,7 +88,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 ### Smart defaults
 
-A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`: numeric `AGG_SUM`/`GROUP_RANGE`, categorical `AGG_MODE_COUNT`/`GROUP_CATEGORY`, date-family `GROUP_DATE` only); a metric slot on a `kind` vector gets its kind's metric. Defaults never override `Type`/`metric` or cross categories; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
+A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`); a metric slot on a `kind` vector gets its kind's metric. Defaults never override `Type`/`metric` or cross categories; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
 
 **Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; zone math lives only in `internal/temporal`. Long form: `execution-modes.md` (Date-family field types, Time zones); `skills/time-zones.md`.
 
@@ -102,7 +102,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - `errors` / `warnings` are `{"code", "message", "details"}` entries, an empty array (never null) when absent; `warnings` also lifts a result's run-time warnings (`data` keeps them). **A FATAL `*errors.CodedError` carries its own code** — every CLI leaf (`pulse api *` included) routes through `writeCodedErrorEnvelope`, which unwraps with `errors.As` and falls back to the placeholder (`PROCESS_ERROR`, …) only for an UNCODED error. **So does the overlay family**: a `PULSE_OVERLAY_*` fault is its own `Code`, never `PROCESSING_INTERNAL` + a `details["code"]` echo (that marks only an invariant violation). **Exit status follows the envelope** (not `mcp`): `errors` → 1, else 0; usage → 2 (`docs/src/cli/flags.md`).
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
 - `request`: opt-in echo of the *normalized* request (`Options.EchoRequest` / `--echo-request`), shaped per operation, skipped by streaming.
-- **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error` `{code, message, details}`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. A regression slot may carry coded `warnings` (`RegressionResult.Warnings`, lifted to the envelope); `Strict` fails it with that code. Long form: `.claude/reference/response-components.md` (Per-slot failures).
+- **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. Long form (incl. regression `warnings`): `.claude/reference/response-components.md` (Per-slot failures).
 
 **Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots, `optimize` adds `optimizations` (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
@@ -153,8 +153,8 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
 - **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity: `TestPredict_Streamable_MatchesRuntime`. `CrosstabFusable` / `CrosstabFusionReasons` (fused-crosstab dispatch): `predict-inspect.md`.
-- **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`; `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
-- **Advisories:** `PredictResult.Advisories` (`PULSE_ADVISORY_*`) — coded fit notes, never warnings, never escalated by Strict, never change execution; `Options.SuppressAdvisories` validated at `New`. Long form: `predict-inspect.md` (Advisories).
+- **Inspect reads no record:** header + schema + sidecar metadata (`suggested_weight`); `RecordCount` derives from the file LENGTH. **`Pulse.Inspect` drops `env.Warnings`** — CLI and `pulse_inspect` read `Pulse.InspectEnvelope`.
+- **Advisories:** `PredictResult.Advisories` (`PULSE_ADVISORY_*`) — coded fit notes, never warnings, never escalated by Strict, never change execution. Long form: `predict-inspect.md` (Advisories).
 - **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.
 
 ### Execution modes (pointers)
@@ -163,11 +163,12 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ## Non-Skippable CI Gates
 
-`TestClaudeMdMentionsAllNonSkippableGates` scans every `*_test.go` for eight prefixes — `TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage` — and requires each match listed BY NAME below, from any package. Write the gate and its entry together. What each one checks: `.claude/reference/update-demand.md` (The CLAUDE.md CI-gate list, per-gate prose).
+`TestClaudeMdMentionsAllNonSkippableGates` scans every `*_test.go` for nine prefixes — `TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`, `TestCrossArch` — and requires each match listed BY NAME below, from any package. Write the gate and its entry together. What each one checks: `.claude/reference/update-demand.md` (The CLAUDE.md CI-gate list, per-gate prose).
 
 - CLAUDE.md hygiene: `TestClaudeMdMentionsFormatVersion`, `TestClaudeMdMentionsAllEnvVars`, `TestClaudeMdMentionsAllNonSkippableGates`, `TestClaudeMdMentionsComponentsContract`, `TestClaudeMdSizeBudget` (**CLAUDE.md ≤ 40,000 bytes — displace prose into `.claude/reference/`, never raise the ceiling**), `TestUpdateDemandTableCovers`, `TestUpdateDemandTableCoversComponents`.
 - Predecessor references: `TestNoOrbitPrefix`, `TestNoOrbitPrefixes`.
 - Descriptor contracts: `TestPredictNoExecutionImports`, `TestDescriptorNoFmtSprintf`, `TestGoldensNotHandEdited`, `TestPerPackageCoverageFloors`.
+- Cross-arch determinism: `TestCrossArchFMAReport_RepoWide` (heavy), `TestCrossArchBannedMath_RepoWide`.
 - Skill coverage: `TestSkillsCoverAllComponents`, `TestSkillsCoverAllFieldTypes`, `TestSkillsCoverAllWindowTypes`, `TestSkillsCoverAllMCPTools`, `TestSkillsCoverAllMCPPrompts`, `TestSkillsCoverAllSynthDistributions`, `TestSkillsCoverAllRegressions`, `TestSkillsCoverAllMatrixOps`, `TestSkillsCoverAllOverlayKinds`, `TestSkillsCoverAllPurposes`, `TestSkillsCoverShardingTopics`, `TestSkillsCoverAllCliLeaves`, `TestSkillsCoverAllOperatorComponents`, `TestSkillsCoverProfileGet`, `TestSkillsCoverFeatureFences`, `TestSkillsCoverAllCrossReferences`.
 - Atomic-skill structure / budget / example tag (not prefix-matched): `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestOperatorHasAtomicSkill`, `TestEveryOperatorHasAnExampleTag`.
 

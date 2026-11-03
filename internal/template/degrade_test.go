@@ -496,6 +496,7 @@ func TestStore_UnreadableFileDegradesLikeABrokenOne(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
 	if _, err := os.ReadFile(path); err == nil {
+		// skip-audit(#675): kept — environment skip: a superuser (or a filesystem without POSIX permissions) can read a 0o000 file, so the unreadable-file path cannot be produced
 		t.Skip("this user bypasses file permissions; the unreadable-file path is untestable here")
 	}
 

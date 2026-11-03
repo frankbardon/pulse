@@ -74,7 +74,7 @@ func TestCompositeKeySet_RepeatAllocatesNothing(t *testing.T) {
 	if err := set.Expand(sets, emit); err != nil {
 		t.Fatal(err)
 	}
-	if a := testing.AllocsPerRun(100, func() { _ = set.Expand(sets, emit) }); a != 0 {
+	if a := testing.AllocsPerRun(100, func() { _ = set.Expand(sets, emit) }); a != 0 && !raceEnabled {
 		t.Fatalf("repeat Expand allocated %v times", a)
 	}
 }

@@ -13,7 +13,7 @@ import (
 // set (how a story proves its sites are "clean in the report"):
 //
 //	go test -tags heavy -count=1 -v ./internal/testutil/fmagate \
-//	  -run 'TestFMAReport_RepoWide|TestBannedMathReport_RepoWide' \
+//	  -run 'TestCrossArchFMAReport_RepoWide|TestCrossArchBannedMath_RepoWide' \
 //	  -fmareport.pkg=./internal/processing/...
 //
 // Patterns are comma-separated: ./... (default), ./a/b/..., ./a/b or
@@ -62,13 +62,13 @@ func failUnlisted(t *testing.T, unlisted []Finding, fix string) {
 // fixBanned is the remedy failUnlisted names for a banned call.
 const fixBanned = "call the linalg/detmath twin (detmath.Exp, detmath.Log, detmath.Pow, ...) — stdlib transcendentals differ in the last ulp across arm64 and amd64 (and amd64 math.Exp follows the runner CPU)"
 
-// TestBannedMathReport_RepoWide is the BINDING banned-transcendental
+// TestCrossArchBannedMath_RepoWide is the BINDING banned-transcendental
 // source scan over every non-test package minus cmd/ and internal/cli
 // (or -fmareport.pkg): every math.<Name> reference outside the
 // allowlist fails (failUnlisted), as does a stale, malformed or
 // duplicate allowlist entry. The full per-package report is logged
 // (see -v).
-func TestBannedMathReport_RepoWide(t *testing.T) {
+func TestCrossArchBannedMath_RepoWide(t *testing.T) {
 	t.Parallel()
 
 	root, scope := repoScope(t)

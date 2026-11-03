@@ -19,7 +19,7 @@ import (
 // Extension operators that take a vector input (vector / fields, and a
 // test's vector2 / fields2) have their member sets judged by the
 // built-in member rules in predict AND at runtime, and their factories
-// receive the resolved literal members — the TODO #409 contract.
+// receive the resolved literal members — the #409 contract.
 
 // vecSeen records the spec each extension factory was handed.
 type vecSeen struct {

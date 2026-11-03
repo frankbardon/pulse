@@ -22,9 +22,9 @@ import (
 // load or a registered population) is ROW-LOCAL. It scores every row to
 // the bit of the two-pass fit_on run over the same fit rows, grouped or
 // not, through Process, ProcessStream, the shard reducer (its fit
-// warnings raised once) and a ProcessChain stage (admitted, where the
-// fit_on twin is PULSE_CHAIN_NOT_MERGEABLE on predict and runtime
-// alike); a Compose vector fit whose battery is a bound attribute
+// warnings raised once: TestFitBoundInvariance_Archive) and a
+// ProcessChain stage (admitted, where the fit_on twin is
+// PULSE_CHAIN_NOT_MERGEABLE on predict and runtime alike); a Compose vector fit whose battery is a bound attribute
 // captures once however many shards run it.
 
 const (
@@ -274,68 +274,6 @@ func TestFitBound_MatchesTwoPassFit(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-// TestFitBound_ShardReducer: a bound fitted attribute merges, so a shard
-// archive runs it on the per-shard reducer (ShardWorkers 3) to exactly
-// the serial archive's result (ShardWorkers 1) — its vector-input slot
-// resolved there like every other arm, and a bound fit's warning raised
-// ONCE, not once per shard.
-func TestFitBound_ShardReducer(t *testing.T) {
-	t.Parallel()
-
-	fsys := fitBoundFS(t)
-	ctx := context.Background()
-	serial, err := New(Options{FS: fsys, ShardWorkers: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	parallel, err := New(Options{FS: fsys, ShardWorkers: 3})
-	if err != nil {
-		t.Fatal(err)
-	}
-	exact := func(r *Request) *Request {
-		r.Aggregations = r.Aggregations[:3] // count / min / max: exact under any merge
-		return r
-	}
-	warned := 0
-	for _, pop := range []string{"attr", "tiny"} {
-		for _, grouped := range []bool{false, true} {
-			for _, viaVector := range []bool{false, true} {
-				req := func() *Request {
-					r := exact(fbScoring(fbArchive, types.ATTR_MAHALANOBIS, nil, fbBound(pop), popRef(pop, "pops/"+pop+model.PopulationSuffix)))
-					if viaVector {
-						r.Vectors = []types.VectorSpec{{Name: "battery", Fields: []string{"a", "b", "c"}}}
-						r.Attributes[0].Fields, r.Attributes[0].Vector = nil, "battery"
-					}
-					if grouped {
-						return fbGrouped(r)
-					}
-					return r
-				}
-				want, err := serial.Process(ctx, req())
-				if err != nil {
-					t.Fatal(err)
-				}
-				got, err := parallel.Process(ctx, req())
-				if err != nil {
-					t.Fatalf("%s grouped=%v vector=%v: %v", pop, grouped, viaVector, err)
-				}
-				if g, w := fbWire(t, got), fbWire(t, want); g != w {
-					t.Fatalf("%s grouped=%v vector=%v: shard reducer differs from serial\n got %s\nwant %s", pop, grouped, viaVector, g, w)
-				}
-				if pop == "tiny" {
-					if len(got.Warnings) != 1 || got.Warnings[0].Code != string(perr.PULSE_MATRIX_INSUFFICIENT_N) {
-						t.Fatalf("tiny fit: warnings %+v, want one PULSE_MATRIX_INSUFFICIENT_N", got.Warnings)
-					}
-					warned++
-				}
-			}
-		}
-	}
-	if warned == 0 {
-		t.Fatal("vacuous: no bound fit raised a warning")
 	}
 }
 

@@ -69,7 +69,7 @@ func TestErrorsLookup_FixupSliceIsCopy(t *testing.T) {
 
 	r, _ := perr.Lookup(string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL))
 	if len(r.Fixups) == 0 {
-		t.Skip("no fixups to test against")
+		t.Fatal("premise: PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL has a fixup to mutate")
 	}
 	original := r.Fixups[0].Hint
 	r.Fixups[0].Hint = "MUTATED"
@@ -199,7 +199,7 @@ func TestErrorsSearch_RanksMessageAboveFixup(t *testing.T) {
 	// Pick "header" — appears in ENCODING_INVALID's Message.
 	got := perr.Search("header")
 	if len(got) == 0 {
-		t.Skip("no results to rank")
+		t.Fatal(`premise: Search("header") finds a code (ENCODING_INVALID's Message)`)
 	}
 	// At minimum, the first hit's source should not be matchInCode if a
 	// message/fixup hit exists.

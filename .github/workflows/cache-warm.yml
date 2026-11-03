@@ -1,0 +1,100 @@
+name: Cache warm
+
+# Seeds the Go module + build cache that ci.yml's `test (1.26)`,
+# `coverage-fast` and `test-heavy` jobs restore, so a branch's CI dispatch
+# starts warm.
+#
+# Why it runs on main: GitHub scopes an Actions cache to the ref that saved
+# it. A branch run can read its own caches and the default branch's, never a
+# sibling branch's. ci.yml runs only on branch dispatches (and tag
+# releases), so without this workflow main holds no cache and every new
+# branch's first CI run compiles cold (docs/src/contributing/local-ci.md,
+# "Warm build cache").
+#
+# It compiles only: `go build ./...` plus the test binaries with
+# `-run '^$'`, so no test runs. Each compile uses the SAME build flags as
+# one ci.yml test job: plain for `test`; -coverpkg="$(citest cover-pkgs)"
+# for `coverage-fast` (whose legs are subsets of ./..., so one ./...
+# compile warms both); that plus `-tags heavy` for `test-heavy`. A
+# coverage-instrumented compile is its own build-cache entry, so a compile
+# with other flags warms nothing those jobs use.
+#
+# KEEP IN SYNC with ci.yml `test` / `coverage-fast` / `test-heavy`: the
+# setup-go inputs
+# (go-version "1.26", default `cache`, default `cache-dependency-path`) and
+# the compile flags. setup-go's cache key is
+#   setup-go-<RUNNER_OS>-<arch>-<ImageOS>-go-<resolved Go version>-<hashFiles(cache-dependency-path)>
+# and is restored by exact match only, so any difference in those inputs
+# makes a different key that the test jobs never restore.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One run per ref at a time; a newer push queues behind a running one
+# rather than cancelling it mid-save.
+concurrency:
+  group: cache-warm-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Deleting the ref's stale setup-go cache (below) needs actions: write.
+  actions: write
+
+jobs:
+  # One job, not one per tier: `test` and `test-heavy` share one setup-go
+  # key, and a key is written once, so both tiers' compiles go into the
+  # same cache.
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # A cache entry is immutable and setup-go skips the save on an exact
+      # key hit, so the key (which changes only with go.sum or the Go patch
+      # version) would otherwise keep the first build it ever saved, going
+      # stale as main moves. Dropping this ref's setup-go caches first makes
+      # the restore miss and the post-job step save a cache of this tree.
+      # Only cache-warm saves Go caches in main's scope; on a branch
+      # dispatch this also drops the branch's lint/build caches, which
+      # rebuild on the next CI run.
+      - name: Drop this ref's stale setup-go caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" \
+            --key "setup-go-$RUNNER_OS-" --limit 100 --json id --jq '.[].id')
+          for id in $ids; do
+            echo "deleting cache $id on $GITHUB_REF"
+            gh cache delete --repo "$GITHUB_REPOSITORY" "$id"
+          done
+
+      # KEEP IN SYNC with ci.yml `test` / `coverage-fast` / `test-heavy`
+      # "Set up Go".
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Build
+        run: go build ./...
+
+      # KEEP IN SYNC with ci.yml `test` "Compile tests (fast tier)".
+      - name: Compile tests (fast tier)
+        run: go test -count=1 -run '^$' ./...
+
+      # The -coverpkg list every coverage compile below uses (the floored
+      # packages, from .github/coverage-floors.txt).
+      - name: Select coverage packages
+        run: echo "COVERPKG=$(go run ./internal/tools/citest cover-pkgs)" >> "$GITHUB_ENV"
+
+      # KEEP IN SYNC with ci.yml `coverage-fast` "Compile tests".
+      - name: Compile tests (fast tier, coverage)
+        run: go test -count=1 -run '^$' -coverpkg="$COVERPKG" ./...
+
+      # KEEP IN SYNC with the flags ci.yml `test-heavy` hands
+      # `citest heavy-run` (which adds `-tags heavy`).
+      - name: Compile tests (heavy tier, coverage)
+        run: go test -tags heavy -count=1 -run '^$' -coverpkg="$COVERPKG" ./...

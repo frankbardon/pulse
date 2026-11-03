@@ -180,44 +180,39 @@ func NewScorer(m *Model, p Params, latent string, method ScoreMethod) (*Scorer, 
 		ib.Set(i, i, 1)
 	}
 	ib.Sub(ib, dense(p.Beta))
-	var c mat.Dense
-	if !inverted(c.Inverse(ib)) {
+	c, err := inverse(ib)
+	if !inverted(err) {
 		return nil, ErrScoreSingular
 	}
-	var mm, mp, sg mat.Dense
-	mm.Mul(lambda, &c)
-	mp.Mul(&mm, dense(p.Psi))
-	sg.Mul(&mp, mm.T())
-	sg.Add(&sg, dense(p.Theta))
-	sigma := symmetrize(&sg)
-	var ch mat.Cholesky
-	if !ch.Factorize(sigma) {
+	mm := mul(lambda, c)
+	sg := mul(mul(mm, dense(p.Psi)), mm.T())
+	sg.Add(sg, dense(p.Theta))
+	sigma := symmetrize(sg)
+	ch, ok := factorize(sigma)
+	if !ok {
 		return nil, ErrScoreSingular
 	}
-	var sinv mat.SymDense
-	if err := ch.InverseTo(&sinv); err != nil {
+	sinv, err := ch.inverse()
+	if err != nil {
 		if _, ill := err.(mat.Condition); !ill {
 			return nil, ErrScoreSingular
 		}
 	}
 	s := &Scorer{Center: make([]float64, nObs)}
 	if m.MeanStructure {
-		alpha := mat.NewVecDense(nIn, append([]float64(nil), p.Alpha...))
-		var ca, mu mat.VecDense
-		ca.MulVec(&c, alpha)
-		mu.MulVec(&mm, alpha)
+		ca := mulVec(c, p.Alpha)
+		mu := mulVec(mm, p.Alpha)
 		for i := range s.Center {
-			s.Center[i] = p.Nu[i] + mu.AtVec(i)
+			s.Center[i] = p.Nu[i] + mu[i]
 		}
-		s.Base = ca.AtVec(j)
+		s.Base = ca[j]
 	} else {
 		copy(s.Center, p.SampleMean)
 	}
 	switch method {
 	case ScoreRegression:
 		// Cov(y, η_j) = M Ψ Cᵀ e_j, then w = Σ⁻¹ Cov(y, η_j).
-		var cpsi mat.Dense
-		cpsi.Mul(&c, dense(p.Psi))
+		cpsi := mul(c, dense(p.Psi))
 		cov := make([]float64, nObs)
 		for i := 0; i < nObs; i++ {
 			v := 0.0
@@ -226,9 +221,9 @@ func NewScorer(m *Model, p Params, latent string, method ScoreMethod) (*Scorer, 
 			}
 			cov[i] = v
 		}
-		s.Weights = symMulVec(&sinv, cov)
+		s.Weights = symMulVec(sinv, cov)
 	case ScoreBartlett:
-		w, err := m.bartlettWeights(p, lambda, &sinv, latent)
+		w, err := m.bartlettWeights(p, lambda, sinv, latent)
 		if err != nil {
 			return nil, err
 		}
@@ -269,8 +264,8 @@ func (p Params) check(nObs, nIn int) error {
 	return nil
 }
 
-// inverted reports a gonum Inverse that produced its result: no error,
-// or only an ill-conditioning note (the inverse is still filled).
+// inverted reports an inverse that produced its result: no error, or
+// only an ill-conditioning note (the inverse is still filled).
 func inverted(err error) bool {
 	if err == nil {
 		return true
@@ -373,13 +368,12 @@ func (m *Model) bartlettWeights(p Params, lambda *mat.Dense, sinv *mat.SymDense,
 		ibs.Set(a, a, 1)
 	}
 	ibs.Sub(ibs, bstar)
-	var ibInv mat.Dense
-	if !inverted(ibInv.Inverse(ibs)) {
+	ibInv, err := inverse(ibs)
+	if !inverted(err) {
 		return nil, ErrScoreSingular
 	}
-	var lstar mat.Dense
-	lstar.Mul(lam, &ibInv)
-	if empty(&lstar, j) {
+	lstar := mul(lam, ibInv)
+	if empty(lstar, j) {
 		return zero, nil
 	}
 	reach := func(a, b int) bool { return a != b && math.Abs(ibInv.At(a, b)) > 1e-12 }
@@ -398,11 +392,11 @@ func (m *Model) bartlettWeights(p Params, lambda *mat.Dense, sinv *mat.SymDense,
 				break
 			}
 		}
-		if !reaches && !empty(&lstar, k) {
+		if !reaches && !empty(lstar, k) {
 			tcols = append(tcols, k)
 		}
 	}
-	return glsRow(&lstar, tcols, sinv, j)
+	return glsRow(lstar, tcols, sinv, j)
 }
 
 // nonEmpty lists the columns of d (n of them) with an entry.
@@ -434,12 +428,9 @@ func glsRow(l *mat.Dense, cols []int, sinv *mat.SymDense, j int) ([]float64, err
 	if row < 0 {
 		return nil, ErrScoreSingular
 	}
-	var ls mat.Dense // Lᵀ Σ⁻¹ (k × nObs)
-	ls.Mul(sub.T(), sinv)
-	var t mat.Dense
-	t.Mul(&ls, sub)
-	var tinv mat.Dense
-	if !inverted(tinv.Inverse(&t)) {
+	ls := mul(sub.T(), sinv) // Lᵀ Σ⁻¹ (k × nObs)
+	tinv, err := inverse(mul(ls, sub))
+	if !inverted(err) {
 		return nil, ErrScoreSingular
 	}
 	out := make([]float64, nObs)

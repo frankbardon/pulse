@@ -762,6 +762,7 @@ func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
 			}
 			t.Run(mode.name+"/"+string(row.op), func(t *testing.T) {
 				if runArm(t, base, mode, base.paths[mode.cohort], row, row.op, nil) == nil {
+					// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 					t.Skipf("%s does not run on the %s arm", row.op, mode.name)
 				}
 				ran++

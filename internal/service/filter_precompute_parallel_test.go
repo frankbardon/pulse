@@ -1,0 +1,97 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/observe"
+	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
+)
+
+// TestFilterPrecompute_ParallelDecode (E5-S1): the parallel buffered
+// Process arm builds one FilterFunc set per worker, so each worker keeps
+// its own verdict table over the shared (read-only) group dictionary.
+// Over the >100K-record grouped fixture the entry evaluations are
+// bounded by workers × entries, never by rows, and the precomputed
+// result — filterer components included — equals the per-row run's at
+// the same worker count. That every worker count answers the 0x01
+// cohort's serial read is TestDecodeCoreInvariance_FilterPrecompute's.
+func TestFilterPrecompute_ParallelDecode(t *testing.T) {
+	// serial: processing.SetFilterPrecompute flips a process-wide engine switch; reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
+	dir := t.TempDir()
+	osFs := afero.NewOsFs()
+	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cohorts := strideParallelCohorts(t)
+	for _, name := range []string{"grouped"} {
+		if err := afero.WriteFile(osFs, dir+"/"+name+".pulse", cohorts[name], 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	req := func(path string) *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: path},
+			Filterers: []*types.Filterer{
+				{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"north", "west"}},
+				{Type: types.FILTER_RANGE, Field: "weight", Values: []string{"12", "100"}},
+				{Type: types.FILTER_INCLUDE, Field: "src", Values: []string{"batch-a"}},
+			},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "id", Label: "n"}, {Type: types.AGG_SUM, Field: "amount", Label: "amount"}},
+		}
+	}
+	svc := New(cfg)
+	gc, err := svc.Open(context.Background(), dir+"/grouped.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := gc.Schema()
+	if ok, why := svc.canParallelDecode(req(dir+"/grouped.pulse"), gs, gc, 4, strideParallelRows); !ok {
+		t.Fatalf("parallel decode gate closed: %s", why)
+	}
+	// Per worker, each filter slot evaluates at most its group's entry
+	// count: region and weight share the parent group, src is constant.
+	perWorker := int64(2*gs.GroupEntryCount(0) + gs.GroupEntryCount(1))
+
+	run := func(path string, workers int, precompute bool) (string, int64) {
+		t.Helper()
+		prev := processing.SetFilterPrecompute(precompute)
+		defer processing.SetFilterPrecompute(prev)
+		s := New(cfg)
+		s.SetDecodeWorkers(workers)
+		before := processing.FilterPrecomputeStats().EntryEvaluations
+		ei := NewExecInfo(time.Now())
+		resp, err := s.Process(WithExecInfo(context.Background(), ei), req(path))
+		if err != nil {
+			t.Fatalf("%s workers=%d: %v", path, workers, err)
+		}
+		// A silent bail to the serial arm would bound the evaluations by
+		// entries alone and prove nothing about the workers.
+		if arm := ei.Snapshot().Arm; workers > 1 && arm != observe.ArmParallelDecode {
+			t.Fatalf("%s workers=%d: ran on arm %q, want %q", path, workers, arm, observe.ArmParallelDecode)
+		}
+		if resp.Components == nil || len(resp.Components.Filterers) != 3 {
+			t.Fatalf("%s workers=%d: filterer components missing", path, workers)
+		}
+		return fmt.Sprintf("%v|%+v", resp.Data, resp.Components.Filterers), processing.FilterPrecomputeStats().EntryEvaluations - before
+	}
+	for _, workers := range []int{1, 2, 4, 7} {
+		want, evals := run(dir+"/grouped.pulse", workers, true)
+		if evals == 0 || evals > int64(workers)*perWorker {
+			t.Fatalf("workers=%d: %d entry evaluations, want 1..%d (workers × entries per filter) over %d rows", workers, evals, int64(workers)*perWorker, strideParallelRows)
+		}
+		t.Logf("workers=%d: %d entry evaluations over %d rows", workers, evals, strideParallelRows)
+		perRow, evals := run(dir+"/grouped.pulse", workers, false)
+		if perRow != want || evals != 0 {
+			t.Fatalf("workers=%d per-row: %d entry evaluations, result %s", workers, evals, perRow)
+		}
+	}
+}

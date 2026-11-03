@@ -157,16 +157,15 @@ func dateOpsTZName(tz string) string {
 	return strings.ReplaceAll(tz, "/", "_")
 }
 
-// runDateOpsBench preflights one Process call (skipping a non-UTC
-// variant the engine still refuses) and then times the request.
+// runDateOpsBench preflights one Process call and then times the
+// request. Every variant runs: the engine is zone-aware for every
+// date-family operator and column type, so a refused variant is a
+// regression, never a skip.
 func runDateOpsBench(b *testing.B, svc *Service, mk func() *types.Request, tz string) {
 	b.Helper()
 	ctx := context.Background()
 	if _, err := svc.Process(ctx, mk()); err != nil {
-		if tz != "" && tz != "UTC" {
-			b.Skipf("tz=%s refused by the engine (pre zone-aware operators): %v", tz, err)
-		}
-		b.Fatalf("Process preflight: %v", err)
+		b.Fatalf("Process preflight (tz=%s): %v", dateOpsTZName(tz), err)
 	}
 	b.ReportAllocs()
 	for b.Loop() {
@@ -312,11 +311,6 @@ func BenchmarkDateOps_DateParts(b *testing.B) {
 								req.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "df_month", Label: "s"}}
 							}
 							return req
-						}
-						if col == "datetime" {
-							if _, err := svc.Process(context.Background(), mk()); err != nil {
-								b.Skipf("datetime refused (pre E2-S2): %v", err)
-							}
 						}
 						runDateOpsBench(b, svc, mk, tz)
 					})

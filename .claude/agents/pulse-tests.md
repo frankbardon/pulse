@@ -28,7 +28,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 - Table-driven tests by default. Subtest name in the table row.
 - Golden files end with `// golden-hash: <sha256>` line. Never hand-edit. Regenerate with `go test ./descriptor/ -run 'Test.*Golden' -update`. `TestGoldensNotHandEdited` verifies hashes.
-- `TestClaudeMdMentionsAllNonSkippableGates` scans for the eight prefixes CLAUDE.md "Non-Skippable CI Gates" names (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`); a new gate with one of them must be listed there by name in the same commit.
+- `TestClaudeMdMentionsAllNonSkippableGates` scans for the nine prefixes CLAUDE.md "Non-Skippable CI Gates" names (`TestSkillsCover`, `TestClaudeMd`, `TestUpdateDemand`, `TestNoOrbit`, `TestGoldensNot`, `TestPredictNo`, `TestDescriptorNo`, `TestPerPackageCoverage`, `TestCrossArch`); a new gate with one of them must be listed there by name in the same commit.
 - Hermetic tests use `fs.NewMemMap()`. No disk I/O.
 - Per-package coverage floors documented in `TestPerPackageCoverageFloors`.
 

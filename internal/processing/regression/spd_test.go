@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // The regression engine reaches gonum only through linalg. These tests
@@ -27,7 +29,7 @@ func gramRowMajor(rng *rand.Rand, p int) []float64 {
 	rows := p + 4
 	x := make([]float64, rows*p)
 	for i := range x {
-		x[i] = rng.NormFloat64() * float64(1+i%3)
+		x[i] = float64(detmath.NormFloat64(rng) * float64(1+i%3))
 	}
 	g := make([]float64, p*p)
 	for i := 0; i < p; i++ {
@@ -56,7 +58,7 @@ func TestSPDBridge_MatchesDirectGonum(t *testing.T) {
 			g := gramRowMajor(rng, p)
 			b := make([]float64, p)
 			for i := range b {
-				b[i] = rng.NormFloat64()
+				b[i] = detmath.NormFloat64(rng)
 			}
 
 			// The pre-routing direct-gonum sequence.

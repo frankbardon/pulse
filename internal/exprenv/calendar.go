@@ -19,7 +19,7 @@ import (
 	"github.com/frankbardon/pulse/internal/vecmath"
 )
 
-// Calendar helpers and log1p (U45, TODO #316).
+// Calendar helpers and log1p (U45, see #316).
 //
 // A `date` field binds as float64 epoch DAYS and a `datetime` field as
 // float64 epoch SECONDS, so the two are indistinguishable by type in the

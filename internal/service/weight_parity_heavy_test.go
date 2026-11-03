@@ -86,6 +86,7 @@ func TestWeightFrequencyExpansionParity(t *testing.T) {
 				for _, src := range kinds {
 					t.Run(src.name, func(t *testing.T) {
 						if row.scaleNormalized && src.kind == types.WeightKindProbability {
+							// skip-audit(#675): kept — not applicable by contract (weighting.md: median / percentile rescale probability weights to sum to n, so they do not expand); covered instead by TestWeightProbabilityQuantileScaleInvariance (internal/service/weight_parity_test.go), on every arm
 							t.Skip("probability weights are scale-normalized for this operator; see TestWeightProbabilityQuantileScaleInvariance")
 						}
 						if row.kishScaled && src.kind == types.WeightKindProbability {

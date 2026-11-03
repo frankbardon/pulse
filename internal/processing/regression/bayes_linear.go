@@ -107,14 +107,11 @@ func newBayesLinearEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 			map[string]any{"type": string(spec.Type)},
 		)
 	}
+	// ValidateRegression refuses a Resample / Selection modifier here
+	// (internal/regbayes): the posterior already carries the
+	// uncertainty, and conjugate-NIG selection is not offered.
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
-	}
-	if spec.Resample != "" || spec.Selection != "" {
-		// Modifier wrappers land in Phase 5; route to the stub so the
-		// response carries PROCESSING_REGRESSION_NOT_IMPLEMENTED with
-		// the operator name in details (same as Phase 0).
-		return newNotImplemented(spec, schema)
 	}
 	if len(spec.Predictors) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(

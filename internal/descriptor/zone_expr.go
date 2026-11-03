@@ -12,7 +12,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// The expression zone transport (U45, TODO #316).
+// The expression zone transport (U45, see #316).
 //
 // to_day(ts) reads an instant's local day in the request's INHERITED
 // zone — request `time_zone`, then Options.DefaultTimeZone, then UTC —

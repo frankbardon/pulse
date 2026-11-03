@@ -2,8 +2,8 @@ package fingerprint_test
 
 // The decomposition tolerance golden (U61 cross-arch-determinism, PRD
 // FR-18; owner decision Q2 — split tolerance). Figures seeded by a gonum
-// eigen / SVD / QR decomposition (linalg.SymEigen, linalg.SVD, the SEM
-// fit's gonum mat calls) are NOT bit-identical across architectures:
+// eigen / SVD / QR decomposition (linalg.SymEigen, linalg.SVD) are NOT
+// bit-identical across architectures:
 // gonum runs SSE2 assembly kernels on amd64 and FMA-contracted pure Go
 // on arm64, so their last ulps differ and iterative fits carry the
 // difference further (measured arm64 vs linux/amd64 at authoring: at
@@ -34,26 +34,16 @@ package fingerprint_test
 //	go test -count=1 ./internal/fingerprint -run TestDecomposition_Tolerance -update
 //	go test -count=1 ./internal/fingerprint
 //
-// MAT_SEM is pinned only for a fit that runs to full convergence on
-// both architectures: solver fisher, gradient below grad_tol, converged
-// and the same iteration count (decomp.attitude.sem_path_fisher, 43
-// iterations; measured spread ≤ 1.5e-14 relative). Deliberately NOT
-// pinned — the documented residual (linalg.md "Not covered"), measured
-// arm64 vs linux/amd64:
-//   - default SLSQP fits (ftol 1e-6 early stop): the stop iteration
-//     depends on the last ulps, spread up to ~7.9e-4 relative; even at
-//     ftol 1e-15 a two-factor CFA (two_factor.pulse) spreads ~2.9e-8;
-//   - Fisher fits that stop on the objective-decrease test rather than
-//     grad_tol: converged = true on both arches, but a different
-//     iteration count (two_factor CFA: 18 vs 20) and ~3.8e-9 relative
-//     on the estimates; a two-factor attitude path model (same
-//     iteration count) still spreads ~1.3e-12 on its z values;
-//   - meanstructure fits on the default solver: ~1.3e-2 relative;
-//   - bootstrap figures (resampled refits, near-zero estimates): ~1
-//     relative on near-zero figures;
-//   - multi-group fits on the default solver: ~8e-8; WLSMV: ~3.5e-9;
-//   - solver fisher + information rank2: the `converged` flag and the
-//     iteration count can flip between architectures.
+// MAT_SEM keeps one row here, the attitude path model (solver fisher
+// to grad_tol, 43 iterations), from before U78 (TODO #599) routed the
+// SEM matrix arithmetic onto internal/gonumorder: every MAT_SEM fit —
+// converged or stopped early — is now bit-identical across
+// architectures and pinned exactly in fingerprint_test.go
+// (process.attitude.sem_* / process.two_factor.sem_*) and
+// internal/sem's TestSEM_FitBitsGolden. What stays a decomposition
+// residual of SEM is only its fallbacks: CovNearest's eigen clip (a
+// sample covariance that is not positive definite) and the SVD
+// pseudo-inverse of an information matrix that does not factor.
 
 import (
 	"bytes"
@@ -169,10 +159,9 @@ var decompositionFigures = []tolFigure{
 		`{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"cyl"}],"columns":[{"type":"GROUP_CATEGORY","field":"gear"}],"cell":{"type":"AGG_COUNT","field":"mpg","label":"n"}},"overlays":[{"name":"map","kind":"OVERLAY_CORRESPONDENCE","scope":"matrix","params":{"dimensions":2,"normalization":"symmetric"}}]}`,
 		[]string{"overlays.0.*"}}, unitScale},
 
-	// MAT_SEM: only a fit that reaches grad_tol on both architectures
-	// (solver fisher, converged, the same iteration count) is pinned —
-	// see the file comment for the residual left out. Its
-	// residual_covariance (S − Σ̂, a cancellation at the data's own
+	// MAT_SEM: the pre-#599 tolerance row of a fit that reaches grad_tol
+	// (its bits are pinned in fingerprint_test.go now — see the file
+	// comment). Its residual_covariance (S − Σ̂, a cancellation at the data's own
 	// scale: attitude's covariance entries are O(100)) is floored at
 	// that scale; every other figure is held at floor 1.
 	{requestFigure{"decomp.attitude.sem_path_fisher", "attitude.pulse",

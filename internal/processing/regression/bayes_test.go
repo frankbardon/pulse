@@ -310,8 +310,8 @@ func TestRegBayes_PriorValidation(t *testing.T) {
 // these knobs into a Bayesian fit — silent acceptance would hide caller
 // confusion about which operator they are configuring.
 //
-// Resample / Selection are tested separately (those route to the
-// not-implemented stub for Phase 5; see TestFit_NotImplemented).
+// Resample / Selection are tested separately (ValidateRegression
+// refuses them; see TestFit_ModifierContracts).
 func TestRegBayes_CompatibilityRejected(t *testing.T) {
 	t.Parallel()
 

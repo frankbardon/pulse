@@ -9,7 +9,7 @@ import (
 )
 
 // matrix_reliability_cov_test.go pins reliabilityCov's per-entry Kish
-// factor (TODO #270): under probability weights each covariance entry
+// factor (see #270): under probability weights each covariance entry
 // carries n_eff/(n_eff − 1) for the rows THAT entry rests on
 // (CoMoment.PairNEff), so a pairwise slot no longer borrows one
 // slot-wide n_eff, a listwise slot keeps the slot-wide bits, and an

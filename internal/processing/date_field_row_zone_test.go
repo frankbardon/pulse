@@ -176,7 +176,7 @@ func TestPerRowZone_OperatorsAllocationFree(t *testing.T) {
 		"FILTER_DATE_RANGES": func() { _, _ = fn(next()) },
 		"ATTR_DATE_PART.Row": func() { _, _ = attr.Row(next(), "ts") },
 	} {
-		if n := testing.AllocsPerRun(200, f); n != 0 {
+		if n := testing.AllocsPerRun(200, f); n != 0 && !raceEnabled {
 			t.Errorf("%s: %v allocations per row, want 0", name, n)
 		}
 	}

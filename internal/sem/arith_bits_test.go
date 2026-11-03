@@ -21,11 +21,10 @@ type pinnedFigure struct {
 // chi-square p from a fit's test statistics, the Wald critical value,
 // the bootstrap percentile bound, the defined-parameter dual-number
 // value / SE / p / interval, the WLSMV scaled-shifted statistic and
-// the gonum-order dot product. An end-to-end MAT_SEM figure is NOT
-// among them: every fit runs gonum's mat.Mul / Inverse / LogDet, whose
-// amd64 assembly and contracted arm64 Go differ in the last bits, and
-// the optimiser carries that difference (E4-S4 pins those at a
-// tolerance).
+// the gonum-order dot product. End-to-end fits are pinned by
+// TestSEM_FitBitsGolden (fit_bits_test.go): since #599 their matrix
+// arithmetic runs on internal/gonumorder (matops.go), so they are
+// bit-identical too.
 func semPinnedFigures(t *testing.T) []pinnedFigure {
 	t.Helper()
 	var out []pinnedFigure

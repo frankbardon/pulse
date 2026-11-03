@@ -452,7 +452,7 @@ func TestFusedAxisKeyer_SingleKeyFastPathAllocation(t *testing.T) {
 			t.Fatalf("derive: %v", err)
 		}
 	})
-	if allocs > 2 {
+	if allocs > 2 && !raceEnabled {
 		t.Errorf("single-key single-position derive allocated %.0f times per record, want <= 2", allocs)
 	}
 }

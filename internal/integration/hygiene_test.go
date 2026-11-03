@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/frankbardon/pulse/internal/tools/citest/coverfloors"
 )
 
 // readClaudeMd reads CLAUDE.md from the repo root. It locates the repo root
@@ -143,6 +145,7 @@ func TestClaudeMdMentionsAllNonSkippableGates(t *testing.T) {
 		"TestPredictNo",
 		"TestDescriptorNo",
 		"TestPerPackageCoverage",
+		"TestCrossArch",
 	}
 
 	// Find all Go test files using find (works even if files are untracked).
@@ -274,81 +277,25 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 	}
 }
 
-// TestPerPackageCoverageFloors is a placeholder that documents the target
-// per-package coverage floors. Full coverage profiling infrastructure is not
-// yet implemented; this test serves as documentation and a reminder.
+// TestPerPackageCoverageFloors validates the per-package coverage floor
+// table, .github/coverage-floors.txt — the ONE source of the floors.
+// Measurement is `citest cover-check` (make cover; CI's coverage job), which
+// fails when a listed package is below its floor or absent from the
+// profile; this gate keeps the table itself sound so a typo cannot
+// silently drop a package from that check: every entry names a real Go
+// package directory, every floor is in 0..100, no package is listed twice.
 //
-// Target floors:
-//
-//	encoding/    >= 95%
-//	internal/encoding/    >= 95%
-//	descriptor/  >= 95%
-//	internal/descriptor/  >= 95%
-//	internal/skills/      >= 95%
-//	errors/      >= 90%
-//	internal/processing/  >= 85%
-//	extend/      >= 85%
-//	internal/io/csv/      >= 85%
-//	internal/io/tsv/      >= 85%
-//	internal/io/ndjson/   >= 85%
-//	internal/io/parquet/  >= 85%
-//	internal/io/excel/    >= 85%
-//	internal/service/     >= 80%
-//	internal/temporal/    >= 90%
-//	internal/statdist/    >= 90%
-//	internal/mergegate/   >= 100%
-//	internal/crosstabfuse/ >= 90%
-//	internal/vecmath/     >= 95%
-//	linalg/detmath/     >= 95%
-//	linalg/      >= 90%
-//	linalg/metric/ >= 95%
-//	cmd/pulse/   >= 75%
-//
-// Aggregate across core packages >= 80%.
+// Non-skippable CI gate.
 func TestPerPackageCoverageFloors(t *testing.T) {
 	t.Parallel()
 
-	floors := map[string]int{
-		"encoding":              95,
-		"internal/encoding":     95,
-		"descriptor":            95,
-		"internal/descriptor":   95,
-		"internal/skills":       95,
-		"errors":                90,
-		"internal/processing":   85,
-		"extend":                85,
-		"internal/io/csv":       85,
-		"internal/io/tsv":       85,
-		"internal/io/ndjson":    85,
-		"internal/io/parquet":   85,
-		"internal/io/excel":     85,
-		"internal/service":      80,
-		"internal/temporal":     90,
-		"internal/statdist":     90,
-		"internal/mergegate":    100,
-		"internal/crosstabfuse": 90,
-		"internal/vecmath":      95,
-		"linalg/detmath":        95,
-		"linalg":                90,
-		"linalg/metric":         95,
-		"cmd/pulse":             75,
+	floors, err := coverfloors.Load(".")
+	if err != nil {
+		t.Fatalf("reading %s: %v", coverfloors.File, err)
 	}
-
-	// Verify the floor map is non-empty (structural sanity check).
-	if len(floors) != 23 {
-		t.Errorf("expected 23 coverage floor entries, got %d", len(floors))
+	for _, p := range coverfloors.Validate(".", floors) {
+		t.Error(p)
 	}
-
-	// Verify each package directory exists.
-	for pkg := range floors {
-		path := filepath.Join(".", pkg)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			t.Errorf("package directory %s does not exist", pkg)
-		}
-	}
-
-	t.Log("Per-package coverage floor enforcement is a placeholder. " +
-		"Run 'make cover' to check coverage manually.")
 }
 
 // claudeMdSizeCeiling is the maximum size of CLAUDE.md in bytes.

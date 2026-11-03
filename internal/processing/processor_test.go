@@ -10,9 +10,9 @@ import (
 )
 
 // TestProcessor_RegressionBayesModifierRejected exercises the end-to-end
-// rejection of REG_BAYES_LINEAR + any modifier. Phase 5 retired the
-// not-implemented stub for OLS / GLM + modifiers; Bayes now rejects
-// at spec validation because the posterior already conveys uncertainty
+// rejection of REG_BAYES_LINEAR + any modifier. OLS / GLM run
+// modifiers through modifierEngine; Bayes rejects them at spec
+// validation because the posterior already conveys uncertainty
 // (credible intervals via the Student-t marginal) and stepwise feature
 // selection in a Bayesian setting is a posterior-based question that
 // the conjugate-NIG engine doesn't support.

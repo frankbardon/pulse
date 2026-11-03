@@ -18,7 +18,7 @@ func TestGroupMemory_GroupedTestAdmitAllocationFree(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if got != 0 {
+	if got != 0 && !raceEnabled {
 		t.Fatalf("grouped test admit allocates %.1f times per call, want 0", got)
 	}
 }
@@ -47,7 +47,7 @@ func TestGroupMemory_GroupedMatricesMintAllocationFree(t *testing.T) {
 		}
 		next++
 	})
-	if got != 0 {
+	if got != 0 && !raceEnabled {
 		t.Fatalf("grouped matrix bucket mint allocates %.1f times per call, want 0", got)
 	}
 	if len(g.buckets) != runs+1 {

@@ -20,7 +20,8 @@
 //
 // The package reads only a covariance matrix and a row count (and the
 // sample means under a mean structure); it is
-// no-execute safe (stdlib, gonum, linalg/detmath, internal/statdist)
+// no-execute safe (stdlib, gonum, linalg, linalg/detmath, optimize,
+// internal/gonumorder, internal/statdist)
 // and imported by both the resolver
 // (internal/vectors: model validation at predict time) and the engine
 // (internal/processing: the finalizer).

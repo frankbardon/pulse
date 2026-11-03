@@ -110,7 +110,7 @@ func TestResolveMatrices_Distance(t *testing.T) {
 			}
 		})
 	}
-	// TODO #411: the date family resolves as a between (its zone is the
+	// See #411: the date family resolves as a between (its zone is the
 	// zone pass's, at slot matrices[i].params.between) and may carry a
 	// tz; no other between may.
 	t.Run("date family", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestResolveMatrices_Distance(t *testing.T) {
 			}
 		}
 	})
-	// TODO #411: a registered extension grouper is a between; its
+	// See #411: a registered extension grouper is a between; its
 	// vector / fields are judged by the member rules and rewritten into
 	// Fields, its field (when set) must exist, and it takes no tz.
 	t.Run("extension between", func(t *testing.T) {

@@ -108,7 +108,7 @@ func factorScoreParams(factor int, method string, factors any, extraction, rotat
 // TestFactorScore_MatchesROracle pins every mv_factor_score.json case —
 // attitude (minres unrotated and varimax, principal axis oblimin, ML
 // promax), mtcars (a fit_on subset), weighted (zero-weight rows),
-// nulls (listwise, ML) and two_factor (TODO #410: a proper two-factor
+// nulls (listwise, ML) and two_factor (see #410: a proper two-factor
 // fit under every weight, so weighted Bartlett scores are real values
 // — varimax, oblimin and ML), under no weight, frequency and
 // probability weights — every factor by both methods through the real processor on

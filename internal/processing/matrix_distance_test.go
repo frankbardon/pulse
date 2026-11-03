@@ -453,7 +453,7 @@ func TestMatrixDistance_ProjectionReadsBetween(t *testing.T) {
 	}
 }
 
-// TestMatrixDistance_DateBetweenSlotZone (TODO #411): a GROUP_DATE
+// TestMatrixDistance_DateBetweenSlotZone (see #411): a GROUP_DATE
 // between built from its resolved plan reads its slot `tz` — every row
 // sits at 23:30 UTC, so its Europe/Berlin local day is the NEXT UTC
 // day — and its centroids and distances equal the GROUP_CATEGORY
@@ -530,7 +530,7 @@ func TestMatrixDistance_DateBetweenPerRowZone(t *testing.T) {
 	distNearRows(t, "centroids", got.Auxiliary["centroids"], want.Auxiliary["centroids"].Values)
 }
 
-// TestMatrixDistance_ProjectionReadsExtensionBetween (TODO #411): an
+// TestMatrixDistance_ProjectionReadsExtensionBetween (see #411): an
 // extension grouper as params.between is projected like one in
 // Request.Groups — its field plus what its FieldInputs hook declares,
 // and the whole row when it registers no hook.

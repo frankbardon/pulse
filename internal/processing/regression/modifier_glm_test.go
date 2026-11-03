@@ -5,12 +5,15 @@ import (
 	"math/rand/v2"
 	"testing"
 
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
 // makeLogisticFixture generates n records on a logistic model
 // P(y=1) = sigmoid(intercept + Σ slopes[j]·xj). Predictors are
 // independent standard normals; the response is a Bernoulli draw.
+// detmath draws and Exp plus float64() barriers keep the records the
+// same bits on every architecture.
 func makeLogisticFixture(t *testing.T, n int, slopes []float64, intercept float64, seed uint64) []Record {
 	t.Helper()
 	rng := rand.New(rand.NewPCG(seed, seed^0xBEEFDEADBEEFDEAD))
@@ -19,12 +22,12 @@ func makeLogisticFixture(t *testing.T, n int, slopes []float64, intercept float6
 		m := map[string]float64{}
 		eta := intercept
 		for j, sl := range slopes {
-			v := rng.NormFloat64()
+			v := detmath.NormFloat64(rng)
 			m[predictorName(j)] = v
-			eta += sl * v
+			eta += float64(sl * v)
 		}
 		// Sigmoid.
-		mu := 1.0 / (1.0 + math.Exp(-eta))
+		mu := 1.0 / (1.0 + detmath.Exp(-eta))
 		y := 0.0
 		if rng.Float64() < mu {
 			y = 1.0
@@ -89,29 +92,7 @@ func TestRegGLM_Jackknife_Logistic(t *testing.T) {
 func TestRegGLM_Stepwise_Logistic(t *testing.T) {
 	t.Parallel()
 
-	rng := rand.New(rand.NewPCG(67, 67^0xABCDEF1234567890))
-	n := 250
-	records := make([]Record, n)
-	for i := 0; i < n; i++ {
-		m := map[string]float64{}
-		x1 := rng.NormFloat64()
-		x2 := rng.NormFloat64()
-		x3 := rng.NormFloat64()
-		x4 := rng.NormFloat64()
-		// True model: η = 2·x1 − 1.5·x3.
-		eta := 2.0*x1 - 1.5*x3
-		mu := 1.0 / (1.0 + math.Exp(-eta))
-		y := 0.0
-		if rng.Float64() < mu {
-			y = 1.0
-		}
-		m["x1"] = x1
-		m["x2"] = x2
-		m["x3"] = x3
-		m["x4"] = x4
-		m["y"] = y
-		records[i] = mockRecord{values: m}
-	}
+	records := makeStepwiseLogisticRecords(250, 67)
 	spec := &types.RegressionSpec{
 		Type:       types.REG_GLM,
 		Target:     "y",
@@ -146,4 +127,33 @@ func TestRegGLM_Stepwise_Logistic(t *testing.T) {
 	if !hasX1 || !hasX3 {
 		t.Errorf("stepwise logistic missing signal predictors: selected=%v", res.SelectedFeatures)
 	}
+}
+
+// makeStepwiseLogisticRecords is the 4-predictor logistic fixture of
+// TestRegGLM_Stepwise_Logistic: only x1 and x3 carry signal
+// (η = 2·x1 − 1.5·x3). detmath draws and Exp plus float64() barriers
+// keep the records the same bits on every architecture.
+func makeStepwiseLogisticRecords(n int, seed uint64) []Record {
+	rng := rand.New(rand.NewPCG(seed, seed^0xABCDEF1234567890))
+	records := make([]Record, n)
+	for i := 0; i < n; i++ {
+		m := map[string]float64{}
+		x1 := detmath.NormFloat64(rng)
+		x2 := detmath.NormFloat64(rng)
+		x3 := detmath.NormFloat64(rng)
+		x4 := detmath.NormFloat64(rng)
+		eta := float64(2.0*x1) - float64(1.5*x3)
+		mu := 1.0 / (1.0 + detmath.Exp(-eta))
+		y := 0.0
+		if rng.Float64() < mu {
+			y = 1.0
+		}
+		m["x1"] = x1
+		m["x2"] = x2
+		m["x3"] = x3
+		m["x4"] = x4
+		m["y"] = y
+		records[i] = mockRecord{values: m}
+	}
+	return records
 }

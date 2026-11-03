@@ -106,7 +106,6 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_PANIC:       shared,
 	// Regression engine: ATTR_REG_* reach it only through REG_OLS (a hard
 	// dependency), so the REG_* family covers every path.
-	errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED:   ownAllRegs,
 	errors.PROCESSING_REGRESSION_RANK_DEFICIENT:    ownAllRegs,
 	errors.PROCESSING_REGRESSION_NO_CONVERGE:       ownAllRegs,
 	errors.PROCESSING_REGRESSION_SINGULAR_GRAM:     ownAllRegs,

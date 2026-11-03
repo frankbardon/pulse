@@ -47,7 +47,7 @@ func singularityRecords(c singularityOracle) (*encoding.Schema, []*Record) {
 	return schema, recs
 }
 
-// TestSingularRule_EverySurfaceAgreesWithROracle is TODO #408's proof:
+// TestSingularRule_EverySurfaceAgreesWithROracle is #408's proof:
 // on each mv_singularity.json case — a borderline near-singular draw
 // whose Cholesky still succeeds (R's chol() and Pulse's reference
 // kernel alike), a full-rank control and an exact dependency — the one

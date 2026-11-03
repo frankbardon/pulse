@@ -48,7 +48,7 @@
 #     entry's likelihood figures are psych::fa.stats(r = R, f = L,
 #     n.obs = n_star, alpha = 0.1) on its loadings: STATISTIC, PVAL,
 #     TLI, RMSEA[1], BIC (null at dof <= 0), and the 90% RMSEA interval
-#     (TODO #405, psych::fa's default alpha = 0.1): fa_rmsea_ci below,
+#     (see #405, psych::fa's default alpha = 0.1): fa_rmsea_ci below,
 #     psych's own rule solved to machine precision, asserted within
 #     psych's uniroot tolerance of fa.stats' RMSEA lower / upper.
 

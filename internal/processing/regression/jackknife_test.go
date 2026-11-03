@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -147,16 +148,17 @@ func TestJackknife_MatchesROracle(t *testing.T) {
 	}
 }
 
-// glmJackknifeRecords is a binomial sample (FMA-safe generator).
+// glmJackknifeRecords is a binomial sample: detmath draws and Exp plus
+// float64() barriers keep its bits the same on every architecture.
 func glmJackknifeRecords(n int, seed uint64) []Record {
 	rng := rand.New(rand.NewPCG(seed, seed^0xC0FFEE))
 	out := make([]Record, n)
 	for i := range out {
-		x1 := rng.NormFloat64()
-		x2 := rng.Float64()*2 - 1
+		x1 := detmath.NormFloat64(rng)
+		x2 := float64(rng.Float64()*2) - 1
 		eta := -0.4 + float64(0.9*x1) - float64(0.6*x2)
 		y := 0.0
-		if rng.Float64() < 1/(1+math.Exp(-eta)) {
+		if rng.Float64() < 1/(1+detmath.Exp(-eta)) {
 			y = 1
 		}
 		out[i] = mockRecord{values: map[string]float64{"x1": x1, "x2": x2, "y": y, "w": float64(1 + i%3), "id": float64(i)}}

@@ -17,7 +17,11 @@ name: CI
 #                           The required `lint` check = all of `make lint`.
 #   docs                    mdbook build
 #   build                   make build + smoke
-#   test (1.26)             the fast tier
+#   test (1.26)             the fast tier (no coverage instrumentation)
+#   coverage-fast (1, 2)    the fast tier again, instrumented for the
+#                           coverage job, split into two legs by
+#                           `citest cover-shard` (one leg would overrun the
+#                           8-minute job cap on a cold cache)
 #   test-heavy (1..6, catchall)  the heavy tier, split by
 #                           .github/heavy-shards.txt (a heavy test the list
 #                           does not name runs in the catchall shard)
@@ -27,8 +31,16 @@ name: CI
 #   smoke-windows, smoke-macos   build + smoke per OS
 #   vulncheck               make vulncheck: pinned govulncheck, GOOS
 #                           linux then windows
+#   coverage                needs coverage-fast + test-heavy; merges
+#                           their profiles and fails on a package below
+#                           its .github/coverage-floors.txt floor
 #   apidiff                 exported-API delta vs the latest v* tag;
 #                           advisory, not required, dispatch only
+# Every coverage run instruments -coverpkg="$(citest cover-pkgs)": the
+# floored packages only, as import paths (not ./..., which costs more
+# compile and a 2x profile for packages no floor reads).
+# cache-warm.yml (every main push) seeds the build cache the test jobs
+# restore; branch runs can read only their own and main's caches.
 on:
   workflow_dispatch:
   workflow_call:
@@ -197,6 +209,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # KEEP IN SYNC with cache-warm.yml: it seeds this job's cache from
+      # main, so its setup-go inputs (go-version "1.26", default cache and
+      # cache-dependency-path) and compile flags must match this job's.
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -212,6 +227,10 @@ jobs:
       # compile time shows as its own step (and in the job summary); the
       # test step below reuses the build cache, adding only the link and
       # start-up of each binary (~9 s local).
+      # No coverage flags here: coverage-fast measures the fast tier, so
+      # this required check keeps the plain compile (~4 min cold on CI;
+      # instrumented it ran 8m34s, over the job cap). The flags must match
+      # cache-warm.yml's plain fast compile.
       - name: Compile tests (fast tier)
         shell: bash
         run: |
@@ -233,6 +252,80 @@ jobs:
           go test -count=1 -json ./... \
             | "$RUNNER_TEMP/citest" filter -json-out "$RUNNER_TEMP/test.json" -title "test (fast tier)"
 
+  # The fast tier instrumented for the coverage job, in two legs:
+  # `citest cover-shard <leg> <legs>` splits every package with a fast-tier
+  # test file heaviest-first, so the legs partition the fast tier (their
+  # merged profile equals one whole-tier run's) and each stays well inside
+  # the job cap on a cold cache. A test failure fails the leg too, but
+  # `test (1.26)` is the check that gates on the fast tier.
+  coverage-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: ["1", "2"]
+    steps:
+      - uses: actions/checkout@v7
+
+      # KEEP IN SYNC with cache-warm.yml (same key as `test`; see there).
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Build CI test helper
+        run: go build -o "$RUNNER_TEMP/citest" ./internal/tools/citest
+
+      # COVERPKG (the floored packages, from .github/coverage-floors.txt)
+      # and PKGS (this leg's packages) for the steps below.
+      - name: Select packages (leg ${{ matrix.leg }})
+        shell: bash
+        env:
+          LEG: ${{ matrix.leg }}
+          LEGS: ${{ strategy.job-total }}
+        run: |
+          echo "COVERPKG=$("$RUNNER_TEMP/citest" cover-pkgs)" >> "$GITHUB_ENV"
+          pkgs=$("$RUNNER_TEMP/citest" cover-shard "$LEG" "$LEGS")
+          echo "PKGS=$(echo $pkgs)" >> "$GITHUB_ENV"
+          echo "leg $LEG of $LEGS: $(echo "$pkgs" | wc -l) packages"
+
+      # A coverage build is its own cache entry: KEEP IN SYNC with
+      # cache-warm.yml's instrumented fast compile (same -coverpkg).
+      - name: Compile tests (fast tier, leg ${{ matrix.leg }})
+        shell: bash
+        run: |
+          start=$SECONDS
+          # shellcheck disable=SC2086 # PKGS is a word list
+          if ! go test -count=1 -run '^$' -coverpkg="$COVERPKG" $PKGS > "$RUNNER_TEMP/compile.log" 2>&1; then
+            cat "$RUNNER_TEMP/compile.log"
+            exit 1
+          fi
+          echo "### coverage-fast (leg ${{ matrix.leg }}): compile $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test (fast tier, leg ${{ matrix.leg }})
+        shell: bash
+        run: |
+          # shellcheck disable=SC2086 # PKGS is a word list
+          go test -count=1 -json -coverpkg="$COVERPKG" -coverprofile="$RUNNER_TEMP/cover-raw.out" $PKGS \
+            | "$RUNNER_TEMP/citest" filter -json-out "$RUNNER_TEMP/test.json" -title "coverage-fast (leg ${{ matrix.leg }})"
+
+      # The raw profile repeats every floored block once per test binary
+      # (~150 MB a leg); cover-merge dedupes it to a few MB.
+      - name: Merge coverage profile (leg ${{ matrix.leg }})
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/cover"
+          "$RUNNER_TEMP/citest" cover-merge -o "$RUNNER_TEMP/cover/fast-${{ matrix.leg }}.out" "$RUNNER_TEMP/cover-raw.out"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-fast-${{ matrix.leg }}
+          path: ${{ runner.temp }}/cover/
+          retention-days: 1
+          if-no-files-found: error
+
   # The heavy tier (`//go:build heavy`), one job per shard. Each shard
   # runs only the heavy tests it owns (`-tags heavy -run '^(...)$'`); the
   # fast tests run in the test job above.
@@ -246,6 +339,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # KEEP IN SYNC with cache-warm.yml (same key as `test`; see there).
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -260,9 +354,66 @@ jobs:
         shell: bash
         env:
           SHARD: ${{ matrix.shard }}
+        # heavy-run merges the profiles of the shard's go test runs into
+        # one (header-only for an empty shard) for the coverage job.
+        # KEEP IN SYNC: cache-warm.yml compiles with these build flags
+        # (-tags heavy, -coverpkg = `citest cover-pkgs`).
         run: |
+          mkdir -p "$RUNNER_TEMP/cover"
+          COVERPKG=$("$RUNNER_TEMP/citest" cover-pkgs)
           "$RUNNER_TEMP/citest" heavy-run "$SHARD" -count=1 -timeout=30m -json \
+              -coverpkg="$COVERPKG" -coverprofile="$RUNNER_TEMP/cover/heavy-$SHARD.out" \
             | "$RUNNER_TEMP/citest" filter -json-out "$RUNNER_TEMP/test-heavy.json" -title "test-heavy ($SHARD)"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-heavy-${{ matrix.shard }}
+          path: ${{ runner.temp }}/cover/
+          retention-days: 1
+          if-no-files-found: error
+
+  # Per-package coverage floors over BOTH tiers: merges both coverage-fast
+  # legs' and every heavy shard's profile and runs `citest cover-check`
+  # against .github/coverage-floors.txt (`make cover` locally).
+  # Like lint, it runs even when a test job failed, so it fails rather than
+  # skips: a profile from a failed or missing job would under-count.
+  coverage:
+    needs: [coverage-fast, test-heavy]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require coverage-fast and test-heavy
+        env:
+          COVERAGE_FAST: ${{ needs.coverage-fast.result }}
+          TEST_HEAVY: ${{ needs.test-heavy.result }}
+        run: |
+          echo "coverage-fast: $COVERAGE_FAST, test-heavy: $TEST_HEAVY"
+          if [ "$COVERAGE_FAST" != "success" ] || [ "$TEST_HEAVY" != "success" ]; then
+            echo "::error::coverage needs every coverage-fast leg and every test-heavy shard to pass"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          # Only citest is compiled here; skip the large cache.
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          path: ${{ runner.temp }}/cover
+          merge-multiple: true
+
+      - name: Check coverage floors (both tiers)
+        run: |
+          ls -l "$RUNNER_TEMP/cover"
+          go run ./internal/tools/citest cover-check "$RUNNER_TEMP"/cover/*.out
 
   # Windows and macOS legs (U77), blocking like the ubuntu jobs. The test
   # legs run the same fast tier as `test (1.26)` (no -parallel 1, no

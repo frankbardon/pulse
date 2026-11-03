@@ -1,6 +1,6 @@
 # Numeric determinism allowlist: the reviewed exceptions to the
-# repo-wide scans in internal/testutil/fmagate (TestFMAReport_RepoWide,
-# heavy tier, and TestBannedMathReport_RepoWide, fast tier).
+# repo-wide scans in internal/testutil/fmagate (TestCrossArchFMAReport_RepoWide,
+# heavy tier, and TestCrossArchBannedMath_RepoWide, fast tier).
 #
 # One entry per line:
 #
@@ -30,7 +30,7 @@
 # Report one package or file set (each story's "clean in the report"):
 #
 #   go test -tags heavy -count=1 -v ./internal/testutil/fmagate \
-#     -run 'TestFMAReport_RepoWide|TestBannedMathReport_RepoWide' \
+#     -run 'TestCrossArchFMAReport_RepoWide|TestCrossArchBannedMath_RepoWide' \
 #     -fmareport.pkg=./internal/processing/...
 #
 # -fmareport.pkg takes comma-separated patterns: ./... (default),

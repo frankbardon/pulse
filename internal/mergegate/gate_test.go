@@ -580,3 +580,26 @@ func TestMergeRefusal_MatrixTotalMember(t *testing.T) {
 		t.Errorf("row-local member refused: %q", got)
 	}
 }
+
+// TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute: under
+// Groups no total() formula is a two-phase parallel total, so the
+// matrix-member check stands aside (it has no tainted slots to name)
+// and the refusal names the attribute itself — the reason the request
+// stays serial is the formula, not the matrix.
+func TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "g", Type: encoding.FieldTypeU8}}}
+	req := &types.Request{
+		Groups:     []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "share", Expression: "x / total(x)"}},
+		Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "share"}}},
+	}
+	if got := matrixTotalMemberRefusal(req, schema, nil); got != "" {
+		t.Errorf("grouped matrix-member check = %q, want \"\"", got)
+	}
+	got := MergeRefusal(req, schema, nil)
+	if !strings.Contains(got, "attribute ATTR_FORMULA is not row-local") || strings.Contains(got, "computed member") {
+		t.Errorf("grouped refusal = %q, want the attribute named, not the matrix member", got)
+	}
+}

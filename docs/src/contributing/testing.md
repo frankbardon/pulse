@@ -30,7 +30,7 @@ go test ./internal/processing/...
 # Verbose, specific test
 go test ./internal/service/... -v -run TestProcess
 
-# Coverage report
+# Coverage floors, both tiers (fails on a package below its floor)
 make cover
 
 # Fuzz the .pulse header
@@ -71,7 +71,7 @@ Their full names appear in CLAUDE.md so the
 | `TestClaudeMdMentionsAllEnvVars`        | Every `PULSE_*` env var has a CLAUDE.md row |
 | `TestClaudeMdMentionsAllNonSkippableGates` | This very table is the source — CLAUDE.md must list every gate by name |
 | `TestUpdateDemandTableCovers`           | The Update Demand table covers every registered component category |
-| `TestPerPackageCoverageFloors`          | Package directories exist and meet documented coverage floors |
+| `TestPerPackageCoverageFloors`          | The floor table `.github/coverage-floors.txt` is sound (real package dirs, 0..100, no duplicate); `make cover` / CI `coverage` measure against it |
 | `TestNoOrbitReferences`, `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
 | `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |

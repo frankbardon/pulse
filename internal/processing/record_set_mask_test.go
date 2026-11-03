@@ -169,7 +169,7 @@ func TestRecord_SetMaskValue_NarrowPathZeroAlloc(t *testing.T) {
 	if sink == 0 {
 		t.Fatalf("benchmark body never ran")
 	}
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Errorf("SetMaskValue narrow path allocs = %v, want 0", allocs)
 	}
 }
@@ -292,7 +292,7 @@ func TestRecord_SetLabels_SingleAllocation(t *testing.T) {
 	if n != len(bits) {
 		t.Fatalf("SetLabels returned %d labels, want %d", n, len(bits))
 	}
-	if allocs != 1 {
+	if allocs != 1 && !raceEnabled {
 		t.Errorf("SetLabels allocs = %v, want 1 (the pre-sized result slice)", allocs)
 	}
 }

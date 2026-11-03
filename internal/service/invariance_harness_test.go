@@ -22,8 +22,10 @@ import (
 // layout's cohort, and one Process under a cell's worker knobs that
 // reports the arm it took. The families: matrix_invariance_test.go
 // (its own runner, for the CoMoment vehicle), wide_set_invariance_test.go,
-// time_zone_invariance_heavy_test.go, multiplicity_fold_invariance_test.go,
-// attribute_slots_heavy_test.go, matrix_sem_ordinal_test.go.
+// time_zone_invariance_test.go, multiplicity_fold_invariance_test.go,
+// attribute_slots_heavy_test.go, matrix_sem_ordinal_test.go,
+// shard_core_invariance_test.go, decode_core_invariance_test.go,
+// weight_invariance_test.go.
 
 // svcInvCohort is one layout's cohort: the fs it lives on (a MemMap, or
 // a real directory for a layout the parallel decode reads — it needs
@@ -51,6 +53,12 @@ func svcInvDisk(t *testing.T) (cfg *fs.Config, osFs afero.Fs, dir string) {
 // Service first — and returns the response (LayoutFree) and the arm.
 func svcInvProcess(t *testing.T, c svcInvCohort, k invariance.Knobs, req *types.Request, setup func(*Service)) invariance.Result[*types.Response] {
 	t.Helper()
+	return svcInvProcessIn(t, context.Background(), c, k, req, setup)
+}
+
+// svcInvProcessIn is svcInvProcess under ctx (a bound-model set, say).
+func svcInvProcessIn(t *testing.T, ctx context.Context, c svcInvCohort, k invariance.Knobs, req *types.Request, setup func(*Service)) invariance.Result[*types.Response] {
+	t.Helper()
 	req.Cohort = &types.Cohort{Filename: c.path}
 	svc := New(c.cfg)
 	if setup != nil {
@@ -59,11 +67,59 @@ func svcInvProcess(t *testing.T, c svcInvCohort, k invariance.Knobs, req *types.
 	svc.SetDecodeWorkers(k.DecodeWorkers)
 	svc.SetShardWorkers(k.ShardWorkers)
 	ei := NewExecInfo(time.Now())
-	resp, err := svc.Process(WithExecInfo(context.Background(), ei), req)
+	resp, err := svc.Process(WithExecInfo(ctx, ei), req)
 	if err != nil {
 		t.Fatalf("%s: Process: %v", k, err)
 	}
 	return invariance.Result[*types.Response]{Answer: invariance.LayoutFree(resp), Arm: ei.Snapshot().Arm}
+}
+
+// svcInvReducer is the Mode of a cell that runs the single-file
+// parallel-decode reducer itself (reduceParallelBuffered with
+// k.DecodeWorkers workers, one included) instead of Process: the
+// reducer below the decode threshold, or on one worker, is reach the
+// Process dispatch never gives. Such a cell reports
+// observe.ArmParallelDecode only when the reducer really ran on a
+// mapped file.
+const svcInvReducer invariance.Mode = "reducer"
+
+// svcInvReduce runs req (its cohort set to c.path) on the parallel
+// decode reducer under ctx with k.DecodeWorkers workers (an unmapped
+// file reports the buffered arm, so the cell's arm check fails).
+func svcInvReduce(t *testing.T, ctx context.Context, c svcInvCohort, k invariance.Knobs, req *types.Request) invariance.Result[*types.Response] {
+	t.Helper()
+	req.Cohort = &types.Cohort{Filename: c.path}
+	svc := New(c.cfg)
+	svc.SetDecodeWorkers(k.DecodeWorkers)
+	cohort, err := svc.Open(ctx, c.path)
+	if err != nil {
+		t.Fatalf("%s: Open: %v", k, err)
+	}
+	pctx, cleanup, available, err := buildParallelDecodeContext(svc, c.path, cohort.Schema(), nil, nil, len(cohort.Schema().Fields))
+	if err != nil {
+		t.Fatalf("%s: buildParallelDecodeContext: %v", k, err)
+	}
+	if cleanup != nil {
+		defer func() { _ = cleanup() }()
+	}
+	if !available {
+		return invariance.Result[*types.Response]{Arm: observe.ArmBuffered}
+	}
+	resp, err := svc.reduceParallelBuffered(ctx, req, cohort.Schema(), pctx, k.DecodeWorkers)
+	if err != nil {
+		t.Fatalf("%s: reduceParallelBuffered: %v", k, err)
+	}
+	return invariance.Result[*types.Response]{Answer: invariance.LayoutFree(resp), Arm: observe.ArmParallelDecode}
+}
+
+// svcInvReducerCells are reducer cells on layout for DecodeWorkers
+// 1/2/4/7, each on the parallel-decode arm.
+func svcInvReducerCells(layout invariance.Layout) []invariance.Cell {
+	var out []invariance.Cell
+	for _, dw := range []int{1, 2, 4, 7} {
+		out = append(out, invariance.Cell{Knobs: invariance.Knobs{Layout: layout, DecodeWorkers: dw, ShardWorkers: 1, Mode: svcInvReducer}, Arm: observe.ArmParallelDecode})
+	}
+	return out
 }
 
 // svcInvArchive is a shard archive of rows split into shards of

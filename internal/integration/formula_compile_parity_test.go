@@ -17,7 +17,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Predict compiles every expression (U45 E2-S3, TODO #315): each
+// Predict compiles every expression (U45 E2-S3, see #315): each
 // ATTR_FORMULA, FILTER_EXPRESSION and total() argument is type-checked
 // against the schema prototype (internal/exprenv) plus the request-bound
 // declarations the runtime adds (coef, lookup, total, named vectors,

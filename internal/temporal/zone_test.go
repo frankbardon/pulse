@@ -271,7 +271,7 @@ func TestZoneOffset_AllocFree(t *testing.T) {
 		_ = z.Offset(pre)
 		_ = UTC.Offset(s)
 	})
-	if allocs != 0 {
+	if allocs != 0 && !raceEnabled {
 		t.Errorf("Offset allocs/op = %v, want 0", allocs)
 	}
 }
@@ -485,7 +485,7 @@ func TestZoneFork_OffsetAllocFree(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := z.Fork()
-	if allocs := testing.AllocsPerRun(1000, func() { _ = f.Offset(1_650_000_000); _ = f.Offset(100_000_000) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(1000, func() { _ = f.Offset(1_650_000_000); _ = f.Offset(100_000_000) }); allocs != 0 && !raceEnabled {
 		t.Errorf("fork Offset allocs/op = %v, want 0", allocs)
 	}
 }

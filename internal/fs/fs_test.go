@@ -153,7 +153,7 @@ func TestNoGcsReferences(t *testing.T) {
 	}
 
 	if len(goFiles) == 0 {
-		t.Skip("no .go source files found")
+		t.Fatal("premise: the package directory holds non-test .go files to scan")
 	}
 
 	gcsTerms := []string{"gcs", "GcsFs", "CacheOnReadFs", "ForwardFs", "cloud.google", "storage.Client"}

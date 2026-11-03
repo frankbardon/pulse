@@ -8,12 +8,15 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
 // makeLinearRecords generates n records on y = intercept + Σ slopes[j]·xj
 // plus Gaussian noise scaled by sigma. The RNG is seeded explicitly so
-// fixture data stays reproducible. Predictor names are x1, x2, … x_p.
+// fixture data stays reproducible; detmath draws plus float64() barriers
+// keep it the same bits on every architecture. Predictor names are x1,
+// x2, … x_p.
 func makeLinearRecords(t *testing.T, n int, slopes []float64, intercept, sigma float64, seed uint64) []Record {
 	t.Helper()
 	rng := rand.New(rand.NewPCG(seed, seed^0xDEADBEEFCAFE))
@@ -23,11 +26,11 @@ func makeLinearRecords(t *testing.T, n int, slopes []float64, intercept, sigma f
 		x := make(map[string]float64, p+1)
 		var y float64 = intercept
 		for j := 0; j < p; j++ {
-			v := rng.NormFloat64()
+			v := detmath.NormFloat64(rng)
 			x[predictorName(j)] = v
-			y += slopes[j] * v
+			y += float64(slopes[j] * v)
 		}
-		y += sigma * rng.NormFloat64()
+		y += float64(sigma * detmath.NormFloat64(rng))
 		x["y"] = y
 		out[i] = mockRecord{values: x}
 	}
@@ -107,16 +110,16 @@ func TestRegOLS_Jackknife_SEMatchesAnalytical(t *testing.T) {
 		if ratio < 0.6 || ratio > 1.6 {
 			t.Errorf("jackknife SE / analytical for %s = %v (jack=%v, analytical=%v); want in [0.6, 1.6]", name, ratio, jackSE, analytical)
 		}
-		// Coefficients should match the base estimate (jackknife reuses
-		// the full-data point estimate).
-		if math.Abs(jack.Coefficients[name]-base.Coefficients[name]) > 1e-9 {
+		// Coefficients are the base estimate bit for bit (jackknife
+		// reuses the full-data point estimate).
+		if math.Float64bits(jack.Coefficients[name]) != math.Float64bits(base.Coefficients[name]) {
 			t.Errorf("jackknife coefficient for %s drifted from base: jack=%v, base=%v", name, jack.Coefficients[name], base.Coefficients[name])
 		}
 	}
 }
 
 // TestRegOLS_Bootstrap_Reproducible asserts the bootstrap path produces
-// identical SE / p-value maps when run twice with the same RNGSeed.
+// bit-identical SE / p-value maps when run twice with the same RNGSeed.
 func TestRegOLS_Bootstrap_Reproducible(t *testing.T) {
 	t.Parallel()
 
@@ -134,10 +137,10 @@ func TestRegOLS_Bootstrap_Reproducible(t *testing.T) {
 	r2 := runOLSWithModifier(t, spec, records)
 
 	for _, name := range []string{InterceptKey, "x1", "x2"} {
-		if math.Abs(r1.StdErrors[name]-r2.StdErrors[name]) > 1e-12 {
+		if math.Float64bits(r1.StdErrors[name]) != math.Float64bits(r2.StdErrors[name]) {
 			t.Errorf("bootstrap SE not reproducible for %s: run1=%v, run2=%v", name, r1.StdErrors[name], r2.StdErrors[name])
 		}
-		if math.Abs(r1.PValues[name]-r2.PValues[name]) > 1e-12 {
+		if math.Float64bits(r1.PValues[name]) != math.Float64bits(r2.PValues[name]) {
 			t.Errorf("bootstrap p-value not reproducible for %s: run1=%v, run2=%v", name, r1.PValues[name], r2.PValues[name])
 		}
 	}

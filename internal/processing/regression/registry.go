@@ -9,13 +9,9 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// regressionRegistry maps RegressionType to its Factory. Per-operator
-// init() functions register here; Phase 0 wires every type to the
-// notImplemented stub. Phase 1 replaces REG_OLS with the unpenalized
-// olsEngine factory; that factory itself routes penalized / modifier
-// requests back to the not-implemented stub so the legacy code paths
-// continue to surface PROCESSING_REGRESSION_NOT_IMPLEMENTED until
-// Phases 2-5 land their dedicated engines.
+// regressionRegistry maps RegressionType to its Factory. The package
+// init registers the built-in engines; RegisterModel (called from
+// internal/regadapt's init) adds the model regressions.
 var regressionRegistry = map[types.RegressionType]Factory{}
 
 // register installs a factory. Duplicate registration panics at boot so
@@ -36,16 +32,17 @@ var modelScorers = map[types.RegressionType]model.ScorerFactory{}
 // contract). internal/regadapt adapts each declaration onto the
 // engine — the extension adapter, shared — and calls it from its init
 // (internal/regadapt/models.go); internal/service imports it, so the
-// type's Phase 0 stub (init below) is replaced in every binary that
-// runs a request; a test of THIS package sees the real model only when
-// it imports internal/regadapt (an external test package may). A type
-// that is no model regression panics: the wiring drift surfaces at
-// boot.
+// type is registered in every binary that runs a request; a test of
+// THIS package sees the model only when it imports internal/regadapt
+// (an external test package may) — otherwise the type is unregistered
+// and Build refuses it as unknown. A type that is no model regression
+// panics, and so does a second registration of the same type: the
+// wiring drift surfaces at boot.
 func RegisterModel(t types.RegressionType, f Factory, scorer model.ScorerFactory) {
 	if !model.ModelRegression(t) {
 		panic("regression: RegisterModel of " + string(t) + ", which is no model regression")
 	}
-	regressionRegistry[t] = f
+	register(t, f)
 	if scorer != nil {
 		modelScorers[t] = scorer
 	}
@@ -67,11 +64,11 @@ func RegisteredTypes() []types.RegressionType {
 	return out
 }
 
-// BufferedEngine is the Phase 1 entry point for buffered-orchestrator
+// BufferedEngine is the entry point for buffered-orchestrator
 // regression fits. Implementations consume an in-memory record slice
-// and emit the populated result. Phase 0 stub engines ignore the slice
-// and return PROCESSING_REGRESSION_NOT_IMPLEMENTED; the unpenalized
-// olsEngine folds every record through its Welford accumulator.
+// and emit the populated result; every engine in the tree implements
+// it (the unpenalized olsEngine folds every record through its Welford
+// accumulator).
 type BufferedEngine interface {
 	Engine
 	FitBuffered(records []Record) (*types.RegressionResult, error)
@@ -87,14 +84,11 @@ type ContextBufferedEngine interface {
 	FitBufferedContext(ctx context.Context, records []Record) (*types.RegressionResult, error)
 }
 
-// StreamingEngine is the Phase 1 entry point for single-pass orchestrator
+// StreamingEngine is the entry point for single-pass orchestrator
 // regression fits. Implementations consume records one at a time via
 // UpdateRow, then close the fit via Finalize. The orchestrator wraps
-// the same record stream that drives streamable aggregators.
-//
-// Only the unpenalized OLS engine implements this interface today.
-// Phase 2 (regularized OLS), Phase 4 (Bayes), and Phases 5+ (modifiers)
-// will expand the set.
+// the same record stream that drives streamable aggregators; a spec
+// streams only when RegressionSpec.Streamable() says so.
 type StreamingEngine interface {
 	UpdateRow(rec Record) error
 	Finalize() (*types.RegressionResult, error)
@@ -187,12 +181,10 @@ func regressionFieldTypeRefusal(s *types.RegressionSpec, schema *encoding.Schema
 // (results, nil) on success; the first per-spec error short-circuits
 // the loop and propagates to the caller.
 //
-// Phase 0 contract: every spec returns
-// PROCESSING_REGRESSION_NOT_IMPLEMENTED from Fit. Phase 1 retires this
-// path for the buffered orchestrator: callers now use FitBuffered to
-// pass in the filtered record slice. Fit() is retained for callers
-// that have no records (legacy / unit tests); engines that need rows
-// return PROCESSING_REGRESSION_INSUFFICIENT_DATA from Fit() since their
+// Fit is the no-record path, kept for unit tests that judge a spec
+// without rows: the orchestrator uses FitBuffered to pass in the
+// filtered record slice. Engines that need rows return
+// PROCESSING_REGRESSION_INSUFFICIENT_DATA from Fit() since their
 // accumulator is empty.
 func Fit(specs []*types.RegressionSpec, schema *encoding.Schema) ([]*types.RegressionResult, error) {
 	engines, err := Build(specs, schema)
@@ -213,11 +205,9 @@ func Fit(specs []*types.RegressionSpec, schema *encoding.Schema) ([]*types.Regre
 	return out, nil
 }
 
-// FitBuffered is the Phase 1 buffered-orchestrator entry point. It
-// builds engines, then for each engine routes through FitBuffered with
-// the filtered record slice. Engines that implement BufferedEngine
-// consume the records; legacy not-implemented engines ignore the slice
-// and surface PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
+// FitBuffered is the buffered-orchestrator entry point. It builds
+// engines, then for each engine routes through FitBuffered with the
+// filtered record slice.
 //
 // The records slice is shared across every spec — every engine sees
 // the same filtered set, so per-spec listwise null filtering happens
@@ -285,8 +275,8 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 			}
 			continue
 		}
-		// Not-implemented stubs ignore the records and surface the
-		// canonical PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit.
+		// An engine with no buffered entry point (none in the tree:
+		// every built-in and adapted engine has one) fits over no rows.
 		results[i], fitErrs[i] = eng.Fit()
 	}
 	return results, fitErrs, nil
@@ -387,28 +377,22 @@ func (g *levelGuardedEngine) Finalize() (*types.RegressionResult, error) {
 	return g.StreamingEngine.Finalize()
 }
 
-// init wires every registered RegressionType to its Phase 0 stub, then
-// upgrades the operators whose engines have landed. Phase 1 replaces
-// REG_OLS with newOLSEngine; that constructor falls back to the
-// not-implemented stub for penalized / modifier specs so the
-// not-implemented error surface stays intact.
+// init registers the built-in engines. Every other type of
+// types.AllRegressionTypes() is a model regression, which
+// internal/regadapt registers through RegisterModel
+// (TestRegistry_AllTypesRegistered pins the union).
 func init() {
-	for _, rt := range types.AllRegressionTypes() {
-		register(rt, newNotImplemented)
-	}
-	// Phase 1: unpenalized OLS lights up. The factory closure routes
-	// penalized / modifier specs back to the not-implemented stub.
-	regressionRegistry[types.REG_OLS] = newOLSEngine
-	// Phase 3: REG_GLM lights up via buffered IRLS: binomial+logit,
-	// poisson+log and gamma+inverse (its dispersion estimated), each
-	// pinned to R glm.
-	regressionRegistry[types.REG_GLM] = newGLMEngine
-	// Phase 4: REG_BAYES_LINEAR lights up via streaming sufficient stats
-	// and a conjugate Normal-Inverse-Gamma posterior at finalize. The
-	// factory closure routes modifier specs (Resample / Selection) back
-	// to the not-implemented stub for Phase 5.
-	regressionRegistry[types.REG_BAYES_LINEAR] = newBayesLinearEngine
-	// U65 E4-S2: REG_MULTINOMIAL, the baseline-category logit, by
-	// buffered Newton-Raphson (multinomial.go), pinned to nnet::multinom.
-	regressionRegistry[types.REG_MULTINOMIAL] = newMultinomialEngine
+	// REG_OLS: closed-form OLS, the ridge / lasso / elastic-net
+	// penalties and the Resample / Selection modifiers (modifierEngine).
+	register(types.REG_OLS, newOLSEngine)
+	// REG_GLM: buffered IRLS over the reglink families, each pinned to
+	// R glm; modifiers through modifierEngine.
+	register(types.REG_GLM, newGLMEngine)
+	// REG_BAYES_LINEAR: streaming sufficient stats and a conjugate
+	// Normal-Inverse-Gamma posterior at finalize (no modifiers:
+	// ValidateRegression refuses Resample / Selection).
+	register(types.REG_BAYES_LINEAR, newBayesLinearEngine)
+	// REG_MULTINOMIAL, the baseline-category logit, by buffered
+	// Newton-Raphson (multinomial.go), pinned to nnet::multinom.
+	register(types.REG_MULTINOMIAL, newMultinomialEngine)
 }

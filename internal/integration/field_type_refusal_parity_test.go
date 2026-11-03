@@ -192,7 +192,7 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 	return out
 }
 
-// TestFieldTypeRefusal_RuntimeRefusesPredictAgrees pins TODO #199: every
+// TestFieldTypeRefusal_RuntimeRefusesPredictAgrees pins #199: every
 // pair the accepted-types table refuses is a coded refusal from Process
 // (never a number computed over a dictionary index, a bitmask or raw
 // bytes, never an n=0 test), and predict reports exactly one error with

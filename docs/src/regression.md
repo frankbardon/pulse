@@ -412,7 +412,6 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 
 | Code                                          | Meaning (one-liner)                                                           |
 |-----------------------------------------------|-------------------------------------------------------------------------------|
-| `PROCESSING_REGRESSION_NOT_IMPLEMENTED`       | Reserved as of Phase 8; no engine returns this today.                         |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`        | XᵀX is singular; add regularization or drop a predictor.                       |
 | `PROCESSING_REGRESSION_SEPARATION`            | Binomial `REG_GLM` is separated (a predictor splits the outcome); `details.predictors`. |
 | `PROCESSING_REGRESSION_NO_CONVERGE`           | IRLS or coordinate descent failed within `MaxIters`.                          |
