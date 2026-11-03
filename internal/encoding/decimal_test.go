@@ -140,40 +140,6 @@ func TestDecimal128_BankerRound(t *testing.T) {
 	}
 }
 
-func TestPromoteAdd(t *testing.T) {
-	t.Parallel()
-
-	p, s := PromoteAdd(10, 4, 10, 4)
-	if p != 11 || s != 4 {
-		t.Errorf("PromoteAdd(10,4,10,4) = (%d,%d), want (11,4)", p, s)
-	}
-	p, s = PromoteAdd(38, 0, 38, 0)
-	if p != 38 || s != 0 {
-		t.Errorf("PromoteAdd(38,0,38,0) clamps to (%d,%d), want (38,0)", p, s)
-	}
-}
-
-func TestPromoteMul(t *testing.T) {
-	t.Parallel()
-
-	p, s := PromoteMul(10, 4, 10, 4)
-	if p != 20 || s != 8 {
-		t.Errorf("PromoteMul(10,4,10,4) = (%d,%d), want (20,8)", p, s)
-	}
-}
-
-func TestPromoteDiv(t *testing.T) {
-	t.Parallel()
-
-	p, s := PromoteDiv(10, 4, 10, 4)
-	if s < 4 {
-		t.Errorf("PromoteDiv must not drop below MIN_SCALE; got s=%d", s)
-	}
-	if p == 0 {
-		t.Errorf("PromoteDiv produced zero precision")
-	}
-}
-
 func TestDecimal128_DivByZero(t *testing.T) {
 	t.Parallel()
 

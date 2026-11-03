@@ -15,13 +15,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// IsWeightAware reports whether the built-in operator op consumes a
-// resolved row weight. The classification is internal/weighting's one
-// table (.claude/reference/weighting.md, Aggregator classification),
-// shared with the engine so predict never claims a weight the runtime
-// does not apply.
-func IsWeightAware(op string) bool { return weighting.IsAware(op) }
-
 // WeightedMeanParamField returns AGG_WEIGHTED_MEAN's
 // `params.weight_field` (the slot-weight sugar), or "" when the
 // aggregation is another type, carries no such key, or its params do

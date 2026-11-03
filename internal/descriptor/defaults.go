@@ -314,29 +314,6 @@ func applyDefaultGroupParams(grp *types.Group) {
 	}
 }
 
-// NormalizeRequest returns a clone of req with smart defaults resolved
-// against schema. Caller-side ergonomic for envelope.Request echo —
-// produces the exact request the engine would execute (post-defaults)
-// without mutating the input. Returns nil when req is nil; returns the
-// clone unchanged when schema is nil or no defaults applied.
-//
-// The clone is a shallow-deep hybrid identical to the one Predict uses
-// internally: Aggregations and Groups are deep-cloned (the slots
-// ResolveDefaults mutates in place); the metric fill copies Matrices
-// itself before its first write (resolveMetricDefaults); every other
-// slot is shared with the input.
-// Safe to expose on read-only paths. inst is the instance feature set:
-// a default whose target it hides is never inferred (nil hides
-// nothing), as in ResolveDefaults.
-func NormalizeRequest(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) *types.Request {
-	if req == nil {
-		return nil
-	}
-	clone := cloneRequestForDefaults(req)
-	ResolveDefaults(clone, schema, inst)
-	return clone
-}
-
 // cloneRequestForDefaults returns a shallow-deep hybrid copy of req
 // sufficient for ResolveDefaults to mutate without touching the caller's
 // request. Only the slots ResolveDefaults inspects (Aggregations, Groups)

@@ -1999,12 +1999,8 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	// Regression fits run after aggregation / windows so engines can
-	// observe the filtered record set. Phase 1 routes the filtered
-	// slice through FitBuffered: the unpenalized OLS engine consumes
-	// every record via its Welford-style accumulator, while engines
-	// for unimplemented operators (penalized OLS, GLM, Bayes, and the
-	// Resample/Selection modifier wrappers) still surface
-	// PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
+	// observe the filtered record set: every slot's engine consumes
+	// the filtered slice through its buffered entry point.
 	// An excluded regressions slot (ComputePlan) fits nothing.
 	var regressionResults []*types.RegressionResult
 	if p.compute.Regressions && len(req.Regressions) > 0 {

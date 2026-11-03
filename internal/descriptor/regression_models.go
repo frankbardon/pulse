@@ -143,12 +143,6 @@ func ModelRegressionWeightAware(t types.RegressionType) bool {
 	return modelRegressionTable[t].WeightAware
 }
 
-// ModelRegressionDescription returns model regression t's manifest
-// description.
-func ModelRegressionDescription(t types.RegressionType) string {
-	return modelRegressionTable[t].Description
-}
-
 // modelRegressionFor returns model regression t's declaration in the
 // snapshot's shape: an OperatorMeta (always buffered; its weight class
 // is internal/weighting's table, not the OperatorMeta's WeightAware) and
