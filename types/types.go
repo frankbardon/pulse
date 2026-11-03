@@ -188,7 +188,7 @@ const (
 	// Params: `type` (one of the 22 field-type names) and exactly one
 	// of `value` (a literal judged against the type; null emits null)
 	// or `expr` (a scalar expression over params.<name>, coef(),
-	// sweep_axis(), lookup(), …, for the numeric, packed_bool, date
+	// sweep_axis(), response(), lookup(), …, for the numeric, packed_bool, date
 	// and datetime types). The wire value matches what the existing
 	// aggregators write for the type. Streamable + mergeable; it takes
 	// no weight (a slot weight is refused).

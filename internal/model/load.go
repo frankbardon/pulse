@@ -331,6 +331,9 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			// sweep_axis() axis exactly as the bound model does.
 			sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedKeys(files[j].SweepAxes), true
 		}
+		// The file's adstock section names the channels response()
+		// reads, exactly as the bound model does.
+		sig.Adstocks, sig.AdstocksKnown = sortedKeys(files[j].Adstock), true
 		out[r.Name] = sig
 	}
 	return out

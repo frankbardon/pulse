@@ -103,6 +103,30 @@ func TestEval_BoundCallsAreNotStaticallyResolved(t *testing.T) {
 	}
 }
 
+// TestEval_ResponseIsRequestBound: a response() call is a request-bound
+// read — unresolved on a declaration-only compile (Reads response), its
+// literal fit and channel judged against the catalog's adstock records
+// (adstock_unknown) — and runs on the runtime's bound implementation.
+func TestEval_ResponseIsRequestBound(t *testing.T) {
+	t.Parallel()
+
+	env := testEnv(t)
+	env.Fits = model.FitCatalog{"mmm": {Name: "mmm", Type: types.REG_MMM_HILL, Terms: []string{"tv"}, Adstocks: []string{"tv"}, AdstocksKnown: true}}
+	v, r := scalarslot.Eval(`response("mmm", "tv", params.tv) * 2`, scalarslot.Real, env, env.Declared(), false)
+	if r != nil || v.Resolved || !reflect.DeepEqual(v.Reads, []string{"response"}) {
+		t.Fatalf("declared: %+v, %v; want unresolved reading response", v, r)
+	}
+	_, r = scalarslot.Eval(`response("mmm", "radio", 1)`, scalarslot.Real, env, env.Declared(), false)
+	if r == nil || r.Coded == nil || r.Coded.Details["reason"] != model.ReasonAdstockUnknown {
+		t.Fatalf("no record: %+v", r)
+	}
+	bound := exprenv.Bound{Response: func(...any) (any, error) { return 1.5, nil }}
+	v, r = scalarslot.Eval(`response("mmm", "tv", params.tv) * 2`, scalarslot.Real, env, bound, true)
+	if r != nil || !v.Resolved || v.Number != 3 {
+		t.Fatalf("run Eval = %+v, %v; want 3", v, r)
+	}
+}
+
 // TestEval_Refusals: every slot-neutral reason, and the shared codes
 // kept as Coded.
 func TestEval_Refusals(t *testing.T) {
@@ -216,6 +240,7 @@ func TestInlineNumber(t *testing.T) {
 	}{
 		{`coef("m", "x")`, false, scalarslot.ReasonInvalid, ""},
 		{`sweep_axis("m", "decay")`, false, scalarslot.ReasonInvalid, ""},
+		{`response("m", "tv", 1)`, false, scalarslot.ReasonInvalid, ""},
 		{`lookup("t", "k")`, false, scalarslot.ReasonInvalid, ""},
 		{"1 / 0", false, scalarslot.ReasonNotFinite, ""},
 		{"params.share", true, scalarslot.ReasonNotInteger, ""},

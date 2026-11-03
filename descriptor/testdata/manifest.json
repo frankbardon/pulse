@@ -883,7 +883,7 @@
               "name": "expr",
               "type": "string",
               "required": false,
-              "description": "A scalar expression evaluated once before the run — literals, params.\u003cname\u003e, coef() / sweep_axis() over bound models, lookup(), range_label(), the built-ins — for a u4..u64, f32, f64, packed_bool (0 or 1), date (epoch day) or datetime (epoch second) type only (expr_type_unsupported otherwise). Its number must fit the type (expr_out_of_range); an integer type needs an exact integer. Predict lists one calling a model or table function under unresolved_scalars.",
+              "description": "A scalar expression evaluated once before the run — literals, params.\u003cname\u003e, coef() / sweep_axis() / response() over bound models, lookup(), range_label(), the built-ins — for a u4..u64, f32, f64, packed_bool (0 or 1), date (epoch day) or datetime (epoch second) type only (expr_type_unsupported otherwise). Its number must fit the type (expr_out_of_range); an integer type needs an exact integer. Predict lists one calling a model or table function under unresolved_scalars.",
               "exactly_one_of": "constant"
             }
           ],
@@ -21182,4 +21182,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 598ec7184c10f0fd5249a2de35accf7f72c0124dc2f367ebbcba1189535a23ae
+// golden-hash: bfaa1e1fa6510fc799060e54052327e28632a04d4c15ddaf03f997c8dd175098

@@ -586,7 +586,7 @@ var fieldOverrides = map[fieldKey]any{
 	// would describe operator params.
 	{reflect.TypeFor[types.ModelRef](), "inline"}: map[string]any{
 		"type":        "object",
-		"description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef() and sweep_axis() read it, scoring it is refused.",
+		"description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef(), sweep_axis() and response() read it, scoring it is refused.",
 	},
 	// A ranking entry's axes: the scalar each sweep axis took in the
 	// ranked slot, keyed by axis name.
@@ -952,7 +952,7 @@ func priorPrecisionDef() any {
 // scalarslot), "params.<name>" the simplest.
 func optimizeBoundDef() any {
 	return map[string]any{
-		"description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.<name>, coef() / sweep_axis() over the batch fits and the block's models, lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
+		"description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.<name>, coef() / sweep_axis() / response() over the batch fits and the block's models, lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
 		"oneOf": []any{
 			map[string]any{"type": "number"},
 			map[string]any{"type": "string", "minLength": 1},

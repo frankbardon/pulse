@@ -223,9 +223,10 @@ The winner's axis values are readable in the same batch:
 `sweep_axis("<fit>", "<axis>")` in an explicit slot's formula or filter
 and in an `optimize` expression returns the rank-1 slot's value of that
 axis (a number as a float, a string or bool `values` entry as is) — the
-decay a steady-state multiplier such as
+decay a hand-written steady-state multiplier such as
 `(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`
-needs, which no coefficient carries. Its refusals mirror `coef()` and
+needs, which no coefficient carries (`response()` reads the bound fit's
+adstock record instead: see Media-Mix Models). Its refusals mirror `coef()` and
 predict raises them too: an unbound name is `PULSE_MODEL_UNKNOWN`; a fit
 not bound from the sweep is `PULSE_MODEL_TERM_UNKNOWN` with
 `details.reason: "not_sweep_bound"`, an axis the sweep lacks the same

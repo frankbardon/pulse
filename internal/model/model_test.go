@@ -296,7 +296,9 @@ func TestModel_ImportBoundary(t *testing.T) {
 
 	allowed := map[string]bool{modulePrefix + "/types": true, modulePrefix + "/errors": true, modulePrefix + "/internal/paramread": true,
 		// The no-execute params readings an adstock record is judged by.
-		modulePrefix + "/internal/distlagparams": true, modulePrefix + "/internal/windowparams": true}
+		modulePrefix + "/internal/distlagparams": true, modulePrefix + "/internal/windowparams": true,
+		// response()'s Hill curve: the portable power hill() uses.
+		modulePrefix + "/linalg/detmath": true}
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -314,7 +316,7 @@ func TestModel_ImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(path, ".") && !allowed[path] {
-				t.Errorf("%s imports %q; internal/model may import only the standard library, types, errors, internal/paramread and the window params readings", name, path)
+				t.Errorf("%s imports %q; internal/model may import only the standard library, types, errors, internal/paramread, the window params readings and linalg/detmath", name, path)
 			}
 		}
 	}

@@ -27,9 +27,9 @@ An **optimize block** answers "what values of these knobs give the best outcome?
 
 ## The block
 
-- `variables[{name, lower, upper, start?}]`: a bound is a number or a scalar expression read once before the solve: literals, `params.<name>`, `coef()`, `sweep_axis()`, `lookup()`, built-ins; no variable or field. E.g. `"params.current_tv * params.lower_share"`. It must be finite (`bound_not_finite`; a bad one `bound_invalid` / `bound_not_numeric`). `start` defaults to the midpoint. A name is an identifier, not `params` or a function.
-- Predict range-checks a params-only bound. One calling `coef()` / `sweep_axis()` / `lookup()` is listed under `unresolved_scalars` {`path`, `expression`, `reads`} (not a warning); the runtime range-checks it after the fits.
-- `objective`: an expression over the variables, `params.<name>`, `coef()` of a batch fit, `hill()`, other expression functions, `lookup()`. `direction` (`maximize` | `minimize`) is required.
+- `variables[{name, lower, upper, start?}]`: a bound is a number or a scalar expression read once before the solve: literals, `params.<name>`, `coef()`, `sweep_axis()`, `response()`, `lookup()`, built-ins; no variable or field. E.g. `"params.current_tv * params.lower_share"`. It must be finite (`bound_not_finite`; a bad one `bound_invalid` / `bound_not_numeric`). `start` defaults to the midpoint. A name is an identifier, not `params` or a function.
+- Predict range-checks a params-only bound. One calling `coef()` / `sweep_axis()` / `response()` / `lookup()` is listed under `unresolved_scalars` {`path`, `expression`, `reads`} (not a warning); the runtime range-checks it after the fits.
+- `objective`: an expression over the variables, `params.<name>`, `coef()` of a batch fit, `response()` (a media-mix channel's steady-state curve, [`mmm-workflow`](mmm-workflow.md)), `hill()`, other expression functions, `lookup()`. `direction` (`maximize` | `minimize`) is required.
 - `constraints[{expr, type}]`: `eq` means `expr = 0`, `ineq` means `expr >= 0`. A budget is `"a + b + c - params.budget"` as `eq`. At most as many `eq` as variables.
 - `starts` (default 8, 1..1000): the solver runs from `start` plus `starts` minus one seeded Latin-hypercube points inside the bounds and reports the best converged one. `rng_seed` 0 derives the seed from the spec alone; the effective seed comes back. `tolerance` (0 = 1e-6) and `max_iterations` (0 = 100). `models` loads saved model files for `coef()` with no refit ([`compose-fits`](compose-fits.md), Loading).
 
@@ -42,7 +42,7 @@ A `models` entry may declare the model instead of naming a file — exactly one 
   "predictors": ["price"], "terms": ["price"], "coefficients": {"(intercept)": "params.a", "price": "params.b"}}}]
 ```
 
-`coef()` and `sweep_axis()` (from `sweep_axes`) read it; scoring it is `PULSE_MODEL_SCORE_INVALID` `inline_not_scorable`. Types: least-squares, generalized-linear, Bayesian-linear and the media-mix models, whose coefficients name exactly the terms the type reports (`PULSE_MODEL_REF_INVALID` `inline_term_unknown` / `_missing`). Predict resolves every number.
+`coef()`, `sweep_axis()` (from `sweep_axes`) and `response()` (from `adstock`) read it; scoring it is `PULSE_MODEL_SCORE_INVALID` `inline_not_scorable`. Types: least-squares, generalized-linear, Bayesian-linear and the media-mix models, whose coefficients name exactly the terms the type reports (`PULSE_MODEL_REF_INVALID` `inline_term_unknown` / `_missing`). Predict resolves every number.
 
 ## Pattern: fits, then optimize
 

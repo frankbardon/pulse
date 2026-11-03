@@ -1206,7 +1206,7 @@ func modelsSchema(desc string) map[string]any {
 			"properties": map[string]any{
 				"name":   map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
 				"path":   map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json (or .pulse-sem.json: a saved SEM fit). Set exactly one of path and inline."},
-				"inline": map[string]any{"type": "object", "description": "An inline coefficient-only model instead of a file: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients); any number may be a scalar expression over params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES. coef() and sweep_axis() read it; scoring it is refused."},
+				"inline": map[string]any{"type": "object", "description": "An inline coefficient-only model instead of a file: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients); any number may be a scalar expression over params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES. coef(), sweep_axis() and response() read it; scoring it is refused."},
 			},
 			"required":             []string{"name"},
 			"additionalProperties": false,
@@ -1995,7 +1995,7 @@ func optimizeSchemaBase() map[string]any {
 			"description": d,
 			"oneOf": []any{
 				map[string]any{"type": "number"},
-				map[string]any{"type": "string", "minLength": 1, "description": "A scalar expression over literals, params.<name>, coef() / sweep_axis() and the built-ins, e.g. \"params.current_tv * params.lower_share\"."},
+				map[string]any{"type": "string", "minLength": 1, "description": "A scalar expression over literals, params.<name>, coef() / sweep_axis() / response() and the built-ins, e.g. \"params.current_tv * params.lower_share\"."},
 			},
 		}
 	}

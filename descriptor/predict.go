@@ -284,8 +284,8 @@ type PredictResult struct {
 	// could not compute — a WIN_DISTRIBUTED_LAG decay / shape / scale /
 	// max_lag or WIN_EWMA alpha / decay, then an extension operator's
 	// expression-capable number param (pulse.ParamMeta.Expression),
-	// calling coef(), sweep_axis(), lookup(), range_label() or an
-	// embedder function — windows first in window order, then the
+	// calling coef(), sweep_axis(), response(), lookup(), range_label()
+	// or an embedder function — windows first in window order, then the
 	// extension params in slot order, its path indexing the EXPANDED
 	// request (windows[0].params.decay, aggregations[1].params.scale).
 	// Its value and the param's range checks wait for the runtime. Not a warning and not a refusal: a param over
@@ -1074,7 +1074,8 @@ type OptimizeSummary struct {
 // upper / start, a scalar window param, an extension operator's
 // expression-capable number param) whose
 // expression calls a request-bound function — coef(), sweep_axis(),
-// lookup(), range_label() or an embedder function — so predict checks
+// response(), lookup(), range_label() or an embedder function — so
+// predict checks
 // it but cannot compute it. Its value and the slot's range checks wait
 // for the runtime. It is neither a warning nor a refusal.
 type UnresolvedScalar struct {

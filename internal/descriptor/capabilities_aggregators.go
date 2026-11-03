@@ -869,7 +869,7 @@ func constantCapability() descriptor.Operator {
 			},
 			{
 				Name: aggconst.ParamExpr, Type: "string", ExactlyOneOf: "constant",
-				Description: "A scalar expression evaluated once before the run — literals, params.<name>, coef() / sweep_axis() over bound models, lookup(), range_label(), the built-ins — " +
+				Description: "A scalar expression evaluated once before the run — literals, params.<name>, coef() / sweep_axis() / response() over bound models, lookup(), range_label(), the built-ins — " +
 					"for a u4..u64, f32, f64, packed_bool (0 or 1), date (epoch day) or datetime (epoch second) type only (expr_type_unsupported otherwise). " +
 					"Its number must fit the type (expr_out_of_range); an integer type needs an exact integer. Predict lists one calling a model or table function under unresolved_scalars.",
 			},

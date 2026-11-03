@@ -911,6 +911,17 @@ func validateExprFunctions(fns []ExprFunction) error {
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.SweepAxisFunc}},
 			)
 		}
+		if fn.Name == exprenv.ResponseFunc {
+			// response(fit, channel, spend) reads a media-mix fit's
+			// steady-state response: predict and the runtime judge every
+			// literal call by the bound names and adstock records, so an
+			// embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the media-mix steady-state response reader", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.ResponseFunc}},
+			)
+		}
 		if fn.Name == exprenv.RangeLabelFunc {
 			// range_label(table, x[, unmatched]) reads a registered range
 			// table: it is declared on every compile, filter precompute

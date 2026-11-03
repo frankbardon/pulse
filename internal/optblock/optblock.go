@@ -24,7 +24,8 @@
 // expression (internal/scalarslot — the one scalar-slot evaluator)
 // resolved here: over literals and params at Check, so predict runs the
 // range checks; one calling a request-bound function (coef(),
-// sweep_axis(), lookup(), an embedder function) is listed Unresolved by
+// sweep_axis(), response(), lookup(), an embedder function) is listed
+// Unresolved by
 // Check and resolved, then range-checked, by the runtime's Compile.
 //
 // No-execute leaf: it imports types, errors and the no-execute
@@ -440,11 +441,12 @@ func checkVariableName(spec *types.OptimizeSpec, i int, vat, name string, reserv
 
 // reservedNames are the identifiers a decision variable may not take:
 // params, $env, every expression function in reach (the reserved
-// built-ins, coef, lookup, range_label, the set helpers, the embedder's
+// built-ins, coef, sweep_axis, response, lookup, range_label, the set
+// helpers, the embedder's
 // functions)
 // and expr-lang's own built-ins.
 func reservedNames(env Env) map[string]bool {
-	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true}
+	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.ResponseFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true}
 	for _, n := range exprenv.Names() {
 		out[n] = true
 	}

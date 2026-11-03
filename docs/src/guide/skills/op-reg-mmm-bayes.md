@@ -43,7 +43,7 @@ Use something else:
 | `draws` | number | 1000 | 1–20000, per chain. |
 | `credible_level` | number | 0.9 | Interval level in (0, 1). |
 | `sampler` | string | `nuts` | The only sampler. |
-| `target_accept` | number | 0.8 | Raise it when the fit diverges. |
+| `target_accept` | number | 0.8 | Raise on divergence. |
 | `holdout_from` | number | — | Time from which rows are held out; adstock still runs over the full history. |
 | `conf_level` | float | `0.95` | Wald CI on the posterior SD. |
 | `vcov` | bool | `false` | Posterior covariance. |
@@ -59,7 +59,7 @@ One market, one row per period. A weekly `date` column is `time_gap`; several ro
 
 Coefficients are posterior means; an `inline` `models` entry declares them with no fit. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel), `params`, `diagnostics`, `holdout`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
 
-The bound fit records each channel's adstock: geometric, `decay:<ch>` mean, `max_lag`, unnormalised.
+The bound fit records each channel's adstock for `response()`: geometric, `decay:<ch>` mean, `max_lag`, unnormalised.
 
 ## Reading the output
 
@@ -79,7 +79,7 @@ The bound fit records each channel's adstock: geometric, `decay:<ch>` mean, `max
 - k and s trade off; judge ROI, not k.
 - mROI holds the curve fixed.
 - Health is reported, not refused: `PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`. `Strict` fails the slot with that code. 2×100 draws always warn `ess_low`.
-- A default fit takes about 35 s.
+- A default fit takes ~35 s.
 
 ## See
 

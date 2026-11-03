@@ -1,11 +1,13 @@
 package model
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -118,28 +120,19 @@ func (b *Bound) Adstock(channel string) (Adstock, bool) {
 // record). A failed fit, any other type, or params that do not decode
 // give nil.
 func AdstockLineage(req *types.Request, spec *types.RegressionSpec, res *types.RegressionResult) map[string]Adstock {
-	if spec == nil || res == nil || res.Error != nil {
+	if res == nil || res.Error != nil {
 		return nil
 	}
-	var p struct {
-		Channels []string `json:"channels"`
-		MaxLag   *int     `json:"max_lag"`
-	}
-	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil {
-		return nil
-	}
+	channels, maxLag := lineageChannels(spec)
 	out := map[string]Adstock{}
-	for _, ch := range p.Channels {
-		if !slices.Contains(spec.Predictors, ch) {
-			continue
-		}
+	for _, ch := range channels {
 		var a Adstock
 		var ok bool
 		switch spec.Type {
 		case types.REG_MMM_HILL:
 			a, ok = windowAdstock(req, ch)
 		case types.REG_MMM_BAYES:
-			a, ok = bayesAdstock(res, ch, p.MaxLag)
+			a, ok = bayesAdstock(res, ch, maxLag)
 		}
 		if ok {
 			out[ch] = a
@@ -151,42 +144,63 @@ func AdstockLineage(req *types.Request, spec *types.RegressionSpec, res *types.R
 	return out
 }
 
-// windowAdstock is channel ch's record from req's windows: ch must be
-// the output column of exactly one window, a WIN_DISTRIBUTED_LAG whose
-// field no other window writes and whose resolved params read as a
-// kernel; no feature or attribute may write ch over it.
+// StaticAdstockChannels are the channels (sorted, non-nil) whose
+// adstock record a fit of spec run in req will carry, judged from the
+// request alone — AdstockLineage's static face, which predict's
+// FitCatalog (Signature.Adstocks) and a failed fit's signature read.
+// The same channel rule and the same window structure decide; what the
+// request cannot show is assumed whole: a window's params that are
+// still scalar expressions (they resolve when the run does, and an
+// invalid value refuses the window, so the fit fails), and a
+// REG_MMM_BAYES channel's decay posterior.
+func StaticAdstockChannels(req *types.Request, spec *types.RegressionSpec) []string {
+	out := []string{}
+	channels, _ := lineageChannels(spec)
+	for _, ch := range channels {
+		ok := false
+		switch spec.Type {
+		case types.REG_MMM_HILL:
+			ok = staticWindowAdstock(req, ch)
+		case types.REG_MMM_BAYES:
+			ok = true
+		}
+		if ok {
+			out = append(out, ch)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// lineageChannels are spec's media-mix channels that may carry a record
+// — its params.channels that are predictors, in params order — and
+// params.max_lag; none for any other type or params that do not decode.
+func lineageChannels(spec *types.RegressionSpec) ([]string, *int) {
+	if spec == nil || (spec.Type != types.REG_MMM_HILL && spec.Type != types.REG_MMM_BAYES) {
+		return nil, nil
+	}
+	var p struct {
+		Channels []string `json:"channels"`
+		MaxLag   *int     `json:"max_lag"`
+	}
+	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil {
+		return nil, nil
+	}
+	var out []string
+	for _, ch := range p.Channels {
+		if slices.Contains(spec.Predictors, ch) {
+			out = append(out, ch)
+		}
+	}
+	return out, p.MaxLag
+}
+
+// windowAdstock is channel ch's record from req's windows: the one
+// window adstockWindow finds, its resolved params read as a kernel.
 func windowAdstock(req *types.Request, ch string) (Adstock, bool) {
-	if req == nil {
+	w := adstockWindow(req, ch)
+	if w == nil {
 		return Adstock{}, false
-	}
-	var w *types.Window
-	labels := map[string]bool{}
-	for _, x := range req.Windows {
-		if x == nil {
-			continue
-		}
-		l := windowparams.Label(x)
-		labels[l] = true
-		if l != ch {
-			continue
-		}
-		if w != nil {
-			return Adstock{}, false
-		}
-		w = x
-	}
-	if w == nil || w.Type != types.WIN_DISTRIBUTED_LAG || labels[w.Field] {
-		return Adstock{}, false
-	}
-	for _, f := range req.Features {
-		if f != nil && f.Label == ch {
-			return Adstock{}, false
-		}
-	}
-	for _, at := range req.Attributes {
-		if at != nil && at.Label == ch {
-			return Adstock{}, false
-		}
 	}
 	if _, ref := distlagparams.Resolve(w.Params); ref != nil {
 		return Adstock{}, false
@@ -200,6 +214,132 @@ func windowAdstock(req *types.Request, ch string) (Adstock, bool) {
 		a.Normalize = *raw.Normalize
 	}
 	return a, checkAdstock(a) == ""
+}
+
+// staticWindowAdstock is windowAdstock judged before the run: the same
+// window, its params naming kernel and max_lag; params that read as
+// numbers already must read as a kernel, params still holding a scalar
+// expression are left to the run.
+func staticWindowAdstock(req *types.Request, ch string) bool {
+	w := adstockWindow(req, ch)
+	if w == nil {
+		return false
+	}
+	var keys map[string]json.RawMessage
+	if json.Unmarshal(w.Params, &keys) != nil || !present(keys["kernel"]) || !present(keys["max_lag"]) {
+		return false
+	}
+	var raw distlagparams.Params
+	if paramread.Probe(w.Params, &raw) != nil {
+		// A param is still an expression: the run resolves it.
+		return true
+	}
+	_, ok := windowAdstock(req, ch)
+	return ok
+}
+
+// present reports whether a params value is set (not absent, not null).
+func present(v json.RawMessage) bool {
+	return len(v) > 0 && string(v) != "null"
+}
+
+// adstockWindow is the window channel ch's record is read from: ch must
+// be the output column of exactly one window, a WIN_DISTRIBUTED_LAG
+// whose field no other window writes, and no feature or attribute may
+// write ch over it — by its label, a built-in feature's default or
+// prefixed output names, an unlabelled attribute's default label
+// (featureMayWrite, attributeMayWrite). Nil when there is none.
+func adstockWindow(req *types.Request, ch string) *types.Window {
+	if req == nil {
+		return nil
+	}
+	var w *types.Window
+	labels := map[string]bool{}
+	for _, x := range req.Windows {
+		if x == nil {
+			continue
+		}
+		l := windowparams.Label(x)
+		labels[l] = true
+		if l != ch {
+			continue
+		}
+		if w != nil {
+			return nil
+		}
+		w = x
+	}
+	if w == nil || w.Type != types.WIN_DISTRIBUTED_LAG || labels[w.Field] {
+		return nil
+	}
+	for _, f := range req.Features {
+		if f != nil && FeatureMayWrite(f, ch) {
+			return nil
+		}
+	}
+	for _, at := range req.Attributes {
+		if at != nil && AttributeMayWrite(at, ch) {
+			return nil
+		}
+	}
+	return w
+}
+
+// singleOutputPrefixes are the built-in single-output features' default
+// label prefixes (an unlabelled slot writes prefix + field) — the
+// naming internal/vectors.FeatureOutputLabels reads, which
+// TestFeatureMayWrite_CoversOutputLabels (internal/vectors) pins this
+// guard to.
+var singleOutputPrefixes = map[types.FeatureType]string{
+	types.FEAT_LOG:              "LOG_",
+	types.FEAT_SQRT:             "SQRT_",
+	types.FEAT_BUCKETIZE:        "BUCKET_",
+	types.FEAT_FREQUENCY_ENCODE: "FREQ_",
+	types.FEAT_TARGET_ENCODE:    "TARGET_",
+}
+
+// FeatureMayWrite reports whether feature f may write a column named ch,
+// judged without the schema (a one-hot's levels and a datetime's hour
+// are the schema's): its label; a built-in single-output feature's
+// default name (prefix + field, FEAT_TRAIN_TEST_SPLIT's "split"); a
+// built-in multi-output feature's any <prefix>_<suffix> output
+// (FEAT_DATE_FEATURES / FEAT_ONE_HOT under label or field, FEAT_POLY
+// under label or field_poly); any other type's (an extension feature,
+// whose outputs are unknown before it runs) label, <label>_ or, when
+// unlabelled, <field>_ prefixed outputs. It over-approximates: a guard
+// that refuses a record, never one that lets an overwritten column
+// keep it.
+func FeatureMayWrite(f *types.Feature, ch string) bool {
+	if f.Label != "" && f.Label == ch {
+		return true
+	}
+	if p, ok := singleOutputPrefixes[f.Type]; ok {
+		return f.Label == "" && ch == p+f.Field
+	}
+	switch f.Type {
+	case types.FEAT_TRAIN_TEST_SPLIT:
+		return f.Label == "" && ch == "split"
+	case types.FEAT_DATE_FEATURES, types.FEAT_ONE_HOT:
+		return strings.HasPrefix(ch, cmp.Or(f.Label, f.Field)+"_")
+	case types.FEAT_POLY:
+		return strings.HasPrefix(ch, cmp.Or(f.Label, f.Field+"_poly")+"_")
+	}
+	if f.Label != "" {
+		return strings.HasPrefix(ch, f.Label+"_")
+	}
+	return f.Field != "" && strings.HasPrefix(ch, f.Field+"_")
+}
+
+// AttributeMayWrite reports whether attribute a may write a column named
+// ch: its label, or — unlabelled — any default label, every one of
+// which is the attribute type then "_" (internal/vectors.
+// DefaultAttributeLabel; TestAttributeMayWrite_CoversDefaultLabels
+// there pins it).
+func AttributeMayWrite(a *types.Attribute, ch string) bool {
+	if a.Label != "" {
+		return a.Label == ch
+	}
+	return strings.HasPrefix(ch, string(a.Type)+"_")
 }
 
 // bayesAdstock is a REG_MMM_BAYES channel's record: geometric at its

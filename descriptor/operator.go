@@ -243,7 +243,7 @@ type Param struct {
 	// Expression is true when the value may also be a scalar-expression
 	// string instead of a number: evaluated ONCE before the operator
 	// runs (never per record) over literals, `params.<name>`, coef() /
-	// sweep_axis() over the request's bound models, lookup() /
+	// sweep_axis() / response() over the request's bound models, lookup() /
 	// range_label() and the expression built-ins, and judged by the
 	// operator's own range rules as the number it yields (an "int"
 	// param's value must be an exact integer). Predict computes an

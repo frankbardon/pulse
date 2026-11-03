@@ -53,9 +53,9 @@ Numeric `target`; channels ≥ 0 (a negative value is `PROCESSING_CONFIG`). Null
 
 ## Output
 
-`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>` for each channel, `s:<channel>` for each channel. Read one with `coef("fit", "k:tv_ad")`; predict knows these names from `params.channels`; an `inline` `models` entry declares them with no fit. `outputs.k` / `outputs.s` repeat them keyed by channel. Bounds: k within [0.02, 20]× the channel mean, s within [0.5, 5].
+`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>` per channel, `s:<channel>` per channel. Read one with `coef("fit", "k:tv_ad")`; predict knows these names from `params.channels`; an `inline` `models` entry declares them with no fit. `outputs.k` / `outputs.s` repeat them by channel. Bounds: k within [0.02, 20]× the channel mean, s within [0.5, 5].
 
-A channel that is one `WIN_DISTRIBUTED_LAG` column records its resolved kernel (`adstock.<ch>`, saved too); others none.
+A channel that is one `WIN_DISTRIBUTED_LAG` column records its resolved kernel (`adstock.<ch>`, saved too) for `response()`; others none.
 
 `StdErrors` are Gauss-Newton, per parameter: `null` only for a parameter on a bound and for the k / s of a channel whose β is 0. A binding channel never nulls the rest. `PValues` come from `resample` (bootstrap, a Wald statistic per coefficient); `Vcov` is NaN in a held parameter's row and column.
 
@@ -76,7 +76,7 @@ A channel that is one `WIN_DISTRIBUTED_LAG` column records its resolved kernel (
 - An underfunded channel (spend below k) sits on the β/k^s ridge: judge contribution.
 - No convergence in 1000 iterations is `PROCESSING_REGRESSION_NO_CONVERGE`; the slot fails alone (`PULSE_SLOT_FAILED`), a sweep goes on.
 - `penalty`, `selection`, `covariance`, `family`, a weight are refused. `holdout`, `resample` and `save` work as does scoring with `ATTR_REG_PREDICT` (whole model: no `terms`, no bounds).
-- For a decay interval, read the near-best sweep slots' decays.
+- Decay interval: read the near-best sweep slots' decays.
 
 ## See
 

@@ -12,7 +12,8 @@
 //   - the request's params as params.<name>, folded into constants at
 //     compile (exprenv.Bound.Params);
 //   - the request-bound functions the caller's exprenv.Bound declares:
-//     coef(fit, term[, stat]) and sweep_axis(fit, axis) over Env.Fits,
+//     coef(fit, term[, stat]), sweep_axis(fit, axis) and
+//     response(fit, channel, spend) over Env.Fits,
 //     lookup() / range_label() over the instance's tables, and the
 //     embedder's ExprFunctions.
 //
@@ -107,7 +108,7 @@ type Env struct {
 // function an exprenv.Placeholder, never run — that a static judgement
 // (predict, a runtime pre-check) compiles against.
 func (env Env) Declared() exprenv.Bound {
-	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
+	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, Response: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
 	for _, n := range env.Extensions {
 		b.Extensions = append(b.Extensions, exprenv.NamedFunc{Name: n, Fn: exprenv.Placeholder})
 	}
@@ -120,7 +121,7 @@ func (env Env) Declared() exprenv.Bound {
 // boundFuncs are the request-bound function names in reach of env: a
 // call of any of them makes an expression not statically resolved.
 func (env Env) boundFuncs() map[string]bool {
-	out := map[string]bool{exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.RangeLabelFunc: true, exprenv.LookupFunc: true}
+	out := map[string]bool{exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.ResponseFunc: true, exprenv.RangeLabelFunc: true, exprenv.LookupFunc: true}
 	for _, n := range env.Extensions {
 		out[n] = true
 	}
@@ -358,8 +359,8 @@ func Eval(src string, kind Kind, env Env, bound exprenv.Bound, run bool) (Value,
 // model.LoadFiles: one number of an inline model written as an
 // expression, judged and run as a scalar slot over the request's params
 // (normalized here) with NO request-bound function in reach — no
-// coef(), sweep_axis(), lookup(), range_label() or embedder function,
-// so one model's numbers never read another model and the value is
+// coef(), sweep_axis(), response(), lookup(), range_label() or embedder
+// function, so one model's numbers never read another model and the value is
 // always known statically: predict resolves it exactly as the runtime
 // does. integer asks for an Integer slot (n_obs).
 func InlineNumber(params types.Params, src string, integer bool) (float64, *model.InlineNumberRefusal) {

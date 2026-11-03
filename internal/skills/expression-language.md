@@ -4,12 +4,12 @@ description: The per-row expression environment shared by the formula attribute 
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, range_label, ExprFunctions, coef]
+covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, range_label, ExprFunctions, coef, response]
 ---
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). One environment; only nulls differ.
+Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps). One environment; only nulls differ.
 
 ## Field binding
 
@@ -50,7 +50,7 @@ A vector is a literal list, `[q1, q2, q3]`; a `nil` element is NaN.<!-- feature:
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 
-Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire.
+Maths (`**` too) is machine-independent; non-finite is `null` on the wire.
 
 ## Null handling
 
@@ -59,7 +59,7 @@ A null field binds `nil`; guard with `x ?? 0` or `x == nil ? a : b`. An unguarde
 - **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is null.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make it UNKNOWN: row dropped.
 
-Compiled once, predict included: bad syntax, unknown name or type error → `PULSE_FORMULA_COMPILE_ERROR` (`details.compile_error`); derived columns are numbers.
+Compiled once, predict included: bad syntax, unknown name or type error → `PULSE_FORMULA_COMPILE_ERROR`; derived columns are numbers.
 
 ## Embedder extensions
 
@@ -68,7 +68,7 @@ Compiled once, predict included: bad syntax, unknown name or type error → `PUL
 <!-- feature: capability:compose_fits -->
 ## Bound models
 
-`coef(fit, term[, stat])` reads a fit's figure, full precision: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: `compose-sweep-bind`.
+`coef(fit, term[, stat])` reads a fit's figure: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: `compose-sweep-bind`; `response(fit, channel, spend)`: `mmm-workflow`.
 <!-- /feature -->
 
 ## Patterns

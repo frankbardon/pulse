@@ -5,7 +5,7 @@ kind: design
 type: guide
 applies_to: compose
 requires: [REG_MMM_HILL, WIN_DISTRIBUTED_LAG, WIN_LAG, ATTR_FORMULA, capability:for_each, capability:compose_sweep_sampling, capability:compose_sweep_bind, capability:compose_optimize]
-covers: [Bayesian media mix, lift test prior, media mix, MMM, adstock decay, Hill curve, marginal ROI, budget reallocation, one-call recipe, sweep_axis]
+covers: [Bayesian media mix, lift test prior, media mix, MMM, adstock decay, Hill curve, marginal ROI, budget reallocation, one-call recipe, sweep_axis, response]
 ```
 
 # Media-mix workflow
@@ -17,9 +17,13 @@ Goal: per-channel decay, response curve and a budget split that equalises margin
 - **`sweep`**: `lhs` ([`compose-sweep-sampling`](compose-sweep-sampling.md)), one axis per channel decay with a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep `max` below 1), `samples` in the thousands, `rank` `{by: "regressions.mmm.holdout.rmse", order: "asc"}`. Each slot: one `WIN_DISTRIBUTED_LAG` per channel (`kernel: geometric`, `decay: {"$var": "tv"}`, `normalize: false`), then one `REG_MMM_HILL` named `mmm` with `params.channels` and a `holdout` on the last weeks. Use enough samples for the channel count and check the best slots agree on the decays. `MaxComposeSlots` counts the samples plus the explicit slots: raise `Options.Limits.MaxComposeSlots` (CLI `--limit max_compose_slots=2001` for 2,000 samples and one explicit slot).
 - **`fits`**: `[{"name": "mmm", "from_sweep": {"regression": "mmm"}}]` refits the winning slot's regression, its holdout kept ([`compose-sweep-bind`](compose-sweep-bind.md)).
 - **`requests`**: one contribution slot. A window's `decay` is a literal, so rebuild each adstock at the winner's decay: one `WIN_LAG` item (ordered by week) fanned out with `for_each` over channel × lag `1..max_lag`, label `{{ch}}_l{{lag}}` (`params: {offset: {"$var": "lag"}, default: 0}`, [`item-fan-out`](item-fan-out.md)), then an `ATTR_FORMULA` per channel labelled `tv_ad`, `tv + d * (tv_l1 + d * (tv_l2 + … + d * tv_l13))` with `d` written as `sweep_axis("mmm", "tv")`, then `coef("mmm", "tv_ad") * hill(tv_ad, coef("mmm", "k:tv_ad"), coef("mmm", "s:tv_ad"))`.
-- **`optimize`**: maximise the summed curves at steady state, `coef("mmm", "tv_ad") * hill(m * tv, …)` with the multiplier `m = (1 - d ^ L) / (1 - d)`, `L = max_lag + 1`, `d = sweep_axis("mmm", "tv")` (the adstock a constant weekly spend of 1 settles to), under `sum(spend) = budget` ([`compose-optimize`](compose-optimize.md)). Current spend, bounds and the budget are your own figures in `params`.
+- **`optimize`**: maximise the summed steady-state curves, `response("mmm", "tv_ad", tv) + …`, under `sum(spend) = budget` ([`compose-optimize`](compose-optimize.md)). Current spend, bounds and the budget are your own figures in `params`.
 
 Run order: the sweep slots, the rank, the bound fit, then optimize and the contribution slot. The winning decays are `ranking[0].axes`, typed numbers. At the optimum every free channel's `marginal` equals the budget `multiplier`.
+
+## Steady-state response
+
+`response(fit, channel, spend)` = `beta · hill(m · spend, k, s)`: `beta`, `k`, `s` the fit's `<ch>`, `k:<ch>`, `s:<ch>` coefficients (Bayes: posterior means), `m` the sum of the channel's adstock kernel weights over lags `0..max_lag` — the level a constant spend of 1 settles to (geometric: `(1 - d^(max_lag+1)) / (1 - d)`; normalised: 1). It reads the fit's own adstock record, never a default: a channel that is one `WIN_DISTRIBUTED_LAG` column (Hill, sweep winner included), every Bayes channel, or an inline model's declared `adstock`. Any other channel is `PULSE_MODEL_TERM_UNKNOWN` `adstock_unknown` (`details.channel`; predict too when the fit and channel are literals, except on a `from_sweep` fit, judged at run). Works in optimize objectives, constraints and bounds and in formulas.
 
 ## Contribution by quarter
 

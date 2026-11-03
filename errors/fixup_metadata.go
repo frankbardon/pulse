@@ -1088,7 +1088,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Windows", "*", "Params"},
-				Hint:     "details.reason param_*: write the scalar param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() over a bound model and the built-ins that yields a finite number — an exact integer for an `int` param. A param the manifest does not mark `expression` takes a literal only.",
+				Hint:     "details.reason param_*: write the scalar param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() / response() over a bound model and the built-ins that yields a finite number — an exact integer for an `int` param. A param the manifest does not mark `expression` takes a literal only.",
 				Examples: []any{map[string]any{"decay": "params.decay"}, map[string]any{"decay": `sweep_axis("fit", "decay_tv")`}},
 			},
 			{
@@ -2578,7 +2578,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_TERM_UNKNOWN: {
-		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`).",
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`). A response(fit, channel, spend) call raises it with `reason` `adstock_unknown` when the fit has no adstock record for the channel: the channel under `channel`, the channels that have one under `channels`. A record exists only for a media-mix channel built by one lag-kernel window, a Bayesian media-mix channel, or an inline model's declared `adstock`; there is no default kernel.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2594,6 +2594,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Pass sweep_axis() a fit bound with `from_sweep` and an axis under `axes`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass response() a channel under `channels`, or build the channel's adstock with one lag-kernel window over raw spend (or declare it in the inline model's `adstock`) so the fit records one.",
 			},
 		},
 	},
@@ -3404,7 +3409,7 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action:   FixupReplaceField,
-				Hint:     "reason param_*: write the param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() over a bound model, lookup() and the built-ins that yields a finite number. Only a param the manifest marks `expression` takes an expression; any other string is reason wrong_type.",
+				Hint:     "reason param_*: write the param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() / response() over a bound model, lookup() and the built-ins that yields a finite number. Only a param the manifest marks `expression` takes an expression; any other string is reason wrong_type.",
 				Examples: []any{map[string]any{"params": map[string]any{"scale": "params.scale * 2"}}},
 			},
 		},
@@ -4987,7 +4992,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_VARIABLE_INVALID: {
-		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number, or a scalar expression over literals, `params.<name>`, coef() / sweep_axis() over the batch fits and the block's `models`, lookup() and the built-ins — `\"params.<name>\"` the simplest. An expression that does not compile or reads any other identifier (a decision variable, a field) is `bound_invalid` (`compile_error` / `identifier`); one yielding a string, a bool or null is `bound_not_numeric` (`result_type`); a NaN or infinite value is `bound_not_finite` (`value`). An undeclared param is PULSE_PARAMS_UNDECLARED, an unknown fit, term or axis PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN, located at the bound. `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). A bound over literals and params is judged by predict; one calling coef(), sweep_axis(), lookup() or an embedder function is listed by predict under `unresolved_scalars` and its value, finiteness and range are judged by the runtime after the fits, with the same code. The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `expression`, `param`, `lower`, `upper` and `value`.",
+		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number, or a scalar expression over literals, `params.<name>`, coef() / sweep_axis() / response() over the batch fits and the block's `models`, lookup() and the built-ins — `\"params.<name>\"` the simplest. An expression that does not compile or reads any other identifier (a decision variable, a field) is `bound_invalid` (`compile_error` / `identifier`); one yielding a string, a bool or null is `bound_not_numeric` (`result_type`); a NaN or infinite value is `bound_not_finite` (`value`). An undeclared param is PULSE_PARAMS_UNDECLARED, an unknown fit, term or axis PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN, located at the bound. `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). A bound over literals and params is judged by predict; one calling coef(), sweep_axis(), response(), lookup() or an embedder function is listed by predict under `unresolved_scalars` and its value, finiteness and range are judged by the runtime after the fits, with the same code. The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `expression`, `param`, `lower`, `upper` and `value`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

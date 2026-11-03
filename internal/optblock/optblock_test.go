@@ -85,6 +85,7 @@ func TestOptimize_RefusalsTable(t *testing.T) {
 		{"variable named params", func(s *types.OptimizeSpec) { s.Variables[1].Name = "params" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
 		{"variable named hill", func(s *types.OptimizeSpec) { s.Variables[1].Name = "hill" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
 		{"variable named coef", func(s *types.OptimizeSpec) { s.Variables[1].Name = "coef" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
+		{"variable named response", func(s *types.OptimizeSpec) { s.Variables[1].Name = "response" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
 		{"variable named abs", func(s *types.OptimizeSpec) { s.Variables[1].Name = "abs" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
 		{"variable named a keyword", func(s *types.OptimizeSpec) { s.Variables[1].Name = "nil" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
 		{"duplicate variable", func(s *types.OptimizeSpec) { s.Variables[1].Name = "p" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameDuplicate, "optimize[0].variables[1].name"},
