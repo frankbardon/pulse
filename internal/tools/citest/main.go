@@ -4,6 +4,8 @@
 //	go run ./internal/tools/citest heavy-check
 //	go run ./internal/tools/citest heavy-run <shard> [go test flags...]
 //	go run ./internal/tools/citest parallel-check
+//	go run ./internal/tools/citest cover-check [-root DIR] [-floors FILE] -profile FILE [-profile FILE ...]
+//	go run ./internal/tools/citest cover-merge -o OUT IN...
 //	go test -json ./... | go run ./internal/tools/citest filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]
 //
 // heavy-check validates the heavy-tier shard list (.github/heavy-shards.txt)
@@ -32,6 +34,25 @@
 // top-level test's time is its Elapsed plus the time of each subtest that
 // called t.Parallel() (recursively): go test stops a parent's clock before
 // its paused subtests run, so their cost is charged to it here.
+//
+// heavy-run passes -coverprofile through, but writes one part per go test
+// invocation and merges them (as cover-merge does) into the named file (an
+// empty shard gets a header-only profile), so a shard always yields one.
+//
+// cover-check is the per-package coverage gate. It merges one or more
+// -coverprofile files (a block repeated across test binaries or runs
+// counts once, covered if any copy is), computes each package's statement
+// coverage, and compares it with the floor table
+// (.github/coverage-floors.txt, parsed by ./coverfloors). It prints a
+// table (and a markdown copy to $GITHUB_STEP_SUMMARY) and exits 1 when a
+// package is below its floor or absent from the profiles, 2 on a usage,
+// table or profile error. The profiles must come from
+// -coverpkg=./... runs of both tiers: `make cover`, CI's coverage job.
+//
+// cover-merge dedupes one or more profiles into one `mode: set` profile
+// (one line per block, covered = 1). A -coverpkg=./... profile repeats
+// every block once per test binary (~1 GB for the fast tier); merged it
+// is a few MB, which is what CI's test jobs hand to the coverage job.
 //
 // parallel-check is the parallel-by-default gate (TestTestsParallelByDefault):
 // every top-level test calls t.Parallel() or carries "// serial: <reason>".
@@ -68,6 +89,10 @@ func main() {
 		code, err = parallelCheckMain(".", os.Stdout)
 	case "filter":
 		code = filterMain(os.Args[2:], os.Stdin, os.Stdout)
+	case "cover-check":
+		code = coverCheckMain(os.Args[2:], os.Stdout, os.Stderr)
+	case "cover-merge":
+		code = coverMergeMain(os.Args[2:], os.Stderr)
 	default:
 		usage()
 	}
@@ -81,6 +106,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]")
+	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]] | cover-check [-root DIR] [-floors FILE] -profile FILE... | cover-merge -o OUT IN...")
 	os.Exit(2)
 }

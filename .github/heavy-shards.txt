@@ -133,6 +133,7 @@
 5 ./internal/temporal TestLocalMidnightUTC_Invariants
 5 ./internal/testutil/fmagate TestFMAGate_SeesContractionAndBarrier
 5 ./internal/tools/citest TestGoRecheck_RerunsRealTest
+5 ./internal/tools/citest TestHeavyRun_MergesCoverProfileParts
 5 ./internal/tools/sites TestNewOpReport_NextExampleNumber
 5 ./internal/tools/sites TestNewOpReport_Templates
 5 ./internal/tools/sites TestOpReport_DerivedSites

@@ -24,7 +24,7 @@ build:
 	$(GO) build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/pulse
 
 clean:
-	rm -rf $(BUILD_DIR) $(DIST_DIR) coverage.out
+	rm -rf $(BUILD_DIR) $(DIST_DIR) coverage.out coverage.raw.out
 
 # dist cross-compiles the six release archives (linux/darwin/windows x
 # amd64/arm64) plus checksums.txt into $(DIST_DIR) via
@@ -71,12 +71,23 @@ smoke:
 STATICCHECK_VERSION ?= latest
 STATICCHECK=honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
-# cover attributes every package's statements to the whole test run
-# (-coverpkg=./...), so the root package counts the black-box suite in
-# ./internal/integration, not only its own package pulse tests.
+# cover is the per-package coverage gate CI's coverage job runs. It
+# attributes every package's statements to the whole test run
+# (-coverpkg=./...), so a package counts the tests of every other package
+# (encoding is exercised from elsewhere; the root package by the
+# black-box suite in ./internal/integration), over BOTH tiers (-tags
+# heavy). citest cover-merge dedupes the raw profile (every test binary
+# repeats every block, ~1 GB) into coverage.out; cover-check then fails
+# on any package below its floor in .github/coverage-floors.txt, or absent
+# from the profile. `go tool cover -html=coverage.out` browses it.
+# A test failure still prints the table, then fails the target.
 cover:
-	$(GO) test -coverpkg=./... -coverprofile=coverage.out ./...
-	$(GO) tool cover -func=coverage.out
+	status=0; \
+	$(GO) test -count=1 -tags heavy -timeout=30m -coverpkg=./... -coverprofile=coverage.raw.out $(TESTFLAGS) ./... || status=1; \
+	$(GO) run ./internal/tools/citest cover-merge -o coverage.out coverage.raw.out || exit 1; \
+	rm -f coverage.raw.out; \
+	$(GO) run ./internal/tools/citest cover-check -profile coverage.out || status=1; \
+	exit $$status
 
 # gofmt from the selected toolchain (GOTOOLCHAIN), so local `GOTOOLCHAIN=go1.26.1 make lint` matches CI.
 GOFMT := $(shell go env GOROOT)/bin/gofmt

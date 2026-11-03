@@ -109,6 +109,30 @@ make test-heavy
 Runs everything (both tiers). Slow but exhaustive. The recommended
 pre-push default.
 
+## Coverage floors
+
+```bash
+make cover
+```
+
+Runs both tiers once with `-coverpkg=./... -coverprofile`, so a
+package's figure counts statements covered by any test in the repo (a
+package tested from elsewhere, such as `encoding`, is measured fairly).
+`citest cover-merge` dedupes the raw profile (every test binary repeats
+every block) into `coverage.out`, and `citest cover-check` compares each
+package with its floor in `.github/coverage-floors.txt`, the one source
+of the floors. It prints a `package / floor / coverage / status` table
+and fails on a package below its floor or absent from the profile.
+`TestPerPackageCoverageFloors` validates the table itself: every entry
+a real package directory, every floor in 0..100, no duplicate. CI's
+`coverage` job runs the same check over the profiles of `test (1.26)`
+and every `test-heavy` shard.
+
+```bash
+go run ./internal/tools/citest cover-check -profile coverage.out   # re-check without re-running
+go tool cover -html=coverage.out                                   # browse it
+```
+
 ## Descriptor contract gates
 
 The descriptor surface (predict, manifest, inspect, envelope) has
@@ -192,8 +216,9 @@ the sum:
 | `lint` | needs the three above (fails, never skips, if one failed), then `make staticcheck-merge`; together the four jobs run exactly `make lint` |
 | `docs` | `mdbook build docs` |
 | `build` | `make build`, `make smoke` |
-| `test (1.26)` | the fast tier: `go test -count=1 -json ./...`, plus `citest heavy-check` |
+| `test (1.26)` | the fast tier: `go test -count=1 -json -coverpkg=./... -coverprofile ./...`, plus `citest heavy-check` |
 | `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
+| `coverage` | needs the test jobs (fails, never skips, if one failed); `citest cover-check` over their merged `-coverpkg=./...` profiles: [Coverage floors](#coverage-floors) |
 | `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
 
 Each shard runs only the heavy tests it owns, with `go test -tags heavy

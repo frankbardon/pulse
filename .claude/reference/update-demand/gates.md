@@ -59,7 +59,7 @@ CLAUDE.md hygiene — `TestClaudeMdMentionsFormatVersion` (the literal `"1.1"` a
 
 Predecessor-reference hygiene — `TestNoOrbitPrefix` (no type constant), `TestNoOrbitPrefixes` (no error code) contains a predecessor reference.
 
-Descriptor contracts — `TestPredictNoExecutionImports` (the Predict structural ban), `TestDescriptorNoFmtSprintf` (no `fmt.Sprintf` in `envelope.go`/`manifest.go`/`predict.go`/`inspect.go`), `TestGoldensNotHandEdited` (every golden ends with a valid `// golden-hash:` line), `TestPerPackageCoverageFloors` (package dirs exist; documents the coverage floors).
+Descriptor contracts — `TestPredictNoExecutionImports` (the Predict structural ban), `TestDescriptorNoFmtSprintf` (no `fmt.Sprintf` in `envelope.go`/`manifest.go`/`predict.go`/`inspect.go`), `TestGoldensNotHandEdited` (every golden ends with a valid `// golden-hash:` line), `TestPerPackageCoverageFloors` (`.github/coverage-floors.txt` is sound; `make cover` measures it).
 
 Skill coverage — each asserts an atomic skill file exists at the conventional stem: `TestSkillsCoverAllComponents` (aggregators / attributes / filterers / groupers / features → `op-<category>-<kebab>.md`), `TestSkillsCoverAllFieldTypes` (`type-*`), `TestSkillsCoverAllWindowTypes` (`op-win-*`), `TestSkillsCoverAllMCPTools` (`tool-*`, strip `pulse_`), `TestSkillsCoverAllSynthDistributions` (`op-synth-*`), `TestSkillsCoverAllRegressions` (`op-reg-*`), `TestSkillsCoverAllMatrixOps` (`op-mat-*`), `TestSkillsCoverAllOverlayKinds` (`op-overlay-*`). Plus seven that check content rather than existence:
 - `TestSkillsCoverAllPurposes` — built-in Purposes valid; a missing one fails unless exempted (`guided-analysis.md`).
