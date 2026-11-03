@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -155,7 +156,7 @@ func (r *Reader) init() (err error) {
 		}
 		if unbacked += extra; unbacked > maxUnbackedRows {
 			return iocore.SourceFileError("arrow", fmt.Sprintf(
-				"arrow.Reader: invalid batch %d: declares %d rows, %d more than its decoded buffers back (at most %d per file)",
+				"arrow.Reader: invalid batch %d: declares %d rows; %d rows or nested elements are more than its decoded buffers back (at most %d per file)",
 				i, rec.NumRows(), unbacked, maxUnbackedRows), nil)
 		}
 	}
@@ -195,6 +196,13 @@ const maxUnbackedRows = 1 << 16
 // (Arrow's Null type) or none at all could hold — a declared count no
 // byte backs, which the import would otherwise iterate however large.
 // The caller allows maxUnbackedRows of them per file.
+//
+// The same holds one level down: a nested child (a list's items, a
+// struct's fields, a run-end encoded array's runs) whose elements
+// outnumber eight per byte of its own buffers is backed by nothing,
+// and formatting each row walks every element (one 2 KiB file declared
+// a list<null> child of 7.2e16 items). Those elements count against
+// the same per-file allowance.
 func validateBatch(rec arrow.RecordBatch) (unbacked int64, err error) {
 	type fullValidator interface{ ValidateFull() error }
 	var bytes int64
@@ -205,8 +213,29 @@ func validateBatch(rec arrow.RecordBatch) (unbacked int64, err error) {
 			}
 		}
 		bytes += dataBytes(col.Data())
+		for _, child := range col.Data().Children() {
+			unbacked = addSat(unbacked, unbackedElements(child))
+		}
 	}
-	return max(rec.NumRows()-8*bytes, 0), nil
+	return addSat(unbacked, max(rec.NumRows()-8*bytes, 0)), nil
+}
+
+// unbackedElements sums, over d and its descendants, the elements each
+// node declares beyond eight per byte of the buffers under it.
+func unbackedElements(d arrow.ArrayData) int64 {
+	n := max(int64(d.Len())-8*dataBytes(d), 0)
+	for _, c := range d.Children() {
+		n = addSat(n, unbackedElements(c))
+	}
+	return n
+}
+
+// addSat adds two non-negative counts, saturating at math.MaxInt64.
+func addSat(a, b int64) int64 {
+	if a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+	return a + b
 }
 
 // dataBytes is the total buffer length of d and its children.

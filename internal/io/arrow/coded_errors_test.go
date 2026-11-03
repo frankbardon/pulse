@@ -219,7 +219,7 @@ func TestArrowReader_UnbackedRowCountIsRefused(t *testing.T) {
 	r := NewReaderFromBytes(claim)
 	_, err := r.ReadHeader()
 	ce := requireCode(t, err, errors.DATA_FILE)
-	if !strings.Contains(ce.Message, "declares 1048576 rows, 1048576 more than its decoded buffers back") {
+	if !strings.Contains(ce.Message, "declares 1048576 rows; 1048576 rows or nested elements are more than its decoded buffers back") {
 		t.Fatalf("want the row-count refusal, got %v", err)
 	}
 	if r.batches != nil || r.fileReader != nil || r.arrowSc != nil {
@@ -230,6 +230,27 @@ func TestArrowReader_UnbackedRowCountIsRefused(t *testing.T) {
 	})
 	if _, err := NewReaderFromBytes(backed).ReadHeader(); err != nil {
 		t.Fatalf("a small Null-typed batch must read: %v", err)
+	}
+
+	// One level down: a list<null> whose two rows hold 2^20 items no
+	// buffer backs (the list's own offsets back only its two rows).
+	lsc := arrow.NewSchema([]arrow.Field{{Name: "l", Type: arrow.ListOf(arrow.Null), Nullable: true}}, nil)
+	list := func(items int) []byte {
+		return arrowFuzzFile(t, lsc, 1, func(b *array.RecordBuilder) {
+			lb := b.Field(0).(*array.ListBuilder)
+			for i := 0; i < 2; i++ {
+				lb.Append(true)
+				lb.ValueBuilder().(*array.NullBuilder).AppendEmptyValues(items / 2)
+			}
+		})
+	}
+	_, err = NewReaderFromBytes(list(1 << 20)).ReadHeader()
+	ce = requireCode(t, err, errors.DATA_FILE)
+	if !strings.Contains(ce.Message, "declares 2 rows; 1048576 rows or nested elements are more than its decoded buffers back") {
+		t.Fatalf("want the nested-element refusal, got %v", err)
+	}
+	if _, err := NewReaderFromBytes(list(10)).ReadHeader(); err != nil {
+		t.Fatalf("a small list<null> batch must read: %v", err)
 	}
 }
 
@@ -353,6 +374,9 @@ func TestArrowImport_CommittedClaimSeedsAreRefused(t *testing.T) {
 		// reads it as a dictionary batch anyway and allocated the 4 GiB
 		// compressed-buffer claim the preflight had skipped.
 		"dictionary-block-any-header-type": "declares 4294967296 uncompressed bytes but does not decode",
+		// Found by the fuzz.yml workflow: a list<null> column whose Null
+		// child declares 7.2e16 items; formatting the rows walked them.
+		"nested-null-child-claim": "rows or nested elements are more than its decoded buffers back",
 	} {
 		in := fuzzcontract.CorpusEntry(t, filepath.Join("testdata", "fuzz", "FuzzArrowImport", name))
 		job := pio.NewImportJob(NewReaderFromBytes(in), "c.pulse")

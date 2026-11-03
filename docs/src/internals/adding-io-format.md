@@ -100,8 +100,8 @@ with a coded error:
   process-wide codec registry) refuses a block whose stream header
   declares more bytes than its page holds. Also bound work
   that grows with declared structure instead of stored bytes: an xlsx
-  grid far sparser than its stored cells, or Arrow Null-typed rows no
-  buffer backs.
+  grid far sparser than its stored cells, or Arrow Null-typed rows and
+  nested elements (a `list<null>` child, say) no buffer backs.
 - Check what the decoder actually does with a block, not what the block
   says it is. The Arrow decoder reads every footer dictionary block as a
   dictionary batch without checking the message's header type, so
