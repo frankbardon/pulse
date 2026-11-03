@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:0a9d2eb9e3630e7721d8620f28809e2851cf68504abb3e65222c45bc25dc299b",
+    "feature_set_digest": "fs1:43e617be5178dd414cefee2f65536f40921fe3a82efde865afb2a60abbff7822",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -11775,7 +11775,7 @@
         ]
       }
     ],
-    "error_codes_count": 460,
+    "error_codes_count": 461,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11842,6 +11842,7 @@
       "PULSE_COHORT_COMPRESSED",
       "PULSE_COMPARISON_INVALID",
       "PULSE_COMPARISON_ROWS_DIFFER",
+      "PULSE_COMPOSE_BASE_COLLISION",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
       "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL",
@@ -21183,4 +21184,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 72804ea82be5361c26c0d2c423efd7e6add212df719e49141dbdc6f74cc676c7
+// golden-hash: cb31550919f3816b007fce0f8fe2315dcf1252bd9968a4510e22ffcb936d4bb6

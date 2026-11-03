@@ -43,6 +43,7 @@ import (
 //     request's own slots are gated like a slot's, details.fit)
 //   - ComposedRequest.Compare  — capability:compose_compare (+ the
 //     ComposedResponse.Comparisons it produces)
+//   - ComposedRequest.Base     — capability:compose_base
 //   - a `fits` entry's `from_sweep` (FitSpec) — capability:compose_sweep_bind
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
@@ -281,6 +282,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		paramsSlotGate,
 		{key: "optimize", visible: capabilityGate(featComposeOpt)},
 		{key: "compare", visible: capabilityGate(featComposeCompare)},
+		{key: "base", visible: capabilityGate(featComposeBase)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it; the seed echo only a sampled sweep writes
@@ -524,6 +526,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Compare) > 0 {
 			out = append(out, "compare")
+		}
+		if r != nil && r.Base != nil {
+			out = append(out, "base")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {

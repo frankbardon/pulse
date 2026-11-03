@@ -196,6 +196,20 @@ func TestRequestReads_RootKinds(t *testing.T) {
 			},
 		},
 		{
+			// The base's reads are reported once, at the base, beside
+			// each slot's own.
+			name: "compose base",
+			doc: `{"base":{"windows":[{"type":"WIN_LAG","field":"tv","label":"tv_lag","order_by":[{"field":"week"}]}],"aggregations":[{"type":"AGG_SUM","field":"spend"}]},
+				"requests":[{"label":"a","aggregations":[{"type":"AGG_AVERAGE","field":"tv_lag"}]}]}`,
+			root: descriptor.ReadsRootComposed,
+			want: []string{
+				"base.aggregations[0]|field|base cols=spend params=",
+				"base.windows[0]|field|base cols=tv params=",
+				"base.windows[0]|order_by|base cols=week params=",
+				"requests[0].aggregations[0]|field|requests[0] cols=tv_lag params=",
+			},
+		},
+		{
 			name: "chain stage reads root params",
 			doc: `{"params":{"wave":"2"},"stages":[
 				{"request":{"filterers":[{"type":"FILTER_EXPRESSION","expression":"wave == params.wave"}],"groups":[{"type":"GROUP_CATEGORY","field":"region"}]}},
@@ -251,6 +265,7 @@ func TestRequestReads_DetectsRoot(t *testing.T) {
 		`{"stages":[]}`:          descriptor.ReadsRootChain,
 		`{"fields":["a"]}`:       descriptor.ReadsRootFacet,
 		`{"optimize":[],"x":{}}`: descriptor.ReadsRootComposed,
+		`{"base":{}}`:            descriptor.ReadsRootComposed,
 	} {
 		got, _ := readsLines(t, doc, "", nil)
 		if got != want {

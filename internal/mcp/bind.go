@@ -1895,6 +1895,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
 			"compare":  compareSchema(),
+			"base":     baseSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1902,6 +1903,22 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// baseSchema describes the ComposedRequest `base` (a types.Request
+// partial): the bound request schema with nothing required. `label`
+// stays typed, as the payload schema keeps it, and is refused at run
+// time (PULSE_COMPOSE_BASE_COLLISION base_label). Dropped with the slot when capability:compose_base is
+// hidden (dropHiddenSlots).
+func baseSchema(reqSchema map[string]any) map[string]any {
+	out := make(map[string]any, len(reqSchema))
+	for k, v := range reqSchema {
+		if k != "required" {
+			out[k] = v
+		}
+	}
+	out["description"] = "Shared slot parts merged into every `requests` entry (never the sweep body, banner slots or fit requests): a key the slot leaves unset takes the base's, `params` merge key-wise (the slot's key wins), and every list carries the base items first, then the slot's own. A base item sharing a label or name with one of the slot's own in the same list is PULSE_COMPOSE_BASE_COLLISION. Set no `label`."
+	return out
 }
 
 // fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):

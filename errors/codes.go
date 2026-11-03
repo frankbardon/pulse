@@ -1631,6 +1631,17 @@ const (
 	// value.
 	PULSE_COMPOSE_LABEL_COLLISION Code = "PULSE_COMPOSE_LABEL_COLLISION"
 
+	// PULSE_COMPOSE_BASE_COLLISION indicates a ComposedRequest `base`
+	// that cannot be merged into an explicit slot: a base item's label
+	// or name equals one of the slot's own items in the same list
+	// (reason label_collision — two items would answer to one label),
+	// or the base sets `label` (reason base_label — a base names no
+	// slot). Refused identically by predict and the runtime before the
+	// sweep and banner expansion. Details carry "reason" and, where they
+	// apply, "request" (the slot index), "slot" (its label or
+	// request_<n>), "list" (the list key) and "label".
+	PULSE_COMPOSE_BASE_COLLISION Code = "PULSE_COMPOSE_BASE_COLLISION"
+
 	// PULSE_SWEEP_INVALID indicates a malformed ComposedRequest `sweep`
 	// block: no axes, an axis name that is not a unique identifier, an
 	// empty or non-scalar values list, an unknown mode (grid, zip,
@@ -4882,6 +4893,7 @@ var allCodes = []Code{
 	PULSE_CHAIN_EMPTY,
 	PULSE_CHAIN_STAGE_JOIN,
 	PULSE_COMPOSE_LABEL_COLLISION,
+	PULSE_COMPOSE_BASE_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
 	PULSE_SWEEP_EXPR_SPLICE,

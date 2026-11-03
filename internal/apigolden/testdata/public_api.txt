@@ -173,6 +173,7 @@ pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse: type ComposedRequest field Base *pulse/types.Request "json:\"base,omitempty\""
 pulse: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
@@ -2703,6 +2704,7 @@ pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAG
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
 pulse/errors: const PULSE_COMPARISON_INVALID pulse/errors.Code = "PULSE_COMPARISON_INVALID"
 pulse/errors: const PULSE_COMPARISON_ROWS_DIFFER pulse/errors.Code = "PULSE_COMPARISON_ROWS_DIFFER"
+pulse/errors: const PULSE_COMPOSE_BASE_COLLISION pulse/errors.Code = "PULSE_COMPOSE_BASE_COLLISION"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
 pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
@@ -5269,6 +5271,7 @@ pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omit
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
 pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse/types: type ComposedRequest field Base *pulse/types.Request "json:\"base,omitempty\""
 pulse/types: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
@@ -6676,4 +6679,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 35fe589b4fbb6799029a08442fcc3599b6574650eb6ca488d71e9a1b934b67c1
+// golden-hash: 1370637721e3fe9b904a719614a748187be21569a8e31169fdba185fe0a5d333

@@ -2139,6 +2139,21 @@ type ComposedRequest struct {
 	// Requests is the list of individual requests to execute.
 	Requests []*Request `json:"requests"`
 
+	// Base is a Request-shaped partial (no `label`) merged copy-on-write
+	// into every explicit Requests entry before anything else runs —
+	// before the sweep and banner expansion and the top-level params
+	// inheritance: a scalar slot or pointer the slot leaves unset takes
+	// the base's, `params` merge key-wise (the slot's key wins), every
+	// list slot carries the base's items first, then the slot's own. A
+	// base item whose label or name equals one of the slot's own in the
+	// same list is PULSE_COMPOSE_BASE_COLLISION. Never applied to the
+	// sweep body, banner slots or fit requests; the normalized request
+	// echoes the merged slots and no `base`. Gated by
+	// capability:compose_base. Nil is absent — the slot is `omitempty`,
+	// so a base-free request is byte-identical on the wire and under
+	// Hash.
+	Base *Request `json:"base,omitempty"`
+
 	// Overlays is the optional list of Compose-only overlay layer
 	// specifications. Each spec is a cross-Request overlay that
 	// decorates one slot's result with a comparison against another

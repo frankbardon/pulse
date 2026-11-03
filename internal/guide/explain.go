@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/banner"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -833,6 +834,13 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 		}
 		e.absorbLocated(env, "", true)
 		e.advisories(env)
+	}
+	// Each slot is explained as it runs: the `base` merged in
+	// (banner.MergeBase, the merge every Compose surface shares). A
+	// refused merge is the batch check's to report; the slots are then
+	// explained as written.
+	if merged, ce := banner.MergeBase(c); ce == nil {
+		c = merged
 	}
 	for i, r := range c.Requests {
 		if r == nil {

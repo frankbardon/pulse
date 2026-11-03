@@ -50,17 +50,18 @@ func (e *composeExpansion) sweepAxes() []string {
 }
 
 // expandCompose returns the effective request Compose and
-// ComposeParallel run: the ComposedRequest with its sweep, then its
-// banner, expanded into slots appended after the explicit ones
+// ComposeParallel run: the ComposedRequest with its `base` merged into
+// the explicit slots, then its sweep, then its banner, expanded into
+// slots appended after the explicit ones
 // (banner.ExpandCompose, the expansion predict shares). With
 // EchoRequest on, it is what ComposedResponse.NormalizedRequest
 // carries. Then its top-level params merge into every slot and fit
-// request (descx.InheritComposeParams). A sweep-, banner- and
+// request (descx.InheritComposeParams). A base-, sweep-, banner- and
 // params-free request comes back as the same pointer, after the
 // MaxComposeSlots preflight it always ran.
 //
-// A set sweep, banner or params on an instance that hides it is refused as an
-// unknown field BEFORE its contents are judged, exactly as predict
+// A set sweep, banner, base or params on an instance that hides it is
+// refused as an unknown field BEFORE its contents are judged, exactly as predict
 // refuses it; then the limit is checked on explicit + expanded slots
 // before a single expanded slot is rendered, so no product of axes and
 // no banner bypasses it.
@@ -68,7 +69,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if composed == nil || (len(composed.Requests) == 0 && composed.Sweep == nil && composed.Banner == nil) {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}
-	if composed.Sweep != nil || composed.Banner != nil || len(composed.Params) > 0 {
+	if composed.Sweep != nil || composed.Banner != nil || composed.Base != nil || len(composed.Params) > 0 {
 		if err := s.slotRefusal(composed); err != nil {
 			return nil, nil, err
 		}

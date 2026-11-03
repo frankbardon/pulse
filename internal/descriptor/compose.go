@@ -291,7 +291,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// effective request. Every pass below judges the effective request:
 	// explicit slots, then sweep slots, one label namespace.
 	// result.Request keeps the request as written.
-	if req.Sweep != nil || req.Banner != nil || len(req.Params) > 0 {
+	if req.Sweep != nil || req.Banner != nil || req.Base != nil || len(req.Params) > 0 {
 		if serr := SlotRefusal(req, opts.instance()); serr != nil {
 			addCodedError(env, serr)
 			result.Valid = false

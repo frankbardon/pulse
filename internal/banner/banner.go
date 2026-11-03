@@ -195,9 +195,10 @@ type Layout struct {
 // the effective request every Compose surface runs, predicts and
 // label-checks.
 type Expansion struct {
-	// Composed is the effective request: explicit slots, then sweep
-	// slots, then banner slots; Sweep and Banner nil. Without either it
-	// is the input pointer itself.
+	// Composed is the effective request: explicit slots (the base
+	// merged in), then sweep slots, then banner slots; Base, Sweep and
+	// Banner nil. Without any of the three it is the input pointer
+	// itself.
 	Composed *types.ComposedRequest
 	// Explicit is the number of explicit slots.
 	Explicit int
@@ -213,7 +214,8 @@ type Expansion struct {
 }
 
 // ExpandCompose turns c into its effective request — the ONE expansion
-// every Compose surface consumes. Order: banner Validate; then the sweep
+// every Compose surface consumes. Order: the `base` merged into the
+// explicit slots (MergeBase); banner Validate; then the sweep
 // expansion (sweep.Expand, judged with the instance facts in opts) whose MaxComposeSlots preflight is handed
 // explicit + sweep + banner slots, so no banner bypasses the limit and
 // nothing renders past it; then one slot per section × block, appended
@@ -226,6 +228,12 @@ type Expansion struct {
 func ExpandCompose(c *types.ComposedRequest, opts sweep.Options, preflight func(slots int) error) (*Expansion, error) {
 	if c == nil {
 		return &Expansion{}, nil
+	}
+	// The base merges into the explicit slots first (MergeBase), so the
+	// sweep and banner slots appended below never receive it.
+	c, ce := MergeBase(c)
+	if ce != nil {
+		return nil, ce
 	}
 	spec := c.Banner
 	if spec == nil {

@@ -150,6 +150,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "composed.fits", body: composed(`"fits":[{"name":"f","request":` + nested(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"]}]`) + `,"svae":"x"}]`), path: "fits[0].svae", unknown: "svae"},
 		{family: "composed.compare", body: composed(`"compare":[{"name":"c","restricted":"a","full":"b","tset":"f"}]`), path: "compare[0].tset", unknown: "tset"},
 		{family: "composed.optimize", body: composed(`"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","strats":2}]`), path: "optimize[0].strats", unknown: "strats"},
+		{family: "composed.base", body: composed(`"base":{"filterres":[]}`), path: "base.filterres", unknown: "filterres"},
 		{family: "composed.fits.request", body: composed(`"fits":[{"name":"f","request":` + nested(`"regresions":[]`) + `}]`), unknown: "regresions", locator: "fit"},
 		{family: "composed.banner", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`}`) + `,"sections":[{"label":"s"}],"totl":true}}`, path: "banner.totl", unknown: "totl"},
 		{family: "composed.banner.request", body: `{"banner":{"request":` + nested(`"crosstab":{"rows":[`+grp+`],`+cell+`},"filterres":[]`) + `,"sections":[{"label":"s"}],"total":true}}`, path: "banner.request.filterres", unknown: "filterres"},
@@ -237,11 +238,11 @@ func strictAcceptanceRequiredFamilies() []string {
 			}
 			out = append(out, name)
 			if isSingle(f.Type) {
-				// A single nested request (the banner's base request) is
-				// one family, like a fit's or a stage's: the same strict
+				// A single nested request (the banner's base request, the
+				// compose `base`) is one family, like a fit's or a stage's: the same strict
 				// decoder judges it, and its own families are the
 				// request root's.
-				if f.name == "request" && et == reflect.TypeFor[types.Request]() {
+				if (f.name == "request" || f.name == "base") && et == reflect.TypeFor[types.Request]() {
 					continue
 				}
 				walk(name, et)

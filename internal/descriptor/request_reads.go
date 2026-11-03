@@ -218,7 +218,7 @@ func detectReadsRoot(top map[string]any) descriptor.ReadsRoot {
 	switch {
 	case has("stages"):
 		return descriptor.ReadsRootChain
-	case has("requests"), has("sweep"), has("banner"), has("fits"), has("optimize"):
+	case has("requests"), has("sweep"), has("banner"), has("fits"), has("optimize"), has("base"):
 		return descriptor.ReadsRootComposed
 	case has("fields"):
 		return descriptor.ReadsRootFacet
@@ -404,7 +404,12 @@ func (w *readsWalker) cells(obj map[string]any, at, req readsPath) {
 
 func (w *readsWalker) compose(top map[string]any) {
 	var root readsPath
-	w.scanExpr(top, root, root, "requests", "fits", "sweep", "banner", "params", "optimize")
+	w.scanExpr(top, root, root, "requests", "fits", "sweep", "banner", "params", "optimize", "base")
+	// The base is a request partial merged into every explicit slot:
+	// its reads are reported once, at the base.
+	if b, ok := top["base"]; ok {
+		w.request(b, root.key("base"))
+	}
 	if list, ok := top["requests"].([]any); ok {
 		for i, r := range list {
 			w.request(r, root.key("requests").at(i))

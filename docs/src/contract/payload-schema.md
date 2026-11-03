@@ -1439,6 +1439,22 @@ compared to nothing. Every figure is copied from its slot; undefined
 figures are `null`. `banner` is pinned outside the Compose-level
 `return`: always emitted, never rounded.
 
+### Compose base
+
+`ComposedRequest.base` is an `omitempty` typed `Request` (no `label`)
+merged into every explicit `requests` entry before the sweep and banner
+expansion and the top-level `params` inheritance — never into the sweep
+body, a banner slot or a fit request. A key the slot leaves unset takes
+the base's, `params` merge key-wise with the slot's key winning, and
+every list carries the base items first, then the slot's own; base items
+may carry `for_each`, expanded per slot after the merge. A base item
+whose `label` / `name` / `as` equals one of the slot's own in the same
+list, or a base that sets `label`, is `PULSE_COMPOSE_BASE_COLLISION`
+(`details.reason` `label_collision` / `base_label`). The normalized
+request echoes the merged slots and no `base`. A base-free request is
+byte-identical on the wire, and the slot is gated by
+`capability:compose_base` (hidden: the `base` property is absent).
+
 ### Compose fits
 
 `ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,

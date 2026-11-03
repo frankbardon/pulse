@@ -2415,6 +2415,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPOSE_BASE_COLLISION: {
+		Message: "The ComposedRequest `base` cannot be merged into an explicit slot, so nothing runs — predict refuses it identically. The base is merged into every `requests` entry (never the sweep body, banner slots or fit requests): a scalar or pointer the slot leaves unset takes the base's, `params` merge key-wise with the slot's key winning, and every list carries the base items first, then the slot's own. Reason `label_collision`: a base item's label or name equals one of the slot's own items in the same list, so two items would answer to one label — the slot index is under `request`, its label under `slot`, the list key under `list` and the label under `label`. Reason `base_label`: the base sets `label`, which names no slot (the base label is under `label`). Items with no label are not compared here; a duplicate default label is refused later by that list's own rule.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"requests", "*"},
+				Hint:   "Rename the slot's own item, or drop it from the slot when it repeats the base item, so every label in the merged list is unique.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"base", "label"},
+				Hint:   "Drop `label` from the base and label each slot in `requests` instead.",
+			},
+		},
+	},
 	PULSE_SWEEP_INVALID: {
 		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default), `zip`, `random` or `lhs`, and zip needs every axis the same length (the sampling modes' own rules are PULSE_SWEEP_MODE_MISMATCH / _RANGE_INVALID / _SAMPLES_INVALID). `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{

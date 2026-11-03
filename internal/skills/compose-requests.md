@@ -25,6 +25,9 @@ Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a
 <!-- feature: capability:params -->
 Top-level `params` merge into every slot and fit: `request-params`.
 <!-- /feature -->
+<!-- feature: capability:compose_base -->
+Shared parts go once in `base`, merged into every `requests` entry (never sweep, banner or fit slots) before anything runs: an unset key takes the base's, `params` merge key-wise (slot wins), lists put base items first. A label or name clash in one list is `PULSE_COMPOSE_BASE_COLLISION`.
+<!-- /feature -->
 
 ```jsonc
 {
@@ -65,7 +68,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 ## Parallel execution
 
-`pulse.ComposeParallel` with `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` runs slots on a bounded pool (`MaxWorkers` 0 ⇒ GOMAXPROCS; 1 ⇒ serial). CLI: `pulse api compose --parallel N` (default 1 = serial, 0 = GOMAXPROCS) and `--no-fail-fast`. `FailFast` cancels in-flight siblings on the first error; without it every slot runs and failures fold into one `SERVICE_INTERNAL {failed_indices, first_error}`. Response order always matches request order.
+`pulse.ComposeParallel` with `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` runs slots on a bounded pool (`MaxWorkers` 0 ⇒ GOMAXPROCS; 1 ⇒ serial). CLI: `pulse api compose --parallel N` (default 1), `--no-fail-fast`. `FailFast` cancels in-flight siblings on the first error; without it every slot runs and failures fold into one `SERVICE_INTERNAL {failed_indices, first_error}`. Response order always matches request order.
 
 **Located refusals.** A slot's own refusal (an unsupported zone, more than one join) keeps its code and gains `details.request` — the 0-based slot index — serial and parallel alike.
 
@@ -85,7 +88,7 @@ Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by 
 
 ## Per-slot Components contract
 
-Every slot's `components` is emitted independently — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus each operator's own keys. The overlay fold runs AFTER that emission and treats it as read-only input, so a client can render per-slot components first. `--no-components` / `DisableComponents` suppresses them on every slot (`response-components`).
+Every slot's `components` is emitted independently (the universal floor plus each operator's own keys); the overlay fold reads them afterwards, read-only. `--no-components` / `DisableComponents` suppresses them on every slot (`response-components`).
 
 ## Validate before executing
 

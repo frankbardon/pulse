@@ -109,6 +109,7 @@ var (
 	featComposeCompare    = FeatureName(FeatureKindCapability, "compose_compare")
 	featSweepBind         = FeatureComposeSweepBind
 	featComposeBanner     = FeatureName(FeatureKindCapability, "compose_banner")
+	featComposeBase       = FeatureName(FeatureKindCapability, "compose_base")
 	featModelSave         = FeatureModelSave
 	featRegHoldout        = FeatureRegressionHoldout
 	featModels            = FeatureModels
@@ -330,6 +331,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// The nested-model comparisons of two fits: ComposedRequest.Compare
 	// and ComposedResponse.Comparisons.
 	capability("compose_compare"),
+	// The Compose `base`: ComposedRequest.Base, merged into every
+	// explicit slot.
+	capability("compose_base"),
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -685,6 +689,8 @@ var slotTokens = map[string]slotTokenSet{
 	featComposeCompare: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
 	featComposeBanner: {},
+	// `base` is everyday English; no guidance sentence names the slot.
+	featComposeBase: {},
 	// `save` is everyday English; no guidance sentence names the slot.
 	featModelSave: {},
 	// `holdout` is everyday modelling English (a train / holdout split
@@ -940,6 +946,9 @@ var hardEdges = map[string][]string{
 	// batch to solve it in (its coef() reads the batch's fits, but a
 	// block over params alone needs none).
 	featComposeOpt: {featCompose},
+	// A base is merged into Compose slots: without Compose there are no
+	// slots to merge it into.
+	featComposeBase: {featCompose},
 	// The output slot lays out a materialize run's cohort: without
 	// materialize there is no run to read it.
 	featMaterializeOutput: {featMaterialize},
