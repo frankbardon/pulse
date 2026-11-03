@@ -30,3 +30,9 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 - [ ] **#669** Windows mmap: `internal/service/mmap_other.go:11` states Windows `MapViewOfFile` is "not implemented" (the non-mmap fallback is in use); implement it, or declare the fallback final and document it · [U77](units/U77-ci-platform.md)
 - [ ] **#670** Fuzz tests on untrusted input, run in CI: request JSON decode, the expr parser, the NDJSON / JSON / Arrow / Parquet / Excel importers, full `.pulse` record read and shard-archive open (only `encoding`, `errors`, spss, csv/tsv header and arena fuzz exist; no `-fuzz` step in CI). Evidence: the eight `func Fuzz` sites · [U77](units/U77-ci-platform.md)
 - [ ] **#671** `govulncheck ./...` in `ci.yml` and as a release gate, plus the `github-actions` ecosystem in `.github/dependabot.yml` (none today) · [U77](units/U77-ci-platform.md)
+
+## Handed on
+
+| TODO | Item | Owner |
+|---|---|---|
+| #684 | Path messages quote with `%q` (doubled backslashes on Windows): one path-quoting helper across ~137 engine sites | [U33](U33-v1-release.md) |
