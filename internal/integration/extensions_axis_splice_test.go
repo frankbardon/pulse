@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -327,4 +328,90 @@ func TestAxisExprSplice_ExtensionTemplatedType(t *testing.T) {
 	if _, err := p.Process(ctx, item(`{"scale":2,"tag":"t_{{x}}"}`)); err != nil {
 		t.Fatalf("Process (unflagged key) = %v", err)
 	}
+}
+
+// TestExplain_ExtensionSpliceCaveat: Explain expands for_each items with
+// the instance's flagged keys (InstanceSnapshot.SweepOptions), so a
+// request a splice ban would refuse carries the caveat naming
+// PULSE_FOR_EACH_EXPR_SPLICE — without a cohort (the expansion alone)
+// and with one (predict's refusal relayed under Refusals too); a Compose
+// sweep token is predict's PULSE_SWEEP_EXPR_SPLICE refusal. The same
+// token in the unflagged `tag` raises no such caveat.
+func TestExplain_ExtensionSpliceCaveat(t *testing.T) {
+	t.Parallel()
+
+	p, cohort := openE2E(t, exprExtensions(&paramCapture{}))
+	ctx := context.Background()
+	// The feature item: `scale` is no built-in slot there (it is on a
+	// window), so only the extension's flag can refuse it.
+	var feat strictCase
+	for _, tc := range forEachCases() {
+		if tc.category == "feature" {
+			feat = tc
+		}
+	}
+	item := func(params string) *types.Request {
+		return withReqParams(feat.request(cohort, json.RawMessage(params)))
+	}
+	hasCaveat := func(res *descriptor.ExplainResult, sub string) bool {
+		for _, c := range res.Caveats {
+			if strings.Contains(c, sub) {
+				return true
+			}
+		}
+		return false
+	}
+	hasRefusal := func(res *descriptor.ExplainResult, code perr.Code) bool {
+		for _, r := range res.Refusals {
+			if r.Code == string(code) {
+				return true
+			}
+		}
+		return false
+	}
+	const notExpand = "does not expand (" + string(perr.PULSE_FOR_EACH_EXPR_SPLICE) + ")"
+
+	t.Run("no cohort", func(t *testing.T) {
+		req := item(`{"scale":"params.k * {{k}}"}`)
+		req.Cohort = nil
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Request: req})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasCaveat(res, notExpand) {
+			t.Fatalf("caveats %q do not name the splice refusal", res.Caveats)
+		}
+	})
+	t.Run("bound", func(t *testing.T) {
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Request: item(`{"scale":"params.k * {{k}}"}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Valid == nil || *res.Valid || !hasRefusal(res, perr.PULSE_FOR_EACH_EXPR_SPLICE) || !hasCaveat(res, notExpand) ||
+			!hasCaveat(res, "with "+string(perr.PULSE_FOR_EACH_EXPR_SPLICE)) {
+			t.Fatalf("valid %v refusals %s caveats %q, want the splice refusal and caveats", res.Valid, jsonOf(res.Refusals), res.Caveats)
+		}
+	})
+	t.Run("compose sweep", func(t *testing.T) {
+		agg := strictCases()[0]
+		batch := sweepBatch(t, withReqParams(agg.request(cohort, json.RawMessage(`{"scale":"params.k * {{w}}"}`))))
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Composed: batch})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasRefusal(res, perr.PULSE_SWEEP_EXPR_SPLICE) || !hasCaveat(res, "with "+string(perr.PULSE_SWEEP_EXPR_SPLICE)) {
+			t.Fatalf("refusals %s caveats %q, want PULSE_SWEEP_EXPR_SPLICE", jsonOf(res.Refusals), res.Caveats)
+		}
+	})
+	t.Run("unflagged key", func(t *testing.T) {
+		req := item(`{"scale":2,"tag":"t_{{k}}"}`)
+		req.Cohort = nil
+		res, err := p.Explain(ctx, descriptor.ExplainRequest{Request: req})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hasCaveat(res, "does not expand") {
+			t.Fatalf("caveats %q: an unflagged key expands", res.Caveats)
+		}
+	})
 }
