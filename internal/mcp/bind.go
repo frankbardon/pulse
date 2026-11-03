@@ -2013,18 +2013,6 @@ func optimizeSchema(inst *descx.InstanceSnapshot) map[string]any {
 	return out
 }
 
-// varMarkerSchema is a `{"$var": "axis"}` value: a fanned-out optimize
-// block's whole scalar, substituted from its for_each axis.
-func varMarkerSchema() map[string]any {
-	return map[string]any{
-		"type":                 "object",
-		"description":          "With a for_each on the block: the whole value taken from the named axis.",
-		"properties":           map[string]any{"$var": map[string]any{"type": "string"}},
-		"required":             []string{"$var"},
-		"additionalProperties": false,
-	}
-}
-
 // allowVarMarkers lets every scalar of an optimize block — its own
 // (name, objective, starts, …) and its variables' and constraints' — be
 // a `{"$var": "axis"}` marker, the form a fanned-out block's typed
@@ -2043,7 +2031,7 @@ func allowVarMarkers(props map[string]any) {
 				}
 			}
 		default:
-			props[k] = map[string]any{"anyOf": []any{p, varMarkerSchema()}}
+			props[k] = map[string]any{"anyOf": []any{p, descx.VarMarkerSchema()}}
 		}
 	}
 }

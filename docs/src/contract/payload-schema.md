@@ -1778,9 +1778,16 @@ and `MaxComposeSlots`, its `name` must carry an `{{axis}}` (reason
 `name_without_axis`), and the blocks it adds count toward
 `Limits.MaxExpandedItems` once per call. Any typed scalar of a
 fanned-out block (a bound, `starts`, a constraint `expr`) may be a whole
-`{"$var": "axis"}` value; this schema describes the blocks as they run
-and does not list the marker (the MCP `pulse_compose` input schema
-does, when `for_each` is bound).
+`{"$var": "axis"}` value, and this schema admits it there:
+`$defs.OptimizeSpec` lets every scalar of the block — its own and its
+variables', constraints' and models' — be `$defs.VarMarker` (an object
+with the one string key `$var`); `for_each` and the arrays themselves
+never take one. The marker is valid only in a block that carries
+`for_each`: an `if` (no `for_each`) / `then` re-applies the strict
+property shapes, as the runtime refuses a marker there at decode. The
+MCP `pulse_compose` input schema admits the marker at the same paths.
+On an instance hiding `capability:for_each` neither the marker nor the
+`VarMarker` def appears.
 
 ## Undefined figures
 

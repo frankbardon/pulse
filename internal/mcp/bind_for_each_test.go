@@ -2,11 +2,15 @@ package mcp
 
 import (
 	"bytes"
+	"encoding/json"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -202,5 +206,72 @@ func TestBind_OptimizeForEachMarkers(t *testing.T) {
 	}
 	if validates(t, compileBound(t, bound[toolmeta.ToolCompose]), block) == nil {
 		t.Fatal("a marker block validated on an instance that hides for_each")
+	}
+}
+
+// TestBind_OptimizeVarMarkerPayloadParity: the pulse_compose input
+// schema and the instance payload schema admit the `{"$var"}` marker
+// at the same optimize-block properties — every scalar of the block
+// and of its variables, constraints and models, never for_each or an
+// array — and both admit none on an instance hiding
+// capability:for_each.
+func TestBind_OptimizeVarMarkerPayloadParity(t *testing.T) {
+	t.Parallel()
+
+	hidden := &pulse.FeatureProfile{Features: []string{"capability:compose", "capability:compose_optimize", "capability:params", "AGG_COUNT"}}
+	for _, fp := range []*pulse.FeatureProfile{nil, hidden} {
+		_, inst := instanceFor(t, fp, pulse.Extensions{})
+		raw, err := descx.PayloadSchemaForInstance(inst)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload struct {
+			Defs map[string]map[string]any `json:"$defs"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatal(err)
+		}
+		bound, err := BindForInstance(makeBindSchema(), inst)
+		if err != nil {
+			t.Fatal(err)
+		}
+		items := schemaAt(decodeBoundRequest(t, bound[toolmeta.ToolCompose]), "properties.optimize.items")
+		var want, got []string
+		markerPaths(payload.Defs["OptimizeSpec"], "", func(n map[string]any) bool {
+			return n["$ref"] == "#/$defs/VarMarker"
+		}, &want)
+		markerPaths(items, "", func(n map[string]any) bool {
+			p, _ := n["properties"].(map[string]any)
+			return len(p) == 1 && p["$var"] != nil
+		}, &got)
+		sort.Strings(want)
+		sort.Strings(got)
+		if !slices.Equal(want, got) {
+			t.Errorf("profile %v: payload marker paths %v, bound %v", fp != nil, want, got)
+		}
+		if fp == nil && len(want) < 10 {
+			t.Errorf("vacuous: only %v admit the marker", want)
+		}
+		if fp != nil && len(want)+len(got) != 0 {
+			t.Errorf("hidden for_each still admits the marker at %v / %v", want, got)
+		}
+	}
+}
+
+// markerPaths appends the path of every property of node (recursing
+// into array items) whose anyOf has a branch isMarker matches.
+func markerPaths(node map[string]any, prefix string, isMarker func(map[string]any) bool, out *[]string) {
+	props, _ := node["properties"].(map[string]any)
+	for k, v := range props {
+		p, _ := v.(map[string]any)
+		if it, _ := p["items"].(map[string]any); it != nil {
+			markerPaths(it, prefix+k+"[].", isMarker, out)
+		}
+		branches, _ := p["anyOf"].([]any)
+		for _, b := range branches {
+			if m, _ := b.(map[string]any); m != nil && isMarker(m) {
+				*out = append(*out, prefix+k)
+			}
+		}
 	}
 }

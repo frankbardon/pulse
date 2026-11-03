@@ -3995,10 +3995,44 @@
     },
     "OptimizeSpec": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "for_each"
+          ]
+        }
+      },
       "properties": {
         "constraints": {
           "items": {
-            "$ref": "#/$defs/OptimizeConstraint"
+            "additionalProperties": false,
+            "properties": {
+              "expr": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "type": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeConstraintType"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "expr",
+              "type"
+            ],
+            "type": "object"
           },
           "type": [
             "array",
@@ -4006,17 +4040,68 @@
           ]
         },
         "direction": {
-          "$ref": "#/$defs/OptimizeDirection"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizeDirection"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "for_each": {
           "$ref": "#/$defs/ForEach"
         },
         "max_iterations": {
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "models": {
           "items": {
-            "$ref": "#/$defs/ModelRef"
+            "additionalProperties": false,
+            "properties": {
+              "inline": {
+                "anyOf": [
+                  {
+                    "description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.\u003cname\u003e. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef(), sweep_axis() and response() read it, scoring it is refused.",
+                    "type": "object"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
           },
           "type": [
             "array",
@@ -4024,23 +4109,106 @@
           ]
         },
         "name": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "objective": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "rng_seed": {
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "starts": {
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "tolerance": {
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "variables": {
           "items": {
-            "$ref": "#/$defs/OptimizeVariable"
+            "additionalProperties": false,
+            "properties": {
+              "lower": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeBound"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "start": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeBound"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "upper": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeBound"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "lower",
+              "name",
+              "upper"
+            ],
+            "type": "object"
           },
           "type": [
             "array",
@@ -4054,6 +4222,61 @@
         "objective",
         "variables"
       ],
+      "then": {
+        "properties": {
+          "constraints": {
+            "items": {
+              "$ref": "#/$defs/OptimizeConstraint"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "direction": {
+            "$ref": "#/$defs/OptimizeDirection"
+          },
+          "for_each": {
+            "$ref": "#/$defs/ForEach"
+          },
+          "max_iterations": {
+            "type": "integer"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/$defs/ModelRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "rng_seed": {
+            "type": "integer"
+          },
+          "starts": {
+            "type": "integer"
+          },
+          "tolerance": {
+            "type": "number"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/$defs/OptimizeVariable"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        }
+      },
       "type": "object"
     },
     "OptimizeVariable": {
@@ -7291,6 +7514,19 @@
       ],
       "type": "object"
     },
+    "VarMarker": {
+      "additionalProperties": false,
+      "description": "With a for_each on the block: the whole value taken from the named axis.",
+      "properties": {
+        "$var": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "$var"
+      ],
+      "type": "object"
+    },
     "VectorCoerce": {
       "enum": [
         "binary"
@@ -7604,4 +7840,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ad3f5b876451f3d3957abfb3d0843e5e35e28394709083447ad34202cd45ff32
+// golden-hash: 1022a4a170a76d6d5b3eea009a1ceccf97959b1208de43d72bef297fbb6c1fec
