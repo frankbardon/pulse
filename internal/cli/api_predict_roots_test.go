@@ -30,7 +30,7 @@ func TestAPIPredictRoots(t *testing.T) {
 
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "roots.csv", "n,cat\n1,a\n2,b\n3,a\n")
-	c := `{"filename":"` + cohort + `"}`
+	c := `{"filename":"` + jsonEsc(cohort) + `"}`
 	agg := `"aggregations":[{"type":"AGG_SUM","field":"n","label":"total"}]`
 	cases := []struct {
 		leaf, body string
@@ -120,7 +120,7 @@ func TestAPIPredictRoots_StrictAndEcho(t *testing.T) {
 
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "roots.csv", "n,cat\n1,a\n2,b\n3,a\n")
-	c := `{"filename":"` + cohort + `"}`
+	c := `{"filename":"` + jsonEsc(cohort) + `"}`
 	// discrete_top_k under 5 is a facet warning.
 	warnPath := filepath.Join(dir, "warn.json")
 	if err := os.WriteFile(warnPath, []byte(`{"cohort":`+c+`,"fields":["cat"],"discrete_top_k":3}`), 0o644); err != nil {

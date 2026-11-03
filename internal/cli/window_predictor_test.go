@@ -54,7 +54,7 @@ func TestWindowPredictor_ParityCLIProcessSmoke(t *testing.T) {
 
 	dir, cohort := windowPredictorCLICohort(t)
 	reqPath := filepath.Join(dir, "req.json")
-	if err := os.WriteFile(reqPath, []byte(`{"cohort":{"filename":"`+cohort+`"},`+
+	if err := os.WriteFile(reqPath, []byte(`{"cohort":{"filename":"`+jsonEsc(cohort)+`"},`+
 		`"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],`+
 		`"params":{"kernel":"geometric","decay":0.5,"max_lag":4}}],`+
 		`"regressions":[{"type":"REG_OLS","name":"mmm","target":"sales","predictors":["tv_ad"]}]}`), 0o644); err != nil {
@@ -93,7 +93,7 @@ func TestWindowPredictor_ParityCLIProcessSmoke(t *testing.T) {
 // nonnegative.
 func adstockHillSweep(cohort string) string {
 	return `{"sweep":{"axes":[{"name":"decay","values":[0.2,0.5,0.8]}],"label":"decay_{{decay}}","request":` +
-		`{"cohort":{"filename":"` + cohort + `"},` +
+		`{"cohort":{"filename":"` + jsonEsc(cohort) + `"},` +
 		`"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],` +
 		`"params":{"kernel":"geometric","decay":{"$var":"decay"},"max_lag":4}}],` +
 		`"attributes":[{"type":"ATTR_FORMULA","label":"tv_sat","expression":"hill(tv_ad, 200, 2)"}],` +

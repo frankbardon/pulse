@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -23,12 +24,14 @@ const panicCodeToken = "PROCESSING" + "_PANIC"
 //     panic_recovery*_test.go; a CLI or MCP envelope test likewise);
 //   - any test file of internal/oppanic, the shared constructor.
 func panicSuiteFile(rel string) bool {
+	// Slash-normalised, so path (never filepath, which re-introduces
+	// the OS separator on Windows) splits it.
 	rel = filepath.ToSlash(rel)
-	base := filepath.Base(rel)
+	base := path.Base(rel)
 	if strings.HasPrefix(base, "panic_recovery") && strings.HasSuffix(base, "_test.go") {
 		return true
 	}
-	return filepath.Dir(rel) == "internal/oppanic"
+	return path.Dir(rel) == "internal/oppanic"
 }
 
 // panicCodeOutsideSuite walks root and returns every *_test.go (nested

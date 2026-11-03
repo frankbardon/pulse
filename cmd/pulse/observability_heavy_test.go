@@ -18,7 +18,7 @@ func TestLogFlags_StderrOnly(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
 	reqPath := filepath.Join(dir, "request.json")
-	req := `{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`
+	req := `{"cohort": {"filename": "` + jsonEsc(pulsePath) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`
 	if err := os.WriteFile(reqPath, []byte(req), 0o644); err != nil {
 		t.Fatal(err)
 	}

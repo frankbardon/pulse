@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -316,7 +317,7 @@ func TestNew_TemplateDirShapes(t *testing.T) {
 				if err == nil {
 					t.Fatal("New = nil error, want a failure")
 				}
-				if tc.wantErrSubstr != "" && !strings.Contains(err.Error(), tc.wantErrSubstr) {
+				if tc.wantErrSubstr != "" && !strings.Contains(err.Error(), strconv.Quote(tc.wantErrSubstr)) {
 					t.Fatalf("New error %q does not name %q", err, tc.wantErrSubstr)
 				}
 				return

@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"math"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -311,7 +312,7 @@ func listAll(t *testing.T, fsys afero.Fs) []string {
 			return err
 		}
 		if !info.IsDir() {
-			out = append(out, strings.TrimPrefix(p, string(os.PathSeparator)))
+			out = append(out, filepath.ToSlash(strings.TrimPrefix(p, string(os.PathSeparator))))
 		}
 		return nil
 	}); err != nil {

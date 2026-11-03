@@ -25,7 +25,7 @@ func TestAPICompose_BannerSurfaces(t *testing.T) {
 		}
 		return path
 	}
-	base := `{"cohort":{"filename":"` + cohort + `"},"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"cat"}],"cell":{"type":"AGG_SUM","field":"n"}}}`
+	base := `{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"cat"}],"cell":{"type":"AGG_SUM","field":"n"}}}`
 	path := write("banner.json", `{"banner":{"request":`+base+`,"sections":[{"label":"s"}],"total":true,`+
 		`"groups":[{"label":"G","columns":[{"type":"GROUP_CATEGORY","field":"g"}]}]}}`)
 

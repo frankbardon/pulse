@@ -52,7 +52,7 @@ func TestAPILookupCLI_RequestCohortUsedWithoutInput(t *testing.T) {
 	t.Parallel()
 
 	cohort := lookupCLIFixture(t, "id")
-	req := writeReqFile(t, `{"cohort":{"filename":"`+cohort+`"},`+
+	req := writeReqFile(t, `{"cohort":{"filename":"`+jsonEsc(cohort)+`"},`+
 		`"keys":[{"field":"id","value":"2"}],"return_columns":["region"]}`)
 
 	var buf bytes.Buffer

@@ -111,8 +111,8 @@ func newExitFixture(t *testing.T) exitFixture {
 	writeExitFile(t, f.p("partial.csv"), "id,picks\n1,a|b\n2,\n3,b\n")
 	mustRun("import", "csv", "-i", f.p("sets.csv"), "-o", f.p("sets.pulse"), "--schema", f.p("sets.schema.json"))
 
-	c := `{"filename":"` + f.cohort + `"}`
-	bad := `{"filename":"` + f.missing + `"}`
+	c := `{"filename":"` + jsonEsc(f.cohort) + `"}`
+	bad := `{"filename":"` + jsonEsc(f.missing) + `"}`
 	agg := `"aggregations":[{"type":"AGG_COUNT","field":"age"}]`
 	writeExitFile(t, f.p("req.json"), `{"cohort":`+c+`,`+agg+`}`)
 	writeExitFile(t, f.p("bad.json"), `{"cohort":`+bad+`,`+agg+`}`)

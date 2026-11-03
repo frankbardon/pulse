@@ -16,8 +16,8 @@ func TestAPICompose_EchoShowsExpandedSweep(t *testing.T) {
 
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "sw.csv", "n,cat\n1,a\n2,b\n3,a\n")
-	slot := `{"cohort":{"filename":"` + cohort + `"},"aggregations":[{"type":"AGG_SUM","field":"n","label":"t"}]}`
-	sweepBody := `{"cohort":{"filename":"` + cohort + `"},"aggregations":[{"type":"{{op}}","field":"n","label":"t"}]}`
+	slot := `{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"aggregations":[{"type":"AGG_SUM","field":"n","label":"t"}]}`
+	sweepBody := `{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"aggregations":[{"type":"{{op}}","field":"n","label":"t"}]}`
 	cases := map[string]struct {
 		body   string
 		labels []string

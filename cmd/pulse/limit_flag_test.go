@@ -24,7 +24,7 @@ func writeWideCompose(t *testing.T, dir, cohort string, n int) string {
 		if i > 0 {
 			b.WriteByte(',')
 		}
-		b.WriteString(`{"label": "s` + strconv.Itoa(i) + `", "cohort": {"filename": "` + cohort + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`)
+		b.WriteString(`{"label": "s` + strconv.Itoa(i) + `", "cohort": {"filename": "` + jsonEsc(cohort) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`)
 	}
 	b.WriteString(`]}`)
 	path := filepath.Join(dir, "wide-compose.json")

@@ -38,7 +38,7 @@ func runtimeWarningFixture(t *testing.T) func(name string) string {
 	t.Helper()
 	dir := withTempDataDir(t)
 	cohort := seedCohortViaImport(t, dir, "rw.csv", "g,x,y\na,1,2\nb,2,1\na,3,5\nc,4,4\nd,5,3\n")
-	c := `{"filename":"` + cohort + `"}`
+	c := `{"filename":"` + jsonEsc(cohort) + `"}`
 	count := `"aggregations":[{"type":"AGG_COUNT","field":"x"}]`
 	leak := `"features":[{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"x"}}],` + count
 	// A declared vector no slot references: PULSE_VECTOR_UNREFERENCED,
@@ -183,7 +183,7 @@ func TestAPI_StreamEndsWithWarningsRecord(t *testing.T) {
 	}
 	// Warning-free: no trailing record.
 	clean := filepath.Join(filepath.Dir(f("process.json")), "clean.json")
-	if err := os.WriteFile(clean, []byte(`{"cohort":{"filename":"`+f("cohort")+`"},"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`), 0o644); err != nil {
+	if err := os.WriteFile(clean, []byte(`{"cohort":{"filename":"`+jsonEsc(f("cohort"))+`"},"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := runAPI(t, "process", "-r", clean, "--stream")

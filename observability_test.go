@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/io/csv"
@@ -472,7 +473,18 @@ func TestObserveEndResultCode(t *testing.T) {
 	t.Parallel()
 
 	rec := &hookRecorder{}
-	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
+	// The start hook holds each operation open for a few clock ticks:
+	// these calls finish in microseconds, below the monotonic clock's
+	// granularity on some platforms (Windows ticks in up to ~15.6 ms
+	// steps), and a Duration of 0 would be indistinguishable from an
+	// unset one.
+	hooks := rec.hooks()
+	start := hooks.OnOperationStart
+	hooks.OnOperationStart = func(ctx context.Context, info observe.OperationInfo) context.Context {
+		time.Sleep(20 * time.Millisecond)
+		return start(ctx, info)
+	}
+	p, _ := obsFixture(t, Options{Hooks: hooks})
 	ctx := context.Background()
 
 	cases := []struct {

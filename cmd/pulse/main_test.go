@@ -342,7 +342,7 @@ func TestCliApiProcess(t *testing.T) {
 
 	// Write request JSON
 	reqJSON := `{
-		"cohort": {"filename": "` + pulsePath + `"},
+		"cohort": {"filename": "` + jsonEsc(pulsePath) + `"},
 		"aggregations": [{"type": "AGG_COUNT", "field": "age"}]
 	}`
 	reqPath := filepath.Join(dir, "request.json")
@@ -368,7 +368,7 @@ func TestCliApiProcessJson(t *testing.T) {
 	pulsePath := createTestPulseFile(t, dir)
 
 	reqJSON := `{
-		"cohort": {"filename": "` + pulsePath + `"},
+		"cohort": {"filename": "` + jsonEsc(pulsePath) + `"},
 		"aggregations": [{"type": "AGG_COUNT", "field": "age"}]
 	}`
 	reqPath := filepath.Join(dir, "request.json")
@@ -398,7 +398,7 @@ func TestCliApiCompose(t *testing.T) {
 
 	reqJSON := `{
 		"requests": [{
-			"cohort": {"filename": "` + pulsePath + `"},
+			"cohort": {"filename": "` + jsonEsc(pulsePath) + `"},
 			"aggregations": [{"type": "AGG_COUNT", "field": "age"}]
 		}]
 	}`
@@ -433,7 +433,7 @@ func TestCliApiProcessStream(t *testing.T) {
 	pulsePath := createTestPulseFile(t, dir)
 
 	reqJSON := `{
-		"cohort": {"filename": "` + pulsePath + `"},
+		"cohort": {"filename": "` + jsonEsc(pulsePath) + `"},
 		"aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "n"}]
 	}`
 	reqPath := filepath.Join(dir, "request.json")
@@ -468,8 +468,8 @@ func TestCliApiComposeParallel(t *testing.T) {
 
 	reqJSON := `{
 		"requests": [
-			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "a"}]},
-			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "b"}]}
+			{"cohort": {"filename": "` + jsonEsc(pulsePath) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "a"}]},
+			{"cohort": {"filename": "` + jsonEsc(pulsePath) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "b"}]}
 		]
 	}`
 	reqPath := filepath.Join(dir, "composed.json")
@@ -503,8 +503,8 @@ func TestCliApiComposeStream(t *testing.T) {
 
 	reqJSON := `{
 		"requests": [
-			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "a"}]},
-			{"cohort": {"filename": "` + pulsePath + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "b"}]}
+			{"cohort": {"filename": "` + jsonEsc(pulsePath) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "a"}]},
+			{"cohort": {"filename": "` + jsonEsc(pulsePath) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age", "label": "b"}]}
 		]
 	}`
 	reqPath := filepath.Join(dir, "composed.json")
@@ -539,7 +539,7 @@ func TestCliApiPredict(t *testing.T) {
 	pulsePath := createTestPulseFile(t, dir)
 
 	reqJSON := `{
-		"cohort": {"filename": "` + pulsePath + `"},
+		"cohort": {"filename": "` + jsonEsc(pulsePath) + `"},
 		"aggregations": [{"type": "AGG_COUNT", "field": "age"}]
 	}`
 	reqPath := filepath.Join(dir, "request.json")
@@ -674,7 +674,7 @@ func TestCliApiProcessChain_Warnings(t *testing.T) {
 	// region=2 (filtered out at stage 1) so the SERIES handler emits a
 	// deterministic ref_missing warning.
 	chainJSON := `{
-		"cohort": {"filename": "` + pulsePath + `"},
+		"cohort": {"filename": "` + jsonEsc(pulsePath) + `"},
 		"stages": [
 			{
 				"name": "stage_a",

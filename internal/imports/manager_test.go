@@ -415,7 +415,7 @@ func TestManager_Open_AbsoluteCSV_FromExternalSource(t *testing.T) {
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs()
 	body := "id,name,amount\n1,Alice,10.5\n2,Bob,20.0\n"
-	if err := afero.WriteFile(src, "/Users/alice/datasets/orders.csv", []byte(body), 0o644); err != nil {
+	if err := afero.WriteFile(src, osAbs("/Users/alice/datasets/orders.csv"), []byte(body), 0o644); err != nil {
 		t.Fatalf("seed src: %v", err)
 	}
 	clk := &fixedClock{t: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)}
@@ -424,7 +424,7 @@ func TestManager_Open_AbsoluteCSV_FromExternalSource(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	res, err := m.Open(context.Background(), Spec{SourcePath: "/Users/alice/datasets/orders.csv"})
+	res, err := m.Open(context.Background(), Spec{SourcePath: osAbs("/Users/alice/datasets/orders.csv")})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -439,7 +439,7 @@ func TestManager_Open_AbsoluteCSV_FromExternalSource(t *testing.T) {
 	}
 	// Sidecar records the absolute source path verbatim.
 	entries, _ := m.List(context.Background())
-	if len(entries) != 1 || entries[0].Sidecar.SourcePath != "/Users/alice/datasets/orders.csv" {
+	if len(entries) != 1 || entries[0].Sidecar.SourcePath != osAbs("/Users/alice/datasets/orders.csv") {
 		t.Errorf("sidecar source_path = %+v, want absolute path", entries)
 	}
 }
@@ -455,7 +455,7 @@ func TestManager_Open_AbsolutePulse_CopiesIntoPool(t *testing.T) {
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs()
 	header := []byte("PULSE\x00\x00\x00\x01")
-	if err := afero.WriteFile(src, "/var/data/curated.pulse", header, 0o644); err != nil {
+	if err := afero.WriteFile(src, osAbs("/var/data/curated.pulse"), header, 0o644); err != nil {
 		t.Fatalf("seed src: %v", err)
 	}
 	clk := &fixedClock{t: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)}
@@ -464,7 +464,7 @@ func TestManager_Open_AbsolutePulse_CopiesIntoPool(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	res, err := m.Open(context.Background(), Spec{SourcePath: "/var/data/curated.pulse"})
+	res, err := m.Open(context.Background(), Spec{SourcePath: osAbs("/var/data/curated.pulse")})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -478,7 +478,7 @@ func TestManager_Open_AbsolutePulse_CopiesIntoPool(t *testing.T) {
 		t.Errorf("copied file missing from dst fs")
 	}
 	// Original source untouched.
-	if ok, _ := afero.Exists(src, "/var/data/curated.pulse"); !ok {
+	if ok, _ := afero.Exists(src, osAbs("/var/data/curated.pulse")); !ok {
 		t.Errorf("source file removed (should be left in place)")
 	}
 }
@@ -618,7 +618,7 @@ func TestManager_Jail_DisabledWhenSourceFSExplicit(t *testing.T) {
 
 	dst := afero.NewMemMapFs()
 	src := afero.NewMemMapFs()
-	if err := afero.WriteFile(src, "/anywhere/data.csv", []byte("id,name\n1,A\n"), 0o644); err != nil {
+	if err := afero.WriteFile(src, osAbs("/anywhere/data.csv"), []byte("id,name\n1,A\n"), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	m, err := New(dst, Options{SourceFS: src, SourceJailRoot: "/blocked"})
@@ -628,7 +628,7 @@ func TestManager_Jail_DisabledWhenSourceFSExplicit(t *testing.T) {
 	if m.JailRoot() != "" {
 		t.Errorf("JailRoot = %q, want empty (no jail when SourceFS set)", m.JailRoot())
 	}
-	_, err = m.Open(context.Background(), Spec{SourcePath: "/anywhere/data.csv"})
+	_, err = m.Open(context.Background(), Spec{SourcePath: osAbs("/anywhere/data.csv")})
 	if err != nil {
 		t.Errorf("Open: %v — jail should be inactive when SourceFS is explicit", err)
 	}
@@ -702,4 +702,11 @@ func TestManager_Open_CSV_ColumnTypeOverridesUnknownRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected SERVICE_VALIDATION for unknown override type")
 	}
+}
+
+// osAbs spells a slash-separated absolute fixture path as an absolute
+// path on the running OS: unchanged on Unix, rooted at the current
+// volume on Windows (where /var/data is not absolute — it has no drive).
+func osAbs(p string) string {
+	return filepath.Join(filepath.VolumeName(os.TempDir())+string(filepath.Separator), filepath.FromSlash(p))
 }

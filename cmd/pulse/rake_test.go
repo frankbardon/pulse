@@ -166,7 +166,7 @@ func TestCliRake_WritesWeightsThatHitTheTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	out2 := filepath.Join(dir, "weighted2.pulse")
-	reqLit := `{"cohort":"` + src + `","out":"` + filepath.Join(dir, "ignored.pulse") + `","weight_field":"w"}`
+	reqLit := `{"cohort":"` + jsonEsc(src) + `","out":"` + jsonEsc(filepath.Join(dir, "ignored.pulse")) + `","weight_field":"w"}`
 	text, err = runApp(t, "rake", "--request", reqLit, "--margins", mfile, "-o", out2, "--json")
 	if err != nil {
 		t.Fatalf("rake --request: %v\n%s", err, text)
@@ -213,7 +213,7 @@ func TestCliRake_RefusalsKeepTheirCode(t *testing.T) {
 		{"missing out", []string{src, "--margins", `[{"field":"gender","targets":{"F":0.5,"M":0.5}}]`}, "PULSE_RAKE_INVALID"},
 		{"no margins", []string{src, "-o", out}, "PULSE_RAKE_INVALID"},
 		{"unknown margin key", []string{src, "-o", out, "--margins", `[{"feild":"gender","targets":{"F":0.5,"M":0.5}}]`}, "PULSE_REQUEST_UNKNOWN_FIELD"},
-		{"unknown request key", []string{"--request", `{"cohort":"` + src + `","bogus":1}`, "-o", out}, "PULSE_REQUEST_UNKNOWN_FIELD"},
+		{"unknown request key", []string{"--request", `{"cohort":"` + jsonEsc(src) + `","bogus":1}`, "-o", out}, "PULSE_REQUEST_UNKNOWN_FIELD"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
