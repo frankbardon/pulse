@@ -40,6 +40,7 @@ Turn an experiment into `priors.<channel>.roi`: a lognormal with `mu = ln(measur
 - Decay: no SE exists. Report the range of decays among the sweep's near-best ranks (`ranking[i].axes`). For beta intervals, `resample` an authored fit at the winning decays: on the sweep regression it would run in every slot.
 - Curves: an underfunded channel's k and s are weakly identified; trust its ROI, not its k.
 - Check `starts_agreeing` on the optimize result.
+- Known truth (a synthetic cohort): declare it as an `inline` `models` entry (numbers may be `params.<name>`) and run the same `optimize` objective over it beside the fit ([`compose-optimize`](compose-optimize.md)).
 
 ## See
 

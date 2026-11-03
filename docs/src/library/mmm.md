@@ -107,6 +107,23 @@ At the optimum every free channel's `marginal` (its marginal ROI) equals the bud
 
 Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
 
+## An inline truth model
+
+A synthetic cohort comes with the curve that generated it. Declare that truth as an inline `models` entry, then run the same `optimize` objective over the fit in one block and over the truth in another. No file is needed, and the fit's allocation can be compared with the true optimum:
+
+```json
+"models": [{"name": "truth", "inline": {
+  "model_format_version": 1, "type": "REG_MMM_HILL", "target": "sales",
+  "predictors": ["tv_ad", "price"], "terms": ["tv_ad", "price"],
+  "coefficients": {"(intercept)": 100, "tv_ad": "params.beta_tv",
+                   "k:tv_ad": "params.k_tv", "s:tv_ad": 1.5, "price": -2}}}]
+```
+
+- **The body.** It is the model-file document (`model_format_version` 1 plus `features`, as a `save` writes). A number in it may be a scalar expression over literals and `params.<name>`. It cannot call `coef()`, `sweep_axis()`, `lookup()` or an embedder function, so one model never reads another and predict knows every value. `+Inf` / `-Inf` stay literals.
+- **Types and terms.** The type is `REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`, `REG_MMM_HILL` or `REG_MMM_BAYES`. The coefficients name exactly the terms the type reports. That is `(intercept)` and every predictor, plus, for a media-mix model, `k:` / `s:` (Bayes: `decay:` too, and `sigma`) for every channel. A channel is any predictor with a curve coefficient. A stray name is `PULSE_MODEL_REF_INVALID` `inline_term_unknown`, an absent one `inline_term_missing`, another type `inline_type_unsupported`.
+- **What reads it.** `coef()` reads it, and so does `sweep_axis()` when the body carries `sweep_axes` (feature `sweep_axes`): `"features": ["sweep_axes"], "sweep_axes": {"tv": 0.6}`. It takes the one model namespace, so a name a fit or another entry binds is `PULSE_MODEL_NAME_COLLISION`. Nothing scores it. `ATTR_REG_PREDICT` or a `params.fit` attribute naming it is `PULSE_MODEL_SCORE_INVALID` `inline_not_scorable`.
+- **Exactly one** of `path` / `inline` per entry (`path_and_inline`). A bad number is `inline_invalid` / `inline_not_numeric` / `inline_not_finite` / `inline_not_integer` (`n_obs`), with its key path under `details.field`. A params refusal keeps its own code. Predict refuses every one of these with the runtime's code, message and details.
+
 ## Contribution by quarter
 
 A per-week contribution column is rarely the deliverable; a per-quarter table is. Add `groups` and one `AGG_SUM` per channel to the contribution slot of the recipe above, keeping its windows and attributes as they are:

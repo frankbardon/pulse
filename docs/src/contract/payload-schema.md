@@ -1644,7 +1644,7 @@ under the fit's name with the same overwrite warning (format:
 ### Loading models (`models`)
 
 `Request.models` and `FacetRequest.models` are `omitempty` arrays of
-`ModelRef {name, path}`: each loads a model file a `save` wrote, under
+`ModelRef {name, path, inline}`: each loads a model file a `save` wrote, under
 `name`, into the namespace a Compose `fits` list binds, so
 `ATTR_REG_PREDICT` `fit` and `coef()` resolve a loaded name exactly like
 a fit (bit-for-bit the same scores). The path's suffix picks the kind: a
@@ -1666,6 +1666,24 @@ frame). Provenance is informational: a model fit on one cohort scores any
 cohort holding its predictor columns. A fit request's own `models` are
 all it sees (fits run before the batch binds); each chain stage loads its
 own. Gated by `capability:models`; `format_version` stays `"1.1"`.
+
+An entry sets exactly one of `path` and `inline` (both is
+`PULSE_MODEL_REF_INVALID` `path_and_inline`, neither `path_empty`).
+`inline` declares a coefficient-only model in the request: the
+model-file document itself, judged by the same codec as a file (an
+inline refusal carries `details.inline: true` and no `path`). Any number
+in it (`coefficients`, `std_errors`, `ci_lower`, `ci_upper` values, `df`,
+`conf_level`, `dispersion`, `theta`, `n_obs`, `sum_weights`, `n_eff`,
+`vcov.values`) may be a scalar expression string over literals and
+`params.<name>` — no request-bound function — resolved before anything
+runs, so predict resolves it too (`inline_invalid` /
+`inline_not_numeric` / `inline_not_finite` / `inline_not_integer`,
+`details.field`). Types `REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`,
+`REG_MMM_HILL`, `REG_MMM_BAYES` (`inline_type_unsupported`); the
+coefficients name exactly the terms the type reports
+(`inline_term_unknown` / `inline_term_missing`). `coef()` and
+`sweep_axis()` read it; a scoring reference is `PULSE_MODEL_SCORE_INVALID`
+`inline_not_scorable`.
 
 ### Loading populations (`populations`)
 

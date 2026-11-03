@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
+	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,7 +36,7 @@ func fileLoader(files map[string][]byte, reads *int) optblock.Loader {
 				return b, nil
 			}
 			return nil, fs.ErrNotExist
-		})
+		}, scalarslot.InlineNumber)
 	}
 }
 

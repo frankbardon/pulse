@@ -39,6 +39,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprreads"
 	"github.com/frankbardon/pulse/internal/exprslots"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 )
 
@@ -451,7 +452,9 @@ func (w *readsWalker) compose(top map[string]any) {
 				continue
 			}
 			at := root.key("optimize").at(i)
-			w.scanExpr(oo, at, root, "variables", "models")
+			// The block's `models` hold no expression but an inline
+			// model's numbers (exprslots.SlotInlineModelNumber).
+			w.scanExpr(oo, at, root, "variables")
 			w.optimizeBounds(oo, at, root)
 		}
 	}
@@ -765,6 +768,10 @@ func (w *readsWalker) scanValue(v any, at, scope, req readsPath) {
 		if !ok {
 			return
 		}
+		if slot.Name == exprslots.SlotInlineModelNumber && model.IsInfinityToken(x) {
+			// The model file's infinity spelling is a literal.
+			return
+		}
 		comp, key := at.split(scope)
 		w.expression(x, comp, key, req, slot.Name)
 	}
@@ -782,7 +789,7 @@ func (w *readsWalker) expression(src string, at readsPath, key string, req reads
 	if len(reads.Funcs) > 0 {
 		e.Funcs = reads.Funcs
 	}
-	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound || slot == exprslots.SlotWindowParam || slot == exprslots.SlotConstantExpr || slot == slotExtensionParam {
+	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound || slot == exprslots.SlotWindowParam || slot == exprslots.SlotConstantExpr || slot == exprslots.SlotInlineModelNumber || slot == slotExtensionParam {
 		e.Variables = reads.Vars
 		return
 	}

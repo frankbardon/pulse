@@ -581,6 +581,13 @@ var fieldOverrides = map[fieldKey]any{
 		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
 	},
 	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// An inline model is the model-file document, its numbers literal
+	// or scalar expressions over params; the generic RawMessage rule
+	// would describe operator params.
+	{reflect.TypeFor[types.ModelRef](), "inline"}: map[string]any{
+		"type":        "object",
+		"description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef() and sweep_axis() read it, scoring it is refused.",
+	},
 	// A ranking entry's axes: the scalar each sweep axis took in the
 	// ranked slot, keyed by axis name.
 	{reflect.TypeFor[types.RankEntry](), "axes"}: map[string]any{

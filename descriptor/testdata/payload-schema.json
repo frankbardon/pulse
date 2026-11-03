@@ -3716,6 +3716,10 @@
     "ModelRef": {
       "additionalProperties": false,
       "properties": {
+        "inline": {
+          "description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.\u003cname\u003e. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef() and sweep_axis() read it, scoring it is refused.",
+          "type": "object"
+        },
         "name": {
           "type": "string"
         },
@@ -3724,8 +3728,7 @@
         }
       },
       "required": [
-        "name",
-        "path"
+        "name"
       ],
       "type": "object"
     },
@@ -7589,4 +7592,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 9a79c45eebc407bc6193b1e193f2523bdfb578594f54d6588a6fa0597145a2ac
+// golden-hash: 2933604e91917f159ae6c0a6a2c50eeb97ce8706b97e6b963b23e160e8e224e8

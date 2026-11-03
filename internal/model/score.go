@@ -381,6 +381,9 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
 	}
+	if sig.Source.Inline {
+		return p, sig, inlineNotScorable(types.ATTR_REG_PREDICT, p.Fit)
+	}
 	extension := !BuiltinRegression(sig.Type)
 	if !scorable(sig.Type) {
 		if extension {
@@ -467,6 +470,15 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 
 func scoreInvalid(fit, reason, what string, extra map[string]any) *errors.CodedError {
 	return scoreInvalidFor(types.ATTR_REG_PREDICT, fit, reason, what, extra)
+}
+
+// inlineNotScorable is the PULSE_MODEL_SCORE_INVALID refusal (reason
+// inline_not_scorable) of a scoring slot of type attr naming an inline
+// model: it carries coefficients only.
+func inlineNotScorable(attr types.AttributeType, fit string) *errors.CodedError {
+	return scoreInvalidFor(attr, fit, ReasonInlineNotScorable,
+		fmt.Sprintf("cannot score %q, an inline model: it declares coefficients only, for coef() and sweep_axis(); load a saved model file, or bind a fit, to score", fit),
+		map[string]any{"inline": true})
 }
 
 // scoreInvalidFor is scoreInvalid for the scoring slot of type attr

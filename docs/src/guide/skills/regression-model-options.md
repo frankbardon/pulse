@@ -19,6 +19,7 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 | Slopes that cannot be negative (media spend, prices of goods) | `bounds: {nonnegative: [names]}` | OLS |
 | A prior centred on an experiment for ONE coefficient, flat or weak elsewhere | `prior_precision: [..]` per coefficient | Bayesian linear |
 | A curve or fit no built-in covers | a registered regression | manifest `extensions.regressions` |
+| A known model with no fit (a truth to optimise against) | a `models` entry with `inline` coefficients ([`compose-optimize`](compose-optimize.md)) | least-squares or media-mix |
 
 ## `unpenalized` (ridge subset)
 
@@ -55,13 +56,13 @@ A regression may name a same-request window label. Adstock each channel (a windo
 
 ## A registered regression
 
-An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions`; use it like a built-in: `{"type": "REG_ACME_X", "target": .., "predictors": [..], "params": {..}}`.
+An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions`; use it like a built-in, plus `params`.
 
 - `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). A built-in `REG_*` takes no `params`.
 - `outputs`: the model's own figures beside `coefficients`, keyed by the manifest's `output_schema`. Read them at `regressions[i].outputs.<key>`; a sweep can `rank` on one.
-- A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}` — never silently ignored.
+- A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}`.
 - `conf_level` always works, `resample` unless the row lists no `resample` slot (then `PROCESSING_CONFIG`): intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.
-- `coef("<fit>", "<name>"[, stat])` reads any coefficient the fit reports, the model's own names included, with `lower` / `upper` at `conf_level` and `se`. An unknown name is `PULSE_MODEL_TERM_UNKNOWN`: on a loaded model at predict and run, on a `fits` entry at run only (predict cannot know the names yet).
+- `coef("<fit>", "<name>"[, stat])` reads any coefficient the fit reports, the model's own names included, with `lower` / `upper` at `conf_level` and `se`. An unknown name is `PULSE_MODEL_TERM_UNKNOWN`: on a loaded model at predict and run, on a `fits` entry at run only.
 - p-values only where the manifest row's `emits_type_note` says so: otherwise `p_values` is `null` throughout and a `multiplicity` method other than `none` is `PULSE_MULTIPLICITY_INVALID`.
 - Scoring (`ATTR_REG_PREDICT`) and `save` need the model to carry a scorer; without one, `PULSE_MODEL_SCORE_INVALID` reason `no_scorer`. A saved model reloaded where its type is not registered is `PULSE_MODEL_REGRESSION_UNREGISTERED`.
 

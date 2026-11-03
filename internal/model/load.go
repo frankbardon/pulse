@@ -35,8 +35,12 @@ type Source struct {
 	Slot string
 	// Index is the 0-based entry index in that slot.
 	Index int
-	// Path is a `models` entry's file path ("" for a fit).
+	// Path is a `models` entry's file path ("" for a fit or an inline
+	// model).
 	Path string
+	// Inline reports a `models` entry declaring its model inline
+	// (ModelRef.Inline): coefficient-only, never scored.
+	Inline bool
 }
 
 // FitSource is the Source of fits[i].
@@ -45,6 +49,20 @@ func FitSource(i int) Source { return Source{Slot: SlotFits, Index: i} }
 // ModelSource is the Source of models[j] loading path.
 func ModelSource(j int, path string) Source {
 	return Source{Slot: SlotModels, Index: j, Path: path}
+}
+
+// InlineSource is the Source of models[j] declaring its model inline.
+func InlineSource(j int) Source {
+	return Source{Slot: SlotModels, Index: j, Inline: true}
+}
+
+// RefSource is the Source of models[j]: InlineSource for an inline
+// entry, else ModelSource over its path.
+func RefSource(j int, r types.ModelRef) Source {
+	if r.Inline != nil {
+		return InlineSource(j)
+	}
+	return ModelSource(j, r.Path)
 }
 
 // String is "fits[i]", "models[j]" or "populations[k]" — or, for a
@@ -66,6 +84,9 @@ func (s Source) detail() map[string]any {
 	d := map[string]any{"slot": s.Slot, "index": s.Index}
 	if s.Path != "" {
 		d["path"] = s.Path
+	}
+	if s.Inline {
+		d["inline"] = true
 	}
 	return d
 }
@@ -99,18 +120,28 @@ type ReadFunc func(path string) ([]byte, error)
 // (PULSE_MODEL_REF_INVALID name_empty), a path the save-path rule
 // refuses (PULSE_MODEL_REF_INVALID, the path reason), then a name an
 // earlier entry or outer already binds (PULSE_MODEL_NAME_COLLISION,
-// details.sources). outer is what the request already sees bound — a
-// Compose slot's fits; nil for none. No file is read.
+// details.sources). An entry sets exactly one of path and inline: both
+// is reason path_and_inline, neither path_empty; an inline entry's
+// path rule is skipped (its body is judged when it loads). outer is
+// what the request already sees bound — a Compose slot's fits; nil for
+// none. No file is read.
 func CheckModelRefs(refs []types.ModelRef, outer Catalog) *errors.CodedError {
 	seen := make(map[string]Source, len(refs))
 	for j, r := range refs {
 		if strings.TrimSpace(r.Name) == "" {
 			return refInvalid(j, r, ReasonRefNameEmpty, "has no name")
 		}
-		if reason, what := checkModelRefPath(r.Path); reason != "" {
-			return refInvalid(j, r, reason, "path "+what)
+		switch {
+		case r.Inline != nil && r.Path != "":
+			return refInvalid(j, r, ReasonRefPathAndInline, "sets both path and inline; set exactly one — a model file's path, or the model inline")
+		case r.Inline == nil && strings.TrimSpace(r.Path) == "":
+			return refInvalid(j, r, ReasonSavePathEmpty, "sets neither path nor inline; set a model file's path, or declare the model inline")
+		case r.Inline == nil:
+			if reason, what := checkModelRefPath(r.Path); reason != "" {
+				return refInvalid(j, r, reason, "path "+what)
+			}
 		}
-		src := ModelSource(j, r.Path)
+		src := RefSource(j, r)
 		if prior, dup := seen[r.Name]; dup {
 			return NameCollision(r.Name, prior, src)
 		}
@@ -148,20 +179,30 @@ func checkModelRefPath(p string) (reason, what string) {
 // fault wins. The files are index-aligned with refs, nil at a SEM fit
 // entry (LoadFiles keeps those).
 func LoadModelFiles(refs []types.ModelRef, read ReadFunc) ([]*File, *errors.CodedError) {
-	files, _, cerr := loadModelEntries(refs, read)
+	files, _, cerr := loadModelEntries(refs, read, nil, nil)
 	return files, cerr
 }
 
 // loadModelEntries is LoadModelFiles keeping both kinds: the model files
 // and the SEM fit files, each index-aligned with refs (nil where the
-// entry is the other kind; the SEM slice nil when no entry is one).
-func loadModelEntries(refs []types.ModelRef, read ReadFunc) ([]*File, []*SEMFile, *errors.CodedError) {
+// entry is the other kind; the SEM slice nil when no entry is one). An
+// inline entry resolves its body's numbers through inline over params
+// (loadInline) instead of reading a file.
+func loadModelEntries(refs []types.ModelRef, read ReadFunc, params types.Params, inline InlineNumberFunc) ([]*File, []*SEMFile, *errors.CodedError) {
 	if len(refs) == 0 {
 		return nil, nil, nil
 	}
 	out := make([]*File, len(refs))
 	var sems []*SEMFile
 	for j, r := range refs {
+		if r.Inline != nil {
+			f, cerr := loadInline(j, r, params, inline)
+			if cerr != nil {
+				return nil, nil, cerr
+			}
+			out[j] = f
+			continue
+		}
 		var (
 			data []byte
 			err  error
@@ -245,7 +286,7 @@ func (s *Set) WithModels(refs []types.ModelRef, files []*File) (*Set, error) {
 		if err != nil {
 			return nil, err
 		}
-		b.Source = ModelSource(j, r.Path)
+		b.Source = RefSource(j, r)
 		if err := out.Add(b); err != nil {
 			return nil, err
 		}
@@ -274,7 +315,7 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			Type:   files[j].Type,
 			Target: files[j].Target,
 			Terms:  append([]string(nil), files[j].Terms...),
-			Source: ModelSource(j, r.Path),
+			Source: RefSource(j, r),
 			Kind:   types.FitKindRegression,
 			// The file's figures are the fit's: the face the bound
 			// model's Signature reads off the same Result.

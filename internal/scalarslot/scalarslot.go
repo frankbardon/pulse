@@ -48,6 +48,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/tablecall"
+	"github.com/frankbardon/pulse/types"
 )
 
 // Kind is what a slot's value must be.
@@ -351,4 +352,28 @@ func Eval(src string, kind Kind, env Env, bound exprenv.Bound, run bool) (Value,
 	}
 	out.Number, out.Resolved = v, true
 	return out, nil
+}
+
+// InlineNumber is the model.InlineNumberFunc every `models` load hands
+// model.LoadFiles: one number of an inline model written as an
+// expression, judged and run as a scalar slot over the request's params
+// (normalized here) with NO request-bound function in reach — no
+// coef(), sweep_axis(), lookup(), range_label() or embedder function,
+// so one model's numbers never read another model and the value is
+// always known statically: predict resolves it exactly as the runtime
+// does. integer asks for an Integer slot (n_obs).
+func InlineNumber(params types.Params, src string, integer bool) (float64, *model.InlineNumberRefusal) {
+	norm, cerr := exprenv.NormalizeParams(params)
+	if cerr != nil {
+		return 0, &model.InlineNumberRefusal{Coded: cerr}
+	}
+	kind := Real
+	if integer {
+		kind = Integer
+	}
+	v, r := Eval(src, kind, Env{Params: norm}, exprenv.Bound{}, true)
+	if r != nil {
+		return 0, &model.InlineNumberRefusal{Reason: r.Reason, What: r.What, Details: r.Details, Coded: r.Coded}
+	}
+	return v.Number, nil
 }

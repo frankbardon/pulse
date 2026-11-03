@@ -5837,8 +5837,9 @@ pulse/types: type MatrixValues method (*MatrixValues) UnmarshalJSON(b []byte) er
 pulse/types: type MatrixValues method (MatrixValues) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixValues method (MatrixValues) Records() []map[string]any
 pulse/types: type ModelRef struct
+pulse/types: type ModelRef field Inline encoding/json.RawMessage "json:\"inline,omitempty\""
 pulse/types: type ModelRef field Name string "json:\"name\""
-pulse/types: type ModelRef field Path string "json:\"path\""
+pulse/types: type ModelRef field Path string "json:\"path,omitempty\""
 pulse/types: type Multiplicity struct
 pulse/types: type Multiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Multiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
@@ -6674,4 +6675,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bc5c44ab3300aba64a204da1fd17be0c4eb81e84be97dd943177d4f0cfe469b6
+// golden-hash: ab2f9e6ff3c846b517363d8d6b2f3c442bda36c1d786b261ddae23b4f9d2f619

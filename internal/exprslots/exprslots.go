@@ -71,6 +71,7 @@ const (
 	SlotOptimizeBound      = "optimize_bound"
 	SlotWindowParam        = "window_param"
 	SlotConstantExpr       = "constant_expr"
+	SlotInlineModelNumber  = "inline_model_number"
 	// SlotExtensionParam names an embedder extension's
 	// expression-capable params key (pulse.ParamMeta.Expression). It has
 	// no row in the static table: which keys are flagged is an instance
@@ -145,7 +146,28 @@ var slots = []Slot{
 	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"cell", ParamsKey, "expr"}, Scalar: true},
 	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"cells", ParamsKey, "expr"}, Scalar: true},
 	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"crosstab", "margin_aggregations", ParamsKey, "expr"}, Scalar: true},
+	// An inline model's numbers (a `models` entry's `inline` body,
+	// internal/model's InlineNumberPaths): each a number or a scalar
+	// expression over params, resolved before the body is judged as a
+	// model file. Rooted at the `models` list; Wildcard keys (a
+	// coefficient's term) match any key.
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "ci_lower", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "ci_upper", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "coefficients", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "std_errors", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "conf_level"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "df"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "dispersion"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "n_eff"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "n_obs"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "sum_weights"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "theta"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "vcov", "values"}, Scalar: true},
 }
+
+// Wildcard in a Tail matches any one key (an inline model's
+// coefficient term).
+const Wildcard = "*"
 
 // FeatureFitOnParam is the feature params key carrying a row
 // expression (FEAT_TARGET_ENCODE params.fit_on).
@@ -193,7 +215,7 @@ func matches(keys, tail []string) bool {
 	}
 	off := len(keys) - len(tail)
 	for i, k := range tail {
-		if keys[off+i] != k {
+		if k != Wildcard && keys[off+i] != k {
 			return false
 		}
 	}

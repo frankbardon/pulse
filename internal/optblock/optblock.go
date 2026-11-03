@@ -340,7 +340,8 @@ func loadModels(spec *types.OptimizeSpec, i int, at string, env Env, out *Compil
 	if len(spec.Models) == 0 {
 		return env.Fits, nil
 	}
-	refs := model.Refs{Models: spec.Models}
+	// The block's inline models read the batch's params.
+	refs := model.Refs{Models: spec.Models, Params: types.Params(env.Params)}
 	if cerr := model.CheckRefs(refs, env.Outer); cerr != nil {
 		return nil, locate(cerr, i, spec.Name, at+".models")
 	}
@@ -355,7 +356,7 @@ func loadModels(spec *types.OptimizeSpec, i int, at string, env Env, out *Compil
 		}
 	default:
 		var cerr *errors.CodedError
-		if loaded, cerr = model.LoadFiles(refs, nil); cerr != nil {
+		if loaded, cerr = model.LoadFiles(refs, nil, scalarslot.InlineNumber); cerr != nil {
 			return nil, locate(cerr, i, spec.Name, at+".models")
 		}
 	}

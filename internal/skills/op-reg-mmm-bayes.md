@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, time-series, buffered-pipeline]
 ---
 
-`REG_MMM_BAYES` models `y = β0 + Σ βc·hill(adstock(rawc; decay), k, s) + Σ γj·zj + noise`: raw spend is geometrically adstocked in the model, so decay is a posterior parameter and every interval includes it. Fits ride `Response.Regressions[i]`.
+`REG_MMM_BAYES` models `y = β0 + Σ βc·hill(adstock(rawc; decay), k, s) + Σ γj·zj + noise`: raw spend is adstocked in the model, so decay is a posterior parameter and every interval includes it.
 
 <!-- generated: use-when -->
 
@@ -46,7 +46,7 @@ One market, one row per period. A weekly `date` column is `time_gap`; several ro
 
 ## Output
 
-Coefficients are posterior means. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel), `params`, `diagnostics`, `holdout`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
+Coefficients are posterior means<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel), `params`, `diagnostics`, `holdout`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
 
 <!-- generated: reading-the-output -->
 
@@ -55,7 +55,7 @@ Coefficients are posterior means. `outputs`: `seed`, `roi`, `mroi`, `contributio
 ## Gotchas
 
 - No `save`, scoring, engine `holdout`, `resample` or other shared slot (`rng_seed` excepted): use `params.holdout_from`.
-- k and s trade off against each other; judge ROI and contribution, not k.
+- k and s trade off; judge ROI and contribution, not k.
 - mROI is analytic with the curve held fixed.
 - Health is reported, not refused: `PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`. `Strict` fails the slot with that code. 2×100 draws always warn `ess_low`.
 - A default fit takes about 35 s; set `rng_seed` to reproduce it.

@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // FitSpec is one entry of ComposedRequest.Fits: a named fit that runs
 // ONCE, before any Compose slot, so every slot — sweep-expanded ones
 // included — reads the same fitted figures by Name instead of refitting
@@ -100,6 +102,16 @@ type PopulationRef struct {
 // or slot runs, so a load always sees the file as it was before the
 // batch. Its provenance is informational: a model trained on one cohort
 // scores any cohort holding its predictor columns.
+//
+// An entry sets exactly one of Path and Inline. An inline entry
+// declares a coefficient-only model in the request itself: the body is
+// the model-file document (model_format_version 1, type, target,
+// predictors, terms, coefficients, …), and any number in it may instead
+// be a scalar expression string over literals and params.<name>,
+// resolved before anything runs. It binds like a loaded file — coef()
+// and sweep_axis() read it — but scoring it (ATTR_REG_PREDICT, a
+// params.fit attribute) is refused (PULSE_MODEL_SCORE_INVALID
+// inline_not_scorable).
 type ModelRef struct {
 	// Name binds the model for the request. Required; unique across
 	// the request's models and any Compose fit.
@@ -107,8 +119,15 @@ type ModelRef struct {
 
 	// Path is the model file, relative to the data root, ending
 	// .pulse-model.json — the save-path rule — or a SEM fit file ending
-	// .pulse-sem.json: the suffix picks the kind.
-	Path string `json:"path"`
+	// .pulse-sem.json: the suffix picks the kind. Empty on an inline
+	// entry.
+	Path string `json:"path,omitempty"`
+
+	// Inline is an inline model: the model-file document itself, its
+	// numbers literal or scalar expressions over params. Types
+	// REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL and REG_MMM_BAYES.
+	// Nil on a path entry.
+	Inline json.RawMessage `json:"inline,omitempty"`
 }
 
 // FitKind names the kind of a bound fit. The one model namespace holds

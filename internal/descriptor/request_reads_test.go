@@ -142,6 +142,31 @@ func TestRequestReads_RootKinds(t *testing.T) {
 			},
 		},
 		{
+			name: "inline model numbers",
+			doc: `{"params":{"a":120,"b":-4},"models":[{"name":"truth","inline":{"model_format_version":1,"type":"REG_OLS",
+				"target":"units","predictors":["price"],"terms":["price"],
+				"coefficients":{"(intercept)":"params.a + 1","price":"params.b"},"std_errors":{"price":"+Inf"},"n_obs":80}}],
+				"aggregations":[{"type":"AGG_COUNT","field":"id"}]}`,
+			root: descriptor.ReadsRootRequest,
+			want: []string{
+				"aggregations[0]|field| cols=id params=",
+				"models[0]|inline.coefficients.(intercept)| cols= params=a",
+				"models[0]|inline.coefficients.price| cols= params=b",
+			},
+		},
+		{
+			name: "compose optimize inline model",
+			doc: `{"params":{"a":120},"optimize":[{"name":"o","variables":[{"name":"p","lower":1,"upper":30}],
+				"objective":"coef(\"d\", \"price\") * p","direction":"maximize",
+				"models":[{"name":"d","inline":{"model_format_version":1,"type":"REG_OLS","target":"u","predictors":["price"],
+				"terms":["price"],"coefficients":{"(intercept)":"params.a","price":-4}}}]}]}`,
+			root: "",
+			want: []string{
+				"optimize[0]|objective| cols= params= vars=p",
+				"optimize[0].models[0]|inline.coefficients.(intercept)| cols= params=a",
+			},
+		},
+		{
 			name: "window scalar params",
 			doc: `{"params":{"d":0.5},"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","order_by":[{"field":"week"}],
 				"params":{"kernel":"geometric","decay":"params.d","max_lag":4}},

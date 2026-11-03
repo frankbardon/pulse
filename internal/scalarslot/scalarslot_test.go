@@ -1,6 +1,7 @@
 package scalarslot_test
 
 import (
+	"encoding/json"
 	stderrors "errors"
 	"math"
 	"reflect"
@@ -190,5 +191,48 @@ func TestEval_SweepAxisString(t *testing.T) {
 	v, r := scalarslot.Eval(`sweep_axis("best", "decay") * params.tv`, scalarslot.Real, env, bound, true)
 	if r != nil || !v.Resolved || v.Number != 120 || !reflect.DeepEqual(v.Reads, []string{"sweep_axis"}) {
 		t.Fatalf("numeric axis: %+v %v", v, r)
+	}
+}
+
+// TestInlineNumber: an inline model number reads literals, params and
+// the pure built-ins only — a request-bound function (coef(),
+// sweep_axis(), lookup()) does not compile, so one model never reads
+// another — and keeps the scalar slot's reasons.
+func TestInlineNumber(t *testing.T) {
+	t.Parallel()
+
+	params := types.Params{"a": json.Number("120"), "share": json.Number("0.25")}
+	if v, r := scalarslot.InlineNumber(params, "params.a * (1 + params.share)", false); r != nil || v != 150 {
+		t.Errorf("params expression = %v, %+v; want 150", v, r)
+	}
+	if v, r := scalarslot.InlineNumber(params, "exp(0)", true); r != nil || v != 1 {
+		t.Errorf("built-in = %v, %+v", v, r)
+	}
+	for _, c := range []struct {
+		src     string
+		integer bool
+		reason  string
+		code    errors.Code
+	}{
+		{`coef("m", "x")`, false, scalarslot.ReasonInvalid, ""},
+		{`sweep_axis("m", "decay")`, false, scalarslot.ReasonInvalid, ""},
+		{`lookup("t", "k")`, false, scalarslot.ReasonInvalid, ""},
+		{"1 / 0", false, scalarslot.ReasonNotFinite, ""},
+		{"params.share", true, scalarslot.ReasonNotInteger, ""},
+		{`"text"`, false, scalarslot.ReasonNotNumeric, ""},
+		{"params.missing", false, "", errors.PULSE_PARAMS_UNDECLARED},
+	} {
+		_, r := scalarslot.InlineNumber(params, c.src, c.integer)
+		switch {
+		case r == nil:
+			t.Errorf("%s: resolved", c.src)
+		case c.code != "" && (r.Coded == nil || r.Coded.Code != c.code):
+			t.Errorf("%s: %+v, want %s", c.src, r, c.code)
+		case c.code == "" && r.Reason != c.reason:
+			t.Errorf("%s: reason %q (%s), want %q", c.src, r.Reason, r.What, c.reason)
+		}
+	}
+	if _, r := scalarslot.InlineNumber(types.Params{"bad name": 1}, "1", false); r == nil || r.Coded == nil || r.Coded.Code != errors.PULSE_PARAMS_INVALID {
+		t.Errorf("invalid params: %+v", r)
 	}
 }

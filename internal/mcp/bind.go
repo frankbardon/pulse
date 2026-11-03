@@ -1204,10 +1204,11 @@ func modelsSchema(desc string) map[string]any {
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
-				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json (or .pulse-sem.json: a saved SEM fit)."},
+				"name":   map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
+				"path":   map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json (or .pulse-sem.json: a saved SEM fit). Set exactly one of path and inline."},
+				"inline": map[string]any{"type": "object", "description": "An inline coefficient-only model instead of a file: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients); any number may be a scalar expression over params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES. coef() and sweep_axis() read it; scoring it is refused."},
 			},
-			"required":             []string{"name", "path"},
+			"required":             []string{"name"},
 			"additionalProperties": false,
 		},
 	}

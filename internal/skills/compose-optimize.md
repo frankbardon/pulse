@@ -33,6 +33,19 @@ An **optimize block** answers "what values of these knobs give the best outcome?
 - `constraints[{expr, type}]`: `eq` means `expr = 0`, `ineq` means `expr >= 0`. A budget is `"a + b + c - params.budget"` as `eq`. At most as many `eq` as variables.
 - `starts` (default 8, 1..1000): the solver runs from `start` plus `starts` minus one seeded Latin-hypercube points inside the bounds and reports the best converged one. `rng_seed` 0 derives the seed from the spec alone; the effective seed comes back. `tolerance` (0 = 1e-6) and `max_iterations` (0 = 100).<!-- feature: capability:models --> `models` loads saved model files for `coef()` with no refit (`compose-fits`, Loading).<!-- /feature -->
 
+<!-- feature: capability:models,REG_OLS -->
+## An inline truth model
+
+A `models` entry may declare the model instead of naming a file — exactly one of `path` / `inline`. The body is the model-file document; any number in it may be an expression over literals and `params.<name>` (no `coef()` or other bound function). One objective then serves a fit in one block and a known truth in another:
+
+```jsonc
+"models": [{"name": "demand", "inline": {"model_format_version": 1, "type": "REG_OLS", "target": "units",
+  "predictors": ["price"], "terms": ["price"], "coefficients": {"(intercept)": "params.a", "price": "params.b"}}}]
+```
+
+`coef()` and `sweep_axis()` (from `sweep_axes`) read it; scoring it is `PULSE_MODEL_SCORE_INVALID` `inline_not_scorable`. Types: least-squares, generalized-linear, Bayesian-linear and the media-mix models, whose coefficients name exactly the terms the type reports (`PULSE_MODEL_REF_INVALID` `inline_term_unknown` / `_missing`). Predict resolves every number.
+<!-- /feature -->
+
 ## Pattern: fits, then optimize
 
 Fit in `fits`, read the coefficients in `objective` with `coef("<fit>", "<term>")`, and the answer is on the same batch's `optimizations` (a response slot outside `return`; `--stream` ends with one `{"optimizations":[...]}` line). Gradients are finite differences, so any smooth expression works; a coefficient that is a regression output needs no hand-copy.

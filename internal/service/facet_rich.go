@@ -64,7 +64,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	s = s.forFacet(req)
 	// The request's `models` (for its filterers' coef()), loaded before
 	// any record is read — predict loads them at the same point.
-	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: req.Models})
+	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: req.Models, Params: req.Params})
 	if err != nil {
 		return nil, err
 	}
