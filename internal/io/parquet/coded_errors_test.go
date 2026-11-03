@@ -167,4 +167,9 @@ func TestParquetImport_SnappyLengthClaimIsRefused(t *testing.T) {
 	if _, err := compress.Decode(codec, make([]byte, len(src)-1), enc); err == nil {
 		t.Fatal("a block longer than its page was decoded")
 	}
+	// A caller outside the page reader that leaves the sizing to the
+	// codec gets the stock decode.
+	if got, err := compress.Decode(codec, nil, enc); err != nil || !bytes.Equal(got, src) {
+		t.Fatalf("empty dst: %v", err)
+	}
 }
