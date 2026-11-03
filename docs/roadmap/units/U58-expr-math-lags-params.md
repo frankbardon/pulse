@@ -8,7 +8,7 @@ status: done
 depends_on: [U53]
 soft_depends_on: [U40, U52, U57]
 blocks: [U32]
-todo_items: [509, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520, 572, 576]
+todo_items: [509, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520]
 branch: expr-math-lags-params
 ---
 
