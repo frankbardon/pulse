@@ -305,26 +305,39 @@ func TestMapRequestTimeout_OnlyInnerCause(t *testing.T) {
 // waits it out), so the slots' own errors — the limit, mapped inside
 // each slot's Process — reach the Compose / ComposeParallel / chain
 // aggregation, which still reports the limit code.
+//
+// The budget starts at 1 ms. When it fires before any slot entered (a
+// loaded runner, often Windows, spends longer than that in the batch's
+// pre-pass, so ComposeParallel launches no slot) the precondition missed
+// rather than the contract: the run retries with a budget ten times
+// larger, up to 1 s, and the assertion runs on the first attempt in
+// which a nested entry ran.
 func TestRequestTimeout_TripsInsideSlots(t *testing.T) {
 	t.Parallel()
 
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
-	svc.SetLimits(withRequestTimeout(time.Millisecond))
 	entries := timeoutEntries(svc)
 	for _, name := range []string{"Compose", "ComposeParallel/FailFast", "ComposeParallel/CollectAll", "ProcessChain"} {
 		t.Run(name, func(t *testing.T) {
-			var calls atomic.Int64
-			svc.entryHook = func(ctx context.Context) {
-				if calls.Add(1) > 1 {
-					waitOutShortDeadlines(ctx)
+			for budget := time.Millisecond; ; budget *= 10 {
+				svc.SetLimits(withRequestTimeout(budget))
+				var calls atomic.Int64
+				svc.entryHook = func(ctx context.Context) {
+					if calls.Add(1) > 1 {
+						waitOutShortDeadlines(ctx)
+					}
 				}
-			}
-			err := entries[name](context.Background())
-			if calls.Load() < 2 {
-				t.Fatalf("no nested entry ran (calls = %d)", calls.Load())
-			}
-			if !isLimitCode(err) {
-				t.Fatalf("err = %v, want PULSE_LIMIT_EXCEEDED", err)
+				err := entries[name](context.Background())
+				if calls.Load() < 2 {
+					if budget < time.Second {
+						continue
+					}
+					t.Fatalf("no nested entry ran under a %v budget (calls = %d)", budget, calls.Load())
+				}
+				if !isLimitCode(err) {
+					t.Fatalf("err = %v (budget %v), want PULSE_LIMIT_EXCEEDED", err, budget)
+				}
+				return
 			}
 		})
 	}
