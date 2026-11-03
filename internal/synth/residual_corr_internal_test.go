@@ -374,8 +374,15 @@ func TestResidualCorrelations_ZeroPredictorModelParticipates(t *testing.T) {
 	if !ok {
 		t.Fatal("gamma carries no model")
 	}
+	// The zero-predictor premise is ASSERTED, never skipped on. gamma =
+	// 30 + z3 shares nothing with alpha, beta or region, and its best
+	// candidate sits far under minVarianceExplained (alpha adj r² ≈
+	// 0.00037, beta 0, region adj η² < 0, against the 0.01 floor), on
+	// arm64 and amd64 alike. gamma acquiring a predictor here means
+	// selection admitted a candidate that explains nothing: a selection
+	// regression to fix, not a fixture to step around.
 	if len(gamma.Predictors) != 0 {
-		t.Skipf("fixture drift: gamma acquired predictors %+v", gamma.Predictors)
+		t.Fatalf("selection admitted predictors %+v for gamma, which shares nothing with alpha, beta or region", gamma.Predictors)
 	}
 	rc := prof.ResidualCorrelations
 	found := false
