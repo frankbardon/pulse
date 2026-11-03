@@ -95,7 +95,15 @@ func TestMmapCapability_PredictMatchesRuntime(t *testing.T) {
 		if ran && resp == nil {
 			t.Error("parallel arm ran but returned no response")
 		}
-		if _, _, available, err := buildParallelDecodeContext(svc, path, cohort.Schema(), nil, nil, 0); err != nil || available != capable {
+		// Release the mapping: on Windows an open view blocks the
+		// TempDir cleanup's delete of big.pulse.
+		_, cleanup, available, err := buildParallelDecodeContext(svc, path, cohort.Schema(), nil, nil, 0)
+		if cleanup != nil {
+			if cErr := cleanup(); cErr != nil {
+				t.Errorf("capable=%v: buildParallelDecodeContext cleanup: %v", capable, cErr)
+			}
+		}
+		if err != nil || available != capable {
 			t.Errorf("capable=%v: buildParallelDecodeContext available=%v err=%v", capable, available, err)
 		}
 	}
