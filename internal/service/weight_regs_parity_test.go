@@ -330,6 +330,7 @@ func regExpansionParity(t *testing.T, weighted, expanded, scaled *parityStore) {
 						case types.WeightKindFrequency:
 							base := runArmRequest(t, expanded, mode, expanded.paths[mode.cohort], row.build(expanded.paths[mode.cohort]), nil)
 							if base == nil {
+								// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 								t.Skipf("%s does not run on the %s arm", row.name, mode.name)
 							}
 							if mode.name == "streaming" {
@@ -341,6 +342,7 @@ func regExpansionParity(t *testing.T, weighted, expanded, scaled *parityStore) {
 							assertRegsExpanded(t, row, got, base)
 						case types.WeightKindProbability:
 							if runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), nil) == nil {
+								// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 								t.Skipf("%s does not run on the %s arm", row.name, mode.name)
 							}
 							base := runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), &s)

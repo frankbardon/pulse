@@ -154,6 +154,7 @@ func TestStreamingIterator_MmapEngagesOnBasePathFs(t *testing.T) {
 	t.Parallel()
 
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" && runtime.GOOS != "freebsd" {
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd, so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()

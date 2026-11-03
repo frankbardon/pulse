@@ -37,12 +37,14 @@ func rEnvironment(t *testing.T) string {
 	t.Helper()
 	bin, err := exec.LookPath("Rscript")
 	if err != nil {
+		// skip-audit(#675): kept — permanent environment skip (no R toolchain); contract: the file header above, a local gate by design, never a CI one
 		t.Skip("Rscript is not on PATH; skipping the ReadStat / foreign interoperability check")
 	}
 	probe := exec.Command(bin, "-e",
 		`if (requireNamespace("haven", quietly=TRUE) && requireNamespace("foreign", quietly=TRUE)) cat("READY")`)
 	out, err := probe.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "READY") {
+		// skip-audit(#675): kept — permanent environment skip (R lacks haven / foreign); contract: the file header above
 		t.Skipf("R is present but haven and foreign are not both installed; skipping (%s)", strings.TrimSpace(string(out)))
 	}
 	return bin

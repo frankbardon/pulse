@@ -267,6 +267,7 @@ func groupExpansionParity(t *testing.T, weighted, expanded, scaled *parityStore)
 		for _, mode := range groupParityModes(row) {
 			t.Run(mode.name+"/"+row.name, func(t *testing.T) {
 				if runArmRequest(t, weighted, mode, weighted.paths[mode.cohort], row.build(weighted.paths[mode.cohort]), nil) == nil {
+					// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 					t.Skipf("%s does not run on the %s arm", row.name, mode.name)
 				}
 				ran++
@@ -367,6 +368,7 @@ func groupScaleInvariance(t *testing.T, base *parityStore, stores map[string]*pa
 		for _, mode := range groupParityModes(row) {
 			t.Run(mode.name+"/"+row.name, func(t *testing.T) {
 				if runArmRequest(t, base, mode, base.paths[mode.cohort], row.build(base.paths[mode.cohort]), nil) == nil {
+					// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 					t.Skipf("%s does not run on the %s arm", row.name, mode.name)
 				}
 				ran++

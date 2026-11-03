@@ -100,7 +100,7 @@ func TestFieldDescription_UTF8_ExactlyAtLimit(t *testing.T) {
 	// Create a string that is exactly MaxDescriptionBytes in UTF-8.
 	desc := strings.Repeat("é", MaxDescriptionBytes/2) // é is 2 bytes in UTF-8
 	if len(desc) != MaxDescriptionBytes {
-		t.Skipf("test assumption broken: len=%d", len(desc))
+		t.Fatalf("premise: MaxDescriptionBytes is even, so %d two-byte runes fill it exactly; got len=%d", MaxDescriptionBytes/2, len(desc))
 	}
 	var buf bytes.Buffer
 	if err := WriteDescription(&buf, desc); err != nil {

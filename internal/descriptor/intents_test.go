@@ -168,23 +168,31 @@ func TestFieldKindOf_Total(t *testing.T) {
 }
 
 // TestManifestIntents_TopLevel: the manifest lists the sorted taxonomy
-// IDs, and with no purpose declared no entry carries an intents key.
+// IDs, and with no purpose declared no entry carries an intents key
+// (the per-entry key is omitempty). The built-ins declare purposes, so
+// the no-purpose arm runs with the purpose hook emptied; the built-in
+// manifest must carry per-entry keys, or the emptied arm proves nothing.
 func TestManifestIntents_TopLevel(t *testing.T) {
-	t.Parallel()
+	// serial: swaps the package-level descriptor.purposeLookup test hook
 
-	m := BuildManifest()
-	if !slices.Equal(m.Intents, IntentIDs()) {
-		t.Errorf("manifest intents = %v, want %v", m.Intents, IntentIDs())
+	intentKeys := func(t *testing.T) int {
+		t.Helper()
+		m := BuildManifest()
+		if !slices.Equal(m.Intents, IntentIDs()) {
+			t.Errorf("manifest intents = %v, want %v", m.Intents, IntentIDs())
+		}
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Count(string(b), `"intents":`)
 	}
-	if len(builtinPurposes) > 0 {
-		t.Skip("purposes declared; the omitempty check below assumes none")
+	if c := intentKeys(t); c <= 1 {
+		t.Fatalf(`premise: the built-in manifest carries per-entry "intents" keys; got %d key(s) in all`, c)
 	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c := strings.Count(string(b), `"intents":`); c != 1 {
-		t.Errorf(`manifest JSON carries %d "intents" keys, want only the top-level one`, c)
+	injectPurposes(t, map[string]descriptor.Purpose{})
+	if c := intentKeys(t); c != 1 {
+		t.Errorf(`manifest JSON carries %d "intents" keys with no purpose declared, want only the top-level one`, c)
 	}
 }
 

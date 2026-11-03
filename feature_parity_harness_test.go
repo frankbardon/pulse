@@ -620,6 +620,7 @@ func runHiddenParityWith(t *testing.T, fsys afero.Fs, cfg parityHostConfig, fixt
 				t.Run(fixture+"/"+c.name+"/"+ep.name, func(t *testing.T) {
 					got, ok := ep.run(t, host, c, hidden)
 					if !ok {
+						// skip-audit(#675): kept — not-applicable cell (the entry point has no slot for the category, per the harness header); the applicable == 0 check below fails a run where no cell applies
 						t.Skipf("%s has no %s slot", ep.name, c.name)
 					}
 					applicable++

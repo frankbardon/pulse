@@ -37,8 +37,12 @@ func withVirtual(t *testing.T, v Virtual) {
 func TestRegisterVirtual_JoinsListAndGet(t *testing.T) {
 	// serial: registers a virtual skill in the process-wide skills registry
 
+	// The skills package links no registrar (internal/descriptor
+	// registers glossary and imports this package, never the reverse),
+	// so the stem is free here; a registered one would make the
+	// registration below a no-op and the assertions vacuous.
 	if IsVirtual(VirtualGlossary) {
-		t.Skip("glossary registered by a linked package")
+		t.Fatal("premise: nothing in the skills test binary registers the glossary virtual skill")
 	}
 	withVirtual(t, Virtual{
 		Metadata: Metadata{Name: VirtualGlossary, Description: "d"},

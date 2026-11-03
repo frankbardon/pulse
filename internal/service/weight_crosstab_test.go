@@ -179,6 +179,7 @@ func TestWeightCrosstabUnityParity(t *testing.T) {
 			t.Run(arm.name+"/"+string(row.op), func(t *testing.T) {
 				base := runCrosstabOn(t, store, crosstabParityRequest(path, row, row.baselineOp()), nil, arm)
 				if base == nil {
+					// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 					t.Skipf("%s never takes the %s arm unweighted", row.baselineOp(), arm.name)
 				}
 				ran[arm.name]++
@@ -407,6 +408,7 @@ func TestWeightCrosstabFrequencyExpansion(t *testing.T) {
 					}
 					want := runCrosstabOn(t, expanded, build(expanded), nil, arm)
 					if want == nil {
+						// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 						t.Skipf("%s never takes the %s arm unweighted", row.op, arm.name)
 					}
 					ran[arm.name]++
@@ -828,6 +830,7 @@ func TestWeightCrosstabFusedMatchesBuffered(t *testing.T) {
 							return req
 						}
 						if runCrosstabOn(t, store, build(row.baselineOp()), nil, fused) == nil {
+							// skip-audit(#675): kept — not-applicable cell (the operator never runs on this arm); the ran/streamed floor in this function fails the gate if too few cells run
 							t.Skipf("%s never takes the fused arm", row.baselineOp())
 						}
 						ran++

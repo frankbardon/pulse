@@ -712,11 +712,11 @@ func TestCrosstabComponents_CellComponents_EmptyCellsNil(t *testing.T) {
 	// (east, wholesale) is the canonical empty cell on the fixture.
 	ei, ok := rowByName["east"]
 	if !ok {
-		t.Skip("no east row — skipping empty-cell check")
+		t.Fatal("premise: the fixture has an east row (the empty-cell check is vacuous otherwise)")
 	}
 	ej, ok := colByName["wholesale"]
 	if !ok {
-		t.Skip("no wholesale col — skipping empty-cell check")
+		t.Fatal("premise: the fixture has a wholesale column (the empty-cell check is vacuous otherwise)")
 	}
 	if !matrix.Cells[ei][ej].Present == false {
 		t.Errorf("Matrix.Cells[east][wholesale].Present = true, want false (sanity)")
