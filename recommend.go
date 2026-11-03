@@ -135,7 +135,8 @@ func asAnchorFault(err error) (*anchorFault, bool) {
 // openCohortSource opens the cohort at path through the instance Fs for
 // a no-execute read (Predict, Inspect, the guidance surfaces). A
 // returned *anchorFault is an unresolvable anchor; any other error is
-// the open itself. An anchored shard is predicted as the single file it
+// the open itself, SERVICE_RESOURCE (the code the runtime's open raises
+// for an unopenable cohort), the fs error kept as Cause. An anchored shard is predicted as the single file it
 // is: its run reads only that shard (U51), so no archive term applies.
 func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	readPath, entry := path, ""
@@ -144,7 +145,8 @@ func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	}
 	f, err := p.fsys.Open(readPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			"opening cohort "+readPath+": "+err.Error())
 	}
 	closeFile := func() { _ = f.Close() }
 	if entry == "" {
@@ -153,7 +155,8 @@ func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	size, err := f.Seek(0, io.SeekEnd)
 	if err != nil {
 		closeFile()
-		return nil, err
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			"sizing shard archive "+readPath+": "+err.Error())
 	}
 	rs, err := archiveEntryReader(f, size, entry)
 	if err != nil {

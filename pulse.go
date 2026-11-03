@@ -1670,8 +1670,11 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 }
 
 func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictResult, error) {
+	if req == nil {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
+	}
 	if req.Cohort == nil {
-		return nil, fmt.Errorf("pulse: predict requires a cohort")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
 	}
 
 	path := resolveCohortPath(req.Cohort)
@@ -1746,10 +1749,10 @@ func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.
 		return nil, err
 	}
 	if req == nil {
-		return nil, fmt.Errorf("pulse: predict requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
 	}
 	if req.Cohort == nil {
-		return nil, fmt.Errorf("pulse: predict requires a cohort")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
 	}
 	path := resolveCohortPath(req.Cohort)
 	src, err := p.openCohortSource(path)
@@ -1823,7 +1826,7 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		return nil, err
 	}
 	if req == nil {
-		return nil, fmt.Errorf("pulse: predict requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
 	}
 	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
 		Strict:                p.svc.Strict(),

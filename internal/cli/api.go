@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -998,16 +997,12 @@ func loadChainRequest(path string) (*types.ChainRequest, error) {
 }
 
 // decodeRequestJSON decodes a request file's bytes into out through the
-// shared strict decoder (internal/strictjson), as MCP does: an unknown
-// key at any depth is the coded PULSE_REQUEST_UNKNOWN_FIELD refusal
-// (details.path, suggestions, valid_keys), returned unwrapped so the
-// envelope carries its own code; a root `_meta` example block is
-// tolerated. Any other fault is the JSON error, wrapped with what.
+// shared strict request-entry decoder (strictjson.DecodeRequestInto), as
+// MCP does: an unknown key at any depth is the coded
+// PULSE_REQUEST_UNKNOWN_FIELD refusal (details.path, suggestions,
+// valid_keys); any other fault is SERVICE_VALIDATION "parsing <what>
+// JSON: ...". Either is returned unwrapped, so the envelope carries its
+// own code; a root `_meta` example block is tolerated.
 func decodeRequestJSON(data []byte, out any, what string) error {
-	err := strictjson.DecodeInto(data, out, strictjson.Options{AllowMeta: true})
-	var ce *perr.CodedError
-	if err == nil || errors.As(err, &ce) {
-		return err
-	}
-	return fmt.Errorf("parsing %s JSON: %w", what, err)
+	return strictjson.DecodeRequestInto(data, out, strictjson.Options{AllowMeta: true}, what)
 }

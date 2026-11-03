@@ -1,0 +1,2 @@
+go test fuzz v1
+string("len(map(1..100000000, #))")

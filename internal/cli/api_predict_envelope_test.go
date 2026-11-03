@@ -74,8 +74,11 @@ func TestAPIPredict_ReadsCohortThroughFacadePath(t *testing.T) {
 		}
 	}
 
+	// An unopenable cohort is the facade's coded SERVICE_RESOURCE (the
+	// runtime open's code), carried as its own code — never the
+	// PREDICT_ERROR placeholder an uncoded fault falls back to.
 	env, raw := run(filepath.Join(dir, "nope.pulse"))
-	if len(env.Errors) != 1 || env.Errors[0].Code != "PREDICT_ERROR" {
-		t.Errorf("missing cohort: want one PREDICT_ERROR, got\n%s", raw)
+	if len(env.Errors) != 1 || env.Errors[0].Code != "SERVICE_RESOURCE" {
+		t.Errorf("missing cohort: want one SERVICE_RESOURCE, got\n%s", raw)
 	}
 }

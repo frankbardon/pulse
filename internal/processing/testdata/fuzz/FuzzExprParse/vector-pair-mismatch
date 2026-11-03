@@ -1,0 +1,2 @@
+go test fuzz v1
+string("dot(v, [1, 2, 3])")
