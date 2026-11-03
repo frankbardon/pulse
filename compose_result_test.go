@@ -143,6 +143,48 @@ func TestComposeResult_RefusalParity(t *testing.T) {
 	}
 }
 
+// TestComposeResult_NotNumericRefusedStatically: reading an
+// aggregation that writes no single number — a map-valued AGG_WELFORD,
+// a label AGG_CONSTANT — is refused before any slot runs, predict ≡
+// both orchestrators (fail-fast and not): PULSE_RESULT_INVALID reason
+// not_numeric, same message and details, no unresolved bound.
+func TestComposeResult_NotNumericRefusedStatically(t *testing.T) {
+	t.Parallel()
+
+	p := optPulse(t, Options{})
+	cases := map[string]*types.Aggregation{
+		"map valued":     {Type: types.AGG_WELFORD, Field: "units", Label: "moments"},
+		"label constant": {Type: types.AGG_CONSTANT, Label: "moments", Params: json.RawMessage(`{"type":"categorical_u8","value":"hi"}`)},
+	}
+	for name, agg := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := resultBatch(t, `result("after", "moments")`)
+			c.Requests[1].Aggregations = append(c.Requests[1].Aggregations, agg)
+			env, err := p.PredictCompose(context.Background(), c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_RESULT_INVALID) {
+				t.Fatalf("predict errors %+v, want PULSE_RESULT_INVALID", env.Errors)
+			}
+			if d := env.Errors[0].Details; d["reason"] != "not_numeric" || d["slot"] != "after" || d["aggregation"] != "moments" || d["field"] != "optimize[0].variables[0].upper" {
+				t.Fatalf("predict details %v", d)
+			}
+			runs := composeRuns(p)
+			for k, v := range failFastRuns(p) {
+				runs[k+"/fail-fast"] = v
+			}
+			for run, fn := range runs {
+				resp, rerr := fn(c)
+				ce := requireCoded(t, rerr, perr.PULSE_RESULT_INVALID)
+				if resp != nil || env.Errors[0].Message != ce.Message || !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
+					t.Fatalf("%s: predict %+v differs from runtime %s %v", run, env.Errors[0], ce.Message, ce.Details)
+				}
+			}
+		})
+	}
+}
+
 // TestComposeResult_OutOfScope: result() is read only by an optimize
 // block. A slot's AGG_CONSTANT expr, a slot's window param and a fit
 // request's window param each refuse it — PULSE_RESULT_INVALID reason

@@ -1527,7 +1527,10 @@ ungrouped Compose slot, `lookup()` and the built-ins; no variable, no
 record field), `"params.<name>"` the simplest, yielding a finite number
 (`start` optional; the midpoint when absent). A slot `result()` reads
 runs once, after the fits and before the blocks, keeping its place in
-`responses`; a bad reference is `PULSE_RESULT_INVALID`. `objective` and every `constraints[i].expr`
+`responses`; a bad reference (incl. an aggregation that writes no
+single number) is `PULSE_RESULT_INVALID`, and a failed read slot fails
+the batch before any block, its error naming the slot
+(`details.result_slot`, or `result_slots` on a non-fail-fast aggregate). `objective` and every `constraints[i].expr`
 (type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
 variables, `params.<name>`, `coef()` over the batch's `fits` and the
 built-ins; `direction` is `maximize` or `minimize` (required); `starts`

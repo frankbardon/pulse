@@ -64,8 +64,10 @@ const (
 	// ReasonNull: at run time the value is null (undefined — no row
 	// reached the aggregation, or its figure is NaN).
 	ReasonNull = "null"
-	// ReasonNotNumeric: at run time the value is not a number (a map,
-	// a list, a string, a bool — details type).
+	// ReasonNotNumeric: the aggregation writes no single number —
+	// statically, its type is non-scalar (CatalogWith); at run time,
+	// the value is not a number (a map, a list, a string, a bool —
+	// details type).
 	ReasonNotNumeric = "not_numeric"
 	// ReasonNotFinite: at run time the value is an infinity (details
 	// value).
@@ -85,6 +87,9 @@ type Slot struct {
 	Aggregations []string
 	// Grouped reports groups or a crosstab: no single value per label.
 	Grouped bool
+	// NonNumeric are the labels of its aggregations whose value is not
+	// one number (CatalogWith's nonNumeric judgement), in slot order.
+	NonNumeric []string
 }
 
 // Catalog is the batch's slots, the names a literal result() call is
@@ -96,8 +101,19 @@ type Catalog struct {
 // CatalogOf is the catalog of the batch's slots (the effective request,
 // after sweep and banner expansion), index-aligned; a nil slot is
 // skipped. A label two slots share resolves to the first (the batch's
-// label rule refuses the pair later).
+// label rule refuses the pair later). It judges no aggregation
+// non-numeric: CatalogWith(requests, nil).
 func CatalogOf(requests []*types.Request) *Catalog {
+	return CatalogWith(requests, nil)
+}
+
+// CatalogWith is CatalogOf with each aggregation judged by nonNumeric
+// (nil: none is) — the instance's vectors.AggregationKinds.
+// IsNonScalarSlot, so a map-, array- or label-valued aggregator and a
+// non-numeric AGG_CONSTANT are refused statically (ReasonNotNumeric)
+// by predict and the runtime alike, before any slot runs. The caller
+// passes the judgement so this leaf stays engine-free.
+func CatalogWith(requests []*types.Request, nonNumeric func(*types.Aggregation) bool) *Catalog {
 	c := &Catalog{}
 	for i, r := range requests {
 		if r == nil {
@@ -106,7 +122,11 @@ func CatalogOf(requests []*types.Request) *Catalog {
 		s := Slot{Index: i, Label: EffectiveLabel(r, i), Grouped: len(r.Groups) > 0 || r.Crosstab != nil}
 		for _, a := range r.Aggregations {
 			if a != nil {
-				s.Aggregations = append(s.Aggregations, types.AggregationLabelOf(a))
+				label := types.AggregationLabelOf(a)
+				s.Aggregations = append(s.Aggregations, label)
+				if nonNumeric != nil && nonNumeric(a) {
+					s.NonNumeric = append(s.NonNumeric, label)
+				}
 			}
 		}
 		c.slots = append(c.slots, s)
@@ -196,8 +216,8 @@ func (v *visitor) Visit(node *exprast.Node) {
 // against cat, in walk order — nil when every call passes or src makes
 // none. A nil cat refuses any call (ReasonOutOfScope); otherwise a
 // two-argument call needs both arguments string literals naming a slot
-// of the batch, an aggregation label of that slot, and an ungrouped
-// slot. Predict and the runtime's entry check run the same rule, so
+// of the batch, an aggregation label of that slot, an ungrouped slot
+// and an aggregation the catalog does not judge non-numeric. Predict and the runtime's entry check run the same rule, so
 // both refuse identically.
 func Refusal(src string, cat *Catalog) *errors.CodedError {
 	for _, c := range Calls(src) {
@@ -235,6 +255,11 @@ func check(src string, c Call, cat *Catalog) *errors.CodedError {
 	}
 	if s.Grouped {
 		return invalid(ReasonGrouped, call(c)+": slot "+strconv.Quote(c.Slot)+" is grouped (groups or a crosstab), so the aggregation has no single value",
+			map[string]any{"slot": c.Slot, "aggregation": c.Aggregation})
+	}
+	if slices.Contains(s.NonNumeric, c.Aggregation) {
+		return invalid(ReasonNotNumeric, call(c)+": aggregation "+strconv.Quote(c.Aggregation)+" of slot "+strconv.Quote(c.Slot)+
+			" writes no single number (a map, a list or a string), so it cannot be read as one",
 			map[string]any{"slot": c.Slot, "aggregation": c.Aggregation})
 	}
 	return nil

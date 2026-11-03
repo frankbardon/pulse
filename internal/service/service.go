@@ -1411,16 +1411,17 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err != nil {
 		return nil, err
 	}
-	// The optimize blocks, once the fits are bound and before every slot
-	// the result pre-phase did not run: they read no record
-	// (runComposeOptimize).
 	// The result pre-phase: every slot a block's result() reads runs
 	// now, once, before the blocks (runComposeResultPhase — ran marks
-	// it for the slot phase below).
-	ran, err = runComposeResultPhase(composed, len(requests), ran, models, runSlots)
+	// it for the slot phase below). A failed one stops the batch before
+	// any block, its error naming the slot (resultPhaseFailure).
+	ran, _, err = runComposeResultPhase(composed, len(requests), ran, models, runSlots)
 	if err != nil {
 		return nil, err
 	}
+	// The optimize blocks, once the fits are bound and before every slot
+	// the result pre-phase did not run: they read no record
+	// (runComposeOptimize).
 	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded, responses)
 	if err != nil {
 		return nil, err

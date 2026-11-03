@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/internal/optblock"
 	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/tablecall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -26,12 +27,14 @@ import (
 // the runtime (Service.compose / composeParallel) call it at the same
 // point, right after model.CheckFits, so both refuse the same block
 // identically. Every result(slot, aggregation) call is judged against
-// the batch's effective slots (resultcall.CatalogOf over req.Requests,
-// sweep and banner slots included). It returns each block's decoded `models` files
+// the batch's effective slots (ResultCatalog over req.Requests,
+// sweep and banner slots included, each aggregation judged by kinds —
+// the instance's view, so a non-numeric one is refused statically on
+// both sides). It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
 // batch declares no block.
-func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
-	checked, cerr := OptimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load)
+func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) ([]*model.Loaded, *errors.CodedError) {
+	checked, cerr := OptimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds)
 	if cerr != nil || checked == nil {
 		return nil, cerr
 	}
@@ -42,7 +45,7 @@ func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctio
 // starts the declaration-only check left unresolved (optblock.CheckAll)
 // — predict's ComposeValidationResult.UnresolvedScalars. Nil, nil when
 // the batch declares no block.
-func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) (*optblock.Checked, *errors.CodedError) {
+func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) (*optblock.Checked, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
@@ -56,8 +59,16 @@ func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions
 		Tables:     tables,
 		Outer:      model.WithinCatalog(outer, fits),
 		Load:       load,
-		Results:    resultcall.CatalogOf(req.Requests),
+		Results:    ResultCatalog(req.Requests, kinds),
 	})
+}
+
+// ResultCatalog is the result() catalog of the batch's effective slots
+// with each aggregation judged non-numeric by kinds.IsNonScalarSlot —
+// the one builder predict (OptimizeCheck) and the runtime (its entry
+// check, the pre-phase and the solve's reader) share.
+func ResultCatalog(requests []*types.Request, kinds vectors.AggregationKinds) *resultcall.Catalog {
+	return resultcall.CatalogWith(requests, kinds.IsNonScalarSlot)
 }
 
 // optimizeUnresolved is the blocks' unresolved bounds and starts as

@@ -46,7 +46,7 @@ A `models` entry may declare the model instead of naming a file — exactly one 
 
 ## Bounds from data: result()
 
-`result("<slot label>", "<aggregation label>")` reads an ungrouped aggregation of a batch slot, e.g. `"upper": "result(\"current\", \"spend_tv\") * params.upper_share"`. That slot runs first, once, and keeps its place in `responses`. Both arguments are literals (an unlabelled slot is `request_<n>`); the slot has no groups or crosstab. Only a block reads it (bounds, starts, objective, constraints); elsewhere it is `PULSE_RESULT_INVALID` `out_of_scope`. Predict refuses an unknown slot or label; a null value fails the batch at run time.
+`result("<slot label>", "<aggregation label>")` reads a batch slot's ungrouped aggregation, e.g. `"upper": "result(\"current\", \"spend_tv\") * params.upper_share"`. That slot runs first, once, in its `responses` place. Both arguments are literals (an unlabelled slot is `request_<n>`); the slot has no groups / crosstab. Only a block reads it (bounds, starts, objective, constraints), else `PULSE_RESULT_INVALID` `out_of_scope`. Predict refuses an unknown slot / label or a non-number; a null or a failed slot (`details.result_slot`) fails the batch.
 
 ## Pattern: fits, then optimize
 

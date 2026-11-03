@@ -359,7 +359,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	checked, oerr := OptimizeCheck(req, sweepFits.Axes, predictExprFunctionNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles)
+	checked, oerr := OptimizeCheck(req, sweepFits.Axes, predictExprFunctionNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles, aggregationKinds(opts.instance(), extensionsFromOpts(opts)))
 	if oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false

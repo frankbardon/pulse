@@ -77,6 +77,29 @@ func TestRefusal_Static(t *testing.T) {
 	}
 }
 
+// TestRefusal_NotNumeric: a catalog built with a non-numeric judgement
+// refuses reading an aggregation it marks (after the grouped check),
+// naming slot and aggregation; CatalogOf marks none.
+func TestRefusal_NotNumeric(t *testing.T) {
+	t.Parallel()
+
+	marks := func(a *types.Aggregation) bool { return a.Type == types.AGG_COUNT }
+	cat := CatalogWith(batch(), marks)
+	cerr := Refusal(`result("current", "AGG_COUNT_week") + 1`, cat)
+	if got := reasonOf(t, cerr); got != ReasonNotNumeric {
+		t.Fatalf("reason %q, want not_numeric", got)
+	}
+	if want := map[string]any{"slot": "current", "aggregation": "AGG_COUNT_week", "reason": ReasonNotNumeric}; !reflect.DeepEqual(cerr.Details, want) {
+		t.Errorf("details %v, want %v", cerr.Details, want)
+	}
+	if cerr := Refusal(`result("current", "tv")`, cat); cerr != nil {
+		t.Errorf("a numeric aggregation refused: %v", cerr)
+	}
+	if got := reasonOf(t, Refusal(`result("current", "AGG_COUNT_week")`, CatalogOf(batch()))); got != "" {
+		t.Errorf("CatalogOf judged a slot non-numeric: %q", got)
+	}
+}
+
 // TestRefusal_OutOfScope: a nil catalog refuses any result() call —
 // literal or not, any arity — and passes an expression making none.
 func TestRefusal_OutOfScope(t *testing.T) {
