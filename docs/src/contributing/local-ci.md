@@ -251,7 +251,8 @@ fast-tier test binary on its own (`go test -run '^$' ./...`) and writes
 the compile time to the job summary, so compile and run cost read
 apart. Each Go job restores the `setup-go` module and build
 cache. The lint jobs and `build` hash different files into their cache
-keys, so they never seed the cache the test jobs use.
+keys, so they never seed the cache the test jobs use; `cache-warm.yml`
+does ([Warm build cache](#warm-build-cache)).
 
 `make lint` runs serially on one machine; CI splits it so the two
 staticcheck tiers run in parallel with `fmt-vet`. Each staticcheck job
@@ -285,6 +286,44 @@ is the one a local `make dist VERSION=<tag>` builds. A tag containing
 `-` is published as a pre-release, and a release never takes Latest.
 The `apidiff` job is skipped under a release's `workflow_call`, since
 the tagged tree is the release itself.
+
+### Warm build cache
+
+GitHub scopes an Actions cache to the ref that saved it. A run can
+restore caches saved on its own branch or on the default branch
+(`main`), never a sibling branch's. `ci.yml` runs only on branch
+dispatches and tag releases, so without help `main` holds no Go cache
+and every branch's first CI run compiles cold (a full coverage compile
+is roughly 170 s on a runner).
+
+`.github/workflows/cache-warm.yml` fills that gap. It runs on every push
+to `main` and on `workflow_dispatch`, and only compiles, so no test
+runs:
+
+| Step | Runs |
+|---|---|
+| Drop stale caches | deletes the ref's `setup-go-*` caches, so the restore misses and the job saves a cache of this tree |
+| Set up Go | `actions/setup-go` with `go-version: "1.26"` and the default `cache` and `cache-dependency-path` (`go.sum`), as in `test` / `test-heavy` |
+| Build | `go build ./...` |
+| Compile tests (fast tier) | `go test -count=1 -run '^$' -coverpkg=./... ./...`, the `test (1.26)` compile |
+| Compile tests (heavy tier) | `go test -tags heavy -count=1 -run '^$' -coverpkg=./... ./...`, the build `citest heavy-run` does |
+
+The settings have to match the test jobs exactly. `setup-go` keys its
+cache as `setup-go-<OS>-<arch>-<image>-go-<resolved Go version>-<hash of
+cache-dependency-path>` and restores by exact key only, so a different
+`go-version` or dependency path gives a key the test jobs never read. A
+`-coverpkg` compile is its own build-cache entry, so the warm compile
+also has to use the same flags. Both workflows carry a KEEP IN SYNC
+comment at those steps; change them together.
+
+A saved cache cannot be overwritten, and `setup-go` skips the save when
+its key already exists. The key changes only with `go.sum` or the Go
+patch release, so without the first step `main`'s cache would keep the
+first tree it saved and go stale. Deleting first means a short window
+after each `main` push (the length of one cold compile) in which a branch
+run misses the cache. Dispatching `cache-warm.yml` on a branch saves into
+that branch's scope and also drops the branch's lint and `build` caches,
+which rebuild on the next CI run.
 
 ## CLAUDE.md hygiene gates
 

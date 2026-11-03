@@ -26,6 +26,8 @@ name: CI
 #                           below its .github/coverage-floors.txt floor
 #   apidiff                 exported-API delta vs the latest v* tag;
 #                           advisory, not required, dispatch only
+# cache-warm.yml (every main push) seeds the build cache the test jobs
+# restore; branch runs can read only their own and main's caches.
 on:
   workflow_dispatch:
   workflow_call:
@@ -194,6 +196,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # KEEP IN SYNC with cache-warm.yml: it seeds this job's cache from
+      # main, so its setup-go inputs (go-version "1.26", default cache and
+      # cache-dependency-path) and compile flags must match this job's.
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -211,7 +216,8 @@ jobs:
       # start-up of each binary (~9 s local).
       # -coverpkg=./... here and below: the run also writes the fast
       # tier's coverage profile for the coverage job (a coverage build is
-      # its own cache entry, so the compile flags must match the run's).
+      # its own cache entry, so the compile flags must match the run's,
+      # and cache-warm.yml's).
       - name: Compile tests (fast tier)
         shell: bash
         run: |
@@ -262,6 +268,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # KEEP IN SYNC with cache-warm.yml (same key as `test`; see there).
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -278,6 +285,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         # heavy-run merges the profiles of the shard's go test runs into
         # one (header-only for an empty shard) for the coverage job.
+        # KEEP IN SYNC: cache-warm.yml compiles with these build flags.
         run: |
           mkdir -p "$RUNNER_TEMP/cover"
           "$RUNNER_TEMP/citest" heavy-run "$SHARD" -count=1 -timeout=30m -json \
