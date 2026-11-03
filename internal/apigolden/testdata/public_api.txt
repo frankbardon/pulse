@@ -356,6 +356,7 @@ pulse: type FacetPredictResult field OverlaysApplied []pulse/descriptor.OverlayA
 pulse: type FacetPredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse: type FacetPredictResult field Request *pulse/types.FacetRequest "json:\"request\""
 pulse: type FacetPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse: type FacetPredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse: type FacetPredictResult field Valid bool "json:\"valid\""
 pulse: type FacetRequest = pulse/types.FacetRequest
 pulse: type FacetRequest underlying struct
@@ -6688,4 +6689,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d3f28bff10882bda927bd44be29bd57aa20e4c1f315edfc9e5191ec159a644de
+// golden-hash: e6b234a9e14773fe9aca05cf9f6088e6b7acc57644a45710e8d5c95008f9422e
