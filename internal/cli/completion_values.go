@@ -545,7 +545,7 @@ func writeCandidates(cmd *cli.Command, vs []string) {
 	slices.Sort(vs)
 	var b strings.Builder
 	for _, v := range slices.Compact(vs) {
-		b.WriteString(v)
+		b.WriteString(escapeCandidate(v)) // completion_scripts.go
 		b.WriteByte('\n')
 	}
 	_, _ = cmd.Root().Writer.Write([]byte(b.String()))

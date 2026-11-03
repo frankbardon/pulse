@@ -82,14 +82,16 @@ func completeWords(t *testing.T, words ...string) (string, string, int) {
 }
 
 // candidates parses completion output ("name" or "name:usage" lines)
-// into the candidate names.
+// into the candidate names exactly as the shipped scripts do: split at
+// the first unescaped ":", backslash escapes dropped
+// (pcli.UnescapeCandidate) — so a Windows C:\... cohort comes back whole.
 func candidates(out string) []string {
 	var names []string
 	for _, line := range strings.Split(out, "\n") {
 		if line == "" {
 			continue
 		}
-		name, _, _ := strings.Cut(line, ":")
+		name, _ := pcli.UnescapeCandidate(line)
 		names = append(names, name)
 	}
 	return names

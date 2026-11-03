@@ -79,6 +79,9 @@ func configureCompletionCommand(c *cli.Command) {
 	c.Commands = slices.DeleteFunc(c.Commands, func(sub *cli.Command) bool {
 		return !slices.Contains(completionShells, sub.Name)
 	})
+	for _, sub := range c.Commands {
+		patchCompletionAction(sub)
+	}
 	InstallExitPolicy(c)
 }
 
